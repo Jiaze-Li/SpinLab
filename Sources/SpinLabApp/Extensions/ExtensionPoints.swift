@@ -29,7 +29,9 @@ struct AMRPHEMetadataExtension: MetadataExtension {
     let workflow: SpinLabDomain.WorkflowKind = .amrPhe
 
     func parseFilename(from fileURL: URL) -> SpinLabDomain.ParsedFilenameHints {
-        FilenameRuleParser().parse(from: fileURL)
+        let loadResult = RuleLoader.shared.loadCached()
+        let parser = FilenameRuleParser(ruleSet: loadResult.ruleSet)
+        return parser.parse(from: fileURL)
     }
 }
 

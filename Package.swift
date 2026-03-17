@@ -21,7 +21,10 @@ let package = Package(
             dependencies: [
                 "CoreXLSX"
             ],
-            path: "Sources/SpinLabApp"
+            path: "Sources/SpinLabApp",
+            resources: [
+                .process("config")
+            ]
         )
     ]
 )

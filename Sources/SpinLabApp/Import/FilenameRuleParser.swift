@@ -1,6 +1,12 @@
 import Foundation
 
 struct FilenameRuleParser {
+    let ruleSet: FilenameRuleSet
+
+    init(ruleSet: FilenameRuleSet) {
+        self.ruleSet = ruleSet
+    }
+
     func parse(from fileURL: URL) -> SpinLabDomain.ParsedFilenameHints {
         let fileStem = fileURL.deletingPathExtension().lastPathComponent
         let parentName = fileURL.deletingLastPathComponent().lastPathComponent
@@ -9,23 +15,35 @@ struct FilenameRuleParser {
         let fileTokens = tokenize(fileStem)
         let parentTokens = tokenize(parentName)
         let grandparentTokens = tokenize(grandparentName)
-        let contextTokens = fileTokens + parentTokens + grandparentTokens
+        let contextTokens = tokensForSources(
+            fileTokens: fileTokens,
+            parentTokens: parentTokens,
+            grandparentTokens: grandparentTokens
+        )
+        let joined = joinedSourceText(
+            fileStem: fileStem,
+            parentName: parentName,
+            grandparentName: grandparentName
+        )
 
-        let fileSampleIDs = SampleIDParser.extractSampleIDs(fromTokens: fileTokens)
+        let fileSampleIDs = ruleSet.sampleIDs(from: fileTokens)
         let folderSampleIDs = uniquePreservingOrder(
-            SampleIDParser.extractSampleIDs(fromTokens: parentTokens)
-                + SampleIDParser.extractSampleIDs(fromTokens: grandparentTokens)
+            ruleSet.sampleIDs(from: parentTokens)
+                + ruleSet.sampleIDs(from: grandparentTokens)
         )
         let allSampleIDs = uniquePreservingOrder(fileSampleIDs + folderSampleIDs)
 
-        let measurement = measurementName(from: fileStem, parentName: parentName, grandparentName: grandparentName, tokens: contextTokens)
-        let measurementTags = measurementTags(from: contextTokens)
-        let substrateTags = substrateTags(from: contextTokens)
+        let measurement = ruleSet.measurementName(from: contextTokens, joined: joined)
+        let measurementTags = uniquePreservingOrder(ruleSet.measurementTags(from: contextTokens))
+        let substrateTags = uniquePreservingOrder(ruleSet.substrateTags(from: contextTokens))
         let channelHints = channelHints(from: fileTokens)
-        let warnings = conflictWarnings(fileSampleIDs: fileSampleIDs, folderSampleIDs: folderSampleIDs)
+        let warnings = uniquePreservingOrder(
+            ruleSet.loadWarnings
+                + conflictWarnings(fileSampleIDs: fileSampleIDs, folderSampleIDs: folderSampleIDs)
+        )
 
         return SpinLabDomain.ParsedFilenameHints(
-            batchName: batchName(from: fileTokens),
+            batchName: ruleSet.batchName(from: fileTokens),
             sampleName: defaultSampleName(
                 fileSampleIDs: fileSampleIDs,
                 folderSampleIDs: folderSampleIDs,
@@ -33,105 +51,59 @@ struct FilenameRuleParser {
                 substrateTags: substrateTags
             ),
             measurementName: measurement ?? fileStem,
-            deviceName: contextTokens.contains(where: { $0.caseInsensitiveCompare("wafer") == .orderedSame }) ? "wafer" : nil,
+            deviceName: ruleSet.deviceName(from: contextTokens),
             workflowName: nil,
             sampleIDs: allSampleIDs,
             channelHints: channelHints,
             measurementTags: measurementTags,
             substrateTags: substrateTags,
-            temperature: firstMatch(in: contextTokens, pattern: #"^\d+K$"#),
+            temperature: ruleSet.temperature(from: contextTokens),
             growthTemperature: nil,
-            current: firstMatch(in: contextTokens, pattern: #"^\d+(?:\.\d+)?mA$"#),
-            field: firstMatch(in: contextTokens, pattern: #"^-?\d+T$"#),
-            rotationHint: rotationHint(from: contextTokens),
+            current: ruleSet.current(from: contextTokens),
+            field: ruleSet.field(from: contextTokens),
+            rotationHint: ruleSet.rotationHint(from: contextTokens),
             warnings: warnings
         )
     }
 
     private func tokenize(_ value: String) -> [String] {
         value
-            .split(whereSeparator: { "_- ()".contains($0) })
+            .split(whereSeparator: { ruleSet.tokenization.separators.contains($0) })
             .map(String.init)
             .filter { !$0.isEmpty }
     }
 
-    private func measurementName(from fileStem: String, parentName: String, grandparentName: String, tokens: [String]) -> String? {
-        let joined = [fileStem, parentName, grandparentName].joined(separator: " ").lowercased()
-
-        if joined.contains("xy") || joined.contains("rotation") {
-            return "XY"
-        }
-
-        if tokens.contains(where: { $0.caseInsensitiveCompare("MR") == .orderedSame }) {
-            return "MR"
-        }
-
-        if tokens.contains(where: { $0.caseInsensitiveCompare("RT") == .orderedSame }) {
-            return "RT"
-        }
-
-        if tokens.contains(where: { $0.caseInsensitiveCompare("AHE") == .orderedSame }) {
-            return "AHE"
-        }
-
-        return nil
-    }
-
-    private func measurementTags(from tokens: [String]) -> [String] {
-        let aliases: [String: String] = [
-            "AMR": "AMR",
-            "PHE": "PHE",
-            "RXX": "Rxx",
-            "RXY": "Rxy"
-        ]
-
-        return uniquePreservingOrder(
-            tokens.compactMap { token in
-                aliases[token.uppercased()]
-            }
-        )
-    }
-
-    private func substrateTags(from tokens: [String]) -> [String] {
+    private func tokensForSources(
+        fileTokens: [String],
+        parentTokens: [String],
+        grandparentTokens: [String]
+    ) -> [String] {
         var collected: [String] = []
-
-        for token in tokens {
-            let normalized = token.uppercased()
-
-            if normalized == "HF" || normalized.contains("HF") {
-                collected.append("HF")
-            }
-
-            if normalized == "BAKE" || normalized == "BAKED" || normalized.contains("BAKE") {
-                collected.append("baked")
-            }
-
-            if normalized == "O" || normalized.contains("ORIGIN") || normalized.contains("ORIGINAL") {
-                collected.append("origin")
-            }
-
-            if normalized.contains("STO111") {
-                collected.append("STO111")
-            } else if normalized.contains("STO001") {
-                collected.append("STO001")
-            } else if normalized == "STO" || normalized.contains("STO") {
-                collected.append("STO")
-            }
-
-            if normalized == "NGO" || normalized.contains("NGO") {
-                collected.append("NGO")
-            }
-
-            if normalized == "111" {
-                collected.append("111")
-            }
-
-            if normalized == "001" {
-                collected.append("001")
+        for source in ruleSet.sources {
+            switch source {
+            case .file:
+                collected.append(contentsOf: fileTokens)
+            case .parent:
+                collected.append(contentsOf: parentTokens)
+            case .grandparent:
+                collected.append(contentsOf: grandparentTokens)
             }
         }
+        return collected
+    }
 
-        return uniquePreservingOrder(collected)
+    private func joinedSourceText(fileStem: String, parentName: String, grandparentName: String) -> String {
+        let parts: [String] = ruleSet.sources.map { source in
+            switch source {
+            case .file:
+                return fileStem
+            case .parent:
+                return parentName
+            case .grandparent:
+                return grandparentName
+            }
+        }
+        return parts.joined(separator: " ").lowercased()
     }
 
     private func channelHints(from fileTokens: [String]) -> [SpinLabDomain.ParsedChannelHint] {
@@ -139,7 +111,7 @@ struct FilenameRuleParser {
         var index = 0
 
         while index < fileTokens.count {
-            guard let normalizedChannel = normalizeChannel(fileTokens[index]) else {
+            guard let normalizedChannel = ruleSet.normalizeChannel(fileTokens[index]) else {
                 index += 1
                 continue
             }
@@ -147,13 +119,15 @@ struct FilenameRuleParser {
             var collected: [String] = []
             index += 1
 
-            while index < fileTokens.count, normalizeChannel(fileTokens[index]) == nil {
+            while index < fileTokens.count, ruleSet.normalizeChannel(fileTokens[index]) == nil {
                 collected.append(fileTokens[index])
                 index += 1
             }
 
-            let sampleID = SampleIDParser.extractSampleIDs(fromTokens: collected).first
-            let tags = uniquePreservingOrder(substrateTags(from: collected) + measurementTags(from: collected))
+            let sampleID = ruleSet.sampleIDs(from: collected).first
+            let tags = uniquePreservingOrder(
+                ruleSet.substrateTags(from: collected) + ruleSet.measurementTags(from: collected)
+            )
             hints.append(
                 SpinLabDomain.ParsedChannelHint(
                     channel: normalizedChannel,
@@ -164,24 +138,6 @@ struct FilenameRuleParser {
         }
 
         return hints
-    }
-
-    private func normalizeChannel(_ token: String) -> String? {
-        switch token.lowercased() {
-        case "ch1", "c1":
-            return "ch1"
-        case "ch2", "c2":
-            return "ch2"
-        case "ch3", "c3":
-            return "ch3"
-        default:
-            return nil
-        }
-    }
-
-    private func batchName(from tokens: [String]) -> String? {
-        SampleIDParser.extractSampleIDs(fromTokens: tokens).first
-            ?? tokens.first(where: { $0.range(of: #"^(B|Batch)\d+$"#, options: .regularExpression) != nil })
     }
 
     private func defaultSampleName(
@@ -215,10 +171,6 @@ struct FilenameRuleParser {
         return nil
     }
 
-    private func rotationHint(from tokens: [String]) -> String? {
-        tokens.contains(where: { $0.caseInsensitiveCompare("90shift") == .orderedSame }) ? "+90deg for I parallel B" : nil
-    }
-
     private func conflictWarnings(fileSampleIDs: [String], folderSampleIDs: [String]) -> [String] {
         guard !fileSampleIDs.isEmpty, !folderSampleIDs.isEmpty else {
             return []
@@ -233,10 +185,6 @@ struct FilenameRuleParser {
         return [
             "Filename sample IDs (\(fileSampleIDs.joined(separator: ", "))) conflict with parent-folder sample IDs (\(folderSampleIDs.joined(separator: ", ")))."
         ]
-    }
-
-    private func firstMatch(in tokens: [String], pattern: String) -> String? {
-        tokens.first(where: { $0.range(of: pattern, options: .regularExpression) != nil })
     }
 
     private func uniquePreservingOrder(_ values: [String]) -> [String] {
