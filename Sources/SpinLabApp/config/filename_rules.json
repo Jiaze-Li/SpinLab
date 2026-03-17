@@ -4,20 +4,32 @@
     "separators": "_- ()",
     "caseFold": "preserve"
   },
-  "sources": ["file", "parent", "grandparent"],
+  "sources": [
+    "file",
+    "parent",
+    "grandparent"
+  ],
   "sampleId": {
-    "patterns": ["^(PN|PT)\\d+$", "^S\\d+$"]
+    "patterns": [
+      "^(PN|PT)\\d+$",
+      "^S\\d+$"
+    ]
   },
   "batch": {
     "preferSampleId": true,
-    "fallbackPatterns": ["^(B|Batch)\\d+$"]
+    "fallbackPatterns": [
+      "^(B|Batch)\\d+$"
+    ]
   },
   "measurementNameRules": [
     {
       "match": {
         "scope": "joined",
         "type": "containsAny",
-        "values": ["xy", "rotation"]
+        "values": [
+          "xy",
+          "rotation"
+        ]
       },
       "value": "XY"
     },
@@ -85,7 +97,9 @@
       "match": {
         "scope": "tokens",
         "type": "equalsOrContainsAny",
-        "values": ["HF"]
+        "values": [
+          "HF"
+        ]
       },
       "value": "HF"
     },
@@ -93,7 +107,10 @@
       "match": {
         "scope": "tokens",
         "type": "equalsOrContainsAny",
-        "values": ["BAKE", "BAKED"]
+        "values": [
+          "BAKE",
+          "BAKED"
+        ]
       },
       "value": "baked"
     },
@@ -101,9 +118,13 @@
       "match": {
         "scope": "tokens",
         "type": "equalsOrContainsAny",
-        "values": ["O", "ORIGIN", "ORIGINAL"]
+        "values": [
+          "O",
+          "ORIGIN",
+          "ORIGINAL"
+        ]
       },
-      "value": "origin"
+      "value": "o"
     },
     {
       "match": {
@@ -125,7 +146,9 @@
       "match": {
         "scope": "tokens",
         "type": "equalsOrContainsAny",
-        "values": ["STO"]
+        "values": [
+          "STO"
+        ]
       },
       "value": "STO"
     },
@@ -133,7 +156,9 @@
       "match": {
         "scope": "tokens",
         "type": "equalsOrContainsAny",
-        "values": ["NGO"]
+        "values": [
+          "NGO"
+        ]
       },
       "value": "NGO"
     },

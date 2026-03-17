@@ -37,6 +37,11 @@ struct InboxView: View {
                     appState.clearPendingImports()
                 }
                 .disabled(appState.pendingImports.isEmpty)
+
+                Button("Recompute Pending Values") {
+                    appState.recomputeAllPendingParsedHints()
+                }
+                .disabled(appState.pendingImports.isEmpty)
             }
         }
         .dropDestination(for: URL.self) { items, _ in
@@ -142,6 +147,17 @@ private struct PendingImportConfirmationColumn: View {
     @State private var editableFileContents = ""
     @State private var hasEditableFileContents = false
     @State private var isPresentingFileReview = false
+    @State private var autoValues = PendingImportConfirmationDraft(
+        batchName: "",
+        sampleName: "",
+        measurementName: "",
+        deviceName: "",
+        temperature: "",
+        selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
+        newProjectName: ""
+    )
+    @State private var displayWarnings: [String] = []
+    @State private var infoTags: [String] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -164,36 +180,40 @@ private struct PendingImportConfirmationColumn: View {
                         EditableMetadataField(
                             label: "Batch",
                             value: $draft.batchName,
-                            isAuto: isAutoValue(draft.batchName, parsed: pending.parsedHints.batchName)
+                            isAuto: isAutoValue(draft.batchName, parsed: autoValues.batchName)
                         )
                         EditableMetadataField(
                             label: "Sample",
                             value: $draft.sampleName,
-                            isAuto: isAutoValue(draft.sampleName, parsed: pending.parsedHints.sampleName)
+                            isAuto: isAutoValue(draft.sampleName, parsed: autoValues.sampleName)
                         )
                         EditableMetadataField(
                             label: "Measurement",
                             value: $draft.measurementName,
-                            isAuto: isAutoValue(draft.measurementName, parsed: pending.parsedHints.measurementName)
+                            isAuto: isAutoValue(draft.measurementName, parsed: autoValues.measurementName)
                         )
                         EditableMetadataField(
                             label: "Device",
                             value: $draft.deviceName,
-                            isAuto: isAutoValue(draft.deviceName, parsed: pending.parsedHints.deviceName)
+                            isAuto: isAutoValue(draft.deviceName, parsed: autoValues.deviceName)
                         )
                         EditableMetadataField(
                             label: "Temperature",
                             value: $draft.temperature,
-                            isAuto: isAutoValue(draft.temperature, parsed: pending.parsedHints.temperature)
+                            isAuto: isAutoValue(draft.temperature, parsed: autoValues.temperature)
                         )
 
-                        if !pending.parsedHints.warnings.isEmpty {
+                        if !infoTags.isEmpty {
+                            MetadataValueRow(label: "Info Tags", value: infoTags.joined(separator: " | "))
+                        }
+
+                        if !displayWarnings.isEmpty {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Parser Warnings")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
 
-                                ForEach(pending.parsedHints.warnings, id: \.self) { warning in
+                                ForEach(displayWarnings, id: \.self) { warning in
                                     Text(warning)
                                         .font(.footnote)
                                         .foregroundStyle(.orange)
@@ -275,7 +295,7 @@ private struct PendingImportConfirmationColumn: View {
             .padding(.vertical, 4)
         }
         .onAppear {
-            draft = appState.defaultConfirmationDraft(for: pending)
+            refreshDisplay()
             if let contents = appState.pendingImportEditableContents(for: pending) {
                 editableFileContents = contents
                 hasEditableFileContents = true
@@ -283,6 +303,15 @@ private struct PendingImportConfirmationColumn: View {
                 editableFileContents = ""
                 hasEditableFileContents = false
             }
+        }
+        .onChange(of: pending.id) { _, _ in
+            refreshDisplay()
+        }
+        .onChange(of: appState.pendingImports) { _, _ in
+            refreshDisplay()
+        }
+        .onChange(of: appState.registrySourceFilePath) { _, _ in
+            refreshDisplay()
         }
         .sheet(isPresented: $isPresentingFileReview) {
             ImportedFileReviewSheet(
@@ -303,6 +332,13 @@ private struct PendingImportConfirmationColumn: View {
             return false
         }
         return value.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedParsed
+    }
+
+    private func refreshDisplay() {
+        draft = appState.pendingDisplayDraft(for: pending)
+        autoValues = appState.pendingDisplayAutoValues(for: pending)
+        displayWarnings = appState.pendingDisplayWarnings(for: pending)
+        infoTags = appState.pendingDisplayInfoTags(for: pending)
     }
 }
 
