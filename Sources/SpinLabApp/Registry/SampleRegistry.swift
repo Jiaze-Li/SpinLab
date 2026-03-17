@@ -296,21 +296,12 @@ final class XLSXPrefixSampleRegistryIndex: SampleRegistryIndexing {
 enum SampleIDParser {
     static func extractSampleID(fromFilename filename: String) -> String? {
         let stem = URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent
-        let tokens = stem.split(whereSeparator: { "_- ()".contains($0) }).map(String.init)
+        let tokens = tokenize(stem, separators: RuleLoader.shared.loadCached().ruleSet.tokenization.separators)
         return extractSampleIDs(fromTokens: tokens).first
     }
 
     static func extractSampleIDs(fromTokens tokens: [String]) -> [String] {
-        var seen: Set<String> = []
-        return tokens.compactMap { token in
-            guard let normalized = normalizeSampleIDToken(token) else {
-                return nil
-            }
-            guard seen.insert(normalized).inserted else {
-                return nil
-            }
-            return normalized
-        }
+        RuleLoader.shared.loadCached().ruleSet.sampleIDs(from: tokens)
     }
 
     static func extractPrefix(fromSampleID sampleID: String) -> String? {
@@ -321,17 +312,10 @@ enum SampleIDParser {
         return letters.uppercased()
     }
 
-    private static func normalizeSampleIDToken(_ token: String) -> String? {
-        let uppercased = token.uppercased()
-
-        if uppercased.range(of: #"^(PN|PT)\d+$"#, options: .regularExpression) != nil {
-            return uppercased
-        }
-
-        if uppercased.range(of: #"^S\d+$"#, options: .regularExpression) != nil {
-            return uppercased
-        }
-
-        return nil
+    private static func tokenize(_ value: String, separators: String) -> [String] {
+        value
+            .split(whereSeparator: { separators.contains($0) })
+            .map(String.init)
+            .filter { !$0.isEmpty }
     }
 }
