@@ -117,11 +117,20 @@
     {
       "match": {
         "scope": "tokens",
-        "type": "equalsOrContainsAny",
+        "type": "containsAny",
         "values": [
-          "O",
           "ORIGIN",
           "ORIGINAL"
+        ]
+      },
+      "value": "o"
+    },
+    {
+      "match": {
+        "scope": "tokens",
+        "type": "equalsAny",
+        "values": [
+          "O"
         ]
       },
       "value": "o"

@@ -632,6 +632,7 @@ final class SpinLabAppState: ObservableObject {
         substrateTags: [String],
         allowsOriginToken: Bool
     ) -> SubstrateResolution {
+        let normalizedTags = substrateTags.compactMap { normalized($0) }
         guard let substrateValue = metadataValue(in: lookup, keys: ["substrate", "Substrate", "衬底"]) else {
             return SubstrateResolution(
                 resolvedSubstrate: nil,
@@ -651,7 +652,14 @@ final class SpinLabAppState: ObservableObject {
             )
         }
 
-        let constraints = substrateConstraints(from: substrateTags, allowsOriginToken: allowsOriginToken)
+        if normalizedTags.isEmpty {
+            if variants.count == 1 {
+                return SubstrateResolution(resolvedSubstrate: variants[0], warning: nil)
+            }
+            return SubstrateResolution(resolvedSubstrate: nil, warning: nil)
+        }
+
+        let constraints = substrateConstraints(from: normalizedTags, allowsOriginToken: allowsOriginToken)
         let candidates = variants.map(parseSubstrateCandidate)
         let matches = candidates.filter { candidate in
             substrateCandidate(candidate, satisfies: constraints)
@@ -701,7 +709,7 @@ final class SpinLabAppState: ObservableObject {
                 constraints.treatments.insert("baked")
                 continue
             }
-            if allowsOriginToken && (normalized == "origin" || normalized == "original") {
+            if allowsOriginToken && (normalized == "o" || normalized.contains("origin") || normalized.contains("original")) {
                 constraints.treatments.insert("o")
                 continue
             }
@@ -931,7 +939,7 @@ final class SpinLabAppState: ObservableObject {
             let tokens = text.components(separatedBy: separators).filter { !$0.isEmpty }
             if tokens.contains(where: { token in
                 let lower = token.lowercased()
-                return lower == "o" || lower == "origin" || lower == "original"
+                return lower == "o" || lower.contains("origin") || lower.contains("original")
             }) {
                 return true
             }
