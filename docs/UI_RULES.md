@@ -17,9 +17,11 @@ All future UI changes must follow this document unless the product direction is 
 
 - SpinLab should use a three column layout whenever the workflow supports it
 - Preferred structure:
-  - left column for navigation or item list
-  - center column for primary working content
-  - right column for structured metadata, confirmation fields, or detail panels
+  - left column for navigation (Inbox / Workbench / Library), with optional secondary navigation in future
+  - center column for workspace actions and task execution (load/create/save/refresh/review)
+  - right column for inspector/output (structured metadata, detail panels, plots, previews)
+- Column responsibility should remain stable across modules so interaction patterns stay consistent
+- Core operations should stay in the center workspace column; right column should prioritize display/inspection
 - Avoid collapsing everything into a single long form when a three column layout improves scanning
 - Each column should have a defined minimum width so the UI does not collapse into unusable blank or clipped states
 - When the user resizes one divider between two adjacent columns, the non-adjacent side should remain stable whenever practical
@@ -56,6 +58,18 @@ All future UI changes must follow this document unless the product direction is 
 - Important metadata should be visible with minimal scrolling where practical
 - Dense layouts are acceptable if they remain readable and logically grouped
 - Avoid oversized cards, excessive whitespace, or presentation patterns that hide scientific details
+- Reduce non-informational blank space; prioritize visible data over decorative gaps
+- Spacing should be content-aware rather than fixed-heavy defaults
+
+### Content-Driven Sizing
+
+- Avoid rigid fixed-width layout decisions when content length is variable
+- Prefer content-driven sizing: width should be based on actual text/field length plus a small reserved buffer
+- Reserved buffer should preserve readability/alignment, but should not create large unused blank zones
+- Long text should wrap before forcing whole-column expansion
+- Two-column detail layouts should align column starts consistently, while still sizing by content needs
+- Short fields should not occupy full-row width by default if a compact width keeps the row readable
+- Window resize behavior should first compress low-value whitespace, not high-value information
 
 ### Label/Value Metadata Layout
 

@@ -2,10 +2,11 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-APP_NAME="SpinLab"
+APP_NAME_DEFAULT="SpinLab"
+APP_NAME="${SPINLAB_APP_NAME:-${APP_NAME_DEFAULT}}"
 PRODUCT_NAME="SpinLabApp"
 APP_BUNDLE_NAME="${APP_NAME}.app"
-APP_BUNDLE_PATH="/Users/jack/Desktop/${APP_BUNDLE_NAME}"
+APP_BUNDLE_PATH="${SPINLAB_APP_BUNDLE_PATH:-/Users/jack/Desktop/${APP_BUNDLE_NAME}}"
 BUILD_CONFIGURATION="${1:-debug}"
 
 if [[ "${BUILD_CONFIGURATION}" != "debug" && "${BUILD_CONFIGURATION}" != "release" ]]; then
@@ -30,21 +31,23 @@ if [[ ! -f "${BIN_PATH}" ]]; then
 fi
 
 echo "Packaging app bundle at ${APP_BUNDLE_PATH}..."
-rm -rf "${APP_BUNDLE_PATH}"
+if [[ -d "${APP_BUNDLE_PATH}" ]]; then
+  rm -rf "${APP_BUNDLE_PATH}"
+fi
 mkdir -p "${APP_BUNDLE_PATH}/Contents/MacOS"
 
 cp "${BIN_PATH}" "${APP_BUNDLE_PATH}/Contents/MacOS/${APP_NAME}"
 chmod +x "${APP_BUNDLE_PATH}/Contents/MacOS/${APP_NAME}"
 
-cat > "${APP_BUNDLE_PATH}/Contents/Info.plist" <<'PLIST'
+cat > "${APP_BUNDLE_PATH}/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>CFBundleName</key>
-  <string>SpinLab</string>
+  <string>${APP_NAME}</string>
   <key>CFBundleDisplayName</key>
-  <string>SpinLab</string>
+  <string>${APP_NAME}</string>
   <key>CFBundleIdentifier</key>
   <string>com.spinlab.app</string>
   <key>CFBundleVersion</key>
@@ -52,7 +55,7 @@ cat > "${APP_BUNDLE_PATH}/Contents/Info.plist" <<'PLIST'
   <key>CFBundleShortVersionString</key>
   <string>0.1.0</string>
   <key>CFBundleExecutable</key>
-  <string>SpinLab</string>
+  <string>${APP_NAME}</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>LSMinimumSystemVersion</key>
