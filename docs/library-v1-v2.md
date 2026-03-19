@@ -1,5 +1,10 @@
 # Library V1/V2 Plan
 
+## Version Completion Rule
+- After each version is accepted, add a completion marker in this document using format: `vX.Y-done`.
+- Example markers: `v1.3-done`, `v1.4-done`, `v2.1-done`.
+- Keep markers in chronological order at the end of this document.
+
 ## App Shell Baseline
 - Left column: app navigation (`Inbox / Workbench / Library`), with room for future secondary menu.
 - Center column: work column for operations (`Load / Create / Save / Refresh / Review`).
@@ -48,3 +53,6 @@
 
 ## Verification (UI-only)
 - All verification is done via UI interactions, not internal logs.
+
+## Done Markers
+- v1.3-done
