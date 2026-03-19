@@ -5,6 +5,7 @@ struct RootSplitView: View {
     private let sidebarTopInset: CGFloat = 64
     private let standardDetailTopInset: CGFloat = 86
     private let inboxDetailTopInset: CGFloat = 112
+    private let libraryDetailTopInset: CGFloat = 28
 
     var body: some View {
         NavigationSplitView {
@@ -25,6 +26,13 @@ struct RootSplitView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .safeAreaPadding(.top, currentDetailTopInset)
                 .frame(maxHeight: .infinity, alignment: .top)
+                .overlay(alignment: .topTrailing) {
+                    Text(AppVersion.current)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 12)
+                        .padding(.trailing, 16)
+                }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -45,8 +53,10 @@ struct RootSplitView: View {
         switch appState.selectedArea {
         case .inbox:
             return inboxDetailTopInset
-        case .workbench, .library:
+        case .workbench:
             return standardDetailTopInset
+        case .library:
+            return libraryDetailTopInset
         }
     }
 

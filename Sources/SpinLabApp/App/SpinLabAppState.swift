@@ -76,6 +76,15 @@ final class SpinLabAppState: ObservableObject {
     @Published private(set) var registryFileName: String?
     @Published private(set) var registrySourceFilePath: String?
     @Published private(set) var registryPrefixEntries: [RegistryPrefixEntry] = []
+    @Published var librarySettings: LibrarySettings
+    @Published private(set) var libraryRootVerificationPath: String?
+    @Published private(set) var libraryRootVerificationMessage: String?
+    @Published private(set) var libraryPreview: LibraryPreview?
+    @Published private(set) var libraryPreviewMessage: String?
+    @Published private(set) var libraryPreviewWarnings: [LibraryWarning] = []
+    @Published private(set) var libraryPreviewGroups: [String: [LibraryPreviewBatchGroup]] = [:]
+    @Published private(set) var libraryDrawerMessage: String?
+    @Published private(set) var libraryDrawerError: String?
 
     let workflow: SpinLabDomain.WorkflowKind = .amrPhe
 
@@ -85,6 +94,9 @@ final class SpinLabAppState: ObservableObject {
     private let viewExtension: ViewExtension
     private let managedStorage: SpinLabManagedStorage
     private var sampleRegistry: SampleRegistryIndexing
+    private let librarySettingsStore = LibrarySettingsStore()
+    private let libraryStore = LibraryStore()
+    private let libraryLogger = LibraryLogger()
 
     init(
         persistence: SpinLabPersistence = LocalJSONPersistence(),
@@ -100,6 +112,7 @@ final class SpinLabAppState: ObservableObject {
         self.viewExtension = viewExtension
         self.managedStorage = managedStorage
         self.sampleRegistry = sampleRegistry
+        self.librarySettings = librarySettingsStore.load()
 
         if !self.sampleRegistry.isLoaded, let currentRegistryURL = managedStorage.currentSampleRegistryFileURL() {
             self.sampleRegistry = XLSXPrefixSampleRegistryIndex.fromFileURL(currentRegistryURL, previewRowCount: 10)
@@ -210,7 +223,143 @@ final class SpinLabAppState: ObservableObject {
         }
 
         sampleRegistry = XLSXPrefixSampleRegistryIndex.fromFileURL(installedURL, previewRowCount: 10)
+        updateLibraryRegistryPaths(installedURL: installedURL, sourceURL: url)
+        libraryPreview = nil
+        libraryPreviewWarnings = []
+        libraryPreviewMessage = nil
         updateRegistryPresentation()
+    }
+
+    func loadLibraryPreview() {
+        guard let registryPath = librarySettings.registryInternalPath
+            ?? managedStorage.currentSampleRegistryFileURL()?.path else {
+            libraryPreviewMessage = "No registry available. Load it from Inbox first."
+            return
+        }
+        let parser = LibraryRegistryParser()
+        let result = parser.parse(xlsxURL: URL(fileURLWithPath: registryPath), settings: librarySettings)
+        let preview = LibraryPreview(index: result.index, warnings: result.warnings)
+        libraryPreview = preview
+        libraryPreviewWarnings = result.warnings
+        libraryPreviewGroups = buildPreviewGroups(from: preview)
+        libraryPreviewMessage = "Preview loaded: \(result.index.samples.count) samples"
+        libraryLogger.write(result.warnings)
+    }
+
+    func createDrawersFromPreview() {
+        libraryDrawerError = nil
+        libraryDrawerMessage = nil
+
+        guard let preview = libraryPreview else {
+            libraryDrawerError = "Load the registry preview first."
+            return
+        }
+        guard let rootPath = librarySettings.rootPath else {
+            libraryDrawerError = "Select a Library Root first."
+            return
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        libraryStore.ensureRoot(at: rootURL)
+
+        let batchesById = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
+        var created = 0
+        for sample in preview.index.samples {
+            guard let batch = batchesById[sample.batchId] else {
+                continue
+            }
+            libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
+            created += 1
+        }
+
+        var index = preview.index
+        index.updatedAt = .now
+        index.registryInternalPath = librarySettings.registryInternalPath
+        index.registrySourcePath = librarySettings.registrySourcePath
+        libraryStore.saveIndex(index, to: rootURL)
+
+        libraryDrawerMessage = "Created \(created) sample drawers."
+    }
+
+    func createDrawersForSelection(batchId: String?, sampleId: String?) {
+        libraryDrawerError = nil
+        libraryDrawerMessage = nil
+
+        guard let preview = libraryPreview else {
+            libraryDrawerError = "Load the registry preview first."
+            return
+        }
+        guard let rootPath = librarySettings.rootPath else {
+            libraryDrawerError = "Select a Library Root first."
+            return
+        }
+        guard let batchId else {
+            libraryDrawerError = "Select a batch or sample."
+            return
+        }
+
+        let rootURL = URL(fileURLWithPath: rootPath)
+        libraryStore.ensureRoot(at: rootURL)
+
+        let batchesById = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
+        guard let batch = batchesById[batchId] else {
+            libraryDrawerError = "Selected batch not found."
+            return
+        }
+
+        let samples = preview.index.samples.filter { $0.batchId == batchId }
+        let targetSamples: [LibrarySample]
+        if let sampleId, let sample = samples.first(where: { $0.id == sampleId }) {
+            targetSamples = [sample]
+        } else {
+            targetSamples = samples
+        }
+
+        guard !targetSamples.isEmpty else {
+            libraryDrawerError = "No samples found for selection."
+            return
+        }
+
+        for sample in targetSamples {
+            libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
+        }
+
+        var index = preview.index
+        index.updatedAt = .now
+        index.registryInternalPath = librarySettings.registryInternalPath
+        index.registrySourcePath = librarySettings.registrySourcePath
+        libraryStore.saveIndex(index, to: rootURL)
+
+        libraryDrawerMessage = "Created \(targetSamples.count) sample drawers."
+    }
+
+    func updateLibraryRoot(to url: URL) {
+        librarySettings.rootPath = url.path
+        librarySettingsStore.save(librarySettings)
+        libraryRootVerificationPath = nil
+        libraryRootVerificationMessage = nil
+    }
+
+    func updateAllowedBatchPrefixes(from rawValue: String) {
+        let prefixes = rawValue
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
+            .filter { !$0.isEmpty }
+        librarySettings.allowedBatchPrefixes = prefixes
+        librarySettingsStore.save(librarySettings)
+    }
+
+    func verifyLibraryRoot() {
+        guard let rootPath = librarySettings.rootPath else {
+            libraryRootVerificationMessage = "No Library Root selected."
+            return
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        guard let verifyURL = libraryStore.verifyRoot(at: rootURL) else {
+            libraryRootVerificationMessage = "Failed to verify Library Root."
+            return
+        }
+        libraryRootVerificationPath = verifyURL.path
+        libraryRootVerificationMessage = "Library Root verified."
     }
 
     func openPendingImportInWorkbench() {
@@ -542,6 +691,27 @@ final class SpinLabAppState: ObservableObject {
         registryPrefixEntries = sampleRegistry.prefixToSheet
             .map { RegistryPrefixEntry(prefix: $0.key, sheetName: $0.value) }
             .sorted { $0.prefix < $1.prefix }
+    }
+
+    private func updateLibraryRegistryPaths(installedURL: URL, sourceURL: URL?) {
+        librarySettings.registryInternalPath = installedURL.path
+        librarySettings.registrySourcePath = sourceURL?.path
+        librarySettingsStore.save(librarySettings)
+    }
+
+    private func buildPreviewGroups(from preview: LibraryPreview) -> [String: [LibraryPreviewBatchGroup]] {
+        var groups: [String: [LibraryPreviewBatchGroup]] = [:]
+        let samplesByBatch = Dictionary(grouping: preview.index.samples) { $0.batchId }
+        for (batchId, samples) in samplesByBatch {
+            let prefix = LibrarySort.batchSortKey(batchId).prefix
+            let sortedSamples = samples.sorted { $0.substrateDisplay < $1.substrateDisplay }
+            let group = LibraryPreviewBatchGroup(batchId: batchId, samples: sortedSamples)
+            groups[prefix, default: []].append(group)
+        }
+        for prefix in groups.keys {
+            groups[prefix] = groups[prefix]?.sorted { LibrarySort.compareBatch($0.batchId, $1.batchId) }
+        }
+        return groups
     }
 
     private func savePendingImportContents(_ contents: String, for pending: SpinLabDomain.PendingImport) {
