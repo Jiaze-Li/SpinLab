@@ -29,6 +29,7 @@
   - Compare `registry target` against `existing drawers` from index/root as the review baseline.
   - Show actionable delta classes: `new drawers`, `tag changes`, `numeric changes requiring confirmation`.
   - `Load Preview` is an internal parse step inside sync flow, not a standalone end-user goal.
+  - Status note: substantively completed via finalized V1.5 detect/review/apply workflow.
 - V1.5: Existing Drawer Baseline UI (Required Before Full Review)
   - Introduce explicit `Existing Drawers` concept in app.
   - Add created-drawer browser (`prefix -> batch -> sample`) and sample detail panel as review reference.
@@ -74,4 +75,5 @@
 
 ## Done Markers
 - v1.3-done
+- v1.4-done
 - v1.5-done
