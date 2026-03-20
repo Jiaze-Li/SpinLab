@@ -7,8 +7,7 @@ struct LibraryView: View {
     @State private var selectedPrefix: String?
     @State private var selectedBatchId: String?
     @State private var selectedSampleId: String?
-    @State private var isPresentingCreateDrawers = false
-    @State private var isPresentingCreateSelectedDrawers = false
+    @State private var isRegistryWorkspaceExpanded = true
 
     var body: some View {
         HSplitView {
@@ -20,7 +19,9 @@ struct LibraryView: View {
                 .frame(minWidth: 320, idealWidth: 500, maxWidth: .infinity)
                 .layoutPriority(0)
         }
-        .padding(16)
+        .padding(.horizontal, 16)
+        .padding(.top, 6)
+        .padding(.bottom, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             syncSelection()
@@ -36,124 +37,186 @@ struct LibraryView: View {
                 Text("Library")
                     .font(.title2.bold())
 
-                GroupBox("Library Settings") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        MetadataValueRow(
-                            label: "Registry Path (Inbox)",
-                            value: appState.librarySettings.registrySourcePath ?? appState.registrySourceFilePath ?? "Not loaded",
-                            monospaced: true
-                        )
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                        MetadataValueRow(
-                            label: "Library Root",
-                            value: appState.librarySettings.rootPath ?? "Not set",
-                            monospaced: true
-                        )
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                        HStack {
-                            Button("Choose Library Root") {
-                                presentLibraryRootPanel()
-                            }
-                            Button("Verify Root") {
-                                appState.verifyLibraryRoot()
-                            }
-                        }
-
-                        if let message = appState.libraryRootVerificationMessage {
-                            Text(message)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if let path = appState.libraryRootVerificationPath {
-                            MetadataValueRow(label: "Verified Path", value: path, monospaced: true)
-                        }
-
-                        HStack {
-                            TextField("Allowed Prefixes (PN, PT, SL)", text: $allowedPrefixesDraft)
-                                .frame(width: 190)
-                                .textFieldStyle(.roundedBorder)
-                            Button("Save Prefixes") {
-                                appState.updateAllowedBatchPrefixes(from: allowedPrefixesDraft)
-                            }
-                        }
-                        .onAppear {
-                            allowedPrefixesDraft = appState.librarySettings.allowedBatchPrefixes.joined(separator: ", ")
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                GroupBox("Registry Preview") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Button("Load Preview") {
-                                appState.loadLibraryPreview()
-                            }
-                            Button("Create Drawers") {
-                                isPresentingCreateDrawers = true
-                            }
-                            .disabled(appState.libraryPreview == nil || appState.librarySettings.rootPath == nil)
-                            Button("Create Selected") {
-                                isPresentingCreateSelectedDrawers = true
-                            }
-                            .disabled(appState.libraryPreview == nil || appState.librarySettings.rootPath == nil || selectedBatchId == nil)
-                            if let message = appState.libraryPreviewMessage {
-                                Text(message)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-
-                        if !appState.libraryPreviewWarnings.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                ForEach(appState.libraryPreviewWarnings) { warning in
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Circle()
-                                            .fill(warning.severity == .error ? Color.red : Color.orange)
-                                            .frame(width: 8, height: 8)
-                                        Text(warning.message)
-                                            .font(.caption)
-                                    }
-                                }
-                            }
-                        }
-
-                        if let message = appState.libraryDrawerMessage {
-                            Text(message)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if let error = appState.libraryDrawerError {
-                            Text(error)
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                GroupBox("Registry Browser") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        prefixPicker
-                        Divider()
-                        batchList
-                        Divider()
-                        sampleList
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
+                librarySettingsSection
+                registryWorkspaceSection
             }
             .frame(minWidth: 300, maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
         }
         .animation(nil, value: selectedBatchId)
         .animation(nil, value: selectedSampleId)
+    }
+
+    private var librarySettingsSection: some View {
+        GroupBox("Library Settings") {
+            VStack(alignment: .leading, spacing: 8) {
+                MetadataValueRow(
+                    label: "Registry Path (Inbox)",
+                    value: appState.librarySettings.registrySourcePath ?? appState.registrySourceFilePath ?? "Not loaded",
+                    monospaced: true
+                )
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .fixedSize(horizontal: false, vertical: true)
+
+                MetadataValueRow(
+                    label: "Library Root",
+                    value: appState.librarySettings.rootPath ?? "Not set",
+                    monospaced: true
+                )
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .fixedSize(horizontal: false, vertical: true)
+
+                HStack {
+                    Button("Choose Library Root") {
+                        presentLibraryRootPanel()
+                    }
+                    Button("Verify Root") {
+                        appState.verifyLibraryRoot()
+                    }
+                    Button("Sync Files") {
+                        appState.syncLibraryFromFiles()
+                    }
+                    .disabled(appState.librarySettings.rootPath == nil)
+                }
+
+                if let message = appState.libraryRootVerificationMessage {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let path = appState.libraryRootVerificationPath {
+                    MetadataValueRow(label: "Verified Path", value: path, monospaced: true)
+                }
+
+                HStack {
+                    TextField("Allowed Prefixes (PN, PT, SL)", text: $allowedPrefixesDraft)
+                        .frame(width: 190)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Save Prefixes") {
+                        appState.updateAllowedBatchPrefixes(from: allowedPrefixesDraft)
+                    }
+                }
+                .onAppear {
+                    allowedPrefixesDraft = appState.librarySettings.allowedBatchPrefixes.joined(separator: ", ")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var registryWorkspaceSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                isRegistryWorkspaceExpanded.toggle()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: isRegistryWorkspaceExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("Registry Operations (XLSX Aligned)")
+                        .font(.headline)
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isRegistryWorkspaceExpanded {
+                registryPreviewSection
+                registryBrowserSection
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var registryPreviewSection: some View {
+        GroupBox {
+            registryPreviewSectionContent
+        } label: {
+            registryPreviewSectionLabel
+        }
+    }
+
+    private var registryPreviewSectionContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Button("Sync Registry") {
+                    appState.syncLibraryFromRegistry()
+                }
+                Button("Apply All") {
+                    appState.applyPreparedLibrarySyncReview()
+                }
+                .disabled((appState.libraryRefreshReview?.totalChangesCount ?? 0) == 0)
+                Button("Apply Selected") {
+                    appState.applySelectedRegistryDiff(batchId: selectedBatchId)
+                }
+                .disabled((appState.libraryRefreshReview?.totalChangesCount ?? 0) == 0 || selectedBatchId == nil)
+            }
+
+            if let message = appState.libraryPreviewMessage {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let review = appState.libraryRefreshReview {
+                Text("Pending sync review: \(review.newSamples.count) new, \(review.changedSamples.count) changed, \(review.removedSamples.count) removed, \(review.changedBatches.count) batch-changed, \(review.removedBatches.count) batch-removed.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if !appState.libraryPreviewWarnings.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(appState.libraryPreviewWarnings) { warning in
+                        HStack(alignment: .top, spacing: 8) {
+                            Circle()
+                                .fill(warning.severity == .error ? Color.red : Color.orange)
+                                .frame(width: 8, height: 8)
+                            Text(warning.message)
+                                .font(.caption)
+                        }
+                    }
+                }
+            }
+
+            if let message = appState.libraryDrawerMessage {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let error = appState.libraryDrawerError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var registryPreviewSectionLabel: some View {
+        HStack(spacing: 6) {
+            Text("Registry Sync")
+            if let syncStatus = appState.librarySyncStatusMessage {
+                Text("(\(syncStatus))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var registryBrowserSection: some View {
+        GroupBox("Pending Queue") {
+            VStack(alignment: .leading, spacing: 8) {
+                prefixPicker
+                Divider()
+                batchList
+                Divider()
+                sampleList
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     private var prefixPicker: some View {
@@ -173,6 +236,7 @@ struct LibraryView: View {
                         selectedPrefix = newValue
                         selectedBatchId = previewGroupsForSelectedPrefix.first?.batchId
                         selectedSampleId = previewGroupsForSelectedPrefix.first?.samples.first?.id
+                        appState.selectBrowserSample()
                     })
                 ) {
                     ForEach(previewPrefixes, id: \.self) { prefix in
@@ -182,34 +246,6 @@ struct LibraryView: View {
                 .pickerStyle(.segmented)
                 .frame(maxWidth: 180, alignment: .leading)
             }
-        }
-        .confirmationDialog(
-            "Create Library Drawers?",
-            isPresented: $isPresentingCreateDrawers,
-            titleVisibility: .visible
-        ) {
-            Button("Create Drawers", role: .destructive) {
-                appState.createDrawersFromPreview()
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            let count = appState.libraryPreview?.index.samples.count ?? 0
-            let root = appState.librarySettings.rootPath ?? "Not set"
-            Text("Create \(count) drawers under: \(root)")
-        }
-        .confirmationDialog(
-            "Create Selected Drawers?",
-            isPresented: $isPresentingCreateSelectedDrawers,
-            titleVisibility: .visible
-        ) {
-            Button("Create Selected", role: .destructive) {
-                appState.createDrawersForSelection(batchId: selectedBatchId, sampleId: selectedSampleId)
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            let root = appState.librarySettings.rootPath ?? "Not set"
-            let target = selectedSample?.displayName ?? selectedBatchId ?? "Selection"
-            Text("Create drawers for: \(target)\nRoot: \(root)")
         }
     }
 
@@ -236,8 +272,24 @@ struct LibraryView: View {
                             Button {
                                 selectedBatchId = group.batchId
                                 selectedSampleId = group.samples.first?.id
+                                appState.selectBrowserSample()
                             } label: {
                                 HStack {
+                                    if let status = appState.libraryBatchSyncStatusByID[group.batchId], status != .unchanged {
+                                        if status == .added {
+                                            Image(systemName: "plus")
+                                                .font(.body.weight(.bold))
+                                                .foregroundStyle(Color.green)
+                                        } else if status == .removed {
+                                            Image(systemName: "minus")
+                                                .font(.body.weight(.bold))
+                                                .foregroundStyle(Color.red)
+                                        } else {
+                                            Image(systemName: syncStatusSymbol(for: status))
+                                                .font(.caption2.weight(.semibold))
+                                                .foregroundStyle(syncStatusColor(for: status))
+                                        }
+                                    }
                                     Text(group.batchId)
                                         .font(.subheadline)
                                     Spacer()
@@ -287,6 +339,7 @@ struct LibraryView: View {
                                 isSelected: selectedSampleId == sample.id
                             ) {
                                 selectedSampleId = sample.id
+                                appState.selectBrowserSample()
                             }
                         }
                     }
@@ -299,38 +352,50 @@ struct LibraryView: View {
     private var libraryDetailColumn: some View {
         GeometryReader { proxy in
             let detailWidth = proxy.size.width
+            let detailHeight = proxy.size.height
+            let sectionWidth = max(detailWidth - 24, 0)
+            let sectionSpacing = adaptiveDetailSectionSpacing(for: detailHeight)
             ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: sectionSpacing) {
                     Text("Sample Detail")
                         .font(.title2.bold())
 
                     if let sample = selectedSample {
-                        detailSection(
-                            fields: [
-                                DetailField(label: "Sample", value: sample.displayName, fullWidth: isLongField(sample.displayName)),
-                                DetailField(label: "Batch", value: sample.batchId),
-                                DetailField(label: "Sample Key", value: sample.id, monospaced: true, fullWidth: true),
-                                DetailField(label: "Substrate", value: sample.substrateDisplay)
-                            ],
-                            availableWidth: max(detailWidth - 24, 0)
+                        let sections = makeDetailSections(for: sample)
+                        let globalFirstColumnWidth = alignedFirstColumnWidth(
+                            fields: sections.allFields,
+                            availableWidth: sectionWidth
                         )
 
-                        if !sample.substrateTags.isEmpty {
+                        detailSection(
+                            fields: sections.sampleFields,
+                            availableWidth: sectionWidth,
+                            sharedFirstColumnWidth: globalFirstColumnWidth
+                        )
+
+                        if !selectedChangeHighlights(for: sample).isEmpty {
+                            Divider()
+                            Text("Pending Changes")
+                                .font(.headline)
+                            pendingChangesSection(for: sample)
+                        }
+
+                        if !sections.substrateFields.isEmpty {
                             detailSection(
-                                fields: [DetailField(label: "Substrate Tags", value: sample.substrateTags.joined(separator: ", "), fullWidth: true)],
-                                availableWidth: max(detailWidth - 24, 0)
+                                fields: sections.substrateFields,
+                                availableWidth: sectionWidth,
+                                sharedFirstColumnWidth: globalFirstColumnWidth
                             )
                         }
 
-                        if !sample.numericDisplay.isEmpty {
+                        if !sections.numericFields.isEmpty {
                             Divider()
                             Text("Numeric Tags")
                                 .font(.headline)
                             detailSection(
-                                fields: orderedNumericTagKeys(for: sample).map { key in
-                                    DetailField(label: key, value: sample.numericDisplay[key] ?? "")
-                                },
-                                availableWidth: max(detailWidth - 24, 0)
+                                fields: sections.numericFields,
+                                availableWidth: sectionWidth,
+                                sharedFirstColumnWidth: globalFirstColumnWidth
                             )
                         }
 
@@ -343,10 +408,9 @@ struct LibraryView: View {
                                 .foregroundStyle(.secondary)
                         } else {
                             detailSection(
-                                fields: sample.orderedMetadata.map { item in
-                                    DetailField(label: item.key, value: item.value, fullWidth: isLongField(item.value))
-                                },
-                                availableWidth: max(detailWidth - 24, 0)
+                                fields: sections.metadataFields,
+                                availableWidth: sectionWidth,
+                                sharedFirstColumnWidth: globalFirstColumnWidth
                             )
                         }
                     } else {
@@ -357,6 +421,7 @@ struct LibraryView: View {
                         )
                     }
                 }
+                .frame(minHeight: max(detailHeight - 8, 0), alignment: .topLeading)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .padding(.horizontal, 12)
             }
@@ -364,9 +429,13 @@ struct LibraryView: View {
     }
 
     @ViewBuilder
-    private func detailSection(fields: [DetailField], availableWidth: CGFloat) -> some View {
+    private func detailSection(
+        fields: [DetailField],
+        availableWidth: CGFloat,
+        sharedFirstColumnWidth: CGFloat?
+    ) -> some View {
         let rows = groupedFields(fields)
-        let sectionFirstColumnWidth = sectionFirstColumnWidth(rows: rows, availableWidth: availableWidth)
+        let sectionFirstColumnWidth = sharedFirstColumnWidth ?? sectionFirstColumnWidth(rows: rows, availableWidth: availableWidth)
         VStack(alignment: .leading, spacing: 8) {
             ForEach(rows, id: \.self) { row in
                 if row.count == 1 {
@@ -384,6 +453,11 @@ struct LibraryView: View {
                 }
             }
         }
+    }
+
+    private func alignedFirstColumnWidth(fields: [DetailField], availableWidth: CGFloat) -> CGFloat? {
+        let rows = groupedFields(fields)
+        return sectionFirstColumnWidth(rows: rows, availableWidth: availableWidth)
     }
 
     private func groupedFields(_ fields: [DetailField]) -> [[DetailField]] {
@@ -429,31 +503,65 @@ struct LibraryView: View {
     }
 
     private func sectionFirstColumnWidth(rows: [[DetailField]], availableWidth: CGFloat) -> CGFloat? {
+        twoColumnWidths(rows: rows, availableWidth: availableWidth)?.first
+    }
+
+    private func twoColumnWidths(rows: [[DetailField]], availableWidth: CGFloat) -> (first: CGFloat, second: CGFloat)? {
         let spacing: CGFloat = 12
         let minColumnWidth: CGFloat = 170
-        let minTrailingWhitespaceAfterFirst: CGFloat = 28
+        let firstColumnMaxWidth: CGFloat = 420
 
         let pairRows = rows.filter { $0.count == 2 }
         guard !pairRows.isEmpty else {
             return nil
         }
-        guard availableWidth >= (minColumnWidth * 2 + spacing) else {
+
+        // Character-based redundancy: reserve extra breathing room equivalent to 5 chars.
+        let redundancyInChars: CGFloat = 5
+        let averageCharWidth = estimatedTextWidth("MMMMM", font: .systemFont(ofSize: NSFont.systemFontSize)) / 5
+        let redundancyWidth = max(averageCharWidth * redundancyInChars, 24)
+
+        let firstContentNeeded = pairRows
+            .map { estimatedFieldWidth($0[0]) }
+            .max() ?? minColumnWidth
+        let secondContentNeeded = pairRows
+            .map { estimatedFieldWidth($0[1]) }
+            .max() ?? minColumnWidth
+
+        let firstBase = max(firstContentNeeded + redundancyWidth, minColumnWidth)
+        let secondBase = max(secondContentNeeded + redundancyWidth, minColumnWidth)
+        let totalBase = firstBase + secondBase + spacing
+
+        // If the total width is insufficient, fallback to single-column rendering.
+        guard availableWidth >= totalBase else {
             return nil
         }
 
-        let maxFirstNeeded = pairRows
-            .map { estimatedFieldWidth($0[0]) }
-            .max() ?? minColumnWidth
-        let maximumFirstWidth = max(minColumnWidth, availableWidth - minColumnWidth - spacing)
-        let proposedFirstWidth = min(
-            max(maxFirstNeeded + minTrailingWhitespaceAfterFirst, minColumnWidth),
-            maximumFirstWidth
-        )
-        let remainingWidth = availableWidth - proposedFirstWidth - spacing
-        guard remainingWidth >= minColumnWidth else {
+        let extra = availableWidth - totalBase
+        var first = firstBase + extra / 2
+        var second = secondBase + extra / 2
+
+        // Cap the first column in wide layouts to avoid visual imbalance.
+        if first > firstColumnMaxWidth {
+            let overflow = first - firstColumnMaxWidth
+            first = firstColumnMaxWidth
+            second += overflow
+        }
+
+        // Keep the second column at least minimally readable.
+        if second < minColumnWidth {
+            let needed = minColumnWidth - second
+            first -= needed
+            second = minColumnWidth
+        }
+
+        let maxFirstGivenAvailable = availableWidth - minColumnWidth - spacing
+        first = min(first, maxFirstGivenAvailable)
+        second = availableWidth - first - spacing
+        guard first >= minColumnWidth, second >= minColumnWidth else {
             return nil
         }
-        return proposedFirstWidth
+        return (first: first, second: second)
     }
 
     private func estimatedFieldWidth(_ field: DetailField) -> CGFloat {
@@ -496,9 +604,90 @@ struct LibraryView: View {
         return keys
     }
 
+    private func adaptiveDetailSectionSpacing(for height: CGFloat) -> CGFloat {
+        let base: CGFloat = 12
+        let extraHeight = max(height - 720, 0)
+        // Spread sections out on tall windows while keeping dense layout on normal heights.
+        return min(base + extraHeight / 28, 26)
+    }
+
+    @ViewBuilder
+    private func pendingChangesSection(for sample: LibrarySample) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(selectedChangeHighlights(for: sample)) { change in
+                HStack(alignment: .top, spacing: 8) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.yellow.opacity(0.9))
+                        .frame(width: 3)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(change.key)
+                            .font(.caption.weight(.semibold))
+                        Text(change.description)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.yellow.opacity(0.16))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.yellow.opacity(0.45), lineWidth: 0.8)
+                )
+            }
+        }
+    }
+
+    private func selectedChangeHighlights(for sample: LibrarySample) -> [ChangeHighlight] {
+        let sampleChanges = appState.librarySampleSyncChangesByID[sample.id] ?? []
+        let batchChanges = appState.libraryBatchSyncChangesByID[sample.batchId] ?? []
+        let sampleHighlights = sampleChanges.map {
+            ChangeHighlight(key: $0.key, description: "\(displayValue($0.oldValue)) -> \(displayValue($0.newValue))")
+        }
+        let batchHighlights = batchChanges.map {
+            ChangeHighlight(key: "Batch.\($0.key)", description: "\(displayValue($0.oldValue)) -> \(displayValue($0.newValue))")
+        }
+        return sampleHighlights + batchHighlights
+    }
+
+    private func displayValue(_ value: String?) -> String {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (trimmed?.isEmpty == false) ? trimmed! : "∅"
+    }
+
+    private func syncStatusSymbol(for status: LibrarySyncBatchStatus) -> String {
+        switch status {
+        case .added:
+            return "plus.circle.fill"
+        case .changed:
+            return "circle.fill"
+        case .removed:
+            return "minus.circle.fill"
+        case .unchanged:
+            return "circle"
+        }
+    }
+
+    private func syncStatusColor(for status: LibrarySyncBatchStatus) -> Color {
+        switch status {
+        case .added:
+            return .green
+        case .changed:
+            return .yellow
+        case .removed:
+            return .red
+        case .unchanged:
+            return .secondary
+        }
+    }
+
     private var previewPrefixes: [String] {
         let configured = appState.librarySettings.allowedBatchPrefixes.map { $0.uppercased() }
-        let available = Array(appState.libraryPreviewGroups.keys).sorted()
+        let available = Array(combinedPreviewGroupsByPrefix.keys).sorted()
         if configured.isEmpty {
             return available
         }
@@ -509,7 +698,28 @@ struct LibraryView: View {
 
     private var previewGroupsForSelectedPrefix: [LibraryPreviewBatchGroup] {
         let prefix = selectedPrefix ?? previewPrefixes.first
-        return appState.libraryPreviewGroups[prefix ?? ""] ?? []
+        return combinedPreviewGroupsByPrefix[prefix ?? ""] ?? []
+    }
+
+    private var combinedPreviewGroupsByPrefix: [String: [LibraryPreviewBatchGroup]] {
+        var groups = appState.libraryPreviewGroups
+        for (batchID, status) in appState.libraryBatchSyncStatusByID where status != .unchanged {
+            let prefix = LibrarySort.batchSortKey(batchID).prefix
+            let alreadyExists = groups[prefix]?.contains(where: { $0.batchId == batchID }) == true
+            if alreadyExists {
+                continue
+            }
+            let existingSamples = appState.libraryExistingGroups[prefix]?
+                .first(where: { $0.batchId == batchID })?
+                .samples ?? []
+            groups[prefix, default: []].append(
+                LibraryPreviewBatchGroup(batchId: batchID, samples: existingSamples)
+            )
+        }
+        for prefix in groups.keys {
+            groups[prefix] = groups[prefix]?.sorted { LibrarySort.compareBatch($0.batchId, $1.batchId) }
+        }
+        return groups
     }
 
     private var selectedBatchSamples: [LibrarySample] {
@@ -520,10 +730,18 @@ struct LibraryView: View {
     }
 
     private var selectedSample: LibrarySample? {
-        guard let sampleId = selectedSampleId else {
+        resolveSelectedSample(from: selectionEntry)
+    }
+
+    private var selectedExistingSample: LibrarySample? {
+        guard let prefix = appState.librarySelectedPrefix,
+              let batchId = appState.librarySelectedBatchId,
+              let sampleId = appState.librarySelectedSampleId else {
             return nil
         }
-        return selectedBatchSamples.first(where: { $0.id == sampleId })
+        let groups = appState.libraryExistingGroups[prefix] ?? []
+        let samples = groups.first(where: { $0.batchId == batchId })?.samples ?? []
+        return samples.first(where: { $0.id == sampleId })
     }
 
     private func presentLibraryRootPanel() {
@@ -552,6 +770,77 @@ struct LibraryView: View {
             selectedSampleId = selectedBatchSamples.first?.id
         }
     }
+
+    private var selectionEntry: SelectionEntry {
+        SelectionEntry(
+            source: appState.libraryActiveSelectionSource,
+            browserSampleId: selectedSampleId,
+            drawerPrefix: appState.librarySelectedPrefix,
+            drawerBatchId: appState.librarySelectedBatchId,
+            drawerSampleId: appState.librarySelectedSampleId
+        )
+    }
+
+    private func resolveSelectedSample(from entry: SelectionEntry) -> LibrarySample? {
+        switch entry.source {
+        case .browser:
+            guard let sampleId = entry.browserSampleId else {
+                return nil
+            }
+            return selectedBatchSamples.first(where: { $0.id == sampleId })
+        case .drawer:
+            return selectedExistingSample
+        }
+    }
+
+    private func makeDetailSections(for sample: LibrarySample) -> SampleDetailSections {
+        let sampleFields: [DetailField] = [
+            DetailField(label: "Sample", value: sample.displayName, fullWidth: isLongField(sample.displayName)),
+            DetailField(label: "Batch", value: sample.batchId),
+            DetailField(label: "Sample Key", value: sample.id, monospaced: true, fullWidth: true),
+            DetailField(label: "Substrate", value: sample.substrateDisplay)
+        ]
+        let substrateFields: [DetailField] = sample.substrateTags.isEmpty
+            ? []
+            : [DetailField(label: "Substrate Tags", value: sample.substrateTags.joined(separator: ", "), fullWidth: true)]
+        let numericFields: [DetailField] = orderedNumericTagKeys(for: sample).map { key in
+            DetailField(label: key, value: sample.numericDisplay[key] ?? "")
+        }
+        let metadataFields: [DetailField] = sample.orderedMetadata.map { item in
+            DetailField(label: item.key, value: item.value, fullWidth: isLongField(item.value))
+        }
+        return SampleDetailSections(
+            sampleFields: sampleFields,
+            substrateFields: substrateFields,
+            numericFields: numericFields,
+            metadataFields: metadataFields
+        )
+    }
+}
+
+private struct SelectionEntry {
+    let source: LibrarySelectionSource
+    let browserSampleId: String?
+    let drawerPrefix: String?
+    let drawerBatchId: String?
+    let drawerSampleId: String?
+}
+
+private struct SampleDetailSections {
+    let sampleFields: [DetailField]
+    let substrateFields: [DetailField]
+    let numericFields: [DetailField]
+    let metadataFields: [DetailField]
+
+    var allFields: [DetailField] {
+        sampleFields + substrateFields + numericFields + metadataFields
+    }
+}
+
+private struct ChangeHighlight: Identifiable, Hashable {
+    var id: String { "\(key)|\(description)" }
+    let key: String
+    let description: String
 }
 
 private struct DetailField: Hashable {

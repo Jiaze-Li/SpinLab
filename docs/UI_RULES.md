@@ -89,6 +89,12 @@ All future UI changes must follow this document unless the product direction is 
 - Registry-related details should support confirmation without dominating the main workspace
 - Compact registry display is preferred over large tables unless a later workflow truly requires expansion
 
+### Collapse Indicators
+
+- Collapse/expand chevrons should be placed on the left side, before the section label text
+- Avoid mixing left and right chevron positions for similar expandable controls within the same view
+- This rule applies to sidebar tree toggles and in-panel operation sections
+
 ## Workflow Guidance
 
 - Inbox should foreground pending imports and their metadata

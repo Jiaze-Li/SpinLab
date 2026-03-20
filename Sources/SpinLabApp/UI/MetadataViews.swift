@@ -22,7 +22,7 @@ struct MetadataValueRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
-                .font(.caption)
+                .font(.callout.weight(.semibold))
                 .foregroundStyle(.secondary)
             WrappingValueText(value: value, monospaced: monospaced)
         }

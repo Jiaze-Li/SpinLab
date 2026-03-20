@@ -9,6 +9,11 @@ enum AppArea: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum LibrarySelectionSource {
+    case browser
+    case drawer
+}
+
 struct PendingImportConfirmationDraft: Equatable {
     static let noProjectOption = "None"
 
@@ -81,10 +86,23 @@ final class SpinLabAppState: ObservableObject {
     @Published private(set) var libraryRootVerificationMessage: String?
     @Published private(set) var libraryPreview: LibraryPreview?
     @Published private(set) var libraryPreviewMessage: String?
+    @Published private(set) var libraryLastSyncedAt: Date?
+    @Published private(set) var librarySyncStatusMessage: String?
     @Published private(set) var libraryPreviewWarnings: [LibraryWarning] = []
     @Published private(set) var libraryPreviewGroups: [String: [LibraryPreviewBatchGroup]] = [:]
+    @Published private(set) var libraryExistingGroups: [String: [LibraryPreviewBatchGroup]] = [:]
+    @Published private(set) var libraryExistingMessage: String?
+    @Published var librarySelectedPrefix: String?
+    @Published var librarySelectedBatchId: String?
+    @Published var librarySelectedSampleId: String?
+    @Published private(set) var librarySelectionVersion: Int = 0
+    @Published var libraryActiveSelectionSource: LibrarySelectionSource = .browser
     @Published private(set) var libraryDrawerMessage: String?
     @Published private(set) var libraryDrawerError: String?
+    @Published private(set) var libraryRefreshReview: LibraryRefreshReview?
+    @Published private(set) var libraryBatchSyncStatusByID: [String: LibrarySyncBatchStatus] = [:]
+    @Published private(set) var librarySampleSyncChangesByID: [String: [LibraryFieldChange]] = [:]
+    @Published private(set) var libraryBatchSyncChangesByID: [String: [LibraryFieldChange]] = [:]
 
     let workflow: SpinLabDomain.WorkflowKind = .amrPhe
 
@@ -97,6 +115,7 @@ final class SpinLabAppState: ObservableObject {
     private let librarySettingsStore = LibrarySettingsStore()
     private let libraryStore = LibraryStore()
     private let libraryLogger = LibraryLogger()
+    private let libraryDiffEngine = LibraryDiffEngine()
 
     init(
         persistence: SpinLabPersistence = LocalJSONPersistence(),
@@ -120,6 +139,7 @@ final class SpinLabAppState: ObservableObject {
 
         load()
         updateRegistryPresentation()
+        loadExistingDrawers()
     }
 
     var selectedPendingImport: SpinLabDomain.PendingImport? {
@@ -227,23 +247,422 @@ final class SpinLabAppState: ObservableObject {
         libraryPreview = nil
         libraryPreviewWarnings = []
         libraryPreviewMessage = nil
+        librarySyncStatusMessage = nil
         updateRegistryPresentation()
     }
 
     func loadLibraryPreview() {
-        guard let registryPath = librarySettings.registryInternalPath
-            ?? managedStorage.currentSampleRegistryFileURL()?.path else {
+        let fileManager = FileManager.default
+        let sourcePath = librarySettings.registrySourcePath
+        let internalPath = librarySettings.registryInternalPath ?? managedStorage.currentSampleRegistryFileURL()?.path
+        let chosenPath: String?
+        if let sourcePath, fileManager.fileExists(atPath: sourcePath) {
+            chosenPath = sourcePath
+        } else {
+            chosenPath = internalPath
+        }
+
+        guard let registryPath = chosenPath else {
             libraryPreviewMessage = "No registry available. Load it from Inbox first."
             return
         }
+
         let parser = LibraryRegistryParser()
         let result = parser.parse(xlsxURL: URL(fileURLWithPath: registryPath), settings: librarySettings)
         let preview = LibraryPreview(index: result.index, warnings: result.warnings)
         libraryPreview = preview
         libraryPreviewWarnings = result.warnings
-        libraryPreviewGroups = buildPreviewGroups(from: preview)
-        libraryPreviewMessage = "Preview loaded: \(result.index.samples.count) samples"
+        refreshActionablePreviewGroups()
         libraryLogger.write(result.warnings)
+    }
+
+    func syncLibraryFromRegistry() {
+        loadLibraryPreview()
+        guard libraryPreview != nil else {
+            librarySyncStatusMessage = nil
+            return
+        }
+        prepareLibrarySyncReview()
+        libraryLastSyncedAt = Date()
+        if let syncedAt = libraryLastSyncedAt {
+            librarySyncStatusMessage = "Registry diff prepared at \(Self.syncStatusTimeFormatter.string(from: syncedAt)); waiting for manual apply."
+        }
+    }
+
+    func applyPreparedLibrarySyncReview() {
+        guard let review = libraryRefreshReview else {
+            libraryDrawerError = "No sync review available. Run Sync Registry first."
+            return
+        }
+        guard review.totalChangesCount > 0 else {
+            libraryDrawerMessage = "No changes to apply."
+            return
+        }
+        refreshLibraryIncremental()
+    }
+
+    func applySelectedRegistryDiff(batchId: String?) {
+        libraryDrawerError = nil
+        libraryDrawerMessage = nil
+
+        guard let batchId else {
+            libraryDrawerError = "Select a batch first."
+            return
+        }
+        guard let preview = libraryPreview else {
+            libraryDrawerError = "Load the registry preview first."
+            return
+        }
+        guard let rootPath = librarySettings.rootPath else {
+            libraryDrawerError = "Select a Library Root first."
+            return
+        }
+
+        let rootURL = URL(fileURLWithPath: rootPath)
+        libraryStore.ensureRoot(at: rootURL)
+
+        let baselineIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+        let diff = libraryDiffEngine.diff(current: baselineIndex, updated: preview.index)
+        let batchesByIDInPreview = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
+
+        let newSamples = diff.newSamples.filter { $0.batchId == batchId }
+        let changedSamples = diff.changedSamples.filter { $0.sample.batchId == batchId }.map(\.sample)
+        let removedSamples = diff.removedSamples.filter { $0.batchId == batchId }
+        let changedBatch = diff.changedBatches.first { $0.batch.id == batchId }?.batch
+        let removedBatch = diff.removedBatches.contains { $0.id == batchId }
+
+        guard !newSamples.isEmpty || !changedSamples.isEmpty || !removedSamples.isEmpty || changedBatch != nil || removedBatch else {
+            libraryDrawerMessage = "No pending sync changes for \(batchId)."
+            return
+        }
+
+        var touched = 0
+        for sample in newSamples {
+            if let batch = batchesByIDInPreview[sample.batchId] {
+                libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
+                touched += 1
+            }
+        }
+        for sample in changedSamples {
+            libraryStore.updateSample(sample, rootURL: rootURL)
+            touched += 1
+        }
+        for sample in removedSamples {
+            libraryStore.deleteSampleDrawer(for: sample, rootURL: rootURL)
+            touched += 1
+        }
+
+        if removedBatch {
+            libraryStore.deleteBatchDrawer(batchID: batchId, rootURL: rootURL)
+        } else if let batch = changedBatch ?? batchesByIDInPreview[batchId], (!newSamples.isEmpty || !changedSamples.isEmpty || !removedSamples.isEmpty || changedBatch != nil) {
+            libraryStore.updateBatch(batch, rootURL: rootURL)
+        }
+
+        var syncedIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+        syncedIndex.updatedAt = .now
+        syncedIndex.registryInternalPath = librarySettings.registryInternalPath
+        syncedIndex.registrySourcePath = librarySettings.registrySourcePath
+        syncedIndex.metadataColumnOrder = preview.index.metadataColumnOrder
+        libraryStore.saveIndex(syncedIndex, to: rootURL)
+
+        librarySettings.lastRefreshAt = Date()
+        librarySettingsStore.save(librarySettings)
+        loadExistingDrawers()
+        prepareLibrarySyncReview()
+
+        let batchAction = removedBatch ? "removed" : "updated"
+        libraryDrawerMessage = "Applied selected sync for \(batchId): \(batchAction), \(touched) sample changes."
+    }
+
+    func loadExistingDrawers() {
+        guard let rootPath = librarySettings.rootPath else {
+            libraryExistingGroups = [:]
+            libraryExistingMessage = "No Library Root selected."
+            librarySelectedPrefix = nil
+            librarySelectedBatchId = nil
+            librarySelectedSampleId = nil
+            return
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let index = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+        applyExistingIndex(index)
+    }
+
+    func syncLibraryFromFiles() {
+        guard let rootPath = librarySettings.rootPath else {
+            libraryRootVerificationMessage = "No Library Root selected."
+            return
+        }
+
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let previousIndex = libraryStore.loadIndex(from: rootURL)
+        let syncedIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+        applyExistingIndex(syncedIndex)
+        refreshActionablePreviewGroups()
+
+        let previousSamplesByID = Dictionary(uniqueKeysWithValues: (previousIndex?.samples ?? []).map { ($0.id, $0) })
+        let syncedSamplesByID = Dictionary(uniqueKeysWithValues: syncedIndex.samples.map { ($0.id, $0) })
+        let previousIDs = Set(previousSamplesByID.keys)
+        let syncedIDs = Set(syncedSamplesByID.keys)
+        let addedCount = syncedIDs.subtracting(previousIDs).count
+        let removedCount = previousIDs.subtracting(syncedIDs).count
+        let updatedCount = previousIDs.intersection(syncedIDs).reduce(into: 0) { partialResult, id in
+            if previousSamplesByID[id] != syncedSamplesByID[id] {
+                partialResult += 1
+            }
+        }
+
+        libraryRootVerificationMessage = "File sync complete: \(syncedIndex.samples.count) samples (+\(addedCount) / -\(removedCount) / ~\(updatedCount))."
+        libraryRootVerificationPath = rootPath
+    }
+
+    func selectExistingDrawer(prefix: String, batchId: String, sampleId: String?) {
+        librarySelectedPrefix = prefix
+        librarySelectedBatchId = batchId
+        if let sampleId {
+            librarySelectedSampleId = sampleId
+        } else {
+            librarySelectedSampleId = libraryExistingGroups[prefix]?
+                .first(where: { $0.batchId == batchId })?
+                .samples
+                .first?
+                .id
+        }
+        libraryActiveSelectionSource = .drawer
+        librarySelectionVersion += 1
+    }
+
+    func deleteExistingDrawer(batchId: String) {
+        libraryDrawerError = nil
+        libraryDrawerMessage = nil
+
+        guard let rootPath = librarySettings.rootPath else {
+            libraryDrawerError = "Select a Library Root first."
+            return
+        }
+
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let baselineIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+        let targetSamples = baselineIndex.samples.filter { $0.batchId == batchId }
+        let targetBatch = baselineIndex.batches.first { $0.id == batchId }
+        guard targetBatch != nil || !targetSamples.isEmpty else {
+            libraryDrawerError = "Drawer \(batchId) not found."
+            return
+        }
+
+        for sample in targetSamples {
+            libraryStore.deleteSampleDrawer(for: sample, rootURL: rootURL)
+        }
+        libraryStore.deleteBatchDrawer(batchID: batchId, rootURL: rootURL)
+
+        var index = baselineIndex
+        index.updatedAt = .now
+        index.samples.removeAll { $0.batchId == batchId }
+        index.batches.removeAll { $0.id == batchId }
+        libraryStore.saveIndex(index, to: rootURL)
+
+        loadExistingDrawers()
+        refreshActionablePreviewGroups()
+        libraryDrawerMessage = "Deleted drawer \(batchId) (\(targetSamples.count) samples)."
+    }
+
+    func selectBrowserSample() {
+        libraryActiveSelectionSource = .browser
+        librarySelectionVersion += 1
+    }
+
+    func prepareLibrarySyncReview() {
+        libraryDrawerError = nil
+        libraryDrawerMessage = nil
+
+        guard let preview = libraryPreview else {
+            libraryDrawerError = "Load the registry preview first."
+            return
+        }
+        guard let rootPath = librarySettings.rootPath else {
+            libraryDrawerError = "Select a Library Root first."
+            return
+        }
+
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let baselineIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+
+        let diff = libraryDiffEngine.diff(current: baselineIndex, updated: preview.index)
+        let autoAppliedChanges = diff.changedSamples
+        let deferredNumericChanges: [LibrarySampleChange] = []
+
+        libraryRefreshReview = LibraryRefreshReview(
+            generatedAt: Date(),
+            newSamples: diff.newSamples.sorted { $0.displayName < $1.displayName },
+            changedSamples: diff.changedSamples.sorted { $0.sample.displayName < $1.sample.displayName },
+            removedSamples: diff.removedSamples.sorted { $0.displayName < $1.displayName },
+            changedBatches: diff.changedBatches.sorted { LibrarySort.compareBatch($0.batch.id, $1.batch.id) },
+            removedBatches: diff.removedBatches.sorted { LibrarySort.compareBatch($0.id, $1.id) },
+            autoAppliedChanges: autoAppliedChanges.sorted { $0.sample.displayName < $1.sample.displayName },
+            deferredNumericChanges: deferredNumericChanges
+        )
+        refreshSyncChangeIndicators()
+        refreshActionablePreviewGroups()
+
+        libraryDrawerMessage = "Sync review prepared: \(diff.newSamples.count) new, \(diff.changedSamples.count) changed, \(diff.removedSamples.count) removed."
+    }
+
+    func refreshLibraryIncremental() {
+        libraryDrawerError = nil
+        libraryDrawerMessage = nil
+
+        guard let preview = libraryPreview else {
+            libraryDrawerError = "Load the registry preview first."
+            return
+        }
+        guard let rootPath = librarySettings.rootPath else {
+            libraryDrawerError = "Select a Library Root first."
+            return
+        }
+
+        let rootURL = URL(fileURLWithPath: rootPath)
+        libraryStore.ensureRoot(at: rootURL)
+        let baselineIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+        let diff = libraryDiffEngine.diff(current: baselineIndex, updated: preview.index)
+        let batchesByIDInPreview = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
+        var touchedBatchIDs: Set<String> = []
+
+        for sample in diff.newSamples {
+            guard let batch = batchesByIDInPreview[sample.batchId] else {
+                continue
+            }
+            libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
+            touchedBatchIDs.insert(batch.id)
+        }
+
+        for change in diff.changedSamples {
+            let sample = change.sample
+            libraryStore.updateSample(sample, rootURL: rootURL)
+            touchedBatchIDs.insert(sample.batchId)
+        }
+
+        for removedSample in diff.removedSamples {
+            libraryStore.deleteSampleDrawer(for: removedSample, rootURL: rootURL)
+            touchedBatchIDs.insert(removedSample.batchId)
+        }
+
+        for batchChange in diff.changedBatches {
+            touchedBatchIDs.insert(batchChange.batch.id)
+        }
+
+        for batchID in touchedBatchIDs {
+            guard let batch = batchesByIDInPreview[batchID] else {
+                continue
+            }
+            libraryStore.updateBatch(batch, rootURL: rootURL)
+        }
+
+        for removedBatch in diff.removedBatches {
+            libraryStore.deleteBatchDrawer(batchID: removedBatch.id, rootURL: rootURL)
+        }
+
+        var mergedIndex = preview.index
+        mergedIndex.updatedAt = .now
+        mergedIndex.registryInternalPath = librarySettings.registryInternalPath
+        mergedIndex.registrySourcePath = librarySettings.registrySourcePath
+        libraryStore.saveIndex(mergedIndex, to: rootURL)
+        loadExistingDrawers()
+
+        librarySettings.lastRefreshAt = Date()
+        librarySettingsStore.save(librarySettings)
+
+        libraryRefreshReview = LibraryRefreshReview(
+            generatedAt: Date(),
+            newSamples: diff.newSamples.sorted { $0.displayName < $1.displayName },
+            changedSamples: diff.changedSamples.sorted { $0.sample.displayName < $1.sample.displayName },
+            removedSamples: diff.removedSamples.sorted { $0.displayName < $1.displayName },
+            changedBatches: diff.changedBatches.sorted { LibrarySort.compareBatch($0.batch.id, $1.batch.id) },
+            removedBatches: diff.removedBatches.sorted { LibrarySort.compareBatch($0.id, $1.id) },
+            autoAppliedChanges: diff.changedSamples.sorted { $0.sample.displayName < $1.sample.displayName },
+            deferredNumericChanges: []
+        )
+        refreshSyncChangeIndicators()
+        refreshActionablePreviewGroups()
+
+        libraryDrawerMessage = "Registry aligned: \(diff.newSamples.count) new, \(diff.changedSamples.count) changed, \(diff.removedSamples.count) removed, \(diff.changedBatches.count) batch updates, \(diff.removedBatches.count) batch removals."
+    }
+
+    func confirmLibraryNumericRefreshChanges() {
+        libraryDrawerError = nil
+        libraryDrawerMessage = nil
+
+        guard let review = libraryRefreshReview else {
+            libraryDrawerError = "No refresh review available."
+            return
+        }
+        guard !review.deferredNumericChanges.isEmpty else {
+            libraryDrawerMessage = "No numeric changes pending confirmation."
+            return
+        }
+        guard let preview = libraryPreview else {
+            libraryDrawerError = "Load the registry preview first."
+            return
+        }
+        guard let rootPath = librarySettings.rootPath else {
+            libraryDrawerError = "Select a Library Root first."
+            return
+        }
+
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let baselineIndex = libraryStore.loadIndex(from: rootURL)
+            ?? LibraryIndex(
+                createdAt: .now,
+                updatedAt: .now,
+                registryInternalPath: librarySettings.registryInternalPath,
+                registrySourcePath: librarySettings.registrySourcePath,
+                metadataColumnOrder: [],
+                batches: [],
+                samples: []
+            )
+        var mergedSamplesByID = Dictionary(uniqueKeysWithValues: baselineIndex.samples.map { ($0.id, $0) })
+        var mergedBatchesByID = Dictionary(uniqueKeysWithValues: baselineIndex.batches.map { ($0.id, $0) })
+        let batchesByIDInPreview = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
+        var touchedBatchIDs: Set<String> = []
+
+        for change in review.deferredNumericChanges {
+            let sample = change.sample
+            mergedSamplesByID[sample.id] = sample
+            libraryStore.updateSample(sample, rootURL: rootURL)
+            touchedBatchIDs.insert(sample.batchId)
+        }
+
+        for batchID in touchedBatchIDs {
+            guard let batch = batchesByIDInPreview[batchID] else {
+                continue
+            }
+            mergedBatchesByID[batchID] = batch
+            libraryStore.updateBatch(batch, rootURL: rootURL)
+        }
+
+        var mergedIndex = baselineIndex
+        mergedIndex.updatedAt = .now
+        mergedIndex.registryInternalPath = librarySettings.registryInternalPath
+        mergedIndex.registrySourcePath = librarySettings.registrySourcePath
+        mergedIndex.metadataColumnOrder = preview.index.metadataColumnOrder
+        mergedIndex.samples = Array(mergedSamplesByID.values).sorted { $0.displayName < $1.displayName }
+        mergedIndex.batches = Array(mergedBatchesByID.values).sorted { $0.id < $1.id }
+        libraryStore.saveIndex(mergedIndex, to: rootURL)
+        loadExistingDrawers()
+
+        librarySettings.lastRefreshAt = Date()
+        librarySettingsStore.save(librarySettings)
+
+        libraryRefreshReview = LibraryRefreshReview(
+            generatedAt: review.generatedAt,
+            newSamples: review.newSamples,
+            changedSamples: review.changedSamples,
+            removedSamples: review.removedSamples,
+            changedBatches: review.changedBatches,
+            removedBatches: review.removedBatches,
+            autoAppliedChanges: review.autoAppliedChanges + review.deferredNumericChanges,
+            deferredNumericChanges: []
+        )
+        libraryDrawerMessage = "Confirmed and applied \(review.deferredNumericChanges.count) numeric changes."
     }
 
     func createDrawersFromPreview() {
@@ -276,6 +695,8 @@ final class SpinLabAppState: ObservableObject {
         index.registryInternalPath = librarySettings.registryInternalPath
         index.registrySourcePath = librarySettings.registrySourcePath
         libraryStore.saveIndex(index, to: rootURL)
+        loadExistingDrawers()
+        refreshActionablePreviewGroups()
 
         libraryDrawerMessage = "Created \(created) sample drawers."
     }
@@ -323,11 +744,42 @@ final class SpinLabAppState: ObservableObject {
             libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
         }
 
-        var index = preview.index
+        let baselineIndex = libraryStore.loadIndex(from: rootURL)
+            ?? LibraryIndex(
+                createdAt: .now,
+                updatedAt: .now,
+                registryInternalPath: librarySettings.registryInternalPath,
+                registrySourcePath: librarySettings.registrySourcePath,
+                metadataColumnOrder: [],
+                batches: [],
+                samples: []
+            )
+        var samplesByID = Dictionary(uniqueKeysWithValues: baselineIndex.samples.map { ($0.id, $0) })
+        for sample in targetSamples {
+            samplesByID[sample.id] = sample
+        }
+
+        var batchesByID = Dictionary(uniqueKeysWithValues: baselineIndex.batches.map { ($0.id, $0) })
+        var mergedBatch = batchesByID[batch.id] ?? batch
+        let mergedSampleKeys = Set(mergedBatch.sampleKeys).union(targetSamples.map(\.id))
+        mergedBatch.sampleKeys = mergedSampleKeys.sorted()
+        mergedBatch.metadata = batch.metadata
+        mergedBatch.numericTags = batch.numericTags
+        mergedBatch.numericDisplay = batch.numericDisplay
+        mergedBatch.sheetName = batch.sheetName
+        mergedBatch.updatedAt = .now
+        batchesByID[batch.id] = mergedBatch
+
+        var index = baselineIndex
         index.updatedAt = .now
         index.registryInternalPath = librarySettings.registryInternalPath
         index.registrySourcePath = librarySettings.registrySourcePath
+        index.metadataColumnOrder = preview.index.metadataColumnOrder
+        index.samples = Array(samplesByID.values).sorted { $0.displayName < $1.displayName }
+        index.batches = Array(batchesByID.values).sorted { $0.id < $1.id }
         libraryStore.saveIndex(index, to: rootURL)
+        loadExistingDrawers()
+        refreshActionablePreviewGroups()
 
         libraryDrawerMessage = "Created \(targetSamples.count) sample drawers."
     }
@@ -685,6 +1137,57 @@ final class SpinLabAppState: ObservableObject {
         return trimmed.isEmpty ? nil : trimmed
     }
 
+    private func applyExistingIndex(_ index: LibraryIndex) {
+        guard !index.samples.isEmpty else {
+            libraryExistingGroups = [:]
+            libraryExistingMessage = "No existing drawers found."
+            librarySelectedPrefix = nil
+            librarySelectedBatchId = nil
+            librarySelectedSampleId = nil
+            return
+        }
+
+        libraryExistingGroups = buildPreviewGroups(from: index)
+        libraryExistingMessage = "Loaded existing drawers: \(index.samples.count) samples"
+        normalizeLibrarySelection()
+    }
+
+    private func refreshSyncChangeIndicators() {
+        guard let review = libraryRefreshReview else {
+            libraryBatchSyncStatusByID = [:]
+            librarySampleSyncChangesByID = [:]
+            libraryBatchSyncChangesByID = [:]
+            return
+        }
+
+        var batchStatus: [String: LibrarySyncBatchStatus] = [:]
+        for sample in review.newSamples {
+            batchStatus[sample.batchId] = .added
+        }
+        for change in review.changedSamples {
+            if batchStatus[change.sample.batchId] != .added {
+                batchStatus[change.sample.batchId] = .changed
+            }
+        }
+        for sample in review.removedSamples {
+            if batchStatus[sample.batchId] != .added {
+                batchStatus[sample.batchId] = .changed
+            }
+        }
+        for change in review.changedBatches {
+            if batchStatus[change.batch.id] != .added {
+                batchStatus[change.batch.id] = .changed
+            }
+        }
+        for batch in review.removedBatches {
+            batchStatus[batch.id] = .removed
+        }
+
+        libraryBatchSyncStatusByID = batchStatus
+        librarySampleSyncChangesByID = Dictionary(uniqueKeysWithValues: review.changedSamples.map { ($0.sample.id, $0.fieldChanges) })
+        libraryBatchSyncChangesByID = Dictionary(uniqueKeysWithValues: review.changedBatches.map { ($0.batch.id, $0.fieldChanges) })
+    }
+
     private func updateRegistryPresentation() {
         registrySourceFilePath = sampleRegistry.sourceFilePath
         registryFileName = sampleRegistry.sourceFilePath.map { URL(fileURLWithPath: $0).lastPathComponent }
@@ -700,8 +1203,12 @@ final class SpinLabAppState: ObservableObject {
     }
 
     private func buildPreviewGroups(from preview: LibraryPreview) -> [String: [LibraryPreviewBatchGroup]] {
+        buildPreviewGroups(from: preview.index)
+    }
+
+    private func buildPreviewGroups(from index: LibraryIndex) -> [String: [LibraryPreviewBatchGroup]] {
         var groups: [String: [LibraryPreviewBatchGroup]] = [:]
-        let samplesByBatch = Dictionary(grouping: preview.index.samples) { $0.batchId }
+        let samplesByBatch = Dictionary(grouping: index.samples) { $0.batchId }
         for (batchId, samples) in samplesByBatch {
             let prefix = LibrarySort.batchSortKey(batchId).prefix
             let sortedSamples = samples.sorted { $0.substrateDisplay < $1.substrateDisplay }
@@ -712,6 +1219,113 @@ final class SpinLabAppState: ObservableObject {
             groups[prefix] = groups[prefix]?.sorted { LibrarySort.compareBatch($0.batchId, $1.batchId) }
         }
         return groups
+    }
+
+    private func actionablePreviewIndex(from previewIndex: LibraryIndex) -> LibraryIndex {
+        guard let rootPath = librarySettings.rootPath else {
+            return previewIndex
+        }
+
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let baselineIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+
+        let diff = libraryDiffEngine.diff(current: baselineIndex, updated: previewIndex)
+        var actionableByID: [String: LibrarySample] = [:]
+        for sample in diff.newSamples {
+            actionableByID[sample.id] = sample
+        }
+        for change in diff.changedSamples {
+            actionableByID[change.sample.id] = change.sample
+        }
+
+        let actionableSamples = Array(actionableByID.values).sorted { $0.displayName < $1.displayName }
+        let actionableBatchIDs = Set(actionableSamples.map(\.batchId))
+        let actionableBatches = previewIndex.batches
+            .filter { actionableBatchIDs.contains($0.id) }
+            .map { batch in
+                var next = batch
+                next.sampleKeys = batch.sampleKeys.filter { actionableByID[$0] != nil }
+                return next
+            }
+            .sorted { $0.id < $1.id }
+
+        return LibraryIndex(
+            version: previewIndex.version,
+            createdAt: previewIndex.createdAt,
+            updatedAt: previewIndex.updatedAt,
+            registryInternalPath: previewIndex.registryInternalPath,
+            registrySourcePath: previewIndex.registrySourcePath,
+            metadataColumnOrder: previewIndex.metadataColumnOrder,
+            batches: actionableBatches,
+            samples: actionableSamples
+        )
+    }
+
+    private func refreshActionablePreviewGroups() {
+        guard let preview = libraryPreview else {
+            libraryPreviewGroups = [:]
+            libraryPreviewMessage = "No preview loaded."
+            return
+        }
+        let removedCount = diffRemovedSampleCount(from: preview.index)
+        let actionable = actionablePreviewIndex(from: preview.index)
+        libraryPreviewGroups = buildPreviewGroups(from: actionable)
+        let newCount = diffNewSampleCount(from: preview.index)
+        let changedCount = max(actionable.samples.count - newCount, 0)
+        libraryPreviewMessage = "Sync diff loaded: \(actionable.samples.count) actionable (\(newCount) new, \(changedCount) changed, \(removedCount) removed)"
+    }
+
+    private func diffNewSampleCount(from previewIndex: LibraryIndex) -> Int {
+        guard let rootPath = librarySettings.rootPath else {
+            return previewIndex.samples.count
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let baselineIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+        return libraryDiffEngine.diff(current: baselineIndex, updated: previewIndex).newSamples.count
+    }
+
+    private func diffRemovedSampleCount(from previewIndex: LibraryIndex) -> Int {
+        guard let rootPath = librarySettings.rootPath else {
+            return 0
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let baselineIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+        return libraryDiffEngine.diff(current: baselineIndex, updated: previewIndex).removedSamples.count
+    }
+
+    private static let syncStatusTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return formatter
+    }()
+
+    private func normalizeLibrarySelection() {
+        let prefixes = libraryExistingGroups.keys.sorted()
+        if librarySelectedPrefix == nil || !prefixes.contains(librarySelectedPrefix ?? "") {
+            librarySelectedPrefix = prefixes.first
+        }
+
+        guard let prefix = librarySelectedPrefix else {
+            librarySelectedBatchId = nil
+            librarySelectedSampleId = nil
+            return
+        }
+
+        let groups = libraryExistingGroups[prefix] ?? []
+        let batchIDs = groups.map(\.batchId)
+        if librarySelectedBatchId == nil || !batchIDs.contains(librarySelectedBatchId ?? "") {
+            librarySelectedBatchId = groups.first?.batchId
+        }
+
+        guard let batchId = librarySelectedBatchId,
+              let samples = groups.first(where: { $0.batchId == batchId })?.samples else {
+            librarySelectedSampleId = nil
+            return
+        }
+
+        if librarySelectedSampleId == nil || !samples.contains(where: { $0.id == librarySelectedSampleId }) {
+            librarySelectedSampleId = samples.first?.id
+        }
     }
 
     private func savePendingImportContents(_ contents: String, for pending: SpinLabDomain.PendingImport) {
