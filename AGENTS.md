@@ -79,3 +79,11 @@ Global shell layout policy:
   - right: inspector/output (details, plots, metadata, previews)
 - Keep critical workflow actions in the center workspace column; avoid making the right column the primary action surface.
 - Keep right column reusable across modules (sample detail now, plot/result/detail panels later).
+
+Build and version policy (required):
+- Every functional change must bump `Sources/SpinLabApp/App/AppVersion.swift` (`AppVersion.library`).
+- After each version bump and feature change, rebuild and overwrite desktop app for QA using:
+  - `./scripts/build_desktop_app.sh debug`
+- Default output app path:
+  - `/Users/jack/Desktop/SpinLab.app`
+- Do not skip desktop overwrite unless user explicitly asks not to.

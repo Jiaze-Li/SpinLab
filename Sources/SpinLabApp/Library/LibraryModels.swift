@@ -187,10 +187,36 @@ struct LibraryWarning: Identifiable, Hashable {
     }
 }
 
+enum LibrarySyncBatchStatus: String, Hashable {
+    case added
+    case changed
+    case removed
+    case unchanged
+}
+
 struct LibraryDiff: Hashable {
     var newSamples: [LibrarySample]
     var changedSamples: [LibrarySampleChange]
+    var removedSamples: [LibrarySample]
+    var changedBatches: [LibraryBatchChange]
+    var removedBatches: [LibraryBatch]
     var warnings: [LibraryWarning]
+}
+
+struct LibraryRefreshReview: Identifiable, Hashable {
+    var id: UUID = UUID()
+    var generatedAt: Date
+    var newSamples: [LibrarySample]
+    var changedSamples: [LibrarySampleChange]
+    var removedSamples: [LibrarySample]
+    var changedBatches: [LibraryBatchChange]
+    var removedBatches: [LibraryBatch]
+    var autoAppliedChanges: [LibrarySampleChange]
+    var deferredNumericChanges: [LibrarySampleChange]
+
+    var totalChangesCount: Int {
+        newSamples.count + changedSamples.count + removedSamples.count + changedBatches.count + removedBatches.count
+    }
 }
 
 struct LibrarySampleChange: Identifiable, Hashable {
@@ -205,6 +231,12 @@ struct LibraryFieldChange: Hashable {
     var oldValue: String?
     var newValue: String?
     var isNumeric: Bool
+}
+
+struct LibraryBatchChange: Identifiable, Hashable {
+    var id: String { batch.id }
+    var batch: LibraryBatch
+    var fieldChanges: [LibraryFieldChange]
 }
 
 struct LibraryMatchStatus: Hashable {

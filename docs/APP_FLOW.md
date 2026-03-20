@@ -86,3 +86,14 @@ This workflow is defined for `AMR/PHE` measurements only.
   - `measurement_type`
   - date
 - Rating is not a primary V1 filter
+- Drawer structure and sync model follow the Library interaction contract:
+  - App view hierarchy: `Library -> Prefix -> Batch -> Drawer`
+  - Physical hierarchy: `batches/<prefix>/<batchId>/samples/<sampleKey>`
+  - `Sync Registry` means align app drawer tags/metadata toward XLSX target (detect first, then manual apply)
+  - `Sync File` means align app state toward current filesystem reality (manual trigger refresh)
+  - `Apply All` applies all pending registry operations in queue
+  - `Apply Selected` applies pending registry operations for selected batch only
+  - Pending queue is an operation queue, not a generic browser:
+    - green `+`: add
+    - red `-`: remove
+    - yellow marker: change
