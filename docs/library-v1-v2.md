@@ -111,8 +111,33 @@
   - Caching, lazy loading, and node-level invalidation must accelerate the two-area model above.
   - Performance changes must not re-introduce mixed-state UI complexity.
 - V1.7: Edit + Search
-  - Edit metadata/tags in UI.
-  - Search by substrate tokens and numeric tags.
+  - V1.7.A (done): Edit metadata/tags in UI.
+    - Edit/Save flow in Sample Detail is enabled.
+    - Numeric edit keeps unit as fixed suffix; editable part is numeric value.
+    - Metadata edit keeps existing two-column layout during edit.
+    - Unsaved-switch prompt triggers only when there are actual draft changes.
+    - Metadata writes directly to registry source XLSX.
+    - Numeric changes are logged to numeric log sheet only (no direct numeric writeback).
+    - Log sheets:
+      - `__metadata_sync_log` (read-only in app)
+      - `__numeric_tags_log` (status updatable in app: `pending/done/ignored`)
+  - V1.7.B (planned): Search (substrate + numeric)
+    - Search entry placement:
+      - add `Search` block at the top of `Registry Operations` (center column)
+      - keep partition semantics; do not mix pending/existing lists
+      - scope segmented control: `Pending | Existing`
+      - default scope follows current area context
+    - Search inputs/rules:
+      - substrate: free-text token matching (case-insensitive, contains match)
+      - numeric: structured conditions
+        - key selector
+        - operator: `=`, `>`, `>=`, `<`, `<=`, `between`
+        - value (or min/max for `between`)
+      - multiple numeric conditions use AND semantics
+    - Result behavior:
+      - filter center-column batch/sample lists directly
+      - right detail remains unchanged, with current match-hit tags shown
+      - provide one-click `Clear` to reset all conditions and restore full list
 
 ### V1.6 Completion Record (2026-03-21)
 - Status: completed and stabilized as architecture/performance-focused release.
@@ -139,6 +164,24 @@
   - Library drawer shows copied measurement file.
 - V1.9: Backup Sync
   - Manual backup sync to a user-selected location.
+- V1.10: Full Interaction Memory + Restore
+  - Product rule: preserve and restore the user's last interaction state across app relaunch by default.
+  - Scope: all editable/interactive app state, including but not limited to:
+    - area/module selection
+    - partition collapse/expand states
+    - selected prefix/batch/sample and related navigation context
+    - user-edited form values and in-progress drafts
+    - view/filter/sort/search controls
+    - workflow step progress and operation context
+  - Architecture boundary:
+    - add a dedicated interaction-memory layer (model/service/store)
+    - UI reports state changes and renders restored state only
+    - persistence layer stores/reloads snapshots; no UI rules in storage
+  - Exceptions:
+    - transient hover/toast/animation states are excluded unless explicitly required
+    - any non-persisted interaction must be explicitly documented as an exception
+  - Acceptance:
+    - after relaunch, app returns to the last valid interactive state with safe fallback when targets no longer exist
 
 ## Verification (UI-only)
 - All verification is done via UI interactions, not internal logs.

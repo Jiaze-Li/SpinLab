@@ -42,11 +42,13 @@ struct RootSplitView: View {
                 .safeAreaPadding(.top, currentDetailTopInset)
                 .frame(maxHeight: .infinity, alignment: .top)
                 .overlay(alignment: .topTrailing) {
-                    Text(AppVersion.current)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 12)
-                        .padding(.trailing, 16)
+                    if appState.selectedArea != .library {
+                        Text(AppVersion.current)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 12)
+                            .padding(.trailing, 16)
+                    }
                 }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

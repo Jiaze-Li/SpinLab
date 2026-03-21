@@ -102,6 +102,8 @@ struct LibrarySample: Identifiable, Codable, Hashable {
     var orderedMetadata: [LibraryMetadataItem]
     var numericTags: [String: Double]
     var numericDisplay: [String: String]
+    var sourceSheetName: String?
+    var sourceRowNumber: Int?
     var updatedAt: Date
 
     init(
@@ -116,6 +118,8 @@ struct LibrarySample: Identifiable, Codable, Hashable {
         orderedMetadata: [LibraryMetadataItem] = [],
         numericTags: [String: Double],
         numericDisplay: [String: String],
+        sourceSheetName: String? = nil,
+        sourceRowNumber: Int? = nil,
         updatedAt: Date
     ) {
         self.id = id
@@ -129,6 +133,8 @@ struct LibrarySample: Identifiable, Codable, Hashable {
         self.orderedMetadata = orderedMetadata
         self.numericTags = numericTags
         self.numericDisplay = numericDisplay
+        self.sourceSheetName = sourceSheetName
+        self.sourceRowNumber = sourceRowNumber
         self.updatedAt = updatedAt
     }
 
@@ -144,6 +150,8 @@ struct LibrarySample: Identifiable, Codable, Hashable {
         case orderedMetadata
         case numericTags
         case numericDisplay
+        case sourceSheetName
+        case sourceRowNumber
         case updatedAt
     }
 
@@ -160,6 +168,8 @@ struct LibrarySample: Identifiable, Codable, Hashable {
         orderedMetadata = try container.decodeIfPresent([LibraryMetadataItem].self, forKey: .orderedMetadata) ?? []
         numericTags = try container.decodeIfPresent([String: Double].self, forKey: .numericTags) ?? [:]
         numericDisplay = try container.decodeIfPresent([String: String].self, forKey: .numericDisplay) ?? [:]
+        sourceSheetName = try container.decodeIfPresent(String.self, forKey: .sourceSheetName)
+        sourceRowNumber = try container.decodeIfPresent(Int.self, forKey: .sourceRowNumber)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
 }
@@ -245,4 +255,87 @@ struct LibraryMatchStatus: Hashable {
     var matchedBatchId: String?
     var matchedSampleKey: String?
     var candidates: [LibrarySample]
+}
+
+struct LibraryEditableKeyValue: Identifiable, Hashable {
+    var id: String { key }
+    var key: String
+    var value: String
+}
+
+struct LibraryEditableNumericValue: Identifiable, Hashable {
+    var id: String { key }
+    var key: String
+    var value: String
+    var unit: String
+}
+
+struct LibrarySampleEditDraft: Hashable {
+    var sampleId: String
+    var batchId: String
+    var baseUpdatedAt: Date
+    var substrateTagsText: String
+    var numericValues: [LibraryEditableNumericValue]
+    var metadataValues: [LibraryEditableKeyValue]
+}
+
+struct LibrarySampleChangeLogItem: Codable, Hashable {
+    var key: String
+    var oldValue: String?
+    var newValue: String?
+}
+
+struct LibrarySampleChangeLogEntry: Identifiable, Codable, Hashable {
+    var id: UUID
+    var sampleId: String
+    var batchId: String
+    var changedAt: Date
+    var source: String
+    var changes: [LibrarySampleChangeLogItem]
+}
+
+struct LibraryRegistrySourceSyncResult: Hashable {
+    var metadataWrittenCount: Int
+    var metadataFailedCount: Int
+    var manualLoggedCount: Int
+    var metadataLogSheetName: String
+    var manualLogSheetName: String
+}
+
+enum LibraryManualLogStatus: String, Codable, CaseIterable, Hashable {
+    case pending
+    case done
+    case ignored
+}
+
+struct LibraryManualUpdateLogEntry: Identifiable, Hashable {
+    var id: String { "\(rowIndex)" }
+    var rowIndex: Int
+    var timestamp: Date?
+    var sampleId: String
+    var batchId: String
+    var sheetName: String
+    var rowNumber: Int
+    var fieldType: String
+    var fieldKey: String
+    var oldValue: String?
+    var newValue: String?
+    var status: LibraryManualLogStatus
+    var statusChangedAt: Date?
+    var statusChangedBy: String?
+}
+
+struct LibraryMetadataSyncLogEntry: Identifiable, Hashable {
+    var id: String { "\(rowIndex)" }
+    var rowIndex: Int
+    var timestamp: Date?
+    var sampleId: String
+    var batchId: String
+    var sheetName: String
+    var rowNumber: Int
+    var columnName: String
+    var oldValue: String?
+    var newValue: String?
+    var writeResult: String
+    var errorMessage: String?
 }

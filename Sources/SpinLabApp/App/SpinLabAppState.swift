@@ -14,6 +14,11 @@ enum LibrarySelectionSource {
     case drawer
 }
 
+enum LibraryPendingSelectionChange: Equatable {
+    case browser
+    case drawer(prefix: String, batchId: String, sampleId: String?)
+}
+
 struct PendingImportConfirmationDraft: Equatable {
     static let noProjectOption = "None"
 
@@ -103,6 +108,17 @@ final class SpinLabAppState: ObservableObject {
     @Published private(set) var libraryBatchSyncStatusByID: [String: LibrarySyncBatchStatus] = [:]
     @Published private(set) var librarySampleSyncChangesByID: [String: [LibraryFieldChange]] = [:]
     @Published private(set) var libraryBatchSyncChangesByID: [String: [LibraryFieldChange]] = [:]
+    @Published private(set) var librarySampleEditDraft: LibrarySampleEditDraft?
+    @Published private(set) var librarySampleEditError: String?
+    @Published private(set) var librarySampleEditMessage: String?
+    @Published private(set) var librarySampleEditIsSaving: Bool = false
+    @Published private(set) var libraryPendingSelectionChangePrompt: String?
+    @Published private(set) var libraryGlobalManualLogs: [LibraryManualUpdateLogEntry] = []
+    @Published private(set) var libraryGlobalManualLogError: String?
+    @Published private(set) var libraryGlobalManualLogMessage: String?
+    @Published private(set) var libraryMetadataSyncLogs: [LibraryMetadataSyncLogEntry] = []
+    @Published private(set) var libraryMetadataSyncLogError: String?
+    @Published private(set) var libraryMetadataSyncLogMessage: String?
 
     let workflow: SpinLabDomain.WorkflowKind = .amrPhe
 
@@ -116,8 +132,12 @@ final class SpinLabAppState: ObservableObject {
     private let libraryStore = LibraryStore()
     private let libraryLogger = LibraryLogger()
     private let libraryDiffEngine = LibraryDiffEngine()
+    private let librarySampleEditService = LibrarySampleEditService()
     private lazy var librarySyncService = LibrarySyncService(libraryStore: libraryStore, libraryDiffEngine: libraryDiffEngine)
     private let appLogger = AppLogger.shared
+    private var librarySampleEditBaseSample: LibrarySample?
+    private var librarySampleEditOriginalDraft: LibrarySampleEditDraft?
+    private var libraryPendingSelectionChange: LibraryPendingSelectionChange?
 
     init(
         persistence: SpinLabPersistence = LocalJSONPersistence(),
@@ -399,24 +419,114 @@ final class SpinLabAppState: ObservableObject {
     }
 
     func selectExistingDrawer(prefix: String, batchId: String, sampleId: String?) {
-        librarySelectedPrefix = prefix
-        librarySelectedBatchId = batchId
-        if let sampleId {
-            librarySelectedSampleId = sampleId
-        } else {
-            librarySelectedSampleId = libraryExistingGroups[prefix]?
-                .first(where: { $0.batchId == batchId })?
-                .samples
-                .first?
-                .id
+        let requested = LibraryPendingSelectionChange.drawer(prefix: prefix, batchId: batchId, sampleId: sampleId)
+        guard !deferSelectionChangeIfNeeded(requested) else {
+            return
         }
-        libraryActiveSelectionSource = .drawer
-        librarySelectionVersion += 1
-        appLogger.info(.ui, "Existing drawer selected", metadata: [
-            "prefix": prefix,
-            "batchId": batchId,
-            "sampleId": librarySelectedSampleId ?? "-"
-        ])
+        applySelectionChange(requested)
+    }
+
+    func selectBrowserSample() {
+        let requested = LibraryPendingSelectionChange.browser
+        guard !deferSelectionChangeIfNeeded(requested) else {
+            return
+        }
+        applySelectionChange(requested)
+    }
+
+    func saveAndContinuePendingLibrarySelectionChange() {
+        guard libraryPendingSelectionChange != nil else {
+            return
+        }
+        saveLibrarySampleEdits()
+        guard librarySampleEditError == nil else {
+            return
+        }
+        applyAndClearPendingLibrarySelectionChange()
+    }
+
+    func discardAndContinuePendingLibrarySelectionChange() {
+        guard libraryPendingSelectionChange != nil else {
+            return
+        }
+        librarySampleEditDraft = nil
+        librarySampleEditBaseSample = nil
+        librarySampleEditOriginalDraft = nil
+        librarySampleEditError = nil
+        librarySampleEditMessage = "Edit discarded."
+        applyAndClearPendingLibrarySelectionChange()
+    }
+
+    func cancelPendingLibrarySelectionChange() {
+        libraryPendingSelectionChange = nil
+        libraryPendingSelectionChangePrompt = nil
+    }
+
+    private func applySelectionChange(_ requested: LibraryPendingSelectionChange) {
+        switch requested {
+        case let .drawer(prefix, batchId, sampleId):
+            librarySelectedPrefix = prefix
+            librarySelectedBatchId = batchId
+            if let sampleId {
+                librarySelectedSampleId = sampleId
+            } else {
+                librarySelectedSampleId = libraryExistingGroups[prefix]?
+                    .first(where: { $0.batchId == batchId })?
+                    .samples
+                    .first?
+                    .id
+            }
+            libraryActiveSelectionSource = .drawer
+            librarySelectionVersion += 1
+            reconcileLibrarySampleEditingSelection()
+            appLogger.info(.ui, "Existing drawer selected", metadata: [
+                "prefix": prefix,
+                "batchId": batchId,
+                "sampleId": librarySelectedSampleId ?? "-"
+            ])
+        case .browser:
+            libraryActiveSelectionSource = .browser
+            librarySelectionVersion += 1
+            reconcileLibrarySampleEditingSelection()
+            appLogger.info(.usage, "Pending browser selection updated", metadata: [
+                "prefix": librarySelectedPrefix ?? "-",
+                "batchId": librarySelectedBatchId ?? "-",
+                "sampleId": librarySelectedSampleId ?? "-"
+            ])
+        }
+    }
+
+    private func deferSelectionChangeIfNeeded(_ requested: LibraryPendingSelectionChange) -> Bool {
+        guard librarySampleEditIsDirty,
+              requested != currentSelectionChangeKey else {
+            return false
+        }
+
+        libraryPendingSelectionChange = requested
+        libraryPendingSelectionChangePrompt = "You have unsaved sample edits. Save before switching selection?"
+        return true
+    }
+
+    private var currentSelectionChangeKey: LibraryPendingSelectionChange {
+        switch libraryActiveSelectionSource {
+        case .browser:
+            return .browser
+        case .drawer:
+            return .drawer(prefix: librarySelectedPrefix ?? "", batchId: librarySelectedBatchId ?? "", sampleId: librarySelectedSampleId)
+        }
+    }
+
+    private func applyAndClearPendingLibrarySelectionChange() {
+        guard let pending = libraryPendingSelectionChange else {
+            return
+        }
+        libraryPendingSelectionChange = nil
+        libraryPendingSelectionChangePrompt = nil
+        applySelectionChange(pending)
+    }
+
+    func hasPendingLibrarySelectionChange() -> Bool {
+        libraryPendingSelectionChange != nil
     }
 
     func deleteExistingDrawer(batchId: String) {
@@ -452,14 +562,211 @@ final class SpinLabAppState: ObservableObject {
         libraryDrawerMessage = "Deleted drawer \(batchId) (\(targetSamples.count) samples)."
     }
 
-    func selectBrowserSample() {
-        libraryActiveSelectionSource = .browser
-        librarySelectionVersion += 1
-        appLogger.info(.usage, "Pending browser selection updated", metadata: [
-            "prefix": librarySelectedPrefix ?? "-",
-            "batchId": librarySelectedBatchId ?? "-",
-            "sampleId": librarySelectedSampleId ?? "-"
-        ])
+    var canEditSelectedLibrarySample: Bool {
+        libraryActiveSelectionSource == .drawer && selectedExistingDrawerSample != nil
+    }
+
+    var librarySampleEditIsDirty: Bool {
+        guard let draft = librarySampleEditDraft,
+              let original = librarySampleEditOriginalDraft else {
+            return false
+        }
+        return draft != original
+    }
+
+    func beginEditingSelectedLibrarySample() {
+        librarySampleEditError = nil
+        librarySampleEditMessage = nil
+
+        guard canEditSelectedLibrarySample, let sample = selectedExistingDrawerSample else {
+            librarySampleEditError = "Select an existing drawer sample to edit."
+            return
+        }
+
+        librarySampleEditBaseSample = sample
+        let draft = librarySampleEditService.makeDraft(from: sample)
+        librarySampleEditDraft = draft
+        librarySampleEditOriginalDraft = draft
+    }
+
+    func cancelEditingSelectedLibrarySample() {
+        librarySampleEditDraft = nil
+        librarySampleEditBaseSample = nil
+        librarySampleEditOriginalDraft = nil
+        librarySampleEditError = nil
+        librarySampleEditMessage = "Edit canceled."
+    }
+
+    func updateLibrarySampleEditSubstrateTags(_ value: String) {
+        guard var draft = librarySampleEditDraft else {
+            return
+        }
+        draft.substrateTagsText = value
+        librarySampleEditDraft = draft
+    }
+
+    func updateLibrarySampleEditNumericValue(key: String, value: String) {
+        guard var draft = librarySampleEditDraft else {
+            return
+        }
+        guard let index = draft.numericValues.firstIndex(where: { $0.key == key }) else {
+            return
+        }
+        draft.numericValues[index].value = value
+        librarySampleEditDraft = draft
+    }
+
+    func updateLibrarySampleEditMetadataValue(key: String, value: String) {
+        guard var draft = librarySampleEditDraft else {
+            return
+        }
+        guard let index = draft.metadataValues.firstIndex(where: { $0.key == key }) else {
+            return
+        }
+        draft.metadataValues[index].value = value
+        librarySampleEditDraft = draft
+    }
+
+    func librarySampleChangeLog(for sample: LibrarySample) -> [LibrarySampleChangeLogEntry] {
+        guard let rootPath = librarySettings.rootPath else {
+            return []
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        return libraryStore.sampleChangeLog(for: sample, rootURL: rootURL)
+    }
+
+    func loadLibraryGlobalManualLogs() {
+        libraryGlobalManualLogError = nil
+        libraryGlobalManualLogMessage = nil
+
+        guard let registrySourceURL = resolveRegistrySourceURL() else {
+            libraryGlobalManualLogError = "No registry source found. Load registry from Inbox first."
+            libraryGlobalManualLogs = []
+            return
+        }
+
+        do {
+            let entries = try libraryStore.loadRegistryManualUpdateLogEntries(registrySourceURL: registrySourceURL)
+            libraryGlobalManualLogs = entries
+            libraryGlobalManualLogMessage = "Loaded \(entries.count) global log entries."
+        } catch {
+            libraryGlobalManualLogError = error.localizedDescription
+            libraryGlobalManualLogs = []
+        }
+    }
+
+    func markLibraryGlobalManualLogStatus(rowIndex: Int, status: LibraryManualLogStatus) {
+        libraryGlobalManualLogError = nil
+        libraryGlobalManualLogMessage = nil
+
+        guard let registrySourceURL = resolveRegistrySourceURL() else {
+            libraryGlobalManualLogError = "No registry source found. Load registry from Inbox first."
+            return
+        }
+
+        do {
+            try libraryStore.updateRegistryManualUpdateLogStatus(
+                registrySourceURL: registrySourceURL,
+                rowIndex: rowIndex,
+                status: status,
+                statusChangedBy: "user"
+            )
+            loadLibraryGlobalManualLogs()
+            libraryGlobalManualLogMessage = "Updated status for log row \(rowIndex) to \(status.rawValue)."
+        } catch {
+            libraryGlobalManualLogError = error.localizedDescription
+        }
+    }
+
+    func loadLibraryMetadataSyncLogs() {
+        libraryMetadataSyncLogError = nil
+        libraryMetadataSyncLogMessage = nil
+
+        guard let registrySourceURL = resolveRegistrySourceURL() else {
+            libraryMetadataSyncLogError = "No registry source found. Load registry from Inbox first."
+            libraryMetadataSyncLogs = []
+            return
+        }
+
+        do {
+            let entries = try libraryStore.loadRegistryMetadataSyncLogEntries(registrySourceURL: registrySourceURL)
+            libraryMetadataSyncLogs = entries
+            libraryMetadataSyncLogMessage = "Loaded \(entries.count) metadata log entries."
+        } catch {
+            libraryMetadataSyncLogError = error.localizedDescription
+            libraryMetadataSyncLogs = []
+        }
+    }
+
+    func saveLibrarySampleEdits() {
+        librarySampleEditError = nil
+        librarySampleEditMessage = nil
+
+        guard let rootPath = librarySettings.rootPath else {
+            librarySampleEditError = "Select a Library Root first."
+            return
+        }
+        guard let draft = librarySampleEditDraft,
+              let base = librarySampleEditBaseSample else {
+            librarySampleEditError = "No active edit draft."
+            return
+        }
+        guard draft.sampleId == base.id else {
+            librarySampleEditError = "Selection changed. Restart edit for the selected sample."
+            return
+        }
+
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let snapshot = libraryStore.snapshotIndexFromFilesystem(rootURL: rootURL)
+        guard let current = snapshot.samples.first(where: { $0.id == draft.sampleId }) else {
+            librarySampleEditError = "Selected sample no longer exists."
+            librarySampleEditDraft = nil
+            librarySampleEditBaseSample = nil
+            librarySampleEditOriginalDraft = nil
+            return
+        }
+        guard current.updatedAt == draft.baseUpdatedAt else {
+            librarySampleEditError = "Sample changed on disk. Reload and edit again."
+            return
+        }
+
+        do {
+            librarySampleEditIsSaving = true
+            let updated = try librarySampleEditService.apply(draft: draft, to: current)
+            libraryStore.updateSample(updated, rootURL: rootURL, changeSource: "manual_edit")
+            var syncSummary: String?
+            if let registrySourceURL = resolveRegistrySourceURL() {
+                do {
+                    let syncResult = try libraryStore.syncRegistrySourceForEditedSample(
+                        oldSample: current,
+                        updatedSample: updated,
+                        registrySourceURL: registrySourceURL
+                    )
+                    syncSummary = "metadata→xlsx: \(syncResult.metadataWrittenCount) success, \(syncResult.metadataFailedCount) failed; numeric-log: \(syncResult.manualLoggedCount) (\(syncResult.manualLogSheetName)); metadata-log: \(syncResult.metadataLogSheetName)"
+                    if syncResult.metadataFailedCount > 0 {
+                        librarySampleEditError = "Metadata sync failed for \(syncResult.metadataFailedCount) field(s). Check Metadata日志."
+                    }
+                } catch {
+                    syncSummary = "xlsx sync warning: \(error.localizedDescription)"
+                    librarySampleEditError = "Metadata sync failed. Check Metadata日志."
+                }
+            } else {
+                syncSummary = "xlsx sync warning: registry source not found."
+                librarySampleEditError = "Metadata sync failed: registry source not found."
+            }
+            commitLibraryMutation(rootURL: rootURL, previewIndex: libraryPreview?.index)
+            librarySampleEditDraft = nil
+            librarySampleEditBaseSample = nil
+            librarySampleEditOriginalDraft = nil
+            if let syncSummary {
+                librarySampleEditMessage = "Saved sample edits. \(syncSummary)"
+            } else {
+                librarySampleEditMessage = "Saved sample edits."
+            }
+        } catch {
+            librarySampleEditError = error.localizedDescription
+        }
+        librarySampleEditIsSaving = false
     }
 
     func prepareLibrarySyncReview(precomputedDiff: LibraryDiff? = nil) {
@@ -1063,12 +1370,16 @@ final class SpinLabAppState: ObservableObject {
             librarySelectedPrefix = nil
             librarySelectedBatchId = nil
             librarySelectedSampleId = nil
+            librarySampleEditDraft = nil
+            librarySampleEditBaseSample = nil
+            librarySampleEditOriginalDraft = nil
             return
         }
 
         libraryExistingGroups = buildPreviewGroups(from: index)
         libraryExistingMessage = "Loaded existing drawers: \(index.samples.count) samples"
         normalizeLibrarySelection()
+        reconcileLibrarySampleEditingSelection()
     }
 
     private func refreshSyncChangeIndicators() {
@@ -1266,8 +1577,60 @@ final class SpinLabAppState: ObservableObject {
         }
     }
 
+    private var selectedExistingDrawerSample: LibrarySample? {
+        guard let prefix = librarySelectedPrefix,
+              let batchId = librarySelectedBatchId,
+              let sampleId = librarySelectedSampleId else {
+            return nil
+        }
+        let groups = libraryExistingGroups[prefix] ?? []
+        guard let group = groups.first(where: { $0.batchId == batchId }) else {
+            return nil
+        }
+        return group.samples.first(where: { $0.id == sampleId })
+    }
+
+    private func reconcileLibrarySampleEditingSelection() {
+        guard let draft = librarySampleEditDraft else {
+            return
+        }
+
+        guard libraryActiveSelectionSource == .drawer,
+              let selectedSample = selectedExistingDrawerSample else {
+            librarySampleEditDraft = nil
+            librarySampleEditBaseSample = nil
+            librarySampleEditOriginalDraft = nil
+            librarySampleEditError = nil
+            librarySampleEditMessage = "Edit canceled after leaving existing drawer selection."
+            return
+        }
+
+        guard selectedSample.id == draft.sampleId else {
+            librarySampleEditDraft = nil
+            librarySampleEditBaseSample = nil
+            librarySampleEditOriginalDraft = nil
+            librarySampleEditError = nil
+            librarySampleEditMessage = "Edit canceled after sample selection changed."
+            return
+        }
+    }
+
     private func savePendingImportContents(_ contents: String, for pending: SpinLabDomain.PendingImport) {
         try? contents.write(to: URL(fileURLWithPath: pending.sourceFilePath), atomically: true, encoding: .utf8)
+    }
+
+    private func resolveRegistrySourceURL() -> URL? {
+        let fileManager = FileManager.default
+        if let sourcePath = librarySettings.registrySourcePath, fileManager.fileExists(atPath: sourcePath) {
+            return URL(fileURLWithPath: sourcePath)
+        }
+        if let internalPath = librarySettings.registryInternalPath, fileManager.fileExists(atPath: internalPath) {
+            return URL(fileURLWithPath: internalPath)
+        }
+        if let current = managedStorage.currentSampleRegistryFileURL(), fileManager.fileExists(atPath: current.path) {
+            return current
+        }
+        return nil
     }
 
     private func existingImportedOriginalPaths() -> Set<String> {

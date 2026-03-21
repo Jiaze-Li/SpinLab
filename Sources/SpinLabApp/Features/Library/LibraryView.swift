@@ -7,7 +7,14 @@ struct LibraryView: View {
     @State private var selectedPrefix: String?
     @State private var selectedBatchId: String?
     @State private var selectedSampleId: String?
+    @State private var isLibrarySettingsExpanded = true
     @State private var isRegistryWorkspaceExpanded = true
+    @State private var isShowingSampleChangeLog = false
+    @State private var isShowingGlobalManualLog = false
+    @State private var isShowingMetadataSyncLog = false
+    private let level1HeaderFont: Font = .title2.bold()
+    private let level2HeaderFont: Font = .title3.weight(.semibold)
+    private let level3HeaderFont: Font = .headline
 
     var body: some View {
         HSplitView {
@@ -29,16 +36,42 @@ struct LibraryView: View {
         .onChange(of: appState.libraryPreviewGroups) { _, _ in
             syncSelection()
         }
+        .confirmationDialog(
+            "Unsaved Edits",
+            isPresented: pendingSelectionChangeDialogBinding,
+            titleVisibility: .visible
+        ) {
+            Button("Save and Switch") {
+                appState.saveAndContinuePendingLibrarySelectionChange()
+            }
+            Button("Discard and Switch", role: .destructive) {
+                appState.discardAndContinuePendingLibrarySelectionChange()
+            }
+            Button("Cancel", role: .cancel) {
+                appState.cancelPendingLibrarySelectionChange()
+            }
+        } message: {
+            Text(appState.libraryPendingSelectionChangePrompt ?? "You have unsaved sample edits.")
+        }
+        .sheet(isPresented: $isShowingSampleChangeLog) {
+            sampleChangeLogSheet
+        }
+        .sheet(isPresented: $isShowingGlobalManualLog) {
+            globalManualLogSheet
+        }
+        .sheet(isPresented: $isShowingMetadataSyncLog) {
+            metadataSyncLogSheet
+        }
     }
 
     private var librarySettingsColumn: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Library")
-                    .font(.title2.bold())
+                libraryColumnHeader
 
                 librarySettingsSection
                 registryWorkspaceSection
+                existingDrawerSampleSection
             }
             .frame(minWidth: 300, maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
@@ -47,61 +80,94 @@ struct LibraryView: View {
         .animation(nil, value: selectedSampleId)
     }
 
+    private var libraryColumnHeader: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Library")
+                .font(level1HeaderFont)
+            Spacer()
+            Text(AppVersion.current)
+                .font(.caption.monospaced())
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private var librarySettingsSection: some View {
-        GroupBox("Library Settings") {
-            VStack(alignment: .leading, spacing: 8) {
-                MetadataValueRow(
-                    label: "Registry Path (Inbox)",
-                    value: appState.librarySettings.registrySourcePath ?? appState.registrySourceFilePath ?? "Not loaded",
-                    monospaced: true
-                )
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-                .fixedSize(horizontal: false, vertical: true)
-
-                MetadataValueRow(
-                    label: "Library Root",
-                    value: appState.librarySettings.rootPath ?? "Not set",
-                    monospaced: true
-                )
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-                .fixedSize(horizontal: false, vertical: true)
-
-                HStack {
-                    Button("Choose Library Root") {
-                        presentLibraryRootPanel()
-                    }
-                    Button("Verify Root") {
-                        appState.verifyLibraryRoot()
-                    }
-                    Button("Sync Files") {
-                        appState.syncLibraryFromFiles()
-                    }
-                    .disabled(appState.librarySettings.rootPath == nil)
-                }
-
-                if let message = appState.libraryRootVerificationMessage {
-                    Text(message)
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                isLibrarySettingsExpanded.toggle()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: isLibrarySettingsExpanded ? "chevron.down" : "chevron.right")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                }
-
-                if let path = appState.libraryRootVerificationPath {
-                    MetadataValueRow(label: "Verified Path", value: path, monospaced: true)
-                }
-
-                HStack {
-                    TextField("Allowed Prefixes (PN, PT, SL)", text: $allowedPrefixesDraft)
-                        .frame(width: 190)
-                        .textFieldStyle(.roundedBorder)
-                    Button("Save Prefixes") {
-                        appState.updateAllowedBatchPrefixes(from: allowedPrefixesDraft)
-                    }
-                }
-                .onAppear {
-                    allowedPrefixesDraft = appState.librarySettings.allowedBatchPrefixes.joined(separator: ", ")
+                        .frame(width: 20, height: 20)
+                    Text("Library Settings")
+                        .font(level2HeaderFont)
+                    Spacer()
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .buttonStyle(.plain)
+
+            if isLibrarySettingsExpanded {
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 8) {
+                        MetadataValueRow(
+                            label: "Registry Path (Inbox)",
+                            value: appState.librarySettings.registrySourcePath ?? appState.registrySourceFilePath ?? "Not loaded",
+                            monospaced: true
+                        )
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                        MetadataValueRow(
+                            label: "Library Root",
+                            value: appState.librarySettings.rootPath ?? "Not set",
+                            monospaced: true
+                        )
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                        HStack {
+                            Button("Choose Library Root") {
+                                presentLibraryRootPanel()
+                            }
+                            Button("Verify Root") {
+                                appState.verifyLibraryRoot()
+                            }
+                            Button("Sync Files") {
+                                appState.syncLibraryFromFiles()
+                            }
+                            .disabled(appState.librarySettings.rootPath == nil)
+                        }
+
+                        if let message = appState.libraryRootVerificationMessage {
+                            Text(message)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if let path = appState.libraryRootVerificationPath {
+                            MetadataValueRow(label: "Verified Path", value: path, monospaced: true)
+                        }
+
+                        HStack {
+                            TextField("Allowed Prefixes (PN, PT, SL)", text: $allowedPrefixesDraft)
+                                .frame(width: 190)
+                                .textFieldStyle(.roundedBorder)
+                            Button("Save Prefixes") {
+                                appState.updateAllowedBatchPrefixes(from: allowedPrefixesDraft)
+                            }
+                        }
+                        .onAppear {
+                            allowedPrefixesDraft = appState.librarySettings.allowedBatchPrefixes.joined(separator: ", ")
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } label: {
+                    Text("Settings")
+                        .font(level3HeaderFont)
+                }
+            }
         }
     }
 
@@ -110,15 +176,15 @@ struct LibraryView: View {
             Button {
                 isRegistryWorkspaceExpanded.toggle()
             } label: {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     Image(systemName: isRegistryWorkspaceExpanded ? "chevron.down" : "chevron.right")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text("Registry Operations (XLSX Aligned)")
-                        .font(.headline)
+                        .frame(width: 20, height: 20)
+                    Text("Registry Operations")
+                        .font(level2HeaderFont)
                     Spacer()
                 }
-                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
@@ -198,6 +264,7 @@ struct LibraryView: View {
     private var registryPreviewSectionLabel: some View {
         HStack(spacing: 6) {
             Text("Registry Sync")
+                .font(level3HeaderFont)
             if let syncStatus = appState.librarySyncStatusMessage {
                 Text("(\(syncStatus))")
                     .font(.caption)
@@ -207,7 +274,7 @@ struct LibraryView: View {
     }
 
     private var registryBrowserSection: some View {
-        GroupBox("Pending Queue") {
+        GroupBox {
             VStack(alignment: .leading, spacing: 8) {
                 prefixPicker
                 Divider()
@@ -216,6 +283,55 @@ struct LibraryView: View {
                 sampleList
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        } label: {
+            Text("Pending Queue")
+                .font(level3HeaderFont)
+        }
+    }
+
+    private var existingDrawerSampleSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Existing Drawer Samples")
+                .font(level2HeaderFont)
+            GroupBox {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let prefix = appState.librarySelectedPrefix,
+                       let batchId = appState.librarySelectedBatchId {
+                        HStack {
+                            Text("Batch")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text("\(prefix)/\(batchId)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if selectedExistingBatchSamples.isEmpty {
+                            Text("No samples found in selected drawer")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ScrollView {
+                                LazyVStack(alignment: .leading, spacing: 4) {
+                                    ForEach(selectedExistingBatchSamples) { sample in
+                                        existingDrawerSampleRow(sample: sample, prefix: prefix, batchId: batchId)
+                                    }
+                                }
+                            }
+                            .frame(height: 220)
+                        }
+                    } else {
+                        Text("Select a batch in the left Library tree to choose its samples")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } label: {
+                Text("Sample List")
+                    .font(level3HeaderFont)
+            }
         }
     }
 
@@ -349,6 +465,28 @@ struct LibraryView: View {
         }
     }
 
+    private func existingDrawerSampleRow(sample: LibrarySample, prefix: String, batchId: String) -> some View {
+        Button {
+            appState.selectExistingDrawer(prefix: prefix, batchId: batchId, sampleId: sample.id)
+            appState.selectedArea = .library
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(sample.substrateDisplay)
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+                Spacer()
+            }
+            .padding(6)
+            .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(appState.librarySelectedSampleId == sample.id ? Color.accentColor.opacity(0.15) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     private var libraryDetailColumn: some View {
         GeometryReader { proxy in
             let detailWidth = proxy.size.width
@@ -357,61 +495,71 @@ struct LibraryView: View {
             let sectionSpacing = adaptiveDetailSectionSpacing(for: detailHeight)
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: sectionSpacing) {
-                    Text("Sample Detail")
-                        .font(.title2.bold())
+                    sampleDetailHeader
 
                     if let sample = selectedSample {
-                        let sections = makeDetailSections(for: sample)
-                        let globalFirstColumnWidth = alignedFirstColumnWidth(
-                            fields: sections.allFields,
-                            availableWidth: sectionWidth
-                        )
-
-                        detailSection(
-                            fields: sections.sampleFields,
-                            availableWidth: sectionWidth,
-                            sharedFirstColumnWidth: globalFirstColumnWidth
-                        )
-
-                        if !selectedChangeHighlights(for: sample).isEmpty {
-                            Divider()
-                            Text("Pending Changes")
-                                .font(.headline)
-                            pendingChangesSection(for: sample)
-                        }
-
-                        if !sections.substrateFields.isEmpty {
-                            detailSection(
-                                fields: sections.substrateFields,
+                        if isEditingSelectedSample, let draft = appState.librarySampleEditDraft {
+                            let sections = makeDetailSections(for: sample)
+                            let globalFirstColumnWidth = alignedFirstColumnWidth(
+                                fields: sections.allFields,
+                                availableWidth: sectionWidth
+                            )
+                            samplePrimarySection(
+                                for: sample,
+                                draft: draft,
                                 availableWidth: sectionWidth,
                                 sharedFirstColumnWidth: globalFirstColumnWidth
                             )
-                        }
-
-                        if !sections.numericFields.isEmpty {
                             Divider()
-                            Text("Numeric Tags")
-                                .font(.headline)
-                            detailSection(
-                                fields: sections.numericFields,
-                                availableWidth: sectionWidth,
-                                sharedFirstColumnWidth: globalFirstColumnWidth
-                            )
-                        }
-
-                        Divider()
-                        Text("Metadata")
-                            .font(.headline)
-                        if sample.orderedMetadata.isEmpty {
-                            Text("No metadata")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            editNumericSection(draft: draft)
+                            Divider()
+                            editMetadataSection(draft: draft, availableWidth: sectionWidth)
                         } else {
-                            detailSection(
-                                fields: sections.metadataFields,
+                            let sections = makeDetailSections(for: sample)
+                            let globalFirstColumnWidth = alignedFirstColumnWidth(
+                                fields: sections.allFields,
+                                availableWidth: sectionWidth
+                            )
+
+                            samplePrimarySection(
+                                for: sample,
+                                draft: nil,
                                 availableWidth: sectionWidth,
                                 sharedFirstColumnWidth: globalFirstColumnWidth
                             )
+
+                            if !selectedChangeHighlights(for: sample).isEmpty {
+                                Divider()
+                                Text("Pending Changes")
+                                    .font(.headline)
+                                pendingChangesSection(for: sample)
+                            }
+
+                            if !sections.numericFields.isEmpty {
+                                Divider()
+                                Text("Numeric Tags")
+                                    .font(.headline)
+                                detailSection(
+                                    fields: sections.numericFields,
+                                    availableWidth: sectionWidth,
+                                    sharedFirstColumnWidth: globalFirstColumnWidth
+                                )
+                            }
+
+                            Divider()
+                            Text("Metadata")
+                                .font(.headline)
+                            if sample.orderedMetadata.isEmpty {
+                                Text("No metadata")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                detailSection(
+                                    fields: sections.metadataFields,
+                                    availableWidth: sectionWidth,
+                                    sharedFirstColumnWidth: globalFirstColumnWidth
+                                )
+                            }
                         }
                     } else {
                         ContentUnavailableView(
@@ -426,6 +574,449 @@ struct LibraryView: View {
                 .padding(.horizontal, 12)
             }
         }
+    }
+
+    @ViewBuilder
+    private func samplePrimarySection(
+        for sample: LibrarySample,
+        draft: LibrarySampleEditDraft?,
+        availableWidth: CGFloat,
+        sharedFirstColumnWidth: CGFloat?
+    ) -> some View {
+        if let firstWidth = sharedFirstColumnWidth {
+            HStack(alignment: .top, spacing: 12) {
+                samplePrimaryLeftColumn(for: sample)
+                    .frame(width: firstWidth, alignment: .topLeading)
+                    .fixedSize(horizontal: false, vertical: true)
+                samplePrimaryRightColumn(for: sample, draft: draft)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                samplePrimaryLeftColumn(for: sample)
+                samplePrimaryRightColumn(for: sample, draft: draft)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func samplePrimaryLeftColumn(for sample: LibrarySample) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            MetadataValueRow(label: "Sample", value: sample.displayName)
+            MetadataValueRow(label: "Sample Key", value: sample.id, monospaced: true)
+            MetadataValueRow(label: "Substrate", value: sample.substrateDisplay)
+        }
+    }
+
+    @ViewBuilder
+    private func samplePrimaryRightColumn(for sample: LibrarySample, draft: LibrarySampleEditDraft?) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            MetadataValueRow(label: "Batch", value: sample.batchId)
+            HStack {
+                Button("修改日志") {
+                    isShowingSampleChangeLog = true
+                }
+                .buttonStyle(.bordered)
+                Spacer()
+            }
+
+            if draft != nil {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Substrate Tags")
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    TextField("comma-separated substrate tags", text: substrateTagsBinding, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(2...5)
+                }
+            } else if !sample.substrateTags.isEmpty {
+                MetadataValueRow(label: "Substrate Tags", value: sample.substrateTags.joined(separator: ", "))
+            } else {
+                MetadataValueRow(label: "Substrate Tags", value: "None")
+            }
+        }
+    }
+
+    private var sampleDetailHeader: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Sample Detail")
+                    .font(.title2.bold())
+                Spacer()
+                Button("Numeric日志") {
+                    appState.loadLibraryGlobalManualLogs()
+                    isShowingGlobalManualLog = true
+                }
+                Button("Metadata日志") {
+                    appState.loadLibraryMetadataSyncLogs()
+                    isShowingMetadataSyncLog = true
+                }
+                if isEditingSelectedSample {
+                    Button("Cancel") {
+                        appState.cancelEditingSelectedLibrarySample()
+                    }
+                    Button("Save") {
+                        appState.saveLibrarySampleEdits()
+                    }
+                    .disabled(!appState.librarySampleEditIsDirty || appState.librarySampleEditIsSaving)
+                } else {
+                    Button("Edit") {
+                        appState.beginEditingSelectedLibrarySample()
+                    }
+                    .disabled(!appState.canEditSelectedLibrarySample)
+                }
+            }
+
+            if let error = appState.librarySampleEditError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            } else if let message = appState.librarySampleEditMessage {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var globalManualLogSheet: some View {
+        NavigationStack {
+            List {
+                if appState.libraryGlobalManualLogs.isEmpty {
+                    Text("No global manual log records.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(appState.libraryGlobalManualLogs) { entry in
+                        Section {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("\(entry.sampleId) · \(entry.fieldType): \(entry.fieldKey)")
+                                    .font(.callout.weight(.semibold))
+                                Text("\(displayValue(entry.oldValue)) -> \(displayValue(entry.newValue))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text("Sheet: \(entry.sheetName) · Row: \(entry.rowNumber)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            HStack(spacing: 8) {
+                                statusButton(for: entry, targetStatus: .pending, title: "Pending")
+                                statusButton(for: entry, targetStatus: .done, title: "Done")
+                                statusButton(for: entry, targetStatus: .ignored, title: "Ignored")
+                                Spacer()
+                            }
+                        } header: {
+                            Text("\(entry.batchId) · \(formattedLogTimestamp(entry.timestamp)) · \(entry.status.rawValue)")
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Numeric日志")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Refresh") {
+                        appState.loadLibraryGlobalManualLogs()
+                    }
+                }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        isShowingGlobalManualLog = false
+                    }
+                }
+            }
+            .overlay(alignment: .bottomLeading) {
+                VStack(alignment: .leading, spacing: 4) {
+                    if let error = appState.libraryGlobalManualLogError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    } else if let message = appState.libraryGlobalManualLogMessage {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(12)
+            }
+        }
+        .frame(minWidth: 760, minHeight: 520)
+    }
+
+    @ViewBuilder
+    private func statusButton(for entry: LibraryManualUpdateLogEntry, targetStatus: LibraryManualLogStatus, title: String) -> some View {
+        if targetStatus == entry.status {
+            Button(title) {
+                appState.markLibraryGlobalManualLogStatus(rowIndex: entry.rowIndex, status: targetStatus)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(true)
+        } else {
+            Button(title) {
+                appState.markLibraryGlobalManualLogStatus(rowIndex: entry.rowIndex, status: targetStatus)
+            }
+            .buttonStyle(.bordered)
+        }
+    }
+
+    private func formattedLogTimestamp(_ timestamp: Date?) -> String {
+        guard let timestamp else {
+            return "Unknown time"
+        }
+        return Self.logDateTimeFormatter.string(from: timestamp)
+    }
+
+    @ViewBuilder
+    private var metadataSyncLogSheet: some View {
+        let entries = appState.libraryMetadataSyncLogs
+        NavigationStack {
+            List {
+                if entries.isEmpty {
+                    Text("No metadata sync log records.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(entries, content: metadataLogEntrySection)
+                }
+            }
+            .navigationTitle("Metadata同步日志")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Refresh") {
+                        appState.loadLibraryMetadataSyncLogs()
+                    }
+                }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        isShowingMetadataSyncLog = false
+                    }
+                }
+            }
+            .overlay(alignment: .bottomLeading) {
+                VStack(alignment: .leading, spacing: 4) {
+                    if let error = appState.libraryMetadataSyncLogError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    } else if let message = appState.libraryMetadataSyncLogMessage {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(12)
+            }
+        }
+        .frame(minWidth: 760, minHeight: 520)
+    }
+
+    @ViewBuilder
+    private func metadataLogEntrySection(_ entry: LibraryMetadataSyncLogEntry) -> some View {
+        Section {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("\(entry.sampleId) · \(entry.columnName)")
+                    .font(.callout.weight(.semibold))
+                Text("\(displayValue(entry.oldValue)) -> \(displayValue(entry.newValue))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Sheet: \(entry.sheetName) · Row: \(entry.rowNumber)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Text(metadataResultText(for: entry))
+                    .font(.caption2)
+                    .foregroundStyle(entry.writeResult.lowercased() == "success" ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.red))
+            }
+        } header: {
+            Text("\(entry.batchId) · \(formattedLogTimestamp(entry.timestamp))")
+        }
+    }
+
+    private func metadataResultText(for entry: LibraryMetadataSyncLogEntry) -> String {
+        if let error = entry.errorMessage, !error.isEmpty {
+            return "Result: \(entry.writeResult) · \(error)"
+        }
+        return "Result: \(entry.writeResult)"
+    }
+
+    private var isEditingSelectedSample: Bool {
+        guard let sample = selectedSample,
+              let draft = appState.librarySampleEditDraft else {
+            return false
+        }
+        return draft.sampleId == sample.id
+    }
+
+    @ViewBuilder
+    private func editNumericSection(draft: LibrarySampleEditDraft) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Numeric Tags")
+                .font(.headline)
+            if draft.numericValues.isEmpty {
+                Text("No numeric tags")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(draft.numericValues) { entry in
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Text(entry.key)
+                            .font(.callout.weight(.semibold))
+                            .frame(width: 120, alignment: .leading)
+                        TextField(entry.key, text: numericValueBinding(for: entry.key))
+                            .textFieldStyle(.roundedBorder)
+                        if !entry.unit.isEmpty {
+                            Text(entry.unit)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func editMetadataSection(draft: LibrarySampleEditDraft, availableWidth: CGFloat) -> some View {
+        let fields: [DetailField] = draft.metadataValues.map { entry in
+            DetailField(label: entry.key, value: entry.value, fullWidth: isLongField(entry.value))
+        }
+        let rows = groupedFields(fields)
+        let firstColumnWidth = sectionFirstColumnWidth(rows: rows, availableWidth: availableWidth)
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Metadata")
+                .font(.headline)
+            if draft.metadataValues.isEmpty {
+                Text("No metadata")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(Array(rows.indices), id: \.self) { rowIndex in
+                    let row = rows[rowIndex]
+                    if row.count == 1 {
+                        editMetadataFieldRow(row[0], fillWidth: true)
+                    } else if let firstColumnWidth {
+                        HStack(alignment: .top, spacing: 12) {
+                            editMetadataFieldRow(row[0], fixedWidth: firstColumnWidth, fillWidth: false)
+                            editMetadataFieldRow(row[1], fillWidth: true)
+                        }
+                    } else {
+                        VStack(alignment: .leading, spacing: 8) {
+                            editMetadataFieldRow(row[0], fillWidth: true)
+                            editMetadataFieldRow(row[1], fillWidth: true)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func editMetadataFieldRow(_ field: DetailField, fixedWidth: CGFloat? = nil, fillWidth: Bool) -> some View {
+        let row = VStack(alignment: .leading, spacing: 4) {
+            Text(field.label)
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(.secondary)
+            TextField(field.label, text: metadataValueBinding(for: field.label), axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+        }
+        if let fixedWidth {
+            row
+                .frame(width: fixedWidth, alignment: .topLeading)
+                .fixedSize(horizontal: false, vertical: true)
+        } else if fillWidth {
+            row
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            row
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var substrateTagsBinding: Binding<String> {
+        Binding(
+            get: { appState.librarySampleEditDraft?.substrateTagsText ?? "" },
+            set: { appState.updateLibrarySampleEditSubstrateTags($0) }
+        )
+    }
+
+    private func numericValueBinding(for key: String) -> Binding<String> {
+        Binding(
+            get: {
+                appState.librarySampleEditDraft?
+                    .numericValues
+                    .first(where: { $0.key == key })?
+                    .value ?? ""
+            },
+            set: { appState.updateLibrarySampleEditNumericValue(key: key, value: $0) }
+        )
+    }
+
+    private func metadataValueBinding(for key: String) -> Binding<String> {
+        Binding(
+            get: {
+                appState.librarySampleEditDraft?
+                    .metadataValues
+                    .first(where: { $0.key == key })?
+                    .value ?? ""
+            },
+            set: { appState.updateLibrarySampleEditMetadataValue(key: key, value: $0) }
+        )
+    }
+
+    private var pendingSelectionChangeDialogBinding: Binding<Bool> {
+        Binding(
+            get: { appState.hasPendingLibrarySelectionChange() },
+            set: { isPresented in
+                if !isPresented {
+                    appState.cancelPendingLibrarySelectionChange()
+                }
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var sampleChangeLogSheet: some View {
+        NavigationStack {
+            if let sample = selectedSample {
+                let entries = appState.librarySampleChangeLog(for: sample)
+                List {
+                    if entries.isEmpty {
+                        Text("No change log records for this sample.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(entries) { entry in
+                            Section {
+                                ForEach(entry.changes, id: \.self) { change in
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(change.key)
+                                            .font(.caption.weight(.semibold))
+                                        Text("\(displayValue(change.oldValue)) -> \(displayValue(change.newValue))")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            } header: {
+                                Text("\(Self.logDateTimeFormatter.string(from: entry.changedAt)) · \(entry.source)")
+                            }
+                        }
+                    }
+                }
+                .navigationTitle("\(sample.batchId) · \(sample.substrateDisplay)")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close") {
+                            isShowingSampleChangeLog = false
+                        }
+                    }
+                }
+            } else {
+                ContentUnavailableView(
+                    "No Sample Selected",
+                    systemImage: "tray",
+                    description: Text("Select a sample to view change log.")
+                )
+            }
+        }
+        .frame(minWidth: 540, minHeight: 420)
     }
 
     @ViewBuilder
@@ -611,6 +1202,12 @@ struct LibraryView: View {
         return min(base + extraHeight / 28, 26)
     }
 
+    private static let logDateTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return formatter
+    }()
+
     @ViewBuilder
     private func pendingChangesSection(for sample: LibrarySample) -> some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -742,6 +1339,15 @@ struct LibraryView: View {
         let groups = appState.libraryExistingGroups[prefix] ?? []
         let samples = groups.first(where: { $0.batchId == batchId })?.samples ?? []
         return samples.first(where: { $0.id == sampleId })
+    }
+
+    private var selectedExistingBatchSamples: [LibrarySample] {
+        guard let prefix = appState.librarySelectedPrefix,
+              let batchId = appState.librarySelectedBatchId else {
+            return []
+        }
+        let groups = appState.libraryExistingGroups[prefix] ?? []
+        return groups.first(where: { $0.batchId == batchId })?.samples ?? []
     }
 
     private func presentLibraryRootPanel() {
