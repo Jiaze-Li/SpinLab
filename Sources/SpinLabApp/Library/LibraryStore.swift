@@ -1,7 +1,31 @@
 import Foundation
 
 final class LibraryStore {
+    private struct DirectoryEntriesCacheEntry {
+        let modificationDate: Date?
+        let entries: [URL]
+    }
+
+    private struct DecodedBatchCacheEntry {
+        let modificationDate: Date?
+        let batch: LibraryBatch?
+    }
+
+    private struct DecodedSampleCacheEntry {
+        let modificationDate: Date?
+        let sample: LibrarySample?
+    }
+
+    private struct FileListCacheEntry {
+        let modificationDate: Date?
+        let files: [URL]
+    }
+
     private let fileManager = FileManager.default
+    private var directoryEntriesCache: [String: DirectoryEntriesCacheEntry] = [:]
+    private var decodedBatchCache: [String: DecodedBatchCacheEntry] = [:]
+    private var decodedSampleCache: [String: DecodedSampleCacheEntry] = [:]
+    private var fileListCache: [String: FileListCacheEntry] = [:]
 
     func ensureRoot(at rootURL: URL) {
         try? fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
@@ -34,6 +58,14 @@ final class LibraryStore {
     }
 
     func syncIndexFromFilesystem(rootURL: URL) -> LibraryIndex {
+        buildIndexFromFilesystem(rootURL: rootURL, persist: true)
+    }
+
+    func snapshotIndexFromFilesystem(rootURL: URL) -> LibraryIndex {
+        buildIndexFromFilesystem(rootURL: rootURL, persist: false)
+    }
+
+    private func buildIndexFromFilesystem(rootURL: URL, persist: Bool) -> LibraryIndex {
         ensureRoot(at: rootURL)
         let existingIndex = loadIndex(from: rootURL)
         let now = Date()
@@ -69,7 +101,9 @@ final class LibraryStore {
             batches: Array(batchesByID.values).sorted { LibrarySort.compareBatch($0.id, $1.id) },
             samples: Array(samplesByID.values).sorted { $0.displayName < $1.displayName }
         )
-        saveIndex(index, to: rootURL)
+        if persist {
+            saveIndex(index, to: rootURL)
+        }
         return index
     }
 
@@ -82,6 +116,8 @@ final class LibraryStore {
             return
         }
         try? data.write(to: url, options: .atomic)
+        invalidateNodeCache(at: url)
+        invalidateNodeCache(at: url.deletingLastPathComponent())
     }
 
     func createDrawer(for sample: LibrarySample, batch: LibraryBatch, rootURL: URL) {
@@ -106,18 +142,27 @@ final class LibraryStore {
 
         writeBatch(batch, to: batchURL)
         writeSample(sample, to: sampleURL)
+        invalidateNodeCache(at: sampleURL)
+        invalidateNodeCache(at: batchURL)
+        invalidateNodeCache(at: batchURL.deletingLastPathComponent())
+        invalidateNodeCache(at: batchesDirectoryURL(rootURL))
     }
 
     func updateSample(_ sample: LibrarySample, rootURL: URL) {
         let sampleURL = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
         try? fileManager.createDirectory(at: sampleURL, withIntermediateDirectories: true)
         writeSample(sample, to: sampleURL)
+        invalidateNodeCache(at: sampleURL)
+        invalidateNodeCache(at: sampleURL.deletingLastPathComponent())
     }
 
     func updateBatch(_ batch: LibraryBatch, rootURL: URL) {
         let batchURL = resolvedBatchDirectoryURL(rootURL, batchID: batch.id)
         try? fileManager.createDirectory(at: batchURL, withIntermediateDirectories: true)
         writeBatch(batch, to: batchURL)
+        invalidateNodeCache(at: batchURL)
+        invalidateNodeCache(at: batchURL.deletingLastPathComponent())
+        invalidateNodeCache(at: batchesDirectoryURL(rootURL))
     }
 
     func deleteSampleDrawer(for sample: LibrarySample, rootURL: URL) {
@@ -128,6 +173,8 @@ final class LibraryStore {
         let samplesDirectory = resolvedBatchDirectoryURL(rootURL, batchID: sample.batchId)
             .appending(path: "samples", directoryHint: .isDirectory)
         removeDirectoryIfEmpty(samplesDirectory)
+        invalidateNodeCache(at: sampleURL)
+        invalidateNodeCache(at: samplesDirectory)
     }
 
     func deleteBatchDrawer(batchID: String, rootURL: URL) {
@@ -140,6 +187,10 @@ final class LibraryStore {
             try? fileManager.removeItem(at: legacy)
         }
         removeDirectoryIfEmpty(preferred.deletingLastPathComponent())
+        invalidateNodeCache(at: preferred)
+        invalidateNodeCache(at: legacy)
+        invalidateNodeCache(at: preferred.deletingLastPathComponent())
+        invalidateNodeCache(at: batchesDirectoryURL(rootURL))
     }
 
     func copyMeasurementFile(from sourcePath: String, to sample: LibrarySample, rootURL: URL) -> URL? {
@@ -154,10 +205,17 @@ final class LibraryStore {
                 try fileManager.removeItem(at: destination)
             }
             try fileManager.copyItem(at: sourceURL, to: destination)
+            invalidateNodeCache(at: measurementsURL)
             return destination
         } catch {
             return nil
         }
+    }
+
+    func listMeasurementFiles(batchID: String, sampleKey: String, rootURL: URL) -> [URL] {
+        let sampleURL = sampleDirectoryURL(rootURL, batchID: batchID, sampleKey: sampleKey)
+        let measurementsURL = sampleURL.appending(path: "measurements", directoryHint: .isDirectory)
+        return cachedFileEntries(in: measurementsURL)
     }
 
     func syncBackup(from rootURL: URL, to backupURL: URL) -> Bool {
@@ -299,12 +357,20 @@ final class LibraryStore {
     }
 
     private func decodeBatch(from batchJSONURL: URL) -> LibraryBatch? {
+        let key = batchJSONURL.path
+        let modificationDate = modificationDate(of: batchJSONURL)
+        if let cached = decodedBatchCache[key], cached.modificationDate == modificationDate {
+            return cached.batch
+        }
         guard let data = try? Data(contentsOf: batchJSONURL) else {
+            decodedBatchCache[key] = DecodedBatchCacheEntry(modificationDate: modificationDate, batch: nil)
             return nil
         }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return try? decoder.decode(LibraryBatch.self, from: data)
+        let decoded = try? decoder.decode(LibraryBatch.self, from: data)
+        decodedBatchCache[key] = DecodedBatchCacheEntry(modificationDate: modificationDate, batch: decoded)
+        return decoded
     }
 
     private func decodeSamples(from batchDirectory: URL) -> [LibrarySample] {
@@ -325,12 +391,20 @@ final class LibraryStore {
     }
 
     private func decodeSample(from sampleJSONURL: URL) -> LibrarySample? {
+        let key = sampleJSONURL.path
+        let modificationDate = modificationDate(of: sampleJSONURL)
+        if let cached = decodedSampleCache[key], cached.modificationDate == modificationDate {
+            return cached.sample
+        }
         guard let data = try? Data(contentsOf: sampleJSONURL) else {
+            decodedSampleCache[key] = DecodedSampleCacheEntry(modificationDate: modificationDate, sample: nil)
             return nil
         }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return try? decoder.decode(LibrarySample.self, from: data)
+        let decoded = try? decoder.decode(LibrarySample.self, from: data)
+        decodedSampleCache[key] = DecodedSampleCacheEntry(modificationDate: modificationDate, sample: decoded)
+        return decoded
     }
 
     private func discoverBatchDirectories(rootURL: URL) -> [URL] {
@@ -362,11 +436,23 @@ final class LibraryStore {
     }
 
     private func directoryEntries(at url: URL) -> [URL]? {
-        try? fileManager.contentsOfDirectory(
+        let key = url.path
+        let modificationDate = modificationDate(of: url)
+        if let cached = directoryEntriesCache[key], cached.modificationDate == modificationDate {
+            return cached.entries
+        }
+
+        let entries = try? fileManager.contentsOfDirectory(
             at: url,
             includingPropertiesForKeys: [.isDirectoryKey],
             options: [.skipsHiddenFiles]
         )
+        if let entries {
+            directoryEntriesCache[key] = DirectoryEntriesCacheEntry(modificationDate: modificationDate, entries: entries)
+        } else {
+            directoryEntriesCache.removeValue(forKey: key)
+        }
+        return entries
     }
 
     private func removeDirectoryIfEmpty(_ url: URL) {
@@ -377,5 +463,44 @@ final class LibraryStore {
             return
         }
         try? fileManager.removeItem(at: url)
+        invalidateNodeCache(at: url)
+    }
+
+    private func modificationDate(of url: URL) -> Date? {
+        guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey]) else {
+            return nil
+        }
+        return values.contentModificationDate
+    }
+
+    private func cachedFileEntries(in directoryURL: URL) -> [URL] {
+        let key = directoryURL.path
+        let modificationDate = modificationDate(of: directoryURL)
+        if let cached = fileListCache[key], cached.modificationDate == modificationDate {
+            return cached.files
+        }
+        guard let entries = directoryEntries(at: directoryURL) else {
+            fileListCache.removeValue(forKey: key)
+            return []
+        }
+        let files = entries.filter { !isDirectory($0) }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        fileListCache[key] = FileListCacheEntry(modificationDate: modificationDate, files: files)
+        return files
+    }
+
+    private func invalidateNodeCache(at url: URL) {
+        let nodePath = url.path
+        directoryEntriesCache = directoryEntriesCache.filter { key, _ in
+            key != nodePath && !key.hasPrefix(nodePath + "/")
+        }
+        decodedBatchCache = decodedBatchCache.filter { key, _ in
+            key != nodePath && !key.hasPrefix(nodePath + "/")
+        }
+        decodedSampleCache = decodedSampleCache.filter { key, _ in
+            key != nodePath && !key.hasPrefix(nodePath + "/")
+        }
+        fileListCache = fileListCache.filter { key, _ in
+            key != nodePath && !key.hasPrefix(nodePath + "/")
+        }
     }
 }

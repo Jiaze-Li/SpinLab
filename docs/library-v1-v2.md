@@ -58,9 +58,79 @@
   - Load concrete file lists lazily only when a folder is expanded.
   - Invalidate cache at node level when directory mtime changes; avoid full cache reset.
   - Keep file I/O out of normal row selection path (selection reads from memory model first).
+
+### V1.6 Product Change Record (2026-03-20)
+- Status: accepted product-direction change.
+- Rationale: keep workflow separation clear by function area rather than mixing pending/existing states inside one batch list.
+- Main implementation focus for current V1.6 round:
+  - code architecture optimization
+  - loading/path traversal performance optimization
+  - no functional behavior or UI interaction-flow changes
+- Updated interaction model:
+  - `Registry Operations` is the dedicated pending operation area (`Sync Registry` + review + apply).
+  - `Library` existing-drawer browser is the dedicated existing/total area.
+  - Users enter pending flow when syncing, and enter existing flow when browsing total created drawers.
+- Scope adjustments from original V1.6 bullets:
+  - `Pending / Created / All` switch in one combined Library queue: replaced by the two-area interaction model above.
+  - Per-batch `pending/total` dual count in one combined list: marked low priority and deferred for now.
+  - Performance cache items remain in active scope:
+    - in-memory directory-level cache (`path tree + counts + mtime`)
+    - lazy loading of concrete file lists on folder expansion
+    - node-level cache invalidation on directory mtime change
+    - keep file I/O out of normal row selection path
+- Iteration track (architecture/loading only; no UI/flow change):
+  - `v1.6.2`: logging architecture hardening (structured logs + rotation + metadata redaction).
+  - `v1.6.3`: app-state hot-path refinement (reuse precomputed diff/baseline inside review flow).
+  - `v1.6.4`: repository read/write separation (`snapshot` read path vs persisted `sync` path).
+  - `v1.6.8`: stability + architecture iteration pack:
+    - automated cache-boundary regression script: `./scripts/test_library_cache_consistency.sh`
+    - transactional state commit path in app state for post-mutation refresh consistency
+    - workflow/service extraction: `LibrarySyncService` for diff/review/apply orchestration
+  - `v1.6.9`: apply-all immediate queue-clear fix + docs contract audit:
+    - fix stale pre-apply diff reuse in `Apply All` post-mutation refresh path
+    - self-audit against docs (`Sync Registry` detect-only, `Apply All/Selected` semantics, `Sync File` boundary, existing-drawer delete contract)
+  - `v1.6.10`: consistency hardening + test coverage:
+    - `deleteExistingDrawer` now uses the same transactional state-commit path as other mutations
+    - added state-semantics regression script: `./scripts/test_library_sync_apply_consistency.sh`
+      - validates `Apply All` clears pending immediately after sync
+      - validates `Apply Selected` updates existing immediately and only leaves non-selected pending
+
+### Library Interaction Design Logic (Authoritative)
+- Design goal: optimize user cognition and execution flow, not maximize feature density in one list.
+- Primary principle: separate by task stage, not by mixed data-state toggles inside the same queue.
+- Area responsibilities:
+  - `Registry Operations` = pending review and apply workflow (`Sync Registry` -> review diff -> apply).
+  - `Library` = existing drawer browsing and total-state inspection.
+- Flow expectation:
+  - Enter pending area when sync/review/apply is needed.
+  - Enter existing area when browsing created drawers and confirming stored state.
+- UX decision rule:
+  - Avoid combining pending/existing semantics in one batch list when it increases cognitive switching.
+  - Prefer stable area-level mental models over dense unified controls.
+- Performance work alignment:
+  - Caching, lazy loading, and node-level invalidation must accelerate the two-area model above.
+  - Performance changes must not re-introduce mixed-state UI complexity.
 - V1.7: Edit + Search
   - Edit metadata/tags in UI.
   - Search by substrate tokens and numeric tags.
+
+### V1.6 Completion Record (2026-03-21)
+- Status: completed and stabilized as architecture/performance-focused release.
+- Completed scope:
+  - separated pending/existing workflow by functional area (authoritative design logic recorded)
+  - structured logging with rotation/redaction
+  - repository cache + lazy file listing + node-level invalidation
+  - transactional mutation commit path for apply/create/delete consistency
+  - sync/apply orchestration service extraction (`LibrarySyncService`)
+  - regression scripts:
+    - `./scripts/test_library_cache_consistency.sh`
+    - `./scripts/test_library_sync_apply_consistency.sh`
+- Explicitly deferred:
+  - combined-list `pending/total` dual counts (low priority)
+- Exit criteria:
+  - build passes
+  - sync/apply immediate-state consistency verified
+  - desktop build packaged for verification
 
 ## V1 Extension (Inbox → Library + Backup)
 - V1.8: Inbox → Library
@@ -77,3 +147,4 @@
 - v1.3-done
 - v1.4-done
 - v1.5-done
+- v1.6-done

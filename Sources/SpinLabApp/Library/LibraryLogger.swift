@@ -3,6 +3,7 @@ import Foundation
 final class LibraryLogger {
     private let fileManager = FileManager.default
     private let logURL: URL
+    private let appLogger = AppLogger.shared
 
     init() {
         let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -19,6 +20,15 @@ final class LibraryLogger {
         let timestamp = ISO8601DateFormatter().string(from: Date())
         let entries = warnings.map { warning in
             let sample = warning.affectedSampleKey ?? "-"
+            let metadata: [String: String] = [
+                "sampleKey": sample,
+                "severity": warning.severity.rawValue
+            ]
+            if warning.severity == .error {
+                appLogger.error(.library, warning.message, metadata: metadata)
+            } else {
+                appLogger.warning(.library, warning.message, metadata: metadata)
+            }
             return "[\(timestamp)] [\(warning.severity.rawValue.uppercased())] \(sample) \(warning.message)"
         }
         let payload = entries.joined(separator: "\n") + "\n"

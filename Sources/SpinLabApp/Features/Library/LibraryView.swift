@@ -760,13 +760,16 @@ struct LibraryView: View {
         if selectedPrefix == nil || !previewPrefixes.contains(selectedPrefix ?? "") {
             selectedPrefix = previewPrefixes.first
         }
-        if let prefix = selectedPrefix,
-           let firstBatch = appState.libraryPreviewGroups[prefix]?.first?.batchId {
+        if let firstBatch = previewGroupsForSelectedPrefix.first?.batchId {
             if selectedBatchId == nil || previewGroupsForSelectedPrefix.first(where: { $0.batchId == selectedBatchId }) == nil {
                 selectedBatchId = firstBatch
             }
+        } else {
+            selectedBatchId = nil
+            selectedSampleId = nil
+            return
         }
-        if selectedSampleId == nil {
+        if selectedSampleId == nil || !selectedBatchSamples.contains(where: { $0.id == selectedSampleId }) {
             selectedSampleId = selectedBatchSamples.first?.id
         }
     }

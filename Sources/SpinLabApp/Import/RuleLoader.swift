@@ -3,6 +3,7 @@ import Foundation
 struct RuleLoader {
     static let shared = RuleLoader()
     private static var cached: LoadResult?
+    private let logger = AppLogger.shared
 
     struct LoadResult {
         var ruleSet: FilenameRuleSet
@@ -13,20 +14,28 @@ struct RuleLoader {
         var warnings: [String] = []
 
         let appSupportURL = applicationSupportRuleURL()
-        print("[RuleLoader] trying source=ApplicationSupport path=\(appSupportURL.path)")
+        logger.info(.import, "Rule source probe", metadata: [
+            "source": "ApplicationSupport",
+            "path": appSupportURL.path
+        ])
         if let loaded = tryLoadRuleSet(from: appSupportURL, sourceLabel: "ApplicationSupport", warnings: &warnings) {
             return loaded
         }
 
         for bundleURL in bundleRuleCandidateURLs() {
-            print("[RuleLoader] trying source=Bundle path=\(bundleURL.path)")
+            logger.info(.import, "Rule source probe", metadata: [
+                "source": "Bundle",
+                "path": bundleURL.path
+            ])
             if let loaded = tryLoadRuleSet(from: bundleURL, sourceLabel: "Bundle", warnings: &warnings) {
                 return loaded
             }
         }
 
         warnings.append("Filename rules could not be loaded from Application Support or bundle candidates.")
-        print("[RuleLoader] failed to load rules. reasons=\(warnings.joined(separator: " | "))")
+        logger.error(.import, "Rule loading failed", metadata: [
+            "reasons": warnings.joined(separator: " | ")
+        ])
         var fallback = FilenameRuleSet.fallback()
         fallback.loadWarnings = warnings
         return LoadResult(ruleSet: fallback, warnings: warnings)
@@ -53,7 +62,11 @@ struct RuleLoader {
         } catch {
             let reason = error.localizedDescription
             warnings.append("\(sourceLabel) read failed at \(url.path): \(reason)")
-            print("[RuleLoader] failed source=\(sourceLabel) path=\(url.path) reason=read_failed \(reason)")
+            logger.error(.import, "Rule source read failed", metadata: [
+                "source": sourceLabel,
+                "path": url.path,
+                "reason": reason
+            ])
             return nil
         }
 
@@ -64,13 +77,20 @@ struct RuleLoader {
                 warnings.append(contentsOf: compileWarnings.map { "\(sourceLabel) compile warning: \($0)" })
             }
             ruleSet.loadWarnings = warnings
-            print("[RuleLoader] loaded source=\(sourceLabel) path=\(url.path)")
-            print("[RuleLoader] sampleId patterns: \(ruleSet.sampleId.patterns)")
+            logger.info(.import, "Rule source loaded", metadata: [
+                "source": sourceLabel,
+                "path": url.path,
+                "sampleIdPatternCount": "\(ruleSet.sampleId.patterns.count)"
+            ])
             return LoadResult(ruleSet: ruleSet, warnings: warnings)
         } catch {
             let reason = error.localizedDescription
             warnings.append("\(sourceLabel) decode failed at \(url.path): \(reason)")
-            print("[RuleLoader] failed source=\(sourceLabel) path=\(url.path) reason=decode_failed \(reason)")
+            logger.error(.import, "Rule source decode failed", metadata: [
+                "source": sourceLabel,
+                "path": url.path,
+                "reason": reason
+            ])
             return nil
         }
     }
