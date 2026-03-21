@@ -206,6 +206,34 @@
   - Library drawer shows copied measurement file.
 - V1.8: Backup Sync
   - Manual backup sync to a user-selected location.
+  - Development log (2026-03-22):
+    - Goal:
+      - add manual backup capability without affecting existing `Library Root` workflows.
+    - UI/partition design:
+      - keep original `Settings` box unchanged.
+      - add isolated `Backup` box under `Library Settings`.
+      - box content: `Backup Path` display, `Choose Backup Path`, `Sync Backup`.
+    - Layered implementation:
+      - UI layer (`LibraryView`): render controls and feedback only.
+      - app-state layer (`SpinLabAppState`): path validation, orchestration, status text, persistence trigger.
+      - store layer (`LibraryStore`): filesystem backup synchronization implementation.
+    - Backup sync policy (final):
+      - no delete-and-recopy of destination root.
+      - incremental update:
+        - copy new files
+        - skip identical files
+        - replace changed files
+      - keep destination-only files (non-destructive sync).
+      - prevent path overlap (`root == backup` or parent/child overlap).
+    - Status/UX:
+      - success message: `Backup sync successful at yyyy-MM-dd HH:mm:ss`.
+      - failure message: `Backup sync failed.`
+      - persist last successful backup time; restore message after app relaunch.
+    - Validation:
+      - `swift build` passed.
+      - `./scripts/test_library_cache_consistency.sh` passed.
+      - `./scripts/test_library_sync_apply_consistency.sh` passed.
+      - desktop package rebuilt for QA: `/Users/jack/Desktop/SpinLab.app`.
 - V1.10: Full Interaction Memory + Restore
   - Product rule: preserve and restore the user's last interaction state across app relaunch by default.
   - Scope: all editable/interactive app state, including but not limited to:
