@@ -129,6 +129,7 @@ swiftc -O -o "$TMP_BIN" \
   "$ROOT_DIR/Sources/SpinLabApp/Library/LibraryModels.swift" \
   "$ROOT_DIR/Sources/SpinLabApp/Library/LibrarySort.swift" \
   "$ROOT_DIR/Sources/SpinLabApp/Library/LibraryStore.swift" \
+  "$ROOT_DIR/Sources/SpinLabApp/Library/LibraryXLSXSyncService.swift" \
   "$ROOT_DIR/Sources/SpinLabApp/Library/LibraryDiffEngine.swift" \
   "$ROOT_DIR/Sources/SpinLabApp/Library/LibrarySyncService.swift"
 
