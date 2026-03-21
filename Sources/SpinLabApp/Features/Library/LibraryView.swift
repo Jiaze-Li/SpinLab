@@ -9,9 +9,19 @@ struct LibraryView: View {
     @State private var selectedSampleId: String?
     @State private var isLibrarySettingsExpanded = true
     @State private var isRegistryWorkspaceExpanded = true
+    @State private var isSearchWorkspaceExpanded = true
     @State private var isShowingSampleChangeLog = false
     @State private var isShowingGlobalManualLog = false
     @State private var isShowingMetadataSyncLog = false
+    @State private var searchBatchIdText: String = ""
+    @State private var searchSubstrateText: String = ""
+    @State private var searchKeywordText: String = ""
+    @State private var searchThicknessText: String = ""
+    @State private var searchOxygenText: String = ""
+    @State private var searchTemperatureText: String = ""
+    @State private var searchEnergyText: String = ""
+    @State private var searchMatchedResults: [SearchResultItem] = []
+    @State private var searchHasExecuted = false
     private let level1HeaderFont: Font = .title2.bold()
     private let level2HeaderFont: Font = .title3.weight(.semibold)
     private let level3HeaderFont: Font = .headline
@@ -71,6 +81,7 @@ struct LibraryView: View {
 
                 librarySettingsSection
                 registryWorkspaceSection
+                searchWorkspaceSection
                 existingDrawerSampleSection
             }
             .frame(minWidth: 300, maxWidth: .infinity, alignment: .leading)
@@ -286,6 +297,153 @@ struct LibraryView: View {
         } label: {
             Text("Pending Queue")
                 .font(level3HeaderFont)
+        }
+    }
+
+    private var searchWorkspaceSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                isSearchWorkspaceExpanded.toggle()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: isSearchWorkspaceExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 20)
+                    Text("Search")
+                        .font(level2HeaderFont)
+                    Spacer()
+                }
+            }
+            .buttonStyle(.plain)
+
+            if isSearchWorkspaceExpanded {
+                GroupBox {
+                    searchOperationBox
+                } label: {
+                    Text("Search Conditions")
+                        .font(level3HeaderFont)
+                }
+
+                GroupBox {
+                    searchResultBox
+                } label: {
+                    Text("Search Result")
+                        .font(level3HeaderFont)
+                }
+            }
+        }
+    }
+
+    private var searchOperationBox: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Text Conditions")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    searchInputRow(label: "Batch ID", placeholder: "contains", text: $searchBatchIdText)
+                    searchInputRow(label: "Substrate Tags", placeholder: "contains", text: $searchSubstrateText)
+                    searchInputRow(label: "Global Text", placeholder: "contains", text: $searchKeywordText)
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Numeric Conditions")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    searchInputRow(label: "厚度", placeholder: "numeric", text: $searchThicknessText)
+                    searchInputRow(label: "氧压", placeholder: "numeric", text: $searchOxygenText)
+                    searchInputRow(label: "温度", placeholder: "numeric", text: $searchTemperatureText)
+                    searchInputRow(label: "能量", placeholder: "numeric", text: $searchEnergyText)
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+
+            HStack(spacing: 8) {
+                Button("Search") {
+                    executeSearch()
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button("Clear") {
+                    clearSearchFilters()
+                }
+                .buttonStyle(.bordered)
+
+                Spacer()
+            }
+
+            Text("Rule: non-empty fields are AND conditions; empty fields are ignored.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var searchResultBox: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if !searchHasExecuted {
+                Text("Set conditions and click Search.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                HStack {
+                    Text("Matched samples")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(searchMatchedResults.count)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if searchMatchedResults.isEmpty {
+                    Text("No matched sample")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 4) {
+                            ForEach(searchMatchedResults) { result in
+                                Button {
+                                    selectSearchResultSample(result)
+                                } label: {
+                                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                        Text(result.sample.displayName)
+                                            .font(.subheadline)
+                                        Spacer()
+                                        Text("\(result.prefix)/\(result.sample.batchId)")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .padding(6)
+                                    .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .fill(isSelectedSearchResult(result) ? Color.accentColor.opacity(0.15) : Color.clear)
+                                    )
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .frame(height: 180)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func searchInputRow(label: String, placeholder: String, text: Binding<String>) -> some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 96, alignment: .leading)
+            TextField(placeholder, text: text)
+                .textFieldStyle(.roundedBorder)
         }
     }
 
@@ -1380,6 +1538,175 @@ struct LibraryView: View {
         }
     }
 
+    private var allExistingDrawerSamples: [SearchResultItem] {
+        let groups = appState.libraryExistingGroups
+        return groups
+            .flatMap { prefix, batchGroups in
+                batchGroups.flatMap { group in
+                    group.samples.map { sample in
+                        SearchResultItem(prefix: prefix, sample: sample)
+                    }
+                }
+            }
+            .sorted {
+                if $0.prefix != $1.prefix {
+                    return $0.prefix < $1.prefix
+                }
+                if LibrarySort.compareBatch($0.sample.batchId, $1.sample.batchId) {
+                    return true
+                }
+                if LibrarySort.compareBatch($1.sample.batchId, $0.sample.batchId) {
+                    return false
+                }
+                return $0.sample.substrateDisplay < $1.sample.substrateDisplay
+            }
+    }
+
+    private var searchThicknessValue: Double? {
+        Double(searchThicknessText.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private var searchOxygenValue: Double? {
+        Double(searchOxygenText.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private var searchTemperatureValue: Double? {
+        Double(searchTemperatureText.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private var searchEnergyValue: Double? {
+        Double(searchEnergyText.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private func clearSearchFilters() {
+        searchBatchIdText = ""
+        searchSubstrateText = ""
+        searchKeywordText = ""
+        searchThicknessText = ""
+        searchOxygenText = ""
+        searchTemperatureText = ""
+        searchEnergyText = ""
+        searchMatchedResults = []
+        searchHasExecuted = false
+    }
+
+    private func executeSearch() {
+        searchMatchedResults = allExistingDrawerSamples.filter { result in
+            matchesSearch(result.sample)
+        }
+        searchHasExecuted = true
+    }
+
+    private func matchesSearch(_ sample: LibrarySample) -> Bool {
+        let batchText = searchBatchIdText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let substrateText = searchSubstrateText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let keywordText = searchKeywordText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !batchText.isEmpty,
+           !sample.batchId.localizedCaseInsensitiveContains(batchText) {
+            return false
+        }
+
+        if !substrateText.isEmpty {
+            let queryTags = normalizedSubstrateQueryTags(from: substrateText)
+            let sampleTags = Set(
+                ([sample.substrateDisplay] + sample.substrateTags)
+                    .map(normalizedSubstrateTag)
+                    .filter { !$0.isEmpty }
+            )
+            let matched = queryTags.contains { sampleTags.contains($0) }
+            if !matched {
+                return false
+            }
+        }
+
+        if !keywordText.isEmpty {
+            let keywordHaystack = [
+                sample.batchId,
+                sample.displayName,
+                sample.id,
+                sample.substrateDisplay,
+                sample.substrateRaw,
+                sample.substrateTags.joined(separator: " "),
+                sample.metadata.values.joined(separator: " ")
+            ].joined(separator: " ")
+            if !keywordHaystack.localizedCaseInsensitiveContains(keywordText) {
+                return false
+            }
+        }
+
+        if let thickness = searchThicknessValue,
+           !numericEquals(sample.numericTags["厚度"], thickness) {
+            return false
+        }
+
+        if let oxygen = searchOxygenValue,
+           !numericEquals(sample.numericTags["氧压"], oxygen) {
+            return false
+        }
+
+        if let temperature = searchTemperatureValue,
+           !numericEquals(sample.numericTags["温度"], temperature) {
+            return false
+        }
+
+        if let energy = searchEnergyValue,
+           !numericEquals(sample.numericTags["能量"], energy) {
+            return false
+        }
+
+        return true
+    }
+
+    private func numericEquals(_ source: Double?, _ expected: Double) -> Bool {
+        guard let source else {
+            return false
+        }
+        return abs(source - expected) < 1e-9
+    }
+
+    private func normalizedSubstrateQueryTags(from input: String) -> [String] {
+        let normalizedInput = input
+            .replacingOccurrences(of: "，", with: ",")
+            .replacingOccurrences(of: "；", with: ";")
+        let parts = normalizedInput
+            .split(whereSeparator: { ",;\n".contains($0) })
+            .map { normalizedSubstrateTag(String($0)) }
+            .filter { !$0.isEmpty }
+        if parts.isEmpty {
+            let single = normalizedSubstrateTag(normalizedInput)
+            return single.isEmpty ? [] : [single]
+        }
+        return parts
+    }
+
+    private func normalizedSubstrateTag(_ raw: String) -> String {
+        var value = raw
+            .replacingOccurrences(of: "（", with: "(")
+            .replacingOccurrences(of: "）", with: ")")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        value = value
+            .replacingOccurrences(of: " (", with: "(")
+            .replacingOccurrences(of: ") ", with: ")")
+        value = value
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+        return value
+    }
+
+    private func selectSearchResultSample(_ result: SearchResultItem) {
+        appState.selectExistingDrawer(prefix: result.prefix, batchId: result.sample.batchId, sampleId: result.sample.id)
+        appState.selectedArea = .library
+    }
+
+    private func isSelectedSearchResult(_ result: SearchResultItem) -> Bool {
+        appState.libraryActiveSelectionSource == .drawer
+            && appState.librarySelectedPrefix == result.prefix
+            && appState.librarySelectedBatchId == result.sample.batchId
+            && appState.librarySelectedSampleId == result.sample.id
+    }
+
     private var selectionEntry: SelectionEntry {
         SelectionEntry(
             source: appState.libraryActiveSelectionSource,
@@ -1433,6 +1760,12 @@ private struct SelectionEntry {
     let drawerPrefix: String?
     let drawerBatchId: String?
     let drawerSampleId: String?
+}
+
+private struct SearchResultItem: Identifiable, Hashable {
+    var id: String { "\(prefix)|\(sample.id)" }
+    let prefix: String
+    let sample: LibrarySample
 }
 
 private struct SampleDetailSections {

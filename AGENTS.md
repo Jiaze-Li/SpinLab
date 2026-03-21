@@ -97,3 +97,5 @@ Build and version policy (required):
 - Default output app path:
   - `/Users/jack/Desktop/SpinLab.app`
 - Do not skip desktop overwrite unless user explicitly asks not to.
+- Acceptance default:
+  - After a version iteration update, always overwrite `/Users/jack/Desktop/SpinLab.app` so user can validate directly from Desktop.

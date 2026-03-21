@@ -138,6 +138,48 @@
       - filter center-column batch/sample lists directly
       - right detail remains unchanged, with current match-hit tags shown
       - provide one-click `Clear` to reset all conditions and restore full list
+  - V1.7.B.x (current execution scope)
+    - Add a dedicated `Search` functional block between `Registry Operations` and `Existing Drawer Samples`.
+      - same structural pattern as other blocks
+      - collapsible/expandable
+      - no popover-based search entry
+    - Search block contains two isolated parts:
+      - Operation box:
+        - inputs: `Batch ID`, `Substrate Tags`, `Global Text`
+        - numeric inputs: `厚度`, `氧压`, `温度`, `能量`
+        - numeric match is value-based only (unit-insensitive; use numeric value for comparison)
+        - `Search` button triggers search execution explicitly
+        - `Clear` button clears all search inputs
+    - Result box:
+      - display matched items at sample granularity (not batch-only)
+      - each result row is clickable and selects that sample
+      - search target data source is global `Existing Drawer` samples in Library
+    - Matching rule:
+      - default AND across all non-empty fields
+      - empty fields do not restrict matching
+    - Interaction constraints:
+      - right detail panel behavior remains unchanged (selection-driven as before)
+      - selecting a search result updates center selection and therefore updates right detail via existing flow
+      - selecting non-search items should continue to work exactly as before
+    - Isolation constraints:
+      - search UI/state/logic/result rendering should remain functionally isolated
+      - must not affect other blocks, buttons, workflows, or unrelated UI/logic
+    - Design rationale:
+      - keep Search as an independent middle-column block to avoid coupling with `Registry Operations` actions and with drawer browsing panel semantics
+      - use explicit `Search` trigger instead of live filtering, so users can compose multiple fields before execution
+      - use sample-granularity result list for direct right-panel validation without changing existing detail rendering flow
+      - avoid parser/store changes; implement as UI-layer filtering over already-loaded Library in-memory data
+    - Button/function contract:
+      - `Search`:
+        - execute filtering against global `Existing Drawer` samples in Library
+        - apply AND across all non-empty fields
+        - substrate tags use `equal-any` exact tag match (normalized case/parenthesis/spacing), not contains-any
+      - `Clear`:
+        - clear all search input fields
+        - clear current search results and reset execution state
+      - `Search Result` item click:
+        - route selection via existing drawer selection flow
+        - right detail panel remains selection-driven with no special-case rendering branch
 
 ### V1.6 Completion Record (2026-03-21)
 - Status: completed and stabilized as architecture/performance-focused release.
