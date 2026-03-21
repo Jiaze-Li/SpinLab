@@ -121,7 +121,7 @@
     - Log sheets:
       - `__metadata_sync_log` (read-only in app)
       - `__numeric_tags_log` (status updatable in app: `pending/done/ignored`)
-  - V1.7.B (planned): Search (substrate + numeric)
+  - V1.7.B (done): Search (substrate + numeric)
     - Search entry placement:
       - add `Search` block at the top of `Registry Operations` (center column)
       - keep partition semantics; do not mix pending/existing lists
@@ -261,4 +261,5 @@
 - v1.4-done
 - v1.5-done
 - v1.6-done
+- v1.7-done
 - v1.8-done
