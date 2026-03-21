@@ -742,16 +742,27 @@ final class SpinLabAppState: ObservableObject {
                         updatedSample: updated,
                         registrySourceURL: registrySourceURL
                     )
-                    syncSummary = "metadata→xlsx: \(syncResult.metadataWrittenCount) success, \(syncResult.metadataFailedCount) failed; numeric-log: \(syncResult.manualLoggedCount) (\(syncResult.manualLogSheetName)); metadata-log: \(syncResult.metadataLogSheetName)"
+                    syncSummary = """
+                    已保存样品编辑。
+                    Metadata 写回 XLSX：成功 \(syncResult.metadataWrittenCount) 项，失败 \(syncResult.metadataFailedCount) 项。
+                    Numeric 日志新增：\(syncResult.manualLoggedCount) 项（\(syncResult.manualLogSheetName)）。
+                    Metadata 日志表：\(syncResult.metadataLogSheetName)。
+                    """
                     if syncResult.metadataFailedCount > 0 {
-                        librarySampleEditError = "Metadata sync failed for \(syncResult.metadataFailedCount) field(s). Check Metadata日志."
+                        librarySampleEditError = "Metadata sync partial failure: \(syncResult.metadataFailedCount) field(s) failed. Check Metadata日志."
                     }
                 } catch {
-                    syncSummary = "xlsx sync warning: \(error.localizedDescription)"
-                    librarySampleEditError = "Metadata sync failed. Check Metadata日志."
+                    syncSummary = """
+                    已保存样品编辑。
+                    XLSX 同步警告：\(error.localizedDescription)
+                    """
+                    librarySampleEditError = "Metadata sync failed: \(error.localizedDescription)"
                 }
             } else {
-                syncSummary = "xlsx sync warning: registry source not found."
+                syncSummary = """
+                已保存样品编辑。
+                XLSX 同步警告：未找到 registry source。
+                """
                 librarySampleEditError = "Metadata sync failed: registry source not found."
             }
             commitLibraryMutation(rootURL: rootURL, previewIndex: libraryPreview?.index)
@@ -759,9 +770,9 @@ final class SpinLabAppState: ObservableObject {
             librarySampleEditBaseSample = nil
             librarySampleEditOriginalDraft = nil
             if let syncSummary {
-                librarySampleEditMessage = "Saved sample edits. \(syncSummary)"
+                librarySampleEditMessage = syncSummary
             } else {
-                librarySampleEditMessage = "Saved sample edits."
+                librarySampleEditMessage = "已保存样品编辑。"
             }
         } catch {
             librarySampleEditError = error.localizedDescription

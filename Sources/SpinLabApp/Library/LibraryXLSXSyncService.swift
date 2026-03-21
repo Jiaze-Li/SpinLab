@@ -99,7 +99,8 @@ final class LibraryXLSXSyncService {
         var metadataFailed = 0
 
         for item in metadataWrites {
-            guard let col = headerMap[item.key] else {
+            let key = item.key.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let col = headerMap[key] else {
                 metadataFailed += 1
                 appendLogRow(
                     values: [
@@ -108,11 +109,11 @@ final class LibraryXLSXSyncService {
                         updatedSample.batchId,
                         sampleSheet,
                         "\(sampleRow)",
-                        item.key,
+                        key,
                         item.oldValue ?? "",
                         item.newValue ?? "",
                         "failed",
-                        "Column not found: \(item.key)"
+                        "Column not found: \(key)"
                     ],
                     in: &metadataDoc
                 )
@@ -124,14 +125,14 @@ final class LibraryXLSXSyncService {
             appendLogRow(
                 values: [
                     timestamp,
-                    updatedSample.id,
-                    updatedSample.batchId,
-                    sampleSheet,
-                    "\(sampleRow)",
-                    item.key,
-                    item.oldValue ?? "",
-                    item.newValue ?? "",
-                    "success",
+                        updatedSample.id,
+                        updatedSample.batchId,
+                        sampleSheet,
+                        "\(sampleRow)",
+                        key,
+                        item.oldValue ?? "",
+                        item.newValue ?? "",
+                        "success",
                     ""
                 ],
                 in: &metadataDoc
@@ -480,7 +481,7 @@ final class LibraryXLSXSyncService {
                   !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 continue
             }
-            map[value] = col
+            map[value.trimmingCharacters(in: .whitespacesAndNewlines)] = col
         }
         return map
     }
