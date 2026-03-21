@@ -178,6 +178,42 @@ struct LibraryView: View {
                     Text("Settings")
                         .font(level3HeaderFont)
                 }
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 8) {
+                        MetadataValueRow(
+                            label: "Backup Path",
+                            value: appState.librarySettings.backupPath ?? "Not set",
+                            monospaced: true
+                        )
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                        HStack {
+                            Button("Choose Backup Path") {
+                                presentBackupPathPanel()
+                            }
+                            Button("Sync Backup") {
+                                appState.syncLibraryBackup()
+                            }
+                            .disabled(appState.librarySettings.rootPath == nil || appState.librarySettings.backupPath == nil)
+                        }
+
+                        if let error = appState.libraryBackupError {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        } else if let message = appState.libraryBackupMessage {
+                            Text(message)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } label: {
+                    Text("Backup")
+                        .font(level3HeaderFont)
+                }
             }
         }
     }
@@ -1517,6 +1553,18 @@ struct LibraryView: View {
         panel.message = "Select a folder for the SpinLab library store."
         if panel.runModal() == .OK, let url = panel.url {
             appState.updateLibraryRoot(to: url)
+        }
+    }
+
+    private func presentBackupPathPanel() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.title = "Choose Backup Path"
+        panel.message = "Select a folder for Library backup sync."
+        if panel.runModal() == .OK, let url = panel.url {
+            appState.updateLibraryBackupPath(to: url)
         }
     }
 

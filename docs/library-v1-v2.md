@@ -200,11 +200,11 @@
   - desktop build packaged for verification
 
 ## V1 Extension (Inbox → Library + Backup)
-- V1.8: Inbox → Library
+- V2.0: Inbox → Library
   - Match status red/green in Inbox.
   - Confirm archive into Library drawer.
   - Library drawer shows copied measurement file.
-- V1.9: Backup Sync
+- V1.8: Backup Sync
   - Manual backup sync to a user-selected location.
 - V1.10: Full Interaction Memory + Restore
   - Product rule: preserve and restore the user's last interaction state across app relaunch by default.
@@ -233,3 +233,4 @@
 - v1.4-done
 - v1.5-done
 - v1.6-done
+- v1.8-done

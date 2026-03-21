@@ -11,6 +11,7 @@ struct LibrarySettings: Codable, Hashable {
     var registryInternalPath: String?
     var registrySourcePath: String?
     var backupPath: String?
+    var backupLastSyncedAt: Date?
     var allowedBatchPrefixes: [String]
     var lastRefreshAt: Date?
 
@@ -19,6 +20,7 @@ struct LibrarySettings: Codable, Hashable {
         registryInternalPath: nil,
         registrySourcePath: nil,
         backupPath: nil,
+        backupLastSyncedAt: nil,
         allowedBatchPrefixes: ["PN", "PT", "SL"],
         lastRefreshAt: nil
     )

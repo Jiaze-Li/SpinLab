@@ -89,6 +89,8 @@ final class SpinLabAppState: ObservableObject {
     @Published var librarySettings: LibrarySettings
     @Published private(set) var libraryRootVerificationPath: String?
     @Published private(set) var libraryRootVerificationMessage: String?
+    @Published private(set) var libraryBackupMessage: String?
+    @Published private(set) var libraryBackupError: String?
     @Published private(set) var libraryPreview: LibraryPreview?
     @Published private(set) var libraryPreviewMessage: String?
     @Published private(set) var libraryLastSyncedAt: Date?
@@ -162,6 +164,7 @@ final class SpinLabAppState: ObservableObject {
         load()
         updateRegistryPresentation()
         loadExistingDrawers()
+        refreshLibraryBackupMessage()
     }
 
     var selectedPendingImport: SpinLabDomain.PendingImport? {
@@ -1028,6 +1031,12 @@ final class SpinLabAppState: ObservableObject {
         libraryRootVerificationMessage = nil
     }
 
+    func updateLibraryBackupPath(to url: URL) {
+        librarySettings.backupPath = url.path
+        librarySettingsStore.save(librarySettings)
+        libraryBackupError = nil
+    }
+
     func updateAllowedBatchPrefixes(from rawValue: String) {
         let prefixes = rawValue
             .split(separator: ",")
@@ -1049,6 +1058,41 @@ final class SpinLabAppState: ObservableObject {
         }
         libraryRootVerificationPath = verifyURL.path
         libraryRootVerificationMessage = "Library Root verified."
+    }
+
+    func syncLibraryBackup() {
+        libraryBackupError = nil
+
+        guard let rootPath = librarySettings.rootPath else {
+            libraryBackupError = "No Library Root selected."
+            return
+        }
+        guard let backupPath = librarySettings.backupPath else {
+            libraryBackupError = "No Backup Path selected."
+            return
+        }
+
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let backupURL = URL(fileURLWithPath: backupPath)
+        let rootStandardPath = rootURL.standardizedFileURL.path
+        let backupStandardPath = backupURL.standardizedFileURL.path
+        if backupStandardPath == rootStandardPath {
+            libraryBackupError = "Backup Path must be different from Library Root."
+            return
+        }
+        if backupStandardPath.hasPrefix(rootStandardPath + "/") || rootStandardPath.hasPrefix(backupStandardPath + "/") {
+            libraryBackupError = "Backup Path cannot overlap with Library Root."
+            return
+        }
+
+        if libraryStore.syncBackup(from: rootURL, to: backupURL) {
+            let syncedAt = Date()
+            librarySettings.backupLastSyncedAt = syncedAt
+            librarySettingsStore.save(librarySettings)
+            libraryBackupMessage = "Backup sync successful at \(Self.syncStatusTimeFormatter.string(from: syncedAt))."
+        } else {
+            libraryBackupError = "Backup sync failed."
+        }
     }
 
     func openPendingImportInWorkbench() {
@@ -1558,6 +1602,13 @@ final class SpinLabAppState: ObservableObject {
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
         return formatter
     }()
+
+    private func refreshLibraryBackupMessage() {
+        guard let lastSyncedAt = librarySettings.backupLastSyncedAt else {
+            return
+        }
+        libraryBackupMessage = "Backup sync successful at \(Self.syncStatusTimeFormatter.string(from: lastSyncedAt))."
+    }
 
     private func normalizeLibrarySelection() {
         let prefixes = libraryExistingGroups.keys.sorted()
