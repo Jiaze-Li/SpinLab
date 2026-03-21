@@ -43,6 +43,20 @@ All future UI changes must follow this document unless the product direction is 
 
 ## Information Presentation
 
+### Functional Partitions And Header Hierarchy
+
+- Define a `functional partition` as a grouped set of UI blocks that jointly implement one user-facing function.
+- In Library workspace, `Library Settings`, `Registry Operations`, and `Existing Drawer Samples` are peer functional partitions.
+- Peer functional partitions must remain structurally independent:
+  - collapse/expand state of one partition must not hide or alter sibling partitions
+  - interactions in one partition should not implicitly remap another partition's visibility
+- Header hierarchy must be visually consistent and size-descending:
+  - Level 1 header: column-level workspace title (for example `Library`)
+  - Level 2 header: functional partition headline (`Library Settings`, `Registry Operations`, `Existing Drawer Samples`)
+  - Level 3 header: box/subsection headline inside a functional partition (for example `Registry Sync`, `Pending Queue`, `Sample List`)
+- Typography rule: Level 1 > Level 2 > Level 3 in font size and emphasis; sibling headers at the same level must use the same style.
+- Version placement rule (Library): show app/library version on the right side of the Level 1 `Library` header for quick visibility during QA and review.
+
 ### Full Filename Visibility
 
 - Full filenames should be visible wherever filenames are important to confirmation or traceability
@@ -92,7 +106,7 @@ All future UI changes must follow this document unless the product direction is 
 ### Collapse Indicators
 
 - Collapse/expand chevrons should be placed on the left side, before the section label text
-- Avoid mixing left and right chevron positions for similar expandable controls within the same view
+- Keep chevrons visually paired with their label in the same header row
 - This rule applies to sidebar tree toggles and in-panel operation sections
 
 ## Workflow Guidance

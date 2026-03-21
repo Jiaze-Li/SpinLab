@@ -27,6 +27,16 @@ Device is optional.
 Dataset maps to one measurement by default.
 Results can be rated.
 
+Instruction priority policy (required):
+- User explicit instructions are always the highest-priority requirement for implementation behavior.
+- Do not introduce or apply self-defined rules unless the user explicitly requests them.
+- Do not modify docs (including UI/design rules) unless the user explicitly requests doc updates.
+
+UI-only change isolation checklist (required):
+- UI-only requests must not change parser/state/registry/service/store logic.
+- UI-only requests must not alter behavior of unrelated functional partitions.
+- Scope UI edits to the explicitly requested partition/component only.
+
 Architecture principle:
 Add features through extension modules:
 workflow

@@ -22,6 +22,7 @@ final class LibraryStore {
     }
 
     private let fileManager = FileManager.default
+    private let xlsxSyncService = LibraryXLSXSyncService()
     private var directoryEntriesCache: [String: DirectoryEntriesCacheEntry] = [:]
     private var decodedBatchCache: [String: DecodedBatchCacheEntry] = [:]
     private var decodedSampleCache: [String: DecodedSampleCacheEntry] = [:]
@@ -148,12 +149,71 @@ final class LibraryStore {
         invalidateNodeCache(at: batchesDirectoryURL(rootURL))
     }
 
-    func updateSample(_ sample: LibrarySample, rootURL: URL) {
+    func updateSample(_ sample: LibrarySample, rootURL: URL, changeSource: String = "system_update") {
         let sampleURL = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
+        let previousSampleURL = sampleURL.appending(path: "sample.json")
+        let previous = decodeSample(from: previousSampleURL)
         try? fileManager.createDirectory(at: sampleURL, withIntermediateDirectories: true)
         writeSample(sample, to: sampleURL)
+        appendSampleChangeLogIfNeeded(
+            previous: previous,
+            updated: sample,
+            source: changeSource,
+            sampleURL: sampleURL
+        )
         invalidateNodeCache(at: sampleURL)
         invalidateNodeCache(at: sampleURL.deletingLastPathComponent())
+    }
+
+    func sampleChangeLog(for sample: LibrarySample, rootURL: URL) -> [LibrarySampleChangeLogEntry] {
+        let sampleURL = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
+        let logURL = sampleChangeLogURL(sampleURL: sampleURL)
+        guard fileManager.fileExists(atPath: logURL.path),
+              let data = try? Data(contentsOf: logURL) else {
+            return []
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let entries = (try? decoder.decode([LibrarySampleChangeLogEntry].self, from: data)) ?? []
+        return entries.sorted { $0.changedAt > $1.changedAt }
+    }
+
+    func syncRegistrySourceForEditedSample(
+        oldSample: LibrarySample,
+        updatedSample: LibrarySample,
+        registrySourceURL: URL
+    ) throws -> LibraryRegistrySourceSyncResult {
+        let changes = sampleChangeItems(old: oldSample, new: updatedSample)
+        let metadataWrites: [LibraryXLSXSyncService.MetadataWrite] = changes.compactMap { change in
+            guard change.key.hasPrefix("metadata.") else {
+                return nil
+            }
+            let key = String(change.key.dropFirst("metadata.".count))
+            return LibraryXLSXSyncService.MetadataWrite(
+                key: key,
+                oldValue: change.oldValue,
+                newValue: change.newValue
+            )
+        }
+
+        let numericLogs: [LibraryXLSXSyncService.NumericLogWrite] = changes.compactMap { change in
+            if change.key.hasPrefix("numeric.") {
+                return LibraryXLSXSyncService.NumericLogWrite(
+                    key: String(change.key.dropFirst("numeric.".count)),
+                    oldValue: change.oldValue,
+                    newValue: change.newValue
+                )
+            }
+            return nil
+        }
+
+        return try xlsxSyncService.syncEditedSample(
+            oldSample: oldSample,
+            updatedSample: updatedSample,
+            registrySourceURL: registrySourceURL,
+            metadataWrites: metadataWrites,
+            numericWrites: numericLogs
+        )
     }
 
     func updateBatch(_ batch: LibraryBatch, rootURL: URL) {
@@ -248,6 +308,121 @@ final class LibraryStore {
             return
         }
         try? data.write(to: url, options: .atomic)
+    }
+
+    private func appendSampleChangeLogIfNeeded(
+        previous: LibrarySample?,
+        updated: LibrarySample,
+        source: String,
+        sampleURL: URL
+    ) {
+        guard let previous, previous != updated else {
+            return
+        }
+        let changes = sampleChangeItems(old: previous, new: updated)
+        guard !changes.isEmpty else {
+            return
+        }
+
+        let logURL = sampleChangeLogURL(sampleURL: sampleURL)
+        var entries = loadSampleChangeLogEntries(from: logURL)
+        entries.append(
+            LibrarySampleChangeLogEntry(
+                id: UUID(),
+                sampleId: updated.id,
+                batchId: updated.batchId,
+                changedAt: .now,
+                source: source,
+                changes: changes
+            )
+        )
+        writeJSON(entries, to: logURL)
+    }
+
+    private func loadSampleChangeLogEntries(from url: URL) -> [LibrarySampleChangeLogEntry] {
+        guard fileManager.fileExists(atPath: url.path),
+              let data = try? Data(contentsOf: url) else {
+            return []
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return (try? decoder.decode([LibrarySampleChangeLogEntry].self, from: data)) ?? []
+    }
+
+    private func sampleChangeLogURL(sampleURL: URL) -> URL {
+        sampleURL.appending(path: "sample_change_log.json")
+    }
+
+    private func sampleChangeItems(old: LibrarySample, new: LibrarySample) -> [LibrarySampleChangeLogItem] {
+        var items: [LibrarySampleChangeLogItem] = []
+
+        addChange("displayName", old: old.displayName, new: new.displayName, into: &items)
+        addChange("substrateRaw", old: old.substrateRaw, new: new.substrateRaw, into: &items)
+        addChange("substrateDisplay", old: old.substrateDisplay, new: new.substrateDisplay, into: &items)
+        addChange("substrateTags", old: old.substrateTags.joined(separator: ", "), new: new.substrateTags.joined(separator: ", "), into: &items)
+        addChange("substrateTokens", old: old.substrateTokens.joined(separator: ", "), new: new.substrateTokens.joined(separator: ", "), into: &items)
+
+        let metadataKeys = Set(old.metadata.keys).union(new.metadata.keys).sorted()
+        for key in metadataKeys {
+            addChange("metadata.\(key)", old: old.metadata[key], new: new.metadata[key], into: &items)
+        }
+
+        let numericKeys = Set(old.numericDisplay.keys).union(new.numericDisplay.keys).sorted()
+        for key in numericKeys {
+            addChange("numeric.\(key)", old: old.numericDisplay[key], new: new.numericDisplay[key], into: &items)
+        }
+
+        return items
+    }
+
+    private func addChange(
+        _ key: String,
+        old oldValue: String?,
+        new newValue: String?,
+        into items: inout [LibrarySampleChangeLogItem]
+    ) {
+        let normalizedOld = normalizedLogValue(oldValue)
+        let normalizedNew = normalizedLogValue(newValue)
+        guard normalizedOld != normalizedNew else {
+            return
+        }
+        items.append(
+            LibrarySampleChangeLogItem(
+                key: key,
+                oldValue: normalizedOld,
+                newValue: normalizedNew
+            )
+        )
+    }
+
+    private func normalizedLogValue(_ value: String?) -> String? {
+        guard let value else {
+            return nil
+        }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    func loadRegistryManualUpdateLogEntries(registrySourceURL: URL) throws -> [LibraryManualUpdateLogEntry] {
+        try xlsxSyncService.loadNumericLogEntries(registrySourceURL: registrySourceURL)
+    }
+
+    func updateRegistryManualUpdateLogStatus(
+        registrySourceURL: URL,
+        rowIndex: Int,
+        status: LibraryManualLogStatus,
+        statusChangedBy: String
+    ) throws {
+        try xlsxSyncService.updateNumericLogStatus(
+            registrySourceURL: registrySourceURL,
+            rowIndex: rowIndex,
+            status: status,
+            statusChangedBy: statusChangedBy
+        )
+    }
+
+    func loadRegistryMetadataSyncLogEntries(registrySourceURL: URL) throws -> [LibraryMetadataSyncLogEntry] {
+        try xlsxSyncService.loadMetadataLogEntries(registrySourceURL: registrySourceURL)
     }
 
     private func indexDirectoryURL(_ rootURL: URL) -> URL {

@@ -142,6 +142,8 @@ final class LibraryRegistryParser {
                         orderedMetadata: orderedMetadata,
                         numericTags: numeric.tags,
                         numericDisplay: numeric.display,
+                        sourceSheetName: sheetName,
+                        sourceRowNumber: rowIndex + 2,
                         updatedAt: now
                     )
                     samplesByKey[sampleKey] = sample
