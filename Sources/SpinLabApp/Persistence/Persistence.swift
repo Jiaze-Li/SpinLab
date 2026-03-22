@@ -1,5 +1,14 @@
 import Foundation
 
+private enum InteractionSnapshotSchema {
+    static let currentVersion = 1
+}
+
+private struct InteractionSnapshotEnvelope: Codable {
+    var schemaVersion: Int
+    var snapshot: SpinLabInteractionSnapshot
+}
+
 protocol SpinLabPersistence {
     func loadPendingImports() -> [SpinLabDomain.PendingImport]
     func savePendingImports(_ imports: [SpinLabDomain.PendingImport])
@@ -7,6 +16,8 @@ protocol SpinLabPersistence {
     func saveArchivedRecords(_ records: [SpinLabDomain.ArchivedRecord])
     func loadProjects() -> [SpinLabDomain.Project]
     func saveProjects(_ projects: [SpinLabDomain.Project])
+    func loadInteractionSnapshot() -> SpinLabInteractionSnapshot
+    func saveInteractionSnapshot(_ snapshot: SpinLabInteractionSnapshot)
 }
 
 final class LocalJSONPersistence: SpinLabPersistence {
@@ -14,6 +25,7 @@ final class LocalJSONPersistence: SpinLabPersistence {
     private let pendingImportsFileURL: URL
     private let archivedRecordsFileURL: URL
     private let projectsFileURL: URL
+    private let interactionSnapshotFileURL: URL
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
@@ -24,6 +36,7 @@ final class LocalJSONPersistence: SpinLabPersistence {
         pendingImportsFileURL = spinLabURL.appending(path: "pending_imports.json")
         archivedRecordsFileURL = spinLabURL.appending(path: "archived_records.json")
         projectsFileURL = spinLabURL.appending(path: "projects.json")
+        interactionSnapshotFileURL = spinLabURL.appending(path: "interaction_snapshot.json")
 
         encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -77,6 +90,43 @@ final class LocalJSONPersistence: SpinLabPersistence {
         writeJSON(projects, to: projectsFileURL)
     }
 
+    func loadInteractionSnapshot() -> SpinLabInteractionSnapshot {
+        guard fileManager.fileExists(atPath: interactionSnapshotFileURL.path),
+              let data = try? Data(contentsOf: interactionSnapshotFileURL) else {
+            return SpinLabInteractionSnapshot()
+        }
+
+        if let envelope = try? decoder.decode(InteractionSnapshotEnvelope.self, from: data) {
+            return migrateSnapshot(envelope.snapshot, from: envelope.schemaVersion)
+        }
+
+        // Legacy compatibility: previously we stored the raw snapshot without envelope.
+        if let legacySnapshot = try? decoder.decode(SpinLabInteractionSnapshot.self, from: data) {
+            return migrateSnapshot(legacySnapshot, from: 0)
+        }
+
+        return SpinLabInteractionSnapshot()
+    }
+
+    func saveInteractionSnapshot(_ snapshot: SpinLabInteractionSnapshot) {
+        writeJSON(
+            InteractionSnapshotEnvelope(
+                schemaVersion: InteractionSnapshotSchema.currentVersion,
+                snapshot: snapshot
+            ),
+            to: interactionSnapshotFileURL
+        )
+    }
+
+    private func migrateSnapshot(_ snapshot: SpinLabInteractionSnapshot, from schemaVersion: Int) -> SpinLabInteractionSnapshot {
+        switch schemaVersion {
+        case 0, 1:
+            return snapshot
+        default:
+            return snapshot
+        }
+    }
+
     private func readJSON<T: Decodable>(from fileURL: URL) -> T? {
         guard fileManager.fileExists(atPath: fileURL.path) else {
             return nil
@@ -101,15 +151,18 @@ final class LocalPersistenceStub: SpinLabPersistence {
     private var pendingImports: [SpinLabDomain.PendingImport]
     private var archivedRecords: [SpinLabDomain.ArchivedRecord]
     private var projects: [SpinLabDomain.Project]
+    private var interactionSnapshot: SpinLabInteractionSnapshot
 
     init(
         pendingImports: [SpinLabDomain.PendingImport] = SampleData.pendingImports,
         archivedRecords: [SpinLabDomain.ArchivedRecord] = SampleData.archivedRecords,
-        projects: [SpinLabDomain.Project] = SampleData.projects
+        projects: [SpinLabDomain.Project] = SampleData.projects,
+        interactionSnapshot: SpinLabInteractionSnapshot = SpinLabInteractionSnapshot()
     ) {
         self.pendingImports = pendingImports
         self.archivedRecords = archivedRecords
         self.projects = projects
+        self.interactionSnapshot = interactionSnapshot
     }
 
     func loadPendingImports() -> [SpinLabDomain.PendingImport] {
@@ -134,6 +187,14 @@ final class LocalPersistenceStub: SpinLabPersistence {
 
     func saveProjects(_ projects: [SpinLabDomain.Project]) {
         self.projects = projects
+    }
+
+    func loadInteractionSnapshot() -> SpinLabInteractionSnapshot {
+        interactionSnapshot
+    }
+
+    func saveInteractionSnapshot(_ snapshot: SpinLabInteractionSnapshot) {
+        interactionSnapshot = snapshot
     }
 }
 

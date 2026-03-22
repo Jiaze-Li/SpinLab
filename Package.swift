@@ -25,6 +25,11 @@ let package = Package(
             resources: [
                 .process("config")
             ]
+        ),
+        .testTarget(
+            name: "SpinLabAppTests",
+            dependencies: ["SpinLabApp"],
+            path: "Tests/SpinLabAppTests"
         )
     ]
 )

@@ -234,8 +234,24 @@
       - `./scripts/test_library_cache_consistency.sh` passed.
       - `./scripts/test_library_sync_apply_consistency.sh` passed.
       - desktop package rebuilt for QA: `/Users/jack/Desktop/SpinLab.app`.
-- V1.10: Full Interaction Memory + Restore
+- V1.9: Full Interaction Memory + Restore
   - Product rule: preserve and restore the user's last interaction state across app relaunch by default.
+  - Development log (2026-03-22):
+    - Added persisted interaction snapshot file: `Application Support/SpinLab/interaction_snapshot.json`.
+    - Restored on app launch:
+      - global navigation/selection state (`selectedArea`, pending/archive selection, workbench draft).
+      - Library selection context (`browser/drawer` source and selected prefix/batch/sample).
+      - sidebar interaction state (library tree expand/collapse and expanded prefixes).
+      - Library view local interaction state:
+        - section collapse/expand
+        - browser selection anchors
+        - search filters + executed-state restoration
+      - Inbox confirmation workspace per pending item:
+        - confirmation draft values
+        - imported file editable-text review state
+    - Safety fallback:
+      - stale pending-workspace entries are pruned when pending IDs no longer exist.
+      - restored selections are normalized against current filesystem/index state.
   - Scope: all editable/interactive app state, including but not limited to:
     - area/module selection
     - partition collapse/expand states

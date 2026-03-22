@@ -41,10 +41,16 @@ struct LibraryView: View {
         .padding(.bottom, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
+            applyRestoredInteractionState()
             syncSelection()
+            appState.updateInteractionValue(\.libraryView, to: interactionStateSnapshot)
         }
         .onChange(of: appState.libraryPreviewGroups) { _, _ in
             syncSelection()
+            appState.updateInteractionValue(\.libraryView, to: interactionStateSnapshot)
+        }
+        .onChange(of: interactionStateSnapshot) { _, newValue in
+            appState.updateInteractionValue(\.libraryView, to: newValue)
         }
         .confirmationDialog(
             "Unsaved Edits",
@@ -1565,6 +1571,49 @@ struct LibraryView: View {
         panel.message = "Select a folder for Library backup sync."
         if panel.runModal() == .OK, let url = panel.url {
             appState.updateLibraryBackupPath(to: url)
+        }
+    }
+
+    private var interactionStateSnapshot: LibraryInteractionState {
+        LibraryInteractionState(
+            selectedPrefix: selectedPrefix,
+            selectedBatchId: selectedBatchId,
+            selectedSampleId: selectedSampleId,
+            isLibrarySettingsExpanded: isLibrarySettingsExpanded,
+            isRegistryWorkspaceExpanded: isRegistryWorkspaceExpanded,
+            isSearchWorkspaceExpanded: isSearchWorkspaceExpanded,
+            searchBatchIdText: searchBatchIdText,
+            searchSubstrateText: searchSubstrateText,
+            searchKeywordText: searchKeywordText,
+            searchThicknessText: searchThicknessText,
+            searchOxygenText: searchOxygenText,
+            searchTemperatureText: searchTemperatureText,
+            searchEnergyText: searchEnergyText,
+            searchHasExecuted: searchHasExecuted
+        )
+    }
+
+    private func applyRestoredInteractionState() {
+        let restored = appState.interactionValue(\.libraryView)
+        selectedPrefix = restored.selectedPrefix
+        selectedBatchId = restored.selectedBatchId
+        selectedSampleId = restored.selectedSampleId
+        isLibrarySettingsExpanded = restored.isLibrarySettingsExpanded
+        isRegistryWorkspaceExpanded = restored.isRegistryWorkspaceExpanded
+        isSearchWorkspaceExpanded = restored.isSearchWorkspaceExpanded
+        searchBatchIdText = restored.searchBatchIdText
+        searchSubstrateText = restored.searchSubstrateText
+        searchKeywordText = restored.searchKeywordText
+        searchThicknessText = restored.searchThicknessText
+        searchOxygenText = restored.searchOxygenText
+        searchTemperatureText = restored.searchTemperatureText
+        searchEnergyText = restored.searchEnergyText
+
+        if restored.searchHasExecuted {
+            executeSearch()
+        } else {
+            searchMatchedResults = []
+            searchHasExecuted = false
         }
     }
 
