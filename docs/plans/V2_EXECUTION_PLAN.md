@@ -1,0 +1,307 @@
+# SpinLab V2 Execution Plan
+
+This document is the implementation handoff plan for a new execution thread.
+
+Rule governance: the routing rules framework must stay integrated in this execution plan and be updated in-place here.
+
+## Engineering principles (must follow in all V2.x)
+- No silent fallback logic. If sample routing is not uniquely resolved, move the item into review-required state.
+- No cross-layer coupling. Keep `Rule / Parse / Route / Apply / Audit` responsibilities isolated.
+- No direct filesystem writes in UI layer.
+- All write paths must be auditable; multi-target file apply must be rollback-safe.
+- Keep extension seams explicit (future tabs, future workflows, future rule updates).
+
+## Routing framework and rules (integrated)
+
+### Goal
+- Import many measurement files from Inbox (`.dat`, `.lvm`).
+- Parse filename and folder context safely.
+- Route each file to the correct Library sample drawer(s).
+- Keep App drawer state and `Library Root` physical files consistent.
+
+### Layered architecture
+1. Rule Layer
+- Owns JSON configuration only.
+- Defines:
+  - allowed import extensions
+  - ignored extensions
+  - tokenization
+  - channel aliases
+  - sample key regex patterns
+  - workflow and measurement tag aliases
+  - condition patterns (temperature/current/field)
+  - substrate aliases
+
+2. Parse Layer
+- Input: `file name + parent folder + grandparent folder`.
+- Output: normalized parse result (`ParsedTags`) including:
+  - `defaultSampleKey`
+  - `channelBindings[]` (`channel`, `sampleKey?`, `tags[]`)
+  - `workflow`
+  - `measurementTags[]`
+  - `conditions` (`temperature`, `current`, `field`)
+  - `substrateTags[]`
+  - `warnings[]`
+- Parse layer does not touch file system routing decisions.
+
+3. Route Layer
+- Input: `ParsedTags`.
+- Output: `RoutePlan`:
+  - `targets[]`: each target contains `sampleKey` and `channels[]`
+  - `unresolvedChannels[]`
+  - `conflicts[]`
+- Unified rule:
+  - for each channel: `sampleKey = channel.sampleKey ?? defaultSampleKey ?? folderDerivedSampleKey`
+  - if still missing, channel is unresolved
+  - group by `sampleKey` to produce route targets
+- This naturally handles:
+  - one file routed to one sample
+  - one file routed to multiple samples
+
+4. Apply Layer
+- Executes `RoutePlan` only.
+- For each route target:
+  - writes/copies measurement file into that sample drawer under `Library Root`
+  - writes route metadata (source file, selected channels, parsed tags)
+- Must support duplicate guard and atomic rollback contract.
+
+### Routing policy defaults
+- Included in import/classification: `.dat`, `.lvm`
+- Ignored in classification/routing: `.gph`
+- Primary sample key patterns:
+  - `PN\d+`
+  - `PT\d+`
+  - `S\d+`
+- Channel aliases:
+  - `ch1/c1`
+  - `ch2/c2`
+  - `ch3/c3`
+- Safety contract:
+  - never silently route unresolved files
+  - conflicting mapping must become warning/error and require manual review
+
+### Reference JSON shape
+```json
+{
+  "version": 2,
+  "extensions": {
+    "allow": ["dat", "lvm"],
+    "ignore": ["gph"]
+  },
+  "tokenization": {
+    "separators": "_- ()",
+    "sources": ["file", "parent", "grandparent"]
+  },
+  "aliases": {
+    "workflow": {
+      "XY_90shift": "XY",
+      "MR": "MR",
+      "RT": "RT",
+      "AHE": "AHE"
+    },
+    "channels": {
+      "ch1": "ch1",
+      "c1": "ch1",
+      "ch2": "ch2",
+      "c2": "ch2",
+      "ch3": "ch3",
+      "c3": "ch3"
+    },
+    "substrate": {
+      "origin": "o",
+      "original": "o",
+      "bake": "baked"
+    }
+  },
+  "patterns": {
+    "sampleKey": ["^(PN|PT)\\d+$", "^S\\d+$"],
+    "conditions": {
+      "temperature": "^\\d+K$",
+      "current": "^\\d+(?:\\.\\d+)?mA$",
+      "field": "^-?\\d+T$"
+    }
+  }
+}
+```
+
+## V2.1
+**Goal (one line)**
+Build the core data pipeline `Parse -> Editable Draft -> Route Plan` without executing library writes.
+
+**Detailed requirements**
+1. Import support: include `.dat` and `.lvm`; ignore `.gph` from classification/routing.
+2. Parse sources: file name, parent folder, grandparent folder.
+3. Parse output must include:
+- workflow
+- default sample key
+- channel bindings (`channel -> sample + tags`)
+- conditions (`temperature/current/field`)
+- substrate/device-level hints
+- warnings/conflicts
+4. Editable draft must support file-level and channel-level edits.
+5. Route recompute must be manual only (`Confirm & Recompute Route`).
+6. Unified routing rule:
+- `channelSampleKey ?? defaultSampleKey ?? folderDerivedSampleKey`
+7. Non-unique/conflicting routes must become `review-required`, not `apply-ready`.
+
+**Test scenarios & acceptance criteria**
+1. `XY_90shift_80K_PN38_HF_STO111_wafer_ch2_AMR_ch3_PHE_8T_1mA`
+- Acceptance: parse captures workflow/conditions/sample/channel tags correctly.
+2. `RT_1mA_ch1_PN36_ch2_PN36_HF_STO111_ch3_PN37_wafer`
+- Acceptance: route plan contains both `PN36` and `PN37` targets.
+3. Filename-missing sample with unique parent-derived sample
+- Acceptance: route becomes apply-ready.
+4. Non-unique parent-derived sample
+- Acceptance: route becomes review-required.
+5. `.gph` inputs
+- Acceptance: not enqueued for route/apply.
+
+**Code structure design**
+1. Add/clarify modules:
+- `RuleLayer` (JSON rules only)
+- `ParseLayer` (parsing only)
+- `RouteLayer` (route planning only)
+- `DraftState` (editable draft state + dirty tracking)
+2. Keep `SpinLabAppState` orchestration-only for these modules.
+3. Introduce explicit route status enum (`applyReady`, `reviewRequired`).
+
+## V2.2
+**Goal (one line)**
+Refactor Inbox UI into the same 3-column interaction model as Library and complete manual confirm/recompute workflow.
+
+**Detailed requirements**
+1. Keep app-level columns as:
+- left: navigation
+- middle: operation blocks
+- right: inspector/details
+2. Inbox middle operation blocks order:
+- Import Source
+- Pending Queue
+- Routing Review
+- Apply
+3. Toolbar action relocation:
+- keep and place in operation blocks: `Load Registry`, `Import Files`, `Clear Imports`, `Recompute Route`
+- remove from Inbox scope: `Create Project`
+4. Right inspector shows:
+- file metadata
+- parsed baseline (read-only)
+- editable draft (file-level + channel-level)
+- parse-vs-edit diffs
+- warnings
+- `Confirm & Recompute Route` action
+5. Preserve extension seam for future right-panel tabs, but enable details tab only now.
+
+**Test scenarios & acceptance criteria**
+1. Edit draft without confirm
+- Acceptance: route plan unchanged.
+2. Confirm and recompute
+- Acceptance: route plan updates from edited values.
+3. Switch pending items
+- Acceptance: inspector state is correctly isolated per pending item.
+4. `Clear Imports`
+- Acceptance: clears pending queue only; no changes to already archived library drawers.
+
+**Code structure design**
+1. Split UI composition:
+- `InboxOperationPanel`
+- `InboxInspectorPanel`
+2. Add dedicated view models for inspector and route review blocks.
+3. UI dispatches actions via explicit intent handlers; no filesystem logic in views.
+
+## V2.3
+**Goal (one line)**
+Implement transactional `Apply Selected` and `Apply All` from Inbox route plans to Library sample drawers.
+
+**Detailed requirements**
+1. `Apply Selected` unit is a file.
+2. `Apply All` processes apply-ready items only; skips review-required items.
+3. Single file can fan out to multiple sample drawers.
+4. Multi-target apply must be atomic per file (rollback all targets if one fails).
+5. File body must be copied into each target sample drawer for immediate access.
+6. After apply, refresh library filesystem index and UI state.
+
+**Test scenarios & acceptance criteria**
+1. Single-target selected apply
+- Acceptance: file appears only in that sample drawer.
+2. Multi-target selected apply
+- Acceptance: file appears in all target sample drawers.
+3. Inject failure for one target in multi-target apply
+- Acceptance: no target keeps partial artifact (rollback verified).
+4. Mixed queue apply-all (apply-ready + review-required)
+- Acceptance: apply-ready items applied; review-required unchanged.
+
+**Code structure design**
+1. Introduce `InboxArchiveApplyService` as single write execution entry.
+2. Introduce `LibraryWriteTransaction` (`prepare/commit/rollback`).
+3. Centralize apply orchestration in `ApplyCoordinator`.
+4. Disallow side writes outside apply service.
+
+## V2.4
+**Goal (one line)**
+Add normalized test-tag metadata sidecar at archive time and make metadata query-ready.
+
+**Detailed requirements**
+1. Metadata primary source: sidecar JSON in sample drawer.
+2. Normalize tags on write, including:
+- `AMR -> R_xx`
+- `PHE -> R_xy`
+- `XY_90shift -> workflow=XY + angle_shift=+90deg`
+3. Persist conditions and level tags (`temperature/current/field`, `wafer/device`).
+4. Multi-sample fan-out metadata policy:
+- each sample drawer stores only channels relevant to that sample
+- file body still exists in each target drawer
+5. Keep original raw parse values alongside normalized values for traceability.
+
+**Test scenarios & acceptance criteria**
+1. XY_90shift sample case
+- Acceptance: sidecar contains normalized workflow, angle shift, conditions, level, and normalized channel tags.
+2. Multi-sample RT case
+- Acceptance: PN36 sidecar does not carry PN37-only channel binding and vice versa.
+3. Query/load integrity
+- Acceptance: metadata reads are stable after app relaunch and filesystem rescan.
+
+**Code structure design**
+1. Add `TagNormalizer` (single normalization authority).
+2. Add `ArchiveMetadataBuilder` (composes sidecar payload).
+3. Add `SidecarWriter` with versioned schema field.
+4. Keep metadata serialization decoupled from apply transaction core.
+
+## V2.5
+**Goal (one line)**
+Finalize auditability and safety with dual logs, strict duplicate guard, and safe pending cleanup.
+
+**Detailed requirements**
+1. Edit log:
+- records pre/post field values for manual confirm/recompute actions.
+2. Import log:
+- records archive actions with timestamp, source, targets, result.
+3. Dual log sinks:
+- one full audit under `Library Root`
+- one structured mirror under `App Support`
+4. Duplicate import guard:
+- reject duplicate by `fileName + contentHash`.
+5. `Clear Imports` behavior:
+- clear pending records
+- delete unarchived managed temp copies
+- never touch archived files in library drawers.
+
+**Test scenarios & acceptance criteria**
+1. Confirm/recompute action
+- Acceptance: edit log written to both sinks with consistent event identity.
+2. Apply action
+- Acceptance: import log written to both sinks with consistent target summary.
+3. Duplicate import attempt
+- Acceptance: file rejected, no new pending route item.
+4. Clear imports
+- Acceptance: pending queue cleared; archived library files unchanged.
+
+**Code structure design**
+1. Add unified `AuditEvent` model.
+2. Add `AuditLogger` with two concrete sinks and stable event IDs.
+3. Add `DuplicateGuard` module for hash and lookup.
+4. Add `PendingCleanupService` to isolate pending purge side effects.
+
+## Out-of-scope for this execution thread
+- Auto-apply without manual confirmation.
+- Plot preview in Inbox right panel (only extension seam retained).
+- New workflow families beyond the current naming/tag normalization scope.

@@ -1,8 +1,10 @@
-# Library V1/V2 Plan
+# V1 Execution Plan
+
+Status: DONE
 
 ## Version Completion Rule
 - After each version is accepted, add a completion marker in this document using format: `vX.Y-done`.
-- Example markers: `v1.3-done`, `v1.4-done`, `v2.1-done`.
+- Example markers: `v1.3-done`, `v1.4-done`, `v1.8-done`.
 - Keep markers in chronological order at the end of this document.
 
 ## App Shell Baseline
@@ -199,11 +201,7 @@
   - sync/apply immediate-state consistency verified
   - desktop build packaged for verification
 
-## V1 Extension (Inbox → Library + Backup)
-- V2.0: Inbox → Library
-  - Match status red/green in Inbox.
-  - Confirm archive into Library drawer.
-  - Library drawer shows copied measurement file.
+## V1 Extension (Backup + Interaction Memory)
 - V1.8: Backup Sync
   - Manual backup sync to a user-selected location.
   - Development log (2026-03-22):
@@ -268,6 +266,11 @@
     - any non-persisted interaction must be explicitly documented as an exception
   - Acceptance:
     - after relaunch, app returns to the last valid interactive state with safe fallback when targets no longer exist
+
+## V2 Planning Link
+- V2 main task (`Inbox -> Library`) has moved to dedicated planning docs:
+  - `docs/V2_EXECUTION_PLAN.md`
+  - `docs/V2_INBOX_ROUTING_RULES_DRAFT.md`
 
 ## Verification (UI-only)
 - All verification is done via UI interactions, not internal logs.

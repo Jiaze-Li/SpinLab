@@ -1,5 +1,7 @@
 # SpinLab Filename Rules
 
+Status: historical
+
 SpinLab filename parsing is keyword-driven and path-aware.
 
 It does not depend on token position.
