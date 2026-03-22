@@ -1,5 +1,7 @@
 # SpinLab Extension Rules
 
+Status: historical
+
 ## Principle
 
 SpinLab should grow through extension modules instead of expanding the core app indiscriminately.

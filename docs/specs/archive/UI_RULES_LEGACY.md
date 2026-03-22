@@ -1,5 +1,7 @@
 # SpinLab UI Rules
 
+Status: historical
+
 This document defines the baseline UI design rules for SpinLab.
 
 All future UI changes must follow this document unless the product direction is explicitly revised.

@@ -1,5 +1,7 @@
 # SpinLab Object Model
 
+Status: historical
+
 ## Core Objects
 
 ### Project

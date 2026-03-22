@@ -1,5 +1,7 @@
 # SpinLab App Design Principles
 
+Status: active
+
 This document defines the long-term architecture and product philosophy of SpinLab.
 
 It is intended to guide future product, data model, workflow, and UI decisions.
@@ -114,22 +116,7 @@ Avoid decorative UI patterns.
 
 UI should favor structured inspection, confirmation, and retrieval over presentation-heavy layouts.
 
-## 9. V1 Boundaries
-
-SpinLab V1 only supports:
-
-- `AMR/PHE` workflow
-
-Other measurement types are postponed:
-
-- `MR`
-- `AHE`
-- `RT`
-- `Harmonic`
-
-Future support for additional workflows should be added deliberately through the extension architecture.
-
-## 10. Stability Rule
+## 9. Stability Rule
 
 Once archived, experimental records should be stable and traceable.
 
