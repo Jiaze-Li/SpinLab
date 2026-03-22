@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-enum AppArea: String, CaseIterable, Identifiable {
+enum AppArea: String, CaseIterable, Identifiable, Codable {
     case inbox = "Inbox"
     case workbench = "Workbench"
     case library = "Library"
@@ -9,7 +9,7 @@ enum AppArea: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-enum LibrarySelectionSource {
+enum LibrarySelectionSource: String, Codable {
     case browser
     case drawer
 }
@@ -19,7 +19,7 @@ enum LibraryPendingSelectionChange: Equatable {
     case drawer(prefix: String, batchId: String, sampleId: String?)
 }
 
-struct PendingImportConfirmationDraft: Equatable {
+struct PendingImportConfirmationDraft: Codable, Equatable {
     static let noProjectOption = "None"
 
     var batchName: String
@@ -53,7 +53,133 @@ struct PendingImportConfirmationDraft: Equatable {
     }
 }
 
+struct InboxPendingWorkspaceState: Codable, Equatable {
+    var draft: PendingImportConfirmationDraft
+    var editableFileContents: String
+    var hasEditableFileContents: Bool
+
+    static let maxStoredEditableContentsLength = 200_000
+    static let truncatedSuffix = "\n\n[SpinLab] Editable file preview was truncated for interaction-memory snapshot."
+
+    static func snapshotSafe(
+        draft: PendingImportConfirmationDraft,
+        editableFileContents: String,
+        hasEditableFileContents: Bool
+    ) -> InboxPendingWorkspaceState {
+        InboxPendingWorkspaceState(
+            draft: draft,
+            editableFileContents: sanitizedEditableContents(editableFileContents),
+            hasEditableFileContents: hasEditableFileContents
+        )
+    }
+
+    private static func sanitizedEditableContents(_ text: String) -> String {
+        guard text.count > maxStoredEditableContentsLength else {
+            return text
+        }
+        let prefixLength = max(0, maxStoredEditableContentsLength - truncatedSuffix.count)
+        let prefix = String(text.prefix(prefixLength))
+        return prefix + truncatedSuffix
+    }
+}
+
+struct SidebarInteractionState: Codable, Equatable {
+    var isLibraryTreeExpanded: Bool = true
+    var expandedPrefixes: Set<String> = []
+}
+
+struct LibraryInteractionState: Codable, Equatable {
+    var selectedPrefix: String?
+    var selectedBatchId: String?
+    var selectedSampleId: String?
+    var isLibrarySettingsExpanded: Bool = true
+    var isRegistryWorkspaceExpanded: Bool = true
+    var isSearchWorkspaceExpanded: Bool = true
+    var searchBatchIdText: String = ""
+    var searchSubstrateText: String = ""
+    var searchKeywordText: String = ""
+    var searchThicknessText: String = ""
+    var searchOxygenText: String = ""
+    var searchTemperatureText: String = ""
+    var searchEnergyText: String = ""
+    var searchHasExecuted: Bool = false
+}
+
+struct SpinLabInteractionSnapshot: Codable, Equatable {
+    var selectedArea: AppArea = .inbox
+    var selectedPendingImportID: UUID?
+    var selectedArchivedRecordID: UUID?
+    var workbenchResultDraft: String = ""
+    var libraryActiveSelectionSource: LibrarySelectionSource = .browser
+    var librarySelectedPrefix: String?
+    var librarySelectedBatchId: String?
+    var librarySelectedSampleId: String?
+    var inboxWorkspaceByPendingID: [String: InboxPendingWorkspaceState] = [:]
+    var sidebar: SidebarInteractionState = SidebarInteractionState()
+    var libraryView: LibraryInteractionState = LibraryInteractionState()
+}
+
 final class SpinLabAppState: ObservableObject {
+    private struct InteractionBinding {
+        let restore: (SpinLabAppState, SpinLabInteractionSnapshot) -> Void
+        let capture: (SpinLabAppState, inout SpinLabInteractionSnapshot) -> Void
+    }
+
+    private static func bind<Value>(
+        state stateKeyPath: ReferenceWritableKeyPath<SpinLabAppState, Value>,
+        snapshot snapshotKeyPath: WritableKeyPath<SpinLabInteractionSnapshot, Value>
+    ) -> InteractionBinding {
+        InteractionBinding(
+            restore: { state, snapshot in
+                state[keyPath: stateKeyPath] = snapshot[keyPath: snapshotKeyPath]
+            },
+            capture: { state, snapshot in
+                snapshot[keyPath: snapshotKeyPath] = state[keyPath: stateKeyPath]
+            }
+        )
+    }
+
+    private static func bindOptionalUUID(
+        state stateKeyPath: ReferenceWritableKeyPath<SpinLabAppState, UUID?>,
+        snapshot snapshotKeyPath: WritableKeyPath<SpinLabInteractionSnapshot, UUID?>,
+        isValid: @escaping (SpinLabAppState, UUID) -> Bool
+    ) -> InteractionBinding {
+        InteractionBinding(
+            restore: { state, snapshot in
+                guard let id = snapshot[keyPath: snapshotKeyPath], isValid(state, id) else {
+                    return
+                }
+                state[keyPath: stateKeyPath] = id
+            },
+            capture: { state, snapshot in
+                snapshot[keyPath: snapshotKeyPath] = state[keyPath: stateKeyPath]
+            }
+        )
+    }
+
+    private static let interactionBindings: [InteractionBinding] = [
+        bind(state: \.selectedArea, snapshot: \.selectedArea),
+        bindOptionalUUID(
+            state: \.selectedPendingImportID,
+            snapshot: \.selectedPendingImportID,
+            isValid: { state, id in
+                state.pendingImports.contains(where: { $0.id == id })
+            }
+        ),
+        bindOptionalUUID(
+            state: \.selectedArchivedRecordID,
+            snapshot: \.selectedArchivedRecordID,
+            isValid: { state, id in
+                state.archivedRecords.contains(where: { $0.id == id })
+            }
+        ),
+        bind(state: \.workbenchResultDraft, snapshot: \.workbenchResultDraft),
+        bind(state: \.libraryActiveSelectionSource, snapshot: \.libraryActiveSelectionSource),
+        bind(state: \.librarySelectedPrefix, snapshot: \.librarySelectedPrefix),
+        bind(state: \.librarySelectedBatchId, snapshot: \.librarySelectedBatchId),
+        bind(state: \.librarySelectedSampleId, snapshot: \.librarySelectedSampleId)
+    ]
+
     private struct SubstrateConstraints {
         var treatments: Set<String> = []
         var materials: Set<String> = []
@@ -76,13 +202,21 @@ final class SpinLabAppState: ObservableObject {
         var warning: String?
     }
 
-    @Published var selectedArea: AppArea = .inbox
+    @Published var selectedArea: AppArea = .inbox {
+        didSet { persistInteractionSnapshotIfReady() }
+    }
     @Published var pendingImports: [SpinLabDomain.PendingImport] = []
     @Published var archivedRecords: [SpinLabDomain.ArchivedRecord] = []
     @Published var projectCatalog: [SpinLabDomain.Project] = []
-    @Published var selectedPendingImportID: UUID?
-    @Published var selectedArchivedRecordID: UUID?
-    @Published var workbenchResultDraft: String = ""
+    @Published var selectedPendingImportID: UUID? {
+        didSet { persistInteractionSnapshotIfReady() }
+    }
+    @Published var selectedArchivedRecordID: UUID? {
+        didSet { persistInteractionSnapshotIfReady() }
+    }
+    @Published var workbenchResultDraft: String = "" {
+        didSet { persistInteractionSnapshotIfReady() }
+    }
     @Published private(set) var registryFileName: String?
     @Published private(set) var registrySourceFilePath: String?
     @Published private(set) var registryPrefixEntries: [RegistryPrefixEntry] = []
@@ -99,11 +233,19 @@ final class SpinLabAppState: ObservableObject {
     @Published private(set) var libraryPreviewGroups: [String: [LibraryPreviewBatchGroup]] = [:]
     @Published private(set) var libraryExistingGroups: [String: [LibraryPreviewBatchGroup]] = [:]
     @Published private(set) var libraryExistingMessage: String?
-    @Published var librarySelectedPrefix: String?
-    @Published var librarySelectedBatchId: String?
-    @Published var librarySelectedSampleId: String?
+    @Published var librarySelectedPrefix: String? {
+        didSet { persistInteractionSnapshotIfReady() }
+    }
+    @Published var librarySelectedBatchId: String? {
+        didSet { persistInteractionSnapshotIfReady() }
+    }
+    @Published var librarySelectedSampleId: String? {
+        didSet { persistInteractionSnapshotIfReady() }
+    }
     @Published private(set) var librarySelectionVersion: Int = 0
-    @Published var libraryActiveSelectionSource: LibrarySelectionSource = .browser
+    @Published var libraryActiveSelectionSource: LibrarySelectionSource = .browser {
+        didSet { persistInteractionSnapshotIfReady() }
+    }
     @Published private(set) var libraryDrawerMessage: String?
     @Published private(set) var libraryDrawerError: String?
     @Published private(set) var libraryRefreshReview: LibraryRefreshReview?
@@ -140,6 +282,7 @@ final class SpinLabAppState: ObservableObject {
     private var librarySampleEditBaseSample: LibrarySample?
     private var librarySampleEditOriginalDraft: LibrarySampleEditDraft?
     private var libraryPendingSelectionChange: LibraryPendingSelectionChange?
+    private let interactionMemory: InteractionMemoryStore
 
     init(
         persistence: SpinLabPersistence = LocalJSONPersistence(),
@@ -156,6 +299,7 @@ final class SpinLabAppState: ObservableObject {
         self.managedStorage = managedStorage
         self.sampleRegistry = sampleRegistry
         self.librarySettings = librarySettingsStore.load()
+        self.interactionMemory = InteractionMemoryStore(persistence: persistence)
 
         if !self.sampleRegistry.isLoaded, let currentRegistryURL = managedStorage.currentSampleRegistryFileURL() {
             self.sampleRegistry = XLSXPrefixSampleRegistryIndex.fromFileURL(currentRegistryURL, previewRowCount: 10)
@@ -164,7 +308,10 @@ final class SpinLabAppState: ObservableObject {
         load()
         updateRegistryPresentation()
         loadExistingDrawers()
+        restoreInteractionSnapshot()
         refreshLibraryBackupMessage()
+        interactionMemory.markReady()
+        persistInteractionSnapshotIfReady()
     }
 
     var selectedPendingImport: SpinLabDomain.PendingImport? {
@@ -214,6 +361,58 @@ final class SpinLabAppState: ObservableObject {
         workbenchResultDraft = selectedArchivedRecord?.latestResult?.summary ?? ""
     }
 
+    func interactionValue<Value>(_ keyPath: KeyPath<SpinLabInteractionSnapshot, Value>) -> Value {
+        interactionMemory.value(keyPath)
+    }
+
+    func updateInteractionValue<Value>(_ keyPath: WritableKeyPath<SpinLabInteractionSnapshot, Value>, to value: Value) {
+        interactionMemory.updateValue(keyPath, to: value)
+    }
+
+    func interactionEntryValue<Value>(
+        for id: UUID,
+        in keyPath: KeyPath<SpinLabInteractionSnapshot, [String: Value]>
+    ) -> Value? {
+        interactionMemory.entryValue(for: snapshotDictionaryKey(for: id), in: keyPath)
+    }
+
+    func updateInteractionEntryValue<Value>(
+        for id: UUID,
+        in keyPath: WritableKeyPath<SpinLabInteractionSnapshot, [String: Value]>,
+        value: Value?
+    ) {
+        interactionMemory.updateEntryValue(
+            for: snapshotDictionaryKey(for: id),
+            in: keyPath,
+            value: value
+        )
+    }
+
+    private func snapshotDictionaryKey(for id: UUID) -> String {
+        id.uuidString.lowercased()
+    }
+
+    private func restoreInteractionSnapshot() {
+        interactionMemory.restore { snapshot in
+            for binding in Self.interactionBindings {
+                binding.restore(self, snapshot)
+            }
+            let validPendingIDs = Set(pendingImports.map { snapshotDictionaryKey(for: $0.id) })
+            snapshot.inboxWorkspaceByPendingID = snapshot.inboxWorkspaceByPendingID.filter { key, _ in
+                validPendingIDs.contains(key)
+            }
+        }
+        normalizeLibrarySelection()
+    }
+
+    private func persistInteractionSnapshotIfReady() {
+        interactionMemory.captureIfReady { snapshot in
+            for binding in Self.interactionBindings {
+                binding.capture(self, &snapshot)
+            }
+        }
+    }
+
     func importFiles(from urls: [URL]) {
         let existingOriginalPaths = existingImportedOriginalPaths()
         let managedFiles = managedStorage.importMeasurementFiles(
@@ -235,6 +434,7 @@ final class SpinLabAppState: ObservableObject {
     func clearPendingImports() {
         pendingImports = []
         selectedPendingImportID = nil
+        updateInteractionValue(\.inboxWorkspaceByPendingID, to: [:])
         persistence.savePendingImports(pendingImports)
     }
 
@@ -1209,6 +1409,7 @@ final class SpinLabAppState: ObservableObject {
         let record = makeArchivedRecord(from: pending, draft: draft, registryLookup: registryLookup)
         archivedRecords.insert(record, at: 0)
         pendingImports.removeAll { $0.id == pending.id }
+        updateInteractionEntryValue(for: pending.id, in: \.inboxWorkspaceByPendingID, value: nil)
 
         persistence.saveArchivedRecords(archivedRecords)
         persistence.savePendingImports(pendingImports)

@@ -295,23 +295,27 @@ private struct PendingImportConfirmationColumn: View {
             .padding(.vertical, 4)
         }
         .onAppear {
-            refreshDisplay()
-            if let contents = appState.pendingImportEditableContents(for: pending) {
-                editableFileContents = contents
-                hasEditableFileContents = true
-            } else {
-                editableFileContents = ""
-                hasEditableFileContents = false
-            }
+            refreshDisplay(keepCurrentDraft: false)
+            restoreWorkspaceState()
         }
         .onChange(of: pending.id) { _, _ in
-            refreshDisplay()
+            refreshDisplay(keepCurrentDraft: false)
+            restoreWorkspaceState()
         }
         .onChange(of: appState.pendingImports) { _, _ in
             refreshDisplay()
         }
         .onChange(of: appState.registrySourceFilePath) { _, _ in
             refreshDisplay()
+        }
+        .onChange(of: draft) { _, _ in
+            persistWorkspaceState()
+        }
+        .onChange(of: editableFileContents) { _, _ in
+            persistWorkspaceState()
+        }
+        .onChange(of: hasEditableFileContents) { _, _ in
+            persistWorkspaceState()
         }
         .sheet(isPresented: $isPresentingFileReview) {
             ImportedFileReviewSheet(
@@ -334,11 +338,43 @@ private struct PendingImportConfirmationColumn: View {
         return value.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedParsed
     }
 
-    private func refreshDisplay() {
-        draft = appState.pendingDisplayDraft(for: pending)
+    private func refreshDisplay(keepCurrentDraft: Bool = true) {
+        if !keepCurrentDraft {
+            draft = appState.pendingDisplayDraft(for: pending)
+        }
         autoValues = appState.pendingDisplayAutoValues(for: pending)
         displayWarnings = appState.pendingDisplayWarnings(for: pending)
         infoTags = appState.pendingDisplayInfoTags(for: pending)
+    }
+
+    private func restoreWorkspaceState() {
+        if let restored = appState.interactionEntryValue(for: pending.id, in: \.inboxWorkspaceByPendingID) {
+            draft = restored.draft
+            editableFileContents = restored.editableFileContents
+            hasEditableFileContents = restored.hasEditableFileContents
+            return
+        }
+
+        if let contents = appState.pendingImportEditableContents(for: pending) {
+            editableFileContents = contents
+            hasEditableFileContents = true
+        } else {
+            editableFileContents = ""
+            hasEditableFileContents = false
+        }
+        persistWorkspaceState()
+    }
+
+    private func persistWorkspaceState() {
+        appState.updateInteractionEntryValue(
+            for: pending.id,
+            in: \.inboxWorkspaceByPendingID,
+            value: InboxPendingWorkspaceState.snapshotSafe(
+                draft: draft,
+                editableFileContents: editableFileContents,
+                hasEditableFileContents: hasEditableFileContents
+            )
+        )
     }
 }
 

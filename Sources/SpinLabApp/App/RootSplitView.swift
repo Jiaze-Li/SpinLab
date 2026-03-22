@@ -54,17 +54,22 @@ struct RootSplitView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             appState.loadExistingDrawers()
-            if let firstPrefix = existingPrefixes.first {
-                expandedPrefixes.insert(firstPrefix)
-            }
+            let restored = appState.interactionValue(\.sidebar)
+            isLibraryTreeExpanded = restored.isLibraryTreeExpanded
+            expandedPrefixes = restored.expandedPrefixes
+            persistSidebarInteractionState()
         }
         .onChange(of: appState.selectedArea) { _, newValue in
             if newValue == .library {
                 appState.loadExistingDrawers()
-                if let firstPrefix = existingPrefixes.first {
-                    expandedPrefixes.insert(firstPrefix)
-                }
+                persistSidebarInteractionState()
             }
+        }
+        .onChange(of: isLibraryTreeExpanded) { _, _ in
+            persistSidebarInteractionState()
+        }
+        .onChange(of: expandedPrefixes) { _, _ in
+            persistSidebarInteractionState()
         }
         .confirmationDialog(
             "Delete Drawer?",
@@ -263,6 +268,17 @@ struct RootSplitView: View {
         let ordered = configured.filter { available.contains($0) }
         let remaining = available.filter { !ordered.contains($0) }
         return ordered + remaining
+    }
+
+    private func persistSidebarInteractionState() {
+        appState.updateInteractionValue(
+            \.sidebar,
+            to:
+            SidebarInteractionState(
+                isLibraryTreeExpanded: isLibraryTreeExpanded,
+                expandedPrefixes: expandedPrefixes
+            )
+        )
     }
 
     private func groupsForPrefix(_ prefix: String) -> [LibraryPreviewBatchGroup] {
