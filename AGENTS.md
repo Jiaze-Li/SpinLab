@@ -99,3 +99,9 @@ Build and version policy (required):
 - Do not skip desktop overwrite unless user explicitly asks not to.
 - Acceptance default:
   - After a version iteration update, always overwrite `/Users/jack/Desktop/SpinLab.app` so user can validate directly from Desktop.
+
+Communication/reporting policy (required):
+- When reporting Git actions to the user (commit/push/PR), use plain human language first.
+- Avoid raw shorthand-only status lines like `pushed branch`, `PR created` without context.
+- Preferred style example:
+  - "代码已经推到远端分支 `xxx`，并创建了 PR：`<url>`。"
