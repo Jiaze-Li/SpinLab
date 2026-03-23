@@ -13,7 +13,8 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/CoreOffice/CoreXLSX.git", from: "0.14.0")
+        .package(url: "https://github.com/CoreOffice/CoreXLSX.git", from: "0.14.0"),
+        .package(url: "https://github.com/swiftlang/swift-testing.git", from: "0.6.0")
     ],
     targets: [
         .executableTarget(
@@ -28,7 +29,10 @@ let package = Package(
         ),
         .testTarget(
             name: "SpinLabAppTests",
-            dependencies: ["SpinLabApp"],
+            dependencies: [
+                "SpinLabApp",
+                .product(name: "Testing", package: "swift-testing")
+            ],
             path: "Tests/SpinLabAppTests"
         )
     ]

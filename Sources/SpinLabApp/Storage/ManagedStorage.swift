@@ -35,9 +35,14 @@ final class SpinLabManagedStorage {
     func importMeasurementFiles(
         from urls: [URL],
         allowedFileExtensions: Set<String>,
+        ignoredFileExtensions: Set<String> = [],
         excludedOriginalFilePaths: Set<String> = []
     ) -> [ImportedMeasurementFile] {
-        let sourceFiles = expandMeasurementSourceFiles(from: urls, allowedFileExtensions: allowedFileExtensions)
+        let sourceFiles = expandMeasurementSourceFiles(
+            from: urls,
+            allowedFileExtensions: allowedFileExtensions,
+            ignoredFileExtensions: ignoredFileExtensions
+        )
         let excluded = Set(excludedOriginalFilePaths.map(normalizedPath))
         var seenInCurrentBatch: Set<String> = []
         return sourceFiles.compactMap { sourceURL in
@@ -110,7 +115,11 @@ final class SpinLabManagedStorage {
         fileName.replacingOccurrences(of: "/", with: "-")
     }
 
-    private func expandMeasurementSourceFiles(from urls: [URL], allowedFileExtensions: Set<String>) -> [URL] {
+    private func expandMeasurementSourceFiles(
+        from urls: [URL],
+        allowedFileExtensions: Set<String>,
+        ignoredFileExtensions: Set<String>
+    ) -> [URL] {
         var collected: [URL] = []
 
         for url in urls {
@@ -126,13 +135,21 @@ final class SpinLabManagedStorage {
                     options: [.skipsHiddenFiles]
                 ) {
                     for case let fileURL as URL in enumerator {
-                        guard shouldImportMeasurementFile(fileURL, allowedFileExtensions: allowedFileExtensions) else {
+                        guard shouldImportMeasurementFile(
+                            fileURL,
+                            allowedFileExtensions: allowedFileExtensions,
+                            ignoredFileExtensions: ignoredFileExtensions
+                        ) else {
                             continue
                         }
                         collected.append(fileURL)
                     }
                 }
-            } else if shouldImportMeasurementFile(url, allowedFileExtensions: allowedFileExtensions) {
+            } else if shouldImportMeasurementFile(
+                url,
+                allowedFileExtensions: allowedFileExtensions,
+                ignoredFileExtensions: ignoredFileExtensions
+            ) {
                 collected.append(url)
             }
         }
@@ -140,9 +157,16 @@ final class SpinLabManagedStorage {
         return collected.sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 
-    private func shouldImportMeasurementFile(_ url: URL, allowedFileExtensions: Set<String>) -> Bool {
+    private func shouldImportMeasurementFile(
+        _ url: URL,
+        allowedFileExtensions: Set<String>,
+        ignoredFileExtensions: Set<String>
+    ) -> Bool {
         let ext = url.pathExtension.lowercased()
         guard !ext.isEmpty else {
+            return false
+        }
+        guard !ignoredFileExtensions.contains(ext) else {
             return false
         }
         return allowedFileExtensions.contains(ext)

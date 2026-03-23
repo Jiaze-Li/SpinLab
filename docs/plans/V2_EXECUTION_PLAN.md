@@ -125,6 +125,8 @@ Rule governance: the routing rules framework must stay integrated in this execut
 ```
 
 ## V2.1
+Status: `done` (accepted on 2026-03-23)
+
 **Goal (one line)**
 Build the core data pipeline `Parse -> Editable Draft -> Route Plan` without executing library writes.
 
@@ -139,7 +141,10 @@ Build the core data pipeline `Parse -> Editable Draft -> Route Plan` without exe
 - substrate/device-level hints
 - warnings/conflicts
 4. Editable draft must support file-level and channel-level edits.
-5. Route recompute must be manual only (`Confirm & Recompute Route`).
+5. Route recompute trigger:
+- editing draft does not immediately mutate route plan
+- route plan recomputes automatically on `Save` using the current draft values
+- optional manual `Recompute Route` remains available for batch/recovery flows
 6. Unified routing rule:
 - `channelSampleKey ?? defaultSampleKey ?? folderDerivedSampleKey`
 7. Non-unique/conflicting routes must become `review-required`, not `apply-ready`.
@@ -164,6 +169,29 @@ Build the core data pipeline `Parse -> Editable Draft -> Route Plan` without exe
 - `DraftState` (editable draft state + dirty tracking)
 2. Keep `SpinLabAppState` orchestration-only for these modules.
 3. Introduce explicit route status enum (`applyReady`, `reviewRequired`).
+
+**V2.1 staged micro versions (execution order)**
+1. `V2.1.0` Parse baseline
+- Import support only `.dat`/`.lvm`; ignore `.gph`
+- Parse sources fixed to file/parent/grandparent
+- Produce normalized parse payload: workflow, default sample key, channel bindings, conditions, substrate hints, warnings/conflicts
+2. `V2.1.1` Route planner
+- Add `RoutePlan`, `RouteTarget`, and `RouteStatus` (`applyReady`, `reviewRequired`)
+- Implement unified key resolution: `channelSampleKey ?? defaultSampleKey ?? folderDerivedSampleKey`
+- Support single-target and multi-target fan-out per file
+- Mark unresolved/non-unique/conflicting outcomes as `reviewRequired`
+3. `V2.1.2` Editable draft + save-driven recompute
+- Status: `done` (accepted on 2026-03-23)
+- Add file-level and channel-level editable draft model
+- Keep route stable while editing; commit edits on `Save`
+- On `Save`, auto-recompute route from saved draft (example: `PN41 -> PN40` updates destination accordingly)
+- If saved edits introduce ambiguity/conflict, status automatically becomes `reviewRequired`
+4. `V2.1.3` Inbox closed loop + acceptance
+- Status: `done` (accepted on 2026-03-23)
+- Complete inbox loop: parse baseline -> edit draft -> save -> route update/status refresh
+- Keep `Recompute Route` entry point for batch/recovery
+- Execute all V2.1 acceptance scenarios (including `.gph` filtering and conflict paths)
+- Keep library writes out of scope in V2.1 (no apply/archive execution yet)
 
 ## V2.2
 **Goal (one line)**

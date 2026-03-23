@@ -38,7 +38,7 @@ struct InboxView: View {
                 }
                 .disabled(appState.pendingImports.isEmpty)
 
-                Button("Recompute Pending Values") {
+                Button("Recompute Route") {
                     appState.recomputeAllPendingParsedHints()
                 }
                 .disabled(appState.pendingImports.isEmpty)
@@ -70,6 +70,14 @@ struct InboxView: View {
                     Text(pending.status.rawValue)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    Text("Route: \(appState.pendingRouteStatus(for: pending).rawValue)")
+                        .font(.caption)
+                        .foregroundStyle(appState.pendingRouteStatus(for: pending) == .applyReady ? .green : .orange)
+                    if appState.hasSavedRoutingDraft(for: pending) {
+                        Text("Routing draft: saved")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .padding(.vertical, 2)
             }
@@ -158,6 +166,9 @@ private struct PendingImportConfirmationColumn: View {
     )
     @State private var displayWarnings: [String] = []
     @State private var infoTags: [String] = []
+    @State private var routingDraft = PendingRoutingDraft(defaultSampleKey: "", channelSampleKeyOverrides: [:])
+    private var routePlan: SpinLabDomain.RoutePlan { appState.pendingRoutePlan(for: pending) }
+    private var routingDraftIsDirty: Bool { appState.isRoutingDraftDirty(routingDraft, for: pending) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -215,6 +226,124 @@ private struct PendingImportConfirmationColumn: View {
 
                                 ForEach(displayWarnings, id: \.self) { warning in
                                     Text(warning)
+                                        .font(.footnote)
+                                        .foregroundStyle(.orange)
+                                        .lineLimit(nil)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                GroupBox("Channel Routing Preview") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        GroupBox("Routing Draft (Save To Recompute)") {
+                            VStack(alignment: .leading, spacing: 8) {
+                                EditableMetadataField(
+                                    label: "Default Sample",
+                                    value: Binding(
+                                        get: { routingDraft.defaultSampleKey },
+                                        set: { routingDraft.defaultSampleKey = $0 }
+                                    )
+                                )
+
+                                if pending.parsedHints.channelHints.isEmpty {
+                                    Text("No channel keys detected in filename.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    ForEach(pending.parsedHints.channelHints) { hint in
+                                        EditableMetadataField(
+                                            label: "\(hint.channel) Sample",
+                                            value: Binding(
+                                                get: { routingDraft.channelSampleKeyOverrides[hint.channel] ?? "" },
+                                                set: { routingDraft.channelSampleKeyOverrides[hint.channel] = $0 }
+                                            )
+                                        )
+                                    }
+                                }
+
+                                HStack {
+                                    Button("Save Routing Draft") {
+                                        appState.saveRoutingDraft(routingDraft, for: pending.id)
+                                        routingDraft = appState.routingDraft(for: pending)
+                                    }
+                                    .disabled(!routingDraftIsDirty)
+
+                                    Button("Revert To Parsed Baseline") {
+                                        let baseline = appState.routingDraftBaseline(for: pending)
+                                        appState.saveRoutingDraft(baseline, for: pending.id)
+                                        routingDraft = baseline
+                                    }
+
+                                    Text("Route preview updates only after save.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Text(routingDraftIsDirty ? "Draft has unsaved changes" : "Draft saved")
+                                    .font(.caption)
+                                    .foregroundStyle(routingDraftIsDirty ? .orange : .green)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+
+                        HStack(spacing: 8) {
+                            Text("Route Status")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(routePlan.status.rawValue)
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(routePlan.status == .applyReady ? .green : .orange)
+                        }
+
+                        if routePlan.channelResolutions.isEmpty {
+                            Text("No channel-level routing signals detected.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Channel Resolution")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                ForEach(Array(routePlan.channelResolutions.enumerated()), id: \.offset) { _, resolution in
+                                    Text(channelResolutionSummary(resolution))
+                                        .font(.footnote)
+                                        .lineLimit(nil)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+
+                        if !routePlan.targets.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Sample Targets")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                ForEach(routePlan.targets) { target in
+                                    Text("sample \(target.sampleKey): \(target.channels.joined(separator: ", "))")
+                                        .font(.footnote)
+                                }
+                            }
+                        }
+
+                        if !routePlan.unresolvedChannels.isEmpty {
+                            Text("Unresolved: \(routePlan.unresolvedChannels.joined(separator: ", "))")
+                                .font(.footnote)
+                                .foregroundStyle(.orange)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        if !routePlan.conflicts.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Route Conflicts")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                ForEach(routePlan.conflicts, id: \.self) { conflict in
+                                    Text(conflict)
                                         .font(.footnote)
                                         .foregroundStyle(.orange)
                                         .lineLimit(nil)
@@ -311,6 +440,9 @@ private struct PendingImportConfirmationColumn: View {
         .onChange(of: draft) { _, _ in
             persistWorkspaceState()
         }
+        .onChange(of: routingDraft) { _, _ in
+            persistWorkspaceState()
+        }
         .onChange(of: editableFileContents) { _, _ in
             persistWorkspaceState()
         }
@@ -342,6 +474,7 @@ private struct PendingImportConfirmationColumn: View {
         if !keepCurrentDraft {
             draft = appState.pendingDisplayDraft(for: pending)
         }
+        routingDraft = appState.routingDraft(for: pending)
         autoValues = appState.pendingDisplayAutoValues(for: pending)
         displayWarnings = appState.pendingDisplayWarnings(for: pending)
         infoTags = appState.pendingDisplayInfoTags(for: pending)
@@ -352,6 +485,10 @@ private struct PendingImportConfirmationColumn: View {
             draft = restored.draft
             editableFileContents = restored.editableFileContents
             hasEditableFileContents = restored.hasEditableFileContents
+            if let restoredRoutingDraft = restored.routingDraft {
+                routingDraft = restoredRoutingDraft
+                appState.saveRoutingDraft(restoredRoutingDraft, for: pending.id)
+            }
             return
         }
 
@@ -372,9 +509,25 @@ private struct PendingImportConfirmationColumn: View {
             value: InboxPendingWorkspaceState.snapshotSafe(
                 draft: draft,
                 editableFileContents: editableFileContents,
-                hasEditableFileContents: hasEditableFileContents
+                hasEditableFileContents: hasEditableFileContents,
+                routingDraft: routingDraft
             )
         )
+    }
+
+    private func channelResolutionSummary(_ resolution: SpinLabDomain.RouteChannelResolution) -> String {
+        var parts: [String] = []
+        let sample = resolution.sampleKey ?? "unresolved"
+        parts.append("\(resolution.channel) -> \(sample)")
+        parts.append("[\(resolution.source)]")
+
+        if !resolution.tags.isEmpty {
+            parts.append("tags: \(resolution.tags.joined(separator: ", "))")
+        }
+        if let warning = resolution.warning {
+            parts.append("warning: \(warning)")
+        }
+        return parts.joined(separator: " | ")
     }
 }
 

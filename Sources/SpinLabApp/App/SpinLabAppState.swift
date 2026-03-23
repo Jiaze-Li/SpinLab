@@ -53,10 +53,16 @@ struct PendingImportConfirmationDraft: Codable, Equatable {
     }
 }
 
+struct PendingRoutingDraft: Codable, Equatable {
+    var defaultSampleKey: String
+    var channelSampleKeyOverrides: [String: String]
+}
+
 struct InboxPendingWorkspaceState: Codable, Equatable {
     var draft: PendingImportConfirmationDraft
     var editableFileContents: String
     var hasEditableFileContents: Bool
+    var routingDraft: PendingRoutingDraft?
 
     static let maxStoredEditableContentsLength = 200_000
     static let truncatedSuffix = "\n\n[SpinLab] Editable file preview was truncated for interaction-memory snapshot."
@@ -64,12 +70,14 @@ struct InboxPendingWorkspaceState: Codable, Equatable {
     static func snapshotSafe(
         draft: PendingImportConfirmationDraft,
         editableFileContents: String,
-        hasEditableFileContents: Bool
+        hasEditableFileContents: Bool,
+        routingDraft: PendingRoutingDraft? = nil
     ) -> InboxPendingWorkspaceState {
         InboxPendingWorkspaceState(
             draft: draft,
             editableFileContents: sanitizedEditableContents(editableFileContents),
-            hasEditableFileContents: hasEditableFileContents
+            hasEditableFileContents: hasEditableFileContents,
+            routingDraft: routingDraft
         )
     }
 
@@ -268,6 +276,7 @@ final class SpinLabAppState: ObservableObject {
 
     private let persistence: SpinLabPersistence
     private let importPipeline: SpinLabImportPipeline
+    private let routePlanner = SpinLabRoutePlanner()
     private let analysisModule: AnalysisModuleExtension
     private let viewExtension: ViewExtension
     private let managedStorage: SpinLabManagedStorage
@@ -283,6 +292,7 @@ final class SpinLabAppState: ObservableObject {
     private var librarySampleEditOriginalDraft: LibrarySampleEditDraft?
     private var libraryPendingSelectionChange: LibraryPendingSelectionChange?
     private let interactionMemory: InteractionMemoryStore
+    private var pendingRoutingDraftsByID: [UUID: PendingRoutingDraft] = [:]
 
     init(
         persistence: SpinLabPersistence = LocalJSONPersistence(),
@@ -401,6 +411,13 @@ final class SpinLabAppState: ObservableObject {
             snapshot.inboxWorkspaceByPendingID = snapshot.inboxWorkspaceByPendingID.filter { key, _ in
                 validPendingIDs.contains(key)
             }
+            pendingRoutingDraftsByID = snapshot.inboxWorkspaceByPendingID.reduce(into: [:]) { partial, entry in
+                guard let uuid = UUID(uuidString: entry.key),
+                      let routingDraft = entry.value.routingDraft else {
+                    return
+                }
+                partial[uuid] = routingDraft
+            }
         }
         normalizeLibrarySelection()
     }
@@ -418,6 +435,7 @@ final class SpinLabAppState: ObservableObject {
         let managedFiles = managedStorage.importMeasurementFiles(
             from: urls,
             allowedFileExtensions: importPipeline.supportedFileExtensions,
+            ignoredFileExtensions: importPipeline.ignoredFileExtensions,
             excludedOriginalFilePaths: existingOriginalPaths
         )
         let imported = importPipeline.importFiles(managedFiles)
@@ -434,31 +452,17 @@ final class SpinLabAppState: ObservableObject {
     func clearPendingImports() {
         pendingImports = []
         selectedPendingImportID = nil
+        pendingRoutingDraftsByID = [:]
         updateInteractionValue(\.inboxWorkspaceByPendingID, to: [:])
         persistence.savePendingImports(pendingImports)
     }
 
     func recomputeAllPendingParsedHints() {
-        let fileManager = FileManager.default
-        var updated: [SpinLabDomain.PendingImport] = []
-        updated.reserveCapacity(pendingImports.count)
-
-        for pending in pendingImports {
+        pendingImports = pendingImports.map { pending in
             var next = pending
-            let parseURL: URL
-
-            if let original = pending.originalFilePath,
-               fileManager.fileExists(atPath: original) {
-                parseURL = URL(fileURLWithPath: original)
-            } else {
-                parseURL = URL(fileURLWithPath: pending.fileName)
-            }
-
-            next.parsedHints = importPipeline.metadataExtension.parseFilename(from: parseURL)
-            updated.append(next)
+            next.parsedHints = recomputedParsedHints(for: pending)
+            return next
         }
-
-        pendingImports = updated
         persistence.savePendingImports(pendingImports)
     }
 
@@ -1392,6 +1396,83 @@ final class SpinLabAppState: ObservableObject {
         )
     }
 
+    func pendingRoutePlan(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.RoutePlan {
+        routePlanner.makeRoutePlan(from: parsedHintsApplyingRoutingDraft(for: pending))
+    }
+
+    func pendingRouteStatus(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.RouteStatus {
+        pendingRoutePlan(for: pending).status
+    }
+
+    func hasSavedRoutingDraft(for pending: SpinLabDomain.PendingImport) -> Bool {
+        pendingRoutingDraftsByID[pending.id] != nil
+    }
+
+    func routingDraft(for pending: SpinLabDomain.PendingImport) -> PendingRoutingDraft {
+        if let saved = pendingRoutingDraftsByID[pending.id] {
+            return saved
+        }
+
+        return routingDraftBaseline(for: pending)
+    }
+
+    func routingDraftBaseline(for pending: SpinLabDomain.PendingImport) -> PendingRoutingDraft {
+        let fileLevelSubstrateTags = pending.parsedHints.substrateTags
+        var overrides: [String: String] = [:]
+        for channel in pending.parsedHints.channelHints {
+            let channelSampleInput = channel.sampleID?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let sampleInput = channelSampleInput?.isEmpty == false ? channelSampleInput : nil
+            let resolved = sampleInput.flatMap { input in
+                routePlanner.resolvedSampleIdentity(
+                    from: input,
+                    channelTags: channel.tags,
+                    fileLevelSubstrateTags: fileLevelSubstrateTags
+                )
+            }
+            overrides[channel.channel] = resolved ?? sampleInput ?? ""
+        }
+
+        let defaultInput = pending.parsedHints.defaultSampleKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let defaultResolved = routePlanner.resolvedSampleIdentity(
+            from: defaultInput,
+            channelTags: [],
+            fileLevelSubstrateTags: fileLevelSubstrateTags
+        )
+
+        var defaultSampleKey = defaultResolved ?? defaultInput
+        if defaultSampleKey.isEmpty,
+           pending.parsedHints.channelHints.count == 1,
+           let only = pending.parsedHints.channelHints.first,
+           let channelValue = overrides[only.channel],
+           !channelValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            defaultSampleKey = channelValue
+        }
+        return PendingRoutingDraft(
+            defaultSampleKey: defaultSampleKey,
+            channelSampleKeyOverrides: overrides
+        )
+    }
+
+    func isRoutingDraftDirty(_ draft: PendingRoutingDraft, for pending: SpinLabDomain.PendingImport) -> Bool {
+        let trimmedCurrent = PendingRoutingDraft(
+            defaultSampleKey: draft.defaultSampleKey.trimmingCharacters(in: .whitespacesAndNewlines),
+            channelSampleKeyOverrides: draft.channelSampleKeyOverrides.mapValues {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        )
+        return trimmedCurrent != routingDraft(for: pending)
+    }
+
+    func saveRoutingDraft(_ draft: PendingRoutingDraft, for pendingID: UUID) {
+        pendingRoutingDraftsByID[pendingID] = PendingRoutingDraft(
+            defaultSampleKey: draft.defaultSampleKey.trimmingCharacters(in: .whitespacesAndNewlines),
+            channelSampleKeyOverrides: draft.channelSampleKeyOverrides.mapValues {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        )
+        objectWillChange.send()
+    }
+
     func confirmSelectedPendingImport(with draft: PendingImportConfirmationDraft) {
         confirmSelectedPendingImport(with: draft, editedFileContents: nil)
     }
@@ -1409,6 +1490,7 @@ final class SpinLabAppState: ObservableObject {
         let record = makeArchivedRecord(from: pending, draft: draft, registryLookup: registryLookup)
         archivedRecords.insert(record, at: 0)
         pendingImports.removeAll { $0.id == pending.id }
+        pendingRoutingDraftsByID[pending.id] = nil
         updateInteractionEntryValue(for: pending.id, in: \.inboxWorkspaceByPendingID, value: nil)
 
         persistence.saveArchivedRecords(archivedRecords)
@@ -1617,6 +1699,28 @@ final class SpinLabAppState: ObservableObject {
         }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func parsedHintsApplyingRoutingDraft(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.ParsedFilenameHints {
+        guard let draft = pendingRoutingDraftsByID[pending.id] else {
+            return pending.parsedHints
+        }
+
+        var parsed = pending.parsedHints
+        let trimmedDefault = draft.defaultSampleKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        parsed.defaultSampleKey = trimmedDefault.isEmpty ? nil : trimmedDefault
+
+        var channelHints = parsed.channelHints
+        for index in channelHints.indices {
+            let channelID = channelHints[index].channel
+            guard let override = draft.channelSampleKeyOverrides[channelID] else {
+                continue
+            }
+            let trimmed = override.trimmingCharacters(in: .whitespacesAndNewlines)
+            channelHints[index].sampleID = trimmed.isEmpty ? nil : trimmed
+        }
+        parsed.channelHints = channelHints
+        return parsed
     }
 
     private func applyExistingIndex(_ index: LibraryIndex) {
@@ -1838,6 +1942,20 @@ final class SpinLabAppState: ObservableObject {
         if librarySelectedSampleId == nil || !samples.contains(where: { $0.id == librarySelectedSampleId }) {
             librarySelectedSampleId = samples.first?.id
         }
+    }
+
+    private func recomputedParsedHints(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.ParsedFilenameHints {
+        let fileManager = FileManager.default
+        let parseURL: URL
+
+        if let original = pending.originalFilePath,
+           fileManager.fileExists(atPath: original) {
+            parseURL = URL(fileURLWithPath: original)
+        } else {
+            parseURL = URL(fileURLWithPath: pending.fileName)
+        }
+
+        return importPipeline.metadataExtension.parseFilename(from: parseURL)
     }
 
     private var selectedExistingDrawerSample: LibrarySample? {
