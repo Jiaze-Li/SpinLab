@@ -3,12 +3,16 @@ import Foundation
 struct SpinLabImportPipeline {
     let workflowExtension: WorkflowExtension
     let metadataExtension: MetadataExtension
-    let supportedFileExtensions: Set<String> = ["csv", "txt", "dat"]
+    let supportedFileExtensions: Set<String> = ["csv", "txt", "dat", "lvm"]
+    let ignoredFileExtensions: Set<String> = ["gph"]
 
     func importFiles(_ files: [ImportedMeasurementFile]) -> [SpinLabDomain.PendingImport] {
         files.compactMap { file in
             let ext = file.managedFileURL.pathExtension.lowercased()
-            guard ext.isEmpty || supportedFileExtensions.contains(ext) else {
+            guard !ext.isEmpty else {
+                return nil
+            }
+            guard !ignoredFileExtensions.contains(ext), supportedFileExtensions.contains(ext) else {
                 return nil
             }
 

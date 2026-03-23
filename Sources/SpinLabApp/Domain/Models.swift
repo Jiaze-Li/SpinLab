@@ -3,6 +3,35 @@ import Foundation
 enum SpinLabDomain { }
 
 extension SpinLabDomain {
+    enum RouteStatus: String, Codable, Hashable, CaseIterable, Identifiable {
+        case applyReady = "apply-ready"
+        case reviewRequired = "review-required"
+
+        var id: String { rawValue }
+    }
+
+    struct RouteChannelResolution: Codable, Hashable {
+        var channel: String
+        var sampleKey: String?
+        var source: String
+        var tags: [String] = []
+        var warning: String?
+    }
+
+    struct RouteTarget: Codable, Hashable, Identifiable {
+        var id: String { sampleKey }
+        var sampleKey: String
+        var channels: [String] = []
+    }
+
+    struct RoutePlan: Codable, Hashable {
+        var status: RouteStatus = .reviewRequired
+        var targets: [RouteTarget] = []
+        var channelResolutions: [RouteChannelResolution] = []
+        var unresolvedChannels: [String] = []
+        var conflicts: [String] = []
+    }
+
     struct ParsedChannelHint: Codable, Hashable, Identifiable {
         var id: String { channel }
         var channel: String
@@ -32,6 +61,8 @@ extension SpinLabDomain {
     struct ParsedFilenameHints: Codable, Hashable {
         var batchName: String?
         var sampleName: String?
+        var defaultSampleKey: String?
+        var folderDerivedSampleKeys: [String] = []
         var measurementName: String?
         var deviceName: String?
         var workflowName: String?

@@ -1,0 +1,79 @@
+import Foundation
+import Testing
+@testable import SpinLabApp
+
+@Suite("V2.1.0 Import And Parse")
+struct V210ImportAndParseTests {
+    @Test("managed storage applies allow list and explicit ignore list")
+    func managedStorageFiltersByExtensionRules() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("spinlab-tests-\(UUID().uuidString)", isDirectory: true)
+        let input = root.appendingPathComponent("input", isDirectory: true)
+        try FileManager.default.createDirectory(at: input, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let names = [
+            "a.dat",
+            "b.lvm",
+            "c.txt",
+            "d.csv",
+            "e.gph"
+        ]
+        for name in names {
+            let url = input.appendingPathComponent(name)
+            try Data("content".utf8).write(to: url)
+        }
+
+        let storage = SpinLabManagedStorage(rootURL: root)
+        let imported = storage.importMeasurementFiles(
+            from: [input],
+            allowedFileExtensions: ["dat", "lvm", "txt", "csv"],
+            ignoredFileExtensions: ["gph"]
+        )
+        let importedNames = Set(imported.map(\.fileName))
+
+        #expect(imported.count == 4)
+        #expect(importedNames == Set(["a.dat", "b.lvm", "c.txt", "d.csv"]))
+        #expect(!importedNames.contains("e.gph"))
+    }
+
+    @Test("import pipeline rejects gph files even if they are passed in")
+    func importPipelineRejectsGph() throws {
+        let temp = FileManager.default.temporaryDirectory
+        let sourceURL = temp.appendingPathComponent("sample.gph")
+        let managedURL = temp.appendingPathComponent("\(UUID().uuidString)-sample.gph")
+        let file = ImportedMeasurementFile(
+            fileName: "sample.gph",
+            managedFileURL: managedURL,
+            originalFileURL: sourceURL
+        )
+
+        let imported = SpinLabImportPipeline.amrPhe.importFiles([file])
+        #expect(imported.isEmpty)
+    }
+
+    @Test("parser emits workflow and default sample from parent folder fallback")
+    func parserEmitsParentDerivedDefaultSampleKey() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_1mA_ch1_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.workflowName == "RT")
+        #expect(parsed.defaultSampleKey == "PN40")
+        #expect(parsed.folderDerivedSampleKeys == ["PN40"])
+        #expect(parsed.temperature == nil)
+        #expect(parsed.current == "1mA")
+    }
+
+    private func loadBundledRuleSetForTests() throws -> FilenameRuleSet {
+        let testsDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let projectRoot = testsDir.deletingLastPathComponent().deletingLastPathComponent()
+        let ruleURL = projectRoot.appendingPathComponent("Sources/SpinLabApp/config/filename_rules.json")
+        let data = try Data(contentsOf: ruleURL)
+        var ruleSet = try JSONDecoder().decode(FilenameRuleSet.self, from: data)
+        ruleSet.loadWarnings = ruleSet.compile()
+        return ruleSet
+    }
+}
