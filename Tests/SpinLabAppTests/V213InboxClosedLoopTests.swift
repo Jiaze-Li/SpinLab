@@ -30,7 +30,7 @@ struct V213InboxClosedLoopTests {
         appState.saveRoutingDraft(draft, for: pending.id)
 
         let plan = appState.pendingRoutePlan(for: pending)
-        #expect(plan.status == .applyReady)
+        #expect(plan.status == .libraryMatched)
         #expect(plan.targets.first?.sampleKey == "PN40 - STO(001)")
     }
 
@@ -51,7 +51,7 @@ struct V213InboxClosedLoopTests {
 
         #expect(planA.targets.first?.sampleKey == "PN40 - STO(001)")
         #expect(planB.targets.first?.sampleKey == "PN48 - STO(111)")
-        #expect(draftB.defaultSampleKey == "PN48 - STO(111)")
+        #expect(draftB.defaultSampleKey == "PN48")
     }
 
     @Test("clear imports only clears pending queue")
@@ -97,6 +97,223 @@ struct V213InboxClosedLoopTests {
         #expect(plan.targets.first?.sampleKey == "PN99 - STO(111)")
     }
 
+    @Test("file-level queue is library matched when mapped drawer exists")
+    func fileLevelQueueMatchesByDrawerMapping() {
+        let pending = SpinLabDomain.PendingImport(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000014")!,
+            workflow: .amrPhe,
+            fileName: "RT_PN41_STO001.dat",
+            sourceFilePath: "/tmp/RT_PN41_STO001.dat",
+            originalFilePath: nil,
+            importedAt: .now,
+            status: .needsConfirmation,
+            parsedHints: SpinLabDomain.ParsedFilenameHints(
+                defaultSampleKey: "PN41 - STO(001)",
+                channelHints: [],
+                substrateTags: []
+            )
+        )
+        let persistence = MockPersistenceForV213(pendingImports: [pending])
+        let appState = makeAppState(persistence: persistence)
+        installExistingDrawers(
+            sampleDisplayNames: ["PN41 - STO(001)"],
+            into: appState
+        )
+
+        #expect(appState.pendingDrawerMatchByID[pending.id] == true)
+    }
+
+    @Test("channel-level queue requires all reported channels to map drawers")
+    func channelLevelQueueRequiresAllChannelsMapped() {
+        let pending = SpinLabDomain.PendingImport(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000015")!,
+            workflow: .amrPhe,
+            fileName: "RT_ch1_PN41_STO001_ch2_PN42_STO001.dat",
+            sourceFilePath: "/tmp/RT_ch1_PN41_STO001_ch2_PN42_STO001.dat",
+            originalFilePath: nil,
+            importedAt: .now,
+            status: .needsConfirmation,
+            parsedHints: SpinLabDomain.ParsedFilenameHints(
+                defaultSampleKey: nil,
+                channelHints: [
+                    SpinLabDomain.ParsedChannelHint(channel: "ch1", sampleID: "PN41 - STO(001)", tags: []),
+                    SpinLabDomain.ParsedChannelHint(channel: "ch2", sampleID: "PN42 - STO(001)", tags: [])
+                ],
+                substrateTags: []
+            )
+        )
+
+        let partialPersistence = MockPersistenceForV213(pendingImports: [pending])
+        let partialState = makeAppState(persistence: partialPersistence)
+        installExistingDrawers(
+            sampleDisplayNames: ["PN41 - STO(001)"],
+            into: partialState
+        )
+        #expect(partialState.pendingDrawerMatchByID[pending.id] == false)
+
+        let fullPersistence = MockPersistenceForV213(pendingImports: [pending])
+        let fullState = makeAppState(persistence: fullPersistence)
+        installExistingDrawers(
+            sampleDisplayNames: ["PN41 - STO(001)", "PN42 - STO(001)"],
+            into: fullState
+        )
+        #expect(fullState.pendingDrawerMatchByID[pending.id] == true)
+    }
+
+    @Test("single-sample multi-channel routing collapses to file-level and remains library matched")
+    func singleSampleMultiChannelCollapsesToFileLevelMapping() {
+        let pending = SpinLabDomain.PendingImport(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000016")!,
+            workflow: .amrPhe,
+            fileName: "PN32_origin_STO_wafer_ch2_AMR_ch3_PHE.dat",
+            sourceFilePath: "/tmp/PN32_origin_STO_wafer_ch2_AMR_ch3_PHE.dat",
+            originalFilePath: nil,
+            importedAt: .now,
+            status: .needsConfirmation,
+            parsedHints: SpinLabDomain.ParsedFilenameHints(
+                defaultSampleKey: "PN32 - o STO",
+                channelHints: [
+                    SpinLabDomain.ParsedChannelHint(channel: "ch2", sampleID: nil, tags: [], testInfoTags: ["AMR"]),
+                    SpinLabDomain.ParsedChannelHint(channel: "ch3", sampleID: nil, tags: [], testInfoTags: ["PHE"])
+                ],
+                substrateTags: ["o", "STO"]
+            )
+        )
+        let persistence = MockPersistenceForV213(pendingImports: [pending])
+        let appState = makeAppState(persistence: persistence)
+        installExistingDrawers(
+            sampleDisplayNames: ["PN32 - o STO(111)"],
+            into: appState
+        )
+
+        let snapshot = appState.pendingRoutingSnapshot(for: pending)
+        #expect(snapshot.mode == .fileLevel)
+        #expect(snapshot.verdict == .libraryMatched)
+        #expect(snapshot.scopes.count == 1)
+        #expect(snapshot.scopes.first?.scope == "file")
+        #expect(snapshot.scopes.first?.matchedDrawer == "PN32 - o STO(111)")
+        #expect(snapshot.unresolvedScopes.isEmpty)
+        #expect(appState.pendingRoutePlan(for: pending).unresolvedChannels.isEmpty)
+        #expect(appState.pendingDrawerMatchByID[pending.id] == true)
+    }
+
+    @Test("channel sample token drives verdict when it does not match a drawer")
+    func channelSampleTokenDrivesVerdict() {
+        let pending = SpinLabDomain.PendingImport(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000019")!,
+            workflow: .amrPhe,
+            fileName: "PN32_conflict_ch2_AMR.dat",
+            sourceFilePath: "/tmp/PN32_conflict_ch2_AMR.dat",
+            originalFilePath: nil,
+            importedAt: .now,
+            status: .needsConfirmation,
+            parsedHints: SpinLabDomain.ParsedFilenameHints(
+                sampleName: "PN32 - baked STO(111)",
+                defaultSampleKey: "PN32 - baked STO(111)",
+                channelHints: [
+                    SpinLabDomain.ParsedChannelHint(channel: "ch2", sampleID: nil, tags: ["o", "STO111"])
+                ],
+                substrateTags: ["baked", "STO111"]
+            )
+        )
+        let persistence = MockPersistenceForV213(pendingImports: [pending])
+        let appState = makeAppState(persistence: persistence)
+        installExistingDrawers(
+            sampleDisplayNames: ["PN32 - baked STO(111)"],
+            into: appState
+        )
+
+        let plan = appState.pendingRoutePlan(for: pending)
+        #expect(plan.conflicts.isEmpty)
+        #expect(plan.unresolvedChannels.isEmpty)
+
+        let snapshot = appState.pendingRoutingSnapshot(for: pending)
+        #expect(snapshot.scopes.first?.sampleKey == "PN32 - o STO(111)")
+        #expect(snapshot.scopes.first?.matchedDrawer == nil)
+        #expect(snapshot.verdict == .reviewRequired)
+        #expect(appState.pendingDrawerMatchByID[pending.id] == false)
+    }
+
+    @Test("channel-level queue follows displayed sample mapping when route fallback is generic")
+    func channelLevelQueueUsesDisplayedSampleFallback() {
+        let pending = SpinLabDomain.PendingImport(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000017")!,
+            workflow: .amrPhe,
+            fileName: "PN32_baked_STO_wafer_ch2_AMR_ch3_PHE_8T_1mA_170K.dat",
+            sourceFilePath: "/tmp/PN32_baked_STO_wafer_ch2_AMR_ch3_PHE_8T_1mA_170K.dat",
+            originalFilePath: nil,
+            importedAt: .now,
+            status: .needsConfirmation,
+            parsedHints: SpinLabDomain.ParsedFilenameHints(
+                sampleName: "PN32 - baked STO(111)",
+                defaultSampleKey: "PN32",
+                sampleIDs: ["PN32"],
+                channelHints: [
+                    SpinLabDomain.ParsedChannelHint(channel: "ch2", sampleID: nil, tags: [], testInfoTags: ["AMR"]),
+                    SpinLabDomain.ParsedChannelHint(channel: "ch3", sampleID: nil, tags: [], testInfoTags: ["PHE"])
+                ],
+                substrateTags: ["baked", "STO"]
+            )
+        )
+        let persistence = MockPersistenceForV213(pendingImports: [pending])
+        let appState = makeAppState(persistence: persistence)
+        installExistingDrawers(
+            sampleDisplayNames: [
+                "PN32 - o STO(111)",
+                "PN32 - baked STO(111)"
+            ],
+            into: appState
+        )
+
+        let displayDraft = appState.pendingDisplayDraft(for: pending)
+        #expect(displayDraft.sampleName == "PN32 - baked STO(111)")
+        #expect(appState.pendingDrawerMatchByID[pending.id] == true)
+    }
+
+    @Test("drawer matching uses per-drawer substrate tokens and ignores shared substrate raw text")
+    func drawerMatchingUsesPerDrawerSubstrateTokens() {
+        let pending = SpinLabDomain.PendingImport(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000018")!,
+            workflow: .amrPhe,
+            fileName: "PN32_baked_STO_wafer_ch2_AMR_ch3_PHE.dat",
+            sourceFilePath: "/tmp/PN32_baked_STO_wafer_ch2_AMR_ch3_PHE.dat",
+            originalFilePath: nil,
+            importedAt: .now,
+            status: .needsConfirmation,
+            parsedHints: SpinLabDomain.ParsedFilenameHints(
+                sampleName: "PN32 baked STO",
+                defaultSampleKey: "PN32",
+                sampleIDs: ["PN32"],
+                channelHints: [
+                    SpinLabDomain.ParsedChannelHint(channel: "ch2", sampleID: nil, tags: [], testInfoTags: ["AMR"]),
+                    SpinLabDomain.ParsedChannelHint(channel: "ch3", sampleID: nil, tags: [], testInfoTags: ["PHE"])
+                ],
+                substrateTags: ["baked", "STO"]
+            )
+        )
+        let persistence = MockPersistenceForV213(pendingImports: [pending])
+        let appState = makeAppState(persistence: persistence)
+
+        guard var hf = makeLibrarySample(displayName: "PN32 - HF STO(111)"),
+              var baked = makeLibrarySample(displayName: "PN32 - baked STO(111)"),
+              var origin = makeLibrarySample(displayName: "PN32 - o STO(111)") else {
+            Issue.record("Failed to construct PN32 drawer samples")
+            return
+        }
+        let sharedRaw = "HF STO (111), original STO (111), baked STO (111)"
+        hf.substrateRaw = sharedRaw
+        baked.substrateRaw = sharedRaw
+        origin.substrateRaw = sharedRaw
+        hf.substrateTokens = ["HF", "STO", "111"]
+        baked.substrateTokens = ["baked", "STO", "111"]
+        origin.substrateTokens = ["o", "STO", "111"]
+
+        installExistingLibrarySamples([hf, baked, origin], into: appState)
+        let matched = appState.matchedExistingLibraryDrawer(sampleInput: "PN32 baked STO")
+
+        #expect(matched == "PN32 - baked STO(111)")
+    }
+
     private func makeAppState(persistence: MockPersistenceForV213) -> SpinLabAppState {
         SpinLabAppState(
             persistence: persistence,
@@ -104,6 +321,110 @@ struct V213InboxClosedLoopTests {
                 rootURL: FileManager.default.temporaryDirectory
                     .appendingPathComponent("spinlab-v213-\(UUID().uuidString)", isDirectory: true)
             )
+        )
+    }
+
+    private func installExistingDrawers(sampleDisplayNames: [String], into appState: SpinLabAppState) {
+        let samples = sampleDisplayNames.compactMap(makeLibrarySample(displayName:))
+        installExistingLibrarySamples(samples, into: appState)
+    }
+
+    private func installExistingLibrarySamples(_ samples: [LibrarySample], into appState: SpinLabAppState) {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("spinlab-v213-library-\(UUID().uuidString)", isDirectory: true)
+        let fileManager = FileManager.default
+        try? fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        let batchesRoot = rootURL.appendingPathComponent("batches", isDirectory: true)
+        try? fileManager.createDirectory(at: batchesRoot, withIntermediateDirectories: true)
+
+        var samplesByBatch: [String: [LibrarySample]] = [:]
+        for sample in samples {
+            samplesByBatch[sample.batchId, default: []].append(sample)
+        }
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+
+        for (batchID, batchSamples) in samplesByBatch {
+            let batchURL = batchesRoot.appendingPathComponent(batchID, isDirectory: true)
+            let samplesURL = batchURL.appendingPathComponent("samples", isDirectory: true)
+            try? fileManager.createDirectory(at: samplesURL, withIntermediateDirectories: true)
+
+            let batch = LibraryBatch(
+                id: batchID,
+                displayName: batchID,
+                sheetName: "TestSheet",
+                metadata: [:],
+                numericTags: [:],
+                numericDisplay: [:],
+                sampleKeys: batchSamples.map(\.id).sorted(),
+                updatedAt: .now
+            )
+            if let batchData = try? encoder.encode(batch) {
+                try? batchData.write(to: batchURL.appendingPathComponent("batch.json"), options: .atomic)
+            }
+
+            for sample in batchSamples {
+                let sampleURL = samplesURL.appendingPathComponent(sample.id, isDirectory: true)
+                try? fileManager.createDirectory(at: sampleURL, withIntermediateDirectories: true)
+                if let sampleData = try? encoder.encode(sample) {
+                    try? sampleData.write(to: sampleURL.appendingPathComponent("sample.json"), options: .atomic)
+                }
+            }
+        }
+
+        appState.librarySettings.rootPath = rootURL.path
+        appState.loadExistingDrawers()
+        appState.refreshPendingDrawerMatches()
+    }
+
+    private func makeLibrarySample(displayName: String) -> LibrarySample? {
+        let parts = displayName.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2 else {
+            return nil
+        }
+
+        let batchID = String(parts[0]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let substrate = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !batchID.isEmpty, !substrate.isEmpty else {
+            return nil
+        }
+
+        let upper = substrate.uppercased()
+        let treatment: String = {
+            if upper.contains("HF") { return "HF" }
+            if upper.contains("BAKE") { return "baked" }
+            if upper.contains("ORIGIN") || upper.contains(" O ") || upper.hasPrefix("O ") { return "o" }
+            return ""
+        }()
+        let material: String = {
+            if upper.contains("STO") { return "STO" }
+            if upper.contains("NGO") { return "NGO" }
+            if upper.contains("MAO") { return "MAO" }
+            return "UNKNOWN"
+        }()
+        let orientation: String = {
+            if upper.contains("111") { return "111" }
+            if upper.contains("110") { return "110" }
+            if upper.contains("001") || upper.contains("100") { return "001" }
+            return "UNKNOWN"
+        }()
+
+        let sampleKey = "\(batchID)|\(treatment)|\(material)|\(orientation)"
+        let substrateTokens = [treatment, material, orientation].filter { !$0.isEmpty && $0 != "UNKNOWN" }
+
+        return LibrarySample(
+            id: sampleKey,
+            displayName: displayName,
+            batchId: batchID,
+            substrateRaw: substrate,
+            substrateDisplay: substrate,
+            substrateTokens: substrateTokens,
+            substrateTags: [],
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            updatedAt: .now
         )
     }
 

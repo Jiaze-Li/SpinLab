@@ -25,6 +25,7 @@ struct PendingImportConfirmationDraft: Codable, Equatable {
     var batchName: String
     var sampleName: String
     var measurementName: String
+    var workflowTag: String
     var deviceName: String
     var temperature: String
     var selectedExistingProjectName: String
@@ -113,6 +114,13 @@ struct LibraryInteractionState: Codable, Equatable {
     var searchHasExecuted: Bool = false
 }
 
+struct InboxInteractionState: Codable, Equatable {
+    var isImportSourceExpanded: Bool = true
+    var isPendingQueueExpanded: Bool = true
+    var isRoutingReviewExpanded: Bool = true
+    var isApplyExpanded: Bool = true
+}
+
 struct SpinLabInteractionSnapshot: Codable, Equatable {
     var selectedArea: AppArea = .inbox
     var selectedPendingImportID: UUID?
@@ -125,6 +133,7 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var inboxWorkspaceByPendingID: [String: InboxPendingWorkspaceState] = [:]
     var sidebar: SidebarInteractionState = SidebarInteractionState()
     var libraryView: LibraryInteractionState = LibraryInteractionState()
+    var inboxView: InboxInteractionState = InboxInteractionState()
 }
 
 final class SpinLabAppState: ObservableObject {
@@ -188,26 +197,10 @@ final class SpinLabAppState: ObservableObject {
         bind(state: \.librarySelectedSampleId, snapshot: \.librarySelectedSampleId)
     ]
 
-    private struct SubstrateConstraints {
-        var treatments: Set<String> = []
-        var materials: Set<String> = []
-        var orientations: Set<String> = []
-
-        var isEmpty: Bool {
-            treatments.isEmpty && materials.isEmpty && orientations.isEmpty
-        }
-    }
-
-    private struct SubstrateCandidate {
-        var raw: String
-        var treatment: String?
-        var material: String?
-        var orientation: String?
-    }
-
-    private struct SubstrateResolution {
-        var resolvedSubstrate: String?
-        var warning: String?
+    private struct DrawerMatchCandidate {
+        var displayName: String
+        var sampleKey: String
+        var sampleKeyTokens: Set<String>
     }
 
     @Published var selectedArea: AppArea = .inbox {
@@ -271,12 +264,15 @@ final class SpinLabAppState: ObservableObject {
     @Published private(set) var libraryMetadataSyncLogs: [LibraryMetadataSyncLogEntry] = []
     @Published private(set) var libraryMetadataSyncLogError: String?
     @Published private(set) var libraryMetadataSyncLogMessage: String?
+    @Published private(set) var pendingRoutingSnapshotByID: [UUID: SpinLabDomain.PendingRoutingSnapshot] = [:]
 
     let workflow: SpinLabDomain.WorkflowKind = .amrPhe
 
     private let persistence: SpinLabPersistence
     private let importPipeline: SpinLabImportPipeline
     private let routePlanner = SpinLabRoutePlanner()
+    private let pendingRoutingSnapshotEvaluator = PendingRoutingSnapshotEvaluator()
+    private let registrySubstrateRules: any RegistrySubstrateRuleProviding
     private let analysisModule: AnalysisModuleExtension
     private let viewExtension: ViewExtension
     private let managedStorage: SpinLabManagedStorage
@@ -293,6 +289,7 @@ final class SpinLabAppState: ObservableObject {
     private var libraryPendingSelectionChange: LibraryPendingSelectionChange?
     private let interactionMemory: InteractionMemoryStore
     private var pendingRoutingDraftsByID: [UUID: PendingRoutingDraft] = [:]
+    private var drawerMatchCandidates: [DrawerMatchCandidate] = []
 
     init(
         persistence: SpinLabPersistence = LocalJSONPersistence(),
@@ -300,7 +297,8 @@ final class SpinLabAppState: ObservableObject {
         analysisModule: AnalysisModuleExtension = AMRPHEAnalysisModuleExtension(),
         viewExtension: ViewExtension = AMRPHEViewExtension(),
         managedStorage: SpinLabManagedStorage = SpinLabManagedStorage(),
-        sampleRegistry: SampleRegistryIndexing = XLSXPrefixSampleRegistryIndex.fromEnvironment(previewRowCount: 10)
+        sampleRegistry: SampleRegistryIndexing = XLSXPrefixSampleRegistryIndex.fromEnvironment(previewRowCount: 10),
+        registrySubstrateRules: any RegistrySubstrateRuleProviding = RegistrySubstrateRuleBook()
     ) {
         self.persistence = persistence
         self.importPipeline = importPipeline
@@ -308,6 +306,7 @@ final class SpinLabAppState: ObservableObject {
         self.viewExtension = viewExtension
         self.managedStorage = managedStorage
         self.sampleRegistry = sampleRegistry
+        self.registrySubstrateRules = registrySubstrateRules
         self.librarySettings = librarySettingsStore.load()
         self.interactionMemory = InteractionMemoryStore(persistence: persistence)
 
@@ -316,9 +315,12 @@ final class SpinLabAppState: ObservableObject {
         }
 
         load()
+        migrateManagedMeasurementPathsToOriginalIfPossible()
+        managedStorage.clearManagedMeasurementCopies()
         updateRegistryPresentation()
         loadExistingDrawers()
         restoreInteractionSnapshot()
+        refreshPendingDrawerMatches()
         refreshLibraryBackupMessage()
         interactionMemory.markReady()
         persistInteractionSnapshotIfReady()
@@ -348,18 +350,159 @@ final class SpinLabAppState: ObservableObject {
         viewExtension.displayName
     }
 
+    var canReloadSampleRegistry: Bool {
+        resolveRegistrySourceURL() != nil
+    }
+
+    var pendingDrawerMatchByID: [UUID: Bool] {
+        Dictionary(uniqueKeysWithValues: pendingRoutingSnapshotByID.map { id, snapshot in
+            (id, snapshot.verdict == .libraryMatched)
+        })
+    }
+
     var knownProjectNames: [String] {
         let archivedNames = archivedRecords.compactMap { $0.project?.name }
         let catalogNames = projectCatalog.map(\.name)
         return Array(Set(archivedNames + catalogNames)).sorted()
     }
 
-    var registryPrefixMap: [String: String] {
-        sampleRegistry.prefixToSheet
+    func hasExistingLibraryDrawer(sampleKey: String) -> Bool {
+        matchedExistingLibraryDrawer(sampleInput: sampleKey) != nil
     }
 
-    var measurementsStoragePath: String {
-        managedStorage.measurementsDirectoryURL.path
+    func matchedExistingLibraryDrawer(sampleInput: String) -> String? {
+        let trimmed = sampleInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return nil
+        }
+
+        guard !drawerMatchCandidates.isEmpty else {
+            return nil
+        }
+
+        let inputTokens = Set(drawerMatchTokens(from: trimmed))
+        guard !inputTokens.isEmpty else {
+            return nil
+        }
+
+        let matched = drawerMatchCandidates.filter { candidate in
+            inputTokens.isSubset(of: candidate.sampleKeyTokens)
+        }
+        guard matched.count == 1, let unique = matched.first else {
+            return nil
+        }
+        return unique.displayName
+    }
+
+    func refreshPendingDrawerMatches(for pendingIDs: [UUID]? = nil) {
+        let pendingByID = Dictionary(uniqueKeysWithValues: pendingImports.map { ($0.id, $0) })
+        let targetIDs = pendingIDs ?? pendingImports.map(\.id)
+        guard !targetIDs.isEmpty else {
+            pendingRoutingSnapshotByID = [:]
+            return
+        }
+
+        let validIDs = Set(pendingImports.map(\.id))
+        var next = pendingRoutingSnapshotByID.filter { validIDs.contains($0.key) }
+        for pendingID in targetIDs {
+            guard let pending = pendingByID[pendingID] else {
+                next.removeValue(forKey: pendingID)
+                continue
+            }
+            next[pendingID] = evaluatePendingRoutingSnapshot(for: pending)
+        }
+        pendingRoutingSnapshotByID = next
+    }
+
+    func pendingRoutingSnapshot(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.PendingRoutingSnapshot {
+        if let cached = pendingRoutingSnapshotByID[pending.id] {
+            return cached
+        }
+        return evaluatePendingRoutingSnapshot(for: pending)
+    }
+
+    func cachedPendingRoutingSnapshot(for pendingID: UUID) -> SpinLabDomain.PendingRoutingSnapshot? {
+        pendingRoutingSnapshotByID[pendingID]
+    }
+
+    private func evaluatePendingRoutingSnapshot(
+        for pending: SpinLabDomain.PendingImport
+    ) -> SpinLabDomain.PendingRoutingSnapshot {
+        let parsed = parsedHintsApplyingRoutingDraft(for: pending)
+        let routePlan = routePlanner.makeRoutePlan(from: parsed)
+        return pendingRoutingSnapshotEvaluator.makeSnapshot(
+            parsed: parsed,
+            routePlan: routePlan,
+            matchDrawer: { [weak self] sampleInput in
+                self?.matchedExistingLibraryDrawer(sampleInput: sampleInput)
+            }
+        )
+    }
+
+    private func drawerMatchTokens(from value: String) -> [String] {
+        let upper = value.uppercased()
+        let pattern = #"[^A-Z0-9]+"#
+        let replaced = upper.replacingOccurrences(of: pattern, with: " ", options: .regularExpression)
+        return replaced
+            .split(whereSeparator: \.isWhitespace)
+            .map(String.init)
+            .flatMap(splitAlphaNumericToken)
+            .filter { $0 != "UNKNOWN" }
+            .filter { !$0.isEmpty }
+    }
+
+    private func splitAlphaNumericToken(_ token: String) -> [String] {
+        guard !token.isEmpty else {
+            return []
+        }
+
+        var result: [String] = []
+        var current = ""
+        var currentIsDigit: Bool?
+
+        for scalar in token.unicodeScalars {
+            let isDigit = CharacterSet.decimalDigits.contains(scalar)
+            if let currentIsDigit, currentIsDigit != isDigit {
+                if !current.isEmpty {
+                    result.append(current)
+                }
+                current = ""
+            }
+            current.append(Character(scalar))
+            currentIsDigit = isDigit
+        }
+
+        if !current.isEmpty {
+            result.append(current)
+        }
+
+        return result
+    }
+
+    private func rebuildDrawerMatchCandidates(from samples: [LibrarySample]) {
+        drawerMatchCandidates = samples.map { sample in
+            DrawerMatchCandidate(
+                displayName: sample.displayName,
+                sampleKey: sample.id,
+                sampleKeyTokens: Set(sampleKeyTokens(from: sample))
+            )
+        }
+    }
+
+    private func sampleKeyTokens(from sample: LibrarySample) -> [String] {
+        if sample.id.contains("|") {
+            let parts = sample.id.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+            return parts.flatMap { drawerMatchTokens(from: $0) }
+        }
+        return drawerMatchTokens(from: [
+            sample.id,
+            sample.batchId,
+            sample.substrateTokens.joined(separator: " ")
+        ].joined(separator: " "))
+    }
+
+    var registryPrefixMap: [String: String] {
+        sampleRegistry.prefixToSheet
     }
 
     private func load() {
@@ -369,6 +512,56 @@ final class SpinLabAppState: ObservableObject {
         selectedPendingImportID = pendingImports.first?.id
         selectedArchivedRecordID = archivedRecords.first?.id
         workbenchResultDraft = selectedArchivedRecord?.latestResult?.summary ?? ""
+        pendingRoutingSnapshotByID = [:]
+    }
+
+    private func migrateManagedMeasurementPathsToOriginalIfPossible() {
+        let fileManager = FileManager.default
+        var pendingChanged = false
+        var archivedChanged = false
+
+        pendingImports = pendingImports.map { pending in
+            guard managedStorage.isManagedMeasurementPath(pending.sourceFilePath),
+                  let originalPath = pending.originalFilePath,
+                  fileManager.fileExists(atPath: originalPath) else {
+                return pending
+            }
+            var migrated = pending
+            migrated.sourceFilePath = URL(fileURLWithPath: originalPath).standardizedFileURL.path
+            pendingChanged = true
+            return migrated
+        }
+
+        archivedRecords = archivedRecords.map { record in
+            var migrated = record
+            var didChange = false
+
+            if managedStorage.isManagedMeasurementPath(record.measurement.sourceFilePath),
+               let originalPath = record.measurement.originalFilePath,
+               fileManager.fileExists(atPath: originalPath) {
+                migrated.measurement.sourceFilePath = URL(fileURLWithPath: originalPath).standardizedFileURL.path
+                didChange = true
+            }
+
+            if managedStorage.isManagedMeasurementPath(record.dataset.sourceFilePath),
+               let originalPath = record.dataset.originalFilePath ?? record.measurement.originalFilePath,
+               fileManager.fileExists(atPath: originalPath) {
+                migrated.dataset.sourceFilePath = URL(fileURLWithPath: originalPath).standardizedFileURL.path
+                didChange = true
+            }
+
+            if didChange {
+                archivedChanged = true
+            }
+            return migrated
+        }
+
+        if pendingChanged {
+            persistence.savePendingImports(pendingImports)
+        }
+        if archivedChanged {
+            persistence.saveArchivedRecords(archivedRecords)
+        }
     }
 
     func interactionValue<Value>(_ keyPath: KeyPath<SpinLabInteractionSnapshot, Value>) -> Value {
@@ -444,6 +637,7 @@ final class SpinLabAppState: ObservableObject {
         }
 
         pendingImports.insert(contentsOf: imported, at: 0)
+        refreshPendingDrawerMatches(for: imported.map(\.id))
         persistence.savePendingImports(pendingImports)
         selectedPendingImportID = imported.first?.id
         selectedArea = .inbox
@@ -453,6 +647,7 @@ final class SpinLabAppState: ObservableObject {
         pendingImports = []
         selectedPendingImportID = nil
         pendingRoutingDraftsByID = [:]
+        pendingRoutingSnapshotByID = [:]
         updateInteractionValue(\.inboxWorkspaceByPendingID, to: [:])
         persistence.savePendingImports(pendingImports)
     }
@@ -463,7 +658,27 @@ final class SpinLabAppState: ObservableObject {
             next.parsedHints = recomputedParsedHints(for: pending)
             return next
         }
+        pendingRoutingDraftsByID = [:]
+
+        var updatedWorkspaceByPendingID: [String: InboxPendingWorkspaceState] = [:]
+        let existingWorkspaceByPendingID = interactionValue(\.inboxWorkspaceByPendingID)
+        for pending in pendingImports {
+            let key = snapshotDictionaryKey(for: pending.id)
+            guard let existing = existingWorkspaceByPendingID[key] else {
+                continue
+            }
+            updatedWorkspaceByPendingID[key] = InboxPendingWorkspaceState.snapshotSafe(
+                draft: pendingDisplayDraft(for: pending),
+                editableFileContents: existing.editableFileContents,
+                hasEditableFileContents: existing.hasEditableFileContents,
+                routingDraft: nil
+            )
+        }
+        updateInteractionValue(\.inboxWorkspaceByPendingID, to: updatedWorkspaceByPendingID)
+
+        refreshPendingDrawerMatches()
         persistence.savePendingImports(pendingImports)
+        objectWillChange.send()
     }
 
     func loadSampleRegistry(from url: URL) {
@@ -478,6 +693,29 @@ final class SpinLabAppState: ObservableObject {
         libraryPreviewMessage = nil
         librarySyncStatusMessage = nil
         updateRegistryPresentation()
+        refreshPendingDrawerMatches()
+    }
+
+    func reloadSampleRegistry() {
+        let fileManager = FileManager.default
+        if let sourcePath = librarySettings.registrySourcePath,
+           fileManager.fileExists(atPath: sourcePath) {
+            loadSampleRegistry(from: URL(fileURLWithPath: sourcePath))
+            return
+        }
+
+        guard let fallbackURL = resolveRegistrySourceURL() else {
+            return
+        }
+
+        sampleRegistry = XLSXPrefixSampleRegistryIndex.fromFileURL(fallbackURL, previewRowCount: 10)
+        updateLibraryRegistryPaths(installedURL: fallbackURL, sourceURL: nil)
+        libraryPreview = nil
+        libraryPreviewWarnings = []
+        libraryPreviewMessage = nil
+        librarySyncStatusMessage = nil
+        updateRegistryPresentation()
+        refreshPendingDrawerMatches()
     }
 
     func loadLibraryPreview() {
@@ -586,10 +824,12 @@ final class SpinLabAppState: ObservableObject {
     func loadExistingDrawers() {
         guard let rootPath = librarySettings.rootPath else {
             libraryExistingGroups = [:]
+            drawerMatchCandidates = []
             libraryExistingMessage = "No Library Root selected."
             librarySelectedPrefix = nil
             librarySelectedBatchId = nil
             librarySelectedSampleId = nil
+            refreshPendingDrawerMatches()
             return
         }
         let rootURL = URL(fileURLWithPath: rootPath)
@@ -1233,6 +1473,7 @@ final class SpinLabAppState: ObservableObject {
         librarySettingsStore.save(librarySettings)
         libraryRootVerificationPath = nil
         libraryRootVerificationMessage = nil
+        loadExistingDrawers()
     }
 
     func updateLibraryBackupPath(to url: URL) {
@@ -1323,6 +1564,7 @@ final class SpinLabAppState: ObservableObject {
             batchName: pending.parsedHints.batchName ?? resolvedSampleID ?? "",
             sampleName: pending.parsedHints.sampleName ?? "",
             measurementName: pending.parsedHints.measurementName ?? pending.fileName,
+            workflowTag: pending.parsedHints.workflowName ?? "",
             deviceName: pending.parsedHints.deviceName ?? "",
             temperature: pending.parsedHints.temperature ?? "",
             selectedExistingProjectName: suggestedProject(for: pending)?.name ?? PendingImportConfirmationDraft.noProjectOption,
@@ -1333,12 +1575,8 @@ final class SpinLabAppState: ObservableObject {
             applyRegistryMetadata(lookup, to: &draft)
         }
 
-        let lookup = registryLookup(for: pending)
         if let sampleID = resolvedSampleID,
-           let resolved = resolvedPhysicalSampleName(for: pending, registryLookup: lookup, sampleID: sampleID) {
-            draft.sampleName = resolved
-        } else if let sampleID = resolvedSampleID,
-                  draft.sampleName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+           draft.sampleName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             draft.sampleName = sampleID
         }
 
@@ -1380,15 +1618,12 @@ final class SpinLabAppState: ObservableObject {
 
     func pendingDisplayAutoValues(for pending: SpinLabDomain.PendingImport) -> PendingImportConfirmationDraft {
         let resolvedSampleID = pending.parsedHints.sampleIDs.first ?? sampleRegistry.sampleID(from: pending.fileName)
-        let lookup = registryLookup(for: pending)
-        let resolvedSample = resolvedSampleID.flatMap { sampleID in
-            resolvedPhysicalSampleName(for: pending, registryLookup: lookup, sampleID: sampleID)
-        }
 
         return PendingImportConfirmationDraft(
             batchName: pending.parsedHints.batchName ?? resolvedSampleID ?? "",
-            sampleName: resolvedSample ?? pending.parsedHints.sampleName ?? "",
+            sampleName: pending.parsedHints.sampleName ?? "",
             measurementName: pending.parsedHints.measurementName ?? pending.fileName,
+            workflowTag: pending.parsedHints.workflowName ?? "",
             deviceName: pending.parsedHints.deviceName ?? "",
             temperature: pending.parsedHints.temperature ?? "",
             selectedExistingProjectName: suggestedProject(for: pending)?.name ?? PendingImportConfirmationDraft.noProjectOption,
@@ -1397,11 +1632,11 @@ final class SpinLabAppState: ObservableObject {
     }
 
     func pendingRoutePlan(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.RoutePlan {
-        routePlanner.makeRoutePlan(from: parsedHintsApplyingRoutingDraft(for: pending))
+        pendingRoutingSnapshot(for: pending).routePlan
     }
 
     func pendingRouteStatus(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.RouteStatus {
-        pendingRoutePlan(for: pending).status
+        pendingRoutingSnapshot(for: pending).verdict
     }
 
     func hasSavedRoutingDraft(for pending: SpinLabDomain.PendingImport) -> Bool {
@@ -1417,36 +1652,26 @@ final class SpinLabAppState: ObservableObject {
     }
 
     func routingDraftBaseline(for pending: SpinLabDomain.PendingImport) -> PendingRoutingDraft {
-        let fileLevelSubstrateTags = pending.parsedHints.substrateTags
+        let parsed = pending.parsedHints
+        let plan = routePlanner.makeRoutePlan(from: parsed)
+        let resolutionsByChannel = Dictionary(uniqueKeysWithValues: plan.channelResolutions.map { ($0.channel, $0) })
+
         var overrides: [String: String] = [:]
-        for channel in pending.parsedHints.channelHints {
-            let channelSampleInput = channel.sampleID?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let sampleInput = channelSampleInput?.isEmpty == false ? channelSampleInput : nil
-            let resolved = sampleInput.flatMap { input in
-                routePlanner.resolvedSampleIdentity(
-                    from: input,
-                    channelTags: channel.tags,
-                    fileLevelSubstrateTags: fileLevelSubstrateTags
-                )
+        for channel in parsed.channelHints {
+            let explicitInput = normalized(channel.sampleID)
+            guard explicitInput != nil else {
+                overrides[channel.channel] = ""
+                continue
             }
-            overrides[channel.channel] = resolved ?? sampleInput ?? ""
+            overrides[channel.channel] = resolutionsByChannel[channel.channel]?.sampleKey ?? explicitInput ?? ""
         }
 
-        let defaultInput = pending.parsedHints.defaultSampleKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let defaultResolved = routePlanner.resolvedSampleIdentity(
-            from: defaultInput,
-            channelTags: [],
-            fileLevelSubstrateTags: fileLevelSubstrateTags
-        )
+        let defaultSampleKey = plan.channelResolutions
+            .first(where: { $0.channel == "file" })?
+            .sampleKey
+            ?? parsed.defaultSampleKey
+            ?? ""
 
-        var defaultSampleKey = defaultResolved ?? defaultInput
-        if defaultSampleKey.isEmpty,
-           pending.parsedHints.channelHints.count == 1,
-           let only = pending.parsedHints.channelHints.first,
-           let channelValue = overrides[only.channel],
-           !channelValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            defaultSampleKey = channelValue
-        }
         return PendingRoutingDraft(
             defaultSampleKey: defaultSampleKey,
             channelSampleKeyOverrides: overrides
@@ -1470,6 +1695,7 @@ final class SpinLabAppState: ObservableObject {
                 $0.trimmingCharacters(in: .whitespacesAndNewlines)
             }
         )
+        refreshPendingDrawerMatches(for: [pendingID])
         objectWillChange.send()
     }
 
@@ -1491,6 +1717,7 @@ final class SpinLabAppState: ObservableObject {
         archivedRecords.insert(record, at: 0)
         pendingImports.removeAll { $0.id == pending.id }
         pendingRoutingDraftsByID[pending.id] = nil
+        pendingRoutingSnapshotByID[pending.id] = nil
         updateInteractionEntryValue(for: pending.id, in: \.inboxWorkspaceByPendingID, value: nil)
 
         persistence.saveArchivedRecords(archivedRecords)
@@ -1573,15 +1800,10 @@ final class SpinLabAppState: ObservableObject {
     }
 
     func resolvedSampleDisplayName(for pending: SpinLabDomain.PendingImport) -> String? {
-        let sampleID = pending.parsedHints.batchName
+        pending.parsedHints.sampleName
+            ?? pending.parsedHints.batchName
             ?? pending.parsedHints.sampleIDs.first
             ?? sampleRegistry.sampleID(from: pending.fileName)
-
-        return resolvedPhysicalSampleName(
-            for: pending,
-            registryLookup: registryLookup(for: pending),
-            sampleID: sampleID
-        ) ?? pending.parsedHints.sampleName
     }
 
     private func makeArchivedRecord(
@@ -1594,7 +1816,6 @@ final class SpinLabAppState: ObservableObject {
             ?? sampleIDFromFilename
             ?? metadataValue(in: registryLookup, keys: ["Batch", "BatchID", "Batch Name", "编号"])
         let sampleName = normalized(draft.sampleName)
-            ?? resolvedPhysicalSampleName(for: pending, registryLookup: registryLookup, sampleID: batchName ?? sampleIDFromFilename)
             ?? pending.parsedHints.sampleName
             ?? batchName
             ?? "Unassigned Sample"
@@ -1726,6 +1947,7 @@ final class SpinLabAppState: ObservableObject {
     private func applyExistingIndex(_ index: LibraryIndex) {
         guard !index.samples.isEmpty else {
             libraryExistingGroups = [:]
+            drawerMatchCandidates = []
             libraryExistingMessage = "No existing drawers found."
             librarySelectedPrefix = nil
             librarySelectedBatchId = nil
@@ -1733,13 +1955,16 @@ final class SpinLabAppState: ObservableObject {
             librarySampleEditDraft = nil
             librarySampleEditBaseSample = nil
             librarySampleEditOriginalDraft = nil
+            refreshPendingDrawerMatches()
             return
         }
 
         libraryExistingGroups = buildPreviewGroups(from: index)
+        rebuildDrawerMatchCandidates(from: index.samples)
         libraryExistingMessage = "Loaded existing drawers: \(index.samples.count) samples"
         normalizeLibrarySelection()
         reconcileLibrarySampleEditingSelection()
+        refreshPendingDrawerMatches()
     }
 
     private func refreshSyncChangeIndicators() {
@@ -2057,293 +2282,17 @@ final class SpinLabAppState: ObservableObject {
             .replacingOccurrences(of: " ", with: "")
     }
 
-    private func resolvedPhysicalSampleName(
-        for pending: SpinLabDomain.PendingImport,
-        registryLookup: SampleRegistryLookupResult?,
-        sampleID: String?
-    ) -> String? {
-        let allowsOriginToken = hasStandaloneOriginToken(for: pending)
-        if let lookup = registryLookup,
-           let resolved = resolvedPhysicalSampleName(
-            from: lookup,
-            substrateTags: pending.parsedHints.substrateTags,
-            allowsOriginToken: allowsOriginToken
-           ) {
-            return resolved
-        }
-        return nil
-    }
-
-    private func resolvedPhysicalSampleName(
-        from lookup: SampleRegistryLookupResult,
-        substrateTags: [String],
-        allowsOriginToken: Bool = true
-    ) -> String? {
-        let sampleID = metadataValue(in: lookup, keys: ["Sample", "SampleID", "Sample Id", "sample_id", "编号"]) ?? lookup.sampleID
-
-        let resolution = resolvedSubstrate(
-            from: lookup,
-            substrateTags: substrateTags,
-            allowsOriginToken: allowsOriginToken
-        )
-        guard let substrate = resolution.resolvedSubstrate else {
-            return nil
-        }
-
-        return formatPhysicalSampleName(sampleID: sampleID, substrate: substrate)
-    }
-
     private func resolvedSubstrate(
         from lookup: SampleRegistryLookupResult,
         substrateTags: [String],
         allowsOriginToken: Bool
-    ) -> SubstrateResolution {
-        let normalizedTags = substrateTags.compactMap { normalized($0) }
-        guard let substrateValue = metadataValue(in: lookup, keys: ["substrate", "Substrate", "衬底"]) else {
-            return SubstrateResolution(
-                resolvedSubstrate: nil,
-                warning: "Registry substrate is missing for \(lookup.sampleID)."
-            )
-        }
-
-        let variants = substrateValue
-            .split(whereSeparator: { $0 == "," || $0 == "，" })
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        guard !variants.isEmpty else {
-            return SubstrateResolution(
-                resolvedSubstrate: nil,
-                warning: "Registry substrate is empty for \(lookup.sampleID)."
-            )
-        }
-
-        if normalizedTags.isEmpty {
-            if variants.count == 1 {
-                return SubstrateResolution(resolvedSubstrate: variants[0], warning: nil)
-            }
-            return SubstrateResolution(resolvedSubstrate: nil, warning: nil)
-        }
-
-        let constraints = substrateConstraints(from: normalizedTags, allowsOriginToken: allowsOriginToken)
-        let candidates = variants.map(parseSubstrateCandidate)
-        let matches = candidates.filter { candidate in
-            substrateCandidate(candidate, satisfies: constraints)
-        }
-
-        if matches.count == 1 {
-            return SubstrateResolution(resolvedSubstrate: matches[0].raw, warning: nil)
-        }
-
-        let info = substrateConstraintDescription(constraints)
-        if matches.isEmpty {
-            return SubstrateResolution(
-                resolvedSubstrate: nil,
-                warning: "No substrate candidate matches parsed tags for \(lookup.sampleID) (\(info))."
-            )
-        }
-
-        return SubstrateResolution(
-            resolvedSubstrate: nil,
-            warning: "Multiple substrate candidates match parsed tags for \(lookup.sampleID) (\(info))."
+    ) -> RegistrySubstrateResolution {
+        registrySubstrateRules.resolvedSubstrate(
+            sampleID: lookup.sampleID,
+            substrateValue: metadataValue(in: lookup, keys: ["substrate", "Substrate", "衬底"]),
+            substrateTags: substrateTags,
+            allowsOriginToken: allowsOriginToken
         )
-    }
-
-    private func normalizeSubstrateTag(_ value: String) -> String {
-        let normalized = value.lowercased()
-            .replacingOccurrences(of: " ", with: "")
-            .replacingOccurrences(of: "(", with: "")
-            .replacingOccurrences(of: ")", with: "")
-            .replacingOccurrences(of: "（", with: "")
-            .replacingOccurrences(of: "）", with: "")
-        if normalized == "o" {
-            return "origin"
-        }
-        return normalized
-    }
-
-    private func substrateConstraints(from substrateTags: [String], allowsOriginToken: Bool) -> SubstrateConstraints {
-        var constraints = SubstrateConstraints()
-
-        for tag in substrateTags {
-            let normalized = normalizeSubstrateTag(tag)
-            if normalized == "hf" {
-                constraints.treatments.insert("hf")
-                continue
-            }
-            if normalized.contains("bake") {
-                constraints.treatments.insert("baked")
-                continue
-            }
-            if allowsOriginToken && (normalized == "o" || normalized.contains("origin") || normalized.contains("original")) {
-                constraints.treatments.insert("o")
-                continue
-            }
-
-            if let orientation = extractOrientation(from: normalized) {
-                constraints.orientations.insert(orientation)
-            }
-
-            if let material = conservativeMaterial(from: normalized) {
-                constraints.materials.insert(material.lowercased())
-            }
-        }
-
-        // If specific processing tags exist, ignore origin to avoid false positives.
-        if constraints.treatments.contains("hf") || constraints.treatments.contains("baked") {
-            constraints.treatments.remove("o")
-        }
-
-        return constraints
-    }
-
-    private func parseSubstrateCandidate(_ substrate: String) -> SubstrateCandidate {
-        let normalized = normalizeSubstrateTag(substrate)
-        var candidate = SubstrateCandidate(raw: substrate, treatment: nil, material: nil, orientation: nil)
-
-        if normalized.contains("hf") {
-            candidate.treatment = "hf"
-        } else if normalized.contains("bake") {
-            candidate.treatment = "baked"
-        } else if normalized.contains("origin") || normalized.contains("original") || normalized == "o" {
-            candidate.treatment = "o"
-        }
-
-        candidate.orientation = extractOrientation(from: normalized)
-        candidate.material = conservativeMaterial(from: substrate)?.lowercased()
-        return candidate
-    }
-
-    private func substrateCandidate(_ candidate: SubstrateCandidate, satisfies constraints: SubstrateConstraints) -> Bool {
-        if !constraints.treatments.isEmpty {
-            guard let treatment = candidate.treatment, constraints.treatments.contains(treatment) else {
-                return false
-            }
-        }
-
-        if !constraints.materials.isEmpty {
-            guard let material = candidate.material, constraints.materials.contains(material) else {
-                return false
-            }
-        }
-
-        if !constraints.orientations.isEmpty {
-            guard let orientation = candidate.orientation, constraints.orientations.contains(orientation) else {
-                return false
-            }
-        }
-
-        return true
-    }
-
-    private func extractOrientation(from normalized: String) -> String? {
-        guard let match = normalized.range(of: #"\d{3}"#, options: .regularExpression) else {
-            return nil
-        }
-        return String(normalized[match])
-    }
-
-    private func conservativeMaterial(from source: String) -> String? {
-        let cleaned = source.lowercased()
-            .replacingOccurrences(of: #"[^\p{L}\p{N}]+"#, with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        let rawTokens = cleaned
-            .split(separator: " ")
-            .map(String.init)
-            .filter { !$0.isEmpty }
-
-        let materialCandidates = rawTokens.compactMap { token -> String? in
-            if token == "hf" || token == "baked" || token == "bake" || token == "origin" || token == "original" || token == "o" {
-                return nil
-            }
-            if token.range(of: #"^\d+$"#, options: .regularExpression) != nil {
-                return nil
-            }
-            if token.range(of: #"^[a-z]{2,}\d{3}$"#, options: .regularExpression) != nil {
-                let letters = token.replacingOccurrences(of: #"\d+$"#, with: "", options: .regularExpression)
-                return letters.count >= 2 ? letters : nil
-            }
-            if token.range(of: #"^[a-z]{2,}$"#, options: .regularExpression) != nil {
-                return token
-            }
-            return nil
-        }
-
-        let unique = Array(Set(materialCandidates))
-        guard unique.count == 1, let material = unique.first else {
-            return nil
-        }
-
-        return material.uppercased()
-    }
-
-    private func substrateConstraintDescription(_ constraints: SubstrateConstraints) -> String {
-        var parts: [String] = []
-        if !constraints.treatments.isEmpty {
-            parts.append("treatment=\(constraints.treatments.sorted().joined(separator: "/"))")
-        }
-        if !constraints.materials.isEmpty {
-            parts.append("material=\(constraints.materials.sorted().joined(separator: "/"))")
-        }
-        if !constraints.orientations.isEmpty {
-            parts.append("orientation=\(constraints.orientations.sorted().joined(separator: "/"))")
-        }
-        return parts.isEmpty ? "no substrate constraints" : parts.joined(separator: ", ")
-    }
-
-    private func formatPhysicalSampleName(sampleID: String, substrate: String) -> String {
-        let normalized = normalizeSubstrateTag(substrate)
-
-        let modifier: String? = {
-            if normalized.contains("hf") {
-                return "HF"
-            }
-            if normalized.contains("bake") || normalized.contains("baked") {
-                return "baked"
-            }
-            if normalized.contains("origin") || normalized.contains("original") {
-                return "o"
-            }
-            return nil
-        }()
-
-        let orientation = formattedSubstrateOrientation(from: substrate)
-
-        return ([sampleID, modifier, orientation].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty })
-            .joined(separator: " ")
-    }
-
-    private func formattedSubstrateOrientation(from substrate: String) -> String? {
-        let upper = substrate.uppercased()
-        let patterns: [(String, String)] = [
-            (#"(STO)[^0-9]*(111)"#, "STO"),
-            (#"(STO)[^0-9]*(001)"#, "STO"),
-            (#"(NGO)[^0-9]*(110)"#, "NGO"),
-            (#"(MAO)[^0-9]*(100)"#, "MAO")
-        ]
-
-        for (pattern, label) in patterns {
-            if let match = upper.range(of: pattern, options: .regularExpression) {
-                let fragment = String(upper[match])
-                if let orientation = fragment.range(of: #"(111|001|110|100)"#, options: .regularExpression) {
-                    return "\(label)(\(fragment[orientation]))"
-                }
-            }
-        }
-
-        if upper.contains("STO") {
-            return "STO"
-        }
-        if upper.contains("NGO") {
-            return "NGO"
-        }
-        if upper.contains("MAO") {
-            return "MAO"
-        }
-
-        return substrate.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func measurementNotes(
@@ -2391,27 +2340,10 @@ final class SpinLabAppState: ObservableObject {
     }
 
     private func hasStandaloneOriginToken(for pending: SpinLabDomain.PendingImport) -> Bool {
-        let separators = CharacterSet(charactersIn: "_- ()")
-        var texts: [String] = [pending.fileName]
-
-        if let originalPath = pending.originalFilePath {
-            let url = URL(fileURLWithPath: originalPath)
-            texts.append(url.deletingPathExtension().lastPathComponent)
-            texts.append(url.deletingLastPathComponent().lastPathComponent)
-            texts.append(url.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent)
-        }
-
-        for text in texts {
-            let tokens = text.components(separatedBy: separators).filter { !$0.isEmpty }
-            if tokens.contains(where: { token in
-                let lower = token.lowercased()
-                return lower == "o" || lower.contains("origin") || lower.contains("original")
-            }) {
-                return true
-            }
-        }
-
-        return false
+        registrySubstrateRules.hasStandaloneOriginToken(
+            fileName: pending.fileName,
+            originalFilePath: pending.originalFilePath
+        )
     }
 
     private func applyRegistryMetadata(_ lookup: SampleRegistryLookupResult, to draft: inout PendingImportConfirmationDraft) {

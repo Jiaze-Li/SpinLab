@@ -214,8 +214,7 @@ enum SampleData {
             sampleID: sample.id,
             batchID: batch.id,
             deviceID: device.id,
-            sourceFilePath: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
-                .appending(path: "SpinLab/measurements/AMR_PHE_scan_001.csv").path ?? "/tmp/AMR_PHE_scan_001.csv",
+            sourceFilePath: "/tmp/AMR_PHE_scan_001.csv",
             originalFilePath: "/tmp/AMR_PHE_scan_001.csv",
             acquiredAt: .now
         )
@@ -257,8 +256,7 @@ enum SampleData {
     static let pendingImports: [SpinLabDomain.PendingImport] = [
         SpinLabDomain.PendingImport(
             fileName: "B2404_S18_AMR_PHE_Device2.csv",
-            sourceFilePath: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
-                .appending(path: "SpinLab/measurements/B2404_S18_AMR_PHE_Device2.csv").path ?? "/tmp/B2404_S18_AMR_PHE_Device2.csv",
+            sourceFilePath: "/tmp/B2404_S18_AMR_PHE_Device2.csv",
             originalFilePath: "/tmp/B2404_S18_AMR_PHE_Device2.csv",
             parsedHints: SpinLabDomain.ParsedFilenameHints(
                 batchName: "B2404",

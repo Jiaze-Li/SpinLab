@@ -43,22 +43,33 @@ struct NoopSampleRegistryIndex: SampleRegistryIndexing {
 }
 
 final class XLSXPrefixSampleRegistryIndex: SampleRegistryIndexing {
+    private struct IndexedRegistryRow {
+        let sheetName: String
+        let sheetOrder: Int
+        let rowNumber: Int
+        let metadata: [String: String]
+    }
+
     private let file: XLSXFile
-    private let worksheetPathsByName: [String: String]
     private let sharedStrings: SharedStrings?
-    private let previewRowCount: Int
+    private let lookupRules: any RegistryLookupRuleProviding
+    private let indexedRowsBySampleID: [String: [IndexedRegistryRow]]
 
     let sourceFilePath: String?
     let prefixToSheet: [String: String]
     let isLoaded: Bool = true
 
-    init(xlsxURL: URL, previewRowCount: Int = 10) throws {
+    init(
+        xlsxURL: URL,
+        previewRowCount: Int = 10,
+        lookupRules: any RegistryLookupRuleProviding = RegistryLookupRuleBook()
+    ) throws {
         guard let file = XLSXFile(filepath: xlsxURL.path) else {
             throw NSError(domain: "SampleRegistry", code: 1, userInfo: [NSLocalizedDescriptionKey: "Unable to open XLSX file at \(xlsxURL.path)."])
         }
 
         self.file = file
-        self.previewRowCount = max(1, previewRowCount)
+        self.lookupRules = lookupRules
         sourceFilePath = xlsxURL.path
 
         guard let workbook = try file.parseWorkbooks().first else {
@@ -67,20 +78,22 @@ final class XLSXPrefixSampleRegistryIndex: SampleRegistryIndexing {
         sharedStrings = try? file.parseSharedStrings()
 
         let worksheetPathsAndNames = try file.parseWorksheetPathsAndNames(workbook: workbook)
-        var byName: [String: String] = [:]
-        for (name, path) in worksheetPathsAndNames {
+        let orderedSheets: [(sheetName: String, path: String)] = worksheetPathsAndNames.compactMap { name, path in
             guard let name else {
-                continue
+                return nil
             }
-            byName[name] = path
+            return (sheetName: name, path: path)
         }
-        worksheetPathsByName = byName
-        prefixToSheet = try Self.buildPrefixMap(
+
+        let built = try Self.buildIndex(
             file: file,
             sharedStrings: sharedStrings,
-            worksheetPathsByName: worksheetPathsByName,
-            previewRowCount: self.previewRowCount
+            orderedSheets: orderedSheets,
+            previewRowCount: max(1, previewRowCount),
+            lookupRules: lookupRules
         )
+        indexedRowsBySampleID = built.rowsBySampleID
+        prefixToSheet = built.prefixToSheet
     }
 
     static func fromEnvironment(previewRowCount: Int = 10) -> SampleRegistryIndexing {
@@ -128,99 +141,86 @@ final class XLSXPrefixSampleRegistryIndex: SampleRegistryIndexing {
         return nil
     }
 
-    private static func buildPrefixMap(
+    private static func buildIndex(
         file: XLSXFile,
         sharedStrings: SharedStrings?,
-        worksheetPathsByName: [String: String],
-        previewRowCount: Int
-    ) throws -> [String: String] {
-        var map: [String: String] = [:]
+        orderedSheets: [(sheetName: String, path: String)],
+        previewRowCount: Int,
+        lookupRules: any RegistryLookupRuleProviding
+    ) throws -> (rowsBySampleID: [String: [IndexedRegistryRow]], prefixToSheet: [String: String]) {
+        var rowsBySampleID: [String: [IndexedRegistryRow]] = [:]
+        var prefixToSheet: [String: String] = [:]
 
-        for (sheetName, worksheetPath) in worksheetPathsByName {
-            guard let worksheet = try? file.parseWorksheet(at: worksheetPath),
+        for (sheetOrder, sheet) in orderedSheets.enumerated() {
+            guard let worksheet = try? file.parseWorksheet(at: sheet.path),
                   let rows = worksheet.data?.rows,
                   rows.count > 1 else {
                 continue
             }
 
             let headerByColumn = headerValueByColumnIndex(row: rows[0], sharedStrings: sharedStrings)
-            let sampleColumn = sampleColumnIndex(headerByColumn: headerByColumn) ?? 1
+            guard lookupRules.shouldIndexSheet(named: sheet.sheetName, headerByColumn: headerByColumn),
+                  let sampleColumn = lookupRules.sampleColumnIndex(headerByColumn: headerByColumn) else {
+                continue
+            }
 
-            var collectedPreviewIDs = 0
-
-            for row in rows.dropFirst() {
-                guard
-                    let sampleID = rowValue(row: row, atColumn: sampleColumn, sharedStrings: sharedStrings),
-                    let prefix = SampleIDParser.extractPrefix(fromSampleID: sampleID)
-                else {
+            var previewCount = 0
+            for (rowOffset, row) in rows.dropFirst().enumerated() {
+                guard let rawSampleID = rowValue(row: row, atColumn: sampleColumn, sharedStrings: sharedStrings) else {
                     continue
                 }
-                if map[prefix] == nil {
-                    map[prefix] = sheetName
+
+                let candidates = lookupRules.sampleIDCandidates(from: rawSampleID)
+                guard !candidates.isEmpty else {
+                    continue
                 }
-                collectedPreviewIDs += 1
-                if collectedPreviewIDs >= previewRowCount {
-                    break
+
+                let metadata = rowMetadata(row: row, headerByColumn: headerByColumn, sharedStrings: sharedStrings)
+                let indexed = IndexedRegistryRow(
+                    sheetName: sheet.sheetName,
+                    sheetOrder: sheetOrder,
+                    rowNumber: rowOffset + 2,
+                    metadata: metadata
+                )
+
+                for candidate in candidates {
+                    rowsBySampleID[candidate, default: []].append(indexed)
+                    if previewCount < previewRowCount,
+                       let prefix = SampleIDParser.extractPrefix(fromSampleID: candidate),
+                       prefixToSheet[prefix] == nil {
+                        prefixToSheet[prefix] = sheet.sheetName
+                    }
                 }
+
+                previewCount += 1
             }
         }
 
-        return map
-    }
-
-    private static func sampleColumnIndex(headerByColumn: [Int: String]) -> Int? {
-        for (column, header) in headerByColumn {
-            let normalized = header.lowercased().replacingOccurrences(of: "_", with: "")
-            if normalized == "sampleid" || normalized == "sample" || header == "编号" {
-                return column
+        for sampleID in rowsBySampleID.keys {
+            rowsBySampleID[sampleID]?.sort {
+                if $0.sheetOrder == $1.sheetOrder {
+                    return $0.rowNumber < $1.rowNumber
+                }
+                return $0.sheetOrder < $1.sheetOrder
             }
         }
-        return nil
+
+        return (rowsBySampleID, prefixToSheet)
     }
 
     private func lookupInternal(sampleID: String) -> SampleRegistryLookupResult? {
-        guard
-            let prefix = SampleIDParser.extractPrefix(fromSampleID: sampleID),
-            let sheetName = prefixToSheet[prefix],
-            let worksheetPath = worksheetPathsByName[sheetName],
-            let worksheet = try? file.parseWorksheet(at: worksheetPath),
-            let rows = worksheet.data?.rows,
-            !rows.isEmpty
-        else {
+        let normalizedSampleID = lookupRules.normalizedLookupSampleID(sampleID)
+        guard !normalizedSampleID.isEmpty,
+              let indexed = indexedRowsBySampleID[normalizedSampleID]?.first else {
             return nil
         }
 
-        let headerRow = rows[0]
-        let headerByColumn = Self.headerValueByColumnIndex(row: headerRow, sharedStrings: sharedStrings)
-        let sampleColumnIndex = Self.sampleColumnIndex(headerByColumn: headerByColumn) ?? 1
-
-        for row in rows.dropFirst() {
-            guard let rowSampleID = Self.rowValue(row: row, atColumn: sampleColumnIndex, sharedStrings: sharedStrings) else {
-                continue
-            }
-
-            let candidates = rowSampleID
-                .split(separator: "/")
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
-
-            if !candidates.contains(sampleID.uppercased()) {
-                continue
-            }
-
-            let metadata = Self.rowMetadata(row: row, headerByColumn: headerByColumn, sharedStrings: sharedStrings)
-            return SampleRegistryLookupResult(
-                sampleID: sampleID,
-                prefix: prefix,
-                sheetName: sheetName,
-                metadata: metadata
-            )
-        }
-
+        let prefix = SampleIDParser.extractPrefix(fromSampleID: normalizedSampleID) ?? ""
         return SampleRegistryLookupResult(
             sampleID: sampleID,
             prefix: prefix,
-            sheetName: sheetName,
-            metadata: [:]
+            sheetName: indexed.sheetName,
+            metadata: indexed.metadata
         )
     }
 

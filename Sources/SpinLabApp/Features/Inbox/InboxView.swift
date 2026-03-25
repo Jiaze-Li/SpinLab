@@ -4,111 +4,236 @@ import UniformTypeIdentifiers
 
 struct InboxView: View {
     @EnvironmentObject private var appState: SpinLabAppState
-    @State private var isPresentingProjectSheet = false
+    @State private var isImportSourceExpanded = true
+    @State private var isPendingQueueExpanded = true
+    @State private var isRoutingReviewExpanded = true
+    @State private var isApplyExpanded = true
 
     var body: some View {
         HSplitView {
-            pendingListColumn
-                .frame(minWidth: 260, idealWidth: 320, maxWidth: 420)
+            InboxOperationPanel(
+                isImportSourceExpanded: $isImportSourceExpanded,
+                isPendingQueueExpanded: $isPendingQueueExpanded,
+                isRoutingReviewExpanded: $isRoutingReviewExpanded,
+                isApplyExpanded: $isApplyExpanded
+            )
+            .frame(minWidth: 380, idealWidth: 500, maxWidth: 680)
 
-            confirmationColumn
-                .frame(minWidth: 420, idealWidth: 560, maxWidth: .infinity)
-
-            registryColumn
-                .frame(minWidth: 260, idealWidth: 320, maxWidth: 420)
+            Color.clear
+                .frame(minWidth: 460, idealWidth: 660, maxWidth: .infinity)
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button("Load Sample Registry (.xlsx)") {
-                    presentSampleRegistryPanel()
-                }
-
-                Button("Import Measurement Files") {
-                    presentMeasurementImportPanel()
-                }
-
-                Button("Create Project") {
-                    isPresentingProjectSheet = true
-                }
-
-                Button("Clear Imports") {
-                    appState.clearPendingImports()
-                }
-                .disabled(appState.pendingImports.isEmpty)
-
-                Button("Recompute Route") {
-                    appState.recomputeAllPendingParsedHints()
-                }
-                .disabled(appState.pendingImports.isEmpty)
-            }
-        }
         .dropDestination(for: URL.self) { items, _ in
             appState.importFiles(from: items)
             return !items.isEmpty
         } isTargeted: { _ in }
-        .sheet(isPresented: $isPresentingProjectSheet) {
-            CreateProjectSheet()
-                .environmentObject(appState)
-                .frame(minWidth: 420, minHeight: 220)
+        .onAppear {
+            let restored = appState.interactionValue(\.inboxView)
+            isImportSourceExpanded = restored.isImportSourceExpanded
+            isPendingQueueExpanded = restored.isPendingQueueExpanded
+            isRoutingReviewExpanded = restored.isRoutingReviewExpanded
+            isApplyExpanded = restored.isApplyExpanded
+            persistInteractionState()
         }
+        .onChange(of: isImportSourceExpanded) { _, _ in persistInteractionState() }
+        .onChange(of: isPendingQueueExpanded) { _, _ in persistInteractionState() }
+        .onChange(of: isRoutingReviewExpanded) { _, _ in persistInteractionState() }
+        .onChange(of: isApplyExpanded) { _, _ in persistInteractionState() }
     }
 
-    private var pendingListColumn: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            InboxColumnHeader(
-                title: "Pending Imports",
-                subtitle: appState.pendingImports.isEmpty ? "No pending files" : "\(appState.pendingImports.count) pending file\(appState.pendingImports.count == 1 ? "" : "s")"
+    private func persistInteractionState() {
+        appState.updateInteractionValue(
+            \.inboxView,
+            to: InboxInteractionState(
+                isImportSourceExpanded: isImportSourceExpanded,
+                isPendingQueueExpanded: isPendingQueueExpanded,
+                isRoutingReviewExpanded: isRoutingReviewExpanded,
+                isApplyExpanded: isApplyExpanded
             )
-            List(appState.pendingImports, selection: $appState.selectedPendingImportID) { pending in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(pending.fileName)
-                        .font(.headline)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(pending.status.rawValue)
-                        .font(.caption)
+        )
+    }
+}
+
+private struct InboxOperationPanel: View {
+    private enum FileFilter: String, CaseIterable, Identifiable {
+        case all = "All"
+        case libraryMatched = "Library Matched"
+        case reviewRequired = "Review Required"
+
+        var id: String { rawValue }
+    }
+
+    @EnvironmentObject private var appState: SpinLabAppState
+    @Binding var isImportSourceExpanded: Bool
+    @Binding var isPendingQueueExpanded: Bool
+    @Binding var isRoutingReviewExpanded: Bool
+    @Binding var isApplyExpanded: Bool
+    @State private var isPresentingClearImportsConfirm = false
+    @State private var fileFilter: FileFilter = .all
+
+    var body: some View {
+        let pendingSnapshotMap = appState.pendingRoutingSnapshotByID
+        let libraryMatchedCount = appState.pendingImports.reduce(into: 0) { partial, pending in
+            if pendingSnapshotMap[pending.id]?.verdict == .libraryMatched {
+                partial += 1
+            }
+        }
+        let reviewRequiredCount = max(0, appState.pendingImports.count - libraryMatchedCount)
+        let filteredPendingImports = filteredPendingImports(using: pendingSnapshotMap)
+
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Inbox Operations")
+                        .font(.title2.bold())
+                    Spacer()
+                    Text(AppVersion.current)
+                        .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
-                    Text("Route: \(appState.pendingRouteStatus(for: pending).rawValue)")
-                        .font(.caption)
-                        .foregroundStyle(appState.pendingRouteStatus(for: pending) == .applyReady ? .green : .orange)
-                    if appState.hasSavedRoutingDraft(for: pending) {
-                        Text("Routing draft: saved")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                }
+
+                operationBox("Registry", isExpanded: $isImportSourceExpanded) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        MetadataValueRow(label: "Registry Path", value: appState.registrySourceFilePath ?? "Not loaded", monospaced: true)
+                        HStack {
+                            Button("Load Registry") {
+                                presentSampleRegistryPanel()
+                            }
+                            Button("Reload Registry") {
+                                appState.reloadSampleRegistry()
+                            }
+                            .disabled(!appState.canReloadSampleRegistry)
+                            Spacer()
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                operationBox("File", isExpanded: $isPendingQueueExpanded) {
+                    GroupBox("Actions") {
+                        HStack(spacing: 10) {
+                            Button("Import Files") {
+                                presentMeasurementImportPanel()
+                            }
+
+                            Button("Recompute Route") {
+                                appState.recomputeAllPendingParsedHints()
+                            }
+                            .disabled(appState.pendingImports.isEmpty)
+
+                            Button("Clear Imports", role: .destructive) {
+                                isPresentingClearImportsConfirm = true
+                            }
+                            .disabled(appState.pendingImports.isEmpty)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    GroupBox("Pending Queue") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 10) {
+                                queueStatusCard(
+                                    title: "Pending",
+                                    count: appState.pendingImports.count,
+                                    tint: .secondary,
+                                    filter: .all
+                                )
+                                queueStatusCard(
+                                    title: "Library Matched",
+                                    count: libraryMatchedCount,
+                                    tint: .green,
+                                    filter: .libraryMatched
+                                )
+                                queueStatusCard(
+                                    title: "Review Required",
+                                    count: reviewRequiredCount,
+                                    tint: .orange,
+                                    filter: .reviewRequired
+                                )
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                            if let selected = appState.selectedPendingImport {
+                                MetadataValueRow(label: "File Path", value: selected.sourceFilePath, monospaced: true)
+                            }
+
+                            if filteredPendingImports.isEmpty {
+                                Text("No pending files for this filter.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(nil)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            } else {
+                                List(filteredPendingImports, selection: $appState.selectedPendingImportID) { pending in
+                                    let verdict = pendingSnapshotMap[pending.id]?.verdict ?? .reviewRequired
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(pending.fileName)
+                                            .font(.headline)
+                                            .lineLimit(nil)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                        Text(pending.status.rawValue)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text("Route: \(inboxRouteStatusDisplay(verdict.rawValue))")
+                                            .font(.caption)
+                                            .foregroundStyle(verdict == .libraryMatched ? .green : .orange)
+                                        if appState.hasSavedRoutingDraft(for: pending) {
+                                            Text("Routing draft: saved")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .padding(.vertical, 2)
+                                }
+                                .frame(minHeight: 210, maxHeight: 360)
+                                .listStyle(.inset)
+                                .scrollContentBackground(.hidden)
+                                .padding(6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .fill(Color(nsColor: .controlBackgroundColor))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            }
+                        }
+                    }
+
+                    GroupBox("Selection Workbench") {
+                        if let pending = appState.selectedPendingImport {
+                            InboxSelectionWorkbenchPanel(pending: pending)
+                                .id(pending.id)
+                        } else {
+                            Text("Select one pending file to edit and save confirmation draft.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
-                .padding(.vertical, 2)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .listStyle(.inset)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
 
-    private var confirmationColumn: some View {
-        ScrollView([.vertical, .horizontal]) {
-            Group {
-                if let pending = appState.selectedPendingImport {
-                    PendingImportConfirmationColumn(pending: pending)
-                        .id(pending.id)
-                } else {
-                    ContentUnavailableView(
-                        "No Pending Import",
-                        systemImage: "tray",
-                        description: Text("Import an AMR/PHE file or folder to create pending items.")
-                    )
-                }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
         }
-        .frame(maxHeight: .infinity, alignment: .top)
-    }
-
-    private var registryColumn: some View {
-        RegistryStatusColumn()
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .confirmationDialog(
+            "Clear Imports?",
+            isPresented: $isPresentingClearImportsConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Clear Pending Imports", role: .destructive) {
+                appState.clearPendingImports()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This clears pending queue items and unarchived temporary imports only. Archived library drawers are unchanged.")
+        }
     }
 
     private func presentSampleRegistryPanel() {
@@ -138,466 +263,442 @@ struct InboxView: View {
             appState.importFiles(from: panel.urls)
         }
     }
+
+    private func filteredPendingImports(
+        using pendingSnapshotMap: [UUID: SpinLabDomain.PendingRoutingSnapshot]
+    ) -> [SpinLabDomain.PendingImport] {
+        switch fileFilter {
+        case .all:
+            return appState.pendingImports
+        case .libraryMatched:
+            return appState.pendingImports.filter { pendingSnapshotMap[$0.id]?.verdict == .libraryMatched }
+        case .reviewRequired:
+            return appState.pendingImports.filter { pendingSnapshotMap[$0.id]?.verdict != .libraryMatched }
+        }
+    }
+
+    @ViewBuilder
+    private func queueStatusCard(title: String, count: Int, tint: Color, filter: FileFilter) -> some View {
+        let isSelected = fileFilter == filter
+
+        Button {
+            fileFilter = filter
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("\(count)")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(tint)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? tint.opacity(0.22) : tint.opacity(0.12))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(isSelected ? tint : .clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func operationBox(
+        _ title: String,
+        isExpanded: Binding<Bool>,
+        @ViewBuilder content: () -> some View
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                isExpanded.wrappedValue.toggle()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: isExpanded.wrappedValue ? "chevron.down" : "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 20)
+                    Text(title)
+                        .font(.title3.weight(.semibold))
+                    Spacer()
+                }
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded.wrappedValue {
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 10) {
+                        content()
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+    }
 }
 
-private struct PendingImportConfirmationColumn: View {
+private func inboxRouteStatusDisplay(_ rawValue: String) -> String {
+    switch rawValue.lowercased() {
+    case "library-matched", "library matched":
+        return "Library Matched"
+    case "review-required", "review required":
+        return "Review Required"
+    default:
+        return rawValue
+    }
+}
+
+private func placeholderRoutingSnapshot(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.PendingRoutingSnapshot {
+    let mode: SpinLabDomain.RoutingScopeMode = pending.parsedHints.channelHints.isEmpty ? .fileLevel : .channelLevel
+    return SpinLabDomain.PendingRoutingSnapshot(
+        mode: mode,
+        verdict: .reviewRequired,
+        scopes: [],
+        unresolvedScopes: [],
+        conflicts: [],
+        routePlan: SpinLabDomain.RoutePlan(status: .reviewRequired)
+    )
+}
+
+private struct InboxInspectorPanel: View {
+    let pending: SpinLabDomain.PendingImport
+    @EnvironmentObject private var appState: SpinLabAppState
+    private var routingSnapshot: SpinLabDomain.PendingRoutingSnapshot {
+        appState.cachedPendingRoutingSnapshot(for: pending.id) ?? placeholderRoutingSnapshot(for: pending)
+    }
+    private var routePlan: SpinLabDomain.RoutePlan { routingSnapshot.routePlan }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Inspector")
+                .font(.title2.bold())
+
+            GroupBox("File Summary") {
+                VStack(alignment: .leading, spacing: 10) {
+                    MetadataValueRow(label: "Workflow", value: pending.workflow.rawValue)
+                    MetadataValueRow(label: "File", value: pending.fileName)
+                    MetadataValueRow(label: "File Path", value: pending.sourceFilePath, monospaced: true)
+                    MetadataValueRow(label: "Status", value: pending.status.rawValue)
+                    MetadataValueRow(label: "Route Status", value: inboxRouteStatusDisplay(routingSnapshot.verdict.rawValue))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            GroupBox("Routing Summary") {
+                VStack(alignment: .leading, spacing: 8) {
+                    MetadataValueRow(label: "Scopes", value: "\(routingSnapshot.scopes.count)")
+                    MetadataValueRow(label: "Unresolved", value: "\(routingSnapshot.unresolvedScopes.count)")
+                    if !routingSnapshot.unresolvedScopes.isEmpty {
+                        Text(routingSnapshot.unresolvedScopes.joined(separator: ", "))
+                            .font(.footnote)
+                            .foregroundStyle(.orange)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if !routingSnapshot.scopes.isEmpty {
+                        ForEach(routingSnapshot.scopes) { scope in
+                            let sample = scope.sampleKey ?? "?"
+                            let drawer = scope.matchedDrawer ?? "?"
+                            Text("\(scope.scope): \(sample) -> \(drawer)")
+                                .font(.footnote)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            let warnings = appState.pendingDisplayWarnings(for: pending)
+            if !warnings.isEmpty {
+                GroupBox("Warnings") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(warnings, id: \.self) { warning in
+                            Text(warning)
+                                .font(.footnote)
+                                .foregroundStyle(.orange)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+}
+
+private struct InboxSelectionWorkbenchPanel: View {
     let pending: SpinLabDomain.PendingImport
     @EnvironmentObject private var appState: SpinLabAppState
     @State private var draft = PendingImportConfirmationDraft(
         batchName: "",
         sampleName: "",
         measurementName: "",
+        workflowTag: "",
         deviceName: "",
         temperature: "",
         selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
         newProjectName: ""
     )
-    @State private var editableFileContents = ""
-    @State private var hasEditableFileContents = false
-    @State private var isPresentingFileReview = false
-    @State private var autoValues = PendingImportConfirmationDraft(
-        batchName: "",
-        sampleName: "",
-        measurementName: "",
-        deviceName: "",
-        temperature: "",
-        selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
-        newProjectName: ""
-    )
-    @State private var displayWarnings: [String] = []
-    @State private var infoTags: [String] = []
     @State private var routingDraft = PendingRoutingDraft(defaultSampleKey: "", channelSampleKeyOverrides: [:])
-    private var routePlan: SpinLabDomain.RoutePlan { appState.pendingRoutePlan(for: pending) }
+    private var routingSnapshot: SpinLabDomain.PendingRoutingSnapshot {
+        appState.cachedPendingRoutingSnapshot(for: pending.id) ?? placeholderRoutingSnapshot(for: pending)
+    }
+    private var routePlan: SpinLabDomain.RoutePlan { routingSnapshot.routePlan }
+    private var warnings: [String] { appState.pendingDisplayWarnings(for: pending) }
+    private var visibleWarnings: [String] {
+        warnings
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+    private var warningDisplayValue: String? {
+        guard !visibleWarnings.isEmpty else {
+            return nil
+        }
+        if visibleWarnings.count == 1 {
+            return visibleWarnings[0]
+        }
+        return visibleWarnings.joined(separator: "\n")
+    }
     private var routingDraftIsDirty: Bool { appState.isRoutingDraftDirty(routingDraft, for: pending) }
+    private var hasUnsavedInfoDraft: Bool { draft != appState.pendingDisplayDraft(for: pending) }
+    private var channelKeys: [String] {
+        routingSnapshot.scopes
+            .map(\.scope)
+            .filter { $0 != "file" }
+    }
+    private var isChannelLevelMapping: Bool {
+        routingSnapshot.mode == .channelLevel
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Pending Import Workspace")
-                .font(.title2.bold())
-
-                GroupBox("File Metadata") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        MetadataValueRow(label: "Workflow", value: pending.workflow.rawValue)
-                        MetadataValueRow(label: "File", value: pending.fileName)
-                        MetadataValueRow(label: "Stored Path", value: pending.sourceFilePath, monospaced: true)
-                        MetadataValueRow(label: "Original Path", value: pending.originalFilePath ?? "Unknown", monospaced: true)
-                        MetadataValueRow(label: "Status", value: pending.status.rawValue)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                GroupBox("Confirm Values") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        EditableMetadataField(
-                            label: "Batch",
-                            value: $draft.batchName,
-                            isAuto: isAutoValue(draft.batchName, parsed: autoValues.batchName)
-                        )
-                        EditableMetadataField(
-                            label: "Sample",
-                            value: $draft.sampleName,
-                            isAuto: isAutoValue(draft.sampleName, parsed: autoValues.sampleName)
-                        )
-                        EditableMetadataField(
-                            label: "Measurement",
-                            value: $draft.measurementName,
-                            isAuto: isAutoValue(draft.measurementName, parsed: autoValues.measurementName)
-                        )
-                        EditableMetadataField(
-                            label: "Device",
-                            value: $draft.deviceName,
-                            isAuto: isAutoValue(draft.deviceName, parsed: autoValues.deviceName)
-                        )
-                        EditableMetadataField(
-                            label: "Temperature",
-                            value: $draft.temperature,
-                            isAuto: isAutoValue(draft.temperature, parsed: autoValues.temperature)
-                        )
-
-                        if !infoTags.isEmpty {
-                            MetadataValueRow(label: "Info Tags", value: infoTags.joined(separator: " | "))
+        VStack(alignment: .leading, spacing: 12) {
+            GroupBox("Deposit Mapping") {
+                VStack(alignment: .leading, spacing: 10) {
+                    if isChannelLevelMapping {
+                        ForEach(channelKeys, id: \.self) { channel in
+                            mappingRow(
+                                label: "\(channel) Sample",
+                                sample: Binding(
+                                    get: { editableSampleForChannel(channel) },
+                                    set: { setEditableSampleForChannel(channel, to: $0) }
+                                ),
+                                drawer: savedDrawerForChannel(channel)
+                            )
                         }
-
-                        if !displayWarnings.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Parser Warnings")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-
-                                ForEach(displayWarnings, id: \.self) { warning in
-                                    Text(warning)
-                                        .font(.footnote)
-                                        .foregroundStyle(.orange)
-                                        .lineLimit(nil)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                            }
+                        if !routingSnapshot.unresolvedScopes.isEmpty {
+                            MetadataValueRow(label: "Unresolved", value: routingSnapshot.unresolvedScopes.joined(separator: ", "))
                         }
+                    } else {
+                        mappingRow(label: "Sample", sample: $draft.sampleName, drawer: savedDrawerForFile())
+                        MetadataValueRow(label: "Channel Info", value: fileLevelChannelInfo())
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
-                GroupBox("Channel Routing Preview") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        GroupBox("Routing Draft (Save To Recompute)") {
-                            VStack(alignment: .leading, spacing: 8) {
-                                EditableMetadataField(
-                                    label: "Default Sample",
-                                    value: Binding(
-                                        get: { routingDraft.defaultSampleKey },
-                                        set: { routingDraft.defaultSampleKey = $0 }
-                                    )
-                                )
-
-                                if pending.parsedHints.channelHints.isEmpty {
-                                    Text("No channel keys detected in filename.")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                } else {
-                                    ForEach(pending.parsedHints.channelHints) { hint in
-                                        EditableMetadataField(
-                                            label: "\(hint.channel) Sample",
-                                            value: Binding(
-                                                get: { routingDraft.channelSampleKeyOverrides[hint.channel] ?? "" },
-                                                set: { routingDraft.channelSampleKeyOverrides[hint.channel] = $0 }
-                                            )
-                                        )
-                                    }
-                                }
-
-                                HStack {
-                                    Button("Save Routing Draft") {
-                                        appState.saveRoutingDraft(routingDraft, for: pending.id)
-                                        routingDraft = appState.routingDraft(for: pending)
-                                    }
-                                    .disabled(!routingDraftIsDirty)
-
-                                    Button("Revert To Parsed Baseline") {
-                                        let baseline = appState.routingDraftBaseline(for: pending)
-                                        appState.saveRoutingDraft(baseline, for: pending.id)
-                                        routingDraft = baseline
-                                    }
-
-                                    Text("Route preview updates only after save.")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-
-                                Text(routingDraftIsDirty ? "Draft has unsaved changes" : "Draft saved")
-                                    .font(.caption)
-                                    .foregroundStyle(routingDraftIsDirty ? .orange : .green)
-                            }
+            GroupBox("File Tags") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .top, spacing: 12) {
+                        EditableMetadataField(label: "Workflow", value: $draft.workflowTag)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-
-                        HStack(spacing: 8) {
-                            Text("Route Status")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(routePlan.status.rawValue)
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(routePlan.status == .applyReady ? .green : .orange)
-                        }
-
-                        if routePlan.channelResolutions.isEmpty {
-                            Text("No channel-level routing signals detected.")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
+                        EditableMetadataField(label: "Device", value: $draft.deviceName)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    HStack(alignment: .top, spacing: 12) {
+                        EditableMetadataField(label: "Temperature", value: $draft.temperature)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if let warningDisplayValue {
+                            MetadataValueRow(label: "Warnings", value: warningDisplayValue)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         } else {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Channel Resolution")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                ForEach(Array(routePlan.channelResolutions.enumerated()), id: \.offset) { _, resolution in
-                                    Text(channelResolutionSummary(resolution))
-                                        .font(.footnote)
-                                        .lineLimit(nil)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                            }
-                        }
-
-                        if !routePlan.targets.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Sample Targets")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                ForEach(routePlan.targets) { target in
-                                    Text("sample \(target.sampleKey): \(target.channels.joined(separator: ", "))")
-                                        .font(.footnote)
-                                }
-                            }
-                        }
-
-                        if !routePlan.unresolvedChannels.isEmpty {
-                            Text("Unresolved: \(routePlan.unresolvedChannels.joined(separator: ", "))")
-                                .font(.footnote)
-                                .foregroundStyle(.orange)
-                                .lineLimit(nil)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        if !routePlan.conflicts.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Route Conflicts")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                ForEach(routePlan.conflicts, id: \.self) { conflict in
-                                    Text(conflict)
-                                        .font(.footnote)
-                                        .foregroundStyle(.orange)
-                                        .lineLimit(nil)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                            }
+                            Color.clear
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-
-                GroupBox("Project Selection") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Picker("Existing Project", selection: $draft.selectedExistingProjectName) {
-                            Text(PendingImportConfirmationDraft.noProjectOption).tag(PendingImportConfirmationDraft.noProjectOption)
-                            ForEach(appState.knownProjectNames, id: \.self) { projectName in
-                                Text(projectName).tag(projectName)
-                            }
-                        }
-                        HStack(alignment: .top, spacing: 8) {
-                            EditableMetadataField(label: "New Project", value: $draft.newProjectName)
-
-                            Button("Create Project") {
-                                if let createdName = appState.createProject(named: draft.newProjectName) {
-                                    draft.selectedExistingProjectName = createdName
-                                    draft.newProjectName = ""
-                                }
-                            }
-                            .disabled(draft.newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        }
-                        Text("Project is selected during confirmation and is never treated as filename truth.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(nil)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                GroupBox("Imported File Review") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Measurement files are copied into SpinLab managed storage. Review or edit the imported text in a separate window before confirmation.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(nil)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        HStack {
-                            Button("Review Imported File") {
-                                isPresentingFileReview = true
-                            }
-
-                            Text(hasEditableFileContents ? "Editable text preview available" : "This file is not currently readable as editable text")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(nil)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
             HStack {
-                Button("Open In Workbench") {
-                    appState.openPendingImportInWorkbench()
+                Button("Save Draft") {
+                    draft.sampleName = normalizedSampleDisplay(draft.sampleName)
+                    var nextRoutingDraft = routingDraft
+                    let trimmedSample = draft.sampleName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmedSample.isEmpty {
+                        nextRoutingDraft.defaultSampleKey = trimmedSample
+                    }
+                    appState.saveRoutingDraft(nextRoutingDraft, for: pending.id)
+                    routingDraft = appState.routingDraft(for: pending)
+                    persistDraftState()
+                }
+                .disabled(!routingDraftIsDirty && !hasUnsavedInfoDraft)
+
+                Button("Revert Draft") {
+                    draft = appState.pendingDisplayDraft(for: pending)
+                    draft.sampleName = normalizedSampleDisplay(draft.sampleName)
+                    let baseline = appState.routingDraftBaseline(for: pending)
+                    appState.saveRoutingDraft(baseline, for: pending.id)
+                    routingDraft = baseline
+                    persistDraftState()
                 }
 
-                Button("Confirm And Archive") {
-                    appState.confirmSelectedPendingImport(
-                        with: draft,
-                        editedFileContents: hasEditableFileContents ? editableFileContents : nil
-                    )
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!draft.isValid)
+                Button("Apply") {}
+                    .buttonStyle(.borderedProminent)
+                    .disabled(true)
+
+                Text("Apply will be enabled in V2.3 to write file + tags into the matched Library drawer.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 4)
         }
         .onAppear {
-            refreshDisplay(keepCurrentDraft: false)
-            restoreWorkspaceState()
+            restoreDraftState()
         }
         .onChange(of: pending.id) { _, _ in
-            refreshDisplay(keepCurrentDraft: false)
-            restoreWorkspaceState()
+            restoreDraftState()
         }
-        .onChange(of: appState.pendingImports) { _, _ in
-            refreshDisplay()
-        }
-        .onChange(of: appState.registrySourceFilePath) { _, _ in
-            refreshDisplay()
+        .onChange(of: pending.parsedHints) { _, _ in
+            restoreDraftState()
         }
         .onChange(of: draft) { _, _ in
-            persistWorkspaceState()
+            persistDraftState()
         }
         .onChange(of: routingDraft) { _, _ in
-            persistWorkspaceState()
-        }
-        .onChange(of: editableFileContents) { _, _ in
-            persistWorkspaceState()
-        }
-        .onChange(of: hasEditableFileContents) { _, _ in
-            persistWorkspaceState()
-        }
-        .sheet(isPresented: $isPresentingFileReview) {
-            ImportedFileReviewSheet(
-                fileName: pending.fileName,
-                editableFileContents: $editableFileContents,
-                hasEditableFileContents: hasEditableFileContents
-            )
-            .frame(minWidth: 720, minHeight: 520)
+            persistDraftState()
         }
     }
 
-    private func isAutoValue(_ value: String, parsed: String?) -> Bool {
-        guard let parsed else {
-            return false
-        }
-        let trimmedParsed = parsed.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedParsed.isEmpty else {
-            return false
-        }
-        return value.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedParsed
-    }
-
-    private func refreshDisplay(keepCurrentDraft: Bool = true) {
-        if !keepCurrentDraft {
-            draft = appState.pendingDisplayDraft(for: pending)
-        }
-        routingDraft = appState.routingDraft(for: pending)
-        autoValues = appState.pendingDisplayAutoValues(for: pending)
-        displayWarnings = appState.pendingDisplayWarnings(for: pending)
-        infoTags = appState.pendingDisplayInfoTags(for: pending)
-    }
-
-    private func restoreWorkspaceState() {
+    private func restoreDraftState() {
+        let baseDraft = appState.pendingDisplayDraft(for: pending)
+        let baseRoutingDraft = appState.routingDraft(for: pending)
         if let restored = appState.interactionEntryValue(for: pending.id, in: \.inboxWorkspaceByPendingID) {
             draft = restored.draft
-            editableFileContents = restored.editableFileContents
-            hasEditableFileContents = restored.hasEditableFileContents
-            if let restoredRoutingDraft = restored.routingDraft {
-                routingDraft = restoredRoutingDraft
-                appState.saveRoutingDraft(restoredRoutingDraft, for: pending.id)
-            }
+            draft.sampleName = normalizedSampleDisplay(draft.sampleName)
+            routingDraft = restored.routingDraft ?? baseRoutingDraft
             return
         }
-
-        if let contents = appState.pendingImportEditableContents(for: pending) {
-            editableFileContents = contents
-            hasEditableFileContents = true
-        } else {
-            editableFileContents = ""
-            hasEditableFileContents = false
-        }
-        persistWorkspaceState()
+        draft = baseDraft
+        draft.sampleName = normalizedSampleDisplay(draft.sampleName)
+        routingDraft = baseRoutingDraft
     }
 
-    private func persistWorkspaceState() {
+    private func persistDraftState() {
+        let existing = appState.interactionEntryValue(for: pending.id, in: \.inboxWorkspaceByPendingID)
         appState.updateInteractionEntryValue(
             for: pending.id,
             in: \.inboxWorkspaceByPendingID,
             value: InboxPendingWorkspaceState.snapshotSafe(
                 draft: draft,
-                editableFileContents: editableFileContents,
-                hasEditableFileContents: hasEditableFileContents,
+                editableFileContents: existing?.editableFileContents ?? "",
+                hasEditableFileContents: existing?.hasEditableFileContents ?? false,
                 routingDraft: routingDraft
             )
         )
     }
 
-    private func channelResolutionSummary(_ resolution: SpinLabDomain.RouteChannelResolution) -> String {
-        var parts: [String] = []
-        let sample = resolution.sampleKey ?? "unresolved"
-        parts.append("\(resolution.channel) -> \(sample)")
-        parts.append("[\(resolution.source)]")
-
-        if !resolution.tags.isEmpty {
-            parts.append("tags: \(resolution.tags.joined(separator: ", "))")
-        }
-        if let warning = resolution.warning {
-            parts.append("warning: \(warning)")
-        }
-        return parts.joined(separator: " | ")
+    private func displayOrDash(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "—" : trimmed
     }
-}
 
-private struct CreateProjectSheet: View {
-    @EnvironmentObject private var appState: SpinLabAppState
-    @Environment(\.dismiss) private var dismiss
-    @State private var projectName = ""
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Create Project")
-                .font(.title3.bold())
-
-            EditableMetadataField(label: "Project Name", value: $projectName)
-
-            HStack {
-                Spacer()
-
-                Button("Cancel") {
-                    dismiss()
-                }
-
-                Button("Create") {
-                    if appState.createProject(named: projectName) != nil {
-                        dismiss()
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(projectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
+    private func editableSampleForChannel(_ channel: String) -> String {
+        if let override = routingDraft.channelSampleKeyOverrides[channel], !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return override
         }
-        .padding(20)
+        if let sample = scopeEvaluation(channel)?.sampleKey,
+           !sample.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return sample
+        }
+        return draft.sampleName
     }
-}
 
-private struct ImportedFileReviewSheet: View {
-    let fileName: String
-    @Binding var editableFileContents: String
-    let hasEditableFileContents: Bool
-    @Environment(\.dismiss) private var dismiss
+    private func setEditableSampleForChannel(_ channel: String, to value: String) {
+        routingDraft.channelSampleKeyOverrides[channel] = value
+    }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(fileName)
-                .font(.title3.bold())
-                .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
+    private func savedDrawerForFile() -> String {
+        scopeEvaluation("file")?.matchedDrawer ?? "?"
+    }
 
-            if hasEditableFileContents {
-                TextEditor(text: $editableFileContents)
-                    .font(.system(.body, design: .monospaced))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                Text("This imported file could not be loaded as editable text.")
+    private func savedDrawerForChannel(_ channel: String) -> String {
+        scopeEvaluation(channel)?.matchedDrawer ?? "?"
+    }
+
+    private func fileLevelChannelInfo() -> String {
+        if !pending.parsedHints.channelHints.isEmpty {
+            return pending.parsedHints.channelHints.map { hint in
+                let label = hint.testInfoTags.first ?? hint.tags.first ?? "test"
+                return "\(hint.channel)=\(label)"
+            }.joined(separator: ", ")
+        }
+        return "No channel-level hints"
+    }
+
+    private func scopeEvaluation(_ scope: String) -> SpinLabDomain.RoutingScopeEvaluation? {
+        routingSnapshot.scopes.first(where: { $0.scope == scope })
+    }
+
+    private func normalizedSampleDisplay(_ sample: String) -> String {
+        let trimmed = sample.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+
+        if trimmed.contains("-") {
+            let parts = trimmed.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+            guard parts.count == 2 else { return trimmed }
+            let left = String(parts[0]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let right = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !left.isEmpty, !right.isEmpty else { return trimmed }
+            return "\(left) - \(right)"
+        }
+
+        let parts = trimmed.split(whereSeparator: \.isWhitespace)
+        guard parts.count >= 2 else { return trimmed }
+        let head = String(parts[0])
+        let hasBatchLikeHead = head.rangeOfCharacter(from: .decimalDigits) != nil
+        guard hasBatchLikeHead else { return trimmed }
+        let tail = parts.dropFirst().joined(separator: " ")
+        return tail.isEmpty ? trimmed : "\(head) - \(tail)"
+    }
+
+    @ViewBuilder
+    private func mappingRow(label: String, sample: Binding<String>, drawer: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            EditableMetadataField(label: label, value: sample)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Image(systemName: "arrow.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.top, 8)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Drawer")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
+                Text(drawer)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(drawer == "?" ? .orange : .primary)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
-                Spacer()
             }
-
-            HStack {
-                Spacer()
-                Button("Done") {
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-            }
+            .frame(minWidth: 120, maxWidth: 220, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.secondary.opacity(0.08))
+            )
         }
-        .padding(20)
     }
+
 }
 
 private struct RegistryStatusColumn: View {

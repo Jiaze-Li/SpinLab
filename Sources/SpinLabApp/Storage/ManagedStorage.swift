@@ -2,7 +2,7 @@ import Foundation
 
 struct ImportedMeasurementFile {
     let fileName: String
-    let managedFileURL: URL
+    let sourceFileURL: URL
     let originalFileURL: URL
 }
 
@@ -20,7 +20,6 @@ final class SpinLabManagedStorage {
         }
 
         try? fileManager.createDirectory(at: self.rootURL, withIntermediateDirectories: true)
-        try? fileManager.createDirectory(at: measurementsDirectoryURL, withIntermediateDirectories: true)
         try? fileManager.createDirectory(at: registryDirectoryURL, withIntermediateDirectories: true)
     }
 
@@ -53,7 +52,29 @@ final class SpinLabManagedStorage {
             guard seenInCurrentBatch.insert(originalPath).inserted else {
                 return nil
             }
-            return importMeasurementFile(from: sourceURL)
+            return ImportedMeasurementFile(
+                fileName: sourceURL.lastPathComponent,
+                sourceFileURL: sourceURL,
+                originalFileURL: sourceURL
+            )
+        }
+    }
+
+    func isManagedMeasurementPath(_ path: String) -> Bool {
+        normalizedPath(path).hasPrefix(measurementsDirectoryURL.standardizedFileURL.path + "/")
+    }
+
+    func clearManagedMeasurementCopies() {
+        guard let urls = try? fileManager.contentsOfDirectory(
+            at: measurementsDirectoryURL,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else {
+            return
+        }
+
+        for url in urls {
+            try? fileManager.removeItem(at: url)
         }
     }
 
@@ -89,26 +110,6 @@ final class SpinLabManagedStorage {
                 return lhsDate > rhsDate
             }
             .first
-    }
-
-    private func importMeasurementFile(from url: URL) -> ImportedMeasurementFile? {
-        let sanitizedName = sanitizedFileName(url.lastPathComponent)
-        let uniqueName = "\(UUID().uuidString)-\(sanitizedName)"
-        let destinationURL = measurementsDirectoryURL.appending(path: uniqueName)
-
-        do {
-            if fileManager.fileExists(atPath: destinationURL.path) {
-                try fileManager.removeItem(at: destinationURL)
-            }
-            try fileManager.copyItem(at: url, to: destinationURL)
-            return ImportedMeasurementFile(
-                fileName: url.lastPathComponent,
-                managedFileURL: destinationURL,
-                originalFileURL: url
-            )
-        } catch {
-            return nil
-        }
     }
 
     private func sanitizedFileName(_ fileName: String) -> String {

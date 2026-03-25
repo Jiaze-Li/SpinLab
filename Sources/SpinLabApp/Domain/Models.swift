@@ -3,8 +3,13 @@ import Foundation
 enum SpinLabDomain { }
 
 extension SpinLabDomain {
+    enum RoutingScopeMode: String, Codable, Hashable {
+        case fileLevel = "file-level"
+        case channelLevel = "channel-level"
+    }
+
     enum RouteStatus: String, Codable, Hashable, CaseIterable, Identifiable {
-        case applyReady = "apply-ready"
+        case libraryMatched = "library-matched"
         case reviewRequired = "review-required"
 
         var id: String { rawValue }
@@ -32,11 +37,34 @@ extension SpinLabDomain {
         var conflicts: [String] = []
     }
 
+    struct RoutingScopeEvaluation: Codable, Hashable, Identifiable {
+        var id: String { scope }
+        var scope: String
+        var sampleKey: String?
+        var matchedDrawer: String?
+        var tags: [String] = []
+        var warning: String?
+
+        var isMatched: Bool {
+            matchedDrawer != nil
+        }
+    }
+
+    struct PendingRoutingSnapshot: Codable, Hashable {
+        var mode: RoutingScopeMode
+        var verdict: RouteStatus
+        var scopes: [RoutingScopeEvaluation] = []
+        var unresolvedScopes: [String] = []
+        var conflicts: [String] = []
+        var routePlan: RoutePlan
+    }
+
     struct ParsedChannelHint: Codable, Hashable, Identifiable {
         var id: String { channel }
         var channel: String
         var sampleID: String?
         var tags: [String] = []
+        var testInfoTags: [String] = []
     }
 
     enum WorkflowKind: String, Codable, CaseIterable, Hashable, Identifiable {

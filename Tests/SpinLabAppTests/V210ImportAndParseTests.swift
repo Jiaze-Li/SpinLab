@@ -44,7 +44,7 @@ struct V210ImportAndParseTests {
         let managedURL = temp.appendingPathComponent("\(UUID().uuidString)-sample.gph")
         let file = ImportedMeasurementFile(
             fileName: "sample.gph",
-            managedFileURL: managedURL,
+            sourceFileURL: managedURL,
             originalFileURL: sourceURL
         )
 
@@ -65,6 +65,30 @@ struct V210ImportAndParseTests {
         #expect(parsed.folderDerivedSampleKeys == ["PN40"])
         #expect(parsed.temperature == nil)
         #expect(parsed.current == "1mA")
+    }
+
+    @Test("parser keeps channel substrate tags out of file-level substrate tags")
+    func parserSeparatesFileAndChannelScopesByFirstChannelToken() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/RT_1mA_ch1_PN36_ch2_PN36_HF_STO111_ch3_PN37_wafer.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.substrateTags.isEmpty)
+        #expect(parsed.channelHints.count == 3)
+
+        let ch1 = parsed.channelHints.first(where: { $0.channel == "ch1" })
+        #expect(ch1?.sampleID == "PN36")
+        #expect(ch1?.tags.isEmpty == true)
+
+        let ch2 = parsed.channelHints.first(where: { $0.channel == "ch2" })
+        #expect(ch2?.sampleID == "PN36")
+        #expect(ch2?.tags == ["HF", "STO111"])
+
+        let ch3 = parsed.channelHints.first(where: { $0.channel == "ch3" })
+        #expect(ch3?.sampleID == "PN37")
+        #expect(ch3?.tags.isEmpty == true)
     }
 
     private func loadBundledRuleSetForTests() throws -> FilenameRuleSet {

@@ -9,7 +9,8 @@ This file is the entry point for all active implementation rules.
 2. `docs/specs/02_DATA_RULES.md`
 3. `docs/specs/03_PARSER_ROUTING_RULES.md`
 4. `docs/specs/04_UI_RULES.md`
-5. `docs/specs/APP_DESIGN_PRINCIPLES.md`
+5. `docs/specs/05_INBOX_DEPOSIT_UI_SPEC.md`
+6. `docs/specs/APP_DESIGN_PRINCIPLES.md`
 
 If two rules conflict, the higher-priority file above wins.
 
@@ -18,6 +19,7 @@ If two rules conflict, the higher-priority file above wins.
 - `02_DATA_RULES.md`: domain objects, metadata schema, normalization, and persistence ownership.
 - `03_PARSER_ROUTING_RULES.md`: parse/routing logic contract for Inbox -> Library.
 - `04_UI_RULES.md`: layout and interaction rules only.
+- `05_INBOX_DEPOSIT_UI_SPEC.md`: detailed Inbox deposit UI flow, mapping semantics, and button behavior contract.
 - `APP_DESIGN_PRINCIPLES.md`: long-term philosophy and architectural direction.
 
 ## Archived specs

@@ -147,7 +147,7 @@ Build the core data pipeline `Parse -> Editable Draft -> Route Plan` without exe
 - optional manual `Recompute Route` remains available for batch/recovery flows
 6. Unified routing rule:
 - `channelSampleKey ?? defaultSampleKey ?? folderDerivedSampleKey`
-7. Non-unique/conflicting routes must become `review-required`, not `apply-ready`.
+7. Non-unique/conflicting routes must become `review-required`, not `library-matched`.
 
 **Test scenarios & acceptance criteria**
 1. `XY_90shift_80K_PN38_HF_STO111_wafer_ch2_AMR_ch3_PHE_8T_1mA`
@@ -155,7 +155,7 @@ Build the core data pipeline `Parse -> Editable Draft -> Route Plan` without exe
 2. `RT_1mA_ch1_PN36_ch2_PN36_HF_STO111_ch3_PN37_wafer`
 - Acceptance: route plan contains both `PN36` and `PN37` targets.
 3. Filename-missing sample with unique parent-derived sample
-- Acceptance: route becomes apply-ready.
+- Acceptance: route becomes library-matched.
 4. Non-unique parent-derived sample
 - Acceptance: route becomes review-required.
 5. `.gph` inputs
@@ -168,7 +168,7 @@ Build the core data pipeline `Parse -> Editable Draft -> Route Plan` without exe
 - `RouteLayer` (route planning only)
 - `DraftState` (editable draft state + dirty tracking)
 2. Keep `SpinLabAppState` orchestration-only for these modules.
-3. Introduce explicit route status enum (`applyReady`, `reviewRequired`).
+3. Introduce explicit route status enum (`libraryMatched`, `reviewRequired`).
 
 **V2.1 staged micro versions (execution order)**
 1. `V2.1.0` Parse baseline
@@ -176,7 +176,7 @@ Build the core data pipeline `Parse -> Editable Draft -> Route Plan` without exe
 - Parse sources fixed to file/parent/grandparent
 - Produce normalized parse payload: workflow, default sample key, channel bindings, conditions, substrate hints, warnings/conflicts
 2. `V2.1.1` Route planner
-- Add `RoutePlan`, `RouteTarget`, and `RouteStatus` (`applyReady`, `reviewRequired`)
+- Add `RoutePlan`, `RouteTarget`, and `RouteStatus` (`libraryMatched`, `reviewRequired`)
 - Implement unified key resolution: `channelSampleKey ?? defaultSampleKey ?? folderDerivedSampleKey`
 - Support single-target and multi-target fan-out per file
 - Mark unresolved/non-unique/conflicting outcomes as `reviewRequired`
@@ -236,13 +236,92 @@ Refactor Inbox UI into the same 3-column interaction model as Library and comple
 2. Add dedicated view models for inspector and route review blocks.
 3. UI dispatches actions via explicit intent handlers; no filesystem logic in views.
 
+**V2.2 staged micro versions (execution order)**
+1. `V2.2.0` Inbox layout refactor + operation blocks
+- Status: `acceptance-ready` (closing preparation)
+- Keep global app shell unchanged:
+  - left: global navigation (Inbox / Workbench / Library)
+  - middle: Inbox operation blocks
+  - right: reserved extension area (currently blank placeholder)
+- Inbox middle operation blocks (current):
+  - Registry
+  - File
+  - Selection Workbench (inside `File`)
+- Operation blocks are collapsible and persisted via interaction memory.
+- Keep V2.1 routing semantics:
+  - `Save Draft` acts as the explicit refresh gate for mapping/routing display.
+  - no mandatory two-step `Confirm & Recompute Route` gate in V2.2.0.
+- Relocate Inbox primary actions into operation blocks:
+  - `Load Registry`, `Import Files`, `Clear Imports`, `Recompute Route`
+- Remove `Create Project` from Inbox primary workflow surface.
+- Remove standalone `Routing Review` and standalone `Apply` side blocks; keep single `Apply` placeholder button in Selection Workbench.
+- Use drawer-oriented mapping UI:
+  - editable sample/channel sample on left
+  - mapped drawer on right
+  - mapping shown as saved-result view (`Save Draft`/`Revert Draft` refreshes mapping; no per-keystroke remap)
+- Drawer display rule:
+  - show full matched drawer name only
+  - show `?` when unresolved or no existing drawer match
+- Drawer match rule:
+  - token-set coverage match (`PN39`, `HF`, `STO`, `111` style token sets)
+  - unique candidate required for successful match
+  - ambiguous or no match -> `?`
+- Inbox registry lookup isolation rule:
+  - system sheets (`__*`) are excluded from sample lookup indexing
+  - only sheets with recognized sample column are indexed
+  - lookup path is `sampleID -> indexed rows` (prefix map is display-only metadata)
+
+Acceptance:
+- New 3-column Inbox interaction model is functional.
+- Operation blocks can collapse/expand and restore after relaunch.
+- Save draft/revert remains the explicit mapping refresh gate.
+- `Clear Imports` only clears pending queue and unarchived temp scope.
+- No library apply/archive write behavior added in this version.
+
+Current checkpoint marker (not final):
+- V2.2.0 is in acceptance and document reconciliation stage.
+- If acceptance passes, close V2.2.0 and move to V2.2.1.
+- Testing framework migration note (2026-03-25):
+  - Current development baseline stays on `swift-tools-version: 5.9` + external `swift-testing` dependency, so feature delivery remains stable and test runs stay green.
+  - The `@Suite/@Test` deprecation warning is acknowledged and accepted for now (non-blocking).
+  - Migration to Swift 6 built-in `Testing` should be executed as a dedicated follow-up track after core app workflow milestones are stable.
+  - Do not mix this migration with feature iterations; treat it as a separate technical migration round with its own acceptance gate.
+- Queue status contract for current iteration:
+  - Root definition: `library-matched` / `review-required` is decided by whether parsed routing can map to required existing Library drawer target(s).
+  - File-level delivery: file-level target drawer exists -> `library-matched`; otherwise `review-required`.
+  - Channel-level delivery: every reported channel must map to its own drawer target; any channel that cannot be uniquely mapped -> `review-required`.
+  - Route unresolved metadata alone does not force `review-required` when final drawer mapping is still unique and valid.
+  - Completion boundary: file-level sample info may complete missing channel sample info; channel-to-channel cross-completion is not allowed.
+- V2.2.0 development process record:
+  - Step A: complete center-column operation layout and button relocation.
+  - Step B: stabilize save-gated routing refresh and draft isolation by pending item.
+  - Step C: isolate Inbox registry lookup rules into dedicated interfaces and remove sheet-level misrouting risk.
+
+2. `V2.2.1` Inspector completeness + extension seam finalization
+- Status: `planned`
+- Right inspector shows:
+  - file metadata
+  - parsed baseline (read-only)
+  - editable draft (file-level + channel-level)
+  - parse-vs-edit diffs
+  - warnings
+  - route status/targets/conflicts
+- Finalize left-sidebar extension seam for future module submenus:
+  - Inbox currently provides no submenu entries.
+- Keep Apply as UI placeholder only (no V2.3 execution behavior).
+
+Acceptance:
+- Inspector content is complete and isolated per pending item.
+- Sidebar extension seam is available for future workflow menus.
+- Apply remains non-executable in V2.2.
+
 ## V2.3
 **Goal (one line)**
 Implement transactional `Apply Selected` and `Apply All` from Inbox route plans to Library sample drawers.
 
 **Detailed requirements**
 1. `Apply Selected` unit is a file.
-2. `Apply All` processes apply-ready items only; skips review-required items.
+2. `Apply All` processes library-matched items only; skips review-required items.
 3. Single file can fan out to multiple sample drawers.
 4. Multi-target apply must be atomic per file (rollback all targets if one fails).
 5. File body must be copied into each target sample drawer for immediate access.
@@ -255,8 +334,8 @@ Implement transactional `Apply Selected` and `Apply All` from Inbox route plans 
 - Acceptance: file appears in all target sample drawers.
 3. Inject failure for one target in multi-target apply
 - Acceptance: no target keeps partial artifact (rollback verified).
-4. Mixed queue apply-all (apply-ready + review-required)
-- Acceptance: apply-ready items applied; review-required unchanged.
+4. Mixed queue apply-all (library-matched + review-required)
+- Acceptance: library-matched items applied; review-required unchanged.
 
 **Code structure design**
 1. Introduce `InboxArchiveApplyService` as single write execution entry.
