@@ -17,6 +17,7 @@
 | `specs/02_DATA_RULES.md` | Domain model, metadata ownership, normalization rules. | active |
 | `specs/03_PARSER_ROUTING_RULES.md` | Inbox parse/routing rules and conflict behavior. | active |
 | `specs/04_UI_RULES.md` | UI layout and interaction rules. | active |
+| `specs/05_INBOX_DEPOSIT_UI_SPEC.md` | Inbox deposit UI flow, button semantics, and drawer-mapping contract. | active |
 | `specs/APP_DESIGN_PRINCIPLES.md` | Long-term architecture and product philosophy. | active |
 
 ## runtime rules (agent execution policy)

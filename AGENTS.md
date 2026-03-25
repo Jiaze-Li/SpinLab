@@ -36,6 +36,7 @@ UI-only change isolation checklist (required):
 - UI-only requests must not change parser/state/registry/service/store logic.
 - UI-only requests must not alter behavior of unrelated functional partitions.
 - Scope UI edits to the explicitly requested partition/component only.
+- UI should minimize repeated or low-value information; avoid presenting the same facts in multiple panels unless each instance serves a distinct workflow purpose.
 
 Architecture principle:
 Add features through extension modules:

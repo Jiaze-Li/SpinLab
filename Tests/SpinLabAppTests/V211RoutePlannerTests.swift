@@ -19,7 +19,7 @@ struct V211RoutePlannerTests {
 
         let plan = SpinLabRoutePlanner().makeRoutePlan(from: parsed)
 
-        #expect(plan.status == .applyReady)
+        #expect(plan.status == .libraryMatched)
         #expect(plan.targets.count == 2)
         #expect(plan.targets.first(where: { $0.sampleKey == "PN36 - STO(111)" })?.channels == ["ch1", "ch2"])
         #expect(plan.targets.first(where: { $0.sampleKey == "PN37 - NGO(110)" })?.channels == ["ch3"])
@@ -27,8 +27,8 @@ struct V211RoutePlannerTests {
         #expect(plan.conflicts.isEmpty)
     }
 
-    @Test("ambiguous folder-derived sample keys require review")
-    func ambiguousFolderSampleKeysRequireReview() {
+    @Test("channel substrate token can resolve without explicit batch token")
+    func channelSubstrateTokenResolvesWithoutBatch() {
         let parsed = SpinLabDomain.ParsedFilenameHints(
             defaultSampleKey: nil,
             folderDerivedSampleKeys: ["PN40", "PN41"],
@@ -40,14 +40,13 @@ struct V211RoutePlannerTests {
 
         let plan = SpinLabRoutePlanner().makeRoutePlan(from: parsed)
 
-        #expect(plan.status == .reviewRequired)
-        #expect(plan.targets.isEmpty)
-        #expect(plan.unresolvedChannels == ["ch1"])
-        #expect(plan.conflicts.contains(where: { $0.contains("non-unique") }))
+        #expect(plan.status == .libraryMatched)
+        #expect(plan.targets.first?.sampleKey == "STO(001)")
+        #expect(plan.unresolvedChannels.isEmpty)
     }
 
-    @Test("batch name is never used as routing fallback")
-    func batchNameIsNotRoutingFallback() {
+    @Test("file-level routing allows partial substrate-only token")
+    func fileLevelAllowsSubstrateOnlyToken() {
         let parsed = SpinLabDomain.ParsedFilenameHints(
             batchName: "B2404",
             defaultSampleKey: nil,
@@ -59,13 +58,13 @@ struct V211RoutePlannerTests {
 
         let plan = SpinLabRoutePlanner().makeRoutePlan(from: parsed)
 
-        #expect(plan.status == .reviewRequired)
-        #expect(plan.targets.isEmpty)
-        #expect(plan.unresolvedChannels == ["file"])
+        #expect(plan.status == .libraryMatched)
+        #expect(plan.targets.first?.sampleKey == "STO(001)")
+        #expect(plan.unresolvedChannels.isEmpty)
     }
 
-    @Test("missing substrate keeps channel unresolved even with batch key")
-    func missingSubstrateRequiresReview() {
+    @Test("batch token alone is valid filetoken")
+    func batchOnlyTokenIsValid() {
         let parsed = SpinLabDomain.ParsedFilenameHints(
             defaultSampleKey: "PN14",
             folderDerivedSampleKeys: [],
@@ -77,10 +76,9 @@ struct V211RoutePlannerTests {
 
         let plan = SpinLabRoutePlanner().makeRoutePlan(from: parsed)
 
-        #expect(plan.status == .reviewRequired)
-        #expect(plan.targets.isEmpty)
-        #expect(plan.unresolvedChannels == ["ch2"])
-        #expect(plan.channelResolutions.first?.warning == "Missing substrate identity.")
+        #expect(plan.status == .libraryMatched)
+        #expect(plan.targets.first?.sampleKey == "PN14")
+        #expect(plan.unresolvedChannels.isEmpty)
     }
 
     @Test("explicit sample identity input is accepted directly")
@@ -97,7 +95,7 @@ struct V211RoutePlannerTests {
 
         let plan = SpinLabRoutePlanner().makeRoutePlan(from: parsed)
 
-        #expect(plan.status == .applyReady)
+        #expect(plan.status == .libraryMatched)
         #expect(plan.targets.count == 1)
         #expect(plan.targets.first?.sampleKey == "PN14 - STO(111)")
     }

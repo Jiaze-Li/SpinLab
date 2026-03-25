@@ -10,7 +10,7 @@ struct RootSplitView: View {
     @State private var isPresentingDeleteDrawerConfirm = false
     private let sidebarTopInset: CGFloat = 64
     private let standardDetailTopInset: CGFloat = 86
-    private let inboxDetailTopInset: CGFloat = 112
+    private let inboxDetailTopInset: CGFloat = 14
     private let libraryDetailTopInset: CGFloat = 14
 
     var body: some View {

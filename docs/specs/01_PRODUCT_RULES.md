@@ -10,7 +10,7 @@ Status: active
 ## V2 Inbox -> Library contract
 - Inbox supports staged processing: parse, edit, review, then manual apply.
 - `Apply Selected` is per file.
-- `Apply All` processes apply-ready items only and skips review-required items.
+- `Apply All` processes library-matched items only and skips review-required items.
 - Multi-target apply for one file must be atomic with rollback.
 
 ## Safety contract

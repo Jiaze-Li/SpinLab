@@ -55,7 +55,7 @@ private struct ArchivedWorkbenchDetailView: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
-                    MetadataValueRow(label: "Stored File", value: record.measurement.sourceFilePath, monospaced: true)
+                    MetadataValueRow(label: "File Path", value: record.measurement.sourceFilePath, monospaced: true)
                     MetadataValueRow(label: "Original File", value: record.measurement.originalFilePath ?? "Unknown", monospaced: true)
                     MetadataValueRow(label: "Dataset Columns", value: record.dataset.columns.joined(separator: ", "))
                 }

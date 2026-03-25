@@ -24,8 +24,8 @@ struct V212RoutingDraftTests {
         #expect(after.targets.first?.sampleKey == "PN40 - STO(001)")
     }
 
-    @Test("channel sample override has higher priority than default sample")
-    func channelOverrideWinsOverDefaultSample() {
+    @Test("channel sample override takes precedence for that channel token")
+    func channelSampleOverrideTakesPrecedence() {
         let pending = makePendingImport()
         let persistence = MockPersistenceForRoutingDraft(pendingImports: [pending])
         let appState = SpinLabAppState(
@@ -39,8 +39,9 @@ struct V212RoutingDraftTests {
         appState.saveRoutingDraft(draft, for: pending.id)
 
         let plan = appState.pendingRoutePlan(for: pending)
+        #expect(plan.status == .libraryMatched)
         #expect(plan.targets.first?.sampleKey == "PN14 - STO(001)")
-        #expect(plan.channelResolutions.first?.source == "channelSampleKey+substrate")
+        #expect(plan.unresolvedChannels.isEmpty)
     }
 
     @Test("routing draft dirty flag reflects unsaved changes")
@@ -90,6 +91,7 @@ struct V212RoutingDraftTests {
                 batchName: "",
                 sampleName: "",
                 measurementName: "RT",
+                workflowTag: "RT",
                 deviceName: "",
                 temperature: "",
                 selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
@@ -138,12 +140,12 @@ struct V212RoutingDraftTests {
         )
 
         let baseline = appState.routingDraftBaseline(for: pending)
-        #expect(baseline.defaultSampleKey == "PN41 - STO(001)")
+        #expect(baseline.defaultSampleKey == "PN41")
         #expect(baseline.channelSampleKeyOverrides["ch2"] == "")
     }
 
-    @Test("channel override treatment updates route tags and baseline keeps o treatment")
-    func channelOverrideTreatmentUpdatesTagsAndBaselineKeepsO() {
+    @Test("channel sample override updates channel token directly")
+    func channelSampleOverrideUpdatesToken() {
         let pending = SpinLabDomain.PendingImport(
             fileName: "RT_1mA_ch1_ch2_ch3_AMR.dat",
             sourceFilePath: "/tmp/RT_1mA_ch1_ch2_ch3_AMR.dat",
@@ -176,9 +178,9 @@ struct V212RoutingDraftTests {
 
         let plan = appState.pendingRoutePlan(for: pending)
         let ch2 = plan.channelResolutions.first { $0.channel == "ch2" }
+        #expect(plan.status == .libraryMatched)
         #expect(ch2?.sampleKey == "PN44 - HF STO(111)")
-        #expect(ch2?.tags.contains("HF") == true)
-        #expect(ch2?.tags.contains("o") == false)
+        #expect(plan.conflicts.isEmpty)
     }
 
     private func makePendingImport() -> SpinLabDomain.PendingImport {

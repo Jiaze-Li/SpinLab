@@ -51,42 +51,38 @@ final class LibraryDiffEngine {
     }
 
     private func fieldChanges(old: LibrarySample, new: LibrarySample) -> [LibraryFieldChange] {
-        var changes: [LibraryFieldChange] = []
-        let oldMeta = old.metadata
-        let newMeta = new.metadata
-        let keys = Set(oldMeta.keys).union(newMeta.keys)
-        for key in keys.sorted() {
-            let oldValue = oldMeta[key]
-            let newValue = newMeta[key]
-            if oldValue != newValue {
-                let isNumeric = LibraryRegistryParser.normalizeNumericKey(key) != nil
-                changes.append(LibraryFieldChange(key: key, oldValue: oldValue, newValue: newValue, isNumeric: isNumeric))
-            }
-        }
-        return changes
+        metadataFieldChanges(old: old.metadata, new: new.metadata)
     }
 
     private func batchFieldChanges(old: LibraryBatch, new: LibraryBatch) -> [LibraryFieldChange] {
         var changes: [LibraryFieldChange] = []
 
-        if old.displayName != new.displayName {
-            changes.append(LibraryFieldChange(key: "Batch.displayName", oldValue: old.displayName, newValue: new.displayName, isNumeric: false))
+        let oldDisplayName = normalizedFieldValue(old.displayName)
+        let newDisplayName = normalizedFieldValue(new.displayName)
+        if oldDisplayName != newDisplayName {
+            changes.append(
+                LibraryFieldChange(
+                    key: "Batch.displayName",
+                    oldValue: oldDisplayName,
+                    newValue: newDisplayName,
+                    isNumeric: false
+                )
+            )
         }
-        if old.sheetName != new.sheetName {
-            changes.append(LibraryFieldChange(key: "Batch.sheetName", oldValue: old.sheetName, newValue: new.sheetName, isNumeric: false))
+        let oldSheetName = normalizedFieldValue(old.sheetName)
+        let newSheetName = normalizedFieldValue(new.sheetName)
+        if oldSheetName != newSheetName {
+            changes.append(
+                LibraryFieldChange(
+                    key: "Batch.sheetName",
+                    oldValue: oldSheetName,
+                    newValue: newSheetName,
+                    isNumeric: false
+                )
+            )
         }
 
-        let oldMeta = old.metadata
-        let newMeta = new.metadata
-        let keys = Set(oldMeta.keys).union(newMeta.keys)
-        for key in keys.sorted() {
-            let oldValue = oldMeta[key]
-            let newValue = newMeta[key]
-            if oldValue != newValue {
-                let isNumeric = LibraryRegistryParser.normalizeNumericKey(key) != nil
-                changes.append(LibraryFieldChange(key: key, oldValue: oldValue, newValue: newValue, isNumeric: isNumeric))
-            }
-        }
+        changes.append(contentsOf: metadataFieldChanges(old: old.metadata, new: new.metadata))
 
         let oldSampleKeys = old.sampleKeys.sorted()
         let newSampleKeys = new.sampleKeys.sorted()
@@ -101,5 +97,73 @@ final class LibraryDiffEngine {
             )
         }
         return changes
+    }
+
+    private func metadataFieldChanges(old oldMetadata: [String: String], new newMetadata: [String: String]) -> [LibraryFieldChange] {
+        var changes: [LibraryFieldChange] = []
+        let old = normalizedMetadata(oldMetadata)
+        let new = normalizedMetadata(newMetadata)
+        let keys = Set(old.keys).union(new.keys)
+
+        for key in keys.sorted() {
+            let oldValue = old[key]
+            let newValue = new[key]
+            guard oldValue != newValue else {
+                continue
+            }
+            let isNumeric = LibraryRegistryParser.normalizeNumericKey(key) != nil
+            changes.append(
+                LibraryFieldChange(
+                    key: key,
+                    oldValue: oldValue,
+                    newValue: newValue,
+                    isNumeric: isNumeric
+                )
+            )
+        }
+        return changes
+    }
+
+    private func normalizedMetadata(_ metadata: [String: String]) -> [String: String] {
+        var normalized: [String: String] = [:]
+        for rawKey in metadata.keys.sorted() {
+            let key = normalizedFieldKey(rawKey)
+            guard !key.isEmpty else {
+                continue
+            }
+            guard let value = normalizedFieldValue(metadata[rawKey]) else {
+                continue
+            }
+            if normalized[key] == nil {
+                normalized[key] = value
+            }
+        }
+        return normalized
+    }
+
+    private func normalizedFieldValue(_ value: String?) -> String? {
+        guard let value else {
+            return nil
+        }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func normalizedFieldKey(_ key: String) -> String {
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return ""
+        }
+
+        let cleanedScalars = trimmed.unicodeScalars.filter { scalar in
+            let category = scalar.properties.generalCategory
+            return category != .control && category != .format
+        }
+        let cleaned = String(String.UnicodeScalarView(cleanedScalars))
+        let collapsed = cleaned
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        return collapsed.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

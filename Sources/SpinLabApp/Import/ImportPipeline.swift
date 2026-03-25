@@ -8,7 +8,7 @@ struct SpinLabImportPipeline {
 
     func importFiles(_ files: [ImportedMeasurementFile]) -> [SpinLabDomain.PendingImport] {
         files.compactMap { file in
-            let ext = file.managedFileURL.pathExtension.lowercased()
+            let ext = file.sourceFileURL.pathExtension.lowercased()
             guard !ext.isEmpty else {
                 return nil
             }
@@ -20,7 +20,7 @@ struct SpinLabImportPipeline {
             return SpinLabDomain.PendingImport(
                 workflow: workflowExtension.workflow,
                 fileName: file.fileName,
-                sourceFilePath: file.managedFileURL.path,
+                sourceFilePath: file.sourceFileURL.path,
                 originalFilePath: file.originalFileURL.path,
                 status: .needsConfirmation,
                 parsedHints: hints

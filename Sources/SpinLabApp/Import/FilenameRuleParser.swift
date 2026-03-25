@@ -13,20 +13,21 @@ struct FilenameRuleParser {
         let grandparentName = fileURL.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent
 
         let fileTokens = tokenize(fileStem)
+        let fileScopeTokens = fileTokensBeforeFirstChannel(fileTokens)
         let parentTokens = tokenize(parentName)
         let grandparentTokens = tokenize(grandparentName)
         let contextTokens = tokensForSources(
-            fileTokens: fileTokens,
+            fileTokens: fileScopeTokens,
             parentTokens: parentTokens,
             grandparentTokens: grandparentTokens
         )
         let joined = joinedSourceText(
-            fileStem: fileStem,
+            fileStem: fileScopeTokens.joined(separator: " "),
             parentName: parentName,
             grandparentName: grandparentName
         )
 
-        let fileSampleIDs = ruleSet.sampleIDs(from: fileTokens)
+        let fileSampleIDs = ruleSet.sampleIDs(from: fileScopeTokens)
         let folderSampleIDs = uniquePreservingOrder(
             ruleSet.sampleIDs(from: parentTokens)
                 + ruleSet.sampleIDs(from: grandparentTokens)
@@ -48,7 +49,7 @@ struct FilenameRuleParser {
         )
 
         return SpinLabDomain.ParsedFilenameHints(
-            batchName: ruleSet.batchName(from: fileTokens),
+            batchName: ruleSet.batchName(from: fileScopeTokens),
             sampleName: defaultSampleName(defaultSampleKey: defaultSampleKey, substrateTags: substrateTags),
             defaultSampleKey: defaultSampleKey,
             folderDerivedSampleKeys: folderSampleIDs,
@@ -73,6 +74,17 @@ struct FilenameRuleParser {
             .split(whereSeparator: { ruleSet.tokenization.separators.contains($0) })
             .map(String.init)
             .filter { !$0.isEmpty }
+    }
+
+    private func fileTokensBeforeFirstChannel(_ fileTokens: [String]) -> [String] {
+        var collected: [String] = []
+        for token in fileTokens {
+            if ruleSet.normalizeChannel(token) != nil {
+                break
+            }
+            collected.append(token)
+        }
+        return collected
     }
 
     private func tokensForSources(
@@ -127,19 +139,27 @@ struct FilenameRuleParser {
             }
 
             let sampleID = ruleSet.sampleIDs(from: collected).first
-            let tags = uniquePreservingOrder(
-                ruleSet.substrateTags(from: collected) + ruleSet.measurementTags(from: collected)
-            )
+            let tags = uniquePreservingOrder(ruleSet.substrateTags(from: collected))
+            let rawTestInfo = collected.filter { !isSampleSignalToken($0) }
+            let testInfoTags = uniquePreservingOrder(ruleSet.measurementTags(from: collected) + rawTestInfo)
             hints.append(
                 SpinLabDomain.ParsedChannelHint(
                     channel: normalizedChannel,
                     sampleID: sampleID,
-                    tags: tags
+                    tags: tags,
+                    testInfoTags: testInfoTags
                 )
             )
         }
 
         return hints
+    }
+
+    private func isSampleSignalToken(_ token: String) -> Bool {
+        if !ruleSet.sampleIDs(from: [token]).isEmpty {
+            return true
+        }
+        return !ruleSet.substrateTags(from: [token]).isEmpty
     }
 
     private func defaultSampleKey(
