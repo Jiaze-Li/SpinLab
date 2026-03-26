@@ -293,6 +293,8 @@ final class SpinLabAppState: ObservableObject {
     let workflow: SpinLabDomain.WorkflowKind
 
     private let persistence: SpinLabPersistence
+    private let inboxRepository: InboxRepository
+    private let libraryRepository: LibraryRepository
     private let importPipeline: SpinLabImportPipeline
     private let registrySubstrateRules: any RegistrySubstrateRuleProviding
     private let analysisModule: AnalysisModuleExtension
@@ -324,6 +326,8 @@ final class SpinLabAppState: ObservableObject {
         ruleRuntime: any RuleRuntimeCapability = DefaultRuleRuntimeCapability()
     ) {
         self.persistence = persistence
+        self.inboxRepository = InboxRepository(persistence: persistence)
+        self.libraryRepository = LibraryRepository(persistence: persistence)
         self.workflow = workflowBundle.workflowExtension.workflow
         self.importPipeline = workflowBundle.importPipeline
         self.analysisModule = workflowBundle.analysisModule
@@ -436,13 +440,25 @@ final class SpinLabAppState: ObservableObject {
     }
 
     private func load() {
-        pendingImports = persistence.loadPendingImports()
-        archivedRecords = persistence.loadArchivedRecords()
-        projectCatalog = persistence.loadProjects()
+        pendingImports = inboxRepository.pendingImports
+        archivedRecords = libraryRepository.archivedRecords
+        projectCatalog = libraryRepository.projects
         selectedPendingImportID = pendingImports.first?.id
         selectedArchivedRecordID = archivedRecords.first?.id
         workbenchResultDraft = selectedArchivedRecord?.latestResult?.summary ?? ""
         inboxState.routing.clearPendingState()
+    }
+
+    private func replacePendingImports(_ imports: [SpinLabDomain.PendingImport], persist: Bool = true) {
+        pendingImports = inboxRepository.replacePendingImports(imports, persist: persist)
+    }
+
+    private func replaceArchivedRecords(_ records: [SpinLabDomain.ArchivedRecord], persist: Bool = true) {
+        archivedRecords = libraryRepository.replaceArchivedRecords(records, persist: persist)
+    }
+
+    private func replaceProjectCatalog(_ projects: [SpinLabDomain.Project], persist: Bool = true) {
+        projectCatalog = libraryRepository.replaceProjects(projects, persist: persist)
     }
 
     private func migrateManagedMeasurementPathsToOriginalIfPossible() {
@@ -487,10 +503,10 @@ final class SpinLabAppState: ObservableObject {
         }
 
         if pendingChanged {
-            persistence.savePendingImports(pendingImports)
+            replacePendingImports(pendingImports)
         }
         if archivedChanged {
-            persistence.saveArchivedRecords(archivedRecords)
+            replaceArchivedRecords(archivedRecords)
         }
     }
 
@@ -562,7 +578,7 @@ final class SpinLabAppState: ObservableObject {
 
         pendingImports.insert(contentsOf: imported, at: 0)
         refreshPendingDrawerMatches(for: imported.map(\.id))
-        persistence.savePendingImports(pendingImports)
+        replacePendingImports(pendingImports)
         selectedPendingImportID = imported.first?.id
         selectedArea = .inbox
     }
@@ -572,7 +588,7 @@ final class SpinLabAppState: ObservableObject {
         selectedPendingImportID = nil
         inboxState.routing.clearPendingState()
         updateInteractionValue(\.inboxWorkspaceByPendingID, to: [:])
-        persistence.savePendingImports(pendingImports)
+        replacePendingImports(pendingImports)
     }
 
     func recomputeAllPendingParsedHints() {
@@ -601,7 +617,7 @@ final class SpinLabAppState: ObservableObject {
         updateInteractionValue(\.inboxWorkspaceByPendingID, to: updatedWorkspaceByPendingID)
 
         refreshPendingDrawerMatches()
-        persistence.savePendingImports(pendingImports)
+        replacePendingImports(pendingImports)
         objectWillChange.send()
     }
 
@@ -1586,13 +1602,10 @@ final class SpinLabAppState: ObservableObject {
             }
         )
 
-        archivedRecords = output.archivedRecords
-        pendingImports = output.pendingImports
+        replaceArchivedRecords(output.archivedRecords)
+        replacePendingImports(output.pendingImports)
         inboxState.routing.clearRoutingData(for: pending.id)
         updateInteractionEntryValue(for: pending.id, in: \.inboxWorkspaceByPendingID, value: nil)
-
-        persistence.saveArchivedRecords(archivedRecords)
-        persistence.savePendingImports(pendingImports)
 
         let route = coordinator.routeAfterPendingConfirmation(
             archivedRecordID: output.archivedRecord.id,
@@ -1619,7 +1632,7 @@ final class SpinLabAppState: ObservableObject {
 
         let project = SpinLabDomain.Project(name: normalizedName)
         projectCatalog.append(project)
-        persistence.saveProjects(projectCatalog)
+        replaceProjectCatalog(projectCatalog)
         return project.name
     }
 
@@ -1661,7 +1674,7 @@ final class SpinLabAppState: ObservableObject {
         )
 
         archivedRecords[recordIndex] = record
-        persistence.saveArchivedRecords(archivedRecords)
+        replaceArchivedRecords(archivedRecords)
     }
 
     func registryLookup(for pending: SpinLabDomain.PendingImport) -> SampleRegistryLookupResult? {
