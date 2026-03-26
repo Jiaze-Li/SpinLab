@@ -1458,27 +1458,12 @@ final class SpinLabAppState: ObservableObject {
 
     func defaultConfirmationDraft(for pending: SpinLabDomain.PendingImport) -> PendingImportConfirmationDraft {
         let resolvedSampleID = pending.parsedHints.sampleIDs.first ?? sampleRegistry.sampleID(from: pending.fileName)
-        var draft = PendingImportConfirmationDraft(
-            batchName: pending.parsedHints.batchName ?? resolvedSampleID ?? "",
-            sampleName: pending.parsedHints.sampleName ?? "",
-            measurementName: pending.parsedHints.measurementName ?? pending.fileName,
-            workflowTag: pending.parsedHints.workflowName ?? "",
-            deviceName: pending.parsedHints.deviceName ?? "",
-            temperature: pending.parsedHints.temperature ?? "",
-            selectedExistingProjectName: suggestedProject(for: pending)?.name ?? PendingImportConfirmationDraft.noProjectOption,
-            newProjectName: ""
+        return importPipeline.metadataExtension.defaultConfirmationDraft(
+            pending: pending,
+            suggestedProjectName: suggestedProject(for: pending)?.name,
+            registryLookup: registryLookup(for: pending),
+            fallbackSampleID: resolvedSampleID
         )
-
-        if let lookup = registryLookup(for: pending) {
-            applyRegistryMetadata(lookup, to: &draft)
-        }
-
-        if let sampleID = resolvedSampleID,
-           draft.sampleName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            draft.sampleName = sampleID
-        }
-
-        return draft
     }
 
     func pendingDisplayDraft(for pending: SpinLabDomain.PendingImport) -> PendingImportConfirmationDraft {
@@ -2220,36 +2205,6 @@ final class SpinLabAppState: ObservableObject {
             fileName: pending.fileName,
             originalFilePath: pending.originalFilePath
         )
-    }
-
-    private func applyRegistryMetadata(_ lookup: SampleRegistryLookupResult, to draft: inout PendingImportConfirmationDraft) {
-        if draft.batchName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           let batch = metadataValue(in: lookup, keys: ["Batch", "BatchID", "Batch Name", "编号"]) {
-            draft.batchName = batch
-        }
-        if draft.measurementName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           let measurement = metadataValue(in: lookup, keys: ["Measurement", "MeasurementName", "Measurement Name"]) {
-            draft.measurementName = measurement
-        }
-        if draft.deviceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           let device = metadataValue(in: lookup, keys: ["Device", "DeviceName", "Device Name"]) {
-            draft.deviceName = device
-        }
-
-        guard
-            draft.resolvedProjectName == nil,
-            let projectName = metadataValue(in: lookup, keys: ["Project", "ProjectName", "Project Name"])
-        else {
-            return
-        }
-
-        if knownProjectNames.contains(where: { namesEqual($0, projectName) }) {
-            draft.selectedExistingProjectName = knownProjectNames.first(where: { namesEqual($0, projectName) }) ?? PendingImportConfirmationDraft.noProjectOption
-            draft.newProjectName = ""
-        } else {
-            draft.selectedExistingProjectName = PendingImportConfirmationDraft.noProjectOption
-            draft.newProjectName = projectName
-        }
     }
 
     private func namesEqual(_ lhs: String, _ rhs: String) -> Bool {
