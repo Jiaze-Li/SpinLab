@@ -346,6 +346,7 @@ final class SpinLabAppState: ObservableObject {
     @Published private(set) var libraryMetadataSyncLogError: String?
     @Published private(set) var libraryMetadataSyncLogMessage: String?
     @Published var activeAlert: AppAlertState?
+    @Published private(set) var appStateRevision: Int = 0
 
     let workflow: SpinLabDomain.WorkflowKind
 
@@ -676,7 +677,7 @@ final class SpinLabAppState: ObservableObject {
 
         refreshPendingDrawerMatches()
         replacePendingImports(pendingImports)
-        objectWillChange.send()
+        bumpAppStateRevision()
     }
 
     func loadSampleRegistry(from url: URL) {
@@ -1639,7 +1640,7 @@ final class SpinLabAppState: ObservableObject {
             for: pendingID,
             pendingImports: pendingImports
         )
-        objectWillChange.send()
+        bumpAppStateRevision()
     }
 
     func confirmSelectedPendingImport(with draft: PendingImportConfirmationDraft) {
@@ -2274,5 +2275,9 @@ final class SpinLabAppState: ObservableObject {
             title: title,
             message: error.localizedDescription
         )
+    }
+
+    private func bumpAppStateRevision() {
+        appStateRevision &+= 1
     }
 }

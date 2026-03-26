@@ -56,7 +56,7 @@ struct LibraryView: View {
         .onChange(of: interactionStateSnapshot) { _, newValue in
             viewModel.persistInteractionState(newValue)
         }
-        .onReceive(appState.objectWillChange) { _ in
+        .onChange(of: appState.appStateRevision) { _, _ in
             viewModel.syncState(from: appState)
         }
         .confirmationDialog(
