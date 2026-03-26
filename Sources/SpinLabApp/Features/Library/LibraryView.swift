@@ -46,15 +46,15 @@ struct LibraryView: View {
             applyRestoredInteractionState()
             syncSelection()
             viewModel.syncState(from: appState)
-            appState.updateInteractionValue(\.libraryView, to: interactionStateSnapshot)
+            viewModel.persistInteractionState(interactionStateSnapshot)
         }
-        .onChange(of: appState.libraryPreviewGroups) { _, _ in
+        .onChange(of: viewModel.viewState.previewGroupsByPrefix) { _, _ in
             syncSelection()
             viewModel.syncState(from: appState)
-            appState.updateInteractionValue(\.libraryView, to: interactionStateSnapshot)
+            viewModel.persistInteractionState(interactionStateSnapshot)
         }
         .onChange(of: interactionStateSnapshot) { _, newValue in
-            appState.updateInteractionValue(\.libraryView, to: newValue)
+            viewModel.persistInteractionState(newValue)
         }
         .onReceive(appState.objectWillChange) { _ in
             viewModel.syncState(from: appState)
@@ -1489,7 +1489,7 @@ struct LibraryView: View {
     }
 
     private var previewPrefixes: [String] {
-        let configured = appState.librarySettings.allowedBatchPrefixes.map { $0.uppercased() }
+        let configured = viewModel.viewState.allowedBatchPrefixes
         let available = Array(combinedPreviewGroupsByPrefix.keys).sorted()
         if configured.isEmpty {
             return available
@@ -1505,14 +1505,14 @@ struct LibraryView: View {
     }
 
     private var combinedPreviewGroupsByPrefix: [String: [LibraryPreviewBatchGroup]] {
-        var groups = appState.libraryPreviewGroups
-        for (batchID, status) in appState.libraryBatchSyncStatusByID where status != .unchanged {
+        var groups = viewModel.viewState.previewGroupsByPrefix
+        for (batchID, status) in viewModel.viewState.batchSyncStatusByID where status != .unchanged {
             let prefix = LibrarySort.batchSortKey(batchID).prefix
             let alreadyExists = groups[prefix]?.contains(where: { $0.batchId == batchID }) == true
             if alreadyExists {
                 continue
             }
-            let existingSamples = appState.libraryExistingGroups[prefix]?
+            let existingSamples = viewModel.viewState.existingGroupsByPrefix[prefix]?
                 .first(where: { $0.batchId == batchID })?
                 .samples ?? []
             groups[prefix, default: []].append(
@@ -1564,7 +1564,7 @@ struct LibraryView: View {
         panel.title = "Choose Library Root"
         panel.message = "Select a folder for the SpinLab library store."
         if panel.runModal() == .OK, let url = panel.url {
-            appState.updateLibraryRoot(to: url)
+            viewModel.updateLibraryRoot(to: url)
         }
     }
 
@@ -1576,7 +1576,7 @@ struct LibraryView: View {
         panel.title = "Choose Backup Path"
         panel.message = "Select a folder for Library backup sync."
         if panel.runModal() == .OK, let url = panel.url {
-            appState.updateLibraryBackupPath(to: url)
+            viewModel.updateLibraryBackupPath(to: url)
         }
     }
 
@@ -1600,7 +1600,7 @@ struct LibraryView: View {
     }
 
     private func applyRestoredInteractionState() {
-        let restored = appState.interactionValue(\.libraryView)
+        let restored = viewModel.viewState.restoredInteractionState
         selectedPrefix = restored.selectedPrefix
         selectedBatchId = restored.selectedBatchId
         selectedSampleId = restored.selectedSampleId
@@ -1642,7 +1642,7 @@ struct LibraryView: View {
     }
 
     private var allExistingDrawerSamples: [SearchResultItem] {
-        let groups = appState.libraryExistingGroups
+        let groups = viewModel.viewState.existingGroupsByPrefix
         return groups
             .flatMap { prefix, batchGroups in
                 batchGroups.flatMap { group in

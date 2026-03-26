@@ -78,6 +78,17 @@ final class LibraryViewModel: ObservableObject {
             markLibraryGlobalManualLogStatus: { rowIndex, status in
                 appState.markLibraryGlobalManualLogStatus(rowIndex: rowIndex, status: status)
                 self.syncState(from: appState)
+            },
+            updateLibraryRoot: { url in
+                appState.updateLibraryRoot(to: url)
+                self.syncState(from: appState)
+            },
+            updateLibraryBackupPath: { url in
+                appState.updateLibraryBackupPath(to: url)
+                self.syncState(from: appState)
+            },
+            persistInteractionState: { state in
+                appState.updateInteractionValue(\.libraryView, to: state)
             }
         )
         syncState(from: appState)
@@ -99,7 +110,12 @@ final class LibraryViewModel: ObservableObject {
             drawerMessage: appState.libraryDrawerMessage,
             drawerError: appState.libraryDrawerError,
             syncStatusMessage: appState.librarySyncStatusMessage,
-            pendingSelectionChangePrompt: appState.libraryPendingSelectionChangePrompt
+            pendingSelectionChangePrompt: appState.libraryPendingSelectionChangePrompt,
+            allowedBatchPrefixes: appState.librarySettings.allowedBatchPrefixes.map { $0.uppercased() },
+            previewGroupsByPrefix: appState.libraryPreviewGroups,
+            batchSyncStatusByID: appState.libraryBatchSyncStatusByID,
+            existingGroupsByPrefix: appState.libraryExistingGroups,
+            restoredInteractionState: appState.interactionValue(\.libraryView)
         )
     }
 
@@ -174,6 +190,18 @@ final class LibraryViewModel: ObservableObject {
     func markLibraryGlobalManualLogStatus(rowIndex: Int, status: LibraryManualLogStatus) {
         actions.markLibraryGlobalManualLogStatus(rowIndex, status)
     }
+
+    func updateLibraryRoot(to url: URL) {
+        actions.updateLibraryRoot(url)
+    }
+
+    func updateLibraryBackupPath(to url: URL) {
+        actions.updateLibraryBackupPath(url)
+    }
+
+    func persistInteractionState(_ state: LibraryInteractionState) {
+        actions.persistInteractionState(state)
+    }
 }
 
 private struct LibraryViewActions {
@@ -195,6 +223,9 @@ private struct LibraryViewActions {
     var saveLibrarySampleEdits: () -> Void = {}
     var beginEditingSelectedLibrarySample: () -> Void = {}
     var markLibraryGlobalManualLogStatus: (Int, LibraryManualLogStatus) -> Void = { _, _ in }
+    var updateLibraryRoot: (URL) -> Void = { _ in }
+    var updateLibraryBackupPath: (URL) -> Void = { _ in }
+    var persistInteractionState: (LibraryInteractionState) -> Void = { _ in }
 }
 
 struct LibraryViewState {
@@ -213,4 +244,9 @@ struct LibraryViewState {
     var drawerError: String?
     var syncStatusMessage: String?
     var pendingSelectionChangePrompt: String?
+    var allowedBatchPrefixes: [String] = []
+    var previewGroupsByPrefix: [String: [LibraryPreviewBatchGroup]] = [:]
+    var batchSyncStatusByID: [String: LibrarySyncBatchStatus] = [:]
+    var existingGroupsByPrefix: [String: [LibraryPreviewBatchGroup]] = [:]
+    var restoredInteractionState = LibraryInteractionState()
 }
