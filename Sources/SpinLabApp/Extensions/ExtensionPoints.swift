@@ -1,20 +1,28 @@
 import Foundation
 
+protocol SpinLabDomainContext {
+    func normalizedValue(_ value: String?) -> String?
+    func metadataValue(in lookup: SampleRegistryLookupResult?, keys: [String]) -> String?
+    func canonicalProject(named name: String) -> SpinLabDomain.Project?
+    func createProject(named name: String) -> String?
+    func canonicalBatch(named name: String) -> SpinLabDomain.Batch?
+    func canonicalSample(named name: String) -> SpinLabDomain.Sample?
+    func canonicalDevice(named name: String, sampleID: UUID) -> SpinLabDomain.Device?
+    func canonicalMeasurement(forSourcePath path: String) -> SpinLabDomain.Measurement?
+    func canonicalDataset(forSourcePath path: String) -> SpinLabDomain.Dataset?
+    func measurementNotes(
+        for pending: SpinLabDomain.PendingImport,
+        draft: PendingImportConfirmationDraft,
+        registryLookup: SampleRegistryLookupResult?
+    ) -> String
+    func defaultResultSummary(for measurement: SpinLabDomain.Measurement) -> String
+}
+
 struct ArchivedRecordBuildContext {
     let pending: SpinLabDomain.PendingImport
     let draft: PendingImportConfirmationDraft
     let registryLookup: SampleRegistryLookupResult?
-    let normalized: (String?) -> String?
-    let metadataValue: (SampleRegistryLookupResult?, [String]) -> String?
-    let canonicalProject: (String) -> SpinLabDomain.Project?
-    let createProject: (String) -> String?
-    let canonicalBatch: (String) -> SpinLabDomain.Batch?
-    let canonicalSample: (String) -> SpinLabDomain.Sample?
-    let canonicalDevice: (String, UUID) -> SpinLabDomain.Device?
-    let canonicalMeasurement: (String) -> SpinLabDomain.Measurement?
-    let canonicalDataset: (String) -> SpinLabDomain.Dataset?
-    let measurementNotes: (SpinLabDomain.PendingImport, PendingImportConfirmationDraft, SampleRegistryLookupResult?) -> String?
-    let defaultResultSummary: (SpinLabDomain.Measurement) -> String
+    let domainContext: SpinLabDomainContext
 }
 
 protocol WorkflowExtension {
@@ -211,31 +219,32 @@ private func buildArchivedRecord(
     let pending = context.pending
     let draft = context.draft
     let registryLookup = context.registryLookup
+    let domainContext = context.domainContext
 
     let sampleIDFromFilename = pending.parsedHints.sampleIDs.first
-    let batchName = context.normalized(draft.batchName)
+    let batchName = domainContext.normalizedValue(draft.batchName)
         ?? sampleIDFromFilename
-        ?? context.metadataValue(registryLookup, ["Batch", "BatchID", "Batch Name", "编号"])
-    let sampleName = context.normalized(draft.sampleName)
+        ?? domainContext.metadataValue(in: registryLookup, keys: ["Batch", "BatchID", "Batch Name", "编号"])
+    let sampleName = domainContext.normalizedValue(draft.sampleName)
         ?? pending.parsedHints.sampleName
         ?? batchName
         ?? "Unassigned Sample"
-    let measurementName = context.normalized(draft.measurementName)
-        ?? context.metadataValue(registryLookup, ["Measurement", "MeasurementName", "Measurement Name"])
+    let measurementName = domainContext.normalizedValue(draft.measurementName)
+        ?? domainContext.metadataValue(in: registryLookup, keys: ["Measurement", "MeasurementName", "Measurement Name"])
         ?? pending.parsedHints.measurementName
         ?? pending.fileName
-    let deviceName = context.normalized(draft.deviceName)
-        ?? context.metadataValue(registryLookup, ["Device", "DeviceName", "Device Name"])
+    let deviceName = domainContext.normalizedValue(draft.deviceName)
+        ?? domainContext.metadataValue(in: registryLookup, keys: ["Device", "DeviceName", "Device Name"])
     let projectName = draft.resolvedProjectName
-        ?? context.metadataValue(registryLookup, ["Project", "ProjectName", "Project Name"])
+        ?? domainContext.metadataValue(in: registryLookup, keys: ["Project", "ProjectName", "Project Name"])
 
-    var project = projectName.flatMap { context.canonicalProject($0) }
+    var project = projectName.flatMap { domainContext.canonicalProject(named: $0) }
     if project == nil, let projectName {
-        let createdName = context.createProject(projectName) ?? projectName
-        project = context.canonicalProject(createdName)
+        let createdName = domainContext.createProject(named: projectName) ?? projectName
+        project = domainContext.canonicalProject(named: createdName)
     }
-    var sample = context.canonicalSample(sampleName) ?? SpinLabDomain.Sample(name: sampleName)
-    let batch = batchName.flatMap { context.canonicalBatch($0) } ?? batchName.map { SpinLabDomain.Batch(name: $0) }
+    var sample = domainContext.canonicalSample(named: sampleName) ?? SpinLabDomain.Sample(name: sampleName)
+    let batch = batchName.flatMap { domainContext.canonicalBatch(named: $0) } ?? batchName.map { SpinLabDomain.Batch(name: $0) }
 
     if let projectID = project?.id {
         if !sample.projectIDs.contains(projectID) {
@@ -247,11 +256,11 @@ private func buildArchivedRecord(
     }
 
     let device = deviceName.flatMap { name in
-        context.canonicalDevice(name, sample.id)
+        domainContext.canonicalDevice(named: name, sampleID: sample.id)
             ?? SpinLabDomain.Device(sampleID: sample.id, name: name)
     }
 
-    let measurement = context.canonicalMeasurement(pending.sourceFilePath).map { existing in
+    let measurement = domainContext.canonicalMeasurement(forSourcePath: pending.sourceFilePath).map { existing in
         var linked = existing
         linked.name = measurementName
         linked.measurementType = measurementType
@@ -260,7 +269,7 @@ private func buildArchivedRecord(
         linked.deviceID = device?.id
         linked.sourceFilePath = pending.sourceFilePath
         linked.originalFilePath = pending.originalFilePath
-        linked.notes = context.measurementNotes(pending, draft, registryLookup) ?? ""
+        linked.notes = domainContext.measurementNotes(for: pending, draft: draft, registryLookup: registryLookup)
         if linked.acquiredAt == nil {
             linked.acquiredAt = pending.importedAt
         }
@@ -274,10 +283,10 @@ private func buildArchivedRecord(
         sourceFilePath: pending.sourceFilePath,
         originalFilePath: pending.originalFilePath,
         acquiredAt: pending.importedAt,
-        notes: context.measurementNotes(pending, draft, registryLookup) ?? ""
+        notes: domainContext.measurementNotes(for: pending, draft: draft, registryLookup: registryLookup)
     )
 
-    let dataset = context.canonicalDataset(pending.sourceFilePath).map { existing in
+    let dataset = domainContext.canonicalDataset(forSourcePath: pending.sourceFilePath).map { existing in
         var linked = existing
         linked.measurementID = measurement.id
         linked.sourceFilePath = pending.sourceFilePath
@@ -302,7 +311,7 @@ private func buildArchivedRecord(
 
     let result = SpinLabDomain.Result(
         measurementID: measurement.id,
-        summary: context.defaultResultSummary(measurement),
+        summary: domainContext.defaultResultSummary(for: measurement),
         rating: nil
     )
 

@@ -168,6 +168,62 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
 }
 
 final class SpinLabAppState: ObservableObject {
+    private final class ArchivedRecordDomainContextAdapter: SpinLabDomainContext {
+        private weak var appState: SpinLabAppState?
+
+        init(appState: SpinLabAppState) {
+            self.appState = appState
+        }
+
+        func normalizedValue(_ value: String?) -> String? {
+            appState?.normalized(value)
+        }
+
+        func metadataValue(in lookup: SampleRegistryLookupResult?, keys: [String]) -> String? {
+            appState?.metadataValue(in: lookup, keys: keys)
+        }
+
+        func canonicalProject(named name: String) -> SpinLabDomain.Project? {
+            appState?.canonicalProject(named: name)
+        }
+
+        func createProject(named name: String) -> String? {
+            appState?.createProject(named: name)
+        }
+
+        func canonicalBatch(named name: String) -> SpinLabDomain.Batch? {
+            appState?.canonicalBatch(named: name)
+        }
+
+        func canonicalSample(named name: String) -> SpinLabDomain.Sample? {
+            appState?.canonicalSample(named: name)
+        }
+
+        func canonicalDevice(named name: String, sampleID: UUID) -> SpinLabDomain.Device? {
+            appState?.canonicalDevice(named: name, sampleID: sampleID)
+        }
+
+        func canonicalMeasurement(forSourcePath path: String) -> SpinLabDomain.Measurement? {
+            appState?.canonicalMeasurement(forSourcePath: path)
+        }
+
+        func canonicalDataset(forSourcePath path: String) -> SpinLabDomain.Dataset? {
+            appState?.canonicalDataset(forSourcePath: path)
+        }
+
+        func measurementNotes(
+            for pending: SpinLabDomain.PendingImport,
+            draft: PendingImportConfirmationDraft,
+            registryLookup: SampleRegistryLookupResult?
+        ) -> String {
+            appState?.measurementNotes(for: pending, draft: draft, registryLookup: registryLookup) ?? ""
+        }
+
+        func defaultResultSummary(for measurement: SpinLabDomain.Measurement) -> String {
+            appState?.analysisModule.defaultResultSummary(for: measurement) ?? ""
+        }
+    }
+
     private struct InteractionBinding {
         let restore: (SpinLabAppState, SpinLabInteractionSnapshot) -> Void
         let capture: (SpinLabAppState, inout SpinLabInteractionSnapshot) -> Void
@@ -315,6 +371,7 @@ final class SpinLabAppState: ObservableObject {
     private let coordinator = AppCoordinator()
     private let confirmPendingImportUseCase = ConfirmPendingImportUseCase()
     private let saveLibrarySampleEditsUseCase = SaveLibrarySampleEditsUseCase()
+    private lazy var archivedRecordDomainContext: SpinLabDomainContext = ArchivedRecordDomainContextAdapter(appState: self)
 
     init(
         workflowBundle: WorkflowBundle = WorkflowRegistry.shared.defaultBundle(),
@@ -1711,21 +1768,7 @@ final class SpinLabAppState: ObservableObject {
             pending: pending,
             draft: draft,
             registryLookup: registryLookup,
-            normalized: { [weak self] value in self?.normalized(value) },
-            metadataValue: { [weak self] lookup, keys in self?.metadataValue(in: lookup, keys: keys) },
-            canonicalProject: { [weak self] name in self?.canonicalProject(named: name) },
-            createProject: { [weak self] name in self?.createProject(named: name) },
-            canonicalBatch: { [weak self] name in self?.canonicalBatch(named: name) },
-            canonicalSample: { [weak self] name in self?.canonicalSample(named: name) },
-            canonicalDevice: { [weak self] name, sampleID in self?.canonicalDevice(named: name, sampleID: sampleID) },
-            canonicalMeasurement: { [weak self] sourcePath in self?.canonicalMeasurement(forSourcePath: sourcePath) },
-            canonicalDataset: { [weak self] sourcePath in self?.canonicalDataset(forSourcePath: sourcePath) },
-            measurementNotes: { [weak self] pending, draft, lookup in
-                self?.measurementNotes(for: pending, draft: draft, registryLookup: lookup)
-            },
-            defaultResultSummary: { [weak self] measurement in
-                self?.analysisModule.defaultResultSummary(for: measurement) ?? ""
-            }
+            domainContext: archivedRecordDomainContext
         )
         return importPipeline.workflowExtension.createArchivedRecord(context: context)
     }
