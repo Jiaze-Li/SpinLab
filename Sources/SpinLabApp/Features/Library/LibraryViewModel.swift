@@ -24,6 +24,10 @@ final class LibraryViewModel {
                 appState.verifyLibraryRoot()
                 self.syncState(from: appState)
             },
+            validateLibraryCacheOnAppear: {
+                appState.validateLibraryCacheOnAppear()
+                self.syncState(from: appState)
+            },
             syncLibraryFromFiles: {
                 appState.syncLibraryFromFiles()
                 self.syncState(from: appState)
@@ -37,7 +41,9 @@ final class LibraryViewModel {
                 self.syncState(from: appState)
             },
             syncLibraryFromRegistry: {
-                appState.syncLibraryFromRegistry()
+                appState.syncLibraryFromRegistry {
+                    self.syncState(from: appState)
+                }
                 self.syncState(from: appState)
             },
             applyPreparedLibrarySyncReview: {
@@ -137,6 +143,10 @@ final class LibraryViewModel {
         actions.verifyLibraryRoot()
     }
 
+    func validateLibraryCacheOnAppear() {
+        actions.validateLibraryCacheOnAppear()
+    }
+
     func syncLibraryFromFiles() {
         actions.syncLibraryFromFiles()
     }
@@ -211,6 +221,7 @@ private struct LibraryViewActions {
     var discardAndContinuePendingSelectionChange: () -> Void = {}
     var cancelPendingSelectionChange: () -> Void = {}
     var verifyLibraryRoot: () -> Void = {}
+    var validateLibraryCacheOnAppear: () -> Void = {}
     var syncLibraryFromFiles: () -> Void = {}
     var updateAllowedBatchPrefixes: (String) -> Void = { _ in }
     var syncLibraryBackup: () -> Void = {}

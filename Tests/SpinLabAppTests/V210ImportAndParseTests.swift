@@ -91,6 +91,31 @@ struct V210ImportAndParseTests {
         #expect(ch3?.tags.isEmpty == true)
     }
 
+    @Test("parser emits conflict warning when filename and folder sample ids disagree")
+    func parserEmitsConflictWarningForDisjointFileAndFolderSamples() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_1mA_PN41_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.sampleIDs.contains("PN40"))
+        #expect(parsed.sampleIDs.contains("PN41"))
+        #expect(parsed.warnings.contains(where: { $0.lowercased().contains("conflict") }))
+    }
+
+    @Test("parser falls back to file stem when no workflow token is detected")
+    func parserFallsBackToFileStemWithoutWorkflowMatch() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN40/misc/unknown_pattern_file.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.workflowName == nil)
+        #expect(parsed.measurementName == "unknown_pattern_file")
+    }
+
     private func loadBundledRuleSetForTests() throws -> FilenameRuleSet {
         let testsDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         let projectRoot = testsDir.deletingLastPathComponent().deletingLastPathComponent()

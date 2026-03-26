@@ -155,11 +155,17 @@ final class LibraryStore {
         let previous = decodeSample(from: previousSampleURL)
         try? fileManager.createDirectory(at: sampleURL, withIntermediateDirectories: true)
         writeSample(sample, to: sampleURL)
-        appendSampleChangeLogIfNeeded(
+        let changes = appendSampleChangeLogIfNeeded(
             previous: previous,
             updated: sample,
             source: changeSource,
             sampleURL: sampleURL
+        )
+        appendBatchEditLogIfNeeded(
+            changes: changes,
+            updated: sample,
+            source: changeSource,
+            rootURL: rootURL
         )
         invalidateNodeCache(at: sampleURL)
         invalidateNodeCache(at: sampleURL.deletingLastPathComponent())
@@ -412,21 +418,48 @@ final class LibraryStore {
         try? data.write(to: url, options: .atomic)
     }
 
+    @discardableResult
     private func appendSampleChangeLogIfNeeded(
         previous: LibrarySample?,
         updated: LibrarySample,
         source: String,
         sampleURL: URL
-    ) {
+    ) -> [LibrarySampleChangeLogItem] {
         guard let previous, previous != updated else {
-            return
+            return []
         }
         let changes = sampleChangeItems(old: previous, new: updated)
         guard !changes.isEmpty else {
-            return
+            return []
         }
 
         let logURL = sampleChangeLogURL(sampleURL: sampleURL)
+        var entries = loadSampleChangeLogEntries(from: logURL)
+        entries.append(
+            LibrarySampleChangeLogEntry(
+                id: UUID(),
+                sampleId: updated.id,
+                batchId: updated.batchId,
+                changedAt: .now,
+                source: source,
+                changes: changes
+            )
+        )
+        writeJSON(entries, to: logURL)
+        return changes
+    }
+
+    private func appendBatchEditLogIfNeeded(
+        changes: [LibrarySampleChangeLogItem],
+        updated: LibrarySample,
+        source: String,
+        rootURL: URL
+    ) {
+        guard !changes.isEmpty else {
+            return
+        }
+        let batchURL = resolvedBatchDirectoryURL(rootURL, batchID: updated.batchId)
+        let logURL = batchEditLogURL(batchURL: batchURL)
         var entries = loadSampleChangeLogEntries(from: logURL)
         entries.append(
             LibrarySampleChangeLogEntry(
@@ -453,6 +486,10 @@ final class LibraryStore {
 
     private func sampleChangeLogURL(sampleURL: URL) -> URL {
         sampleURL.appending(path: "sample_change_log.json")
+    }
+
+    private func batchEditLogURL(batchURL: URL) -> URL {
+        batchURL.appending(path: "edit_log.json")
     }
 
     private func sampleChangeItems(old: LibrarySample, new: LibrarySample) -> [LibrarySampleChangeLogItem] {
@@ -525,6 +562,17 @@ final class LibraryStore {
 
     func loadRegistryMetadataSyncLogEntries(registrySourceURL: URL) throws -> [LibraryMetadataSyncLogEntry] {
         try xlsxSyncService.loadMetadataLogEntries(registrySourceURL: registrySourceURL)
+    }
+
+    func needsIndexRefresh(rootURL: URL) -> Bool {
+        guard let index = loadIndex(from: rootURL) else {
+            return true
+        }
+        let batchesRoot = batchesDirectoryURL(rootURL)
+        guard let modifiedAt = modificationDate(of: batchesRoot) else {
+            return false
+        }
+        return modifiedAt > index.updatedAt
     }
 
     private func indexDirectoryURL(_ rootURL: URL) -> URL {

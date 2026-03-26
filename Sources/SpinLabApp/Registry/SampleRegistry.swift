@@ -8,6 +8,23 @@ struct SampleRegistryLookupResult {
     let metadata: [String: String]
 }
 
+struct SampleRegistrySnapshotEntry: Codable, Hashable, Sendable {
+    let sampleID: String
+    let prefix: String
+    let sheetName: String
+    let metadata: [String: String]
+}
+
+struct SampleRegistrySnapshot: Codable, Hashable, Sendable {
+    let sourceFilePath: String?
+    let prefixToSheet: [String: String]
+    let entriesBySampleID: [String: SampleRegistrySnapshotEntry]
+
+    static func empty(sourceFilePath: String? = nil) -> SampleRegistrySnapshot {
+        SampleRegistrySnapshot(sourceFilePath: sourceFilePath, prefixToSheet: [:], entriesBySampleID: [:])
+    }
+}
+
 struct RegistryPrefixEntry: Identifiable, Hashable {
     let prefix: String
     let sheetName: String
@@ -42,6 +59,38 @@ struct NoopSampleRegistryIndex: SampleRegistryIndexing {
     }
 }
 
+struct SnapshotSampleRegistryIndex: SampleRegistryIndexing {
+    let snapshot: SampleRegistrySnapshot
+
+    var sourceFilePath: String? { snapshot.sourceFilePath }
+    var prefixToSheet: [String: String] { snapshot.prefixToSheet }
+    var isLoaded: Bool { !snapshot.entriesBySampleID.isEmpty }
+
+    func sampleID(from filename: String) -> String? {
+        SampleIDParser.extractSampleID(fromFilename: filename)
+    }
+
+    func lookup(sampleID: String) -> SampleRegistryLookupResult? {
+        let normalized = sampleID.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard !normalized.isEmpty, let entry = snapshot.entriesBySampleID[normalized] else {
+            return nil
+        }
+        return SampleRegistryLookupResult(
+            sampleID: sampleID,
+            prefix: entry.prefix,
+            sheetName: entry.sheetName,
+            metadata: entry.metadata
+        )
+    }
+
+    func lookup(from filename: String) -> SampleRegistryLookupResult? {
+        guard let extracted = sampleID(from: filename) else {
+            return nil
+        }
+        return lookup(sampleID: extracted)
+    }
+}
+
 final class XLSXPrefixSampleRegistryIndex: SampleRegistryIndexing {
     private struct IndexedRegistryRow {
         let sheetName: String
@@ -50,14 +99,20 @@ final class XLSXPrefixSampleRegistryIndex: SampleRegistryIndexing {
         let metadata: [String: String]
     }
 
-    private let file: XLSXFile
-    private let sharedStrings: SharedStrings?
     private let lookupRules: any RegistryLookupRuleProviding
-    private let indexedRowsBySampleID: [String: [IndexedRegistryRow]]
+    private let entriesBySampleID: [String: SampleRegistrySnapshotEntry]
 
     let sourceFilePath: String?
     let prefixToSheet: [String: String]
     let isLoaded: Bool = true
+
+    var snapshot: SampleRegistrySnapshot {
+        SampleRegistrySnapshot(
+            sourceFilePath: sourceFilePath,
+            prefixToSheet: prefixToSheet,
+            entriesBySampleID: entriesBySampleID
+        )
+    }
 
     init(
         xlsxURL: URL,
@@ -68,14 +123,13 @@ final class XLSXPrefixSampleRegistryIndex: SampleRegistryIndexing {
             throw NSError(domain: "SampleRegistry", code: 1, userInfo: [NSLocalizedDescriptionKey: "Unable to open XLSX file at \(xlsxURL.path)."])
         }
 
-        self.file = file
         self.lookupRules = lookupRules
         sourceFilePath = xlsxURL.path
 
         guard let workbook = try file.parseWorkbooks().first else {
             throw NSError(domain: "SampleRegistry", code: 2, userInfo: [NSLocalizedDescriptionKey: "No workbook found in XLSX file."])
         }
-        sharedStrings = try? file.parseSharedStrings()
+        let sharedStrings = try? file.parseSharedStrings()
 
         let worksheetPathsAndNames = try file.parseWorksheetPathsAndNames(workbook: workbook)
         let orderedSheets: [(sheetName: String, path: String)] = worksheetPathsAndNames.compactMap { name, path in
@@ -92,7 +146,7 @@ final class XLSXPrefixSampleRegistryIndex: SampleRegistryIndexing {
             previewRowCount: max(1, previewRowCount),
             lookupRules: lookupRules
         )
-        indexedRowsBySampleID = built.rowsBySampleID
+        entriesBySampleID = built.entriesBySampleID
         prefixToSheet = built.prefixToSheet
     }
 
@@ -101,11 +155,17 @@ final class XLSXPrefixSampleRegistryIndex: SampleRegistryIndexing {
             return NoopSampleRegistryIndex()
         }
 
-        return (try? XLSXPrefixSampleRegistryIndex(xlsxURL: xlsxURL, previewRowCount: previewRowCount)) ?? NoopSampleRegistryIndex()
+        guard let index = try? XLSXPrefixSampleRegistryIndex(xlsxURL: xlsxURL, previewRowCount: previewRowCount) else {
+            return NoopSampleRegistryIndex()
+        }
+        return SnapshotSampleRegistryIndex(snapshot: index.snapshot)
     }
 
     static func fromFileURL(_ xlsxURL: URL, previewRowCount: Int = 10) -> SampleRegistryIndexing {
-        (try? XLSXPrefixSampleRegistryIndex(xlsxURL: xlsxURL, previewRowCount: previewRowCount)) ?? NoopSampleRegistryIndex()
+        guard let index = try? XLSXPrefixSampleRegistryIndex(xlsxURL: xlsxURL, previewRowCount: previewRowCount) else {
+            return NoopSampleRegistryIndex()
+        }
+        return SnapshotSampleRegistryIndex(snapshot: index.snapshot)
     }
 
     func sampleID(from filename: String) -> String? {
@@ -147,7 +207,7 @@ final class XLSXPrefixSampleRegistryIndex: SampleRegistryIndexing {
         orderedSheets: [(sheetName: String, path: String)],
         previewRowCount: Int,
         lookupRules: any RegistryLookupRuleProviding
-    ) throws -> (rowsBySampleID: [String: [IndexedRegistryRow]], prefixToSheet: [String: String]) {
+    ) throws -> (entriesBySampleID: [String: SampleRegistrySnapshotEntry], prefixToSheet: [String: String]) {
         var rowsBySampleID: [String: [IndexedRegistryRow]] = [:]
         var prefixToSheet: [String: String] = [:]
 
@@ -205,22 +265,37 @@ final class XLSXPrefixSampleRegistryIndex: SampleRegistryIndexing {
             }
         }
 
-        return (rowsBySampleID, prefixToSheet)
+        var entriesBySampleID: [String: SampleRegistrySnapshotEntry] = [:]
+        entriesBySampleID.reserveCapacity(rowsBySampleID.count)
+
+        for (sampleID, rows) in rowsBySampleID {
+            guard let first = rows.first else {
+                continue
+            }
+            let prefix = SampleIDParser.extractPrefix(fromSampleID: sampleID) ?? ""
+            entriesBySampleID[sampleID] = SampleRegistrySnapshotEntry(
+                sampleID: sampleID,
+                prefix: prefix,
+                sheetName: first.sheetName,
+                metadata: first.metadata
+            )
+        }
+
+        return (entriesBySampleID, prefixToSheet)
     }
 
     private func lookupInternal(sampleID: String) -> SampleRegistryLookupResult? {
         let normalizedSampleID = lookupRules.normalizedLookupSampleID(sampleID)
         guard !normalizedSampleID.isEmpty,
-              let indexed = indexedRowsBySampleID[normalizedSampleID]?.first else {
+              let entry = entriesBySampleID[normalizedSampleID] else {
             return nil
         }
 
-        let prefix = SampleIDParser.extractPrefix(fromSampleID: normalizedSampleID) ?? ""
         return SampleRegistryLookupResult(
             sampleID: sampleID,
-            prefix: prefix,
-            sheetName: indexed.sheetName,
-            metadata: indexed.metadata
+            prefix: entry.prefix,
+            sheetName: entry.sheetName,
+            metadata: entry.metadata
         )
     }
 

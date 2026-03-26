@@ -44,6 +44,7 @@ struct LibraryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             viewModel.bindActions(from: appState)
+            viewModel.validateLibraryCacheOnAppear()
             applyRestoredInteractionState()
             syncSelection()
             viewModel.syncState(from: appState)

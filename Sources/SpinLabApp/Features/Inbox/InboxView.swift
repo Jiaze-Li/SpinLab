@@ -5,18 +5,18 @@ import UniformTypeIdentifiers
 
 struct InboxView: View {
     @Environment(SpinLabAppState.self) private var appState
-    @State private var isImportSourceExpanded = true
-    @State private var isPendingQueueExpanded = true
-    @State private var isRoutingReviewExpanded = true
-    @State private var isApplyExpanded = true
+    @State private var viewModel = InboxViewModel()
 
     var body: some View {
+        @Bindable var bindableViewModel = viewModel
+
         HSplitView {
             InboxOperationPanel(
-                isImportSourceExpanded: $isImportSourceExpanded,
-                isPendingQueueExpanded: $isPendingQueueExpanded,
-                isRoutingReviewExpanded: $isRoutingReviewExpanded,
-                isApplyExpanded: $isApplyExpanded
+                isImportSourceExpanded: $bindableViewModel.isImportSourceExpanded,
+                isPendingQueueExpanded: $bindableViewModel.isPendingQueueExpanded,
+                isRoutingReviewExpanded: $bindableViewModel.isRoutingReviewExpanded,
+                isApplyExpanded: $bindableViewModel.isApplyExpanded,
+                fileFilter: $bindableViewModel.fileFilter
             )
             .frame(minWidth: 380, idealWidth: 500, maxWidth: 680)
 
@@ -30,29 +30,16 @@ struct InboxView: View {
             return !items.isEmpty
         } isTargeted: { _ in }
         .onAppear {
-            let restored = appState.interactionValue(\.inboxView)
-            isImportSourceExpanded = restored.isImportSourceExpanded
-            isPendingQueueExpanded = restored.isPendingQueueExpanded
-            isRoutingReviewExpanded = restored.isRoutingReviewExpanded
-            isApplyExpanded = restored.isApplyExpanded
-            persistInteractionState()
+            viewModel.restoreInteractionState(from: appState)
+            viewModel.persistInteractionState(to: appState)
         }
-        .onChange(of: isImportSourceExpanded) { _, _ in persistInteractionState() }
-        .onChange(of: isPendingQueueExpanded) { _, _ in persistInteractionState() }
-        .onChange(of: isRoutingReviewExpanded) { _, _ in persistInteractionState() }
-        .onChange(of: isApplyExpanded) { _, _ in persistInteractionState() }
-    }
-
-    private func persistInteractionState() {
-        appState.updateInteractionValue(
-            \.inboxView,
-            to: InboxInteractionState(
-                isImportSourceExpanded: isImportSourceExpanded,
-                isPendingQueueExpanded: isPendingQueueExpanded,
-                isRoutingReviewExpanded: isRoutingReviewExpanded,
-                isApplyExpanded: isApplyExpanded
-            )
-        )
+        .onChange(of: viewModel.isImportSourceExpanded) { _, _ in viewModel.persistInteractionState(to: appState) }
+        .onChange(of: viewModel.isPendingQueueExpanded) { _, _ in viewModel.persistInteractionState(to: appState) }
+        .onChange(of: viewModel.isRoutingReviewExpanded) { _, _ in viewModel.persistInteractionState(to: appState) }
+        .onChange(of: viewModel.isApplyExpanded) { _, _ in viewModel.persistInteractionState(to: appState) }
+        .onDisappear {
+            viewModel.persistInteractionState(to: appState)
+        }
     }
 }
 
@@ -83,21 +70,13 @@ private struct InboxInspectorReservedPanel: View {
 }
 
 private struct InboxOperationPanel: View {
-    private enum FileFilter: String, CaseIterable, Identifiable {
-        case all = "All"
-        case libraryMatched = "Library Matched"
-        case reviewRequired = "Review Required"
-
-        var id: String { rawValue }
-    }
-
     @Environment(SpinLabAppState.self) private var appState
     @Binding var isImportSourceExpanded: Bool
     @Binding var isPendingQueueExpanded: Bool
     @Binding var isRoutingReviewExpanded: Bool
     @Binding var isApplyExpanded: Bool
+    @Binding var fileFilter: InboxViewModel.FileFilter
     @State private var isPresentingClearImportsConfirm = false
-    @State private var fileFilter: FileFilter = .all
 
     var body: some View {
         @Bindable var bindableAppState = appState
@@ -308,7 +287,7 @@ private struct InboxOperationPanel: View {
     }
 
     @ViewBuilder
-    private func queueStatusCard(title: String, count: Int, tint: Color, filter: FileFilter) -> some View {
+    private func queueStatusCard(title: String, count: Int, tint: Color, filter: InboxViewModel.FileFilter) -> some View {
         let isSelected = fileFilter == filter
 
         Button {

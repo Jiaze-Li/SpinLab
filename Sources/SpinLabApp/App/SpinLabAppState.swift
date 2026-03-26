@@ -377,45 +377,49 @@ final class SpinLabAppState {
     private let inboxState: InboxState
     private var libraryState = LibraryState()
     private let workbenchState = WorkbenchState()
+    private let dataActor: SpinLabDataActor
     private let coordinator = AppCoordinator()
     private let confirmPendingImportUseCase = ConfirmPendingImportUseCase()
     private let saveLibrarySampleEditsUseCase = SaveLibrarySampleEditsUseCase()
     @ObservationIgnored
     private lazy var archivedRecordDomainContext: SpinLabDomainContext = ArchivedRecordDomainContextAdapter(appState: self)
+    @ObservationIgnored
+    private var pendingImportsProjectionTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var archivedRecordsProjectionTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var projectCatalogProjectionTask: Task<Void, Never>?
 
     init(
         workflowBundle: WorkflowBundle = WorkflowRegistry.shared.defaultBundle(),
-        persistence: SpinLabPersistence = LocalJSONPersistence(),
-        managedStorage: SpinLabManagedStorage = SpinLabManagedStorage(),
-        sampleRegistry: SampleRegistryIndexing = XLSXPrefixSampleRegistryIndex.fromEnvironment(previewRowCount: 10),
-        registrySubstrateRules: any RegistrySubstrateRuleProviding = RegistrySubstrateRuleBook(),
-        routingCapabilities: RoutingCapabilities = .live,
-        ruleRuntime: any RuleRuntimeCapability = DefaultRuleRuntimeCapability()
+        environment: AppEnvironment = .live()
     ) {
-        self.persistence = persistence
-        self.inboxRepository = InboxRepository(persistence: persistence)
-        self.libraryRepository = LibraryRepository(persistence: persistence)
+        self.persistence = environment.persistence
+        self.inboxRepository = InboxRepository(persistence: environment.persistence)
+        self.libraryRepository = LibraryRepository(persistence: environment.persistence)
         self.workflow = workflowBundle.workflowExtension.workflow
         self.importPipeline = workflowBundle.importPipeline
         self.analysisModule = workflowBundle.analysisModule
         self.viewExtension = workflowBundle.viewExtension
-        self.managedStorage = managedStorage
-        self.sampleRegistry = sampleRegistry
-        self.registrySubstrateRules = registrySubstrateRules
+        self.managedStorage = environment.managedStorage
+        self.sampleRegistry = environment.sampleRegistry
+        self.registrySubstrateRules = environment.registrySubstrateRules
         self.inboxState = InboxState(
             routing: InboxRoutingState(
-                routingCapabilities: routingCapabilities,
-                ruleRuntime: ruleRuntime
+                routingCapabilities: environment.routingCapabilities,
+                ruleRuntime: environment.ruleRuntime
             )
         )
         self.librarySettings = librarySettingsStore.load()
-        self.interactionMemory = InteractionMemoryStore(persistence: persistence)
+        self.interactionMemory = InteractionMemoryStore(persistence: environment.persistence)
+        self.dataActor = environment.dataActor
 
-        if !self.sampleRegistry.isLoaded, let currentRegistryURL = managedStorage.currentSampleRegistryFileURL() {
+        if !self.sampleRegistry.isLoaded, let currentRegistryURL = environment.managedStorage.currentSampleRegistryFileURL() {
             self.sampleRegistry = XLSXPrefixSampleRegistryIndex.fromFileURL(currentRegistryURL, previewRowCount: 10)
         }
 
         load()
+        setupRepositoryProjectionTasks()
         migrateManagedMeasurementPathsToOriginalIfPossible()
         managedStorage.clearManagedMeasurementCopies()
         updateRegistryPresentation()
@@ -426,6 +430,35 @@ final class SpinLabAppState {
         refreshLibraryBackupMessage()
         interactionMemory.markReady()
         persistInteractionSnapshotIfReady()
+    }
+
+    deinit {
+        pendingImportsProjectionTask?.cancel()
+        archivedRecordsProjectionTask?.cancel()
+        projectCatalogProjectionTask?.cancel()
+    }
+
+    convenience init(
+        workflowBundle: WorkflowBundle = WorkflowRegistry.shared.defaultBundle(),
+        persistence: SpinLabPersistence = LocalJSONPersistence(),
+        managedStorage: SpinLabManagedStorage = SpinLabManagedStorage(),
+        sampleRegistry: SampleRegistryIndexing = XLSXPrefixSampleRegistryIndex.fromEnvironment(previewRowCount: 10),
+        registrySubstrateRules: any RegistrySubstrateRuleProviding = RegistrySubstrateRuleBook(),
+        routingCapabilities: RoutingCapabilities = .live,
+        ruleRuntime: any RuleRuntimeCapability = DefaultRuleRuntimeCapability()
+    ) {
+        self.init(
+            workflowBundle: workflowBundle,
+            environment: AppEnvironment(
+                persistence: persistence,
+                managedStorage: managedStorage,
+                sampleRegistry: sampleRegistry,
+                registrySubstrateRules: registrySubstrateRules,
+                routingCapabilities: routingCapabilities,
+                ruleRuntime: ruleRuntime,
+                dataActor: SpinLabDataActor()
+            )
+        )
     }
 
     var selectedPendingImport: SpinLabDomain.PendingImport? {
@@ -467,6 +500,20 @@ final class SpinLabAppState {
         let archivedNames = archivedRecords.compactMap { $0.project?.name }
         let catalogNames = projectCatalog.map(\.name)
         return Array(Set(archivedNames + catalogNames)).sorted()
+    }
+
+    func navigate(to routeStack: AppRouteStack) {
+        let router = AppRouter()
+        router.navigate(to: routeStack, appState: self)
+    }
+
+    func openDeepLink(_ path: String) -> Bool {
+        let router = AppRouter()
+        guard let stack = router.deepLinkToRouteStack(path) else {
+            return false
+        }
+        router.navigate(to: stack, appState: self)
+        return true
     }
 
     func hasExistingLibraryDrawer(sampleKey: String) -> Bool {
@@ -511,25 +558,83 @@ final class SpinLabAppState {
     }
 
     private func load() {
-        pendingImports = inboxRepository.pendingImports
-        archivedRecords = libraryRepository.archivedRecords
-        projectCatalog = libraryRepository.projects
-        selectedPendingImportID = pendingImports.first?.id
-        selectedArchivedRecordID = archivedRecords.first?.id
+        applyPendingImportsProjection(inboxRepository.pendingImports)
+        applyArchivedRecordsProjection(libraryRepository.archivedRecords)
+        applyProjectCatalogProjection(libraryRepository.projects)
         workbenchResultDraft = selectedArchivedRecord?.latestResult?.summary ?? ""
         inboxState.routing.clearPendingState()
     }
 
     private func replacePendingImports(_ imports: [SpinLabDomain.PendingImport], persist: Bool = true) {
-        pendingImports = inboxRepository.replacePendingImports(imports, persist: persist)
+        let updated = inboxRepository.replacePendingImports(imports, persist: persist)
+        applyPendingImportsProjection(updated)
     }
 
     private func replaceArchivedRecords(_ records: [SpinLabDomain.ArchivedRecord], persist: Bool = true) {
-        archivedRecords = libraryRepository.replaceArchivedRecords(records, persist: persist)
+        let updated = libraryRepository.replaceArchivedRecords(records, persist: persist)
+        applyArchivedRecordsProjection(updated)
     }
 
     private func replaceProjectCatalog(_ projects: [SpinLabDomain.Project], persist: Bool = true) {
-        projectCatalog = libraryRepository.replaceProjects(projects, persist: persist)
+        let updated = libraryRepository.replaceProjects(projects, persist: persist)
+        applyProjectCatalogProjection(updated)
+    }
+
+    private func setupRepositoryProjectionTasks() {
+        pendingImportsProjectionTask?.cancel()
+        archivedRecordsProjectionTask?.cancel()
+        projectCatalogProjectionTask?.cancel()
+
+        pendingImportsProjectionTask = Task { [weak self] in
+            guard let self else { return }
+            for await imports in inboxRepository.pendingImportsStream {
+                await MainActor.run {
+                    self.applyPendingImportsProjection(imports)
+                }
+            }
+        }
+
+        archivedRecordsProjectionTask = Task { [weak self] in
+            guard let self else { return }
+            for await records in libraryRepository.archivedRecordsStream {
+                await MainActor.run {
+                    self.applyArchivedRecordsProjection(records)
+                }
+            }
+        }
+
+        projectCatalogProjectionTask = Task { [weak self] in
+            guard let self else { return }
+            for await projects in libraryRepository.projectsStream {
+                await MainActor.run {
+                    self.applyProjectCatalogProjection(projects)
+                }
+            }
+        }
+    }
+
+    private func applyPendingImportsProjection(_ imports: [SpinLabDomain.PendingImport]) {
+        pendingImports = imports
+        if let selectedPendingImportID,
+           !imports.contains(where: { $0.id == selectedPendingImportID }) {
+            self.selectedPendingImportID = imports.first?.id
+        } else if selectedPendingImportID == nil {
+            selectedPendingImportID = imports.first?.id
+        }
+    }
+
+    private func applyArchivedRecordsProjection(_ records: [SpinLabDomain.ArchivedRecord]) {
+        archivedRecords = records
+        if let selectedArchivedRecordID,
+           !records.contains(where: { $0.id == selectedArchivedRecordID }) {
+            self.selectedArchivedRecordID = records.first?.id
+        } else if selectedArchivedRecordID == nil {
+            selectedArchivedRecordID = records.first?.id
+        }
+    }
+
+    private func applyProjectCatalogProjection(_ projects: [SpinLabDomain.Project]) {
+        projectCatalog = projects
     }
 
     private func migrateManagedMeasurementPathsToOriginalIfPossible() {
@@ -537,7 +642,7 @@ final class SpinLabAppState {
         var pendingChanged = false
         var archivedChanged = false
 
-        pendingImports = pendingImports.map { pending in
+        let migratedPendingImports = pendingImports.map { pending in
             guard managedStorage.isManagedMeasurementPath(pending.sourceFilePath),
                   let originalPath = pending.originalFilePath,
                   fileManager.fileExists(atPath: originalPath) else {
@@ -549,7 +654,7 @@ final class SpinLabAppState {
             return migrated
         }
 
-        archivedRecords = archivedRecords.map { record in
+        let migratedArchivedRecords = archivedRecords.map { record in
             var migrated = record
             var didChange = false
 
@@ -574,10 +679,10 @@ final class SpinLabAppState {
         }
 
         if pendingChanged {
-            replacePendingImports(pendingImports)
+            replacePendingImports(migratedPendingImports)
         }
         if archivedChanged {
-            replaceArchivedRecords(archivedRecords)
+            replaceArchivedRecords(migratedArchivedRecords)
         }
     }
 
@@ -647,24 +752,25 @@ final class SpinLabAppState {
             return
         }
 
-        pendingImports.insert(contentsOf: imported, at: 0)
+        var nextPendingImports = pendingImports
+        nextPendingImports.insert(contentsOf: imported, at: 0)
         refreshPendingDrawerMatches(for: imported.map(\.id))
-        replacePendingImports(pendingImports)
+        replacePendingImports(nextPendingImports)
         selectedPendingImportID = imported.first?.id
         selectedArea = .inbox
     }
 
     func clearPendingImports() {
-        pendingImports = []
+        let clearedPendingImports: [SpinLabDomain.PendingImport] = []
         selectedPendingImportID = nil
         inboxState.routing.clearPendingState()
         updateInteractionValue(\.inboxWorkspaceByPendingID, to: [:])
-        replacePendingImports(pendingImports)
+        replacePendingImports(clearedPendingImports)
     }
 
     func recomputeAllPendingParsedHints() {
         refreshRoutingRuleMetadata(forceReload: true)
-        pendingImports = pendingImports.map { pending in
+        let recomputedPendingImports = pendingImports.map { pending in
             var next = pending
             next.parsedHints = recomputedParsedHints(for: pending)
             return next
@@ -673,7 +779,7 @@ final class SpinLabAppState {
 
         var updatedWorkspaceByPendingID: [String: InboxPendingWorkspaceState] = [:]
         let existingWorkspaceByPendingID = interactionValue(\.inboxWorkspaceByPendingID)
-        for pending in pendingImports {
+        for pending in recomputedPendingImports {
             let key = snapshotDictionaryKey(for: pending.id)
             guard let existing = existingWorkspaceByPendingID[key] else {
                 continue
@@ -688,23 +794,35 @@ final class SpinLabAppState {
         updateInteractionValue(\.inboxWorkspaceByPendingID, to: updatedWorkspaceByPendingID)
 
         refreshPendingDrawerMatches()
-        replacePendingImports(pendingImports)
+        replacePendingImports(recomputedPendingImports)
         bumpAppStateRevision()
     }
 
     func loadSampleRegistry(from url: URL) {
-        guard let installedURL = managedStorage.installSampleRegistry(from: url) else {
+        let installedURL: URL
+        do {
+            installedURL = try managedStorage.installSampleRegistry(from: url)
+        } catch {
+            let appError = AppError.from(error, fallback: "Failed to install sample registry.")
+            present(error: appError, title: "Registry Install Failed")
+            appLogger.warning(.import, "Sample registry install failed", metadata: ["error": appError.localizedDescription])
             return
         }
-
-        sampleRegistry = XLSXPrefixSampleRegistryIndex.fromFileURL(installedURL, previewRowCount: 10)
-        updateLibraryRegistryPaths(installedURL: installedURL, sourceURL: url)
-        libraryPreview = nil
-        libraryPreviewWarnings = []
-        libraryPreviewMessage = nil
-        librarySyncStatusMessage = nil
-        updateRegistryPresentation()
-        refreshPendingDrawerMatches()
+        let sourceURL = url
+        Task {
+            do {
+                let snapshot = try await dataActor.loadRegistrySnapshot(from: installedURL, previewRowCount: 10)
+                await MainActor.run {
+                    applyLoadedRegistrySnapshot(snapshot, installedURL: installedURL, sourceURL: sourceURL)
+                }
+            } catch {
+                await MainActor.run {
+                    let appError = AppError.from(error, fallback: "Failed to load sample registry.")
+                    present(error: appError, title: "Registry Load Failed")
+                    appLogger.warning(.import, "Sample registry load failed", metadata: ["error": appError.localizedDescription])
+                }
+            }
+        }
     }
 
     func reloadSampleRegistry() {
@@ -719,8 +837,25 @@ final class SpinLabAppState {
             return
         }
 
-        sampleRegistry = XLSXPrefixSampleRegistryIndex.fromFileURL(fallbackURL, previewRowCount: 10)
-        updateLibraryRegistryPaths(installedURL: fallbackURL, sourceURL: nil)
+        Task {
+            do {
+                let snapshot = try await dataActor.loadRegistrySnapshot(from: fallbackURL, previewRowCount: 10)
+                await MainActor.run {
+                    applyLoadedRegistrySnapshot(snapshot, installedURL: fallbackURL, sourceURL: nil)
+                }
+            } catch {
+                await MainActor.run {
+                    let appError = AppError.from(error, fallback: "Failed to reload sample registry.")
+                    present(error: appError, title: "Registry Reload Failed")
+                    appLogger.warning(.import, "Sample registry reload failed", metadata: ["error": appError.localizedDescription])
+                }
+            }
+        }
+    }
+
+    private func applyLoadedRegistrySnapshot(_ snapshot: SampleRegistrySnapshot, installedURL: URL, sourceURL: URL?) {
+        sampleRegistry = SnapshotSampleRegistryIndex(snapshot: snapshot)
+        updateLibraryRegistryPaths(installedURL: installedURL, sourceURL: sourceURL)
         libraryPreview = nil
         libraryPreviewWarnings = []
         libraryPreviewMessage = nil
@@ -729,46 +864,94 @@ final class SpinLabAppState {
         refreshPendingDrawerMatches()
     }
 
-    func loadLibraryPreview() {
+    private func resolvedLibraryRegistryPath() -> String? {
         let fileManager = FileManager.default
         let sourcePath = librarySettings.registrySourcePath
         let internalPath = librarySettings.registryInternalPath ?? managedStorage.currentSampleRegistryFileURL()?.path
-        let chosenPath: String?
         if let sourcePath, fileManager.fileExists(atPath: sourcePath) {
-            chosenPath = sourcePath
-        } else {
-            chosenPath = internalPath
+            return sourcePath
         }
+        return internalPath
+    }
 
-        guard let registryPath = chosenPath else {
+    private func applyLoadedLibraryPreview(_ snapshot: LibraryPreviewParseSnapshot) {
+        let preview = LibraryPreview(index: snapshot.index, warnings: snapshot.warnings)
+        libraryPreview = preview
+        libraryPreviewWarnings = snapshot.warnings
+        refreshActionablePreviewGroups()
+        libraryLogger.write(snapshot.warnings)
+    }
+
+    func loadLibraryPreview() {
+        guard let registryPath = resolvedLibraryRegistryPath() else {
             libraryPreviewMessage = "No registry available. Load it from Inbox first."
             return
         }
 
-        let parser = LibraryRegistryParser()
-        let result = parser.parse(xlsxURL: URL(fileURLWithPath: registryPath), settings: librarySettings)
-        let preview = LibraryPreview(index: result.index, warnings: result.warnings)
-        libraryPreview = preview
-        libraryPreviewWarnings = result.warnings
-        refreshActionablePreviewGroups()
-        libraryLogger.write(result.warnings)
+        let settings = librarySettings
+        Task {
+            do {
+                let snapshot = try await dataActor.parseLibraryPreview(registryPath: registryPath, settings: settings)
+                await MainActor.run {
+                    applyLoadedLibraryPreview(snapshot)
+                }
+            } catch {
+                await MainActor.run {
+                    let appError = AppError.from(error, fallback: "Failed to load registry preview.")
+                    libraryPreview = nil
+                    libraryPreviewWarnings = []
+                    libraryPreviewMessage = appError.localizedDescription
+                    present(error: appError, title: "Preview Load Failed")
+                    appLogger.warning(.library, "Library preview load failed", metadata: ["error": appError.localizedDescription])
+                }
+            }
+        }
     }
 
-    func syncLibraryFromRegistry() {
+    func syncLibraryFromRegistry(onComplete: (() -> Void)? = nil) {
         appLogger.info(.function, "Library sync requested", metadata: ["area": "registry"])
-        loadLibraryPreview()
-        guard libraryPreview != nil else {
+        guard let registryPath = resolvedLibraryRegistryPath() else {
+            libraryPreviewMessage = "No registry available. Load it from Inbox first."
             librarySyncStatusMessage = nil
             appLogger.warning(.library, "Library preview unavailable during sync request")
+            onComplete?()
             return
         }
-        prepareLibrarySyncReview()
-        libraryLastSyncedAt = Date()
-        if let syncedAt = libraryLastSyncedAt {
-            librarySyncStatusMessage = "Registry diff prepared at \(Self.syncStatusTimeFormatter.string(from: syncedAt)); waiting for manual apply."
-            appLogger.info(.library, "Library sync review prepared", metadata: [
-                "syncedAt": Self.syncStatusTimeFormatter.string(from: syncedAt)
-            ])
+
+        let settings = librarySettings
+        Task {
+            do {
+                let snapshot = try await dataActor.parseLibraryPreview(registryPath: registryPath, settings: settings)
+                await MainActor.run {
+                    applyLoadedLibraryPreview(snapshot)
+                    guard libraryPreview != nil else {
+                        librarySyncStatusMessage = nil
+                        appLogger.warning(.library, "Library preview unavailable during sync request")
+                        onComplete?()
+                        return
+                    }
+                    prepareLibrarySyncReview()
+                    libraryLastSyncedAt = Date()
+                    if let syncedAt = libraryLastSyncedAt {
+                        librarySyncStatusMessage = "Registry diff prepared at \(Self.syncStatusTimeFormatter.string(from: syncedAt)); waiting for manual apply."
+                        appLogger.info(.library, "Library sync review prepared", metadata: [
+                            "syncedAt": Self.syncStatusTimeFormatter.string(from: syncedAt)
+                        ])
+                    }
+                    onComplete?()
+                }
+            } catch {
+                await MainActor.run {
+                    let appError = AppError.from(error, fallback: "Failed to prepare library sync preview.")
+                    librarySyncStatusMessage = nil
+                    libraryPreview = nil
+                    libraryPreviewWarnings = []
+                    libraryPreviewMessage = appError.localizedDescription
+                    present(error: appError, title: "Sync Preview Failed")
+                    appLogger.warning(.library, "Library sync preview failed", metadata: ["error": appError.localizedDescription])
+                    onComplete?()
+                }
+            }
         }
     }
 
@@ -846,6 +1029,17 @@ final class SpinLabAppState {
         let rootURL = URL(fileURLWithPath: rootPath)
         let index = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
         applyExistingIndex(index)
+    }
+
+    func validateLibraryCacheOnAppear() {
+        guard let rootPath = librarySettings.rootPath else {
+            return
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        guard libraryStore.needsIndexRefresh(rootURL: rootURL) else {
+            return
+        }
+        syncLibraryFromFiles()
     }
 
     func syncLibraryFromFiles() {
@@ -1725,8 +1919,8 @@ final class SpinLabAppState {
             return
         }
 
-        archivedRecords = output.archivedRecords
-        pendingImports = output.pendingImports
+        applyArchivedRecordsProjection(output.archivedRecords)
+        applyPendingImportsProjection(output.pendingImports)
         inboxState.routing.clearRoutingData(for: pending.id)
         updateInteractionEntryValue(for: pending.id, in: \.inboxWorkspaceByPendingID, value: nil)
 

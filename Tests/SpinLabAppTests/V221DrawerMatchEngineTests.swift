@@ -92,6 +92,28 @@ struct V221DrawerMatchEngineTests {
         #expect(matched == "PN50 - HF STO(111)")
     }
 
+    @Test("empty sample input returns nil immediately")
+    func emptyInputReturnsNil() {
+        let engine = DrawerMatchEngine()
+        let index = engine.makeIndex(from: [
+            sample(batch: "PN32", treatment: "HF", material: "STO", orientation: "111", display: "PN32 - HF STO(111)")
+        ])
+
+        #expect(engine.match(sampleInput: "   ", index: index) == nil)
+    }
+
+    @Test("exact canonical key returns nil when canonical candidates are not unique")
+    func exactCanonicalReturnsNilWhenDuplicateCanonicalCandidatesExist() {
+        let engine = DrawerMatchEngine()
+        let index = engine.makeIndex(from: [
+            sample(batch: "PN32", treatment: "HF", material: "STO", orientation: "111", display: "PN32 - HF STO(111) A"),
+            sample(batch: "PN32", treatment: "HF", material: "STO", orientation: "111", display: "PN32 - HF STO(111) B")
+        ])
+
+        let matched = engine.match(sampleInput: "PN32|HF|STO|111", index: index)
+        #expect(matched == nil)
+    }
+
     private func sample(
         batch: String,
         treatment: String,
