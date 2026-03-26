@@ -289,7 +289,6 @@ final class SpinLabAppState: ObservableObject {
     @Published private(set) var libraryMetadataSyncLogs: [LibraryMetadataSyncLogEntry] = []
     @Published private(set) var libraryMetadataSyncLogError: String?
     @Published private(set) var libraryMetadataSyncLogMessage: String?
-    @Published private(set) var routingRuleFingerprint: String = "unknown"
 
     let workflow: SpinLabDomain.WorkflowKind = .amrPhe
 
@@ -421,7 +420,6 @@ final class SpinLabAppState: ObservableObject {
 
     private func refreshRoutingRuleMetadata(forceReload: Bool) {
         let loadResult = inboxRoutingState.refreshRoutingRuleMetadata(forceReload: forceReload)
-        routingRuleFingerprint = inboxRoutingState.routingRuleFingerprint
         appLogger.info(.import, "Routing rule metadata updated", metadata: [
             "version": "\(loadResult.metadata.version)",
             "source": loadResult.metadata.sourceLabel,
@@ -1530,10 +1528,6 @@ final class SpinLabAppState: ObservableObject {
 
     func pendingDisplayWarningItems(for pending: SpinLabDomain.PendingImport) -> [PendingDisplayWarning] {
         pendingRoutePresentation(for: pending).warningItems
-    }
-
-    func pendingDisplayWarnings(for pending: SpinLabDomain.PendingImport) -> [String] {
-        pendingDisplayWarningItems(for: pending).map(\.message)
     }
 
     func pendingDisplayInfoTags(for pending: SpinLabDomain.PendingImport) -> [String] {

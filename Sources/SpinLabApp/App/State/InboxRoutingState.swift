@@ -13,7 +13,7 @@ final class InboxRoutingState {
     private var drawerMatchIndex = DrawerMatchIndex()
     private var drawerMatchSamples: [LibrarySample] = []
     private var drawerMatchRuleFingerprint: String = "unknown"
-    private(set) var routingRuleFingerprint: String = "unknown"
+    private var routingRuleFingerprint: String = "unknown"
 
     init(
         routingCapabilities: RoutingCapabilities,
