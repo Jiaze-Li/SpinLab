@@ -306,11 +306,10 @@ final class SpinLabAppState: ObservableObject {
     private let librarySampleEditService = LibrarySampleEditService()
     private lazy var librarySyncService = LibrarySyncService(libraryStore: libraryStore, libraryDiffEngine: libraryDiffEngine)
     private let appLogger = AppLogger.shared
-    private var librarySampleEditBaseSample: LibrarySample?
-    private var librarySampleEditOriginalDraft: LibrarySampleEditDraft?
-    private var libraryPendingSelectionChange: LibraryPendingSelectionChange?
     private let interactionMemory: InteractionMemoryStore
-    private let inboxRoutingState: InboxRoutingState
+    private let inboxState: InboxState
+    private var libraryState = LibraryState()
+    private let workbenchState = WorkbenchState()
 
     init(
         persistence: SpinLabPersistence = LocalJSONPersistence(),
@@ -330,9 +329,11 @@ final class SpinLabAppState: ObservableObject {
         self.managedStorage = managedStorage
         self.sampleRegistry = sampleRegistry
         self.registrySubstrateRules = registrySubstrateRules
-        self.inboxRoutingState = InboxRoutingState(
-            routingCapabilities: routingCapabilities,
-            ruleRuntime: ruleRuntime
+        self.inboxState = InboxState(
+            routing: InboxRoutingState(
+                routingCapabilities: routingCapabilities,
+                ruleRuntime: ruleRuntime
+            )
         )
         self.librarySettings = librarySettingsStore.load()
         self.interactionMemory = InteractionMemoryStore(persistence: persistence)
@@ -400,26 +401,26 @@ final class SpinLabAppState: ObservableObject {
     }
 
     func matchedExistingLibraryDrawer(sampleInput: String) -> String? {
-        inboxRoutingState.matchedExistingLibraryDrawer(sampleInput: sampleInput)
+        inboxState.routing.matchedExistingLibraryDrawer(sampleInput: sampleInput)
     }
 
     func refreshPendingDrawerMatches(for pendingIDs: [UUID]? = nil) {
-        inboxRoutingState.refreshPendingDrawerMatches(
+        inboxState.routing.refreshPendingDrawerMatches(
             pendingImports: pendingImports,
             for: pendingIDs
         )
     }
 
     func pendingRoutingSnapshot(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.PendingRoutingSnapshot {
-        inboxRoutingState.pendingRoutingSnapshot(for: pending)
+        inboxState.routing.pendingRoutingSnapshot(for: pending)
     }
 
     func cachedPendingRoutingSnapshot(for pendingID: UUID) -> SpinLabDomain.PendingRoutingSnapshot? {
-        inboxRoutingState.cachedPendingRoutingSnapshot(for: pendingID)
+        inboxState.routing.cachedPendingRoutingSnapshot(for: pendingID)
     }
 
     private func refreshRoutingRuleMetadata(forceReload: Bool) {
-        let loadResult = inboxRoutingState.refreshRoutingRuleMetadata(forceReload: forceReload)
+        let loadResult = inboxState.routing.refreshRoutingRuleMetadata(forceReload: forceReload)
         appLogger.info(.import, "Routing rule metadata updated", metadata: [
             "version": "\(loadResult.metadata.version)",
             "source": loadResult.metadata.sourceLabel,
@@ -439,7 +440,7 @@ final class SpinLabAppState: ObservableObject {
         selectedPendingImportID = pendingImports.first?.id
         selectedArchivedRecordID = archivedRecords.first?.id
         workbenchResultDraft = selectedArchivedRecord?.latestResult?.summary ?? ""
-        inboxRoutingState.clearPendingState()
+        inboxState.routing.clearPendingState()
     }
 
     private func migrateManagedMeasurementPathsToOriginalIfPossible() {
@@ -531,7 +532,7 @@ final class SpinLabAppState: ObservableObject {
             snapshot.inboxWorkspaceByPendingID = snapshot.inboxWorkspaceByPendingID.filter { key, _ in
                 validPendingIDs.contains(key)
             }
-            inboxRoutingState.restoreDrafts(from: snapshot.inboxWorkspaceByPendingID)
+            inboxState.routing.restoreDrafts(from: snapshot.inboxWorkspaceByPendingID)
         }
         normalizeLibrarySelection()
     }
@@ -567,7 +568,7 @@ final class SpinLabAppState: ObservableObject {
     func clearPendingImports() {
         pendingImports = []
         selectedPendingImportID = nil
-        inboxRoutingState.clearPendingState()
+        inboxState.routing.clearPendingState()
         updateInteractionValue(\.inboxWorkspaceByPendingID, to: [:])
         persistence.savePendingImports(pendingImports)
     }
@@ -579,7 +580,7 @@ final class SpinLabAppState: ObservableObject {
             next.parsedHints = recomputedParsedHints(for: pending)
             return next
         }
-        inboxRoutingState.clearPendingState()
+        inboxState.routing.clearPendingState()
 
         var updatedWorkspaceByPendingID: [String: InboxPendingWorkspaceState] = [:]
         let existingWorkspaceByPendingID = interactionValue(\.inboxWorkspaceByPendingID)
@@ -745,7 +746,7 @@ final class SpinLabAppState: ObservableObject {
     func loadExistingDrawers() {
         guard let rootPath = librarySettings.rootPath else {
             libraryExistingGroups = [:]
-            inboxRoutingState.clearDrawerMatchCandidates()
+            inboxState.routing.clearDrawerMatchCandidates()
             libraryExistingMessage = "No Library Root selected."
             librarySelectedPrefix = nil
             librarySelectedBatchId = nil
@@ -803,7 +804,7 @@ final class SpinLabAppState: ObservableObject {
     }
 
     func saveAndContinuePendingLibrarySelectionChange() {
-        guard libraryPendingSelectionChange != nil else {
+        guard libraryState.pendingSelectionChange != nil else {
             return
         }
         saveLibrarySampleEdits()
@@ -814,19 +815,19 @@ final class SpinLabAppState: ObservableObject {
     }
 
     func discardAndContinuePendingLibrarySelectionChange() {
-        guard libraryPendingSelectionChange != nil else {
+        guard libraryState.pendingSelectionChange != nil else {
             return
         }
         librarySampleEditDraft = nil
-        librarySampleEditBaseSample = nil
-        librarySampleEditOriginalDraft = nil
+        libraryState.sampleEditBaseSample = nil
+        libraryState.sampleEditOriginalDraft = nil
         librarySampleEditError = nil
         librarySampleEditMessage = "Edit discarded."
         applyAndClearPendingLibrarySelectionChange()
     }
 
     func cancelPendingLibrarySelectionChange() {
-        libraryPendingSelectionChange = nil
+        libraryState.pendingSelectionChange = nil
         libraryPendingSelectionChangePrompt = nil
     }
 
@@ -870,7 +871,7 @@ final class SpinLabAppState: ObservableObject {
             return false
         }
 
-        libraryPendingSelectionChange = requested
+        libraryState.pendingSelectionChange = requested
         libraryPendingSelectionChangePrompt = "You have unsaved sample edits. Save before switching selection?"
         return true
     }
@@ -885,16 +886,16 @@ final class SpinLabAppState: ObservableObject {
     }
 
     private func applyAndClearPendingLibrarySelectionChange() {
-        guard let pending = libraryPendingSelectionChange else {
+        guard let pending = libraryState.pendingSelectionChange else {
             return
         }
-        libraryPendingSelectionChange = nil
+        libraryState.pendingSelectionChange = nil
         libraryPendingSelectionChangePrompt = nil
         applySelectionChange(pending)
     }
 
     func hasPendingLibrarySelectionChange() -> Bool {
-        libraryPendingSelectionChange != nil
+        libraryState.pendingSelectionChange != nil
     }
 
     func deleteExistingDrawer(batchId: String) {
@@ -936,7 +937,7 @@ final class SpinLabAppState: ObservableObject {
 
     var librarySampleEditIsDirty: Bool {
         guard let draft = librarySampleEditDraft,
-              let original = librarySampleEditOriginalDraft else {
+              let original = libraryState.sampleEditOriginalDraft else {
             return false
         }
         return draft != original
@@ -951,16 +952,16 @@ final class SpinLabAppState: ObservableObject {
             return
         }
 
-        librarySampleEditBaseSample = sample
+        libraryState.sampleEditBaseSample = sample
         let draft = librarySampleEditService.makeDraft(from: sample)
         librarySampleEditDraft = draft
-        librarySampleEditOriginalDraft = draft
+        libraryState.sampleEditOriginalDraft = draft
     }
 
     func cancelEditingSelectedLibrarySample() {
         librarySampleEditDraft = nil
-        librarySampleEditBaseSample = nil
-        librarySampleEditOriginalDraft = nil
+        libraryState.sampleEditBaseSample = nil
+        libraryState.sampleEditOriginalDraft = nil
         librarySampleEditError = nil
         librarySampleEditMessage = "Edit canceled."
     }
@@ -1075,7 +1076,7 @@ final class SpinLabAppState: ObservableObject {
             return
         }
         guard let draft = librarySampleEditDraft,
-              let base = librarySampleEditBaseSample else {
+              let base = libraryState.sampleEditBaseSample else {
             librarySampleEditError = "No active edit draft."
             return
         }
@@ -1089,8 +1090,8 @@ final class SpinLabAppState: ObservableObject {
         guard let current = snapshot.samples.first(where: { $0.id == draft.sampleId }) else {
             librarySampleEditError = "Selected sample no longer exists."
             librarySampleEditDraft = nil
-            librarySampleEditBaseSample = nil
-            librarySampleEditOriginalDraft = nil
+            libraryState.sampleEditBaseSample = nil
+            libraryState.sampleEditOriginalDraft = nil
             return
         }
         guard current.updatedAt == draft.baseUpdatedAt else {
@@ -1135,8 +1136,8 @@ final class SpinLabAppState: ObservableObject {
             }
             commitLibraryMutation(rootURL: rootURL, previewIndex: libraryPreview?.index)
             librarySampleEditDraft = nil
-            librarySampleEditBaseSample = nil
-            librarySampleEditOriginalDraft = nil
+            libraryState.sampleEditBaseSample = nil
+            libraryState.sampleEditOriginalDraft = nil
             if let syncSummary {
                 librarySampleEditMessage = syncSummary
             } else {
@@ -1475,7 +1476,11 @@ final class SpinLabAppState: ObservableObject {
         }
 
         selectedArchivedRecordID = record.id
-        workbenchResultDraft = record.latestResult?.summary ?? analysisModule.defaultResultSummary(for: record.measurement)
+        workbenchResultDraft = workbenchState.resolvedSummary(
+            for: record.measurement,
+            draftSummary: record.latestResult?.summary ?? "",
+            analysisModule: analysisModule
+        )
         selectedArea = .workbench
     }
 
@@ -1510,14 +1515,14 @@ final class SpinLabAppState: ObservableObject {
 
     func pendingRoutePresentation(for pending: SpinLabDomain.PendingImport) -> PendingRoutePresentation {
         let substrate = substrateWarning(for: pending, registryLookup: registryLookup(for: pending))
-        return inboxRoutingState.pendingRoutePresentation(
+        return inboxState.routing.pendingRoutePresentation(
             for: pending,
             substrateWarning: substrate
         )
     }
 
     func pendingRoutePresentationByID() -> [UUID: PendingRoutePresentation] {
-        inboxRoutingState.pendingRoutePresentationByID(
+        inboxState.routing.pendingRoutePresentationByID(
             pendingImports: pendingImports,
             substrateWarning: { [weak self] pending in
                 guard let self else { return nil }
@@ -1566,31 +1571,31 @@ final class SpinLabAppState: ObservableObject {
     }
 
     func pendingRoutePlan(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.RoutePlan {
-        inboxRoutingState.pendingRoutePlan(for: pending)
+        inboxState.routing.pendingRoutePlan(for: pending)
     }
 
     func pendingRouteStatus(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.RouteStatus {
-        inboxRoutingState.pendingRouteStatus(for: pending)
+        inboxState.routing.pendingRouteStatus(for: pending)
     }
 
     func hasSavedRoutingDraft(for pending: SpinLabDomain.PendingImport) -> Bool {
-        inboxRoutingState.hasSavedRoutingDraft(for: pending)
+        inboxState.routing.hasSavedRoutingDraft(for: pending)
     }
 
     func routingDraft(for pending: SpinLabDomain.PendingImport) -> PendingRoutingDraft {
-        inboxRoutingState.routingDraft(for: pending)
+        inboxState.routing.routingDraft(for: pending)
     }
 
     func routingDraftBaseline(for pending: SpinLabDomain.PendingImport) -> PendingRoutingDraft {
-        inboxRoutingState.routingDraftBaseline(for: pending)
+        inboxState.routing.routingDraftBaseline(for: pending)
     }
 
     func isRoutingDraftDirty(_ draft: PendingRoutingDraft, for pending: SpinLabDomain.PendingImport) -> Bool {
-        inboxRoutingState.isRoutingDraftDirty(draft, for: pending)
+        inboxState.routing.isRoutingDraftDirty(draft, for: pending)
     }
 
     func saveRoutingDraft(_ draft: PendingRoutingDraft, for pendingID: UUID) {
-        inboxRoutingState.saveRoutingDraft(
+        inboxState.routing.saveRoutingDraft(
             draft,
             for: pendingID,
             pendingImports: pendingImports
@@ -1615,7 +1620,7 @@ final class SpinLabAppState: ObservableObject {
         let record = makeArchivedRecord(from: pending, draft: draft, registryLookup: registryLookup)
         archivedRecords.insert(record, at: 0)
         pendingImports.removeAll { $0.id == pending.id }
-        inboxRoutingState.clearRoutingData(for: pending.id)
+        inboxState.routing.clearRoutingData(for: pending.id)
         updateInteractionEntryValue(for: pending.id, in: \.inboxWorkspaceByPendingID, value: nil)
 
         persistence.saveArchivedRecords(archivedRecords)
@@ -1623,7 +1628,11 @@ final class SpinLabAppState: ObservableObject {
 
         selectedArchivedRecordID = record.id
         selectedPendingImportID = pendingImports.first?.id
-        workbenchResultDraft = record.latestResult?.summary ?? analysisModule.defaultResultSummary(for: record.measurement)
+        workbenchResultDraft = workbenchState.resolvedSummary(
+            for: record.measurement,
+            draftSummary: record.latestResult?.summary ?? "",
+            analysisModule: analysisModule
+        )
         selectedArea = .library
     }
 
@@ -1670,7 +1679,11 @@ final class SpinLabAppState: ObservableObject {
         record.latestResult = SpinLabDomain.Result(
             id: existingResultID,
             measurementID: record.measurement.id,
-            summary: workbenchResultDraft.isEmpty ? analysisModule.defaultResultSummary(for: record.measurement) : workbenchResultDraft,
+            summary: workbenchState.resolvedSummary(
+                for: record.measurement,
+                draftSummary: workbenchResultDraft,
+                analysisModule: analysisModule
+            ),
             rating: record.latestResult?.rating,
             updatedAt: .now
         )
@@ -1823,20 +1836,20 @@ final class SpinLabAppState: ObservableObject {
     private func applyExistingIndex(_ index: LibraryIndex) {
         guard !index.samples.isEmpty else {
             libraryExistingGroups = [:]
-            inboxRoutingState.clearDrawerMatchCandidates()
+            inboxState.routing.clearDrawerMatchCandidates()
             libraryExistingMessage = "No existing drawers found."
             librarySelectedPrefix = nil
             librarySelectedBatchId = nil
             librarySelectedSampleId = nil
             librarySampleEditDraft = nil
-            librarySampleEditBaseSample = nil
-            librarySampleEditOriginalDraft = nil
+            libraryState.sampleEditBaseSample = nil
+            libraryState.sampleEditOriginalDraft = nil
             refreshPendingDrawerMatches()
             return
         }
 
         libraryExistingGroups = buildPreviewGroups(from: index)
-        inboxRoutingState.rebuildDrawerMatchCandidates(from: index.samples)
+        inboxState.routing.rebuildDrawerMatchCandidates(from: index.samples)
         libraryExistingMessage = "Loaded existing drawers: \(index.samples.count) samples"
         normalizeLibrarySelection()
         reconcileLibrarySampleEditingSelection()
@@ -2080,8 +2093,8 @@ final class SpinLabAppState: ObservableObject {
         guard libraryActiveSelectionSource == .drawer,
               let selectedSample = selectedExistingDrawerSample else {
             librarySampleEditDraft = nil
-            librarySampleEditBaseSample = nil
-            librarySampleEditOriginalDraft = nil
+            libraryState.sampleEditBaseSample = nil
+            libraryState.sampleEditOriginalDraft = nil
             librarySampleEditError = nil
             librarySampleEditMessage = "Edit canceled after leaving existing drawer selection."
             return
@@ -2089,8 +2102,8 @@ final class SpinLabAppState: ObservableObject {
 
         guard selectedSample.id == draft.sampleId else {
             librarySampleEditDraft = nil
-            librarySampleEditBaseSample = nil
-            librarySampleEditOriginalDraft = nil
+            libraryState.sampleEditBaseSample = nil
+            libraryState.sampleEditOriginalDraft = nil
             librarySampleEditError = nil
             librarySampleEditMessage = "Edit canceled after sample selection changed."
             return
