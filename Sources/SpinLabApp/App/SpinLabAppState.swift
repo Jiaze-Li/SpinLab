@@ -95,6 +95,37 @@ struct InboxPendingWorkspaceState: Codable, Equatable {
 struct SidebarInteractionState: Codable, Equatable {
     var isLibraryTreeExpanded: Bool = true
     var expandedPrefixes: Set<String> = []
+    var expandedNodeIDs: Set<String> = []
+
+    init(
+        isLibraryTreeExpanded: Bool = true,
+        expandedPrefixes: Set<String> = [],
+        expandedNodeIDs: Set<String> = []
+    ) {
+        self.isLibraryTreeExpanded = isLibraryTreeExpanded
+        self.expandedPrefixes = expandedPrefixes
+        self.expandedNodeIDs = expandedNodeIDs
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case isLibraryTreeExpanded
+        case expandedPrefixes
+        case expandedNodeIDs
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        isLibraryTreeExpanded = try container.decodeIfPresent(Bool.self, forKey: .isLibraryTreeExpanded) ?? true
+        expandedPrefixes = try container.decodeIfPresent(Set<String>.self, forKey: .expandedPrefixes) ?? []
+        expandedNodeIDs = try container.decodeIfPresent(Set<String>.self, forKey: .expandedNodeIDs) ?? []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(isLibraryTreeExpanded, forKey: .isLibraryTreeExpanded)
+        try container.encode(expandedPrefixes, forKey: .expandedPrefixes)
+        try container.encode(expandedNodeIDs, forKey: .expandedNodeIDs)
+    }
 }
 
 struct LibraryInteractionState: Codable, Equatable {
@@ -197,12 +228,6 @@ final class SpinLabAppState: ObservableObject {
         bind(state: \.librarySelectedSampleId, snapshot: \.librarySelectedSampleId)
     ]
 
-    private struct DrawerMatchCandidate {
-        var displayName: String
-        var sampleKey: String
-        var sampleKeyTokens: Set<String>
-    }
-
     @Published var selectedArea: AppArea = .inbox {
         didSet { persistInteractionSnapshotIfReady() }
     }
@@ -265,13 +290,14 @@ final class SpinLabAppState: ObservableObject {
     @Published private(set) var libraryMetadataSyncLogError: String?
     @Published private(set) var libraryMetadataSyncLogMessage: String?
     @Published private(set) var pendingRoutingSnapshotByID: [UUID: SpinLabDomain.PendingRoutingSnapshot] = [:]
+    @Published private(set) var routingRuleFingerprint: String = "unknown"
 
     let workflow: SpinLabDomain.WorkflowKind = .amrPhe
 
     private let persistence: SpinLabPersistence
     private let importPipeline: SpinLabImportPipeline
-    private let routePlanner = SpinLabRoutePlanner()
-    private let pendingRoutingSnapshotEvaluator = PendingRoutingSnapshotEvaluator()
+    private let routingCapabilities: RoutingCapabilities
+    private let ruleRuntime: any RuleRuntimeCapability
     private let registrySubstrateRules: any RegistrySubstrateRuleProviding
     private let analysisModule: AnalysisModuleExtension
     private let viewExtension: ViewExtension
@@ -289,7 +315,10 @@ final class SpinLabAppState: ObservableObject {
     private var libraryPendingSelectionChange: LibraryPendingSelectionChange?
     private let interactionMemory: InteractionMemoryStore
     private var pendingRoutingDraftsByID: [UUID: PendingRoutingDraft] = [:]
-    private var drawerMatchCandidates: [DrawerMatchCandidate] = []
+    private var drawerMatchIndex = DrawerMatchIndex()
+    private var drawerMatchSamples: [LibrarySample] = []
+    private var drawerMatchRuleFingerprint: String = "unknown"
+    private let pendingRoutePresentationBuilder = PendingRoutePresentationBuilder()
 
     init(
         persistence: SpinLabPersistence = LocalJSONPersistence(),
@@ -298,7 +327,9 @@ final class SpinLabAppState: ObservableObject {
         viewExtension: ViewExtension = AMRPHEViewExtension(),
         managedStorage: SpinLabManagedStorage = SpinLabManagedStorage(),
         sampleRegistry: SampleRegistryIndexing = XLSXPrefixSampleRegistryIndex.fromEnvironment(previewRowCount: 10),
-        registrySubstrateRules: any RegistrySubstrateRuleProviding = RegistrySubstrateRuleBook()
+        registrySubstrateRules: any RegistrySubstrateRuleProviding = RegistrySubstrateRuleBook(),
+        routingCapabilities: RoutingCapabilities = .live,
+        ruleRuntime: any RuleRuntimeCapability = DefaultRuleRuntimeCapability()
     ) {
         self.persistence = persistence
         self.importPipeline = importPipeline
@@ -307,6 +338,8 @@ final class SpinLabAppState: ObservableObject {
         self.managedStorage = managedStorage
         self.sampleRegistry = sampleRegistry
         self.registrySubstrateRules = registrySubstrateRules
+        self.routingCapabilities = routingCapabilities
+        self.ruleRuntime = ruleRuntime
         self.librarySettings = librarySettingsStore.load()
         self.interactionMemory = InteractionMemoryStore(persistence: persistence)
 
@@ -318,6 +351,7 @@ final class SpinLabAppState: ObservableObject {
         migrateManagedMeasurementPathsToOriginalIfPossible()
         managedStorage.clearManagedMeasurementCopies()
         updateRegistryPresentation()
+        refreshRoutingRuleMetadata(forceReload: false)
         loadExistingDrawers()
         restoreInteractionSnapshot()
         refreshPendingDrawerMatches()
@@ -355,8 +389,9 @@ final class SpinLabAppState: ObservableObject {
     }
 
     var pendingDrawerMatchByID: [UUID: Bool] {
-        Dictionary(uniqueKeysWithValues: pendingRoutingSnapshotByID.map { id, snapshot in
-            (id, snapshot.verdict == .libraryMatched)
+        Dictionary(uniqueKeysWithValues: pendingImports.map { pending in
+            let presentation = pendingRoutePresentation(for: pending)
+            return (pending.id, presentation.isLibraryMatched)
         })
     }
 
@@ -371,27 +406,8 @@ final class SpinLabAppState: ObservableObject {
     }
 
     func matchedExistingLibraryDrawer(sampleInput: String) -> String? {
-        let trimmed = sampleInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            return nil
-        }
-
-        guard !drawerMatchCandidates.isEmpty else {
-            return nil
-        }
-
-        let inputTokens = Set(drawerMatchTokens(from: trimmed))
-        guard !inputTokens.isEmpty else {
-            return nil
-        }
-
-        let matched = drawerMatchCandidates.filter { candidate in
-            inputTokens.isSubset(of: candidate.sampleKeyTokens)
-        }
-        guard matched.count == 1, let unique = matched.first else {
-            return nil
-        }
-        return unique.displayName
+        ensureDrawerMatchIndexUsesCurrentRules()
+        return routingCapabilities.matcher.match(sampleInput: sampleInput, index: drawerMatchIndex)
     }
 
     func refreshPendingDrawerMatches(for pendingIDs: [UUID]? = nil) {
@@ -429,9 +445,8 @@ final class SpinLabAppState: ObservableObject {
         for pending: SpinLabDomain.PendingImport
     ) -> SpinLabDomain.PendingRoutingSnapshot {
         let parsed = parsedHintsApplyingRoutingDraft(for: pending)
-        let routePlan = routePlanner.makeRoutePlan(from: parsed)
-        return pendingRoutingSnapshotEvaluator.makeSnapshot(
-            parsed: parsed,
+        let routePlan = routingCapabilities.planner.makeRoutePlan(from: parsed)
+        return routingCapabilities.evaluator.makeSnapshot(
             routePlan: routePlan,
             matchDrawer: { [weak self] sampleInput in
                 self?.matchedExistingLibraryDrawer(sampleInput: sampleInput)
@@ -439,66 +454,35 @@ final class SpinLabAppState: ObservableObject {
         )
     }
 
-    private func drawerMatchTokens(from value: String) -> [String] {
-        let upper = value.uppercased()
-        let pattern = #"[^A-Z0-9]+"#
-        let replaced = upper.replacingOccurrences(of: pattern, with: " ", options: .regularExpression)
-        return replaced
-            .split(whereSeparator: \.isWhitespace)
-            .map(String.init)
-            .flatMap(splitAlphaNumericToken)
-            .filter { $0 != "UNKNOWN" }
-            .filter { !$0.isEmpty }
-    }
-
-    private func splitAlphaNumericToken(_ token: String) -> [String] {
-        guard !token.isEmpty else {
-            return []
-        }
-
-        var result: [String] = []
-        var current = ""
-        var currentIsDigit: Bool?
-
-        for scalar in token.unicodeScalars {
-            let isDigit = CharacterSet.decimalDigits.contains(scalar)
-            if let currentIsDigit, currentIsDigit != isDigit {
-                if !current.isEmpty {
-                    result.append(current)
-                }
-                current = ""
-            }
-            current.append(Character(scalar))
-            currentIsDigit = isDigit
-        }
-
-        if !current.isEmpty {
-            result.append(current)
-        }
-
-        return result
-    }
-
     private func rebuildDrawerMatchCandidates(from samples: [LibrarySample]) {
-        drawerMatchCandidates = samples.map { sample in
-            DrawerMatchCandidate(
-                displayName: sample.displayName,
-                sampleKey: sample.id,
-                sampleKeyTokens: Set(sampleKeyTokens(from: sample))
-            )
+        drawerMatchSamples = samples
+        drawerMatchIndex = routingCapabilities.matcher.makeIndex(from: samples)
+        drawerMatchRuleFingerprint = ruleRuntime.loadRulesCached().metadata.fingerprint
+    }
+
+    private func refreshRoutingRuleMetadata(forceReload: Bool) {
+        let loadResult = forceReload ? ruleRuntime.reloadRulesCached() : ruleRuntime.loadRulesCached()
+        let previous = routingRuleFingerprint
+        routingRuleFingerprint = loadResult.metadata.fingerprint
+        appLogger.info(.import, "Routing rule metadata updated", metadata: [
+            "version": "\(loadResult.metadata.version)",
+            "source": loadResult.metadata.sourceLabel,
+            "path": loadResult.metadata.sourcePath,
+            "fingerprint": loadResult.metadata.fingerprint
+        ])
+
+        if previous != routingRuleFingerprint {
+            ensureDrawerMatchIndexUsesCurrentRules()
         }
     }
 
-    private func sampleKeyTokens(from sample: LibrarySample) -> [String] {
-        if sample.id.contains("|") {
-            let parts = sample.id.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
-            return parts.flatMap { drawerMatchTokens(from: $0) }
+    private func ensureDrawerMatchIndexUsesCurrentRules() {
+        let current = ruleRuntime.loadRulesCached().metadata.fingerprint
+        guard drawerMatchRuleFingerprint != current else {
+            return
         }
-        return drawerMatchTokens(from: [
-            sample.id,
-            sample.batchId,
-            sample.substrateTokens.joined(separator: " ")
-        ].joined(separator: " "))
+        drawerMatchIndex = routingCapabilities.matcher.makeIndex(from: drawerMatchSamples)
+        drawerMatchRuleFingerprint = current
     }
 
     var registryPrefixMap: [String: String] {
@@ -653,6 +637,7 @@ final class SpinLabAppState: ObservableObject {
     }
 
     func recomputeAllPendingParsedHints() {
+        refreshRoutingRuleMetadata(forceReload: true)
         pendingImports = pendingImports.map { pending in
             var next = pending
             next.parsedHints = recomputedParsedHints(for: pending)
@@ -824,7 +809,9 @@ final class SpinLabAppState: ObservableObject {
     func loadExistingDrawers() {
         guard let rootPath = librarySettings.rootPath else {
             libraryExistingGroups = [:]
-            drawerMatchCandidates = []
+            drawerMatchSamples = []
+            drawerMatchIndex = DrawerMatchIndex()
+            drawerMatchRuleFingerprint = ruleRuntime.loadRulesCached().metadata.fingerprint
             libraryExistingMessage = "No Library Root selected."
             librarySelectedPrefix = nil
             librarySelectedBatchId = nil
@@ -1587,13 +1574,28 @@ final class SpinLabAppState: ObservableObject {
         defaultConfirmationDraft(for: pending)
     }
 
+    func pendingRoutePresentation(for pending: SpinLabDomain.PendingImport) -> PendingRoutePresentation {
+        let routingSnapshot = pendingRoutingSnapshot(for: pending)
+        let substrate = substrateWarning(for: pending, registryLookup: registryLookup(for: pending))
+        return pendingRoutePresentationBuilder.build(
+            pending: pending,
+            routingSnapshot: routingSnapshot,
+            substrateWarning: substrate
+        )
+    }
+
+    func pendingRoutePresentationByID() -> [UUID: PendingRoutePresentation] {
+        Dictionary(uniqueKeysWithValues: pendingImports.map { pending in
+            (pending.id, pendingRoutePresentation(for: pending))
+        })
+    }
+
+    func pendingDisplayWarningItems(for pending: SpinLabDomain.PendingImport) -> [PendingDisplayWarning] {
+        pendingRoutePresentation(for: pending).warningItems
+    }
+
     func pendingDisplayWarnings(for pending: SpinLabDomain.PendingImport) -> [String] {
-        var warnings = pending.parsedHints.warnings
-        if let warning = substrateWarning(for: pending, registryLookup: registryLookup(for: pending)),
-           !warnings.contains(warning) {
-            warnings.append(warning)
-        }
-        return warnings
+        pendingDisplayWarningItems(for: pending).map(\.message)
     }
 
     func pendingDisplayInfoTags(for pending: SpinLabDomain.PendingImport) -> [String] {
@@ -1653,7 +1655,7 @@ final class SpinLabAppState: ObservableObject {
 
     func routingDraftBaseline(for pending: SpinLabDomain.PendingImport) -> PendingRoutingDraft {
         let parsed = pending.parsedHints
-        let plan = routePlanner.makeRoutePlan(from: parsed)
+        let plan = routingCapabilities.planner.makeRoutePlan(from: parsed)
         let resolutionsByChannel = Dictionary(uniqueKeysWithValues: plan.channelResolutions.map { ($0.channel, $0) })
 
         var overrides: [String: String] = [:]
@@ -1947,7 +1949,9 @@ final class SpinLabAppState: ObservableObject {
     private func applyExistingIndex(_ index: LibraryIndex) {
         guard !index.samples.isEmpty else {
             libraryExistingGroups = [:]
-            drawerMatchCandidates = []
+            drawerMatchSamples = []
+            drawerMatchIndex = DrawerMatchIndex()
+            drawerMatchRuleFingerprint = ruleRuntime.loadRulesCached().metadata.fingerprint
             libraryExistingMessage = "No existing drawers found."
             librarySelectedPrefix = nil
             librarySelectedBatchId = nil
