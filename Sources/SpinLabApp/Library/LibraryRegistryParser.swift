@@ -454,10 +454,14 @@ final class LibrarySubstrateParser {
     }
 
     func sampleKey(batchId: String, substrate: LibrarySubstrate) -> String {
-        let processing = substrate.tokens.filter { ["o", "HF", "baked"].contains($0) }.sorted().joined(separator: "+")
-        let material = substrate.material ?? "UNKNOWN"
-        let orientation = substrate.orientation ?? "UNKNOWN"
-        return "\(batchId)|\(processing)|\(material)|\(orientation)"
+        SampleSemanticDescriptor
+            .fromLibrarySubstrate(
+                batchId: batchId,
+                substrateTokens: substrate.tokens,
+                material: substrate.material,
+                orientation: substrate.orientation
+            )
+            .canonicalKey ?? "\(batchId)||UNKNOWN|UNKNOWN"
     }
 
     private func parseSegment(_ segment: String) -> LibrarySubstrate {

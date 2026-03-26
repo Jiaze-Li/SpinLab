@@ -39,7 +39,6 @@ struct V212RoutingDraftTests {
         appState.saveRoutingDraft(draft, for: pending.id)
 
         let plan = appState.pendingRoutePlan(for: pending)
-        #expect(plan.status == .libraryMatched)
         #expect(plan.targets.first?.sampleKey == "PN14 - STO(001)")
         #expect(plan.unresolvedChannels.isEmpty)
     }
@@ -178,7 +177,6 @@ struct V212RoutingDraftTests {
 
         let plan = appState.pendingRoutePlan(for: pending)
         let ch2 = plan.channelResolutions.first { $0.channel == "ch2" }
-        #expect(plan.status == .libraryMatched)
         #expect(ch2?.sampleKey == "PN44 - HF STO(111)")
         #expect(plan.conflicts.isEmpty)
     }

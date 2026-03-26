@@ -4,7 +4,6 @@ struct PendingRoutingSnapshotEvaluator {
     private let rules = PendingRoutingRuleBook()
 
     func makeSnapshot(
-        parsed: SpinLabDomain.ParsedFilenameHints,
         routePlan: SpinLabDomain.RoutePlan,
         matchDrawer: (String) -> String?
     ) -> SpinLabDomain.PendingRoutingSnapshot {
@@ -12,21 +11,18 @@ struct PendingRoutingSnapshotEvaluator {
         let scopes = sampleResolutions.map { resolution in
             let sampleKey = normalized(resolution.sampleKey)
             let matchedDrawer = sampleKey.flatMap(matchDrawer)
-            let warning: String?
-            if let resolutionWarning = resolution.warning {
-                warning = resolutionWarning
-            } else if matchedDrawer == nil {
-                warning = "No matching drawer found in Library."
-            } else {
-                warning = nil
-            }
+            let warning = RoutingExplanationBook.resolveScopeWarning(
+                resolutionWarning: resolution.warning,
+                matchedDrawer: matchedDrawer
+            )
 
             return SpinLabDomain.RoutingScopeEvaluation(
                 scope: resolution.channel,
                 sampleKey: sampleKey,
                 matchedDrawer: matchedDrawer,
                 tags: resolution.tags,
-                warning: warning
+                warning: warning?.message,
+                warningReason: warning?.reason
             )
         }
 

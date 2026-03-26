@@ -2,16 +2,17 @@ import SwiftUI
 
 struct RootSplitView: View {
     @EnvironmentObject private var appState: SpinLabAppState
-    @State private var isLibraryTreeExpanded = true
-    @State private var expandedPrefixes: Set<String> = []
-    @State private var hoveredSidebarRowKey: String?
+    @State private var expandedSidebarNodeIDs: Set<String> = []
+    @State private var hoveredSidebarRowID: String?
     @State private var pendingDeleteDrawerBatchID: String?
     @State private var pendingDeleteDrawerPrefix: String?
     @State private var isPresentingDeleteDrawerConfirm = false
+
     private let sidebarTopInset: CGFloat = 64
     private let standardDetailTopInset: CGFloat = 86
     private let inboxDetailTopInset: CGFloat = 14
     private let libraryDetailTopInset: CGFloat = 14
+    private let sidebarMenuProvider = SpinLabSidebarMenuProvider()
 
     var body: some View {
         NavigationSplitView {
@@ -20,15 +21,15 @@ struct RootSplitView: View {
                     .frame(height: sidebarTopInset)
 
                 ScrollView(.vertical) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(AppArea.allCases) { area in
-                            sidebarAreaButton(area)
-                            if area == .library && appState.selectedArea == .library && isLibraryTreeExpanded {
-                                libraryTree
-                                    .padding(.leading, 8)
-                            }
-                        }
-                    }
+                    SidebarTreeView(
+                        nodes: sidebarMenuProvider.makeMenu(appState: appState, selectedArea: appState.selectedArea),
+                        expandedNodeIDs: visibleExpandedSidebarNodeIDs,
+                        selectedNodeIDs: selectedSidebarNodeIDs,
+                        hoveredNodeID: hoveredSidebarRowID,
+                        onNodeTap: handleSidebarNodeTap,
+                        onHoverNode: { hoveredSidebarRowID = $0 },
+                        contextMenuItems: contextMenuItems(for:)
+                    )
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
                 }
@@ -54,21 +55,13 @@ struct RootSplitView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             appState.loadExistingDrawers()
-            let restored = appState.interactionValue(\.sidebar)
-            isLibraryTreeExpanded = restored.isLibraryTreeExpanded
-            expandedPrefixes = restored.expandedPrefixes
+            restoreSidebarInteractionState()
             persistSidebarInteractionState()
         }
-        .onChange(of: appState.selectedArea) { _, newValue in
-            if newValue == .library {
-                appState.loadExistingDrawers()
-                persistSidebarInteractionState()
-            }
-        }
-        .onChange(of: isLibraryTreeExpanded) { _, _ in
+        .onChange(of: appState.selectedArea) { _, _ in
             persistSidebarInteractionState()
         }
-        .onChange(of: expandedPrefixes) { _, _ in
+        .onChange(of: expandedSidebarNodeIDs) { _, _ in
             persistSidebarInteractionState()
         }
         .confirmationDialog(
@@ -117,177 +110,117 @@ struct RootSplitView: View {
         }
     }
 
-    private func iconName(for area: AppArea) -> String {
-        switch area {
-        case .inbox:
-            return "tray.full"
-        case .workbench:
-            return "waveform.path.ecg.rectangle"
-        case .library:
-            return "books.vertical"
+    private var visibleExpandedSidebarNodeIDs: Set<String> {
+        var visible = expandedSidebarNodeIDs
+        for area in AppArea.allCases where area != appState.selectedArea {
+            visible.remove(SidebarMenuNodeID.area(area))
+        }
+        return visible
+    }
+
+    private var selectedSidebarNodeIDs: Set<String> {
+        var selected: Set<String> = [SidebarMenuNodeID.area(appState.selectedArea)]
+        if appState.selectedArea == .library,
+           let prefix = appState.librarySelectedPrefix,
+           let batchID = appState.librarySelectedBatchId {
+            selected.insert(SidebarMenuNodeID.libraryBatch(prefix: prefix, batchID: batchID))
+        }
+        return selected
+    }
+
+    private func restoreSidebarInteractionState() {
+        let restored = appState.interactionValue(\.sidebar)
+        if !restored.expandedNodeIDs.isEmpty {
+            expandedSidebarNodeIDs = restored.expandedNodeIDs
+            return
+        }
+
+        expandedSidebarNodeIDs = legacyExpandedNodeIDs(from: restored)
+        if expandedSidebarNodeIDs.isEmpty {
+            expandedSidebarNodeIDs = [SidebarMenuNodeID.area(.inbox)]
         }
     }
 
-    @ViewBuilder
-    private func sidebarAreaButton(_ area: AppArea) -> some View {
-        let key = "area:\(area.rawValue)"
-        Button {
-            if area == .library, appState.selectedArea == .library {
-                isLibraryTreeExpanded.toggle()
-            } else {
-                appState.selectedArea = area
-                if area == .library {
-                    isLibraryTreeExpanded = true
-                }
-            }
-        } label: {
-            HStack(spacing: 8) {
-                if area == .library {
-                    Image(systemName: isLibraryTreeExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Label(area.rawValue, systemImage: iconName(for: area))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(
-                        appState.selectedArea == area
-                            ? Color.accentColor.opacity(0.18)
-                            : (hoveredSidebarRowKey == key ? Color.primary.opacity(0.12) : Color.clear)
-                    )
-            )
-            .contentShape(Rectangle())
+    private func legacyExpandedNodeIDs(from state: SidebarInteractionState) -> Set<String> {
+        var ids: Set<String> = []
+        if state.isLibraryTreeExpanded {
+            ids.insert(SidebarMenuNodeID.area(.library))
         }
-        .buttonStyle(.plain)
-        .onHover { isHovering in
-            hoveredSidebarRowKey = isHovering ? key : nil
+        for prefix in state.expandedPrefixes {
+            ids.insert(SidebarMenuNodeID.libraryPrefix(prefix))
         }
-    }
-
-    private var libraryTree: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if existingPrefixes.isEmpty {
-                Text("No existing drawers")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(existingPrefixes, id: \.self) { prefix in
-                    let prefixRowKey = "prefix:\(prefix)"
-                    Button {
-                        if expandedPrefixes.contains(prefix) {
-                            expandedPrefixes.remove(prefix)
-                        } else {
-                            expandedPrefixes.insert(prefix)
-                        }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: expandedPrefixes.contains(prefix) ? "chevron.down" : "chevron.right")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            Text(prefix)
-                                .font(.subheadline)
-                            Spacer()
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(hoveredSidebarRowKey == prefixRowKey ? Color.primary.opacity(0.12) : Color.clear)
-                        )
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .onHover { isHovering in
-                        hoveredSidebarRowKey = isHovering ? prefixRowKey : nil
-                    }
-                    .padding(.leading, 10)
-
-                    if expandedPrefixes.contains(prefix) {
-                        ForEach(groupsForPrefix(prefix)) { group in
-                            let rowKey = "batch:\(prefix):\(group.batchId)"
-                            Button {
-                                appState.selectExistingDrawer(
-                                    prefix: prefix,
-                                    batchId: group.batchId,
-                                    sampleId: group.samples.first?.id
-                                )
-                                appState.selectedArea = .library
-                            } label: {
-                                HStack {
-                                    Text(group.batchId)
-                                        .font(.subheadline)
-                                    Spacer()
-                                    Text("\(group.samples.count)")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .fill(
-                                            isSelectedBatch(prefix: prefix, batchId: group.batchId)
-                                                ? Color.accentColor.opacity(0.18)
-                                                : (hoveredSidebarRowKey == rowKey ? Color.primary.opacity(0.12) : Color.clear)
-                                        )
-                                )
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .onHover { isHovering in
-                                hoveredSidebarRowKey = isHovering ? rowKey : nil
-                            }
-                            .contextMenu {
-                                Button("Delete Drawer…", role: .destructive) {
-                                    pendingDeleteDrawerPrefix = prefix
-                                    pendingDeleteDrawerBatchID = group.batchId
-                                    isPresentingDeleteDrawerConfirm = true
-                                }
-                            }
-                            .padding(.leading, 28)
-                        }
-                    }
-                }
-            }
-        }
-        .font(.subheadline)
-    }
-
-    private var existingPrefixes: [String] {
-        let configured = appState.librarySettings.allowedBatchPrefixes.map { $0.uppercased() }
-        let available = Array(appState.libraryExistingGroups.keys).sorted()
-        if configured.isEmpty {
-            return available
-        }
-        let ordered = configured.filter { available.contains($0) }
-        let remaining = available.filter { !ordered.contains($0) }
-        return ordered + remaining
+        return ids
     }
 
     private func persistSidebarInteractionState() {
+        let isLibraryTreeExpanded = expandedSidebarNodeIDs.contains(SidebarMenuNodeID.area(.library))
+        let expandedPrefixes: Set<String> = Set<String>(expandedSidebarNodeIDs.compactMap { nodeID in
+            guard nodeID.hasPrefix("library-prefix:") else {
+                return nil
+            }
+            return String(nodeID.dropFirst("library-prefix:".count))
+        })
+
         appState.updateInteractionValue(
             \.sidebar,
-            to:
-            SidebarInteractionState(
+            to: SidebarInteractionState(
                 isLibraryTreeExpanded: isLibraryTreeExpanded,
-                expandedPrefixes: expandedPrefixes
+                expandedPrefixes: expandedPrefixes,
+                expandedNodeIDs: expandedSidebarNodeIDs
             )
         )
     }
 
-    private func groupsForPrefix(_ prefix: String) -> [LibraryPreviewBatchGroup] {
-        appState.libraryExistingGroups[prefix] ?? []
+    private func handleSidebarNodeTap(_ node: SidebarMenuNode) {
+        switch node.kind {
+        case let .area(area):
+            if appState.selectedArea == area, node.isExpandable {
+                toggleSidebarNodeExpansion(node.id)
+            } else {
+                appState.selectedArea = area
+                if node.isExpandable {
+                    expandedSidebarNodeIDs.insert(node.id)
+                }
+            }
+
+        case .inboxReserved:
+            appState.selectedArea = .inbox
+
+        case .libraryPrefix:
+            toggleSidebarNodeExpansion(node.id)
+
+        case let .libraryBatch(prefix, batchId, sampleId):
+            appState.selectExistingDrawer(prefix: prefix, batchId: batchId, sampleId: sampleId)
+            appState.selectedArea = .library
+
+        case .info:
+            break
+        }
     }
 
-    private func isSelectedBatch(prefix: String, batchId: String) -> Bool {
-        appState.selectedArea == .library
-            && appState.librarySelectedPrefix == prefix
-            && appState.librarySelectedBatchId == batchId
+    private func toggleSidebarNodeExpansion(_ nodeID: String) {
+        if expandedSidebarNodeIDs.contains(nodeID) {
+            expandedSidebarNodeIDs.remove(nodeID)
+        } else {
+            expandedSidebarNodeIDs.insert(nodeID)
+        }
+    }
+
+    private func contextMenuItems(for node: SidebarMenuNode) -> [SidebarContextMenuItem] {
+        guard case let .libraryBatch(prefix, batchID, _) = node.kind else {
+            return []
+        }
+
+        return [
+            SidebarContextMenuItem(
+                id: "delete:\(prefix):\(batchID)",
+                title: "Delete Drawer…",
+                role: .destructive
+            ) {
+                pendingDeleteDrawerPrefix = prefix
+                pendingDeleteDrawerBatchID = batchID
+                isPresentingDeleteDrawerConfirm = true
+            }
+        ]
     }
 }

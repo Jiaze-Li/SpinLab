@@ -22,6 +22,7 @@ struct LibraryView: View {
     @State private var searchEnergyText: String = ""
     @State private var searchMatchedResults: [SearchResultItem] = []
     @State private var searchHasExecuted = false
+    @StateObject private var viewModel = LibraryViewModel()
     private let level1HeaderFont: Font = .title2.bold()
     private let level2HeaderFont: Font = .title3.weight(.semibold)
     private let level3HeaderFont: Font = .headline
@@ -41,16 +42,22 @@ struct LibraryView: View {
         .padding(.bottom, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
+            viewModel.bindActions(from: appState)
             applyRestoredInteractionState()
             syncSelection()
-            appState.updateInteractionValue(\.libraryView, to: interactionStateSnapshot)
+            viewModel.syncState(from: appState)
+            viewModel.persistInteractionState(interactionStateSnapshot)
         }
-        .onChange(of: appState.libraryPreviewGroups) { _, _ in
+        .onChange(of: viewModel.viewState.previewGroupsByPrefix) { _, _ in
             syncSelection()
-            appState.updateInteractionValue(\.libraryView, to: interactionStateSnapshot)
+            viewModel.syncState(from: appState)
+            viewModel.persistInteractionState(interactionStateSnapshot)
         }
         .onChange(of: interactionStateSnapshot) { _, newValue in
-            appState.updateInteractionValue(\.libraryView, to: newValue)
+            viewModel.persistInteractionState(newValue)
+        }
+        .onReceive(appState.objectWillChange) { _ in
+            viewModel.syncState(from: appState)
         }
         .confirmationDialog(
             "Unsaved Edits",
@@ -58,16 +65,16 @@ struct LibraryView: View {
             titleVisibility: .visible
         ) {
             Button("Save and Switch") {
-                appState.saveAndContinuePendingLibrarySelectionChange()
+                viewModel.saveAndContinuePendingSelectionChange()
             }
             Button("Discard and Switch", role: .destructive) {
-                appState.discardAndContinuePendingLibrarySelectionChange()
+                viewModel.discardAndContinuePendingSelectionChange()
             }
             Button("Cancel", role: .cancel) {
-                appState.cancelPendingLibrarySelectionChange()
+                viewModel.cancelPendingSelectionChange()
             }
         } message: {
-            Text(appState.libraryPendingSelectionChangePrompt ?? "You have unsaved sample edits.")
+            Text(viewModel.viewState.pendingSelectionChangePrompt ?? "You have unsaved sample edits.")
         }
         .sheet(isPresented: $isShowingSampleChangeLog) {
             sampleChangeLogSheet
@@ -130,7 +137,7 @@ struct LibraryView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         MetadataValueRow(
                             label: "Registry Path (Inbox)",
-                            value: appState.librarySettings.registrySourcePath ?? appState.registrySourceFilePath ?? "Not loaded",
+                            value: viewModel.viewState.registrySourcePath ?? "Not loaded",
                             monospaced: true
                         )
                         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -138,7 +145,7 @@ struct LibraryView: View {
 
                         MetadataValueRow(
                             label: "Library Root",
-                            value: appState.librarySettings.rootPath ?? "Not set",
+                            value: viewModel.viewState.libraryRootPath ?? "Not set",
                             monospaced: true
                         )
                         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -149,21 +156,21 @@ struct LibraryView: View {
                                 presentLibraryRootPanel()
                             }
                             Button("Verify Root") {
-                                appState.verifyLibraryRoot()
+                                viewModel.verifyLibraryRoot()
                             }
                             Button("Sync Files") {
-                                appState.syncLibraryFromFiles()
+                                viewModel.syncLibraryFromFiles()
                             }
-                            .disabled(appState.librarySettings.rootPath == nil)
+                            .disabled(viewModel.viewState.libraryRootPath == nil)
                         }
 
-                        if let message = appState.libraryRootVerificationMessage {
+                        if let message = viewModel.viewState.rootVerificationMessage {
                             Text(message)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
 
-                        if let path = appState.libraryRootVerificationPath {
+                        if let path = viewModel.viewState.rootVerificationPath {
                             MetadataValueRow(label: "Verified Path", value: path, monospaced: true)
                         }
 
@@ -172,11 +179,11 @@ struct LibraryView: View {
                                 .frame(width: 190)
                                 .textFieldStyle(.roundedBorder)
                             Button("Save Prefixes") {
-                                appState.updateAllowedBatchPrefixes(from: allowedPrefixesDraft)
+                                viewModel.updateAllowedBatchPrefixes(from: allowedPrefixesDraft)
                             }
                         }
                         .onAppear {
-                            allowedPrefixesDraft = appState.librarySettings.allowedBatchPrefixes.joined(separator: ", ")
+                            allowedPrefixesDraft = viewModel.viewState.allowedBatchPrefixesText
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -189,7 +196,7 @@ struct LibraryView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         MetadataValueRow(
                             label: "Backup Path",
-                            value: appState.librarySettings.backupPath ?? "Not set",
+                            value: viewModel.viewState.backupPath ?? "Not set",
                             monospaced: true
                         )
                         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -200,16 +207,16 @@ struct LibraryView: View {
                                 presentBackupPathPanel()
                             }
                             Button("Sync Backup") {
-                                appState.syncLibraryBackup()
+                                viewModel.syncLibraryBackup()
                             }
-                            .disabled(appState.librarySettings.rootPath == nil || appState.librarySettings.backupPath == nil)
+                            .disabled(viewModel.viewState.libraryRootPath == nil || viewModel.viewState.backupPath == nil)
                         }
 
-                        if let error = appState.libraryBackupError {
+                        if let error = viewModel.viewState.backupError {
                             Text(error)
                                 .font(.caption)
                                 .foregroundStyle(.red)
-                        } else if let message = appState.libraryBackupMessage {
+                        } else if let message = viewModel.viewState.backupMessage {
                             Text(message)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -261,33 +268,33 @@ struct LibraryView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Button("Sync Registry") {
-                    appState.syncLibraryFromRegistry()
+                    viewModel.syncLibraryFromRegistry()
                 }
                 Button("Apply All") {
-                    appState.applyPreparedLibrarySyncReview()
+                    viewModel.applyPreparedLibrarySyncReview()
                 }
-                .disabled((appState.libraryRefreshReview?.totalChangesCount ?? 0) == 0)
+                .disabled((viewModel.viewState.refreshReview?.totalChangesCount ?? 0) == 0)
                 Button("Apply Selected") {
-                    appState.applySelectedRegistryDiff(batchId: selectedBatchId)
+                    viewModel.applySelectedRegistryDiff(batchId: selectedBatchId)
                 }
-                .disabled((appState.libraryRefreshReview?.totalChangesCount ?? 0) == 0 || selectedBatchId == nil)
+                .disabled((viewModel.viewState.refreshReview?.totalChangesCount ?? 0) == 0 || selectedBatchId == nil)
             }
 
-            if let message = appState.libraryPreviewMessage {
+            if let message = viewModel.viewState.previewMessage {
                 Text(message)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            if let review = appState.libraryRefreshReview {
+            if let review = viewModel.viewState.refreshReview {
                 Text("Pending sync review: \(review.newSamples.count) new, \(review.changedSamples.count) changed, \(review.removedSamples.count) removed, \(review.changedBatches.count) batch-changed, \(review.removedBatches.count) batch-removed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            if !appState.libraryPreviewWarnings.isEmpty {
+            if !viewModel.viewState.previewWarnings.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(appState.libraryPreviewWarnings) { warning in
+                    ForEach(viewModel.viewState.previewWarnings) { warning in
                         HStack(alignment: .top, spacing: 8) {
                             Circle()
                                 .fill(warning.severity == .error ? Color.red : Color.orange)
@@ -299,13 +306,13 @@ struct LibraryView: View {
                 }
             }
 
-            if let message = appState.libraryDrawerMessage {
+            if let message = viewModel.viewState.drawerMessage {
                 Text(message)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            if let error = appState.libraryDrawerError {
+            if let error = viewModel.viewState.drawerError {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
@@ -318,7 +325,7 @@ struct LibraryView: View {
         HStack(spacing: 6) {
             Text("Registry Sync")
                 .font(level3HeaderFont)
-            if let syncStatus = appState.librarySyncStatusMessage {
+            if let syncStatus = viewModel.viewState.syncStatusMessage {
                 Text("(\(syncStatus))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -552,7 +559,7 @@ struct LibraryView: View {
                         selectedPrefix = newValue
                         selectedBatchId = previewGroupsForSelectedPrefix.first?.batchId
                         selectedSampleId = previewGroupsForSelectedPrefix.first?.samples.first?.id
-                        appState.selectBrowserSample()
+                        viewModel.selectBrowserSample()
                     })
                 ) {
                     ForEach(previewPrefixes, id: \.self) { prefix in
@@ -588,7 +595,7 @@ struct LibraryView: View {
                             Button {
                                 selectedBatchId = group.batchId
                                 selectedSampleId = group.samples.first?.id
-                                appState.selectBrowserSample()
+                                viewModel.selectBrowserSample()
                             } label: {
                                 HStack {
                                     if let status = appState.libraryBatchSyncStatusByID[group.batchId], status != .unchanged {
@@ -655,7 +662,7 @@ struct LibraryView: View {
                                 isSelected: selectedSampleId == sample.id
                             ) {
                                 selectedSampleId = sample.id
-                                appState.selectBrowserSample()
+                                viewModel.selectBrowserSample()
                             }
                         }
                     }
@@ -667,8 +674,7 @@ struct LibraryView: View {
 
     private func existingDrawerSampleRow(sample: LibrarySample, prefix: String, batchId: String) -> some View {
         Button {
-            appState.selectExistingDrawer(prefix: prefix, batchId: batchId, sampleId: sample.id)
-            appState.selectedArea = .library
+            viewModel.selectExistingDrawer(prefix: prefix, batchId: batchId, sampleId: sample.id)
         } label: {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(sample.substrateDisplay)
@@ -845,24 +851,24 @@ struct LibraryView: View {
                     .font(.title2.bold())
                 Spacer()
                 Button("Numeric日志") {
-                    appState.loadLibraryGlobalManualLogs()
+                    viewModel.loadLibraryGlobalManualLogs()
                     isShowingGlobalManualLog = true
                 }
                 Button("Metadata日志") {
-                    appState.loadLibraryMetadataSyncLogs()
+                    viewModel.loadLibraryMetadataSyncLogs()
                     isShowingMetadataSyncLog = true
                 }
                 if isEditingSelectedSample {
                     Button("Cancel") {
-                        appState.cancelEditingSelectedLibrarySample()
+                        viewModel.cancelEditingSelectedLibrarySample()
                     }
                     Button("Save") {
-                        appState.saveLibrarySampleEdits()
+                        viewModel.saveLibrarySampleEdits()
                     }
                     .disabled(!appState.librarySampleEditIsDirty || appState.librarySampleEditIsSaving)
                 } else {
                     Button("Edit") {
-                        appState.beginEditingSelectedLibrarySample()
+                        viewModel.beginEditingSelectedLibrarySample()
                     }
                     .disabled(!appState.canEditSelectedLibrarySample)
                 }
@@ -916,7 +922,7 @@ struct LibraryView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button("Refresh") {
-                        appState.loadLibraryGlobalManualLogs()
+                        viewModel.loadLibraryGlobalManualLogs()
                     }
                 }
                 ToolbarItem(placement: .cancellationAction) {
@@ -947,13 +953,13 @@ struct LibraryView: View {
     private func statusButton(for entry: LibraryManualUpdateLogEntry, targetStatus: LibraryManualLogStatus, title: String) -> some View {
         if targetStatus == entry.status {
             Button(title) {
-                appState.markLibraryGlobalManualLogStatus(rowIndex: entry.rowIndex, status: targetStatus)
+                viewModel.markLibraryGlobalManualLogStatus(rowIndex: entry.rowIndex, status: targetStatus)
             }
             .buttonStyle(.borderedProminent)
             .disabled(true)
         } else {
             Button(title) {
-                appState.markLibraryGlobalManualLogStatus(rowIndex: entry.rowIndex, status: targetStatus)
+                viewModel.markLibraryGlobalManualLogStatus(rowIndex: entry.rowIndex, status: targetStatus)
             }
             .buttonStyle(.bordered)
         }
@@ -982,7 +988,7 @@ struct LibraryView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button("Refresh") {
-                        appState.loadLibraryMetadataSyncLogs()
+                        viewModel.loadLibraryMetadataSyncLogs()
                     }
                 }
                 ToolbarItem(placement: .cancellationAction) {
@@ -1167,7 +1173,7 @@ struct LibraryView: View {
             get: { appState.hasPendingLibrarySelectionChange() },
             set: { isPresented in
                 if !isPresented {
-                    appState.cancelPendingLibrarySelectionChange()
+                    viewModel.cancelPendingSelectionChange()
                 }
             }
         )
@@ -1483,7 +1489,7 @@ struct LibraryView: View {
     }
 
     private var previewPrefixes: [String] {
-        let configured = appState.librarySettings.allowedBatchPrefixes.map { $0.uppercased() }
+        let configured = viewModel.viewState.allowedBatchPrefixes
         let available = Array(combinedPreviewGroupsByPrefix.keys).sorted()
         if configured.isEmpty {
             return available
@@ -1499,14 +1505,14 @@ struct LibraryView: View {
     }
 
     private var combinedPreviewGroupsByPrefix: [String: [LibraryPreviewBatchGroup]] {
-        var groups = appState.libraryPreviewGroups
-        for (batchID, status) in appState.libraryBatchSyncStatusByID where status != .unchanged {
+        var groups = viewModel.viewState.previewGroupsByPrefix
+        for (batchID, status) in viewModel.viewState.batchSyncStatusByID where status != .unchanged {
             let prefix = LibrarySort.batchSortKey(batchID).prefix
             let alreadyExists = groups[prefix]?.contains(where: { $0.batchId == batchID }) == true
             if alreadyExists {
                 continue
             }
-            let existingSamples = appState.libraryExistingGroups[prefix]?
+            let existingSamples = viewModel.viewState.existingGroupsByPrefix[prefix]?
                 .first(where: { $0.batchId == batchID })?
                 .samples ?? []
             groups[prefix, default: []].append(
@@ -1558,7 +1564,7 @@ struct LibraryView: View {
         panel.title = "Choose Library Root"
         panel.message = "Select a folder for the SpinLab library store."
         if panel.runModal() == .OK, let url = panel.url {
-            appState.updateLibraryRoot(to: url)
+            viewModel.updateLibraryRoot(to: url)
         }
     }
 
@@ -1570,7 +1576,7 @@ struct LibraryView: View {
         panel.title = "Choose Backup Path"
         panel.message = "Select a folder for Library backup sync."
         if panel.runModal() == .OK, let url = panel.url {
-            appState.updateLibraryBackupPath(to: url)
+            viewModel.updateLibraryBackupPath(to: url)
         }
     }
 
@@ -1594,7 +1600,7 @@ struct LibraryView: View {
     }
 
     private func applyRestoredInteractionState() {
-        let restored = appState.interactionValue(\.libraryView)
+        let restored = viewModel.viewState.restoredInteractionState
         selectedPrefix = restored.selectedPrefix
         selectedBatchId = restored.selectedBatchId
         selectedSampleId = restored.selectedSampleId
@@ -1636,7 +1642,7 @@ struct LibraryView: View {
     }
 
     private var allExistingDrawerSamples: [SearchResultItem] {
-        let groups = appState.libraryExistingGroups
+        let groups = viewModel.viewState.existingGroupsByPrefix
         return groups
             .flatMap { prefix, batchGroups in
                 batchGroups.flatMap { group in
@@ -1793,8 +1799,7 @@ struct LibraryView: View {
     }
 
     private func selectSearchResultSample(_ result: SearchResultItem) {
-        appState.selectExistingDrawer(prefix: result.prefix, batchId: result.sample.batchId, sampleId: result.sample.id)
-        appState.selectedArea = .library
+        viewModel.selectExistingDrawer(prefix: result.prefix, batchId: result.sample.batchId, sampleId: result.sample.id)
     }
 
     private func isSelectedSearchResult(_ result: SearchResultItem) -> Bool {
@@ -1917,3 +1922,24 @@ private struct PreviewSampleRow: View, Equatable {
         }
     }
 }
+
+#if DEBUG
+struct LibraryView_Previews: PreviewProvider {
+    static var previews: some View {
+        let registry = WorkflowRegistry.shared
+        let bundle = registry.bundle(for: .dummy) ?? registry.defaultBundle()
+        let appState = SpinLabAppState(
+            workflowBundle: bundle,
+            persistence: LocalPersistenceStub(),
+            managedStorage: SpinLabManagedStorage(
+                rootURL: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("spinlab-library-preview", isDirectory: true)
+            )
+        )
+
+        return LibraryView()
+            .environmentObject(appState)
+            .frame(width: 1200, height: 760)
+    }
+}
+#endif

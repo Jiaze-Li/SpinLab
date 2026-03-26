@@ -30,7 +30,7 @@ struct V213InboxClosedLoopTests {
         appState.saveRoutingDraft(draft, for: pending.id)
 
         let plan = appState.pendingRoutePlan(for: pending)
-        #expect(plan.status == .libraryMatched)
+        #expect(appState.pendingRouteStatus(for: pending) == .libraryMatched)
         #expect(plan.targets.first?.sampleKey == "PN40 - STO(001)")
     }
 

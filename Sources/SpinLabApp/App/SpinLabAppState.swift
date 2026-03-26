@@ -95,6 +95,37 @@ struct InboxPendingWorkspaceState: Codable, Equatable {
 struct SidebarInteractionState: Codable, Equatable {
     var isLibraryTreeExpanded: Bool = true
     var expandedPrefixes: Set<String> = []
+    var expandedNodeIDs: Set<String> = []
+
+    init(
+        isLibraryTreeExpanded: Bool = true,
+        expandedPrefixes: Set<String> = [],
+        expandedNodeIDs: Set<String> = []
+    ) {
+        self.isLibraryTreeExpanded = isLibraryTreeExpanded
+        self.expandedPrefixes = expandedPrefixes
+        self.expandedNodeIDs = expandedNodeIDs
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case isLibraryTreeExpanded
+        case expandedPrefixes
+        case expandedNodeIDs
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        isLibraryTreeExpanded = try container.decodeIfPresent(Bool.self, forKey: .isLibraryTreeExpanded) ?? true
+        expandedPrefixes = try container.decodeIfPresent(Set<String>.self, forKey: .expandedPrefixes) ?? []
+        expandedNodeIDs = try container.decodeIfPresent(Set<String>.self, forKey: .expandedNodeIDs) ?? []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(isLibraryTreeExpanded, forKey: .isLibraryTreeExpanded)
+        try container.encode(expandedPrefixes, forKey: .expandedPrefixes)
+        try container.encode(expandedNodeIDs, forKey: .expandedNodeIDs)
+    }
 }
 
 struct LibraryInteractionState: Codable, Equatable {
@@ -197,12 +228,6 @@ final class SpinLabAppState: ObservableObject {
         bind(state: \.librarySelectedSampleId, snapshot: \.librarySelectedSampleId)
     ]
 
-    private struct DrawerMatchCandidate {
-        var displayName: String
-        var sampleKey: String
-        var sampleKeyTokens: Set<String>
-    }
-
     @Published var selectedArea: AppArea = .inbox {
         didSet { persistInteractionSnapshotIfReady() }
     }
@@ -264,14 +289,11 @@ final class SpinLabAppState: ObservableObject {
     @Published private(set) var libraryMetadataSyncLogs: [LibraryMetadataSyncLogEntry] = []
     @Published private(set) var libraryMetadataSyncLogError: String?
     @Published private(set) var libraryMetadataSyncLogMessage: String?
-    @Published private(set) var pendingRoutingSnapshotByID: [UUID: SpinLabDomain.PendingRoutingSnapshot] = [:]
 
-    let workflow: SpinLabDomain.WorkflowKind = .amrPhe
+    let workflow: SpinLabDomain.WorkflowKind
 
     private let persistence: SpinLabPersistence
     private let importPipeline: SpinLabImportPipeline
-    private let routePlanner = SpinLabRoutePlanner()
-    private let pendingRoutingSnapshotEvaluator = PendingRoutingSnapshotEvaluator()
     private let registrySubstrateRules: any RegistrySubstrateRuleProviding
     private let analysisModule: AnalysisModuleExtension
     private let viewExtension: ViewExtension
@@ -284,29 +306,37 @@ final class SpinLabAppState: ObservableObject {
     private let librarySampleEditService = LibrarySampleEditService()
     private lazy var librarySyncService = LibrarySyncService(libraryStore: libraryStore, libraryDiffEngine: libraryDiffEngine)
     private let appLogger = AppLogger.shared
-    private var librarySampleEditBaseSample: LibrarySample?
-    private var librarySampleEditOriginalDraft: LibrarySampleEditDraft?
-    private var libraryPendingSelectionChange: LibraryPendingSelectionChange?
     private let interactionMemory: InteractionMemoryStore
-    private var pendingRoutingDraftsByID: [UUID: PendingRoutingDraft] = [:]
-    private var drawerMatchCandidates: [DrawerMatchCandidate] = []
+    private let inboxState: InboxState
+    private var libraryState = LibraryState()
+    private let workbenchState = WorkbenchState()
+    private let coordinator = AppCoordinator()
+    private let confirmPendingImportUseCase = ConfirmPendingImportUseCase()
+    private let saveLibrarySampleEditsUseCase = SaveLibrarySampleEditsUseCase()
 
     init(
+        workflowBundle: WorkflowBundle = WorkflowRegistry.shared.defaultBundle(),
         persistence: SpinLabPersistence = LocalJSONPersistence(),
-        importPipeline: SpinLabImportPipeline = .amrPhe,
-        analysisModule: AnalysisModuleExtension = AMRPHEAnalysisModuleExtension(),
-        viewExtension: ViewExtension = AMRPHEViewExtension(),
         managedStorage: SpinLabManagedStorage = SpinLabManagedStorage(),
         sampleRegistry: SampleRegistryIndexing = XLSXPrefixSampleRegistryIndex.fromEnvironment(previewRowCount: 10),
-        registrySubstrateRules: any RegistrySubstrateRuleProviding = RegistrySubstrateRuleBook()
+        registrySubstrateRules: any RegistrySubstrateRuleProviding = RegistrySubstrateRuleBook(),
+        routingCapabilities: RoutingCapabilities = .live,
+        ruleRuntime: any RuleRuntimeCapability = DefaultRuleRuntimeCapability()
     ) {
         self.persistence = persistence
-        self.importPipeline = importPipeline
-        self.analysisModule = analysisModule
-        self.viewExtension = viewExtension
+        self.workflow = workflowBundle.workflowExtension.workflow
+        self.importPipeline = workflowBundle.importPipeline
+        self.analysisModule = workflowBundle.analysisModule
+        self.viewExtension = workflowBundle.viewExtension
         self.managedStorage = managedStorage
         self.sampleRegistry = sampleRegistry
         self.registrySubstrateRules = registrySubstrateRules
+        self.inboxState = InboxState(
+            routing: InboxRoutingState(
+                routingCapabilities: routingCapabilities,
+                ruleRuntime: ruleRuntime
+            )
+        )
         self.librarySettings = librarySettingsStore.load()
         self.interactionMemory = InteractionMemoryStore(persistence: persistence)
 
@@ -318,6 +348,7 @@ final class SpinLabAppState: ObservableObject {
         migrateManagedMeasurementPathsToOriginalIfPossible()
         managedStorage.clearManagedMeasurementCopies()
         updateRegistryPresentation()
+        refreshRoutingRuleMetadata(forceReload: false)
         loadExistingDrawers()
         restoreInteractionSnapshot()
         refreshPendingDrawerMatches()
@@ -355,8 +386,9 @@ final class SpinLabAppState: ObservableObject {
     }
 
     var pendingDrawerMatchByID: [UUID: Bool] {
-        Dictionary(uniqueKeysWithValues: pendingRoutingSnapshotByID.map { id, snapshot in
-            (id, snapshot.verdict == .libraryMatched)
+        Dictionary(uniqueKeysWithValues: pendingImports.map { pending in
+            let presentation = pendingRoutePresentation(for: pending)
+            return (pending.id, presentation.isLibraryMatched)
         })
     }
 
@@ -371,134 +403,32 @@ final class SpinLabAppState: ObservableObject {
     }
 
     func matchedExistingLibraryDrawer(sampleInput: String) -> String? {
-        let trimmed = sampleInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            return nil
-        }
-
-        guard !drawerMatchCandidates.isEmpty else {
-            return nil
-        }
-
-        let inputTokens = Set(drawerMatchTokens(from: trimmed))
-        guard !inputTokens.isEmpty else {
-            return nil
-        }
-
-        let matched = drawerMatchCandidates.filter { candidate in
-            inputTokens.isSubset(of: candidate.sampleKeyTokens)
-        }
-        guard matched.count == 1, let unique = matched.first else {
-            return nil
-        }
-        return unique.displayName
+        inboxState.routing.matchedExistingLibraryDrawer(sampleInput: sampleInput)
     }
 
     func refreshPendingDrawerMatches(for pendingIDs: [UUID]? = nil) {
-        let pendingByID = Dictionary(uniqueKeysWithValues: pendingImports.map { ($0.id, $0) })
-        let targetIDs = pendingIDs ?? pendingImports.map(\.id)
-        guard !targetIDs.isEmpty else {
-            pendingRoutingSnapshotByID = [:]
-            return
-        }
-
-        let validIDs = Set(pendingImports.map(\.id))
-        var next = pendingRoutingSnapshotByID.filter { validIDs.contains($0.key) }
-        for pendingID in targetIDs {
-            guard let pending = pendingByID[pendingID] else {
-                next.removeValue(forKey: pendingID)
-                continue
-            }
-            next[pendingID] = evaluatePendingRoutingSnapshot(for: pending)
-        }
-        pendingRoutingSnapshotByID = next
-    }
-
-    func pendingRoutingSnapshot(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.PendingRoutingSnapshot {
-        if let cached = pendingRoutingSnapshotByID[pending.id] {
-            return cached
-        }
-        return evaluatePendingRoutingSnapshot(for: pending)
-    }
-
-    func cachedPendingRoutingSnapshot(for pendingID: UUID) -> SpinLabDomain.PendingRoutingSnapshot? {
-        pendingRoutingSnapshotByID[pendingID]
-    }
-
-    private func evaluatePendingRoutingSnapshot(
-        for pending: SpinLabDomain.PendingImport
-    ) -> SpinLabDomain.PendingRoutingSnapshot {
-        let parsed = parsedHintsApplyingRoutingDraft(for: pending)
-        let routePlan = routePlanner.makeRoutePlan(from: parsed)
-        return pendingRoutingSnapshotEvaluator.makeSnapshot(
-            parsed: parsed,
-            routePlan: routePlan,
-            matchDrawer: { [weak self] sampleInput in
-                self?.matchedExistingLibraryDrawer(sampleInput: sampleInput)
-            }
+        inboxState.routing.refreshPendingDrawerMatches(
+            pendingImports: pendingImports,
+            for: pendingIDs
         )
     }
 
-    private func drawerMatchTokens(from value: String) -> [String] {
-        let upper = value.uppercased()
-        let pattern = #"[^A-Z0-9]+"#
-        let replaced = upper.replacingOccurrences(of: pattern, with: " ", options: .regularExpression)
-        return replaced
-            .split(whereSeparator: \.isWhitespace)
-            .map(String.init)
-            .flatMap(splitAlphaNumericToken)
-            .filter { $0 != "UNKNOWN" }
-            .filter { !$0.isEmpty }
+    func pendingRoutingSnapshot(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.PendingRoutingSnapshot {
+        inboxState.routing.pendingRoutingSnapshot(for: pending)
     }
 
-    private func splitAlphaNumericToken(_ token: String) -> [String] {
-        guard !token.isEmpty else {
-            return []
-        }
-
-        var result: [String] = []
-        var current = ""
-        var currentIsDigit: Bool?
-
-        for scalar in token.unicodeScalars {
-            let isDigit = CharacterSet.decimalDigits.contains(scalar)
-            if let currentIsDigit, currentIsDigit != isDigit {
-                if !current.isEmpty {
-                    result.append(current)
-                }
-                current = ""
-            }
-            current.append(Character(scalar))
-            currentIsDigit = isDigit
-        }
-
-        if !current.isEmpty {
-            result.append(current)
-        }
-
-        return result
+    func cachedPendingRoutingSnapshot(for pendingID: UUID) -> SpinLabDomain.PendingRoutingSnapshot? {
+        inboxState.routing.cachedPendingRoutingSnapshot(for: pendingID)
     }
 
-    private func rebuildDrawerMatchCandidates(from samples: [LibrarySample]) {
-        drawerMatchCandidates = samples.map { sample in
-            DrawerMatchCandidate(
-                displayName: sample.displayName,
-                sampleKey: sample.id,
-                sampleKeyTokens: Set(sampleKeyTokens(from: sample))
-            )
-        }
-    }
-
-    private func sampleKeyTokens(from sample: LibrarySample) -> [String] {
-        if sample.id.contains("|") {
-            let parts = sample.id.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
-            return parts.flatMap { drawerMatchTokens(from: $0) }
-        }
-        return drawerMatchTokens(from: [
-            sample.id,
-            sample.batchId,
-            sample.substrateTokens.joined(separator: " ")
-        ].joined(separator: " "))
+    private func refreshRoutingRuleMetadata(forceReload: Bool) {
+        let loadResult = inboxState.routing.refreshRoutingRuleMetadata(forceReload: forceReload)
+        appLogger.info(.import, "Routing rule metadata updated", metadata: [
+            "version": "\(loadResult.metadata.version)",
+            "source": loadResult.metadata.sourceLabel,
+            "path": loadResult.metadata.sourcePath,
+            "fingerprint": loadResult.metadata.fingerprint
+        ])
     }
 
     var registryPrefixMap: [String: String] {
@@ -512,7 +442,7 @@ final class SpinLabAppState: ObservableObject {
         selectedPendingImportID = pendingImports.first?.id
         selectedArchivedRecordID = archivedRecords.first?.id
         workbenchResultDraft = selectedArchivedRecord?.latestResult?.summary ?? ""
-        pendingRoutingSnapshotByID = [:]
+        inboxState.routing.clearPendingState()
     }
 
     private func migrateManagedMeasurementPathsToOriginalIfPossible() {
@@ -604,13 +534,7 @@ final class SpinLabAppState: ObservableObject {
             snapshot.inboxWorkspaceByPendingID = snapshot.inboxWorkspaceByPendingID.filter { key, _ in
                 validPendingIDs.contains(key)
             }
-            pendingRoutingDraftsByID = snapshot.inboxWorkspaceByPendingID.reduce(into: [:]) { partial, entry in
-                guard let uuid = UUID(uuidString: entry.key),
-                      let routingDraft = entry.value.routingDraft else {
-                    return
-                }
-                partial[uuid] = routingDraft
-            }
+            inboxState.routing.restoreDrafts(from: snapshot.inboxWorkspaceByPendingID)
         }
         normalizeLibrarySelection()
     }
@@ -646,19 +570,19 @@ final class SpinLabAppState: ObservableObject {
     func clearPendingImports() {
         pendingImports = []
         selectedPendingImportID = nil
-        pendingRoutingDraftsByID = [:]
-        pendingRoutingSnapshotByID = [:]
+        inboxState.routing.clearPendingState()
         updateInteractionValue(\.inboxWorkspaceByPendingID, to: [:])
         persistence.savePendingImports(pendingImports)
     }
 
     func recomputeAllPendingParsedHints() {
+        refreshRoutingRuleMetadata(forceReload: true)
         pendingImports = pendingImports.map { pending in
             var next = pending
             next.parsedHints = recomputedParsedHints(for: pending)
             return next
         }
-        pendingRoutingDraftsByID = [:]
+        inboxState.routing.clearPendingState()
 
         var updatedWorkspaceByPendingID: [String: InboxPendingWorkspaceState] = [:]
         let existingWorkspaceByPendingID = interactionValue(\.inboxWorkspaceByPendingID)
@@ -824,7 +748,7 @@ final class SpinLabAppState: ObservableObject {
     func loadExistingDrawers() {
         guard let rootPath = librarySettings.rootPath else {
             libraryExistingGroups = [:]
-            drawerMatchCandidates = []
+            inboxState.routing.clearDrawerMatchCandidates()
             libraryExistingMessage = "No Library Root selected."
             librarySelectedPrefix = nil
             librarySelectedBatchId = nil
@@ -882,7 +806,7 @@ final class SpinLabAppState: ObservableObject {
     }
 
     func saveAndContinuePendingLibrarySelectionChange() {
-        guard libraryPendingSelectionChange != nil else {
+        guard libraryState.pendingSelectionChange != nil else {
             return
         }
         saveLibrarySampleEdits()
@@ -893,19 +817,19 @@ final class SpinLabAppState: ObservableObject {
     }
 
     func discardAndContinuePendingLibrarySelectionChange() {
-        guard libraryPendingSelectionChange != nil else {
+        guard libraryState.pendingSelectionChange != nil else {
             return
         }
         librarySampleEditDraft = nil
-        librarySampleEditBaseSample = nil
-        librarySampleEditOriginalDraft = nil
+        libraryState.sampleEditBaseSample = nil
+        libraryState.sampleEditOriginalDraft = nil
         librarySampleEditError = nil
         librarySampleEditMessage = "Edit discarded."
         applyAndClearPendingLibrarySelectionChange()
     }
 
     func cancelPendingLibrarySelectionChange() {
-        libraryPendingSelectionChange = nil
+        libraryState.pendingSelectionChange = nil
         libraryPendingSelectionChangePrompt = nil
     }
 
@@ -949,7 +873,7 @@ final class SpinLabAppState: ObservableObject {
             return false
         }
 
-        libraryPendingSelectionChange = requested
+        libraryState.pendingSelectionChange = requested
         libraryPendingSelectionChangePrompt = "You have unsaved sample edits. Save before switching selection?"
         return true
     }
@@ -964,16 +888,16 @@ final class SpinLabAppState: ObservableObject {
     }
 
     private func applyAndClearPendingLibrarySelectionChange() {
-        guard let pending = libraryPendingSelectionChange else {
+        guard let pending = libraryState.pendingSelectionChange else {
             return
         }
-        libraryPendingSelectionChange = nil
+        libraryState.pendingSelectionChange = nil
         libraryPendingSelectionChangePrompt = nil
         applySelectionChange(pending)
     }
 
     func hasPendingLibrarySelectionChange() -> Bool {
-        libraryPendingSelectionChange != nil
+        libraryState.pendingSelectionChange != nil
     }
 
     func deleteExistingDrawer(batchId: String) {
@@ -1015,7 +939,7 @@ final class SpinLabAppState: ObservableObject {
 
     var librarySampleEditIsDirty: Bool {
         guard let draft = librarySampleEditDraft,
-              let original = librarySampleEditOriginalDraft else {
+              let original = libraryState.sampleEditOriginalDraft else {
             return false
         }
         return draft != original
@@ -1030,16 +954,16 @@ final class SpinLabAppState: ObservableObject {
             return
         }
 
-        librarySampleEditBaseSample = sample
+        libraryState.sampleEditBaseSample = sample
         let draft = librarySampleEditService.makeDraft(from: sample)
         librarySampleEditDraft = draft
-        librarySampleEditOriginalDraft = draft
+        libraryState.sampleEditOriginalDraft = draft
     }
 
     func cancelEditingSelectedLibrarySample() {
         librarySampleEditDraft = nil
-        librarySampleEditBaseSample = nil
-        librarySampleEditOriginalDraft = nil
+        libraryState.sampleEditBaseSample = nil
+        libraryState.sampleEditOriginalDraft = nil
         librarySampleEditError = nil
         librarySampleEditMessage = "Edit canceled."
     }
@@ -1148,83 +1072,47 @@ final class SpinLabAppState: ObservableObject {
     func saveLibrarySampleEdits() {
         librarySampleEditError = nil
         librarySampleEditMessage = nil
+        librarySampleEditIsSaving = true
+        defer { librarySampleEditIsSaving = false }
 
-        guard let rootPath = librarySettings.rootPath else {
-            librarySampleEditError = "Select a Library Root first."
-            return
-        }
-        guard let draft = librarySampleEditDraft,
-              let base = librarySampleEditBaseSample else {
-            librarySampleEditError = "No active edit draft."
-            return
-        }
-        guard draft.sampleId == base.id else {
-            librarySampleEditError = "Selection changed. Restart edit for the selected sample."
-            return
-        }
-
-        let rootURL = URL(fileURLWithPath: rootPath)
-        let snapshot = libraryStore.snapshotIndexFromFilesystem(rootURL: rootURL)
-        guard let current = snapshot.samples.first(where: { $0.id == draft.sampleId }) else {
-            librarySampleEditError = "Selected sample no longer exists."
-            librarySampleEditDraft = nil
-            librarySampleEditBaseSample = nil
-            librarySampleEditOriginalDraft = nil
-            return
-        }
-        guard current.updatedAt == draft.baseUpdatedAt else {
-            librarySampleEditError = "Sample changed on disk. Reload and edit again."
-            return
-        }
-
-        do {
-            librarySampleEditIsSaving = true
-            let updated = try librarySampleEditService.apply(draft: draft, to: current)
-            libraryStore.updateSample(updated, rootURL: rootURL, changeSource: "manual_edit")
-            var syncSummary: String?
-            if let registrySourceURL = resolveRegistrySourceURL() {
-                do {
-                    let syncResult = try libraryStore.syncRegistrySourceForEditedSample(
-                        oldSample: current,
-                        updatedSample: updated,
-                        registrySourceURL: registrySourceURL
-                    )
-                    syncSummary = """
-                    已保存样品编辑。
-                    Metadata 写回 XLSX：成功 \(syncResult.metadataWrittenCount) 项，失败 \(syncResult.metadataFailedCount) 项。
-                    Numeric 日志新增：\(syncResult.manualLoggedCount) 项（\(syncResult.manualLogSheetName)）。
-                    Metadata 日志表：\(syncResult.metadataLogSheetName)。
-                    """
-                    if syncResult.metadataFailedCount > 0 {
-                        librarySampleEditError = "Metadata sync partial failure: \(syncResult.metadataFailedCount) field(s) failed. Check Metadata日志."
-                    }
-                } catch {
-                    syncSummary = """
-                    已保存样品编辑。
-                    XLSX 同步警告：\(error.localizedDescription)
-                    """
-                    librarySampleEditError = "Metadata sync failed: \(error.localizedDescription)"
-                }
-            } else {
-                syncSummary = """
-                已保存样品编辑。
-                XLSX 同步警告：未找到 registry source。
-                """
-                librarySampleEditError = "Metadata sync failed: registry source not found."
+        let output = saveLibrarySampleEditsUseCase.execute(
+            input: SaveLibrarySampleEditsUseCase.Input(
+                rootPath: librarySettings.rootPath,
+                draft: librarySampleEditDraft,
+                baseSample: libraryState.sampleEditBaseSample
+            ),
+            snapshotIndexFromFilesystem: { [libraryStore] rootURL in
+                libraryStore.snapshotIndexFromFilesystem(rootURL: rootURL)
+            },
+            applyDraft: { [librarySampleEditService] draft, current in
+                try librarySampleEditService.apply(draft: draft, to: current)
+            },
+            updateSample: { [libraryStore] updated, rootURL in
+                libraryStore.updateSample(updated, rootURL: rootURL, changeSource: "manual_edit")
+            },
+            resolveRegistrySourceURL: { [weak self] in
+                self?.resolveRegistrySourceURL()
+            },
+            syncRegistrySource: { [libraryStore] current, updated, registrySourceURL in
+                try libraryStore.syncRegistrySourceForEditedSample(
+                    oldSample: current,
+                    updatedSample: updated,
+                    registrySourceURL: registrySourceURL
+                )
             }
+        )
+
+        if output.clearDraft {
+            librarySampleEditDraft = nil
+            libraryState.sampleEditBaseSample = nil
+            libraryState.sampleEditOriginalDraft = nil
+        }
+        if let rootURL = output.rootURLForCommit {
             commitLibraryMutation(rootURL: rootURL, previewIndex: libraryPreview?.index)
-            librarySampleEditDraft = nil
-            librarySampleEditBaseSample = nil
-            librarySampleEditOriginalDraft = nil
-            if let syncSummary {
-                librarySampleEditMessage = syncSummary
-            } else {
-                librarySampleEditMessage = "已保存样品编辑。"
-            }
-        } catch {
-            librarySampleEditError = error.localizedDescription
         }
-        librarySampleEditIsSaving = false
+
+        librarySampleEditError = output.error
+        librarySampleEditMessage = output.message
     }
 
     func prepareLibrarySyncReview(precomputedDiff: LibraryDiff? = nil) {
@@ -1541,59 +1429,67 @@ final class SpinLabAppState: ObservableObject {
     }
 
     func openPendingImportInWorkbench() {
-        guard selectedPendingImport != nil else {
+        guard let area = coordinator.routeToWorkbenchForPendingSelection(
+            hasPendingSelection: selectedPendingImport != nil
+        ) else {
             return
         }
 
-        selectedArea = .workbench
+        selectedArea = area
     }
 
     func openArchivedRecordInWorkbench(_ recordID: UUID) {
-        guard let record = archivedRecords.first(where: { $0.id == recordID }) else {
+        guard let route = coordinator.routeToWorkbenchForArchivedRecord(
+            recordID: recordID,
+            archivedRecords: archivedRecords
+        ),
+        let record = archivedRecords.first(where: { $0.id == route.archivedRecordID }) else {
             return
         }
 
-        selectedArchivedRecordID = record.id
-        workbenchResultDraft = record.latestResult?.summary ?? analysisModule.defaultResultSummary(for: record.measurement)
-        selectedArea = .workbench
+        selectedArchivedRecordID = route.archivedRecordID
+        workbenchResultDraft = workbenchState.resolvedSummary(
+            for: record.measurement,
+            draftSummary: record.latestResult?.summary ?? "",
+            analysisModule: analysisModule
+        )
+        selectedArea = route.selectedArea
     }
 
     func defaultConfirmationDraft(for pending: SpinLabDomain.PendingImport) -> PendingImportConfirmationDraft {
         let resolvedSampleID = pending.parsedHints.sampleIDs.first ?? sampleRegistry.sampleID(from: pending.fileName)
-        var draft = PendingImportConfirmationDraft(
-            batchName: pending.parsedHints.batchName ?? resolvedSampleID ?? "",
-            sampleName: pending.parsedHints.sampleName ?? "",
-            measurementName: pending.parsedHints.measurementName ?? pending.fileName,
-            workflowTag: pending.parsedHints.workflowName ?? "",
-            deviceName: pending.parsedHints.deviceName ?? "",
-            temperature: pending.parsedHints.temperature ?? "",
-            selectedExistingProjectName: suggestedProject(for: pending)?.name ?? PendingImportConfirmationDraft.noProjectOption,
-            newProjectName: ""
+        return importPipeline.metadataExtension.defaultConfirmationDraft(
+            pending: pending,
+            suggestedProjectName: suggestedProject(for: pending)?.name,
+            registryLookup: registryLookup(for: pending),
+            fallbackSampleID: resolvedSampleID
         )
-
-        if let lookup = registryLookup(for: pending) {
-            applyRegistryMetadata(lookup, to: &draft)
-        }
-
-        if let sampleID = resolvedSampleID,
-           draft.sampleName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            draft.sampleName = sampleID
-        }
-
-        return draft
     }
 
     func pendingDisplayDraft(for pending: SpinLabDomain.PendingImport) -> PendingImportConfirmationDraft {
         defaultConfirmationDraft(for: pending)
     }
 
-    func pendingDisplayWarnings(for pending: SpinLabDomain.PendingImport) -> [String] {
-        var warnings = pending.parsedHints.warnings
-        if let warning = substrateWarning(for: pending, registryLookup: registryLookup(for: pending)),
-           !warnings.contains(warning) {
-            warnings.append(warning)
-        }
-        return warnings
+    func pendingRoutePresentation(for pending: SpinLabDomain.PendingImport) -> PendingRoutePresentation {
+        let substrate = substrateWarning(for: pending, registryLookup: registryLookup(for: pending))
+        return inboxState.routing.pendingRoutePresentation(
+            for: pending,
+            substrateWarning: substrate
+        )
+    }
+
+    func pendingRoutePresentationByID() -> [UUID: PendingRoutePresentation] {
+        inboxState.routing.pendingRoutePresentationByID(
+            pendingImports: pendingImports,
+            substrateWarning: { [weak self] pending in
+                guard let self else { return nil }
+                return self.substrateWarning(for: pending, registryLookup: self.registryLookup(for: pending))
+            }
+        )
+    }
+
+    func pendingDisplayWarningItems(for pending: SpinLabDomain.PendingImport) -> [PendingDisplayWarning] {
+        pendingRoutePresentation(for: pending).warningItems
     }
 
     func pendingDisplayInfoTags(for pending: SpinLabDomain.PendingImport) -> [String] {
@@ -1632,70 +1528,35 @@ final class SpinLabAppState: ObservableObject {
     }
 
     func pendingRoutePlan(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.RoutePlan {
-        pendingRoutingSnapshot(for: pending).routePlan
+        inboxState.routing.pendingRoutePlan(for: pending)
     }
 
     func pendingRouteStatus(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.RouteStatus {
-        pendingRoutingSnapshot(for: pending).verdict
+        inboxState.routing.pendingRouteStatus(for: pending)
     }
 
     func hasSavedRoutingDraft(for pending: SpinLabDomain.PendingImport) -> Bool {
-        pendingRoutingDraftsByID[pending.id] != nil
+        inboxState.routing.hasSavedRoutingDraft(for: pending)
     }
 
     func routingDraft(for pending: SpinLabDomain.PendingImport) -> PendingRoutingDraft {
-        if let saved = pendingRoutingDraftsByID[pending.id] {
-            return saved
-        }
-
-        return routingDraftBaseline(for: pending)
+        inboxState.routing.routingDraft(for: pending)
     }
 
     func routingDraftBaseline(for pending: SpinLabDomain.PendingImport) -> PendingRoutingDraft {
-        let parsed = pending.parsedHints
-        let plan = routePlanner.makeRoutePlan(from: parsed)
-        let resolutionsByChannel = Dictionary(uniqueKeysWithValues: plan.channelResolutions.map { ($0.channel, $0) })
-
-        var overrides: [String: String] = [:]
-        for channel in parsed.channelHints {
-            let explicitInput = normalized(channel.sampleID)
-            guard explicitInput != nil else {
-                overrides[channel.channel] = ""
-                continue
-            }
-            overrides[channel.channel] = resolutionsByChannel[channel.channel]?.sampleKey ?? explicitInput ?? ""
-        }
-
-        let defaultSampleKey = plan.channelResolutions
-            .first(where: { $0.channel == "file" })?
-            .sampleKey
-            ?? parsed.defaultSampleKey
-            ?? ""
-
-        return PendingRoutingDraft(
-            defaultSampleKey: defaultSampleKey,
-            channelSampleKeyOverrides: overrides
-        )
+        inboxState.routing.routingDraftBaseline(for: pending)
     }
 
     func isRoutingDraftDirty(_ draft: PendingRoutingDraft, for pending: SpinLabDomain.PendingImport) -> Bool {
-        let trimmedCurrent = PendingRoutingDraft(
-            defaultSampleKey: draft.defaultSampleKey.trimmingCharacters(in: .whitespacesAndNewlines),
-            channelSampleKeyOverrides: draft.channelSampleKeyOverrides.mapValues {
-                $0.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        )
-        return trimmedCurrent != routingDraft(for: pending)
+        inboxState.routing.isRoutingDraftDirty(draft, for: pending)
     }
 
     func saveRoutingDraft(_ draft: PendingRoutingDraft, for pendingID: UUID) {
-        pendingRoutingDraftsByID[pendingID] = PendingRoutingDraft(
-            defaultSampleKey: draft.defaultSampleKey.trimmingCharacters(in: .whitespacesAndNewlines),
-            channelSampleKeyOverrides: draft.channelSampleKeyOverrides.mapValues {
-                $0.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
+        inboxState.routing.saveRoutingDraft(
+            draft,
+            for: pendingID,
+            pendingImports: pendingImports
         )
-        refreshPendingDrawerMatches(for: [pendingID])
         objectWillChange.send()
     }
 
@@ -1712,21 +1573,39 @@ final class SpinLabAppState: ObservableObject {
             savePendingImportContents(editedFileContents, for: pending)
         }
 
-        let registryLookup = registryLookup(for: pending)
-        let record = makeArchivedRecord(from: pending, draft: draft, registryLookup: registryLookup)
-        archivedRecords.insert(record, at: 0)
-        pendingImports.removeAll { $0.id == pending.id }
-        pendingRoutingDraftsByID[pending.id] = nil
-        pendingRoutingSnapshotByID[pending.id] = nil
+        let output = confirmPendingImportUseCase.execute(
+            input: ConfirmPendingImportUseCase.Input(
+                pending: pending,
+                draft: draft,
+                pendingImports: pendingImports,
+                archivedRecords: archivedRecords
+            ),
+            makeArchivedRecord: { pending, draft in
+                let lookup = self.registryLookup(for: pending)
+                return self.makeArchivedRecord(from: pending, draft: draft, registryLookup: lookup)
+            }
+        )
+
+        archivedRecords = output.archivedRecords
+        pendingImports = output.pendingImports
+        inboxState.routing.clearRoutingData(for: pending.id)
         updateInteractionEntryValue(for: pending.id, in: \.inboxWorkspaceByPendingID, value: nil)
 
         persistence.saveArchivedRecords(archivedRecords)
         persistence.savePendingImports(pendingImports)
 
-        selectedArchivedRecordID = record.id
-        selectedPendingImportID = pendingImports.first?.id
-        workbenchResultDraft = record.latestResult?.summary ?? analysisModule.defaultResultSummary(for: record.measurement)
-        selectedArea = .library
+        let route = coordinator.routeAfterPendingConfirmation(
+            archivedRecordID: output.archivedRecord.id,
+            nextPendingID: pendingImports.first?.id
+        )
+        selectedArchivedRecordID = route.archivedRecordID
+        selectedPendingImportID = route.nextPendingID
+        workbenchResultDraft = workbenchState.resolvedSummary(
+            for: output.archivedRecord.measurement,
+            draftSummary: output.archivedRecord.latestResult?.summary ?? "",
+            analysisModule: analysisModule
+        )
+        selectedArea = route.selectedArea
     }
 
     func createProject(named name: String) -> String? {
@@ -1772,7 +1651,11 @@ final class SpinLabAppState: ObservableObject {
         record.latestResult = SpinLabDomain.Result(
             id: existingResultID,
             measurementID: record.measurement.id,
-            summary: workbenchResultDraft.isEmpty ? analysisModule.defaultResultSummary(for: record.measurement) : workbenchResultDraft,
+            summary: workbenchState.resolvedSummary(
+                for: record.measurement,
+                draftSummary: workbenchResultDraft,
+                analysisModule: analysisModule
+            ),
             rating: record.latestResult?.rating,
             updatedAt: .now
         )
@@ -1811,107 +1694,27 @@ final class SpinLabAppState: ObservableObject {
         draft: PendingImportConfirmationDraft,
         registryLookup: SampleRegistryLookupResult?
     ) -> SpinLabDomain.ArchivedRecord {
-        let sampleIDFromFilename = pending.parsedHints.sampleIDs.first ?? sampleRegistry.sampleID(from: pending.fileName)
-        let batchName = normalized(draft.batchName)
-            ?? sampleIDFromFilename
-            ?? metadataValue(in: registryLookup, keys: ["Batch", "BatchID", "Batch Name", "编号"])
-        let sampleName = normalized(draft.sampleName)
-            ?? pending.parsedHints.sampleName
-            ?? batchName
-            ?? "Unassigned Sample"
-        let measurementName = normalized(draft.measurementName)
-            ?? metadataValue(in: registryLookup, keys: ["Measurement", "MeasurementName", "Measurement Name"])
-            ?? pending.parsedHints.measurementName
-            ?? pending.fileName
-        let deviceName = normalized(draft.deviceName) ?? metadataValue(in: registryLookup, keys: ["Device", "DeviceName", "Device Name"])
-        let projectName = draft.resolvedProjectName ?? metadataValue(in: registryLookup, keys: ["Project", "ProjectName", "Project Name"])
-
-        var project = projectName.flatMap { canonicalProject(named: $0) }
-        if project == nil, let projectName {
-            let createdName = createProject(named: projectName) ?? projectName
-            project = canonicalProject(named: createdName)
-        }
-        var sample = canonicalSample(named: sampleName) ?? SpinLabDomain.Sample(name: sampleName)
-        let batch = batchName.flatMap { canonicalBatch(named: $0) } ?? batchName.map { SpinLabDomain.Batch(name: $0) }
-
-        if let projectID = project?.id {
-            if !sample.projectIDs.contains(projectID) {
-                sample.projectIDs.append(projectID)
+        let context = ArchivedRecordBuildContext(
+            pending: pending,
+            draft: draft,
+            registryLookup: registryLookup,
+            normalized: { [weak self] value in self?.normalized(value) },
+            metadataValue: { [weak self] lookup, keys in self?.metadataValue(in: lookup, keys: keys) },
+            canonicalProject: { [weak self] name in self?.canonicalProject(named: name) },
+            createProject: { [weak self] name in self?.createProject(named: name) },
+            canonicalBatch: { [weak self] name in self?.canonicalBatch(named: name) },
+            canonicalSample: { [weak self] name in self?.canonicalSample(named: name) },
+            canonicalDevice: { [weak self] name, sampleID in self?.canonicalDevice(named: name, sampleID: sampleID) },
+            canonicalMeasurement: { [weak self] sourcePath in self?.canonicalMeasurement(forSourcePath: sourcePath) },
+            canonicalDataset: { [weak self] sourcePath in self?.canonicalDataset(forSourcePath: sourcePath) },
+            measurementNotes: { [weak self] pending, draft, lookup in
+                self?.measurementNotes(for: pending, draft: draft, registryLookup: lookup)
+            },
+            defaultResultSummary: { [weak self] measurement in
+                self?.analysisModule.defaultResultSummary(for: measurement) ?? ""
             }
-            if project?.sampleIDs.contains(sample.id) == false {
-                project?.sampleIDs.append(sample.id)
-            }
-        }
-
-        let device = deviceName.flatMap { name in
-            canonicalDevice(named: name, sampleID: sample.id)
-                ?? SpinLabDomain.Device(sampleID: sample.id, name: name)
-        }
-
-        let measurement = canonicalMeasurement(forSourcePath: pending.sourceFilePath).map { existing in
-            var linked = existing
-            linked.name = measurementName
-            linked.measurementType = .amrPhe
-            linked.sampleID = sample.id
-            linked.batchID = batch?.id
-            linked.deviceID = device?.id
-            linked.sourceFilePath = pending.sourceFilePath
-            linked.originalFilePath = pending.originalFilePath
-            linked.notes = measurementNotes(for: pending, draft: draft, registryLookup: registryLookup)
-            if linked.acquiredAt == nil {
-                linked.acquiredAt = pending.importedAt
-            }
-            return linked
-        } ?? SpinLabDomain.Measurement(
-            name: measurementName,
-            measurementType: .amrPhe,
-            sampleID: sample.id,
-            batchID: batch?.id,
-            deviceID: device?.id,
-            sourceFilePath: pending.sourceFilePath,
-            originalFilePath: pending.originalFilePath,
-            acquiredAt: pending.importedAt,
-            notes: measurementNotes(for: pending, draft: draft, registryLookup: registryLookup)
         )
-
-        let dataset = canonicalDataset(forSourcePath: pending.sourceFilePath).map { existing in
-            var linked = existing
-            linked.measurementID = measurement.id
-            linked.sourceFilePath = pending.sourceFilePath
-            linked.originalFilePath = pending.originalFilePath
-            return linked
-        } ?? SpinLabDomain.Dataset(
-            measurementID: measurement.id,
-            sourceFilePath: pending.sourceFilePath,
-            originalFilePath: pending.originalFilePath,
-            columns: ["Field", "Rxx", "Rxy"],
-            series: [
-                SpinLabDomain.PlotSeries(
-                    name: "Raw AMR/PHE",
-                    points: [
-                        SpinLabDomain.PlotPoint(x: -1.0, y: 1.0),
-                        SpinLabDomain.PlotPoint(x: 0.0, y: 1.2),
-                        SpinLabDomain.PlotPoint(x: 1.0, y: 1.1)
-                    ]
-                )
-            ]
-        )
-
-        let result = SpinLabDomain.Result(
-            measurementID: measurement.id,
-            summary: analysisModule.defaultResultSummary(for: measurement),
-            rating: nil
-        )
-
-        return SpinLabDomain.ArchivedRecord(
-            project: project,
-            batch: batch,
-            sample: sample,
-            device: device,
-            measurement: measurement,
-            dataset: dataset,
-            latestResult: result
-        )
+        return importPipeline.workflowExtension.createArchivedRecord(context: context)
     }
 
     private func normalized(_ value: String?) -> String? {
@@ -1922,45 +1725,23 @@ final class SpinLabAppState: ObservableObject {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private func parsedHintsApplyingRoutingDraft(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.ParsedFilenameHints {
-        guard let draft = pendingRoutingDraftsByID[pending.id] else {
-            return pending.parsedHints
-        }
-
-        var parsed = pending.parsedHints
-        let trimmedDefault = draft.defaultSampleKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        parsed.defaultSampleKey = trimmedDefault.isEmpty ? nil : trimmedDefault
-
-        var channelHints = parsed.channelHints
-        for index in channelHints.indices {
-            let channelID = channelHints[index].channel
-            guard let override = draft.channelSampleKeyOverrides[channelID] else {
-                continue
-            }
-            let trimmed = override.trimmingCharacters(in: .whitespacesAndNewlines)
-            channelHints[index].sampleID = trimmed.isEmpty ? nil : trimmed
-        }
-        parsed.channelHints = channelHints
-        return parsed
-    }
-
     private func applyExistingIndex(_ index: LibraryIndex) {
         guard !index.samples.isEmpty else {
             libraryExistingGroups = [:]
-            drawerMatchCandidates = []
+            inboxState.routing.clearDrawerMatchCandidates()
             libraryExistingMessage = "No existing drawers found."
             librarySelectedPrefix = nil
             librarySelectedBatchId = nil
             librarySelectedSampleId = nil
             librarySampleEditDraft = nil
-            librarySampleEditBaseSample = nil
-            librarySampleEditOriginalDraft = nil
+            libraryState.sampleEditBaseSample = nil
+            libraryState.sampleEditOriginalDraft = nil
             refreshPendingDrawerMatches()
             return
         }
 
         libraryExistingGroups = buildPreviewGroups(from: index)
-        rebuildDrawerMatchCandidates(from: index.samples)
+        inboxState.routing.rebuildDrawerMatchCandidates(from: index.samples)
         libraryExistingMessage = "Loaded existing drawers: \(index.samples.count) samples"
         normalizeLibrarySelection()
         reconcileLibrarySampleEditingSelection()
@@ -2204,8 +1985,8 @@ final class SpinLabAppState: ObservableObject {
         guard libraryActiveSelectionSource == .drawer,
               let selectedSample = selectedExistingDrawerSample else {
             librarySampleEditDraft = nil
-            librarySampleEditBaseSample = nil
-            librarySampleEditOriginalDraft = nil
+            libraryState.sampleEditBaseSample = nil
+            libraryState.sampleEditOriginalDraft = nil
             librarySampleEditError = nil
             librarySampleEditMessage = "Edit canceled after leaving existing drawer selection."
             return
@@ -2213,8 +1994,8 @@ final class SpinLabAppState: ObservableObject {
 
         guard selectedSample.id == draft.sampleId else {
             librarySampleEditDraft = nil
-            librarySampleEditBaseSample = nil
-            librarySampleEditOriginalDraft = nil
+            libraryState.sampleEditBaseSample = nil
+            libraryState.sampleEditOriginalDraft = nil
             librarySampleEditError = nil
             librarySampleEditMessage = "Edit canceled after sample selection changed."
             return
@@ -2344,36 +2125,6 @@ final class SpinLabAppState: ObservableObject {
             fileName: pending.fileName,
             originalFilePath: pending.originalFilePath
         )
-    }
-
-    private func applyRegistryMetadata(_ lookup: SampleRegistryLookupResult, to draft: inout PendingImportConfirmationDraft) {
-        if draft.batchName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           let batch = metadataValue(in: lookup, keys: ["Batch", "BatchID", "Batch Name", "编号"]) {
-            draft.batchName = batch
-        }
-        if draft.measurementName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           let measurement = metadataValue(in: lookup, keys: ["Measurement", "MeasurementName", "Measurement Name"]) {
-            draft.measurementName = measurement
-        }
-        if draft.deviceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           let device = metadataValue(in: lookup, keys: ["Device", "DeviceName", "Device Name"]) {
-            draft.deviceName = device
-        }
-
-        guard
-            draft.resolvedProjectName == nil,
-            let projectName = metadataValue(in: lookup, keys: ["Project", "ProjectName", "Project Name"])
-        else {
-            return
-        }
-
-        if knownProjectNames.contains(where: { namesEqual($0, projectName) }) {
-            draft.selectedExistingProjectName = knownProjectNames.first(where: { namesEqual($0, projectName) }) ?? PendingImportConfirmationDraft.noProjectOption
-            draft.newProjectName = ""
-        } else {
-            draft.selectedExistingProjectName = PendingImportConfirmationDraft.noProjectOption
-            draft.newProjectName = projectName
-        }
     }
 
     private func namesEqual(_ lhs: String, _ rhs: String) -> Bool {

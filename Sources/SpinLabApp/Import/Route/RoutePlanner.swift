@@ -58,6 +58,9 @@ struct SpinLabRoutePlanner {
                         sampleTags: channelHint.tags,
                         fallback: fileDescriptor
                     )
+                    let unresolvedExplanation = channelToken == nil
+                        ? RoutingExplanationBook.unresolvedChannelSampleSignal()
+                        : nil
 
                     resolutions.append(
                         SpinLabDomain.RouteChannelResolution(
@@ -65,7 +68,8 @@ struct SpinLabRoutePlanner {
                             sampleKey: channelToken,
                             source: "channelToken",
                             tags: channelHint.tags,
-                            warning: channelToken == nil ? "Channel sample signal exists but no filetoken was resolved." : nil
+                            warning: unresolvedExplanation?.message,
+                            warningReason: unresolvedExplanation?.reason
                         )
                     )
 
@@ -101,12 +105,10 @@ struct SpinLabRoutePlanner {
             }
             .sorted { $0.sampleKey < $1.sampleKey }
 
-        let status: SpinLabDomain.RouteStatus = targets.isEmpty || !unresolvedChannels.isEmpty
-            ? .reviewRequired
-            : .libraryMatched
-
         return SpinLabDomain.RoutePlan(
-            status: status,
+            // Route planner only emits routing candidates. Final verdict ownership is in
+            // PendingRoutingSnapshotEvaluator after drawer matching.
+            planningStatus: .reviewRequired,
             targets: targets,
             channelResolutions: resolutions,
             unresolvedChannels: uniquePreservingOrder(unresolvedChannels),

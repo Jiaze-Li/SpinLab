@@ -19,7 +19,7 @@ struct InboxView: View {
             )
             .frame(minWidth: 380, idealWidth: 500, maxWidth: 680)
 
-            Color.clear
+            InboxInspectorReservedPanel()
                 .frame(minWidth: 460, idealWidth: 660, maxWidth: .infinity)
         }
         .padding(16)
@@ -55,6 +55,32 @@ struct InboxView: View {
     }
 }
 
+private struct InboxInspectorReservedPanel: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Inspector")
+                .font(.title2.bold())
+            Text("Reserved slot for upcoming Inbox inspector modules.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+        )
+    }
+}
+
 private struct InboxOperationPanel: View {
     private enum FileFilter: String, CaseIterable, Identifiable {
         case all = "All"
@@ -73,14 +99,14 @@ private struct InboxOperationPanel: View {
     @State private var fileFilter: FileFilter = .all
 
     var body: some View {
-        let pendingSnapshotMap = appState.pendingRoutingSnapshotByID
+        let routePresentationByID = appState.pendingRoutePresentationByID()
         let libraryMatchedCount = appState.pendingImports.reduce(into: 0) { partial, pending in
-            if pendingSnapshotMap[pending.id]?.verdict == .libraryMatched {
+            if routePresentationByID[pending.id]?.isLibraryMatched == true {
                 partial += 1
             }
         }
         let reviewRequiredCount = max(0, appState.pendingImports.count - libraryMatchedCount)
-        let filteredPendingImports = filteredPendingImports(using: pendingSnapshotMap)
+        let filteredPendingImports = filteredPendingImports(using: routePresentationByID)
 
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 12) {
@@ -166,7 +192,8 @@ private struct InboxOperationPanel: View {
                                     .fixedSize(horizontal: false, vertical: true)
                             } else {
                                 List(filteredPendingImports, selection: $appState.selectedPendingImportID) { pending in
-                                    let verdict = pendingSnapshotMap[pending.id]?.verdict ?? .reviewRequired
+                                    let presentation = routePresentationByID[pending.id]
+                                    let verdict = presentation?.verdict ?? .reviewRequired
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(pending.fileName)
                                             .font(.headline)
@@ -175,7 +202,7 @@ private struct InboxOperationPanel: View {
                                         Text(pending.status.rawValue)
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
-                                        Text("Route: \(inboxRouteStatusDisplay(verdict.rawValue))")
+                                        Text("Route: \(presentation?.routeStatusTitle ?? verdict.displayTitle)")
                                             .font(.caption)
                                             .foregroundStyle(verdict == .libraryMatched ? .green : .orange)
                                         if appState.hasSavedRoutingDraft(for: pending) {
@@ -265,15 +292,15 @@ private struct InboxOperationPanel: View {
     }
 
     private func filteredPendingImports(
-        using pendingSnapshotMap: [UUID: SpinLabDomain.PendingRoutingSnapshot]
+        using routePresentationByID: [UUID: PendingRoutePresentation]
     ) -> [SpinLabDomain.PendingImport] {
         switch fileFilter {
         case .all:
             return appState.pendingImports
         case .libraryMatched:
-            return appState.pendingImports.filter { pendingSnapshotMap[$0.id]?.verdict == .libraryMatched }
+            return appState.pendingImports.filter { routePresentationByID[$0.id]?.isLibraryMatched == true }
         case .reviewRequired:
-            return appState.pendingImports.filter { pendingSnapshotMap[$0.id]?.verdict != .libraryMatched }
+            return appState.pendingImports.filter { routePresentationByID[$0.id]?.isLibraryMatched != true }
         }
     }
 
@@ -341,17 +368,6 @@ private struct InboxOperationPanel: View {
     }
 }
 
-private func inboxRouteStatusDisplay(_ rawValue: String) -> String {
-    switch rawValue.lowercased() {
-    case "library-matched", "library matched":
-        return "Library Matched"
-    case "review-required", "review required":
-        return "Review Required"
-    default:
-        return rawValue
-    }
-}
-
 private func placeholderRoutingSnapshot(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.PendingRoutingSnapshot {
     let mode: SpinLabDomain.RoutingScopeMode = pending.parsedHints.channelHints.isEmpty ? .fileLevel : .channelLevel
     return SpinLabDomain.PendingRoutingSnapshot(
@@ -360,7 +376,7 @@ private func placeholderRoutingSnapshot(for pending: SpinLabDomain.PendingImport
         scopes: [],
         unresolvedScopes: [],
         conflicts: [],
-        routePlan: SpinLabDomain.RoutePlan(status: .reviewRequired)
+        routePlan: SpinLabDomain.RoutePlan(planningStatus: .reviewRequired)
     )
 }
 
@@ -383,7 +399,7 @@ private struct InboxInspectorPanel: View {
                     MetadataValueRow(label: "File", value: pending.fileName)
                     MetadataValueRow(label: "File Path", value: pending.sourceFilePath, monospaced: true)
                     MetadataValueRow(label: "Status", value: pending.status.rawValue)
-                    MetadataValueRow(label: "Route Status", value: inboxRouteStatusDisplay(routingSnapshot.verdict.rawValue))
+                    MetadataValueRow(label: "Route Status", value: routingSnapshot.verdict.displayTitle)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -412,12 +428,12 @@ private struct InboxInspectorPanel: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            let warnings = appState.pendingDisplayWarnings(for: pending)
+            let warnings = appState.pendingDisplayWarningItems(for: pending)
             if !warnings.isEmpty {
                 GroupBox("Warnings") {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(warnings, id: \.self) { warning in
-                            Text(warning)
+                            Text(displayText(for: warning))
                                 .font(.footnote)
                                 .foregroundStyle(.orange)
                                 .lineLimit(nil)
@@ -429,6 +445,13 @@ private struct InboxInspectorPanel: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    private func displayText(for warning: PendingDisplayWarning) -> String {
+        guard let scopeSummary = warning.scopeSummary else {
+            return warning.message
+        }
+        return "\(warning.message) [Scope: \(scopeSummary)]"
     }
 }
 
@@ -450,9 +473,10 @@ private struct InboxSelectionWorkbenchPanel: View {
         appState.cachedPendingRoutingSnapshot(for: pending.id) ?? placeholderRoutingSnapshot(for: pending)
     }
     private var routePlan: SpinLabDomain.RoutePlan { routingSnapshot.routePlan }
-    private var warnings: [String] { appState.pendingDisplayWarnings(for: pending) }
+    private var warnings: [PendingDisplayWarning] { appState.pendingDisplayWarningItems(for: pending) }
     private var visibleWarnings: [String] {
         warnings
+            .map(displayText(for:))
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
@@ -464,6 +488,13 @@ private struct InboxSelectionWorkbenchPanel: View {
             return visibleWarnings[0]
         }
         return visibleWarnings.joined(separator: "\n")
+    }
+
+    private func displayText(for warning: PendingDisplayWarning) -> String {
+        guard let scopeSummary = warning.scopeSummary else {
+            return warning.message
+        }
+        return "\(warning.message) [Scope: \(scopeSummary)]"
     }
     private var routingDraftIsDirty: Bool { appState.isRoutingDraftDirty(routingDraft, for: pending) }
     private var hasUnsavedInfoDraft: Bool { draft != appState.pendingDisplayDraft(for: pending) }

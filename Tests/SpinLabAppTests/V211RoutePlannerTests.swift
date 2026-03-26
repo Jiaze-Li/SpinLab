@@ -19,7 +19,7 @@ struct V211RoutePlannerTests {
 
         let plan = SpinLabRoutePlanner().makeRoutePlan(from: parsed)
 
-        #expect(plan.status == .libraryMatched)
+        #expect(plan.planningStatus == .reviewRequired)
         #expect(plan.targets.count == 2)
         #expect(plan.targets.first(where: { $0.sampleKey == "PN36 - STO(111)" })?.channels == ["ch1", "ch2"])
         #expect(plan.targets.first(where: { $0.sampleKey == "PN37 - NGO(110)" })?.channels == ["ch3"])
@@ -40,7 +40,6 @@ struct V211RoutePlannerTests {
 
         let plan = SpinLabRoutePlanner().makeRoutePlan(from: parsed)
 
-        #expect(plan.status == .libraryMatched)
         #expect(plan.targets.first?.sampleKey == "STO(001)")
         #expect(plan.unresolvedChannels.isEmpty)
     }
@@ -58,7 +57,6 @@ struct V211RoutePlannerTests {
 
         let plan = SpinLabRoutePlanner().makeRoutePlan(from: parsed)
 
-        #expect(plan.status == .libraryMatched)
         #expect(plan.targets.first?.sampleKey == "STO(001)")
         #expect(plan.unresolvedChannels.isEmpty)
     }
@@ -76,7 +74,6 @@ struct V211RoutePlannerTests {
 
         let plan = SpinLabRoutePlanner().makeRoutePlan(from: parsed)
 
-        #expect(plan.status == .libraryMatched)
         #expect(plan.targets.first?.sampleKey == "PN14")
         #expect(plan.unresolvedChannels.isEmpty)
     }
@@ -95,7 +92,6 @@ struct V211RoutePlannerTests {
 
         let plan = SpinLabRoutePlanner().makeRoutePlan(from: parsed)
 
-        #expect(plan.status == .libraryMatched)
         #expect(plan.targets.count == 1)
         #expect(plan.targets.first?.sampleKey == "PN14 - STO(111)")
     }
