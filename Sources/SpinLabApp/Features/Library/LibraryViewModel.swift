@@ -1,7 +1,9 @@
 import Foundation
+import Observation
 
-final class LibraryViewModel: ObservableObject {
-    @Published private(set) var viewState = LibraryViewState()
+@Observable
+final class LibraryViewModel {
+    private(set) var viewState = LibraryViewState()
     private var actions = LibraryViewActions()
 
     func bindActions(from appState: SpinLabAppState) {

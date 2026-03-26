@@ -22,7 +22,7 @@ struct LibraryView: View {
     @State private var searchEnergyText: String = ""
     @State private var searchMatchedResults: [SearchResultItem] = []
     @State private var searchHasExecuted = false
-    @StateObject private var viewModel = LibraryViewModel()
+    @State private var viewModel = LibraryViewModel()
     private let level1HeaderFont: Font = .title2.bold()
     private let level2HeaderFont: Font = .title3.weight(.semibold)
     private let level3HeaderFont: Font = .headline
