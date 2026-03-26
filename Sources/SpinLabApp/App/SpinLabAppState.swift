@@ -290,7 +290,7 @@ final class SpinLabAppState: ObservableObject {
     @Published private(set) var libraryMetadataSyncLogError: String?
     @Published private(set) var libraryMetadataSyncLogMessage: String?
 
-    let workflow: SpinLabDomain.WorkflowKind = .amrPhe
+    let workflow: SpinLabDomain.WorkflowKind
 
     private let persistence: SpinLabPersistence
     private let importPipeline: SpinLabImportPipeline
@@ -315,10 +315,8 @@ final class SpinLabAppState: ObservableObject {
     private let saveLibrarySampleEditsUseCase = SaveLibrarySampleEditsUseCase()
 
     init(
+        workflowBundle: WorkflowBundle = WorkflowRegistry.shared.defaultBundle(),
         persistence: SpinLabPersistence = LocalJSONPersistence(),
-        importPipeline: SpinLabImportPipeline = .amrPhe,
-        analysisModule: AnalysisModuleExtension = AMRPHEAnalysisModuleExtension(),
-        viewExtension: ViewExtension = AMRPHEViewExtension(),
         managedStorage: SpinLabManagedStorage = SpinLabManagedStorage(),
         sampleRegistry: SampleRegistryIndexing = XLSXPrefixSampleRegistryIndex.fromEnvironment(previewRowCount: 10),
         registrySubstrateRules: any RegistrySubstrateRuleProviding = RegistrySubstrateRuleBook(),
@@ -326,9 +324,10 @@ final class SpinLabAppState: ObservableObject {
         ruleRuntime: any RuleRuntimeCapability = DefaultRuleRuntimeCapability()
     ) {
         self.persistence = persistence
-        self.importPipeline = importPipeline
-        self.analysisModule = analysisModule
-        self.viewExtension = viewExtension
+        self.workflow = workflowBundle.workflowExtension.workflow
+        self.importPipeline = workflowBundle.importPipeline
+        self.analysisModule = workflowBundle.analysisModule
+        self.viewExtension = workflowBundle.viewExtension
         self.managedStorage = managedStorage
         self.sampleRegistry = sampleRegistry
         self.registrySubstrateRules = registrySubstrateRules

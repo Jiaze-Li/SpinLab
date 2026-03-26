@@ -1917,3 +1917,24 @@ private struct PreviewSampleRow: View, Equatable {
         }
     }
 }
+
+#if DEBUG
+struct LibraryView_Previews: PreviewProvider {
+    static var previews: some View {
+        let registry = WorkflowRegistry.shared
+        let bundle = registry.bundle(for: .dummy) ?? registry.defaultBundle()
+        let appState = SpinLabAppState(
+            workflowBundle: bundle,
+            persistence: LocalPersistenceStub(),
+            managedStorage: SpinLabManagedStorage(
+                rootURL: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("spinlab-library-preview", isDirectory: true)
+            )
+        )
+
+        return LibraryView()
+            .environmentObject(appState)
+            .frame(width: 1200, height: 760)
+    }
+}
+#endif

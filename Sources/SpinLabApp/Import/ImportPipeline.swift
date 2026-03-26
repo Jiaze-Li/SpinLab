@@ -28,8 +28,10 @@ struct SpinLabImportPipeline {
         }
     }
 
-    static let amrPhe = SpinLabImportPipeline(
-        workflowExtension: AMRPHEWorkflowExtension(),
-        metadataExtension: AMRPHEMetadataExtension()
-    )
+    static func fromBundle(_ bundle: WorkflowBundle) -> SpinLabImportPipeline {
+        SpinLabImportPipeline(
+            workflowExtension: bundle.workflowExtension,
+            metadataExtension: bundle.metadataExtension
+        )
+    }
 }

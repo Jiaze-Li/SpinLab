@@ -47,3 +47,33 @@ struct AMRPHEViewExtension: ViewExtension {
     let workflow: SpinLabDomain.WorkflowKind = .amrPhe
     let displayName: String = "Default AMR/PHE Plot View"
 }
+
+struct DummyWorkflowExtension: WorkflowExtension {
+    let workflow: SpinLabDomain.WorkflowKind = .dummy
+    let supportedMeasurementTypes: [SpinLabDomain.MeasurementType] = [.dummy]
+}
+
+struct DummyMetadataExtension: MetadataExtension {
+    let workflow: SpinLabDomain.WorkflowKind = .dummy
+
+    func parseFilename(from fileURL: URL) -> SpinLabDomain.ParsedFilenameHints {
+        SpinLabDomain.ParsedFilenameHints(
+            measurementName: "Dummy: \(fileURL.deletingPathExtension().lastPathComponent)",
+            workflowName: "Dummy",
+            warnings: ["Dummy workflow parser active."]
+        )
+    }
+}
+
+struct DummyAnalysisModuleExtension: AnalysisModuleExtension {
+    let workflow: SpinLabDomain.WorkflowKind = .dummy
+
+    func defaultResultSummary(for measurement: SpinLabDomain.Measurement) -> String {
+        "Dummy workflow result for \(measurement.name)"
+    }
+}
+
+struct DummyViewExtension: ViewExtension {
+    let workflow: SpinLabDomain.WorkflowKind = .dummy
+    let displayName: String = "Dummy Workflow Preview View"
+}
