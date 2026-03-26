@@ -302,6 +302,10 @@ final class SpinLabAppState: ObservableObject {
     @Published private(set) var registryFileName: String?
     @Published private(set) var registrySourceFilePath: String?
     @Published private(set) var registryPrefixEntries: [RegistryPrefixEntry] = []
+    @Published private(set) var routingRuleVersion: Int = 0
+    @Published private(set) var routingRuleSourceLabel: String = "unknown"
+    @Published private(set) var routingRuleSourcePath: String = "unknown"
+    @Published private(set) var routingRuleFingerprint: String = "unknown"
     @Published var librarySettings: LibrarySettings
     @Published private(set) var libraryRootVerificationPath: String?
     @Published private(set) var libraryRootVerificationMessage: String?
@@ -486,6 +490,10 @@ final class SpinLabAppState: ObservableObject {
 
     private func refreshRoutingRuleMetadata(forceReload: Bool) {
         let loadResult = inboxState.routing.refreshRoutingRuleMetadata(forceReload: forceReload)
+        routingRuleVersion = loadResult.metadata.version
+        routingRuleSourceLabel = loadResult.metadata.sourceLabel
+        routingRuleSourcePath = loadResult.metadata.sourcePath
+        routingRuleFingerprint = loadResult.metadata.fingerprint
         appLogger.info(.import, "Routing rule metadata updated", metadata: [
             "version": "\(loadResult.metadata.version)",
             "source": loadResult.metadata.sourceLabel,
@@ -1190,11 +1198,20 @@ final class SpinLabAppState: ObservableObject {
             if let nonFatalError = output.nonFatalError {
                 librarySampleEditError = nonFatalError.localizedDescription
                 present(error: nonFatalError, title: "Sync Warning")
+                appLogger.warning(.library, "Library sample edit saved with sync warning", metadata: [
+                    "reason": nonFatalError.localizedDescription
+                ])
             }
             librarySampleEditMessage = output.message
+            appLogger.info(.library, "Library sample edits saved", metadata: [
+                "message": output.message ?? "saved"
+            ])
         case let .failure(error):
             librarySampleEditError = error.localizedDescription
             present(error: error, title: "Save Failed")
+            appLogger.error(.library, "Library sample edit failed", metadata: [
+                "reason": error.localizedDescription
+            ])
         }
     }
 
@@ -1656,6 +1673,10 @@ final class SpinLabAppState: ObservableObject {
             do {
                 try savePendingImportContents(editedFileContents, for: pending)
             } catch {
+                appLogger.error(.import, "Failed to persist edited pending contents", metadata: [
+                    "pendingID": pending.id.uuidString,
+                    "fileName": pending.fileName
+                ])
                 present(
                     error: AppError.from(error, fallback: "Failed to save edited import contents."),
                     title: "Save Failed"
@@ -1678,6 +1699,11 @@ final class SpinLabAppState: ObservableObject {
         )
         guard case let .success(output) = result else {
             if case let .failure(error) = result {
+                appLogger.error(.import, "Pending import confirmation failed", metadata: [
+                    "pendingID": pending.id.uuidString,
+                    "fileName": pending.fileName,
+                    "reason": error.localizedDescription
+                ])
                 present(error: error, title: "Import Failed")
             }
             return
@@ -1700,6 +1726,12 @@ final class SpinLabAppState: ObservableObject {
             analysisModule: analysisModule
         )
         selectedArea = route.selectedArea
+        appLogger.info(.import, "Pending import confirmed", metadata: [
+            "pendingID": pending.id.uuidString,
+            "archivedRecordID": output.archivedRecord.id.uuidString,
+            "measurementID": output.archivedRecord.measurement.id.uuidString,
+            "workflow": workflow.rawValue
+        ])
     }
 
     func createProject(named name: String) -> String? {
@@ -2262,7 +2294,10 @@ final class SpinLabAppState: ObservableObject {
         var context: [String: String] = [
             "workflow": workflow.rawValue,
             "appVersion": AppVersion.current,
-            "routingRuleFingerprint": inboxState.routing.currentRoutingRuleFingerprint()
+            "routingRuleVersion": "\(routingRuleVersion)",
+            "routingRuleSource": routingRuleSourceLabel,
+            "routingRulePath": routingRuleSourcePath,
+            "routingRuleFingerprint": routingRuleFingerprint
         ]
         if let note = normalized(note) {
             context["note"] = note
