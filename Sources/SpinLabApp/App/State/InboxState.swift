@@ -1,5 +1,7 @@
 import Foundation
+import Observation
 
+@Observable
 final class InboxState {
     let routing: InboxRoutingState
 
