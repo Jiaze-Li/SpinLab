@@ -1652,7 +1652,15 @@ final class SpinLabAppState: ObservableObject {
         }
 
         if let editedFileContents {
-            savePendingImportContents(editedFileContents, for: pending)
+            do {
+                try savePendingImportContents(editedFileContents, for: pending)
+            } catch {
+                present(
+                    error: AppError.from(error, fallback: "Failed to save edited import contents."),
+                    title: "Save Failed"
+                )
+                return
+            }
         }
 
         let result = confirmPendingImportUseCase.execute(
@@ -2073,8 +2081,8 @@ final class SpinLabAppState: ObservableObject {
         }
     }
 
-    private func savePendingImportContents(_ contents: String, for pending: SpinLabDomain.PendingImport) {
-        try? contents.write(to: URL(fileURLWithPath: pending.sourceFilePath), atomically: true, encoding: .utf8)
+    private func savePendingImportContents(_ contents: String, for pending: SpinLabDomain.PendingImport) throws {
+        try contents.write(to: URL(fileURLWithPath: pending.sourceFilePath), atomically: true, encoding: .utf8)
     }
 
     private func resolveRegistrySourceURL() -> URL? {
