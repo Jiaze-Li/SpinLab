@@ -4,107 +4,15 @@ import Observation
 @MainActor
 @Observable
 final class LibraryViewModel {
-    private(set) var viewState = LibraryViewState()
+    @ObservationIgnored
+    private weak var appState: SpinLabAppState?
     private var actions = LibraryViewActions()
 
-    func bindActions(from appState: SpinLabAppState) {
-        actions = LibraryViewActions(
-            saveAndContinuePendingSelectionChange: {
-                appState.saveAndContinuePendingLibrarySelectionChange()
-                self.syncState(from: appState)
-            },
-            discardAndContinuePendingSelectionChange: {
-                appState.discardAndContinuePendingLibrarySelectionChange()
-                self.syncState(from: appState)
-            },
-            cancelPendingSelectionChange: {
-                appState.cancelPendingLibrarySelectionChange()
-                self.syncState(from: appState)
-            },
-            verifyLibraryRoot: {
-                appState.verifyLibraryRoot()
-                self.syncState(from: appState)
-            },
-            validateLibraryCacheOnAppear: {
-                appState.validateLibraryCacheOnAppear()
-                self.syncState(from: appState)
-            },
-            syncLibraryFromFiles: {
-                appState.syncLibraryFromFiles()
-                self.syncState(from: appState)
-            },
-            updateAllowedBatchPrefixes: {
-                appState.updateAllowedBatchPrefixes(from: $0)
-                self.syncState(from: appState)
-            },
-            syncLibraryBackup: {
-                appState.syncLibraryBackup()
-                self.syncState(from: appState)
-            },
-            syncLibraryFromRegistry: {
-                appState.syncLibraryFromRegistry {
-                    self.syncState(from: appState)
-                }
-                self.syncState(from: appState)
-            },
-            applyPreparedLibrarySyncReview: {
-                appState.applyPreparedLibrarySyncReview()
-                self.syncState(from: appState)
-            },
-            applySelectedRegistryDiff: {
-                appState.applySelectedRegistryDiff(batchId: $0)
-                self.syncState(from: appState)
-            },
-            selectBrowserSample: {
-                appState.selectBrowserSample()
-                self.syncState(from: appState)
-            },
-            selectExistingDrawer: { prefix, batchId, sampleId in
-                appState.selectExistingDrawer(prefix: prefix, batchId: batchId, sampleId: sampleId)
-                appState.selectedArea = .library
-                self.syncState(from: appState)
-            },
-            loadLibraryGlobalManualLogs: {
-                appState.loadLibraryGlobalManualLogs()
-                self.syncState(from: appState)
-            },
-            loadLibraryMetadataSyncLogs: {
-                appState.loadLibraryMetadataSyncLogs()
-                self.syncState(from: appState)
-            },
-            cancelEditingSelectedLibrarySample: {
-                appState.cancelEditingSelectedLibrarySample()
-                self.syncState(from: appState)
-            },
-            saveLibrarySampleEdits: {
-                appState.saveLibrarySampleEdits()
-                self.syncState(from: appState)
-            },
-            beginEditingSelectedLibrarySample: {
-                appState.beginEditingSelectedLibrarySample()
-                self.syncState(from: appState)
-            },
-            markLibraryGlobalManualLogStatus: { rowIndex, status in
-                appState.markLibraryGlobalManualLogStatus(rowIndex: rowIndex, status: status)
-                self.syncState(from: appState)
-            },
-            updateLibraryRoot: { url in
-                appState.updateLibraryRoot(to: url)
-                self.syncState(from: appState)
-            },
-            updateLibraryBackupPath: { url in
-                appState.updateLibraryBackupPath(to: url)
-                self.syncState(from: appState)
-            },
-            persistInteractionState: { state in
-                appState.updateInteractionValue(\.libraryView, to: state)
-            }
-        )
-        syncState(from: appState)
-    }
-
-    func syncState(from appState: SpinLabAppState) {
-        viewState = LibraryViewState(
+    var viewState: LibraryViewState {
+        guard let appState else {
+            return LibraryViewState()
+        }
+        return LibraryViewState(
             registrySourcePath: appState.librarySettings.registrySourcePath ?? appState.registrySourceFilePath,
             libraryRootPath: appState.librarySettings.rootPath,
             backupPath: appState.librarySettings.backupPath,
@@ -125,6 +33,80 @@ final class LibraryViewModel {
             batchSyncStatusByID: appState.libraryBatchSyncStatusByID,
             existingGroupsByPrefix: appState.libraryExistingGroups,
             restoredInteractionState: appState.interactionValue(\.libraryView)
+        )
+    }
+
+    func bindActions(from appState: SpinLabAppState) {
+        self.appState = appState
+
+        actions = LibraryViewActions(
+            saveAndContinuePendingSelectionChange: {
+                appState.saveAndContinuePendingLibrarySelectionChange()
+            },
+            discardAndContinuePendingSelectionChange: {
+                appState.discardAndContinuePendingLibrarySelectionChange()
+            },
+            cancelPendingSelectionChange: {
+                appState.cancelPendingLibrarySelectionChange()
+            },
+            verifyLibraryRoot: {
+                appState.verifyLibraryRoot()
+            },
+            validateLibraryCacheOnAppear: {
+                appState.validateLibraryCacheOnAppear()
+            },
+            syncLibraryFromFiles: {
+                appState.syncLibraryFromFiles()
+            },
+            updateAllowedBatchPrefixes: { value in
+                appState.updateAllowedBatchPrefixes(from: value)
+            },
+            syncLibraryBackup: {
+                appState.syncLibraryBackup()
+            },
+            syncLibraryFromRegistry: {
+                appState.syncLibraryFromRegistry()
+            },
+            applyPreparedLibrarySyncReview: {
+                appState.applyPreparedLibrarySyncReview()
+            },
+            applySelectedRegistryDiff: { batchId in
+                appState.applySelectedRegistryDiff(batchId: batchId)
+            },
+            selectBrowserSample: {
+                appState.selectBrowserSample()
+            },
+            selectExistingDrawer: { prefix, batchId, sampleId in
+                appState.selectExistingDrawer(prefix: prefix, batchId: batchId, sampleId: sampleId)
+                appState.selectedArea = .library
+            },
+            loadLibraryGlobalManualLogs: {
+                appState.loadLibraryGlobalManualLogs()
+            },
+            loadLibraryMetadataSyncLogs: {
+                appState.loadLibraryMetadataSyncLogs()
+            },
+            cancelEditingSelectedLibrarySample: {
+                appState.cancelEditingSelectedLibrarySample()
+            },
+            saveLibrarySampleEdits: {
+                appState.saveLibrarySampleEdits()
+            },
+            beginEditingSelectedLibrarySample: {
+                appState.beginEditingSelectedLibrarySample()
+            },
+            markLibraryGlobalManualLogStatus: { rowIndex, status in
+                appState.markLibraryGlobalManualLogStatus(rowIndex: rowIndex, status: status)
+            },
+            updateLibraryRoot: { url in
+                appState.updateLibraryRoot(to: url)
+            },
+            updateLibraryBackupPath: { url in
+                appState.updateLibraryBackupPath(to: url)
+            },
+            persistInteractionState: { state in
+                appState.updateInteractionValue(\.libraryView, to: state)
+            }
         )
     }
 

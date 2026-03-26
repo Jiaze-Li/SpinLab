@@ -210,7 +210,7 @@ struct RootSplitView: View {
             return
         }
 
-        appRouter.navigate(to: path, appState: appState)
+        appState.navigate(to: path)
         if case .area = node.kind, node.isExpandable {
             expandedSidebarNodeIDs.insert(node.id)
         }

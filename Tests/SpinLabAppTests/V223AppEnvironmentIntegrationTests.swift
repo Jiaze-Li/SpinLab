@@ -23,7 +23,7 @@ struct V223AppEnvironmentIntegrationTests {
         let environment = AppEnvironment(
             persistence: persistence,
             managedStorage: SpinLabManagedStorage(rootURL: root.appendingPathComponent("storage", isDirectory: true)),
-            sampleRegistry: NoopSampleRegistryIndex(),
+            sampleRegistry: SnapshotSampleRegistryIndex(snapshot: .empty()),
             registrySubstrateRules: RegistrySubstrateRuleBook(),
             routingCapabilities: .live,
             ruleRuntime: DefaultRuleRuntimeCapability(),
@@ -57,7 +57,7 @@ struct V223AppEnvironmentIntegrationTests {
         let environment = AppEnvironment(
             persistence: persistence,
             managedStorage: SpinLabManagedStorage(rootURL: root.appendingPathComponent("storage", isDirectory: true)),
-            sampleRegistry: NoopSampleRegistryIndex(),
+            sampleRegistry: SnapshotSampleRegistryIndex(snapshot: .empty()),
             registrySubstrateRules: RegistrySubstrateRuleBook(),
             routingCapabilities: .live,
             ruleRuntime: DefaultRuleRuntimeCapability(),

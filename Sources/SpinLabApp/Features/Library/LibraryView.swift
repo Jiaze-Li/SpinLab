@@ -47,12 +47,10 @@ struct LibraryView: View {
             viewModel.validateLibraryCacheOnAppear()
             applyRestoredInteractionState()
             syncSelection()
-            viewModel.syncState(from: appState)
             viewModel.persistInteractionState(interactionStateSnapshot)
         }
         .onChange(of: viewModel.viewState.previewGroupsByPrefix) { _, _ in
             syncSelection()
-            viewModel.syncState(from: appState)
             viewModel.persistInteractionState(interactionStateSnapshot)
         }
         .onChange(of: interactionStateSnapshot) { _, newValue in
@@ -60,9 +58,6 @@ struct LibraryView: View {
         }
         .onChange(of: searchFingerprint) { _, _ in
             scheduleDebouncedSearchIfNeeded()
-        }
-        .onChange(of: appState.appStateRevision) { _, _ in
-            viewModel.syncState(from: appState)
         }
         .onDisappear {
             searchDebounceTask?.cancel()
@@ -1968,7 +1963,7 @@ struct LibraryView_Previews: PreviewProvider {
         let bundle = registry.bundle(for: .dummy) ?? registry.defaultBundle()
         let appState = SpinLabAppState(
             workflowBundle: bundle,
-            persistence: LocalPersistenceStub(),
+            persistence: LocalJSONPersistence(),
             managedStorage: SpinLabManagedStorage(
                 rootURL: FileManager.default.temporaryDirectory
                     .appendingPathComponent("spinlab-library-preview", isDirectory: true)

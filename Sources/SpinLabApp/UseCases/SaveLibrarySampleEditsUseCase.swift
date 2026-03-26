@@ -1,6 +1,11 @@
 import Foundation
 
 struct SaveLibrarySampleEditsUseCase {
+    enum RegistrySyncIssue {
+        case sourceMissing
+        case syncFailed
+    }
+
     struct Input {
         var rootPath: String?
         var draft: LibrarySampleEditDraft?
@@ -8,9 +13,10 @@ struct SaveLibrarySampleEditsUseCase {
     }
 
     struct Output {
-        var message: String?
         var clearDraft: Bool
         var rootURLForCommit: URL?
+        var syncSummary: LibraryRegistrySourceSyncResult?
+        var syncIssue: RegistrySyncIssue?
         var nonFatalError: AppError?
     }
 
@@ -46,40 +52,31 @@ struct SaveLibrarySampleEditsUseCase {
             let updated = try applyDraft(draft, current)
             updateSample(updated, rootURL)
 
-            var syncSummary: String?
+            var syncSummary: LibraryRegistrySourceSyncResult?
+            var syncIssue: RegistrySyncIssue?
             var syncError: AppError?
 
             if let registrySourceURL = resolveRegistrySourceURL() {
                 do {
                     let syncResult = try syncRegistrySource(current, updated, registrySourceURL)
-                    syncSummary = """
-                    已保存样品编辑。
-                    Metadata 写回 XLSX：成功 \(syncResult.metadataWrittenCount) 项，失败 \(syncResult.metadataFailedCount) 项。
-                    Numeric 日志新增：\(syncResult.manualLoggedCount) 项（\(syncResult.manualLogSheetName)）。
-                    Metadata 日志表：\(syncResult.metadataLogSheetName)。
-                    """
+                    syncSummary = syncResult
                     if syncResult.metadataFailedCount > 0 {
                         syncError = .sync("Metadata sync partial failure: \(syncResult.metadataFailedCount) field(s) failed. Check Metadata日志.")
                     }
                 } catch {
-                    syncSummary = """
-                    已保存样品编辑。
-                    XLSX 同步警告：\(error.localizedDescription)
-                    """
+                    syncIssue = .syncFailed
                     syncError = .sync("Metadata sync failed: \(error.localizedDescription)")
                 }
             } else {
-                syncSummary = """
-                已保存样品编辑。
-                XLSX 同步警告：未找到 registry source。
-                """
+                syncIssue = .sourceMissing
                 syncError = .sync("Metadata sync failed: registry source not found.")
             }
 
             return .success(Output(
-                message: syncSummary ?? "已保存样品编辑。",
                 clearDraft: true,
                 rootURLForCommit: rootURL,
+                syncSummary: syncSummary,
+                syncIssue: syncIssue,
                 nonFatalError: syncError
             ))
         } catch {

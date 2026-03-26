@@ -45,23 +45,13 @@ struct AppRouter {
         }
     }
 
-    func navigate(to path: AppRoutePath, appState: SpinLabAppState) {
-        switch path {
-        case .inbox:
-            appState.selectedArea = .inbox
-        case .workbench:
-            appState.selectedArea = .workbench
-        case .library:
-            appState.selectedArea = .library
-        case let .libraryDrawer(prefix, batchId, sampleId):
-            appState.selectExistingDrawer(prefix: prefix, batchId: batchId, sampleId: sampleId)
-            appState.selectedArea = .library
-        }
+    func navigate(to path: AppRoutePath, perform: (AppRoutePath) -> Void) {
+        perform(path)
     }
 
-    func navigate(to stack: AppRouteStack, appState: SpinLabAppState) {
+    func navigate(to stack: AppRouteStack, perform: (AppRoutePath) -> Void) {
         for path in stack.paths {
-            navigate(to: path, appState: appState)
+            navigate(to: path, perform: perform)
         }
     }
 

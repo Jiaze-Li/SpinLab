@@ -41,24 +41,6 @@ protocol SampleRegistryIndexing {
     func lookup(from filename: String) -> SampleRegistryLookupResult?
 }
 
-struct NoopSampleRegistryIndex: SampleRegistryIndexing {
-    let sourceFilePath: String? = nil
-    let prefixToSheet: [String: String] = [:]
-    let isLoaded = false
-
-    func sampleID(from filename: String) -> String? {
-        SampleIDParser.extractSampleID(fromFilename: filename)
-    }
-
-    func lookup(sampleID: String) -> SampleRegistryLookupResult? {
-        nil
-    }
-
-    func lookup(from filename: String) -> SampleRegistryLookupResult? {
-        nil
-    }
-}
-
 struct SnapshotSampleRegistryIndex: SampleRegistryIndexing {
     let snapshot: SampleRegistrySnapshot
 
@@ -152,18 +134,18 @@ final class XLSXPrefixSampleRegistryIndex: SampleRegistryIndexing {
 
     static func fromEnvironment(previewRowCount: Int = 10) -> SampleRegistryIndexing {
         guard let xlsxURL = registryFileURLFromEnvironment() else {
-            return NoopSampleRegistryIndex()
+            return SnapshotSampleRegistryIndex(snapshot: .empty())
         }
 
         guard let index = try? XLSXPrefixSampleRegistryIndex(xlsxURL: xlsxURL, previewRowCount: previewRowCount) else {
-            return NoopSampleRegistryIndex()
+            return SnapshotSampleRegistryIndex(snapshot: .empty(sourceFilePath: xlsxURL.path))
         }
         return SnapshotSampleRegistryIndex(snapshot: index.snapshot)
     }
 
     static func fromFileURL(_ xlsxURL: URL, previewRowCount: Int = 10) -> SampleRegistryIndexing {
         guard let index = try? XLSXPrefixSampleRegistryIndex(xlsxURL: xlsxURL, previewRowCount: previewRowCount) else {
-            return NoopSampleRegistryIndex()
+            return SnapshotSampleRegistryIndex(snapshot: .empty(sourceFilePath: xlsxURL.path))
         }
         return SnapshotSampleRegistryIndex(snapshot: index.snapshot)
     }
