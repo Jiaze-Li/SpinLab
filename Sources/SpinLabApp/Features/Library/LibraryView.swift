@@ -45,14 +45,19 @@ struct LibraryView: View {
             viewModel.bindActions(from: appState)
             applyRestoredInteractionState()
             syncSelection()
+            viewModel.syncState(from: appState)
             appState.updateInteractionValue(\.libraryView, to: interactionStateSnapshot)
         }
         .onChange(of: appState.libraryPreviewGroups) { _, _ in
             syncSelection()
+            viewModel.syncState(from: appState)
             appState.updateInteractionValue(\.libraryView, to: interactionStateSnapshot)
         }
         .onChange(of: interactionStateSnapshot) { _, newValue in
             appState.updateInteractionValue(\.libraryView, to: newValue)
+        }
+        .onReceive(appState.objectWillChange) { _ in
+            viewModel.syncState(from: appState)
         }
         .confirmationDialog(
             "Unsaved Edits",
@@ -69,7 +74,7 @@ struct LibraryView: View {
                 viewModel.cancelPendingSelectionChange()
             }
         } message: {
-            Text(appState.libraryPendingSelectionChangePrompt ?? "You have unsaved sample edits.")
+            Text(viewModel.viewState.pendingSelectionChangePrompt ?? "You have unsaved sample edits.")
         }
         .sheet(isPresented: $isShowingSampleChangeLog) {
             sampleChangeLogSheet
@@ -132,7 +137,7 @@ struct LibraryView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         MetadataValueRow(
                             label: "Registry Path (Inbox)",
-                            value: appState.librarySettings.registrySourcePath ?? appState.registrySourceFilePath ?? "Not loaded",
+                            value: viewModel.viewState.registrySourcePath ?? "Not loaded",
                             monospaced: true
                         )
                         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -140,7 +145,7 @@ struct LibraryView: View {
 
                         MetadataValueRow(
                             label: "Library Root",
-                            value: appState.librarySettings.rootPath ?? "Not set",
+                            value: viewModel.viewState.libraryRootPath ?? "Not set",
                             monospaced: true
                         )
                         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -156,16 +161,16 @@ struct LibraryView: View {
                             Button("Sync Files") {
                                 viewModel.syncLibraryFromFiles()
                             }
-                            .disabled(appState.librarySettings.rootPath == nil)
+                            .disabled(viewModel.viewState.libraryRootPath == nil)
                         }
 
-                        if let message = appState.libraryRootVerificationMessage {
+                        if let message = viewModel.viewState.rootVerificationMessage {
                             Text(message)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
 
-                        if let path = appState.libraryRootVerificationPath {
+                        if let path = viewModel.viewState.rootVerificationPath {
                             MetadataValueRow(label: "Verified Path", value: path, monospaced: true)
                         }
 
@@ -178,7 +183,7 @@ struct LibraryView: View {
                             }
                         }
                         .onAppear {
-                            allowedPrefixesDraft = appState.librarySettings.allowedBatchPrefixes.joined(separator: ", ")
+                            allowedPrefixesDraft = viewModel.viewState.allowedBatchPrefixesText
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -191,7 +196,7 @@ struct LibraryView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         MetadataValueRow(
                             label: "Backup Path",
-                            value: appState.librarySettings.backupPath ?? "Not set",
+                            value: viewModel.viewState.backupPath ?? "Not set",
                             monospaced: true
                         )
                         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -204,14 +209,14 @@ struct LibraryView: View {
                             Button("Sync Backup") {
                                 viewModel.syncLibraryBackup()
                             }
-                            .disabled(appState.librarySettings.rootPath == nil || appState.librarySettings.backupPath == nil)
+                            .disabled(viewModel.viewState.libraryRootPath == nil || viewModel.viewState.backupPath == nil)
                         }
 
-                        if let error = appState.libraryBackupError {
+                        if let error = viewModel.viewState.backupError {
                             Text(error)
                                 .font(.caption)
                                 .foregroundStyle(.red)
-                        } else if let message = appState.libraryBackupMessage {
+                        } else if let message = viewModel.viewState.backupMessage {
                             Text(message)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -268,28 +273,28 @@ struct LibraryView: View {
                 Button("Apply All") {
                     viewModel.applyPreparedLibrarySyncReview()
                 }
-                .disabled((appState.libraryRefreshReview?.totalChangesCount ?? 0) == 0)
+                .disabled((viewModel.viewState.refreshReview?.totalChangesCount ?? 0) == 0)
                 Button("Apply Selected") {
                     viewModel.applySelectedRegistryDiff(batchId: selectedBatchId)
                 }
-                .disabled((appState.libraryRefreshReview?.totalChangesCount ?? 0) == 0 || selectedBatchId == nil)
+                .disabled((viewModel.viewState.refreshReview?.totalChangesCount ?? 0) == 0 || selectedBatchId == nil)
             }
 
-            if let message = appState.libraryPreviewMessage {
+            if let message = viewModel.viewState.previewMessage {
                 Text(message)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            if let review = appState.libraryRefreshReview {
+            if let review = viewModel.viewState.refreshReview {
                 Text("Pending sync review: \(review.newSamples.count) new, \(review.changedSamples.count) changed, \(review.removedSamples.count) removed, \(review.changedBatches.count) batch-changed, \(review.removedBatches.count) batch-removed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            if !appState.libraryPreviewWarnings.isEmpty {
+            if !viewModel.viewState.previewWarnings.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(appState.libraryPreviewWarnings) { warning in
+                    ForEach(viewModel.viewState.previewWarnings) { warning in
                         HStack(alignment: .top, spacing: 8) {
                             Circle()
                                 .fill(warning.severity == .error ? Color.red : Color.orange)
@@ -301,13 +306,13 @@ struct LibraryView: View {
                 }
             }
 
-            if let message = appState.libraryDrawerMessage {
+            if let message = viewModel.viewState.drawerMessage {
                 Text(message)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            if let error = appState.libraryDrawerError {
+            if let error = viewModel.viewState.drawerError {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
@@ -320,7 +325,7 @@ struct LibraryView: View {
         HStack(spacing: 6) {
             Text("Registry Sync")
                 .font(level3HeaderFont)
-            if let syncStatus = appState.librarySyncStatusMessage {
+            if let syncStatus = viewModel.viewState.syncStatusMessage {
                 Text("(\(syncStatus))")
                     .font(.caption)
                     .foregroundStyle(.secondary)

@@ -1,33 +1,105 @@
 import Foundation
 
 final class LibraryViewModel: ObservableObject {
+    @Published private(set) var viewState = LibraryViewState()
     private var actions = LibraryViewActions()
 
     func bindActions(from appState: SpinLabAppState) {
         actions = LibraryViewActions(
-            saveAndContinuePendingSelectionChange: { appState.saveAndContinuePendingLibrarySelectionChange() },
-            discardAndContinuePendingSelectionChange: { appState.discardAndContinuePendingLibrarySelectionChange() },
-            cancelPendingSelectionChange: { appState.cancelPendingLibrarySelectionChange() },
-            verifyLibraryRoot: { appState.verifyLibraryRoot() },
-            syncLibraryFromFiles: { appState.syncLibraryFromFiles() },
-            updateAllowedBatchPrefixes: { appState.updateAllowedBatchPrefixes(from: $0) },
-            syncLibraryBackup: { appState.syncLibraryBackup() },
-            syncLibraryFromRegistry: { appState.syncLibraryFromRegistry() },
-            applyPreparedLibrarySyncReview: { appState.applyPreparedLibrarySyncReview() },
-            applySelectedRegistryDiff: { appState.applySelectedRegistryDiff(batchId: $0) },
-            selectBrowserSample: { appState.selectBrowserSample() },
+            saveAndContinuePendingSelectionChange: {
+                appState.saveAndContinuePendingLibrarySelectionChange()
+                self.syncState(from: appState)
+            },
+            discardAndContinuePendingSelectionChange: {
+                appState.discardAndContinuePendingLibrarySelectionChange()
+                self.syncState(from: appState)
+            },
+            cancelPendingSelectionChange: {
+                appState.cancelPendingLibrarySelectionChange()
+                self.syncState(from: appState)
+            },
+            verifyLibraryRoot: {
+                appState.verifyLibraryRoot()
+                self.syncState(from: appState)
+            },
+            syncLibraryFromFiles: {
+                appState.syncLibraryFromFiles()
+                self.syncState(from: appState)
+            },
+            updateAllowedBatchPrefixes: {
+                appState.updateAllowedBatchPrefixes(from: $0)
+                self.syncState(from: appState)
+            },
+            syncLibraryBackup: {
+                appState.syncLibraryBackup()
+                self.syncState(from: appState)
+            },
+            syncLibraryFromRegistry: {
+                appState.syncLibraryFromRegistry()
+                self.syncState(from: appState)
+            },
+            applyPreparedLibrarySyncReview: {
+                appState.applyPreparedLibrarySyncReview()
+                self.syncState(from: appState)
+            },
+            applySelectedRegistryDiff: {
+                appState.applySelectedRegistryDiff(batchId: $0)
+                self.syncState(from: appState)
+            },
+            selectBrowserSample: {
+                appState.selectBrowserSample()
+                self.syncState(from: appState)
+            },
             selectExistingDrawer: { prefix, batchId, sampleId in
                 appState.selectExistingDrawer(prefix: prefix, batchId: batchId, sampleId: sampleId)
                 appState.selectedArea = .library
+                self.syncState(from: appState)
             },
-            loadLibraryGlobalManualLogs: { appState.loadLibraryGlobalManualLogs() },
-            loadLibraryMetadataSyncLogs: { appState.loadLibraryMetadataSyncLogs() },
-            cancelEditingSelectedLibrarySample: { appState.cancelEditingSelectedLibrarySample() },
-            saveLibrarySampleEdits: { appState.saveLibrarySampleEdits() },
-            beginEditingSelectedLibrarySample: { appState.beginEditingSelectedLibrarySample() },
+            loadLibraryGlobalManualLogs: {
+                appState.loadLibraryGlobalManualLogs()
+                self.syncState(from: appState)
+            },
+            loadLibraryMetadataSyncLogs: {
+                appState.loadLibraryMetadataSyncLogs()
+                self.syncState(from: appState)
+            },
+            cancelEditingSelectedLibrarySample: {
+                appState.cancelEditingSelectedLibrarySample()
+                self.syncState(from: appState)
+            },
+            saveLibrarySampleEdits: {
+                appState.saveLibrarySampleEdits()
+                self.syncState(from: appState)
+            },
+            beginEditingSelectedLibrarySample: {
+                appState.beginEditingSelectedLibrarySample()
+                self.syncState(from: appState)
+            },
             markLibraryGlobalManualLogStatus: { rowIndex, status in
                 appState.markLibraryGlobalManualLogStatus(rowIndex: rowIndex, status: status)
+                self.syncState(from: appState)
             }
+        )
+        syncState(from: appState)
+    }
+
+    func syncState(from appState: SpinLabAppState) {
+        viewState = LibraryViewState(
+            registrySourcePath: appState.librarySettings.registrySourcePath ?? appState.registrySourceFilePath,
+            libraryRootPath: appState.librarySettings.rootPath,
+            backupPath: appState.librarySettings.backupPath,
+            allowedBatchPrefixesText: appState.librarySettings.allowedBatchPrefixes.joined(separator: ", "),
+            rootVerificationMessage: appState.libraryRootVerificationMessage,
+            rootVerificationPath: appState.libraryRootVerificationPath,
+            backupError: appState.libraryBackupError,
+            backupMessage: appState.libraryBackupMessage,
+            refreshReview: appState.libraryRefreshReview,
+            previewMessage: appState.libraryPreviewMessage,
+            previewWarnings: appState.libraryPreviewWarnings,
+            drawerMessage: appState.libraryDrawerMessage,
+            drawerError: appState.libraryDrawerError,
+            syncStatusMessage: appState.librarySyncStatusMessage,
+            pendingSelectionChangePrompt: appState.libraryPendingSelectionChangePrompt
         )
     }
 
@@ -123,4 +195,22 @@ private struct LibraryViewActions {
     var saveLibrarySampleEdits: () -> Void = {}
     var beginEditingSelectedLibrarySample: () -> Void = {}
     var markLibraryGlobalManualLogStatus: (Int, LibraryManualLogStatus) -> Void = { _, _ in }
+}
+
+struct LibraryViewState {
+    var registrySourcePath: String?
+    var libraryRootPath: String?
+    var backupPath: String?
+    var allowedBatchPrefixesText: String = ""
+    var rootVerificationMessage: String?
+    var rootVerificationPath: String?
+    var backupError: String?
+    var backupMessage: String?
+    var refreshReview: LibraryRefreshReview?
+    var previewMessage: String?
+    var previewWarnings: [LibraryWarning] = []
+    var drawerMessage: String?
+    var drawerError: String?
+    var syncStatusMessage: String?
+    var pendingSelectionChangePrompt: String?
 }
