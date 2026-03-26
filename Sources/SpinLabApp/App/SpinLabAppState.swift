@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import SwiftUI
 
 enum AppArea: String, CaseIterable, Identifiable, Codable {
@@ -167,7 +168,8 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var inboxView: InboxInteractionState = InboxInteractionState()
 }
 
-final class SpinLabAppState: ObservableObject {
+@Observable
+final class SpinLabAppState {
     private final class ArchivedRecordDomainContextAdapter: SpinLabDomainContext {
         private weak var appState: SpinLabAppState?
 
@@ -284,73 +286,73 @@ final class SpinLabAppState: ObservableObject {
         bind(state: \.librarySelectedSampleId, snapshot: \.librarySelectedSampleId)
     ]
 
-    @Published var selectedArea: AppArea = .inbox {
+    var selectedArea: AppArea = .inbox {
         didSet { persistInteractionSnapshotIfReady() }
     }
-    @Published var pendingImports: [SpinLabDomain.PendingImport] = []
-    @Published var archivedRecords: [SpinLabDomain.ArchivedRecord] = []
-    @Published var projectCatalog: [SpinLabDomain.Project] = []
-    @Published var selectedPendingImportID: UUID? {
+    var pendingImports: [SpinLabDomain.PendingImport] = []
+    var archivedRecords: [SpinLabDomain.ArchivedRecord] = []
+    var projectCatalog: [SpinLabDomain.Project] = []
+    var selectedPendingImportID: UUID? {
         didSet { persistInteractionSnapshotIfReady() }
     }
-    @Published var selectedArchivedRecordID: UUID? {
+    var selectedArchivedRecordID: UUID? {
         didSet { persistInteractionSnapshotIfReady() }
     }
-    @Published var workbenchResultDraft: String = "" {
+    var workbenchResultDraft: String = "" {
         didSet { persistInteractionSnapshotIfReady() }
     }
-    @Published private(set) var registryFileName: String?
-    @Published private(set) var registrySourceFilePath: String?
-    @Published private(set) var registryPrefixEntries: [RegistryPrefixEntry] = []
-    @Published private(set) var routingRuleVersion: Int = 0
-    @Published private(set) var routingRuleSourceLabel: String = "unknown"
-    @Published private(set) var routingRuleSourcePath: String = "unknown"
-    @Published private(set) var routingRuleFingerprint: String = "unknown"
-    @Published var librarySettings: LibrarySettings
-    @Published private(set) var libraryRootVerificationPath: String?
-    @Published private(set) var libraryRootVerificationMessage: String?
-    @Published private(set) var libraryBackupMessage: String?
-    @Published private(set) var libraryBackupError: String?
-    @Published private(set) var libraryPreview: LibraryPreview?
-    @Published private(set) var libraryPreviewMessage: String?
-    @Published private(set) var libraryLastSyncedAt: Date?
-    @Published private(set) var librarySyncStatusMessage: String?
-    @Published private(set) var libraryPreviewWarnings: [LibraryWarning] = []
-    @Published private(set) var libraryPreviewGroups: [String: [LibraryPreviewBatchGroup]] = [:]
-    @Published private(set) var libraryExistingGroups: [String: [LibraryPreviewBatchGroup]] = [:]
-    @Published private(set) var libraryExistingMessage: String?
-    @Published var librarySelectedPrefix: String? {
+    private(set) var registryFileName: String?
+    private(set) var registrySourceFilePath: String?
+    private(set) var registryPrefixEntries: [RegistryPrefixEntry] = []
+    private(set) var routingRuleVersion: Int = 0
+    private(set) var routingRuleSourceLabel: String = "unknown"
+    private(set) var routingRuleSourcePath: String = "unknown"
+    private(set) var routingRuleFingerprint: String = "unknown"
+    var librarySettings: LibrarySettings
+    private(set) var libraryRootVerificationPath: String?
+    private(set) var libraryRootVerificationMessage: String?
+    private(set) var libraryBackupMessage: String?
+    private(set) var libraryBackupError: String?
+    private(set) var libraryPreview: LibraryPreview?
+    private(set) var libraryPreviewMessage: String?
+    private(set) var libraryLastSyncedAt: Date?
+    private(set) var librarySyncStatusMessage: String?
+    private(set) var libraryPreviewWarnings: [LibraryWarning] = []
+    private(set) var libraryPreviewGroups: [String: [LibraryPreviewBatchGroup]] = [:]
+    private(set) var libraryExistingGroups: [String: [LibraryPreviewBatchGroup]] = [:]
+    private(set) var libraryExistingMessage: String?
+    var librarySelectedPrefix: String? {
         didSet { persistInteractionSnapshotIfReady() }
     }
-    @Published var librarySelectedBatchId: String? {
+    var librarySelectedBatchId: String? {
         didSet { persistInteractionSnapshotIfReady() }
     }
-    @Published var librarySelectedSampleId: String? {
+    var librarySelectedSampleId: String? {
         didSet { persistInteractionSnapshotIfReady() }
     }
-    @Published private(set) var librarySelectionVersion: Int = 0
-    @Published var libraryActiveSelectionSource: LibrarySelectionSource = .browser {
+    private(set) var librarySelectionVersion: Int = 0
+    var libraryActiveSelectionSource: LibrarySelectionSource = .browser {
         didSet { persistInteractionSnapshotIfReady() }
     }
-    @Published private(set) var libraryDrawerMessage: String?
-    @Published private(set) var libraryDrawerError: String?
-    @Published private(set) var libraryRefreshReview: LibraryRefreshReview?
-    @Published private(set) var libraryBatchSyncStatusByID: [String: LibrarySyncBatchStatus] = [:]
-    @Published private(set) var librarySampleSyncChangesByID: [String: [LibraryFieldChange]] = [:]
-    @Published private(set) var libraryBatchSyncChangesByID: [String: [LibraryFieldChange]] = [:]
-    @Published private(set) var librarySampleEditDraft: LibrarySampleEditDraft?
-    @Published private(set) var librarySampleEditError: String?
-    @Published private(set) var librarySampleEditMessage: String?
-    @Published private(set) var librarySampleEditIsSaving: Bool = false
-    @Published private(set) var libraryPendingSelectionChangePrompt: String?
-    @Published private(set) var libraryGlobalManualLogs: [LibraryManualUpdateLogEntry] = []
-    @Published private(set) var libraryGlobalManualLogError: String?
-    @Published private(set) var libraryGlobalManualLogMessage: String?
-    @Published private(set) var libraryMetadataSyncLogs: [LibraryMetadataSyncLogEntry] = []
-    @Published private(set) var libraryMetadataSyncLogError: String?
-    @Published private(set) var libraryMetadataSyncLogMessage: String?
-    @Published var activeAlert: AppAlertState?
-    @Published private(set) var appStateRevision: Int = 0
+    private(set) var libraryDrawerMessage: String?
+    private(set) var libraryDrawerError: String?
+    private(set) var libraryRefreshReview: LibraryRefreshReview?
+    private(set) var libraryBatchSyncStatusByID: [String: LibrarySyncBatchStatus] = [:]
+    private(set) var librarySampleSyncChangesByID: [String: [LibraryFieldChange]] = [:]
+    private(set) var libraryBatchSyncChangesByID: [String: [LibraryFieldChange]] = [:]
+    private(set) var librarySampleEditDraft: LibrarySampleEditDraft?
+    private(set) var librarySampleEditError: String?
+    private(set) var librarySampleEditMessage: String?
+    private(set) var librarySampleEditIsSaving: Bool = false
+    private(set) var libraryPendingSelectionChangePrompt: String?
+    private(set) var libraryGlobalManualLogs: [LibraryManualUpdateLogEntry] = []
+    private(set) var libraryGlobalManualLogError: String?
+    private(set) var libraryGlobalManualLogMessage: String?
+    private(set) var libraryMetadataSyncLogs: [LibraryMetadataSyncLogEntry] = []
+    private(set) var libraryMetadataSyncLogError: String?
+    private(set) var libraryMetadataSyncLogMessage: String?
+    var activeAlert: AppAlertState?
+    private(set) var appStateRevision: Int = 0
 
     let workflow: SpinLabDomain.WorkflowKind
 
@@ -368,6 +370,7 @@ final class SpinLabAppState: ObservableObject {
     private let libraryLogger = LibraryLogger()
     private let libraryDiffEngine = LibraryDiffEngine()
     private let librarySampleEditService = LibrarySampleEditService()
+    @ObservationIgnored
     private lazy var librarySyncService = LibrarySyncService(libraryStore: libraryStore, libraryDiffEngine: libraryDiffEngine)
     private let appLogger = AppLogger.shared
     private let interactionMemory: InteractionMemoryStore
@@ -377,6 +380,7 @@ final class SpinLabAppState: ObservableObject {
     private let coordinator = AppCoordinator()
     private let confirmPendingImportUseCase = ConfirmPendingImportUseCase()
     private let saveLibrarySampleEditsUseCase = SaveLibrarySampleEditsUseCase()
+    @ObservationIgnored
     private lazy var archivedRecordDomainContext: SpinLabDomainContext = ArchivedRecordDomainContextAdapter(appState: self)
 
     init(

@@ -1,8 +1,9 @@
 import AppKit
+import Observation
 import SwiftUI
 
 struct RootSplitView: View {
-    @EnvironmentObject private var appState: SpinLabAppState
+    @Environment(SpinLabAppState.self) private var appState
     @State private var expandedSidebarNodeIDs: Set<String> = []
     @State private var hoveredSidebarRowID: String?
     @State private var pendingDeleteDrawerBatchID: String?
@@ -17,6 +18,8 @@ struct RootSplitView: View {
     private let appRouter = AppRouter()
 
     var body: some View {
+        @Bindable var bindableAppState = appState
+
         NavigationSplitView {
             VStack(spacing: 0) {
                 Color.clear
@@ -95,7 +98,7 @@ struct RootSplitView: View {
             let batchID = pendingDeleteDrawerBatchID ?? "-"
             Text("Delete drawer \(prefix)/\(batchID) from library files?")
         }
-        .alert(item: $appState.activeAlert) { alertState in
+        .alert(item: $bindableAppState.activeAlert) { alertState in
             Alert(
                 title: Text(alertState.title),
                 message: Text(alertState.message),

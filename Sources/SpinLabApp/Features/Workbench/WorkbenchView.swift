@@ -1,7 +1,8 @@
+import Observation
 import SwiftUI
 
 struct WorkbenchView: View {
-    @EnvironmentObject private var appState: SpinLabAppState
+    @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
         ScrollView {
@@ -31,9 +32,11 @@ struct WorkbenchView: View {
 
 private struct ArchivedWorkbenchDetailView: View {
     let record: SpinLabDomain.ArchivedRecord
-    @EnvironmentObject private var appState: SpinLabAppState
+    @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
+        @Bindable var bindableAppState = appState
+
         VStack(alignment: .leading, spacing: 16) {
             GroupBox("Measurement") {
                 VStack(alignment: .leading, spacing: 8) {
@@ -67,7 +70,7 @@ private struct ArchivedWorkbenchDetailView: View {
                     Text("Save creates or updates a Result attached to the active Measurement.")
                         .foregroundStyle(.secondary)
 
-                    TextEditor(text: $appState.workbenchResultDraft)
+                    TextEditor(text: $bindableAppState.workbenchResultDraft)
                         .font(.body)
                         .frame(minHeight: 140)
 

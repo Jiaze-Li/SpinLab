@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 struct LibraryView: View {
-    @EnvironmentObject private var appState: SpinLabAppState
+    @Environment(SpinLabAppState.self) private var appState
     @State private var allowedPrefixesDraft: String = ""
     @State private var selectedPrefix: String?
     @State private var selectedBatchId: String?
@@ -1975,7 +1975,7 @@ struct LibraryView_Previews: PreviewProvider {
         )
 
         return LibraryView()
-            .environmentObject(appState)
+            .environment(appState)
             .frame(width: 1200, height: 760)
     }
 }

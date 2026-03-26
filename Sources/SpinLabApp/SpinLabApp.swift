@@ -2,21 +2,19 @@ import SwiftUI
 
 @main
 struct SpinLabApp: App {
-    @StateObject private var appState: SpinLabAppState
+    @State private var appState: SpinLabAppState
 
     init() {
         let registry = WorkflowRegistry.shared
         let workflow = Self.workflowSelection(from: ProcessInfo.processInfo.environment["SPINLAB_WORKFLOW"])
         let bundle = registry.bundle(for: workflow) ?? registry.defaultBundle()
-        _appState = StateObject(
-            wrappedValue: SpinLabAppState(workflowBundle: bundle)
-        )
+        _appState = State(initialValue: SpinLabAppState(workflowBundle: bundle))
     }
 
     var body: some Scene {
         WindowGroup {
             RootSplitView()
-                .environmentObject(appState)
+                .environment(appState)
                 .frame(minWidth: 900, minHeight: 520)
         }
         .windowStyle(.titleBar)
