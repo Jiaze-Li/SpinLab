@@ -2309,8 +2309,17 @@ final class SpinLabAppState: ObservableObject {
             "routingRuleVersion": "\(routingRuleVersion)",
             "routingRuleSource": routingRuleSourceLabel,
             "routingRulePath": routingRuleSourcePath,
-            "routingRuleFingerprint": routingRuleFingerprint
+            "routingRuleFingerprint": routingRuleFingerprint,
+            "pendingImportCount": "\(pendingImports.count)",
+            "archivedRecordCount": "\(archivedRecords.count)",
+            "selectedArea": selectedArea.rawValue
         ]
+        if let selectedPendingImportID {
+            context["selectedPendingImportID"] = selectedPendingImportID.uuidString
+        }
+        if let selectedArchivedRecordID {
+            context["selectedArchivedRecordID"] = selectedArchivedRecordID.uuidString
+        }
         if let note = normalized(note) {
             context["note"] = note
         }
