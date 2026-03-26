@@ -1694,107 +1694,27 @@ final class SpinLabAppState: ObservableObject {
         draft: PendingImportConfirmationDraft,
         registryLookup: SampleRegistryLookupResult?
     ) -> SpinLabDomain.ArchivedRecord {
-        let sampleIDFromFilename = pending.parsedHints.sampleIDs.first ?? sampleRegistry.sampleID(from: pending.fileName)
-        let batchName = normalized(draft.batchName)
-            ?? sampleIDFromFilename
-            ?? metadataValue(in: registryLookup, keys: ["Batch", "BatchID", "Batch Name", "编号"])
-        let sampleName = normalized(draft.sampleName)
-            ?? pending.parsedHints.sampleName
-            ?? batchName
-            ?? "Unassigned Sample"
-        let measurementName = normalized(draft.measurementName)
-            ?? metadataValue(in: registryLookup, keys: ["Measurement", "MeasurementName", "Measurement Name"])
-            ?? pending.parsedHints.measurementName
-            ?? pending.fileName
-        let deviceName = normalized(draft.deviceName) ?? metadataValue(in: registryLookup, keys: ["Device", "DeviceName", "Device Name"])
-        let projectName = draft.resolvedProjectName ?? metadataValue(in: registryLookup, keys: ["Project", "ProjectName", "Project Name"])
-
-        var project = projectName.flatMap { canonicalProject(named: $0) }
-        if project == nil, let projectName {
-            let createdName = createProject(named: projectName) ?? projectName
-            project = canonicalProject(named: createdName)
-        }
-        var sample = canonicalSample(named: sampleName) ?? SpinLabDomain.Sample(name: sampleName)
-        let batch = batchName.flatMap { canonicalBatch(named: $0) } ?? batchName.map { SpinLabDomain.Batch(name: $0) }
-
-        if let projectID = project?.id {
-            if !sample.projectIDs.contains(projectID) {
-                sample.projectIDs.append(projectID)
+        let context = ArchivedRecordBuildContext(
+            pending: pending,
+            draft: draft,
+            registryLookup: registryLookup,
+            normalized: { [weak self] value in self?.normalized(value) },
+            metadataValue: { [weak self] lookup, keys in self?.metadataValue(in: lookup, keys: keys) },
+            canonicalProject: { [weak self] name in self?.canonicalProject(named: name) },
+            createProject: { [weak self] name in self?.createProject(named: name) },
+            canonicalBatch: { [weak self] name in self?.canonicalBatch(named: name) },
+            canonicalSample: { [weak self] name in self?.canonicalSample(named: name) },
+            canonicalDevice: { [weak self] name, sampleID in self?.canonicalDevice(named: name, sampleID: sampleID) },
+            canonicalMeasurement: { [weak self] sourcePath in self?.canonicalMeasurement(forSourcePath: sourcePath) },
+            canonicalDataset: { [weak self] sourcePath in self?.canonicalDataset(forSourcePath: sourcePath) },
+            measurementNotes: { [weak self] pending, draft, lookup in
+                self?.measurementNotes(for: pending, draft: draft, registryLookup: lookup)
+            },
+            defaultResultSummary: { [weak self] measurement in
+                self?.analysisModule.defaultResultSummary(for: measurement) ?? ""
             }
-            if project?.sampleIDs.contains(sample.id) == false {
-                project?.sampleIDs.append(sample.id)
-            }
-        }
-
-        let device = deviceName.flatMap { name in
-            canonicalDevice(named: name, sampleID: sample.id)
-                ?? SpinLabDomain.Device(sampleID: sample.id, name: name)
-        }
-
-        let measurement = canonicalMeasurement(forSourcePath: pending.sourceFilePath).map { existing in
-            var linked = existing
-            linked.name = measurementName
-            linked.measurementType = .amrPhe
-            linked.sampleID = sample.id
-            linked.batchID = batch?.id
-            linked.deviceID = device?.id
-            linked.sourceFilePath = pending.sourceFilePath
-            linked.originalFilePath = pending.originalFilePath
-            linked.notes = measurementNotes(for: pending, draft: draft, registryLookup: registryLookup)
-            if linked.acquiredAt == nil {
-                linked.acquiredAt = pending.importedAt
-            }
-            return linked
-        } ?? SpinLabDomain.Measurement(
-            name: measurementName,
-            measurementType: .amrPhe,
-            sampleID: sample.id,
-            batchID: batch?.id,
-            deviceID: device?.id,
-            sourceFilePath: pending.sourceFilePath,
-            originalFilePath: pending.originalFilePath,
-            acquiredAt: pending.importedAt,
-            notes: measurementNotes(for: pending, draft: draft, registryLookup: registryLookup)
         )
-
-        let dataset = canonicalDataset(forSourcePath: pending.sourceFilePath).map { existing in
-            var linked = existing
-            linked.measurementID = measurement.id
-            linked.sourceFilePath = pending.sourceFilePath
-            linked.originalFilePath = pending.originalFilePath
-            return linked
-        } ?? SpinLabDomain.Dataset(
-            measurementID: measurement.id,
-            sourceFilePath: pending.sourceFilePath,
-            originalFilePath: pending.originalFilePath,
-            columns: ["Field", "Rxx", "Rxy"],
-            series: [
-                SpinLabDomain.PlotSeries(
-                    name: "Raw AMR/PHE",
-                    points: [
-                        SpinLabDomain.PlotPoint(x: -1.0, y: 1.0),
-                        SpinLabDomain.PlotPoint(x: 0.0, y: 1.2),
-                        SpinLabDomain.PlotPoint(x: 1.0, y: 1.1)
-                    ]
-                )
-            ]
-        )
-
-        let result = SpinLabDomain.Result(
-            measurementID: measurement.id,
-            summary: analysisModule.defaultResultSummary(for: measurement),
-            rating: nil
-        )
-
-        return SpinLabDomain.ArchivedRecord(
-            project: project,
-            batch: batch,
-            sample: sample,
-            device: device,
-            measurement: measurement,
-            dataset: dataset,
-            latestResult: result
-        )
+        return importPipeline.workflowExtension.createArchivedRecord(context: context)
     }
 
     private func normalized(_ value: String?) -> String? {

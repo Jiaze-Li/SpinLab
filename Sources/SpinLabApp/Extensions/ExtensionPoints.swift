@@ -1,8 +1,26 @@
 import Foundation
 
+struct ArchivedRecordBuildContext {
+    let pending: SpinLabDomain.PendingImport
+    let draft: PendingImportConfirmationDraft
+    let registryLookup: SampleRegistryLookupResult?
+    let normalized: (String?) -> String?
+    let metadataValue: (SampleRegistryLookupResult?, [String]) -> String?
+    let canonicalProject: (String) -> SpinLabDomain.Project?
+    let createProject: (String) -> String?
+    let canonicalBatch: (String) -> SpinLabDomain.Batch?
+    let canonicalSample: (String) -> SpinLabDomain.Sample?
+    let canonicalDevice: (String, UUID) -> SpinLabDomain.Device?
+    let canonicalMeasurement: (String) -> SpinLabDomain.Measurement?
+    let canonicalDataset: (String) -> SpinLabDomain.Dataset?
+    let measurementNotes: (SpinLabDomain.PendingImport, PendingImportConfirmationDraft, SampleRegistryLookupResult?) -> String?
+    let defaultResultSummary: (SpinLabDomain.Measurement) -> String
+}
+
 protocol WorkflowExtension {
     var workflow: SpinLabDomain.WorkflowKind { get }
     var supportedMeasurementTypes: [SpinLabDomain.MeasurementType] { get }
+    func createArchivedRecord(context: ArchivedRecordBuildContext) -> SpinLabDomain.ArchivedRecord
 }
 
 protocol MetadataExtension {
@@ -29,6 +47,10 @@ protocol ViewExtension {
 struct AMRPHEWorkflowExtension: WorkflowExtension {
     let workflow: SpinLabDomain.WorkflowKind = .amrPhe
     let supportedMeasurementTypes: [SpinLabDomain.MeasurementType] = [.amrPhe]
+
+    func createArchivedRecord(context: ArchivedRecordBuildContext) -> SpinLabDomain.ArchivedRecord {
+        buildArchivedRecord(context: context, measurementType: .amrPhe, rawSeriesName: "Raw AMR/PHE")
+    }
 }
 
 struct AMRPHEMetadataExtension: MetadataExtension {
@@ -132,6 +154,10 @@ struct AMRPHEViewExtension: ViewExtension {
 struct DummyWorkflowExtension: WorkflowExtension {
     let workflow: SpinLabDomain.WorkflowKind = .dummy
     let supportedMeasurementTypes: [SpinLabDomain.MeasurementType] = [.dummy]
+
+    func createArchivedRecord(context: ArchivedRecordBuildContext) -> SpinLabDomain.ArchivedRecord {
+        buildArchivedRecord(context: context, measurementType: .dummy, rawSeriesName: "Raw Dummy")
+    }
 }
 
 struct DummyMetadataExtension: MetadataExtension {
@@ -175,4 +201,118 @@ struct DummyAnalysisModuleExtension: AnalysisModuleExtension {
 struct DummyViewExtension: ViewExtension {
     let workflow: SpinLabDomain.WorkflowKind = .dummy
     let displayName: String = "Dummy Workflow Preview View"
+}
+
+private func buildArchivedRecord(
+    context: ArchivedRecordBuildContext,
+    measurementType: SpinLabDomain.MeasurementType,
+    rawSeriesName: String
+) -> SpinLabDomain.ArchivedRecord {
+    let pending = context.pending
+    let draft = context.draft
+    let registryLookup = context.registryLookup
+
+    let sampleIDFromFilename = pending.parsedHints.sampleIDs.first
+    let batchName = context.normalized(draft.batchName)
+        ?? sampleIDFromFilename
+        ?? context.metadataValue(registryLookup, ["Batch", "BatchID", "Batch Name", "编号"])
+    let sampleName = context.normalized(draft.sampleName)
+        ?? pending.parsedHints.sampleName
+        ?? batchName
+        ?? "Unassigned Sample"
+    let measurementName = context.normalized(draft.measurementName)
+        ?? context.metadataValue(registryLookup, ["Measurement", "MeasurementName", "Measurement Name"])
+        ?? pending.parsedHints.measurementName
+        ?? pending.fileName
+    let deviceName = context.normalized(draft.deviceName)
+        ?? context.metadataValue(registryLookup, ["Device", "DeviceName", "Device Name"])
+    let projectName = draft.resolvedProjectName
+        ?? context.metadataValue(registryLookup, ["Project", "ProjectName", "Project Name"])
+
+    var project = projectName.flatMap { context.canonicalProject($0) }
+    if project == nil, let projectName {
+        let createdName = context.createProject(projectName) ?? projectName
+        project = context.canonicalProject(createdName)
+    }
+    var sample = context.canonicalSample(sampleName) ?? SpinLabDomain.Sample(name: sampleName)
+    let batch = batchName.flatMap { context.canonicalBatch($0) } ?? batchName.map { SpinLabDomain.Batch(name: $0) }
+
+    if let projectID = project?.id {
+        if !sample.projectIDs.contains(projectID) {
+            sample.projectIDs.append(projectID)
+        }
+        if project?.sampleIDs.contains(sample.id) == false {
+            project?.sampleIDs.append(sample.id)
+        }
+    }
+
+    let device = deviceName.flatMap { name in
+        context.canonicalDevice(name, sample.id)
+            ?? SpinLabDomain.Device(sampleID: sample.id, name: name)
+    }
+
+    let measurement = context.canonicalMeasurement(pending.sourceFilePath).map { existing in
+        var linked = existing
+        linked.name = measurementName
+        linked.measurementType = measurementType
+        linked.sampleID = sample.id
+        linked.batchID = batch?.id
+        linked.deviceID = device?.id
+        linked.sourceFilePath = pending.sourceFilePath
+        linked.originalFilePath = pending.originalFilePath
+        linked.notes = context.measurementNotes(pending, draft, registryLookup) ?? ""
+        if linked.acquiredAt == nil {
+            linked.acquiredAt = pending.importedAt
+        }
+        return linked
+    } ?? SpinLabDomain.Measurement(
+        name: measurementName,
+        measurementType: measurementType,
+        sampleID: sample.id,
+        batchID: batch?.id,
+        deviceID: device?.id,
+        sourceFilePath: pending.sourceFilePath,
+        originalFilePath: pending.originalFilePath,
+        acquiredAt: pending.importedAt,
+        notes: context.measurementNotes(pending, draft, registryLookup) ?? ""
+    )
+
+    let dataset = context.canonicalDataset(pending.sourceFilePath).map { existing in
+        var linked = existing
+        linked.measurementID = measurement.id
+        linked.sourceFilePath = pending.sourceFilePath
+        linked.originalFilePath = pending.originalFilePath
+        return linked
+    } ?? SpinLabDomain.Dataset(
+        measurementID: measurement.id,
+        sourceFilePath: pending.sourceFilePath,
+        originalFilePath: pending.originalFilePath,
+        columns: ["Field", "Rxx", "Rxy"],
+        series: [
+            SpinLabDomain.PlotSeries(
+                name: rawSeriesName,
+                points: [
+                    SpinLabDomain.PlotPoint(x: -1.0, y: 1.0),
+                    SpinLabDomain.PlotPoint(x: 0.0, y: 1.2),
+                    SpinLabDomain.PlotPoint(x: 1.0, y: 1.1)
+                ]
+            )
+        ]
+    )
+
+    let result = SpinLabDomain.Result(
+        measurementID: measurement.id,
+        summary: context.defaultResultSummary(measurement),
+        rating: nil
+    )
+
+    return SpinLabDomain.ArchivedRecord(
+        project: project,
+        batch: batch,
+        sample: sample,
+        device: device,
+        measurement: measurement,
+        dataset: dataset,
+        latestResult: result
+    )
 }
