@@ -4,8 +4,6 @@ struct ConfirmPendingImportUseCase {
     struct Input {
         var pending: SpinLabDomain.PendingImport
         var draft: PendingImportConfirmationDraft
-        var pendingImports: [SpinLabDomain.PendingImport]
-        var archivedRecords: [SpinLabDomain.ArchivedRecord]
     }
 
     struct Output {
@@ -16,18 +14,22 @@ struct ConfirmPendingImportUseCase {
 
     func execute(
         input: Input,
+        inboxRepository: InboxRepository,
+        libraryRepository: LibraryRepository,
         makeArchivedRecord: (SpinLabDomain.PendingImport, PendingImportConfirmationDraft) -> SpinLabDomain.ArchivedRecord
     ) -> Output {
         let record = makeArchivedRecord(input.pending, input.draft)
-        var nextArchived = input.archivedRecords
+        var nextArchived = libraryRepository.archivedRecords
         nextArchived.insert(record, at: 0)
+        let archivedRecords = libraryRepository.replaceArchivedRecords(nextArchived)
 
-        var nextPending = input.pendingImports
+        var nextPending = inboxRepository.pendingImports
         nextPending.removeAll { $0.id == input.pending.id }
+        let pendingImports = inboxRepository.replacePendingImports(nextPending)
 
         return Output(
-            archivedRecords: nextArchived,
-            pendingImports: nextPending,
+            archivedRecords: archivedRecords,
+            pendingImports: pendingImports,
             archivedRecord: record
         )
     }

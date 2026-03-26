@@ -13,6 +13,7 @@ struct RootSplitView: View {
     private let inboxDetailTopInset: CGFloat = 14
     private let libraryDetailTopInset: CGFloat = 14
     private let sidebarMenuProvider = SpinLabSidebarMenuProvider()
+    private let appRouter = AppRouter()
 
     var body: some View {
         NavigationSplitView {
@@ -172,29 +173,25 @@ struct RootSplitView: View {
     }
 
     private func handleSidebarNodeTap(_ node: SidebarMenuNode) {
-        switch node.kind {
-        case let .area(area):
-            if appState.selectedArea == area, node.isExpandable {
-                toggleSidebarNodeExpansion(node.id)
-            } else {
-                appState.selectedArea = area
-                if node.isExpandable {
-                    expandedSidebarNodeIDs.insert(node.id)
-                }
-            }
-
-        case .inboxReserved:
-            appState.selectedArea = .inbox
-
-        case .libraryPrefix:
+        if case .libraryPrefix = node.kind {
             toggleSidebarNodeExpansion(node.id)
+            return
+        }
 
-        case let .libraryBatch(prefix, batchId, sampleId):
-            appState.selectExistingDrawer(prefix: prefix, batchId: batchId, sampleId: sampleId)
-            appState.selectedArea = .library
+        guard let path = appRouter.routePath(for: node.kind) else {
+            return
+        }
 
-        case .info:
-            break
+        if case let .area(area) = node.kind,
+           appState.selectedArea == area,
+           node.isExpandable {
+            toggleSidebarNodeExpansion(node.id)
+            return
+        }
+
+        appRouter.navigate(to: path, appState: appState)
+        if case .area = node.kind, node.isExpandable {
+            expandedSidebarNodeIDs.insert(node.id)
         }
     }
 
