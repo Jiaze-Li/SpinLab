@@ -297,23 +297,84 @@ Current checkpoint marker (not final):
   - Step B: stabilize save-gated routing refresh and draft isolation by pending item.
   - Step C: isolate Inbox registry lookup rules into dedicated interfaces and remove sheet-level misrouting risk.
 
-2. `V2.2.1` Inspector completeness + extension seam finalization
-- Status: `planned`
-- Right inspector shows:
-  - file metadata
-  - parsed baseline (read-only)
-  - editable draft (file-level + channel-level)
-  - parse-vs-edit diffs
-  - warnings
-  - route status/targets/conflicts
-- Finalize left-sidebar extension seam for future module submenus:
-  - Inbox currently provides no submenu entries.
-- Keep Apply as UI placeholder only (no V2.3 execution behavior).
+2. `V2.2.1` Stabilization + routing normalization window
+- Status: `in-progress` (architecture consolidation window; user-facing feature scope frozen)
+- Goal:
+  - keep current user behavior unchanged while removing structural debt in routing/matching.
+  - separate rule configuration from execution logic.
+  - unify Inbox and Library semantic parsing so future features do not add duplicate logic.
+
+Guardrails (must hold in V2.2.1):
+- no user-visible behavior change in Inbox/Library workflows.
+- no UI contract change: Inspector stays reserved; Apply stays placeholder.
+- no silent fallback: unresolved/ambiguous routing still becomes `review-required`.
+
+Workstreams:
+1. Behavior baseline lock (before refactor switch)
+- build a regression matrix from current real cases:
+  - file-level matched
+  - channel-level matched
+  - unresolved
+  - ambiguous
+  - conflict warning paths
+- freeze expected outputs:
+  - matched drawer display
+  - queue status (`library-matched` / `review-required`)
+  - warnings and unresolved scopes
+
+2. Shared semantic core (Inbox + Library)
+- introduce one canonical semantic object (example shape: `batch/treatment/material/orientation/canonicalKey/tokens`).
+- make both parse entries emit this shared object:
+  - filename/folder parse (Inbox)
+  - registry row parse (Library)
+- remove duplicate substrate/material/treatment/orientation interpretation logic from split paths.
+
+3. Unified matching engine
+- centralize drawer matching into one engine with ordered strategy:
+  - stage A: exact canonical key match
+  - stage B: unique token-subset fallback
+- keep current matching semantics externally equivalent; only internal structure changes.
+- add cached indices for match speed:
+  - `canonicalKey -> drawer`
+  - token-based candidate index
+
+4. Responsibility cleanup in route verdict chain
+- `RoutePlanner` produces candidate route data only.
+- `SnapshotEvaluator` becomes the single final verdict authority.
+- ensure one source of truth for status to simplify debugging and future extension.
+
+5. Rule layer vs logic layer isolation
+- consolidate rule-owned data (aliases, tokenization options, substrate normalization hints) into rule-config-facing boundary.
+- execution layers consume rule interfaces only; avoid embedding rule literals across app state/services.
+
+6. Module boundary hardening
+- isolate by capability (Parse / Route / Match / Evaluate / Store).
+- preserve existing UI and app orchestration, but prevent cross-layer leakage.
+
+Implementation snapshot (2026-03-26):
+- Added unified warning aggregation + route presentation projection for Inbox (`PendingWarningAggregator`, `PendingRoutePresentation`).
+- Inbox queue filter/count/status/warning rendering now reads projection output instead of ad-hoc view logic.
+- Added routing rule metadata (`version/source/path/hash/fingerprint`) in `RuleLoader`.
+- Added explicit hot-reload boundary: `recompute route` now forces rule cache reload; drawer match index rebinds to current rule fingerprint.
+
+Rollout plan (safe migration):
+1. add new semantic/matching components behind non-default path.
+2. run old/new paths in parallel for comparison logs on baseline samples.
+3. switch default to new path only after parity is proven.
+4. remove deprecated duplicate code paths.
 
 Acceptance:
-- Inspector content is complete and isolated per pending item.
-- Sidebar extension seam is available for future workflow menus.
-- Apply remains non-executable in V2.2.
+- all baseline scenarios preserve current user-observed outcomes.
+- queue status and drawer match outputs are unchanged.
+- status authority is single-source (verdict chain no double ownership).
+- Sidebar/Inspector/Apply V2.2.1 constraints remain unchanged.
+- performance is no worse than current baseline (cross-page switch equal or smoother).
+- app version remains `v2.2.1` and desktop package builds cleanly.
+
+Non-goals in V2.2.1:
+- finalize inspector business content.
+- introduce V2.3 apply write behavior.
+- add new user-facing routing features.
 
 ## V2.3
 **Goal (one line)**

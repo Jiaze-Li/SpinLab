@@ -70,10 +70,7 @@ struct FilenameRuleParser {
     }
 
     private func tokenize(_ value: String) -> [String] {
-        value
-            .split(whereSeparator: { ruleSet.tokenization.separators.contains($0) })
-            .map(String.init)
-            .filter { !$0.isEmpty }
+        SampleTokenization.split(value, separators: ruleSet.tokenization.separators)
     }
 
     private func fileTokensBeforeFirstChannel(_ fileTokens: [String]) -> [String] {
