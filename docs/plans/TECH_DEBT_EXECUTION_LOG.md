@@ -60,6 +60,33 @@ Rationale:
 - Preserve provenance at batch level for auditability in research workflows.
 - Reduce risk of stale UI index after external filesystem updates without introducing full filesystem event watching yet.
 
+## 2026-03-27 Round D
+
+Scope:
+- Apply projection performance hardening, repository batching primitives, AppEnvironment integration tests, and structured main-thread isolation.
+
+Completed:
+- Repository transaction support:
+  - `InboxRepository.performTransaction(...)`
+  - `LibraryRepository.performTransaction(...)`
+  - transaction-aware deferred persist + deferred stream emission (single flush per transaction).
+- Projection batching in `SpinLabAppState`:
+  - Added buffered projection queues for pending imports, archived records, and projects.
+  - Added main-loop coalescing drain using `Task.yield()` to avoid bursty UI updates.
+- AppEnvironment integration test scaffolding:
+  - Added `V223AppEnvironmentIntegrationTests` with mock persistence + mock data actor.
+  - Covered import flow projection and registry-load failure surfacing path.
+- Structured main-thread isolation:
+  - Marked `SpinLabAppState` as `@MainActor`.
+  - Updated cross-boundary callers/providers/view-models to respect actor isolation.
+  - Bridged domain context adapter synchronous protocol boundary via `MainActor.assumeIsolated`.
+
+Rationale:
+- Improve responsiveness under bursty stream updates.
+- Ensure future batch operations can scale without N-times UI churn.
+- Increase confidence in dependency-injected orchestration paths.
+- Make UI-state mutation thread guarantees explicit and compiler-checked.
+
 ## Next Planned Steps
 
 1. Continue splitting `SpinLabAppState` by extracting feature-owned mutable state and actions into focused `@Observable` stores while preserving current routing orchestration in app shell.

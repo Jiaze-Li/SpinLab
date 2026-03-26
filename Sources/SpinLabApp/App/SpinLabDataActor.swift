@@ -5,7 +5,12 @@ struct LibraryPreviewParseSnapshot: Sendable {
     let warnings: [LibraryWarning]
 }
 
-actor SpinLabDataActor {
+protocol SpinLabDataActing: Sendable {
+    func loadRegistrySnapshot(from xlsxURL: URL, previewRowCount: Int) async throws -> SampleRegistrySnapshot
+    func parseLibraryPreview(registryPath: String, settings: LibrarySettings) async throws -> LibraryPreviewParseSnapshot
+}
+
+actor SpinLabDataActor: SpinLabDataActing {
     func loadRegistrySnapshot(from xlsxURL: URL, previewRowCount: Int = 10) throws -> SampleRegistrySnapshot {
         let index: XLSXPrefixSampleRegistryIndex
         do {

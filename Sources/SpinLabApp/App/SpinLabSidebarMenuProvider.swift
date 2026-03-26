@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 struct SpinLabSidebarMenuProvider {
     func makeMenu(appState: SpinLabAppState, selectedArea: AppArea) -> [SidebarMenuNode] {
         AppArea.allCases.map { area in

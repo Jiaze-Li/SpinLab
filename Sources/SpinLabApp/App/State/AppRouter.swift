@@ -23,6 +23,7 @@ struct AppRouteStack: Equatable {
     }
 }
 
+@MainActor
 struct AppRouter {
     func routePath(for nodeKind: SidebarMenuNodeKind) -> AppRoutePath? {
         switch nodeKind {

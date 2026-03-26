@@ -168,6 +168,7 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var inboxView: InboxInteractionState = InboxInteractionState()
 }
 
+@MainActor
 @Observable
 final class SpinLabAppState {
     private final class ArchivedRecordDomainContextAdapter: SpinLabDomainContext {
@@ -178,39 +179,57 @@ final class SpinLabAppState {
         }
 
         func normalizedValue(_ value: String?) -> String? {
-            appState?.normalized(value)
+            MainActor.assumeIsolated {
+                appState?.normalized(value)
+            }
         }
 
         func metadataValue(in lookup: SampleRegistryLookupResult?, keys: [String]) -> String? {
-            appState?.metadataValue(in: lookup, keys: keys)
+            MainActor.assumeIsolated {
+                appState?.metadataValue(in: lookup, keys: keys)
+            }
         }
 
         func canonicalProject(named name: String) -> SpinLabDomain.Project? {
-            appState?.canonicalProject(named: name)
+            MainActor.assumeIsolated {
+                appState?.canonicalProject(named: name)
+            }
         }
 
         func createProject(named name: String) -> String? {
-            appState?.createProject(named: name)
+            MainActor.assumeIsolated {
+                appState?.createProject(named: name)
+            }
         }
 
         func canonicalBatch(named name: String) -> SpinLabDomain.Batch? {
-            appState?.canonicalBatch(named: name)
+            MainActor.assumeIsolated {
+                appState?.canonicalBatch(named: name)
+            }
         }
 
         func canonicalSample(named name: String) -> SpinLabDomain.Sample? {
-            appState?.canonicalSample(named: name)
+            MainActor.assumeIsolated {
+                appState?.canonicalSample(named: name)
+            }
         }
 
         func canonicalDevice(named name: String, sampleID: UUID) -> SpinLabDomain.Device? {
-            appState?.canonicalDevice(named: name, sampleID: sampleID)
+            MainActor.assumeIsolated {
+                appState?.canonicalDevice(named: name, sampleID: sampleID)
+            }
         }
 
         func canonicalMeasurement(forSourcePath path: String) -> SpinLabDomain.Measurement? {
-            appState?.canonicalMeasurement(forSourcePath: path)
+            MainActor.assumeIsolated {
+                appState?.canonicalMeasurement(forSourcePath: path)
+            }
         }
 
         func canonicalDataset(forSourcePath path: String) -> SpinLabDomain.Dataset? {
-            appState?.canonicalDataset(forSourcePath: path)
+            MainActor.assumeIsolated {
+                appState?.canonicalDataset(forSourcePath: path)
+            }
         }
 
         func measurementNotes(
@@ -218,11 +237,15 @@ final class SpinLabAppState {
             draft: PendingImportConfirmationDraft,
             registryLookup: SampleRegistryLookupResult?
         ) -> String {
-            appState?.measurementNotes(for: pending, draft: draft, registryLookup: registryLookup) ?? ""
+            MainActor.assumeIsolated {
+                appState?.measurementNotes(for: pending, draft: draft, registryLookup: registryLookup) ?? ""
+            }
         }
 
         func defaultResultSummary(for measurement: SpinLabDomain.Measurement) -> String {
-            appState?.analysisModule.defaultResultSummary(for: measurement) ?? ""
+            MainActor.assumeIsolated {
+                appState?.analysisModule.defaultResultSummary(for: measurement) ?? ""
+            }
         }
     }
 
@@ -377,7 +400,7 @@ final class SpinLabAppState {
     private let inboxState: InboxState
     private var libraryState = LibraryState()
     private let workbenchState = WorkbenchState()
-    private let dataActor: SpinLabDataActor
+    private let dataActor: any SpinLabDataActing
     private let coordinator = AppCoordinator()
     private let confirmPendingImportUseCase = ConfirmPendingImportUseCase()
     private let saveLibrarySampleEditsUseCase = SaveLibrarySampleEditsUseCase()
@@ -389,6 +412,18 @@ final class SpinLabAppState {
     private var archivedRecordsProjectionTask: Task<Void, Never>?
     @ObservationIgnored
     private var projectCatalogProjectionTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var bufferedPendingImportsProjection: [SpinLabDomain.PendingImport]?
+    @ObservationIgnored
+    private var bufferedArchivedRecordsProjection: [SpinLabDomain.ArchivedRecord]?
+    @ObservationIgnored
+    private var bufferedProjectCatalogProjection: [SpinLabDomain.Project]?
+    @ObservationIgnored
+    private var isPendingImportsProjectionDrainScheduled = false
+    @ObservationIgnored
+    private var isArchivedRecordsProjectionDrainScheduled = false
+    @ObservationIgnored
+    private var isProjectCatalogProjectionDrainScheduled = false
 
     init(
         workflowBundle: WorkflowBundle = WorkflowRegistry.shared.defaultBundle(),
@@ -589,7 +624,8 @@ final class SpinLabAppState {
             guard let self else { return }
             for await imports in inboxRepository.pendingImportsStream {
                 await MainActor.run {
-                    self.applyPendingImportsProjection(imports)
+                    self.bufferedPendingImportsProjection = imports
+                    self.schedulePendingImportsProjectionDrainIfNeeded()
                 }
             }
         }
@@ -598,7 +634,8 @@ final class SpinLabAppState {
             guard let self else { return }
             for await records in libraryRepository.archivedRecordsStream {
                 await MainActor.run {
-                    self.applyArchivedRecordsProjection(records)
+                    self.bufferedArchivedRecordsProjection = records
+                    self.scheduleArchivedRecordsProjectionDrainIfNeeded()
                 }
             }
         }
@@ -607,9 +644,61 @@ final class SpinLabAppState {
             guard let self else { return }
             for await projects in libraryRepository.projectsStream {
                 await MainActor.run {
-                    self.applyProjectCatalogProjection(projects)
+                    self.bufferedProjectCatalogProjection = projects
+                    self.scheduleProjectCatalogProjectionDrainIfNeeded()
                 }
             }
+        }
+    }
+
+    @MainActor
+    private func schedulePendingImportsProjectionDrainIfNeeded() {
+        guard !isPendingImportsProjectionDrainScheduled else {
+            return
+        }
+        isPendingImportsProjectionDrainScheduled = true
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            guard let self else { return }
+            if let pending = bufferedPendingImportsProjection {
+                applyPendingImportsProjection(pending)
+                bufferedPendingImportsProjection = nil
+            }
+            isPendingImportsProjectionDrainScheduled = false
+        }
+    }
+
+    @MainActor
+    private func scheduleArchivedRecordsProjectionDrainIfNeeded() {
+        guard !isArchivedRecordsProjectionDrainScheduled else {
+            return
+        }
+        isArchivedRecordsProjectionDrainScheduled = true
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            guard let self else { return }
+            if let records = bufferedArchivedRecordsProjection {
+                applyArchivedRecordsProjection(records)
+                bufferedArchivedRecordsProjection = nil
+            }
+            isArchivedRecordsProjectionDrainScheduled = false
+        }
+    }
+
+    @MainActor
+    private func scheduleProjectCatalogProjectionDrainIfNeeded() {
+        guard !isProjectCatalogProjectionDrainScheduled else {
+            return
+        }
+        isProjectCatalogProjectionDrainScheduled = true
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            guard let self else { return }
+            if let projects = bufferedProjectCatalogProjection {
+                applyProjectCatalogProjection(projects)
+                bufferedProjectCatalogProjection = nil
+            }
+            isProjectCatalogProjectionDrainScheduled = false
         }
     }
 

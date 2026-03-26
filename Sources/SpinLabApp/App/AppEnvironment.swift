@@ -7,7 +7,7 @@ struct AppEnvironment {
     var registrySubstrateRules: any RegistrySubstrateRuleProviding
     var routingCapabilities: RoutingCapabilities
     var ruleRuntime: any RuleRuntimeCapability
-    var dataActor: SpinLabDataActor
+    var dataActor: any SpinLabDataActing
 
     static func live(previewRowCount: Int = 10) -> AppEnvironment {
         AppEnvironment(
