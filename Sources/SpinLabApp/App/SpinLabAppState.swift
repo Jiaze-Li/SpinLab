@@ -1094,8 +1094,10 @@ final class SpinLabAppState: ObservableObject {
         libraryGlobalManualLogMessage = nil
 
         guard let registrySourceURL = resolveRegistrySourceURL() else {
-            libraryGlobalManualLogError = "No registry source found. Load registry from Inbox first."
+            let error = AppError.notFound("No registry source found. Load registry from Inbox first.")
+            libraryGlobalManualLogError = error.localizedDescription
             libraryGlobalManualLogs = []
+            present(error: error, title: "Log Load Failed")
             return
         }
 
@@ -1104,8 +1106,10 @@ final class SpinLabAppState: ObservableObject {
             libraryGlobalManualLogs = entries
             libraryGlobalManualLogMessage = "Loaded \(entries.count) global log entries."
         } catch {
-            libraryGlobalManualLogError = error.localizedDescription
+            let appError = AppError.from(error, fallback: "Failed to load global manual logs.")
+            libraryGlobalManualLogError = appError.localizedDescription
             libraryGlobalManualLogs = []
+            present(error: appError, title: "Log Load Failed")
         }
     }
 
@@ -1114,7 +1118,9 @@ final class SpinLabAppState: ObservableObject {
         libraryGlobalManualLogMessage = nil
 
         guard let registrySourceURL = resolveRegistrySourceURL() else {
-            libraryGlobalManualLogError = "No registry source found. Load registry from Inbox first."
+            let error = AppError.notFound("No registry source found. Load registry from Inbox first.")
+            libraryGlobalManualLogError = error.localizedDescription
+            present(error: error, title: "Status Update Failed")
             return
         }
 
@@ -1128,7 +1134,9 @@ final class SpinLabAppState: ObservableObject {
             loadLibraryGlobalManualLogs()
             libraryGlobalManualLogMessage = "Updated status for log row \(rowIndex) to \(status.rawValue)."
         } catch {
-            libraryGlobalManualLogError = error.localizedDescription
+            let appError = AppError.from(error, fallback: "Failed to update manual log status.")
+            libraryGlobalManualLogError = appError.localizedDescription
+            present(error: appError, title: "Status Update Failed")
         }
     }
 
@@ -1137,8 +1145,10 @@ final class SpinLabAppState: ObservableObject {
         libraryMetadataSyncLogMessage = nil
 
         guard let registrySourceURL = resolveRegistrySourceURL() else {
-            libraryMetadataSyncLogError = "No registry source found. Load registry from Inbox first."
+            let error = AppError.notFound("No registry source found. Load registry from Inbox first.")
+            libraryMetadataSyncLogError = error.localizedDescription
             libraryMetadataSyncLogs = []
+            present(error: error, title: "Log Load Failed")
             return
         }
 
@@ -1147,8 +1157,10 @@ final class SpinLabAppState: ObservableObject {
             libraryMetadataSyncLogs = entries
             libraryMetadataSyncLogMessage = "Loaded \(entries.count) metadata log entries."
         } catch {
-            libraryMetadataSyncLogError = error.localizedDescription
+            let appError = AppError.from(error, fallback: "Failed to load metadata sync logs.")
+            libraryMetadataSyncLogError = appError.localizedDescription
             libraryMetadataSyncLogs = []
+            present(error: appError, title: "Log Load Failed")
         }
     }
 
