@@ -310,6 +310,7 @@ final class SpinLabAppState: ObservableObject {
     private let inboxState: InboxState
     private var libraryState = LibraryState()
     private let workbenchState = WorkbenchState()
+    private let coordinator = AppCoordinator()
 
     init(
         persistence: SpinLabPersistence = LocalJSONPersistence(),
@@ -1463,25 +1464,31 @@ final class SpinLabAppState: ObservableObject {
     }
 
     func openPendingImportInWorkbench() {
-        guard selectedPendingImport != nil else {
+        guard let area = coordinator.routeToWorkbenchForPendingSelection(
+            hasPendingSelection: selectedPendingImport != nil
+        ) else {
             return
         }
 
-        selectedArea = .workbench
+        selectedArea = area
     }
 
     func openArchivedRecordInWorkbench(_ recordID: UUID) {
-        guard let record = archivedRecords.first(where: { $0.id == recordID }) else {
+        guard let route = coordinator.routeToWorkbenchForArchivedRecord(
+            recordID: recordID,
+            archivedRecords: archivedRecords
+        ),
+        let record = archivedRecords.first(where: { $0.id == route.archivedRecordID }) else {
             return
         }
 
-        selectedArchivedRecordID = record.id
+        selectedArchivedRecordID = route.archivedRecordID
         workbenchResultDraft = workbenchState.resolvedSummary(
             for: record.measurement,
             draftSummary: record.latestResult?.summary ?? "",
             analysisModule: analysisModule
         )
-        selectedArea = .workbench
+        selectedArea = route.selectedArea
     }
 
     func defaultConfirmationDraft(for pending: SpinLabDomain.PendingImport) -> PendingImportConfirmationDraft {
@@ -1626,14 +1633,18 @@ final class SpinLabAppState: ObservableObject {
         persistence.saveArchivedRecords(archivedRecords)
         persistence.savePendingImports(pendingImports)
 
-        selectedArchivedRecordID = record.id
-        selectedPendingImportID = pendingImports.first?.id
+        let route = coordinator.routeAfterPendingConfirmation(
+            archivedRecordID: record.id,
+            nextPendingID: pendingImports.first?.id
+        )
+        selectedArchivedRecordID = route.archivedRecordID
+        selectedPendingImportID = route.nextPendingID
         workbenchResultDraft = workbenchState.resolvedSummary(
             for: record.measurement,
             draftSummary: record.latestResult?.summary ?? "",
             analysisModule: analysisModule
         )
-        selectedArea = .library
+        selectedArea = route.selectedArea
     }
 
     func createProject(named name: String) -> String? {
