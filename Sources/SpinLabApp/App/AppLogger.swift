@@ -45,6 +45,10 @@ final class AppLogger {
         var entries: [String]
     }
 
+    struct AuditTrailExportSummary {
+        var entryCount: Int
+    }
+
     private let fileManager = FileManager.default
     private let logURL: URL
     private let lock = NSLock()
@@ -135,7 +139,7 @@ final class AppLogger {
         try? fileManager.moveItem(at: logURL, to: archivedURL)
     }
 
-    func exportAuditTrail(to destinationURL: URL, context: [String: String]) throws {
+    func exportAuditTrail(to destinationURL: URL, context: [String: String]) throws -> AuditTrailExportSummary {
         let exportedAt = timestampFormatter.string(from: Date())
         let lines = readLogLines()
         let payload = AuditTrailExport(
@@ -147,6 +151,7 @@ final class AppLogger {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(payload)
         try data.write(to: destinationURL, options: .atomic)
+        return AuditTrailExportSummary(entryCount: lines.count)
     }
 
     private func readLogLines() -> [String] {

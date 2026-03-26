@@ -2302,7 +2302,7 @@ final class SpinLabAppState: ObservableObject {
         activeAlert = AppAlertState(title: title, message: message)
     }
 
-    func exportAuditTrail(to destinationURL: URL, note: String? = nil) throws {
+    func exportAuditTrail(to destinationURL: URL, note: String? = nil) throws -> AppLogger.AuditTrailExportSummary {
         var context: [String: String] = [
             "workflow": workflow.rawValue,
             "appVersion": AppVersion.current,
@@ -2323,7 +2323,20 @@ final class SpinLabAppState: ObservableObject {
         if let note = normalized(note) {
             context["note"] = note
         }
-        try appLogger.exportAuditTrail(to: destinationURL, context: context)
+        do {
+            let summary = try appLogger.exportAuditTrail(to: destinationURL, context: context)
+            appLogger.info(.system, "Audit trail exported", metadata: [
+                "entryCount": "\(summary.entryCount)",
+                "workflow": workflow.rawValue
+            ])
+            return summary
+        } catch {
+            appLogger.error(.system, "Audit trail export failed", metadata: [
+                "reason": error.localizedDescription,
+                "workflow": workflow.rawValue
+            ])
+            throw error
+        }
     }
 
     private func present(error: AppError, title: String) {

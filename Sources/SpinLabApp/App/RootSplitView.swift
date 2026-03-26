@@ -254,10 +254,10 @@ struct RootSplitView: View {
         }
 
         do {
-            try appState.exportAuditTrail(to: destinationURL)
+            let summary = try appState.exportAuditTrail(to: destinationURL)
             appState.presentAlert(
                 title: "Audit Trail Exported",
-                message: "Saved audit trail to \(destinationURL.path)."
+                message: "Saved \(summary.entryCount) log entries to \(destinationURL.path)."
             )
         } catch {
             appState.presentAlert(
