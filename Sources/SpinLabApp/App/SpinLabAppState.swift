@@ -345,6 +345,7 @@ final class SpinLabAppState: ObservableObject {
     @Published private(set) var libraryMetadataSyncLogs: [LibraryMetadataSyncLogEntry] = []
     @Published private(set) var libraryMetadataSyncLogError: String?
     @Published private(set) var libraryMetadataSyncLogMessage: String?
+    @Published var activeAlert: AppAlertState?
 
     let workflow: SpinLabDomain.WorkflowKind
 
@@ -1148,7 +1149,7 @@ final class SpinLabAppState: ObservableObject {
         librarySampleEditIsSaving = true
         defer { librarySampleEditIsSaving = false }
 
-        let output = saveLibrarySampleEditsUseCase.execute(
+        let result = saveLibrarySampleEditsUseCase.execute(
             input: SaveLibrarySampleEditsUseCase.Input(
                 rootPath: librarySettings.rootPath,
                 draft: librarySampleEditDraft,
@@ -1175,17 +1176,25 @@ final class SpinLabAppState: ObservableObject {
             }
         )
 
-        if output.clearDraft {
-            librarySampleEditDraft = nil
-            libraryState.sampleEditBaseSample = nil
-            libraryState.sampleEditOriginalDraft = nil
+        switch result {
+        case let .success(output):
+            if output.clearDraft {
+                librarySampleEditDraft = nil
+                libraryState.sampleEditBaseSample = nil
+                libraryState.sampleEditOriginalDraft = nil
+            }
+            if let rootURL = output.rootURLForCommit {
+                commitLibraryMutation(rootURL: rootURL, previewIndex: libraryPreview?.index)
+            }
+            if let nonFatalError = output.nonFatalError {
+                librarySampleEditError = nonFatalError.localizedDescription
+                present(error: nonFatalError, title: "Sync Warning")
+            }
+            librarySampleEditMessage = output.message
+        case let .failure(error):
+            librarySampleEditError = error.localizedDescription
+            present(error: error, title: "Save Failed")
         }
-        if let rootURL = output.rootURLForCommit {
-            commitLibraryMutation(rootURL: rootURL, previewIndex: libraryPreview?.index)
-        }
-
-        librarySampleEditError = output.error
-        librarySampleEditMessage = output.message
     }
 
     func prepareLibrarySyncReview(precomputedDiff: LibraryDiff? = nil) {
@@ -1646,7 +1655,7 @@ final class SpinLabAppState: ObservableObject {
             savePendingImportContents(editedFileContents, for: pending)
         }
 
-        let output = confirmPendingImportUseCase.execute(
+        let result = confirmPendingImportUseCase.execute(
             input: ConfirmPendingImportUseCase.Input(
                 pending: pending,
                 draft: draft
@@ -1658,6 +1667,12 @@ final class SpinLabAppState: ObservableObject {
                 return self.makeArchivedRecord(from: pending, draft: draft, registryLookup: lookup)
             }
         )
+        guard case let .success(output) = result else {
+            if case let .failure(error) = result {
+                present(error: error, title: "Import Failed")
+            }
+            return
+        }
 
         archivedRecords = output.archivedRecords
         pendingImports = output.pendingImports
@@ -2224,5 +2239,28 @@ final class SpinLabAppState: ObservableObject {
         }
 
         return archivedRecords.first { $0.sample.name == sampleName }?.project
+    }
+
+    func clearActiveAlert() {
+        activeAlert = nil
+    }
+
+    func exportAuditTrail(to destinationURL: URL, note: String? = nil) throws {
+        var context: [String: String] = [
+            "workflow": workflow.rawValue,
+            "appVersion": AppVersion.current,
+            "routingRuleFingerprint": inboxState.routing.currentRoutingRuleFingerprint()
+        ]
+        if let note = normalized(note) {
+            context["note"] = note
+        }
+        try appLogger.exportAuditTrail(to: destinationURL, context: context)
+    }
+
+    private func present(error: AppError, title: String) {
+        activeAlert = AppAlertState(
+            title: title,
+            message: error.localizedDescription
+        )
     }
 }

@@ -86,6 +86,15 @@ struct RootSplitView: View {
             let batchID = pendingDeleteDrawerBatchID ?? "-"
             Text("Delete drawer \(prefix)/\(batchID) from library files?")
         }
+        .alert(item: $appState.activeAlert) { alertState in
+            Alert(
+                title: Text(alertState.title),
+                message: Text(alertState.message),
+                dismissButton: .default(Text("OK")) {
+                    appState.clearActiveAlert()
+                }
+            )
+        }
     }
 
     @ViewBuilder

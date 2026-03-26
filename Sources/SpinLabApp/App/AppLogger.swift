@@ -39,6 +39,12 @@ final class AppLogger {
         var metadata: [String: String]
     }
 
+    struct AuditTrailExport: Encodable {
+        var exportedAt: String
+        var context: [String: String]
+        var entries: [String]
+    }
+
     private let fileManager = FileManager.default
     private let logURL: URL
     private let lock = NSLock()
@@ -127,5 +133,43 @@ final class AppLogger {
             try? fileManager.removeItem(at: archivedURL)
         }
         try? fileManager.moveItem(at: logURL, to: archivedURL)
+    }
+
+    func exportAuditTrail(to destinationURL: URL, context: [String: String]) throws {
+        let exportedAt = timestampFormatter.string(from: Date())
+        let lines = readLogLines()
+        let payload = AuditTrailExport(
+            exportedAt: exportedAt,
+            context: sanitizedMetadata(context),
+            entries: lines
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(payload)
+        try data.write(to: destinationURL, options: .atomic)
+    }
+
+    private func readLogLines() -> [String] {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let archivedURL = logURL.deletingLastPathComponent().appending(path: Self.archivedLogFileName)
+        var urls: [URL] = []
+        if fileManager.fileExists(atPath: archivedURL.path) {
+            urls.append(archivedURL)
+        }
+        if fileManager.fileExists(atPath: logURL.path) {
+            urls.append(logURL)
+        }
+
+        var lines: [String] = []
+        for url in urls {
+            guard let data = try? Data(contentsOf: url),
+                  let text = String(data: data, encoding: .utf8) else {
+                continue
+            }
+            lines.append(contentsOf: text.split(whereSeparator: \.isNewline).map(String.init))
+        }
+        return lines
     }
 }

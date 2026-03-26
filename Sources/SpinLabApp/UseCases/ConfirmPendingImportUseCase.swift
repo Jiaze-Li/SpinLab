@@ -17,7 +17,11 @@ struct ConfirmPendingImportUseCase {
         inboxRepository: InboxRepository,
         libraryRepository: LibraryRepository,
         makeArchivedRecord: (SpinLabDomain.PendingImport, PendingImportConfirmationDraft) -> SpinLabDomain.ArchivedRecord
-    ) -> Output {
+    ) -> Result<Output, AppError> {
+        guard inboxRepository.pendingImports.contains(where: { $0.id == input.pending.id }) else {
+            return .failure(.notFound("Pending import was not found. Refresh the queue and retry."))
+        }
+
         let record = makeArchivedRecord(input.pending, input.draft)
         var nextArchived = libraryRepository.archivedRecords
         nextArchived.insert(record, at: 0)
@@ -27,10 +31,10 @@ struct ConfirmPendingImportUseCase {
         nextPending.removeAll { $0.id == input.pending.id }
         let pendingImports = inboxRepository.replacePendingImports(nextPending)
 
-        return Output(
+        return .success(Output(
             archivedRecords: archivedRecords,
             pendingImports: pendingImports,
             archivedRecord: record
-        )
+        ))
     }
 }
