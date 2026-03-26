@@ -94,13 +94,13 @@ SWIFT
 
 swiftc -O -o "$TMP_BIN" \
   "$TMP_SWIFT" \
-  "$ROOT_DIR/Sources/SpinLabApp/Import/DrawerMatchEngine.swift" \
-  "$ROOT_DIR/Sources/SpinLabApp/Import/SampleTokenization.swift" \
-  "$ROOT_DIR/Sources/SpinLabApp/Import/SampleSemanticDescriptor.swift" \
-  "$ROOT_DIR/Sources/SpinLabApp/Import/FileRoutingSemanticRules.swift" \
-  "$ROOT_DIR/Sources/SpinLabApp/Import/RuleLoader.swift" \
-  "$ROOT_DIR/Sources/SpinLabApp/Import/FilenameRuleSet.swift" \
-  "$ROOT_DIR/Sources/SpinLabApp/Import/FileRoutingRuleBook.swift" \
+  "$ROOT_DIR/Sources/SpinLabApp/Import/Match/DrawerMatchEngine.swift" \
+  "$ROOT_DIR/Sources/SpinLabApp/Import/Parse/SampleTokenization.swift" \
+  "$ROOT_DIR/Sources/SpinLabApp/Import/Parse/SampleSemanticDescriptor.swift" \
+  "$ROOT_DIR/Sources/SpinLabApp/Import/Rules/FileRoutingSemanticRules.swift" \
+  "$ROOT_DIR/Sources/SpinLabApp/Import/Rules/RuleLoader.swift" \
+  "$ROOT_DIR/Sources/SpinLabApp/Import/Rules/FilenameRuleSet.swift" \
+  "$ROOT_DIR/Sources/SpinLabApp/Import/Route/FileRoutingRuleBook.swift" \
   "$ROOT_DIR/Sources/SpinLabApp/Library/LibraryModels.swift" \
   "$ROOT_DIR/Sources/SpinLabApp/App/AppLogger.swift"
 

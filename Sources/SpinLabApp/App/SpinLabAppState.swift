@@ -289,15 +289,12 @@ final class SpinLabAppState: ObservableObject {
     @Published private(set) var libraryMetadataSyncLogs: [LibraryMetadataSyncLogEntry] = []
     @Published private(set) var libraryMetadataSyncLogError: String?
     @Published private(set) var libraryMetadataSyncLogMessage: String?
-    @Published private(set) var pendingRoutingSnapshotByID: [UUID: SpinLabDomain.PendingRoutingSnapshot] = [:]
     @Published private(set) var routingRuleFingerprint: String = "unknown"
 
     let workflow: SpinLabDomain.WorkflowKind = .amrPhe
 
     private let persistence: SpinLabPersistence
     private let importPipeline: SpinLabImportPipeline
-    private let routingCapabilities: RoutingCapabilities
-    private let ruleRuntime: any RuleRuntimeCapability
     private let registrySubstrateRules: any RegistrySubstrateRuleProviding
     private let analysisModule: AnalysisModuleExtension
     private let viewExtension: ViewExtension
@@ -314,11 +311,7 @@ final class SpinLabAppState: ObservableObject {
     private var librarySampleEditOriginalDraft: LibrarySampleEditDraft?
     private var libraryPendingSelectionChange: LibraryPendingSelectionChange?
     private let interactionMemory: InteractionMemoryStore
-    private var pendingRoutingDraftsByID: [UUID: PendingRoutingDraft] = [:]
-    private var drawerMatchIndex = DrawerMatchIndex()
-    private var drawerMatchSamples: [LibrarySample] = []
-    private var drawerMatchRuleFingerprint: String = "unknown"
-    private let pendingRoutePresentationBuilder = PendingRoutePresentationBuilder()
+    private let inboxRoutingState: InboxRoutingState
 
     init(
         persistence: SpinLabPersistence = LocalJSONPersistence(),
@@ -338,8 +331,10 @@ final class SpinLabAppState: ObservableObject {
         self.managedStorage = managedStorage
         self.sampleRegistry = sampleRegistry
         self.registrySubstrateRules = registrySubstrateRules
-        self.routingCapabilities = routingCapabilities
-        self.ruleRuntime = ruleRuntime
+        self.inboxRoutingState = InboxRoutingState(
+            routingCapabilities: routingCapabilities,
+            ruleRuntime: ruleRuntime
+        )
         self.librarySettings = librarySettingsStore.load()
         self.interactionMemory = InteractionMemoryStore(persistence: persistence)
 
@@ -406,83 +401,33 @@ final class SpinLabAppState: ObservableObject {
     }
 
     func matchedExistingLibraryDrawer(sampleInput: String) -> String? {
-        ensureDrawerMatchIndexUsesCurrentRules()
-        return routingCapabilities.matcher.match(sampleInput: sampleInput, index: drawerMatchIndex)
+        inboxRoutingState.matchedExistingLibraryDrawer(sampleInput: sampleInput)
     }
 
     func refreshPendingDrawerMatches(for pendingIDs: [UUID]? = nil) {
-        let pendingByID = Dictionary(uniqueKeysWithValues: pendingImports.map { ($0.id, $0) })
-        let targetIDs = pendingIDs ?? pendingImports.map(\.id)
-        guard !targetIDs.isEmpty else {
-            pendingRoutingSnapshotByID = [:]
-            return
-        }
-
-        let validIDs = Set(pendingImports.map(\.id))
-        var next = pendingRoutingSnapshotByID.filter { validIDs.contains($0.key) }
-        for pendingID in targetIDs {
-            guard let pending = pendingByID[pendingID] else {
-                next.removeValue(forKey: pendingID)
-                continue
-            }
-            next[pendingID] = evaluatePendingRoutingSnapshot(for: pending)
-        }
-        pendingRoutingSnapshotByID = next
-    }
-
-    func pendingRoutingSnapshot(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.PendingRoutingSnapshot {
-        if let cached = pendingRoutingSnapshotByID[pending.id] {
-            return cached
-        }
-        return evaluatePendingRoutingSnapshot(for: pending)
-    }
-
-    func cachedPendingRoutingSnapshot(for pendingID: UUID) -> SpinLabDomain.PendingRoutingSnapshot? {
-        pendingRoutingSnapshotByID[pendingID]
-    }
-
-    private func evaluatePendingRoutingSnapshot(
-        for pending: SpinLabDomain.PendingImport
-    ) -> SpinLabDomain.PendingRoutingSnapshot {
-        let parsed = parsedHintsApplyingRoutingDraft(for: pending)
-        let routePlan = routingCapabilities.planner.makeRoutePlan(from: parsed)
-        return routingCapabilities.evaluator.makeSnapshot(
-            routePlan: routePlan,
-            matchDrawer: { [weak self] sampleInput in
-                self?.matchedExistingLibraryDrawer(sampleInput: sampleInput)
-            }
+        inboxRoutingState.refreshPendingDrawerMatches(
+            pendingImports: pendingImports,
+            for: pendingIDs
         )
     }
 
-    private func rebuildDrawerMatchCandidates(from samples: [LibrarySample]) {
-        drawerMatchSamples = samples
-        drawerMatchIndex = routingCapabilities.matcher.makeIndex(from: samples)
-        drawerMatchRuleFingerprint = ruleRuntime.loadRulesCached().metadata.fingerprint
+    func pendingRoutingSnapshot(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.PendingRoutingSnapshot {
+        inboxRoutingState.pendingRoutingSnapshot(for: pending)
+    }
+
+    func cachedPendingRoutingSnapshot(for pendingID: UUID) -> SpinLabDomain.PendingRoutingSnapshot? {
+        inboxRoutingState.cachedPendingRoutingSnapshot(for: pendingID)
     }
 
     private func refreshRoutingRuleMetadata(forceReload: Bool) {
-        let loadResult = forceReload ? ruleRuntime.reloadRulesCached() : ruleRuntime.loadRulesCached()
-        let previous = routingRuleFingerprint
-        routingRuleFingerprint = loadResult.metadata.fingerprint
+        let loadResult = inboxRoutingState.refreshRoutingRuleMetadata(forceReload: forceReload)
+        routingRuleFingerprint = inboxRoutingState.routingRuleFingerprint
         appLogger.info(.import, "Routing rule metadata updated", metadata: [
             "version": "\(loadResult.metadata.version)",
             "source": loadResult.metadata.sourceLabel,
             "path": loadResult.metadata.sourcePath,
             "fingerprint": loadResult.metadata.fingerprint
         ])
-
-        if previous != routingRuleFingerprint {
-            ensureDrawerMatchIndexUsesCurrentRules()
-        }
-    }
-
-    private func ensureDrawerMatchIndexUsesCurrentRules() {
-        let current = ruleRuntime.loadRulesCached().metadata.fingerprint
-        guard drawerMatchRuleFingerprint != current else {
-            return
-        }
-        drawerMatchIndex = routingCapabilities.matcher.makeIndex(from: drawerMatchSamples)
-        drawerMatchRuleFingerprint = current
     }
 
     var registryPrefixMap: [String: String] {
@@ -496,7 +441,7 @@ final class SpinLabAppState: ObservableObject {
         selectedPendingImportID = pendingImports.first?.id
         selectedArchivedRecordID = archivedRecords.first?.id
         workbenchResultDraft = selectedArchivedRecord?.latestResult?.summary ?? ""
-        pendingRoutingSnapshotByID = [:]
+        inboxRoutingState.clearPendingState()
     }
 
     private func migrateManagedMeasurementPathsToOriginalIfPossible() {
@@ -588,13 +533,7 @@ final class SpinLabAppState: ObservableObject {
             snapshot.inboxWorkspaceByPendingID = snapshot.inboxWorkspaceByPendingID.filter { key, _ in
                 validPendingIDs.contains(key)
             }
-            pendingRoutingDraftsByID = snapshot.inboxWorkspaceByPendingID.reduce(into: [:]) { partial, entry in
-                guard let uuid = UUID(uuidString: entry.key),
-                      let routingDraft = entry.value.routingDraft else {
-                    return
-                }
-                partial[uuid] = routingDraft
-            }
+            inboxRoutingState.restoreDrafts(from: snapshot.inboxWorkspaceByPendingID)
         }
         normalizeLibrarySelection()
     }
@@ -630,8 +569,7 @@ final class SpinLabAppState: ObservableObject {
     func clearPendingImports() {
         pendingImports = []
         selectedPendingImportID = nil
-        pendingRoutingDraftsByID = [:]
-        pendingRoutingSnapshotByID = [:]
+        inboxRoutingState.clearPendingState()
         updateInteractionValue(\.inboxWorkspaceByPendingID, to: [:])
         persistence.savePendingImports(pendingImports)
     }
@@ -643,7 +581,7 @@ final class SpinLabAppState: ObservableObject {
             next.parsedHints = recomputedParsedHints(for: pending)
             return next
         }
-        pendingRoutingDraftsByID = [:]
+        inboxRoutingState.clearPendingState()
 
         var updatedWorkspaceByPendingID: [String: InboxPendingWorkspaceState] = [:]
         let existingWorkspaceByPendingID = interactionValue(\.inboxWorkspaceByPendingID)
@@ -809,9 +747,7 @@ final class SpinLabAppState: ObservableObject {
     func loadExistingDrawers() {
         guard let rootPath = librarySettings.rootPath else {
             libraryExistingGroups = [:]
-            drawerMatchSamples = []
-            drawerMatchIndex = DrawerMatchIndex()
-            drawerMatchRuleFingerprint = ruleRuntime.loadRulesCached().metadata.fingerprint
+            inboxRoutingState.clearDrawerMatchCandidates()
             libraryExistingMessage = "No Library Root selected."
             librarySelectedPrefix = nil
             librarySelectedBatchId = nil
@@ -1575,19 +1511,21 @@ final class SpinLabAppState: ObservableObject {
     }
 
     func pendingRoutePresentation(for pending: SpinLabDomain.PendingImport) -> PendingRoutePresentation {
-        let routingSnapshot = pendingRoutingSnapshot(for: pending)
         let substrate = substrateWarning(for: pending, registryLookup: registryLookup(for: pending))
-        return pendingRoutePresentationBuilder.build(
-            pending: pending,
-            routingSnapshot: routingSnapshot,
+        return inboxRoutingState.pendingRoutePresentation(
+            for: pending,
             substrateWarning: substrate
         )
     }
 
     func pendingRoutePresentationByID() -> [UUID: PendingRoutePresentation] {
-        Dictionary(uniqueKeysWithValues: pendingImports.map { pending in
-            (pending.id, pendingRoutePresentation(for: pending))
-        })
+        inboxRoutingState.pendingRoutePresentationByID(
+            pendingImports: pendingImports,
+            substrateWarning: { [weak self] pending in
+                guard let self else { return nil }
+                return self.substrateWarning(for: pending, registryLookup: self.registryLookup(for: pending))
+            }
+        )
     }
 
     func pendingDisplayWarningItems(for pending: SpinLabDomain.PendingImport) -> [PendingDisplayWarning] {
@@ -1634,70 +1572,35 @@ final class SpinLabAppState: ObservableObject {
     }
 
     func pendingRoutePlan(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.RoutePlan {
-        pendingRoutingSnapshot(for: pending).routePlan
+        inboxRoutingState.pendingRoutePlan(for: pending)
     }
 
     func pendingRouteStatus(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.RouteStatus {
-        pendingRoutingSnapshot(for: pending).verdict
+        inboxRoutingState.pendingRouteStatus(for: pending)
     }
 
     func hasSavedRoutingDraft(for pending: SpinLabDomain.PendingImport) -> Bool {
-        pendingRoutingDraftsByID[pending.id] != nil
+        inboxRoutingState.hasSavedRoutingDraft(for: pending)
     }
 
     func routingDraft(for pending: SpinLabDomain.PendingImport) -> PendingRoutingDraft {
-        if let saved = pendingRoutingDraftsByID[pending.id] {
-            return saved
-        }
-
-        return routingDraftBaseline(for: pending)
+        inboxRoutingState.routingDraft(for: pending)
     }
 
     func routingDraftBaseline(for pending: SpinLabDomain.PendingImport) -> PendingRoutingDraft {
-        let parsed = pending.parsedHints
-        let plan = routingCapabilities.planner.makeRoutePlan(from: parsed)
-        let resolutionsByChannel = Dictionary(uniqueKeysWithValues: plan.channelResolutions.map { ($0.channel, $0) })
-
-        var overrides: [String: String] = [:]
-        for channel in parsed.channelHints {
-            let explicitInput = normalized(channel.sampleID)
-            guard explicitInput != nil else {
-                overrides[channel.channel] = ""
-                continue
-            }
-            overrides[channel.channel] = resolutionsByChannel[channel.channel]?.sampleKey ?? explicitInput ?? ""
-        }
-
-        let defaultSampleKey = plan.channelResolutions
-            .first(where: { $0.channel == "file" })?
-            .sampleKey
-            ?? parsed.defaultSampleKey
-            ?? ""
-
-        return PendingRoutingDraft(
-            defaultSampleKey: defaultSampleKey,
-            channelSampleKeyOverrides: overrides
-        )
+        inboxRoutingState.routingDraftBaseline(for: pending)
     }
 
     func isRoutingDraftDirty(_ draft: PendingRoutingDraft, for pending: SpinLabDomain.PendingImport) -> Bool {
-        let trimmedCurrent = PendingRoutingDraft(
-            defaultSampleKey: draft.defaultSampleKey.trimmingCharacters(in: .whitespacesAndNewlines),
-            channelSampleKeyOverrides: draft.channelSampleKeyOverrides.mapValues {
-                $0.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        )
-        return trimmedCurrent != routingDraft(for: pending)
+        inboxRoutingState.isRoutingDraftDirty(draft, for: pending)
     }
 
     func saveRoutingDraft(_ draft: PendingRoutingDraft, for pendingID: UUID) {
-        pendingRoutingDraftsByID[pendingID] = PendingRoutingDraft(
-            defaultSampleKey: draft.defaultSampleKey.trimmingCharacters(in: .whitespacesAndNewlines),
-            channelSampleKeyOverrides: draft.channelSampleKeyOverrides.mapValues {
-                $0.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
+        inboxRoutingState.saveRoutingDraft(
+            draft,
+            for: pendingID,
+            pendingImports: pendingImports
         )
-        refreshPendingDrawerMatches(for: [pendingID])
         objectWillChange.send()
     }
 
@@ -1718,8 +1621,7 @@ final class SpinLabAppState: ObservableObject {
         let record = makeArchivedRecord(from: pending, draft: draft, registryLookup: registryLookup)
         archivedRecords.insert(record, at: 0)
         pendingImports.removeAll { $0.id == pending.id }
-        pendingRoutingDraftsByID[pending.id] = nil
-        pendingRoutingSnapshotByID[pending.id] = nil
+        inboxRoutingState.clearRoutingData(for: pending.id)
         updateInteractionEntryValue(for: pending.id, in: \.inboxWorkspaceByPendingID, value: nil)
 
         persistence.saveArchivedRecords(archivedRecords)
@@ -1924,34 +1826,10 @@ final class SpinLabAppState: ObservableObject {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private func parsedHintsApplyingRoutingDraft(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.ParsedFilenameHints {
-        guard let draft = pendingRoutingDraftsByID[pending.id] else {
-            return pending.parsedHints
-        }
-
-        var parsed = pending.parsedHints
-        let trimmedDefault = draft.defaultSampleKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        parsed.defaultSampleKey = trimmedDefault.isEmpty ? nil : trimmedDefault
-
-        var channelHints = parsed.channelHints
-        for index in channelHints.indices {
-            let channelID = channelHints[index].channel
-            guard let override = draft.channelSampleKeyOverrides[channelID] else {
-                continue
-            }
-            let trimmed = override.trimmingCharacters(in: .whitespacesAndNewlines)
-            channelHints[index].sampleID = trimmed.isEmpty ? nil : trimmed
-        }
-        parsed.channelHints = channelHints
-        return parsed
-    }
-
     private func applyExistingIndex(_ index: LibraryIndex) {
         guard !index.samples.isEmpty else {
             libraryExistingGroups = [:]
-            drawerMatchSamples = []
-            drawerMatchIndex = DrawerMatchIndex()
-            drawerMatchRuleFingerprint = ruleRuntime.loadRulesCached().metadata.fingerprint
+            inboxRoutingState.clearDrawerMatchCandidates()
             libraryExistingMessage = "No existing drawers found."
             librarySelectedPrefix = nil
             librarySelectedBatchId = nil
@@ -1964,7 +1842,7 @@ final class SpinLabAppState: ObservableObject {
         }
 
         libraryExistingGroups = buildPreviewGroups(from: index)
-        rebuildDrawerMatchCandidates(from: index.samples)
+        inboxRoutingState.rebuildDrawerMatchCandidates(from: index.samples)
         libraryExistingMessage = "Loaded existing drawers: \(index.samples.count) samples"
         normalizeLibrarySelection()
         reconcileLibrarySampleEditingSelection()
