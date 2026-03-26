@@ -1,7 +1,9 @@
+import AppKit
+import Observation
 import SwiftUI
 
 struct RootSplitView: View {
-    @EnvironmentObject private var appState: SpinLabAppState
+    @Environment(SpinLabAppState.self) private var appState
     @State private var expandedSidebarNodeIDs: Set<String> = []
     @State private var hoveredSidebarRowID: String?
     @State private var pendingDeleteDrawerBatchID: String?
@@ -16,6 +18,8 @@ struct RootSplitView: View {
     private let appRouter = AppRouter()
 
     var body: some View {
+        @Bindable var bindableAppState = appState
+
         NavigationSplitView {
             VStack(spacing: 0) {
                 Color.clear
@@ -44,13 +48,21 @@ struct RootSplitView: View {
                 .safeAreaPadding(.top, currentDetailTopInset)
                 .frame(maxHeight: .infinity, alignment: .top)
                 .overlay(alignment: .topTrailing) {
-                    if appState.selectedArea != .library {
-                        Text(AppVersion.current)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.top, 12)
-                            .padding(.trailing, 16)
+                    HStack(spacing: 10) {
+                        Button("Export Audit") {
+                            presentAuditTrailExportPanel()
+                        }
+                        .font(.caption)
+                        .buttonStyle(.bordered)
+
+                        if appState.selectedArea != .library {
+                            Text(AppVersion.current)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
+                    .padding(.top, 10)
+                    .padding(.trailing, 16)
                 }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -85,6 +97,15 @@ struct RootSplitView: View {
             let prefix = pendingDeleteDrawerPrefix ?? "-"
             let batchID = pendingDeleteDrawerBatchID ?? "-"
             Text("Delete drawer \(prefix)/\(batchID) from library files?")
+        }
+        .alert(item: $bindableAppState.activeAlert) { alertState in
+            Alert(
+                title: Text(alertState.title),
+                message: Text(alertState.message),
+                dismissButton: .default(Text("OK")) {
+                    appState.clearActiveAlert()
+                }
+            )
         }
     }
 
@@ -219,5 +240,33 @@ struct RootSplitView: View {
                 isPresentingDeleteDrawerConfirm = true
             }
         ]
+    }
+
+    private func presentAuditTrailExportPanel() {
+        let panel = NSSavePanel()
+        panel.title = "Export Audit Trail"
+        panel.prompt = "Export"
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = "spinlab_audit_trail.json"
+        panel.allowedContentTypes = [.json]
+        if panel.runModal() != .OK {
+            return
+        }
+        guard let destinationURL = panel.url else {
+            return
+        }
+
+        do {
+            let summary = try appState.exportAuditTrail(to: destinationURL)
+            appState.presentAlert(
+                title: "Audit Trail Exported",
+                message: "Saved \(summary.entryCount) log entries to \(destinationURL.path)."
+            )
+        } catch {
+            appState.presentAlert(
+                title: "Export Failed",
+                message: error.localizedDescription
+            )
+        }
     }
 }

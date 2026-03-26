@@ -173,6 +173,10 @@ final class InboxRoutingState {
         return loadResult
     }
 
+    func currentRoutingRuleFingerprint() -> String {
+        routingRuleFingerprint
+    }
+
     private func ensureDrawerMatchIndexUsesCurrentRules() {
         let current = ruleRuntime.loadRulesCached().metadata.fingerprint
         guard drawerMatchRuleFingerprint != current else {

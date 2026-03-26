@@ -8,10 +8,10 @@ struct SaveLibrarySampleEditsUseCase {
     }
 
     struct Output {
-        var error: String?
         var message: String?
         var clearDraft: Bool
         var rootURLForCommit: URL?
+        var nonFatalError: AppError?
     }
 
     func execute(
@@ -21,50 +21,25 @@ struct SaveLibrarySampleEditsUseCase {
         updateSample: (LibrarySample, URL) -> Void,
         resolveRegistrySourceURL: () -> URL?,
         syncRegistrySource: (LibrarySample, LibrarySample, URL) throws -> LibraryRegistrySourceSyncResult
-    ) -> Output {
+    ) -> Result<Output, AppError> {
         guard let rootPath = input.rootPath else {
-            return Output(
-                error: "Select a Library Root first.",
-                message: nil,
-                clearDraft: false,
-                rootURLForCommit: nil
-            )
+            return .failure(.validation("Select a Library Root first."))
         }
         guard let draft = input.draft,
               let base = input.baseSample else {
-            return Output(
-                error: "No active edit draft.",
-                message: nil,
-                clearDraft: false,
-                rootURLForCommit: nil
-            )
+            return .failure(.validation("No active edit draft."))
         }
         guard draft.sampleId == base.id else {
-            return Output(
-                error: "Selection changed. Restart edit for the selected sample.",
-                message: nil,
-                clearDraft: false,
-                rootURLForCommit: nil
-            )
+            return .failure(.state("Selection changed. Restart edit for the selected sample."))
         }
 
         let rootURL = URL(fileURLWithPath: rootPath)
         let snapshot = snapshotIndexFromFilesystem(rootURL)
         guard let current = snapshot.samples.first(where: { $0.id == draft.sampleId }) else {
-            return Output(
-                error: "Selected sample no longer exists.",
-                message: nil,
-                clearDraft: true,
-                rootURLForCommit: nil
-            )
+            return .failure(.notFound("Selected sample no longer exists."))
         }
         guard current.updatedAt == draft.baseUpdatedAt else {
-            return Output(
-                error: "Sample changed on disk. Reload and edit again.",
-                message: nil,
-                clearDraft: false,
-                rootURLForCommit: nil
-            )
+            return .failure(.state("Sample changed on disk. Reload and edit again."))
         }
 
         do {
@@ -72,7 +47,7 @@ struct SaveLibrarySampleEditsUseCase {
             updateSample(updated, rootURL)
 
             var syncSummary: String?
-            var syncError: String?
+            var syncError: AppError?
 
             if let registrySourceURL = resolveRegistrySourceURL() {
                 do {
@@ -84,36 +59,31 @@ struct SaveLibrarySampleEditsUseCase {
                     Metadata 日志表：\(syncResult.metadataLogSheetName)。
                     """
                     if syncResult.metadataFailedCount > 0 {
-                        syncError = "Metadata sync partial failure: \(syncResult.metadataFailedCount) field(s) failed. Check Metadata日志."
+                        syncError = .sync("Metadata sync partial failure: \(syncResult.metadataFailedCount) field(s) failed. Check Metadata日志.")
                     }
                 } catch {
                     syncSummary = """
                     已保存样品编辑。
                     XLSX 同步警告：\(error.localizedDescription)
                     """
-                    syncError = "Metadata sync failed: \(error.localizedDescription)"
+                    syncError = .sync("Metadata sync failed: \(error.localizedDescription)")
                 }
             } else {
                 syncSummary = """
                 已保存样品编辑。
                 XLSX 同步警告：未找到 registry source。
                 """
-                syncError = "Metadata sync failed: registry source not found."
+                syncError = .sync("Metadata sync failed: registry source not found.")
             }
 
-            return Output(
-                error: syncError,
+            return .success(Output(
                 message: syncSummary ?? "已保存样品编辑。",
                 clearDraft: true,
-                rootURLForCommit: rootURL
-            )
+                rootURLForCommit: rootURL,
+                nonFatalError: syncError
+            ))
         } catch {
-            return Output(
-                error: error.localizedDescription,
-                message: nil,
-                clearDraft: false,
-                rootURLForCommit: nil
-            )
+            return .failure(AppError.from(error, fallback: "Failed to save sample edits."))
         }
     }
 }

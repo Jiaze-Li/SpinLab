@@ -1,9 +1,10 @@
 import AppKit
+import Observation
 import SwiftUI
 import UniformTypeIdentifiers
 
 struct InboxView: View {
-    @EnvironmentObject private var appState: SpinLabAppState
+    @Environment(SpinLabAppState.self) private var appState
     @State private var isImportSourceExpanded = true
     @State private var isPendingQueueExpanded = true
     @State private var isRoutingReviewExpanded = true
@@ -90,7 +91,7 @@ private struct InboxOperationPanel: View {
         var id: String { rawValue }
     }
 
-    @EnvironmentObject private var appState: SpinLabAppState
+    @Environment(SpinLabAppState.self) private var appState
     @Binding var isImportSourceExpanded: Bool
     @Binding var isPendingQueueExpanded: Bool
     @Binding var isRoutingReviewExpanded: Bool
@@ -99,6 +100,8 @@ private struct InboxOperationPanel: View {
     @State private var fileFilter: FileFilter = .all
 
     var body: some View {
+        @Bindable var bindableAppState = appState
+
         let routePresentationByID = appState.pendingRoutePresentationByID()
         let libraryMatchedCount = appState.pendingImports.reduce(into: 0) { partial, pending in
             if routePresentationByID[pending.id]?.isLibraryMatched == true {
@@ -191,7 +194,7 @@ private struct InboxOperationPanel: View {
                                     .lineLimit(nil)
                                     .fixedSize(horizontal: false, vertical: true)
                             } else {
-                                List(filteredPendingImports, selection: $appState.selectedPendingImportID) { pending in
+                                List(filteredPendingImports, selection: $bindableAppState.selectedPendingImportID) { pending in
                                     let presentation = routePresentationByID[pending.id]
                                     let verdict = presentation?.verdict ?? .reviewRequired
                                     VStack(alignment: .leading, spacing: 4) {
@@ -382,7 +385,7 @@ private func placeholderRoutingSnapshot(for pending: SpinLabDomain.PendingImport
 
 private struct InboxInspectorPanel: View {
     let pending: SpinLabDomain.PendingImport
-    @EnvironmentObject private var appState: SpinLabAppState
+    @Environment(SpinLabAppState.self) private var appState
     private var routingSnapshot: SpinLabDomain.PendingRoutingSnapshot {
         appState.cachedPendingRoutingSnapshot(for: pending.id) ?? placeholderRoutingSnapshot(for: pending)
     }
@@ -457,7 +460,7 @@ private struct InboxInspectorPanel: View {
 
 private struct InboxSelectionWorkbenchPanel: View {
     let pending: SpinLabDomain.PendingImport
-    @EnvironmentObject private var appState: SpinLabAppState
+    @Environment(SpinLabAppState.self) private var appState
     @State private var draft = PendingImportConfirmationDraft(
         batchName: "",
         sampleName: "",
@@ -733,7 +736,7 @@ private struct InboxSelectionWorkbenchPanel: View {
 }
 
 private struct RegistryStatusColumn: View {
-    @EnvironmentObject private var appState: SpinLabAppState
+    @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -813,7 +816,7 @@ private struct InboxColumnHeader: View {
 
 private struct PendingRegistryLookupDetail: View {
     let pending: SpinLabDomain.PendingImport
-    @EnvironmentObject private var appState: SpinLabAppState
+    @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
         let sampleID = appState.parsedSampleIDFromFilename(for: pending)

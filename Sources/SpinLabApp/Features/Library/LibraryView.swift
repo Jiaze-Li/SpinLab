@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 struct LibraryView: View {
-    @EnvironmentObject private var appState: SpinLabAppState
+    @Environment(SpinLabAppState.self) private var appState
     @State private var allowedPrefixesDraft: String = ""
     @State private var selectedPrefix: String?
     @State private var selectedBatchId: String?
@@ -22,7 +22,8 @@ struct LibraryView: View {
     @State private var searchEnergyText: String = ""
     @State private var searchMatchedResults: [SearchResultItem] = []
     @State private var searchHasExecuted = false
-    @StateObject private var viewModel = LibraryViewModel()
+    @State private var searchDebounceTask: Task<Void, Never>?
+    @State private var viewModel = LibraryViewModel()
     private let level1HeaderFont: Font = .title2.bold()
     private let level2HeaderFont: Font = .title3.weight(.semibold)
     private let level3HeaderFont: Font = .headline
@@ -56,8 +57,15 @@ struct LibraryView: View {
         .onChange(of: interactionStateSnapshot) { _, newValue in
             viewModel.persistInteractionState(newValue)
         }
-        .onReceive(appState.objectWillChange) { _ in
+        .onChange(of: searchFingerprint) { _, _ in
+            scheduleDebouncedSearchIfNeeded()
+        }
+        .onChange(of: appState.appStateRevision) { _, _ in
             viewModel.syncState(from: appState)
+        }
+        .onDisappear {
+            searchDebounceTask?.cancel()
+            searchDebounceTask = nil
         }
         .confirmationDialog(
             "Unsaved Edits",
@@ -1682,6 +1690,8 @@ struct LibraryView: View {
     }
 
     private func clearSearchFilters() {
+        searchDebounceTask?.cancel()
+        searchDebounceTask = nil
         searchBatchIdText = ""
         searchSubstrateText = ""
         searchKeywordText = ""
@@ -1698,6 +1708,33 @@ struct LibraryView: View {
             matchesSearch(result.sample)
         }
         searchHasExecuted = true
+    }
+
+    private var searchFingerprint: String {
+        [
+            searchBatchIdText,
+            searchSubstrateText,
+            searchKeywordText,
+            searchThicknessText,
+            searchOxygenText,
+            searchTemperatureText,
+            searchEnergyText
+        ].joined(separator: "|")
+    }
+
+    private func scheduleDebouncedSearchIfNeeded() {
+        guard searchHasExecuted else {
+            return
+        }
+
+        searchDebounceTask?.cancel()
+        searchDebounceTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard !Task.isCancelled else {
+                return
+            }
+            executeSearch()
+        }
     }
 
     private func matchesSearch(_ sample: LibrarySample) -> Bool {
@@ -1938,7 +1975,7 @@ struct LibraryView_Previews: PreviewProvider {
         )
 
         return LibraryView()
-            .environmentObject(appState)
+            .environment(appState)
             .frame(width: 1200, height: 760)
     }
 }

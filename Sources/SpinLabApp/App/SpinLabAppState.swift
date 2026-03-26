@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import SwiftUI
 
 enum AppArea: String, CaseIterable, Identifiable, Codable {
@@ -167,7 +168,8 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var inboxView: InboxInteractionState = InboxInteractionState()
 }
 
-final class SpinLabAppState: ObservableObject {
+@Observable
+final class SpinLabAppState {
     private final class ArchivedRecordDomainContextAdapter: SpinLabDomainContext {
         private weak var appState: SpinLabAppState?
 
@@ -284,67 +286,73 @@ final class SpinLabAppState: ObservableObject {
         bind(state: \.librarySelectedSampleId, snapshot: \.librarySelectedSampleId)
     ]
 
-    @Published var selectedArea: AppArea = .inbox {
+    var selectedArea: AppArea = .inbox {
         didSet { persistInteractionSnapshotIfReady() }
     }
-    @Published var pendingImports: [SpinLabDomain.PendingImport] = []
-    @Published var archivedRecords: [SpinLabDomain.ArchivedRecord] = []
-    @Published var projectCatalog: [SpinLabDomain.Project] = []
-    @Published var selectedPendingImportID: UUID? {
+    var pendingImports: [SpinLabDomain.PendingImport] = []
+    var archivedRecords: [SpinLabDomain.ArchivedRecord] = []
+    var projectCatalog: [SpinLabDomain.Project] = []
+    var selectedPendingImportID: UUID? {
         didSet { persistInteractionSnapshotIfReady() }
     }
-    @Published var selectedArchivedRecordID: UUID? {
+    var selectedArchivedRecordID: UUID? {
         didSet { persistInteractionSnapshotIfReady() }
     }
-    @Published var workbenchResultDraft: String = "" {
+    var workbenchResultDraft: String = "" {
         didSet { persistInteractionSnapshotIfReady() }
     }
-    @Published private(set) var registryFileName: String?
-    @Published private(set) var registrySourceFilePath: String?
-    @Published private(set) var registryPrefixEntries: [RegistryPrefixEntry] = []
-    @Published var librarySettings: LibrarySettings
-    @Published private(set) var libraryRootVerificationPath: String?
-    @Published private(set) var libraryRootVerificationMessage: String?
-    @Published private(set) var libraryBackupMessage: String?
-    @Published private(set) var libraryBackupError: String?
-    @Published private(set) var libraryPreview: LibraryPreview?
-    @Published private(set) var libraryPreviewMessage: String?
-    @Published private(set) var libraryLastSyncedAt: Date?
-    @Published private(set) var librarySyncStatusMessage: String?
-    @Published private(set) var libraryPreviewWarnings: [LibraryWarning] = []
-    @Published private(set) var libraryPreviewGroups: [String: [LibraryPreviewBatchGroup]] = [:]
-    @Published private(set) var libraryExistingGroups: [String: [LibraryPreviewBatchGroup]] = [:]
-    @Published private(set) var libraryExistingMessage: String?
-    @Published var librarySelectedPrefix: String? {
+    private(set) var registryFileName: String?
+    private(set) var registrySourceFilePath: String?
+    private(set) var registryPrefixEntries: [RegistryPrefixEntry] = []
+    private(set) var routingRuleVersion: Int = 0
+    private(set) var routingRuleSourceLabel: String = "unknown"
+    private(set) var routingRuleSourcePath: String = "unknown"
+    private(set) var routingRuleFingerprint: String = "unknown"
+    var librarySettings: LibrarySettings
+    private(set) var libraryRootVerificationPath: String?
+    private(set) var libraryRootVerificationMessage: String?
+    private(set) var libraryBackupMessage: String?
+    private(set) var libraryBackupError: String?
+    private(set) var libraryPreview: LibraryPreview?
+    private(set) var libraryPreviewMessage: String?
+    private(set) var libraryLastSyncedAt: Date?
+    private(set) var librarySyncStatusMessage: String?
+    private(set) var libraryPreviewWarnings: [LibraryWarning] = []
+    private(set) var libraryPreviewGroups: [String: [LibraryPreviewBatchGroup]] = [:]
+    private(set) var libraryExistingGroups: [String: [LibraryPreviewBatchGroup]] = [:]
+    private(set) var libraryExistingMessage: String?
+    var librarySelectedPrefix: String? {
         didSet { persistInteractionSnapshotIfReady() }
     }
-    @Published var librarySelectedBatchId: String? {
+    var librarySelectedBatchId: String? {
         didSet { persistInteractionSnapshotIfReady() }
     }
-    @Published var librarySelectedSampleId: String? {
+    var librarySelectedSampleId: String? {
         didSet { persistInteractionSnapshotIfReady() }
     }
-    @Published private(set) var librarySelectionVersion: Int = 0
-    @Published var libraryActiveSelectionSource: LibrarySelectionSource = .browser {
+    private(set) var librarySelectionVersion: Int = 0
+    var libraryActiveSelectionSource: LibrarySelectionSource = .browser {
         didSet { persistInteractionSnapshotIfReady() }
     }
-    @Published private(set) var libraryDrawerMessage: String?
-    @Published private(set) var libraryDrawerError: String?
-    @Published private(set) var libraryRefreshReview: LibraryRefreshReview?
-    @Published private(set) var libraryBatchSyncStatusByID: [String: LibrarySyncBatchStatus] = [:]
-    @Published private(set) var librarySampleSyncChangesByID: [String: [LibraryFieldChange]] = [:]
-    @Published private(set) var libraryBatchSyncChangesByID: [String: [LibraryFieldChange]] = [:]
-    @Published private(set) var librarySampleEditDraft: LibrarySampleEditDraft?
-    @Published private(set) var librarySampleEditError: String?
-    @Published private(set) var librarySampleEditMessage: String?
-    @Published private(set) var librarySampleEditIsSaving: Bool = false
-    @Published private(set) var libraryPendingSelectionChangePrompt: String?
-    @Published private(set) var libraryGlobalManualLogs: [LibraryManualUpdateLogEntry] = []
-    @Published private(set) var libraryGlobalManualLogError: String?
-    @Published private(set) var libraryGlobalManualLogMessage: String?
-    @Published private(set) var libraryMetadataSyncLogs: [LibraryMetadataSyncLogEntry] = []
-    @Published private(set) var libraryMetadataSyncLogError: String?
-    @Published private(set) var libraryMetadataSyncLogMessage: String?
+    private(set) var libraryDrawerMessage: String?
+    private(set) var libraryDrawerError: String?
+    private(set) var libraryRefreshReview: LibraryRefreshReview?
+    private(set) var libraryBatchSyncStatusByID: [String: LibrarySyncBatchStatus] = [:]
+    private(set) var librarySampleSyncChangesByID: [String: [LibraryFieldChange]] = [:]
+    private(set) var libraryBatchSyncChangesByID: [String: [LibraryFieldChange]] = [:]
+    private(set) var librarySampleEditDraft: LibrarySampleEditDraft?
+    private(set) var librarySampleEditError: String?
+    private(set) var librarySampleEditMessage: String?
+    private(set) var librarySampleEditIsSaving: Bool = false
+    private(set) var libraryPendingSelectionChangePrompt: String?
+    private(set) var libraryGlobalManualLogs: [LibraryManualUpdateLogEntry] = []
+    private(set) var libraryGlobalManualLogError: String?
+    private(set) var libraryGlobalManualLogMessage: String?
+    private(set) var libraryMetadataSyncLogs: [LibraryMetadataSyncLogEntry] = []
+    private(set) var libraryMetadataSyncLogError: String?
+    private(set) var libraryMetadataSyncLogMessage: String?
+    var activeAlert: AppAlertState?
+    private(set) var appStateRevision: Int = 0
 
     let workflow: SpinLabDomain.WorkflowKind
 
@@ -362,6 +370,7 @@ final class SpinLabAppState: ObservableObject {
     private let libraryLogger = LibraryLogger()
     private let libraryDiffEngine = LibraryDiffEngine()
     private let librarySampleEditService = LibrarySampleEditService()
+    @ObservationIgnored
     private lazy var librarySyncService = LibrarySyncService(libraryStore: libraryStore, libraryDiffEngine: libraryDiffEngine)
     private let appLogger = AppLogger.shared
     private let interactionMemory: InteractionMemoryStore
@@ -371,6 +380,7 @@ final class SpinLabAppState: ObservableObject {
     private let coordinator = AppCoordinator()
     private let confirmPendingImportUseCase = ConfirmPendingImportUseCase()
     private let saveLibrarySampleEditsUseCase = SaveLibrarySampleEditsUseCase()
+    @ObservationIgnored
     private lazy var archivedRecordDomainContext: SpinLabDomainContext = ArchivedRecordDomainContextAdapter(appState: self)
 
     init(
@@ -484,6 +494,10 @@ final class SpinLabAppState: ObservableObject {
 
     private func refreshRoutingRuleMetadata(forceReload: Bool) {
         let loadResult = inboxState.routing.refreshRoutingRuleMetadata(forceReload: forceReload)
+        routingRuleVersion = loadResult.metadata.version
+        routingRuleSourceLabel = loadResult.metadata.sourceLabel
+        routingRuleSourcePath = loadResult.metadata.sourcePath
+        routingRuleFingerprint = loadResult.metadata.fingerprint
         appLogger.info(.import, "Routing rule metadata updated", metadata: [
             "version": "\(loadResult.metadata.version)",
             "source": loadResult.metadata.sourceLabel,
@@ -675,7 +689,7 @@ final class SpinLabAppState: ObservableObject {
 
         refreshPendingDrawerMatches()
         replacePendingImports(pendingImports)
-        objectWillChange.send()
+        bumpAppStateRevision()
     }
 
     func loadSampleRegistry(from url: URL) {
@@ -1084,8 +1098,10 @@ final class SpinLabAppState: ObservableObject {
         libraryGlobalManualLogMessage = nil
 
         guard let registrySourceURL = resolveRegistrySourceURL() else {
-            libraryGlobalManualLogError = "No registry source found. Load registry from Inbox first."
+            let error = AppError.notFound("No registry source found. Load registry from Inbox first.")
+            libraryGlobalManualLogError = error.localizedDescription
             libraryGlobalManualLogs = []
+            present(error: error, title: "Log Load Failed")
             return
         }
 
@@ -1094,8 +1110,10 @@ final class SpinLabAppState: ObservableObject {
             libraryGlobalManualLogs = entries
             libraryGlobalManualLogMessage = "Loaded \(entries.count) global log entries."
         } catch {
-            libraryGlobalManualLogError = error.localizedDescription
+            let appError = AppError.from(error, fallback: "Failed to load global manual logs.")
+            libraryGlobalManualLogError = appError.localizedDescription
             libraryGlobalManualLogs = []
+            present(error: appError, title: "Log Load Failed")
         }
     }
 
@@ -1104,7 +1122,9 @@ final class SpinLabAppState: ObservableObject {
         libraryGlobalManualLogMessage = nil
 
         guard let registrySourceURL = resolveRegistrySourceURL() else {
-            libraryGlobalManualLogError = "No registry source found. Load registry from Inbox first."
+            let error = AppError.notFound("No registry source found. Load registry from Inbox first.")
+            libraryGlobalManualLogError = error.localizedDescription
+            present(error: error, title: "Status Update Failed")
             return
         }
 
@@ -1118,7 +1138,9 @@ final class SpinLabAppState: ObservableObject {
             loadLibraryGlobalManualLogs()
             libraryGlobalManualLogMessage = "Updated status for log row \(rowIndex) to \(status.rawValue)."
         } catch {
-            libraryGlobalManualLogError = error.localizedDescription
+            let appError = AppError.from(error, fallback: "Failed to update manual log status.")
+            libraryGlobalManualLogError = appError.localizedDescription
+            present(error: appError, title: "Status Update Failed")
         }
     }
 
@@ -1127,8 +1149,10 @@ final class SpinLabAppState: ObservableObject {
         libraryMetadataSyncLogMessage = nil
 
         guard let registrySourceURL = resolveRegistrySourceURL() else {
-            libraryMetadataSyncLogError = "No registry source found. Load registry from Inbox first."
+            let error = AppError.notFound("No registry source found. Load registry from Inbox first.")
+            libraryMetadataSyncLogError = error.localizedDescription
             libraryMetadataSyncLogs = []
+            present(error: error, title: "Log Load Failed")
             return
         }
 
@@ -1137,8 +1161,10 @@ final class SpinLabAppState: ObservableObject {
             libraryMetadataSyncLogs = entries
             libraryMetadataSyncLogMessage = "Loaded \(entries.count) metadata log entries."
         } catch {
-            libraryMetadataSyncLogError = error.localizedDescription
+            let appError = AppError.from(error, fallback: "Failed to load metadata sync logs.")
+            libraryMetadataSyncLogError = appError.localizedDescription
             libraryMetadataSyncLogs = []
+            present(error: appError, title: "Log Load Failed")
         }
     }
 
@@ -1148,7 +1174,7 @@ final class SpinLabAppState: ObservableObject {
         librarySampleEditIsSaving = true
         defer { librarySampleEditIsSaving = false }
 
-        let output = saveLibrarySampleEditsUseCase.execute(
+        let result = saveLibrarySampleEditsUseCase.execute(
             input: SaveLibrarySampleEditsUseCase.Input(
                 rootPath: librarySettings.rootPath,
                 draft: librarySampleEditDraft,
@@ -1175,17 +1201,34 @@ final class SpinLabAppState: ObservableObject {
             }
         )
 
-        if output.clearDraft {
-            librarySampleEditDraft = nil
-            libraryState.sampleEditBaseSample = nil
-            libraryState.sampleEditOriginalDraft = nil
+        switch result {
+        case let .success(output):
+            if output.clearDraft {
+                librarySampleEditDraft = nil
+                libraryState.sampleEditBaseSample = nil
+                libraryState.sampleEditOriginalDraft = nil
+            }
+            if let rootURL = output.rootURLForCommit {
+                commitLibraryMutation(rootURL: rootURL, previewIndex: libraryPreview?.index)
+            }
+            if let nonFatalError = output.nonFatalError {
+                librarySampleEditError = nonFatalError.localizedDescription
+                present(error: nonFatalError, title: "Sync Warning")
+                appLogger.warning(.library, "Library sample edit saved with sync warning", metadata: [
+                    "reason": nonFatalError.localizedDescription
+                ])
+            }
+            librarySampleEditMessage = output.message
+            appLogger.info(.library, "Library sample edits saved", metadata: [
+                "message": output.message ?? "saved"
+            ])
+        case let .failure(error):
+            librarySampleEditError = error.localizedDescription
+            present(error: error, title: "Save Failed")
+            appLogger.error(.library, "Library sample edit failed", metadata: [
+                "reason": error.localizedDescription
+            ])
         }
-        if let rootURL = output.rootURLForCommit {
-            commitLibraryMutation(rootURL: rootURL, previewIndex: libraryPreview?.index)
-        }
-
-        librarySampleEditError = output.error
-        librarySampleEditMessage = output.message
     }
 
     func prepareLibrarySyncReview(precomputedDiff: LibraryDiff? = nil) {
@@ -1630,7 +1673,7 @@ final class SpinLabAppState: ObservableObject {
             for: pendingID,
             pendingImports: pendingImports
         )
-        objectWillChange.send()
+        bumpAppStateRevision()
     }
 
     func confirmSelectedPendingImport(with draft: PendingImportConfirmationDraft) {
@@ -1643,10 +1686,22 @@ final class SpinLabAppState: ObservableObject {
         }
 
         if let editedFileContents {
-            savePendingImportContents(editedFileContents, for: pending)
+            do {
+                try savePendingImportContents(editedFileContents, for: pending)
+            } catch {
+                appLogger.error(.import, "Failed to persist edited pending contents", metadata: [
+                    "pendingID": pending.id.uuidString,
+                    "fileName": pending.fileName
+                ])
+                present(
+                    error: AppError.from(error, fallback: "Failed to save edited import contents."),
+                    title: "Save Failed"
+                )
+                return
+            }
         }
 
-        let output = confirmPendingImportUseCase.execute(
+        let result = confirmPendingImportUseCase.execute(
             input: ConfirmPendingImportUseCase.Input(
                 pending: pending,
                 draft: draft
@@ -1658,6 +1713,17 @@ final class SpinLabAppState: ObservableObject {
                 return self.makeArchivedRecord(from: pending, draft: draft, registryLookup: lookup)
             }
         )
+        guard case let .success(output) = result else {
+            if case let .failure(error) = result {
+                appLogger.error(.import, "Pending import confirmation failed", metadata: [
+                    "pendingID": pending.id.uuidString,
+                    "fileName": pending.fileName,
+                    "reason": error.localizedDescription
+                ])
+                present(error: error, title: "Import Failed")
+            }
+            return
+        }
 
         archivedRecords = output.archivedRecords
         pendingImports = output.pendingImports
@@ -1676,6 +1742,12 @@ final class SpinLabAppState: ObservableObject {
             analysisModule: analysisModule
         )
         selectedArea = route.selectedArea
+        appLogger.info(.import, "Pending import confirmed", metadata: [
+            "pendingID": pending.id.uuidString,
+            "archivedRecordID": output.archivedRecord.id.uuidString,
+            "measurementID": output.archivedRecord.measurement.id.uuidString,
+            "workflow": workflow.rawValue
+        ])
     }
 
     func createProject(named name: String) -> String? {
@@ -2058,8 +2130,8 @@ final class SpinLabAppState: ObservableObject {
         }
     }
 
-    private func savePendingImportContents(_ contents: String, for pending: SpinLabDomain.PendingImport) {
-        try? contents.write(to: URL(fileURLWithPath: pending.sourceFilePath), atomically: true, encoding: .utf8)
+    private func savePendingImportContents(_ contents: String, for pending: SpinLabDomain.PendingImport) throws {
+        try contents.write(to: URL(fileURLWithPath: pending.sourceFilePath), atomically: true, encoding: .utf8)
     }
 
     private func resolveRegistrySourceURL() -> URL? {
@@ -2224,5 +2296,61 @@ final class SpinLabAppState: ObservableObject {
         }
 
         return archivedRecords.first { $0.sample.name == sampleName }?.project
+    }
+
+    func clearActiveAlert() {
+        activeAlert = nil
+    }
+
+    func presentAlert(title: String, message: String) {
+        activeAlert = AppAlertState(title: title, message: message)
+    }
+
+    func exportAuditTrail(to destinationURL: URL, note: String? = nil) throws -> AppLogger.AuditTrailExportSummary {
+        var context: [String: String] = [
+            "workflow": workflow.rawValue,
+            "appVersion": AppVersion.current,
+            "routingRuleVersion": "\(routingRuleVersion)",
+            "routingRuleSource": routingRuleSourceLabel,
+            "routingRulePath": routingRuleSourcePath,
+            "routingRuleFingerprint": routingRuleFingerprint,
+            "pendingImportCount": "\(pendingImports.count)",
+            "archivedRecordCount": "\(archivedRecords.count)",
+            "selectedArea": selectedArea.rawValue
+        ]
+        if let selectedPendingImportID {
+            context["selectedPendingImportID"] = selectedPendingImportID.uuidString
+        }
+        if let selectedArchivedRecordID {
+            context["selectedArchivedRecordID"] = selectedArchivedRecordID.uuidString
+        }
+        if let note = normalized(note) {
+            context["note"] = note
+        }
+        do {
+            let summary = try appLogger.exportAuditTrail(to: destinationURL, context: context)
+            appLogger.info(.system, "Audit trail exported", metadata: [
+                "entryCount": "\(summary.entryCount)",
+                "workflow": workflow.rawValue
+            ])
+            return summary
+        } catch {
+            appLogger.error(.system, "Audit trail export failed", metadata: [
+                "reason": error.localizedDescription,
+                "workflow": workflow.rawValue
+            ])
+            throw error
+        }
+    }
+
+    private func present(error: AppError, title: String) {
+        activeAlert = AppAlertState(
+            title: title,
+            message: error.localizedDescription
+        )
+    }
+
+    private func bumpAppStateRevision() {
+        appStateRevision &+= 1
     }
 }
