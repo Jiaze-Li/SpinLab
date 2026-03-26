@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct RootSplitView: View {
@@ -44,13 +45,21 @@ struct RootSplitView: View {
                 .safeAreaPadding(.top, currentDetailTopInset)
                 .frame(maxHeight: .infinity, alignment: .top)
                 .overlay(alignment: .topTrailing) {
-                    if appState.selectedArea != .library {
-                        Text(AppVersion.current)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.top, 12)
-                            .padding(.trailing, 16)
+                    HStack(spacing: 10) {
+                        Button("Export Audit") {
+                            presentAuditTrailExportPanel()
+                        }
+                        .font(.caption)
+                        .buttonStyle(.bordered)
+
+                        if appState.selectedArea != .library {
+                            Text(AppVersion.current)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
+                    .padding(.top, 10)
+                    .padding(.trailing, 16)
                 }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -228,5 +237,33 @@ struct RootSplitView: View {
                 isPresentingDeleteDrawerConfirm = true
             }
         ]
+    }
+
+    private func presentAuditTrailExportPanel() {
+        let panel = NSSavePanel()
+        panel.title = "Export Audit Trail"
+        panel.prompt = "Export"
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = "spinlab_audit_trail.json"
+        panel.allowedContentTypes = [.json]
+        if panel.runModal() != .OK {
+            return
+        }
+        guard let destinationURL = panel.url else {
+            return
+        }
+
+        do {
+            try appState.exportAuditTrail(to: destinationURL)
+            appState.presentAlert(
+                title: "Audit Trail Exported",
+                message: "Saved audit trail to \(destinationURL.path)."
+            )
+        } catch {
+            appState.presentAlert(
+                title: "Export Failed",
+                message: error.localizedDescription
+            )
+        }
     }
 }

@@ -2253,6 +2253,10 @@ final class SpinLabAppState: ObservableObject {
         activeAlert = nil
     }
 
+    func presentAlert(title: String, message: String) {
+        activeAlert = AppAlertState(title: title, message: message)
+    }
+
     func exportAuditTrail(to destinationURL: URL, note: String? = nil) throws {
         var context: [String: String] = [
             "workflow": workflow.rawValue,
