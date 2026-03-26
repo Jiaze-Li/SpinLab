@@ -1592,18 +1592,18 @@ final class SpinLabAppState: ObservableObject {
         let output = confirmPendingImportUseCase.execute(
             input: ConfirmPendingImportUseCase.Input(
                 pending: pending,
-                draft: draft,
-                pendingImports: pendingImports,
-                archivedRecords: archivedRecords
+                draft: draft
             ),
+            inboxRepository: inboxRepository,
+            libraryRepository: libraryRepository,
             makeArchivedRecord: { pending, draft in
                 let lookup = self.registryLookup(for: pending)
                 return self.makeArchivedRecord(from: pending, draft: draft, registryLookup: lookup)
             }
         )
 
-        replaceArchivedRecords(output.archivedRecords)
-        replacePendingImports(output.pendingImports)
+        archivedRecords = output.archivedRecords
+        pendingImports = output.pendingImports
         inboxState.routing.clearRoutingData(for: pending.id)
         updateInteractionEntryValue(for: pending.id, in: \.inboxWorkspaceByPendingID, value: nil)
 
