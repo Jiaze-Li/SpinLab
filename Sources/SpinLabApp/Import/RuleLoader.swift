@@ -1,13 +1,27 @@
 import Foundation
+import CryptoKit
 
 struct RuleLoader {
     static let shared = RuleLoader()
     private static var cached: LoadResult?
     private let logger = AppLogger.shared
 
+    struct RuleMetadata {
+        var version: Int
+        var sourceLabel: String
+        var sourcePath: String
+        var contentHash: String
+        var loadedAt: Date
+
+        var fingerprint: String {
+            "v\(version):\(contentHash)"
+        }
+    }
+
     struct LoadResult {
         var ruleSet: FilenameRuleSet
         var warnings: [String]
+        var metadata: RuleMetadata
     }
 
     func load() -> LoadResult {
@@ -38,16 +52,69 @@ struct RuleLoader {
         ])
         var fallback = FilenameRuleSet.fallback()
         fallback.loadWarnings = warnings
-        return LoadResult(ruleSet: fallback, warnings: warnings)
+        let fallbackMetadata = RuleMetadata(
+            version: fallback.version,
+            sourceLabel: "Fallback",
+            sourcePath: "builtin:fallback",
+            contentHash: hashHex(for: Data("fallback".utf8)),
+            loadedAt: Date()
+        )
+        return LoadResult(ruleSet: fallback, warnings: warnings, metadata: fallbackMetadata)
     }
 
     func loadCached() -> LoadResult {
         if let cached = RuleLoader.cached {
+            if shouldReloadCached(cached) {
+                let reloaded = load()
+                RuleLoader.cached = reloaded
+                return reloaded
+            }
             return cached
         }
         let loaded = load()
         RuleLoader.cached = loaded
         return loaded
+    }
+
+    func reloadCached() -> LoadResult {
+        let loaded = load()
+        RuleLoader.cached = loaded
+        return loaded
+    }
+
+    private func shouldReloadCached(_ cached: LoadResult) -> Bool {
+        let path = cached.metadata.sourcePath
+        if path.hasPrefix("builtin:") {
+            return false
+        }
+
+        guard FileManager.default.fileExists(atPath: path) else {
+            logger.info(.import, "Rule cache invalidated because source file disappeared", metadata: [
+                "path": path,
+                "cachedFingerprint": cached.metadata.fingerprint
+            ])
+            return true
+        }
+
+        let url = URL(fileURLWithPath: path)
+        guard let data = try? Data(contentsOf: url) else {
+            logger.info(.import, "Rule cache invalidated because source file cannot be read", metadata: [
+                "path": path,
+                "cachedFingerprint": cached.metadata.fingerprint
+            ])
+            return true
+        }
+
+        let latestHash = hashHex(for: data)
+        let changed = latestHash != cached.metadata.contentHash
+        if changed {
+            logger.info(.import, "Rule cache invalidated because source hash changed", metadata: [
+                "path": path,
+                "cachedFingerprint": cached.metadata.fingerprint,
+                "latestHash": latestHash
+            ])
+        }
+        return changed
     }
 
     private func tryLoadRuleSet(from url: URL, sourceLabel: String, warnings: inout [String]) -> LoadResult? {
@@ -77,12 +144,21 @@ struct RuleLoader {
                 warnings.append(contentsOf: compileWarnings.map { "\(sourceLabel) compile warning: \($0)" })
             }
             ruleSet.loadWarnings = warnings
+            let metadata = RuleMetadata(
+                version: ruleSet.version,
+                sourceLabel: sourceLabel,
+                sourcePath: url.path,
+                contentHash: hashHex(for: data),
+                loadedAt: Date()
+            )
             logger.info(.import, "Rule source loaded", metadata: [
                 "source": sourceLabel,
                 "path": url.path,
-                "sampleIdPatternCount": "\(ruleSet.sampleId.patterns.count)"
+                "sampleIdPatternCount": "\(ruleSet.sampleId.patterns.count)",
+                "ruleVersion": "\(ruleSet.version)",
+                "ruleFingerprint": metadata.fingerprint
             ])
-            return LoadResult(ruleSet: ruleSet, warnings: warnings)
+            return LoadResult(ruleSet: ruleSet, warnings: warnings, metadata: metadata)
         } catch {
             let reason = error.localizedDescription
             warnings.append("\(sourceLabel) decode failed at \(url.path): \(reason)")
@@ -93,6 +169,11 @@ struct RuleLoader {
             ])
             return nil
         }
+    }
+
+    private func hashHex(for data: Data) -> String {
+        let digest = SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
     }
 
     private func decodeRuleSet(from data: Data, source: String) throws -> FilenameRuleSet {

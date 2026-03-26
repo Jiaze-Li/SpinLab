@@ -1,20 +1,8 @@
 import Foundation
 
 struct FileRoutingRuleBook {
-    struct FileTokenDescriptor {
-        var batch: String?
-        var treatment: String?
-        var material: String?
-        var orientation: String?
-
-        var hasSubstrateSignal: Bool {
-            treatment != nil || material != nil || orientation != nil
-        }
-
-        var isEmpty: Bool {
-            batch == nil && !hasSubstrateSignal
-        }
-    }
+    private static var semanticRuleCache: (fingerprint: String, rules: FileRoutingSemanticRules)?
+    private static let semanticRuleCacheLock = NSLock()
 
     func normalizedSampleInput(_ value: String?) -> String? {
         guard let value else {
@@ -34,29 +22,35 @@ struct FileRoutingRuleBook {
     func resolvedDescriptor(
         sampleInput: String?,
         sampleTags: [String],
-        fallback: FileTokenDescriptor?
-    ) -> FileTokenDescriptor? {
-        var descriptor = explicitDescriptor(from: sampleInput) ?? FileTokenDescriptor()
+        fallback: SampleSemanticDescriptor?
+    ) -> SampleSemanticDescriptor? {
+        var descriptor = explicitDescriptor(from: sampleInput)
+            ?? SampleSemanticDescriptor(batch: nil, processingTokens: [], material: nil, orientation: nil)
         let substrate = substrateDescriptor(from: sampleTags)
 
-        descriptor.treatment = descriptor.treatment ?? substrate.treatment
-        descriptor.material = descriptor.material ?? substrate.material
-        descriptor.orientation = descriptor.orientation ?? substrate.orientation
+        descriptor = SampleSemanticDescriptor(
+            batch: descriptor.batch,
+            processingTokens: descriptor.processingTokens.union(substrate.processingTokens),
+            material: descriptor.material ?? substrate.material,
+            orientation: descriptor.orientation ?? substrate.orientation
+        )
 
         if let fallback {
-            descriptor.batch = descriptor.batch ?? fallback.batch
-            descriptor.treatment = descriptor.treatment ?? fallback.treatment
-            descriptor.material = descriptor.material ?? fallback.material
-            descriptor.orientation = descriptor.orientation ?? fallback.orientation
+            descriptor = SampleSemanticDescriptor(
+                batch: descriptor.batch ?? fallback.batch,
+                processingTokens: descriptor.processingTokens.union(fallback.processingTokens),
+                material: descriptor.material ?? fallback.material,
+                orientation: descriptor.orientation ?? fallback.orientation
+            )
         }
 
-        return descriptor.isEmpty ? nil : descriptor
+        return descriptor.batch == nil && !descriptor.hasSubstrateSignal ? nil : descriptor
     }
 
     func resolvedFileToken(
         sampleInput: String?,
         sampleTags: [String],
-        fallback: FileTokenDescriptor?
+        fallback: SampleSemanticDescriptor?
     ) -> String? {
         guard let descriptor = resolvedDescriptor(
             sampleInput: sampleInput,
@@ -68,7 +62,7 @@ struct FileRoutingRuleBook {
         return renderFileToken(from: descriptor)
     }
 
-    func renderFileToken(from descriptor: FileTokenDescriptor) -> String? {
+    func renderFileToken(from descriptor: SampleSemanticDescriptor) -> String? {
         let substrateComponent: String? = {
             var substrate = ""
             if let material = descriptor.material, let orientation = descriptor.orientation {
@@ -79,7 +73,8 @@ struct FileRoutingRuleBook {
                 substrate = orientation
             }
 
-            if let treatment = descriptor.treatment {
+            let treatment = descriptor.processingTokens.sorted().joined(separator: " ")
+            if !treatment.isEmpty {
                 return substrate.isEmpty ? treatment : "\(treatment) \(substrate)"
             }
             return substrate.isEmpty ? nil : substrate
@@ -95,7 +90,7 @@ struct FileRoutingRuleBook {
         return substrateComponent
     }
 
-    private func explicitDescriptor(from sampleInput: String?) -> FileTokenDescriptor? {
+    private func explicitDescriptor(from sampleInput: String?) -> SampleSemanticDescriptor? {
         guard let input = normalizedSampleInput(sampleInput) else {
             return nil
         }
@@ -103,12 +98,16 @@ struct FileRoutingRuleBook {
         let keyParts = input.split(separator: "|", omittingEmptySubsequences: false)
         if keyParts.count == 4 {
             let batch = cleaned(String(keyParts[0]))?.uppercased()
-            let processingRaw = cleaned(String(keyParts[1]))?.uppercased() ?? ""
+            let processingRaw = cleaned(String(keyParts[1])) ?? ""
             let materialRaw = cleaned(String(keyParts[2]))?.uppercased() ?? ""
             let orientationRaw = cleaned(String(keyParts[3]))?.uppercased() ?? ""
-            return FileTokenDescriptor(
+            var processingTokens: Set<String> = []
+            if let token = treatmentToken(from: processingRaw) {
+                processingTokens.insert(token)
+            }
+            return SampleSemanticDescriptor(
                 batch: batch,
-                treatment: treatmentToken(from: processingRaw),
+                processingTokens: processingTokens,
                 material: materialRaw == "UNKNOWN" ? nil : materialRaw,
                 orientation: orientationRaw == "UNKNOWN" ? nil : orientationRaw
             )
@@ -120,9 +119,9 @@ struct FileRoutingRuleBook {
                 let batch = cleaned(String(parts[0]))?.uppercased()
                 let substrateRaw = cleaned(String(parts[1]))
                 let substrate = substrateDescriptor(from: substrateTokens(from: substrateRaw ?? ""))
-                return FileTokenDescriptor(
+                return SampleSemanticDescriptor(
                     batch: batch,
-                    treatment: substrate.treatment,
+                    processingTokens: substrate.processingTokens,
                     material: substrate.material,
                     orientation: substrate.orientation
                 )
@@ -134,15 +133,15 @@ struct FileRoutingRuleBook {
            let head = components.first,
            looksLikeBatchToken(head) {
             let substrate = substrateDescriptor(from: Array(components.dropFirst()))
-            return FileTokenDescriptor(
+            return SampleSemanticDescriptor(
                 batch: head.uppercased(),
-                treatment: substrate.treatment,
+                processingTokens: substrate.processingTokens,
                 material: substrate.material,
                 orientation: substrate.orientation
             )
         }
 
-        return FileTokenDescriptor(batch: input.uppercased(), treatment: nil, material: nil, orientation: nil)
+        return SampleSemanticDescriptor(batch: input.uppercased(), processingTokens: [], material: nil, orientation: nil)
     }
 
     private func cleaned(_ value: String?) -> String? {
@@ -161,66 +160,56 @@ struct FileRoutingRuleBook {
     }
 
     private func treatmentToken(from normalized: String) -> String? {
-        let lower = normalized.lowercased()
-        if lower.contains("hf") {
-            return "HF"
-        }
-        if lower.contains("bake") || lower.contains("baked") {
-            return "baked"
-        }
-        if lower == "o" || lower.contains("origin") || lower.contains("original") {
-            return "o"
+        let probe = normalizeSubstrateToken(normalized)
+        let semanticRules = Self.loadSemanticRulesForCurrentFingerprint()
+        for (needle, canonical) in semanticRules.treatmentNeedles {
+            if probe.contains(needle) {
+                return canonical
+            }
         }
         return nil
     }
 
     private func substrateTokens(from raw: String) -> [String] {
-        let separators = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "/|,;+"))
-        let tokens = raw
-            .components(separatedBy: separators)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        let separators = " /|,;+"
+        let tokens = SampleTokenization.split(raw, separators: separators)
         return tokens.isEmpty ? [raw] : tokens
     }
 
-    private func substrateDescriptor(from tags: [String]) -> FileTokenDescriptor {
-        var descriptor = FileTokenDescriptor()
+    private func substrateDescriptor(from tags: [String]) -> SampleSemanticDescriptor {
+        var processingTokens: Set<String> = []
+        var material: String?
+        var orientation: String?
 
         for tag in tags {
             let normalized = normalizeSubstrateToken(tag)
-            if descriptor.treatment == nil {
-                descriptor.treatment = treatmentToken(from: normalized)
+            if let treatment = treatmentToken(from: normalized) {
+                processingTokens.insert(treatment)
             }
-            if descriptor.material == nil {
-                descriptor.material = materialToken(from: normalized)
+            if material == nil {
+                material = materialToken(from: normalized)
             }
-            if descriptor.orientation == nil,
-               let orientation = orientationToken(from: normalized) {
-                descriptor.orientation = orientation
+            if orientation == nil,
+               let candidate = orientationToken(from: normalized) {
+                orientation = candidate
             }
         }
 
-        return descriptor
+        return SampleSemanticDescriptor(
+            batch: nil,
+            processingTokens: processingTokens,
+            material: material,
+            orientation: orientation
+        )
     }
 
     private func materialToken(from normalized: String) -> String? {
-        if normalized.contains("sto") {
-            return "STO"
-        }
-        if normalized.contains("ngo") {
-            return "NGO"
-        }
-        if normalized.contains("mao") {
-            return "MAO"
-        }
-        if normalized.contains("mgo") {
-            return "MGO"
-        }
-        if normalized.contains("al2o3") {
-            return "AL2O3"
-        }
-        if normalized == "si" || normalized.contains("onsi") {
-            return "SI"
+        let probe = normalized.uppercased()
+        let semanticRules = Self.loadSemanticRulesForCurrentFingerprint()
+        for (needle, canonical) in semanticRules.materialNeedles {
+            if probe.contains(needle) {
+                return canonical
+            }
         }
         return nil
     }
@@ -237,9 +226,28 @@ struct FileRoutingRuleBook {
     }
 
     private func orientationToken(from normalized: String) -> String? {
-        guard let range = normalized.range(of: #"(111|001|110|100|0001)"#, options: .regularExpression) else {
-            return nil
+        let semanticRules = Self.loadSemanticRulesForCurrentFingerprint()
+        for token in semanticRules.orientationNeedles.sorted(by: { $0.count > $1.count }) {
+            if normalized.contains(token) {
+                return token == "100" ? "001" : token
+            }
         }
-        return String(normalized[range])
+        return nil
+    }
+
+    private static func loadSemanticRulesForCurrentFingerprint() -> FileRoutingSemanticRules {
+        let ruleLoadResult = RuleLoader.shared.loadCached()
+        let fingerprint = ruleLoadResult.metadata.fingerprint
+
+        semanticRuleCacheLock.lock()
+        defer { semanticRuleCacheLock.unlock() }
+
+        if let cached = semanticRuleCache, cached.fingerprint == fingerprint {
+            return cached.rules
+        }
+
+        let refreshedRules = FileRoutingSemanticRules.load()
+        semanticRuleCache = (fingerprint: fingerprint, rules: refreshedRules)
+        return refreshedRules
     }
 }
