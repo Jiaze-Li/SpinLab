@@ -311,6 +311,8 @@ final class SpinLabAppState: ObservableObject {
     private var libraryState = LibraryState()
     private let workbenchState = WorkbenchState()
     private let coordinator = AppCoordinator()
+    private let confirmPendingImportUseCase = ConfirmPendingImportUseCase()
+    private let saveLibrarySampleEditsUseCase = SaveLibrarySampleEditsUseCase()
 
     init(
         persistence: SpinLabPersistence = LocalJSONPersistence(),
@@ -1071,83 +1073,47 @@ final class SpinLabAppState: ObservableObject {
     func saveLibrarySampleEdits() {
         librarySampleEditError = nil
         librarySampleEditMessage = nil
+        librarySampleEditIsSaving = true
+        defer { librarySampleEditIsSaving = false }
 
-        guard let rootPath = librarySettings.rootPath else {
-            librarySampleEditError = "Select a Library Root first."
-            return
-        }
-        guard let draft = librarySampleEditDraft,
-              let base = libraryState.sampleEditBaseSample else {
-            librarySampleEditError = "No active edit draft."
-            return
-        }
-        guard draft.sampleId == base.id else {
-            librarySampleEditError = "Selection changed. Restart edit for the selected sample."
-            return
-        }
+        let output = saveLibrarySampleEditsUseCase.execute(
+            input: SaveLibrarySampleEditsUseCase.Input(
+                rootPath: librarySettings.rootPath,
+                draft: librarySampleEditDraft,
+                baseSample: libraryState.sampleEditBaseSample
+            ),
+            snapshotIndexFromFilesystem: { [libraryStore] rootURL in
+                libraryStore.snapshotIndexFromFilesystem(rootURL: rootURL)
+            },
+            applyDraft: { [librarySampleEditService] draft, current in
+                try librarySampleEditService.apply(draft: draft, to: current)
+            },
+            updateSample: { [libraryStore] updated, rootURL in
+                libraryStore.updateSample(updated, rootURL: rootURL, changeSource: "manual_edit")
+            },
+            resolveRegistrySourceURL: { [weak self] in
+                self?.resolveRegistrySourceURL()
+            },
+            syncRegistrySource: { [libraryStore] current, updated, registrySourceURL in
+                try libraryStore.syncRegistrySourceForEditedSample(
+                    oldSample: current,
+                    updatedSample: updated,
+                    registrySourceURL: registrySourceURL
+                )
+            }
+        )
 
-        let rootURL = URL(fileURLWithPath: rootPath)
-        let snapshot = libraryStore.snapshotIndexFromFilesystem(rootURL: rootURL)
-        guard let current = snapshot.samples.first(where: { $0.id == draft.sampleId }) else {
-            librarySampleEditError = "Selected sample no longer exists."
+        if output.clearDraft {
             librarySampleEditDraft = nil
             libraryState.sampleEditBaseSample = nil
             libraryState.sampleEditOriginalDraft = nil
-            return
         }
-        guard current.updatedAt == draft.baseUpdatedAt else {
-            librarySampleEditError = "Sample changed on disk. Reload and edit again."
-            return
-        }
-
-        do {
-            librarySampleEditIsSaving = true
-            let updated = try librarySampleEditService.apply(draft: draft, to: current)
-            libraryStore.updateSample(updated, rootURL: rootURL, changeSource: "manual_edit")
-            var syncSummary: String?
-            if let registrySourceURL = resolveRegistrySourceURL() {
-                do {
-                    let syncResult = try libraryStore.syncRegistrySourceForEditedSample(
-                        oldSample: current,
-                        updatedSample: updated,
-                        registrySourceURL: registrySourceURL
-                    )
-                    syncSummary = """
-                    已保存样品编辑。
-                    Metadata 写回 XLSX：成功 \(syncResult.metadataWrittenCount) 项，失败 \(syncResult.metadataFailedCount) 项。
-                    Numeric 日志新增：\(syncResult.manualLoggedCount) 项（\(syncResult.manualLogSheetName)）。
-                    Metadata 日志表：\(syncResult.metadataLogSheetName)。
-                    """
-                    if syncResult.metadataFailedCount > 0 {
-                        librarySampleEditError = "Metadata sync partial failure: \(syncResult.metadataFailedCount) field(s) failed. Check Metadata日志."
-                    }
-                } catch {
-                    syncSummary = """
-                    已保存样品编辑。
-                    XLSX 同步警告：\(error.localizedDescription)
-                    """
-                    librarySampleEditError = "Metadata sync failed: \(error.localizedDescription)"
-                }
-            } else {
-                syncSummary = """
-                已保存样品编辑。
-                XLSX 同步警告：未找到 registry source。
-                """
-                librarySampleEditError = "Metadata sync failed: registry source not found."
-            }
+        if let rootURL = output.rootURLForCommit {
             commitLibraryMutation(rootURL: rootURL, previewIndex: libraryPreview?.index)
-            librarySampleEditDraft = nil
-            libraryState.sampleEditBaseSample = nil
-            libraryState.sampleEditOriginalDraft = nil
-            if let syncSummary {
-                librarySampleEditMessage = syncSummary
-            } else {
-                librarySampleEditMessage = "已保存样品编辑。"
-            }
-        } catch {
-            librarySampleEditError = error.localizedDescription
         }
-        librarySampleEditIsSaving = false
+
+        librarySampleEditError = output.error
+        librarySampleEditMessage = output.message
     }
 
     func prepareLibrarySyncReview(precomputedDiff: LibraryDiff? = nil) {
@@ -1623,10 +1589,21 @@ final class SpinLabAppState: ObservableObject {
             savePendingImportContents(editedFileContents, for: pending)
         }
 
-        let registryLookup = registryLookup(for: pending)
-        let record = makeArchivedRecord(from: pending, draft: draft, registryLookup: registryLookup)
-        archivedRecords.insert(record, at: 0)
-        pendingImports.removeAll { $0.id == pending.id }
+        let output = confirmPendingImportUseCase.execute(
+            input: ConfirmPendingImportUseCase.Input(
+                pending: pending,
+                draft: draft,
+                pendingImports: pendingImports,
+                archivedRecords: archivedRecords
+            ),
+            makeArchivedRecord: { pending, draft in
+                let lookup = self.registryLookup(for: pending)
+                return self.makeArchivedRecord(from: pending, draft: draft, registryLookup: lookup)
+            }
+        )
+
+        archivedRecords = output.archivedRecords
+        pendingImports = output.pendingImports
         inboxState.routing.clearRoutingData(for: pending.id)
         updateInteractionEntryValue(for: pending.id, in: \.inboxWorkspaceByPendingID, value: nil)
 
@@ -1634,14 +1611,14 @@ final class SpinLabAppState: ObservableObject {
         persistence.savePendingImports(pendingImports)
 
         let route = coordinator.routeAfterPendingConfirmation(
-            archivedRecordID: record.id,
+            archivedRecordID: output.archivedRecord.id,
             nextPendingID: pendingImports.first?.id
         )
         selectedArchivedRecordID = route.archivedRecordID
         selectedPendingImportID = route.nextPendingID
         workbenchResultDraft = workbenchState.resolvedSummary(
-            for: record.measurement,
-            draftSummary: record.latestResult?.summary ?? "",
+            for: output.archivedRecord.measurement,
+            draftSummary: output.archivedRecord.latestResult?.summary ?? "",
             analysisModule: analysisModule
         )
         selectedArea = route.selectedArea
