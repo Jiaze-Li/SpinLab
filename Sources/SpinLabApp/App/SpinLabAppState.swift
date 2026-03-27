@@ -172,63 +172,95 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
 @Observable
 final class SpinLabAppState {
     private final class ArchivedRecordDomainContextAdapter: SpinLabDomainContext {
-        private weak var appState: SpinLabAppState?
+        private let normalizedValueProvider: @MainActor (String?) -> String?
+        private let metadataValueProvider: @MainActor (SampleRegistryLookupResult?, [String]) -> String?
+        private let canonicalProjectProvider: @MainActor (String) -> SpinLabDomain.Project?
+        private let createProjectProvider: @MainActor (String) -> String?
+        private let canonicalBatchProvider: @MainActor (String) -> SpinLabDomain.Batch?
+        private let canonicalSampleProvider: @MainActor (String) -> SpinLabDomain.Sample?
+        private let canonicalDeviceProvider: @MainActor (String, UUID) -> SpinLabDomain.Device?
+        private let canonicalMeasurementProvider: @MainActor (String) -> SpinLabDomain.Measurement?
+        private let canonicalDatasetProvider: @MainActor (String) -> SpinLabDomain.Dataset?
+        private let measurementNotesProvider: @MainActor (SpinLabDomain.PendingImport, PendingImportConfirmationDraft, SampleRegistryLookupResult?) -> String
+        private let defaultResultSummaryProvider: @MainActor (SpinLabDomain.Measurement) -> String
 
-        init(appState: SpinLabAppState) {
-            self.appState = appState
+        init(
+            normalizedValueProvider: @escaping @MainActor (String?) -> String?,
+            metadataValueProvider: @escaping @MainActor (SampleRegistryLookupResult?, [String]) -> String?,
+            canonicalProjectProvider: @escaping @MainActor (String) -> SpinLabDomain.Project?,
+            createProjectProvider: @escaping @MainActor (String) -> String?,
+            canonicalBatchProvider: @escaping @MainActor (String) -> SpinLabDomain.Batch?,
+            canonicalSampleProvider: @escaping @MainActor (String) -> SpinLabDomain.Sample?,
+            canonicalDeviceProvider: @escaping @MainActor (String, UUID) -> SpinLabDomain.Device?,
+            canonicalMeasurementProvider: @escaping @MainActor (String) -> SpinLabDomain.Measurement?,
+            canonicalDatasetProvider: @escaping @MainActor (String) -> SpinLabDomain.Dataset?,
+            measurementNotesProvider: @escaping @MainActor (SpinLabDomain.PendingImport, PendingImportConfirmationDraft, SampleRegistryLookupResult?) -> String,
+            defaultResultSummaryProvider: @escaping @MainActor (SpinLabDomain.Measurement) -> String
+        ) {
+            self.normalizedValueProvider = normalizedValueProvider
+            self.metadataValueProvider = metadataValueProvider
+            self.canonicalProjectProvider = canonicalProjectProvider
+            self.createProjectProvider = createProjectProvider
+            self.canonicalBatchProvider = canonicalBatchProvider
+            self.canonicalSampleProvider = canonicalSampleProvider
+            self.canonicalDeviceProvider = canonicalDeviceProvider
+            self.canonicalMeasurementProvider = canonicalMeasurementProvider
+            self.canonicalDatasetProvider = canonicalDatasetProvider
+            self.measurementNotesProvider = measurementNotesProvider
+            self.defaultResultSummaryProvider = defaultResultSummaryProvider
         }
 
         func normalizedValue(_ value: String?) -> String? {
             MainActor.assumeIsolated {
-                appState?.normalized(value)
+                normalizedValueProvider(value)
             }
         }
 
         func metadataValue(in lookup: SampleRegistryLookupResult?, keys: [String]) -> String? {
             MainActor.assumeIsolated {
-                appState?.metadataValue(in: lookup, keys: keys)
+                metadataValueProvider(lookup, keys)
             }
         }
 
         func canonicalProject(named name: String) -> SpinLabDomain.Project? {
             MainActor.assumeIsolated {
-                appState?.canonicalProject(named: name)
+                canonicalProjectProvider(name)
             }
         }
 
         func createProject(named name: String) -> String? {
             MainActor.assumeIsolated {
-                appState?.createProject(named: name)
+                createProjectProvider(name)
             }
         }
 
         func canonicalBatch(named name: String) -> SpinLabDomain.Batch? {
             MainActor.assumeIsolated {
-                appState?.canonicalBatch(named: name)
+                canonicalBatchProvider(name)
             }
         }
 
         func canonicalSample(named name: String) -> SpinLabDomain.Sample? {
             MainActor.assumeIsolated {
-                appState?.canonicalSample(named: name)
+                canonicalSampleProvider(name)
             }
         }
 
         func canonicalDevice(named name: String, sampleID: UUID) -> SpinLabDomain.Device? {
             MainActor.assumeIsolated {
-                appState?.canonicalDevice(named: name, sampleID: sampleID)
+                canonicalDeviceProvider(name, sampleID)
             }
         }
 
         func canonicalMeasurement(forSourcePath path: String) -> SpinLabDomain.Measurement? {
             MainActor.assumeIsolated {
-                appState?.canonicalMeasurement(forSourcePath: path)
+                canonicalMeasurementProvider(path)
             }
         }
 
         func canonicalDataset(forSourcePath path: String) -> SpinLabDomain.Dataset? {
             MainActor.assumeIsolated {
-                appState?.canonicalDataset(forSourcePath: path)
+                canonicalDatasetProvider(path)
             }
         }
 
@@ -238,13 +270,13 @@ final class SpinLabAppState {
             registryLookup: SampleRegistryLookupResult?
         ) -> String {
             MainActor.assumeIsolated {
-                appState?.measurementNotes(for: pending, draft: draft, registryLookup: registryLookup) ?? ""
+                measurementNotesProvider(pending, draft, registryLookup)
             }
         }
 
         func defaultResultSummary(for measurement: SpinLabDomain.Measurement) -> String {
             MainActor.assumeIsolated {
-                appState?.analysisModule.defaultResultSummary(for: measurement) ?? ""
+                defaultResultSummaryProvider(measurement)
             }
         }
     }
@@ -497,7 +529,41 @@ final class SpinLabAppState {
     private let confirmPendingImportUseCase = ConfirmPendingImportUseCase()
     private let saveLibrarySampleEditsUseCase = SaveLibrarySampleEditsUseCase()
     @ObservationIgnored
-    private lazy var archivedRecordDomainContext: SpinLabDomainContext = ArchivedRecordDomainContextAdapter(appState: self)
+    private lazy var archivedRecordDomainContext: SpinLabDomainContext = ArchivedRecordDomainContextAdapter(
+        normalizedValueProvider: { [weak self] value in
+            self?.normalized(value)
+        },
+        metadataValueProvider: { [weak self] lookup, keys in
+            self?.metadataValue(in: lookup, keys: keys)
+        },
+        canonicalProjectProvider: { [weak self] name in
+            self?.workbenchFeatureStore.canonicalProject(named: name)
+        },
+        createProjectProvider: { [weak self] name in
+            self?.createProject(named: name)
+        },
+        canonicalBatchProvider: { [weak self] name in
+            self?.workbenchFeatureStore.canonicalBatch(named: name)
+        },
+        canonicalSampleProvider: { [weak self] name in
+            self?.workbenchFeatureStore.canonicalSample(named: name)
+        },
+        canonicalDeviceProvider: { [weak self] name, sampleID in
+            self?.workbenchFeatureStore.canonicalDevice(named: name, sampleID: sampleID)
+        },
+        canonicalMeasurementProvider: { [weak self] path in
+            self?.workbenchFeatureStore.canonicalMeasurement(forSourcePath: path)
+        },
+        canonicalDatasetProvider: { [weak self] path in
+            self?.workbenchFeatureStore.canonicalDataset(forSourcePath: path)
+        },
+        measurementNotesProvider: { [weak self] pending, draft, lookup in
+            self?.measurementNotes(for: pending, draft: draft, registryLookup: lookup) ?? ""
+        },
+        defaultResultSummaryProvider: { [weak self] measurement in
+            self?.analysisModule.defaultResultSummary(for: measurement) ?? ""
+        }
+    )
     @ObservationIgnored
     private var pendingImportsProjectionTask: Task<Void, Never>?
     @ObservationIgnored
@@ -2465,47 +2531,32 @@ final class SpinLabAppState {
         )
     }
 
-    private func namesEqual(_ lhs: String, _ rhs: String) -> Bool {
-        lhs.caseInsensitiveCompare(rhs) == .orderedSame
-    }
-
     private func canonicalProject(named name: String) -> SpinLabDomain.Project? {
-        archivedRecords.compactMap { $0.project }.first { namesEqual($0.name, name) }
-            ?? projectCatalog.first { namesEqual($0.name, name) }
+        workbenchFeatureStore.canonicalProject(named: name)
     }
 
     private func canonicalBatch(named name: String) -> SpinLabDomain.Batch? {
-        archivedRecords.compactMap { $0.batch }.first { namesEqual($0.name, name) }
+        workbenchFeatureStore.canonicalBatch(named: name)
     }
 
     private func canonicalSample(named name: String) -> SpinLabDomain.Sample? {
-        archivedRecords.map(\.sample).first { namesEqual($0.name, name) }
+        workbenchFeatureStore.canonicalSample(named: name)
     }
 
     private func canonicalDevice(named name: String, sampleID: UUID) -> SpinLabDomain.Device? {
-        archivedRecords.compactMap(\.device).first {
-            $0.sampleID == sampleID && namesEqual($0.name, name)
-        }
+        workbenchFeatureStore.canonicalDevice(named: name, sampleID: sampleID)
     }
 
     private func canonicalMeasurement(forSourcePath path: String) -> SpinLabDomain.Measurement? {
-        archivedRecords.map(\.measurement).first {
-            $0.sourceFilePath == path
-        }
+        workbenchFeatureStore.canonicalMeasurement(forSourcePath: path)
     }
 
     private func canonicalDataset(forSourcePath path: String) -> SpinLabDomain.Dataset? {
-        archivedRecords.map(\.dataset).first {
-            $0.sourceFilePath == path
-        }
+        workbenchFeatureStore.canonicalDataset(forSourcePath: path)
     }
 
     private func suggestedProject(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.Project? {
-        guard let sampleName = pending.parsedHints.sampleName else {
-            return nil
-        }
-
-        return archivedRecords.first { $0.sample.name == sampleName }?.project
+        workbenchFeatureStore.suggestedProject(for: pending)
     }
 
     func clearActiveAlert() {

@@ -96,6 +96,44 @@ final class WorkbenchFeatureStore {
         return archivedRecords.first { $0.id == selectedArchivedRecordID }
     }
 
+    func canonicalProject(named name: String) -> SpinLabDomain.Project? {
+        archivedRecords.compactMap { $0.project }.first { namesEqual($0.name, name) }
+            ?? projectCatalog.first { namesEqual($0.name, name) }
+    }
+
+    func canonicalBatch(named name: String) -> SpinLabDomain.Batch? {
+        archivedRecords.compactMap { $0.batch }.first { namesEqual($0.name, name) }
+    }
+
+    func canonicalSample(named name: String) -> SpinLabDomain.Sample? {
+        archivedRecords.map(\.sample).first { namesEqual($0.name, name) }
+    }
+
+    func canonicalDevice(named name: String, sampleID: UUID) -> SpinLabDomain.Device? {
+        archivedRecords.compactMap(\.device).first {
+            $0.sampleID == sampleID && namesEqual($0.name, name)
+        }
+    }
+
+    func canonicalMeasurement(forSourcePath path: String) -> SpinLabDomain.Measurement? {
+        archivedRecords.map(\.measurement).first {
+            $0.sourceFilePath == path
+        }
+    }
+
+    func canonicalDataset(forSourcePath path: String) -> SpinLabDomain.Dataset? {
+        archivedRecords.map(\.dataset).first {
+            $0.sourceFilePath == path
+        }
+    }
+
+    func suggestedProject(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.Project? {
+        guard let sampleName = pending.parsedHints.sampleName else {
+            return nil
+        }
+        return archivedRecords.first { $0.sample.name == sampleName }?.project
+    }
+
     @discardableResult
     func selectArchivedRecord(
         _ recordID: UUID,
@@ -137,6 +175,10 @@ final class WorkbenchFeatureStore {
 
         archivedRecords[recordIndex] = record
         return archivedRecords
+    }
+
+    private func namesEqual(_ lhs: String, _ rhs: String) -> Bool {
+        lhs.caseInsensitiveCompare(rhs) == .orderedSame
     }
 
     @MainActor
