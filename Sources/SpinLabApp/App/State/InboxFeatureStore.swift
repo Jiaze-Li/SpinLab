@@ -55,7 +55,7 @@ final class InboxFeatureStore {
     func pruneWorkspaceByValidPendingIDs(
         _ workspaceByPendingID: [String: InboxPendingWorkspaceState]
     ) -> [String: InboxPendingWorkspaceState] {
-        let validPendingIDs = Set(pendingImports.map { snapshotDictionaryKey(for: $0.id) })
+        let validPendingIDs = Set(pendingImports.map { InteractionSnapshotKeyCodec.dictionaryKey(for: $0.id) })
         return workspaceByPendingID.filter { key, _ in
             validPendingIDs.contains(key)
         }
@@ -295,9 +295,5 @@ final class InboxFeatureStore {
             }
             self[keyPath: scheduledFlag] = false
         }
-    }
-
-    private func snapshotDictionaryKey(for id: UUID) -> String {
-        id.uuidString.lowercased()
     }
 }

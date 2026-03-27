@@ -24,7 +24,7 @@ final class InteractionSnapshotCoordinator {
         for id: UUID,
         in keyPath: KeyPath<SpinLabInteractionSnapshot, [String: Value]>
     ) -> Value? {
-        interactionMemory.entryValue(for: snapshotDictionaryKey(for: id), in: keyPath)
+        interactionMemory.entryValue(for: InteractionSnapshotKeyCodec.dictionaryKey(for: id), in: keyPath)
     }
 
     func updateEntryValue<Value>(
@@ -33,7 +33,7 @@ final class InteractionSnapshotCoordinator {
         value: Value?
     ) {
         interactionMemory.updateEntryValue(
-            for: snapshotDictionaryKey(for: id),
+            for: InteractionSnapshotKeyCodec.dictionaryKey(for: id),
             in: keyPath,
             value: value
         )
@@ -79,9 +79,5 @@ final class InteractionSnapshotCoordinator {
             inboxStore.captureInteraction(into: &snapshot)
             workbenchStore.captureInteraction(into: &snapshot)
         }
-    }
-
-    private func snapshotDictionaryKey(for id: UUID) -> String {
-        id.uuidString.lowercased()
     }
 }

@@ -508,6 +508,7 @@ final class SpinLabAppState {
     private let dataActor: any SpinLabDataActing
     private let registryLifecycleService = RegistryLifecycleService()
     private let libraryPreviewComputationService = LibraryPreviewComputationService()
+    private let libraryMutationOrchestrator = LibraryMutationOrchestrator()
     private let coordinator = AppCoordinator()
     private let confirmPendingImportUseCase = ConfirmPendingImportUseCase()
     private let saveLibrarySampleEditsUseCase = SaveLibrarySampleEditsUseCase()
@@ -869,10 +870,6 @@ final class SpinLabAppState {
         interactionSnapshotCoordinator.updateEntryValue(for: id, in: keyPath, value: value)
     }
 
-    private func snapshotDictionaryKey(for id: UUID) -> String {
-        id.uuidString.lowercased()
-    }
-
     private func restoreInteractionSnapshot() {
         interactionSnapshotCoordinator.restoreAll(
             selectedAreaSetter: { [weak self] in self?.selectedArea = $0 },
@@ -924,7 +921,7 @@ final class SpinLabAppState {
         var updatedWorkspaceByPendingID: [String: InboxPendingWorkspaceState] = [:]
         let existingWorkspaceByPendingID = interactionValue(\.inboxWorkspaceByPendingID)
         for pending in recomputedPendingImports {
-            let key = snapshotDictionaryKey(for: pending.id)
+            let key = InteractionSnapshotKeyCodec.dictionaryKey(for: pending.id)
             guard let existing = existingWorkspaceByPendingID[key] else {
                 continue
             }
@@ -2101,42 +2098,23 @@ final class SpinLabAppState {
         libraryPreviewComputationService.buildPreviewGroups(from: index)
     }
 
-    private func actionablePreviewIndex(from previewIndex: LibraryIndex, precomputedDiff: LibraryDiff? = nil) -> LibraryIndex {
-        let diff = precomputedDiff ?? diffAgainstExisting(previewIndex: previewIndex)
-        return libraryPreviewComputationService.actionablePreviewIndex(
-            from: previewIndex,
-            diff: diff,
-            hasLibraryRoot: librarySettings.rootPath != nil
-        )
-    }
-
     private func refreshActionablePreviewGroups(precomputedDiff: LibraryDiff? = nil, baselineIndex: LibraryIndex? = nil) {
         guard let preview = libraryPreview else {
             libraryPreviewGroups = [:]
             libraryPreviewMessage = "No preview loaded."
             return
         }
-        let diff = precomputedDiff ?? diffAgainstExisting(previewIndex: preview.index, baselineIndex: baselineIndex)
-        let removedCount = diff?.removedSamples.count ?? 0
-        let newCount = diff?.newSamples.count ?? preview.index.samples.count
-        let actionable = actionablePreviewIndex(from: preview.index, precomputedDiff: diff)
-        libraryPreviewGroups = buildPreviewGroups(from: actionable)
-        let changedCount = max(actionable.samples.count - newCount, 0)
-        libraryPreviewMessage = "Sync diff loaded: \(actionable.samples.count) actionable (\(newCount) new, \(changedCount) changed, \(removedCount) removed)"
-    }
-
-    private func diffAgainstExisting(previewIndex: LibraryIndex, baselineIndex: LibraryIndex? = nil) -> LibraryDiff? {
-        let effectiveBaseline: LibraryIndex
-        if let baselineIndex {
-            effectiveBaseline = baselineIndex
-        } else {
-            guard let rootPath = librarySettings.rootPath else {
-                return nil
-            }
-            let rootURL = URL(fileURLWithPath: rootPath)
-            effectiveBaseline = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
-        }
-        return libraryDiffEngine.diff(current: effectiveBaseline, updated: previewIndex)
+        let state = libraryMutationOrchestrator.buildActionablePreviewState(
+            preview: preview,
+            precomputedDiff: precomputedDiff,
+            baselineIndex: baselineIndex,
+            rootPath: librarySettings.rootPath,
+            libraryStore: libraryStore,
+            libraryDiffEngine: libraryDiffEngine,
+            previewComputationService: libraryPreviewComputationService
+        )
+        libraryPreviewGroups = state.groups
+        libraryPreviewMessage = state.message
     }
 
     private func commitLibraryMutation(
