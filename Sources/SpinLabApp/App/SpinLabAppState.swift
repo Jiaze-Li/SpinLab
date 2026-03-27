@@ -295,14 +295,6 @@ final class SpinLabAppState {
                 state.pendingImports.contains(where: { $0.id == id })
             }
         ),
-        bindOptionalUUID(
-            state: \.selectedArchivedRecordID,
-            snapshot: \.selectedArchivedRecordID,
-            isValid: { state, id in
-                state.archivedRecords.contains(where: { $0.id == id })
-            }
-        ),
-        bind(state: \.workbenchResultDraft, snapshot: \.workbenchResultDraft),
         bind(state: \.libraryActiveSelectionSource, snapshot: \.libraryActiveSelectionSource),
         bind(state: \.librarySelectedPrefix, snapshot: \.librarySelectedPrefix),
         bind(state: \.librarySelectedBatchId, snapshot: \.librarySelectedBatchId),
@@ -889,6 +881,10 @@ final class SpinLabAppState {
             for binding in Self.interactionBindings {
                 binding.restore(self, snapshot)
             }
+            workbenchFeatureStore.restoreInteraction(
+                selectedArchivedRecordID: snapshot.selectedArchivedRecordID,
+                workbenchResultDraft: snapshot.workbenchResultDraft
+            )
             let validPendingIDs = Set(pendingImports.map { snapshotDictionaryKey(for: $0.id) })
             snapshot.inboxWorkspaceByPendingID = snapshot.inboxWorkspaceByPendingID.filter { key, _ in
                 validPendingIDs.contains(key)
@@ -903,6 +899,7 @@ final class SpinLabAppState {
             for binding in Self.interactionBindings {
                 binding.capture(self, &snapshot)
             }
+            workbenchFeatureStore.captureInteraction(into: &snapshot)
         }
     }
 

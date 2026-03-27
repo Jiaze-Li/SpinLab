@@ -71,6 +71,22 @@ final class WorkbenchFeatureStore {
         }
     }
 
+    func restoreInteraction(
+        selectedArchivedRecordID: UUID?,
+        workbenchResultDraft: String
+    ) {
+        if let selectedArchivedRecordID,
+           archivedRecords.contains(where: { $0.id == selectedArchivedRecordID }) {
+            self.selectedArchivedRecordID = selectedArchivedRecordID
+        }
+        self.workbenchResultDraft = workbenchResultDraft
+    }
+
+    func captureInteraction(into snapshot: inout SpinLabInteractionSnapshot) {
+        snapshot.selectedArchivedRecordID = selectedArchivedRecordID
+        snapshot.workbenchResultDraft = workbenchResultDraft
+    }
+
     @MainActor
     private func bufferArchivedRecordsProjection(
         _ records: [SpinLabDomain.ArchivedRecord],
