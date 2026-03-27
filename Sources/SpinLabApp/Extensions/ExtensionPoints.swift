@@ -239,10 +239,6 @@ private func buildArchivedRecord(
         ?? domainContext.metadataValue(in: registryLookup, keys: ["Project", "ProjectName", "Project Name"])
 
     var project = projectName.flatMap { domainContext.canonicalProject(named: $0) }
-    if project == nil, let projectName {
-        let createdName = domainContext.createProject(named: projectName) ?? projectName
-        project = domainContext.canonicalProject(named: createdName)
-    }
     var sample = domainContext.canonicalSample(named: sampleName) ?? SpinLabDomain.Sample(name: sampleName)
     let batch = batchName.flatMap { domainContext.canonicalBatch(named: $0) } ?? batchName.map { SpinLabDomain.Batch(name: $0) }
 

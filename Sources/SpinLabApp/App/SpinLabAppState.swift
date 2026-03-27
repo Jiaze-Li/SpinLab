@@ -175,7 +175,6 @@ final class SpinLabAppState {
         private let normalizedValueProvider: @MainActor (String?) -> String?
         private let metadataValueProvider: @MainActor (SampleRegistryLookupResult?, [String]) -> String?
         private let canonicalProjectProvider: @MainActor (String) -> SpinLabDomain.Project?
-        private let createProjectProvider: @MainActor (String) -> String?
         private let canonicalBatchProvider: @MainActor (String) -> SpinLabDomain.Batch?
         private let canonicalSampleProvider: @MainActor (String) -> SpinLabDomain.Sample?
         private let canonicalDeviceProvider: @MainActor (String, UUID) -> SpinLabDomain.Device?
@@ -188,7 +187,6 @@ final class SpinLabAppState {
             normalizedValueProvider: @escaping @MainActor (String?) -> String?,
             metadataValueProvider: @escaping @MainActor (SampleRegistryLookupResult?, [String]) -> String?,
             canonicalProjectProvider: @escaping @MainActor (String) -> SpinLabDomain.Project?,
-            createProjectProvider: @escaping @MainActor (String) -> String?,
             canonicalBatchProvider: @escaping @MainActor (String) -> SpinLabDomain.Batch?,
             canonicalSampleProvider: @escaping @MainActor (String) -> SpinLabDomain.Sample?,
             canonicalDeviceProvider: @escaping @MainActor (String, UUID) -> SpinLabDomain.Device?,
@@ -200,7 +198,6 @@ final class SpinLabAppState {
             self.normalizedValueProvider = normalizedValueProvider
             self.metadataValueProvider = metadataValueProvider
             self.canonicalProjectProvider = canonicalProjectProvider
-            self.createProjectProvider = createProjectProvider
             self.canonicalBatchProvider = canonicalBatchProvider
             self.canonicalSampleProvider = canonicalSampleProvider
             self.canonicalDeviceProvider = canonicalDeviceProvider
@@ -229,9 +226,7 @@ final class SpinLabAppState {
         }
 
         func createProject(named name: String) -> String? {
-            MainActor.assumeIsolated {
-                createProjectProvider(name)
-            }
+            nil
         }
 
         func canonicalBatch(named name: String) -> SpinLabDomain.Batch? {
@@ -539,9 +534,6 @@ final class SpinLabAppState {
         canonicalProjectProvider: { [weak self] name in
             self?.workbenchFeatureStore.canonicalProject(named: name)
         },
-        createProjectProvider: { [weak self] name in
-            self?.createProject(named: name)
-        },
         canonicalBatchProvider: { [weak self] name in
             self?.workbenchFeatureStore.canonicalBatch(named: name)
         },
@@ -781,11 +773,6 @@ final class SpinLabAppState {
     private func replaceArchivedRecords(_ records: [SpinLabDomain.ArchivedRecord], persist: Bool = true) {
         let updated = workbenchFeatureStore.replaceArchivedRecords(records, persist: persist)
         applyArchivedRecordsProjection(updated)
-    }
-
-    private func replaceProjectCatalog(_ projects: [SpinLabDomain.Project], persist: Bool = true) {
-        let updated = workbenchFeatureStore.replaceProjectCatalog(projects, persist: persist)
-        applyProjectCatalogProjection(updated)
     }
 
     private func setupRepositoryProjectionTasks() {
@@ -2044,21 +2031,6 @@ final class SpinLabAppState {
             "measurementID": output.archivedRecord.measurement.id.uuidString,
             "workflow": workflow.rawValue
         ])
-    }
-
-    func createProject(named name: String) -> String? {
-        guard let normalizedName = normalized(name) else {
-            return nil
-        }
-
-        if let existing = canonicalProject(named: normalizedName) {
-            return existing.name
-        }
-
-        let project = SpinLabDomain.Project(name: normalizedName)
-        projectCatalog.append(project)
-        replaceProjectCatalog(projectCatalog)
-        return project.name
     }
 
     func pendingImportEditableContents(for pending: SpinLabDomain.PendingImport) -> String? {
