@@ -143,7 +143,18 @@ final class LocalJSONPersistence: SpinLabPersistence {
         guard let data = try? encoder.encode(value) else {
             return
         }
-        try? data.write(to: fileURL, options: .atomic)
+        do {
+            try data.write(to: fileURL, options: .atomic)
+        } catch {
+            AppLogger.shared.error(
+                .system,
+                "Failed to persist JSON payload",
+                metadata: [
+                    "target": fileURL.lastPathComponent,
+                    "reason": error.localizedDescription
+                ]
+            )
+        }
     }
 }
 

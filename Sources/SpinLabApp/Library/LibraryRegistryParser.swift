@@ -9,38 +9,20 @@ final class LibraryRegistryParser {
 
     private let substrateParser = LibrarySubstrateParser()
 
-    func parse(xlsxURL: URL, settings: LibrarySettings) -> ParsedResult {
+    func parse(xlsxURL: URL, settings: LibrarySettings) throws -> ParsedResult {
         var warnings: [LibraryWarning] = []
         guard let file = XLSXFile(filepath: xlsxURL.path) else {
-            let warning = LibraryWarning(message: "Unable to open XLSX at \(xlsxURL.path)", affectedSampleKey: nil, severity: .error)
-            return ParsedResult(
-                index: LibraryIndex(
-                    createdAt: .now,
-                    updatedAt: .now,
-                    registryInternalPath: xlsxURL.path,
-                    registrySourcePath: settings.registrySourcePath,
-                    metadataColumnOrder: [],
-                    batches: [],
-                    samples: []
-                ),
-                warnings: [warning]
-            )
+            throw AppError.io("Unable to open XLSX at \(xlsxURL.path)")
         }
 
-        guard let workbook = try? file.parseWorkbooks().first else {
-            let warning = LibraryWarning(message: "No workbook found in XLSX.", affectedSampleKey: nil, severity: .error)
-            return ParsedResult(
-                index: LibraryIndex(
-                    createdAt: .now,
-                    updatedAt: .now,
-                    registryInternalPath: xlsxURL.path,
-                    registrySourcePath: settings.registrySourcePath,
-                    metadataColumnOrder: [],
-                    batches: [],
-                    samples: []
-                ),
-                warnings: [warning]
-            )
+        let workbook: Workbook
+        do {
+            guard let parsedWorkbook = try file.parseWorkbooks().first else {
+                throw AppError.io("No workbook found in XLSX.")
+            }
+            workbook = parsedWorkbook
+        } catch {
+            throw AppError.from(error, fallback: "Failed to parse workbook from XLSX.")
         }
 
         let sharedStrings = try? file.parseSharedStrings()

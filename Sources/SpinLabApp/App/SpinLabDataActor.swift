@@ -26,7 +26,7 @@ actor SpinLabDataActor: SpinLabDataActing {
             throw AppError.notFound("Registry file not found at \(registryPath).")
         }
         let parser = LibraryRegistryParser()
-        let result = parser.parse(xlsxURL: URL(fileURLWithPath: registryPath), settings: settings)
+        let result = try parser.parse(xlsxURL: URL(fileURLWithPath: registryPath), settings: settings)
         if result.warnings.contains(where: { $0.severity == .error }) {
             let message = result.warnings
                 .first(where: { $0.severity == .error })?

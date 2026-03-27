@@ -331,19 +331,6 @@ final class SpinLabAppState {
     private(set) var routingRuleSourceLabel: String = "unknown"
     private(set) var routingRuleSourcePath: String = "unknown"
     private(set) var routingRuleFingerprint: String = "unknown"
-    var librarySettings: LibrarySettings
-    private(set) var libraryRootVerificationPath: String?
-    private(set) var libraryRootVerificationMessage: String?
-    private(set) var libraryBackupMessage: String?
-    private(set) var libraryBackupError: String?
-    private(set) var libraryPreview: LibraryPreview?
-    private(set) var libraryPreviewMessage: String?
-    private(set) var libraryLastSyncedAt: Date?
-    private(set) var librarySyncStatusMessage: String?
-    private(set) var libraryPreviewWarnings: [LibraryWarning] = []
-    private(set) var libraryPreviewGroups: [String: [LibraryPreviewBatchGroup]] = [:]
-    private(set) var libraryExistingGroups: [String: [LibraryPreviewBatchGroup]] = [:]
-    private(set) var libraryExistingMessage: String?
     var librarySelectedPrefix: String? {
         didSet { persistInteractionSnapshotIfReady() }
     }
@@ -353,29 +340,135 @@ final class SpinLabAppState {
     var librarySelectedSampleId: String? {
         didSet { persistInteractionSnapshotIfReady() }
     }
-    private(set) var librarySelectionVersion: Int = 0
     var libraryActiveSelectionSource: LibrarySelectionSource = .browser {
         didSet { persistInteractionSnapshotIfReady() }
     }
-    private(set) var libraryDrawerMessage: String?
-    private(set) var libraryDrawerError: String?
-    private(set) var libraryRefreshReview: LibraryRefreshReview?
-    private(set) var libraryBatchSyncStatusByID: [String: LibrarySyncBatchStatus] = [:]
-    private(set) var librarySampleSyncChangesByID: [String: [LibraryFieldChange]] = [:]
-    private(set) var libraryBatchSyncChangesByID: [String: [LibraryFieldChange]] = [:]
-    private(set) var librarySampleEditDraft: LibrarySampleEditDraft?
-    private(set) var librarySampleEditError: String?
-    private(set) var librarySampleEditMessage: String?
-    private(set) var librarySampleEditIsSaving: Bool = false
-    private(set) var libraryPendingSelectionChangePrompt: String?
-    private(set) var libraryGlobalManualLogs: [LibraryManualUpdateLogEntry] = []
-    private(set) var libraryGlobalManualLogError: String?
-    private(set) var libraryGlobalManualLogMessage: String?
-    private(set) var libraryMetadataSyncLogs: [LibraryMetadataSyncLogEntry] = []
-    private(set) var libraryMetadataSyncLogError: String?
-    private(set) var libraryMetadataSyncLogMessage: String?
     var activeAlert: AppAlertState?
     private(set) var appStateRevision: Int = 0
+    var librarySettings: LibrarySettings {
+        get { libraryFeatureStore.librarySettings }
+        set { libraryFeatureStore.librarySettings = newValue }
+    }
+    private(set) var libraryRootVerificationPath: String? {
+        get { libraryFeatureStore.libraryRootVerificationPath }
+        set { libraryFeatureStore.libraryRootVerificationPath = newValue }
+    }
+    private(set) var libraryRootVerificationMessage: String? {
+        get { libraryFeatureStore.libraryRootVerificationMessage }
+        set { libraryFeatureStore.libraryRootVerificationMessage = newValue }
+    }
+    private(set) var libraryBackupMessage: String? {
+        get { libraryFeatureStore.libraryBackupMessage }
+        set { libraryFeatureStore.libraryBackupMessage = newValue }
+    }
+    private(set) var libraryBackupError: String? {
+        get { libraryFeatureStore.libraryBackupError }
+        set { libraryFeatureStore.libraryBackupError = newValue }
+    }
+    private(set) var libraryPreview: LibraryPreview? {
+        get { libraryFeatureStore.libraryPreview }
+        set { libraryFeatureStore.libraryPreview = newValue }
+    }
+    private(set) var libraryPreviewMessage: String? {
+        get { libraryFeatureStore.libraryPreviewMessage }
+        set { libraryFeatureStore.libraryPreviewMessage = newValue }
+    }
+    private(set) var libraryLastSyncedAt: Date? {
+        get { libraryFeatureStore.libraryLastSyncedAt }
+        set { libraryFeatureStore.libraryLastSyncedAt = newValue }
+    }
+    private(set) var librarySyncStatusMessage: String? {
+        get { libraryFeatureStore.librarySyncStatusMessage }
+        set { libraryFeatureStore.librarySyncStatusMessage = newValue }
+    }
+    private(set) var libraryPreviewWarnings: [LibraryWarning] {
+        get { libraryFeatureStore.libraryPreviewWarnings }
+        set { libraryFeatureStore.libraryPreviewWarnings = newValue }
+    }
+    private(set) var libraryPreviewGroups: [String: [LibraryPreviewBatchGroup]] {
+        get { libraryFeatureStore.libraryPreviewGroups }
+        set { libraryFeatureStore.libraryPreviewGroups = newValue }
+    }
+    private(set) var libraryExistingGroups: [String: [LibraryPreviewBatchGroup]] {
+        get { libraryFeatureStore.libraryExistingGroups }
+        set { libraryFeatureStore.libraryExistingGroups = newValue }
+    }
+    private(set) var libraryExistingMessage: String? {
+        get { libraryFeatureStore.libraryExistingMessage }
+        set { libraryFeatureStore.libraryExistingMessage = newValue }
+    }
+    private(set) var librarySelectionVersion: Int {
+        get { libraryFeatureStore.librarySelectionVersion }
+        set { libraryFeatureStore.librarySelectionVersion = newValue }
+    }
+    private(set) var libraryDrawerMessage: String? {
+        get { libraryFeatureStore.libraryDrawerMessage }
+        set { libraryFeatureStore.libraryDrawerMessage = newValue }
+    }
+    private(set) var libraryDrawerError: String? {
+        get { libraryFeatureStore.libraryDrawerError }
+        set { libraryFeatureStore.libraryDrawerError = newValue }
+    }
+    private(set) var libraryRefreshReview: LibraryRefreshReview? {
+        get { libraryFeatureStore.libraryRefreshReview }
+        set { libraryFeatureStore.libraryRefreshReview = newValue }
+    }
+    private(set) var libraryBatchSyncStatusByID: [String: LibrarySyncBatchStatus] {
+        get { libraryFeatureStore.libraryBatchSyncStatusByID }
+        set { libraryFeatureStore.libraryBatchSyncStatusByID = newValue }
+    }
+    private(set) var librarySampleSyncChangesByID: [String: [LibraryFieldChange]] {
+        get { libraryFeatureStore.librarySampleSyncChangesByID }
+        set { libraryFeatureStore.librarySampleSyncChangesByID = newValue }
+    }
+    private(set) var libraryBatchSyncChangesByID: [String: [LibraryFieldChange]] {
+        get { libraryFeatureStore.libraryBatchSyncChangesByID }
+        set { libraryFeatureStore.libraryBatchSyncChangesByID = newValue }
+    }
+    private(set) var librarySampleEditDraft: LibrarySampleEditDraft? {
+        get { libraryFeatureStore.librarySampleEditDraft }
+        set { libraryFeatureStore.librarySampleEditDraft = newValue }
+    }
+    private(set) var librarySampleEditError: String? {
+        get { libraryFeatureStore.librarySampleEditError }
+        set { libraryFeatureStore.librarySampleEditError = newValue }
+    }
+    private(set) var librarySampleEditMessage: String? {
+        get { libraryFeatureStore.librarySampleEditMessage }
+        set { libraryFeatureStore.librarySampleEditMessage = newValue }
+    }
+    private(set) var librarySampleEditIsSaving: Bool {
+        get { libraryFeatureStore.librarySampleEditIsSaving }
+        set { libraryFeatureStore.librarySampleEditIsSaving = newValue }
+    }
+    private(set) var libraryPendingSelectionChangePrompt: String? {
+        get { libraryFeatureStore.libraryPendingSelectionChangePrompt }
+        set { libraryFeatureStore.libraryPendingSelectionChangePrompt = newValue }
+    }
+    private(set) var libraryGlobalManualLogs: [LibraryManualUpdateLogEntry] {
+        get { libraryFeatureStore.libraryGlobalManualLogs }
+        set { libraryFeatureStore.libraryGlobalManualLogs = newValue }
+    }
+    private(set) var libraryGlobalManualLogError: String? {
+        get { libraryFeatureStore.libraryGlobalManualLogError }
+        set { libraryFeatureStore.libraryGlobalManualLogError = newValue }
+    }
+    private(set) var libraryGlobalManualLogMessage: String? {
+        get { libraryFeatureStore.libraryGlobalManualLogMessage }
+        set { libraryFeatureStore.libraryGlobalManualLogMessage = newValue }
+    }
+    private(set) var libraryMetadataSyncLogs: [LibraryMetadataSyncLogEntry] {
+        get { libraryFeatureStore.libraryMetadataSyncLogs }
+        set { libraryFeatureStore.libraryMetadataSyncLogs = newValue }
+    }
+    private(set) var libraryMetadataSyncLogError: String? {
+        get { libraryFeatureStore.libraryMetadataSyncLogError }
+        set { libraryFeatureStore.libraryMetadataSyncLogError = newValue }
+    }
+    private(set) var libraryMetadataSyncLogMessage: String? {
+        get { libraryFeatureStore.libraryMetadataSyncLogMessage }
+        set { libraryFeatureStore.libraryMetadataSyncLogMessage = newValue }
+    }
 
     let workflow: SpinLabDomain.WorkflowKind
 
@@ -388,17 +481,10 @@ final class SpinLabAppState {
     private let viewExtension: ViewExtension
     private let managedStorage: SpinLabManagedStorage
     private var sampleRegistry: SampleRegistryIndexing
-    private let librarySettingsStore = LibrarySettingsStore()
-    private let libraryStore = LibraryStore()
-    private let libraryLogger = LibraryLogger()
-    private let libraryDiffEngine = LibraryDiffEngine()
-    private let librarySampleEditService = LibrarySampleEditService()
-    @ObservationIgnored
-    private lazy var librarySyncService = LibrarySyncService(libraryStore: libraryStore, libraryDiffEngine: libraryDiffEngine)
+    private let libraryFeatureStore: LibraryFeatureStore
     private let appLogger = AppLogger.shared
     private let interactionMemory: InteractionMemoryStore
     private let inboxRoutingState: InboxRoutingState
-    private var libraryState = LibraryState()
     private let workbenchState = WorkbenchState()
     private let dataActor: any SpinLabDataActing
     private let coordinator = AppCoordinator()
@@ -424,6 +510,16 @@ final class SpinLabAppState {
     private var isArchivedRecordsProjectionDrainScheduled = false
     @ObservationIgnored
     private var isProjectCatalogProjectionDrainScheduled = false
+    private var librarySettingsStore: LibrarySettingsStore { libraryFeatureStore.librarySettingsStore }
+    private var libraryStore: LibraryStore { libraryFeatureStore.libraryStore }
+    private var libraryLogger: LibraryLogger { libraryFeatureStore.libraryLogger }
+    private var libraryDiffEngine: LibraryDiffEngine { libraryFeatureStore.libraryDiffEngine }
+    private var librarySampleEditService: LibrarySampleEditService { libraryFeatureStore.librarySampleEditService }
+    private var librarySyncService: LibrarySyncService { libraryFeatureStore.librarySyncService }
+    private var libraryState: LibraryState {
+        get { libraryFeatureStore.libraryState }
+        set { libraryFeatureStore.libraryState = newValue }
+    }
 
     init(
         workflowBundle: WorkflowBundle = WorkflowRegistry.shared.defaultBundle(),
@@ -439,11 +535,11 @@ final class SpinLabAppState {
         self.managedStorage = environment.managedStorage
         self.sampleRegistry = environment.sampleRegistry
         self.registrySubstrateRules = environment.registrySubstrateRules
+        self.libraryFeatureStore = LibraryFeatureStore()
         self.inboxRoutingState = InboxRoutingState(
             routingCapabilities: environment.routingCapabilities,
             ruleRuntime: environment.ruleRuntime
         )
-        self.librarySettings = librarySettingsStore.load()
         self.interactionMemory = InteractionMemoryStore(persistence: environment.persistence)
         self.dataActor = environment.dataActor
 
@@ -974,149 +1070,83 @@ final class SpinLabAppState {
         return internalPath
     }
 
-    private func applyLoadedLibraryPreview(_ snapshot: LibraryPreviewParseSnapshot) {
-        let preview = LibraryPreview(index: snapshot.index, warnings: snapshot.warnings)
-        libraryPreview = preview
-        libraryPreviewWarnings = snapshot.warnings
-        refreshActionablePreviewGroups()
-        libraryLogger.write(snapshot.warnings)
-    }
-
     func loadLibraryPreview() {
-        guard let registryPath = resolvedLibraryRegistryPath() else {
-            libraryPreviewMessage = "No registry available. Load it from Inbox first."
-            return
-        }
-
-        let settings = librarySettings
-        Task {
-            do {
-                let snapshot = try await dataActor.parseLibraryPreview(registryPath: registryPath, settings: settings)
-                await MainActor.run {
-                    applyLoadedLibraryPreview(snapshot)
-                }
-            } catch {
-                await MainActor.run {
-                    let appError = AppError.from(error, fallback: "Failed to load registry preview.")
-                    libraryPreview = nil
-                    libraryPreviewWarnings = []
-                    libraryPreviewMessage = appError.localizedDescription
-                    present(error: appError, title: "Preview Load Failed")
-                    appLogger.warning(.library, "Library preview load failed", metadata: ["error": appError.localizedDescription])
-                }
+        libraryFeatureStore.loadLibraryPreview(
+            resolvedRegistryPath: resolvedLibraryRegistryPath(),
+            dataActor: dataActor,
+            refreshActionablePreviewGroups: { [weak self] in
+                self?.refreshActionablePreviewGroups()
+            },
+            onFailure: { [weak self] appError in
+                guard let self else { return }
+                present(error: appError, title: "Preview Load Failed")
+                appLogger.warning(.library, "Library preview load failed", metadata: ["error": appError.localizedDescription])
             }
-        }
+        )
     }
 
     func syncLibraryFromRegistry(onComplete: (() -> Void)? = nil) {
         appLogger.info(.function, "Library sync requested", metadata: ["area": "registry"])
-        guard let registryPath = resolvedLibraryRegistryPath() else {
-            libraryPreviewMessage = "No registry available. Load it from Inbox first."
-            librarySyncStatusMessage = nil
+        let resolvedPath = resolvedLibraryRegistryPath()
+        libraryFeatureStore.syncLibraryFromRegistry(
+            resolvedRegistryPath: resolvedPath,
+            dataActor: dataActor,
+            prepareLibrarySyncReview: { [weak self] in
+                self?.prepareLibrarySyncReview()
+            },
+            refreshActionablePreviewGroups: { [weak self] in
+                self?.refreshActionablePreviewGroups()
+            },
+            formatSyncDate: { Self.syncStatusTimeFormatter.string(from: $0) },
+            onFailure: { [weak self] appError in
+                guard let self else { return }
+                present(error: appError, title: "Sync Preview Failed")
+                appLogger.warning(.library, "Library sync preview failed", metadata: ["error": appError.localizedDescription])
+            },
+            onComplete: onComplete
+        )
+        if resolvedPath == nil {
             appLogger.warning(.library, "Library preview unavailable during sync request")
-            onComplete?()
-            return
-        }
-
-        let settings = librarySettings
-        Task {
-            do {
-                let snapshot = try await dataActor.parseLibraryPreview(registryPath: registryPath, settings: settings)
-                await MainActor.run {
-                    applyLoadedLibraryPreview(snapshot)
-                    guard libraryPreview != nil else {
-                        librarySyncStatusMessage = nil
-                        appLogger.warning(.library, "Library preview unavailable during sync request")
-                        onComplete?()
-                        return
-                    }
-                    prepareLibrarySyncReview()
-                    libraryLastSyncedAt = Date()
-                    if let syncedAt = libraryLastSyncedAt {
-                        librarySyncStatusMessage = "Registry diff prepared at \(Self.syncStatusTimeFormatter.string(from: syncedAt)); waiting for manual apply."
-                        appLogger.info(.library, "Library sync review prepared", metadata: [
-                            "syncedAt": Self.syncStatusTimeFormatter.string(from: syncedAt)
-                        ])
-                    }
-                    onComplete?()
-                }
-            } catch {
-                await MainActor.run {
-                    let appError = AppError.from(error, fallback: "Failed to prepare library sync preview.")
-                    librarySyncStatusMessage = nil
-                    libraryPreview = nil
-                    libraryPreviewWarnings = []
-                    libraryPreviewMessage = appError.localizedDescription
-                    present(error: appError, title: "Sync Preview Failed")
-                    appLogger.warning(.library, "Library sync preview failed", metadata: ["error": appError.localizedDescription])
-                    onComplete?()
-                }
-            }
         }
     }
 
     func applyPreparedLibrarySyncReview() {
-        guard let review = libraryRefreshReview else {
-            libraryDrawerError = "No sync review available. Run Sync Registry first."
+        switch libraryFeatureStore.applyPreparedSyncReviewDecision() {
+        case let .missingReview(message):
+            libraryDrawerError = message
             appLogger.warning(.library, "Apply all skipped: no sync review")
-            return
-        }
-        guard review.totalChangesCount > 0 else {
-            libraryDrawerMessage = "No changes to apply."
+        case let .noChanges(message):
+            libraryDrawerMessage = message
             appLogger.info(.library, "Apply all skipped: no pending changes")
-            return
+        case let .apply(totalChanges):
+            appLogger.info(.function, "Apply all requested", metadata: [
+                "changes": "\(totalChanges)"
+            ])
+            refreshLibraryIncremental()
         }
-        appLogger.info(.function, "Apply all requested", metadata: [
-            "changes": "\(review.totalChangesCount)"
-        ])
-        refreshLibraryIncremental()
     }
 
     func applySelectedRegistryDiff(batchId: String?) {
-        libraryDrawerError = nil
-        libraryDrawerMessage = nil
-
-        guard let batchId else {
-            libraryDrawerError = "Select a batch first."
-            appLogger.warning(.library, "Apply selected failed: no batch selected")
-            return
+        switch libraryFeatureStore.applySelectedRegistryDiff(batchId: batchId) {
+        case let .failure(message):
+            appLogger.warning(.library, "Apply selected failed", metadata: [
+                "batchId": batchId ?? "-",
+                "reason": message
+            ])
+        case let .noPendingChanges(id, _):
+            appLogger.info(.library, "Apply selected skipped: no pending changes", metadata: ["batchId": id])
+        case let .success(rootURL, previewIndex, id, action, touched, _):
+            commitLibraryMutation(rootURL: rootURL, previewIndex: previewIndex)
+            appLogger.info(.function, "Apply selected completed", metadata: [
+                "batchId": id,
+                "action": action,
+                "sampleChanges": "\(touched)"
+            ])
         }
-        guard let preview = libraryPreview else {
-            libraryDrawerError = "Load the registry preview first."
-            appLogger.warning(.library, "Apply selected failed: no preview", metadata: ["batchId": batchId])
-            return
-        }
-        guard let rootPath = librarySettings.rootPath else {
-            libraryDrawerError = "Select a Library Root first."
-            appLogger.warning(.library, "Apply selected failed: no root path", metadata: ["batchId": batchId])
-            return
-        }
-
-        let rootURL = URL(fileURLWithPath: rootPath)
-        libraryStore.ensureRoot(at: rootURL)
-        guard let applyResult = librarySyncService.applyBatch(
-            batchId: batchId,
-            preview: preview,
-            rootURL: rootURL,
-            settings: librarySettings
-        ) else {
-            libraryDrawerMessage = "No pending sync changes for \(batchId)."
-            appLogger.info(.library, "Apply selected skipped: no pending changes", metadata: ["batchId": batchId])
-            return
-        }
-        commitLibraryMutation(rootURL: rootURL, previewIndex: preview.index)
-        let batchAction = applyResult.batchAction
-        let touched = applyResult.touchedSamples
-        libraryDrawerMessage = "Applied selected sync for \(batchId): \(batchAction), \(touched) sample changes."
-        appLogger.info(.function, "Apply selected completed", metadata: [
-            "batchId": batchId,
-            "action": batchAction,
-            "sampleChanges": "\(touched)"
-        ])
     }
 
     func loadExistingDrawers() {
-        guard let rootPath = librarySettings.rootPath else {
+        guard let index = libraryFeatureStore.loadExistingDrawersIndexForCurrentRoot() else {
             libraryExistingGroups = [:]
             inboxRoutingState.clearDrawerMatchCandidates()
             libraryExistingMessage = "No Library Root selected."
@@ -1126,8 +1156,6 @@ final class SpinLabAppState {
             refreshPendingDrawerMatches()
             return
         }
-        let rootURL = URL(fileURLWithPath: rootPath)
-        let index = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
         applyExistingIndex(index)
     }
 
@@ -1143,31 +1171,13 @@ final class SpinLabAppState {
     }
 
     func syncLibraryFromFiles() {
-        guard let rootPath = librarySettings.rootPath else {
-            libraryRootVerificationMessage = "No Library Root selected."
+        guard let outcome = libraryFeatureStore.syncLibraryFromFilesForCurrentRoot() else {
             return
         }
-
-        let rootURL = URL(fileURLWithPath: rootPath)
-        let previousIndex = libraryStore.loadIndex(from: rootURL)
-        let syncedIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
-        applyExistingIndex(syncedIndex)
+        applyExistingIndex(outcome.syncedIndex)
         refreshActionablePreviewGroups()
-
-        let previousSamplesByID = Dictionary(uniqueKeysWithValues: (previousIndex?.samples ?? []).map { ($0.id, $0) })
-        let syncedSamplesByID = Dictionary(uniqueKeysWithValues: syncedIndex.samples.map { ($0.id, $0) })
-        let previousIDs = Set(previousSamplesByID.keys)
-        let syncedIDs = Set(syncedSamplesByID.keys)
-        let addedCount = syncedIDs.subtracting(previousIDs).count
-        let removedCount = previousIDs.subtracting(syncedIDs).count
-        let updatedCount = previousIDs.intersection(syncedIDs).reduce(into: 0) { partialResult, id in
-            if previousSamplesByID[id] != syncedSamplesByID[id] {
-                partialResult += 1
-            }
-        }
-
-        libraryRootVerificationMessage = "File sync complete: \(syncedIndex.samples.count) samples (+\(addedCount) / -\(removedCount) / ~\(updatedCount))."
-        libraryRootVerificationPath = rootPath
+        libraryRootVerificationMessage = outcome.summaryMessage
+        libraryRootVerificationPath = outcome.rootPath
     }
 
     func selectExistingDrawer(prefix: String, batchId: String, sampleId: String?) {
@@ -1463,101 +1473,32 @@ final class SpinLabAppState {
     }
 
     func saveLibrarySampleEdits() {
-        librarySampleEditError = nil
-        librarySampleEditMessage = nil
-        librarySampleEditIsSaving = true
-        defer { librarySampleEditIsSaving = false }
-
-        let result = saveLibrarySampleEditsUseCase.execute(
-            input: SaveLibrarySampleEditsUseCase.Input(
-                rootPath: librarySettings.rootPath,
-                draft: librarySampleEditDraft,
-                baseSample: libraryState.sampleEditBaseSample
-            ),
-            snapshotIndexFromFilesystem: { [libraryStore] rootURL in
-                libraryStore.snapshotIndexFromFilesystem(rootURL: rootURL)
-            },
-            applyDraft: { [librarySampleEditService] draft, current in
-                try librarySampleEditService.apply(draft: draft, to: current)
-            },
-            updateSample: { [libraryStore] updated, rootURL in
-                libraryStore.updateSample(updated, rootURL: rootURL, changeSource: "manual_edit")
-            },
+        let outcome = libraryFeatureStore.saveLibrarySampleEdits(
+            useCase: saveLibrarySampleEditsUseCase,
             resolveRegistrySourceURL: { [weak self] in
                 self?.resolveRegistrySourceURL()
-            },
-            syncRegistrySource: { [libraryStore] current, updated, registrySourceURL in
-                try libraryStore.syncRegistrySourceForEditedSample(
-                    oldSample: current,
-                    updatedSample: updated,
-                    registrySourceURL: registrySourceURL
-                )
             }
         )
 
-        switch result {
-        case let .success(output):
-            if output.clearDraft {
-                librarySampleEditDraft = nil
-                libraryState.sampleEditBaseSample = nil
-                libraryState.sampleEditOriginalDraft = nil
-            }
-            if let rootURL = output.rootURLForCommit {
+        switch outcome {
+        case let .success(rootURLForCommit, nonFatalError, message):
+            if let rootURL = rootURLForCommit {
                 commitLibraryMutation(rootURL: rootURL, previewIndex: libraryPreview?.index)
             }
-            if let nonFatalError = output.nonFatalError {
-                librarySampleEditError = nonFatalError.localizedDescription
+            if let nonFatalError {
                 present(error: nonFatalError, title: "Sync Warning")
                 appLogger.warning(.library, "Library sample edit saved with sync warning", metadata: [
                     "reason": nonFatalError.localizedDescription
                 ])
             }
-
-            librarySampleEditMessage = makeLibrarySampleEditMessage(
-                syncSummary: output.syncSummary,
-                syncIssue: output.syncIssue,
-                nonFatalError: output.nonFatalError
-            )
-
             appLogger.info(.library, "Library sample edits saved", metadata: [
-                "message": librarySampleEditMessage ?? "saved"
+                "message": message
             ])
         case let .failure(error):
-            librarySampleEditError = error.localizedDescription
             present(error: error, title: "Save Failed")
             appLogger.error(.library, "Library sample edit failed", metadata: [
                 "reason": error.localizedDescription
             ])
-        }
-    }
-
-    private func makeLibrarySampleEditMessage(
-        syncSummary: LibraryRegistrySourceSyncResult?,
-        syncIssue: SaveLibrarySampleEditsUseCase.RegistrySyncIssue?,
-        nonFatalError: AppError?
-    ) -> String {
-        if let syncSummary {
-            return """
-            已保存样品编辑。
-            Metadata 写回 XLSX：成功 \(syncSummary.metadataWrittenCount) 项，失败 \(syncSummary.metadataFailedCount) 项。
-            Numeric 日志新增：\(syncSummary.manualLoggedCount) 项（\(syncSummary.manualLogSheetName)）。
-            Metadata 日志表：\(syncSummary.metadataLogSheetName)。
-            """
-        }
-
-        switch syncIssue {
-        case .sourceMissing:
-            return """
-            已保存样品编辑。
-            XLSX 同步警告：未找到 registry source。
-            """
-        case .syncFailed:
-            return """
-            已保存样品编辑。
-            XLSX 同步警告：\(nonFatalError?.localizedDescription ?? "未知错误")
-            """
-        case .none:
-            return "已保存样品编辑。"
         }
     }
 
