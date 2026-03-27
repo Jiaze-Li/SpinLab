@@ -34,6 +34,11 @@ final class LibraryFeatureStore {
         var summaryMessage: String
     }
 
+    var librarySelectedPrefix: String?
+    var librarySelectedBatchId: String?
+    var librarySelectedSampleId: String?
+    var libraryActiveSelectionSource: LibrarySelectionSource = .browser
+
     var librarySettings: LibrarySettings
     var libraryRootVerificationPath: String?
     var libraryRootVerificationMessage: String?
@@ -97,6 +102,25 @@ final class LibraryFeatureStore {
 
     func incrementLibrarySelectionVersion() {
         librarySelectionVersion &+= 1
+    }
+
+    func restoreInteraction(
+        libraryActiveSelectionSource: LibrarySelectionSource,
+        librarySelectedPrefix: String?,
+        librarySelectedBatchId: String?,
+        librarySelectedSampleId: String?
+    ) {
+        self.libraryActiveSelectionSource = libraryActiveSelectionSource
+        self.librarySelectedPrefix = librarySelectedPrefix
+        self.librarySelectedBatchId = librarySelectedBatchId
+        self.librarySelectedSampleId = librarySelectedSampleId
+    }
+
+    func captureInteraction(into snapshot: inout SpinLabInteractionSnapshot) {
+        snapshot.libraryActiveSelectionSource = libraryActiveSelectionSource
+        snapshot.librarySelectedPrefix = librarySelectedPrefix
+        snapshot.librarySelectedBatchId = librarySelectedBatchId
+        snapshot.librarySelectedSampleId = librarySelectedSampleId
     }
 
     func applyPreparedSyncReviewDecision() -> ApplyPreparedSyncReviewDecision {
