@@ -295,22 +295,6 @@ final class SpinLabAppState {
             persistInteractionSnapshotIfReady()
         }
     }
-    private(set) var registryFileName: String? {
-        get { registryFeatureStore.registryFileName }
-        set { registryFeatureStore.registryFileName = newValue }
-    }
-    private(set) var registrySourceFilePath: String? {
-        get { registryFeatureStore.registrySourceFilePath }
-        set { registryFeatureStore.registrySourceFilePath = newValue }
-    }
-    private(set) var registryPrefixEntries: [RegistryPrefixEntry] {
-        get { registryFeatureStore.registryPrefixEntries }
-        set { registryFeatureStore.registryPrefixEntries = newValue }
-    }
-    var routingRuleVersion: Int { inboxFeatureStore.routingRuleVersion }
-    var routingRuleSourceLabel: String { inboxFeatureStore.routingRuleSourceLabel }
-    var routingRuleSourcePath: String { inboxFeatureStore.routingRuleSourcePath }
-    var routingRuleFingerprint: String { inboxFeatureStore.routingRuleFingerprint }
     var librarySelectedPrefix: String? {
         get { libraryFeatureStore.librarySelectedPrefix }
         set {
@@ -2128,18 +2112,23 @@ final class SpinLabAppState {
         let syncedIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
         applyExistingIndex(syncedIndex)
 
-        if let previewIndex {
-            let diff = precomputedDiff ?? libraryDiffEngine.diff(current: syncedIndex, updated: previewIndex)
-            libraryRefreshReview = precomputedReview ?? librarySyncService.makeReview(diff: diff)
-            refreshSyncChangeIndicators()
-            refreshActionablePreviewGroups(precomputedDiff: diff, baselineIndex: syncedIndex)
+        let plan = libraryMutationOrchestrator.makeCommitPlan(
+            syncedIndex: syncedIndex,
+            previewIndex: previewIndex,
+            precomputedDiff: precomputedDiff,
+            precomputedReview: precomputedReview,
+            libraryDiffEngine: libraryDiffEngine,
+            librarySyncService: librarySyncService
+        )
+        libraryRefreshReview = plan.review
+        refreshSyncChangeIndicators()
+        if let diff = plan.diff, let baseline = plan.baselineIndexForPreview {
+            refreshActionablePreviewGroups(precomputedDiff: diff, baselineIndex: baseline)
         } else {
-            libraryRefreshReview = nil
-            refreshSyncChangeIndicators()
             refreshActionablePreviewGroups()
         }
 
-        librarySettings.lastRefreshAt = Date()
+        librarySettings.lastRefreshAt = plan.lastRefreshAt
         librarySettingsStore.save(librarySettings)
     }
 
@@ -2319,10 +2308,10 @@ final class SpinLabAppState {
         var context: [String: String] = [
             "workflow": workflow.rawValue,
             "appVersion": AppVersion.current,
-            "routingRuleVersion": "\(routingRuleVersion)",
-            "routingRuleSource": routingRuleSourceLabel,
-            "routingRulePath": routingRuleSourcePath,
-            "routingRuleFingerprint": routingRuleFingerprint,
+            "routingRuleVersion": "\(inboxFeatureStore.routingRuleVersion)",
+            "routingRuleSource": inboxFeatureStore.routingRuleSourceLabel,
+            "routingRulePath": inboxFeatureStore.routingRuleSourcePath,
+            "routingRuleFingerprint": inboxFeatureStore.routingRuleFingerprint,
             "pendingImportCount": "\(pendingImports.count)",
             "archivedRecordCount": "\(archivedRecords.count)",
             "selectedArea": selectedArea.rawValue

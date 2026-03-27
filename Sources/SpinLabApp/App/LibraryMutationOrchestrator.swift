@@ -30,6 +30,13 @@ enum RefreshLibraryIncrementalResult {
     case success(RefreshLibraryIncrementalPlan)
 }
 
+struct CommitLibraryMutationPlan {
+    var review: LibraryRefreshReview?
+    var diff: LibraryDiff?
+    var baselineIndexForPreview: LibraryIndex?
+    var lastRefreshAt: Date
+}
+
 struct LibraryMutationOrchestrator {
     func diffAgainstExisting(
         previewIndex: LibraryIndex,
@@ -139,6 +146,33 @@ struct LibraryMutationOrchestrator {
                 diff: diff,
                 message: message
             )
+        )
+    }
+
+    func makeCommitPlan(
+        syncedIndex: LibraryIndex,
+        previewIndex: LibraryIndex?,
+        precomputedDiff: LibraryDiff?,
+        precomputedReview: LibraryRefreshReview?,
+        libraryDiffEngine: LibraryDiffEngine,
+        librarySyncService: LibrarySyncService
+    ) -> CommitLibraryMutationPlan {
+        if let previewIndex {
+            let diff = precomputedDiff ?? libraryDiffEngine.diff(current: syncedIndex, updated: previewIndex)
+            let review = precomputedReview ?? librarySyncService.makeReview(diff: diff)
+            return CommitLibraryMutationPlan(
+                review: review,
+                diff: diff,
+                baselineIndexForPreview: syncedIndex,
+                lastRefreshAt: Date()
+            )
+        }
+
+        return CommitLibraryMutationPlan(
+            review: nil,
+            diff: nil,
+            baselineIndexForPreview: nil,
+            lastRefreshAt: Date()
         )
     }
 }
