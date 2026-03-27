@@ -506,8 +506,8 @@ struct LibraryView: View {
                 .font(level2HeaderFont)
             GroupBox {
                 VStack(alignment: .leading, spacing: 8) {
-                    if let prefix = appState.librarySelectedPrefix,
-                       let batchId = appState.librarySelectedBatchId {
+                    if let prefix = appState.library.librarySelectedPrefix,
+                       let batchId = appState.library.librarySelectedBatchId {
                         HStack {
                             Text("Batch")
                                 .font(.caption)
@@ -602,7 +602,7 @@ struct LibraryView: View {
                                 viewModel.selectBrowserSample()
                             } label: {
                                 HStack {
-                                    if let status = appState.libraryBatchSyncStatusByID[group.batchId], status != .unchanged {
+                                    if let status = appState.library.libraryBatchSyncStatusByID[group.batchId], status != .unchanged {
                                         if status == .added {
                                             Image(systemName: "plus")
                                                 .font(.body.weight(.bold))
@@ -690,7 +690,7 @@ struct LibraryView: View {
             .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(appState.librarySelectedSampleId == sample.id ? Color.accentColor.opacity(0.15) : Color.clear)
+                    .fill(appState.library.librarySelectedSampleId == sample.id ? Color.accentColor.opacity(0.15) : Color.clear)
             )
             .contentShape(Rectangle())
         }
@@ -708,7 +708,7 @@ struct LibraryView: View {
                     sampleDetailHeader
 
                     if let sample = selectedSample {
-                        if isEditingSelectedSample, let draft = appState.librarySampleEditDraft {
+                        if isEditingSelectedSample, let draft = appState.library.librarySampleEditDraft {
                             let sections = makeDetailSections(for: sample)
                             let globalFirstColumnWidth = alignedFirstColumnWidth(
                                 fields: sections.allFields,
@@ -869,7 +869,7 @@ struct LibraryView: View {
                     Button("Save") {
                         viewModel.saveLibrarySampleEdits()
                     }
-                    .disabled(!appState.librarySampleEditIsDirty || appState.librarySampleEditIsSaving)
+                    .disabled(!appState.librarySampleEditIsDirty || appState.library.librarySampleEditIsSaving)
                 } else {
                     Button("Edit") {
                         viewModel.beginEditingSelectedLibrarySample()
@@ -878,11 +878,11 @@ struct LibraryView: View {
                 }
             }
 
-            if let error = appState.librarySampleEditError {
+            if let error = appState.library.librarySampleEditError {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
-            } else if let message = appState.librarySampleEditMessage {
+            } else if let message = appState.library.librarySampleEditMessage {
                 Text(message)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -894,11 +894,11 @@ struct LibraryView: View {
     private var globalManualLogSheet: some View {
         NavigationStack {
             List {
-                if appState.libraryGlobalManualLogs.isEmpty {
+                if appState.library.libraryGlobalManualLogs.isEmpty {
                     Text("No global manual log records.")
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(appState.libraryGlobalManualLogs) { entry in
+                    ForEach(appState.library.libraryGlobalManualLogs) { entry in
                         Section {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("\(entry.sampleId) · \(entry.fieldType): \(entry.fieldKey)")
@@ -937,11 +937,11 @@ struct LibraryView: View {
             }
             .overlay(alignment: .bottomLeading) {
                 VStack(alignment: .leading, spacing: 4) {
-                    if let error = appState.libraryGlobalManualLogError {
+                    if let error = appState.library.libraryGlobalManualLogError {
                         Text(error)
                             .font(.caption)
                             .foregroundStyle(.red)
-                    } else if let message = appState.libraryGlobalManualLogMessage {
+                    } else if let message = appState.library.libraryGlobalManualLogMessage {
                         Text(message)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -978,7 +978,7 @@ struct LibraryView: View {
 
     @ViewBuilder
     private var metadataSyncLogSheet: some View {
-        let entries = appState.libraryMetadataSyncLogs
+        let entries = appState.library.libraryMetadataSyncLogs
         NavigationStack {
             List {
                 if entries.isEmpty {
@@ -1003,11 +1003,11 @@ struct LibraryView: View {
             }
             .overlay(alignment: .bottomLeading) {
                 VStack(alignment: .leading, spacing: 4) {
-                    if let error = appState.libraryMetadataSyncLogError {
+                    if let error = appState.library.libraryMetadataSyncLogError {
                         Text(error)
                             .font(.caption)
                             .foregroundStyle(.red)
-                    } else if let message = appState.libraryMetadataSyncLogMessage {
+                    } else if let message = appState.library.libraryMetadataSyncLogMessage {
                         Text(message)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -1049,7 +1049,7 @@ struct LibraryView: View {
 
     private var isEditingSelectedSample: Bool {
         guard let sample = selectedSample,
-              let draft = appState.librarySampleEditDraft else {
+              let draft = appState.library.librarySampleEditDraft else {
             return false
         }
         return draft.sampleId == sample.id
@@ -1143,7 +1143,7 @@ struct LibraryView: View {
 
     private var substrateTagsBinding: Binding<String> {
         Binding(
-            get: { appState.librarySampleEditDraft?.substrateTagsText ?? "" },
+            get: { appState.library.librarySampleEditDraft?.substrateTagsText ?? "" },
             set: { appState.updateLibrarySampleEditSubstrateTags($0) }
         )
     }
@@ -1151,7 +1151,7 @@ struct LibraryView: View {
     private func numericValueBinding(for key: String) -> Binding<String> {
         Binding(
             get: {
-                appState.librarySampleEditDraft?
+                appState.library.librarySampleEditDraft?
                     .numericValues
                     .first(where: { $0.key == key })?
                     .value ?? ""
@@ -1163,7 +1163,7 @@ struct LibraryView: View {
     private func metadataValueBinding(for key: String) -> Binding<String> {
         Binding(
             get: {
-                appState.librarySampleEditDraft?
+                appState.library.librarySampleEditDraft?
                     .metadataValues
                     .first(where: { $0.key == key })?
                     .value ?? ""
@@ -1450,8 +1450,8 @@ struct LibraryView: View {
     }
 
     private func selectedChangeHighlights(for sample: LibrarySample) -> [ChangeHighlight] {
-        let sampleChanges = appState.librarySampleSyncChangesByID[sample.id] ?? []
-        let batchChanges = appState.libraryBatchSyncChangesByID[sample.batchId] ?? []
+        let sampleChanges = appState.library.librarySampleSyncChangesByID[sample.id] ?? []
+        let batchChanges = appState.library.libraryBatchSyncChangesByID[sample.batchId] ?? []
         let sampleHighlights = sampleChanges.map {
             ChangeHighlight(key: $0.key, description: "\(displayValue($0.oldValue)) -> \(displayValue($0.newValue))")
         }
@@ -1541,22 +1541,22 @@ struct LibraryView: View {
     }
 
     private var selectedExistingSample: LibrarySample? {
-        guard let prefix = appState.librarySelectedPrefix,
-              let batchId = appState.librarySelectedBatchId,
-              let sampleId = appState.librarySelectedSampleId else {
+        guard let prefix = appState.library.librarySelectedPrefix,
+              let batchId = appState.library.librarySelectedBatchId,
+              let sampleId = appState.library.librarySelectedSampleId else {
             return nil
         }
-        let groups = appState.libraryExistingGroups[prefix] ?? []
+        let groups = appState.library.libraryExistingGroups[prefix] ?? []
         let samples = groups.first(where: { $0.batchId == batchId })?.samples ?? []
         return samples.first(where: { $0.id == sampleId })
     }
 
     private var selectedExistingBatchSamples: [LibrarySample] {
-        guard let prefix = appState.librarySelectedPrefix,
-              let batchId = appState.librarySelectedBatchId else {
+        guard let prefix = appState.library.librarySelectedPrefix,
+              let batchId = appState.library.librarySelectedBatchId else {
             return []
         }
-        let groups = appState.libraryExistingGroups[prefix] ?? []
+        let groups = appState.library.libraryExistingGroups[prefix] ?? []
         return groups.first(where: { $0.batchId == batchId })?.samples ?? []
     }
 
@@ -1836,19 +1836,19 @@ struct LibraryView: View {
     }
 
     private func isSelectedSearchResult(_ result: SearchResultItem) -> Bool {
-        appState.libraryActiveSelectionSource == .drawer
-            && appState.librarySelectedPrefix == result.prefix
-            && appState.librarySelectedBatchId == result.sample.batchId
-            && appState.librarySelectedSampleId == result.sample.id
+        appState.library.libraryActiveSelectionSource == .drawer
+            && appState.library.librarySelectedPrefix == result.prefix
+            && appState.library.librarySelectedBatchId == result.sample.batchId
+            && appState.library.librarySelectedSampleId == result.sample.id
     }
 
     private var selectionEntry: SelectionEntry {
         SelectionEntry(
-            source: appState.libraryActiveSelectionSource,
+            source: appState.library.libraryActiveSelectionSource,
             browserSampleId: selectedSampleId,
-            drawerPrefix: appState.librarySelectedPrefix,
-            drawerBatchId: appState.librarySelectedBatchId,
-            drawerSampleId: appState.librarySelectedSampleId
+            drawerPrefix: appState.library.librarySelectedPrefix,
+            drawerBatchId: appState.library.librarySelectedBatchId,
+            drawerSampleId: appState.library.librarySelectedSampleId
         )
     }
 

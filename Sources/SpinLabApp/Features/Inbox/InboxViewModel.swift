@@ -44,11 +44,11 @@ final class InboxViewModel {
     ) -> [SpinLabDomain.PendingImport] {
         switch fileFilter {
         case .all:
-            return appState.pendingImports
+            return appState.inbox.pendingImports
         case .libraryMatched:
-            return appState.pendingImports.filter { routePresentationByID[$0.id]?.isLibraryMatched == true }
+            return appState.inbox.pendingImports.filter { routePresentationByID[$0.id]?.isLibraryMatched == true }
         case .reviewRequired:
-            return appState.pendingImports.filter { routePresentationByID[$0.id]?.isLibraryMatched != true }
+            return appState.inbox.pendingImports.filter { routePresentationByID[$0.id]?.isLibraryMatched != true }
         }
     }
 }

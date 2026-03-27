@@ -79,15 +79,15 @@ private struct InboxOperationPanel: View {
     @State private var isPresentingClearImportsConfirm = false
 
     var body: some View {
-        @Bindable var bindableAppState = appState
+        @Bindable var bindableInbox = appState.inbox
 
         let routePresentationByID = appState.pendingRoutePresentationByID()
-        let libraryMatchedCount = appState.pendingImports.reduce(into: 0) { partial, pending in
+        let libraryMatchedCount = appState.inbox.pendingImports.reduce(into: 0) { partial, pending in
             if routePresentationByID[pending.id]?.isLibraryMatched == true {
                 partial += 1
             }
         }
-        let reviewRequiredCount = max(0, appState.pendingImports.count - libraryMatchedCount)
+        let reviewRequiredCount = max(0, appState.inbox.pendingImports.count - libraryMatchedCount)
         let filteredPendingImports = filteredPendingImports(using: routePresentationByID)
 
         ScrollView(.vertical) {
@@ -128,12 +128,12 @@ private struct InboxOperationPanel: View {
                             Button("Recompute Route") {
                                 appState.recomputeAllPendingParsedHints()
                             }
-                            .disabled(appState.pendingImports.isEmpty)
+                            .disabled(appState.inbox.pendingImports.isEmpty)
 
                             Button("Clear Imports", role: .destructive) {
                                 isPresentingClearImportsConfirm = true
                             }
-                            .disabled(appState.pendingImports.isEmpty)
+                            .disabled(appState.inbox.pendingImports.isEmpty)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -143,7 +143,7 @@ private struct InboxOperationPanel: View {
                             HStack(spacing: 10) {
                                 queueStatusCard(
                                     title: "Pending",
-                                    count: appState.pendingImports.count,
+                                    count: appState.inbox.pendingImports.count,
                                     tint: .secondary,
                                     filter: .all
                                 )
@@ -173,7 +173,7 @@ private struct InboxOperationPanel: View {
                                     .lineLimit(nil)
                                     .fixedSize(horizontal: false, vertical: true)
                             } else {
-                                List(filteredPendingImports, selection: $bindableAppState.selectedPendingImportID) { pending in
+                                List(filteredPendingImports, selection: $bindableInbox.selectedPendingImportID) { pending in
                                     let presentation = routePresentationByID[pending.id]
                                     let verdict = presentation?.verdict ?? .reviewRequired
                                     VStack(alignment: .leading, spacing: 4) {
@@ -278,11 +278,11 @@ private struct InboxOperationPanel: View {
     ) -> [SpinLabDomain.PendingImport] {
         switch fileFilter {
         case .all:
-            return appState.pendingImports
+            return appState.inbox.pendingImports
         case .libraryMatched:
-            return appState.pendingImports.filter { routePresentationByID[$0.id]?.isLibraryMatched == true }
+            return appState.inbox.pendingImports.filter { routePresentationByID[$0.id]?.isLibraryMatched == true }
         case .reviewRequired:
-            return appState.pendingImports.filter { routePresentationByID[$0.id]?.isLibraryMatched != true }
+            return appState.inbox.pendingImports.filter { routePresentationByID[$0.id]?.isLibraryMatched != true }
         }
     }
 

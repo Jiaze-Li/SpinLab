@@ -279,6 +279,10 @@ final class SpinLabAppState {
     var selectedArea: AppArea = .inbox {
         didSet { persistInteractionSnapshotIfReady() }
     }
+    var inbox: InboxFeatureStore { inboxFeatureStore }
+    var library: LibraryFeatureStore { libraryFeatureStore }
+    var workbench: WorkbenchFeatureStore { workbenchFeatureStore }
+
     var pendingImports: [SpinLabDomain.PendingImport] {
         get { inboxFeatureStore.pendingImports }
         set { inboxFeatureStore.pendingImports = newValue }
@@ -480,7 +484,7 @@ final class SpinLabAppState {
     private let inboxRepository: InboxRepository
     private let libraryRepository: LibraryRepository
     private let importPipeline: SpinLabImportPipeline
-    private let registrySubstrateRules: any RegistrySubstrateRuleProviding
+    private let archivedRecordResolverService: ArchivedRecordResolverService
     private let analysisModule: AnalysisModuleExtension
     private let viewExtension: ViewExtension
     private let managedStorage: SpinLabManagedStorage
@@ -489,8 +493,9 @@ final class SpinLabAppState {
     private let libraryFeatureStore: LibraryFeatureStore
     private let workbenchFeatureStore: WorkbenchFeatureStore
     private let appLogger = AppLogger.shared
-    private let interactionMemory: InteractionMemoryStore
+    private let interactionSnapshotCoordinator: InteractionSnapshotCoordinator
     private let dataActor: any SpinLabDataActing
+    private let registryLifecycleService = RegistryLifecycleService()
     private let coordinator = AppCoordinator()
     private let confirmPendingImportUseCase = ConfirmPendingImportUseCase()
     private let saveLibrarySampleEditsUseCase = SaveLibrarySampleEditsUseCase()
@@ -500,7 +505,7 @@ final class SpinLabAppState {
             self?.normalized(value)
         },
         metadataValueProvider: { [weak self] lookup, keys in
-            self?.metadataValue(in: lookup, keys: keys)
+            self?.archivedRecordResolverService.metadataValue(in: lookup, keys: keys)
         },
         canonicalProjectProvider: { [weak self] name in
             self?.workbenchFeatureStore.canonicalProject(named: name)
@@ -521,7 +526,11 @@ final class SpinLabAppState {
             self?.workbenchFeatureStore.canonicalDataset(forSourcePath: path)
         },
         measurementNotesProvider: { [weak self] pending, draft, lookup in
-            self?.measurementNotes(for: pending, draft: draft, registryLookup: lookup) ?? ""
+            self?.archivedRecordResolverService.measurementNotes(
+                for: pending,
+                draft: draft,
+                registryLookup: lookup
+            ) ?? ""
         },
         defaultResultSummaryProvider: { [weak self] measurement in
             self?.analysisModule.defaultResultSummary(for: measurement) ?? ""
@@ -550,7 +559,7 @@ final class SpinLabAppState {
         self.viewExtension = workflowBundle.viewExtension
         self.managedStorage = environment.managedStorage
         self.sampleRegistry = environment.sampleRegistry
-        self.registrySubstrateRules = environment.registrySubstrateRules
+        self.archivedRecordResolverService = ArchivedRecordResolverService(registrySubstrateRules: environment.registrySubstrateRules)
         self.inboxFeatureStore = InboxFeatureStore(
             inboxRepository: self.inboxRepository,
             routingCapabilities: environment.routingCapabilities,
@@ -558,7 +567,8 @@ final class SpinLabAppState {
         )
         self.libraryFeatureStore = LibraryFeatureStore()
         self.workbenchFeatureStore = WorkbenchFeatureStore(libraryRepository: self.libraryRepository)
-        self.interactionMemory = InteractionMemoryStore(persistence: environment.persistence)
+        let interactionMemory = InteractionMemoryStore(persistence: environment.persistence)
+        self.interactionSnapshotCoordinator = InteractionSnapshotCoordinator(interactionMemory: interactionMemory)
         self.dataActor = environment.dataActor
 
         if !self.sampleRegistry.isLoaded, let currentRegistryURL = environment.managedStorage.currentSampleRegistryFileURL() {
@@ -575,7 +585,7 @@ final class SpinLabAppState {
         restoreInteractionSnapshot()
         refreshPendingDrawerMatches()
         refreshLibraryBackupMessage()
-        interactionMemory.markReady()
+        interactionSnapshotCoordinator.markReady()
         persistInteractionSnapshotIfReady()
     }
 
@@ -824,18 +834,18 @@ final class SpinLabAppState {
     }
 
     func interactionValue<Value>(_ keyPath: KeyPath<SpinLabInteractionSnapshot, Value>) -> Value {
-        interactionMemory.value(keyPath)
+        interactionSnapshotCoordinator.value(keyPath)
     }
 
     func updateInteractionValue<Value>(_ keyPath: WritableKeyPath<SpinLabInteractionSnapshot, Value>, to value: Value) {
-        interactionMemory.updateValue(keyPath, to: value)
+        interactionSnapshotCoordinator.updateValue(keyPath, to: value)
     }
 
     func interactionEntryValue<Value>(
         for id: UUID,
         in keyPath: KeyPath<SpinLabInteractionSnapshot, [String: Value]>
     ) -> Value? {
-        interactionMemory.entryValue(for: snapshotDictionaryKey(for: id), in: keyPath)
+        interactionSnapshotCoordinator.entryValue(for: id, in: keyPath)
     }
 
     func updateInteractionEntryValue<Value>(
@@ -843,11 +853,7 @@ final class SpinLabAppState {
         in keyPath: WritableKeyPath<SpinLabInteractionSnapshot, [String: Value]>,
         value: Value?
     ) {
-        interactionMemory.updateEntryValue(
-            for: snapshotDictionaryKey(for: id),
-            in: keyPath,
-            value: value
-        )
+        interactionSnapshotCoordinator.updateEntryValue(for: id, in: keyPath, value: value)
     }
 
     private func snapshotDictionaryKey(for id: UUID) -> String {
@@ -855,36 +861,22 @@ final class SpinLabAppState {
     }
 
     private func restoreInteractionSnapshot() {
-        interactionMemory.restore { snapshot in
-            selectedArea = snapshot.selectedArea
-            libraryFeatureStore.restoreInteraction(
-                libraryActiveSelectionSource: snapshot.libraryActiveSelectionSource,
-                librarySelectedPrefix: snapshot.librarySelectedPrefix,
-                librarySelectedBatchId: snapshot.librarySelectedBatchId,
-                librarySelectedSampleId: snapshot.librarySelectedSampleId
-            )
-            inboxFeatureStore.restoreInteraction(
-                selectedPendingImportID: snapshot.selectedPendingImportID
-            )
-            workbenchFeatureStore.restoreInteraction(
-                selectedArchivedRecordID: snapshot.selectedArchivedRecordID,
-                workbenchResultDraft: snapshot.workbenchResultDraft
-            )
-            snapshot.inboxWorkspaceByPendingID = inboxFeatureStore.pruneWorkspaceByValidPendingIDs(
-                snapshot.inboxWorkspaceByPendingID
-            )
-            inboxFeatureStore.restoreRoutingDrafts(from: snapshot.inboxWorkspaceByPendingID)
-        }
+        interactionSnapshotCoordinator.restoreAll(
+            selectedAreaSetter: { [weak self] in self?.selectedArea = $0 },
+            inboxStore: inboxFeatureStore,
+            libraryStore: libraryFeatureStore,
+            workbenchStore: workbenchFeatureStore
+        )
         normalizeLibrarySelection()
     }
 
     private func persistInteractionSnapshotIfReady() {
-        interactionMemory.captureIfReady { snapshot in
-            snapshot.selectedArea = selectedArea
-            libraryFeatureStore.captureInteraction(into: &snapshot)
-            inboxFeatureStore.captureInteraction(into: &snapshot)
-            workbenchFeatureStore.captureInteraction(into: &snapshot)
-        }
+        interactionSnapshotCoordinator.captureAll(
+            selectedArea: selectedArea,
+            inboxStore: inboxFeatureStore,
+            libraryStore: libraryFeatureStore,
+            workbenchStore: workbenchFeatureStore
+        )
     }
 
     func importFiles(from urls: [URL]) {
@@ -949,7 +941,7 @@ final class SpinLabAppState {
     func loadSampleRegistry(from url: URL) {
         let installedURL: URL
         do {
-            installedURL = try managedStorage.installSampleRegistry(from: url)
+            installedURL = try registryLifecycleService.installRegistry(from: url, managedStorage: managedStorage)
         } catch {
             let appError = AppError.from(error, fallback: "Failed to install sample registry.")
             present(error: appError, title: "Registry Install Failed")
@@ -959,7 +951,11 @@ final class SpinLabAppState {
         let sourceURL = url
         Task {
             do {
-                let snapshot = try await dataActor.loadRegistrySnapshot(from: installedURL, previewRowCount: 10)
+                let snapshot = try await registryLifecycleService.loadSnapshot(
+                    from: installedURL,
+                    previewRowCount: 10,
+                    dataActor: dataActor
+                )
                 await MainActor.run {
                     applyLoadedRegistrySnapshot(snapshot, installedURL: installedURL, sourceURL: sourceURL)
                 }
@@ -974,20 +970,25 @@ final class SpinLabAppState {
     }
 
     func reloadSampleRegistry() {
-        let fileManager = FileManager.default
-        if let sourcePath = librarySettings.registrySourcePath,
-           fileManager.fileExists(atPath: sourcePath) {
-            loadSampleRegistry(from: URL(fileURLWithPath: sourcePath))
+        guard let fallbackURL = registryLifecycleService.resolveReloadSourceURL(
+            librarySettings: librarySettings,
+            resolveRegistrySourceURL: { [weak self] in self?.resolveRegistrySourceURL() }
+        ) else {
             return
         }
 
-        guard let fallbackURL = resolveRegistrySourceURL() else {
+        if librarySettings.registrySourcePath == fallbackURL.path {
+            loadSampleRegistry(from: fallbackURL)
             return
         }
 
         Task {
             do {
-                let snapshot = try await dataActor.loadRegistrySnapshot(from: fallbackURL, previewRowCount: 10)
+                let snapshot = try await registryLifecycleService.loadSnapshot(
+                    from: fallbackURL,
+                    previewRowCount: 10,
+                    dataActor: dataActor
+                )
                 await MainActor.run {
                     applyLoadedRegistrySnapshot(snapshot, installedURL: fallbackURL, sourceURL: nil)
                 }
@@ -2084,11 +2085,10 @@ final class SpinLabAppState {
     }
 
     private func updateRegistryPresentation() {
-        registrySourceFilePath = sampleRegistry.sourceFilePath
-        registryFileName = sampleRegistry.sourceFilePath.map { URL(fileURLWithPath: $0).lastPathComponent }
-        registryPrefixEntries = sampleRegistry.prefixToSheet
-            .map { RegistryPrefixEntry(prefix: $0.key, sheetName: $0.value) }
-            .sorted { $0.prefix < $1.prefix }
+        let presentation = registryLifecycleService.makePresentationState(from: sampleRegistry)
+        registrySourceFilePath = presentation.registrySourceFilePath
+        registryFileName = presentation.registryFileName
+        registryPrefixEntries = presentation.registryPrefixEntries
     }
 
     private func updateLibraryRegistryPaths(installedURL: URL, sourceURL: URL?) {
@@ -2342,37 +2342,7 @@ final class SpinLabAppState {
     }
 
     private func metadataValue(in lookup: SampleRegistryLookupResult?, keys: [String]) -> String? {
-        guard let lookup else {
-            return nil
-        }
-
-        let normalizedKeys = keys.map { normalizeKey($0) }
-        for (key, value) in lookup.metadata {
-            if normalizedKeys.contains(normalizeKey(key)),
-               let cleaned = normalized(value) {
-                return cleaned
-            }
-        }
-        return nil
-    }
-
-    private func normalizeKey(_ key: String) -> String {
-        key.lowercased()
-            .replacingOccurrences(of: "_", with: "")
-            .replacingOccurrences(of: " ", with: "")
-    }
-
-    private func resolvedSubstrate(
-        from lookup: SampleRegistryLookupResult,
-        substrateTags: [String],
-        allowsOriginToken: Bool
-    ) -> RegistrySubstrateResolution {
-        registrySubstrateRules.resolvedSubstrate(
-            sampleID: lookup.sampleID,
-            substrateValue: metadataValue(in: lookup, keys: ["substrate", "Substrate", "衬底"]),
-            substrateTags: substrateTags,
-            allowsOriginToken: allowsOriginToken
-        )
+        archivedRecordResolverService.metadataValue(in: lookup, keys: keys)
     }
 
     private func measurementNotes(
@@ -2380,49 +2350,20 @@ final class SpinLabAppState {
         draft: PendingImportConfirmationDraft,
         registryLookup: SampleRegistryLookupResult?
     ) -> String {
-        var lines: [String] = []
-
-        let temp = draft.temperature.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !temp.isEmpty {
-            lines.append("Measurement temperature: \(temp)")
-        }
-
-        let growthTemperature = pending.parsedHints.growthTemperature
-            ?? metadataValue(in: registryLookup, keys: ["生长温度", "Growth Temperature", "growthtemperature"])
-        if let growthTemperature {
-            lines.append("Growth temperature: \(growthTemperature)")
-        }
-
-        if let rotationHint = pending.parsedHints.rotationHint {
-            lines.append("Rotation hint: \(rotationHint)")
-        }
-
-        if let warning = substrateWarning(for: pending, registryLookup: registryLookup) {
-            lines.append("Substrate warning: \(warning)")
-        }
-
-        return lines.joined(separator: "\n")
+        archivedRecordResolverService.measurementNotes(
+            for: pending,
+            draft: draft,
+            registryLookup: registryLookup
+        )
     }
 
     private func substrateWarning(
         for pending: SpinLabDomain.PendingImport,
         registryLookup: SampleRegistryLookupResult?
     ) -> String? {
-        guard let lookup = registryLookup else {
-            return nil
-        }
-        let resolution = resolvedSubstrate(
-            from: lookup,
-            substrateTags: pending.parsedHints.substrateTags,
-            allowsOriginToken: hasStandaloneOriginToken(for: pending)
-        )
-        return resolution.warning
-    }
-
-    private func hasStandaloneOriginToken(for pending: SpinLabDomain.PendingImport) -> Bool {
-        registrySubstrateRules.hasStandaloneOriginToken(
-            fileName: pending.fileName,
-            originalFilePath: pending.originalFilePath
+        archivedRecordResolverService.substrateWarning(
+            for: pending,
+            registryLookup: registryLookup
         )
     }
 

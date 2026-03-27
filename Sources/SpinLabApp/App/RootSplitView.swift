@@ -143,8 +143,8 @@ struct RootSplitView: View {
     private var selectedSidebarNodeIDs: Set<String> {
         var selected: Set<String> = [SidebarMenuNodeID.area(appState.selectedArea)]
         if appState.selectedArea == .library,
-           let prefix = appState.librarySelectedPrefix,
-           let batchID = appState.librarySelectedBatchId {
+           let prefix = appState.library.librarySelectedPrefix,
+           let batchID = appState.library.librarySelectedBatchId {
             selected.insert(SidebarMenuNodeID.libraryBatch(prefix: prefix, batchID: batchID))
         }
         return selected
