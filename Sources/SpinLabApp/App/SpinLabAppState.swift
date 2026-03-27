@@ -313,8 +313,6 @@ final class SpinLabAppState {
         didSet { persistInteractionSnapshotIfReady() }
     }
     var pendingImports: [SpinLabDomain.PendingImport] = []
-    var archivedRecords: [SpinLabDomain.ArchivedRecord] = []
-    var projectCatalog: [SpinLabDomain.Project] = []
     var selectedPendingImportID: UUID? {
         didSet { persistInteractionSnapshotIfReady() }
     }
@@ -469,6 +467,14 @@ final class SpinLabAppState {
         get { libraryFeatureStore.libraryMetadataSyncLogMessage }
         set { libraryFeatureStore.libraryMetadataSyncLogMessage = newValue }
     }
+    var archivedRecords: [SpinLabDomain.ArchivedRecord] {
+        get { workbenchFeatureStore.archivedRecords }
+        set { workbenchFeatureStore.archivedRecords = newValue }
+    }
+    var projectCatalog: [SpinLabDomain.Project] {
+        get { workbenchFeatureStore.projectCatalog }
+        set { workbenchFeatureStore.projectCatalog = newValue }
+    }
 
     let workflow: SpinLabDomain.WorkflowKind
 
@@ -482,6 +488,7 @@ final class SpinLabAppState {
     private let managedStorage: SpinLabManagedStorage
     private var sampleRegistry: SampleRegistryIndexing
     private let libraryFeatureStore: LibraryFeatureStore
+    private let workbenchFeatureStore: WorkbenchFeatureStore
     private let appLogger = AppLogger.shared
     private let interactionMemory: InteractionMemoryStore
     private let inboxRoutingState: InboxRoutingState
@@ -495,21 +502,9 @@ final class SpinLabAppState {
     @ObservationIgnored
     private var pendingImportsProjectionTask: Task<Void, Never>?
     @ObservationIgnored
-    private var archivedRecordsProjectionTask: Task<Void, Never>?
-    @ObservationIgnored
-    private var projectCatalogProjectionTask: Task<Void, Never>?
-    @ObservationIgnored
     private var bufferedPendingImportsProjection: [SpinLabDomain.PendingImport]?
     @ObservationIgnored
-    private var bufferedArchivedRecordsProjection: [SpinLabDomain.ArchivedRecord]?
-    @ObservationIgnored
-    private var bufferedProjectCatalogProjection: [SpinLabDomain.Project]?
-    @ObservationIgnored
     private var isPendingImportsProjectionDrainScheduled = false
-    @ObservationIgnored
-    private var isArchivedRecordsProjectionDrainScheduled = false
-    @ObservationIgnored
-    private var isProjectCatalogProjectionDrainScheduled = false
     private var librarySettingsStore: LibrarySettingsStore { libraryFeatureStore.librarySettingsStore }
     private var libraryStore: LibraryStore { libraryFeatureStore.libraryStore }
     private var libraryLogger: LibraryLogger { libraryFeatureStore.libraryLogger }
@@ -536,6 +531,7 @@ final class SpinLabAppState {
         self.sampleRegistry = environment.sampleRegistry
         self.registrySubstrateRules = environment.registrySubstrateRules
         self.libraryFeatureStore = LibraryFeatureStore()
+        self.workbenchFeatureStore = WorkbenchFeatureStore(libraryRepository: self.libraryRepository)
         self.inboxRoutingState = InboxRoutingState(
             routingCapabilities: environment.routingCapabilities,
             ruleRuntime: environment.ruleRuntime
@@ -563,8 +559,6 @@ final class SpinLabAppState {
 
     deinit {
         pendingImportsProjectionTask?.cancel()
-        archivedRecordsProjectionTask?.cancel()
-        projectCatalogProjectionTask?.cancel()
     }
 
     convenience init(
@@ -704,8 +698,8 @@ final class SpinLabAppState {
 
     private func load() {
         applyPendingImportsProjection(inboxRepository.pendingImports)
-        applyArchivedRecordsProjection(libraryRepository.archivedRecords)
-        applyProjectCatalogProjection(libraryRepository.projects)
+        applyArchivedRecordsProjection(archivedRecords)
+        applyProjectCatalogProjection(projectCatalog)
         workbenchResultDraft = selectedArchivedRecord?.latestResult?.summary ?? ""
         inboxRoutingState.clearPendingState()
     }
@@ -716,19 +710,17 @@ final class SpinLabAppState {
     }
 
     private func replaceArchivedRecords(_ records: [SpinLabDomain.ArchivedRecord], persist: Bool = true) {
-        let updated = libraryRepository.replaceArchivedRecords(records, persist: persist)
+        let updated = workbenchFeatureStore.replaceArchivedRecords(records, persist: persist)
         applyArchivedRecordsProjection(updated)
     }
 
     private func replaceProjectCatalog(_ projects: [SpinLabDomain.Project], persist: Bool = true) {
-        let updated = libraryRepository.replaceProjects(projects, persist: persist)
+        let updated = workbenchFeatureStore.replaceProjectCatalog(projects, persist: persist)
         applyProjectCatalogProjection(updated)
     }
 
     private func setupRepositoryProjectionTasks() {
         pendingImportsProjectionTask?.cancel()
-        archivedRecordsProjectionTask?.cancel()
-        projectCatalogProjectionTask?.cancel()
 
         pendingImportsProjectionTask = Task { [weak self] in
             guard let self else { return }
@@ -740,25 +732,14 @@ final class SpinLabAppState {
             }
         }
 
-        archivedRecordsProjectionTask = Task { [weak self] in
-            guard let self else { return }
-            for await records in libraryRepository.archivedRecordsStream {
-                await MainActor.run {
-                    self.bufferedArchivedRecordsProjection = records
-                    self.scheduleArchivedRecordsProjectionDrainIfNeeded()
-                }
+        workbenchFeatureStore.setupProjectionTasks(
+            onArchivedRecordsProjected: { [weak self] records in
+                self?.applyArchivedRecordsProjection(records)
+            },
+            onProjectCatalogProjected: { [weak self] projects in
+                self?.applyProjectCatalogProjection(projects)
             }
-        }
-
-        projectCatalogProjectionTask = Task { [weak self] in
-            guard let self else { return }
-            for await projects in libraryRepository.projectsStream {
-                await MainActor.run {
-                    self.bufferedProjectCatalogProjection = projects
-                    self.scheduleProjectCatalogProjectionDrainIfNeeded()
-                }
-            }
-        }
+        )
     }
 
     @MainActor
@@ -767,24 +748,6 @@ final class SpinLabAppState {
             scheduledFlag: \.isPendingImportsProjectionDrainScheduled,
             bufferedValue: \.bufferedPendingImportsProjection,
             apply: applyPendingImportsProjection
-        )
-    }
-
-    @MainActor
-    private func scheduleArchivedRecordsProjectionDrainIfNeeded() {
-        scheduleProjectionDrainIfNeeded(
-            scheduledFlag: \.isArchivedRecordsProjectionDrainScheduled,
-            bufferedValue: \.bufferedArchivedRecordsProjection,
-            apply: applyArchivedRecordsProjection
-        )
-    }
-
-    @MainActor
-    private func scheduleProjectCatalogProjectionDrainIfNeeded() {
-        scheduleProjectionDrainIfNeeded(
-            scheduledFlag: \.isProjectCatalogProjectionDrainScheduled,
-            bufferedValue: \.bufferedProjectCatalogProjection,
-            apply: applyProjectCatalogProjection
         )
     }
 
