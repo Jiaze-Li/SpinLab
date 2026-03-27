@@ -280,6 +280,7 @@ final class SpinLabAppState {
         didSet { persistInteractionSnapshotIfReady() }
     }
     var inbox: InboxFeatureStore { inboxFeatureStore }
+    var registry: RegistryFeatureStore { registryFeatureStore }
     var library: LibraryFeatureStore { libraryFeatureStore }
     var workbench: WorkbenchFeatureStore { workbenchFeatureStore }
 
@@ -294,9 +295,18 @@ final class SpinLabAppState {
             persistInteractionSnapshotIfReady()
         }
     }
-    private(set) var registryFileName: String?
-    private(set) var registrySourceFilePath: String?
-    private(set) var registryPrefixEntries: [RegistryPrefixEntry] = []
+    private(set) var registryFileName: String? {
+        get { registryFeatureStore.registryFileName }
+        set { registryFeatureStore.registryFileName = newValue }
+    }
+    private(set) var registrySourceFilePath: String? {
+        get { registryFeatureStore.registrySourceFilePath }
+        set { registryFeatureStore.registrySourceFilePath = newValue }
+    }
+    private(set) var registryPrefixEntries: [RegistryPrefixEntry] {
+        get { registryFeatureStore.registryPrefixEntries }
+        set { registryFeatureStore.registryPrefixEntries = newValue }
+    }
     var routingRuleVersion: Int { inboxFeatureStore.routingRuleVersion }
     var routingRuleSourceLabel: String { inboxFeatureStore.routingRuleSourceLabel }
     var routingRuleSourcePath: String { inboxFeatureStore.routingRuleSourcePath }
@@ -490,6 +500,7 @@ final class SpinLabAppState {
     private let managedStorage: SpinLabManagedStorage
     private var sampleRegistry: SampleRegistryIndexing
     private let inboxFeatureStore: InboxFeatureStore
+    private let registryFeatureStore: RegistryFeatureStore
     private let libraryFeatureStore: LibraryFeatureStore
     private let workbenchFeatureStore: WorkbenchFeatureStore
     private let appLogger = AppLogger.shared
@@ -565,6 +576,7 @@ final class SpinLabAppState {
             routingCapabilities: environment.routingCapabilities,
             ruleRuntime: environment.ruleRuntime
         )
+        self.registryFeatureStore = RegistryFeatureStore()
         self.libraryFeatureStore = LibraryFeatureStore()
         self.workbenchFeatureStore = WorkbenchFeatureStore(libraryRepository: self.libraryRepository)
         let interactionMemory = InteractionMemoryStore(persistence: environment.persistence)
@@ -881,41 +893,32 @@ final class SpinLabAppState {
 
     func importFiles(from urls: [URL]) {
         let existingOriginalPaths = existingImportedOriginalPaths()
-        let managedFiles = managedStorage.importMeasurementFiles(
+        let imported = inboxFeatureStore.importFiles(
             from: urls,
-            allowedFileExtensions: importPipeline.supportedFileExtensions,
-            ignoredFileExtensions: importPipeline.ignoredFileExtensions,
+            managedStorage: managedStorage,
+            importPipeline: importPipeline,
             excludedOriginalFilePaths: existingOriginalPaths
         )
-        let imported = importPipeline.importFiles(managedFiles)
         guard !imported.isEmpty else {
             return
         }
-
-        var nextPendingImports = pendingImports
-        nextPendingImports.insert(contentsOf: imported, at: 0)
-        refreshPendingDrawerMatches(for: imported.map(\.id))
-        replacePendingImports(nextPendingImports)
+        syncInboxWorkspaceToPendingImports()
+        persistInteractionSnapshotIfReady()
         selectedPendingImportID = imported.first?.id
         selectedArea = .inbox
     }
 
     func clearPendingImports() {
-        let clearedPendingImports: [SpinLabDomain.PendingImport] = []
-        selectedPendingImportID = nil
-        inboxFeatureStore.clearPendingState()
+        inboxFeatureStore.clearPendingImports()
         updateInteractionValue(\.inboxWorkspaceByPendingID, to: [:])
-        replacePendingImports(clearedPendingImports)
+        persistInteractionSnapshotIfReady()
     }
 
     func recomputeAllPendingParsedHints() {
         refreshRoutingRuleMetadata(forceReload: true)
-        let recomputedPendingImports = pendingImports.map { pending in
-            var next = pending
-            next.parsedHints = recomputedParsedHints(for: pending)
-            return next
+        let recomputedPendingImports = inboxFeatureStore.recomputeAllPendingParsedHints { [weak self] pending in
+            self?.recomputedParsedHints(for: pending) ?? pending.parsedHints
         }
-        inboxFeatureStore.clearPendingState()
 
         var updatedWorkspaceByPendingID: [String: InboxPendingWorkspaceState] = [:]
         let existingWorkspaceByPendingID = interactionValue(\.inboxWorkspaceByPendingID)
@@ -932,9 +935,7 @@ final class SpinLabAppState {
             )
         }
         updateInteractionValue(\.inboxWorkspaceByPendingID, to: updatedWorkspaceByPendingID)
-
-        refreshPendingDrawerMatches()
-        replacePendingImports(recomputedPendingImports)
+        persistInteractionSnapshotIfReady()
         bumpAppStateRevision()
     }
 
@@ -1913,12 +1914,10 @@ final class SpinLabAppState {
             }
         }
 
-        let result = confirmPendingImportUseCase.execute(
-            input: ConfirmPendingImportUseCase.Input(
-                pending: pending,
-                draft: draft
-            ),
-            inboxRepository: inboxRepository,
+        let result = inboxFeatureStore.confirmPendingImport(
+            pending: pending,
+            draft: draft,
+            useCase: confirmPendingImportUseCase,
             libraryRepository: libraryRepository,
             makeArchivedRecord: { pending, draft in
                 let lookup = self.registryLookup(for: pending)
@@ -1938,8 +1937,6 @@ final class SpinLabAppState {
         }
 
         applyArchivedRecordsProjection(output.archivedRecords)
-        applyPendingImportsProjection(output.pendingImports)
-        inboxFeatureStore.clearRoutingData(for: pending.id)
         updateInteractionEntryValue(for: pending.id, in: \.inboxWorkspaceByPendingID, value: nil)
 
         let route = coordinator.routeAfterPendingConfirmation(
@@ -2086,9 +2083,7 @@ final class SpinLabAppState {
 
     private func updateRegistryPresentation() {
         let presentation = registryLifecycleService.makePresentationState(from: sampleRegistry)
-        registrySourceFilePath = presentation.registrySourceFilePath
-        registryFileName = presentation.registryFileName
-        registryPrefixEntries = presentation.registryPrefixEntries
+        registryFeatureStore.applyPresentation(presentation)
     }
 
     private func updateLibraryRegistryPaths(installedURL: URL, sourceURL: URL?) {

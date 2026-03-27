@@ -69,6 +69,12 @@ final class InboxFeatureStore {
         inboxRoutingState.clearPendingState()
     }
 
+    func clearPendingImports() {
+        selectedPendingImportID = nil
+        clearPendingState()
+        _ = replacePendingImports([])
+    }
+
     func clearRoutingData(for pendingID: UUID) {
         inboxRoutingState.clearRoutingData(for: pendingID)
     }
@@ -77,6 +83,45 @@ final class InboxFeatureStore {
         let updated = inboxRepository.replacePendingImports(imports, persist: persist)
         applyPendingImportsProjection(updated)
         return updated
+    }
+
+    func importFiles(
+        from urls: [URL],
+        managedStorage: SpinLabManagedStorage,
+        importPipeline: SpinLabImportPipeline,
+        excludedOriginalFilePaths: Set<String>
+    ) -> [SpinLabDomain.PendingImport] {
+        let managedFiles = managedStorage.importMeasurementFiles(
+            from: urls,
+            allowedFileExtensions: importPipeline.supportedFileExtensions,
+            ignoredFileExtensions: importPipeline.ignoredFileExtensions,
+            excludedOriginalFilePaths: excludedOriginalFilePaths
+        )
+        let imported = importPipeline.importFiles(managedFiles)
+        guard !imported.isEmpty else {
+            return []
+        }
+
+        var nextPendingImports = pendingImports
+        nextPendingImports.insert(contentsOf: imported, at: 0)
+        refreshPendingDrawerMatches(for: imported.map(\.id))
+        _ = replacePendingImports(nextPendingImports)
+        selectedPendingImportID = imported.first?.id
+        return imported
+    }
+
+    func recomputeAllPendingParsedHints(
+        recomputeParsedHints: (SpinLabDomain.PendingImport) -> SpinLabDomain.ParsedFilenameHints
+    ) -> [SpinLabDomain.PendingImport] {
+        let recomputedPendingImports = pendingImports.map { pending in
+            var next = pending
+            next.parsedHints = recomputeParsedHints(pending)
+            return next
+        }
+        clearPendingState()
+        refreshPendingDrawerMatches()
+        _ = replacePendingImports(recomputedPendingImports)
+        return recomputedPendingImports
     }
 
     func projectPendingImports(_ imports: [SpinLabDomain.PendingImport]) {
@@ -164,6 +209,30 @@ final class InboxFeatureStore {
             for: pendingID,
             pendingImports: pendingImports
         )
+    }
+
+    func confirmPendingImport(
+        pending: SpinLabDomain.PendingImport,
+        draft: PendingImportConfirmationDraft,
+        useCase: ConfirmPendingImportUseCase,
+        libraryRepository: LibraryRepository,
+        makeArchivedRecord: (SpinLabDomain.PendingImport, PendingImportConfirmationDraft) -> SpinLabDomain.ArchivedRecord
+    ) -> Result<ConfirmPendingImportUseCase.Output, AppError> {
+        let result = useCase.execute(
+            input: ConfirmPendingImportUseCase.Input(
+                pending: pending,
+                draft: draft
+            ),
+            inboxRepository: inboxRepository,
+            libraryRepository: libraryRepository,
+            makeArchivedRecord: makeArchivedRecord
+        )
+
+        if case let .success(output) = result {
+            projectPendingImports(output.pendingImports)
+            clearRoutingData(for: pending.id)
+        }
+        return result
     }
 
     @discardableResult

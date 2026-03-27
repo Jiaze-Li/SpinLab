@@ -103,7 +103,7 @@ private struct InboxOperationPanel: View {
 
                 operationBox("Registry", isExpanded: $isImportSourceExpanded) {
                     VStack(alignment: .leading, spacing: 8) {
-                        MetadataValueRow(label: "Registry Path", value: appState.registrySourceFilePath ?? "Not loaded", monospaced: true)
+                        MetadataValueRow(label: "Registry Path", value: appState.registry.registrySourceFilePath ?? "Not loaded", monospaced: true)
                         HStack {
                             Button("Load Registry") {
                                 presentSampleRegistryPanel()
@@ -721,28 +721,28 @@ private struct RegistryStatusColumn: View {
         VStack(alignment: .leading, spacing: 0) {
             InboxColumnHeader(
                 title: "Registry",
-                subtitle: appState.registryFileName ?? "No registry loaded"
+                subtitle: appState.registry.registryFileName ?? "No registry loaded"
             )
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     GroupBox("Current Registry") {
                         VStack(alignment: .leading, spacing: 10) {
-                            MetadataValueRow(label: "File", value: appState.registryFileName ?? "Not loaded")
-                            MetadataValueRow(label: "Path", value: appState.registrySourceFilePath ?? "Not loaded", monospaced: true)
+                            MetadataValueRow(label: "File", value: appState.registry.registryFileName ?? "Not loaded")
+                            MetadataValueRow(label: "Path", value: appState.registry.registrySourceFilePath ?? "Not loaded", monospaced: true)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
                     GroupBox("Prefix -> Sheet") {
                         VStack(alignment: .leading, spacing: 8) {
-                            if appState.registryPrefixEntries.isEmpty {
+                            if appState.registry.registryPrefixEntries.isEmpty {
                                 Text("No registry loaded.")
                                     .foregroundStyle(.secondary)
                                     .lineLimit(nil)
                                     .fixedSize(horizontal: false, vertical: true)
                             } else {
-                                ForEach(appState.registryPrefixEntries) { entry in
+                                ForEach(appState.registry.registryPrefixEntries) { entry in
                                     GroupBox {
                                         VStack(alignment: .leading, spacing: 8) {
                                             MetadataValueRow(label: "Prefix", value: entry.prefix)

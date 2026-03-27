@@ -13,7 +13,7 @@ final class LibraryViewModel {
             return LibraryViewState()
         }
         return LibraryViewState(
-            registrySourcePath: appState.library.librarySettings.registrySourcePath ?? appState.registrySourceFilePath,
+            registrySourcePath: appState.library.librarySettings.registrySourcePath ?? appState.registry.registrySourceFilePath,
             libraryRootPath: appState.library.librarySettings.rootPath,
             backupPath: appState.library.librarySettings.backupPath,
             allowedBatchPrefixesText: appState.library.librarySettings.allowedBatchPrefixes.joined(separator: ", "),
