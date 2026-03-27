@@ -132,11 +132,34 @@ final class LocalJSONPersistence: SpinLabPersistence {
             return nil
         }
 
-        guard let data = try? Data(contentsOf: fileURL) else {
+        let data: Data
+        do {
+            data = try Data(contentsOf: fileURL)
+        } catch {
+            AppLogger.shared.error(
+                .system,
+                "Failed to read JSON payload",
+                metadata: [
+                    "target": fileURL.lastPathComponent,
+                    "reason": error.localizedDescription
+                ]
+            )
             return nil
         }
 
-        return try? decoder.decode(T.self, from: data)
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            AppLogger.shared.error(
+                .system,
+                "Failed to decode JSON payload",
+                metadata: [
+                    "target": fileURL.lastPathComponent,
+                    "reason": error.localizedDescription
+                ]
+            )
+            return nil
+        }
     }
 
     private func writeJSON<T: Encodable>(_ value: T, to fileURL: URL) {

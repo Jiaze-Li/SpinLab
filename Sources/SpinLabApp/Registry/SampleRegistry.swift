@@ -133,18 +133,34 @@ final class XLSXPrefixSampleRegistryIndex: SampleRegistryIndexing {
     }
 
     static func fromEnvironment(previewRowCount: Int = 10) -> SampleRegistryIndexing {
+        let logger = AppLogger.shared
         guard let xlsxURL = registryFileURLFromEnvironment() else {
             return SnapshotSampleRegistryIndex(snapshot: .empty())
         }
 
-        guard let index = try? XLSXPrefixSampleRegistryIndex(xlsxURL: xlsxURL, previewRowCount: previewRowCount) else {
+        let index: XLSXPrefixSampleRegistryIndex
+        do {
+            index = try XLSXPrefixSampleRegistryIndex(xlsxURL: xlsxURL, previewRowCount: previewRowCount)
+        } catch {
+            logger.error(.import, "Failed to load sample registry from environment", metadata: [
+                "path": xlsxURL.path,
+                "reason": error.localizedDescription
+            ])
             return SnapshotSampleRegistryIndex(snapshot: .empty(sourceFilePath: xlsxURL.path))
         }
         return SnapshotSampleRegistryIndex(snapshot: index.snapshot)
     }
 
     static func fromFileURL(_ xlsxURL: URL, previewRowCount: Int = 10) -> SampleRegistryIndexing {
-        guard let index = try? XLSXPrefixSampleRegistryIndex(xlsxURL: xlsxURL, previewRowCount: previewRowCount) else {
+        let logger = AppLogger.shared
+        let index: XLSXPrefixSampleRegistryIndex
+        do {
+            index = try XLSXPrefixSampleRegistryIndex(xlsxURL: xlsxURL, previewRowCount: previewRowCount)
+        } catch {
+            logger.error(.import, "Failed to load sample registry from file URL", metadata: [
+                "path": xlsxURL.path,
+                "reason": error.localizedDescription
+            ])
             return SnapshotSampleRegistryIndex(snapshot: .empty(sourceFilePath: xlsxURL.path))
         }
         return SnapshotSampleRegistryIndex(snapshot: index.snapshot)

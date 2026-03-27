@@ -22,6 +22,7 @@ final class LibraryStore {
     }
 
     private let fileManager = FileManager.default
+    private let logger = AppLogger.shared
     private let xlsxSyncService = LibraryXLSXSyncService()
     private var directoryEntriesCache: [String: DirectoryEntriesCacheEntry] = [:]
     private var decodedBatchCache: [String: DecodedBatchCacheEntry] = [:]
@@ -50,12 +51,29 @@ final class LibraryStore {
         guard fileManager.fileExists(atPath: url.path) else {
             return nil
         }
-        guard let data = try? Data(contentsOf: url) else {
+
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            logger.error(.library, "Failed to read library index", metadata: [
+                "path": url.path,
+                "reason": error.localizedDescription
+            ])
             return nil
         }
+
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return try? decoder.decode(LibraryIndex.self, from: data)
+        do {
+            return try decoder.decode(LibraryIndex.self, from: data)
+        } catch {
+            logger.error(.library, "Failed to decode library index", metadata: [
+                "path": url.path,
+                "reason": error.localizedDescription
+            ])
+            return nil
+        }
     }
 
     func syncIndexFromFilesystem(rootURL: URL) -> LibraryIndex {
@@ -113,10 +131,26 @@ final class LibraryStore {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(index) else {
+
+        let data: Data
+        do {
+            data = try encoder.encode(index)
+        } catch {
+            logger.error(.library, "Failed to encode library index", metadata: [
+                "path": url.path,
+                "reason": error.localizedDescription
+            ])
             return
         }
-        try? data.write(to: url, options: .atomic)
+        do {
+            try data.write(to: url, options: .atomic)
+        } catch {
+            logger.error(.library, "Failed to persist library index", metadata: [
+                "path": url.path,
+                "reason": error.localizedDescription
+            ])
+            return
+        }
         invalidateNodeCache(at: url)
         invalidateNodeCache(at: url.deletingLastPathComponent())
     }
@@ -660,8 +694,16 @@ final class LibraryStore {
                 continue
             }
 
-            try? fileManager.createDirectory(at: targetPrefixURL, withIntermediateDirectories: true)
-            try? fileManager.moveItem(at: entry, to: targetBatchURL)
+            do {
+                try fileManager.createDirectory(at: targetPrefixURL, withIntermediateDirectories: true)
+                try fileManager.moveItem(at: entry, to: targetBatchURL)
+            } catch {
+                logger.error(.library, "Failed to migrate legacy batch layout", metadata: [
+                    "source": entry.path,
+                    "target": targetBatchURL.path,
+                    "reason": error.localizedDescription
+                ])
+            }
         }
     }
 

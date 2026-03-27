@@ -97,10 +97,14 @@ struct RuleLoader {
         }
 
         let url = URL(fileURLWithPath: path)
-        guard let data = try? Data(contentsOf: url) else {
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
             logger.info(.import, "Rule cache invalidated because source file cannot be read", metadata: [
                 "path": path,
-                "cachedFingerprint": cached.metadata.fingerprint
+                "cachedFingerprint": cached.metadata.fingerprint,
+                "reason": error.localizedDescription
             ])
             return true
         }
