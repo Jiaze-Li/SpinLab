@@ -104,6 +104,42 @@ struct V210ImportAndParseTests {
         #expect(parsed.warnings.contains(where: { $0.lowercased().contains("conflict") }))
     }
 
+    @Test("parser score arbitration selects unique winner when no single-source shortcut applies")
+    func parserSelectsUniqueScoreArbitrationWinner() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_1mA_PN40_PN41_ch1_PN40_ch2_PN41_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.defaultSampleKey == "PN40")
+        #expect(!parsed.warnings.contains(where: { $0.lowercased().contains("ambiguous") }))
+    }
+
+    @Test("parser leaves default sample empty when top score arbitration ties")
+    func parserLeavesDefaultSampleEmptyOnArbitrationTie() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/misc/RT_1mA_PN40_PN41_ch1_PN40_ch2_PN41_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.defaultSampleKey == nil)
+        #expect(parsed.warnings.contains(where: { $0.lowercased().contains("arbitration is ambiguous") }))
+    }
+
+    @Test("parser emits score-fallback warning when low-confidence channel-only winner is chosen")
+    func parserEmitsScoreFallbackWarningForLowConfidenceWinner() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/misc/RT_1mA_ch1_PN40_ch2_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.defaultSampleKey == "PN40")
+        #expect(parsed.warnings.contains(where: { $0.lowercased().contains("score fallback") }))
+    }
+
     @Test("parser falls back to file stem when no workflow token is detected")
     func parserFallsBackToFileStemWithoutWorkflowMatch() throws {
         let ruleSet = try loadBundledRuleSetForTests()

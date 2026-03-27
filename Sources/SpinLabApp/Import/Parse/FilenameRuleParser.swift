@@ -3,6 +3,18 @@ import Foundation
 struct FilenameRuleParser {
     let ruleSet: FilenameRuleSet
 
+    private enum SampleKeySource: String {
+        case file = "file"
+        case folder = "folder"
+        case channel = "channel"
+        case scoreFallback = "score-fallback"
+    }
+
+    private struct SampleKeyResolution {
+        var key: String?
+        var warnings: [String]
+    }
+
     init(ruleSet: FilenameRuleSet) {
         self.ruleSet = ruleSet
     }
@@ -38,13 +50,15 @@ struct FilenameRuleParser {
         let measurementTags = uniquePreservingOrder(ruleSet.measurementTags(from: contextTokens))
         let substrateTags = uniquePreservingOrder(ruleSet.substrateTags(from: contextTokens))
         let channelHints = channelHints(from: fileTokens)
-        let defaultSampleKey = defaultSampleKey(
+        let defaultSampleResolution = resolveDefaultSampleKey(
             fileSampleIDs: fileSampleIDs,
             folderSampleIDs: folderSampleIDs,
             channelHints: channelHints
         )
+        let defaultSampleKey = defaultSampleResolution.key
         let warnings = uniquePreservingOrder(
             ruleSet.loadWarnings
+                + defaultSampleResolution.warnings
                 + conflictWarnings(fileSampleIDs: fileSampleIDs, folderSampleIDs: folderSampleIDs)
         )
 
@@ -159,24 +173,105 @@ struct FilenameRuleParser {
         return !ruleSet.substrateTags(from: [token]).isEmpty
     }
 
-    private func defaultSampleKey(
+    private func resolveDefaultSampleKey(
         fileSampleIDs: [String],
         folderSampleIDs: [String],
         channelHints: [SpinLabDomain.ParsedChannelHint]
-    ) -> String? {
+    ) -> SampleKeyResolution {
         if fileSampleIDs.count == 1 {
-            return fileSampleIDs[0]
+            return SampleKeyResolution(
+                key: fileSampleIDs[0],
+                warnings: []
+            )
         }
 
         if fileSampleIDs.isEmpty, folderSampleIDs.count == 1 {
-            return folderSampleIDs[0]
+            return SampleKeyResolution(
+                key: folderSampleIDs[0],
+                warnings: []
+            )
         }
 
         if channelHints.count == 1 {
-            return channelHints[0].sampleID
+            return SampleKeyResolution(
+                key: channelHints[0].sampleID,
+                warnings: []
+            )
         }
 
-        return nil
+        let nonEmptyChannelSampleIDs = channelHints
+            .compactMap { normalized($0.sampleID) }
+        let scored = scoredSampleCandidates(
+            fileSampleIDs: fileSampleIDs,
+            folderSampleIDs: folderSampleIDs,
+            channelSampleIDs: nonEmptyChannelSampleIDs
+        )
+        guard !scored.isEmpty else {
+            return SampleKeyResolution(key: nil, warnings: [])
+        }
+
+        let topScore = scored.first?.score ?? 0
+        let topCandidates = scored.filter { $0.score == topScore }
+        if topCandidates.count != 1 {
+            return SampleKeyResolution(
+                key: nil,
+                warnings: [
+                    "Sample key arbitration is ambiguous (\(topCandidates.map(\.sampleID).joined(separator: ", "))); default sample key left empty."
+                ]
+            )
+        }
+
+        let winner = topCandidates[0]
+        var warnings: [String] = []
+        if winner.score < 100 {
+            let sourceSummary = winner.sources.map(\.rawValue).sorted().joined(separator: "/")
+            warnings.append(
+                "Default sample key \(winner.sampleID) was selected via score fallback (\(winner.score)) from \(sourceSummary). Please review."
+            )
+        }
+        return SampleKeyResolution(
+            key: winner.sampleID,
+            warnings: warnings
+        )
+    }
+
+    private func scoredSampleCandidates(
+        fileSampleIDs: [String],
+        folderSampleIDs: [String],
+        channelSampleIDs: [String]
+    ) -> [(sampleID: String, score: Int, sources: Set<SampleKeySource>)] {
+        var scoreBySampleID: [String: Int] = [:]
+        var sourcesBySampleID: [String: Set<SampleKeySource>] = [:]
+
+        for sampleID in fileSampleIDs {
+            scoreBySampleID[sampleID, default: 0] += 100
+            sourcesBySampleID[sampleID, default: []].insert(.file)
+        }
+        for sampleID in folderSampleIDs {
+            scoreBySampleID[sampleID, default: 0] += 60
+            sourcesBySampleID[sampleID, default: []].insert(.folder)
+        }
+        for sampleID in channelSampleIDs {
+            scoreBySampleID[sampleID, default: 0] += 45
+            sourcesBySampleID[sampleID, default: []].insert(.channel)
+        }
+
+        return scoreBySampleID
+            .map { (sampleID: $0.key, score: $0.value, sources: sourcesBySampleID[$0.key] ?? [.scoreFallback]) }
+            .sorted { lhs, rhs in
+                if lhs.score == rhs.score {
+                    return lhs.sampleID < rhs.sampleID
+                }
+                return lhs.score > rhs.score
+            }
+    }
+
+    private func normalized(_ value: String?) -> String? {
+        guard let value else {
+            return nil
+        }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func defaultSampleName(defaultSampleKey: String?, substrateTags: [String]) -> String? {
