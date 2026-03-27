@@ -5,6 +5,31 @@ struct LibraryActionablePreviewState {
     var message: String
 }
 
+struct PrepareLibrarySyncReviewPlan {
+    var rootURL: URL
+    var baselineIndex: LibraryIndex
+    var diff: LibraryDiff
+    var review: LibraryRefreshReview
+    var message: String
+}
+
+enum PrepareLibrarySyncReviewResult {
+    case failure(message: String)
+    case success(PrepareLibrarySyncReviewPlan)
+}
+
+struct RefreshLibraryIncrementalPlan {
+    var rootURL: URL
+    var preview: LibraryPreview
+    var diff: LibraryDiff
+    var message: String
+}
+
+enum RefreshLibraryIncrementalResult {
+    case failure(message: String)
+    case success(RefreshLibraryIncrementalPlan)
+}
+
 struct LibraryMutationOrchestrator {
     func diffAgainstExisting(
         previewIndex: LibraryIndex,
@@ -54,6 +79,66 @@ struct LibraryMutationOrchestrator {
         return LibraryActionablePreviewState(
             groups: groups,
             message: "Sync diff loaded: \(actionable.samples.count) actionable (\(newCount) new, \(changedCount) changed, \(removedCount) removed)"
+        )
+    }
+
+    func prepareLibrarySyncReview(
+        preview: LibraryPreview?,
+        rootPath: String?,
+        precomputedDiff: LibraryDiff?,
+        libraryStore: LibraryStore,
+        libraryDiffEngine: LibraryDiffEngine,
+        librarySyncService: LibrarySyncService
+    ) -> PrepareLibrarySyncReviewResult {
+        guard let preview else {
+            return .failure(message: "Load the registry preview first.")
+        }
+        guard let rootPath else {
+            return .failure(message: "Select a Library Root first.")
+        }
+
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let baselineIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+        let diff = precomputedDiff ?? libraryDiffEngine.diff(current: baselineIndex, updated: preview.index)
+        let review = librarySyncService.makeReview(diff: diff)
+        let message = "Sync review prepared: \(diff.newSamples.count) new, \(diff.changedSamples.count) changed, \(diff.removedSamples.count) removed."
+
+        return .success(
+            PrepareLibrarySyncReviewPlan(
+                rootURL: rootURL,
+                baselineIndex: baselineIndex,
+                diff: diff,
+                review: review,
+                message: message
+            )
+        )
+    }
+
+    func planIncrementalRefresh(
+        preview: LibraryPreview?,
+        rootPath: String?,
+        libraryStore: LibraryStore,
+        librarySyncService: LibrarySyncService
+    ) -> RefreshLibraryIncrementalResult {
+        guard let preview else {
+            return .failure(message: "Load the registry preview first.")
+        }
+        guard let rootPath else {
+            return .failure(message: "Select a Library Root first.")
+        }
+
+        let rootURL = URL(fileURLWithPath: rootPath)
+        libraryStore.ensureRoot(at: rootURL)
+        let (_, diff) = librarySyncService.diff(rootURL: rootURL, previewIndex: preview.index)
+        let message = "Registry aligned: \(diff.newSamples.count) new, \(diff.changedSamples.count) changed, \(diff.removedSamples.count) removed, \(diff.changedBatches.count) batch updates, \(diff.removedBatches.count) batch removals."
+
+        return .success(
+            RefreshLibraryIncrementalPlan(
+                rootURL: rootURL,
+                preview: preview,
+                diff: diff,
+                message: message
+            )
         )
     }
 }

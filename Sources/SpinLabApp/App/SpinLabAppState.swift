@@ -1458,46 +1458,48 @@ final class SpinLabAppState {
         libraryDrawerError = nil
         libraryDrawerMessage = nil
 
-        guard let preview = libraryPreview else {
-            libraryDrawerError = "Load the registry preview first."
-            return
+        let result = libraryMutationOrchestrator.prepareLibrarySyncReview(
+            preview: libraryPreview,
+            rootPath: librarySettings.rootPath,
+            precomputedDiff: precomputedDiff,
+            libraryStore: libraryStore,
+            libraryDiffEngine: libraryDiffEngine,
+            librarySyncService: librarySyncService
+        )
+        switch result {
+        case let .failure(message):
+            libraryDrawerError = message
+        case let .success(plan):
+            libraryRefreshReview = plan.review
+            refreshSyncChangeIndicators()
+            refreshActionablePreviewGroups(precomputedDiff: plan.diff, baselineIndex: plan.baselineIndex)
+            libraryDrawerMessage = plan.message
         }
-        guard let rootPath = librarySettings.rootPath else {
-            libraryDrawerError = "Select a Library Root first."
-            return
-        }
-
-        let rootURL = URL(fileURLWithPath: rootPath)
-        let baselineIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
-        let diff = precomputedDiff ?? libraryDiffEngine.diff(current: baselineIndex, updated: preview.index)
-        libraryRefreshReview = librarySyncService.makeReview(diff: diff)
-        refreshSyncChangeIndicators()
-        refreshActionablePreviewGroups(precomputedDiff: diff, baselineIndex: baselineIndex)
-
-        libraryDrawerMessage = "Sync review prepared: \(diff.newSamples.count) new, \(diff.changedSamples.count) changed, \(diff.removedSamples.count) removed."
     }
 
     func refreshLibraryIncremental() {
         libraryDrawerError = nil
         libraryDrawerMessage = nil
 
-        guard let preview = libraryPreview else {
-            libraryDrawerError = "Load the registry preview first."
+        let planResult = libraryMutationOrchestrator.planIncrementalRefresh(
+            preview: libraryPreview,
+            rootPath: librarySettings.rootPath,
+            libraryStore: libraryStore,
+            librarySyncService: librarySyncService
+        )
+        let plan: RefreshLibraryIncrementalPlan
+        switch planResult {
+        case let .failure(message):
+            libraryDrawerError = message
             return
-        }
-        guard let rootPath = librarySettings.rootPath else {
-            libraryDrawerError = "Select a Library Root first."
-            return
+        case let .success(value):
+            plan = value
         }
 
-        let rootURL = URL(fileURLWithPath: rootPath)
-        libraryStore.ensureRoot(at: rootURL)
-        let (_, diff) = librarySyncService.diff(rootURL: rootURL, previewIndex: preview.index)
-        librarySyncService.applyAll(preview: preview, rootURL: rootURL, settings: librarySettings)
+        librarySyncService.applyAll(preview: plan.preview, rootURL: plan.rootURL, settings: librarySettings)
         // Recompute post-apply state from persisted filesystem/index; do not reuse pre-apply diff.
-        commitLibraryMutation(rootURL: rootURL, previewIndex: preview.index)
-
-        libraryDrawerMessage = "Registry aligned: \(diff.newSamples.count) new, \(diff.changedSamples.count) changed, \(diff.removedSamples.count) removed, \(diff.changedBatches.count) batch updates, \(diff.removedBatches.count) batch removals."
+        commitLibraryMutation(rootURL: plan.rootURL, previewIndex: plan.preview.index)
+        libraryDrawerMessage = plan.message
     }
 
     func confirmLibraryNumericRefreshChanges() {
