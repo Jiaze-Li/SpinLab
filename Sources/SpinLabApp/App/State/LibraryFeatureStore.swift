@@ -4,6 +4,11 @@ import Observation
 @MainActor
 @Observable
 final class LibraryFeatureStore {
+    struct MutationCommitContext {
+        var rootURL: URL
+        var previewIndex: LibraryIndex?
+    }
+
     enum SaveLibrarySampleEditsOutcome {
         case success(rootURLForCommit: URL?, nonFatalError: AppError?, message: String)
         case failure(AppError)
@@ -161,6 +166,170 @@ final class LibraryFeatureStore {
         return .apply(totalChanges: review.totalChangesCount)
     }
 
+    func applySyncChangeIndicators(_ indicators: LibrarySyncChangeIndicators) {
+        libraryBatchSyncStatusByID = indicators.batchStatusByID
+        librarySampleSyncChangesByID = indicators.sampleChangesByID
+        libraryBatchSyncChangesByID = indicators.batchChangesByID
+    }
+
+    func refreshSyncChangeIndicators(using mutationService: LibraryMutationService) {
+        applySyncChangeIndicators(
+            mutationService.makeSyncChangeIndicators(review: libraryRefreshReview)
+        )
+    }
+
+    func prepareLibrarySyncReview(
+        mutationService: LibraryMutationService,
+        orchestrator: LibraryMutationOrchestrator,
+        precomputedDiff: LibraryDiff? = nil
+    ) -> (diff: LibraryDiff, baselineIndex: LibraryIndex)? {
+        libraryDrawerError = nil
+        libraryDrawerMessage = nil
+
+        let result = mutationService.prepareSyncReview(
+            preview: libraryPreview,
+            rootPath: librarySettings.rootPath,
+            precomputedDiff: precomputedDiff,
+            libraryStore: libraryStore,
+            libraryDiffEngine: libraryDiffEngine,
+            librarySyncService: librarySyncService,
+            orchestrator: orchestrator
+        )
+
+        switch result {
+        case let .failure(message):
+            libraryDrawerError = message
+            return nil
+        case let .success(review, diff, baselineIndex, message, indicators):
+            libraryRefreshReview = review
+            applySyncChangeIndicators(indicators)
+            libraryDrawerMessage = message
+            return (diff: diff, baselineIndex: baselineIndex)
+        }
+    }
+
+    func refreshLibraryIncremental(
+        mutationService: LibraryMutationService,
+        orchestrator: LibraryMutationOrchestrator
+    ) -> MutationCommitContext? {
+        libraryDrawerError = nil
+        libraryDrawerMessage = nil
+
+        switch mutationService.refreshIncremental(
+            libraryStore: libraryStore,
+            librarySyncService: librarySyncService,
+            orchestrator: orchestrator,
+            preview: libraryPreview,
+            rootPath: librarySettings.rootPath,
+            settings: librarySettings
+        ) {
+        case let .failure(message):
+            libraryDrawerError = message
+            return nil
+        case let .success(rootURL, previewIndex, message):
+            libraryDrawerMessage = message
+            return MutationCommitContext(rootURL: rootURL, previewIndex: previewIndex)
+        }
+    }
+
+    func confirmLibraryNumericRefreshChanges(
+        mutationService: LibraryMutationService
+    ) -> Bool {
+        libraryDrawerError = nil
+        libraryDrawerMessage = nil
+
+        switch mutationService.confirmNumericRefreshChanges(
+            review: libraryRefreshReview,
+            preview: libraryPreview,
+            rootPath: librarySettings.rootPath,
+            settings: librarySettings,
+            libraryStore: libraryStore
+        ) {
+        case let .failure(message):
+            if message == "No numeric changes pending confirmation." {
+                libraryDrawerMessage = message
+            } else {
+                libraryDrawerError = message
+            }
+            return false
+        case let .success(updatedReview, appliedCount, lastRefreshAt):
+            librarySettings.lastRefreshAt = lastRefreshAt
+            librarySettingsStore.save(librarySettings)
+            libraryRefreshReview = updatedReview
+            libraryDrawerMessage = "Confirmed and applied \(appliedCount) numeric changes."
+            refreshSyncChangeIndicators(using: mutationService)
+            return true
+        }
+    }
+
+    func createDrawersFromPreview(
+        mutationService: LibraryMutationService
+    ) -> MutationCommitContext? {
+        libraryDrawerError = nil
+        libraryDrawerMessage = nil
+
+        switch mutationService.createDrawersFromPreview(
+            preview: libraryPreview,
+            rootPath: librarySettings.rootPath,
+            libraryStore: libraryStore,
+            settings: librarySettings
+        ) {
+        case let .failure(message):
+            libraryDrawerError = message
+            return nil
+        case let .success(rootURL, previewIndex, _, message):
+            libraryDrawerMessage = message
+            return MutationCommitContext(rootURL: rootURL, previewIndex: previewIndex)
+        }
+    }
+
+    func createDrawersForSelection(
+        mutationService: LibraryMutationService,
+        batchId: String?,
+        sampleId: String?
+    ) -> MutationCommitContext? {
+        libraryDrawerError = nil
+        libraryDrawerMessage = nil
+
+        switch mutationService.createDrawersForSelection(
+            preview: libraryPreview,
+            rootPath: librarySettings.rootPath,
+            batchId: batchId,
+            sampleId: sampleId,
+            libraryStore: libraryStore,
+            settings: librarySettings
+        ) {
+        case let .failure(message):
+            libraryDrawerError = message
+            return nil
+        case let .success(rootURL, previewIndex, _, message):
+            libraryDrawerMessage = message
+            return MutationCommitContext(rootURL: rootURL, previewIndex: previewIndex)
+        }
+    }
+
+    func deleteExistingDrawer(
+        mutationService: LibraryMutationService,
+        batchId: String
+    ) -> MutationCommitContext? {
+        libraryDrawerError = nil
+        libraryDrawerMessage = nil
+
+        switch mutationService.deleteExistingDrawer(
+            batchId: batchId,
+            rootPath: librarySettings.rootPath,
+            previewIndex: libraryPreview?.index,
+            libraryStore: libraryStore
+        ) {
+        case let .failure(message):
+            libraryDrawerError = message
+            return nil
+        case let .success(rootURL, previewIndex, message):
+            libraryDrawerMessage = message
+            return MutationCommitContext(rootURL: rootURL, previewIndex: previewIndex)
+        }
+    }
+
     func applySelectedRegistryDiff(batchId: String?) -> ApplySelectedRegistryDiffOutcome {
         libraryDrawerError = nil
         libraryDrawerMessage = nil
@@ -261,7 +430,7 @@ final class LibraryFeatureStore {
         onFailure: @escaping (AppError) -> Void
     ) {
         guard let registryPath = resolvedRegistryPath else {
-            libraryPreviewMessage = "No registry available. Load it from Inbox first."
+            libraryPreviewMessage = "No registry available. Load it from Library first."
             return
         }
 
@@ -294,7 +463,7 @@ final class LibraryFeatureStore {
         onComplete: (() -> Void)?
     ) {
         guard let registryPath = resolvedRegistryPath else {
-            libraryPreviewMessage = "No registry available. Load it from Inbox first."
+            libraryPreviewMessage = "No registry available. Load it from Library first."
             librarySyncStatusMessage = nil
             onComplete?()
             return
@@ -640,7 +809,7 @@ final class LibraryFeatureStore {
         libraryGlobalManualLogMessage = nil
 
         guard let registrySourceURL = resolveRegistrySourceURL() else {
-            let error = AppError.notFound("No registry source found. Load registry from Inbox first.")
+            let error = AppError.notFound("No registry source found. Load registry from Library first.")
             libraryGlobalManualLogError = error.localizedDescription
             libraryGlobalManualLogs = []
             return .failure(error)
@@ -665,7 +834,7 @@ final class LibraryFeatureStore {
         libraryMetadataSyncLogMessage = nil
 
         guard let registrySourceURL = resolveRegistrySourceURL() else {
-            let error = AppError.notFound("No registry source found. Load registry from Inbox first.")
+            let error = AppError.notFound("No registry source found. Load registry from Library first.")
             libraryMetadataSyncLogError = error.localizedDescription
             libraryMetadataSyncLogs = []
             return .failure(error)
@@ -695,7 +864,7 @@ final class LibraryFeatureStore {
         libraryGlobalManualLogMessage = nil
 
         guard let registrySourceURL = resolveRegistrySourceURL() else {
-            let error = AppError.notFound("No registry source found. Load registry from Inbox first.")
+            let error = AppError.notFound("No registry source found. Load registry from Library first.")
             libraryGlobalManualLogError = error.localizedDescription
             return .failure(error)
         }

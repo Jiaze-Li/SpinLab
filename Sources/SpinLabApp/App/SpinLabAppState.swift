@@ -901,6 +901,7 @@ final class SpinLabAppState {
             appLogger.info(.library, "Apply selected skipped: no pending changes", metadata: ["batchId": id])
         case let .success(rootURL, previewIndex, id, action, touched, _):
             commitLibraryMutation(rootURL: rootURL, previewIndex: previewIndex)
+            libraryFeatureStore.libraryDrawerMessage = "Applied selected sync for \(id): \(action), \(touched) sample changes."
             appLogger.info(.function, "Apply selected completed", metadata: [
                 "batchId": id,
                 "action": action,
@@ -1009,20 +1010,11 @@ final class SpinLabAppState {
     }
 
     func deleteExistingDrawer(batchId: String) {
-        libraryFeatureStore.libraryDrawerError = nil
-        libraryFeatureStore.libraryDrawerMessage = nil
-
-        switch libraryMutationService.deleteExistingDrawer(
-            batchId: batchId,
-            rootPath: libraryFeatureStore.librarySettings.rootPath,
-            previewIndex: libraryFeatureStore.libraryPreview?.index,
-            libraryStore: libraryFeatureStore.libraryStore
+        if let context = libraryFeatureStore.deleteExistingDrawer(
+            mutationService: libraryMutationService,
+            batchId: batchId
         ) {
-        case let .failure(message):
-            libraryFeatureStore.libraryDrawerError = message
-        case let .success(rootURL, previewIndex, message):
-            commitLibraryMutation(rootURL: rootURL, previewIndex: previewIndex)
-            libraryFeatureStore.libraryDrawerMessage = message
+            commitLibraryMutation(rootURL: context.rootURL, previewIndex: context.previewIndex)
         }
     }
 
@@ -1117,112 +1109,48 @@ final class SpinLabAppState {
     }
 
     func prepareLibrarySyncReview(precomputedDiff: LibraryDiff? = nil) {
-        libraryFeatureStore.libraryDrawerError = nil
-        libraryFeatureStore.libraryDrawerMessage = nil
-
-        let result = libraryMutationService.prepareSyncReview(
-            preview: libraryFeatureStore.libraryPreview,
-            rootPath: libraryFeatureStore.librarySettings.rootPath,
-            precomputedDiff: precomputedDiff,
-            libraryStore: libraryFeatureStore.libraryStore,
-            libraryDiffEngine: libraryFeatureStore.libraryDiffEngine,
-            librarySyncService: librarySyncService,
-            orchestrator: libraryMutationOrchestrator
-        )
-        switch result {
-        case let .failure(message):
-            libraryFeatureStore.libraryDrawerError = message
-        case let .success(review, diff, baselineIndex, message, indicators):
-            libraryFeatureStore.libraryRefreshReview = review
-            applySyncChangeIndicators(indicators)
+        if let refreshState = libraryFeatureStore.prepareLibrarySyncReview(
+            mutationService: libraryMutationService,
+            orchestrator: libraryMutationOrchestrator,
+            precomputedDiff: precomputedDiff
+        ) {
+            let diff = refreshState.diff
+            let baselineIndex = refreshState.baselineIndex
             refreshActionablePreviewGroups(precomputedDiff: diff, baselineIndex: baselineIndex)
-            libraryFeatureStore.libraryDrawerMessage = message
         }
     }
 
     func refreshLibraryIncremental() {
-        libraryFeatureStore.libraryDrawerError = nil
-        libraryFeatureStore.libraryDrawerMessage = nil
-
-        switch libraryMutationService.refreshIncremental(
-            libraryStore: libraryFeatureStore.libraryStore,
-            librarySyncService: librarySyncService,
-            orchestrator: libraryMutationOrchestrator,
-            preview: libraryFeatureStore.libraryPreview,
-            rootPath: libraryFeatureStore.librarySettings.rootPath,
-            settings: libraryFeatureStore.librarySettings
+        if let context = libraryFeatureStore.refreshLibraryIncremental(
+            mutationService: libraryMutationService,
+            orchestrator: libraryMutationOrchestrator
         ) {
-        case let .failure(message):
-            libraryFeatureStore.libraryDrawerError = message
-        case let .success(rootURL, previewIndex, message):
             // Recompute post-apply state from persisted filesystem/index; do not reuse pre-apply diff.
-            commitLibraryMutation(rootURL: rootURL, previewIndex: previewIndex)
-            libraryFeatureStore.libraryDrawerMessage = message
+            commitLibraryMutation(rootURL: context.rootURL, previewIndex: context.previewIndex)
         }
     }
 
     func confirmLibraryNumericRefreshChanges() {
-        libraryFeatureStore.libraryDrawerError = nil
-        libraryFeatureStore.libraryDrawerMessage = nil
-
-        switch libraryMutationService.confirmNumericRefreshChanges(
-            review: libraryFeatureStore.libraryRefreshReview,
-            preview: libraryFeatureStore.libraryPreview,
-            rootPath: libraryFeatureStore.librarySettings.rootPath,
-            settings: libraryFeatureStore.librarySettings,
-            libraryStore: libraryFeatureStore.libraryStore
-        ) {
-        case let .failure(message):
-            if message == "No numeric changes pending confirmation." {
-                libraryFeatureStore.libraryDrawerMessage = message
-            } else {
-                libraryFeatureStore.libraryDrawerError = message
-            }
-        case let .success(updatedReview, appliedCount, lastRefreshAt):
+        if libraryFeatureStore.confirmLibraryNumericRefreshChanges(mutationService: libraryMutationService) {
             loadExistingDrawers()
-            libraryFeatureStore.librarySettings.lastRefreshAt = lastRefreshAt
-            libraryFeatureStore.librarySettingsStore.save(libraryFeatureStore.librarySettings)
-            libraryFeatureStore.libraryRefreshReview = updatedReview
-            libraryFeatureStore.libraryDrawerMessage = "Confirmed and applied \(appliedCount) numeric changes."
-            refreshSyncChangeIndicators()
         }
     }
 
     func createDrawersFromPreview() {
-        libraryFeatureStore.libraryDrawerError = nil
-        libraryFeatureStore.libraryDrawerMessage = nil
-
-        switch libraryMutationService.createDrawersFromPreview(
-            preview: libraryFeatureStore.libraryPreview,
-            rootPath: libraryFeatureStore.librarySettings.rootPath,
-            libraryStore: libraryFeatureStore.libraryStore,
-            settings: libraryFeatureStore.librarySettings
+        if let context = libraryFeatureStore.createDrawersFromPreview(
+            mutationService: libraryMutationService
         ) {
-        case let .failure(message):
-            libraryFeatureStore.libraryDrawerError = message
-        case let .success(rootURL, previewIndex, _, message):
-            commitLibraryMutation(rootURL: rootURL, previewIndex: previewIndex)
-            libraryFeatureStore.libraryDrawerMessage = message
+            commitLibraryMutation(rootURL: context.rootURL, previewIndex: context.previewIndex)
         }
     }
 
     func createDrawersForSelection(batchId: String?, sampleId: String?) {
-        libraryFeatureStore.libraryDrawerError = nil
-        libraryFeatureStore.libraryDrawerMessage = nil
-
-        switch libraryMutationService.createDrawersForSelection(
-            preview: libraryFeatureStore.libraryPreview,
-            rootPath: libraryFeatureStore.librarySettings.rootPath,
+        if let context = libraryFeatureStore.createDrawersForSelection(
+            mutationService: libraryMutationService,
             batchId: batchId,
-            sampleId: sampleId,
-            libraryStore: libraryFeatureStore.libraryStore,
-            settings: libraryFeatureStore.librarySettings
+            sampleId: sampleId
         ) {
-        case let .failure(message):
-            libraryFeatureStore.libraryDrawerError = message
-        case let .success(rootURL, previewIndex, _, message):
-            commitLibraryMutation(rootURL: rootURL, previewIndex: previewIndex)
-            libraryFeatureStore.libraryDrawerMessage = message
+            commitLibraryMutation(rootURL: context.rootURL, previewIndex: context.previewIndex)
         }
     }
 
@@ -1514,18 +1442,6 @@ final class SpinLabAppState {
         refreshPendingDrawerMatches()
     }
 
-    private func refreshSyncChangeIndicators() {
-        applySyncChangeIndicators(
-            libraryMutationService.makeSyncChangeIndicators(review: libraryFeatureStore.libraryRefreshReview)
-        )
-    }
-
-    private func applySyncChangeIndicators(_ indicators: LibrarySyncChangeIndicators) {
-        libraryFeatureStore.libraryBatchSyncStatusByID = indicators.batchStatusByID
-        libraryFeatureStore.librarySampleSyncChangesByID = indicators.sampleChangesByID
-        libraryFeatureStore.libraryBatchSyncChangesByID = indicators.batchChangesByID
-    }
-
     private func updateLibraryRegistryPaths(installedURL: URL, sourceURL: URL?) {
         libraryFeatureStore.librarySettings.registryInternalPath = installedURL.path
         libraryFeatureStore.librarySettings.registrySourcePath = sourceURL?.path
@@ -1578,7 +1494,7 @@ final class SpinLabAppState {
         applyExistingIndex(outcome.syncedIndex)
 
         libraryFeatureStore.libraryRefreshReview = outcome.plan.review
-        refreshSyncChangeIndicators()
+        libraryFeatureStore.refreshSyncChangeIndicators(using: libraryMutationService)
         if let diff = outcome.plan.diff, let baseline = outcome.plan.baselineIndexForPreview {
             refreshActionablePreviewGroups(precomputedDiff: diff, baselineIndex: baseline)
         } else {

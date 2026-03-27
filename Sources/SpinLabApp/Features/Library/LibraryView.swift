@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct LibraryView: View {
     @Environment(SpinLabAppState.self) private var appState
@@ -1613,7 +1614,9 @@ struct LibraryView: View {
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
-        panel.allowedFileTypes = ["xlsx"]
+        if let xlsxType = UTType(filenameExtension: "xlsx") {
+            panel.allowedContentTypes = [xlsxType]
+        }
         panel.title = "Load Sample Registry"
         panel.message = "Choose an XLSX registry file."
 
