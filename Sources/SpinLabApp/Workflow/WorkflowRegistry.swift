@@ -19,29 +19,38 @@ final class WorkflowRegistry {
 
     private var bundlesByKind: [SpinLabDomain.WorkflowKind: WorkflowBundle] = [:]
     private var fallbackKind: SpinLabDomain.WorkflowKind = .amrPhe
+    private let lock = NSLock()
 
     private init() {
         registerBuiltins()
     }
 
     func register(_ bundle: WorkflowBundle) {
-        bundlesByKind[bundle.workflowExtension.workflow] = bundle
+        withLock {
+            bundlesByKind[bundle.workflowExtension.workflow] = bundle
+        }
     }
 
     func setDefaultWorkflow(_ workflow: SpinLabDomain.WorkflowKind) {
-        fallbackKind = workflow
+        withLock {
+            fallbackKind = workflow
+        }
     }
 
     func bundle(for workflow: SpinLabDomain.WorkflowKind) -> WorkflowBundle? {
-        bundlesByKind[workflow]
+        withLock {
+            bundlesByKind[workflow]
+        }
     }
 
     func defaultBundle() -> WorkflowBundle {
-        if let configured = bundlesByKind[fallbackKind] {
-            return configured
-        }
-        if let first = bundlesByKind.values.first {
-            return first
+        if let existing = withLock({
+            if let configured = bundlesByKind[fallbackKind] {
+                return configured
+            }
+            return bundlesByKind.values.first
+        }) {
+            return existing
         }
 
         // Emergency fallback: registry should always be bootstrapped with builtins.
@@ -70,5 +79,11 @@ final class WorkflowRegistry {
                 viewExtension: DummyViewExtension()
             )
         )
+    }
+
+    private func withLock<T>(_ action: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return action()
     }
 }

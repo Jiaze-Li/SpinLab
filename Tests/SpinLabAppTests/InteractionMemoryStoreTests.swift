@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
+@MainActor
 @Suite("Interaction Memory")
 struct InteractionMemoryStoreTests {
     @Test("restore + capture roundtrip persists latest state")
@@ -79,6 +80,7 @@ struct InteractionMemoryStoreTests {
     }
 }
 
+@MainActor
 @Suite("Inbox Snapshot")
 struct InboxWorkspaceSnapshotTests {
     @Test("large editable contents are truncated for snapshot safety")

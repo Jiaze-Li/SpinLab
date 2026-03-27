@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
+@MainActor
 @Suite("V2.1.3 Inbox Closed Loop")
 struct V213InboxClosedLoopTests {
     @Test("editing routing draft without save does not change route plan")
@@ -24,6 +25,10 @@ struct V213InboxClosedLoopTests {
         let pending = makePending(idSeed: "A", fileName: "RT_1mA_ch2_PN41_STO001_AMR.dat", defaultSampleKey: "PN41")
         let persistence = MockPersistenceForV213(pendingImports: [pending])
         let appState = makeAppState(persistence: persistence)
+        installExistingDrawers(
+            sampleDisplayNames: ["PN40 - STO(001)"],
+            into: appState
+        )
 
         var draft = appState.routingDraft(for: pending)
         draft.defaultSampleKey = "PN40"
@@ -63,8 +68,8 @@ struct V213InboxClosedLoopTests {
 
         appState.clearPendingImports()
 
-        #expect(appState.pendingImports.isEmpty)
-        #expect(appState.archivedRecords.count == 1)
+        #expect(appState.inbox.pendingImports.isEmpty)
+        #expect(appState.workbench.archivedRecords.count == 1)
     }
 
     @Test("batch recompute route refreshes parsed hints")
@@ -87,7 +92,7 @@ struct V213InboxClosedLoopTests {
         let appState = makeAppState(persistence: persistence)
 
         appState.recomputeAllPendingParsedHints()
-        guard let updated = appState.pendingImports.first(where: { $0.id == stale.id }) else {
+        guard let updated = appState.inbox.pendingImports.first(where: { $0.id == stale.id }) else {
             Issue.record("Updated pending import not found")
             return
         }
@@ -228,7 +233,7 @@ struct V213InboxClosedLoopTests {
         #expect(plan.unresolvedChannels.isEmpty)
 
         let snapshot = appState.pendingRoutingSnapshot(for: pending)
-        #expect(snapshot.scopes.first?.sampleKey == "PN32 - o STO(111)")
+        #expect(snapshot.scopes.first?.sampleKey == "PN32 - baked o STO(111)")
         #expect(snapshot.scopes.first?.matchedDrawer == nil)
         #expect(snapshot.verdict == .reviewRequired)
         #expect(appState.pendingDrawerMatchByID[pending.id] == false)
@@ -373,7 +378,7 @@ struct V213InboxClosedLoopTests {
             }
         }
 
-        appState.librarySettings.rootPath = rootURL.path
+        appState.library.librarySettings.rootPath = rootURL.path
         appState.loadExistingDrawers()
         appState.refreshPendingDrawerMatches()
     }

@@ -1,7 +1,6 @@
 import AppKit
 import Observation
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct InboxView: View {
     @Environment(SpinLabAppState.self) private var appState
@@ -99,23 +98,6 @@ private struct InboxOperationPanel: View {
                     Text(AppVersion.current)
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
-                }
-
-                operationBox("Registry", isExpanded: $isImportSourceExpanded) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        MetadataValueRow(label: "Registry Path", value: appState.registry.registrySourceFilePath ?? "Not loaded", monospaced: true)
-                        HStack {
-                            Button("Load Registry") {
-                                presentSampleRegistryPanel()
-                            }
-                            Button("Reload Registry") {
-                                appState.reloadSampleRegistry()
-                            }
-                            .disabled(!appState.canReloadSampleRegistry)
-                            Spacer()
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 operationBox("File", isExpanded: $isPendingQueueExpanded) {
@@ -242,20 +224,6 @@ private struct InboxOperationPanel: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This clears pending queue items and unarchived temporary imports only. Archived library drawers are unchanged.")
-        }
-    }
-
-    private func presentSampleRegistryPanel() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [UTType(filenameExtension: "xlsx")].compactMap { $0 }
-        panel.title = "Load Sample Registry"
-        panel.message = "Choose an XLSX registry file."
-
-        if panel.runModal() == .OK, let url = panel.url {
-            appState.loadSampleRegistry(from: url)
         }
     }
 

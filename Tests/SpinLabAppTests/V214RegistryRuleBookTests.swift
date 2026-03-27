@@ -1,6 +1,7 @@
 import Testing
 @testable import SpinLabApp
 
+@MainActor
 @Suite("V2.1.4 Registry Rule Book")
 struct V214RegistryRuleBookTests {
     private let rules = RegistryLookupRuleBook()

@@ -1,4 +1,4 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 import PackageDescription
 
 let package = Package(
@@ -14,7 +14,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/CoreOffice/CoreXLSX.git", from: "0.14.0"),
-        .package(url: "https://github.com/swiftlang/swift-testing.git", exact: "0.6.0")
+        .package(url: "https://github.com/swiftlang/swift-testing.git", exact: "6.2.4")
     ],
     targets: [
         .executableTarget(
@@ -35,5 +35,6 @@ let package = Package(
             ],
             path: "Tests/SpinLabAppTests"
         )
-    ]
+    ],
+    swiftLanguageModes: [.v5]
 )

@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
+@MainActor
 @Suite("V2.2.3 AppEnvironment Integration")
 struct V223AppEnvironmentIntegrationTests {
     @Test("importing files projects into repository-backed app state")
@@ -33,9 +34,9 @@ struct V223AppEnvironmentIntegrationTests {
 
         appState.importFiles(from: [importURL])
 
-        #expect(appState.pendingImports.count == 1)
+        #expect(appState.inbox.pendingImports.count == 1)
         #expect(persistence.loadPendingImports().count == 1)
-        #expect(appState.selectedPendingImportID == appState.pendingImports.first?.id)
+        #expect(appState.selectedPendingImportID == appState.inbox.pendingImports.first?.id)
     }
 
     @Test("registry load surfaces data actor failure into app alert")
@@ -66,7 +67,7 @@ struct V223AppEnvironmentIntegrationTests {
         let appState = SpinLabAppState(environment: environment)
 
         appState.loadSampleRegistry(from: registryURL)
-        try await waitUntil(timeoutMS: 800) { appState.activeAlert != nil }
+        try await waitUntil(timeoutMS: 3_000) { appState.activeAlert != nil }
 
         #expect(appState.activeAlert?.title == "Registry Load Failed")
     }

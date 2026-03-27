@@ -4,6 +4,7 @@ import CryptoKit
 struct RuleLoader {
     static let shared = RuleLoader()
     private static var cached: LoadResult?
+    private static let cacheLock = NSLock()
     private let logger = AppLogger.shared
 
     struct RuleMetadata {
@@ -63,23 +64,29 @@ struct RuleLoader {
     }
 
     func loadCached() -> LoadResult {
-        if let cached = RuleLoader.cached {
-            if shouldReloadCached(cached) {
-                let reloaded = load()
-                RuleLoader.cached = reloaded
-                return reloaded
-            }
+        if let cached = Self.withCacheLock({ Self.cached }),
+           !shouldReloadCached(cached) {
             return cached
         }
-        let loaded = load()
-        RuleLoader.cached = loaded
-        return loaded
+        let reloaded = load()
+        Self.withCacheLock {
+            Self.cached = reloaded
+        }
+        return reloaded
     }
 
     func reloadCached() -> LoadResult {
         let loaded = load()
-        RuleLoader.cached = loaded
+        Self.withCacheLock {
+            Self.cached = loaded
+        }
         return loaded
+    }
+
+    private static func withCacheLock<T>(_ action: () -> T) -> T {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        return action()
     }
 
     private func shouldReloadCached(_ cached: LoadResult) -> Bool {

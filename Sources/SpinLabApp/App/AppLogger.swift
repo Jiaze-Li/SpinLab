@@ -16,7 +16,7 @@ enum AppLogCategory: String {
 }
 
 final class AppLogger {
-    static let shared = AppLogger()
+    nonisolated(unsafe) static let shared = AppLogger()
     private static let maxLogFileBytes = 1_048_576
     private static let archivedLogFileName = "app_events.log.1"
     private static let redactedKeys: Set<String> = Set([

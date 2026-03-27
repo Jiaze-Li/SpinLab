@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
+@MainActor
 @Suite("V2.1.1 Route Planner")
 struct V211RoutePlannerTests {
     @Test("multi-sample channels are grouped into multiple targets")

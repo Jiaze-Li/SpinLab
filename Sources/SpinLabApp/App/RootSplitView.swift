@@ -13,7 +13,7 @@ struct RootSplitView: View {
     private let sidebarTopInset: CGFloat = 64
     private let standardDetailTopInset: CGFloat = 86
     private let inboxDetailTopInset: CGFloat = 14
-    private let libraryDetailTopInset: CGFloat = 14
+    private let libraryDetailTopInset: CGFloat = 20
     private let sidebarMenuProvider = SpinLabSidebarMenuProvider()
     private let appRouter = AppRouter()
 
@@ -49,11 +49,13 @@ struct RootSplitView: View {
                 .frame(maxHeight: .infinity, alignment: .top)
                 .overlay(alignment: .topTrailing) {
                     HStack(spacing: 10) {
-                        Button("Export Audit") {
-                            presentAuditTrailExportPanel()
+                        if appState.selectedArea != .library {
+                            Button("Export Audit") {
+                                presentAuditTrailExportPanel()
+                            }
+                            .font(.caption)
+                            .buttonStyle(.bordered)
                         }
-                        .font(.caption)
-                        .buttonStyle(.bordered)
 
                         if appState.selectedArea != .library {
                             Text(AppVersion.current)

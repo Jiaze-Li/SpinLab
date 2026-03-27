@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
+@MainActor
 @Suite("V2.1.0 Import And Parse")
 struct V210ImportAndParseTests {
     @Test("managed storage applies allow list and explicit ignore list")
@@ -48,7 +49,10 @@ struct V210ImportAndParseTests {
             originalFileURL: sourceURL
         )
 
-        let imported = SpinLabImportPipeline.amrPhe.importFiles([file])
+        let imported = WorkflowRegistry.shared
+            .defaultBundle()
+            .importPipeline
+            .importFiles([file])
         #expect(imported.isEmpty)
     }
 
@@ -84,7 +88,7 @@ struct V210ImportAndParseTests {
 
         let ch2 = parsed.channelHints.first(where: { $0.channel == "ch2" })
         #expect(ch2?.sampleID == "PN36")
-        #expect(ch2?.tags == ["HF", "STO111"])
+        #expect(ch2?.tags == ["HF", "STO111", "STO"])
 
         let ch3 = parsed.channelHints.first(where: { $0.channel == "ch3" })
         #expect(ch3?.sampleID == "PN37")

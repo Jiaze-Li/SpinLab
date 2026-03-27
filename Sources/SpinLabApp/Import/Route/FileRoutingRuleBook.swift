@@ -1,7 +1,7 @@
 import Foundation
 
 struct FileRoutingRuleBook {
-    private static var semanticRuleCache: (fingerprint: String, rules: FileRoutingSemanticRules)?
+    nonisolated(unsafe) private static var semanticRuleCache: (fingerprint: String, rules: FileRoutingSemanticRules)?
     private static let semanticRuleCacheLock = NSLock()
 
     func normalizedSampleInput(_ value: String?) -> String? {
@@ -160,10 +160,17 @@ struct FileRoutingRuleBook {
     }
 
     private func treatmentToken(from normalized: String) -> String? {
-        let probe = normalizeSubstrateToken(normalized)
+        let probe = normalizeSubstrateToken(normalized).uppercased()
         let semanticRules = Self.loadSemanticRulesForCurrentFingerprint()
         for (needle, canonical) in semanticRules.treatmentNeedles {
-            if probe.contains(needle) {
+            let normalizedNeedle = needle.uppercased()
+            if normalizedNeedle.count <= 1 {
+                if probe == normalizedNeedle {
+                    return canonical
+                }
+                continue
+            }
+            if probe.contains(normalizedNeedle) {
                 return canonical
             }
         }

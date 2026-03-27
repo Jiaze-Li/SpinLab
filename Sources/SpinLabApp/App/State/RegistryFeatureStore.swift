@@ -1,14 +1,11 @@
 import Foundation
-import Observation
 
-@MainActor
-@Observable
-final class RegistryFeatureStore {
+struct RegistryFeatureStore {
     var registryFileName: String?
     var registrySourceFilePath: String?
     var registryPrefixEntries: [RegistryPrefixEntry] = []
 
-    func applyPresentation(_ presentation: RegistryPresentationState) {
+    mutating func applyPresentation(_ presentation: RegistryPresentationState) {
         registrySourceFilePath = presentation.registrySourceFilePath
         registryFileName = presentation.registryFileName
         registryPrefixEntries = presentation.registryPrefixEntries

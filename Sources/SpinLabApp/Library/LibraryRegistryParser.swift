@@ -431,8 +431,19 @@ final class LibrarySubstrateParser {
         guard !segments.isEmpty else {
             return []
         }
+        var parsed: [LibrarySubstrate] = []
+        for segment in segments {
+            if looksLikeSubstrateSegment(segment) {
+                parsed.append(parseSegment(segment))
+                continue
+            }
 
-        return segments.map { parseSegment($0) }
+            // Treat trailing non-substrate chunks as free-form notes in the same cell.
+            if !parsed.isEmpty {
+                break
+            }
+        }
+        return parsed
     }
 
     func sampleKey(batchId: String, substrate: LibrarySubstrate) -> String {
@@ -472,6 +483,23 @@ final class LibrarySubstrateParser {
             material: material,
             orientation: orientation
         )
+    }
+
+    private func looksLikeSubstrateSegment(_ value: String) -> Bool {
+        let upper = value.uppercased()
+        if materialTokens.contains(where: { upper.contains($0) }) {
+            return true
+        }
+        if parseOrientation(upper) != nil {
+            return true
+        }
+        if upper.contains("HF") || upper.contains("BAKE") || upper.contains("BAKED") {
+            return true
+        }
+        if upper.contains("ORIGINAL") || upper.contains("ORIGIN") || upper.contains(" O ") || upper.hasPrefix("O ") {
+            return true
+        }
+        return false
     }
 
     private func parseProcessingTokens(_ value: String) -> [String] {

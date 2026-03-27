@@ -28,6 +28,34 @@ final class LibraryFeatureStore {
         )
     }
 
+    enum LoadLibraryLogOutcome {
+        case success(count: Int, message: String)
+        case failure(AppError)
+    }
+
+    enum MarkLibraryLogStatusOutcome {
+        case success(message: String)
+        case failure(AppError)
+    }
+
+    enum SelectionChangeOutcome {
+        case deferred
+        case appliedDrawer(prefix: String, batchId: String, sampleId: String?)
+        case appliedBrowser(prefix: String?, batchId: String?, sampleId: String?)
+    }
+
+    var librarySampleEditIsDirty: Bool {
+        guard let draft = librarySampleEditDraft,
+              let original = libraryState.sampleEditOriginalDraft else {
+            return false
+        }
+        return draft != original
+    }
+
+    var canEditSelectedLibrarySample: Bool {
+        libraryActiveSelectionSource == .drawer && selectedExistingDrawerSample() != nil
+    }
+
     struct SyncLibraryFromFilesOutcome {
         var rootPath: String
         var syncedIndex: LibraryIndex
@@ -394,5 +422,383 @@ final class LibraryFeatureStore {
         case .none:
             return "已保存样品编辑。"
         }
+    }
+
+    func beginEditingSelectedLibrarySample(selectedSample: LibrarySample?) {
+        librarySampleEditError = nil
+        librarySampleEditMessage = nil
+
+        guard let selectedSample else {
+            librarySampleEditError = "Select an existing drawer sample to edit."
+            return
+        }
+
+        libraryState.sampleEditBaseSample = selectedSample
+        let draft = librarySampleEditService.makeDraft(from: selectedSample)
+        librarySampleEditDraft = draft
+        libraryState.sampleEditOriginalDraft = draft
+    }
+
+    func cancelEditingSelectedLibrarySample(message: String = "Edit canceled.") {
+        librarySampleEditDraft = nil
+        libraryState.sampleEditBaseSample = nil
+        libraryState.sampleEditOriginalDraft = nil
+        librarySampleEditError = nil
+        librarySampleEditMessage = message
+    }
+
+    func updateLibrarySampleEditSubstrateTags(_ value: String) {
+        guard var draft = librarySampleEditDraft else {
+            return
+        }
+        draft.substrateTagsText = value
+        librarySampleEditDraft = draft
+    }
+
+    func updateLibrarySampleEditNumericValue(key: String, value: String) {
+        guard var draft = librarySampleEditDraft,
+              let index = draft.numericValues.firstIndex(where: { $0.key == key }) else {
+            return
+        }
+        draft.numericValues[index].value = value
+        librarySampleEditDraft = draft
+    }
+
+    func updateLibrarySampleEditMetadataValue(key: String, value: String) {
+        guard var draft = librarySampleEditDraft,
+              let index = draft.metadataValues.firstIndex(where: { $0.key == key }) else {
+            return
+        }
+        draft.metadataValues[index].value = value
+        librarySampleEditDraft = draft
+    }
+
+    func selectedExistingDrawerSample() -> LibrarySample? {
+        guard let prefix = librarySelectedPrefix,
+              let batchId = librarySelectedBatchId,
+              let sampleId = librarySelectedSampleId else {
+            return nil
+        }
+        let groups = libraryExistingGroups[prefix] ?? []
+        guard let group = groups.first(where: { $0.batchId == batchId }) else {
+            return nil
+        }
+        return group.samples.first(where: { $0.id == sampleId })
+    }
+
+    func selectExistingDrawer(prefix: String, batchId: String, sampleId: String?) -> SelectionChangeOutcome {
+        performSelectionChange(.drawer(prefix: prefix, batchId: batchId, sampleId: sampleId))
+    }
+
+    func selectBrowserSample() -> SelectionChangeOutcome {
+        performSelectionChange(.browser)
+    }
+
+    func applyPendingSelectionChangeIfNeeded() -> SelectionChangeOutcome? {
+        guard let pending = libraryState.pendingSelectionChange else {
+            return nil
+        }
+        libraryState.pendingSelectionChange = nil
+        libraryPendingSelectionChangePrompt = nil
+        return applySelectionChange(pending)
+    }
+
+    func cancelPendingSelectionChange() {
+        libraryState.pendingSelectionChange = nil
+        libraryPendingSelectionChangePrompt = nil
+    }
+
+    func hasPendingSelectionChange() -> Bool {
+        libraryState.pendingSelectionChange != nil
+    }
+
+    func normalizeLibrarySelection() {
+        let prefixes = libraryExistingGroups.keys.sorted()
+        if librarySelectedPrefix == nil || !prefixes.contains(librarySelectedPrefix ?? "") {
+            librarySelectedPrefix = prefixes.first
+        }
+
+        guard let prefix = librarySelectedPrefix else {
+            librarySelectedBatchId = nil
+            librarySelectedSampleId = nil
+            return
+        }
+
+        let groups = libraryExistingGroups[prefix] ?? []
+        let batchIDs = groups.map(\.batchId)
+        if librarySelectedBatchId == nil || !batchIDs.contains(librarySelectedBatchId ?? "") {
+            librarySelectedBatchId = groups.first?.batchId
+        }
+
+        guard let batchId = librarySelectedBatchId,
+              let samples = groups.first(where: { $0.batchId == batchId })?.samples else {
+            librarySelectedSampleId = nil
+            return
+        }
+
+        if librarySelectedSampleId == nil || !samples.contains(where: { $0.id == librarySelectedSampleId }) {
+            librarySelectedSampleId = samples.first?.id
+        }
+    }
+
+    private func performSelectionChange(_ requested: LibraryPendingSelectionChange) -> SelectionChangeOutcome {
+        guard !deferSelectionChangeIfNeeded(requested) else {
+            return .deferred
+        }
+        return applySelectionChange(requested)
+    }
+
+    private func deferSelectionChangeIfNeeded(_ requested: LibraryPendingSelectionChange) -> Bool {
+        guard librarySampleEditIsDirty,
+              requested != currentSelectionChangeKey else {
+            return false
+        }
+
+        libraryState.pendingSelectionChange = requested
+        libraryPendingSelectionChangePrompt = "You have unsaved sample edits. Save before switching selection?"
+        return true
+    }
+
+    private var currentSelectionChangeKey: LibraryPendingSelectionChange {
+        switch libraryActiveSelectionSource {
+        case .browser:
+            return .browser
+        case .drawer:
+            return .drawer(
+                prefix: librarySelectedPrefix ?? "",
+                batchId: librarySelectedBatchId ?? "",
+                sampleId: librarySelectedSampleId
+            )
+        }
+    }
+
+    private func applySelectionChange(_ requested: LibraryPendingSelectionChange) -> SelectionChangeOutcome {
+        switch requested {
+        case let .drawer(prefix, batchId, sampleId):
+            librarySelectedPrefix = prefix
+            librarySelectedBatchId = batchId
+            if let sampleId {
+                librarySelectedSampleId = sampleId
+            } else {
+                librarySelectedSampleId = libraryExistingGroups[prefix]?
+                    .first(where: { $0.batchId == batchId })?
+                    .samples
+                    .first?
+                    .id
+            }
+            libraryActiveSelectionSource = .drawer
+            incrementLibrarySelectionVersion()
+            reconcileLibrarySampleEditingSelection()
+            return .appliedDrawer(prefix: prefix, batchId: batchId, sampleId: librarySelectedSampleId)
+
+        case .browser:
+            libraryActiveSelectionSource = .browser
+            incrementLibrarySelectionVersion()
+            reconcileLibrarySampleEditingSelection()
+            return .appliedBrowser(
+                prefix: librarySelectedPrefix,
+                batchId: librarySelectedBatchId,
+                sampleId: librarySelectedSampleId
+            )
+        }
+    }
+
+    func reconcileLibrarySampleEditingSelection() {
+        guard let draft = librarySampleEditDraft else {
+            return
+        }
+
+        guard libraryActiveSelectionSource == .drawer,
+              let selectedSample = selectedExistingDrawerSample() else {
+            librarySampleEditDraft = nil
+            libraryState.sampleEditBaseSample = nil
+            libraryState.sampleEditOriginalDraft = nil
+            librarySampleEditError = nil
+            librarySampleEditMessage = "Edit canceled after leaving existing drawer selection."
+            return
+        }
+
+        guard selectedSample.id == draft.sampleId else {
+            librarySampleEditDraft = nil
+            libraryState.sampleEditBaseSample = nil
+            libraryState.sampleEditOriginalDraft = nil
+            librarySampleEditError = nil
+            librarySampleEditMessage = "Edit canceled after sample selection changed."
+            return
+        }
+    }
+
+    func sampleChangeLog(for sample: LibrarySample) -> [LibrarySampleChangeLogEntry] {
+        guard let rootPath = librarySettings.rootPath else {
+            return []
+        }
+        return libraryStore.sampleChangeLog(for: sample, rootURL: URL(fileURLWithPath: rootPath))
+    }
+
+    func loadLibraryGlobalManualLogs(resolveRegistrySourceURL: () -> URL?) -> LoadLibraryLogOutcome {
+        libraryGlobalManualLogError = nil
+        libraryGlobalManualLogMessage = nil
+
+        guard let registrySourceURL = resolveRegistrySourceURL() else {
+            let error = AppError.notFound("No registry source found. Load registry from Inbox first.")
+            libraryGlobalManualLogError = error.localizedDescription
+            libraryGlobalManualLogs = []
+            return .failure(error)
+        }
+
+        do {
+            let entries = try libraryStore.loadRegistryManualUpdateLogEntries(registrySourceURL: registrySourceURL)
+            libraryGlobalManualLogs = entries
+            let message = "Loaded \(entries.count) global log entries."
+            libraryGlobalManualLogMessage = message
+            return .success(count: entries.count, message: message)
+        } catch {
+            let appError = AppError.from(error, fallback: "Failed to load global manual logs.")
+            libraryGlobalManualLogError = appError.localizedDescription
+            libraryGlobalManualLogs = []
+            return .failure(appError)
+        }
+    }
+
+    func loadLibraryMetadataSyncLogs(resolveRegistrySourceURL: () -> URL?) -> LoadLibraryLogOutcome {
+        libraryMetadataSyncLogError = nil
+        libraryMetadataSyncLogMessage = nil
+
+        guard let registrySourceURL = resolveRegistrySourceURL() else {
+            let error = AppError.notFound("No registry source found. Load registry from Inbox first.")
+            libraryMetadataSyncLogError = error.localizedDescription
+            libraryMetadataSyncLogs = []
+            return .failure(error)
+        }
+
+        do {
+            let entries = try libraryStore.loadRegistryMetadataSyncLogEntries(registrySourceURL: registrySourceURL)
+            libraryMetadataSyncLogs = entries
+            let message = "Loaded \(entries.count) metadata log entries."
+            libraryMetadataSyncLogMessage = message
+            return .success(count: entries.count, message: message)
+        } catch {
+            let appError = AppError.from(error, fallback: "Failed to load metadata sync logs.")
+            libraryMetadataSyncLogError = appError.localizedDescription
+            libraryMetadataSyncLogs = []
+            return .failure(appError)
+        }
+    }
+
+    func markLibraryGlobalManualLogStatus(
+        rowIndex: Int,
+        status: LibraryManualLogStatus,
+        statusChangedBy: String = "user",
+        resolveRegistrySourceURL: () -> URL?
+    ) -> MarkLibraryLogStatusOutcome {
+        libraryGlobalManualLogError = nil
+        libraryGlobalManualLogMessage = nil
+
+        guard let registrySourceURL = resolveRegistrySourceURL() else {
+            let error = AppError.notFound("No registry source found. Load registry from Inbox first.")
+            libraryGlobalManualLogError = error.localizedDescription
+            return .failure(error)
+        }
+
+        do {
+            try libraryStore.updateRegistryManualUpdateLogStatus(
+                registrySourceURL: registrySourceURL,
+                rowIndex: rowIndex,
+                status: status,
+                statusChangedBy: statusChangedBy
+            )
+        } catch {
+            let appError = AppError.from(error, fallback: "Failed to update manual log status.")
+            libraryGlobalManualLogError = appError.localizedDescription
+            return .failure(appError)
+        }
+
+        switch loadLibraryGlobalManualLogs(resolveRegistrySourceURL: resolveRegistrySourceURL) {
+        case .success:
+            let message = "Updated status for log row \(rowIndex) to \(status.rawValue)."
+            libraryGlobalManualLogMessage = message
+            return .success(message: message)
+        case let .failure(error):
+            return .failure(error)
+        }
+    }
+
+    func updateLibraryRoot(to url: URL) {
+        librarySettings.rootPath = url.path
+        librarySettingsStore.save(librarySettings)
+        libraryRootVerificationPath = nil
+        libraryRootVerificationMessage = nil
+    }
+
+    func updateLibraryBackupPath(to url: URL) {
+        librarySettings.backupPath = url.path
+        librarySettingsStore.save(librarySettings)
+        libraryBackupError = nil
+    }
+
+    func updateAllowedBatchPrefixes(from rawValue: String) {
+        let prefixes = rawValue
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
+            .filter { !$0.isEmpty }
+        librarySettings.allowedBatchPrefixes = prefixes
+        librarySettingsStore.save(librarySettings)
+    }
+
+    func verifyLibraryRoot() {
+        guard let rootPath = librarySettings.rootPath else {
+            libraryRootVerificationMessage = "No Library Root selected."
+            return
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        guard let verifyURL = libraryStore.verifyRoot(at: rootURL) else {
+            libraryRootVerificationMessage = "Failed to verify Library Root."
+            return
+        }
+        libraryRootVerificationPath = verifyURL.path
+        libraryRootVerificationMessage = "Library Root verified."
+    }
+
+    func syncLibraryBackup(formatSyncDate: (Date) -> String) {
+        libraryBackupError = nil
+
+        guard let rootPath = librarySettings.rootPath else {
+            libraryBackupError = "No Library Root selected."
+            return
+        }
+        guard let backupPath = librarySettings.backupPath else {
+            libraryBackupError = "No Backup Path selected."
+            return
+        }
+
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let backupURL = URL(fileURLWithPath: backupPath)
+        let rootStandardPath = rootURL.standardizedFileURL.path
+        let backupStandardPath = backupURL.standardizedFileURL.path
+
+        if backupStandardPath == rootStandardPath {
+            libraryBackupError = "Backup Path must be different from Library Root."
+            return
+        }
+        if backupStandardPath.hasPrefix(rootStandardPath + "/") || rootStandardPath.hasPrefix(backupStandardPath + "/") {
+            libraryBackupError = "Backup Path cannot overlap with Library Root."
+            return
+        }
+
+        if libraryStore.syncBackup(from: rootURL, to: backupURL) {
+            let syncedAt = Date()
+            librarySettings.backupLastSyncedAt = syncedAt
+            librarySettingsStore.save(librarySettings)
+            libraryBackupMessage = "Backup sync successful at \(formatSyncDate(syncedAt))."
+        } else {
+            libraryBackupError = "Backup sync failed."
+        }
+    }
+
+    func refreshLibraryBackupMessage(formatSyncDate: (Date) -> String) {
+        guard let lastSyncedAt = librarySettings.backupLastSyncedAt else {
+            return
+        }
+        libraryBackupMessage = "Backup sync successful at \(formatSyncDate(lastSyncedAt))."
     }
 }

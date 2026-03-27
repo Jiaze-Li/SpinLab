@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
+@MainActor
 @Suite("V2.2.0 Library Diff Engine")
 struct V220LibraryDiffEngineTests {
     @Test("empty-like values do not produce pending changes")

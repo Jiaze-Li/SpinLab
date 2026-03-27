@@ -36,6 +36,109 @@ Instruction priority policy (required):
 
 ---
 
+Rule stability and enforcement (required):
+- Rule labels:
+  - `[HARD]`: non-negotiable constraint; violating this is considered a bug risk.
+  - `[DIRECTION]`: preferred direction; violating this is allowed only with explicit short-term rationale.
+  - `[GOAL]`: target architecture; may be partially unmet during migration.
+- Enforcement terms:
+  - `must`: required in this change unless user explicitly overrides.
+  - `should`: preferred; may be deferred when scope/time is constrained.
+
+---
+
+Where does new code go? (required):
+
+| Code shape | Destination |
+|---|---|
+| New observable feature state | FeatureStore in `Sources/SpinLabApp/App/State/` |
+| Cross-feature coordination | `SpinLabAppState` methods |
+| Complex operation within a single feature | FeatureStore method returning `Outcome` enum/result |
+| Stateless business operation (Input -> Output) | `Sources/SpinLabApp/UseCases/` struct |
+| Stateful domain service/orchestration | Service/Orchestrator in `Sources/SpinLabApp/App/` or domain module |
+| External I/O (filesystem/persistence) | Repository/Store layer |
+| Filename parsing/matching/routing rules | `Sources/SpinLabApp/Import/` pipeline layers |
+| Pure UI interaction state (expand/collapse/filter text) | `FeatureViewModel` |
+
+Architecture decision boundary (required):
+- If logic touches exactly one feature state domain, it `must` go to that FeatureStore.
+- If logic coordinates two or more stores (or store + navigation/alert/audit), it `must` stay in `SpinLabAppState`.
+- If logic is deterministic and side-effect-free with explicit input/output, it `should` be a UseCase.
+- If logic has long-lived state or multi-step workflow orchestration, it `should` be a Service/Orchestrator.
+
+---
+
+Feature Store pattern (required):
+- `[HARD][must]` New feature state must be introduced through a FeatureStore namespace, not as raw root properties on `SpinLabAppState`.
+- `[HARD][must]` For interactive observable stores, use `@MainActor @Observable final class`.
+- `[DIRECTION][should]` FeatureStore owns its domain repository references and projection stream wiring.
+- `[DIRECTION][should]` Complex mutating operations expose explicit outcomes (enum/result), not implicit side effects only.
+- `[HARD][must]` AppState exposes stores via namespace properties (`inbox`, `library`, `workbench`, etc.) and coordinates across them.
+- `[GOAL][should]` `SpinLabAppState` remains an app shell focused on:
+  1. cross-store coordination
+  2. global concerns (navigation, alert, audit)
+
+FeatureStore exception:
+- `[HARD][must]` Small presentation-only state containers with no autonomous behavior may be `struct` instead of `@Observable final class` (example: `RegistryFeatureStore`).
+
+---
+
+Canonical implementations (reference):
+- Feature Store pattern:
+  - `Sources/SpinLabApp/App/State/InboxFeatureStore.swift`
+  - `Sources/SpinLabApp/App/State/LibraryFeatureStore.swift`
+- UseCase (sync flow):
+  - `Sources/SpinLabApp/UseCases/ConfirmPendingImportUseCase.swift`
+- UseCase (non-fatal error channel):
+  - `Sources/SpinLabApp/UseCases/SaveLibrarySampleEditsUseCase.swift`
+- Repository + AsyncStream projection:
+  - `Sources/SpinLabApp/Repositories/DomainRepositories.swift`
+- Routing pipeline boundary example:
+  - `Sources/SpinLabApp/Import/Evaluate/PendingRoutingSnapshotEvaluator.swift`
+- Projection drain and projection subscription handling:
+  - `Sources/SpinLabApp/App/State/InboxFeatureStore.swift`
+- Integration test scaffold:
+  - `Tests/SpinLabAppTests/V223AppEnvironmentIntegrationTests.swift`
+
+---
+
+Pre-merge architecture checklist (required):
+- No new root passthrough property was added to `SpinLabAppState` for single-domain state.
+- Single-domain logic added in this change lives in its FeatureStore.
+- Cross-domain logic added in this change lives in `SpinLabAppState`.
+- New/changed behavior has tests in `Tests/SpinLabAppTests/` at matching version prefix.
+
+Anti-patterns (forbidden):
+- Adding new `library*` / `inbox*` / `workbench*` state fields directly on `SpinLabAppState` when a FeatureStore already exists.
+- Calling Repository/Store directly from Views.
+- Mixing UI-only changes with parser/state/storage logic in one undifferentiated commit.
+
+---
+
+Temporary exceptions during migration (required):
+- Purpose:
+  - Prevent agents from treating in-progress refactor seams as permanent architecture violations.
+- Handling rules:
+  - `[HARD][must]` Do not expand any temporary exception scope.
+  - `[HARD][must]` Any change touching a temporary exception must either reduce it or keep it flat with explicit rationale.
+  - `[DIRECTION][should]` Prefer deleting compatibility surfaces over adding new ones.
+
+Current temporary exceptions (as of v2.2.1):
+- `SpinLabAppState` still contains part of Library-domain behavior during ongoing AppShell migration.
+  - Constraint: new single-domain Library logic should go to `LibraryFeatureStore`, not AppState.
+- Some root-level compatibility properties remain for interaction snapshot and route continuity.
+  - Constraint: do not add new root passthroughs; migrate call sites to namespaced store access first, then remove compatibility properties.
+
+Exit criteria:
+- `SpinLabAppState` only keeps:
+  - selected area
+  - global alert/audit/navigation concerns
+  - cross-store orchestration
+  - store references
+- Single-domain feature behavior is fully owned by corresponding FeatureStore.
+
+---
+
 Platform and technology policy (required):
 - Minimum target: macOS 14. Do not use APIs unavailable below macOS 14.
 - State management: use Swift 5.9+ @Observable macro exclusively.
@@ -48,7 +151,8 @@ Platform and technology policy (required):
 ---
 
 State management policy (required):
-- Use @Observable final class for all observable state objects.
+- Use `@Observable final class` for observable state objects.
+  - Exception: presentation-only containers with no autonomous behavior may be plain `struct` (see Feature Store exception).
 - Use @ObservationIgnored for internal caches, lazy services, and Task handles that must not trigger view re-renders.
   - All lazy services stored inside AppState must be @ObservationIgnored.
 - Use private(set) var for properties that views should read but not write directly.

@@ -284,10 +284,6 @@ final class SpinLabAppState {
     var library: LibraryFeatureStore { libraryFeatureStore }
     var workbench: WorkbenchFeatureStore { workbenchFeatureStore }
 
-    var pendingImports: [SpinLabDomain.PendingImport] {
-        get { inboxFeatureStore.pendingImports }
-        set { inboxFeatureStore.pendingImports = newValue }
-    }
     var selectedPendingImportID: UUID? {
         get { inboxFeatureStore.selectedPendingImportID }
         set {
@@ -337,15 +333,18 @@ final class SpinLabAppState {
     private let managedStorage: SpinLabManagedStorage
     private var sampleRegistry: SampleRegistryIndexing
     private let inboxFeatureStore: InboxFeatureStore
-    private let registryFeatureStore: RegistryFeatureStore
+    private var registryFeatureStore: RegistryFeatureStore
     private let libraryFeatureStore: LibraryFeatureStore
     private let workbenchFeatureStore: WorkbenchFeatureStore
     private let appLogger = AppLogger.shared
     private let interactionSnapshotCoordinator: InteractionSnapshotCoordinator
     private let dataActor: any SpinLabDataActing
     private let registryLifecycleService = RegistryLifecycleService()
+    private let registryCoordinator = RegistryCoordinator()
+    private let inboxWorkflowService = InboxWorkflowService()
     private let libraryPreviewComputationService = LibraryPreviewComputationService()
     private let libraryMutationOrchestrator = LibraryMutationOrchestrator()
+    private let libraryMutationService = LibraryMutationService()
     private let coordinator = AppCoordinator()
     private let confirmPendingImportUseCase = ConfirmPendingImportUseCase()
     private let saveLibrarySampleEditsUseCase = SaveLibrarySampleEditsUseCase()
@@ -386,11 +385,6 @@ final class SpinLabAppState {
             self?.analysisModule.defaultResultSummary(for: measurement) ?? ""
         }
     )
-    private var librarySettingsStore: LibrarySettingsStore { libraryFeatureStore.librarySettingsStore }
-    private var libraryStore: LibraryStore { libraryFeatureStore.libraryStore }
-    private var libraryLogger: LibraryLogger { libraryFeatureStore.libraryLogger }
-    private var libraryDiffEngine: LibraryDiffEngine { libraryFeatureStore.libraryDiffEngine }
-    private var librarySampleEditService: LibrarySampleEditService { libraryFeatureStore.librarySampleEditService }
     private var librarySyncService: LibrarySyncService { libraryFeatureStore.librarySyncService }
     private var libraryState: LibraryState {
         get { libraryFeatureStore.libraryState }
@@ -430,12 +424,17 @@ final class SpinLabAppState {
         setupRepositoryProjectionTasks()
         migrateManagedMeasurementPathsToOriginalIfPossible()
         managedStorage.clearManagedMeasurementCopies()
-        updateRegistryPresentation()
+        registryFeatureStore.applyPresentation(
+            registryCoordinator.makePresentation(
+                sampleRegistry: sampleRegistry,
+                registryLifecycleService: registryLifecycleService
+            )
+        )
         refreshRoutingRuleMetadata(forceReload: false)
         loadExistingDrawers()
         restoreInteractionSnapshot()
         refreshPendingDrawerMatches()
-        refreshLibraryBackupMessage()
+        libraryFeatureStore.refreshLibraryBackupMessage(formatSyncDate: { Self.syncStatusTimeFormatter.string(from: $0) })
         interactionSnapshotCoordinator.markReady()
         persistInteractionSnapshotIfReady()
     }
@@ -464,7 +463,7 @@ final class SpinLabAppState {
     }
 
     var selectedPendingImport: SpinLabDomain.PendingImport? {
-        pendingImports.first { $0.id == selectedPendingImportID }
+        inboxFeatureStore.pendingImports.first { $0.id == selectedPendingImportID }
     }
 
     var selectedArchivedRecord: SpinLabDomain.ArchivedRecord? {
@@ -492,7 +491,7 @@ final class SpinLabAppState {
     }
 
     var pendingDrawerMatchByID: [UUID: Bool] {
-        Dictionary(uniqueKeysWithValues: pendingImports.map { pending in
+        Dictionary(uniqueKeysWithValues: inboxFeatureStore.pendingImports.map { pending in
             let presentation = pendingRoutePresentation(for: pending)
             return (pending.id, presentation.isLibraryMatched)
         })
@@ -555,7 +554,10 @@ final class SpinLabAppState {
     }
 
     private func refreshRoutingRuleMetadata(forceReload: Bool) {
-        let loadResult = inboxFeatureStore.refreshRoutingRuleMetadata(forceReload: forceReload)
+        let loadResult = registryCoordinator.refreshRoutingRuleMetadata(
+            inboxStore: inboxFeatureStore,
+            forceReload: forceReload
+        )
         appLogger.info(.import, "Routing rule metadata updated", metadata: [
             "version": "\(loadResult.metadata.version)",
             "source": loadResult.metadata.sourceLabel,
@@ -640,7 +642,7 @@ final class SpinLabAppState {
         var pendingChanged = false
         var archivedChanged = false
 
-        let migratedPendingImports = pendingImports.map { pending in
+        let migratedPendingImports = inboxFeatureStore.pendingImports.map { pending in
             guard managedStorage.isManagedMeasurementPath(pending.sourceFilePath),
                   let originalPath = pending.originalFilePath,
                   fileManager.fileExists(atPath: originalPath) else {
@@ -714,7 +716,7 @@ final class SpinLabAppState {
             libraryStore: libraryFeatureStore,
             workbenchStore: workbenchFeatureStore
         )
-        normalizeLibrarySelection()
+        libraryFeatureStore.normalizeLibrarySelection()
     }
 
     private func persistInteractionSnapshotIfReady() {
@@ -728,11 +730,12 @@ final class SpinLabAppState {
 
     func importFiles(from urls: [URL]) {
         let existingOriginalPaths = existingImportedOriginalPaths()
-        let imported = inboxFeatureStore.importFiles(
-            from: urls,
+        let imported = inboxWorkflowService.importFiles(
+            urls: urls,
+            inboxStore: inboxFeatureStore,
             managedStorage: managedStorage,
             importPipeline: importPipeline,
-            excludedOriginalFilePaths: existingOriginalPaths
+            excludedOriginalPaths: existingOriginalPaths
         )
         guard !imported.isEmpty else {
             return
@@ -744,60 +747,41 @@ final class SpinLabAppState {
     }
 
     func clearPendingImports() {
-        inboxFeatureStore.clearPendingImports()
+        inboxWorkflowService.clearPendingImports(inboxStore: inboxFeatureStore)
         updateInteractionValue(\.inboxWorkspaceByPendingID, to: [:])
         persistInteractionSnapshotIfReady()
     }
 
     func recomputeAllPendingParsedHints() {
         refreshRoutingRuleMetadata(forceReload: true)
-        let recomputedPendingImports = inboxFeatureStore.recomputeAllPendingParsedHints { [weak self] pending in
-            self?.recomputedParsedHints(for: pending) ?? pending.parsedHints
-        }
-
-        var updatedWorkspaceByPendingID: [String: InboxPendingWorkspaceState] = [:]
-        let existingWorkspaceByPendingID = interactionValue(\.inboxWorkspaceByPendingID)
-        for pending in recomputedPendingImports {
-            let key = InteractionSnapshotKeyCodec.dictionaryKey(for: pending.id)
-            guard let existing = existingWorkspaceByPendingID[key] else {
-                continue
+        let recomputeOutcome = inboxWorkflowService.recomputeAllPendingParsedHints(
+            inboxStore: inboxFeatureStore,
+            existingWorkspaceByPendingID: interactionValue(\.inboxWorkspaceByPendingID),
+            recomputeHints: { pending in
+                recomputedParsedHints(for: pending)
+            },
+            pendingDisplayDraft: { pending in
+                pendingDisplayDraft(for: pending)
             }
-            updatedWorkspaceByPendingID[key] = InboxPendingWorkspaceState.snapshotSafe(
-                draft: pendingDisplayDraft(for: pending),
-                editableFileContents: existing.editableFileContents,
-                hasEditableFileContents: existing.hasEditableFileContents,
-                routingDraft: nil
-            )
-        }
-        updateInteractionValue(\.inboxWorkspaceByPendingID, to: updatedWorkspaceByPendingID)
+        )
+        updateInteractionValue(\.inboxWorkspaceByPendingID, to: recomputeOutcome.workspaceByPendingID)
         persistInteractionSnapshotIfReady()
         bumpAppStateRevision()
     }
 
     func loadSampleRegistry(from url: URL) {
-        let installedURL: URL
-        do {
-            installedURL = try registryLifecycleService.installRegistry(from: url, managedStorage: managedStorage)
-        } catch {
-            let appError = AppError.from(error, fallback: "Failed to install sample registry.")
-            present(error: appError, title: "Registry Install Failed")
-            appLogger.warning(.import, "Sample registry install failed", metadata: ["error": appError.localizedDescription])
-            return
-        }
-        let sourceURL = url
         Task {
-            do {
-                let snapshot = try await registryLifecycleService.loadSnapshot(
-                    from: installedURL,
-                    previewRowCount: 10,
-                    dataActor: dataActor
-                )
-                await MainActor.run {
-                    applyLoadedRegistrySnapshot(snapshot, installedURL: installedURL, sourceURL: sourceURL)
-                }
-            } catch {
-                await MainActor.run {
-                    let appError = AppError.from(error, fallback: "Failed to load sample registry.")
+            let outcome = await registryCoordinator.loadSampleRegistry(
+                from: url,
+                managedStorage: managedStorage,
+                registryLifecycleService: registryLifecycleService,
+                dataActor: dataActor
+            )
+            await MainActor.run {
+                switch outcome {
+                case let .success(context):
+                    applyLoadedRegistryContext(context)
+                case let .failure(appError):
                     present(error: appError, title: "Registry Load Failed")
                     appLogger.warning(.import, "Sample registry load failed", metadata: ["error": appError.localizedDescription])
                 }
@@ -806,31 +790,22 @@ final class SpinLabAppState {
     }
 
     func reloadSampleRegistry() {
-        guard let fallbackURL = registryLifecycleService.resolveReloadSourceURL(
-            librarySettings: libraryFeatureStore.librarySettings,
-            resolveRegistrySourceURL: { [weak self] in self?.resolveRegistrySourceURL() }
-        ) else {
-            return
-        }
-
-        if libraryFeatureStore.librarySettings.registrySourcePath == fallbackURL.path {
-            loadSampleRegistry(from: fallbackURL)
-            return
-        }
-
         Task {
-            do {
-                let snapshot = try await registryLifecycleService.loadSnapshot(
-                    from: fallbackURL,
-                    previewRowCount: 10,
-                    dataActor: dataActor
-                )
-                await MainActor.run {
-                    applyLoadedRegistrySnapshot(snapshot, installedURL: fallbackURL, sourceURL: nil)
-                }
-            } catch {
-                await MainActor.run {
-                    let appError = AppError.from(error, fallback: "Failed to reload sample registry.")
+            let outcome = await registryCoordinator.reloadSampleRegistry(
+                librarySettings: libraryFeatureStore.librarySettings,
+                resolveRegistrySourceURL: { [weak self] in self?.resolveRegistrySourceURL() },
+                registryLifecycleService: registryLifecycleService,
+                dataActor: dataActor
+            )
+            await MainActor.run {
+                switch outcome {
+                case .unavailable:
+                    break
+                case let .forward(url):
+                    loadSampleRegistry(from: url)
+                case let .success(context):
+                    applyLoadedRegistryContext(context)
+                case let .failure(appError):
                     present(error: appError, title: "Registry Reload Failed")
                     appLogger.warning(.import, "Sample registry reload failed", metadata: ["error": appError.localizedDescription])
                 }
@@ -838,14 +813,14 @@ final class SpinLabAppState {
         }
     }
 
-    private func applyLoadedRegistrySnapshot(_ snapshot: SampleRegistrySnapshot, installedURL: URL, sourceURL: URL?) {
-        sampleRegistry = SnapshotSampleRegistryIndex(snapshot: snapshot)
-        updateLibraryRegistryPaths(installedURL: installedURL, sourceURL: sourceURL)
+    private func applyLoadedRegistryContext(_ context: RegistryLoadContext) {
+        sampleRegistry = context.registryState
+        updateLibraryRegistryPaths(installedURL: context.installedURL, sourceURL: context.sourceURL)
         libraryFeatureStore.libraryPreview = nil
         libraryFeatureStore.libraryPreviewWarnings = []
         libraryFeatureStore.libraryPreviewMessage = nil
         libraryFeatureStore.librarySyncStatusMessage = nil
-        updateRegistryPresentation()
+        registryFeatureStore.applyPresentation(context.presentation)
         refreshPendingDrawerMatches()
     }
 
@@ -953,7 +928,7 @@ final class SpinLabAppState {
             return
         }
         let rootURL = URL(fileURLWithPath: rootPath)
-        guard libraryStore.needsIndexRefresh(rootURL: rootURL) else {
+        guard libraryFeatureStore.libraryStore.needsIndexRefresh(rootURL: rootURL) else {
             return
         }
         syncLibraryFromFiles()
@@ -970,34 +945,30 @@ final class SpinLabAppState {
     }
 
     func selectExistingDrawer(prefix: String, batchId: String, sampleId: String?) {
-        let requested = LibraryPendingSelectionChange.drawer(prefix: prefix, batchId: batchId, sampleId: sampleId)
-        guard !deferSelectionChangeIfNeeded(requested) else {
-            return
-        }
-        applySelectionChange(requested)
+        let outcome = libraryFeatureStore.selectExistingDrawer(prefix: prefix, batchId: batchId, sampleId: sampleId)
+        handleLibrarySelectionChangeOutcome(outcome)
     }
 
     func selectBrowserSample() {
-        let requested = LibraryPendingSelectionChange.browser
-        guard !deferSelectionChangeIfNeeded(requested) else {
-            return
-        }
-        applySelectionChange(requested)
+        let outcome = libraryFeatureStore.selectBrowserSample()
+        handleLibrarySelectionChangeOutcome(outcome)
     }
 
     func saveAndContinuePendingLibrarySelectionChange() {
-        guard libraryState.pendingSelectionChange != nil else {
+        guard libraryFeatureStore.hasPendingSelectionChange() else {
             return
         }
         saveLibrarySampleEdits()
         guard libraryFeatureStore.librarySampleEditError == nil else {
             return
         }
-        applyAndClearPendingLibrarySelectionChange()
+        if let outcome = libraryFeatureStore.applyPendingSelectionChangeIfNeeded() {
+            handleLibrarySelectionChangeOutcome(outcome)
+        }
     }
 
     func discardAndContinuePendingLibrarySelectionChange() {
-        guard libraryState.pendingSelectionChange != nil else {
+        guard libraryFeatureStore.hasPendingSelectionChange() else {
             return
         }
         libraryFeatureStore.librarySampleEditDraft = nil
@@ -1005,259 +976,113 @@ final class SpinLabAppState {
         libraryState.sampleEditOriginalDraft = nil
         libraryFeatureStore.librarySampleEditError = nil
         libraryFeatureStore.librarySampleEditMessage = "Edit discarded."
-        applyAndClearPendingLibrarySelectionChange()
+        if let outcome = libraryFeatureStore.applyPendingSelectionChangeIfNeeded() {
+            handleLibrarySelectionChangeOutcome(outcome)
+        }
     }
 
     func cancelPendingLibrarySelectionChange() {
-        libraryState.pendingSelectionChange = nil
-        libraryFeatureStore.libraryPendingSelectionChangePrompt = nil
-    }
-
-    private func applySelectionChange(_ requested: LibraryPendingSelectionChange) {
-        switch requested {
-        case let .drawer(prefix, batchId, sampleId):
-            librarySelectedPrefix = prefix
-            librarySelectedBatchId = batchId
-            if let sampleId {
-                librarySelectedSampleId = sampleId
-            } else {
-                librarySelectedSampleId = libraryFeatureStore.libraryExistingGroups[prefix]?
-                    .first(where: { $0.batchId == batchId })?
-                    .samples
-                    .first?
-                    .id
-            }
-            libraryActiveSelectionSource = .drawer
-            libraryFeatureStore.librarySelectionVersion += 1
-            reconcileLibrarySampleEditingSelection()
-            appLogger.info(.ui, "Existing drawer selected", metadata: [
-                "prefix": prefix,
-                "batchId": batchId,
-                "sampleId": librarySelectedSampleId ?? "-"
-            ])
-        case .browser:
-            libraryActiveSelectionSource = .browser
-            libraryFeatureStore.librarySelectionVersion += 1
-            reconcileLibrarySampleEditingSelection()
-            appLogger.info(.usage, "Pending browser selection updated", metadata: [
-                "prefix": librarySelectedPrefix ?? "-",
-                "batchId": librarySelectedBatchId ?? "-",
-                "sampleId": librarySelectedSampleId ?? "-"
-            ])
-        }
-    }
-
-    private func deferSelectionChangeIfNeeded(_ requested: LibraryPendingSelectionChange) -> Bool {
-        guard librarySampleEditIsDirty,
-              requested != currentSelectionChangeKey else {
-            return false
-        }
-
-        libraryState.pendingSelectionChange = requested
-        libraryFeatureStore.libraryPendingSelectionChangePrompt = "You have unsaved sample edits. Save before switching selection?"
-        return true
-    }
-
-    private var currentSelectionChangeKey: LibraryPendingSelectionChange {
-        switch libraryActiveSelectionSource {
-        case .browser:
-            return .browser
-        case .drawer:
-            return .drawer(prefix: librarySelectedPrefix ?? "", batchId: librarySelectedBatchId ?? "", sampleId: librarySelectedSampleId)
-        }
-    }
-
-    private func applyAndClearPendingLibrarySelectionChange() {
-        guard let pending = libraryState.pendingSelectionChange else {
-            return
-        }
-        libraryState.pendingSelectionChange = nil
-        libraryFeatureStore.libraryPendingSelectionChangePrompt = nil
-        applySelectionChange(pending)
+        libraryFeatureStore.cancelPendingSelectionChange()
     }
 
     func hasPendingLibrarySelectionChange() -> Bool {
-        libraryState.pendingSelectionChange != nil
+        libraryFeatureStore.hasPendingSelectionChange()
+    }
+
+    private func handleLibrarySelectionChangeOutcome(_ outcome: LibraryFeatureStore.SelectionChangeOutcome) {
+        switch outcome {
+        case .deferred:
+            break
+        case let .appliedDrawer(prefix, batchId, sampleId):
+            appLogger.info(.ui, "Existing drawer selected", metadata: [
+                "prefix": prefix,
+                "batchId": batchId,
+                "sampleId": sampleId ?? "-"
+            ])
+        case let .appliedBrowser(prefix, batchId, sampleId):
+            appLogger.info(.usage, "Pending browser selection updated", metadata: [
+                "prefix": prefix ?? "-",
+                "batchId": batchId ?? "-",
+                "sampleId": sampleId ?? "-"
+            ])
+        }
     }
 
     func deleteExistingDrawer(batchId: String) {
         libraryFeatureStore.libraryDrawerError = nil
         libraryFeatureStore.libraryDrawerMessage = nil
 
-        guard let rootPath = libraryFeatureStore.librarySettings.rootPath else {
-            libraryFeatureStore.libraryDrawerError = "Select a Library Root first."
-            return
+        switch libraryMutationService.deleteExistingDrawer(
+            batchId: batchId,
+            rootPath: libraryFeatureStore.librarySettings.rootPath,
+            previewIndex: libraryFeatureStore.libraryPreview?.index,
+            libraryStore: libraryFeatureStore.libraryStore
+        ) {
+        case let .failure(message):
+            libraryFeatureStore.libraryDrawerError = message
+        case let .success(rootURL, previewIndex, message):
+            commitLibraryMutation(rootURL: rootURL, previewIndex: previewIndex)
+            libraryFeatureStore.libraryDrawerMessage = message
         }
-
-        let rootURL = URL(fileURLWithPath: rootPath)
-        let baselineIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
-        let targetSamples = baselineIndex.samples.filter { $0.batchId == batchId }
-        let targetBatch = baselineIndex.batches.first { $0.id == batchId }
-        guard targetBatch != nil || !targetSamples.isEmpty else {
-            libraryFeatureStore.libraryDrawerError = "Drawer \(batchId) not found."
-            return
-        }
-
-        for sample in targetSamples {
-            libraryStore.deleteSampleDrawer(for: sample, rootURL: rootURL)
-        }
-        libraryStore.deleteBatchDrawer(batchID: batchId, rootURL: rootURL)
-
-        var index = baselineIndex
-        index.updatedAt = .now
-        index.samples.removeAll { $0.batchId == batchId }
-        index.batches.removeAll { $0.id == batchId }
-        libraryStore.saveIndex(index, to: rootURL)
-
-        commitLibraryMutation(rootURL: rootURL, previewIndex: libraryFeatureStore.libraryPreview?.index)
-        libraryFeatureStore.libraryDrawerMessage = "Deleted drawer \(batchId) (\(targetSamples.count) samples)."
-    }
-
-    var canEditSelectedLibrarySample: Bool {
-        libraryActiveSelectionSource == .drawer && selectedExistingDrawerSample != nil
-    }
-
-    var librarySampleEditIsDirty: Bool {
-        guard let draft = libraryFeatureStore.librarySampleEditDraft,
-              let original = libraryState.sampleEditOriginalDraft else {
-            return false
-        }
-        return draft != original
     }
 
     func beginEditingSelectedLibrarySample() {
-        libraryFeatureStore.librarySampleEditError = nil
-        libraryFeatureStore.librarySampleEditMessage = nil
-
-        guard canEditSelectedLibrarySample, let sample = selectedExistingDrawerSample else {
-            libraryFeatureStore.librarySampleEditError = "Select an existing drawer sample to edit."
-            return
-        }
-
-        libraryState.sampleEditBaseSample = sample
-        let draft = librarySampleEditService.makeDraft(from: sample)
-        libraryFeatureStore.librarySampleEditDraft = draft
-        libraryState.sampleEditOriginalDraft = draft
+        let sample = libraryActiveSelectionSource == .drawer ? libraryFeatureStore.selectedExistingDrawerSample() : nil
+        libraryFeatureStore.beginEditingSelectedLibrarySample(selectedSample: sample)
     }
 
     func cancelEditingSelectedLibrarySample() {
-        libraryFeatureStore.librarySampleEditDraft = nil
-        libraryState.sampleEditBaseSample = nil
-        libraryState.sampleEditOriginalDraft = nil
-        libraryFeatureStore.librarySampleEditError = nil
-        libraryFeatureStore.librarySampleEditMessage = "Edit canceled."
+        libraryFeatureStore.cancelEditingSelectedLibrarySample()
     }
 
     func updateLibrarySampleEditSubstrateTags(_ value: String) {
-        guard var draft = libraryFeatureStore.librarySampleEditDraft else {
-            return
-        }
-        draft.substrateTagsText = value
-        libraryFeatureStore.librarySampleEditDraft = draft
+        libraryFeatureStore.updateLibrarySampleEditSubstrateTags(value)
     }
 
     func updateLibrarySampleEditNumericValue(key: String, value: String) {
-        guard var draft = libraryFeatureStore.librarySampleEditDraft else {
-            return
-        }
-        guard let index = draft.numericValues.firstIndex(where: { $0.key == key }) else {
-            return
-        }
-        draft.numericValues[index].value = value
-        libraryFeatureStore.librarySampleEditDraft = draft
+        libraryFeatureStore.updateLibrarySampleEditNumericValue(key: key, value: value)
     }
 
     func updateLibrarySampleEditMetadataValue(key: String, value: String) {
-        guard var draft = libraryFeatureStore.librarySampleEditDraft else {
-            return
-        }
-        guard let index = draft.metadataValues.firstIndex(where: { $0.key == key }) else {
-            return
-        }
-        draft.metadataValues[index].value = value
-        libraryFeatureStore.librarySampleEditDraft = draft
+        libraryFeatureStore.updateLibrarySampleEditMetadataValue(key: key, value: value)
     }
 
     func librarySampleChangeLog(for sample: LibrarySample) -> [LibrarySampleChangeLogEntry] {
-        guard let rootPath = libraryFeatureStore.librarySettings.rootPath else {
-            return []
-        }
-        let rootURL = URL(fileURLWithPath: rootPath)
-        return libraryStore.sampleChangeLog(for: sample, rootURL: rootURL)
+        libraryFeatureStore.sampleChangeLog(for: sample)
     }
 
     func loadLibraryGlobalManualLogs() {
-        libraryFeatureStore.libraryGlobalManualLogError = nil
-        libraryFeatureStore.libraryGlobalManualLogMessage = nil
-
-        guard let registrySourceURL = resolveRegistrySourceURL() else {
-            let error = AppError.notFound("No registry source found. Load registry from Inbox first.")
-            libraryFeatureStore.libraryGlobalManualLogError = error.localizedDescription
-            libraryFeatureStore.libraryGlobalManualLogs = []
+        switch libraryFeatureStore.loadLibraryGlobalManualLogs(
+            resolveRegistrySourceURL: { [weak self] in self?.resolveRegistrySourceURL() }
+        ) {
+        case .success:
+            break
+        case let .failure(error):
             present(error: error, title: "Log Load Failed")
-            return
-        }
-
-        do {
-            let entries = try libraryStore.loadRegistryManualUpdateLogEntries(registrySourceURL: registrySourceURL)
-            libraryFeatureStore.libraryGlobalManualLogs = entries
-            libraryFeatureStore.libraryGlobalManualLogMessage = "Loaded \(entries.count) global log entries."
-        } catch {
-            let appError = AppError.from(error, fallback: "Failed to load global manual logs.")
-            libraryFeatureStore.libraryGlobalManualLogError = appError.localizedDescription
-            libraryFeatureStore.libraryGlobalManualLogs = []
-            present(error: appError, title: "Log Load Failed")
         }
     }
 
     func markLibraryGlobalManualLogStatus(rowIndex: Int, status: LibraryManualLogStatus) {
-        libraryFeatureStore.libraryGlobalManualLogError = nil
-        libraryFeatureStore.libraryGlobalManualLogMessage = nil
-
-        guard let registrySourceURL = resolveRegistrySourceURL() else {
-            let error = AppError.notFound("No registry source found. Load registry from Inbox first.")
-            libraryFeatureStore.libraryGlobalManualLogError = error.localizedDescription
+        switch libraryFeatureStore.markLibraryGlobalManualLogStatus(
+            rowIndex: rowIndex,
+            status: status,
+            resolveRegistrySourceURL: { [weak self] in self?.resolveRegistrySourceURL() }
+        ) {
+        case .success:
+            break
+        case let .failure(error):
             present(error: error, title: "Status Update Failed")
-            return
-        }
-
-        do {
-            try libraryStore.updateRegistryManualUpdateLogStatus(
-                registrySourceURL: registrySourceURL,
-                rowIndex: rowIndex,
-                status: status,
-                statusChangedBy: "user"
-            )
-            loadLibraryGlobalManualLogs()
-            libraryFeatureStore.libraryGlobalManualLogMessage = "Updated status for log row \(rowIndex) to \(status.rawValue)."
-        } catch {
-            let appError = AppError.from(error, fallback: "Failed to update manual log status.")
-            libraryFeatureStore.libraryGlobalManualLogError = appError.localizedDescription
-            present(error: appError, title: "Status Update Failed")
         }
     }
 
     func loadLibraryMetadataSyncLogs() {
-        libraryFeatureStore.libraryMetadataSyncLogError = nil
-        libraryFeatureStore.libraryMetadataSyncLogMessage = nil
-
-        guard let registrySourceURL = resolveRegistrySourceURL() else {
-            let error = AppError.notFound("No registry source found. Load registry from Inbox first.")
-            libraryFeatureStore.libraryMetadataSyncLogError = error.localizedDescription
-            libraryFeatureStore.libraryMetadataSyncLogs = []
+        switch libraryFeatureStore.loadLibraryMetadataSyncLogs(
+            resolveRegistrySourceURL: { [weak self] in self?.resolveRegistrySourceURL() }
+        ) {
+        case .success:
+            break
+        case let .failure(error):
             present(error: error, title: "Log Load Failed")
-            return
-        }
-
-        do {
-            let entries = try libraryStore.loadRegistryMetadataSyncLogEntries(registrySourceURL: registrySourceURL)
-            libraryFeatureStore.libraryMetadataSyncLogs = entries
-            libraryFeatureStore.libraryMetadataSyncLogMessage = "Loaded \(entries.count) metadata log entries."
-        } catch {
-            let appError = AppError.from(error, fallback: "Failed to load metadata sync logs.")
-            libraryFeatureStore.libraryMetadataSyncLogError = appError.localizedDescription
-            libraryFeatureStore.libraryMetadataSyncLogs = []
-            present(error: appError, title: "Log Load Failed")
         }
     }
 
@@ -1295,22 +1120,23 @@ final class SpinLabAppState {
         libraryFeatureStore.libraryDrawerError = nil
         libraryFeatureStore.libraryDrawerMessage = nil
 
-        let result = libraryMutationOrchestrator.prepareLibrarySyncReview(
+        let result = libraryMutationService.prepareSyncReview(
             preview: libraryFeatureStore.libraryPreview,
             rootPath: libraryFeatureStore.librarySettings.rootPath,
             precomputedDiff: precomputedDiff,
-            libraryStore: libraryStore,
-            libraryDiffEngine: libraryDiffEngine,
-            librarySyncService: librarySyncService
+            libraryStore: libraryFeatureStore.libraryStore,
+            libraryDiffEngine: libraryFeatureStore.libraryDiffEngine,
+            librarySyncService: librarySyncService,
+            orchestrator: libraryMutationOrchestrator
         )
         switch result {
         case let .failure(message):
             libraryFeatureStore.libraryDrawerError = message
-        case let .success(plan):
-            libraryFeatureStore.libraryRefreshReview = plan.review
-            refreshSyncChangeIndicators()
-            refreshActionablePreviewGroups(precomputedDiff: plan.diff, baselineIndex: plan.baselineIndex)
-            libraryFeatureStore.libraryDrawerMessage = plan.message
+        case let .success(review, diff, baselineIndex, message, indicators):
+            libraryFeatureStore.libraryRefreshReview = review
+            applySyncChangeIndicators(indicators)
+            refreshActionablePreviewGroups(precomputedDiff: diff, baselineIndex: baselineIndex)
+            libraryFeatureStore.libraryDrawerMessage = message
         }
     }
 
@@ -1318,292 +1144,107 @@ final class SpinLabAppState {
         libraryFeatureStore.libraryDrawerError = nil
         libraryFeatureStore.libraryDrawerMessage = nil
 
-        let planResult = libraryMutationOrchestrator.planIncrementalRefresh(
+        switch libraryMutationService.refreshIncremental(
+            libraryStore: libraryFeatureStore.libraryStore,
+            librarySyncService: librarySyncService,
+            orchestrator: libraryMutationOrchestrator,
             preview: libraryFeatureStore.libraryPreview,
             rootPath: libraryFeatureStore.librarySettings.rootPath,
-            libraryStore: libraryStore,
-            librarySyncService: librarySyncService
-        )
-        let plan: RefreshLibraryIncrementalPlan
-        switch planResult {
+            settings: libraryFeatureStore.librarySettings
+        ) {
         case let .failure(message):
             libraryFeatureStore.libraryDrawerError = message
-            return
-        case let .success(value):
-            plan = value
+        case let .success(rootURL, previewIndex, message):
+            // Recompute post-apply state from persisted filesystem/index; do not reuse pre-apply diff.
+            commitLibraryMutation(rootURL: rootURL, previewIndex: previewIndex)
+            libraryFeatureStore.libraryDrawerMessage = message
         }
-
-        librarySyncService.applyAll(preview: plan.preview, rootURL: plan.rootURL, settings: libraryFeatureStore.librarySettings)
-        // Recompute post-apply state from persisted filesystem/index; do not reuse pre-apply diff.
-        commitLibraryMutation(rootURL: plan.rootURL, previewIndex: plan.preview.index)
-        libraryFeatureStore.libraryDrawerMessage = plan.message
     }
 
     func confirmLibraryNumericRefreshChanges() {
         libraryFeatureStore.libraryDrawerError = nil
         libraryFeatureStore.libraryDrawerMessage = nil
 
-        guard let review = libraryFeatureStore.libraryRefreshReview else {
-            libraryFeatureStore.libraryDrawerError = "No refresh review available."
-            return
-        }
-        guard !review.deferredNumericChanges.isEmpty else {
-            libraryFeatureStore.libraryDrawerMessage = "No numeric changes pending confirmation."
-            return
-        }
-        guard let preview = libraryFeatureStore.libraryPreview else {
-            libraryFeatureStore.libraryDrawerError = "Load the registry preview first."
-            return
-        }
-        guard let rootPath = libraryFeatureStore.librarySettings.rootPath else {
-            libraryFeatureStore.libraryDrawerError = "Select a Library Root first."
-            return
-        }
-
-        let rootURL = URL(fileURLWithPath: rootPath)
-        let baselineIndex = libraryStore.loadIndex(from: rootURL)
-            ?? LibraryIndex(
-                createdAt: .now,
-                updatedAt: .now,
-                registryInternalPath: libraryFeatureStore.librarySettings.registryInternalPath,
-                registrySourcePath: libraryFeatureStore.librarySettings.registrySourcePath,
-                metadataColumnOrder: [],
-                batches: [],
-                samples: []
-            )
-        var mergedSamplesByID = Dictionary(uniqueKeysWithValues: baselineIndex.samples.map { ($0.id, $0) })
-        var mergedBatchesByID = Dictionary(uniqueKeysWithValues: baselineIndex.batches.map { ($0.id, $0) })
-        let batchesByIDInPreview = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
-        var touchedBatchIDs: Set<String> = []
-
-        for change in review.deferredNumericChanges {
-            let sample = change.sample
-            mergedSamplesByID[sample.id] = sample
-            libraryStore.updateSample(sample, rootURL: rootURL)
-            touchedBatchIDs.insert(sample.batchId)
-        }
-
-        for batchID in touchedBatchIDs {
-            guard let batch = batchesByIDInPreview[batchID] else {
-                continue
+        switch libraryMutationService.confirmNumericRefreshChanges(
+            review: libraryFeatureStore.libraryRefreshReview,
+            preview: libraryFeatureStore.libraryPreview,
+            rootPath: libraryFeatureStore.librarySettings.rootPath,
+            settings: libraryFeatureStore.librarySettings,
+            libraryStore: libraryFeatureStore.libraryStore
+        ) {
+        case let .failure(message):
+            if message == "No numeric changes pending confirmation." {
+                libraryFeatureStore.libraryDrawerMessage = message
+            } else {
+                libraryFeatureStore.libraryDrawerError = message
             }
-            mergedBatchesByID[batchID] = batch
-            libraryStore.updateBatch(batch, rootURL: rootURL)
+        case let .success(updatedReview, appliedCount, lastRefreshAt):
+            loadExistingDrawers()
+            libraryFeatureStore.librarySettings.lastRefreshAt = lastRefreshAt
+            libraryFeatureStore.librarySettingsStore.save(libraryFeatureStore.librarySettings)
+            libraryFeatureStore.libraryRefreshReview = updatedReview
+            libraryFeatureStore.libraryDrawerMessage = "Confirmed and applied \(appliedCount) numeric changes."
+            refreshSyncChangeIndicators()
         }
-
-        var mergedIndex = baselineIndex
-        mergedIndex.updatedAt = .now
-        mergedIndex.registryInternalPath = libraryFeatureStore.librarySettings.registryInternalPath
-        mergedIndex.registrySourcePath = libraryFeatureStore.librarySettings.registrySourcePath
-        mergedIndex.metadataColumnOrder = preview.index.metadataColumnOrder
-        mergedIndex.samples = Array(mergedSamplesByID.values).sorted { $0.displayName < $1.displayName }
-        mergedIndex.batches = Array(mergedBatchesByID.values).sorted { $0.id < $1.id }
-        libraryStore.saveIndex(mergedIndex, to: rootURL)
-        loadExistingDrawers()
-
-        libraryFeatureStore.librarySettings.lastRefreshAt = Date()
-        librarySettingsStore.save(libraryFeatureStore.librarySettings)
-
-        libraryFeatureStore.libraryRefreshReview = LibraryRefreshReview(
-            generatedAt: review.generatedAt,
-            newSamples: review.newSamples,
-            changedSamples: review.changedSamples,
-            removedSamples: review.removedSamples,
-            changedBatches: review.changedBatches,
-            removedBatches: review.removedBatches,
-            autoAppliedChanges: review.autoAppliedChanges + review.deferredNumericChanges,
-            deferredNumericChanges: []
-        )
-        libraryFeatureStore.libraryDrawerMessage = "Confirmed and applied \(review.deferredNumericChanges.count) numeric changes."
     }
 
     func createDrawersFromPreview() {
         libraryFeatureStore.libraryDrawerError = nil
         libraryFeatureStore.libraryDrawerMessage = nil
 
-        guard let preview = libraryFeatureStore.libraryPreview else {
-            libraryFeatureStore.libraryDrawerError = "Load the registry preview first."
-            return
+        switch libraryMutationService.createDrawersFromPreview(
+            preview: libraryFeatureStore.libraryPreview,
+            rootPath: libraryFeatureStore.librarySettings.rootPath,
+            libraryStore: libraryFeatureStore.libraryStore,
+            settings: libraryFeatureStore.librarySettings
+        ) {
+        case let .failure(message):
+            libraryFeatureStore.libraryDrawerError = message
+        case let .success(rootURL, previewIndex, _, message):
+            commitLibraryMutation(rootURL: rootURL, previewIndex: previewIndex)
+            libraryFeatureStore.libraryDrawerMessage = message
         }
-        guard let rootPath = libraryFeatureStore.librarySettings.rootPath else {
-            libraryFeatureStore.libraryDrawerError = "Select a Library Root first."
-            return
-        }
-        let rootURL = URL(fileURLWithPath: rootPath)
-        libraryStore.ensureRoot(at: rootURL)
-
-        let batchesById = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
-        var created = 0
-        for sample in preview.index.samples {
-            guard let batch = batchesById[sample.batchId] else {
-                continue
-            }
-            libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
-            created += 1
-        }
-
-        var index = preview.index
-        index.updatedAt = .now
-        index.registryInternalPath = libraryFeatureStore.librarySettings.registryInternalPath
-        index.registrySourcePath = libraryFeatureStore.librarySettings.registrySourcePath
-        libraryStore.saveIndex(index, to: rootURL)
-        commitLibraryMutation(rootURL: rootURL, previewIndex: preview.index)
-
-        libraryFeatureStore.libraryDrawerMessage = "Created \(created) sample drawers."
     }
 
     func createDrawersForSelection(batchId: String?, sampleId: String?) {
         libraryFeatureStore.libraryDrawerError = nil
         libraryFeatureStore.libraryDrawerMessage = nil
 
-        guard let preview = libraryFeatureStore.libraryPreview else {
-            libraryFeatureStore.libraryDrawerError = "Load the registry preview first."
-            return
+        switch libraryMutationService.createDrawersForSelection(
+            preview: libraryFeatureStore.libraryPreview,
+            rootPath: libraryFeatureStore.librarySettings.rootPath,
+            batchId: batchId,
+            sampleId: sampleId,
+            libraryStore: libraryFeatureStore.libraryStore,
+            settings: libraryFeatureStore.librarySettings
+        ) {
+        case let .failure(message):
+            libraryFeatureStore.libraryDrawerError = message
+        case let .success(rootURL, previewIndex, _, message):
+            commitLibraryMutation(rootURL: rootURL, previewIndex: previewIndex)
+            libraryFeatureStore.libraryDrawerMessage = message
         }
-        guard let rootPath = libraryFeatureStore.librarySettings.rootPath else {
-            libraryFeatureStore.libraryDrawerError = "Select a Library Root first."
-            return
-        }
-        guard let batchId else {
-            libraryFeatureStore.libraryDrawerError = "Select a batch or sample."
-            return
-        }
-
-        let rootURL = URL(fileURLWithPath: rootPath)
-        libraryStore.ensureRoot(at: rootURL)
-
-        let batchesById = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
-        guard let batch = batchesById[batchId] else {
-            libraryFeatureStore.libraryDrawerError = "Selected batch not found."
-            return
-        }
-
-        let samples = preview.index.samples.filter { $0.batchId == batchId }
-        let targetSamples: [LibrarySample]
-        if let sampleId, let sample = samples.first(where: { $0.id == sampleId }) {
-            targetSamples = [sample]
-        } else {
-            targetSamples = samples
-        }
-
-        guard !targetSamples.isEmpty else {
-            libraryFeatureStore.libraryDrawerError = "No samples found for selection."
-            return
-        }
-
-        for sample in targetSamples {
-            libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
-        }
-
-        let baselineIndex = libraryStore.loadIndex(from: rootURL)
-            ?? LibraryIndex(
-                createdAt: .now,
-                updatedAt: .now,
-                registryInternalPath: libraryFeatureStore.librarySettings.registryInternalPath,
-                registrySourcePath: libraryFeatureStore.librarySettings.registrySourcePath,
-                metadataColumnOrder: [],
-                batches: [],
-                samples: []
-            )
-        var samplesByID = Dictionary(uniqueKeysWithValues: baselineIndex.samples.map { ($0.id, $0) })
-        for sample in targetSamples {
-            samplesByID[sample.id] = sample
-        }
-
-        var batchesByID = Dictionary(uniqueKeysWithValues: baselineIndex.batches.map { ($0.id, $0) })
-        var mergedBatch = batchesByID[batch.id] ?? batch
-        let mergedSampleKeys = Set(mergedBatch.sampleKeys).union(targetSamples.map(\.id))
-        mergedBatch.sampleKeys = mergedSampleKeys.sorted()
-        mergedBatch.metadata = batch.metadata
-        mergedBatch.numericTags = batch.numericTags
-        mergedBatch.numericDisplay = batch.numericDisplay
-        mergedBatch.sheetName = batch.sheetName
-        mergedBatch.updatedAt = .now
-        batchesByID[batch.id] = mergedBatch
-
-        var index = baselineIndex
-        index.updatedAt = .now
-        index.registryInternalPath = libraryFeatureStore.librarySettings.registryInternalPath
-        index.registrySourcePath = libraryFeatureStore.librarySettings.registrySourcePath
-        index.metadataColumnOrder = preview.index.metadataColumnOrder
-        index.samples = Array(samplesByID.values).sorted { $0.displayName < $1.displayName }
-        index.batches = Array(batchesByID.values).sorted { $0.id < $1.id }
-        libraryStore.saveIndex(index, to: rootURL)
-        commitLibraryMutation(rootURL: rootURL, previewIndex: preview.index)
-
-        libraryFeatureStore.libraryDrawerMessage = "Created \(targetSamples.count) sample drawers."
     }
 
     func updateLibraryRoot(to url: URL) {
-        libraryFeatureStore.librarySettings.rootPath = url.path
-        librarySettingsStore.save(libraryFeatureStore.librarySettings)
-        libraryFeatureStore.libraryRootVerificationPath = nil
-        libraryFeatureStore.libraryRootVerificationMessage = nil
+        libraryFeatureStore.updateLibraryRoot(to: url)
         loadExistingDrawers()
     }
 
     func updateLibraryBackupPath(to url: URL) {
-        libraryFeatureStore.librarySettings.backupPath = url.path
-        librarySettingsStore.save(libraryFeatureStore.librarySettings)
-        libraryFeatureStore.libraryBackupError = nil
+        libraryFeatureStore.updateLibraryBackupPath(to: url)
     }
 
     func updateAllowedBatchPrefixes(from rawValue: String) {
-        let prefixes = rawValue
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
-            .filter { !$0.isEmpty }
-        libraryFeatureStore.librarySettings.allowedBatchPrefixes = prefixes
-        librarySettingsStore.save(libraryFeatureStore.librarySettings)
+        libraryFeatureStore.updateAllowedBatchPrefixes(from: rawValue)
     }
 
     func verifyLibraryRoot() {
-        guard let rootPath = libraryFeatureStore.librarySettings.rootPath else {
-            libraryFeatureStore.libraryRootVerificationMessage = "No Library Root selected."
-            return
-        }
-        let rootURL = URL(fileURLWithPath: rootPath)
-        guard let verifyURL = libraryStore.verifyRoot(at: rootURL) else {
-            libraryFeatureStore.libraryRootVerificationMessage = "Failed to verify Library Root."
-            return
-        }
-        libraryFeatureStore.libraryRootVerificationPath = verifyURL.path
-        libraryFeatureStore.libraryRootVerificationMessage = "Library Root verified."
+        libraryFeatureStore.verifyLibraryRoot()
     }
 
     func syncLibraryBackup() {
-        libraryFeatureStore.libraryBackupError = nil
-
-        guard let rootPath = libraryFeatureStore.librarySettings.rootPath else {
-            libraryFeatureStore.libraryBackupError = "No Library Root selected."
-            return
-        }
-        guard let backupPath = libraryFeatureStore.librarySettings.backupPath else {
-            libraryFeatureStore.libraryBackupError = "No Backup Path selected."
-            return
-        }
-
-        let rootURL = URL(fileURLWithPath: rootPath)
-        let backupURL = URL(fileURLWithPath: backupPath)
-        let rootStandardPath = rootURL.standardizedFileURL.path
-        let backupStandardPath = backupURL.standardizedFileURL.path
-        if backupStandardPath == rootStandardPath {
-            libraryFeatureStore.libraryBackupError = "Backup Path must be different from Library Root."
-            return
-        }
-        if backupStandardPath.hasPrefix(rootStandardPath + "/") || rootStandardPath.hasPrefix(backupStandardPath + "/") {
-            libraryFeatureStore.libraryBackupError = "Backup Path cannot overlap with Library Root."
-            return
-        }
-
-        if libraryStore.syncBackup(from: rootURL, to: backupURL) {
-            let syncedAt = Date()
-            libraryFeatureStore.librarySettings.backupLastSyncedAt = syncedAt
-            librarySettingsStore.save(libraryFeatureStore.librarySettings)
-            libraryFeatureStore.libraryBackupMessage = "Backup sync successful at \(Self.syncStatusTimeFormatter.string(from: syncedAt))."
-        } else {
-            libraryFeatureStore.libraryBackupError = "Backup sync failed."
-        }
+        libraryFeatureStore.syncLibraryBackup(formatSyncDate: { Self.syncStatusTimeFormatter.string(from: $0) })
     }
 
     func openPendingImportInWorkbench() {
@@ -1731,38 +1372,35 @@ final class SpinLabAppState {
     }
 
     func confirmSelectedPendingImport(with draft: PendingImportConfirmationDraft, editedFileContents: String?) {
-        guard let pending = selectedPendingImport else {
-            return
-        }
+        let outcome = inboxWorkflowService.confirmPendingImport(
+            selectedPending: selectedPendingImport,
+            draft: draft,
+            editedFileContents: editedFileContents,
+            savePendingImportContents: { contents, pending in
+                try savePendingImportContents(contents, for: pending)
+            },
+            inboxStore: inboxFeatureStore,
+            confirmUseCase: confirmPendingImportUseCase,
+            libraryRepository: libraryRepository,
+            makeArchivedRecord: { pending, draft in
+                let lookup = registryLookup(for: pending)
+                return makeArchivedRecord(from: pending, draft: draft, registryLookup: lookup)
+            },
+            coordinator: coordinator
+        )
 
-        if let editedFileContents {
-            do {
-                try savePendingImportContents(editedFileContents, for: pending)
-            } catch {
+        switch outcome {
+        case .skipped:
+            return
+        case let .failure(pending, error, phase):
+            switch phase {
+            case .saveEditedFile:
                 appLogger.error(.import, "Failed to persist edited pending contents", metadata: [
                     "pendingID": pending.id.uuidString,
                     "fileName": pending.fileName
                 ])
-                present(
-                    error: AppError.from(error, fallback: "Failed to save edited import contents."),
-                    title: "Save Failed"
-                )
-                return
-            }
-        }
-
-        let result = inboxFeatureStore.confirmPendingImport(
-            pending: pending,
-            draft: draft,
-            useCase: confirmPendingImportUseCase,
-            libraryRepository: libraryRepository,
-            makeArchivedRecord: { pending, draft in
-                let lookup = self.registryLookup(for: pending)
-                return self.makeArchivedRecord(from: pending, draft: draft, registryLookup: lookup)
-            }
-        )
-        guard case let .success(output) = result else {
-            if case let .failure(error) = result {
+                present(error: error, title: "Save Failed")
+            case .confirm:
                 appLogger.error(.import, "Pending import confirmation failed", metadata: [
                     "pendingID": pending.id.uuidString,
                     "fileName": pending.fileName,
@@ -1770,25 +1408,19 @@ final class SpinLabAppState {
                 ])
                 present(error: error, title: "Import Failed")
             }
-            return
+        case let .success(success):
+            applyArchivedRecordsProjection(success.output.archivedRecords)
+            updateInteractionEntryValue(for: success.clearWorkspaceEntryPendingID, in: \.inboxWorkspaceByPendingID, value: nil)
+            _ = workbenchFeatureStore.selectArchivedRecord(success.selectArchivedRecordID, analysisModule: analysisModule)
+            selectedPendingImportID = success.route.nextPendingID
+            selectedArea = success.route.selectedArea
+            appLogger.info(.import, "Pending import confirmed", metadata: [
+                "pendingID": success.confirmedPending.id.uuidString,
+                "archivedRecordID": success.output.archivedRecord.id.uuidString,
+                "measurementID": success.output.archivedRecord.measurement.id.uuidString,
+                "workflow": workflow.rawValue
+            ])
         }
-
-        applyArchivedRecordsProjection(output.archivedRecords)
-        updateInteractionEntryValue(for: pending.id, in: \.inboxWorkspaceByPendingID, value: nil)
-
-        let route = coordinator.routeAfterPendingConfirmation(
-            archivedRecordID: output.archivedRecord.id,
-            nextPendingID: pendingImports.first?.id
-        )
-        _ = workbenchFeatureStore.selectArchivedRecord(route.archivedRecordID, analysisModule: analysisModule)
-        selectedPendingImportID = route.nextPendingID
-        selectedArea = route.selectedArea
-        appLogger.info(.import, "Pending import confirmed", metadata: [
-            "pendingID": pending.id.uuidString,
-            "archivedRecordID": output.archivedRecord.id.uuidString,
-            "measurementID": output.archivedRecord.measurement.id.uuidString,
-            "workflow": workflow.rawValue
-        ])
     }
 
     func pendingImportEditableContents(for pending: SpinLabDomain.PendingImport) -> String? {
@@ -1877,56 +1509,27 @@ final class SpinLabAppState {
         libraryFeatureStore.libraryExistingGroups = buildPreviewGroups(from: index)
         inboxFeatureStore.rebuildDrawerMatchCandidates(from: index.samples)
         libraryFeatureStore.libraryExistingMessage = "Loaded existing drawers: \(index.samples.count) samples"
-        normalizeLibrarySelection()
-        reconcileLibrarySampleEditingSelection()
+        libraryFeatureStore.normalizeLibrarySelection()
+        libraryFeatureStore.reconcileLibrarySampleEditingSelection()
         refreshPendingDrawerMatches()
     }
 
     private func refreshSyncChangeIndicators() {
-        guard let review = libraryFeatureStore.libraryRefreshReview else {
-            libraryFeatureStore.libraryBatchSyncStatusByID = [:]
-            libraryFeatureStore.librarySampleSyncChangesByID = [:]
-            libraryFeatureStore.libraryBatchSyncChangesByID = [:]
-            return
-        }
-
-        var batchStatus: [String: LibrarySyncBatchStatus] = [:]
-        for sample in review.newSamples {
-            batchStatus[sample.batchId] = .added
-        }
-        for change in review.changedSamples {
-            if batchStatus[change.sample.batchId] != .added {
-                batchStatus[change.sample.batchId] = .changed
-            }
-        }
-        for sample in review.removedSamples {
-            if batchStatus[sample.batchId] != .added {
-                batchStatus[sample.batchId] = .changed
-            }
-        }
-        for change in review.changedBatches {
-            if batchStatus[change.batch.id] != .added {
-                batchStatus[change.batch.id] = .changed
-            }
-        }
-        for batch in review.removedBatches {
-            batchStatus[batch.id] = .removed
-        }
-
-        libraryFeatureStore.libraryBatchSyncStatusByID = batchStatus
-        libraryFeatureStore.librarySampleSyncChangesByID = Dictionary(uniqueKeysWithValues: review.changedSamples.map { ($0.sample.id, $0.fieldChanges) })
-        libraryFeatureStore.libraryBatchSyncChangesByID = Dictionary(uniqueKeysWithValues: review.changedBatches.map { ($0.batch.id, $0.fieldChanges) })
+        applySyncChangeIndicators(
+            libraryMutationService.makeSyncChangeIndicators(review: libraryFeatureStore.libraryRefreshReview)
+        )
     }
 
-    private func updateRegistryPresentation() {
-        let presentation = registryLifecycleService.makePresentationState(from: sampleRegistry)
-        registryFeatureStore.applyPresentation(presentation)
+    private func applySyncChangeIndicators(_ indicators: LibrarySyncChangeIndicators) {
+        libraryFeatureStore.libraryBatchSyncStatusByID = indicators.batchStatusByID
+        libraryFeatureStore.librarySampleSyncChangesByID = indicators.sampleChangesByID
+        libraryFeatureStore.libraryBatchSyncChangesByID = indicators.batchChangesByID
     }
 
     private func updateLibraryRegistryPaths(installedURL: URL, sourceURL: URL?) {
         libraryFeatureStore.librarySettings.registryInternalPath = installedURL.path
         libraryFeatureStore.librarySettings.registrySourcePath = sourceURL?.path
-        librarySettingsStore.save(libraryFeatureStore.librarySettings)
+        libraryFeatureStore.librarySettingsStore.save(libraryFeatureStore.librarySettings)
     }
 
     private func buildPreviewGroups(from preview: LibraryPreview) -> [String: [LibraryPreviewBatchGroup]] {
@@ -1948,8 +1551,8 @@ final class SpinLabAppState {
             precomputedDiff: precomputedDiff,
             baselineIndex: baselineIndex,
             rootPath: libraryFeatureStore.librarySettings.rootPath,
-            libraryStore: libraryStore,
-            libraryDiffEngine: libraryDiffEngine,
+            libraryStore: libraryFeatureStore.libraryStore,
+            libraryDiffEngine: libraryFeatureStore.libraryDiffEngine,
             previewComputationService: libraryPreviewComputationService
         )
         libraryFeatureStore.libraryPreviewGroups = state.groups
@@ -1962,27 +1565,28 @@ final class SpinLabAppState {
         precomputedDiff: LibraryDiff? = nil,
         precomputedReview: LibraryRefreshReview? = nil
     ) {
-        let syncedIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
-        applyExistingIndex(syncedIndex)
-
-        let plan = libraryMutationOrchestrator.makeCommitPlan(
-            syncedIndex: syncedIndex,
+        let outcome = libraryMutationService.commitMutation(
+            rootURL: rootURL,
             previewIndex: previewIndex,
             precomputedDiff: precomputedDiff,
             precomputedReview: precomputedReview,
-            libraryDiffEngine: libraryDiffEngine,
-            librarySyncService: librarySyncService
+            libraryStore: libraryFeatureStore.libraryStore,
+            libraryDiffEngine: libraryFeatureStore.libraryDiffEngine,
+            librarySyncService: librarySyncService,
+            orchestrator: libraryMutationOrchestrator
         )
-        libraryFeatureStore.libraryRefreshReview = plan.review
+        applyExistingIndex(outcome.syncedIndex)
+
+        libraryFeatureStore.libraryRefreshReview = outcome.plan.review
         refreshSyncChangeIndicators()
-        if let diff = plan.diff, let baseline = plan.baselineIndexForPreview {
+        if let diff = outcome.plan.diff, let baseline = outcome.plan.baselineIndexForPreview {
             refreshActionablePreviewGroups(precomputedDiff: diff, baselineIndex: baseline)
         } else {
             refreshActionablePreviewGroups()
         }
 
-        libraryFeatureStore.librarySettings.lastRefreshAt = plan.lastRefreshAt
-        librarySettingsStore.save(libraryFeatureStore.librarySettings)
+        libraryFeatureStore.librarySettings.lastRefreshAt = outcome.plan.lastRefreshAt
+        libraryFeatureStore.librarySettingsStore.save(libraryFeatureStore.librarySettings)
     }
 
     private static let syncStatusTimeFormatter: DateFormatter = {
@@ -1990,42 +1594,6 @@ final class SpinLabAppState {
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
         return formatter
     }()
-
-    private func refreshLibraryBackupMessage() {
-        guard let lastSyncedAt = libraryFeatureStore.librarySettings.backupLastSyncedAt else {
-            return
-        }
-        libraryFeatureStore.libraryBackupMessage = "Backup sync successful at \(Self.syncStatusTimeFormatter.string(from: lastSyncedAt))."
-    }
-
-    private func normalizeLibrarySelection() {
-        let prefixes = libraryFeatureStore.libraryExistingGroups.keys.sorted()
-        if librarySelectedPrefix == nil || !prefixes.contains(librarySelectedPrefix ?? "") {
-            librarySelectedPrefix = prefixes.first
-        }
-
-        guard let prefix = librarySelectedPrefix else {
-            librarySelectedBatchId = nil
-            librarySelectedSampleId = nil
-            return
-        }
-
-        let groups = libraryFeatureStore.libraryExistingGroups[prefix] ?? []
-        let batchIDs = groups.map(\.batchId)
-        if librarySelectedBatchId == nil || !batchIDs.contains(librarySelectedBatchId ?? "") {
-            librarySelectedBatchId = groups.first?.batchId
-        }
-
-        guard let batchId = librarySelectedBatchId,
-              let samples = groups.first(where: { $0.batchId == batchId })?.samples else {
-            librarySelectedSampleId = nil
-            return
-        }
-
-        if librarySelectedSampleId == nil || !samples.contains(where: { $0.id == librarySelectedSampleId }) {
-            librarySelectedSampleId = samples.first?.id
-        }
-    }
 
     private func recomputedParsedHints(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.ParsedFilenameHints {
         let fileManager = FileManager.default
@@ -2039,44 +1607,6 @@ final class SpinLabAppState {
         }
 
         return importPipeline.metadataExtension.parseFilename(from: parseURL)
-    }
-
-    private var selectedExistingDrawerSample: LibrarySample? {
-        guard let prefix = librarySelectedPrefix,
-              let batchId = librarySelectedBatchId,
-              let sampleId = librarySelectedSampleId else {
-            return nil
-        }
-        let groups = libraryFeatureStore.libraryExistingGroups[prefix] ?? []
-        guard let group = groups.first(where: { $0.batchId == batchId }) else {
-            return nil
-        }
-        return group.samples.first(where: { $0.id == sampleId })
-    }
-
-    private func reconcileLibrarySampleEditingSelection() {
-        guard let draft = libraryFeatureStore.librarySampleEditDraft else {
-            return
-        }
-
-        guard libraryActiveSelectionSource == .drawer,
-              let selectedSample = selectedExistingDrawerSample else {
-            libraryFeatureStore.librarySampleEditDraft = nil
-            libraryState.sampleEditBaseSample = nil
-            libraryState.sampleEditOriginalDraft = nil
-            libraryFeatureStore.librarySampleEditError = nil
-            libraryFeatureStore.librarySampleEditMessage = "Edit canceled after leaving existing drawer selection."
-            return
-        }
-
-        guard selectedSample.id == draft.sampleId else {
-            libraryFeatureStore.librarySampleEditDraft = nil
-            libraryState.sampleEditBaseSample = nil
-            libraryState.sampleEditOriginalDraft = nil
-            libraryFeatureStore.librarySampleEditError = nil
-            libraryFeatureStore.librarySampleEditMessage = "Edit canceled after sample selection changed."
-            return
-        }
     }
 
     private func savePendingImportContents(_ contents: String, for pending: SpinLabDomain.PendingImport) throws {
@@ -2100,7 +1630,7 @@ final class SpinLabAppState {
     private func existingImportedOriginalPaths() -> Set<String> {
         var paths: Set<String> = []
 
-        for pending in pendingImports {
+        for pending in inboxFeatureStore.pendingImports {
             if let original = pending.originalFilePath {
                 paths.insert(normalizedPath(original))
             }
@@ -2165,7 +1695,7 @@ final class SpinLabAppState {
             "routingRuleSource": inboxFeatureStore.routingRuleSourceLabel,
             "routingRulePath": inboxFeatureStore.routingRuleSourcePath,
             "routingRuleFingerprint": inboxFeatureStore.routingRuleFingerprint,
-            "pendingImportCount": "\(pendingImports.count)",
+            "pendingImportCount": "\(inboxFeatureStore.pendingImports.count)",
             "archivedRecordCount": "\(workbenchFeatureStore.archivedRecords.count)",
             "selectedArea": selectedArea.rawValue
         ]

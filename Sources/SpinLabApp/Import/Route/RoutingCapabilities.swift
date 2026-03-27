@@ -36,7 +36,7 @@ struct RoutingCapabilities {
     var evaluator: any RouteSnapshotEvaluationCapability
     var matcher: any DrawerMatchingCapability
 
-    static let live = RoutingCapabilities(
+    nonisolated(unsafe) static let live = RoutingCapabilities(
         planner: SpinLabRoutePlanner(),
         evaluator: PendingRoutingSnapshotEvaluator(),
         matcher: DrawerMatchEngine()

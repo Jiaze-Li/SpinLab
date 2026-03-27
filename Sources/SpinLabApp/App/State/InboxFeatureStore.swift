@@ -119,8 +119,8 @@ final class InboxFeatureStore {
             return next
         }
         clearPendingState()
-        refreshPendingDrawerMatches()
         _ = replacePendingImports(recomputedPendingImports)
+        refreshPendingDrawerMatches()
         return recomputedPendingImports
     }
 

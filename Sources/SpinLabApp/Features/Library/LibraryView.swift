@@ -112,11 +112,17 @@ struct LibraryView: View {
         HStack(alignment: .firstTextBaseline) {
             Text("Library")
                 .font(level1HeaderFont)
+            Button("Export Audit") {
+                presentAuditTrailExportPanel()
+            }
+            .font(.caption)
+            .buttonStyle(.bordered)
             Spacer()
             Text(AppVersion.current)
                 .font(.caption.monospaced())
                 .foregroundStyle(.secondary)
         }
+        .padding(.top, 4)
     }
 
     private var librarySettingsSection: some View {
@@ -147,6 +153,24 @@ struct LibraryView: View {
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                         .fixedSize(horizontal: false, vertical: true)
 
+                        HStack {
+                            Button("Load Registry") {
+                                presentSampleRegistryPanel()
+                            }
+                            Button("Reload Registry") {
+                                appState.reloadSampleRegistry()
+                            }
+                            .disabled(!appState.canReloadSampleRegistry)
+                            Spacer()
+                        }
+                    }
+                } label: {
+                    Text("Registry")
+                        .font(level3HeaderFont)
+                }
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 8) {
                         MetadataValueRow(
                             label: "Library Root",
                             value: viewModel.viewState.libraryRootPath ?? "Not set",
@@ -192,7 +216,7 @@ struct LibraryView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 } label: {
-                    Text("Settings")
+                    Text("Library Root")
                         .font(level3HeaderFont)
                 }
 
@@ -869,12 +893,12 @@ struct LibraryView: View {
                     Button("Save") {
                         viewModel.saveLibrarySampleEdits()
                     }
-                    .disabled(!appState.librarySampleEditIsDirty || appState.library.librarySampleEditIsSaving)
+                    .disabled(!appState.library.librarySampleEditIsDirty || appState.library.librarySampleEditIsSaving)
                 } else {
                     Button("Edit") {
                         viewModel.beginEditingSelectedLibrarySample()
                     }
-                    .disabled(!appState.canEditSelectedLibrarySample)
+                    .disabled(!appState.library.canEditSelectedLibrarySample)
                 }
             }
 
@@ -1584,6 +1608,48 @@ struct LibraryView: View {
         }
     }
 
+    private func presentSampleRegistryPanel() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedFileTypes = ["xlsx"]
+        panel.title = "Load Sample Registry"
+        panel.message = "Choose an XLSX registry file."
+
+        if panel.runModal() == .OK, let url = panel.url {
+            appState.loadSampleRegistry(from: url)
+        }
+    }
+
+    private func presentAuditTrailExportPanel() {
+        let panel = NSSavePanel()
+        panel.title = "Export Audit Trail"
+        panel.prompt = "Export"
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = "spinlab_audit_trail.json"
+        panel.allowedContentTypes = [.json]
+        if panel.runModal() != .OK {
+            return
+        }
+        guard let destinationURL = panel.url else {
+            return
+        }
+
+        do {
+            let summary = try appState.exportAuditTrail(to: destinationURL)
+            appState.presentAlert(
+                title: "Audit Trail Exported",
+                message: "Saved \(summary.entryCount) log entries to \(destinationURL.path)."
+            )
+        } catch {
+            appState.presentAlert(
+                title: "Export Failed",
+                message: error.localizedDescription
+            )
+        }
+    }
+
     private var interactionStateSnapshot: LibraryInteractionState {
         LibraryInteractionState(
             selectedPrefix: selectedPrefix,
@@ -1927,14 +1993,10 @@ private struct DetailField: Hashable {
     var fullWidth: Bool = false
 }
 
-private struct PreviewSampleRow: View, Equatable {
+private struct PreviewSampleRow: View {
     let sample: LibrarySample
     let isSelected: Bool
     let onSelect: () -> Void
-
-    static func == (lhs: PreviewSampleRow, rhs: PreviewSampleRow) -> Bool {
-        lhs.sample.id == rhs.sample.id && lhs.isSelected == rhs.isSelected
-    }
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
