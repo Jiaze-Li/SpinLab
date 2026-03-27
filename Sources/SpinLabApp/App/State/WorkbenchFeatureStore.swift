@@ -4,6 +4,8 @@ import Observation
 @MainActor
 @Observable
 final class WorkbenchFeatureStore {
+    private let workbenchState = WorkbenchState()
+
     var archivedRecords: [SpinLabDomain.ArchivedRecord]
     var projectCatalog: [SpinLabDomain.Project]
     var selectedArchivedRecordID: UUID?
@@ -85,6 +87,56 @@ final class WorkbenchFeatureStore {
     func captureInteraction(into snapshot: inout SpinLabInteractionSnapshot) {
         snapshot.selectedArchivedRecordID = selectedArchivedRecordID
         snapshot.workbenchResultDraft = workbenchResultDraft
+    }
+
+    func selectedArchivedRecord() -> SpinLabDomain.ArchivedRecord? {
+        guard let selectedArchivedRecordID else {
+            return nil
+        }
+        return archivedRecords.first { $0.id == selectedArchivedRecordID }
+    }
+
+    @discardableResult
+    func selectArchivedRecord(
+        _ recordID: UUID,
+        analysisModule: AnalysisModuleExtension
+    ) -> Bool {
+        guard let record = archivedRecords.first(where: { $0.id == recordID }) else {
+            return false
+        }
+        selectedArchivedRecordID = recordID
+        workbenchResultDraft = workbenchState.resolvedSummary(
+            for: record.measurement,
+            draftSummary: record.latestResult?.summary ?? "",
+            analysisModule: analysisModule
+        )
+        return true
+    }
+
+    func saveWorkbenchResult(analysisModule: AnalysisModuleExtension) -> [SpinLabDomain.ArchivedRecord]? {
+        guard let selectedArchivedRecordID else {
+            return nil
+        }
+        guard let recordIndex = archivedRecords.firstIndex(where: { $0.id == selectedArchivedRecordID }) else {
+            return nil
+        }
+
+        var record = archivedRecords[recordIndex]
+        let existingResultID = record.latestResult?.id ?? UUID()
+        record.latestResult = SpinLabDomain.Result(
+            id: existingResultID,
+            measurementID: record.measurement.id,
+            summary: workbenchState.resolvedSummary(
+                for: record.measurement,
+                draftSummary: workbenchResultDraft,
+                analysisModule: analysisModule
+            ),
+            rating: record.latestResult?.rating,
+            updatedAt: .now
+        )
+
+        archivedRecords[recordIndex] = record
+        return archivedRecords
     }
 
     @MainActor

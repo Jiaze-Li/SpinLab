@@ -492,7 +492,6 @@ final class SpinLabAppState {
     private let appLogger = AppLogger.shared
     private let interactionMemory: InteractionMemoryStore
     private let inboxRoutingState: InboxRoutingState
-    private let workbenchState = WorkbenchState()
     private let dataActor: any SpinLabDataActing
     private let coordinator = AppCoordinator()
     private let confirmPendingImportUseCase = ConfirmPendingImportUseCase()
@@ -589,7 +588,7 @@ final class SpinLabAppState {
     }
 
     var selectedArchivedRecord: SpinLabDomain.ArchivedRecord? {
-        archivedRecords.first { $0.id == selectedArchivedRecordID }
+        workbenchFeatureStore.selectedArchivedRecord()
     }
 
     var workbenchTitle: String {
@@ -700,7 +699,11 @@ final class SpinLabAppState {
         applyPendingImportsProjection(inboxRepository.pendingImports)
         applyArchivedRecordsProjection(archivedRecords)
         applyProjectCatalogProjection(projectCatalog)
-        workbenchResultDraft = selectedArchivedRecord?.latestResult?.summary ?? ""
+        if let selectedArchivedRecord {
+            _ = workbenchFeatureStore.selectArchivedRecord(selectedArchivedRecord.id, analysisModule: analysisModule)
+        } else {
+            workbenchResultDraft = ""
+        }
         inboxRoutingState.clearPendingState()
     }
 
@@ -1798,16 +1801,9 @@ final class SpinLabAppState {
             recordID: recordID,
             archivedRecords: archivedRecords
         ),
-        let record = archivedRecords.first(where: { $0.id == route.archivedRecordID }) else {
+        workbenchFeatureStore.selectArchivedRecord(route.archivedRecordID, analysisModule: analysisModule) else {
             return
         }
-
-        selectedArchivedRecordID = route.archivedRecordID
-        workbenchResultDraft = workbenchState.resolvedSummary(
-            for: record.measurement,
-            draftSummary: record.latestResult?.summary ?? "",
-            analysisModule: analysisModule
-        )
         selectedArea = route.selectedArea
     }
 
@@ -1973,13 +1969,8 @@ final class SpinLabAppState {
             archivedRecordID: output.archivedRecord.id,
             nextPendingID: pendingImports.first?.id
         )
-        selectedArchivedRecordID = route.archivedRecordID
+        _ = workbenchFeatureStore.selectArchivedRecord(route.archivedRecordID, analysisModule: analysisModule)
         selectedPendingImportID = route.nextPendingID
-        workbenchResultDraft = workbenchState.resolvedSummary(
-            for: output.archivedRecord.measurement,
-            draftSummary: output.archivedRecord.latestResult?.summary ?? "",
-            analysisModule: analysisModule
-        )
         selectedArea = route.selectedArea
         appLogger.info(.import, "Pending import confirmed", metadata: [
             "pendingID": pending.id.uuidString,
@@ -2019,30 +2010,10 @@ final class SpinLabAppState {
     }
 
     func saveWorkbenchResult() {
-        guard let selectedArchivedRecordID else {
+        guard let updated = workbenchFeatureStore.saveWorkbenchResult(analysisModule: analysisModule) else {
             return
         }
-
-        guard let recordIndex = archivedRecords.firstIndex(where: { $0.id == selectedArchivedRecordID }) else {
-            return
-        }
-
-        var record = archivedRecords[recordIndex]
-        let existingResultID = record.latestResult?.id ?? UUID()
-        record.latestResult = SpinLabDomain.Result(
-            id: existingResultID,
-            measurementID: record.measurement.id,
-            summary: workbenchState.resolvedSummary(
-                for: record.measurement,
-                draftSummary: workbenchResultDraft,
-                analysisModule: analysisModule
-            ),
-            rating: record.latestResult?.rating,
-            updatedAt: .now
-        )
-
-        archivedRecords[recordIndex] = record
-        replaceArchivedRecords(archivedRecords)
+        replaceArchivedRecords(updated)
     }
 
     func registryLookup(for pending: SpinLabDomain.PendingImport) -> SampleRegistryLookupResult? {
