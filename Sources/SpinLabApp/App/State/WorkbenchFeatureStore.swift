@@ -6,6 +6,8 @@ import Observation
 final class WorkbenchFeatureStore {
     var archivedRecords: [SpinLabDomain.ArchivedRecord]
     var projectCatalog: [SpinLabDomain.Project]
+    var selectedArchivedRecordID: UUID?
+    var workbenchResultDraft: String = ""
 
     @ObservationIgnored
     private var archivedRecordsProjectionTask: Task<Void, Never>?
@@ -27,6 +29,7 @@ final class WorkbenchFeatureStore {
         self.libraryRepository = libraryRepository
         self.archivedRecords = libraryRepository.archivedRecords
         self.projectCatalog = libraryRepository.projects
+        self.selectedArchivedRecordID = self.archivedRecords.first?.id
     }
 
     deinit {

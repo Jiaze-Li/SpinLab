@@ -316,12 +316,6 @@ final class SpinLabAppState {
     var selectedPendingImportID: UUID? {
         didSet { persistInteractionSnapshotIfReady() }
     }
-    var selectedArchivedRecordID: UUID? {
-        didSet { persistInteractionSnapshotIfReady() }
-    }
-    var workbenchResultDraft: String = "" {
-        didSet { persistInteractionSnapshotIfReady() }
-    }
     private(set) var registryFileName: String?
     private(set) var registrySourceFilePath: String?
     private(set) var registryPrefixEntries: [RegistryPrefixEntry] = []
@@ -474,6 +468,20 @@ final class SpinLabAppState {
     var projectCatalog: [SpinLabDomain.Project] {
         get { workbenchFeatureStore.projectCatalog }
         set { workbenchFeatureStore.projectCatalog = newValue }
+    }
+    var selectedArchivedRecordID: UUID? {
+        get { workbenchFeatureStore.selectedArchivedRecordID }
+        set {
+            workbenchFeatureStore.selectedArchivedRecordID = newValue
+            persistInteractionSnapshotIfReady()
+        }
+    }
+    var workbenchResultDraft: String {
+        get { workbenchFeatureStore.workbenchResultDraft }
+        set {
+            workbenchFeatureStore.workbenchResultDraft = newValue
+            persistInteractionSnapshotIfReady()
+        }
     }
 
     let workflow: SpinLabDomain.WorkflowKind
