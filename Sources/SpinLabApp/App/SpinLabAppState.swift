@@ -325,130 +325,6 @@ final class SpinLabAppState {
     }
     var activeAlert: AppAlertState?
     private(set) var appStateRevision: Int = 0
-    var librarySettings: LibrarySettings {
-        get { libraryFeatureStore.librarySettings }
-        set { libraryFeatureStore.librarySettings = newValue }
-    }
-    private(set) var libraryRootVerificationPath: String? {
-        get { libraryFeatureStore.libraryRootVerificationPath }
-        set { libraryFeatureStore.libraryRootVerificationPath = newValue }
-    }
-    private(set) var libraryRootVerificationMessage: String? {
-        get { libraryFeatureStore.libraryRootVerificationMessage }
-        set { libraryFeatureStore.libraryRootVerificationMessage = newValue }
-    }
-    private(set) var libraryBackupMessage: String? {
-        get { libraryFeatureStore.libraryBackupMessage }
-        set { libraryFeatureStore.libraryBackupMessage = newValue }
-    }
-    private(set) var libraryBackupError: String? {
-        get { libraryFeatureStore.libraryBackupError }
-        set { libraryFeatureStore.libraryBackupError = newValue }
-    }
-    private(set) var libraryPreview: LibraryPreview? {
-        get { libraryFeatureStore.libraryPreview }
-        set { libraryFeatureStore.libraryPreview = newValue }
-    }
-    private(set) var libraryPreviewMessage: String? {
-        get { libraryFeatureStore.libraryPreviewMessage }
-        set { libraryFeatureStore.libraryPreviewMessage = newValue }
-    }
-    private(set) var libraryLastSyncedAt: Date? {
-        get { libraryFeatureStore.libraryLastSyncedAt }
-        set { libraryFeatureStore.libraryLastSyncedAt = newValue }
-    }
-    private(set) var librarySyncStatusMessage: String? {
-        get { libraryFeatureStore.librarySyncStatusMessage }
-        set { libraryFeatureStore.librarySyncStatusMessage = newValue }
-    }
-    private(set) var libraryPreviewWarnings: [LibraryWarning] {
-        get { libraryFeatureStore.libraryPreviewWarnings }
-        set { libraryFeatureStore.libraryPreviewWarnings = newValue }
-    }
-    private(set) var libraryPreviewGroups: [String: [LibraryPreviewBatchGroup]] {
-        get { libraryFeatureStore.libraryPreviewGroups }
-        set { libraryFeatureStore.libraryPreviewGroups = newValue }
-    }
-    private(set) var libraryExistingGroups: [String: [LibraryPreviewBatchGroup]] {
-        get { libraryFeatureStore.libraryExistingGroups }
-        set { libraryFeatureStore.libraryExistingGroups = newValue }
-    }
-    private(set) var libraryExistingMessage: String? {
-        get { libraryFeatureStore.libraryExistingMessage }
-        set { libraryFeatureStore.libraryExistingMessage = newValue }
-    }
-    private(set) var librarySelectionVersion: Int {
-        get { libraryFeatureStore.librarySelectionVersion }
-        set { libraryFeatureStore.librarySelectionVersion = newValue }
-    }
-    private(set) var libraryDrawerMessage: String? {
-        get { libraryFeatureStore.libraryDrawerMessage }
-        set { libraryFeatureStore.libraryDrawerMessage = newValue }
-    }
-    private(set) var libraryDrawerError: String? {
-        get { libraryFeatureStore.libraryDrawerError }
-        set { libraryFeatureStore.libraryDrawerError = newValue }
-    }
-    private(set) var libraryRefreshReview: LibraryRefreshReview? {
-        get { libraryFeatureStore.libraryRefreshReview }
-        set { libraryFeatureStore.libraryRefreshReview = newValue }
-    }
-    private(set) var libraryBatchSyncStatusByID: [String: LibrarySyncBatchStatus] {
-        get { libraryFeatureStore.libraryBatchSyncStatusByID }
-        set { libraryFeatureStore.libraryBatchSyncStatusByID = newValue }
-    }
-    private(set) var librarySampleSyncChangesByID: [String: [LibraryFieldChange]] {
-        get { libraryFeatureStore.librarySampleSyncChangesByID }
-        set { libraryFeatureStore.librarySampleSyncChangesByID = newValue }
-    }
-    private(set) var libraryBatchSyncChangesByID: [String: [LibraryFieldChange]] {
-        get { libraryFeatureStore.libraryBatchSyncChangesByID }
-        set { libraryFeatureStore.libraryBatchSyncChangesByID = newValue }
-    }
-    private(set) var librarySampleEditDraft: LibrarySampleEditDraft? {
-        get { libraryFeatureStore.librarySampleEditDraft }
-        set { libraryFeatureStore.librarySampleEditDraft = newValue }
-    }
-    private(set) var librarySampleEditError: String? {
-        get { libraryFeatureStore.librarySampleEditError }
-        set { libraryFeatureStore.librarySampleEditError = newValue }
-    }
-    private(set) var librarySampleEditMessage: String? {
-        get { libraryFeatureStore.librarySampleEditMessage }
-        set { libraryFeatureStore.librarySampleEditMessage = newValue }
-    }
-    private(set) var librarySampleEditIsSaving: Bool {
-        get { libraryFeatureStore.librarySampleEditIsSaving }
-        set { libraryFeatureStore.librarySampleEditIsSaving = newValue }
-    }
-    private(set) var libraryPendingSelectionChangePrompt: String? {
-        get { libraryFeatureStore.libraryPendingSelectionChangePrompt }
-        set { libraryFeatureStore.libraryPendingSelectionChangePrompt = newValue }
-    }
-    private(set) var libraryGlobalManualLogs: [LibraryManualUpdateLogEntry] {
-        get { libraryFeatureStore.libraryGlobalManualLogs }
-        set { libraryFeatureStore.libraryGlobalManualLogs = newValue }
-    }
-    private(set) var libraryGlobalManualLogError: String? {
-        get { libraryFeatureStore.libraryGlobalManualLogError }
-        set { libraryFeatureStore.libraryGlobalManualLogError = newValue }
-    }
-    private(set) var libraryGlobalManualLogMessage: String? {
-        get { libraryFeatureStore.libraryGlobalManualLogMessage }
-        set { libraryFeatureStore.libraryGlobalManualLogMessage = newValue }
-    }
-    private(set) var libraryMetadataSyncLogs: [LibraryMetadataSyncLogEntry] {
-        get { libraryFeatureStore.libraryMetadataSyncLogs }
-        set { libraryFeatureStore.libraryMetadataSyncLogs = newValue }
-    }
-    private(set) var libraryMetadataSyncLogError: String? {
-        get { libraryFeatureStore.libraryMetadataSyncLogError }
-        set { libraryFeatureStore.libraryMetadataSyncLogError = newValue }
-    }
-    private(set) var libraryMetadataSyncLogMessage: String? {
-        get { libraryFeatureStore.libraryMetadataSyncLogMessage }
-        set { libraryFeatureStore.libraryMetadataSyncLogMessage = newValue }
-    }
     let workflow: SpinLabDomain.WorkflowKind
 
     private let persistence: SpinLabPersistence
@@ -931,13 +807,13 @@ final class SpinLabAppState {
 
     func reloadSampleRegistry() {
         guard let fallbackURL = registryLifecycleService.resolveReloadSourceURL(
-            librarySettings: librarySettings,
+            librarySettings: libraryFeatureStore.librarySettings,
             resolveRegistrySourceURL: { [weak self] in self?.resolveRegistrySourceURL() }
         ) else {
             return
         }
 
-        if librarySettings.registrySourcePath == fallbackURL.path {
+        if libraryFeatureStore.librarySettings.registrySourcePath == fallbackURL.path {
             loadSampleRegistry(from: fallbackURL)
             return
         }
@@ -965,18 +841,18 @@ final class SpinLabAppState {
     private func applyLoadedRegistrySnapshot(_ snapshot: SampleRegistrySnapshot, installedURL: URL, sourceURL: URL?) {
         sampleRegistry = SnapshotSampleRegistryIndex(snapshot: snapshot)
         updateLibraryRegistryPaths(installedURL: installedURL, sourceURL: sourceURL)
-        libraryPreview = nil
-        libraryPreviewWarnings = []
-        libraryPreviewMessage = nil
-        librarySyncStatusMessage = nil
+        libraryFeatureStore.libraryPreview = nil
+        libraryFeatureStore.libraryPreviewWarnings = []
+        libraryFeatureStore.libraryPreviewMessage = nil
+        libraryFeatureStore.librarySyncStatusMessage = nil
         updateRegistryPresentation()
         refreshPendingDrawerMatches()
     }
 
     private func resolvedLibraryRegistryPath() -> String? {
         let fileManager = FileManager.default
-        let sourcePath = librarySettings.registrySourcePath
-        let internalPath = librarySettings.registryInternalPath ?? managedStorage.currentSampleRegistryFileURL()?.path
+        let sourcePath = libraryFeatureStore.librarySettings.registrySourcePath
+        let internalPath = libraryFeatureStore.librarySettings.registryInternalPath ?? managedStorage.currentSampleRegistryFileURL()?.path
         if let sourcePath, fileManager.fileExists(atPath: sourcePath) {
             return sourcePath
         }
@@ -1026,10 +902,10 @@ final class SpinLabAppState {
     func applyPreparedLibrarySyncReview() {
         switch libraryFeatureStore.applyPreparedSyncReviewDecision() {
         case let .missingReview(message):
-            libraryDrawerError = message
+            libraryFeatureStore.libraryDrawerError = message
             appLogger.warning(.library, "Apply all skipped: no sync review")
         case let .noChanges(message):
-            libraryDrawerMessage = message
+            libraryFeatureStore.libraryDrawerMessage = message
             appLogger.info(.library, "Apply all skipped: no pending changes")
         case let .apply(totalChanges):
             appLogger.info(.function, "Apply all requested", metadata: [
@@ -1060,9 +936,9 @@ final class SpinLabAppState {
 
     func loadExistingDrawers() {
         guard let index = libraryFeatureStore.loadExistingDrawersIndexForCurrentRoot() else {
-            libraryExistingGroups = [:]
+            libraryFeatureStore.libraryExistingGroups = [:]
             inboxFeatureStore.clearDrawerMatchCandidates()
-            libraryExistingMessage = "No Library Root selected."
+            libraryFeatureStore.libraryExistingMessage = "No Library Root selected."
             librarySelectedPrefix = nil
             librarySelectedBatchId = nil
             librarySelectedSampleId = nil
@@ -1073,7 +949,7 @@ final class SpinLabAppState {
     }
 
     func validateLibraryCacheOnAppear() {
-        guard let rootPath = librarySettings.rootPath else {
+        guard let rootPath = libraryFeatureStore.librarySettings.rootPath else {
             return
         }
         let rootURL = URL(fileURLWithPath: rootPath)
@@ -1089,8 +965,8 @@ final class SpinLabAppState {
         }
         applyExistingIndex(outcome.syncedIndex)
         refreshActionablePreviewGroups()
-        libraryRootVerificationMessage = outcome.summaryMessage
-        libraryRootVerificationPath = outcome.rootPath
+        libraryFeatureStore.libraryRootVerificationMessage = outcome.summaryMessage
+        libraryFeatureStore.libraryRootVerificationPath = outcome.rootPath
     }
 
     func selectExistingDrawer(prefix: String, batchId: String, sampleId: String?) {
@@ -1114,7 +990,7 @@ final class SpinLabAppState {
             return
         }
         saveLibrarySampleEdits()
-        guard librarySampleEditError == nil else {
+        guard libraryFeatureStore.librarySampleEditError == nil else {
             return
         }
         applyAndClearPendingLibrarySelectionChange()
@@ -1124,17 +1000,17 @@ final class SpinLabAppState {
         guard libraryState.pendingSelectionChange != nil else {
             return
         }
-        librarySampleEditDraft = nil
+        libraryFeatureStore.librarySampleEditDraft = nil
         libraryState.sampleEditBaseSample = nil
         libraryState.sampleEditOriginalDraft = nil
-        librarySampleEditError = nil
-        librarySampleEditMessage = "Edit discarded."
+        libraryFeatureStore.librarySampleEditError = nil
+        libraryFeatureStore.librarySampleEditMessage = "Edit discarded."
         applyAndClearPendingLibrarySelectionChange()
     }
 
     func cancelPendingLibrarySelectionChange() {
         libraryState.pendingSelectionChange = nil
-        libraryPendingSelectionChangePrompt = nil
+        libraryFeatureStore.libraryPendingSelectionChangePrompt = nil
     }
 
     private func applySelectionChange(_ requested: LibraryPendingSelectionChange) {
@@ -1145,14 +1021,14 @@ final class SpinLabAppState {
             if let sampleId {
                 librarySelectedSampleId = sampleId
             } else {
-                librarySelectedSampleId = libraryExistingGroups[prefix]?
+                librarySelectedSampleId = libraryFeatureStore.libraryExistingGroups[prefix]?
                     .first(where: { $0.batchId == batchId })?
                     .samples
                     .first?
                     .id
             }
             libraryActiveSelectionSource = .drawer
-            librarySelectionVersion += 1
+            libraryFeatureStore.librarySelectionVersion += 1
             reconcileLibrarySampleEditingSelection()
             appLogger.info(.ui, "Existing drawer selected", metadata: [
                 "prefix": prefix,
@@ -1161,7 +1037,7 @@ final class SpinLabAppState {
             ])
         case .browser:
             libraryActiveSelectionSource = .browser
-            librarySelectionVersion += 1
+            libraryFeatureStore.librarySelectionVersion += 1
             reconcileLibrarySampleEditingSelection()
             appLogger.info(.usage, "Pending browser selection updated", metadata: [
                 "prefix": librarySelectedPrefix ?? "-",
@@ -1178,7 +1054,7 @@ final class SpinLabAppState {
         }
 
         libraryState.pendingSelectionChange = requested
-        libraryPendingSelectionChangePrompt = "You have unsaved sample edits. Save before switching selection?"
+        libraryFeatureStore.libraryPendingSelectionChangePrompt = "You have unsaved sample edits. Save before switching selection?"
         return true
     }
 
@@ -1196,7 +1072,7 @@ final class SpinLabAppState {
             return
         }
         libraryState.pendingSelectionChange = nil
-        libraryPendingSelectionChangePrompt = nil
+        libraryFeatureStore.libraryPendingSelectionChangePrompt = nil
         applySelectionChange(pending)
     }
 
@@ -1205,11 +1081,11 @@ final class SpinLabAppState {
     }
 
     func deleteExistingDrawer(batchId: String) {
-        libraryDrawerError = nil
-        libraryDrawerMessage = nil
+        libraryFeatureStore.libraryDrawerError = nil
+        libraryFeatureStore.libraryDrawerMessage = nil
 
-        guard let rootPath = librarySettings.rootPath else {
-            libraryDrawerError = "Select a Library Root first."
+        guard let rootPath = libraryFeatureStore.librarySettings.rootPath else {
+            libraryFeatureStore.libraryDrawerError = "Select a Library Root first."
             return
         }
 
@@ -1218,7 +1094,7 @@ final class SpinLabAppState {
         let targetSamples = baselineIndex.samples.filter { $0.batchId == batchId }
         let targetBatch = baselineIndex.batches.first { $0.id == batchId }
         guard targetBatch != nil || !targetSamples.isEmpty else {
-            libraryDrawerError = "Drawer \(batchId) not found."
+            libraryFeatureStore.libraryDrawerError = "Drawer \(batchId) not found."
             return
         }
 
@@ -1233,8 +1109,8 @@ final class SpinLabAppState {
         index.batches.removeAll { $0.id == batchId }
         libraryStore.saveIndex(index, to: rootURL)
 
-        commitLibraryMutation(rootURL: rootURL, previewIndex: libraryPreview?.index)
-        libraryDrawerMessage = "Deleted drawer \(batchId) (\(targetSamples.count) samples)."
+        commitLibraryMutation(rootURL: rootURL, previewIndex: libraryFeatureStore.libraryPreview?.index)
+        libraryFeatureStore.libraryDrawerMessage = "Deleted drawer \(batchId) (\(targetSamples.count) samples)."
     }
 
     var canEditSelectedLibrarySample: Bool {
@@ -1242,7 +1118,7 @@ final class SpinLabAppState {
     }
 
     var librarySampleEditIsDirty: Bool {
-        guard let draft = librarySampleEditDraft,
+        guard let draft = libraryFeatureStore.librarySampleEditDraft,
               let original = libraryState.sampleEditOriginalDraft else {
             return false
         }
@@ -1250,60 +1126,60 @@ final class SpinLabAppState {
     }
 
     func beginEditingSelectedLibrarySample() {
-        librarySampleEditError = nil
-        librarySampleEditMessage = nil
+        libraryFeatureStore.librarySampleEditError = nil
+        libraryFeatureStore.librarySampleEditMessage = nil
 
         guard canEditSelectedLibrarySample, let sample = selectedExistingDrawerSample else {
-            librarySampleEditError = "Select an existing drawer sample to edit."
+            libraryFeatureStore.librarySampleEditError = "Select an existing drawer sample to edit."
             return
         }
 
         libraryState.sampleEditBaseSample = sample
         let draft = librarySampleEditService.makeDraft(from: sample)
-        librarySampleEditDraft = draft
+        libraryFeatureStore.librarySampleEditDraft = draft
         libraryState.sampleEditOriginalDraft = draft
     }
 
     func cancelEditingSelectedLibrarySample() {
-        librarySampleEditDraft = nil
+        libraryFeatureStore.librarySampleEditDraft = nil
         libraryState.sampleEditBaseSample = nil
         libraryState.sampleEditOriginalDraft = nil
-        librarySampleEditError = nil
-        librarySampleEditMessage = "Edit canceled."
+        libraryFeatureStore.librarySampleEditError = nil
+        libraryFeatureStore.librarySampleEditMessage = "Edit canceled."
     }
 
     func updateLibrarySampleEditSubstrateTags(_ value: String) {
-        guard var draft = librarySampleEditDraft else {
+        guard var draft = libraryFeatureStore.librarySampleEditDraft else {
             return
         }
         draft.substrateTagsText = value
-        librarySampleEditDraft = draft
+        libraryFeatureStore.librarySampleEditDraft = draft
     }
 
     func updateLibrarySampleEditNumericValue(key: String, value: String) {
-        guard var draft = librarySampleEditDraft else {
+        guard var draft = libraryFeatureStore.librarySampleEditDraft else {
             return
         }
         guard let index = draft.numericValues.firstIndex(where: { $0.key == key }) else {
             return
         }
         draft.numericValues[index].value = value
-        librarySampleEditDraft = draft
+        libraryFeatureStore.librarySampleEditDraft = draft
     }
 
     func updateLibrarySampleEditMetadataValue(key: String, value: String) {
-        guard var draft = librarySampleEditDraft else {
+        guard var draft = libraryFeatureStore.librarySampleEditDraft else {
             return
         }
         guard let index = draft.metadataValues.firstIndex(where: { $0.key == key }) else {
             return
         }
         draft.metadataValues[index].value = value
-        librarySampleEditDraft = draft
+        libraryFeatureStore.librarySampleEditDraft = draft
     }
 
     func librarySampleChangeLog(for sample: LibrarySample) -> [LibrarySampleChangeLogEntry] {
-        guard let rootPath = librarySettings.rootPath else {
+        guard let rootPath = libraryFeatureStore.librarySettings.rootPath else {
             return []
         }
         let rootURL = URL(fileURLWithPath: rootPath)
@@ -1311,36 +1187,36 @@ final class SpinLabAppState {
     }
 
     func loadLibraryGlobalManualLogs() {
-        libraryGlobalManualLogError = nil
-        libraryGlobalManualLogMessage = nil
+        libraryFeatureStore.libraryGlobalManualLogError = nil
+        libraryFeatureStore.libraryGlobalManualLogMessage = nil
 
         guard let registrySourceURL = resolveRegistrySourceURL() else {
             let error = AppError.notFound("No registry source found. Load registry from Inbox first.")
-            libraryGlobalManualLogError = error.localizedDescription
-            libraryGlobalManualLogs = []
+            libraryFeatureStore.libraryGlobalManualLogError = error.localizedDescription
+            libraryFeatureStore.libraryGlobalManualLogs = []
             present(error: error, title: "Log Load Failed")
             return
         }
 
         do {
             let entries = try libraryStore.loadRegistryManualUpdateLogEntries(registrySourceURL: registrySourceURL)
-            libraryGlobalManualLogs = entries
-            libraryGlobalManualLogMessage = "Loaded \(entries.count) global log entries."
+            libraryFeatureStore.libraryGlobalManualLogs = entries
+            libraryFeatureStore.libraryGlobalManualLogMessage = "Loaded \(entries.count) global log entries."
         } catch {
             let appError = AppError.from(error, fallback: "Failed to load global manual logs.")
-            libraryGlobalManualLogError = appError.localizedDescription
-            libraryGlobalManualLogs = []
+            libraryFeatureStore.libraryGlobalManualLogError = appError.localizedDescription
+            libraryFeatureStore.libraryGlobalManualLogs = []
             present(error: appError, title: "Log Load Failed")
         }
     }
 
     func markLibraryGlobalManualLogStatus(rowIndex: Int, status: LibraryManualLogStatus) {
-        libraryGlobalManualLogError = nil
-        libraryGlobalManualLogMessage = nil
+        libraryFeatureStore.libraryGlobalManualLogError = nil
+        libraryFeatureStore.libraryGlobalManualLogMessage = nil
 
         guard let registrySourceURL = resolveRegistrySourceURL() else {
             let error = AppError.notFound("No registry source found. Load registry from Inbox first.")
-            libraryGlobalManualLogError = error.localizedDescription
+            libraryFeatureStore.libraryGlobalManualLogError = error.localizedDescription
             present(error: error, title: "Status Update Failed")
             return
         }
@@ -1353,34 +1229,34 @@ final class SpinLabAppState {
                 statusChangedBy: "user"
             )
             loadLibraryGlobalManualLogs()
-            libraryGlobalManualLogMessage = "Updated status for log row \(rowIndex) to \(status.rawValue)."
+            libraryFeatureStore.libraryGlobalManualLogMessage = "Updated status for log row \(rowIndex) to \(status.rawValue)."
         } catch {
             let appError = AppError.from(error, fallback: "Failed to update manual log status.")
-            libraryGlobalManualLogError = appError.localizedDescription
+            libraryFeatureStore.libraryGlobalManualLogError = appError.localizedDescription
             present(error: appError, title: "Status Update Failed")
         }
     }
 
     func loadLibraryMetadataSyncLogs() {
-        libraryMetadataSyncLogError = nil
-        libraryMetadataSyncLogMessage = nil
+        libraryFeatureStore.libraryMetadataSyncLogError = nil
+        libraryFeatureStore.libraryMetadataSyncLogMessage = nil
 
         guard let registrySourceURL = resolveRegistrySourceURL() else {
             let error = AppError.notFound("No registry source found. Load registry from Inbox first.")
-            libraryMetadataSyncLogError = error.localizedDescription
-            libraryMetadataSyncLogs = []
+            libraryFeatureStore.libraryMetadataSyncLogError = error.localizedDescription
+            libraryFeatureStore.libraryMetadataSyncLogs = []
             present(error: error, title: "Log Load Failed")
             return
         }
 
         do {
             let entries = try libraryStore.loadRegistryMetadataSyncLogEntries(registrySourceURL: registrySourceURL)
-            libraryMetadataSyncLogs = entries
-            libraryMetadataSyncLogMessage = "Loaded \(entries.count) metadata log entries."
+            libraryFeatureStore.libraryMetadataSyncLogs = entries
+            libraryFeatureStore.libraryMetadataSyncLogMessage = "Loaded \(entries.count) metadata log entries."
         } catch {
             let appError = AppError.from(error, fallback: "Failed to load metadata sync logs.")
-            libraryMetadataSyncLogError = appError.localizedDescription
-            libraryMetadataSyncLogs = []
+            libraryFeatureStore.libraryMetadataSyncLogError = appError.localizedDescription
+            libraryFeatureStore.libraryMetadataSyncLogs = []
             present(error: appError, title: "Log Load Failed")
         }
     }
@@ -1396,7 +1272,7 @@ final class SpinLabAppState {
         switch outcome {
         case let .success(rootURLForCommit, nonFatalError, message):
             if let rootURL = rootURLForCommit {
-                commitLibraryMutation(rootURL: rootURL, previewIndex: libraryPreview?.index)
+                commitLibraryMutation(rootURL: rootURL, previewIndex: libraryFeatureStore.libraryPreview?.index)
             }
             if let nonFatalError {
                 present(error: nonFatalError, title: "Sync Warning")
@@ -1416,12 +1292,12 @@ final class SpinLabAppState {
     }
 
     func prepareLibrarySyncReview(precomputedDiff: LibraryDiff? = nil) {
-        libraryDrawerError = nil
-        libraryDrawerMessage = nil
+        libraryFeatureStore.libraryDrawerError = nil
+        libraryFeatureStore.libraryDrawerMessage = nil
 
         let result = libraryMutationOrchestrator.prepareLibrarySyncReview(
-            preview: libraryPreview,
-            rootPath: librarySettings.rootPath,
+            preview: libraryFeatureStore.libraryPreview,
+            rootPath: libraryFeatureStore.librarySettings.rootPath,
             precomputedDiff: precomputedDiff,
             libraryStore: libraryStore,
             libraryDiffEngine: libraryDiffEngine,
@@ -1429,58 +1305,58 @@ final class SpinLabAppState {
         )
         switch result {
         case let .failure(message):
-            libraryDrawerError = message
+            libraryFeatureStore.libraryDrawerError = message
         case let .success(plan):
-            libraryRefreshReview = plan.review
+            libraryFeatureStore.libraryRefreshReview = plan.review
             refreshSyncChangeIndicators()
             refreshActionablePreviewGroups(precomputedDiff: plan.diff, baselineIndex: plan.baselineIndex)
-            libraryDrawerMessage = plan.message
+            libraryFeatureStore.libraryDrawerMessage = plan.message
         }
     }
 
     func refreshLibraryIncremental() {
-        libraryDrawerError = nil
-        libraryDrawerMessage = nil
+        libraryFeatureStore.libraryDrawerError = nil
+        libraryFeatureStore.libraryDrawerMessage = nil
 
         let planResult = libraryMutationOrchestrator.planIncrementalRefresh(
-            preview: libraryPreview,
-            rootPath: librarySettings.rootPath,
+            preview: libraryFeatureStore.libraryPreview,
+            rootPath: libraryFeatureStore.librarySettings.rootPath,
             libraryStore: libraryStore,
             librarySyncService: librarySyncService
         )
         let plan: RefreshLibraryIncrementalPlan
         switch planResult {
         case let .failure(message):
-            libraryDrawerError = message
+            libraryFeatureStore.libraryDrawerError = message
             return
         case let .success(value):
             plan = value
         }
 
-        librarySyncService.applyAll(preview: plan.preview, rootURL: plan.rootURL, settings: librarySettings)
+        librarySyncService.applyAll(preview: plan.preview, rootURL: plan.rootURL, settings: libraryFeatureStore.librarySettings)
         // Recompute post-apply state from persisted filesystem/index; do not reuse pre-apply diff.
         commitLibraryMutation(rootURL: plan.rootURL, previewIndex: plan.preview.index)
-        libraryDrawerMessage = plan.message
+        libraryFeatureStore.libraryDrawerMessage = plan.message
     }
 
     func confirmLibraryNumericRefreshChanges() {
-        libraryDrawerError = nil
-        libraryDrawerMessage = nil
+        libraryFeatureStore.libraryDrawerError = nil
+        libraryFeatureStore.libraryDrawerMessage = nil
 
-        guard let review = libraryRefreshReview else {
-            libraryDrawerError = "No refresh review available."
+        guard let review = libraryFeatureStore.libraryRefreshReview else {
+            libraryFeatureStore.libraryDrawerError = "No refresh review available."
             return
         }
         guard !review.deferredNumericChanges.isEmpty else {
-            libraryDrawerMessage = "No numeric changes pending confirmation."
+            libraryFeatureStore.libraryDrawerMessage = "No numeric changes pending confirmation."
             return
         }
-        guard let preview = libraryPreview else {
-            libraryDrawerError = "Load the registry preview first."
+        guard let preview = libraryFeatureStore.libraryPreview else {
+            libraryFeatureStore.libraryDrawerError = "Load the registry preview first."
             return
         }
-        guard let rootPath = librarySettings.rootPath else {
-            libraryDrawerError = "Select a Library Root first."
+        guard let rootPath = libraryFeatureStore.librarySettings.rootPath else {
+            libraryFeatureStore.libraryDrawerError = "Select a Library Root first."
             return
         }
 
@@ -1489,8 +1365,8 @@ final class SpinLabAppState {
             ?? LibraryIndex(
                 createdAt: .now,
                 updatedAt: .now,
-                registryInternalPath: librarySettings.registryInternalPath,
-                registrySourcePath: librarySettings.registrySourcePath,
+                registryInternalPath: libraryFeatureStore.librarySettings.registryInternalPath,
+                registrySourcePath: libraryFeatureStore.librarySettings.registrySourcePath,
                 metadataColumnOrder: [],
                 batches: [],
                 samples: []
@@ -1517,18 +1393,18 @@ final class SpinLabAppState {
 
         var mergedIndex = baselineIndex
         mergedIndex.updatedAt = .now
-        mergedIndex.registryInternalPath = librarySettings.registryInternalPath
-        mergedIndex.registrySourcePath = librarySettings.registrySourcePath
+        mergedIndex.registryInternalPath = libraryFeatureStore.librarySettings.registryInternalPath
+        mergedIndex.registrySourcePath = libraryFeatureStore.librarySettings.registrySourcePath
         mergedIndex.metadataColumnOrder = preview.index.metadataColumnOrder
         mergedIndex.samples = Array(mergedSamplesByID.values).sorted { $0.displayName < $1.displayName }
         mergedIndex.batches = Array(mergedBatchesByID.values).sorted { $0.id < $1.id }
         libraryStore.saveIndex(mergedIndex, to: rootURL)
         loadExistingDrawers()
 
-        librarySettings.lastRefreshAt = Date()
-        librarySettingsStore.save(librarySettings)
+        libraryFeatureStore.librarySettings.lastRefreshAt = Date()
+        librarySettingsStore.save(libraryFeatureStore.librarySettings)
 
-        libraryRefreshReview = LibraryRefreshReview(
+        libraryFeatureStore.libraryRefreshReview = LibraryRefreshReview(
             generatedAt: review.generatedAt,
             newSamples: review.newSamples,
             changedSamples: review.changedSamples,
@@ -1538,19 +1414,19 @@ final class SpinLabAppState {
             autoAppliedChanges: review.autoAppliedChanges + review.deferredNumericChanges,
             deferredNumericChanges: []
         )
-        libraryDrawerMessage = "Confirmed and applied \(review.deferredNumericChanges.count) numeric changes."
+        libraryFeatureStore.libraryDrawerMessage = "Confirmed and applied \(review.deferredNumericChanges.count) numeric changes."
     }
 
     func createDrawersFromPreview() {
-        libraryDrawerError = nil
-        libraryDrawerMessage = nil
+        libraryFeatureStore.libraryDrawerError = nil
+        libraryFeatureStore.libraryDrawerMessage = nil
 
-        guard let preview = libraryPreview else {
-            libraryDrawerError = "Load the registry preview first."
+        guard let preview = libraryFeatureStore.libraryPreview else {
+            libraryFeatureStore.libraryDrawerError = "Load the registry preview first."
             return
         }
-        guard let rootPath = librarySettings.rootPath else {
-            libraryDrawerError = "Select a Library Root first."
+        guard let rootPath = libraryFeatureStore.librarySettings.rootPath else {
+            libraryFeatureStore.libraryDrawerError = "Select a Library Root first."
             return
         }
         let rootURL = URL(fileURLWithPath: rootPath)
@@ -1568,28 +1444,28 @@ final class SpinLabAppState {
 
         var index = preview.index
         index.updatedAt = .now
-        index.registryInternalPath = librarySettings.registryInternalPath
-        index.registrySourcePath = librarySettings.registrySourcePath
+        index.registryInternalPath = libraryFeatureStore.librarySettings.registryInternalPath
+        index.registrySourcePath = libraryFeatureStore.librarySettings.registrySourcePath
         libraryStore.saveIndex(index, to: rootURL)
         commitLibraryMutation(rootURL: rootURL, previewIndex: preview.index)
 
-        libraryDrawerMessage = "Created \(created) sample drawers."
+        libraryFeatureStore.libraryDrawerMessage = "Created \(created) sample drawers."
     }
 
     func createDrawersForSelection(batchId: String?, sampleId: String?) {
-        libraryDrawerError = nil
-        libraryDrawerMessage = nil
+        libraryFeatureStore.libraryDrawerError = nil
+        libraryFeatureStore.libraryDrawerMessage = nil
 
-        guard let preview = libraryPreview else {
-            libraryDrawerError = "Load the registry preview first."
+        guard let preview = libraryFeatureStore.libraryPreview else {
+            libraryFeatureStore.libraryDrawerError = "Load the registry preview first."
             return
         }
-        guard let rootPath = librarySettings.rootPath else {
-            libraryDrawerError = "Select a Library Root first."
+        guard let rootPath = libraryFeatureStore.librarySettings.rootPath else {
+            libraryFeatureStore.libraryDrawerError = "Select a Library Root first."
             return
         }
         guard let batchId else {
-            libraryDrawerError = "Select a batch or sample."
+            libraryFeatureStore.libraryDrawerError = "Select a batch or sample."
             return
         }
 
@@ -1598,7 +1474,7 @@ final class SpinLabAppState {
 
         let batchesById = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
         guard let batch = batchesById[batchId] else {
-            libraryDrawerError = "Selected batch not found."
+            libraryFeatureStore.libraryDrawerError = "Selected batch not found."
             return
         }
 
@@ -1611,7 +1487,7 @@ final class SpinLabAppState {
         }
 
         guard !targetSamples.isEmpty else {
-            libraryDrawerError = "No samples found for selection."
+            libraryFeatureStore.libraryDrawerError = "No samples found for selection."
             return
         }
 
@@ -1623,8 +1499,8 @@ final class SpinLabAppState {
             ?? LibraryIndex(
                 createdAt: .now,
                 updatedAt: .now,
-                registryInternalPath: librarySettings.registryInternalPath,
-                registrySourcePath: librarySettings.registrySourcePath,
+                registryInternalPath: libraryFeatureStore.librarySettings.registryInternalPath,
+                registrySourcePath: libraryFeatureStore.librarySettings.registrySourcePath,
                 metadataColumnOrder: [],
                 batches: [],
                 samples: []
@@ -1647,29 +1523,29 @@ final class SpinLabAppState {
 
         var index = baselineIndex
         index.updatedAt = .now
-        index.registryInternalPath = librarySettings.registryInternalPath
-        index.registrySourcePath = librarySettings.registrySourcePath
+        index.registryInternalPath = libraryFeatureStore.librarySettings.registryInternalPath
+        index.registrySourcePath = libraryFeatureStore.librarySettings.registrySourcePath
         index.metadataColumnOrder = preview.index.metadataColumnOrder
         index.samples = Array(samplesByID.values).sorted { $0.displayName < $1.displayName }
         index.batches = Array(batchesByID.values).sorted { $0.id < $1.id }
         libraryStore.saveIndex(index, to: rootURL)
         commitLibraryMutation(rootURL: rootURL, previewIndex: preview.index)
 
-        libraryDrawerMessage = "Created \(targetSamples.count) sample drawers."
+        libraryFeatureStore.libraryDrawerMessage = "Created \(targetSamples.count) sample drawers."
     }
 
     func updateLibraryRoot(to url: URL) {
-        librarySettings.rootPath = url.path
-        librarySettingsStore.save(librarySettings)
-        libraryRootVerificationPath = nil
-        libraryRootVerificationMessage = nil
+        libraryFeatureStore.librarySettings.rootPath = url.path
+        librarySettingsStore.save(libraryFeatureStore.librarySettings)
+        libraryFeatureStore.libraryRootVerificationPath = nil
+        libraryFeatureStore.libraryRootVerificationMessage = nil
         loadExistingDrawers()
     }
 
     func updateLibraryBackupPath(to url: URL) {
-        librarySettings.backupPath = url.path
-        librarySettingsStore.save(librarySettings)
-        libraryBackupError = nil
+        libraryFeatureStore.librarySettings.backupPath = url.path
+        librarySettingsStore.save(libraryFeatureStore.librarySettings)
+        libraryFeatureStore.libraryBackupError = nil
     }
 
     func updateAllowedBatchPrefixes(from rawValue: String) {
@@ -1677,33 +1553,33 @@ final class SpinLabAppState {
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
             .filter { !$0.isEmpty }
-        librarySettings.allowedBatchPrefixes = prefixes
-        librarySettingsStore.save(librarySettings)
+        libraryFeatureStore.librarySettings.allowedBatchPrefixes = prefixes
+        librarySettingsStore.save(libraryFeatureStore.librarySettings)
     }
 
     func verifyLibraryRoot() {
-        guard let rootPath = librarySettings.rootPath else {
-            libraryRootVerificationMessage = "No Library Root selected."
+        guard let rootPath = libraryFeatureStore.librarySettings.rootPath else {
+            libraryFeatureStore.libraryRootVerificationMessage = "No Library Root selected."
             return
         }
         let rootURL = URL(fileURLWithPath: rootPath)
         guard let verifyURL = libraryStore.verifyRoot(at: rootURL) else {
-            libraryRootVerificationMessage = "Failed to verify Library Root."
+            libraryFeatureStore.libraryRootVerificationMessage = "Failed to verify Library Root."
             return
         }
-        libraryRootVerificationPath = verifyURL.path
-        libraryRootVerificationMessage = "Library Root verified."
+        libraryFeatureStore.libraryRootVerificationPath = verifyURL.path
+        libraryFeatureStore.libraryRootVerificationMessage = "Library Root verified."
     }
 
     func syncLibraryBackup() {
-        libraryBackupError = nil
+        libraryFeatureStore.libraryBackupError = nil
 
-        guard let rootPath = librarySettings.rootPath else {
-            libraryBackupError = "No Library Root selected."
+        guard let rootPath = libraryFeatureStore.librarySettings.rootPath else {
+            libraryFeatureStore.libraryBackupError = "No Library Root selected."
             return
         }
-        guard let backupPath = librarySettings.backupPath else {
-            libraryBackupError = "No Backup Path selected."
+        guard let backupPath = libraryFeatureStore.librarySettings.backupPath else {
+            libraryFeatureStore.libraryBackupError = "No Backup Path selected."
             return
         }
 
@@ -1712,21 +1588,21 @@ final class SpinLabAppState {
         let rootStandardPath = rootURL.standardizedFileURL.path
         let backupStandardPath = backupURL.standardizedFileURL.path
         if backupStandardPath == rootStandardPath {
-            libraryBackupError = "Backup Path must be different from Library Root."
+            libraryFeatureStore.libraryBackupError = "Backup Path must be different from Library Root."
             return
         }
         if backupStandardPath.hasPrefix(rootStandardPath + "/") || rootStandardPath.hasPrefix(backupStandardPath + "/") {
-            libraryBackupError = "Backup Path cannot overlap with Library Root."
+            libraryFeatureStore.libraryBackupError = "Backup Path cannot overlap with Library Root."
             return
         }
 
         if libraryStore.syncBackup(from: rootURL, to: backupURL) {
             let syncedAt = Date()
-            librarySettings.backupLastSyncedAt = syncedAt
-            librarySettingsStore.save(librarySettings)
-            libraryBackupMessage = "Backup sync successful at \(Self.syncStatusTimeFormatter.string(from: syncedAt))."
+            libraryFeatureStore.librarySettings.backupLastSyncedAt = syncedAt
+            librarySettingsStore.save(libraryFeatureStore.librarySettings)
+            libraryFeatureStore.libraryBackupMessage = "Backup sync successful at \(Self.syncStatusTimeFormatter.string(from: syncedAt))."
         } else {
-            libraryBackupError = "Backup sync failed."
+            libraryFeatureStore.libraryBackupError = "Backup sync failed."
         }
     }
 
@@ -1985,32 +1861,32 @@ final class SpinLabAppState {
 
     private func applyExistingIndex(_ index: LibraryIndex) {
         guard !index.samples.isEmpty else {
-            libraryExistingGroups = [:]
+            libraryFeatureStore.libraryExistingGroups = [:]
             inboxFeatureStore.clearDrawerMatchCandidates()
-            libraryExistingMessage = "No existing drawers found."
+            libraryFeatureStore.libraryExistingMessage = "No existing drawers found."
             librarySelectedPrefix = nil
             librarySelectedBatchId = nil
             librarySelectedSampleId = nil
-            librarySampleEditDraft = nil
+            libraryFeatureStore.librarySampleEditDraft = nil
             libraryState.sampleEditBaseSample = nil
             libraryState.sampleEditOriginalDraft = nil
             refreshPendingDrawerMatches()
             return
         }
 
-        libraryExistingGroups = buildPreviewGroups(from: index)
+        libraryFeatureStore.libraryExistingGroups = buildPreviewGroups(from: index)
         inboxFeatureStore.rebuildDrawerMatchCandidates(from: index.samples)
-        libraryExistingMessage = "Loaded existing drawers: \(index.samples.count) samples"
+        libraryFeatureStore.libraryExistingMessage = "Loaded existing drawers: \(index.samples.count) samples"
         normalizeLibrarySelection()
         reconcileLibrarySampleEditingSelection()
         refreshPendingDrawerMatches()
     }
 
     private func refreshSyncChangeIndicators() {
-        guard let review = libraryRefreshReview else {
-            libraryBatchSyncStatusByID = [:]
-            librarySampleSyncChangesByID = [:]
-            libraryBatchSyncChangesByID = [:]
+        guard let review = libraryFeatureStore.libraryRefreshReview else {
+            libraryFeatureStore.libraryBatchSyncStatusByID = [:]
+            libraryFeatureStore.librarySampleSyncChangesByID = [:]
+            libraryFeatureStore.libraryBatchSyncChangesByID = [:]
             return
         }
 
@@ -2037,9 +1913,9 @@ final class SpinLabAppState {
             batchStatus[batch.id] = .removed
         }
 
-        libraryBatchSyncStatusByID = batchStatus
-        librarySampleSyncChangesByID = Dictionary(uniqueKeysWithValues: review.changedSamples.map { ($0.sample.id, $0.fieldChanges) })
-        libraryBatchSyncChangesByID = Dictionary(uniqueKeysWithValues: review.changedBatches.map { ($0.batch.id, $0.fieldChanges) })
+        libraryFeatureStore.libraryBatchSyncStatusByID = batchStatus
+        libraryFeatureStore.librarySampleSyncChangesByID = Dictionary(uniqueKeysWithValues: review.changedSamples.map { ($0.sample.id, $0.fieldChanges) })
+        libraryFeatureStore.libraryBatchSyncChangesByID = Dictionary(uniqueKeysWithValues: review.changedBatches.map { ($0.batch.id, $0.fieldChanges) })
     }
 
     private func updateRegistryPresentation() {
@@ -2048,9 +1924,9 @@ final class SpinLabAppState {
     }
 
     private func updateLibraryRegistryPaths(installedURL: URL, sourceURL: URL?) {
-        librarySettings.registryInternalPath = installedURL.path
-        librarySettings.registrySourcePath = sourceURL?.path
-        librarySettingsStore.save(librarySettings)
+        libraryFeatureStore.librarySettings.registryInternalPath = installedURL.path
+        libraryFeatureStore.librarySettings.registrySourcePath = sourceURL?.path
+        librarySettingsStore.save(libraryFeatureStore.librarySettings)
     }
 
     private func buildPreviewGroups(from preview: LibraryPreview) -> [String: [LibraryPreviewBatchGroup]] {
@@ -2062,22 +1938,22 @@ final class SpinLabAppState {
     }
 
     private func refreshActionablePreviewGroups(precomputedDiff: LibraryDiff? = nil, baselineIndex: LibraryIndex? = nil) {
-        guard let preview = libraryPreview else {
-            libraryPreviewGroups = [:]
-            libraryPreviewMessage = "No preview loaded."
+        guard let preview = libraryFeatureStore.libraryPreview else {
+            libraryFeatureStore.libraryPreviewGroups = [:]
+            libraryFeatureStore.libraryPreviewMessage = "No preview loaded."
             return
         }
         let state = libraryMutationOrchestrator.buildActionablePreviewState(
             preview: preview,
             precomputedDiff: precomputedDiff,
             baselineIndex: baselineIndex,
-            rootPath: librarySettings.rootPath,
+            rootPath: libraryFeatureStore.librarySettings.rootPath,
             libraryStore: libraryStore,
             libraryDiffEngine: libraryDiffEngine,
             previewComputationService: libraryPreviewComputationService
         )
-        libraryPreviewGroups = state.groups
-        libraryPreviewMessage = state.message
+        libraryFeatureStore.libraryPreviewGroups = state.groups
+        libraryFeatureStore.libraryPreviewMessage = state.message
     }
 
     private func commitLibraryMutation(
@@ -2097,7 +1973,7 @@ final class SpinLabAppState {
             libraryDiffEngine: libraryDiffEngine,
             librarySyncService: librarySyncService
         )
-        libraryRefreshReview = plan.review
+        libraryFeatureStore.libraryRefreshReview = plan.review
         refreshSyncChangeIndicators()
         if let diff = plan.diff, let baseline = plan.baselineIndexForPreview {
             refreshActionablePreviewGroups(precomputedDiff: diff, baselineIndex: baseline)
@@ -2105,8 +1981,8 @@ final class SpinLabAppState {
             refreshActionablePreviewGroups()
         }
 
-        librarySettings.lastRefreshAt = plan.lastRefreshAt
-        librarySettingsStore.save(librarySettings)
+        libraryFeatureStore.librarySettings.lastRefreshAt = plan.lastRefreshAt
+        librarySettingsStore.save(libraryFeatureStore.librarySettings)
     }
 
     private static let syncStatusTimeFormatter: DateFormatter = {
@@ -2116,14 +1992,14 @@ final class SpinLabAppState {
     }()
 
     private func refreshLibraryBackupMessage() {
-        guard let lastSyncedAt = librarySettings.backupLastSyncedAt else {
+        guard let lastSyncedAt = libraryFeatureStore.librarySettings.backupLastSyncedAt else {
             return
         }
-        libraryBackupMessage = "Backup sync successful at \(Self.syncStatusTimeFormatter.string(from: lastSyncedAt))."
+        libraryFeatureStore.libraryBackupMessage = "Backup sync successful at \(Self.syncStatusTimeFormatter.string(from: lastSyncedAt))."
     }
 
     private func normalizeLibrarySelection() {
-        let prefixes = libraryExistingGroups.keys.sorted()
+        let prefixes = libraryFeatureStore.libraryExistingGroups.keys.sorted()
         if librarySelectedPrefix == nil || !prefixes.contains(librarySelectedPrefix ?? "") {
             librarySelectedPrefix = prefixes.first
         }
@@ -2134,7 +2010,7 @@ final class SpinLabAppState {
             return
         }
 
-        let groups = libraryExistingGroups[prefix] ?? []
+        let groups = libraryFeatureStore.libraryExistingGroups[prefix] ?? []
         let batchIDs = groups.map(\.batchId)
         if librarySelectedBatchId == nil || !batchIDs.contains(librarySelectedBatchId ?? "") {
             librarySelectedBatchId = groups.first?.batchId
@@ -2171,7 +2047,7 @@ final class SpinLabAppState {
               let sampleId = librarySelectedSampleId else {
             return nil
         }
-        let groups = libraryExistingGroups[prefix] ?? []
+        let groups = libraryFeatureStore.libraryExistingGroups[prefix] ?? []
         guard let group = groups.first(where: { $0.batchId == batchId }) else {
             return nil
         }
@@ -2179,26 +2055,26 @@ final class SpinLabAppState {
     }
 
     private func reconcileLibrarySampleEditingSelection() {
-        guard let draft = librarySampleEditDraft else {
+        guard let draft = libraryFeatureStore.librarySampleEditDraft else {
             return
         }
 
         guard libraryActiveSelectionSource == .drawer,
               let selectedSample = selectedExistingDrawerSample else {
-            librarySampleEditDraft = nil
+            libraryFeatureStore.librarySampleEditDraft = nil
             libraryState.sampleEditBaseSample = nil
             libraryState.sampleEditOriginalDraft = nil
-            librarySampleEditError = nil
-            librarySampleEditMessage = "Edit canceled after leaving existing drawer selection."
+            libraryFeatureStore.librarySampleEditError = nil
+            libraryFeatureStore.librarySampleEditMessage = "Edit canceled after leaving existing drawer selection."
             return
         }
 
         guard selectedSample.id == draft.sampleId else {
-            librarySampleEditDraft = nil
+            libraryFeatureStore.librarySampleEditDraft = nil
             libraryState.sampleEditBaseSample = nil
             libraryState.sampleEditOriginalDraft = nil
-            librarySampleEditError = nil
-            librarySampleEditMessage = "Edit canceled after sample selection changed."
+            libraryFeatureStore.librarySampleEditError = nil
+            libraryFeatureStore.librarySampleEditMessage = "Edit canceled after sample selection changed."
             return
         }
     }
@@ -2209,10 +2085,10 @@ final class SpinLabAppState {
 
     private func resolveRegistrySourceURL() -> URL? {
         let fileManager = FileManager.default
-        if let sourcePath = librarySettings.registrySourcePath, fileManager.fileExists(atPath: sourcePath) {
+        if let sourcePath = libraryFeatureStore.librarySettings.registrySourcePath, fileManager.fileExists(atPath: sourcePath) {
             return URL(fileURLWithPath: sourcePath)
         }
-        if let internalPath = librarySettings.registryInternalPath, fileManager.fileExists(atPath: internalPath) {
+        if let internalPath = libraryFeatureStore.librarySettings.registryInternalPath, fileManager.fileExists(atPath: internalPath) {
             return URL(fileURLWithPath: internalPath)
         }
         if let current = managedStorage.currentSampleRegistryFileURL(), fileManager.fileExists(atPath: current.path) {
