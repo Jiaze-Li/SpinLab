@@ -449,29 +449,6 @@ final class SpinLabAppState {
         get { libraryFeatureStore.libraryMetadataSyncLogMessage }
         set { libraryFeatureStore.libraryMetadataSyncLogMessage = newValue }
     }
-    var archivedRecords: [SpinLabDomain.ArchivedRecord] {
-        get { workbenchFeatureStore.archivedRecords }
-        set { workbenchFeatureStore.archivedRecords = newValue }
-    }
-    var projectCatalog: [SpinLabDomain.Project] {
-        get { workbenchFeatureStore.projectCatalog }
-        set { workbenchFeatureStore.projectCatalog = newValue }
-    }
-    var selectedArchivedRecordID: UUID? {
-        get { workbenchFeatureStore.selectedArchivedRecordID }
-        set {
-            workbenchFeatureStore.selectedArchivedRecordID = newValue
-            persistInteractionSnapshotIfReady()
-        }
-    }
-    var workbenchResultDraft: String {
-        get { workbenchFeatureStore.workbenchResultDraft }
-        set {
-            workbenchFeatureStore.workbenchResultDraft = newValue
-            persistInteractionSnapshotIfReady()
-        }
-    }
-
     let workflow: SpinLabDomain.WorkflowKind
 
     private let persistence: SpinLabPersistence
@@ -646,8 +623,8 @@ final class SpinLabAppState {
     }
 
     var knownProjectNames: [String] {
-        let archivedNames = archivedRecords.compactMap { $0.project?.name }
-        let catalogNames = projectCatalog.map(\.name)
+        let archivedNames = workbenchFeatureStore.archivedRecords.compactMap { $0.project?.name }
+        let catalogNames = workbenchFeatureStore.projectCatalog.map(\.name)
         return Array(Set(archivedNames + catalogNames)).sorted()
     }
 
@@ -717,12 +694,12 @@ final class SpinLabAppState {
 
     private func load() {
         applyPendingImportsProjection(inboxFeatureStore.pendingImports)
-        applyArchivedRecordsProjection(archivedRecords)
-        applyProjectCatalogProjection(projectCatalog)
+        applyArchivedRecordsProjection(workbenchFeatureStore.archivedRecords)
+        applyProjectCatalogProjection(workbenchFeatureStore.projectCatalog)
         if let selectedArchivedRecord {
             _ = workbenchFeatureStore.selectArchivedRecord(selectedArchivedRecord.id, analysisModule: analysisModule)
         } else {
-            workbenchResultDraft = ""
+            workbenchFeatureStore.workbenchResultDraft = ""
         }
         inboxFeatureStore.clearPendingState()
     }
@@ -769,17 +746,17 @@ final class SpinLabAppState {
     }
 
     private func applyArchivedRecordsProjection(_ records: [SpinLabDomain.ArchivedRecord]) {
-        archivedRecords = records
-        if let selectedArchivedRecordID,
+        workbenchFeatureStore.archivedRecords = records
+        if let selectedArchivedRecordID = workbenchFeatureStore.selectedArchivedRecordID,
            !records.contains(where: { $0.id == selectedArchivedRecordID }) {
-            self.selectedArchivedRecordID = records.first?.id
-        } else if selectedArchivedRecordID == nil {
-            selectedArchivedRecordID = records.first?.id
+            workbenchFeatureStore.selectedArchivedRecordID = records.first?.id
+        } else if workbenchFeatureStore.selectedArchivedRecordID == nil {
+            workbenchFeatureStore.selectedArchivedRecordID = records.first?.id
         }
     }
 
     private func applyProjectCatalogProjection(_ projects: [SpinLabDomain.Project]) {
-        projectCatalog = projects
+        workbenchFeatureStore.projectCatalog = projects
     }
 
     private func migrateManagedMeasurementPathsToOriginalIfPossible() {
@@ -799,7 +776,7 @@ final class SpinLabAppState {
             return migrated
         }
 
-        let migratedArchivedRecords = archivedRecords.map { record in
+        let migratedArchivedRecords = workbenchFeatureStore.archivedRecords.map { record in
             var migrated = record
             var didChange = false
 
@@ -1766,7 +1743,7 @@ final class SpinLabAppState {
     func openArchivedRecordInWorkbench(_ recordID: UUID) {
         guard let route = coordinator.routeToWorkbenchForArchivedRecord(
             recordID: recordID,
-            archivedRecords: archivedRecords
+            archivedRecords: workbenchFeatureStore.archivedRecords
         ),
         workbenchFeatureStore.selectArchivedRecord(route.archivedRecordID, analysisModule: analysisModule) else {
             return
@@ -2253,7 +2230,7 @@ final class SpinLabAppState {
             }
         }
 
-        for record in archivedRecords {
+        for record in workbenchFeatureStore.archivedRecords {
             if let original = record.measurement.originalFilePath {
                 paths.insert(normalizedPath(original))
             }
@@ -2313,13 +2290,13 @@ final class SpinLabAppState {
             "routingRulePath": inboxFeatureStore.routingRuleSourcePath,
             "routingRuleFingerprint": inboxFeatureStore.routingRuleFingerprint,
             "pendingImportCount": "\(pendingImports.count)",
-            "archivedRecordCount": "\(archivedRecords.count)",
+            "archivedRecordCount": "\(workbenchFeatureStore.archivedRecords.count)",
             "selectedArea": selectedArea.rawValue
         ]
         if let selectedPendingImportID {
             context["selectedPendingImportID"] = selectedPendingImportID.uuidString
         }
-        if let selectedArchivedRecordID {
+        if let selectedArchivedRecordID = workbenchFeatureStore.selectedArchivedRecordID {
             context["selectedArchivedRecordID"] = selectedArchivedRecordID.uuidString
         }
         if let note = normalized(note) {
