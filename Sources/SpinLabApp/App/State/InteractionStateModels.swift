@@ -156,6 +156,7 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var selectedPendingImportID: UUID?
     var selectedArchivedRecordID: UUID?
     var workbenchResultDraft: String = ""
+    var lastSeenRoutingRuleFingerprint: String?
     var libraryActiveSelectionSource: LibrarySelectionSource = .browser
     var librarySelectedPrefix: String?
     var librarySelectedBatchId: String?

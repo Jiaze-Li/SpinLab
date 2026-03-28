@@ -172,6 +172,7 @@ final class SpinLabAppState {
     private let workbenchFeatureStore: WorkbenchFeatureStore
     private let appLogger = AppLogger.shared
     private let interactionSnapshotCoordinator: InteractionSnapshotCoordinator
+    private var hasRestoredInteractionSnapshot = false
     private let dataActor: any SpinLabDataActing
     private let registryLifecycleService = RegistryLifecycleService()
     private let registryCoordinator = RegistryCoordinator()
@@ -359,6 +360,7 @@ final class SpinLabAppState {
         refreshRoutingRuleMetadata(forceReload: false)
         loadExistingDrawers()
         restoreInteractionSnapshot()
+        notifyIfRoutingRulesChanged()
         refreshPendingDrawerMatches()
         libraryFeatureStore.refreshLibraryBackupMessage(formatSyncDate: { Self.syncStatusTimeFormatter.string(from: $0) })
         interactionSnapshotCoordinator.markReady()
@@ -481,6 +483,9 @@ final class SpinLabAppState {
 
     private func refreshRoutingRuleMetadata(forceReload: Bool) {
         registryFacade.refreshRoutingRuleMetadata(inboxStore: inboxFeatureStore, forceReload: forceReload)
+        if hasRestoredInteractionSnapshot {
+            notifyIfRoutingRulesChanged()
+        }
     }
 
     var registryPrefixMap: [String: String] {
@@ -634,6 +639,28 @@ final class SpinLabAppState {
             workbenchStore: workbenchFeatureStore
         )
         libraryFeatureStore.normalizeLibrarySelection()
+        hasRestoredInteractionSnapshot = true
+    }
+
+    private func notifyIfRoutingRulesChanged() {
+        let currentFingerprint = inboxFeatureStore.routingRuleFingerprint
+        let trimmedCurrent = currentFingerprint.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedCurrent.isEmpty, trimmedCurrent != "unknown" else {
+            return
+        }
+
+        let previousFingerprint = interactionValue(\.lastSeenRoutingRuleFingerprint)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let previousFingerprint,
+           !previousFingerprint.isEmpty,
+           previousFingerprint != trimmedCurrent {
+            presentAlert(
+                title: "Rules Updated",
+                message: "Routing rules changed since last run. Please run Library Sync Registry and Apply All to rebuild existing drawer samples."
+            )
+        }
+
+        updateInteractionValue(\.lastSeenRoutingRuleFingerprint, to: trimmedCurrent)
     }
 
     private func persistInteractionSnapshotIfReady() {

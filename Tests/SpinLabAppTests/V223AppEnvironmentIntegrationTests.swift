@@ -72,6 +72,38 @@ struct V223AppEnvironmentIntegrationTests {
         #expect(appState.activeAlert?.title == "Registry Load Failed")
     }
 
+    @Test("rule fingerprint change surfaces rebuild reminder on startup")
+    func ruleFingerprintChangeSurfacesRebuildReminderOnStartup() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("spinlab-env-rules-reminder-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var snapshot = SpinLabInteractionSnapshot()
+        snapshot.lastSeenRoutingRuleFingerprint = "v1:legacy-rule-fingerprint"
+        let persistence = LocalPersistenceStub(
+            pendingImports: [],
+            archivedRecords: [],
+            projects: [],
+            interactionSnapshot: snapshot
+        )
+        let environment = AppEnvironment(
+            persistence: persistence,
+            managedStorage: SpinLabManagedStorage(rootURL: root.appendingPathComponent("storage", isDirectory: true)),
+            sampleRegistry: SnapshotSampleRegistryIndex(snapshot: .empty()),
+            registrySubstrateRules: RegistrySubstrateRuleBook(),
+            routingCapabilities: .live,
+            ruleRuntime: DefaultRuleRuntimeCapability(),
+            dataActor: MockDataActor()
+        )
+
+        let appState = SpinLabAppState(environment: environment)
+
+        #expect(appState.activeAlert?.title == "Rules Updated")
+        #expect(appState.activeAlert?.message.contains("Sync Registry") == true)
+        #expect(appState.interactionValue(\.lastSeenRoutingRuleFingerprint) == appState.inbox.routingRuleFingerprint)
+    }
+
     private func waitUntil(timeoutMS: UInt64, condition: @escaping () -> Bool) async throws {
         let intervalNS: UInt64 = 20_000_000
         let deadline = DispatchTime.now().uptimeNanoseconds + timeoutMS * 1_000_000
