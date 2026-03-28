@@ -35,7 +35,7 @@ private struct ArchivedWorkbenchDetailView: View {
     @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
-        @Bindable var bindableAppState = appState
+        @Bindable var bindableWorkbench = appState.workbench
 
         VStack(alignment: .leading, spacing: 16) {
             GroupBox("Measurement") {
@@ -70,7 +70,7 @@ private struct ArchivedWorkbenchDetailView: View {
                     Text("Save creates or updates a Result attached to the active Measurement.")
                         .foregroundStyle(.secondary)
 
-                    TextEditor(text: $bindableAppState.workbenchResultDraft)
+                    TextEditor(text: $bindableWorkbench.workbenchResultDraft)
                         .font(.body)
                         .frame(minHeight: 140)
 

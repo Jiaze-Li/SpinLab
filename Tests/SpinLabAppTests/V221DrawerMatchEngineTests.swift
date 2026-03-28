@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
+@MainActor
 @Suite("V2.2.1 Drawer Match Engine")
 struct V221DrawerMatchEngineTests {
     @Test("shared semantic descriptor canonicalizes fields consistently")
@@ -13,7 +14,7 @@ struct V221DrawerMatchEngineTests {
             orientation: "111"
         )
 
-        #expect(descriptor.canonicalKey == "PN32|HF+baked+o|STO|111")
+        #expect(descriptor.canonicalKey == "PN32|HF+b+o|STO|111")
     }
 
     @Test("exact canonical key match resolves uniquely")
@@ -21,12 +22,12 @@ struct V221DrawerMatchEngineTests {
         let engine = DrawerMatchEngine()
         let index = engine.makeIndex(from: [
             sample(batch: "PN32", treatment: "HF", material: "STO", orientation: "111", display: "PN32 - HF STO(111)"),
-            sample(batch: "PN32", treatment: "baked", material: "STO", orientation: "111", display: "PN32 - baked STO(111)")
+            sample(batch: "PN32", treatment: "b", material: "STO", orientation: "111", display: "PN32 - b STO(111)")
         ])
 
         let matched = engine.match(sampleInput: "PN32|baked|STO|111", index: index)
 
-        #expect(matched == "PN32 - baked STO(111)")
+        #expect(matched == "PN32 - b STO(111)")
     }
 
     @Test("fallback token subset match resolves uniquely")
@@ -34,12 +35,12 @@ struct V221DrawerMatchEngineTests {
         let engine = DrawerMatchEngine()
         let index = engine.makeIndex(from: [
             sample(batch: "PN32", treatment: "HF", material: "STO", orientation: "111", display: "PN32 - HF STO(111)"),
-            sample(batch: "PN32", treatment: "baked", material: "STO", orientation: "111", display: "PN32 - baked STO(111)")
+            sample(batch: "PN32", treatment: "b", material: "STO", orientation: "111", display: "PN32 - b STO(111)")
         ])
 
         let matched = engine.match(sampleInput: "PN32 baked STO", index: index)
 
-        #expect(matched == "PN32 - baked STO(111)")
+        #expect(matched == "PN32 - b STO(111)")
     }
 
     @Test("fallback token subset returns nil when candidates are ambiguous")
@@ -47,7 +48,7 @@ struct V221DrawerMatchEngineTests {
         let engine = DrawerMatchEngine()
         let index = engine.makeIndex(from: [
             sample(batch: "PN32", treatment: "HF", material: "STO", orientation: "111", display: "PN32 - HF STO(111)"),
-            sample(batch: "PN32", treatment: "baked", material: "STO", orientation: "111", display: "PN32 - baked STO(111)")
+            sample(batch: "PN32", treatment: "b", material: "STO", orientation: "111", display: "PN32 - b STO(111)")
         ])
 
         let matched = engine.match(sampleInput: "PN32 STO", index: index)
@@ -60,12 +61,12 @@ struct V221DrawerMatchEngineTests {
         let engine = DrawerMatchEngine()
         let index = engine.makeIndex(from: [
             sample(batch: "PN32", treatment: "HF", material: "STO", orientation: "111", display: "PN32 - HF STO(111)"),
-            sample(batch: "PN32", treatment: "baked", material: "STO", orientation: "111", display: "PN32 - baked STO(111)")
+            sample(batch: "PN32", treatment: "b", material: "STO", orientation: "111", display: "PN32 - b STO(111)")
         ])
 
         let matched = engine.match(sampleInput: "PN32 | baked | STO | 111", index: index)
 
-        #expect(matched == "PN32 - baked STO(111)")
+        #expect(matched == "PN32 - b STO(111)")
     }
 
     @Test("legacy non-canonical sample ids can still be resolved through fallback")
@@ -90,6 +91,28 @@ struct V221DrawerMatchEngineTests {
         let matched = engine.match(sampleInput: "PN50 HF STO", index: index)
 
         #expect(matched == "PN50 - HF STO(111)")
+    }
+
+    @Test("empty sample input returns nil immediately")
+    func emptyInputReturnsNil() {
+        let engine = DrawerMatchEngine()
+        let index = engine.makeIndex(from: [
+            sample(batch: "PN32", treatment: "HF", material: "STO", orientation: "111", display: "PN32 - HF STO(111)")
+        ])
+
+        #expect(engine.match(sampleInput: "   ", index: index) == nil)
+    }
+
+    @Test("exact canonical key returns nil when canonical candidates are not unique")
+    func exactCanonicalReturnsNilWhenDuplicateCanonicalCandidatesExist() {
+        let engine = DrawerMatchEngine()
+        let index = engine.makeIndex(from: [
+            sample(batch: "PN32", treatment: "HF", material: "STO", orientation: "111", display: "PN32 - HF STO(111) A"),
+            sample(batch: "PN32", treatment: "HF", material: "STO", orientation: "111", display: "PN32 - HF STO(111) B")
+        ])
+
+        let matched = engine.match(sampleInput: "PN32|HF|STO|111", index: index)
+        #expect(matched == nil)
     }
 
     private func sample(

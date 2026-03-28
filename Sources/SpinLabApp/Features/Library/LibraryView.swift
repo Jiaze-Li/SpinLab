@@ -1,12 +1,10 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct LibraryView: View {
     @Environment(SpinLabAppState.self) private var appState
     @State private var allowedPrefixesDraft: String = ""
-    @State private var selectedPrefix: String?
-    @State private var selectedBatchId: String?
-    @State private var selectedSampleId: String?
     @State private var isLibrarySettingsExpanded = true
     @State private var isRegistryWorkspaceExpanded = true
     @State private var isSearchWorkspaceExpanded = true
@@ -24,6 +22,7 @@ struct LibraryView: View {
     @State private var searchHasExecuted = false
     @State private var searchDebounceTask: Task<Void, Never>?
     @State private var viewModel = LibraryViewModel()
+    private let computationService = LibraryViewComputationService()
     private let level1HeaderFont: Font = .title2.bold()
     private let level2HeaderFont: Font = .title3.weight(.semibold)
     private let level3HeaderFont: Font = .headline
@@ -44,14 +43,13 @@ struct LibraryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             viewModel.bindActions(from: appState)
+            viewModel.validateLibraryCacheOnAppear()
             applyRestoredInteractionState()
             syncSelection()
-            viewModel.syncState(from: appState)
             viewModel.persistInteractionState(interactionStateSnapshot)
         }
         .onChange(of: viewModel.viewState.previewGroupsByPrefix) { _, _ in
             syncSelection()
-            viewModel.syncState(from: appState)
             viewModel.persistInteractionState(interactionStateSnapshot)
         }
         .onChange(of: interactionStateSnapshot) { _, newValue in
@@ -59,9 +57,6 @@ struct LibraryView: View {
         }
         .onChange(of: searchFingerprint) { _, _ in
             scheduleDebouncedSearchIfNeeded()
-        }
-        .onChange(of: appState.appStateRevision) { _, _ in
-            viewModel.syncState(from: appState)
         }
         .onDisappear {
             searchDebounceTask?.cancel()
@@ -112,593 +107,166 @@ struct LibraryView: View {
         .animation(nil, value: selectedSampleId)
     }
 
+    private var viewState: LibraryViewState {
+        viewModel.viewState
+    }
+
+    private var selectedPrefix: String? {
+        get { appState.librarySelectedPrefix }
+        nonmutating set { appState.librarySelectedPrefix = newValue }
+    }
+
+    private var selectedBatchId: String? {
+        get { appState.librarySelectedBatchId }
+        nonmutating set { appState.librarySelectedBatchId = newValue }
+    }
+
+    private var selectedSampleId: String? {
+        get { appState.librarySelectedSampleId }
+        nonmutating set { appState.librarySelectedSampleId = newValue }
+    }
+
     private var libraryColumnHeader: some View {
         HStack(alignment: .firstTextBaseline) {
             Text("Library")
                 .font(level1HeaderFont)
+            Button("Export Audit") {
+                presentAuditTrailExportPanel()
+            }
+            .font(.caption)
+            .buttonStyle(.bordered)
             Spacer()
             Text(AppVersion.current)
                 .font(.caption.monospaced())
                 .foregroundStyle(.secondary)
         }
+        .padding(.top, 4)
     }
 
     private var librarySettingsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Button {
-                isLibrarySettingsExpanded.toggle()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: isLibrarySettingsExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 20, height: 20)
-                    Text("Library Settings")
-                        .font(level2HeaderFont)
-                    Spacer()
-                }
+        LibrarySettingsSectionView(
+            isExpanded: $isLibrarySettingsExpanded,
+            allowedPrefixesDraft: $allowedPrefixesDraft,
+            level2HeaderFont: level2HeaderFont,
+            level3HeaderFont: level3HeaderFont,
+            viewState: viewState,
+            canReloadSampleRegistry: appState.canReloadSampleRegistry,
+            onLoadRegistry: {
+                presentSampleRegistryPanel()
+            },
+            onReloadRegistry: {
+                viewModel.reloadSampleRegistry()
+            },
+            onChooseLibraryRoot: {
+                presentLibraryRootPanel()
+            },
+            onVerifyRoot: {
+                viewModel.verifyLibraryRoot()
+            },
+            onSyncFiles: {
+                viewModel.syncLibraryFromFiles()
+            },
+            onSavePrefixes: { value in
+                viewModel.updateAllowedBatchPrefixes(from: value)
+            },
+            onChooseBackupPath: {
+                presentBackupPathPanel()
+            },
+            onSyncBackup: {
+                viewModel.syncLibraryBackup()
             }
-            .buttonStyle(.plain)
-
-            if isLibrarySettingsExpanded {
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 8) {
-                        MetadataValueRow(
-                            label: "Registry Path (Inbox)",
-                            value: viewModel.viewState.registrySourcePath ?? "Not loaded",
-                            monospaced: true
-                        )
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                        MetadataValueRow(
-                            label: "Library Root",
-                            value: viewModel.viewState.libraryRootPath ?? "Not set",
-                            monospaced: true
-                        )
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                        HStack {
-                            Button("Choose Library Root") {
-                                presentLibraryRootPanel()
-                            }
-                            Button("Verify Root") {
-                                viewModel.verifyLibraryRoot()
-                            }
-                            Button("Sync Files") {
-                                viewModel.syncLibraryFromFiles()
-                            }
-                            .disabled(viewModel.viewState.libraryRootPath == nil)
-                        }
-
-                        if let message = viewModel.viewState.rootVerificationMessage {
-                            Text(message)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if let path = viewModel.viewState.rootVerificationPath {
-                            MetadataValueRow(label: "Verified Path", value: path, monospaced: true)
-                        }
-
-                        HStack {
-                            TextField("Allowed Prefixes (PN, PT, SL)", text: $allowedPrefixesDraft)
-                                .frame(width: 190)
-                                .textFieldStyle(.roundedBorder)
-                            Button("Save Prefixes") {
-                                viewModel.updateAllowedBatchPrefixes(from: allowedPrefixesDraft)
-                            }
-                        }
-                        .onAppear {
-                            allowedPrefixesDraft = viewModel.viewState.allowedBatchPrefixesText
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                } label: {
-                    Text("Settings")
-                        .font(level3HeaderFont)
-                }
-
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 8) {
-                        MetadataValueRow(
-                            label: "Backup Path",
-                            value: viewModel.viewState.backupPath ?? "Not set",
-                            monospaced: true
-                        )
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                        HStack {
-                            Button("Choose Backup Path") {
-                                presentBackupPathPanel()
-                            }
-                            Button("Sync Backup") {
-                                viewModel.syncLibraryBackup()
-                            }
-                            .disabled(viewModel.viewState.libraryRootPath == nil || viewModel.viewState.backupPath == nil)
-                        }
-
-                        if let error = viewModel.viewState.backupError {
-                            Text(error)
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                        } else if let message = viewModel.viewState.backupMessage {
-                            Text(message)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                } label: {
-                    Text("Backup")
-                        .font(level3HeaderFont)
-                }
-            }
-        }
+        )
     }
 
     private var registryWorkspaceSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Button {
-                isRegistryWorkspaceExpanded.toggle()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: isRegistryWorkspaceExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 20, height: 20)
-                    Text("Registry Operations")
-                        .font(level2HeaderFont)
-                    Spacer()
-                }
+        RegistryWorkspaceSectionView(
+            isExpanded: $isRegistryWorkspaceExpanded,
+            level2HeaderFont: level2HeaderFont,
+            level3HeaderFont: level3HeaderFont,
+            viewState: viewState,
+            selectedPrefix: selectedPrefix,
+            selectedBatchId: selectedBatchId,
+            selectedSampleId: selectedSampleId,
+            previewPrefixes: previewPrefixes,
+            previewGroupsForSelectedPrefix: previewGroupsForSelectedPrefix,
+            selectedBatchSamples: selectedBatchSamples,
+            onSelectPrefix: { newValue in
+                selectedPrefix = newValue
+                selectedBatchId = previewGroupsForSelectedPrefix.first?.batchId
+                selectedSampleId = previewGroupsForSelectedPrefix.first?.samples.first?.id
+                viewModel.selectBrowserSample()
+            },
+            onSelectBatch: { group in
+                selectedBatchId = group.batchId
+                selectedSampleId = group.samples.first?.id
+                viewModel.selectBrowserSample()
+            },
+            onSelectSample: { sample in
+                selectedSampleId = sample.id
+                viewModel.selectBrowserSample()
+            },
+            onSyncRegistry: {
+                viewModel.syncLibraryFromRegistry()
+            },
+            onApplyAll: {
+                viewModel.applyPreparedLibrarySyncReview()
+            },
+            onApplySelected: {
+                viewModel.applySelectedRegistryDiff(batchId: selectedBatchId)
+            },
+            syncStatusSymbol: { status in
+                syncStatusSymbol(for: status)
+            },
+            syncStatusColor: { status in
+                syncStatusColor(for: status)
             }
-            .buttonStyle(.plain)
-
-            if isRegistryWorkspaceExpanded {
-                registryPreviewSection
-                registryBrowserSection
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var registryPreviewSection: some View {
-        GroupBox {
-            registryPreviewSectionContent
-        } label: {
-            registryPreviewSectionLabel
-        }
-    }
-
-    private var registryPreviewSectionContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Button("Sync Registry") {
-                    viewModel.syncLibraryFromRegistry()
-                }
-                Button("Apply All") {
-                    viewModel.applyPreparedLibrarySyncReview()
-                }
-                .disabled((viewModel.viewState.refreshReview?.totalChangesCount ?? 0) == 0)
-                Button("Apply Selected") {
-                    viewModel.applySelectedRegistryDiff(batchId: selectedBatchId)
-                }
-                .disabled((viewModel.viewState.refreshReview?.totalChangesCount ?? 0) == 0 || selectedBatchId == nil)
-            }
-
-            if let message = viewModel.viewState.previewMessage {
-                Text(message)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            if let review = viewModel.viewState.refreshReview {
-                Text("Pending sync review: \(review.newSamples.count) new, \(review.changedSamples.count) changed, \(review.removedSamples.count) removed, \(review.changedBatches.count) batch-changed, \(review.removedBatches.count) batch-removed.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            if !viewModel.viewState.previewWarnings.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(viewModel.viewState.previewWarnings) { warning in
-                        HStack(alignment: .top, spacing: 8) {
-                            Circle()
-                                .fill(warning.severity == .error ? Color.red : Color.orange)
-                                .frame(width: 8, height: 8)
-                            Text(warning.message)
-                                .font(.caption)
-                        }
-                    }
-                }
-            }
-
-            if let message = viewModel.viewState.drawerMessage {
-                Text(message)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            if let error = viewModel.viewState.drawerError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var registryPreviewSectionLabel: some View {
-        HStack(spacing: 6) {
-            Text("Registry Sync")
-                .font(level3HeaderFont)
-            if let syncStatus = viewModel.viewState.syncStatusMessage {
-                Text("(\(syncStatus))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private var registryBrowserSection: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 8) {
-                prefixPicker
-                Divider()
-                batchList
-                Divider()
-                sampleList
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } label: {
-            Text("Pending Queue")
-                .font(level3HeaderFont)
-        }
+        )
     }
 
     private var searchWorkspaceSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Button {
-                isSearchWorkspaceExpanded.toggle()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: isSearchWorkspaceExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 20, height: 20)
-                    Text("Search")
-                        .font(level2HeaderFont)
-                    Spacer()
-                }
+        SearchWorkspaceSectionView(
+            isExpanded: $isSearchWorkspaceExpanded,
+            batchIdText: $searchBatchIdText,
+            substrateText: $searchSubstrateText,
+            keywordText: $searchKeywordText,
+            thicknessText: $searchThicknessText,
+            oxygenText: $searchOxygenText,
+            temperatureText: $searchTemperatureText,
+            energyText: $searchEnergyText,
+            level2HeaderFont: level2HeaderFont,
+            level3HeaderFont: level3HeaderFont,
+            searchHasExecuted: searchHasExecuted,
+            searchMatchedResults: searchMatchedResults,
+            onSearch: {
+                executeSearch()
+            },
+            onClear: {
+                clearSearchFilters()
+            },
+            onSelectResult: { result in
+                selectSearchResultSample(result)
+            },
+            isSelectedResult: { result in
+                isSelectedSearchResult(result)
             }
-            .buttonStyle(.plain)
-
-            if isSearchWorkspaceExpanded {
-                GroupBox {
-                    searchOperationBox
-                } label: {
-                    Text("Search Conditions")
-                        .font(level3HeaderFont)
-                }
-
-                GroupBox {
-                    searchResultBox
-                } label: {
-                    Text("Search Result")
-                        .font(level3HeaderFont)
-                }
-            }
-        }
-    }
-
-    private var searchOperationBox: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Text Conditions")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    searchInputRow(label: "Batch ID", placeholder: "contains", text: $searchBatchIdText)
-                    searchInputRow(label: "Substrate Tags", placeholder: "contains", text: $searchSubstrateText)
-                    searchInputRow(label: "Global Text", placeholder: "contains", text: $searchKeywordText)
-                }
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Numeric Conditions")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    searchInputRow(label: "厚度", placeholder: "numeric", text: $searchThicknessText)
-                    searchInputRow(label: "氧压", placeholder: "numeric", text: $searchOxygenText)
-                    searchInputRow(label: "温度", placeholder: "numeric", text: $searchTemperatureText)
-                    searchInputRow(label: "能量", placeholder: "numeric", text: $searchEnergyText)
-                }
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-            }
-
-            HStack(spacing: 8) {
-                Button("Search") {
-                    executeSearch()
-                }
-                .buttonStyle(.borderedProminent)
-
-                Button("Clear") {
-                    clearSearchFilters()
-                }
-                .buttonStyle(.bordered)
-
-                Spacer()
-            }
-
-            Text("Rule: non-empty fields are AND conditions; empty fields are ignored.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var searchResultBox: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if !searchHasExecuted {
-                Text("Set conditions and click Search.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                HStack {
-                    Text("Matched samples")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text("\(searchMatchedResults.count)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                if searchMatchedResults.isEmpty {
-                    Text("No matched sample")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 4) {
-                            ForEach(searchMatchedResults) { result in
-                                Button {
-                                    selectSearchResultSample(result)
-                                } label: {
-                                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                        Text(result.sample.displayName)
-                                            .font(.subheadline)
-                                        Spacer()
-                                        Text("\(result.prefix)/\(result.sample.batchId)")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .padding(6)
-                                    .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .fill(isSelectedSearchResult(result) ? Color.accentColor.opacity(0.15) : Color.clear)
-                                    )
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                    .frame(height: 180)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func searchInputRow(label: String, placeholder: String, text: Binding<String>) -> some View {
-        HStack(spacing: 8) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(width: 96, alignment: .leading)
-            TextField(placeholder, text: text)
-                .textFieldStyle(.roundedBorder)
-        }
+        )
     }
 
     private var existingDrawerSampleSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Existing Drawer Samples")
-                .font(level2HeaderFont)
-            GroupBox {
-                VStack(alignment: .leading, spacing: 8) {
-                    if let prefix = appState.librarySelectedPrefix,
-                       let batchId = appState.librarySelectedBatchId {
-                        HStack {
-                            Text("Batch")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Text("\(prefix)/\(batchId)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if selectedExistingBatchSamples.isEmpty {
-                            Text("No samples found in selected drawer")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            ScrollView {
-                                LazyVStack(alignment: .leading, spacing: 4) {
-                                    ForEach(selectedExistingBatchSamples) { sample in
-                                        existingDrawerSampleRow(sample: sample, prefix: prefix, batchId: batchId)
-                                    }
-                                }
-                            }
-                            .frame(height: 220)
-                        }
-                    } else {
-                        Text("Select a batch in the left Library tree to choose its samples")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            } label: {
-                Text("Sample List")
-                    .font(level3HeaderFont)
+        LibraryExistingDrawerSampleSectionView(
+            level2HeaderFont: level2HeaderFont,
+            level3HeaderFont: level3HeaderFont,
+            selectedPrefix: viewState.selectedPrefix,
+            selectedBatchId: viewState.selectedBatchId,
+            selectedSampleId: viewState.selectedSampleId,
+            selectedExistingBatchSamples: selectedExistingBatchSamples
+        ) { sample in
+            guard let prefix = viewState.selectedPrefix,
+                  let batchId = viewState.selectedBatchId else {
+                return
             }
-        }
-    }
-
-    private var prefixPicker: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Prefix")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            if previewPrefixes.isEmpty {
-                Text("Load preview to select prefix")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                Picker("Prefix", selection: Binding(
-                    get: { selectedPrefix ?? previewPrefixes.first ?? "" },
-                    set: { newValue in
-                        selectedPrefix = newValue
-                        selectedBatchId = previewGroupsForSelectedPrefix.first?.batchId
-                        selectedSampleId = previewGroupsForSelectedPrefix.first?.samples.first?.id
-                        viewModel.selectBrowserSample()
-                    })
-                ) {
-                    ForEach(previewPrefixes, id: \.self) { prefix in
-                        Text(prefix).tag(prefix)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 180, alignment: .leading)
-            }
-        }
-    }
-
-    private var batchList: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Batch")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("\(previewGroupsForSelectedPrefix.count)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            if previewGroupsForSelectedPrefix.isEmpty {
-                Text("No batch available")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 4) {
-                        ForEach(previewGroupsForSelectedPrefix) { group in
-                            Button {
-                                selectedBatchId = group.batchId
-                                selectedSampleId = group.samples.first?.id
-                                viewModel.selectBrowserSample()
-                            } label: {
-                                HStack {
-                                    if let status = appState.libraryBatchSyncStatusByID[group.batchId], status != .unchanged {
-                                        if status == .added {
-                                            Image(systemName: "plus")
-                                                .font(.body.weight(.bold))
-                                                .foregroundStyle(Color.green)
-                                        } else if status == .removed {
-                                            Image(systemName: "minus")
-                                                .font(.body.weight(.bold))
-                                                .foregroundStyle(Color.red)
-                                        } else {
-                                            Image(systemName: syncStatusSymbol(for: status))
-                                                .font(.caption2.weight(.semibold))
-                                                .foregroundStyle(syncStatusColor(for: status))
-                                        }
-                                    }
-                                    Text(group.batchId)
-                                        .font(.subheadline)
-                                    Spacer()
-                                    Text("\(group.samples.count)")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                                .padding(6)
-                                .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .fill(selectedBatchId == group.batchId ? Color.accentColor.opacity(0.15) : Color.clear)
-                                )
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                .frame(height: 220)
-            }
-        }
-    }
-
-    private var sampleList: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Physical Sample")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("\(selectedBatchSamples.count)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            if selectedBatchSamples.isEmpty {
-                Text("Select a batch")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 4) {
-                        ForEach(selectedBatchSamples) { sample in
-                            PreviewSampleRow(
-                                sample: sample,
-                                isSelected: selectedSampleId == sample.id
-                            ) {
-                                selectedSampleId = sample.id
-                                viewModel.selectBrowserSample()
-                            }
-                        }
-                    }
-                }
-                .frame(height: 260)
-            }
-        }
-    }
-
-    private func existingDrawerSampleRow(sample: LibrarySample, prefix: String, batchId: String) -> some View {
-        Button {
             viewModel.selectExistingDrawer(prefix: prefix, batchId: batchId, sampleId: sample.id)
-        } label: {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(sample.substrateDisplay)
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
-                Spacer()
-            }
-            .padding(6)
-            .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(appState.librarySelectedSampleId == sample.id ? Color.accentColor.opacity(0.15) : Color.clear)
-            )
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
     }
 
     private var libraryDetailColumn: some View {
@@ -712,7 +280,7 @@ struct LibraryView: View {
                     sampleDetailHeader
 
                     if let sample = selectedSample {
-                        if isEditingSelectedSample, let draft = appState.librarySampleEditDraft {
+                        if isEditingSelectedSample, let draft = viewState.sampleEditDraft {
                             let sections = makeDetailSections(for: sample)
                             let globalFirstColumnWidth = alignedFirstColumnWidth(
                                 fields: sections.allFields,
@@ -853,61 +421,47 @@ struct LibraryView: View {
     }
 
     private var sampleDetailHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Sample Detail")
-                    .font(.title2.bold())
-                Spacer()
-                Button("Numeric日志") {
-                    viewModel.loadLibraryGlobalManualLogs()
-                    isShowingGlobalManualLog = true
-                }
-                Button("Metadata日志") {
-                    viewModel.loadLibraryMetadataSyncLogs()
-                    isShowingMetadataSyncLog = true
-                }
-                if isEditingSelectedSample {
-                    Button("Cancel") {
-                        viewModel.cancelEditingSelectedLibrarySample()
-                    }
-                    Button("Save") {
-                        viewModel.saveLibrarySampleEdits()
-                    }
-                    .disabled(!appState.librarySampleEditIsDirty || appState.librarySampleEditIsSaving)
-                } else {
-                    Button("Edit") {
-                        viewModel.beginEditingSelectedLibrarySample()
-                    }
-                    .disabled(!appState.canEditSelectedLibrarySample)
-                }
+        LibrarySampleDetailHeaderView(
+            isEditingSelectedSample: isEditingSelectedSample,
+            sampleEditIsDirty: viewState.sampleEditIsDirty,
+            sampleEditIsSaving: viewState.sampleEditIsSaving,
+            canEditSelectedLibrarySample: viewState.canEditSelectedLibrarySample,
+            sampleEditError: viewState.sampleEditError,
+            sampleEditMessage: viewState.sampleEditMessage,
+            onLoadGlobalManualLogs: {
+                viewModel.loadLibraryGlobalManualLogs()
+                isShowingGlobalManualLog = true
+            },
+            onLoadMetadataSyncLogs: {
+                viewModel.loadLibraryMetadataSyncLogs()
+                isShowingMetadataSyncLog = true
+            },
+            onCancelEdit: {
+                viewModel.cancelEditingSelectedLibrarySample()
+            },
+            onSaveEdit: {
+                viewModel.saveLibrarySampleEdits()
+            },
+            onBeginEdit: {
+                viewModel.beginEditingSelectedLibrarySample()
             }
-
-            if let error = appState.librarySampleEditError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            } else if let message = appState.librarySampleEditMessage {
-                Text(message)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
+        )
     }
 
     @ViewBuilder
     private var globalManualLogSheet: some View {
         NavigationStack {
             List {
-                if appState.libraryGlobalManualLogs.isEmpty {
+                if viewState.globalManualLogs.isEmpty {
                     Text("No global manual log records.")
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(appState.libraryGlobalManualLogs) { entry in
+                    ForEach(viewState.globalManualLogs) { entry in
                         Section {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("\(entry.sampleId) · \(entry.fieldType): \(entry.fieldKey)")
                                     .font(.callout.weight(.semibold))
-                                Text("\(displayValue(entry.oldValue)) -> \(displayValue(entry.newValue))")
+                                Text("\(computationService.displayValue(entry.oldValue)) -> \(computationService.displayValue(entry.newValue))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 Text("Sheet: \(entry.sheetName) · Row: \(entry.rowNumber)")
@@ -941,11 +495,11 @@ struct LibraryView: View {
             }
             .overlay(alignment: .bottomLeading) {
                 VStack(alignment: .leading, spacing: 4) {
-                    if let error = appState.libraryGlobalManualLogError {
+                    if let error = viewState.globalManualLogError {
                         Text(error)
                             .font(.caption)
                             .foregroundStyle(.red)
-                    } else if let message = appState.libraryGlobalManualLogMessage {
+                    } else if let message = viewState.globalManualLogMessage {
                         Text(message)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -982,7 +536,7 @@ struct LibraryView: View {
 
     @ViewBuilder
     private var metadataSyncLogSheet: some View {
-        let entries = appState.libraryMetadataSyncLogs
+        let entries = viewState.metadataSyncLogs
         NavigationStack {
             List {
                 if entries.isEmpty {
@@ -1007,11 +561,11 @@ struct LibraryView: View {
             }
             .overlay(alignment: .bottomLeading) {
                 VStack(alignment: .leading, spacing: 4) {
-                    if let error = appState.libraryMetadataSyncLogError {
+                    if let error = viewState.metadataSyncLogError {
                         Text(error)
                             .font(.caption)
                             .foregroundStyle(.red)
-                    } else if let message = appState.libraryMetadataSyncLogMessage {
+                    } else if let message = viewState.metadataSyncLogMessage {
                         Text(message)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -1029,7 +583,7 @@ struct LibraryView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(entry.sampleId) · \(entry.columnName)")
                     .font(.callout.weight(.semibold))
-                Text("\(displayValue(entry.oldValue)) -> \(displayValue(entry.newValue))")
+                Text("\(computationService.displayValue(entry.oldValue)) -> \(computationService.displayValue(entry.newValue))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text("Sheet: \(entry.sheetName) · Row: \(entry.rowNumber)")
@@ -1053,7 +607,7 @@ struct LibraryView: View {
 
     private var isEditingSelectedSample: Bool {
         guard let sample = selectedSample,
-              let draft = appState.librarySampleEditDraft else {
+              let draft = viewState.sampleEditDraft else {
             return false
         }
         return draft.sampleId == sample.id
@@ -1090,10 +644,10 @@ struct LibraryView: View {
     @ViewBuilder
     private func editMetadataSection(draft: LibrarySampleEditDraft, availableWidth: CGFloat) -> some View {
         let fields: [DetailField] = draft.metadataValues.map { entry in
-            DetailField(label: entry.key, value: entry.value, fullWidth: isLongField(entry.value))
+            DetailField(label: entry.key, value: entry.value, fullWidth: computationService.isLongField(entry.value))
         }
-        let rows = groupedFields(fields)
-        let firstColumnWidth = sectionFirstColumnWidth(rows: rows, availableWidth: availableWidth)
+        let rows = computationService.groupedFields(fields)
+        let firstColumnWidth = computationService.sectionFirstColumnWidth(rows: rows, availableWidth: availableWidth)
         VStack(alignment: .leading, spacing: 8) {
             Text("Metadata")
                 .font(.headline)
@@ -1147,38 +701,38 @@ struct LibraryView: View {
 
     private var substrateTagsBinding: Binding<String> {
         Binding(
-            get: { appState.librarySampleEditDraft?.substrateTagsText ?? "" },
-            set: { appState.updateLibrarySampleEditSubstrateTags($0) }
+            get: { viewState.sampleEditDraft?.substrateTagsText ?? "" },
+            set: { appState.library.updateLibrarySampleEditSubstrateTags($0) }
         )
     }
 
     private func numericValueBinding(for key: String) -> Binding<String> {
         Binding(
             get: {
-                appState.librarySampleEditDraft?
+                viewState.sampleEditDraft?
                     .numericValues
                     .first(where: { $0.key == key })?
                     .value ?? ""
             },
-            set: { appState.updateLibrarySampleEditNumericValue(key: key, value: $0) }
+            set: { appState.library.updateLibrarySampleEditNumericValue(key: key, value: $0) }
         )
     }
 
     private func metadataValueBinding(for key: String) -> Binding<String> {
         Binding(
             get: {
-                appState.librarySampleEditDraft?
+                viewState.sampleEditDraft?
                     .metadataValues
                     .first(where: { $0.key == key })?
                     .value ?? ""
             },
-            set: { appState.updateLibrarySampleEditMetadataValue(key: key, value: $0) }
+            set: { appState.library.updateLibrarySampleEditMetadataValue(key: key, value: $0) }
         )
     }
 
     private var pendingSelectionChangeDialogBinding: Binding<Bool> {
         Binding(
-            get: { appState.hasPendingLibrarySelectionChange() },
+            get: { appState.library.hasPendingSelectionChange() },
             set: { isPresented in
                 if !isPresented {
                     viewModel.cancelPendingSelectionChange()
@@ -1203,7 +757,7 @@ struct LibraryView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(change.key)
                                             .font(.caption.weight(.semibold))
-                                        Text("\(displayValue(change.oldValue)) -> \(displayValue(change.newValue))")
+                                            Text("\(computationService.displayValue(change.oldValue)) -> \(computationService.displayValue(change.newValue))")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
@@ -1239,8 +793,8 @@ struct LibraryView: View {
         availableWidth: CGFloat,
         sharedFirstColumnWidth: CGFloat?
     ) -> some View {
-        let rows = groupedFields(fields)
-        let sectionFirstColumnWidth = sharedFirstColumnWidth ?? sectionFirstColumnWidth(rows: rows, availableWidth: availableWidth)
+        let rows = computationService.groupedFields(fields)
+        let sectionFirstColumnWidth = sharedFirstColumnWidth ?? computationService.sectionFirstColumnWidth(rows: rows, availableWidth: availableWidth)
         VStack(alignment: .leading, spacing: 8) {
             ForEach(rows, id: \.self) { row in
                 if row.count == 1 {
@@ -1261,33 +815,7 @@ struct LibraryView: View {
     }
 
     private func alignedFirstColumnWidth(fields: [DetailField], availableWidth: CGFloat) -> CGFloat? {
-        let rows = groupedFields(fields)
-        return sectionFirstColumnWidth(rows: rows, availableWidth: availableWidth)
-    }
-
-    private func groupedFields(_ fields: [DetailField]) -> [[DetailField]] {
-        var rows: [[DetailField]] = []
-        var pending: DetailField?
-        for field in fields {
-            if field.fullWidth {
-                if let pendingField = pending {
-                    rows.append([pendingField])
-                    pending = nil
-                }
-                rows.append([field])
-                continue
-            }
-            if let pendingField = pending {
-                rows.append([pendingField, field])
-                pending = nil
-            } else {
-                pending = field
-            }
-        }
-        if let pendingField = pending {
-            rows.append([pendingField])
-        }
-        return rows
+        computationService.alignedFirstColumnWidth(fields: fields, availableWidth: availableWidth)
     }
 
     @ViewBuilder
@@ -1307,113 +835,8 @@ struct LibraryView: View {
         }
     }
 
-    private func sectionFirstColumnWidth(rows: [[DetailField]], availableWidth: CGFloat) -> CGFloat? {
-        twoColumnWidths(rows: rows, availableWidth: availableWidth)?.first
-    }
-
-    private func twoColumnWidths(rows: [[DetailField]], availableWidth: CGFloat) -> (first: CGFloat, second: CGFloat)? {
-        let spacing: CGFloat = 12
-        let minColumnWidth: CGFloat = 170
-        let firstColumnMaxWidth: CGFloat = 420
-
-        let pairRows = rows.filter { $0.count == 2 }
-        guard !pairRows.isEmpty else {
-            return nil
-        }
-
-        // Character-based redundancy: reserve extra breathing room equivalent to 5 chars.
-        let redundancyInChars: CGFloat = 5
-        let averageCharWidth = estimatedTextWidth("MMMMM", font: .systemFont(ofSize: NSFont.systemFontSize)) / 5
-        let redundancyWidth = max(averageCharWidth * redundancyInChars, 24)
-
-        let firstContentNeeded = pairRows
-            .map { estimatedFieldWidth($0[0]) }
-            .max() ?? minColumnWidth
-        let secondContentNeeded = pairRows
-            .map { estimatedFieldWidth($0[1]) }
-            .max() ?? minColumnWidth
-
-        let firstBase = max(firstContentNeeded + redundancyWidth, minColumnWidth)
-        let secondBase = max(secondContentNeeded + redundancyWidth, minColumnWidth)
-        let totalBase = firstBase + secondBase + spacing
-
-        // If the total width is insufficient, fallback to single-column rendering.
-        guard availableWidth >= totalBase else {
-            return nil
-        }
-
-        let extra = availableWidth - totalBase
-        var first = firstBase + extra / 2
-        var second = secondBase + extra / 2
-
-        // Cap the first column in wide layouts to avoid visual imbalance.
-        if first > firstColumnMaxWidth {
-            let overflow = first - firstColumnMaxWidth
-            first = firstColumnMaxWidth
-            second += overflow
-        }
-
-        // Keep the second column at least minimally readable.
-        if second < minColumnWidth {
-            let needed = minColumnWidth - second
-            first -= needed
-            second = minColumnWidth
-        }
-
-        let maxFirstGivenAvailable = availableWidth - minColumnWidth - spacing
-        first = min(first, maxFirstGivenAvailable)
-        second = availableWidth - first - spacing
-        guard first >= minColumnWidth, second >= minColumnWidth else {
-            return nil
-        }
-        return (first: first, second: second)
-    }
-
-    private func estimatedFieldWidth(_ field: DetailField) -> CGFloat {
-        let labelWidth = estimatedTextWidth(field.label, font: .systemFont(ofSize: NSFont.smallSystemFontSize))
-        let valueFont: NSFont = field.monospaced
-            ? .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
-            : .systemFont(ofSize: NSFont.systemFontSize)
-        let valueWidth = estimatedTextWidth(field.value, font: valueFont)
-        let clampedValueWidth = min(max(valueWidth, 80), 360)
-        return max(labelWidth, clampedValueWidth)
-    }
-
-    private func estimatedTextWidth(_ text: String, font: NSFont) -> CGFloat {
-        let sample = text.isEmpty ? " " : text
-        let singleLine = sample
-            .split(separator: "\n")
-            .map(String.init)
-            .max(by: { $0.count < $1.count }) ?? sample
-        let attributes: [NSAttributedString.Key: Any] = [.font: font]
-        return ceil((singleLine as NSString).size(withAttributes: attributes).width)
-    }
-
-    private func isLongField(_ value: String) -> Bool {
-        if value.count > 68 {
-            return true
-        }
-        let markers = ["/", "\\", "\n", "\t"]
-        return markers.contains { value.contains($0) } && value.count > 34
-    }
-
-    private func orderedNumericTagKeys(for sample: LibrarySample) -> [String] {
-        let preferred = ["厚度", "氧压", "温度", "能量", "电压", "磁场", "电阻"]
-        var keys: [String] = []
-        for key in preferred where sample.numericDisplay[key] != nil {
-            keys.append(key)
-        }
-        for key in sample.numericDisplay.keys where !keys.contains(key) {
-            keys.append(key)
-        }
-        return keys
-    }
-
     private func adaptiveDetailSectionSpacing(for height: CGFloat) -> CGFloat {
-        let base: CGFloat = 12
-        let extraHeight = max(height - 720, 0)
-        // Spread sections out on tall windows while keeping dense layout on normal heights.
-        return min(base + extraHeight / 28, 26)
+        computationService.adaptiveDetailSectionSpacing(for: height)
     }
 
     private static let logDateTimeFormatter: DateFormatter = {
@@ -1454,20 +877,11 @@ struct LibraryView: View {
     }
 
     private func selectedChangeHighlights(for sample: LibrarySample) -> [ChangeHighlight] {
-        let sampleChanges = appState.librarySampleSyncChangesByID[sample.id] ?? []
-        let batchChanges = appState.libraryBatchSyncChangesByID[sample.batchId] ?? []
-        let sampleHighlights = sampleChanges.map {
-            ChangeHighlight(key: $0.key, description: "\(displayValue($0.oldValue)) -> \(displayValue($0.newValue))")
-        }
-        let batchHighlights = batchChanges.map {
-            ChangeHighlight(key: "Batch.\($0.key)", description: "\(displayValue($0.oldValue)) -> \(displayValue($0.newValue))")
-        }
-        return sampleHighlights + batchHighlights
-    }
-
-    private func displayValue(_ value: String?) -> String {
-        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return (trimmed?.isEmpty == false) ? trimmed! : "∅"
+        computationService.selectedChangeHighlights(
+            for: sample,
+            sampleSyncChangesByID: viewState.sampleSyncChangesByID,
+            batchSyncChangesByID: viewState.batchSyncChangesByID
+        )
     }
 
     private func syncStatusSymbol(for status: LibrarySyncBatchStatus) -> String {
@@ -1497,7 +911,7 @@ struct LibraryView: View {
     }
 
     private var previewPrefixes: [String] {
-        let configured = viewModel.viewState.allowedBatchPrefixes
+        let configured = viewState.allowedBatchPrefixes
         let available = Array(combinedPreviewGroupsByPrefix.keys).sorted()
         if configured.isEmpty {
             return available
@@ -1513,14 +927,14 @@ struct LibraryView: View {
     }
 
     private var combinedPreviewGroupsByPrefix: [String: [LibraryPreviewBatchGroup]] {
-        var groups = viewModel.viewState.previewGroupsByPrefix
-        for (batchID, status) in viewModel.viewState.batchSyncStatusByID where status != .unchanged {
+        var groups = viewState.previewGroupsByPrefix
+        for (batchID, status) in viewState.batchSyncStatusByID where status != .unchanged {
             let prefix = LibrarySort.batchSortKey(batchID).prefix
             let alreadyExists = groups[prefix]?.contains(where: { $0.batchId == batchID }) == true
             if alreadyExists {
                 continue
             }
-            let existingSamples = viewModel.viewState.existingGroupsByPrefix[prefix]?
+            let existingSamples = viewState.existingGroupsByPrefix[prefix]?
                 .first(where: { $0.batchId == batchID })?
                 .samples ?? []
             groups[prefix, default: []].append(
@@ -1545,22 +959,22 @@ struct LibraryView: View {
     }
 
     private var selectedExistingSample: LibrarySample? {
-        guard let prefix = appState.librarySelectedPrefix,
-              let batchId = appState.librarySelectedBatchId,
-              let sampleId = appState.librarySelectedSampleId else {
+        guard let prefix = viewState.selectedPrefix,
+              let batchId = viewState.selectedBatchId,
+              let sampleId = viewState.selectedSampleId else {
             return nil
         }
-        let groups = appState.libraryExistingGroups[prefix] ?? []
+        let groups = viewState.existingGroupsByPrefix[prefix] ?? []
         let samples = groups.first(where: { $0.batchId == batchId })?.samples ?? []
         return samples.first(where: { $0.id == sampleId })
     }
 
     private var selectedExistingBatchSamples: [LibrarySample] {
-        guard let prefix = appState.librarySelectedPrefix,
-              let batchId = appState.librarySelectedBatchId else {
+        guard let prefix = viewState.selectedPrefix,
+              let batchId = viewState.selectedBatchId else {
             return []
         }
-        let groups = appState.libraryExistingGroups[prefix] ?? []
+        let groups = viewState.existingGroupsByPrefix[prefix] ?? []
         return groups.first(where: { $0.batchId == batchId })?.samples ?? []
     }
 
@@ -1588,6 +1002,50 @@ struct LibraryView: View {
         }
     }
 
+    private func presentSampleRegistryPanel() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        if let xlsxType = UTType(filenameExtension: "xlsx") {
+            panel.allowedContentTypes = [xlsxType]
+        }
+        panel.title = "Load Sample Registry"
+        panel.message = "Choose an XLSX registry file."
+
+        if panel.runModal() == .OK, let url = panel.url {
+            viewModel.loadSampleRegistry(from: url)
+        }
+    }
+
+    private func presentAuditTrailExportPanel() {
+        let panel = NSSavePanel()
+        panel.title = "Export Audit Trail"
+        panel.prompt = "Export"
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = "spinlab_audit_trail.json"
+        panel.allowedContentTypes = [.json]
+        if panel.runModal() != .OK {
+            return
+        }
+        guard let destinationURL = panel.url else {
+            return
+        }
+
+        do {
+            let summary = try appState.exportAuditTrail(to: destinationURL)
+            appState.presentAlert(
+                title: "Audit Trail Exported",
+                message: "Saved \(summary.entryCount) log entries to \(destinationURL.path)."
+            )
+        } catch {
+            appState.presentAlert(
+                title: "Export Failed",
+                message: error.localizedDescription
+            )
+        }
+    }
+
     private var interactionStateSnapshot: LibraryInteractionState {
         LibraryInteractionState(
             selectedPrefix: selectedPrefix,
@@ -1608,7 +1066,7 @@ struct LibraryView: View {
     }
 
     private func applyRestoredInteractionState() {
-        let restored = viewModel.viewState.restoredInteractionState
+        let restored = viewState.restoredInteractionState
         selectedPrefix = restored.selectedPrefix
         selectedBatchId = restored.selectedBatchId
         selectedSampleId = restored.selectedSampleId
@@ -1650,7 +1108,7 @@ struct LibraryView: View {
     }
 
     private var allExistingDrawerSamples: [SearchResultItem] {
-        let groups = viewModel.viewState.existingGroupsByPrefix
+        let groups = viewState.existingGroupsByPrefix
         return groups
             .flatMap { prefix, batchGroups in
                 batchGroups.flatMap { group in
@@ -1705,7 +1163,7 @@ struct LibraryView: View {
 
     private func executeSearch() {
         searchMatchedResults = allExistingDrawerSamples.filter { result in
-            matchesSearch(result.sample)
+            computationService.matchesSearch(sample: result.sample, filters: searchFilters)
         }
         searchHasExecuted = true
     }
@@ -1737,102 +1195,16 @@ struct LibraryView: View {
         }
     }
 
-    private func matchesSearch(_ sample: LibrarySample) -> Bool {
-        let batchText = searchBatchIdText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let substrateText = searchSubstrateText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let keywordText = searchKeywordText.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if !batchText.isEmpty,
-           !sample.batchId.localizedCaseInsensitiveContains(batchText) {
-            return false
-        }
-
-        if !substrateText.isEmpty {
-            let queryTags = normalizedSubstrateQueryTags(from: substrateText)
-            let sampleTags = Set(
-                ([sample.substrateDisplay] + sample.substrateTags)
-                    .map(normalizedSubstrateTag)
-                    .filter { !$0.isEmpty }
-            )
-            let matched = queryTags.contains { sampleTags.contains($0) }
-            if !matched {
-                return false
-            }
-        }
-
-        if !keywordText.isEmpty {
-            let keywordHaystack = [
-                sample.batchId,
-                sample.displayName,
-                sample.id,
-                sample.substrateDisplay,
-                sample.substrateRaw,
-                sample.substrateTags.joined(separator: " "),
-                sample.metadata.values.joined(separator: " ")
-            ].joined(separator: " ")
-            if !keywordHaystack.localizedCaseInsensitiveContains(keywordText) {
-                return false
-            }
-        }
-
-        if let thickness = searchThicknessValue,
-           !numericEquals(sample.numericTags["厚度"], thickness) {
-            return false
-        }
-
-        if let oxygen = searchOxygenValue,
-           !numericEquals(sample.numericTags["氧压"], oxygen) {
-            return false
-        }
-
-        if let temperature = searchTemperatureValue,
-           !numericEquals(sample.numericTags["温度"], temperature) {
-            return false
-        }
-
-        if let energy = searchEnergyValue,
-           !numericEquals(sample.numericTags["能量"], energy) {
-            return false
-        }
-
-        return true
-    }
-
-    private func numericEquals(_ source: Double?, _ expected: Double) -> Bool {
-        guard let source else {
-            return false
-        }
-        return abs(source - expected) < 1e-9
-    }
-
-    private func normalizedSubstrateQueryTags(from input: String) -> [String] {
-        let normalizedInput = input
-            .replacingOccurrences(of: "，", with: ",")
-            .replacingOccurrences(of: "；", with: ";")
-        let parts = normalizedInput
-            .split(whereSeparator: { ",;\n".contains($0) })
-            .map { normalizedSubstrateTag(String($0)) }
-            .filter { !$0.isEmpty }
-        if parts.isEmpty {
-            let single = normalizedSubstrateTag(normalizedInput)
-            return single.isEmpty ? [] : [single]
-        }
-        return parts
-    }
-
-    private func normalizedSubstrateTag(_ raw: String) -> String {
-        var value = raw
-            .replacingOccurrences(of: "（", with: "(")
-            .replacingOccurrences(of: "）", with: ")")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        value = value
-            .replacingOccurrences(of: " (", with: "(")
-            .replacingOccurrences(of: ") ", with: ")")
-        value = value
-            .split(whereSeparator: \.isWhitespace)
-            .joined(separator: " ")
-        return value
+    private var searchFilters: LibrarySearchFilters {
+        LibrarySearchFilters(
+            batchText: searchBatchIdText,
+            substrateText: searchSubstrateText,
+            keywordText: searchKeywordText,
+            thickness: searchThicknessValue,
+            oxygen: searchOxygenValue,
+            temperature: searchTemperatureValue,
+            energy: searchEnergyValue
+        )
     }
 
     private func selectSearchResultSample(_ result: SearchResultItem) {
@@ -1840,19 +1212,19 @@ struct LibraryView: View {
     }
 
     private func isSelectedSearchResult(_ result: SearchResultItem) -> Bool {
-        appState.libraryActiveSelectionSource == .drawer
-            && appState.librarySelectedPrefix == result.prefix
-            && appState.librarySelectedBatchId == result.sample.batchId
-            && appState.librarySelectedSampleId == result.sample.id
+        viewState.activeSelectionSource == .drawer
+            && viewState.selectedPrefix == result.prefix
+            && viewState.selectedBatchId == result.sample.batchId
+            && viewState.selectedSampleId == result.sample.id
     }
 
     private var selectionEntry: SelectionEntry {
         SelectionEntry(
-            source: appState.libraryActiveSelectionSource,
+            source: viewState.activeSelectionSource,
             browserSampleId: selectedSampleId,
-            drawerPrefix: appState.librarySelectedPrefix,
-            drawerBatchId: appState.librarySelectedBatchId,
-            drawerSampleId: appState.librarySelectedSampleId
+            drawerPrefix: viewState.selectedPrefix,
+            drawerBatchId: viewState.selectedBatchId,
+            drawerSampleId: viewState.selectedSampleId
         )
     }
 
@@ -1869,94 +1241,7 @@ struct LibraryView: View {
     }
 
     private func makeDetailSections(for sample: LibrarySample) -> SampleDetailSections {
-        let sampleFields: [DetailField] = [
-            DetailField(label: "Sample", value: sample.displayName, fullWidth: isLongField(sample.displayName)),
-            DetailField(label: "Batch", value: sample.batchId),
-            DetailField(label: "Sample Key", value: sample.id, monospaced: true, fullWidth: true),
-            DetailField(label: "Substrate", value: sample.substrateDisplay)
-        ]
-        let substrateFields: [DetailField] = sample.substrateTags.isEmpty
-            ? []
-            : [DetailField(label: "Substrate Tags", value: sample.substrateTags.joined(separator: ", "), fullWidth: true)]
-        let numericFields: [DetailField] = orderedNumericTagKeys(for: sample).map { key in
-            DetailField(label: key, value: sample.numericDisplay[key] ?? "")
-        }
-        let metadataFields: [DetailField] = sample.orderedMetadata.map { item in
-            DetailField(label: item.key, value: item.value, fullWidth: isLongField(item.value))
-        }
-        return SampleDetailSections(
-            sampleFields: sampleFields,
-            substrateFields: substrateFields,
-            numericFields: numericFields,
-            metadataFields: metadataFields
-        )
-    }
-}
-
-private struct SelectionEntry {
-    let source: LibrarySelectionSource
-    let browserSampleId: String?
-    let drawerPrefix: String?
-    let drawerBatchId: String?
-    let drawerSampleId: String?
-}
-
-private struct SearchResultItem: Identifiable, Hashable {
-    var id: String { "\(prefix)|\(sample.id)" }
-    let prefix: String
-    let sample: LibrarySample
-}
-
-private struct SampleDetailSections {
-    let sampleFields: [DetailField]
-    let substrateFields: [DetailField]
-    let numericFields: [DetailField]
-    let metadataFields: [DetailField]
-
-    var allFields: [DetailField] {
-        sampleFields + substrateFields + numericFields + metadataFields
-    }
-}
-
-private struct ChangeHighlight: Identifiable, Hashable {
-    var id: String { "\(key)|\(description)" }
-    let key: String
-    let description: String
-}
-
-private struct DetailField: Hashable {
-    let label: String
-    let value: String
-    var monospaced: Bool = false
-    var fullWidth: Bool = false
-}
-
-private struct PreviewSampleRow: View, Equatable {
-    let sample: LibrarySample
-    let isSelected: Bool
-    let onSelect: () -> Void
-
-    static func == (lhs: PreviewSampleRow, rhs: PreviewSampleRow) -> Bool {
-        lhs.sample.id == rhs.sample.id && lhs.isSelected == rhs.isSelected
-    }
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(sample.substrateDisplay)
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-            Spacer()
-        }
-        .padding(6)
-        .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
-        )
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onSelect()
-        }
+        computationService.makeDetailSections(for: sample)
     }
 }
 
@@ -1967,7 +1252,7 @@ struct LibraryView_Previews: PreviewProvider {
         let bundle = registry.bundle(for: .dummy) ?? registry.defaultBundle()
         let appState = SpinLabAppState(
             workflowBundle: bundle,
-            persistence: LocalPersistenceStub(),
+            persistence: LocalJSONPersistence(),
             managedStorage: SpinLabManagedStorage(
                 rootURL: FileManager.default.temporaryDirectory
                     .appendingPathComponent("spinlab-library-preview", isDirectory: true)

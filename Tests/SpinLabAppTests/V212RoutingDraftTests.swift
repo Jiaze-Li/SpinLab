@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
+@MainActor
 @Suite("V2.1.2 Routing Draft")
 struct V212RoutingDraftTests {
     @Test("save routing draft recomputes route with new default sample")
@@ -177,7 +178,7 @@ struct V212RoutingDraftTests {
 
         let plan = appState.pendingRoutePlan(for: pending)
         let ch2 = plan.channelResolutions.first { $0.channel == "ch2" }
-        #expect(ch2?.sampleKey == "PN44 - HF STO(111)")
+        #expect(ch2?.sampleKey == "PN44 - HF o STO(111)")
         #expect(plan.conflicts.isEmpty)
     }
 

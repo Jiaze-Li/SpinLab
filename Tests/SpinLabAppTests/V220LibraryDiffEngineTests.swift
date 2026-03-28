@@ -2,8 +2,16 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
+@MainActor
 @Suite("V2.2.0 Library Diff Engine")
 struct V220LibraryDiffEngineTests {
+    @Test("numeric key normalization matches oxygen pressure only")
+    func numericKeyNormalizationMatchesOxygenPressureOnly() {
+        #expect(LibraryRegistryParser.normalizeNumericKey("氧压") == "氧压")
+        #expect(LibraryRegistryParser.normalizeNumericKey("pressure") == "氧压")
+        #expect(LibraryRegistryParser.normalizeNumericKey("压强") == nil)
+    }
+
     @Test("empty-like values do not produce pending changes")
     func emptyLikeValuesAreIgnored() {
         let engine = LibraryDiffEngine()

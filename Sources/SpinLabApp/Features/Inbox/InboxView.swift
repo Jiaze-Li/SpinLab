@@ -1,22 +1,21 @@
 import AppKit
 import Observation
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct InboxView: View {
     @Environment(SpinLabAppState.self) private var appState
-    @State private var isImportSourceExpanded = true
-    @State private var isPendingQueueExpanded = true
-    @State private var isRoutingReviewExpanded = true
-    @State private var isApplyExpanded = true
+    @State private var viewModel = InboxViewModel()
 
     var body: some View {
+        @Bindable var bindableViewModel = viewModel
+
         HSplitView {
             InboxOperationPanel(
-                isImportSourceExpanded: $isImportSourceExpanded,
-                isPendingQueueExpanded: $isPendingQueueExpanded,
-                isRoutingReviewExpanded: $isRoutingReviewExpanded,
-                isApplyExpanded: $isApplyExpanded
+                isImportSourceExpanded: $bindableViewModel.isImportSourceExpanded,
+                isPendingQueueExpanded: $bindableViewModel.isPendingQueueExpanded,
+                isRoutingReviewExpanded: $bindableViewModel.isRoutingReviewExpanded,
+                isApplyExpanded: $bindableViewModel.isApplyExpanded,
+                fileFilter: $bindableViewModel.fileFilter
             )
             .frame(minWidth: 380, idealWidth: 500, maxWidth: 680)
 
@@ -30,29 +29,16 @@ struct InboxView: View {
             return !items.isEmpty
         } isTargeted: { _ in }
         .onAppear {
-            let restored = appState.interactionValue(\.inboxView)
-            isImportSourceExpanded = restored.isImportSourceExpanded
-            isPendingQueueExpanded = restored.isPendingQueueExpanded
-            isRoutingReviewExpanded = restored.isRoutingReviewExpanded
-            isApplyExpanded = restored.isApplyExpanded
-            persistInteractionState()
+            viewModel.restoreInteractionState(from: appState)
+            viewModel.persistInteractionState(to: appState)
         }
-        .onChange(of: isImportSourceExpanded) { _, _ in persistInteractionState() }
-        .onChange(of: isPendingQueueExpanded) { _, _ in persistInteractionState() }
-        .onChange(of: isRoutingReviewExpanded) { _, _ in persistInteractionState() }
-        .onChange(of: isApplyExpanded) { _, _ in persistInteractionState() }
-    }
-
-    private func persistInteractionState() {
-        appState.updateInteractionValue(
-            \.inboxView,
-            to: InboxInteractionState(
-                isImportSourceExpanded: isImportSourceExpanded,
-                isPendingQueueExpanded: isPendingQueueExpanded,
-                isRoutingReviewExpanded: isRoutingReviewExpanded,
-                isApplyExpanded: isApplyExpanded
-            )
-        )
+        .onChange(of: viewModel.isImportSourceExpanded) { _, _ in viewModel.persistInteractionState(to: appState) }
+        .onChange(of: viewModel.isPendingQueueExpanded) { _, _ in viewModel.persistInteractionState(to: appState) }
+        .onChange(of: viewModel.isRoutingReviewExpanded) { _, _ in viewModel.persistInteractionState(to: appState) }
+        .onChange(of: viewModel.isApplyExpanded) { _, _ in viewModel.persistInteractionState(to: appState) }
+        .onDisappear {
+            viewModel.persistInteractionState(to: appState)
+        }
     }
 }
 
@@ -83,32 +69,24 @@ private struct InboxInspectorReservedPanel: View {
 }
 
 private struct InboxOperationPanel: View {
-    private enum FileFilter: String, CaseIterable, Identifiable {
-        case all = "All"
-        case libraryMatched = "Library Matched"
-        case reviewRequired = "Review Required"
-
-        var id: String { rawValue }
-    }
-
     @Environment(SpinLabAppState.self) private var appState
     @Binding var isImportSourceExpanded: Bool
     @Binding var isPendingQueueExpanded: Bool
     @Binding var isRoutingReviewExpanded: Bool
     @Binding var isApplyExpanded: Bool
+    @Binding var fileFilter: InboxViewModel.FileFilter
     @State private var isPresentingClearImportsConfirm = false
-    @State private var fileFilter: FileFilter = .all
 
     var body: some View {
-        @Bindable var bindableAppState = appState
+        @Bindable var bindableInbox = appState.inbox
 
         let routePresentationByID = appState.pendingRoutePresentationByID()
-        let libraryMatchedCount = appState.pendingImports.reduce(into: 0) { partial, pending in
+        let libraryMatchedCount = appState.inbox.pendingImports.reduce(into: 0) { partial, pending in
             if routePresentationByID[pending.id]?.isLibraryMatched == true {
                 partial += 1
             }
         }
-        let reviewRequiredCount = max(0, appState.pendingImports.count - libraryMatchedCount)
+        let reviewRequiredCount = max(0, appState.inbox.pendingImports.count - libraryMatchedCount)
         let filteredPendingImports = filteredPendingImports(using: routePresentationByID)
 
         ScrollView(.vertical) {
@@ -122,23 +100,6 @@ private struct InboxOperationPanel: View {
                         .foregroundStyle(.secondary)
                 }
 
-                operationBox("Registry", isExpanded: $isImportSourceExpanded) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        MetadataValueRow(label: "Registry Path", value: appState.registrySourceFilePath ?? "Not loaded", monospaced: true)
-                        HStack {
-                            Button("Load Registry") {
-                                presentSampleRegistryPanel()
-                            }
-                            Button("Reload Registry") {
-                                appState.reloadSampleRegistry()
-                            }
-                            .disabled(!appState.canReloadSampleRegistry)
-                            Spacer()
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
                 operationBox("File", isExpanded: $isPendingQueueExpanded) {
                     GroupBox("Actions") {
                         HStack(spacing: 10) {
@@ -149,12 +110,12 @@ private struct InboxOperationPanel: View {
                             Button("Recompute Route") {
                                 appState.recomputeAllPendingParsedHints()
                             }
-                            .disabled(appState.pendingImports.isEmpty)
+                            .disabled(appState.inbox.pendingImports.isEmpty)
 
                             Button("Clear Imports", role: .destructive) {
                                 isPresentingClearImportsConfirm = true
                             }
-                            .disabled(appState.pendingImports.isEmpty)
+                            .disabled(appState.inbox.pendingImports.isEmpty)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -164,7 +125,7 @@ private struct InboxOperationPanel: View {
                             HStack(spacing: 10) {
                                 queueStatusCard(
                                     title: "Pending",
-                                    count: appState.pendingImports.count,
+                                    count: appState.inbox.pendingImports.count,
                                     tint: .secondary,
                                     filter: .all
                                 )
@@ -194,7 +155,7 @@ private struct InboxOperationPanel: View {
                                     .lineLimit(nil)
                                     .fixedSize(horizontal: false, vertical: true)
                             } else {
-                                List(filteredPendingImports, selection: $bindableAppState.selectedPendingImportID) { pending in
+                                List(filteredPendingImports, selection: $bindableInbox.selectedPendingImportID) { pending in
                                     let presentation = routePresentationByID[pending.id]
                                     let verdict = presentation?.verdict ?? .reviewRequired
                                     VStack(alignment: .leading, spacing: 4) {
@@ -266,20 +227,6 @@ private struct InboxOperationPanel: View {
         }
     }
 
-    private func presentSampleRegistryPanel() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [UTType(filenameExtension: "xlsx")].compactMap { $0 }
-        panel.title = "Load Sample Registry"
-        panel.message = "Choose an XLSX registry file."
-
-        if panel.runModal() == .OK, let url = panel.url {
-            appState.loadSampleRegistry(from: url)
-        }
-    }
-
     private func presentMeasurementImportPanel() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
@@ -299,16 +246,16 @@ private struct InboxOperationPanel: View {
     ) -> [SpinLabDomain.PendingImport] {
         switch fileFilter {
         case .all:
-            return appState.pendingImports
+            return appState.inbox.pendingImports
         case .libraryMatched:
-            return appState.pendingImports.filter { routePresentationByID[$0.id]?.isLibraryMatched == true }
+            return appState.inbox.pendingImports.filter { routePresentationByID[$0.id]?.isLibraryMatched == true }
         case .reviewRequired:
-            return appState.pendingImports.filter { routePresentationByID[$0.id]?.isLibraryMatched != true }
+            return appState.inbox.pendingImports.filter { routePresentationByID[$0.id]?.isLibraryMatched != true }
         }
     }
 
     @ViewBuilder
-    private func queueStatusCard(title: String, count: Int, tint: Color, filter: FileFilter) -> some View {
+    private func queueStatusCard(title: String, count: Int, tint: Color, filter: InboxViewModel.FileFilter) -> some View {
         let isSelected = fileFilter == filter
 
         Button {
@@ -733,115 +680,4 @@ private struct InboxSelectionWorkbenchPanel: View {
         }
     }
 
-}
-
-private struct RegistryStatusColumn: View {
-    @Environment(SpinLabAppState.self) private var appState
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            InboxColumnHeader(
-                title: "Registry",
-                subtitle: appState.registryFileName ?? "No registry loaded"
-            )
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    GroupBox("Current Registry") {
-                        VStack(alignment: .leading, spacing: 10) {
-                            MetadataValueRow(label: "File", value: appState.registryFileName ?? "Not loaded")
-                            MetadataValueRow(label: "Path", value: appState.registrySourceFilePath ?? "Not loaded", monospaced: true)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
-                    GroupBox("Prefix -> Sheet") {
-                        VStack(alignment: .leading, spacing: 8) {
-                            if appState.registryPrefixEntries.isEmpty {
-                                Text("No registry loaded.")
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(nil)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            } else {
-                                ForEach(appState.registryPrefixEntries) { entry in
-                                    GroupBox {
-                                        VStack(alignment: .leading, spacing: 8) {
-                                            MetadataValueRow(label: "Prefix", value: entry.prefix)
-                                            MetadataValueRow(label: "Sheet", value: entry.sheetName)
-                                        }
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                    }
-                                }
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
-                    if let pending = appState.selectedPendingImport {
-                        PendingRegistryLookupDetail(pending: pending)
-                    }
-
-                    Spacer(minLength: 0)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 12)
-                .padding(.bottom, 4)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-}
-
-private struct InboxColumnHeader: View {
-    let title: String
-    let subtitle: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.headline)
-
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 4)
-        .padding(.bottom, 10)
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-}
-
-private struct PendingRegistryLookupDetail: View {
-    let pending: SpinLabDomain.PendingImport
-    @Environment(SpinLabAppState.self) private var appState
-
-    var body: some View {
-        let sampleID = appState.parsedSampleIDFromFilename(for: pending)
-        let prefix = appState.parsedPrefixFromFilename(for: pending)
-        let registryLookup = appState.registryLookup(for: pending)
-
-        return GroupBox("Registry Lookup") {
-            VStack(alignment: .leading, spacing: 10) {
-                MetadataValueRow(label: "Sample ID (from filename)", value: sampleID ?? "Not found")
-                MetadataValueRow(label: "Prefix", value: prefix ?? "Not found")
-                MetadataValueRow(label: "Selected Sheet", value: registryLookup?.sheetName ?? "No mapped sheet")
-
-                if let registryLookup, !registryLookup.metadata.isEmpty {
-                    ForEach(registryLookup.metadata.sorted(by: { $0.key < $1.key }), id: \.key) { item in
-                        MetadataValueRow(label: item.key, value: item.value)
-                    }
-                } else {
-                    Text("No metadata row found for this Sample ID on the mapped sheet.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
 }

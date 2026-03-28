@@ -22,6 +22,7 @@ final class LibraryStore {
     }
 
     private let fileManager = FileManager.default
+    private let logger = AppLogger.shared
     private let xlsxSyncService = LibraryXLSXSyncService()
     private var directoryEntriesCache: [String: DirectoryEntriesCacheEntry] = [:]
     private var decodedBatchCache: [String: DecodedBatchCacheEntry] = [:]
@@ -50,12 +51,29 @@ final class LibraryStore {
         guard fileManager.fileExists(atPath: url.path) else {
             return nil
         }
-        guard let data = try? Data(contentsOf: url) else {
+
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            logger.error(.library, "Failed to read library index", metadata: [
+                "path": url.path,
+                "reason": error.localizedDescription
+            ])
             return nil
         }
+
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return try? decoder.decode(LibraryIndex.self, from: data)
+        do {
+            return try decoder.decode(LibraryIndex.self, from: data)
+        } catch {
+            logger.error(.library, "Failed to decode library index", metadata: [
+                "path": url.path,
+                "reason": error.localizedDescription
+            ])
+            return nil
+        }
     }
 
     func syncIndexFromFilesystem(rootURL: URL) -> LibraryIndex {
@@ -113,10 +131,26 @@ final class LibraryStore {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(index) else {
+
+        let data: Data
+        do {
+            data = try encoder.encode(index)
+        } catch {
+            logger.error(.library, "Failed to encode library index", metadata: [
+                "path": url.path,
+                "reason": error.localizedDescription
+            ])
             return
         }
-        try? data.write(to: url, options: .atomic)
+        do {
+            try data.write(to: url, options: .atomic)
+        } catch {
+            logger.error(.library, "Failed to persist library index", metadata: [
+                "path": url.path,
+                "reason": error.localizedDescription
+            ])
+            return
+        }
         invalidateNodeCache(at: url)
         invalidateNodeCache(at: url.deletingLastPathComponent())
     }
@@ -155,11 +189,17 @@ final class LibraryStore {
         let previous = decodeSample(from: previousSampleURL)
         try? fileManager.createDirectory(at: sampleURL, withIntermediateDirectories: true)
         writeSample(sample, to: sampleURL)
-        appendSampleChangeLogIfNeeded(
+        let changes = appendSampleChangeLogIfNeeded(
             previous: previous,
             updated: sample,
             source: changeSource,
             sampleURL: sampleURL
+        )
+        appendBatchEditLogIfNeeded(
+            changes: changes,
+            updated: sample,
+            source: changeSource,
+            rootURL: rootURL
         )
         invalidateNodeCache(at: sampleURL)
         invalidateNodeCache(at: sampleURL.deletingLastPathComponent())
@@ -412,21 +452,48 @@ final class LibraryStore {
         try? data.write(to: url, options: .atomic)
     }
 
+    @discardableResult
     private func appendSampleChangeLogIfNeeded(
         previous: LibrarySample?,
         updated: LibrarySample,
         source: String,
         sampleURL: URL
-    ) {
+    ) -> [LibrarySampleChangeLogItem] {
         guard let previous, previous != updated else {
-            return
+            return []
         }
         let changes = sampleChangeItems(old: previous, new: updated)
         guard !changes.isEmpty else {
-            return
+            return []
         }
 
         let logURL = sampleChangeLogURL(sampleURL: sampleURL)
+        var entries = loadSampleChangeLogEntries(from: logURL)
+        entries.append(
+            LibrarySampleChangeLogEntry(
+                id: UUID(),
+                sampleId: updated.id,
+                batchId: updated.batchId,
+                changedAt: .now,
+                source: source,
+                changes: changes
+            )
+        )
+        writeJSON(entries, to: logURL)
+        return changes
+    }
+
+    private func appendBatchEditLogIfNeeded(
+        changes: [LibrarySampleChangeLogItem],
+        updated: LibrarySample,
+        source: String,
+        rootURL: URL
+    ) {
+        guard !changes.isEmpty else {
+            return
+        }
+        let batchURL = resolvedBatchDirectoryURL(rootURL, batchID: updated.batchId)
+        let logURL = batchEditLogURL(batchURL: batchURL)
         var entries = loadSampleChangeLogEntries(from: logURL)
         entries.append(
             LibrarySampleChangeLogEntry(
@@ -453,6 +520,10 @@ final class LibraryStore {
 
     private func sampleChangeLogURL(sampleURL: URL) -> URL {
         sampleURL.appending(path: "sample_change_log.json")
+    }
+
+    private func batchEditLogURL(batchURL: URL) -> URL {
+        batchURL.appending(path: "edit_log.json")
     }
 
     private func sampleChangeItems(old: LibrarySample, new: LibrarySample) -> [LibrarySampleChangeLogItem] {
@@ -525,6 +596,17 @@ final class LibraryStore {
 
     func loadRegistryMetadataSyncLogEntries(registrySourceURL: URL) throws -> [LibraryMetadataSyncLogEntry] {
         try xlsxSyncService.loadMetadataLogEntries(registrySourceURL: registrySourceURL)
+    }
+
+    func needsIndexRefresh(rootURL: URL) -> Bool {
+        guard let index = loadIndex(from: rootURL) else {
+            return true
+        }
+        let batchesRoot = batchesDirectoryURL(rootURL)
+        guard let modifiedAt = modificationDate(of: batchesRoot) else {
+            return false
+        }
+        return modifiedAt > index.updatedAt
     }
 
     private func indexDirectoryURL(_ rootURL: URL) -> URL {
@@ -612,8 +694,16 @@ final class LibraryStore {
                 continue
             }
 
-            try? fileManager.createDirectory(at: targetPrefixURL, withIntermediateDirectories: true)
-            try? fileManager.moveItem(at: entry, to: targetBatchURL)
+            do {
+                try fileManager.createDirectory(at: targetPrefixURL, withIntermediateDirectories: true)
+                try fileManager.moveItem(at: entry, to: targetBatchURL)
+            } catch {
+                logger.error(.library, "Failed to migrate legacy batch layout", metadata: [
+                    "source": entry.path,
+                    "target": targetBatchURL.path,
+                    "reason": error.localizedDescription
+                ])
+            }
         }
     }
 

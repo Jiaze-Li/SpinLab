@@ -1,5 +1,22 @@
 import Foundation
 
+enum ManagedStorageError: LocalizedError {
+    case createDirectoryFailed(path: String, reason: String)
+    case removeExistingRegistryFailed(path: String, reason: String)
+    case copyRegistryFailed(source: String, destination: String, reason: String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .createDirectoryFailed(path, reason):
+            return "Failed to create directory at \(path): \(reason)"
+        case let .removeExistingRegistryFailed(path, reason):
+            return "Failed to replace existing registry file at \(path): \(reason)"
+        case let .copyRegistryFailed(source, destination, reason):
+            return "Failed to copy registry from \(source) to \(destination): \(reason)"
+        }
+    }
+}
+
 struct ImportedMeasurementFile {
     let fileName: String
     let sourceFileURL: URL
@@ -19,8 +36,12 @@ final class SpinLabManagedStorage {
             self.rootURL = appSupportURL.appending(path: "SpinLab", directoryHint: .isDirectory)
         }
 
-        try? fileManager.createDirectory(at: self.rootURL, withIntermediateDirectories: true)
-        try? fileManager.createDirectory(at: registryDirectoryURL, withIntermediateDirectories: true)
+        do {
+            try fileManager.createDirectory(at: self.rootURL, withIntermediateDirectories: true)
+            try fileManager.createDirectory(at: registryDirectoryURL, withIntermediateDirectories: true)
+        } catch {
+            // Keep initialization non-throwing; runtime operations will surface concrete errors.
+        }
     }
 
     var measurementsDirectoryURL: URL {
@@ -78,18 +99,39 @@ final class SpinLabManagedStorage {
         }
     }
 
-    func installSampleRegistry(from url: URL) -> URL? {
+    func installSampleRegistry(from url: URL) throws -> URL {
         let sanitizedName = sanitizedFileName(url.lastPathComponent)
         let destinationURL = registryDirectoryURL.appending(path: sanitizedName)
+
+        do {
+            try fileManager.createDirectory(at: registryDirectoryURL, withIntermediateDirectories: true)
+        } catch {
+            throw ManagedStorageError.createDirectoryFailed(
+                path: registryDirectoryURL.path,
+                reason: error.localizedDescription
+            )
+        }
 
         do {
             if fileManager.fileExists(atPath: destinationURL.path) {
                 try fileManager.removeItem(at: destinationURL)
             }
+        } catch {
+            throw ManagedStorageError.removeExistingRegistryFailed(
+                path: destinationURL.path,
+                reason: error.localizedDescription
+            )
+        }
+
+        do {
             try fileManager.copyItem(at: url, to: destinationURL)
             return destinationURL
         } catch {
-            return nil
+            throw ManagedStorageError.copyRegistryFailed(
+                source: url.path,
+                destination: destinationURL.path,
+                reason: error.localizedDescription
+            )
         }
     }
 

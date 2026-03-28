@@ -31,6 +31,59 @@ struct FilenameRuleSet: Decodable {
         var fieldPattern: String
     }
 
+    struct RegistryRules: Decodable {
+        var sampleHeaderAliases: [String]
+        var excludedSheetNames: [String]
+        var sampleCellSeparators: String
+        var batchHeaderAliases: [String]
+        var substrateHeaderAliases: [String]
+        var numericKeyAliases: [String: [String]]
+        var substrateMaterialTokens: [String]
+        var substrateProcessingKeywords: [String: [String]]
+        var metadataLookupAliases: [String: [String]]
+    }
+
+    struct ImportRules: Decodable {
+        var supportedFileExtensions: [String]
+        var ignoredFileExtensions: [String]
+    }
+
+    struct SharedRules: Decodable {
+        var tokenization: Tokenization
+        var sampleId: SampleIdRules
+        var substrateTagRules: [MapRule]
+        var substrate: SharedSubstrateRules?
+    }
+
+    struct SharedSubstrateRules: Decodable {
+        var tokenSeparators: String
+        var originStandaloneTokens: [String]
+        var originContainsTokens: [String]
+        var treatmentKeywords: [String: [String]]
+        var materialTokens: [String]
+        var materialAliases: [String: String]?
+        var materialDisplayNames: [String: String]?
+        var orientationTokens: [String]?
+        var orientationAliases: [String: String]?
+        var orientationPattern: String
+    }
+
+    struct InboxRules: Decodable {
+        var sources: [Source]
+        var batch: BatchRules
+        var measurementNameRules: [MapRule]
+        var measurementTagRules: [MapRule]
+        var channel: ChannelRules
+        var deviceRules: [MapRule]
+        var rotationHintRules: [MapRule]
+        var conditions: ConditionRules
+    }
+
+    struct LibraryRules: Decodable {
+        var registry: RegistryRules?
+        var importRules: ImportRules?
+    }
+
     enum MatchScope: String, Decodable {
         case tokens
         case joined
@@ -89,6 +142,9 @@ struct FilenameRuleSet: Decodable {
     var deviceRules: [MapRule]
     var rotationHintRules: [MapRule]
     var conditions: ConditionRules
+    var registry: RegistryRules?
+    var importRules: ImportRules?
+    var sharedSubstrate: SharedSubstrateRules?
 
     var compiled: CompiledRules = CompiledRules()
     var loadWarnings: [String] = []
@@ -106,6 +162,95 @@ struct FilenameRuleSet: Decodable {
         case deviceRules
         case rotationHintRules
         case conditions
+        case registry
+        case importRules
+        case shared
+        case inbox
+        case library
+    }
+
+    init(
+        version: Int,
+        tokenization: Tokenization,
+        sources: [Source],
+        sampleId: SampleIdRules,
+        batch: BatchRules,
+        measurementNameRules: [MapRule],
+        measurementTagRules: [MapRule],
+        substrateTagRules: [MapRule],
+        channel: ChannelRules,
+        deviceRules: [MapRule],
+        rotationHintRules: [MapRule],
+        conditions: ConditionRules,
+        registry: RegistryRules?,
+        importRules: ImportRules?,
+        sharedSubstrate: SharedSubstrateRules?
+    ) {
+        self.version = version
+        self.tokenization = tokenization
+        self.sources = sources
+        self.sampleId = sampleId
+        self.batch = batch
+        self.measurementNameRules = measurementNameRules
+        self.measurementTagRules = measurementTagRules
+        self.substrateTagRules = substrateTagRules
+        self.channel = channel
+        self.deviceRules = deviceRules
+        self.rotationHintRules = rotationHintRules
+        self.conditions = conditions
+        self.registry = registry
+        self.importRules = importRules
+        self.sharedSubstrate = sharedSubstrate
+        compiled = CompiledRules()
+        loadWarnings = []
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decode(Int.self, forKey: .version)
+
+        if let shared = try container.decodeIfPresent(SharedRules.self, forKey: .shared) {
+            tokenization = shared.tokenization
+            sampleId = shared.sampleId
+            substrateTagRules = shared.substrateTagRules
+            sharedSubstrate = shared.substrate
+        } else {
+            tokenization = try container.decode(Tokenization.self, forKey: .tokenization)
+            sampleId = try container.decode(SampleIdRules.self, forKey: .sampleId)
+            substrateTagRules = try container.decode([MapRule].self, forKey: .substrateTagRules)
+            sharedSubstrate = nil
+        }
+
+        if let inbox = try container.decodeIfPresent(InboxRules.self, forKey: .inbox) {
+            sources = inbox.sources
+            batch = inbox.batch
+            measurementNameRules = inbox.measurementNameRules
+            measurementTagRules = inbox.measurementTagRules
+            channel = inbox.channel
+            deviceRules = inbox.deviceRules
+            rotationHintRules = inbox.rotationHintRules
+            conditions = inbox.conditions
+        } else {
+            sources = try container.decode([Source].self, forKey: .sources)
+            batch = try container.decode(BatchRules.self, forKey: .batch)
+            measurementNameRules = try container.decode([MapRule].self, forKey: .measurementNameRules)
+            measurementTagRules = try container.decode([MapRule].self, forKey: .measurementTagRules)
+            channel = try container.decode(ChannelRules.self, forKey: .channel)
+            deviceRules = try container.decode([MapRule].self, forKey: .deviceRules)
+            rotationHintRules = try container.decode([MapRule].self, forKey: .rotationHintRules)
+            conditions = try container.decode(ConditionRules.self, forKey: .conditions)
+        }
+
+        if let library = try container.decodeIfPresent(LibraryRules.self, forKey: .library) {
+            registry = library.registry
+            importRules = library.importRules
+        } else {
+            registry = try container.decodeIfPresent(RegistryRules.self, forKey: .registry)
+            importRules = try container.decodeIfPresent(ImportRules.self, forKey: .importRules)
+        }
+
+        compiled = CompiledRules()
+        loadWarnings = []
     }
 
     mutating func compile() -> [String] {
@@ -321,7 +466,67 @@ struct FilenameRuleSet: Decodable {
             channel: ChannelRules(aliases: [:]),
             deviceRules: [],
             rotationHintRules: [],
-            conditions: ConditionRules(temperaturePattern: "", currentPattern: "", fieldPattern: "")
+            conditions: ConditionRules(temperaturePattern: "", currentPattern: "", fieldPattern: ""),
+            registry: RegistryRules(
+                sampleHeaderAliases: ["sampleid", "sample", "编号", "样品编号"],
+                excludedSheetNames: ["实验大纲"],
+                sampleCellSeparators: "/／,，;；|",
+                batchHeaderAliases: ["编号", "Batch", "BatchID", "Batch Id"],
+                substrateHeaderAliases: ["substrate", "Substrate", "衬底"],
+                numericKeyAliases: [
+                    "厚度": ["预打", "生长次数"],
+                    "温度": ["温度", "temperature"],
+                    "氧压": ["氧压", "pressure"],
+                    "能量": ["能量", "energy"],
+                    "电压": ["电压", "kv"],
+                    "磁场": ["磁场", "field"],
+                    "电阻": ["电阻", "current"]
+                ],
+                substrateMaterialTokens: ["STO", "NGO", "MAO", "MGO", "AL2O3", "SI", "POLY-SIO2 ON SI", "POLY-SIO2"],
+                substrateProcessingKeywords: [
+                    "HF": ["HF"],
+                    "b": ["B", "BAKE", "BAKED"],
+                    "o": ["ORIGINAL", "ORIGIN", " O "]
+                ],
+                metadataLookupAliases: [
+                    "batch": ["Batch", "BatchID", "Batch Name", "编号"],
+                    "sample": ["Sample", "SampleID", "Sample Name", "样品"],
+                    "measurement": ["Measurement", "MeasurementName", "Measurement Name"],
+                    "device": ["Device", "DeviceName", "Device Name"],
+                    "temperature": ["Temperature", "Temp", "T"],
+                    "project": ["Project", "ProjectName", "Project Name"]
+                ]
+            ),
+            importRules: ImportRules(
+                supportedFileExtensions: ["csv", "txt", "dat", "lvm"],
+                ignoredFileExtensions: ["gph"]
+            ),
+            sharedSubstrate: SharedSubstrateRules(
+                tokenSeparators: "_- ()",
+                originStandaloneTokens: ["o"],
+                originContainsTokens: ["origin", "original"],
+                treatmentKeywords: [
+                    "HF": ["hf"],
+                    "b": ["b", "bake", "baked"],
+                    "o": ["o", "origin", "original"]
+                ],
+                materialTokens: ["STO", "NGO", "MAO", "MGO", "AL2O3", "SI", "POLY-SIO2 ON SI", "POLY-SIO2"],
+                materialAliases: [
+                    "ONSI": "SI"
+                ],
+                materialDisplayNames: [
+                    "POLY-SIO2 ON SI": "poly-SiO2 on Si",
+                    "POLY-SIO2": "poly-SiO2 on Si",
+                    "MGO": "MgO",
+                    "AL2O3": "Al2O3",
+                    "SI": "Si"
+                ],
+                orientationTokens: ["111", "110", "001", "100", "0001"],
+                orientationAliases: [
+                    "100": "001"
+                ],
+                orientationPattern: "\\d{3}"
+            )
         )
     }
 }

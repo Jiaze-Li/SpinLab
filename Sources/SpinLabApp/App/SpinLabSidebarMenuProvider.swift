@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 struct SpinLabSidebarMenuProvider {
     func makeMenu(appState: SpinLabAppState, selectedArea: AppArea) -> [SidebarMenuNode] {
         AppArea.allCases.map { area in
@@ -63,7 +64,7 @@ struct SpinLabSidebarMenuProvider {
         }
 
         return prefixes.map { prefix in
-            let groups = appState.libraryExistingGroups[prefix] ?? []
+            let groups = appState.library.libraryExistingGroups[prefix] ?? []
             let batchChildren = groups.map { group in
                 SidebarMenuNode(
                     id: SidebarMenuNodeID.libraryBatch(prefix: prefix, batchID: group.batchId),
@@ -86,8 +87,8 @@ struct SpinLabSidebarMenuProvider {
     }
 
     private func orderedLibraryPrefixes(appState: SpinLabAppState) -> [String] {
-        let configured = appState.librarySettings.allowedBatchPrefixes.map { $0.uppercased() }
-        let available = Array(appState.libraryExistingGroups.keys).sorted()
+        let configured = appState.library.librarySettings.allowedBatchPrefixes.map { $0.uppercased() }
+        let available = Array(appState.library.libraryExistingGroups.keys).sorted()
         guard !configured.isEmpty else {
             return available
         }

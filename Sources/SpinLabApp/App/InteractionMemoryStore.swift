@@ -87,7 +87,7 @@ final class InteractionMemoryStore {
         DispatchQueue.main.asyncAfter(deadline: .now() + saveDebounceInterval, execute: workItem)
     }
 
-    private func flushNow() {
+    func flushNow() {
         pendingSaveWorkItem?.cancel()
         pendingSaveWorkItem = nil
         guard isReady, !isRestoring else {

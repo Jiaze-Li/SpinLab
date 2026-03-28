@@ -22,12 +22,18 @@ protocol RuleRuntimeCapability {
 }
 
 struct DefaultRuleRuntimeCapability: RuleRuntimeCapability {
+    private let ruleProvider: any SpinLabRuleProviding
+
+    init(ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared) {
+        self.ruleProvider = ruleProvider
+    }
+
     func loadRulesCached() -> RuleLoader.LoadResult {
-        RuleLoader.shared.loadCached()
+        ruleProvider.loadResult()
     }
 
     func reloadRulesCached() -> RuleLoader.LoadResult {
-        RuleLoader.shared.reloadCached()
+        ruleProvider.reloadResult()
     }
 }
 
@@ -36,7 +42,7 @@ struct RoutingCapabilities {
     var evaluator: any RouteSnapshotEvaluationCapability
     var matcher: any DrawerMatchingCapability
 
-    static let live = RoutingCapabilities(
+    nonisolated(unsafe) static let live = RoutingCapabilities(
         planner: SpinLabRoutePlanner(),
         evaluator: PendingRoutingSnapshotEvaluator(),
         matcher: DrawerMatchEngine()

@@ -1,7 +1,7 @@
 import Foundation
 
 struct FileRoutingRuleBook {
-    private static var semanticRuleCache: (fingerprint: String, rules: FileRoutingSemanticRules)?
+    nonisolated(unsafe) private static var semanticRuleCache: (fingerprint: String, rules: FileRoutingSemanticRules)?
     private static let semanticRuleCacheLock = NSLock()
 
     func normalizedSampleInput(_ value: String?) -> String? {
@@ -160,10 +160,17 @@ struct FileRoutingRuleBook {
     }
 
     private func treatmentToken(from normalized: String) -> String? {
-        let probe = normalizeSubstrateToken(normalized)
+        let probe = normalizeSubstrateToken(normalized).uppercased()
         let semanticRules = Self.loadSemanticRulesForCurrentFingerprint()
         for (needle, canonical) in semanticRules.treatmentNeedles {
-            if probe.contains(needle) {
+            let normalizedNeedle = needle.uppercased()
+            if normalizedNeedle.count <= 1 {
+                if probe == normalizedNeedle {
+                    return canonical
+                }
+                continue
+            }
+            if probe.contains(normalizedNeedle) {
                 return canonical
             }
         }
@@ -229,14 +236,15 @@ struct FileRoutingRuleBook {
         let semanticRules = Self.loadSemanticRulesForCurrentFingerprint()
         for token in semanticRules.orientationNeedles.sorted(by: { $0.count > $1.count }) {
             if normalized.contains(token) {
-                return token == "100" ? "001" : token
+                return semanticRules.orientationAliases[token] ?? token
             }
         }
         return nil
     }
 
     private static func loadSemanticRulesForCurrentFingerprint() -> FileRoutingSemanticRules {
-        let ruleLoadResult = RuleLoader.shared.loadCached()
+        let ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared
+        let ruleLoadResult = ruleProvider.loadResult()
         let fingerprint = ruleLoadResult.metadata.fingerprint
 
         semanticRuleCacheLock.lock()
@@ -246,7 +254,7 @@ struct FileRoutingRuleBook {
             return cached.rules
         }
 
-        let refreshedRules = FileRoutingSemanticRules.load()
+        let refreshedRules = FileRoutingSemanticRules.load(ruleProvider: ruleProvider)
         semanticRuleCache = (fingerprint: fingerprint, rules: refreshedRules)
         return refreshedRules
     }

@@ -1,6 +1,7 @@
 import Testing
 @testable import SpinLabApp
 
+@MainActor
 @Suite("V2.2.1 Routing Explanation")
 struct V221RoutingExplanationTests {
     @Test("route status has stable display title")
@@ -9,8 +10,8 @@ struct V221RoutingExplanationTests {
         #expect(SpinLabDomain.RouteStatus.reviewRequired.displayTitle == "Review Required")
     }
 
-    @Test("planner emits channel warning reason when signal cannot resolve into token")
-    func plannerEmitsReasonForUnresolvedChannelSignal() {
+    @Test("planner resolves channel-only substrate signal without unresolved warnings")
+    func plannerResolvesChannelOnlySubstrateSignal() {
         let parsed = SpinLabDomain.ParsedFilenameHints(
             channelHints: [
                 SpinLabDomain.ParsedChannelHint(channel: "ch1", sampleID: nil, tags: ["HF"], testInfoTags: [])
@@ -20,9 +21,10 @@ struct V221RoutingExplanationTests {
         let plan = SpinLabRoutePlanner().makeRoutePlan(from: parsed)
         let ch1 = plan.channelResolutions.first(where: { $0.channel == "ch1" })
 
-        #expect(ch1?.warning == "Channel sample signal exists but no filetoken was resolved.")
-        #expect(ch1?.warningReason == .channelSampleSignalWithoutToken)
-        #expect(plan.unresolvedChannels == ["ch1"])
+        #expect(ch1?.sampleKey == "HF")
+        #expect(ch1?.warning == nil)
+        #expect(ch1?.warningReason == nil)
+        #expect(plan.unresolvedChannels.isEmpty)
     }
 
     @Test("snapshot evaluator emits no-matching-drawer reason when matching fails")

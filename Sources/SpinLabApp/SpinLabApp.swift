@@ -2,13 +2,15 @@ import SwiftUI
 
 @main
 struct SpinLabApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var appState: SpinLabAppState
 
     init() {
         let registry = WorkflowRegistry.shared
         let workflow = Self.workflowSelection(from: ProcessInfo.processInfo.environment["SPINLAB_WORKFLOW"])
         let bundle = registry.bundle(for: workflow) ?? registry.defaultBundle()
-        _appState = State(initialValue: SpinLabAppState(workflowBundle: bundle))
+        let environment = AppEnvironment.live()
+        _appState = State(initialValue: SpinLabAppState(workflowBundle: bundle, environment: environment))
     }
 
     var body: some Scene {
@@ -16,6 +18,11 @@ struct SpinLabApp: App {
             RootSplitView()
                 .environment(appState)
                 .frame(minWidth: 900, minHeight: 520)
+                .onChange(of: scenePhase) { _, newPhase in
+                    if newPhase != .active {
+                        appState.flushInteractionSnapshotNow()
+                    }
+                }
         }
         .windowStyle(.titleBar)
     }

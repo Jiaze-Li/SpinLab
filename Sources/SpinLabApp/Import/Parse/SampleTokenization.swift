@@ -16,6 +16,12 @@ enum SampleTokenization {
             .split(whereSeparator: \.isWhitespace)
             .map(String.init)
             .flatMap(splitAlphaNumericToken)
+            .map { token in
+                if let canonical = SampleSemanticDescriptor.normalizedProcessingTokenForRules(token) {
+                    return canonical.uppercased()
+                }
+                return token
+            }
             .filter { $0 != "UNKNOWN" }
             .filter { !$0.isEmpty }
     }

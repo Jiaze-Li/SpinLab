@@ -3,7 +3,9 @@ import CryptoKit
 
 struct RuleLoader {
     static let shared = RuleLoader()
+    static let currentSchemaVersion = 1
     private static var cached: LoadResult?
+    private static let cacheLock = NSLock()
     private let logger = AppLogger.shared
 
     struct RuleMetadata {
@@ -63,23 +65,29 @@ struct RuleLoader {
     }
 
     func loadCached() -> LoadResult {
-        if let cached = RuleLoader.cached {
-            if shouldReloadCached(cached) {
-                let reloaded = load()
-                RuleLoader.cached = reloaded
-                return reloaded
-            }
+        if let cached = Self.withCacheLock({ Self.cached }),
+           !shouldReloadCached(cached) {
             return cached
         }
-        let loaded = load()
-        RuleLoader.cached = loaded
-        return loaded
+        let reloaded = load()
+        Self.withCacheLock {
+            Self.cached = reloaded
+        }
+        return reloaded
     }
 
     func reloadCached() -> LoadResult {
         let loaded = load()
-        RuleLoader.cached = loaded
+        Self.withCacheLock {
+            Self.cached = loaded
+        }
         return loaded
+    }
+
+    private static func withCacheLock<T>(_ action: () -> T) -> T {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        return action()
     }
 
     private func shouldReloadCached(_ cached: LoadResult) -> Bool {
@@ -97,10 +105,14 @@ struct RuleLoader {
         }
 
         let url = URL(fileURLWithPath: path)
-        guard let data = try? Data(contentsOf: url) else {
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
             logger.info(.import, "Rule cache invalidated because source file cannot be read", metadata: [
                 "path": path,
-                "cachedFingerprint": cached.metadata.fingerprint
+                "cachedFingerprint": cached.metadata.fingerprint,
+                "reason": error.localizedDescription
             ])
             return true
         }
@@ -139,6 +151,8 @@ struct RuleLoader {
 
         do {
             var ruleSet = try decodeRuleSet(from: data, source: "\(sourceLabel):\(url.path)")
+            let schemaWarnings = migrateRuleSetSchemaIfNeeded(ruleSet: &ruleSet, sourceLabel: sourceLabel)
+            warnings.append(contentsOf: schemaWarnings)
             let compileWarnings = ruleSet.compile()
             if !compileWarnings.isEmpty {
                 warnings.append(contentsOf: compileWarnings.map { "\(sourceLabel) compile warning: \($0)" })
@@ -187,6 +201,32 @@ struct RuleLoader {
                 userInfo: [NSLocalizedDescriptionKey: "Failed to decode rules from \(source): \(error.localizedDescription)"]
             )
         }
+    }
+
+    private func migrateRuleSetSchemaIfNeeded(
+        ruleSet: inout FilenameRuleSet,
+        sourceLabel: String
+    ) -> [String] {
+        var warnings: [String] = []
+
+        if ruleSet.version == Self.currentSchemaVersion {
+            return warnings
+        }
+
+        if ruleSet.version < Self.currentSchemaVersion {
+            warnings.append(
+                "\(sourceLabel) schema v\(ruleSet.version) is older than supported v\(Self.currentSchemaVersion); applying compatibility migration."
+            )
+            // Keep decoded values; only normalize the schema marker so metadata/reporting
+            // reflects the runtime schema interpretation.
+            ruleSet.version = Self.currentSchemaVersion
+            return warnings
+        }
+
+        warnings.append(
+            "\(sourceLabel) schema v\(ruleSet.version) is newer than supported v\(Self.currentSchemaVersion); loading in compatibility mode."
+        )
+        return warnings
     }
 
     private func applicationSupportRuleURL() -> URL {

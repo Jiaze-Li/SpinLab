@@ -1,12 +1,12 @@
 import Foundation
 
-struct LibraryMetadataItem: Identifiable, Codable, Hashable {
+struct LibraryMetadataItem: Identifiable, Codable, Hashable, Sendable {
     var id: String { key }
     var key: String
     var value: String
 }
 
-struct LibrarySettings: Codable, Hashable {
+struct LibrarySettings: Codable, Hashable, Sendable {
     var rootPath: String?
     var registryInternalPath: String?
     var registrySourcePath: String?
@@ -26,7 +26,7 @@ struct LibrarySettings: Codable, Hashable {
     )
 }
 
-struct LibraryIndex: Codable, Hashable {
+struct LibraryIndex: Codable, Hashable, Sendable {
     var version: Int = 1
     var createdAt: Date
     var updatedAt: Date
@@ -80,7 +80,7 @@ struct LibraryIndex: Codable, Hashable {
     }
 }
 
-struct LibraryBatch: Identifiable, Codable, Hashable {
+struct LibraryBatch: Identifiable, Codable, Hashable, Sendable {
     var id: String
     var displayName: String
     var sheetName: String
@@ -92,7 +92,7 @@ struct LibraryBatch: Identifiable, Codable, Hashable {
     var updatedAt: Date
 }
 
-struct LibrarySample: Identifiable, Codable, Hashable {
+struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
     var id: String
     var displayName: String
     var batchId: String
@@ -176,7 +176,7 @@ struct LibrarySample: Identifiable, Codable, Hashable {
     }
 }
 
-struct LibraryPreview: Hashable {
+struct LibraryPreview: Hashable, Sendable {
     var index: LibraryIndex
     var warnings: [LibraryWarning]
 }
@@ -187,13 +187,13 @@ struct LibraryPreviewBatchGroup: Identifiable, Hashable {
     var samples: [LibrarySample]
 }
 
-struct LibraryWarning: Identifiable, Hashable {
+struct LibraryWarning: Identifiable, Hashable, Sendable {
     var id: UUID = UUID()
     var message: String
     var affectedSampleKey: String?
     var severity: WarningSeverity = .warning
 
-    enum WarningSeverity: String, Hashable {
+    enum WarningSeverity: String, Hashable, Sendable {
         case warning
         case error
     }

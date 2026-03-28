@@ -1,5 +1,35 @@
 import Foundation
 
+private enum RegistryMetadataField: String {
+    case batch
+    case sample
+    case measurement
+    case device
+    case temperature
+    case project
+}
+
+private enum RegistryMetadataAliasBook {
+    private static let ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared
+
+    private static let fallbackAliases: [RegistryMetadataField: [String]] = [
+        .batch: ["Batch", "BatchID", "Batch Name", "编号"],
+        .sample: ["Sample", "SampleID", "Sample Name", "样品"],
+        .measurement: ["Measurement", "MeasurementName", "Measurement Name"],
+        .device: ["Device", "DeviceName", "Device Name"],
+        .temperature: ["Temperature", "Temp", "T"],
+        .project: ["Project", "ProjectName", "Project Name"]
+    ]
+
+    static func aliases(for field: RegistryMetadataField) -> [String] {
+        if let configured = ruleProvider.ruleSet().registry?.metadataLookupAliases[field.rawValue],
+           !configured.isEmpty {
+            return configured
+        }
+        return fallbackAliases[field] ?? []
+    }
+}
+
 protocol SpinLabDomainContext {
     func normalizedValue(_ value: String?) -> String?
     func metadataValue(in lookup: SampleRegistryLookupResult?, keys: [String]) -> String?
@@ -63,10 +93,10 @@ struct AMRPHEWorkflowExtension: WorkflowExtension {
 
 struct AMRPHEMetadataExtension: MetadataExtension {
     let workflow: SpinLabDomain.WorkflowKind = .amrPhe
+    private let ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared
 
     func parseFilename(from fileURL: URL) -> SpinLabDomain.ParsedFilenameHints {
-        let loadResult = RuleLoader.shared.loadCached()
-        let parser = FilenameRuleParser(ruleSet: loadResult.ruleSet)
+        let parser = FilenameRuleParser(ruleSet: ruleProvider.ruleSet())
         return parser.parse(from: fileURL)
     }
 
@@ -102,23 +132,23 @@ struct AMRPHEMetadataExtension: MetadataExtension {
     private func applyRegistryMetadata(_ lookup: SampleRegistryLookupResult, to draft: inout PendingImportConfirmationDraft) {
         draft.batchName = firstNonEmpty(
             draft.batchName,
-            metadataValue(in: lookup, keys: ["Batch", "BatchID", "Batch Name", "编号"])
+            metadataValue(in: lookup, keys: RegistryMetadataAliasBook.aliases(for: .batch))
         )
         draft.sampleName = firstNonEmpty(
             draft.sampleName,
-            metadataValue(in: lookup, keys: ["Sample", "SampleID", "Sample Name", "样品"])
+            metadataValue(in: lookup, keys: RegistryMetadataAliasBook.aliases(for: .sample))
         )
         draft.measurementName = firstNonEmpty(
             draft.measurementName,
-            metadataValue(in: lookup, keys: ["Measurement", "MeasurementName", "Measurement Name"])
+            metadataValue(in: lookup, keys: RegistryMetadataAliasBook.aliases(for: .measurement))
         )
         draft.deviceName = firstNonEmpty(
             draft.deviceName,
-            metadataValue(in: lookup, keys: ["Device", "DeviceName", "Device Name"])
+            metadataValue(in: lookup, keys: RegistryMetadataAliasBook.aliases(for: .device))
         )
         draft.temperature = firstNonEmpty(
             draft.temperature,
-            metadataValue(in: lookup, keys: ["Temperature", "Temp", "T"])
+            metadataValue(in: lookup, keys: RegistryMetadataAliasBook.aliases(for: .temperature))
         )
     }
 
@@ -224,25 +254,21 @@ private func buildArchivedRecord(
     let sampleIDFromFilename = pending.parsedHints.sampleIDs.first
     let batchName = domainContext.normalizedValue(draft.batchName)
         ?? sampleIDFromFilename
-        ?? domainContext.metadataValue(in: registryLookup, keys: ["Batch", "BatchID", "Batch Name", "编号"])
+        ?? domainContext.metadataValue(in: registryLookup, keys: RegistryMetadataAliasBook.aliases(for: .batch))
     let sampleName = domainContext.normalizedValue(draft.sampleName)
         ?? pending.parsedHints.sampleName
         ?? batchName
         ?? "Unassigned Sample"
     let measurementName = domainContext.normalizedValue(draft.measurementName)
-        ?? domainContext.metadataValue(in: registryLookup, keys: ["Measurement", "MeasurementName", "Measurement Name"])
+        ?? domainContext.metadataValue(in: registryLookup, keys: RegistryMetadataAliasBook.aliases(for: .measurement))
         ?? pending.parsedHints.measurementName
         ?? pending.fileName
     let deviceName = domainContext.normalizedValue(draft.deviceName)
-        ?? domainContext.metadataValue(in: registryLookup, keys: ["Device", "DeviceName", "Device Name"])
+        ?? domainContext.metadataValue(in: registryLookup, keys: RegistryMetadataAliasBook.aliases(for: .device))
     let projectName = draft.resolvedProjectName
-        ?? domainContext.metadataValue(in: registryLookup, keys: ["Project", "ProjectName", "Project Name"])
+        ?? domainContext.metadataValue(in: registryLookup, keys: RegistryMetadataAliasBook.aliases(for: .project))
 
     var project = projectName.flatMap { domainContext.canonicalProject(named: $0) }
-    if project == nil, let projectName {
-        let createdName = domainContext.createProject(named: projectName) ?? projectName
-        project = domainContext.canonicalProject(named: createdName)
-    }
     var sample = domainContext.canonicalSample(named: sampleName) ?? SpinLabDomain.Sample(name: sampleName)
     let batch = batchName.flatMap { domainContext.canonicalBatch(named: $0) } ?? batchName.map { SpinLabDomain.Batch(name: $0) }
 

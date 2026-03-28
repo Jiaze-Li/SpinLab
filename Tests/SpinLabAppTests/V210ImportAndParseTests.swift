@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
+@MainActor
 @Suite("V2.1.0 Import And Parse")
 struct V210ImportAndParseTests {
     @Test("managed storage applies allow list and explicit ignore list")
@@ -48,7 +49,10 @@ struct V210ImportAndParseTests {
             originalFileURL: sourceURL
         )
 
-        let imported = SpinLabImportPipeline.amrPhe.importFiles([file])
+        let imported = WorkflowRegistry.shared
+            .defaultBundle()
+            .importPipeline
+            .importFiles([file])
         #expect(imported.isEmpty)
     }
 
@@ -84,11 +88,95 @@ struct V210ImportAndParseTests {
 
         let ch2 = parsed.channelHints.first(where: { $0.channel == "ch2" })
         #expect(ch2?.sampleID == "PN36")
-        #expect(ch2?.tags == ["HF", "STO111"])
+        #expect(ch2?.tags == ["HF", "STO111", "STO"])
 
         let ch3 = parsed.channelHints.first(where: { $0.channel == "ch3" })
         #expect(ch3?.sampleID == "PN37")
         #expect(ch3?.tags.isEmpty == true)
+    }
+
+    @Test("parser emits conflict warning when filename and folder sample ids disagree")
+    func parserEmitsConflictWarningForDisjointFileAndFolderSamples() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_1mA_PN41_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.sampleIDs.contains("PN40"))
+        #expect(parsed.sampleIDs.contains("PN41"))
+        #expect(parsed.warnings.contains(where: { $0.lowercased().contains("conflict") }))
+    }
+
+    @Test("parser score arbitration selects unique winner when no single-source shortcut applies")
+    func parserSelectsUniqueScoreArbitrationWinner() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_1mA_PN40_PN41_ch1_PN40_ch2_PN41_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.defaultSampleKey == "PN40")
+        #expect(!parsed.warnings.contains(where: { $0.lowercased().contains("ambiguous") }))
+    }
+
+    @Test("parser leaves default sample empty when top score arbitration ties")
+    func parserLeavesDefaultSampleEmptyOnArbitrationTie() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/misc/RT_1mA_PN40_PN41_ch1_PN40_ch2_PN41_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.defaultSampleKey == nil)
+        #expect(parsed.warnings.contains(where: { $0.lowercased().contains("arbitration is ambiguous") }))
+    }
+
+    @Test("parser emits score-fallback warning when low-confidence channel-only winner is chosen")
+    func parserEmitsScoreFallbackWarningForLowConfidenceWinner() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/misc/RT_1mA_ch1_PN40_ch2_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.defaultSampleKey == "PN40")
+        #expect(parsed.warnings.contains(where: { $0.lowercased().contains("score fallback") }))
+    }
+
+    @Test("parser falls back to file stem when no workflow token is detected")
+    func parserFallsBackToFileStemWithoutWorkflowMatch() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN40/misc/unknown_pattern_file.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.workflowName == nil)
+        #expect(parsed.measurementName == "unknown_pattern_file")
+    }
+
+    @Test("parser recognizes expanded current and field units")
+    func parserRecognizesExpandedCurrentAndFieldUnits() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_0.5A_250mT_ch1_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.current == "0.5A")
+        #expect(parsed.field == "250mT")
+    }
+
+    @Test("parser recognizes celsius temperature tokens")
+    func parserRecognizesCelsiusTemperatureTokens() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_25C_1mA_ch1_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.temperature == "25C")
     }
 
     private func loadBundledRuleSetForTests() throws -> FilenameRuleSet {

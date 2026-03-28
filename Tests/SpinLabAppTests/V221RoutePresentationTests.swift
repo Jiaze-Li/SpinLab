@@ -1,6 +1,7 @@
 import Testing
 @testable import SpinLabApp
 
+@MainActor
 @Suite("V2.2.1 Route Presentation")
 struct V221RoutePresentationTests {
     @Test("warning aggregator merges parser substrate and routing warnings")

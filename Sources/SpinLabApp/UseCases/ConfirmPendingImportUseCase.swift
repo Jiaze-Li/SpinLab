@@ -23,13 +23,8 @@ struct ConfirmPendingImportUseCase {
         }
 
         let record = makeArchivedRecord(input.pending, input.draft)
-        var nextArchived = libraryRepository.archivedRecords
-        nextArchived.insert(record, at: 0)
-        let archivedRecords = libraryRepository.replaceArchivedRecords(nextArchived)
-
-        var nextPending = inboxRepository.pendingImports
-        nextPending.removeAll { $0.id == input.pending.id }
-        let pendingImports = inboxRepository.replacePendingImports(nextPending)
+        let archivedRecords = libraryRepository.prependArchivedRecord(record)
+        let pendingImports = inboxRepository.removePendingImport(id: input.pending.id)
 
         return .success(Output(
             archivedRecords: archivedRecords,

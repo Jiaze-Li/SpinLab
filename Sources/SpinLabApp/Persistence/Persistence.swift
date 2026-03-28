@@ -132,69 +132,52 @@ final class LocalJSONPersistence: SpinLabPersistence {
             return nil
         }
 
-        guard let data = try? Data(contentsOf: fileURL) else {
+        let data: Data
+        do {
+            data = try Data(contentsOf: fileURL)
+        } catch {
+            AppLogger.shared.error(
+                .system,
+                "Failed to read JSON payload",
+                metadata: [
+                    "target": fileURL.lastPathComponent,
+                    "reason": error.localizedDescription
+                ]
+            )
             return nil
         }
 
-        return try? decoder.decode(T.self, from: data)
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            AppLogger.shared.error(
+                .system,
+                "Failed to decode JSON payload",
+                metadata: [
+                    "target": fileURL.lastPathComponent,
+                    "reason": error.localizedDescription
+                ]
+            )
+            return nil
+        }
     }
 
     private func writeJSON<T: Encodable>(_ value: T, to fileURL: URL) {
         guard let data = try? encoder.encode(value) else {
             return
         }
-        try? data.write(to: fileURL, options: .atomic)
-    }
-}
-
-final class LocalPersistenceStub: SpinLabPersistence {
-    private var pendingImports: [SpinLabDomain.PendingImport]
-    private var archivedRecords: [SpinLabDomain.ArchivedRecord]
-    private var projects: [SpinLabDomain.Project]
-    private var interactionSnapshot: SpinLabInteractionSnapshot
-
-    init(
-        pendingImports: [SpinLabDomain.PendingImport] = SampleData.pendingImports,
-        archivedRecords: [SpinLabDomain.ArchivedRecord] = SampleData.archivedRecords,
-        projects: [SpinLabDomain.Project] = SampleData.projects,
-        interactionSnapshot: SpinLabInteractionSnapshot = SpinLabInteractionSnapshot()
-    ) {
-        self.pendingImports = pendingImports
-        self.archivedRecords = archivedRecords
-        self.projects = projects
-        self.interactionSnapshot = interactionSnapshot
-    }
-
-    func loadPendingImports() -> [SpinLabDomain.PendingImport] {
-        pendingImports
-    }
-
-    func savePendingImports(_ imports: [SpinLabDomain.PendingImport]) {
-        pendingImports = imports
-    }
-
-    func loadArchivedRecords() -> [SpinLabDomain.ArchivedRecord] {
-        archivedRecords
-    }
-
-    func saveArchivedRecords(_ records: [SpinLabDomain.ArchivedRecord]) {
-        archivedRecords = records
-    }
-
-    func loadProjects() -> [SpinLabDomain.Project] {
-        projects
-    }
-
-    func saveProjects(_ projects: [SpinLabDomain.Project]) {
-        self.projects = projects
-    }
-
-    func loadInteractionSnapshot() -> SpinLabInteractionSnapshot {
-        interactionSnapshot
-    }
-
-    func saveInteractionSnapshot(_ snapshot: SpinLabInteractionSnapshot) {
-        interactionSnapshot = snapshot
+        do {
+            try data.write(to: fileURL, options: .atomic)
+        } catch {
+            AppLogger.shared.error(
+                .system,
+                "Failed to persist JSON payload",
+                metadata: [
+                    "target": fileURL.lastPathComponent,
+                    "reason": error.localizedDescription
+                ]
+            )
+        }
     }
 }
 
