@@ -62,6 +62,7 @@ struct FilenameRuleSet: Decodable {
         var treatmentKeywords: [String: [String]]
         var materialTokens: [String]
         var materialAliases: [String: String]?
+        var materialDisplayNames: [String: String]?
         var orientationTokens: [String]?
         var orientationAliases: [String: String]?
         var orientationPattern: String
@@ -512,6 +513,13 @@ struct FilenameRuleSet: Decodable {
                 materialTokens: ["STO", "NGO", "MAO", "MGO", "AL2O3", "SI", "POLY-SIO2 ON SI", "POLY-SIO2"],
                 materialAliases: [
                     "ONSI": "SI"
+                ],
+                materialDisplayNames: [
+                    "POLY-SIO2 ON SI": "poly-SiO2 on Si",
+                    "POLY-SIO2": "poly-SiO2 on Si",
+                    "MGO": "MgO",
+                    "AL2O3": "Al2O3",
+                    "SI": "Si"
                 ],
                 orientationTokens: ["111", "110", "001", "100", "0001"],
                 orientationAliases: [

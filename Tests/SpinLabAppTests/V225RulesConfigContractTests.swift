@@ -28,6 +28,7 @@ struct V225RulesConfigContractTests {
         #expect(!sharedSubstrate.treatmentKeywords.isEmpty)
         #expect(!sharedSubstrate.materialTokens.isEmpty)
         #expect(!(sharedSubstrate.orientationTokens ?? []).isEmpty)
+        #expect(!(sharedSubstrate.materialDisplayNames ?? [:]).isEmpty)
     }
 
     @Test("rules schema version stays on supported runtime version")

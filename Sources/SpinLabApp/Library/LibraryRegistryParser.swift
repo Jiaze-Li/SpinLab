@@ -23,6 +23,9 @@ final class LibraryRegistryParser {
             orientationTokens: (sharedSubstrateRules.orientationTokens ?? []).map { $0.uppercased() },
             orientationAliases: (sharedSubstrateRules.orientationAliases ?? [:]).reduce(into: [:]) { partial, entry in
                 partial[entry.key.uppercased()] = entry.value.uppercased()
+            },
+            materialDisplayNames: (sharedSubstrateRules.materialDisplayNames ?? [:]).reduce(into: [:]) { partial, entry in
+                partial[entry.key.uppercased()] = entry.value
             }
         )
         excludedSheetNames = Set(registryRules.excludedSheetNames)
@@ -362,17 +365,20 @@ final class LibrarySubstrateParser {
     private let processingKeywords: [String: [String]]
     private let orientationTokens: [String]
     private let orientationAliases: [String: String]
+    private let materialDisplayNames: [String: String]
 
     init(
         materialTokens: [String],
         processingKeywords: [String: [String]],
         orientationTokens: [String],
-        orientationAliases: [String: String]
+        orientationAliases: [String: String],
+        materialDisplayNames: [String: String]
     ) {
         self.materialTokens = materialTokens
         self.processingKeywords = processingKeywords
         self.orientationTokens = orientationTokens
         self.orientationAliases = orientationAliases
+        self.materialDisplayNames = materialDisplayNames
     }
 
     func parse(_ raw: String) -> [LibrarySubstrate] {
@@ -492,17 +498,8 @@ final class LibrarySubstrateParser {
         guard let material else {
             return original.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        if material == "POLY-SIO2 ON SI" || material == "POLY-SIO2" {
-            return "poly-SiO2 on Si"
-        }
-        if material == "MGO" {
-            return "MgO"
-        }
-        if material == "AL2O3" {
-            return "Al2O3"
-        }
-        if material == "SI" {
-            return "Si"
+        if let configured = materialDisplayNames[material.uppercased()] {
+            return configured
         }
         return material
     }

@@ -48,6 +48,13 @@
       "materialAliases": {
         "ONSI": "SI"
       },
+      "materialDisplayNames": {
+        "POLY-SIO2 ON SI": "poly-SiO2 on Si",
+        "POLY-SIO2": "poly-SiO2 on Si",
+        "MGO": "MgO",
+        "AL2O3": "Al2O3",
+        "SI": "Si"
+      },
       "orientationTokens": [
         "111",
         "110",
