@@ -8,9 +8,9 @@ struct FileRoutingSemanticRules {
     static let `default` = FileRoutingSemanticRules(
         treatmentNeedles: [
             "HF": "HF",
-            "B": "baked",
-            "BAKE": "baked",
-            "BAKED": "baked",
+            "B": "b",
+            "BAKE": "b",
+            "BAKED": "b",
             "ORIGIN": "o",
             "ORIGINAL": "o",
             " O ": "o"

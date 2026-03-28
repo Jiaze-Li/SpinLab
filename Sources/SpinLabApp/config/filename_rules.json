@@ -24,7 +24,7 @@
         "HF": [
           "hf"
         ],
-        "baked": [
+        "b": [
           "b",
           "bake",
           "baked"
@@ -68,7 +68,7 @@
             "BAKED"
           ]
         },
-        "value": "baked"
+        "value": "b"
       },
       {
         "match": {
@@ -334,7 +334,7 @@
         "HF": [
           "HF"
         ],
-        "baked": [
+        "b": [
           "B",
           "BAKE",
           "BAKED"

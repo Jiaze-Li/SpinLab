@@ -213,18 +213,18 @@ struct V213InboxClosedLoopTests {
             importedAt: .now,
             status: .needsConfirmation,
             parsedHints: SpinLabDomain.ParsedFilenameHints(
-                sampleName: "PN32 - baked STO(111)",
-                defaultSampleKey: "PN32 - baked STO(111)",
+                sampleName: "PN32 - b STO(111)",
+                defaultSampleKey: "PN32 - b STO(111)",
                 channelHints: [
                     SpinLabDomain.ParsedChannelHint(channel: "ch2", sampleID: nil, tags: ["o", "STO111"])
                 ],
-                substrateTags: ["baked", "STO111"]
+                substrateTags: ["b", "STO111"]
             )
         )
         let persistence = MockPersistenceForV213(pendingImports: [pending])
         let appState = makeAppState(persistence: persistence)
         installExistingDrawers(
-            sampleDisplayNames: ["PN32 - baked STO(111)"],
+            sampleDisplayNames: ["PN32 - b STO(111)"],
             into: appState
         )
 
@@ -233,7 +233,7 @@ struct V213InboxClosedLoopTests {
         #expect(plan.unresolvedChannels.isEmpty)
 
         let snapshot = appState.pendingRoutingSnapshot(for: pending)
-        #expect(snapshot.scopes.first?.sampleKey == "PN32 - baked o STO(111)")
+        #expect(snapshot.scopes.first?.sampleKey == "PN32 - b o STO(111)")
         #expect(snapshot.scopes.first?.matchedDrawer == nil)
         #expect(snapshot.verdict == .reviewRequired)
         #expect(appState.pendingDrawerMatchByID[pending.id] == false)
@@ -250,14 +250,14 @@ struct V213InboxClosedLoopTests {
             importedAt: .now,
             status: .needsConfirmation,
             parsedHints: SpinLabDomain.ParsedFilenameHints(
-                sampleName: "PN32 - baked STO(111)",
+                sampleName: "PN32 - b STO(111)",
                 defaultSampleKey: "PN32",
                 sampleIDs: ["PN32"],
                 channelHints: [
                     SpinLabDomain.ParsedChannelHint(channel: "ch2", sampleID: nil, tags: [], testInfoTags: ["AMR"]),
                     SpinLabDomain.ParsedChannelHint(channel: "ch3", sampleID: nil, tags: [], testInfoTags: ["PHE"])
                 ],
-                substrateTags: ["baked", "STO"]
+                substrateTags: ["b", "STO"]
             )
         )
         let persistence = MockPersistenceForV213(pendingImports: [pending])
@@ -265,13 +265,13 @@ struct V213InboxClosedLoopTests {
         installExistingDrawers(
             sampleDisplayNames: [
                 "PN32 - o STO(111)",
-                "PN32 - baked STO(111)"
+                "PN32 - b STO(111)"
             ],
             into: appState
         )
 
         let displayDraft = appState.pendingDisplayDraft(for: pending)
-        #expect(displayDraft.sampleName == "PN32 - baked STO(111)")
+        #expect(displayDraft.sampleName == "PN32 - b STO(111)")
         #expect(appState.pendingDrawerMatchByID[pending.id] == true)
     }
 
@@ -286,37 +286,37 @@ struct V213InboxClosedLoopTests {
             importedAt: .now,
             status: .needsConfirmation,
             parsedHints: SpinLabDomain.ParsedFilenameHints(
-                sampleName: "PN32 baked STO",
+                sampleName: "PN32 b STO",
                 defaultSampleKey: "PN32",
                 sampleIDs: ["PN32"],
                 channelHints: [
                     SpinLabDomain.ParsedChannelHint(channel: "ch2", sampleID: nil, tags: [], testInfoTags: ["AMR"]),
                     SpinLabDomain.ParsedChannelHint(channel: "ch3", sampleID: nil, tags: [], testInfoTags: ["PHE"])
                 ],
-                substrateTags: ["baked", "STO"]
+                substrateTags: ["b", "STO"]
             )
         )
         let persistence = MockPersistenceForV213(pendingImports: [pending])
         let appState = makeAppState(persistence: persistence)
 
         guard var hf = makeLibrarySample(displayName: "PN32 - HF STO(111)"),
-              var baked = makeLibrarySample(displayName: "PN32 - baked STO(111)"),
+              var b = makeLibrarySample(displayName: "PN32 - b STO(111)"),
               var origin = makeLibrarySample(displayName: "PN32 - o STO(111)") else {
             Issue.record("Failed to construct PN32 drawer samples")
             return
         }
-        let sharedRaw = "HF STO (111), original STO (111), baked STO (111)"
+        let sharedRaw = "HF STO (111), original STO (111), b STO (111)"
         hf.substrateRaw = sharedRaw
-        baked.substrateRaw = sharedRaw
+        b.substrateRaw = sharedRaw
         origin.substrateRaw = sharedRaw
         hf.substrateTokens = ["HF", "STO", "111"]
-        baked.substrateTokens = ["baked", "STO", "111"]
+        b.substrateTokens = ["b", "STO", "111"]
         origin.substrateTokens = ["o", "STO", "111"]
 
-        installExistingLibrarySamples([hf, baked, origin], into: appState)
-        let matched = appState.matchedExistingLibraryDrawer(sampleInput: "PN32 baked STO")
+        installExistingLibrarySamples([hf, b, origin], into: appState)
+        let matched = appState.matchedExistingLibraryDrawer(sampleInput: "PN32 b STO")
 
-        #expect(matched == "PN32 - baked STO(111)")
+        #expect(matched == "PN32 - b STO(111)")
     }
 
     private func makeAppState(persistence: MockPersistenceForV213) -> SpinLabAppState {
@@ -396,9 +396,12 @@ struct V213InboxClosedLoopTests {
         }
 
         let upper = substrate.uppercased()
+        let tokens = upper
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
         let treatment: String = {
             if upper.contains("HF") { return "HF" }
-            if upper.contains("BAKE") { return "baked" }
+            if upper.contains("BAKE") || tokens.contains("B") { return "b" }
             if upper.contains("ORIGIN") || upper.contains(" O ") || upper.hasPrefix("O ") { return "o" }
             return ""
         }()
