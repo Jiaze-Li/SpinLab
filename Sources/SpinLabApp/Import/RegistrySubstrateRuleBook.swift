@@ -16,6 +16,12 @@ protocol RegistrySubstrateRuleProviding {
 }
 
 struct RegistrySubstrateRuleBook: RegistrySubstrateRuleProviding {
+    private let tokenSeparators: CharacterSet
+    private let originStandaloneTokens: Set<String>
+    private let originContainsTokens: [String]
+    private let treatmentKeywords: [String: [String]]
+    private let materialTokens: Set<String>
+    private let orientationPattern: String
 
     private struct SubstrateConstraints {
         var treatments: Set<String> = []
@@ -30,8 +36,21 @@ struct RegistrySubstrateRuleBook: RegistrySubstrateRuleProviding {
         var orientation: String?
     }
 
+    init(ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared) {
+        let substrate = ruleProvider.sharedSubstrateRules()
+        tokenSeparators = CharacterSet(charactersIn: substrate.tokenSeparators)
+        originStandaloneTokens = Set(substrate.originStandaloneTokens.map { $0.lowercased() })
+        originContainsTokens = substrate.originContainsTokens.map { $0.lowercased() }
+        treatmentKeywords = substrate.treatmentKeywords.mapValues { $0.map { token in token.lowercased() } }
+        materialTokens = Set(substrate.materialTokens.map { $0.lowercased() })
+        orientationPattern = substrate.orientationPattern
+    }
+
+    init(ruleLoadResult: RuleLoader.LoadResult) {
+        self.init(ruleProvider: InlineRuleProvider(loadResult: ruleLoadResult))
+    }
+
     func hasStandaloneOriginToken(fileName: String, originalFilePath: String?) -> Bool {
-        let separators = CharacterSet(charactersIn: "_- ()")
         var texts: [String] = [fileName]
 
         if let originalFilePath {
@@ -42,10 +61,13 @@ struct RegistrySubstrateRuleBook: RegistrySubstrateRuleProviding {
         }
 
         for text in texts {
-            let tokens = text.components(separatedBy: separators).filter { !$0.isEmpty }
+            let tokens = text.components(separatedBy: tokenSeparators).filter { !$0.isEmpty }
             if tokens.contains(where: { token in
                 let lower = token.lowercased()
-                return lower == "o" || lower.contains("origin") || lower.contains("original")
+                if originStandaloneTokens.contains(lower) {
+                    return true
+                }
+                return originContainsTokens.contains(where: { lower.contains($0) })
             }) {
                 return true
             }
@@ -137,16 +159,8 @@ struct RegistrySubstrateRuleBook: RegistrySubstrateRuleProviding {
 
         for tag in substrateTags {
             let normalized = normalizeSubstrateTag(tag)
-            if normalized == "hf" {
-                constraints.treatments.insert("hf")
-                continue
-            }
-            if normalized.contains("bake") {
-                constraints.treatments.insert("baked")
-                continue
-            }
-            if allowsOriginToken && (normalized == "o" || normalized.contains("origin") || normalized.contains("original")) {
-                constraints.treatments.insert("o")
+            if let treatment = matchedTreatment(from: normalized, allowsOriginToken: allowsOriginToken) {
+                constraints.treatments.insert(treatment)
                 continue
             }
 
@@ -170,13 +184,7 @@ struct RegistrySubstrateRuleBook: RegistrySubstrateRuleProviding {
         let normalized = normalizeSubstrateTag(substrate)
         var candidate = SubstrateCandidate(raw: substrate, treatment: nil, material: nil, orientation: nil)
 
-        if normalized.contains("hf") {
-            candidate.treatment = "hf"
-        } else if normalized.contains("bake") {
-            candidate.treatment = "baked"
-        } else if normalized.contains("origin") || normalized.contains("original") || normalized == "o" {
-            candidate.treatment = "o"
-        }
+        candidate.treatment = matchedTreatment(from: normalized, allowsOriginToken: true)
 
         candidate.orientation = extractOrientation(from: normalized)
         candidate.material = conservativeMaterial(from: substrate)?.lowercased()
@@ -206,7 +214,7 @@ struct RegistrySubstrateRuleBook: RegistrySubstrateRuleProviding {
     }
 
     private func extractOrientation(from normalized: String) -> String? {
-        guard let match = normalized.range(of: #"\d{3}"#, options: .regularExpression) else {
+        guard let match = normalized.range(of: orientationPattern, options: .regularExpression) else {
             return nil
         }
         return String(normalized[match])
@@ -223,7 +231,7 @@ struct RegistrySubstrateRuleBook: RegistrySubstrateRuleProviding {
             .filter { !$0.isEmpty }
 
         let materialCandidates = rawTokens.compactMap { token -> String? in
-            if token == "hf" || token == "baked" || token == "bake" || token == "origin" || token == "original" || token == "o" {
+            if isTreatmentToken(token) {
                 return nil
             }
             if token.range(of: #"^\d+$"#, options: .regularExpression) != nil {
@@ -244,7 +252,38 @@ struct RegistrySubstrateRuleBook: RegistrySubstrateRuleProviding {
             return nil
         }
 
+        if !materialTokens.isEmpty, !materialTokens.contains(material.lowercased()) {
+            return nil
+        }
+
         return material.uppercased()
+    }
+
+    private func matchedTreatment(from normalizedToken: String, allowsOriginToken: Bool) -> String? {
+        for key in treatmentKeywords.keys.sorted() {
+            if key == "o", !allowsOriginToken {
+                continue
+            }
+            guard let keywords = treatmentKeywords[key] else {
+                continue
+            }
+            if keywords.contains(where: { keyword in
+                if keyword.count <= 1 {
+                    return normalizedToken == keyword
+                }
+                return normalizedToken == keyword || normalizedToken.contains(keyword)
+            }) {
+                return key
+            }
+        }
+        return nil
+    }
+
+    private func isTreatmentToken(_ token: String) -> Bool {
+        let lower = token.lowercased()
+        return treatmentKeywords.values.contains { keywords in
+            keywords.contains(lower)
+        }
     }
 
     private func substrateConstraintDescription(_ constraints: SubstrateConstraints) -> String {

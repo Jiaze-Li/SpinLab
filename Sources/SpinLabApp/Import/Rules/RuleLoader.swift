@@ -3,6 +3,7 @@ import CryptoKit
 
 struct RuleLoader {
     static let shared = RuleLoader()
+    static let currentSchemaVersion = 1
     private static var cached: LoadResult?
     private static let cacheLock = NSLock()
     private let logger = AppLogger.shared
@@ -150,6 +151,8 @@ struct RuleLoader {
 
         do {
             var ruleSet = try decodeRuleSet(from: data, source: "\(sourceLabel):\(url.path)")
+            let schemaWarnings = migrateRuleSetSchemaIfNeeded(ruleSet: &ruleSet, sourceLabel: sourceLabel)
+            warnings.append(contentsOf: schemaWarnings)
             let compileWarnings = ruleSet.compile()
             if !compileWarnings.isEmpty {
                 warnings.append(contentsOf: compileWarnings.map { "\(sourceLabel) compile warning: \($0)" })
@@ -198,6 +201,32 @@ struct RuleLoader {
                 userInfo: [NSLocalizedDescriptionKey: "Failed to decode rules from \(source): \(error.localizedDescription)"]
             )
         }
+    }
+
+    private func migrateRuleSetSchemaIfNeeded(
+        ruleSet: inout FilenameRuleSet,
+        sourceLabel: String
+    ) -> [String] {
+        var warnings: [String] = []
+
+        if ruleSet.version == Self.currentSchemaVersion {
+            return warnings
+        }
+
+        if ruleSet.version < Self.currentSchemaVersion {
+            warnings.append(
+                "\(sourceLabel) schema v\(ruleSet.version) is older than supported v\(Self.currentSchemaVersion); applying compatibility migration."
+            )
+            // Keep decoded values; only normalize the schema marker so metadata/reporting
+            // reflects the runtime schema interpretation.
+            ruleSet.version = Self.currentSchemaVersion
+            return warnings
+        }
+
+        warnings.append(
+            "\(sourceLabel) schema v\(ruleSet.version) is newer than supported v\(Self.currentSchemaVersion); loading in compatibility mode."
+        )
+        return warnings
     }
 
     private func applicationSupportRuleURL() -> URL {

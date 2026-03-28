@@ -1,226 +1,392 @@
 {
   "version": 1,
-  "tokenization": {
-    "separators": "_- ()",
-    "caseFold": "preserve"
-  },
-  "sources": [
-    "file",
-    "parent",
-    "grandparent"
-  ],
-  "sampleId": {
-    "patterns": [
-      "^(PN|PT)\\d+$",
-      "^S\\d+$"
-    ]
-  },
-  "batch": {
-    "preferSampleId": true,
-    "fallbackPatterns": [
-      "^(B|Batch)\\d+$"
-    ]
-  },
-  "measurementNameRules": [
-    {
-      "match": {
-        "scope": "joined",
-        "type": "containsAny",
-        "values": [
-          "xy",
-          "rotation"
+  "shared": {
+    "tokenization": {
+      "separators": "_- ()",
+      "caseFold": "preserve"
+    },
+    "sampleId": {
+      "patterns": [
+        "^(PN|PT)\\d+$",
+        "^S\\d+$"
+      ]
+    },
+    "substrate": {
+      "tokenSeparators": "_- ()",
+      "originStandaloneTokens": [
+        "o"
+      ],
+      "originContainsTokens": [
+        "origin",
+        "original"
+      ],
+      "treatmentKeywords": {
+        "hf": [
+          "hf"
+        ],
+        "baked": [
+          "bake",
+          "baked"
+        ],
+        "o": [
+          "o",
+          "origin",
+          "original"
         ]
       },
-      "value": "XY"
+      "materialTokens": [
+        "STO",
+        "NGO",
+        "MAO",
+        "MGO",
+        "AL2O3",
+        "SI",
+        "POLY-SIO2 ON SI",
+        "POLY-SIO2"
+      ],
+      "orientationPattern": "\\d{3}"
     },
-    {
-      "match": {
-        "scope": "tokens",
-        "type": "equals",
-        "value": "MR"
+    "substrateTagRules": [
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equalsOrContainsAny",
+          "values": [
+            "HF"
+          ]
+        },
+        "value": "HF"
       },
-      "value": "MR"
-    },
-    {
-      "match": {
-        "scope": "tokens",
-        "type": "equals",
-        "value": "RT"
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equalsOrContainsAny",
+          "values": [
+            "BAKE",
+            "BAKED"
+          ]
+        },
+        "value": "baked"
       },
-      "value": "RT"
-    },
-    {
-      "match": {
-        "scope": "tokens",
-        "type": "equals",
-        "value": "AHE"
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "containsAny",
+          "values": [
+            "ORIGIN",
+            "ORIGINAL"
+          ]
+        },
+        "value": "o"
       },
-      "value": "AHE"
-    }
-  ],
-  "measurementTagRules": [
-    {
-      "match": {
-        "scope": "tokens",
-        "type": "equals",
-        "value": "AMR"
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equalsAny",
+          "values": [
+            "O"
+          ]
+        },
+        "value": "o"
       },
-      "value": "AMR"
-    },
-    {
-      "match": {
-        "scope": "tokens",
-        "type": "equals",
-        "value": "PHE"
-      },
-      "value": "PHE"
-    },
-    {
-      "match": {
-        "scope": "tokens",
-        "type": "equals",
-        "value": "RXX"
-      },
-      "value": "Rxx"
-    },
-    {
-      "match": {
-        "scope": "tokens",
-        "type": "equals",
-        "value": "RXY"
-      },
-      "value": "Rxy"
-    }
-  ],
-  "substrateTagRules": [
-    {
-      "match": {
-        "scope": "tokens",
-        "type": "equalsOrContainsAny",
-        "values": [
-          "HF"
-        ]
-      },
-      "value": "HF"
-    },
-    {
-      "match": {
-        "scope": "tokens",
-        "type": "equalsOrContainsAny",
-        "values": [
-          "BAKE",
-          "BAKED"
-        ]
-      },
-      "value": "baked"
-    },
-    {
-      "match": {
-        "scope": "tokens",
-        "type": "containsAny",
-        "values": [
-          "ORIGIN",
-          "ORIGINAL"
-        ]
-      },
-      "value": "o"
-    },
-    {
-      "match": {
-        "scope": "tokens",
-        "type": "equalsAny",
-        "values": [
-          "O"
-        ]
-      },
-      "value": "o"
-    },
-    {
-      "match": {
-        "scope": "tokens",
-        "type": "contains",
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "contains",
+          "value": "STO111"
+        },
         "value": "STO111"
       },
-      "value": "STO111"
-    },
-    {
-      "match": {
-        "scope": "tokens",
-        "type": "contains",
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "contains",
+          "value": "STO001"
+        },
         "value": "STO001"
       },
-      "value": "STO001"
-    },
-    {
-      "match": {
-        "scope": "tokens",
-        "type": "equalsOrContainsAny",
-        "values": [
-          "STO"
-        ]
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equalsOrContainsAny",
+          "values": [
+            "STO"
+          ]
+        },
+        "value": "STO"
       },
-      "value": "STO"
-    },
-    {
-      "match": {
-        "scope": "tokens",
-        "type": "equalsOrContainsAny",
-        "values": [
-          "NGO"
-        ]
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equalsOrContainsAny",
+          "values": [
+            "NGO"
+          ]
+        },
+        "value": "NGO"
       },
-      "value": "NGO"
-    },
-    {
-      "match": {
-        "scope": "tokens",
-        "type": "equals",
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "value": "111"
+        },
         "value": "111"
       },
-      "value": "111"
-    },
-    {
-      "match": {
-        "scope": "tokens",
-        "type": "equals",
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "value": "001"
+        },
         "value": "001"
+      }
+    ]
+  },
+  "inbox": {
+    "sources": [
+      "file",
+      "parent",
+      "grandparent"
+    ],
+    "batch": {
+      "preferSampleId": true,
+      "fallbackPatterns": [
+        "^(B|Batch)\\d+$"
+      ]
+    },
+    "measurementNameRules": [
+      {
+        "match": {
+          "scope": "joined",
+          "type": "containsAny",
+          "values": [
+            "xy",
+            "rotation"
+          ]
+        },
+        "value": "XY"
       },
-      "value": "001"
-    }
-  ],
-  "channel": {
-    "aliases": {
-      "ch1": "ch1",
-      "c1": "ch1",
-      "ch2": "ch2",
-      "c2": "ch2",
-      "ch3": "ch3",
-      "c3": "ch3"
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "value": "MR"
+        },
+        "value": "MR"
+      },
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "value": "RT"
+        },
+        "value": "RT"
+      },
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "value": "AHE"
+        },
+        "value": "AHE"
+      }
+    ],
+    "measurementTagRules": [
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "value": "AMR"
+        },
+        "value": "AMR"
+      },
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "value": "PHE"
+        },
+        "value": "PHE"
+      },
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "value": "RXX"
+        },
+        "value": "Rxx"
+      },
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "value": "RXY"
+        },
+        "value": "Rxy"
+      }
+    ],
+    "channel": {
+      "aliases": {
+        "ch1": "ch1",
+        "c1": "ch1",
+        "ch2": "ch2",
+        "c2": "ch2",
+        "ch3": "ch3",
+        "c3": "ch3"
+      }
+    },
+    "deviceRules": [
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "value": "wafer"
+        },
+        "value": "wafer"
+      }
+    ],
+    "rotationHintRules": [
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "value": "90shift"
+        },
+        "value": "+90deg for I parallel B"
+      }
+    ],
+    "conditions": {
+      "temperaturePattern": "^-?\\d+(?:\\.\\d+)?(?:K|k|C|c|°C|°c)$",
+      "currentPattern": "^-?\\d+(?:\\.\\d+)?(?:uA|µA|mA|A)$",
+      "fieldPattern": "^-?\\d+(?:\\.\\d+)?(?:mT|T)$"
     }
   },
-  "deviceRules": [
-    {
-      "match": {
-        "scope": "tokens",
-        "type": "equals",
-        "value": "wafer"
+  "library": {
+    "registry": {
+      "sampleHeaderAliases": [
+        "sampleid",
+        "sample",
+        "sample id",
+        "sample_no",
+        "编号",
+        "样品编号",
+        "样品id"
+      ],
+      "excludedSheetNames": [
+        "实验大纲"
+      ],
+      "sampleCellSeparators": "/／,，;；|",
+      "batchHeaderAliases": [
+        "编号",
+        "Batch",
+        "BatchID",
+        "Batch Id"
+      ],
+      "substrateHeaderAliases": [
+        "substrate",
+        "Substrate",
+        "衬底"
+      ],
+      "numericKeyAliases": {
+        "厚度": [
+          "预打",
+          "生长次数"
+        ],
+        "温度": [
+          "温度",
+          "temperature"
+        ],
+        "氧压": [
+          "氧压",
+          "pressure"
+        ],
+        "能量": [
+          "能量",
+          "energy"
+        ],
+        "电压": [
+          "电压",
+          "kv"
+        ],
+        "磁场": [
+          "磁场",
+          "field"
+        ],
+        "电阻": [
+          "电阻",
+          "current"
+        ]
       },
-      "value": "wafer"
-    }
-  ],
-  "rotationHintRules": [
-    {
-      "match": {
-        "scope": "tokens",
-        "type": "equals",
-        "value": "90shift"
+      "substrateMaterialTokens": [
+        "STO",
+        "NGO",
+        "MAO",
+        "MGO",
+        "AL2O3",
+        "SI",
+        "POLY-SIO2 ON SI",
+        "POLY-SIO2"
+      ],
+      "substrateProcessingKeywords": {
+        "HF": [
+          "HF"
+        ],
+        "baked": [
+          "BAKE",
+          "BAKED"
+        ],
+        "o": [
+          "ORIGINAL",
+          "ORIGIN",
+          " O "
+        ]
       },
-      "value": "+90deg for I parallel B"
+      "metadataLookupAliases": {
+        "batch": [
+          "Batch",
+          "BatchID",
+          "Batch Name",
+          "编号"
+        ],
+        "sample": [
+          "Sample",
+          "SampleID",
+          "Sample Name",
+          "样品"
+        ],
+        "measurement": [
+          "Measurement",
+          "MeasurementName",
+          "Measurement Name"
+        ],
+        "device": [
+          "Device",
+          "DeviceName",
+          "Device Name"
+        ],
+        "temperature": [
+          "Temperature",
+          "Temp",
+          "T"
+        ],
+        "project": [
+          "Project",
+          "ProjectName",
+          "Project Name"
+        ]
+      }
+    },
+    "importRules": {
+      "supportedFileExtensions": [
+        "csv",
+        "txt",
+        "dat",
+        "lvm"
+      ],
+      "ignoredFileExtensions": [
+        "gph"
+      ]
     }
-  ],
-  "conditions": {
-    "temperaturePattern": "^\\d+K$",
-    "currentPattern": "^\\d+(?:\\.\\d+)?mA$",
-    "fieldPattern": "^-?\\d+T$"
   }
 }

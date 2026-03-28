@@ -216,7 +216,7 @@ final class XLSXPrefixSampleRegistryIndex: SampleRegistryIndexing {
                 continue
             }
 
-            let headerByColumn = headerValueByColumnIndex(row: rows[0], sharedStrings: sharedStrings)
+            let headerByColumn = XLSXSheetValueReader.headerValueByColumnIndex(row: rows[0], sharedStrings: sharedStrings)
             guard lookupRules.shouldIndexSheet(named: sheet.sheetName, headerByColumn: headerByColumn),
                   let sampleColumn = lookupRules.sampleColumnIndex(headerByColumn: headerByColumn) else {
                 continue
@@ -224,7 +224,7 @@ final class XLSXPrefixSampleRegistryIndex: SampleRegistryIndexing {
 
             var previewCount = 0
             for (rowOffset, row) in rows.dropFirst().enumerated() {
-                guard let rawSampleID = rowValue(row: row, atColumn: sampleColumn, sharedStrings: sharedStrings) else {
+                guard let rawSampleID = XLSXSheetValueReader.rowValue(row: row, atColumn: sampleColumn, sharedStrings: sharedStrings) else {
                     continue
                 }
 
@@ -233,7 +233,12 @@ final class XLSXPrefixSampleRegistryIndex: SampleRegistryIndexing {
                     continue
                 }
 
-                let metadata = rowMetadata(row: row, headerByColumn: headerByColumn, sharedStrings: sharedStrings)
+                let metadata = XLSXSheetValueReader.rowMetadata(
+                    row: row,
+                    headerByColumn: headerByColumn,
+                    sharedStrings: sharedStrings,
+                    trimValues: false
+                )
                 let indexed = IndexedRegistryRow(
                     sheetName: sheet.sheetName,
                     sheetOrder: sheetOrder,
@@ -297,84 +302,19 @@ final class XLSXPrefixSampleRegistryIndex: SampleRegistryIndexing {
         )
     }
 
-    private static func headerValueByColumnIndex(row: Row, sharedStrings: SharedStrings?) -> [Int: String] {
-        var headerByColumn: [Int: String] = [:]
-        for cell in row.cells {
-            guard
-                let column = columnIndex(for: cell),
-                let value = cellString(cell: cell, sharedStrings: sharedStrings)
-            else {
-                continue
-            }
-            headerByColumn[column] = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return headerByColumn
-    }
-
-    private static func rowMetadata(row: Row, headerByColumn: [Int: String], sharedStrings: SharedStrings?) -> [String: String] {
-        var metadata: [String: String] = [:]
-        for cell in row.cells {
-            guard
-                let column = columnIndex(for: cell),
-                let value = cellString(cell: cell, sharedStrings: sharedStrings),
-                !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            else {
-                continue
-            }
-
-            let key = headerByColumn[column] ?? "Column\(column)"
-            metadata[key] = value
-        }
-        return metadata
-    }
-
-    private static func rowValue(row: Row, atColumn column: Int, sharedStrings: SharedStrings?) -> String? {
-        for cell in row.cells {
-            guard columnIndex(for: cell) == column else {
-                continue
-            }
-            guard let value = cellString(cell: cell, sharedStrings: sharedStrings) else {
-                return nil
-            }
-            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
-        }
-        return nil
-    }
-
-    private static func cellString(cell: Cell, sharedStrings: SharedStrings?) -> String? {
-        if let sharedStrings {
-            return cell.stringValue(sharedStrings)
-        }
-        return cell.value
-    }
-
-    private static func columnIndex(for cell: Cell) -> Int? {
-        let reference = cell.reference
-        return columnIndex(from: reference.column.value)
-    }
-
-    private static func columnIndex(from columnLabel: String) -> Int? {
-        var value = 0
-        for character in columnLabel.uppercased().unicodeScalars {
-            guard character.value >= 65, character.value <= 90 else {
-                continue
-            }
-            value = (value * 26) + Int(character.value - 64)
-        }
-        return value == 0 ? nil : value
-    }
 }
 
 enum SampleIDParser {
+    private static let ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared
+
     static func extractSampleID(fromFilename filename: String) -> String? {
         let stem = URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent
-        let tokens = tokenize(stem, separators: RuleLoader.shared.loadCached().ruleSet.tokenization.separators)
+        let tokens = tokenize(stem, separators: ruleProvider.ruleSet().tokenization.separators)
         return extractSampleIDs(fromTokens: tokens).first
     }
 
     static func extractSampleIDs(fromTokens tokens: [String]) -> [String] {
-        RuleLoader.shared.loadCached().ruleSet.sampleIDs(from: tokens)
+        ruleProvider.ruleSet().sampleIDs(from: tokens)
     }
 
     static func extractPrefix(fromSampleID sampleID: String) -> String? {

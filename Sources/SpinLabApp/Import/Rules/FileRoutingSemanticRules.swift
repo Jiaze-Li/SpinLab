@@ -26,9 +26,9 @@ struct FileRoutingSemanticRules {
         orientationNeedles: ["111", "110", "001", "100", "0001"]
     )
 
-    static func load() -> FileRoutingSemanticRules {
+    static func load(ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared) -> FileRoutingSemanticRules {
         var rules = FileRoutingSemanticRules.default
-        let ruleSet = RuleLoader.shared.loadCached().ruleSet
+        let ruleSet = ruleProvider.ruleSet()
 
         for entry in ruleSet.substrateTagRules {
             let normalizedValue = normalizeToken(entry.value)

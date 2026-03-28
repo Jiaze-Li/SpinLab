@@ -7,7 +7,29 @@ final class LibraryRegistryParser {
         var warnings: [LibraryWarning]
     }
 
-    private let substrateParser = LibrarySubstrateParser()
+    private let substrateParser: LibrarySubstrateParser
+    private let excludedSheetNames: Set<String>
+    private let batchHeaderAliases: Set<String>
+    private let substrateHeaderAliases: Set<String>
+    private let numericKeyAliases: [String: [String]]
+    private static let ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared
+
+    init(ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared) {
+        let registryRules = ruleProvider.registryRules()
+        substrateParser = LibrarySubstrateParser(
+            materialTokens: registryRules.substrateMaterialTokens,
+            processingKeywords: registryRules.substrateProcessingKeywords
+        )
+        excludedSheetNames = Set(registryRules.excludedSheetNames)
+        batchHeaderAliases = Set(registryRules.batchHeaderAliases)
+        substrateHeaderAliases = Set(registryRules.substrateHeaderAliases)
+        numericKeyAliases = registryRules.numericKeyAliases
+    }
+
+    convenience init(ruleLoadResult: RuleLoader.LoadResult) {
+        let provider = InlineRuleProvider(loadResult: ruleLoadResult)
+        self.init(ruleProvider: provider)
+    }
 
     func parse(xlsxURL: URL, settings: LibrarySettings) throws -> ParsedResult {
         var warnings: [LibraryWarning] = []
@@ -37,7 +59,7 @@ final class LibraryRegistryParser {
             guard let sheetName = sheetNameMaybe else {
                 continue
             }
-            if sheetName == "实验大纲" {
+            if RegistrySheetFilter.shouldSkipSheet(named: sheetName, excludedSheetNames: excludedSheetNames) {
                 continue
             }
             guard let worksheet = try? file.parseWorksheet(at: worksheetPath),
@@ -47,19 +69,19 @@ final class LibraryRegistryParser {
                 continue
             }
 
-            let headerByColumn = Self.headerValueByColumnIndex(row: rows[0], sharedStrings: sharedStrings)
+            let headerByColumn = XLSXSheetValueReader.headerValueByColumnIndex(row: rows[0], sharedStrings: sharedStrings)
             let sheetMetadataColumnOrder = Self.orderedHeaderValues(headerByColumn: headerByColumn)
             for key in sheetMetadataColumnOrder where !seenMetadataColumns.contains(key) {
                 seenMetadataColumns.insert(key)
                 globalMetadataColumnOrder.append(key)
             }
-            guard let batchColumn = Self.columnIndex(for: headerByColumn, names: ["编号", "Batch", "BatchID", "Batch Id"]) else {
+            guard let batchColumn = Self.columnIndex(for: headerByColumn, aliases: batchHeaderAliases) else {
                 continue
             }
-            let substrateColumn = Self.columnIndex(for: headerByColumn, names: ["substrate", "Substrate", "衬底"]) 
+            let substrateColumn = Self.columnIndex(for: headerByColumn, aliases: substrateHeaderAliases)
 
             for (rowIndex, row) in rows.dropFirst().enumerated() {
-                guard let rawBatchValue = Self.rowValue(row: row, atColumn: batchColumn, sharedStrings: sharedStrings) else {
+                guard let rawBatchValue = XLSXSheetValueReader.rowValue(row: row, atColumn: batchColumn, sharedStrings: sharedStrings) else {
                     continue
                 }
                 let batchId = rawBatchValue.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -67,14 +89,16 @@ final class LibraryRegistryParser {
                     continue
                 }
 
-                let metadata = Self.rowMetadata(row: row, headerByColumn: headerByColumn, sharedStrings: sharedStrings)
+                let metadata = XLSXSheetValueReader.rowMetadata(row: row, headerByColumn: headerByColumn, sharedStrings: sharedStrings)
                 let orderedMetadata = Self.orderedMetadata(
                     row: row,
                     orderedKeys: sheetMetadataColumnOrder,
                     headerByColumn: headerByColumn,
                     sharedStrings: sharedStrings
                 )
-                let substrateRaw = substrateColumn.flatMap { Self.rowValue(row: row, atColumn: $0, sharedStrings: sharedStrings) }?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let substrateRaw = substrateColumn.flatMap {
+                    XLSXSheetValueReader.rowValue(row: row, atColumn: $0, sharedStrings: sharedStrings)
+                }?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
                 let substrates = substrateParser.parse(substrateRaw)
                 if substrates.isEmpty {
@@ -87,8 +111,8 @@ final class LibraryRegistryParser {
                     displayName: batchId,
                     sheetName: sheetName,
                     metadata: metadata,
-                    numericTags: Self.numericTags(from: metadata).tags,
-                    numericDisplay: Self.numericTags(from: metadata).display,
+                    numericTags: Self.numericTags(from: metadata, aliases: numericKeyAliases).tags,
+                    numericDisplay: Self.numericTags(from: metadata, aliases: numericKeyAliases).display,
                     sampleKeys: [],
                     updatedAt: now
                 )
@@ -96,7 +120,7 @@ final class LibraryRegistryParser {
                 var updatedBatch = batch
                 if updatedBatch.metadata != metadata {
                     updatedBatch.metadata = mergeMetadata(existing: updatedBatch.metadata, incoming: metadata)
-                    let numeric = Self.numericTags(from: updatedBatch.metadata)
+                    let numeric = Self.numericTags(from: updatedBatch.metadata, aliases: numericKeyAliases)
                     updatedBatch.numericTags = numeric.tags
                     updatedBatch.numericDisplay = numeric.display
                     updatedBatch.updatedAt = now
@@ -111,7 +135,7 @@ final class LibraryRegistryParser {
                         continue
                     }
                     let displayName = "\(batchId) - \(substrate.display)"
-                    let numeric = Self.numericTags(from: metadata)
+                    let numeric = Self.numericTags(from: metadata, aliases: numericKeyAliases)
                     let sample = LibrarySample(
                         id: sampleKey,
                         displayName: displayName,
@@ -168,39 +192,6 @@ final class LibraryRegistryParser {
         return merged
     }
 
-    private static func headerValueByColumnIndex(row: Row, sharedStrings: SharedStrings?) -> [Int: String] {
-        var headerByColumn: [Int: String] = [:]
-        for cell in row.cells {
-            guard
-                let column = columnIndex(for: cell),
-                let value = cellString(cell: cell, sharedStrings: sharedStrings)
-            else {
-                continue
-            }
-            headerByColumn[column] = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return headerByColumn
-    }
-
-    private static func rowMetadata(row: Row, headerByColumn: [Int: String], sharedStrings: SharedStrings?) -> [String: String] {
-        var metadata: [String: String] = [:]
-        for cell in row.cells {
-            guard
-                let column = columnIndex(for: cell),
-                let value = cellString(cell: cell, sharedStrings: sharedStrings)
-            else {
-                continue
-            }
-            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else {
-                continue
-            }
-            let key = headerByColumn[column] ?? "Column\(column)"
-            metadata[key] = trimmed
-        }
-        return metadata
-    }
-
     private static func orderedHeaderValues(headerByColumn: [Int: String]) -> [String] {
         headerByColumn
             .keys
@@ -220,63 +211,26 @@ final class LibraryRegistryParser {
         headerByColumn: [Int: String],
         sharedStrings: SharedStrings?
     ) -> [LibraryMetadataItem] {
-        let metadata = rowMetadata(row: row, headerByColumn: headerByColumn, sharedStrings: sharedStrings)
+        let metadata = XLSXSheetValueReader.rowMetadata(row: row, headerByColumn: headerByColumn, sharedStrings: sharedStrings)
         return orderedKeys.map { key in
             LibraryMetadataItem(key: key, value: metadata[key] ?? "")
         }
     }
 
-    private static func rowValue(row: Row, atColumn column: Int, sharedStrings: SharedStrings?) -> String? {
-        for cell in row.cells {
-            guard columnIndex(for: cell) == column else {
-                continue
-            }
-            guard let value = cellString(cell: cell, sharedStrings: sharedStrings) else {
-                return nil
-            }
-            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
-        }
-        return nil
-    }
-
-    private static func cellString(cell: Cell, sharedStrings: SharedStrings?) -> String? {
-        if let sharedStrings {
-            return cell.stringValue(sharedStrings)
-        }
-        return cell.value
-    }
-
-    private static func columnIndex(for cell: Cell) -> Int? {
-        let reference = cell.reference
-        return columnIndex(from: reference.column.value)
-    }
-
-    private static func columnIndex(from columnLabel: String) -> Int? {
-        var value = 0
-        for character in columnLabel.uppercased().unicodeScalars {
-            guard character.value >= 65, character.value <= 90 else {
-                continue
-            }
-            value = (value * 26) + Int(character.value - 64)
-        }
-        return value == 0 ? nil : value
-    }
-
-    private static func columnIndex(for headerByColumn: [Int: String], names: [String]) -> Int? {
+    private static func columnIndex(for headerByColumn: [Int: String], aliases: Set<String>) -> Int? {
         for (column, header) in headerByColumn {
-            if names.contains(header) {
+            if aliases.contains(header) {
                 return column
             }
         }
         return nil
     }
 
-    private static func numericTags(from metadata: [String: String]) -> (tags: [String: Double], display: [String: String]) {
+    private static func numericTags(from metadata: [String: String], aliases: [String: [String]]) -> (tags: [String: Double], display: [String: String]) {
         var tags: [String: Double] = [:]
         var display: [String: String] = [:]
         for (key, value) in metadata {
-            guard let normalizedKey = normalizeNumericKey(key),
+            guard let normalizedKey = normalizeNumericKey(key, aliases: aliases),
                   let number = numericValue(for: normalizedKey, value: value)
             else {
                 continue
@@ -288,27 +242,18 @@ final class LibraryRegistryParser {
     }
 
     static func normalizeNumericKey(_ key: String) -> String? {
+        normalizeNumericKey(key, aliases: Self.ruleProvider.registryRules().numericKeyAliases)
+    }
+
+    static func normalizeNumericKey(_ key: String, aliases: [String: [String]]) -> String? {
         let lowered = key.lowercased()
-        if lowered.contains("预打") || lowered.contains("生长次数") {
-            return "厚度"
-        }
-        if lowered.contains("温度") || lowered.contains("temperature") {
-            return "温度"
-        }
-        if lowered.contains("氧压") || lowered.contains("pressure") || lowered.contains("压") {
-            return "氧压"
-        }
-        if lowered.contains("能量") || lowered.contains("energy") {
-            return "能量"
-        }
-        if lowered.contains("电压") || lowered.contains("kv") {
-            return "电压"
-        }
-        if lowered.contains("磁场") || lowered.contains("field") {
-            return "磁场"
-        }
-        if lowered.contains("电阻") || lowered.contains("current") {
-            return "电阻"
+        for canonicalKey in aliases.keys.sorted() {
+            guard let keywords = aliases[canonicalKey] else {
+                continue
+            }
+            if keywords.contains(where: { lowered.contains($0.lowercased()) }) {
+                return canonicalKey
+            }
         }
         return nil
     }
@@ -408,16 +353,13 @@ struct LibrarySubstrate {
 }
 
 final class LibrarySubstrateParser {
-    private let materialTokens = [
-        "STO",
-        "NGO",
-        "MAO",
-        "MGO",
-        "AL2O3",
-        "SI",
-        "POLY-SIO2 ON SI",
-        "POLY-SIO2"
-    ]
+    private let materialTokens: [String]
+    private let processingKeywords: [String: [String]]
+
+    init(materialTokens: [String], processingKeywords: [String: [String]]) {
+        self.materialTokens = materialTokens
+        self.processingKeywords = processingKeywords
+    }
 
     func parse(_ raw: String) -> [LibrarySubstrate] {
         let cleaned = raw
@@ -493,10 +435,9 @@ final class LibrarySubstrateParser {
         if parseOrientation(upper) != nil {
             return true
         }
-        if upper.contains("HF") || upper.contains("BAKE") || upper.contains("BAKED") {
-            return true
-        }
-        if upper.contains("ORIGINAL") || upper.contains("ORIGIN") || upper.contains(" O ") || upper.hasPrefix("O ") {
+        if processingKeywords.values.flatMap({ $0 }).contains(where: { keyword in
+            upper.contains(keyword) || (keyword == " O " && upper.hasPrefix("O "))
+        }) {
             return true
         }
         return false
@@ -504,14 +445,15 @@ final class LibrarySubstrateParser {
 
     private func parseProcessingTokens(_ value: String) -> [String] {
         var tokens: [String] = []
-        if value.contains("HF") {
-            tokens.append("HF")
-        }
-        if value.contains("BAKE") || value.contains("BAKED") {
-            tokens.append("baked")
-        }
-        if value.contains("ORIGINAL") || value.contains("ORIGIN") || value.contains(" O ") || value.hasPrefix("O ") {
-            tokens.append("o")
+        for canonical in processingKeywords.keys.sorted() {
+            guard let keywords = processingKeywords[canonical] else {
+                continue
+            }
+            if keywords.contains(where: { keyword in
+                value.contains(keyword) || (keyword == " O " && value.hasPrefix("O "))
+            }) {
+                tokens.append(canonical)
+            }
         }
         return Array(Set(tokens))
     }

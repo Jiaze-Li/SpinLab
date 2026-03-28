@@ -156,6 +156,29 @@ struct V210ImportAndParseTests {
         #expect(parsed.measurementName == "unknown_pattern_file")
     }
 
+    @Test("parser recognizes expanded current and field units")
+    func parserRecognizesExpandedCurrentAndFieldUnits() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_0.5A_250mT_ch1_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.current == "0.5A")
+        #expect(parsed.field == "250mT")
+    }
+
+    @Test("parser recognizes celsius temperature tokens")
+    func parserRecognizesCelsiusTemperatureTokens() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_25C_1mA_ch1_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.temperature == "25C")
+    }
+
     private func loadBundledRuleSetForTests() throws -> FilenameRuleSet {
         let testsDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         let projectRoot = testsDir.deletingLastPathComponent().deletingLastPathComponent()

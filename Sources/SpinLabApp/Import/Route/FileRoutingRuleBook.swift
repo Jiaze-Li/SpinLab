@@ -243,7 +243,8 @@ struct FileRoutingRuleBook {
     }
 
     private static func loadSemanticRulesForCurrentFingerprint() -> FileRoutingSemanticRules {
-        let ruleLoadResult = RuleLoader.shared.loadCached()
+        let ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared
+        let ruleLoadResult = ruleProvider.loadResult()
         let fingerprint = ruleLoadResult.metadata.fingerprint
 
         semanticRuleCacheLock.lock()
@@ -253,7 +254,7 @@ struct FileRoutingRuleBook {
             return cached.rules
         }
 
-        let refreshedRules = FileRoutingSemanticRules.load()
+        let refreshedRules = FileRoutingSemanticRules.load(ruleProvider: ruleProvider)
         semanticRuleCache = (fingerprint: fingerprint, rules: refreshedRules)
         return refreshedRules
     }
