@@ -35,6 +35,18 @@ struct V225RulesConfigContractTests {
         #expect(ruleSet.version == RuleLoader.currentSchemaVersion)
     }
 
+    @Test("single-letter treatment token follows configured canonical mapping")
+    func singleLetterTreatmentTokenFollowsConfiguredCanonicalMapping() throws {
+        let rules = try loadRuleSet()
+        let substrate = try #require(rules.sharedSubstrate)
+        let canonical = substrate.treatmentKeywords.first { _, keywords in
+            keywords.contains(where: { $0.lowercased() == "b" })
+        }?.key
+        let expected = try #require(canonical)
+
+        #expect(SampleSemanticDescriptor.normalizedProcessingTokenForRules("B") == expected)
+    }
+
     private func loadRuleSet() throws -> FilenameRuleSet {
         let testsDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         let projectRoot = testsDir.deletingLastPathComponent().deletingLastPathComponent()

@@ -21,10 +21,11 @@
         "original"
       ],
       "treatmentKeywords": {
-        "hf": [
+        "HF": [
           "hf"
         ],
         "baked": [
+          "b",
           "bake",
           "baked"
         ],
@@ -62,6 +63,7 @@
           "scope": "tokens",
           "type": "equalsOrContainsAny",
           "values": [
+            "B",
             "BAKE",
             "BAKED"
           ]
@@ -333,6 +335,7 @@
           "HF"
         ],
         "baked": [
+          "B",
           "BAKE",
           "BAKED"
         ],

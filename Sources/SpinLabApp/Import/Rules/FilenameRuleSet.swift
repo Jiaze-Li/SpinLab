@@ -481,7 +481,7 @@ struct FilenameRuleSet: Decodable {
                 substrateMaterialTokens: ["STO", "NGO", "MAO", "MGO", "AL2O3", "SI", "POLY-SIO2 ON SI", "POLY-SIO2"],
                 substrateProcessingKeywords: [
                     "HF": ["HF"],
-                    "baked": ["BAKE", "BAKED"],
+                    "baked": ["B", "BAKE", "BAKED"],
                     "o": ["ORIGINAL", "ORIGIN", " O "]
                 ],
                 metadataLookupAliases: [
@@ -502,8 +502,8 @@ struct FilenameRuleSet: Decodable {
                 originStandaloneTokens: ["o"],
                 originContainsTokens: ["origin", "original"],
                 treatmentKeywords: [
-                    "hf": ["hf"],
-                    "baked": ["bake", "baked"],
+                    "HF": ["hf"],
+                    "baked": ["b", "bake", "baked"],
                     "o": ["o", "origin", "original"]
                 ],
                 materialTokens: ["STO", "NGO", "MAO", "MGO", "AL2O3", "SI", "POLY-SIO2 ON SI", "POLY-SIO2"],

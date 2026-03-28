@@ -1,6 +1,8 @@
 import Foundation
 
 struct SampleSemanticDescriptor: Hashable {
+    private static let ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared
+
     var batch: String?
     var processingTokens: Set<String>
     var material: String?
@@ -61,7 +63,7 @@ struct SampleSemanticDescriptor: Hashable {
         material: String?,
         orientation: String?
     ) -> SampleSemanticDescriptor {
-        let processing = substrateTokens.filter { ["o", "HF", "baked"].contains($0) }
+        let processing = substrateTokens.compactMap(normalizedProcessingTokenForRules)
         return SampleSemanticDescriptor(
             batch: batchId,
             processingTokens: Set(processing),
@@ -107,20 +109,27 @@ struct SampleSemanticDescriptor: Hashable {
         guard let token else {
             return nil
         }
-        let upper = token.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        guard !upper.isEmpty else {
+        let normalizedInput = token.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalizedInput.isEmpty else {
             return nil
         }
-        switch upper {
-        case "O", "ORIGIN", "ORIGINAL":
-            return "o"
-        case "HF":
-            return "HF"
-        case "BAKED", "BAKE":
-            return "baked"
-        default:
-            return nil
+
+        let treatmentKeywords = ruleProvider.sharedSubstrateRules().treatmentKeywords
+            .mapValues { keywords in keywords.map { $0.lowercased() } }
+        for canonical in treatmentKeywords.keys.sorted() {
+            guard let keywords = treatmentKeywords[canonical] else {
+                continue
+            }
+            if keywords.contains(where: { keyword in
+                if keyword.count <= 1 {
+                    return normalizedInput == keyword
+                }
+                return normalizedInput == keyword || normalizedInput.contains(keyword)
+            }) {
+                return canonical
+            }
         }
+        return nil
     }
 
     static func normalizedProcessingTokenForRules(_ token: String?) -> String? {

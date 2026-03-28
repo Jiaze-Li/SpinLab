@@ -445,12 +445,19 @@ final class LibrarySubstrateParser {
 
     private func parseProcessingTokens(_ value: String) -> [String] {
         var tokens: [String] = []
+        let separatedTokens = value
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
         for canonical in processingKeywords.keys.sorted() {
             guard let keywords = processingKeywords[canonical] else {
                 continue
             }
             if keywords.contains(where: { keyword in
-                value.contains(keyword) || (keyword == " O " && value.hasPrefix("O "))
+                if keyword.count <= 1 {
+                    return separatedTokens.contains { $0.caseInsensitiveCompare(keyword) == .orderedSame }
+                }
+                return value.contains(keyword)
             }) {
                 tokens.append(canonical)
             }
@@ -494,16 +501,7 @@ final class LibrarySubstrateParser {
     }
 
     private func displayProcessingPrefix(_ processing: [String]) -> String {
-        var parts: [String] = []
-        if processing.contains("o") {
-            parts.append("o")
-        }
-        if processing.contains("HF") {
-            parts.append("HF")
-        }
-        if processing.contains("baked") {
-            parts.append("baked")
-        }
+        let parts = processing.sorted()
         if parts.isEmpty {
             return ""
         }

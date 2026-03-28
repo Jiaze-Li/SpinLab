@@ -173,7 +173,7 @@ struct RegistrySubstrateRuleBook: RegistrySubstrateRuleProviding {
             }
         }
 
-        if constraints.treatments.contains("hf") || constraints.treatments.contains("baked") {
+        if constraints.treatments.contains(where: { $0 != "o" }) {
             constraints.treatments.remove("o")
         }
 
