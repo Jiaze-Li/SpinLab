@@ -16,9 +16,14 @@ final class LibraryRegistryParser {
 
     init(ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared) {
         let registryRules = ruleProvider.registryRules()
+        let sharedSubstrateRules = ruleProvider.sharedSubstrateRules()
         substrateParser = LibrarySubstrateParser(
             materialTokens: registryRules.substrateMaterialTokens,
-            processingKeywords: registryRules.substrateProcessingKeywords
+            processingKeywords: registryRules.substrateProcessingKeywords,
+            orientationTokens: (sharedSubstrateRules.orientationTokens ?? []).map { $0.uppercased() },
+            orientationAliases: (sharedSubstrateRules.orientationAliases ?? [:]).reduce(into: [:]) { partial, entry in
+                partial[entry.key.uppercased()] = entry.value.uppercased()
+            }
         )
         excludedSheetNames = Set(registryRules.excludedSheetNames)
         batchHeaderAliases = Set(registryRules.batchHeaderAliases)
@@ -355,10 +360,19 @@ struct LibrarySubstrate {
 final class LibrarySubstrateParser {
     private let materialTokens: [String]
     private let processingKeywords: [String: [String]]
+    private let orientationTokens: [String]
+    private let orientationAliases: [String: String]
 
-    init(materialTokens: [String], processingKeywords: [String: [String]]) {
+    init(
+        materialTokens: [String],
+        processingKeywords: [String: [String]],
+        orientationTokens: [String],
+        orientationAliases: [String: String]
+    ) {
         self.materialTokens = materialTokens
         self.processingKeywords = processingKeywords
+        self.orientationTokens = orientationTokens
+        self.orientationAliases = orientationAliases
     }
 
     func parse(_ raw: String) -> [LibrarySubstrate] {
@@ -466,17 +480,10 @@ final class LibrarySubstrateParser {
     }
 
     private func parseOrientation(_ value: String) -> String? {
-        if value.contains("0001") {
-            return "0001"
-        }
-        if value.contains("111") {
-            return "111"
-        }
-        if value.contains("110") {
-            return "110"
-        }
-        if value.contains("100") || value.contains("001") {
-            return "001"
+        for token in orientationTokens.sorted(by: { $0.count > $1.count }) {
+            if value.contains(token) {
+                return orientationAliases[token] ?? token
+            }
         }
         return nil
     }

@@ -61,6 +61,9 @@ struct FilenameRuleSet: Decodable {
         var originContainsTokens: [String]
         var treatmentKeywords: [String: [String]]
         var materialTokens: [String]
+        var materialAliases: [String: String]?
+        var orientationTokens: [String]?
+        var orientationAliases: [String: String]?
         var orientationPattern: String
     }
 
@@ -507,6 +510,13 @@ struct FilenameRuleSet: Decodable {
                     "o": ["o", "origin", "original"]
                 ],
                 materialTokens: ["STO", "NGO", "MAO", "MGO", "AL2O3", "SI", "POLY-SIO2 ON SI", "POLY-SIO2"],
+                materialAliases: [
+                    "ONSI": "SI"
+                ],
+                orientationTokens: ["111", "110", "001", "100", "0001"],
+                orientationAliases: [
+                    "100": "001"
+                ],
                 orientationPattern: "\\d{3}"
             )
         )

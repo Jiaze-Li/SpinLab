@@ -27,6 +27,7 @@ struct V225RulesConfigContractTests {
         #expect(!importRules.supportedFileExtensions.isEmpty)
         #expect(!sharedSubstrate.treatmentKeywords.isEmpty)
         #expect(!sharedSubstrate.materialTokens.isEmpty)
+        #expect(!(sharedSubstrate.orientationTokens ?? []).isEmpty)
     }
 
     @Test("rules schema version stays on supported runtime version")

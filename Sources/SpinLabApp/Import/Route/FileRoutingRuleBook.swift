@@ -236,7 +236,7 @@ struct FileRoutingRuleBook {
         let semanticRules = Self.loadSemanticRulesForCurrentFingerprint()
         for token in semanticRules.orientationNeedles.sorted(by: { $0.count > $1.count }) {
             if normalized.contains(token) {
-                return token == "100" ? "001" : token
+                return semanticRules.orientationAliases[token] ?? token
             }
         }
         return nil
