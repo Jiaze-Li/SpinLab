@@ -14,6 +14,14 @@ struct RegistryLookupRuleBook: RegistryLookupRuleProviding {
         "编号",
         "样品编号"
     ]
+    private let sampleTokenSeparators: CharacterSet
+    private let parseSampleIDsFromTokens: ([String]) -> [String]
+
+    init(ruleLoadResult: RuleLoader.LoadResult = RuleLoader.shared.loadCached()) {
+        let separatorString = ruleLoadResult.ruleSet.tokenization.separators + "/／,，;；|"
+        sampleTokenSeparators = CharacterSet(charactersIn: separatorString)
+        parseSampleIDsFromTokens = ruleLoadResult.ruleSet.sampleIDs(from:)
+    }
 
     func shouldIndexSheet(named sheetName: String, headerByColumn: [Int: String]) -> Bool {
         let trimmedName = sheetName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -39,14 +47,15 @@ struct RegistryLookupRuleBook: RegistryLookupRuleProviding {
     }
 
     func sampleIDCandidates(from cellValue: String) -> [String] {
-        let separators = CharacterSet(charactersIn: "/／,，;；|")
-        let chunks = cellValue.components(separatedBy: separators)
+        let chunks = cellValue.components(separatedBy: sampleTokenSeparators)
         var seen: Set<String> = []
         var ordered: [String] = []
 
         for chunk in chunks {
-            let normalized = normalizedLookupSampleID(chunk)
-            guard !normalized.isEmpty, !seen.contains(normalized) else {
+            let parsed = parseSampleIDsFromTokens([chunk])
+            guard let normalized = parsed.first,
+                  !normalized.isEmpty,
+                  !seen.contains(normalized) else {
                 continue
             }
             seen.insert(normalized)
@@ -57,7 +66,10 @@ struct RegistryLookupRuleBook: RegistryLookupRuleProviding {
     }
 
     func normalizedLookupSampleID(_ sampleID: String) -> String {
-        sampleID.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if let normalized = parseSampleIDsFromTokens([sampleID]).first {
+            return normalized
+        }
+        return sampleID.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
     }
 
     private func normalizedHeader(_ header: String) -> String {

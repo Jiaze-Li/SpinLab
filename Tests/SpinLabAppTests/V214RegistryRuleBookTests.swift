@@ -31,4 +31,11 @@ struct V214RegistryRuleBookTests {
         #expect(parsed == ["PN41", "PN42"])
         #expect(rules.normalizedLookupSampleID(" pn41 ") == "PN41")
     }
+
+    @Test("sample ID candidates follow filename sample-id patterns")
+    func sampleIDCandidatesFollowFilenameRules() {
+        let parsed = rules.sampleIDCandidates(from: "foo / PN41 / unknown / S20")
+
+        #expect(parsed == ["PN41", "S20"])
+    }
 }
