@@ -220,6 +220,16 @@ Import pipeline policy (required):
 
 ---
 
+Legacy cleanup policy (required):
+- `[HARD][must]` When a change replaces old behavior (rules, parsing, matching, display mapping), remove superseded code paths in the same change. Do not leave dead fallback branches.
+- `[HARD][must]` Cleanup scope includes runtime artifacts, not only source code:
+  - App runtime override config (e.g. `~/Library/Application Support/com.spinlab.app/config/filename_rules.json`)
+  - Cached or persisted state whose semantics are changed by the update
+- `[HARD][must]` After cleanup, verify that runtime-loaded rules and bundled rules are aligned (hash/path/source check) before sign-off.
+- `[DIRECTION][should]` If backward compatibility is needed, keep compatibility only in configuration aliases, not in duplicated Swift hard-coded logic.
+
+---
+
 Domain model policy (required):
 - All domain models must be struct, not class.
 - All domain models must explicitly conform to Codable, Hashable, and Sendable. Add Identifiable where applicable.
