@@ -32,6 +32,24 @@ final class LibraryViewModel {
             previewGroupsByPrefix: appState.library.libraryPreviewGroups,
             batchSyncStatusByID: appState.library.libraryBatchSyncStatusByID,
             existingGroupsByPrefix: appState.library.libraryExistingGroups,
+            selectedPrefix: appState.library.librarySelectedPrefix,
+            selectedBatchId: appState.library.librarySelectedBatchId,
+            selectedSampleId: appState.library.librarySelectedSampleId,
+            activeSelectionSource: appState.library.libraryActiveSelectionSource,
+            sampleEditDraft: appState.library.librarySampleEditDraft,
+            sampleEditError: appState.library.librarySampleEditError,
+            sampleEditMessage: appState.library.librarySampleEditMessage,
+            sampleEditIsDirty: appState.library.librarySampleEditIsDirty,
+            sampleEditIsSaving: appState.library.librarySampleEditIsSaving,
+            canEditSelectedLibrarySample: appState.library.canEditSelectedLibrarySample,
+            globalManualLogs: appState.library.libraryGlobalManualLogs,
+            globalManualLogError: appState.library.libraryGlobalManualLogError,
+            globalManualLogMessage: appState.library.libraryGlobalManualLogMessage,
+            metadataSyncLogs: appState.library.libraryMetadataSyncLogs,
+            metadataSyncLogError: appState.library.libraryMetadataSyncLogError,
+            metadataSyncLogMessage: appState.library.libraryMetadataSyncLogMessage,
+            sampleSyncChangesByID: appState.library.librarySampleSyncChangesByID,
+            batchSyncChangesByID: appState.library.libraryBatchSyncChangesByID,
             restoredInteractionState: appState.interactionValue(\.libraryView)
         )
     }
@@ -103,6 +121,12 @@ final class LibraryViewModel {
             },
             updateLibraryBackupPath: { url in
                 appState.updateLibraryBackupPath(to: url)
+            },
+            loadSampleRegistry: { url in
+                appState.loadSampleRegistry(from: url)
+            },
+            reloadSampleRegistry: {
+                appState.reloadSampleRegistry()
             },
             persistInteractionState: { state in
                 appState.updateInteractionValue(\.libraryView, to: state)
@@ -194,6 +218,14 @@ final class LibraryViewModel {
         actions.updateLibraryBackupPath(url)
     }
 
+    func loadSampleRegistry(from url: URL) {
+        actions.loadSampleRegistry(url)
+    }
+
+    func reloadSampleRegistry() {
+        actions.reloadSampleRegistry()
+    }
+
     func persistInteractionState(_ state: LibraryInteractionState) {
         actions.persistInteractionState(state)
     }
@@ -221,6 +253,8 @@ private struct LibraryViewActions {
     var markLibraryGlobalManualLogStatus: (Int, LibraryManualLogStatus) -> Void = { _, _ in }
     var updateLibraryRoot: (URL) -> Void = { _ in }
     var updateLibraryBackupPath: (URL) -> Void = { _ in }
+    var loadSampleRegistry: (URL) -> Void = { _ in }
+    var reloadSampleRegistry: () -> Void = {}
     var persistInteractionState: (LibraryInteractionState) -> Void = { _ in }
 }
 
@@ -244,5 +278,23 @@ struct LibraryViewState {
     var previewGroupsByPrefix: [String: [LibraryPreviewBatchGroup]] = [:]
     var batchSyncStatusByID: [String: LibrarySyncBatchStatus] = [:]
     var existingGroupsByPrefix: [String: [LibraryPreviewBatchGroup]] = [:]
+    var selectedPrefix: String?
+    var selectedBatchId: String?
+    var selectedSampleId: String?
+    var activeSelectionSource: LibrarySelectionSource = .browser
+    var sampleEditDraft: LibrarySampleEditDraft?
+    var sampleEditError: String?
+    var sampleEditMessage: String?
+    var sampleEditIsDirty: Bool = false
+    var sampleEditIsSaving: Bool = false
+    var canEditSelectedLibrarySample: Bool = false
+    var globalManualLogs: [LibraryManualUpdateLogEntry] = []
+    var globalManualLogError: String?
+    var globalManualLogMessage: String?
+    var metadataSyncLogs: [LibraryMetadataSyncLogEntry] = []
+    var metadataSyncLogError: String?
+    var metadataSyncLogMessage: String?
+    var sampleSyncChangesByID: [String: [LibraryFieldChange]] = [:]
+    var batchSyncChangesByID: [String: [LibraryFieldChange]] = [:]
     var restoredInteractionState = LibraryInteractionState()
 }

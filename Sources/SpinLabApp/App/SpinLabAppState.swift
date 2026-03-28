@@ -341,10 +341,102 @@ final class SpinLabAppState {
     private let dataActor: any SpinLabDataActing
     private let registryLifecycleService = RegistryLifecycleService()
     private let registryCoordinator = RegistryCoordinator()
+    @ObservationIgnored
+    private lazy var registryFacade = RegistryFacade(
+        managedStorage: managedStorage,
+        registryLifecycleService: registryLifecycleService,
+        registryCoordinator: registryCoordinator,
+        dataActor: dataActor,
+        appLogger: appLogger,
+        currentLibrarySettings: { [unowned self] in
+            libraryFeatureStore.librarySettings
+        },
+        resolveRegistrySourceURL: { [unowned self] in
+            resolveRegistrySourceURL()
+        },
+        onApplyRegistryContext: { [unowned self] context in
+            applyLoadedRegistryContext(context)
+        },
+        onPresentError: { [unowned self] error, title in
+            present(error: error, title: title)
+        },
+        onForwardLoad: { [unowned self] url in
+            loadSampleRegistry(from: url)
+        }
+    )
     private let inboxWorkflowService = InboxWorkflowService()
+    @ObservationIgnored
+    private lazy var inboxFacade = InboxFacade(
+        inboxWorkflowService: inboxWorkflowService,
+        inboxStore: inboxFeatureStore,
+        managedStorage: managedStorage,
+        importPipeline: importPipeline,
+        existingImportedOriginalPaths: { [unowned self] in
+            existingImportedOriginalPaths()
+        },
+        syncInboxWorkspaceToPendingImports: { [unowned self] in
+            syncInboxWorkspaceToPendingImports()
+        },
+        persistInteractionSnapshotIfReady: { [unowned self] in
+            persistInteractionSnapshotIfReady()
+        },
+        selectFirstImportedPendingAndFocusInbox: { [unowned self] pendingID in
+            selectedPendingImportID = pendingID
+            selectedArea = .inbox
+        },
+        refreshRoutingRuleMetadata: { [unowned self] in
+            refreshRoutingRuleMetadata(forceReload: true)
+        },
+        readInboxWorkspace: { [unowned self] in
+            interactionValue(\.inboxWorkspaceByPendingID)
+        },
+        writeInboxWorkspace: { [unowned self] workspace in
+            updateInteractionValue(\.inboxWorkspaceByPendingID, to: workspace)
+        },
+        recomputedParsedHints: { [unowned self] pending in
+            recomputedParsedHints(for: pending)
+        },
+        pendingDisplayDraft: { [unowned self] pending in
+            pendingDisplayDraft(for: pending)
+        },
+        bumpAppStateRevision: { [unowned self] in
+            bumpAppStateRevision()
+        }
+    )
     private let libraryPreviewComputationService = LibraryPreviewComputationService()
     private let libraryMutationOrchestrator = LibraryMutationOrchestrator()
     private let libraryMutationService = LibraryMutationService()
+    @ObservationIgnored
+    private lazy var libraryCommandCoordinator = LibraryCommandCoordinator(
+        featureStore: libraryFeatureStore,
+        mutationService: libraryMutationService,
+        orchestrator: libraryMutationOrchestrator
+    )
+    @ObservationIgnored
+    private lazy var libraryFacade = LibraryFacade(
+        featureStore: libraryFeatureStore,
+        commandCoordinator: libraryCommandCoordinator,
+        saveLibrarySampleEditsUseCase: saveLibrarySampleEditsUseCase,
+        appLogger: appLogger,
+        resolveRegistrySourceURL: { [weak self] in
+            self?.resolveRegistrySourceURL()
+        },
+        applyExistingIndex: { [weak self] index in
+            self?.applyExistingIndex(index)
+        },
+        refreshActionablePreviewGroups: { [weak self] diff, baseline in
+            self?.refreshActionablePreviewGroups(precomputedDiff: diff, baselineIndex: baseline)
+        },
+        commitLibraryMutation: { [weak self] rootURL, previewIndex in
+            self?.commitLibraryMutation(rootURL: rootURL, previewIndex: previewIndex)
+        },
+        loadExistingDrawers: { [weak self] in
+            self?.loadExistingDrawers()
+        },
+        presentError: { [weak self] error, title in
+            self?.present(error: error, title: title)
+        }
+    )
     private let coordinator = AppCoordinator()
     private let confirmPendingImportUseCase = ConfirmPendingImportUseCase()
     private let saveLibrarySampleEditsUseCase = SaveLibrarySampleEditsUseCase()
@@ -487,7 +579,7 @@ final class SpinLabAppState {
     }
 
     var canReloadSampleRegistry: Bool {
-        resolveRegistrySourceURL() != nil
+        registryFacade.canReloadSampleRegistry()
     }
 
     var pendingDrawerMatchByID: [UUID: Bool] {
@@ -554,16 +646,7 @@ final class SpinLabAppState {
     }
 
     private func refreshRoutingRuleMetadata(forceReload: Bool) {
-        let loadResult = registryCoordinator.refreshRoutingRuleMetadata(
-            inboxStore: inboxFeatureStore,
-            forceReload: forceReload
-        )
-        appLogger.info(.import, "Routing rule metadata updated", metadata: [
-            "version": "\(loadResult.metadata.version)",
-            "source": loadResult.metadata.sourceLabel,
-            "path": loadResult.metadata.sourcePath,
-            "fingerprint": loadResult.metadata.fingerprint
-        ])
+        registryFacade.refreshRoutingRuleMetadata(inboxStore: inboxFeatureStore, forceReload: forceReload)
     }
 
     var registryPrefixMap: [String: String] {
@@ -729,88 +812,23 @@ final class SpinLabAppState {
     }
 
     func importFiles(from urls: [URL]) {
-        let existingOriginalPaths = existingImportedOriginalPaths()
-        let imported = inboxWorkflowService.importFiles(
-            urls: urls,
-            inboxStore: inboxFeatureStore,
-            managedStorage: managedStorage,
-            importPipeline: importPipeline,
-            excludedOriginalPaths: existingOriginalPaths
-        )
-        guard !imported.isEmpty else {
-            return
-        }
-        syncInboxWorkspaceToPendingImports()
-        persistInteractionSnapshotIfReady()
-        selectedPendingImportID = imported.first?.id
-        selectedArea = .inbox
+        inboxFacade.importFiles(from: urls)
     }
 
     func clearPendingImports() {
-        inboxWorkflowService.clearPendingImports(inboxStore: inboxFeatureStore)
-        updateInteractionValue(\.inboxWorkspaceByPendingID, to: [:])
-        persistInteractionSnapshotIfReady()
+        inboxFacade.clearPendingImports()
     }
 
     func recomputeAllPendingParsedHints() {
-        refreshRoutingRuleMetadata(forceReload: true)
-        let recomputeOutcome = inboxWorkflowService.recomputeAllPendingParsedHints(
-            inboxStore: inboxFeatureStore,
-            existingWorkspaceByPendingID: interactionValue(\.inboxWorkspaceByPendingID),
-            recomputeHints: { pending in
-                recomputedParsedHints(for: pending)
-            },
-            pendingDisplayDraft: { pending in
-                pendingDisplayDraft(for: pending)
-            }
-        )
-        updateInteractionValue(\.inboxWorkspaceByPendingID, to: recomputeOutcome.workspaceByPendingID)
-        persistInteractionSnapshotIfReady()
-        bumpAppStateRevision()
+        inboxFacade.recomputeAllPendingParsedHints()
     }
 
     func loadSampleRegistry(from url: URL) {
-        Task {
-            let outcome = await registryCoordinator.loadSampleRegistry(
-                from: url,
-                managedStorage: managedStorage,
-                registryLifecycleService: registryLifecycleService,
-                dataActor: dataActor
-            )
-            await MainActor.run {
-                switch outcome {
-                case let .success(context):
-                    applyLoadedRegistryContext(context)
-                case let .failure(appError):
-                    present(error: appError, title: "Registry Load Failed")
-                    appLogger.warning(.import, "Sample registry load failed", metadata: ["error": appError.localizedDescription])
-                }
-            }
-        }
+        registryFacade.loadSampleRegistry(from: url)
     }
 
     func reloadSampleRegistry() {
-        Task {
-            let outcome = await registryCoordinator.reloadSampleRegistry(
-                librarySettings: libraryFeatureStore.librarySettings,
-                resolveRegistrySourceURL: { [weak self] in self?.resolveRegistrySourceURL() },
-                registryLifecycleService: registryLifecycleService,
-                dataActor: dataActor
-            )
-            await MainActor.run {
-                switch outcome {
-                case .unavailable:
-                    break
-                case let .forward(url):
-                    loadSampleRegistry(from: url)
-                case let .success(context):
-                    applyLoadedRegistryContext(context)
-                case let .failure(appError):
-                    present(error: appError, title: "Registry Reload Failed")
-                    appLogger.warning(.import, "Sample registry reload failed", metadata: ["error": appError.localizedDescription])
-                }
-            }
-        }
+        registryFacade.reloadSampleRegistry()
     }
 
     private func applyLoadedRegistryContext(_ context: RegistryLoadContext) {
@@ -936,13 +954,7 @@ final class SpinLabAppState {
     }
 
     func syncLibraryFromFiles() {
-        guard let outcome = libraryFeatureStore.syncLibraryFromFilesForCurrentRoot() else {
-            return
-        }
-        applyExistingIndex(outcome.syncedIndex)
-        refreshActionablePreviewGroups()
-        libraryFeatureStore.libraryRootVerificationMessage = outcome.summaryMessage
-        libraryFeatureStore.libraryRootVerificationPath = outcome.rootPath
+        libraryFacade.syncLibraryFromFiles()
     }
 
     func selectExistingDrawer(prefix: String, batchId: String, sampleId: String?) {
@@ -972,11 +984,7 @@ final class SpinLabAppState {
         guard libraryFeatureStore.hasPendingSelectionChange() else {
             return
         }
-        libraryFeatureStore.librarySampleEditDraft = nil
-        libraryState.sampleEditBaseSample = nil
-        libraryState.sampleEditOriginalDraft = nil
-        libraryFeatureStore.librarySampleEditError = nil
-        libraryFeatureStore.librarySampleEditMessage = "Edit discarded."
+        libraryFeatureStore.discardEditingSelectedLibrarySample()
         if let outcome = libraryFeatureStore.applyPendingSelectionChangeIfNeeded() {
             handleLibrarySelectionChangeOutcome(outcome)
         }
@@ -1010,12 +1018,7 @@ final class SpinLabAppState {
     }
 
     func deleteExistingDrawer(batchId: String) {
-        if let context = libraryFeatureStore.deleteExistingDrawer(
-            mutationService: libraryMutationService,
-            batchId: batchId
-        ) {
-            commitLibraryMutation(rootURL: context.rootURL, previewIndex: context.previewIndex)
-        }
+        libraryFacade.deleteExistingDrawer(batchId: batchId)
     }
 
     func beginEditingSelectedLibrarySample() {
@@ -1044,114 +1047,39 @@ final class SpinLabAppState {
     }
 
     func loadLibraryGlobalManualLogs() {
-        switch libraryFeatureStore.loadLibraryGlobalManualLogs(
-            resolveRegistrySourceURL: { [weak self] in self?.resolveRegistrySourceURL() }
-        ) {
-        case .success:
-            break
-        case let .failure(error):
-            present(error: error, title: "Log Load Failed")
-        }
+        libraryFacade.loadLibraryGlobalManualLogs()
     }
 
     func markLibraryGlobalManualLogStatus(rowIndex: Int, status: LibraryManualLogStatus) {
-        switch libraryFeatureStore.markLibraryGlobalManualLogStatus(
-            rowIndex: rowIndex,
-            status: status,
-            resolveRegistrySourceURL: { [weak self] in self?.resolveRegistrySourceURL() }
-        ) {
-        case .success:
-            break
-        case let .failure(error):
-            present(error: error, title: "Status Update Failed")
-        }
+        libraryFacade.markLibraryGlobalManualLogStatus(rowIndex: rowIndex, status: status)
     }
 
     func loadLibraryMetadataSyncLogs() {
-        switch libraryFeatureStore.loadLibraryMetadataSyncLogs(
-            resolveRegistrySourceURL: { [weak self] in self?.resolveRegistrySourceURL() }
-        ) {
-        case .success:
-            break
-        case let .failure(error):
-            present(error: error, title: "Log Load Failed")
-        }
+        libraryFacade.loadLibraryMetadataSyncLogs()
     }
 
     func saveLibrarySampleEdits() {
-        let outcome = libraryFeatureStore.saveLibrarySampleEdits(
-            useCase: saveLibrarySampleEditsUseCase,
-            resolveRegistrySourceURL: { [weak self] in
-                self?.resolveRegistrySourceURL()
-            }
-        )
-
-        switch outcome {
-        case let .success(rootURLForCommit, nonFatalError, message):
-            if let rootURL = rootURLForCommit {
-                commitLibraryMutation(rootURL: rootURL, previewIndex: libraryFeatureStore.libraryPreview?.index)
-            }
-            if let nonFatalError {
-                present(error: nonFatalError, title: "Sync Warning")
-                appLogger.warning(.library, "Library sample edit saved with sync warning", metadata: [
-                    "reason": nonFatalError.localizedDescription
-                ])
-            }
-            appLogger.info(.library, "Library sample edits saved", metadata: [
-                "message": message
-            ])
-        case let .failure(error):
-            present(error: error, title: "Save Failed")
-            appLogger.error(.library, "Library sample edit failed", metadata: [
-                "reason": error.localizedDescription
-            ])
-        }
+        libraryFacade.saveLibrarySampleEdits()
     }
 
     func prepareLibrarySyncReview(precomputedDiff: LibraryDiff? = nil) {
-        if let refreshState = libraryFeatureStore.prepareLibrarySyncReview(
-            mutationService: libraryMutationService,
-            orchestrator: libraryMutationOrchestrator,
-            precomputedDiff: precomputedDiff
-        ) {
-            let diff = refreshState.diff
-            let baselineIndex = refreshState.baselineIndex
-            refreshActionablePreviewGroups(precomputedDiff: diff, baselineIndex: baselineIndex)
-        }
+        libraryFacade.prepareLibrarySyncReview(precomputedDiff: precomputedDiff)
     }
 
     func refreshLibraryIncremental() {
-        if let context = libraryFeatureStore.refreshLibraryIncremental(
-            mutationService: libraryMutationService,
-            orchestrator: libraryMutationOrchestrator
-        ) {
-            // Recompute post-apply state from persisted filesystem/index; do not reuse pre-apply diff.
-            commitLibraryMutation(rootURL: context.rootURL, previewIndex: context.previewIndex)
-        }
+        libraryFacade.refreshLibraryIncremental()
     }
 
     func confirmLibraryNumericRefreshChanges() {
-        if libraryFeatureStore.confirmLibraryNumericRefreshChanges(mutationService: libraryMutationService) {
-            loadExistingDrawers()
-        }
+        libraryFacade.confirmLibraryNumericRefreshChanges()
     }
 
     func createDrawersFromPreview() {
-        if let context = libraryFeatureStore.createDrawersFromPreview(
-            mutationService: libraryMutationService
-        ) {
-            commitLibraryMutation(rootURL: context.rootURL, previewIndex: context.previewIndex)
-        }
+        libraryFacade.createDrawersFromPreview()
     }
 
     func createDrawersForSelection(batchId: String?, sampleId: String?) {
-        if let context = libraryFeatureStore.createDrawersForSelection(
-            mutationService: libraryMutationService,
-            batchId: batchId,
-            sampleId: sampleId
-        ) {
-            commitLibraryMutation(rootURL: context.rootURL, previewIndex: context.previewIndex)
-        }
+        libraryFacade.createDrawersForSelection(batchId: batchId, sampleId: sampleId)
     }
 
     func updateLibraryRoot(to url: URL) {

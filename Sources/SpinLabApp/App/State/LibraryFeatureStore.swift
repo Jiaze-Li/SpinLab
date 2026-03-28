@@ -616,6 +616,14 @@ final class LibraryFeatureStore {
         librarySampleEditMessage = message
     }
 
+    func discardEditingSelectedLibrarySample() {
+        librarySampleEditDraft = nil
+        libraryState.sampleEditBaseSample = nil
+        libraryState.sampleEditOriginalDraft = nil
+        librarySampleEditError = nil
+        librarySampleEditMessage = "Edit discarded."
+    }
+
     func updateLibrarySampleEditSubstrateTags(_ value: String) {
         guard var draft = librarySampleEditDraft else {
             return
