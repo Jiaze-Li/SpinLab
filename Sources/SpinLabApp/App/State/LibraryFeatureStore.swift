@@ -608,6 +608,11 @@ final class LibraryFeatureStore {
         libraryState.sampleEditOriginalDraft = draft
     }
 
+    func beginEditingSelectedDrawerSampleIfNeeded() {
+        let selectedSample = libraryActiveSelectionSource == .drawer ? selectedExistingDrawerSample() : nil
+        beginEditingSelectedLibrarySample(selectedSample: selectedSample)
+    }
+
     func cancelEditingSelectedLibrarySample(message: String = "Edit canceled.") {
         librarySampleEditDraft = nil
         libraryState.sampleEditBaseSample = nil

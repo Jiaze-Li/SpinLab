@@ -702,7 +702,7 @@ struct LibraryView: View {
     private var substrateTagsBinding: Binding<String> {
         Binding(
             get: { viewState.sampleEditDraft?.substrateTagsText ?? "" },
-            set: { appState.updateLibrarySampleEditSubstrateTags($0) }
+            set: { appState.library.updateLibrarySampleEditSubstrateTags($0) }
         )
     }
 
@@ -714,7 +714,7 @@ struct LibraryView: View {
                     .first(where: { $0.key == key })?
                     .value ?? ""
             },
-            set: { appState.updateLibrarySampleEditNumericValue(key: key, value: $0) }
+            set: { appState.library.updateLibrarySampleEditNumericValue(key: key, value: $0) }
         )
     }
 
@@ -726,13 +726,13 @@ struct LibraryView: View {
                     .first(where: { $0.key == key })?
                     .value ?? ""
             },
-            set: { appState.updateLibrarySampleEditMetadataValue(key: key, value: $0) }
+            set: { appState.library.updateLibrarySampleEditMetadataValue(key: key, value: $0) }
         )
     }
 
     private var pendingSelectionChangeDialogBinding: Binding<Bool> {
         Binding(
-            get: { appState.hasPendingLibrarySelectionChange() },
+            get: { appState.library.hasPendingSelectionChange() },
             set: { isPresented in
                 if !isPresented {
                     viewModel.cancelPendingSelectionChange()

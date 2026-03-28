@@ -65,10 +65,10 @@ final class LibraryViewModel {
                 appState.discardAndContinuePendingLibrarySelectionChange()
             },
             cancelPendingSelectionChange: {
-                appState.cancelPendingLibrarySelectionChange()
+                appState.library.cancelPendingSelectionChange()
             },
             verifyLibraryRoot: {
-                appState.verifyLibraryRoot()
+                appState.library.verifyLibraryRoot()
             },
             validateLibraryCacheOnAppear: {
                 appState.validateLibraryCacheOnAppear()
@@ -77,7 +77,7 @@ final class LibraryViewModel {
                 appState.syncLibraryFromFiles()
             },
             updateAllowedBatchPrefixes: { value in
-                appState.updateAllowedBatchPrefixes(from: value)
+                appState.library.updateAllowedBatchPrefixes(from: value)
             },
             syncLibraryBackup: {
                 appState.syncLibraryBackup()
@@ -105,13 +105,13 @@ final class LibraryViewModel {
                 appState.loadLibraryMetadataSyncLogs()
             },
             cancelEditingSelectedLibrarySample: {
-                appState.cancelEditingSelectedLibrarySample()
+                appState.library.cancelEditingSelectedLibrarySample()
             },
             saveLibrarySampleEdits: {
                 appState.saveLibrarySampleEdits()
             },
             beginEditingSelectedLibrarySample: {
-                appState.beginEditingSelectedLibrarySample()
+                appState.library.beginEditingSelectedDrawerSampleIfNeeded()
             },
             markLibraryGlobalManualLogStatus: { rowIndex, status in
                 appState.markLibraryGlobalManualLogStatus(rowIndex: rowIndex, status: status)
@@ -120,7 +120,7 @@ final class LibraryViewModel {
                 appState.updateLibraryRoot(to: url)
             },
             updateLibraryBackupPath: { url in
-                appState.updateLibraryBackupPath(to: url)
+                appState.library.updateLibraryBackupPath(to: url)
             },
             loadSampleRegistry: { url in
                 appState.loadSampleRegistry(from: url)

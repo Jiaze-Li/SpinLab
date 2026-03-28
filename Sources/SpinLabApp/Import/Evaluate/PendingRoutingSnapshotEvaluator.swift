@@ -7,6 +7,7 @@ struct PendingRoutingSnapshotEvaluator {
         routePlan: SpinLabDomain.RoutePlan,
         matchDrawer: (String) -> String?
     ) -> SpinLabDomain.PendingRoutingSnapshot {
+        // Evaluate only scopes with an explicit sample signal; empty sample scopes are non-actionable.
         let sampleResolutions = routePlan.channelResolutions.filter { normalized($0.sampleKey) != nil }
         let scopes = sampleResolutions.map { resolution in
             let sampleKey = normalized(resolution.sampleKey)
@@ -26,6 +27,7 @@ struct PendingRoutingSnapshotEvaluator {
             )
         }
 
+        // Channel-level mode is enabled when any non-file scope participates in final evaluation.
         let mode: SpinLabDomain.RoutingScopeMode = sampleResolutions.contains(where: { $0.channel != "file" })
             ? .channelLevel
             : .fileLevel

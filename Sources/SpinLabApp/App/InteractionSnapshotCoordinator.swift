@@ -80,4 +80,8 @@ final class InteractionSnapshotCoordinator {
             workbenchStore.captureInteraction(into: &snapshot)
         }
     }
+
+    func flushNow() {
+        interactionMemory.flushNow()
+    }
 }
