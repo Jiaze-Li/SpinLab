@@ -6,8 +6,6 @@ import Observation
 final class InboxFeatureStore {
     var pendingImports: [SpinLabDomain.PendingImport]
     var selectedPendingImportID: UUID?
-    var applyErrorMessage: String?
-    var lastApplyOutcome: InboxApplyOutcome?
     private(set) var routingRuleVersion: Int = 0
     private(set) var routingRuleSourceLabel: String = "unknown"
     private(set) var routingRuleSourcePath: String = "unknown"
@@ -213,17 +211,7 @@ final class InboxFeatureStore {
         )
     }
 
-    func applyPending(outcome: InboxApplyOutcome, appliedIDs: [UUID]) {
-        lastApplyOutcome = outcome
-        switch outcome {
-        case .failure(let message):
-            applyErrorMessage = message
-        case .partialSuccess:
-            applyErrorMessage = "Some pending imports failed during apply."
-        case .nothingToApply, .success:
-            applyErrorMessage = nil
-        }
-
+    func applyPending(appliedIDs: [UUID]) {
         guard !appliedIDs.isEmpty else {
             return
         }

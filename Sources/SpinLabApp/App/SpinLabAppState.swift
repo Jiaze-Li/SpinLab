@@ -1118,13 +1118,13 @@ final class SpinLabAppState {
 
         let pendingImports = inboxFeatureStore.pendingImports
         let routingSnapshots = Dictionary(uniqueKeysWithValues: pendingImports.map { pending in
-            (pending.id, inboxFeatureStore.pendingRoutingSnapshot(for: pending))
+            (pending.id, routingSnapshotForApply(for: pending))
         })
         let libraryIndex = libraryFeatureStore.libraryStore.snapshotIndexFromFilesystem(rootURL: libraryRootURL)
         let outcome = resolver(pendingImports, routingSnapshots, libraryIndex, libraryRootURL)
         let appliedIDs = outcome.appliedIDs
 
-        inboxFeatureStore.applyPending(outcome: outcome, appliedIDs: appliedIDs)
+        inboxFeatureStore.applyPending(appliedIDs: appliedIDs)
         for pendingID in appliedIDs {
             updateInteractionEntryValue(for: pendingID, in: \.inboxWorkspaceByPendingID, value: nil)
         }
@@ -1155,6 +1155,15 @@ final class SpinLabAppState {
         }
 
         bumpAppStateRevision()
+    }
+
+    private func routingSnapshotForApply(
+        for pending: SpinLabDomain.PendingImport
+    ) -> SpinLabDomain.PendingRoutingSnapshot {
+        if let cached = inboxFeatureStore.cachedPendingRoutingSnapshot(for: pending.id) {
+            return cached
+        }
+        return inboxFeatureStore.pendingRoutingSnapshot(for: pending)
     }
 
     func pendingImportEditableContents(for pending: SpinLabDomain.PendingImport) -> String? {

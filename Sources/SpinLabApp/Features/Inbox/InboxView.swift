@@ -647,6 +647,7 @@ private struct InboxSelectionWorkbenchPanel: View {
     }
 
     private func normalizedSampleDisplay(_ sample: String) -> String {
+        // Keep entered sample text as-is (except trim); matching/apply now rely on canonical sampleId, not display reformatting.
         let trimmed = sample.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed
     }

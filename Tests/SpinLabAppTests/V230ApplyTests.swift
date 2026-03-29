@@ -30,7 +30,7 @@ struct V230ApplyTests {
         #expect(FileManager.default.fileExists(atPath: fixture.destination(sampleID: "PN38", category: "General", fileName: pending.fileName).path))
 
         let inboxStore = fixture.makeInboxStore(pendingImports: [pending])
-        inboxStore.applyPending(outcome: outcome, appliedIDs: outcome.appliedIDs)
+        inboxStore.applyPending(appliedIDs: outcome.appliedIDs)
         #expect(inboxStore.pendingImports.isEmpty)
     }
 
