@@ -211,28 +211,19 @@ final class InboxFeatureStore {
         )
     }
 
-    func confirmPendingImport(
-        pending: SpinLabDomain.PendingImport,
-        draft: PendingImportConfirmationDraft,
-        useCase: ConfirmPendingImportUseCase,
-        libraryRepository: LibraryRepository,
-        makeArchivedRecord: (SpinLabDomain.PendingImport, PendingImportConfirmationDraft) -> SpinLabDomain.ArchivedRecord
-    ) -> Result<ConfirmPendingImportUseCase.Output, AppError> {
-        let result = useCase.execute(
-            input: ConfirmPendingImportUseCase.Input(
-                pending: pending,
-                draft: draft
-            ),
-            inboxRepository: inboxRepository,
-            libraryRepository: libraryRepository,
-            makeArchivedRecord: makeArchivedRecord
-        )
-
-        if case let .success(output) = result {
-            projectPendingImports(output.pendingImports)
-            clearRoutingData(for: pending.id)
+    func applyPending(appliedIDs: [UUID]) {
+        guard !appliedIDs.isEmpty else {
+            return
         }
-        return result
+
+        let appliedSet = Set(appliedIDs)
+        let updated = inboxRepository.performTransaction { pendingImports in
+            pendingImports.removeAll { appliedSet.contains($0.id) }
+        }
+        applyPendingImportsProjection(updated)
+        for pendingID in appliedSet {
+            clearRoutingData(for: pendingID)
+        }
     }
 
     @discardableResult

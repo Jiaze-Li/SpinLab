@@ -13,7 +13,7 @@ struct V221RoutePresentationTests {
             scopes: [
                 SpinLabDomain.RoutingScopeEvaluation(
                     scope: "file",
-                    sampleKey: "PN41 - STO(001)",
+                    sampleId: "PN41 - STO(001)",
                     matchedDrawer: nil,
                     tags: [],
                     warning: "No matching drawer found in Library.",
@@ -47,7 +47,7 @@ struct V221RoutePresentationTests {
             scopes: [
                 SpinLabDomain.RoutingScopeEvaluation(
                     scope: "ch1",
-                    sampleKey: "PN41",
+                    sampleId: "PN41",
                     matchedDrawer: nil,
                     tags: [],
                     warning: "No matching drawer found in Library.",
@@ -55,7 +55,7 @@ struct V221RoutePresentationTests {
                 ),
                 SpinLabDomain.RoutingScopeEvaluation(
                     scope: "ch2",
-                    sampleKey: "PN42",
+                    sampleId: "PN42",
                     matchedDrawer: nil,
                     tags: [],
                     warning: "No matching drawer found in Library.",

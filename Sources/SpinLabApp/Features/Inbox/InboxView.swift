@@ -15,7 +15,9 @@ struct InboxView: View {
                 isPendingQueueExpanded: $bindableViewModel.isPendingQueueExpanded,
                 isRoutingReviewExpanded: $bindableViewModel.isRoutingReviewExpanded,
                 isApplyExpanded: $bindableViewModel.isApplyExpanded,
-                fileFilter: $bindableViewModel.fileFilter
+                fileFilter: $bindableViewModel.fileFilter,
+                applySelected: { viewModel.applySelected() },
+                applyAll: { viewModel.applyAll() }
             )
             .frame(minWidth: 380, idealWidth: 500, maxWidth: 680)
 
@@ -29,6 +31,8 @@ struct InboxView: View {
             return !items.isEmpty
         } isTargeted: { _ in }
         .onAppear {
+            viewModel.applySelected = { appState.applySelectedPendingImport() }
+            viewModel.applyAll = { appState.applyAllPendingImports() }
             viewModel.restoreInteractionState(from: appState)
             viewModel.persistInteractionState(to: appState)
         }
@@ -75,6 +79,8 @@ private struct InboxOperationPanel: View {
     @Binding var isRoutingReviewExpanded: Bool
     @Binding var isApplyExpanded: Bool
     @Binding var fileFilter: InboxViewModel.FileFilter
+    let applySelected: () -> Void
+    let applyAll: () -> Void
     @State private var isPresentingClearImportsConfirm = false
 
     var body: some View {
@@ -196,7 +202,11 @@ private struct InboxOperationPanel: View {
 
                     GroupBox("Selection Workbench") {
                         if let pending = appState.selectedPendingImport {
-                            InboxSelectionWorkbenchPanel(pending: pending)
+                            InboxSelectionWorkbenchPanel(
+                                pending: pending,
+                                applySelected: applySelected,
+                                applyAll: applyAll
+                            )
                                 .id(pending.id)
                         } else {
                             Text("Select one pending file to edit and save confirmation draft.")
@@ -368,7 +378,7 @@ private struct InboxInspectorPanel: View {
 
                     if !routingSnapshot.scopes.isEmpty {
                         ForEach(routingSnapshot.scopes) { scope in
-                            let sample = scope.sampleKey ?? "?"
+                            let sample = scope.sampleId ?? "?"
                             let drawer = scope.matchedDrawer ?? "?"
                             Text("\(scope.scope): \(sample) -> \(drawer)")
                                 .font(.footnote)
@@ -407,6 +417,8 @@ private struct InboxInspectorPanel: View {
 
 private struct InboxSelectionWorkbenchPanel: View {
     let pending: SpinLabDomain.PendingImport
+    let applySelected: () -> Void
+    let applyAll: () -> Void
     @Environment(SpinLabAppState.self) private var appState
     @State private var draft = PendingImportConfirmationDraft(
         batchName: "",
@@ -455,6 +467,12 @@ private struct InboxSelectionWorkbenchPanel: View {
     }
     private var isChannelLevelMapping: Bool {
         routingSnapshot.mode == .channelLevel
+    }
+    private var canApplySelected: Bool {
+        routingSnapshot.verdict == .libraryMatched
+    }
+    private var canApplyAll: Bool {
+        appState.pendingRoutePresentationByID().values.contains { $0.isLibraryMatched }
     }
 
     var body: some View {
@@ -529,15 +547,16 @@ private struct InboxSelectionWorkbenchPanel: View {
                     persistDraftState()
                 }
 
-                Button("Apply") {}
+                Button("Apply") {
+                    applySelected()
+                }
                     .buttonStyle(.borderedProminent)
-                    .disabled(true)
+                    .disabled(!canApplySelected)
 
-                Text("Apply will be enabled in V2.3 to write file + tags into the matched Library drawer.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
+                Button("Apply All") {
+                    applyAll()
+                }
+                .disabled(!canApplyAll)
             }
         }
         .onAppear {
@@ -594,7 +613,7 @@ private struct InboxSelectionWorkbenchPanel: View {
         if let override = routingDraft.channelSampleKeyOverrides[channel], !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return override
         }
-        if let sample = scopeEvaluation(channel)?.sampleKey,
+        if let sample = scopeEvaluation(channel)?.sampleId,
            !sample.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return sample
         }
@@ -628,25 +647,9 @@ private struct InboxSelectionWorkbenchPanel: View {
     }
 
     private func normalizedSampleDisplay(_ sample: String) -> String {
+        // Keep entered sample text as-is (except trim); matching/apply now rely on canonical sampleId, not display reformatting.
         let trimmed = sample.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "" }
-
-        if trimmed.contains("-") {
-            let parts = trimmed.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
-            guard parts.count == 2 else { return trimmed }
-            let left = String(parts[0]).trimmingCharacters(in: .whitespacesAndNewlines)
-            let right = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !left.isEmpty, !right.isEmpty else { return trimmed }
-            return "\(left) - \(right)"
-        }
-
-        let parts = trimmed.split(whereSeparator: \.isWhitespace)
-        guard parts.count >= 2 else { return trimmed }
-        let head = String(parts[0])
-        let hasBatchLikeHead = head.rangeOfCharacter(from: .decimalDigits) != nil
-        guard hasBatchLikeHead else { return trimmed }
-        let tail = parts.dropFirst().joined(separator: " ")
-        return tail.isEmpty ? trimmed : "\(head) - \(tail)"
+        return trimmed
     }
 
     @ViewBuilder

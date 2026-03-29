@@ -27,7 +27,7 @@ struct V221DrawerMatchEngineTests {
 
         let matched = engine.match(sampleInput: "PN32|baked|STO|111", index: index)
 
-        #expect(matched == "PN32 - b STO(111)")
+        #expect(matched == "PN32|b|STO|111")
     }
 
     @Test("fallback token subset match resolves uniquely")
@@ -40,7 +40,7 @@ struct V221DrawerMatchEngineTests {
 
         let matched = engine.match(sampleInput: "PN32 baked STO", index: index)
 
-        #expect(matched == "PN32 - b STO(111)")
+        #expect(matched == "PN32|b|STO|111")
     }
 
     @Test("fallback token subset returns nil when candidates are ambiguous")
@@ -66,7 +66,7 @@ struct V221DrawerMatchEngineTests {
 
         let matched = engine.match(sampleInput: "PN32 | baked | STO | 111", index: index)
 
-        #expect(matched == "PN32 - b STO(111)")
+        #expect(matched == "PN32|b|STO|111")
     }
 
     @Test("legacy non-canonical sample ids can still be resolved through fallback")
@@ -90,7 +90,7 @@ struct V221DrawerMatchEngineTests {
 
         let matched = engine.match(sampleInput: "PN50 HF STO", index: index)
 
-        #expect(matched == "PN50 - HF STO(111)")
+        #expect(matched == "legacy-pn50-hf-sto111")
     }
 
     @Test("empty sample input returns nil immediately")

@@ -32,17 +32,88 @@ extension SpinLabDomain {
 
     struct RouteChannelResolution: Codable, Hashable {
         var channel: String
-        var sampleKey: String?
+        var sampleId: String?
         var source: String
         var tags: [String] = []
         var warning: String?
         var warningReason: RoutingWarningReason? = nil
+
+        enum CodingKeys: String, CodingKey {
+            case channel
+            case sampleId
+            case sampleKey
+            case source
+            case tags
+            case warning
+            case warningReason
+        }
+
+        init(
+            channel: String,
+            sampleId: String?,
+            source: String,
+            tags: [String] = [],
+            warning: String? = nil,
+            warningReason: RoutingWarningReason? = nil
+        ) {
+            self.channel = channel
+            self.sampleId = sampleId
+            self.source = source
+            self.tags = tags
+            self.warning = warning
+            self.warningReason = warningReason
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            channel = try container.decode(String.self, forKey: .channel)
+            sampleId = try container.decodeIfPresent(String.self, forKey: .sampleId)
+                ?? container.decodeIfPresent(String.self, forKey: .sampleKey)
+            source = try container.decode(String.self, forKey: .source)
+            tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
+            warning = try container.decodeIfPresent(String.self, forKey: .warning)
+            warningReason = try container.decodeIfPresent(RoutingWarningReason.self, forKey: .warningReason)
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(channel, forKey: .channel)
+            try container.encodeIfPresent(sampleId, forKey: .sampleId)
+            try container.encode(source, forKey: .source)
+            try container.encode(tags, forKey: .tags)
+            try container.encodeIfPresent(warning, forKey: .warning)
+            try container.encodeIfPresent(warningReason, forKey: .warningReason)
+        }
     }
 
     struct RouteTarget: Codable, Hashable, Identifiable {
-        var id: String { sampleKey }
-        var sampleKey: String
+        var id: String { sampleId }
+        var sampleId: String
         var channels: [String] = []
+
+        enum CodingKeys: String, CodingKey {
+            case sampleId
+            case sampleKey
+            case channels
+        }
+
+        init(sampleId: String, channels: [String] = []) {
+            self.sampleId = sampleId
+            self.channels = channels
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            sampleId = try container.decodeIfPresent(String.self, forKey: .sampleId)
+                ?? container.decode(String.self, forKey: .sampleKey)
+            channels = try container.decodeIfPresent([String].self, forKey: .channels) ?? []
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(sampleId, forKey: .sampleId)
+            try container.encode(channels, forKey: .channels)
+        }
     }
 
     struct RoutePlan: Codable, Hashable {
@@ -105,7 +176,7 @@ extension SpinLabDomain {
     struct RoutingScopeEvaluation: Codable, Hashable, Identifiable {
         var id: String { scope }
         var scope: String
-        var sampleKey: String?
+        var sampleId: String?
         var matchedDrawer: String?
         var tags: [String] = []
         var warning: String?
@@ -113,6 +184,53 @@ extension SpinLabDomain {
 
         var isMatched: Bool {
             matchedDrawer != nil
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case scope
+            case sampleId
+            case sampleKey
+            case matchedDrawer
+            case tags
+            case warning
+            case warningReason
+        }
+
+        init(
+            scope: String,
+            sampleId: String?,
+            matchedDrawer: String?,
+            tags: [String] = [],
+            warning: String? = nil,
+            warningReason: RoutingWarningReason? = nil
+        ) {
+            self.scope = scope
+            self.sampleId = sampleId
+            self.matchedDrawer = matchedDrawer
+            self.tags = tags
+            self.warning = warning
+            self.warningReason = warningReason
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            scope = try container.decode(String.self, forKey: .scope)
+            sampleId = try container.decodeIfPresent(String.self, forKey: .sampleId)
+                ?? container.decodeIfPresent(String.self, forKey: .sampleKey)
+            matchedDrawer = try container.decodeIfPresent(String.self, forKey: .matchedDrawer)
+            tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
+            warning = try container.decodeIfPresent(String.self, forKey: .warning)
+            warningReason = try container.decodeIfPresent(RoutingWarningReason.self, forKey: .warningReason)
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(scope, forKey: .scope)
+            try container.encodeIfPresent(sampleId, forKey: .sampleId)
+            try container.encodeIfPresent(matchedDrawer, forKey: .matchedDrawer)
+            try container.encode(tags, forKey: .tags)
+            try container.encodeIfPresent(warning, forKey: .warning)
+            try container.encodeIfPresent(warningReason, forKey: .warningReason)
         }
     }
 

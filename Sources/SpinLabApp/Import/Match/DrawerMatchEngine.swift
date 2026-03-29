@@ -2,12 +2,12 @@ import Foundation
 
 struct DrawerMatchIndex {
     struct Candidate {
-        var displayName: String
+        var sampleID: String
         var sampleKeyTokens: Set<String>
     }
 
     var candidates: [Candidate] = []
-    var displayNamesByCanonicalKey: [String: [String]] = [:]
+    var sampleIDsByCanonicalKey: [String: [String]] = [:]
 }
 
 struct DrawerMatchEngine {
@@ -15,7 +15,7 @@ struct DrawerMatchEngine {
         var index = DrawerMatchIndex()
         index.candidates = samples.map { sample in
             DrawerMatchIndex.Candidate(
-                displayName: sample.displayName,
+                sampleID: sample.id,
                 sampleKeyTokens: Set(sampleKeyTokens(from: sample))
             )
         }
@@ -24,7 +24,7 @@ struct DrawerMatchEngine {
             guard let canonical = SampleSemanticDescriptor.fromSampleKey(sample.id)?.canonicalKey else {
                 continue
             }
-            index.displayNamesByCanonicalKey[canonical, default: []].append(sample.displayName)
+            index.sampleIDsByCanonicalKey[canonical, default: []].append(sample.id)
         }
 
         return index
@@ -37,7 +37,7 @@ struct DrawerMatchEngine {
         }
 
         if let canonical = canonicalKey(fromSampleInput: trimmed),
-           let exactMatches = index.displayNamesByCanonicalKey[canonical],
+           let exactMatches = index.sampleIDsByCanonicalKey[canonical],
            exactMatches.count == 1 {
             return exactMatches[0]
         }
@@ -57,7 +57,7 @@ struct DrawerMatchEngine {
         guard matched.count == 1, let unique = matched.first else {
             return nil
         }
-        return unique.displayName
+        return unique.sampleID
     }
 
     private func canonicalKey(fromSampleInput value: String) -> String? {

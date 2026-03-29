@@ -324,47 +324,25 @@ struct RegistryWorkspaceSectionView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 4) {
-                        ForEach(previewGroupsForSelectedPrefix) { group in
-                            Button {
-                                onSelectBatch(group)
-                            } label: {
-                                HStack {
-                                    if let status = viewState.batchSyncStatusByID[group.batchId], status != .unchanged {
-                                        if status == .added {
-                                            Image(systemName: "plus")
-                                                .font(.body.weight(.bold))
-                                                .foregroundStyle(Color.green)
-                                        } else if status == .removed {
-                                            Image(systemName: "minus")
-                                                .font(.body.weight(.bold))
-                                                .foregroundStyle(Color.red)
-                                        } else {
-                                            Image(systemName: syncStatusSymbol(status))
-                                                .font(.caption2.weight(.semibold))
-                                                .foregroundStyle(syncStatusColor(status))
-                                        }
-                                    }
-                                    Text(group.batchId)
-                                        .font(.subheadline)
-                                    Spacer()
-                                    Text("\(group.samples.count)")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                                .padding(6)
-                                .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .fill(selectedBatchId == group.batchId ? Color.accentColor.opacity(0.15) : Color.clear)
-                                )
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
+                List {
+                    ForEach(previewGroupsForSelectedPrefix) { group in
+                        Button {
+                            onSelectBatch(group)
+                        } label: {
+                            BatchPreviewRow(
+                                group: group,
+                                isSelected: selectedBatchId == group.batchId,
+                                status: viewState.batchSyncStatusByID[group.batchId],
+                                syncStatusSymbol: syncStatusSymbol,
+                                syncStatusColor: syncStatusColor
+                            )
                         }
+                        .buttonStyle(.plain)
+                        .listRowInsets(EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4))
+                        .listRowSeparator(.hidden)
                     }
                 }
+                .listStyle(.plain)
                 .frame(height: 220)
             }
         }
@@ -387,18 +365,22 @@ struct RegistryWorkspaceSectionView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 4) {
-                        ForEach(selectedBatchSamples) { sample in
-                            PreviewSampleRow(
+                List {
+                    ForEach(selectedBatchSamples) { sample in
+                        Button {
+                            onSelectSample(sample)
+                        } label: {
+                            PreviewSampleRowContent(
                                 sample: sample,
                                 isSelected: selectedSampleId == sample.id
-                            ) {
-                                onSelectSample(sample)
-                            }
+                            )
                         }
+                        .buttonStyle(.plain)
+                        .listRowInsets(EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4))
+                        .listRowSeparator(.hidden)
                     }
                 }
+                .listStyle(.plain)
                 .frame(height: 260)
             }
         }
@@ -569,5 +551,67 @@ struct SearchWorkspaceSectionView: View {
             TextField(placeholder, text: text)
                 .textFieldStyle(.roundedBorder)
         }
+    }
+}
+
+private struct BatchPreviewRow: View {
+    let group: LibraryPreviewBatchGroup
+    let isSelected: Bool
+    let status: LibrarySyncBatchStatus?
+    let syncStatusSymbol: (LibrarySyncBatchStatus) -> String
+    let syncStatusColor: (LibrarySyncBatchStatus) -> Color
+
+    var body: some View {
+        HStack {
+            if let status, status != .unchanged {
+                if status == .added {
+                    Image(systemName: "plus")
+                        .font(.body.weight(.bold))
+                        .foregroundStyle(Color.green)
+                } else if status == .removed {
+                    Image(systemName: "minus")
+                        .font(.body.weight(.bold))
+                        .foregroundStyle(Color.red)
+                } else {
+                    Image(systemName: syncStatusSymbol(status))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(syncStatusColor(status))
+                }
+            }
+            Text(group.batchId)
+                .font(.subheadline)
+            Spacer()
+            Text("\(group.samples.count)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(6)
+        .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+        )
+        .contentShape(Rectangle())
+    }
+}
+
+private struct PreviewSampleRowContent: View {
+    let sample: LibrarySample
+    let isSelected: Bool
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(sample.substrateDisplay)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+            Spacer()
+        }
+        .padding(6)
+        .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+        )
+        .contentShape(Rectangle())
     }
 }

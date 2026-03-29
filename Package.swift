@@ -33,7 +33,10 @@ let package = Package(
                 "SpinLabApp",
                 .product(name: "Testing", package: "swift-testing")
             ],
-            path: "Tests/SpinLabAppTests"
+            path: "Tests/SpinLabAppTests",
+            exclude: [
+                "README.md"
+            ]
         )
     ],
     swiftLanguageModes: [.v5]

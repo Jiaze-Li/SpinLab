@@ -318,6 +318,10 @@ final class LibraryStore {
         return cachedFileEntries(in: measurementsURL)
     }
 
+    func drawerRootURL(for sample: LibrarySample, rootURL: URL) -> URL {
+        sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
+    }
+
     func syncBackup(from rootURL: URL, to backupURL: URL) -> Bool {
         do {
             var isRootDirectory: ObjCBool = false

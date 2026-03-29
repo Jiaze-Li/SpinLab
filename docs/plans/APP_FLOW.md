@@ -1,5 +1,9 @@
 # SpinLab App Flow
 
+> **This document describes the V1 flow only.**
+> V2.3 and later replace the Confirm step with a filesystem-first Apply approach.
+> For the current architecture, see `V2_EXECUTION_PLAN.md` V2.3 section.
+
 ## Core V1 Flow
 
 SpinLab V1 uses one workflow only:
