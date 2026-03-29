@@ -183,20 +183,20 @@ final class SpinLabAppState {
         registryCoordinator: registryCoordinator,
         dataActor: dataActor,
         appLogger: appLogger,
-        currentLibrarySettings: { [unowned self] in
-            libraryFeatureStore.librarySettings
+        currentLibrarySettings: { [weak self] in
+            self?.libraryFeatureStore.librarySettings ?? .default
         },
-        resolveRegistrySourceURL: { [unowned self] in
-            resolveRegistrySourceURL()
+        resolveRegistrySourceURL: { [weak self] in
+            self?.resolveRegistrySourceURL()
         },
-        onApplyRegistryContext: { [unowned self] context in
-            applyLoadedRegistryContext(context)
+        onApplyRegistryContext: { [weak self] context in
+            self?.applyLoadedRegistryContext(context)
         },
-        onPresentError: { [unowned self] error, title in
-            present(error: error, title: title)
+        onPresentError: { [weak self] error, title in
+            self?.present(error: error, title: title)
         },
-        onForwardLoad: { [unowned self] url in
-            loadSampleRegistry(from: url)
+        onForwardLoad: { [weak self] url in
+            self?.loadSampleRegistry(from: url)
         }
     )
     private let inboxWorkflowService = InboxWorkflowService()
@@ -206,36 +206,52 @@ final class SpinLabAppState {
         inboxStore: inboxFeatureStore,
         managedStorage: managedStorage,
         importPipeline: importPipeline,
-        existingImportedOriginalPaths: { [unowned self] in
-            existingImportedOriginalPaths()
+        existingImportedOriginalPaths: { [weak self] in
+            self?.existingImportedOriginalPaths() ?? []
         },
-        syncInboxWorkspaceToPendingImports: { [unowned self] in
-            syncInboxWorkspaceToPendingImports()
+        syncInboxWorkspaceToPendingImports: { [weak self] in
+            self?.syncInboxWorkspaceToPendingImports()
         },
-        persistInteractionSnapshotIfReady: { [unowned self] in
-            persistInteractionSnapshotIfReady()
+        persistInteractionSnapshotIfReady: { [weak self] in
+            self?.persistInteractionSnapshotIfReady()
         },
-        selectFirstImportedPendingAndFocusInbox: { [unowned self] pendingID in
-            selectedPendingImportID = pendingID
-            selectedArea = .inbox
+        selectFirstImportedPendingAndFocusInbox: { [weak self] pendingID in
+            guard let self else { return }
+            self.selectedPendingImportID = pendingID
+            self.selectedArea = .inbox
         },
-        refreshRoutingRuleMetadata: { [unowned self] in
-            refreshRoutingRuleMetadata(forceReload: true)
+        refreshRoutingRuleMetadata: { [weak self] in
+            self?.refreshRoutingRuleMetadata(forceReload: true)
         },
-        readInboxWorkspace: { [unowned self] in
-            interactionValue(\.inboxWorkspaceByPendingID)
+        readInboxWorkspace: { [weak self] in
+            self?.interactionValue(\.inboxWorkspaceByPendingID) ?? [:]
         },
-        writeInboxWorkspace: { [unowned self] workspace in
-            updateInteractionValue(\.inboxWorkspaceByPendingID, to: workspace)
+        writeInboxWorkspace: { [weak self] workspace in
+            self?.updateInteractionValue(\.inboxWorkspaceByPendingID, to: workspace)
         },
-        recomputedParsedHints: { [unowned self] pending in
-            recomputedParsedHints(for: pending)
+        recomputedParsedHints: { [weak self] pending in
+            self?.recomputedParsedHints(for: pending) ?? pending.parsedHints
         },
-        pendingDisplayDraft: { [unowned self] pending in
-            pendingDisplayDraft(for: pending)
+        pendingDisplayDraft: { [weak self] pending in
+            self?.pendingDisplayDraft(for: pending) ?? PendingImportConfirmationDraft(
+                batchName: "",
+                sampleName: "",
+                measurementName: pending.fileName,
+                workflowTag: "",
+                deviceName: "",
+                temperature: "",
+                selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
+                newProjectName: ""
+            )
         },
-        bumpAppStateRevision: { [unowned self] in
-            bumpAppStateRevision()
+        bumpAppStateRevision: { [weak self] in
+            self?.bumpAppStateRevision()
+        },
+        applySelected: { [weak self] in
+            self?.performApplySelectedPendingImport()
+        },
+        applyAll: { [weak self] in
+            self?.performApplyAllPendingImports()
         }
     )
     private let libraryPreviewComputationService = LibraryPreviewComputationService()
@@ -273,7 +289,8 @@ final class SpinLabAppState {
         }
     )
     private let coordinator = AppCoordinator()
-    private let confirmPendingImportUseCase = ConfirmPendingImportUseCase()
+    private let applyCoordinator = ApplyCoordinator()
+    private let inboxArchiveApplyService = InboxArchiveApplyService()
     private let saveLibrarySampleEditsUseCase = SaveLibrarySampleEditsUseCase()
     @ObservationIgnored
     private lazy var archivedRecordDomainContext: SpinLabDomainContext = ArchivedRecordDomainContextAdapter(
@@ -1052,60 +1069,92 @@ final class SpinLabAppState {
         bumpAppStateRevision()
     }
 
-    func confirmSelectedPendingImport(with draft: PendingImportConfirmationDraft) {
-        confirmSelectedPendingImport(with: draft, editedFileContents: nil)
+    func applySelectedPendingImport() {
+        inboxFacade.applySelectedPending()
     }
 
-    func confirmSelectedPendingImport(with draft: PendingImportConfirmationDraft, editedFileContents: String?) {
-        let outcome = inboxWorkflowService.confirmPendingImport(
-            selectedPending: selectedPendingImport,
-            draft: draft,
-            editedFileContents: editedFileContents,
-            savePendingImportContents: { contents, pending in
-                try savePendingImportContents(contents, for: pending)
-            },
-            inboxStore: inboxFeatureStore,
-            confirmUseCase: confirmPendingImportUseCase,
-            libraryRepository: libraryRepository,
-            makeArchivedRecord: { pending, draft in
-                let lookup = registryLookup(for: pending)
-                return makeArchivedRecord(from: pending, draft: draft, registryLookup: lookup)
-            },
-            coordinator: coordinator
-        )
+    func applyAllPendingImports() {
+        inboxFacade.applyAllPending()
+    }
+
+    private func performApplySelectedPendingImport() {
+        performApply { pendingImports, routingSnapshots, libraryIndex, libraryRootURL in
+            applyCoordinator.applySelected(
+                pendingID: selectedPendingImportID,
+                pendingImports: pendingImports,
+                routingSnapshots: routingSnapshots,
+                libraryIndex: libraryIndex,
+                libraryStore: libraryFeatureStore.libraryStore,
+                libraryRootURL: libraryRootURL,
+                applyService: inboxArchiveApplyService
+            )
+        }
+    }
+
+    private func performApplyAllPendingImports() {
+        performApply { pendingImports, routingSnapshots, libraryIndex, libraryRootURL in
+            applyCoordinator.applyAll(
+                pendingImports: pendingImports,
+                routingSnapshots: routingSnapshots,
+                libraryIndex: libraryIndex,
+                libraryStore: libraryFeatureStore.libraryStore,
+                libraryRootURL: libraryRootURL,
+                applyService: inboxArchiveApplyService
+            )
+        }
+    }
+
+    private func performApply(
+        resolver: (
+            [SpinLabDomain.PendingImport],
+            [UUID: SpinLabDomain.PendingRoutingSnapshot],
+            LibraryIndex,
+            URL
+        ) -> InboxApplyOutcome
+    ) {
+        guard let libraryRootURL = resolvedLibraryRootURLForApply() else {
+            return
+        }
+
+        let pendingImports = inboxFeatureStore.pendingImports
+        let routingSnapshots = Dictionary(uniqueKeysWithValues: pendingImports.map { pending in
+            (pending.id, inboxFeatureStore.pendingRoutingSnapshot(for: pending))
+        })
+        let libraryIndex = libraryFeatureStore.libraryStore.snapshotIndexFromFilesystem(rootURL: libraryRootURL)
+        let outcome = resolver(pendingImports, routingSnapshots, libraryIndex, libraryRootURL)
+        let appliedIDs = outcome.appliedIDs
+
+        inboxFeatureStore.applyPending(outcome: outcome, appliedIDs: appliedIDs)
+        for pendingID in appliedIDs {
+            updateInteractionEntryValue(for: pendingID, in: \.inboxWorkspaceByPendingID, value: nil)
+        }
+
+        if !appliedIDs.isEmpty {
+            syncLibraryFromFiles()
+        }
 
         switch outcome {
-        case .skipped:
-            return
-        case let .failure(pending, error, phase):
-            switch phase {
-            case .saveEditedFile:
-                appLogger.error(.import, "Failed to persist edited pending contents", metadata: [
-                    "pendingID": pending.id.uuidString,
-                    "fileName": pending.fileName
-                ])
-                present(error: error, title: "Save Failed")
-            case .confirm:
-                appLogger.error(.import, "Pending import confirmation failed", metadata: [
-                    "pendingID": pending.id.uuidString,
-                    "fileName": pending.fileName,
-                    "reason": error.localizedDescription
-                ])
-                present(error: error, title: "Import Failed")
-            }
-        case let .success(success):
-            applyArchivedRecordsProjection(success.output.archivedRecords)
-            updateInteractionEntryValue(for: success.clearWorkspaceEntryPendingID, in: \.inboxWorkspaceByPendingID, value: nil)
-            _ = workbenchFeatureStore.selectArchivedRecord(success.selectArchivedRecordID, analysisModule: analysisModule)
-            selectedPendingImportID = success.route.nextPendingID
-            selectedArea = success.route.selectedArea
-            appLogger.info(.import, "Pending import confirmed", metadata: [
-                "pendingID": success.confirmedPending.id.uuidString,
-                "archivedRecordID": success.output.archivedRecord.id.uuidString,
-                "measurementID": success.output.archivedRecord.measurement.id.uuidString,
-                "workflow": workflow.rawValue
+        case .nothingToApply:
+            appLogger.info(.import, "Apply skipped: no matched pending imports")
+        case let .success(appliedIDs):
+            appLogger.info(.import, "Apply completed", metadata: [
+                "appliedCount": "\(appliedIDs.count)"
             ])
+        case let .partialSuccess(appliedIDs, failedIDs):
+            appLogger.warning(.import, "Apply partially completed", metadata: [
+                "appliedCount": "\(appliedIDs.count)",
+                "failedCount": "\(failedIDs.count)"
+            ])
+            present(
+                error: .state("Applied \(appliedIDs.count) files, but \(failedIDs.count) files failed."),
+                title: "Apply Partially Completed"
+            )
+        case let .failure(message):
+            appLogger.error(.import, "Apply failed", metadata: ["reason": message])
+            present(error: .io(message), title: "Apply Failed")
         }
+
+        bumpAppStateRevision()
     }
 
     func pendingImportEditableContents(for pending: SpinLabDomain.PendingImport) -> String? {
@@ -1282,8 +1331,14 @@ final class SpinLabAppState {
         return importPipeline.metadataExtension.parseFilename(from: parseURL)
     }
 
-    private func savePendingImportContents(_ contents: String, for pending: SpinLabDomain.PendingImport) throws {
-        try contents.write(to: URL(fileURLWithPath: pending.sourceFilePath), atomically: true, encoding: .utf8)
+    private func resolvedLibraryRootURLForApply() -> URL? {
+        guard let rootPath = libraryFeatureStore.librarySettings.rootPath?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !rootPath.isEmpty else {
+            present(error: .validation("Library Root is not configured."), title: "Apply Failed")
+            return nil
+        }
+        return URL(fileURLWithPath: rootPath)
     }
 
     private func resolveRegistrySourceURL() -> URL? {

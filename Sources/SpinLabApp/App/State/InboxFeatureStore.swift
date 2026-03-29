@@ -6,6 +6,8 @@ import Observation
 final class InboxFeatureStore {
     var pendingImports: [SpinLabDomain.PendingImport]
     var selectedPendingImportID: UUID?
+    var applyErrorMessage: String?
+    var lastApplyOutcome: InboxApplyOutcome?
     private(set) var routingRuleVersion: Int = 0
     private(set) var routingRuleSourceLabel: String = "unknown"
     private(set) var routingRuleSourcePath: String = "unknown"
@@ -211,28 +213,29 @@ final class InboxFeatureStore {
         )
     }
 
-    func confirmPendingImport(
-        pending: SpinLabDomain.PendingImport,
-        draft: PendingImportConfirmationDraft,
-        useCase: ConfirmPendingImportUseCase,
-        libraryRepository: LibraryRepository,
-        makeArchivedRecord: (SpinLabDomain.PendingImport, PendingImportConfirmationDraft) -> SpinLabDomain.ArchivedRecord
-    ) -> Result<ConfirmPendingImportUseCase.Output, AppError> {
-        let result = useCase.execute(
-            input: ConfirmPendingImportUseCase.Input(
-                pending: pending,
-                draft: draft
-            ),
-            inboxRepository: inboxRepository,
-            libraryRepository: libraryRepository,
-            makeArchivedRecord: makeArchivedRecord
-        )
-
-        if case let .success(output) = result {
-            projectPendingImports(output.pendingImports)
-            clearRoutingData(for: pending.id)
+    func applyPending(outcome: InboxApplyOutcome, appliedIDs: [UUID]) {
+        lastApplyOutcome = outcome
+        switch outcome {
+        case .failure(let message):
+            applyErrorMessage = message
+        case .partialSuccess:
+            applyErrorMessage = "Some pending imports failed during apply."
+        case .nothingToApply, .success:
+            applyErrorMessage = nil
         }
-        return result
+
+        guard !appliedIDs.isEmpty else {
+            return
+        }
+
+        let appliedSet = Set(appliedIDs)
+        let updated = inboxRepository.performTransaction { pendingImports in
+            pendingImports.removeAll { appliedSet.contains($0.id) }
+        }
+        applyPendingImportsProjection(updated)
+        for pendingID in appliedSet {
+            clearRoutingData(for: pendingID)
+        }
     }
 
     @discardableResult

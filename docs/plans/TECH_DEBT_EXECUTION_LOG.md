@@ -91,4 +91,3 @@ Rationale:
 
 1. Continue splitting `SpinLabAppState` by extracting feature-owned mutable state and actions into focused `@Observable` stores while preserving current routing orchestration in app shell.
 2. Audit high-impact `try?` usage in `LibraryStore` and convert selected write/read paths to explicit error propagation.
-3. Add lightweight cache validation on Library entry as first step before file-system event stream integration.

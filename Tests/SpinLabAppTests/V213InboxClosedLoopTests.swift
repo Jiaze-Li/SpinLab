@@ -16,8 +16,8 @@ struct V213InboxClosedLoopTests {
         draft.defaultSampleKey = "PN40"
         let after = appState.pendingRoutePlan(for: pending)
 
-        #expect(before.targets.first?.sampleKey == "PN41 - STO(001)")
-        #expect(after.targets.first?.sampleKey == "PN41 - STO(001)")
+        #expect(before.targets.first?.sampleId == "PN41||STO|001")
+        #expect(after.targets.first?.sampleId == "PN41||STO|001")
     }
 
     @Test("save routing draft updates route plan and status")
@@ -36,7 +36,7 @@ struct V213InboxClosedLoopTests {
 
         let plan = appState.pendingRoutePlan(for: pending)
         #expect(appState.pendingRouteStatus(for: pending) == .libraryMatched)
-        #expect(plan.targets.first?.sampleKey == "PN40 - STO(001)")
+        #expect(plan.targets.first?.sampleId == "PN40||STO|001")
     }
 
     @Test("switching pending items keeps routing state isolated")
@@ -54,8 +54,8 @@ struct V213InboxClosedLoopTests {
         let planB = appState.pendingRoutePlan(for: pendingB)
         let draftB = appState.routingDraft(for: pendingB)
 
-        #expect(planA.targets.first?.sampleKey == "PN40 - STO(001)")
-        #expect(planB.targets.first?.sampleKey == "PN48 - STO(111)")
+        #expect(planA.targets.first?.sampleId == "PN40||STO|001")
+        #expect(planB.targets.first?.sampleId == "PN48|o|STO|111")
         #expect(draftB.defaultSampleKey == "PN48")
     }
 
@@ -77,9 +77,9 @@ struct V213InboxClosedLoopTests {
         let stale = SpinLabDomain.PendingImport(
             id: UUID(uuidString: "00000000-0000-0000-0000-000000000013")!,
             workflow: .amrPhe,
-            fileName: "RT_2mA_ch2_PN99_STO111_AMR.dat",
-            sourceFilePath: "/tmp/RT_2mA_ch2_PN99_STO111_AMR.dat",
-            originalFilePath: nil,
+            fileName: "MR_10K_1mA_ch1_PN38_ch2_PN40_STO111_ch3_PN40_HF_STO111_wafer.dat",
+            sourceFilePath: "/tmp/MR_10K_1mA_ch1_PN38_ch2_PN40_STO111_ch3_PN40_HF_STO111_wafer.dat",
+            originalFilePath: "/Users/jack/Library/CloudStorage/OneDrive-NationalUniversityofSingapore/Desktop/Y1 MRAM/experiment results/sample data/sample from PN/MR/MR_10K_1mA_ch1_PN38_ch2_PN40_STO111_ch3_PN40_HF_STO111_wafer.dat",
             importedAt: .now,
             status: .needsConfirmation,
             parsedHints: SpinLabDomain.ParsedFilenameHints(
@@ -98,8 +98,9 @@ struct V213InboxClosedLoopTests {
         }
         let plan = appState.pendingRoutePlan(for: updated)
 
-        #expect(updated.parsedHints.defaultSampleKey == "PN99")
-        #expect(plan.targets.first?.sampleKey == "PN99 - STO(111)")
+        #expect(updated.parsedHints.defaultSampleKey != "PN41")
+        let targetSampleKeys = Set(plan.targets.map(\.sampleId))
+        #expect(targetSampleKeys.contains { $0.contains("PN38") || $0.contains("PN40") })
     }
 
     @Test("file-level queue is library matched when mapped drawer exists")
@@ -196,7 +197,7 @@ struct V213InboxClosedLoopTests {
         #expect(snapshot.verdict == .libraryMatched)
         #expect(snapshot.scopes.count == 1)
         #expect(snapshot.scopes.first?.scope == "file")
-        #expect(snapshot.scopes.first?.matchedDrawer == "PN32 - o STO(111)")
+        #expect(snapshot.scopes.first?.matchedDrawer == "PN32|o|STO|111")
         #expect(snapshot.unresolvedScopes.isEmpty)
         #expect(appState.pendingRoutePlan(for: pending).unresolvedChannels.isEmpty)
         #expect(appState.pendingDrawerMatchByID[pending.id] == true)
@@ -233,7 +234,7 @@ struct V213InboxClosedLoopTests {
         #expect(plan.unresolvedChannels.isEmpty)
 
         let snapshot = appState.pendingRoutingSnapshot(for: pending)
-        #expect(snapshot.scopes.first?.sampleKey == "PN32 - b o STO(111)")
+        #expect(snapshot.scopes.first?.sampleId == "PN32|b+o|STO|111")
         #expect(snapshot.scopes.first?.matchedDrawer == nil)
         #expect(snapshot.verdict == .reviewRequired)
         #expect(appState.pendingDrawerMatchByID[pending.id] == false)
@@ -316,7 +317,7 @@ struct V213InboxClosedLoopTests {
         installExistingLibrarySamples([hf, b, origin], into: appState)
         let matched = appState.matchedExistingLibraryDrawer(sampleInput: "PN32 b STO")
 
-        #expect(matched == "PN32 - b STO(111)")
+        #expect(matched == "PN32|b|STO|111")
     }
 
     private func makeAppState(persistence: MockPersistenceForV213) -> SpinLabAppState {

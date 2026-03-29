@@ -63,6 +63,10 @@ struct FileRoutingRuleBook {
     }
 
     func renderFileToken(from descriptor: SampleSemanticDescriptor) -> String? {
+        if let canonical = descriptor.canonicalKey {
+            return canonical
+        }
+
         let substrateComponent: String? = {
             var substrate = ""
             if let material = descriptor.material, let orientation = descriptor.orientation {

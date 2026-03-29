@@ -15,14 +15,14 @@ struct V212RoutingDraftTests {
         )
 
         let before = appState.pendingRoutePlan(for: pending)
-        #expect(before.targets.first?.sampleKey == "PN41 - STO(001)")
+        #expect(before.targets.first?.sampleId == "PN41||STO|001")
 
         var draft = appState.routingDraft(for: pending)
         draft.defaultSampleKey = "PN40"
         appState.saveRoutingDraft(draft, for: pending.id)
 
         let after = appState.pendingRoutePlan(for: pending)
-        #expect(after.targets.first?.sampleKey == "PN40 - STO(001)")
+        #expect(after.targets.first?.sampleId == "PN40||STO|001")
     }
 
     @Test("channel sample override takes precedence for that channel token")
@@ -40,7 +40,7 @@ struct V212RoutingDraftTests {
         appState.saveRoutingDraft(draft, for: pending.id)
 
         let plan = appState.pendingRoutePlan(for: pending)
-        #expect(plan.targets.first?.sampleKey == "PN14 - STO(001)")
+        #expect(plan.targets.first?.sampleId == "PN14||STO|001")
         #expect(plan.unresolvedChannels.isEmpty)
     }
 
@@ -75,11 +75,11 @@ struct V212RoutingDraftTests {
         var draft = appState.routingDraft(for: pending)
         draft.defaultSampleKey = "PN40"
         appState.saveRoutingDraft(draft, for: pending.id)
-        #expect(appState.pendingRoutePlan(for: pending).targets.first?.sampleKey == "PN40 - STO(001)")
+        #expect(appState.pendingRoutePlan(for: pending).targets.first?.sampleId == "PN40||STO|001")
 
         let baseline = appState.routingDraftBaseline(for: pending)
         appState.saveRoutingDraft(baseline, for: pending.id)
-        #expect(appState.pendingRoutePlan(for: pending).targets.first?.sampleKey == "PN41 - STO(001)")
+        #expect(appState.pendingRoutePlan(for: pending).targets.first?.sampleId == "PN41||STO|001")
     }
 
     @Test("routing draft is restored from interaction snapshot on app launch")
@@ -108,7 +108,7 @@ struct V212RoutingDraftTests {
         )
 
         let plan = appState.pendingRoutePlan(for: pending)
-        #expect(plan.targets.first?.sampleKey == "PN40 - STO(001)")
+        #expect(plan.targets.first?.sampleId == "PN40||STO|001")
         #expect(appState.hasSavedRoutingDraft(for: pending) == true)
     }
 
@@ -151,11 +151,11 @@ struct V212RoutingDraftTests {
             sourceFilePath: "/tmp/RT_1mA_ch1_ch2_ch3_AMR.dat",
             originalFilePath: "/tmp/RT_1mA_ch1_ch2_ch3_AMR.dat",
             parsedHints: SpinLabDomain.ParsedFilenameHints(
-                defaultSampleKey: "PN41 - o STO(111)",
+                defaultSampleKey: "PN41|o|STO|111",
                 channelHints: [
-                    SpinLabDomain.ParsedChannelHint(channel: "ch1", sampleID: "PN41 - o STO(111)", tags: ["o", "STO111"]),
-                    SpinLabDomain.ParsedChannelHint(channel: "ch2", sampleID: "PN44 - o STO(111)", tags: ["o", "STO111"]),
-                    SpinLabDomain.ParsedChannelHint(channel: "ch3", sampleID: "PN48 - o STO(111)", tags: ["o", "STO111"])
+                    SpinLabDomain.ParsedChannelHint(channel: "ch1", sampleID: "PN41|o|STO|111", tags: ["o", "STO111"]),
+                    SpinLabDomain.ParsedChannelHint(channel: "ch2", sampleID: "PN44|o|STO|111", tags: ["o", "STO111"]),
+                    SpinLabDomain.ParsedChannelHint(channel: "ch3", sampleID: "PN48|o|STO|111", tags: ["o", "STO111"])
                 ],
                 substrateTags: ["o", "STO111"]
             )
@@ -167,18 +167,18 @@ struct V212RoutingDraftTests {
         )
 
         let baseline = appState.routingDraftBaseline(for: pending)
-        #expect(baseline.defaultSampleKey == "PN41 - o STO(111)")
-        #expect(baseline.channelSampleKeyOverrides["ch1"] == "PN41 - o STO(111)")
-        #expect(baseline.channelSampleKeyOverrides["ch2"] == "PN44 - o STO(111)")
-        #expect(baseline.channelSampleKeyOverrides["ch3"] == "PN48 - o STO(111)")
+        #expect(baseline.defaultSampleKey == "PN41|o|STO|111")
+        #expect(baseline.channelSampleKeyOverrides["ch1"] == "PN41|o|STO|111")
+        #expect(baseline.channelSampleKeyOverrides["ch2"] == "PN44|o|STO|111")
+        #expect(baseline.channelSampleKeyOverrides["ch3"] == "PN48|o|STO|111")
 
         var draft = appState.routingDraft(for: pending)
-        draft.channelSampleKeyOverrides["ch2"] = "PN44 - HF STO(111)"
+        draft.channelSampleKeyOverrides["ch2"] = "PN44|HF|STO|111"
         appState.saveRoutingDraft(draft, for: pending.id)
 
         let plan = appState.pendingRoutePlan(for: pending)
         let ch2 = plan.channelResolutions.first { $0.channel == "ch2" }
-        #expect(ch2?.sampleKey == "PN44 - HF o STO(111)")
+        #expect(ch2?.sampleId == "PN44|HF+o|STO|111")
         #expect(plan.conflicts.isEmpty)
     }
 

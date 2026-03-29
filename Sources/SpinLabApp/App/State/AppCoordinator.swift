@@ -5,12 +5,6 @@ struct WorkbenchRouteResolution {
     var selectedArea: AppArea
 }
 
-struct PendingConfirmationRouteResolution {
-    var archivedRecordID: UUID
-    var nextPendingID: UUID?
-    var selectedArea: AppArea
-}
-
 struct AppCoordinator {
     func routeToWorkbenchForPendingSelection(hasPendingSelection: Bool) -> AppArea? {
         guard hasPendingSelection else {
@@ -29,17 +23,6 @@ struct AppCoordinator {
         return WorkbenchRouteResolution(
             archivedRecordID: recordID,
             selectedArea: .workbench
-        )
-    }
-
-    func routeAfterPendingConfirmation(
-        archivedRecordID: UUID,
-        nextPendingID: UUID?
-    ) -> PendingConfirmationRouteResolution {
-        PendingConfirmationRouteResolution(
-            archivedRecordID: archivedRecordID,
-            nextPendingID: nextPendingID,
-            selectedArea: .library
         )
     }
 }

@@ -21,6 +21,8 @@ struct LibraryView: View {
     @State private var searchMatchedResults: [SearchResultItem] = []
     @State private var searchHasExecuted = false
     @State private var searchDebounceTask: Task<Void, Never>?
+    @State private var interactionPersistTask: Task<Void, Never>?
+    @State private var previewDerivedData = PreviewDerivedData()
     @State private var viewModel = LibraryViewModel()
     private let computationService = LibraryViewComputationService()
     private let level1HeaderFont: Font = .title2.bold()
@@ -45,15 +47,42 @@ struct LibraryView: View {
             viewModel.bindActions(from: appState)
             viewModel.validateLibraryCacheOnAppear()
             applyRestoredInteractionState()
+            rebuildPreviewDerivedData()
             syncSelection()
-            viewModel.persistInteractionState(interactionStateSnapshot)
+            rebuildPreviewDerivedData()
+            scheduleInteractionStatePersist(immediate: true)
         }
         .onChange(of: viewModel.viewState.previewGroupsByPrefix) { _, _ in
+            rebuildPreviewDerivedData()
             syncSelection()
-            viewModel.persistInteractionState(interactionStateSnapshot)
+            rebuildPreviewDerivedData()
+            scheduleInteractionStatePersist()
+        }
+        .onChange(of: viewModel.viewState.batchSyncStatusByID) { _, _ in
+            rebuildPreviewDerivedData()
+            syncSelection()
+            rebuildPreviewDerivedData()
+            scheduleInteractionStatePersist()
+        }
+        .onChange(of: viewModel.viewState.existingGroupsByPrefix) { _, _ in
+            rebuildPreviewDerivedData()
+            syncSelection()
+            rebuildPreviewDerivedData()
+            scheduleInteractionStatePersist()
+        }
+        .onChange(of: selectedPrefix) { _, _ in
+            rebuildPreviewDerivedData()
+            scheduleInteractionStatePersist()
+        }
+        .onChange(of: selectedBatchId) { _, _ in
+            rebuildPreviewDerivedData()
+            scheduleInteractionStatePersist()
+        }
+        .onChange(of: selectedSampleId) { _, _ in
+            scheduleInteractionStatePersist()
         }
         .onChange(of: interactionStateSnapshot) { _, newValue in
-            viewModel.persistInteractionState(newValue)
+            scheduleInteractionStatePersist()
         }
         .onChange(of: searchFingerprint) { _, _ in
             scheduleDebouncedSearchIfNeeded()
@@ -61,6 +90,9 @@ struct LibraryView: View {
         .onDisappear {
             searchDebounceTask?.cancel()
             searchDebounceTask = nil
+            interactionPersistTask?.cancel()
+            interactionPersistTask = nil
+            viewModel.persistInteractionState(interactionStateSnapshot)
         }
         .confirmationDialog(
             "Unsaved Edits",
@@ -911,47 +943,15 @@ struct LibraryView: View {
     }
 
     private var previewPrefixes: [String] {
-        let configured = viewState.allowedBatchPrefixes
-        let available = Array(combinedPreviewGroupsByPrefix.keys).sorted()
-        if configured.isEmpty {
-            return available
-        }
-        let ordered = configured.filter { available.contains($0) }
-        let remaining = available.filter { !ordered.contains($0) }
-        return ordered + remaining
+        previewDerivedData.previewPrefixes
     }
 
     private var previewGroupsForSelectedPrefix: [LibraryPreviewBatchGroup] {
-        let prefix = selectedPrefix ?? previewPrefixes.first
-        return combinedPreviewGroupsByPrefix[prefix ?? ""] ?? []
-    }
-
-    private var combinedPreviewGroupsByPrefix: [String: [LibraryPreviewBatchGroup]] {
-        var groups = viewState.previewGroupsByPrefix
-        for (batchID, status) in viewState.batchSyncStatusByID where status != .unchanged {
-            let prefix = LibrarySort.batchSortKey(batchID).prefix
-            let alreadyExists = groups[prefix]?.contains(where: { $0.batchId == batchID }) == true
-            if alreadyExists {
-                continue
-            }
-            let existingSamples = viewState.existingGroupsByPrefix[prefix]?
-                .first(where: { $0.batchId == batchID })?
-                .samples ?? []
-            groups[prefix, default: []].append(
-                LibraryPreviewBatchGroup(batchId: batchID, samples: existingSamples)
-            )
-        }
-        for prefix in groups.keys {
-            groups[prefix] = groups[prefix]?.sorted { LibrarySort.compareBatch($0.batchId, $1.batchId) }
-        }
-        return groups
+        previewDerivedData.previewGroupsForSelectedPrefix
     }
 
     private var selectedBatchSamples: [LibrarySample] {
-        guard let batchId = selectedBatchId else {
-            return []
-        }
-        return previewGroupsForSelectedPrefix.first(where: { $0.batchId == batchId })?.samples ?? []
+        previewDerivedData.selectedBatchSamples
     }
 
     private var selectedSample: LibrarySample? {
@@ -1195,6 +1195,19 @@ struct LibraryView: View {
         }
     }
 
+    private func scheduleInteractionStatePersist(immediate: Bool = false) {
+        interactionPersistTask?.cancel()
+        interactionPersistTask = Task { @MainActor in
+            if !immediate {
+                try? await Task.sleep(nanoseconds: 160_000_000)
+                guard !Task.isCancelled else {
+                    return
+                }
+            }
+            viewModel.persistInteractionState(interactionStateSnapshot)
+        }
+    }
+
     private var searchFilters: LibrarySearchFilters {
         LibrarySearchFilters(
             batchText: searchBatchIdText,
@@ -1243,6 +1256,67 @@ struct LibraryView: View {
     private func makeDetailSections(for sample: LibrarySample) -> SampleDetailSections {
         computationService.makeDetailSections(for: sample)
     }
+
+    private func rebuildPreviewDerivedData() {
+        let combined = computeCombinedPreviewGroupsByPrefix()
+        let prefixes = computePreviewPrefixes(from: combined)
+        let effectivePrefix = selectedPrefix ?? prefixes.first
+        let groupsForPrefix = combined[effectivePrefix ?? ""] ?? []
+        let samples = resolveSelectedBatchSamples(groups: groupsForPrefix, selectedBatchId: selectedBatchId)
+        previewDerivedData = PreviewDerivedData(
+            previewPrefixes: prefixes,
+            previewGroupsForSelectedPrefix: groupsForPrefix,
+            selectedBatchSamples: samples
+        )
+    }
+
+    private func computeCombinedPreviewGroupsByPrefix() -> [String: [LibraryPreviewBatchGroup]] {
+        var groups = viewState.previewGroupsByPrefix
+        for (batchID, status) in viewState.batchSyncStatusByID where status != .unchanged {
+            let prefix = LibrarySort.batchSortKey(batchID).prefix
+            let alreadyExists = groups[prefix]?.contains(where: { $0.batchId == batchID }) == true
+            if alreadyExists {
+                continue
+            }
+            let existingSamples = viewState.existingGroupsByPrefix[prefix]?
+                .first(where: { $0.batchId == batchID })?
+                .samples ?? []
+            groups[prefix, default: []].append(
+                LibraryPreviewBatchGroup(batchId: batchID, samples: existingSamples)
+            )
+        }
+        for prefix in groups.keys {
+            groups[prefix] = groups[prefix]?.sorted { LibrarySort.compareBatch($0.batchId, $1.batchId) }
+        }
+        return groups
+    }
+
+    private func computePreviewPrefixes(from groups: [String: [LibraryPreviewBatchGroup]]) -> [String] {
+        let configured = viewState.allowedBatchPrefixes
+        let available = Array(groups.keys).sorted()
+        if configured.isEmpty {
+            return available
+        }
+        let ordered = configured.filter { available.contains($0) }
+        let remaining = available.filter { !ordered.contains($0) }
+        return ordered + remaining
+    }
+
+    private func resolveSelectedBatchSamples(
+        groups: [LibraryPreviewBatchGroup],
+        selectedBatchId: String?
+    ) -> [LibrarySample] {
+        guard let selectedBatchId else {
+            return []
+        }
+        return groups.first(where: { $0.batchId == selectedBatchId })?.samples ?? []
+    }
+}
+
+private struct PreviewDerivedData {
+    var previewPrefixes: [String] = []
+    var previewGroupsForSelectedPrefix: [LibraryPreviewBatchGroup] = []
+    var selectedBatchSamples: [LibrarySample] = []
 }
 
 #if DEBUG

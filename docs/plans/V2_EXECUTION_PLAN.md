@@ -195,45 +195,38 @@ Build the core data pipeline `Parse -> Editable Draft -> Route Plan` without exe
 
 ## V2.2
 **Goal (one line)**
-Refactor Inbox UI into the same 3-column interaction model as Library and complete manual confirm/recompute workflow.
+Refactor Inbox UI into the same 3-column interaction model as Library and complete save-driven route recompute workflow.
 
 **Detailed requirements**
 1. Keep app-level columns as:
 - left: navigation
 - middle: operation blocks
-- right: inspector/details
+- right: reserved extension area (blank in current iteration)
 2. Inbox middle operation blocks order:
-- Import Source
-- Pending Queue
-- Routing Review
-- Apply
+- Registry
+- File
+- Selection Workbench (inside `File`)
 3. Toolbar action relocation:
 - keep and place in operation blocks: `Load Registry`, `Import Files`, `Clear Imports`, `Recompute Route`
 - remove from Inbox scope: `Create Project`
-4. Right inspector shows:
-- file metadata
-- parsed baseline (read-only)
-- editable draft (file-level + channel-level)
-- parse-vs-edit diffs
-- warnings
-- `Confirm & Recompute Route` action
-5. Preserve extension seam for future right-panel tabs, but enable details tab only now.
+4. Right panel remains blank placeholder in V2.2.x; keep extension seam for future tabs/content.
+5. `Save Draft` remains the explicit routing refresh gate; no mandatory two-step `Confirm & Recompute Route` action.
 
 **Test scenarios & acceptance criteria**
 1. Edit draft without confirm
 - Acceptance: route plan unchanged.
-2. Confirm and recompute
+2. Save draft and recompute
 - Acceptance: route plan updates from edited values.
 3. Switch pending items
-- Acceptance: inspector state is correctly isolated per pending item.
+- Acceptance: selection workbench state is correctly isolated per pending item.
 4. `Clear Imports`
 - Acceptance: clears pending queue only; no changes to already archived library drawers.
 
 **Code structure design**
 1. Split UI composition:
 - `InboxOperationPanel`
-- `InboxInspectorPanel`
-2. Add dedicated view models for inspector and route review blocks.
+- `InboxSelectionWorkbenchPanel`
+2. Add dedicated view models for operation blocks and selection workbench blocks.
 3. UI dispatches actions via explicit intent handlers; no filesystem logic in views.
 
 **V2.2 staged micro versions (execution order)**
@@ -378,98 +371,368 @@ Non-goals in V2.2.1:
 
 ## V2.3
 **Goal (one line)**
-Implement transactional `Apply Selected` and `Apply All` from Inbox route plans to Library sample drawers.
+Activate the Apply button in Inbox so files can be physically copied into Library sample drawers.
+
+**Design rationale**
+The old "Confirm" flow only created an in-memory record without ever touching the filesystem — it was an incomplete design that never became user-facing. V2.3 replaces it entirely with a filesystem-first approach: write the file first, then let Library Sync derive the app state from what's actually on disk. This is more reliable because the filesystem is the single source of truth; there's no risk of the app state drifting out of sync with reality.
+
+Atomic transactions (prepare → commit / rollback) are required because a single file can fan out to multiple sample drawers. If the write to the second drawer fails after the first already succeeded, the user would end up with an inconsistent state — the file exists in some drawers but not others, with no way to tell which are complete. Rolling back all writes on any failure eliminates this class of bugs entirely.
+
+**User story**
+When a measurement file in Inbox shows status "Library Matched", the user can click **Apply** to copy it into the correct Library sample folder. The file lands in the right subfolder (e.g. `tests/XRD/` for XRD data), Library refreshes automatically, and the item disappears from the Inbox queue. **Apply All** does the same for all matched items at once. If anything goes wrong mid-write, no partial files are left behind — the operation either fully succeeds or fully rolls back.
+
+This version also removes the old "Confirm" flow that existed in the codebase but was never user-facing.
 
 **Detailed requirements**
-1. `Apply Selected` unit is a file.
-2. `Apply All` processes library-matched items only; skips review-required items.
-3. Single file can fan out to multiple sample drawers.
-4. Multi-target apply must be atomic per file (rollback all targets if one fails).
-5. File body must be copied into each target sample drawer for immediate access.
-6. After apply, refresh library filesystem index and UI state.
+1. `Apply Selected` unit is a file; copies the selected pending file into its matched Library drawer(s).
+2. `Apply All` processes `Library Matched` items only; silently skips `Review Required` items.
+3. A single file can fan out to multiple sample drawers if it matches more than one sample.
+4. Multi-target apply must be atomic per file: if any drawer write fails, all writes for that file roll back (no partial residue).
+5. After apply, run `Library Sync Files` to refresh Library UI state.
+6. Successfully applied pending imports are removed from the Inbox queue.
+7. No sidecar metadata in V2.3 — deferred to V2.5 (after workflow fields are defined in V2.4).
+
+**Destination subfolder rule**
+- Channel type `XRD`, `M-H`, `R-H`, `EDS`, or `AFM` → `tests/{channel}/`
+- All other channels or file-level delivery → `measurements/`
+- Multiple channels on one target: first matching test slot wins; fallback to `measurements/`
 
 **Test scenarios & acceptance criteria**
 1. Single-target selected apply
-- Acceptance: file appears only in that sample drawer.
+- Acceptance: file appears only in that sample drawer; pending import removed from queue.
 2. Multi-target selected apply
-- Acceptance: file appears in all target sample drawers.
+- Acceptance: file appears in all target sample drawers; pending import removed from queue.
 3. Inject failure for one target in multi-target apply
-- Acceptance: no target keeps partial artifact (rollback verified).
+- Acceptance: no target keeps partial artifact (rollback verified); no temp residue.
 4. Mixed queue apply-all (library-matched + review-required)
 - Acceptance: library-matched items applied; review-required unchanged.
 
-**Code structure design**
-1. Introduce `InboxArchiveApplyService` as single write execution entry.
-2. Introduce `LibraryWriteTransaction` (`prepare/commit/rollback`).
-3. Centralize apply orchestration in `ApplyCoordinator`.
-4. Disallow side writes outside apply service.
+**New files (3)**
+
+`Sources/SpinLabApp/Library/LibraryWriteTransaction.swift`
+- `struct LibraryWriteTransaction`
+- Atomic per-file write: `prepare(sourceURL:destinationURL:)` copies to temp; `commit()` moves temp → destination; `rollback()` removes all temp artifacts.
+
+`Sources/SpinLabApp/App/InboxArchiveApplyService.swift`
+- `struct InboxArchiveApplyService`
+- Single write execution entry. Drives one `LibraryWriteTransaction` per pending file across all its drawer targets.
+- `func apply(pending:targets:libraryIndex:libraryStore:libraryRootURL:) throws`
+- `enum InboxArchiveApplyError`: `sourceFileNotFound`, `drawerNotFound(sampleKey:)`, `commitFailed(sampleKey:underlying:)`
+- All filesystem writes must go through this service; no side writes permitted elsewhere.
+
+`Sources/SpinLabApp/App/ApplyCoordinator.swift`
+- `struct ApplyCoordinator`
+- Orchestrates Apply Selected and Apply All. Pure value type, no stored state.
+- `func applySelected(pendingID:pendingImports:routingState:libraryIndex:libraryStore:libraryRootURL:applyService:) -> InboxApplyOutcome`
+- `func applyAll(pendingImports:routingState:libraryIndex:libraryStore:libraryRootURL:applyService:) -> InboxApplyOutcome`
+- `enum InboxApplyOutcome`: `nothingToApply`, `success(appliedIDs:)`, `partialSuccess(appliedIDs:failedIDs:)`, `failure(message:)`
+- **Placement note**: lives in `App/` rather than `UseCases/` because it drives filesystem side effects through `InboxArchiveApplyService`. Per AGENTS.md, `UseCases/` is reserved for stateless Input→Output transformations with no side effects. A coordinator that causes I/O and updates persistent state belongs in the App orchestration layer.
+
+**Modified files**
+
+`Library/LibraryStore.swift`
+- Add `func drawerRootURL(for sample: LibrarySample, rootURL: URL) -> URL` (wraps existing private `sampleDirectoryURL`).
+
+`App/State/InboxFeatureStore.swift`
+- Add `var applyErrorMessage: String?` and `var lastApplyOutcome: InboxApplyOutcome?`
+- Add `func applyPending(outcome:appliedIDs:)` — updates state and removes applied items from repository.
+- Remove `confirmPendingImport(pending:draft:useCase:libraryRepository:makeArchivedRecord:)`.
+
+`App/SpinLabAppState.swift`
+- Add `func applySelectedPendingImport()` and `func applyAllPendingImports()`.
+- Both call `ApplyCoordinator`, then trigger `librarySyncService.syncIndexFromFilesystem(rootURL:)`.
+- Remove `confirmSelectedPendingImport()` overloads and `confirmPendingImportUseCase` property.
+
+`App/InboxFacade.swift`
+- Add `applySelected: () -> Void` and `applyAll: () -> Void` closure parameters.
+- Add `func applySelectedPending()` and `func applyAllPending()`.
+
+`Features/Inbox/InboxViewModel.swift`
+- Add `var applySelected: () -> Void = {}` and `var applyAll: () -> Void = {}`.
+
+`Features/Inbox/InboxView.swift`
+- Remove `.disabled(true)` from Apply button; wire to `viewModel.applySelected()`.
+- Add `Apply All` button wired to `viewModel.applyAll()`.
+- Remove placeholder explanatory text.
+
+`App/AppVersion.swift`
+- Bump `AppVersion.library` per AGENTS.md policy.
+
+**Confirm flow removal**
+
+The old `ConfirmPendingImport` path was an earlier design that only created in-memory records without copying files. It was never user-facing and is now fully replaced by Apply.
+
+Files/methods to delete:
+- `UseCases/ConfirmPendingImportUseCase.swift` — entire file
+- `InboxWorkflowService.confirmPendingImport()` — method + `InboxConfirmPendingImportOutcome` enum
+- `InboxFeatureStore.confirmPendingImport()` — method
+- `SpinLabAppState.confirmSelectedPendingImport()` — both overloads + `confirmPendingImportUseCase` property
+- `AppCoordinator.routeAfterPendingConfirmation()` — method
+
+Keep (used outside confirm flow):
+- `PendingImportConfirmationDraft` — used by Inbox UI workspace (File Tags display)
+- `ArchivedRecord` — core domain model used by Workbench
+- `makeArchivedRecord()` private function in `SpinLabAppState`
+
+**Test file**
+`Tests/SpinLabAppTests/V230ApplyTests.swift` — 4 scenarios above.
+
+**Execution order**
+
+> Per AGENTS.md: logic changes and UI changes must be in separate commits.
+
+**Round 1 — Logic & Service Layer** (commit separately before touching UI)
+1. `LibraryWriteTransaction.swift`
+2. `LibraryStore.swift` — add `drawerRootURL`
+3. `InboxArchiveApplyService.swift`
+4. `ApplyCoordinator.swift`
+5. `InboxFeatureStore.swift` — add apply state, remove confirm method
+6. `SpinLabAppState.swift` — wire up, remove confirm methods
+7. `InboxFacade.swift` — add apply methods
+8. `AppCoordinator.swift` — remove `routeAfterPendingConfirmation`
+9. `InboxWorkflowService.swift` — remove confirm method + outcome enum
+10. Delete `UseCases/ConfirmPendingImportUseCase.swift`
+11. `V230ApplyTests.swift`
+12. `AppVersion.swift` — bump version
+13. `./scripts/build_desktop_app.sh debug` — verify logic layer builds and tests pass
+
+**Round 2 — UI Layer** (separate commit after Round 1 is verified)
+1. `InboxViewModel.swift` + `InboxView.swift` — enable Apply button, add Apply All, remove placeholder text
+2. `./scripts/build_desktop_app.sh debug` — verify UI layer builds cleanly
 
 ## V2.4
 **Goal (one line)**
-Add normalized test-tag metadata sidecar at archive time and make metadata query-ready.
+Build a Workflow Registry in Workbench so the user can define their own workflows and the fields each one requires.
+
+**Design rationale**
+V2.4 must come before sidecar writing (V2.5) because the sidecar's content depends on knowing what fields each workflow requires. If sidecar writing were done first with hardcoded fields, those fields would need to be redesigned once the workflow registry exists — wasted work and a format migration.
+
+Storing the registry in App Support (not in the Library folder) is a deliberate choice: workflow definitions describe how the researcher works, not what data they have. They should persist even when the Library folder is changed or moved. Keeping them separate also means the Library folder stays purely about research data.
+
+The existing Workbench content is placeholder code from an earlier design (the old Confirm / ArchivedRecord flow that V2.3 removes). Clearing it avoids confusion and gives V2.4 a clean foundation. The Workbench's real purpose — analysis and visualization — will be built out incrementally in later versions once the workflow schema exists to guide it.
+
+A user-editable registry (rather than hardcoded workflows in Swift) lets the researcher add their own measurement types without requiring a code change. Different labs, different workflows.
+
+**User story**
+The Workbench currently has no real content — just placeholder text. V2.4 replaces all of that with a Workflow Registry panel. The user can add workflows they actually use (e.g. XY Rotation, AMR, RT, AHE, 3ω) and for each one specify what conditions need to be recorded (temperature, rotation angle, test current, etc.). This registry becomes the shared source of truth: Inbox will read it in V2.5 to know which fields to collect when applying a file, and Library will read it in V2.6 to display measurement history intelligently.
+
+The registry is stored locally in App Support and persists across sessions, independent of the Library folder location.
 
 **Detailed requirements**
-1. Metadata primary source: sidecar JSON in sample drawer.
-2. Normalize tags on write, including:
-- `AMR -> R_xx`
-- `PHE -> R_xy`
-- `XY_90shift -> workflow=XY + angle_shift=+90deg`
-3. Persist conditions and level tags (`temperature/current/field`, `wafer/device`).
-4. Multi-sample fan-out metadata policy:
-- each sample drawer stores only channels relevant to that sample
-- file body still exists in each target drawer
-5. Keep original raw parse values alongside normalized values for traceability.
+1. User can add, edit, and remove workflow definitions.
+2. Each workflow has: an ID (e.g. `XY`), a display name, an optional parent workflow (e.g. `XY` is a child of `rotation`), and a list of condition fields.
+3. Each condition field has: a key, a display label, an optional unit, and a required/optional flag.
+4. Registry persists to `~/Library/Application Support/SpinLab/workflow_registry.json`.
+5. On first launch with an empty registry, seed with example entries so the user can see the structure.
+6. Clear existing Workbench placeholder content; Workbench starts fresh with the Workflow Registry as its first real feature.
+
+**Seeded defaults (first launch)**
+```
+XY Rotation  → fields: Temperature (K), Rotation Angle (deg)
+RT           → fields: Test Current (mA)
+```
 
 **Test scenarios & acceptance criteria**
-1. XY_90shift sample case
-- Acceptance: sidecar contains normalized workflow, angle shift, conditions, level, and normalized channel tags.
-2. Multi-sample RT case
-- Acceptance: PN36 sidecar does not carry PN37-only channel binding and vice versa.
-3. Query/load integrity
-- Acceptance: metadata reads are stable after app relaunch and filesystem rescan.
+1. Empty registry on first launch → seeded defaults are present.
+2. Add a workflow → appears in list; persists after app relaunch.
+3. Remove a workflow → no longer in list; JSON updated.
+4. Edit a condition field → change saved correctly.
 
-**Code structure design**
-1. Add `TagNormalizer` (single normalization authority).
-2. Add `ArchiveMetadataBuilder` (composes sidecar payload).
-3. Add `SidecarWriter` with versioned schema field.
-4. Keep metadata serialization decoupled from apply transaction core.
+**New files**
+
+`Sources/SpinLabApp/Workflow/WorkflowDefinition.swift`
+- `struct WorkflowDefinition: Codable, Identifiable, Hashable, Sendable`
+  - `id: String`, `displayName: String`, `parentID: String?`, `conditionFields: [WorkflowConditionField]`
+- `struct WorkflowConditionField: Codable, Hashable, Sendable`
+  - `key: String`, `label: String`, `unit: String?`, `required: Bool`
+
+`Sources/SpinLabApp/Workflow/WorkflowRegistryStore.swift`
+- `final class WorkflowRegistryStore`
+- `func load()` — reads `workflow_registry.json` from App Support
+- `func save()` — writes back to JSON
+- `func add(_:)`, `func remove(id:)`, `func update(_:)`, `func definition(for:) -> WorkflowDefinition?`
+
+`Sources/SpinLabApp/Features/Workbench/WorkflowRegistryView.swift`
+- Two-panel layout: left = workflow list with Add/Remove; right = selected workflow detail with condition field editor.
+
+**Modified files**
+
+`Features/Workbench/WorkbenchView.swift`
+- Remove all existing placeholder content (`ArchivedWorkbenchDetailView`, `PendingWorkbenchPreview`, "Workflow fixed to…" display).
+- Replace with top-level section switch: `Workflows` (live) | `Measurements` (placeholder for V2.6).
+
+`App/State/WorkbenchFeatureStore.swift`
+- Add `workflowRegistryStore: WorkflowRegistryStore`.
+- Expose `workflowDefinitions: [WorkflowDefinition]` for view binding.
+- Add CRUD methods delegating to `WorkflowRegistryStore`.
+
+`App/AppEnvironment.swift` (or equivalent)
+- Instantiate and inject `WorkflowRegistryStore`.
+
+`App/AppVersion.swift`
+- Bump `AppVersion.library`.
+
+**Test file**
+`Tests/SpinLabAppTests/V240WorkflowRegistryTests.swift` — 4 scenarios above.
+
+**Execution order**
+1. `WorkflowDefinition.swift`
+2. `WorkflowRegistryStore.swift`
+3. `WorkbenchFeatureStore.swift` — integrate registry store
+4. `WorkflowRegistryView.swift`
+5. `WorkbenchView.swift` — clear placeholder, add Workflows tab
+6. Wire up in AppEnvironment
+7. `AppVersion.swift` — bump
+8. `V240WorkflowRegistryTests.swift`
+9. `./scripts/build_desktop_app.sh debug`
 
 ## V2.5
 **Goal (one line)**
-Finalize auditability and safety with dual logs, strict duplicate guard, and safe pending cleanup.
+When applying a file, automatically write a tag record alongside it capturing workflow, conditions, and test type.
+
+**Design rationale**
+The sidecar is a separate file (not merged into `sample.json`) because `sample.json` is owned by the Library registry sync — it reflects what's in the XLSX spreadsheet. Mixing apply-time measurement conditions into that file would conflate two different data sources and make registry sync logic more fragile. Keeping sidecar files separate means each data source stays clean and independently updatable.
+
+One sidecar per file per destination drawer (rather than one shared sidecar) is correct for fan-out scenarios. When a file routes to multiple samples, each sample may only be relevant for a subset of channels. Having a per-drawer sidecar makes each drawer self-contained — it describes exactly what was deposited there and why, with no cross-sample data leakage.
+
+The sidecar and data file must be atomic (both succeed or both roll back) because a sidecar without its data file is misleading, and a data file without its sidecar would silently lose the measurement conditions. There's no useful partial state.
+
+**User story**
+After V2.4 is in place and the user has defined their workflows, the Apply action gains a new behavior: alongside each copied data file, the app writes a small companion tag file (e.g. `mydata.spinlab.json`) in the same folder. This file records the conditions of the measurement — workflow, temperature, and any other fields defined for that workflow in the registry. The user doesn't need to do anything extra; it happens automatically on Apply. These tag files are what V2.6 will read to build the "Measurements Done" history per sample.
+
+If the file's workflow isn't found in the registry, the app records whatever is available (workflow text and temperature from the Inbox draft fields) as a fallback.
+
+**Sidecar format** (example for workflow `XY`):
+```json
+{
+  "version": 1,
+  "workflow": "XY",
+  "conditions": { "temperature": "80K", "rotation_angle": "45deg" },
+  "channels": ["XRD"],
+  "testType": "XRD",
+  "sourceFilePath": "/original/path/myfile.dat",
+  "appliedAt": "2026-03-28T10:00:00Z"
+}
+```
 
 **Detailed requirements**
-1. Edit log:
-- records pre/post field values for manual confirm/recompute actions.
-2. Import log:
-- records archive actions with timestamp, source, targets, result.
-3. Dual log sinks:
-- one full audit under `Library Root`
-- one structured mirror under `App Support`
-4. Duplicate import guard:
-- reject duplicate by `fileName + contentHash`.
-5. `Clear Imports` behavior:
-- clear pending records
-- delete unarchived managed temp copies
-- never touch archived files in library drawers.
+1. For every file written by Apply, write `{filename}.spinlab.json` in the same destination subfolder.
+2. Sidecar content is determined by the matching `WorkflowDefinition` from the V2.4 registry.
+3. Condition field values are read from the Inbox draft (the values the user filled in before Apply).
+4. Sidecar and data file are one atomic unit: if either write fails, both roll back.
+5. Each target drawer in a fan-out gets its own sidecar.
+6. Fallback for unknown workflow: record `workflow`, `temperature`, `channels`, `testType`, `sourceFilePath`, `appliedAt` from available data.
 
 **Test scenarios & acceptance criteria**
-1. Confirm/recompute action
-- Acceptance: edit log written to both sinks with consistent event identity.
-2. Apply action
-- Acceptance: import log written to both sinks with consistent target summary.
-3. Duplicate import attempt
-- Acceptance: file rejected, no new pending route item.
-4. Clear imports
-- Acceptance: pending queue cleared; archived library files unchanged.
+1. Apply with known workflow → sidecar written with correct condition fields.
+2. Apply with unknown workflow → sidecar written with fallback fields only.
+3. Multi-target fan-out → each drawer gets its own sidecar.
+4. Sidecar write failure → data file and sidecar both rolled back; no residue.
+5. Sidecar content survives app relaunch (stable JSON encoding).
 
-**Code structure design**
-1. Add unified `AuditEvent` model.
-2. Add `AuditLogger` with two concrete sinks and stable event IDs.
-3. Add `DuplicateGuard` module for hash and lookup.
-4. Add `PendingCleanupService` to isolate pending purge side effects.
+**New files**
+
+`Sources/SpinLabApp/Library/SpinLabFileSidecar.swift`
+- `struct SpinLabFileSidecar: Codable, Hashable, Sendable`
+- Fields: `version`, `workflow`, `conditions: [String: String]`, `channels`, `testType`, `sourceFilePath`, `appliedAt`
+
+**Modified files**
+
+`Library/LibraryWriteTransaction.swift`
+- Add `mutating func prepareSidecar(_ sidecar: SpinLabFileSidecar, destinationURL: URL) throws`
+- Sidecar temp file is JSON-encoded and committed/rolled back together with the data file.
+
+`App/InboxArchiveApplyService.swift`
+- Add `draft: PendingImportConfirmationDraft` parameter to `apply(...)`.
+- Build `SpinLabFileSidecar` from draft + workflow registry lookup + route target channels.
+- Call `transaction.prepareSidecar(...)` alongside `transaction.prepare(...)`.
+
+`App/ApplyCoordinator.swift`
+- Pass `draftFor: (PendingImport) -> PendingImportConfirmationDraft` closure through to `InboxArchiveApplyService`.
+
+`App/SpinLabAppState.swift`
+- Read current workspace draft when calling `applySelectedPendingImport()` / `applyAllPendingImports()` and pass through.
+
+**Test file**
+`Tests/SpinLabAppTests/V250SidecarTests.swift` — 5 scenarios above.
+
+## V2.6
+**Goal (one line)**
+Show a "Measurements Done" history per sample in Library, built from the sidecar tag files.
+
+**Design rationale**
+Sidecar reading is done during the existing `Library Sync Files` pass rather than as a separate operation, because Library Sync already walks the entire drawer filesystem. Piggybacking on that pass avoids duplicating the filesystem traversal and ensures the displayed measurement history is always in sync with what's actually on disk — no separate "refresh history" action needed.
+
+The display is added as a new collapsible section in the existing sample detail panel (alongside Sample, Numeric Tags, Metadata) rather than as a separate screen, because it's sample-scoped information. The user is already looking at a sample when they want to know what tests it has had — no navigation needed.
+
+**User story**
+After files have been applied with V2.5 sidecars, the Library sample detail panel (right column) gains a new collapsible section: **Measurements Done**. It lists every measurement that has been applied to this sample — test type, conditions, workflow, and date — so the user can see at a glance what tests have been run and under what conditions.
+
+```
+▾ Measurements Done
+  XRD @ 80K  |  workflow: XY   |  2026-03-28
+  M-H @ RT   |  workflow: AMR  |  2026-03-25
+```
+
+The section can be collapsed with a chevron, same as the existing Sample / Numeric Tags / Metadata sections.
+
+**Detailed requirements**
+1. During `Library Sync Files`, scan each sample drawer's subfolders for `*.spinlab.json` files.
+2. Decode each sidecar into an `AppliedMeasurement` record.
+3. Aggregate all records per sample; attach to `LibrarySample`.
+4. Display in a new collapsible "Measurements Done" section in the sample detail panel.
+5. Each row shows: test type, primary condition (temperature or equivalent), workflow, applied date.
+
+**New model**
+```swift
+struct AppliedMeasurement: Codable, Hashable, Identifiable, Sendable {
+    var id: UUID
+    var workflow: String
+    var conditions: [String: String]   // e.g. {"temperature": "80K"}
+    var testType: String
+    var appliedAt: Date
+    var sourceFileName: String
+}
+```
+
+**Modified files**
+
+`Library/LibraryStore.swift`
+- In `buildIndexFromFilesystem`, scan drawer subfolders for `*.spinlab.json`; decode into `[AppliedMeasurement]`.
+
+`Library/LibraryModels.swift`
+- Add `appliedMeasurements: [AppliedMeasurement]` to `LibrarySample` (default empty, backward-compatible).
+
+`Features/Library/LibraryDetailSections.swift` (or `LibraryViewComputationService.swift`)
+- Add "Measurements Done" collapsible section after existing Metadata section.
+
+**Test file**
+`Tests/SpinLabAppTests/V260MeasurementsDisplayTests.swift`
+
+## V2.7
+**Goal (one line)**
+Finalize auditability and safety with dual logs, strict duplicate guard, and safe pending cleanup.
+
+**User story**
+Every Apply action writes a timestamped entry to an import log (both in the Library folder and in App Support), so the user can always trace when a file was archived and to which drawers. Duplicate files are rejected before they reach the queue. Clearing the Inbox only removes pending items — it never touches files already in Library.
+
+**Detailed requirements**
+1. Import log: records each apply action with timestamp, source file, target drawers, result.
+2. Dual log sinks: one under `Library Root`, one under App Support.
+3. Duplicate import guard: reject duplicate by `fileName + contentHash`.
+4. `Clear Imports`: clears pending queue only; never touches archived Library files.
+
+**Test scenarios & acceptance criteria**
+1. Apply action → import log written to both sinks with consistent target summary.
+2. Duplicate import attempt → file rejected; no new pending route item.
+3. Clear imports → pending queue cleared; archived library files unchanged.
+
+**Code structure**
+1. Add `AuditEvent` model and `AuditLogger` with two sinks.
+2. Add `DuplicateGuard` for hash-based rejection.
+3. Add `PendingCleanupService` to isolate pending purge side effects.
 
 ## Out-of-scope for this execution thread
-- Auto-apply without manual confirmation.
-- Plot preview in Inbox right panel (only extension seam retained).
-- New workflow families beyond the current naming/tag normalization scope.
+- Auto-apply without manual user action.
+- Plot preview in Inbox right panel (extension seam retained for future).
+- Workbench analysis tools (separate roadmap after V2.4 workflow registry is established).

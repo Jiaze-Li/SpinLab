@@ -233,12 +233,12 @@ final class InboxRoutingState {
                 overrides[channel.channel] = ""
                 continue
             }
-            overrides[channel.channel] = resolutionsByChannel[channel.channel]?.sampleKey ?? explicitInput ?? ""
+            overrides[channel.channel] = resolutionsByChannel[channel.channel]?.sampleId ?? explicitInput ?? ""
         }
 
         let defaultSampleKey = plan.channelResolutions
             .first(where: { $0.channel == "file" })?
-            .sampleKey
+            .sampleId
             ?? parsed.defaultSampleKey
             ?? ""
 

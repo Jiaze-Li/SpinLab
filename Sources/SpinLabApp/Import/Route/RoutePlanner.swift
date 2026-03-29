@@ -26,7 +26,7 @@ struct SpinLabRoutePlanner {
                 resolutions.append(
                     SpinLabDomain.RouteChannelResolution(
                         channel: "file",
-                        sampleKey: fileToken,
+                        sampleId: fileToken,
                         source: "fileToken",
                         tags: parsed.substrateTags
                     )
@@ -39,7 +39,7 @@ struct SpinLabRoutePlanner {
                 resolutions.append(
                     SpinLabDomain.RouteChannelResolution(
                         channel: channelHint.channel,
-                        sampleKey: nil,
+                        sampleId: nil,
                         source: "testInfoOnly",
                         tags: channelHint.testInfoTags
                     )
@@ -65,7 +65,7 @@ struct SpinLabRoutePlanner {
                     resolutions.append(
                         SpinLabDomain.RouteChannelResolution(
                             channel: channelHint.channel,
-                            sampleKey: channelToken,
+                            sampleId: channelToken,
                             source: "channelToken",
                             tags: channelHint.tags,
                             warning: unresolvedExplanation?.message,
@@ -80,7 +80,7 @@ struct SpinLabRoutePlanner {
                     resolutions.append(
                         SpinLabDomain.RouteChannelResolution(
                             channel: channelHint.channel,
-                            sampleKey: nil,
+                            sampleId: nil,
                             source: "testInfoOnly",
                             tags: channelHint.testInfoTags
                         )
@@ -90,7 +90,7 @@ struct SpinLabRoutePlanner {
         }
 
         let groupedTargets = Dictionary(grouping: resolutions.compactMap { resolution -> (String, String)? in
-            guard let sampleKey = resolution.sampleKey else {
+            guard let sampleKey = resolution.sampleId else {
                 return nil
             }
             return (sampleKey, resolution.channel)
@@ -99,11 +99,11 @@ struct SpinLabRoutePlanner {
         let targets = groupedTargets
             .map { sampleKey, entries in
                 SpinLabDomain.RouteTarget(
-                    sampleKey: sampleKey,
+                    sampleId: sampleKey,
                     channels: uniquePreservingOrder(entries.map { $0.1 }).sorted()
                 )
             }
-            .sorted { $0.sampleKey < $1.sampleKey }
+            .sorted { $0.sampleId < $1.sampleId }
 
         return SpinLabDomain.RoutePlan(
             // Route planner only emits routing candidates. Final verdict ownership is in

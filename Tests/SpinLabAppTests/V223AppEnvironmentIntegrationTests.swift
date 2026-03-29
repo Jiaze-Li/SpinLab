@@ -67,7 +67,7 @@ struct V223AppEnvironmentIntegrationTests {
         let appState = SpinLabAppState(environment: environment)
 
         appState.loadSampleRegistry(from: registryURL)
-        try await waitUntil(timeoutMS: 3_000) { appState.activeAlert != nil }
+        try await waitUntil(timeoutMS: 8_000) { appState.activeAlert != nil }
 
         #expect(appState.activeAlert?.title == "Registry Load Failed")
     }

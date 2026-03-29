@@ -17,6 +17,8 @@ final class InboxViewModel {
     var isRoutingReviewExpanded = true
     var isApplyExpanded = true
     var fileFilter: FileFilter = .all
+    var applySelected: () -> Void = { }
+    var applyAll: () -> Void = { }
 
     func restoreInteractionState(from appState: SpinLabAppState) {
         let restored = appState.interactionValue(\.inboxView)

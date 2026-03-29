@@ -21,7 +21,7 @@ struct V221RoutingExplanationTests {
         let plan = SpinLabRoutePlanner().makeRoutePlan(from: parsed)
         let ch1 = plan.channelResolutions.first(where: { $0.channel == "ch1" })
 
-        #expect(ch1?.sampleKey == "HF")
+        #expect(ch1?.sampleId == "HF")
         #expect(ch1?.warning == nil)
         #expect(ch1?.warningReason == nil)
         #expect(plan.unresolvedChannels.isEmpty)
@@ -34,7 +34,7 @@ struct V221RoutingExplanationTests {
             channelResolutions: [
                 SpinLabDomain.RouteChannelResolution(
                     channel: "file",
-                    sampleKey: "PN32 - STO(111)",
+                    sampleId: "PN32 - STO(111)",
                     source: "fileToken"
                 )
             ]
@@ -57,7 +57,7 @@ struct V221RoutingExplanationTests {
             channelResolutions: [
                 SpinLabDomain.RouteChannelResolution(
                     channel: "ch2",
-                    sampleKey: "PN41",
+                    sampleId: "PN41",
                     source: "channelToken",
                     warning: "Upstream warning"
                 )

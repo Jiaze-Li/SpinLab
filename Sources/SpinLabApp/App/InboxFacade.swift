@@ -17,6 +17,8 @@ final class InboxFacade {
     private let recomputedParsedHints: (SpinLabDomain.PendingImport) -> SpinLabDomain.ParsedFilenameHints
     private let pendingDisplayDraft: (SpinLabDomain.PendingImport) -> PendingImportConfirmationDraft
     private let bumpAppStateRevision: () -> Void
+    private let applySelected: () -> Void
+    private let applyAll: () -> Void
 
     init(
         inboxWorkflowService: InboxWorkflowService,
@@ -32,7 +34,9 @@ final class InboxFacade {
         writeInboxWorkspace: @escaping ([String: InboxPendingWorkspaceState]) -> Void,
         recomputedParsedHints: @escaping (SpinLabDomain.PendingImport) -> SpinLabDomain.ParsedFilenameHints,
         pendingDisplayDraft: @escaping (SpinLabDomain.PendingImport) -> PendingImportConfirmationDraft,
-        bumpAppStateRevision: @escaping () -> Void
+        bumpAppStateRevision: @escaping () -> Void,
+        applySelected: @escaping () -> Void,
+        applyAll: @escaping () -> Void
     ) {
         self.inboxWorkflowService = inboxWorkflowService
         self.inboxStore = inboxStore
@@ -48,6 +52,8 @@ final class InboxFacade {
         self.recomputedParsedHints = recomputedParsedHints
         self.pendingDisplayDraft = pendingDisplayDraft
         self.bumpAppStateRevision = bumpAppStateRevision
+        self.applySelected = applySelected
+        self.applyAll = applyAll
     }
 
     func importFiles(from urls: [URL]) {
@@ -89,5 +95,13 @@ final class InboxFacade {
         writeInboxWorkspace(recomputeOutcome.workspaceByPendingID)
         persistInteractionSnapshotIfReady()
         bumpAppStateRevision()
+    }
+
+    func applySelectedPending() {
+        applySelected()
+    }
+
+    func applyAllPending() {
+        applyAll()
     }
 }

@@ -22,8 +22,8 @@ struct V211RoutePlannerTests {
 
         #expect(plan.planningStatus == .reviewRequired)
         #expect(plan.targets.count == 2)
-        #expect(plan.targets.first(where: { $0.sampleKey == "PN36 - STO(111)" })?.channels == ["ch1", "ch2"])
-        #expect(plan.targets.first(where: { $0.sampleKey == "PN37 - NGO(110)" })?.channels == ["ch3"])
+        #expect(plan.targets.first(where: { $0.sampleId == "PN36||STO|111" })?.channels == ["ch1", "ch2"])
+        #expect(plan.targets.first(where: { $0.sampleId == "PN37||NGO|110" })?.channels == ["ch3"])
         #expect(plan.unresolvedChannels.isEmpty)
         #expect(plan.conflicts.isEmpty)
     }
@@ -41,7 +41,7 @@ struct V211RoutePlannerTests {
 
         let plan = SpinLabRoutePlanner().makeRoutePlan(from: parsed)
 
-        #expect(plan.targets.first?.sampleKey == "STO(001)")
+        #expect(plan.targets.first?.sampleId == "STO(001)")
         #expect(plan.unresolvedChannels.isEmpty)
     }
 
@@ -58,7 +58,7 @@ struct V211RoutePlannerTests {
 
         let plan = SpinLabRoutePlanner().makeRoutePlan(from: parsed)
 
-        #expect(plan.targets.first?.sampleKey == "STO(001)")
+        #expect(plan.targets.first?.sampleId == "STO(001)")
         #expect(plan.unresolvedChannels.isEmpty)
     }
 
@@ -75,7 +75,7 @@ struct V211RoutePlannerTests {
 
         let plan = SpinLabRoutePlanner().makeRoutePlan(from: parsed)
 
-        #expect(plan.targets.first?.sampleKey == "PN14")
+        #expect(plan.targets.first?.sampleId == "PN14||UNKNOWN|UNKNOWN")
         #expect(plan.unresolvedChannels.isEmpty)
     }
 
@@ -94,7 +94,7 @@ struct V211RoutePlannerTests {
         let plan = SpinLabRoutePlanner().makeRoutePlan(from: parsed)
 
         #expect(plan.targets.count == 1)
-        #expect(plan.targets.first?.sampleKey == "PN14 - STO(111)")
+        #expect(plan.targets.first?.sampleId == "PN14||STO|111")
     }
 
     @Test("explicit sample identity preserves treatment in sample key and tags")
@@ -111,7 +111,7 @@ struct V211RoutePlannerTests {
 
         let plan = SpinLabRoutePlanner().makeRoutePlan(from: parsed)
 
-        #expect(plan.targets.first?.sampleKey == "PN41 - o STO(111)")
+        #expect(plan.targets.first?.sampleId == "PN41|o|STO|111")
         #expect(plan.channelResolutions.first?.tags.contains("o") == true)
         #expect(plan.channelResolutions.first?.tags.contains("STO111") == true)
     }
