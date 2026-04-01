@@ -1,6 +1,14 @@
 import Foundation
 import Observation
 
+struct ImportProgressState {
+    var isRunning: Bool = false
+    var totalCount: Int = 0
+    var processedCount: Int = 0
+    var currentFileName: String = ""
+    var failedCount: Int = 0
+}
+
 @MainActor
 @Observable
 final class InboxFeatureStore {
@@ -10,6 +18,8 @@ final class InboxFeatureStore {
     private(set) var routingRuleSourceLabel: String = "unknown"
     private(set) var routingRuleSourcePath: String = "unknown"
     private(set) var routingRuleFingerprint: String = "unknown"
+    private(set) var routingSnapshotRevision: Int = 0
+    var importProgressState: ImportProgressState = .init()
 
     @ObservationIgnored
     let inboxRoutingState: InboxRoutingState
@@ -18,6 +28,8 @@ final class InboxFeatureStore {
     private let inboxRepository: InboxRepository
     @ObservationIgnored
     private var pendingImportsProjectionTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var importTask: Task<Void, Never>?
     @ObservationIgnored
     private var bufferedPendingImportsProjection: [SpinLabDomain.PendingImport]?
     @ObservationIgnored
@@ -39,6 +51,7 @@ final class InboxFeatureStore {
 
     deinit {
         pendingImportsProjectionTask?.cancel()
+        importTask?.cancel()
     }
 
     func restoreInteraction(selectedPendingImportID: UUID?) {
@@ -75,6 +88,19 @@ final class InboxFeatureStore {
         _ = replacePendingImports([])
     }
 
+    @discardableResult
+    func removeSelectedPendingImport() -> UUID? {
+        guard let selectedID = selectedPendingImportID else {
+            return nil
+        }
+        let updated = inboxRepository.performTransaction { pendingImports in
+            pendingImports.removeAll { $0.id == selectedID }
+        }
+        applyPendingImportsProjection(updated)
+        clearRoutingData(for: selectedID)
+        return selectedID
+    }
+
     func clearRoutingData(for pendingID: UUID) {
         inboxRoutingState.clearRoutingData(for: pendingID)
     }
@@ -89,13 +115,15 @@ final class InboxFeatureStore {
         from urls: [URL],
         managedStorage: SpinLabManagedStorage,
         importPipeline: SpinLabImportPipeline,
-        excludedOriginalFilePaths: Set<String>
+        excludedOriginalFilePaths: Set<String>,
+        excludedContentFingerprints: Set<String>
     ) -> [SpinLabDomain.PendingImport] {
         let managedFiles = managedStorage.importMeasurementFiles(
             from: urls,
             allowedFileExtensions: importPipeline.supportedFileExtensions,
             ignoredFileExtensions: importPipeline.ignoredFileExtensions,
-            excludedOriginalFilePaths: excludedOriginalFilePaths
+            excludedOriginalFilePaths: excludedOriginalFilePaths,
+            excludedContentFingerprints: excludedContentFingerprints
         )
         let imported = importPipeline.importFiles(managedFiles)
         guard !imported.isEmpty else {
@@ -108,6 +136,84 @@ final class InboxFeatureStore {
         _ = replacePendingImports(nextPendingImports)
         selectedPendingImportID = imported.first?.id
         return imported
+    }
+
+    func startImportFiles(
+        from urls: [URL],
+        managedStorage: SpinLabManagedStorage,
+        importPipeline: SpinLabImportPipeline,
+        excludedOriginalFilePaths: Set<String>,
+        excludedContentFingerprints: Set<String>,
+        onCompleted: @escaping @MainActor ([SpinLabDomain.PendingImport]) -> Void
+    ) {
+        importTask?.cancel()
+
+        // Phase 1 (sync): scan + fingerprint → get filtered file list and total count.
+        let managedFiles = managedStorage.importMeasurementFiles(
+            from: urls,
+            allowedFileExtensions: importPipeline.supportedFileExtensions,
+            ignoredFileExtensions: importPipeline.ignoredFileExtensions,
+            excludedOriginalFilePaths: excludedOriginalFilePaths,
+            excludedContentFingerprints: excludedContentFingerprints
+        )
+        guard !managedFiles.isEmpty else {
+            return
+        }
+
+        importProgressState = ImportProgressState(
+            isRunning: true,
+            totalCount: managedFiles.count,
+            processedCount: 0,
+            currentFileName: managedFiles[0].fileName,
+            failedCount: 0
+        )
+
+        // Phase 2 (async): parse one file at a time, yielding between each so the UI can update.
+        importTask = Task { @MainActor [weak self] in
+            defer { self?.importProgressState = .init() }
+
+            var accumulated: [SpinLabDomain.PendingImport] = []
+            accumulated.reserveCapacity(managedFiles.count)
+
+            for file in managedFiles {
+                guard !Task.isCancelled, let self else { return }
+                self.importProgressState.currentFileName = file.fileName
+                await Task.yield()
+                guard !Task.isCancelled else { return }
+
+                let parsed = importPipeline.importFiles([file])
+                if parsed.isEmpty {
+                    self.importProgressState.failedCount += 1
+                } else {
+                    accumulated.append(contentsOf: parsed)
+                }
+                self.importProgressState.processedCount += 1
+            }
+
+            guard !Task.isCancelled, let self, !accumulated.isEmpty else { return }
+
+            var next = self.pendingImports
+            next.insert(contentsOf: accumulated, at: 0)
+            self.refreshPendingDrawerMatches(for: accumulated.map(\.id))
+            _ = self.replacePendingImports(next)
+            self.selectedPendingImportID = accumulated.first?.id
+            onCompleted(accumulated)
+        }
+    }
+
+    func recomputeSpecificPendingHints(
+        pendingIDs: Set<UUID>,
+        recomputeParsedHints: (SpinLabDomain.PendingImport) -> SpinLabDomain.ParsedFilenameHints
+    ) -> [SpinLabDomain.PendingImport] {
+        let updated = pendingImports.map { pending -> SpinLabDomain.PendingImport in
+            guard pendingIDs.contains(pending.id) else { return pending }
+            var next = pending
+            next.parsedHints = recomputeParsedHints(pending)
+            return next
+        }
+        _ = replacePendingImports(updated)
+        refreshPendingDrawerMatches(for: Array(pendingIDs))
+        return updated
     }
 
     func recomputeAllPendingParsedHints(
@@ -146,6 +252,7 @@ final class InboxFeatureStore {
             pendingImports: pendingImports,
             for: pendingIDs
         )
+        routingSnapshotRevision &+= 1
     }
 
     func pendingRoutingSnapshot(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.PendingRoutingSnapshot {
@@ -153,7 +260,8 @@ final class InboxFeatureStore {
     }
 
     func cachedPendingRoutingSnapshot(for pendingID: UUID) -> SpinLabDomain.PendingRoutingSnapshot? {
-        inboxRoutingState.cachedPendingRoutingSnapshot(for: pendingID)
+        _ = routingSnapshotRevision
+        return inboxRoutingState.cachedPendingRoutingSnapshot(for: pendingID)
     }
 
     func matchedExistingLibraryDrawer(sampleInput: String) -> String? {
@@ -164,7 +272,8 @@ final class InboxFeatureStore {
         for pending: SpinLabDomain.PendingImport,
         substrateWarning: String?
     ) -> PendingRoutePresentation {
-        inboxRoutingState.pendingRoutePresentation(
+        _ = routingSnapshotRevision
+        return inboxRoutingState.pendingRoutePresentation(
             for: pending,
             substrateWarning: substrateWarning
         )
@@ -173,7 +282,8 @@ final class InboxFeatureStore {
     func pendingRoutePresentationByID(
         substrateWarning: (SpinLabDomain.PendingImport) -> String?
     ) -> [UUID: PendingRoutePresentation] {
-        inboxRoutingState.pendingRoutePresentationByID(
+        _ = routingSnapshotRevision
+        return inboxRoutingState.pendingRoutePresentationByID(
             pendingImports: pendingImports,
             substrateWarning: substrateWarning
         )
@@ -209,19 +319,20 @@ final class InboxFeatureStore {
             for: pendingID,
             pendingImports: pendingImports
         )
+        routingSnapshotRevision &+= 1
     }
 
-    func applyPending(appliedIDs: [UUID]) {
-        guard !appliedIDs.isEmpty else {
+    func applyPending(processedIDs: [UUID]) {
+        guard !processedIDs.isEmpty else {
             return
         }
 
-        let appliedSet = Set(appliedIDs)
+        let processedSet = Set(processedIDs)
         let updated = inboxRepository.performTransaction { pendingImports in
-            pendingImports.removeAll { appliedSet.contains($0.id) }
+            pendingImports.removeAll { processedSet.contains($0.id) }
         }
         applyPendingImportsProjection(updated)
-        for pendingID in appliedSet {
+        for pendingID in processedSet {
             clearRoutingData(for: pendingID)
         }
     }

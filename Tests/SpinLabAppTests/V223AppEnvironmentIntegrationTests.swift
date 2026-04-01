@@ -33,6 +33,11 @@ struct V223AppEnvironmentIntegrationTests {
         let appState = SpinLabAppState(environment: environment)
 
         appState.importFiles(from: [importURL])
+        try await waitUntil(timeoutMS: 8_000) {
+            appState.inbox.pendingImports.count == 1
+                && persistence.loadPendingImports().count == 1
+                && appState.inbox.importProgressState.isRunning == false
+        }
 
         #expect(appState.inbox.pendingImports.count == 1)
         #expect(persistence.loadPendingImports().count == 1)
@@ -102,6 +107,61 @@ struct V223AppEnvironmentIntegrationTests {
         #expect(appState.activeAlert?.title == "Rules Updated")
         #expect(appState.activeAlert?.message.contains("Sync Registry") == true)
         #expect(appState.interactionValue(\.lastSeenRoutingRuleFingerprint) == appState.inbox.routingRuleFingerprint)
+    }
+
+    @Test("workflow parser value is normalized to workflow id via display name and aliases")
+    func workflowValueNormalizesToWorkflowID() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("spinlab-env-workflow-normalize-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let importURL = root.appendingPathComponent("PN20_AHE_1mA.dat")
+        try Data("test".utf8).write(to: importURL)
+
+        let registryURL = root.appendingPathComponent("workflow_registry.json")
+        let registry = [
+            WorkflowDefinition(
+                id: "A",
+                displayName: "AHE",
+                parentID: nil,
+                aliases: ["ahe-test"],
+                conditionFields: [WorkflowConditionField(definitionID: "temperature")]
+            )
+        ]
+        let encodedRegistry = try JSONEncoder().encode(registry)
+        try encodedRegistry.write(to: registryURL, options: .atomic)
+
+        let persistence = LocalPersistenceStub(
+            pendingImports: [],
+            archivedRecords: [],
+            projects: [],
+            interactionSnapshot: SpinLabInteractionSnapshot()
+        )
+        let environment = AppEnvironment(
+            persistence: persistence,
+            managedStorage: SpinLabManagedStorage(rootURL: root.appendingPathComponent("storage", isDirectory: true)),
+            sampleRegistry: SnapshotSampleRegistryIndex(snapshot: .empty()),
+            registrySubstrateRules: RegistrySubstrateRuleBook(),
+            routingCapabilities: .live,
+            ruleRuntime: DefaultRuleRuntimeCapability(),
+            dataActor: MockDataActor(),
+            workflowRegistryStore: WorkflowRegistryStore(registryFileURL: registryURL)
+        )
+        let appState = SpinLabAppState(environment: environment)
+
+        appState.importFiles(from: [importURL])
+        try await waitUntil(timeoutMS: 8_000) {
+            appState.inbox.pendingImports.count == 1
+                && appState.inbox.importProgressState.isRunning == false
+        }
+
+        guard let pending = appState.inbox.pendingImports.first else {
+            Issue.record("Expected one imported pending item.")
+            return
+        }
+        let draft = appState.pendingDisplayDraft(for: pending)
+        #expect(draft.workflowID == "A")
     }
 
     private func waitUntil(timeoutMS: UInt64, condition: @escaping () -> Bool) async throws {

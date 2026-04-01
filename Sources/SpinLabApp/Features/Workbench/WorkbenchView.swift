@@ -1,113 +1,65 @@
-import Observation
 import SwiftUI
 
 struct WorkbenchView: View {
     @Environment(SpinLabAppState.self) private var appState
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
+        @Bindable var workbench = appState.workbench
+
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text("Workbench")
-                    .font(.largeTitle.bold())
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Workbench")
+                        .font(.largeTitle.bold())
+                    Spacer()
+                    Button("Rules Handbook") {
+                        openWindow(id: "rules-handbook")
+                    }
+                        .buttonStyle(.borderedProminent)
+                }
 
-                Text("Workflow fixed to \(appState.workflow.rawValue)")
-                    .foregroundStyle(.secondary)
+                Picker("Section", selection: $workbench.selectedSection) {
+                    ForEach(WorkbenchSection.allCases) { section in
+                        Text(section.title).tag(section)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 340)
 
-                if let archived = appState.selectedArchivedRecord {
-                    ArchivedWorkbenchDetailView(record: archived)
-                } else if let pending = appState.selectedPendingImport {
-                    PendingWorkbenchPreview(pending: pending)
-                } else {
-                    ContentUnavailableView(
-                        "No Measurement Selected",
-                        systemImage: "waveform.path.ecg.rectangle",
-                        description: Text("Select a pending import or archived measurement.")
-                    )
+                switch workbench.selectedSection {
+                case .workflows:
+                    switch workbench.currentRoute {
+                    case .registry(_):
+                        WorkflowRegistryView()
+                    case .workflow:
+                        workflowWorkspacePlaceholder
+                    }
+                case .measurements:
+                    GroupBox("Measurements") {
+                        ContentUnavailableView(
+                            "Coming in V2.6",
+                            systemImage: "chart.xyaxis.line",
+                            description: Text("Measurement history will be displayed once sidecar reading is added.")
+                        )
+                        .frame(maxWidth: .infinity, minHeight: 220)
+                    }
                 }
             }
             .padding(24)
         }
     }
-}
 
-private struct ArchivedWorkbenchDetailView: View {
-    let record: SpinLabDomain.ArchivedRecord
-    @Environment(SpinLabAppState.self) private var appState
-
-    var body: some View {
-        @Bindable var bindableWorkbench = appState.workbench
-
-        VStack(alignment: .leading, spacing: 16) {
-            GroupBox("Measurement") {
-                VStack(alignment: .leading, spacing: 8) {
-                    MetadataValueRow(label: "Measurement", value: record.measurement.name)
-                    MetadataValueRow(label: "measurement_type", value: record.measurement.measurementType.rawValue)
-                    MetadataValueRow(label: "Sample", value: record.sample.name)
-                    MetadataValueRow(label: "Batch", value: record.batch?.name ?? "None")
-                    MetadataValueRow(label: "Device", value: record.device?.name ?? "None")
-                    MetadataValueRow(label: "Project", value: record.project?.name ?? "Unlinked")
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            GroupBox("Measurement File Preview") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(appState.defaultViewDisplayName)
-                        .font(.headline)
-                    Text("The earlier Raw AMR/PHE point list was placeholder data from the skeleton. This view now shows file-backed context instead of fake plotted values.")
-                        .foregroundStyle(.secondary)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                    MetadataValueRow(label: "File Path", value: record.measurement.sourceFilePath, monospaced: true)
-                    MetadataValueRow(label: "Original File", value: record.measurement.originalFilePath ?? "Unknown", monospaced: true)
-                    MetadataValueRow(label: "Dataset Columns", value: record.dataset.columns.joined(separator: ", "))
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            GroupBox("Result") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Save creates or updates a Result attached to the active Measurement.")
-                        .foregroundStyle(.secondary)
-
-                    TextEditor(text: $bindableWorkbench.workbenchResultDraft)
-                        .font(.body)
-                        .frame(minHeight: 140)
-
-                    HStack {
-                        Button("Save Result Stub") {
-                            appState.saveWorkbenchResult()
-                        }
-                        .buttonStyle(.borderedProminent)
-
-                        if let updatedAt = record.latestResult?.updatedAt {
-                            Text("Last updated \(updatedAt.formatted())")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-    }
-}
-
-private struct PendingWorkbenchPreview: View {
-    let pending: SpinLabDomain.PendingImport
-
-    var body: some View {
-        GroupBox("Pending Preview") {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("This is a placeholder preview for a pending AMR/PHE import.")
-                    .foregroundStyle(.secondary)
-                MetadataValueRow(label: "File", value: pending.fileName)
-                MetadataValueRow(label: "Parsed Measurement", value: pending.parsedHints.measurementName ?? "Not parsed")
-                Text("Archive the item from Inbox to create a persisted Measurement, Dataset, and Result skeleton.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+    @ViewBuilder
+    private var workflowWorkspacePlaceholder: some View {
+        let selected = appState.workbench.selectedWorkflowDefinition
+        GroupBox(selected?.displayName ?? selected?.id ?? "Workflow") {
+            ContentUnavailableView(
+                "Workflow Workspace",
+                systemImage: "hammer",
+                description: Text("Workflow operation workspace is reserved for upcoming features.")
+            )
+            .frame(maxWidth: .infinity, minHeight: 260)
         }
     }
 }

@@ -25,7 +25,7 @@ struct ArchivedRecordResolverService {
     ) -> String {
         var lines: [String] = []
 
-        let temp = draft.temperature.trimmingCharacters(in: .whitespacesAndNewlines)
+        let temp = (draft.conditionValues[ConditionFieldCatalog.temperatureID] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if !temp.isEmpty {
             lines.append("Measurement temperature: \(temp)")
         }

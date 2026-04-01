@@ -8,24 +8,42 @@ struct InboxView: View {
 
     var body: some View {
         @Bindable var bindableViewModel = viewModel
+        let applyProgress = appState.applyProgressState
+        let importProgress = appState.inbox.importProgressState
+        let isBusy = applyProgress.isRunning || importProgress.isRunning
 
-        HSplitView {
-            InboxOperationPanel(
-                isImportSourceExpanded: $bindableViewModel.isImportSourceExpanded,
-                isPendingQueueExpanded: $bindableViewModel.isPendingQueueExpanded,
-                isRoutingReviewExpanded: $bindableViewModel.isRoutingReviewExpanded,
-                isApplyExpanded: $bindableViewModel.isApplyExpanded,
-                fileFilter: $bindableViewModel.fileFilter,
-                applySelected: { viewModel.applySelected() },
-                applyAll: { viewModel.applyAll() }
-            )
-            .frame(minWidth: 380, idealWidth: 500, maxWidth: 680)
+        ZStack {
+            HSplitView {
+                InboxOperationPanel(
+                    isImportSourceExpanded: $bindableViewModel.isImportSourceExpanded,
+                    isPendingQueueExpanded: $bindableViewModel.isPendingQueueExpanded,
+                    isRoutingReviewExpanded: $bindableViewModel.isRoutingReviewExpanded,
+                    isApplyExpanded: $bindableViewModel.isApplyExpanded,
+                    fileFilter: $bindableViewModel.fileFilter,
+                    applySelected: { viewModel.applySelected() },
+                    applyAll: { viewModel.applyAll() }
+                )
+                .frame(minWidth: 380, idealWidth: 500, maxWidth: 1200)
 
-            InboxInspectorReservedPanel()
-                .frame(minWidth: 460, idealWidth: 660, maxWidth: .infinity)
+                InboxInspectorReservedPanel()
+                    .frame(minWidth: 280, idealWidth: 660, maxWidth: .infinity)
+            }
+
+            if applyProgress.isRunning {
+                Color.black.opacity(0.20)
+                    .ignoresSafeArea()
+                ApplyProgressOverlay(progress: applyProgress)
+                    .frame(maxWidth: 460)
+            } else if importProgress.isRunning {
+                Color.black.opacity(0.20)
+                    .ignoresSafeArea()
+                ImportProgressOverlay(progress: importProgress)
+                    .frame(maxWidth: 460)
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .allowsHitTesting(!isBusy)
         .dropDestination(for: URL.self) { items, _ in
             appState.importFiles(from: items)
             return !items.isEmpty
@@ -43,6 +61,90 @@ struct InboxView: View {
         .onDisappear {
             viewModel.persistInteractionState(to: appState)
         }
+    }
+}
+
+private struct ApplyProgressOverlay: View {
+    let progress: ApplyProgressState
+
+    private var fractionCompleted: Double {
+        guard progress.totalCount > 0 else {
+            return 0
+        }
+        return Double(progress.processedCount) / Double(progress.totalCount)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Applying Pending Imports")
+                .font(.headline)
+            Text("\(progress.processedCount)/\(progress.totalCount)")
+                .font(.title3.monospacedDigit().weight(.semibold))
+            ProgressView(value: fractionCompleted, total: 1.0)
+                .progressViewStyle(.linear)
+            if !progress.currentFileName.isEmpty {
+                Text("Current: \(progress.currentFileName)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Text("Applied \(progress.appliedCount) · Skipped \(progress.skippedCount) · Failed \(progress.failedCount)")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.regularMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+        )
+        .shadow(radius: 10, y: 4)
+    }
+}
+
+private struct ImportProgressOverlay: View {
+    let progress: ImportProgressState
+
+    private var fractionCompleted: Double {
+        guard progress.totalCount > 0 else {
+            return 0
+        }
+        return Double(progress.processedCount) / Double(progress.totalCount)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Importing Files")
+                .font(.headline)
+            Text("\(progress.processedCount)/\(progress.totalCount)")
+                .font(.title3.monospacedDigit().weight(.semibold))
+            ProgressView(value: fractionCompleted, total: 1.0)
+                .progressViewStyle(.linear)
+            if !progress.currentFileName.isEmpty {
+                Text("Current: \(progress.currentFileName)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            if progress.failedCount > 0 {
+                Text("Failed \(progress.failedCount)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.regularMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+        )
+        .shadow(radius: 10, y: 4)
     }
 }
 
@@ -85,8 +187,10 @@ private struct InboxOperationPanel: View {
 
     var body: some View {
         @Bindable var bindableInbox = appState.inbox
-
-        let routePresentationByID = appState.pendingRoutePresentationByID()
+        let routePresentationByID: [UUID: PendingRoutePresentation] = {
+            _ = appState.inbox.routingSnapshotRevision
+            return appState.pendingRoutePresentationByID()
+        }()
         let libraryMatchedCount = appState.inbox.pendingImports.reduce(into: 0) { partial, pending in
             if routePresentationByID[pending.id]?.isLibraryMatched == true {
                 partial += 1
@@ -122,6 +226,11 @@ private struct InboxOperationPanel: View {
                                 isPresentingClearImportsConfirm = true
                             }
                             .disabled(appState.inbox.pendingImports.isEmpty)
+
+                            Button("Clear Selected", role: .destructive) {
+                                appState.clearSelectedPendingImport()
+                            }
+                            .disabled(appState.selectedPendingImport == nil)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -424,15 +533,16 @@ private struct InboxSelectionWorkbenchPanel: View {
         batchName: "",
         sampleName: "",
         measurementName: "",
-        workflowTag: "",
-        deviceName: "",
-        temperature: "",
+        workflowID: "",
+        conditionValues: [:],
         selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
         newProjectName: ""
     )
     @State private var routingDraft = PendingRoutingDraft(defaultSampleKey: "", channelSampleKeyOverrides: [:])
+    @State private var localRoutingRefreshTick: Int = 0
     private var routingSnapshot: SpinLabDomain.PendingRoutingSnapshot {
-        appState.cachedPendingRoutingSnapshot(for: pending.id) ?? placeholderRoutingSnapshot(for: pending)
+        _ = localRoutingRefreshTick
+        return appState.cachedPendingRoutingSnapshot(for: pending.id) ?? placeholderRoutingSnapshot(for: pending)
     }
     private var routePlan: SpinLabDomain.RoutePlan { routingSnapshot.routePlan }
     private var warnings: [PendingDisplayWarning] { appState.pendingDisplayWarningItems(for: pending) }
@@ -458,6 +568,60 @@ private struct InboxSelectionWorkbenchPanel: View {
         }
         return "\(warning.message) [Scope: \(scopeSummary)]"
     }
+    @ViewBuilder
+    private var workflowPicker: some View {
+        let definitions = appState.workflowDefinitions
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Workflow")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Picker("", selection: $draft.workflowID) {
+                Text("—").tag("")
+                ForEach(definitions) { definition in
+                    Text(definition.displayName).tag(definition.id)
+                }
+            }
+            .labelsHidden()
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// Renders condition fields starting from index 1 (index 0 is already beside Workflow).
+    @ViewBuilder
+    private func remainingConditionFieldRows(fields: [WorkflowConditionField]) -> some View {
+        let remaining = fields.count > 1 ? Array(fields.dropFirst()) : []
+        if !remaining.isEmpty {
+            let pairs = stride(from: 0, to: remaining.count, by: 2).map {
+                (remaining[$0], $0 + 1 < remaining.count ? remaining[$0 + 1] : nil)
+            }
+            ForEach(Array(pairs.enumerated()), id: \.offset) { _, pair in
+                HStack(alignment: .top, spacing: 12) {
+                    conditionField(pair.0)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if let second = pair.1 {
+                        conditionField(second)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        Color.clear
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func conditionField(_ field: WorkflowConditionField) -> some View {
+        let label = appState.workbench.conditionLabel(for: field.definitionID)
+        EditableMetadataField(
+            label: label,
+            value: Binding(
+                get: { draft.conditionValues[field.definitionID] ?? "" },
+                set: { draft.conditionValues[field.definitionID] = $0 }
+            )
+        )
+    }
+
     private var routingDraftIsDirty: Bool { appState.isRoutingDraftDirty(routingDraft, for: pending) }
     private var hasUnsavedInfoDraft: Bool { draft != appState.pendingDisplayDraft(for: pending) }
     private var channelKeys: [String] {
@@ -467,6 +631,9 @@ private struct InboxSelectionWorkbenchPanel: View {
     }
     private var isChannelLevelMapping: Bool {
         routingSnapshot.mode == .channelLevel
+    }
+    private var shouldRenderChannelMappingRows: Bool {
+        isChannelLevelMapping && !channelKeys.isEmpty
     }
     private var canApplySelected: Bool {
         routingSnapshot.verdict == .libraryMatched
@@ -479,7 +646,7 @@ private struct InboxSelectionWorkbenchPanel: View {
         VStack(alignment: .leading, spacing: 12) {
             GroupBox("Deposit Mapping") {
                 VStack(alignment: .leading, spacing: 10) {
-                    if isChannelLevelMapping {
+                    if shouldRenderChannelMappingRows {
                         ForEach(channelKeys, id: \.self) { channel in
                             mappingRow(
                                 label: "\(channel) Sample",
@@ -494,7 +661,14 @@ private struct InboxSelectionWorkbenchPanel: View {
                             MetadataValueRow(label: "Unresolved", value: routingSnapshot.unresolvedScopes.joined(separator: ", "))
                         }
                     } else {
-                        mappingRow(label: "Sample", sample: $draft.sampleName, drawer: savedDrawerForFile())
+                        mappingRow(
+                            label: "Sample",
+                            sample: Binding(
+                                get: { editableSampleForFile() },
+                                set: { setEditableSampleForFile(to: $0) }
+                            ),
+                            drawer: savedDrawerForFile()
+                        )
                         MetadataValueRow(label: "Channel Info", value: fileLevelChannelInfo())
                     }
                 }
@@ -503,22 +677,23 @@ private struct InboxSelectionWorkbenchPanel: View {
 
             GroupBox("File Tags") {
                 VStack(alignment: .leading, spacing: 8) {
+                    let fields = appState.workflowDefinitions
+                        .first(where: { $0.id == draft.workflowID })?.conditionFields ?? []
                     HStack(alignment: .top, spacing: 12) {
-                        EditableMetadataField(label: "Workflow", value: $draft.workflowTag)
+                        workflowPicker
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        EditableMetadataField(label: "Device", value: $draft.deviceName)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    HStack(alignment: .top, spacing: 12) {
-                        EditableMetadataField(label: "Temperature", value: $draft.temperature)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        if let warningDisplayValue {
-                            MetadataValueRow(label: "Warnings", value: warningDisplayValue)
+                        if let first = fields.first {
+                            conditionField(first)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         } else {
                             Color.clear
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
+                    }
+                    remainingConditionFieldRows(fields: fields)
+                    if let warningDisplayValue {
+                        MetadataValueRow(label: "Warnings", value: warningDisplayValue)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -526,15 +701,7 @@ private struct InboxSelectionWorkbenchPanel: View {
 
             HStack {
                 Button("Save Draft") {
-                    draft.sampleName = normalizedSampleDisplay(draft.sampleName)
-                    var nextRoutingDraft = routingDraft
-                    let trimmedSample = draft.sampleName.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !trimmedSample.isEmpty {
-                        nextRoutingDraft.defaultSampleKey = trimmedSample
-                    }
-                    appState.saveRoutingDraft(nextRoutingDraft, for: pending.id)
-                    routingDraft = appState.routingDraft(for: pending)
-                    persistDraftState()
+                    scheduleImmediateSaveDraft()
                 }
                 .disabled(!routingDraftIsDirty && !hasUnsavedInfoDraft)
 
@@ -609,15 +776,71 @@ private struct InboxSelectionWorkbenchPanel: View {
         return trimmed.isEmpty ? "—" : trimmed
     }
 
+    private func commitActiveEditor() {
+        let window = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: \.isVisible)
+        window?.endEditing(for: nil)
+        window?.makeFirstResponder(nil)
+    }
+
+    private func scheduleImmediateSaveDraft() {
+        commitActiveEditor()
+        Task { @MainActor in
+            // Give AppKit/IME a short window to flush editor text into SwiftUI binding.
+            await Task.yield()
+            await Task.yield()
+            try? await Task.sleep(nanoseconds: 60_000_000)
+            performSaveDraft()
+        }
+    }
+
+    private func performSaveDraft() {
+        draft.sampleName = normalizedSampleDisplay(draft.sampleName)
+        var nextRoutingDraft = routingDraft
+        let trimmedSample = draft.sampleName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedSample.isEmpty {
+            nextRoutingDraft.defaultSampleKey = trimmedSample
+        } else {
+            nextRoutingDraft.defaultSampleKey = normalizedSampleDisplay(nextRoutingDraft.defaultSampleKey)
+        }
+        nextRoutingDraft.channelSampleKeyOverrides = nextRoutingDraft.channelSampleKeyOverrides.mapValues {
+            normalizedSampleDisplay($0)
+        }
+
+        appState.saveRoutingDraft(nextRoutingDraft, for: pending.id)
+        appState.refreshPendingDrawerMatches(for: [pending.id])
+        routingDraft = appState.routingDraft(for: pending)
+        localRoutingRefreshTick &+= 1
+        persistDraftState()
+    }
+
     private func editableSampleForChannel(_ channel: String) -> String {
         if let override = routingDraft.channelSampleKeyOverrides[channel], !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return override
+            return displaySampleText(override)
         }
         if let sample = scopeEvaluation(channel)?.sampleId,
            !sample.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return sample
+            return displaySampleText(sample)
         }
-        return draft.sampleName
+        return displaySampleText(draft.sampleName)
+    }
+
+    private func editableSampleForFile() -> String {
+        let draftValue = routingDraft.defaultSampleKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !draftValue.isEmpty {
+            return displaySampleText(draftValue)
+        }
+        if let sample = scopeEvaluation("file")?.sampleId,
+           !sample.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return displaySampleText(sample)
+        }
+        return displaySampleText(draft.sampleName)
+    }
+
+    private func setEditableSampleForFile(to value: String) {
+        let normalized = normalizedSampleDisplay(value)
+        routingDraft.defaultSampleKey = normalized
+        // Keep draft metadata aligned for legacy consumers still reading sampleName.
+        draft.sampleName = normalized
     }
 
     private func setEditableSampleForChannel(_ channel: String, to value: String) {
@@ -652,35 +875,82 @@ private struct InboxSelectionWorkbenchPanel: View {
         return trimmed
     }
 
+    private func displaySampleText(_ rawSample: String) -> String {
+        let trimmed = rawSample.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return ""
+        }
+
+        guard let descriptor = SampleSemanticDescriptor.fromSampleKey(trimmed) else {
+            return trimmed
+        }
+        guard let batch = descriptor.batch else {
+            return trimmed
+        }
+
+        var components: [String] = [batch]
+        let processing = descriptor.processingTokens
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && $0.caseInsensitiveCompare("UNKNOWN") != .orderedSame }
+            .sorted()
+        components.append(contentsOf: processing)
+        if let material = descriptor.material,
+           material.caseInsensitiveCompare("UNKNOWN") != .orderedSame {
+            components.append(material)
+        }
+        if let orientation = descriptor.orientation,
+           orientation.caseInsensitiveCompare("UNKNOWN") != .orderedSame {
+            components.append(orientation)
+        }
+        return components.joined(separator: " ")
+    }
+
     @ViewBuilder
     private func mappingRow(label: String, sample: Binding<String>, drawer: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            EditableMetadataField(label: label, value: sample)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 10) {
+                EditableMetadataField(label: label, value: sample)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-            Image(systemName: "arrow.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .padding(.top, 8)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Drawer")
-                    .font(.caption)
+                Image(systemName: "arrow.right")
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                Text(drawer)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(drawer == "?" ? .orange : .primary)
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 8)
+
+                drawerChip(drawer)
             }
-            .frame(minWidth: 120, maxWidth: 220, alignment: .leading)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.secondary.opacity(0.08))
-            )
+            VStack(alignment: .leading, spacing: 8) {
+                EditableMetadataField(label: label, value: sample)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.turn.down.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    drawerChip(drawer)
+                }
+            }
         }
+    }
+
+    @ViewBuilder
+    private func drawerChip(_ drawer: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Drawer")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(drawer)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(drawer == "?" ? .orange : .primary)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(minWidth: 92, maxWidth: 180, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.secondary.opacity(0.08))
+        )
     }
 
 }

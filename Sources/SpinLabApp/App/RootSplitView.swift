@@ -28,7 +28,7 @@ struct RootSplitView: View {
                 ScrollView(.vertical) {
                     SidebarTreeView(
                         nodes: sidebarMenuProvider.makeMenu(appState: appState, selectedArea: appState.selectedArea),
-                        expandedNodeIDs: visibleExpandedSidebarNodeIDs,
+                        expandedNodeIDs: expandedSidebarNodeIDs,
                         selectedNodeIDs: selectedSidebarNodeIDs,
                         hoveredNodeID: hoveredSidebarRowID,
                         onNodeTap: handleSidebarNodeTap,
@@ -71,9 +71,11 @@ struct RootSplitView: View {
         .onAppear {
             appState.loadExistingDrawers()
             restoreSidebarInteractionState()
+            pruneExpandedSidebarStateForSelectedArea()
             persistSidebarInteractionState()
         }
         .onChange(of: appState.selectedArea) { _, _ in
+            pruneExpandedSidebarStateForSelectedArea()
             persistSidebarInteractionState()
         }
         .onChange(of: expandedSidebarNodeIDs) { _, _ in
@@ -134,20 +136,24 @@ struct RootSplitView: View {
         }
     }
 
-    private var visibleExpandedSidebarNodeIDs: Set<String> {
-        var visible = expandedSidebarNodeIDs
-        for area in AppArea.allCases where area != appState.selectedArea {
-            visible.remove(SidebarMenuNodeID.area(area))
-        }
-        return visible
-    }
-
     private var selectedSidebarNodeIDs: Set<String> {
-        var selected: Set<String> = [SidebarMenuNodeID.area(appState.selectedArea)]
-        if appState.selectedArea == .library,
-           let prefix = appState.library.librarySelectedPrefix,
-           let batchID = appState.library.librarySelectedBatchId {
-            selected.insert(SidebarMenuNodeID.libraryBatch(prefix: prefix, batchID: batchID))
+        var selected: Set<String> = []
+        switch appState.selectedArea {
+        case .workbench:
+            switch appState.workbench.currentRoute {
+            case .registry(_):
+                selected.insert(SidebarMenuNodeID.area(.workbench))
+            case .workflow(let id):
+                selected.insert(SidebarMenuNodeID.workbenchWorkflow(id))
+            }
+        case .library:
+            selected.insert(SidebarMenuNodeID.area(.library))
+            if let prefix = appState.library.librarySelectedPrefix,
+               let batchID = appState.library.librarySelectedBatchId {
+                selected.insert(SidebarMenuNodeID.libraryBatch(prefix: prefix, batchID: batchID))
+            }
+        case .inbox:
+            selected.insert(SidebarMenuNodeID.area(.inbox))
         }
         return selected
     }
@@ -174,6 +180,22 @@ struct RootSplitView: View {
             ids.insert(SidebarMenuNodeID.libraryPrefix(prefix))
         }
         return ids
+    }
+
+    /// Enforces WYSIWYG sidebar state:
+    /// if a section is visually collapsed because another area is active,
+    /// its expansion state is also removed from memory.
+    private func pruneExpandedSidebarStateForSelectedArea() {
+        let selectedAreaNodeID = SidebarMenuNodeID.area(appState.selectedArea)
+        expandedSidebarNodeIDs = expandedSidebarNodeIDs.filter { nodeID in
+            if nodeID.hasPrefix("area:") {
+                return nodeID == selectedAreaNodeID
+            }
+            if nodeID.hasPrefix("library-prefix:") {
+                return appState.selectedArea == .library
+            }
+            return true
+        }
     }
 
     private func persistSidebarInteractionState() {
@@ -205,17 +227,15 @@ struct RootSplitView: View {
             return
         }
 
-        if case let .area(area) = node.kind,
-           appState.selectedArea == area,
-           node.isExpandable {
-            toggleSidebarNodeExpansion(node.id)
+        if case .area = node.kind {
+            appState.navigate(to: path)
+            if node.isExpandable {
+                toggleSidebarNodeExpansion(node.id)
+            }
             return
         }
 
         appState.navigate(to: path)
-        if case .area = node.kind, node.isExpandable {
-            expandedSidebarNodeIDs.insert(node.id)
-        }
     }
 
     private func toggleSidebarNodeExpansion(_ nodeID: String) {

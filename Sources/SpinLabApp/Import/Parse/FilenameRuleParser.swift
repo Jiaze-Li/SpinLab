@@ -49,6 +49,8 @@ struct FilenameRuleParser {
         let measurement = ruleSet.measurementName(from: contextTokens, joined: joined)
         let measurementTags = uniquePreservingOrder(ruleSet.measurementTags(from: contextTokens))
         let substrateTags = uniquePreservingOrder(ruleSet.substrateTags(from: contextTokens))
+        let extraConditionEvaluation = ruleSet.extraConditionEvaluation(from: contextTokens)
+        let extraConditionValues = extraConditionEvaluation.values
         let channelHints = channelHints(from: fileTokens)
         let defaultSampleResolution = resolveDefaultSampleKey(
             fileSampleIDs: fileSampleIDs,
@@ -58,6 +60,7 @@ struct FilenameRuleParser {
         let defaultSampleKey = defaultSampleResolution.key
         let warnings = uniquePreservingOrder(
             ruleSet.loadWarnings
+                + extraConditionEvaluation.warnings
                 + defaultSampleResolution.warnings
                 + conflictWarnings(fileSampleIDs: fileSampleIDs, folderSampleIDs: folderSampleIDs)
         )
@@ -78,6 +81,7 @@ struct FilenameRuleParser {
             growthTemperature: nil,
             current: ruleSet.current(from: contextTokens),
             field: ruleSet.field(from: contextTokens),
+            extraConditionValues: extraConditionValues,
             rotationHint: ruleSet.rotationHint(from: contextTokens),
             warnings: warnings
         )

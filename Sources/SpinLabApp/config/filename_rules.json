@@ -258,16 +258,7 @@
         "c3": "ch3"
       }
     },
-    "deviceRules": [
-      {
-        "match": {
-          "scope": "tokens",
-          "type": "equals",
-          "value": "wafer"
-        },
-        "value": "wafer"
-      }
-    ],
+    "deviceRules": [],
     "rotationHintRules": [
       {
         "match": {
@@ -278,10 +269,59 @@
         "value": "+90deg for I parallel B"
       }
     ],
+    "conditionDefinitions": [
+      {
+        "id": "temperature",
+        "label": "Temperature",
+        "kind": "unit_suffix",
+        "binding": "conditions.extraConditions.temperature"
+      },
+      {
+        "id": "current",
+        "label": "Current",
+        "kind": "unit_suffix",
+        "binding": "conditions.extraConditions.current"
+      },
+      {
+        "id": "field",
+        "label": "Field",
+        "kind": "unit_suffix",
+        "binding": "conditions.extraConditions.field"
+      },
+      {
+        "id": "device",
+        "label": "Device",
+        "kind": "token_map",
+        "binding": "conditions.tokenMapRules.device"
+      }
+    ],
     "conditions": {
-      "temperaturePattern": "^-?\\d+(?:\\.\\d+)?(?:K|k|C|c|°C|°c)$",
-      "currentPattern": "^-?\\d+(?:\\.\\d+)?(?:uA|µA|mA|A)$",
-      "fieldPattern": "^-?\\d+(?:\\.\\d+)?(?:mT|T)$"
+      "temperaturePattern": "",
+      "currentPattern": "",
+      "fieldPattern": "",
+      "extraConditions": {
+        "temperature": "^-?\\d+(?:\\.\\d+)?(?:K|k|C|c|°C|°c)$",
+        "current": "^-?\\d+(?:\\.\\d+)?(?:uA|µA|mA|A)$",
+        "field": "^-?\\d+(?:\\.\\d+)?(?:mT|T)$"
+      },
+      "tokenMapRules": {
+        "device": [
+          {
+            "match": {
+              "scope": "tokens",
+              "type": "equals",
+              "value": "wafer"
+            },
+            "value": "wafer"
+          }
+        ]
+      },
+      "displayLabels": {
+        "temperature": "Temperature",
+        "current": "Current",
+        "field": "Field",
+        "device": "Device"
+      }
     }
   },
   "library": {

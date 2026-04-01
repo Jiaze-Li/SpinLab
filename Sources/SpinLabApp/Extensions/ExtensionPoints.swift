@@ -110,9 +110,8 @@ struct AMRPHEMetadataExtension: MetadataExtension {
             batchName: pending.parsedHints.batchName ?? fallbackSampleID ?? "",
             sampleName: pending.parsedHints.sampleName ?? "",
             measurementName: pending.parsedHints.measurementName ?? pending.fileName,
-            workflowTag: pending.parsedHints.workflowName ?? "",
-            deviceName: pending.parsedHints.deviceName ?? "",
-            temperature: pending.parsedHints.temperature ?? "",
+            workflowID: pending.parsedHints.workflowName ?? "",
+            conditionValues: seedConditionValues(from: pending.parsedHints),
             selectedExistingProjectName: suggestedProjectName ?? PendingImportConfirmationDraft.noProjectOption,
             newProjectName: ""
         )
@@ -142,14 +141,16 @@ struct AMRPHEMetadataExtension: MetadataExtension {
             draft.measurementName,
             metadataValue(in: lookup, keys: RegistryMetadataAliasBook.aliases(for: .measurement))
         )
-        draft.deviceName = firstNonEmpty(
-            draft.deviceName,
-            metadataValue(in: lookup, keys: RegistryMetadataAliasBook.aliases(for: .device))
-        )
-        draft.temperature = firstNonEmpty(
-            draft.temperature,
-            metadataValue(in: lookup, keys: RegistryMetadataAliasBook.aliases(for: .temperature))
-        )
+        let tempKey = ConditionFieldCatalog.temperatureID
+        if draft.conditionValues[tempKey, default: ""].isEmpty,
+           let v = metadataValue(in: lookup, keys: RegistryMetadataAliasBook.aliases(for: .temperature)) {
+            draft.conditionValues[tempKey] = v
+        }
+        let deviceKey = ConditionFieldCatalog.deviceID
+        if draft.conditionValues[deviceKey, default: ""].isEmpty,
+           let v = metadataValue(in: lookup, keys: RegistryMetadataAliasBook.aliases(for: .device)) {
+            draft.conditionValues[deviceKey] = v
+        }
     }
 
     private func firstNonEmpty(_ candidates: String?...) -> String {
@@ -219,9 +220,8 @@ struct DummyMetadataExtension: MetadataExtension {
             batchName: pending.parsedHints.batchName ?? fallbackSampleID ?? "DUMMY-BATCH",
             sampleName: pending.parsedHints.sampleName ?? fallbackSampleID ?? "DUMMY-SAMPLE",
             measurementName: pending.parsedHints.measurementName ?? "Dummy: \(pending.fileName)",
-            workflowTag: "Dummy",
-            deviceName: pending.parsedHints.deviceName ?? "Dummy Device",
-            temperature: pending.parsedHints.temperature ?? "N/A",
+            workflowID: "Dummy",
+            conditionValues: seedConditionValues(from: pending.parsedHints),
             selectedExistingProjectName: suggestedProjectName ?? PendingImportConfirmationDraft.noProjectOption,
             newProjectName: ""
         )
@@ -239,6 +239,12 @@ struct DummyAnalysisModuleExtension: AnalysisModuleExtension {
 struct DummyViewExtension: ViewExtension {
     let workflow: SpinLabDomain.WorkflowKind = .dummy
     let displayName: String = "Dummy Workflow Preview View"
+}
+
+/// Seeds conditionValues from parsed filename hints using well-known field keys.
+/// This is a best-effort mapping; the UI filters displayed fields by workflow definition.
+private func seedConditionValues(from hints: SpinLabDomain.ParsedFilenameHints) -> [String: String] {
+    ConditionFieldCatalog.conditionValues(from: hints)
 }
 
 private func buildArchivedRecord(
@@ -263,7 +269,7 @@ private func buildArchivedRecord(
         ?? domainContext.metadataValue(in: registryLookup, keys: RegistryMetadataAliasBook.aliases(for: .measurement))
         ?? pending.parsedHints.measurementName
         ?? pending.fileName
-    let deviceName = domainContext.normalizedValue(draft.deviceName)
+    let deviceName = domainContext.normalizedValue(draft.conditionValues[ConditionFieldCatalog.deviceID])
         ?? domainContext.metadataValue(in: registryLookup, keys: RegistryMetadataAliasBook.aliases(for: .device))
     let projectName = draft.resolvedProjectName
         ?? domainContext.metadataValue(in: registryLookup, keys: RegistryMetadataAliasBook.aliases(for: .project))

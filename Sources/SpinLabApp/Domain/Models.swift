@@ -288,8 +288,92 @@ extension SpinLabDomain {
         var growthTemperature: String?
         var current: String?
         var field: String?
+        var extraConditionValues: [String: String] = [:]
         var rotationHint: String?
         var warnings: [String] = []
+
+        init(
+            batchName: String? = nil,
+            sampleName: String? = nil,
+            defaultSampleKey: String? = nil,
+            folderDerivedSampleKeys: [String] = [],
+            measurementName: String? = nil,
+            deviceName: String? = nil,
+            workflowName: String? = nil,
+            sampleIDs: [String] = [],
+            channelHints: [ParsedChannelHint] = [],
+            measurementTags: [String] = [],
+            substrateTags: [String] = [],
+            temperature: String? = nil,
+            growthTemperature: String? = nil,
+            current: String? = nil,
+            field: String? = nil,
+            extraConditionValues: [String: String] = [:],
+            rotationHint: String? = nil,
+            warnings: [String] = []
+        ) {
+            self.batchName = batchName
+            self.sampleName = sampleName
+            self.defaultSampleKey = defaultSampleKey
+            self.folderDerivedSampleKeys = folderDerivedSampleKeys
+            self.measurementName = measurementName
+            self.deviceName = deviceName
+            self.workflowName = workflowName
+            self.sampleIDs = sampleIDs
+            self.channelHints = channelHints
+            self.measurementTags = measurementTags
+            self.substrateTags = substrateTags
+            self.temperature = temperature
+            self.growthTemperature = growthTemperature
+            self.current = current
+            self.field = field
+            self.extraConditionValues = extraConditionValues
+            self.rotationHint = rotationHint
+            self.warnings = warnings
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case batchName
+            case sampleName
+            case defaultSampleKey
+            case folderDerivedSampleKeys
+            case measurementName
+            case deviceName
+            case workflowName
+            case sampleIDs
+            case channelHints
+            case measurementTags
+            case substrateTags
+            case temperature
+            case growthTemperature
+            case current
+            case field
+            case extraConditionValues
+            case rotationHint
+            case warnings
+        }
+
+        init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            batchName = try container.decodeIfPresent(String.self, forKey: .batchName)
+            sampleName = try container.decodeIfPresent(String.self, forKey: .sampleName)
+            defaultSampleKey = try container.decodeIfPresent(String.self, forKey: .defaultSampleKey)
+            folderDerivedSampleKeys = try container.decodeIfPresent([String].self, forKey: .folderDerivedSampleKeys) ?? []
+            measurementName = try container.decodeIfPresent(String.self, forKey: .measurementName)
+            deviceName = try container.decodeIfPresent(String.self, forKey: .deviceName)
+            workflowName = try container.decodeIfPresent(String.self, forKey: .workflowName)
+            sampleIDs = try container.decodeIfPresent([String].self, forKey: .sampleIDs) ?? []
+            channelHints = try container.decodeIfPresent([ParsedChannelHint].self, forKey: .channelHints) ?? []
+            measurementTags = try container.decodeIfPresent([String].self, forKey: .measurementTags) ?? []
+            substrateTags = try container.decodeIfPresent([String].self, forKey: .substrateTags) ?? []
+            temperature = try container.decodeIfPresent(String.self, forKey: .temperature)
+            growthTemperature = try container.decodeIfPresent(String.self, forKey: .growthTemperature)
+            current = try container.decodeIfPresent(String.self, forKey: .current)
+            field = try container.decodeIfPresent(String.self, forKey: .field)
+            extraConditionValues = try container.decodeIfPresent([String: String].self, forKey: .extraConditionValues) ?? [:]
+            rotationHint = try container.decodeIfPresent(String.self, forKey: .rotationHint)
+            warnings = try container.decodeIfPresent([String].self, forKey: .warnings) ?? []
+        }
     }
 
     struct Project: Identifiable, Codable, Hashable {
