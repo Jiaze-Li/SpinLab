@@ -360,7 +360,9 @@ final class ConditionRulesHandbookStore {
 
         let hasInbox = json["inbox"] is [String: Any]
         var inbox = (json["inbox"] as? [String: Any]) ?? [:]
-        let existingDefinitions = definitions(from: RuleLoader.shared.loadCached().ruleSet)
+        // Save must resolve definitions from the latest on-disk rule snapshot;
+        // using reload avoids serializing against a stale in-memory cache.
+        let existingDefinitions = definitions(from: RuleLoader.shared.reloadCached().ruleSet)
             .map(canonicalizedDefinition)
         var definitionsByEntryID = Dictionary(
             uniqueKeysWithValues: existingDefinitions.map {

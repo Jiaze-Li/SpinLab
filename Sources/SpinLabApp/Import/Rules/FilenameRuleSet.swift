@@ -563,6 +563,9 @@ struct FilenameRuleSet: Decodable {
         var collected: [String] = []
         for rule in rules {
             if matches(rule: rule, tokens: tokens, joined: joined) {
+                // Tag collection intentionally appends literal rule values only.
+                // "$MATCH" token substitution is supported in firstMatchValue paths,
+                // but is not expanded for multi-value tag collection.
                 collected.append(rule.value)
             }
         }

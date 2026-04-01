@@ -208,7 +208,7 @@ struct RuleLoader {
         sourceLabel: String
     ) -> [String] {
         var warnings: [String] = []
-        warnings.append(contentsOf: normalizeConditionDefinitionBindings(ruleSet: &ruleSet, sourceLabel: sourceLabel))
+        warnings.append(contentsOf: Self.normalizeConditionDefinitionBindings(ruleSet: &ruleSet, sourceLabel: sourceLabel))
 
         if ruleSet.version == Self.currentSchemaVersion {
             return warnings
@@ -230,7 +230,7 @@ struct RuleLoader {
         return warnings
     }
 
-    private func normalizeConditionDefinitionBindings(
+    static func normalizeConditionDefinitionBindings(
         ruleSet: inout FilenameRuleSet,
         sourceLabel: String
     ) -> [String] {

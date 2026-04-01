@@ -49,6 +49,52 @@ struct V225RulesConfigContractTests {
         #expect(SampleSemanticDescriptor.normalizedProcessingTokenForRules("B") == expected)
     }
 
+    @Test("legacy rule set without conditionDefinitions is migrated correctly")
+    func legacyRuleSetWithoutConditionDefinitionsIsMigrated() {
+        var legacy = FilenameRuleSet.fallback()
+        legacy.conditionDefinitions = []
+        legacy.conditions.extraConditions = [:]
+        legacy.conditions.tokenMapRules = [:]
+        legacy.conditions.temperaturePattern = "^-?\\d+(?:\\.\\d+)?(?:K)$"
+        legacy.conditions.currentPattern = ""
+        legacy.conditions.fieldPattern = ""
+        legacy.deviceRules = [
+            .init(
+                match: .init(scope: .tokens, type: .equals, value: "wafer", values: nil),
+                value: "wafer"
+            )
+        ]
+
+        let warnings = RuleLoader.normalizeConditionDefinitionBindings(
+            ruleSet: &legacy,
+            sourceLabel: "Test"
+        )
+
+        #expect(!warnings.isEmpty)
+        #expect(
+            legacy.conditionDefinitions.contains {
+                $0.id == "temperature"
+                    && $0.kind == .unitSuffix
+                    && $0.binding == "conditions.extraConditions.temperature"
+            }
+        )
+        #expect(
+            legacy.conditionDefinitions.contains {
+                $0.id == "device"
+                    && $0.kind == .tokenMap
+                    && $0.binding == "conditions.tokenMapRules.device"
+            }
+        )
+        #expect(legacy.conditions.extraConditions["temperature"] == "^-?\\d+(?:\\.\\d+)?(?:K)$")
+        #expect(legacy.conditions.tokenMapRules["device"]?.count == 1)
+
+        legacy.loadWarnings = legacy.compile()
+        let parser = FilenameRuleParser(ruleSet: legacy)
+        let parsed = parser.parse(from: URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_25K_wafer.dat"))
+        #expect(parsed.temperature == "25K")
+        #expect(parsed.deviceName == "wafer")
+    }
+
     private func loadRuleSet() throws -> FilenameRuleSet {
         let testsDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         let projectRoot = testsDir.deletingLastPathComponent().deletingLastPathComponent()
