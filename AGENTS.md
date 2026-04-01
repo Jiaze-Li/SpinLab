@@ -36,6 +36,14 @@ Instruction priority policy (required):
 
 ---
 
+Engineering quality and execution gate (required):
+- `[HARD][must]` All implementations must follow first-principles reasoning. Do not add redundant, decorative, or non-functional code.
+- `[HARD][must]` Prefer long-term maintainability over short-term convenience. Reject approaches that are fast now but increase future complexity/cost.
+- `[HARD][must]` Sign-off criteria are structural quality + maintainability + testability, not just feature-level correctness.
+- `[HARD][must]` Do not start any code modification, file edit, or behavior-changing command until the user gives an explicit execution instruction (for example: "执行", "开始执行", "apply now").
+
+---
+
 Rule stability and enforcement (required):
 - Rule labels:
   - `[HARD]`: non-negotiable constraint; violating this is considered a bug risk.

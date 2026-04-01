@@ -1,5 +1,14 @@
 import Foundation
 
+struct InboxArchiveApplyResult: Equatable {
+    var copiedTargetCount: Int
+    var skippedExistingTargetCount: Int
+
+    var allTargetsSkipped: Bool {
+        copiedTargetCount == 0 && skippedExistingTargetCount > 0
+    }
+}
+
 struct InboxArchiveApplyService {
     enum InboxArchiveApplyError: LocalizedError {
         case sourceFileNotFound
@@ -24,7 +33,7 @@ struct InboxArchiveApplyService {
         libraryIndex: LibraryIndex,
         libraryStore: LibraryStore,
         libraryRootURL: URL
-    ) throws {
+    ) throws -> InboxArchiveApplyResult {
         let sourceURL = URL(fileURLWithPath: pending.sourceFilePath)
         guard FileManager.default.fileExists(atPath: sourceURL.path) else {
             throw InboxArchiveApplyError.sourceFileNotFound
@@ -32,6 +41,8 @@ struct InboxArchiveApplyService {
 
         let samplesByID = Dictionary(uniqueKeysWithValues: libraryIndex.samples.map { ($0.id, $0) })
         var transaction = LibraryWriteTransaction()
+        var copiedTargetCount = 0
+        var skippedExistingTargetCount = 0
 
         do {
             for target in targets {
@@ -51,10 +62,22 @@ struct InboxArchiveApplyService {
                     path: sourceURL.lastPathComponent,
                     directoryHint: .notDirectory
                 )
+                if FileManager.default.fileExists(atPath: destinationURL.path) {
+                    skippedExistingTargetCount += 1
+                    continue
+                }
                 try transaction.prepare(sourceURL: sourceURL, destinationURL: destinationURL)
+                copiedTargetCount += 1
             }
 
-            try transaction.commit()
+            if copiedTargetCount > 0 {
+                try transaction.commit()
+            }
+
+            return InboxArchiveApplyResult(
+                copiedTargetCount: copiedTargetCount,
+                skippedExistingTargetCount: skippedExistingTargetCount
+            )
         } catch let error as InboxArchiveApplyError {
             try? transaction.rollback()
             throw error

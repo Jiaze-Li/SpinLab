@@ -35,3 +35,8 @@ This file supersedes legacy `UI_RULES.md` and is the active UI rule contract.
 - Major destructive actions require explicit confirmation.
 - UI should clearly separate library-matched and review-required states.
 - UI-only tasks must not alter parser/state/store behavior.
+
+## State visibility consistency
+- UI logic must be user-perspective-first: visible state is the source of truth.
+- Do not split "visual state" and "internal state" for the same interaction contract.
+- If a section appears collapsed to the user, its persisted/runtime expansion state must also be collapsed.

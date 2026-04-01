@@ -3,6 +3,7 @@ import Foundation
 enum AppRoutePath: Equatable {
     case inbox
     case workbench
+    case workbenchWorkflow(id: String)
     case library
     case libraryDrawer(prefix: String, batchId: String, sampleId: String?)
 }
@@ -38,6 +39,8 @@ struct AppRouter {
             }
         case .inboxReserved:
             return .inbox
+        case let .workbenchWorkflow(id):
+            return .workbenchWorkflow(id: id)
         case let .libraryBatch(prefix, batchId, sampleId):
             return .libraryDrawer(prefix: prefix, batchId: batchId, sampleId: sampleId)
         case .libraryPrefix, .info:
@@ -70,6 +73,9 @@ struct AppRouter {
         case "inbox":
             return AppRouteStack(.inbox)
         case "workbench":
+            if components.count >= 2 {
+                return AppRouteStack(paths: [.workbench, .workbenchWorkflow(id: components[1])])
+            }
             return AppRouteStack(.workbench)
         case "library":
             if components.count >= 3 {

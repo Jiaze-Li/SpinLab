@@ -26,11 +26,11 @@ struct V230ApplyTests {
             applyService: service
         )
 
-        #expect(outcome == .success(appliedIDs: [pending.id]))
+        #expect(outcome == .success(appliedIDs: [pending.id], skippedIDs: []))
         #expect(FileManager.default.fileExists(atPath: fixture.destination(sampleID: "PN38", category: "General", fileName: pending.fileName).path))
 
         let inboxStore = fixture.makeInboxStore(pendingImports: [pending])
-        inboxStore.applyPending(appliedIDs: outcome.appliedIDs)
+        inboxStore.applyPending(processedIDs: outcome.processedIDs)
         #expect(inboxStore.pendingImports.isEmpty)
     }
 
@@ -57,7 +57,7 @@ struct V230ApplyTests {
             applyService: service
         )
 
-        #expect(outcome == .success(appliedIDs: [pending.id]))
+        #expect(outcome == .success(appliedIDs: [pending.id], skippedIDs: []))
         #expect(FileManager.default.fileExists(atPath: fixture.destination(sampleID: "PN36", category: "General", fileName: pending.fileName).path))
         #expect(FileManager.default.fileExists(atPath: fixture.destination(sampleID: "PN37", category: "General", fileName: pending.fileName).path))
     }
@@ -122,7 +122,7 @@ struct V230ApplyTests {
             applyService: service
         )
 
-        #expect(outcome == .success(appliedIDs: [matchedPending.id]))
+        #expect(outcome == .success(appliedIDs: [matchedPending.id], skippedIDs: []))
         #expect(FileManager.default.fileExists(atPath: fixture.destination(sampleID: "PN50", category: "General", fileName: matchedPending.fileName).path))
         #expect(!FileManager.default.fileExists(atPath: fixture.destination(sampleID: "PN51", category: "General", fileName: reviewPending.fileName).path))
     }
@@ -147,7 +147,7 @@ struct V230ApplyTests {
             applyService: service
         )
 
-        #expect(outcome == .success(appliedIDs: [pending.id]))
+        #expect(outcome == .success(appliedIDs: [pending.id], skippedIDs: []))
         #expect(FileManager.default.fileExists(atPath: fixture.destination(sampleID: "PN60", category: "General", fileName: pending.fileName).path))
         #expect(!FileManager.default.fileExists(atPath: fixture.testDestination(sampleID: "PN60", channel: "XRD", fileName: pending.fileName).path))
     }
@@ -173,8 +173,37 @@ struct V230ApplyTests {
             applyService: service
         )
 
-        #expect(outcome == .success(appliedIDs: [pending.id]))
+        #expect(outcome == .success(appliedIDs: [pending.id], skippedIDs: []))
         #expect(FileManager.default.fileExists(atPath: fixture.destination(sampleID: "PN61", category: "RT", fileName: pending.fileName).path))
+    }
+
+    @Test("existing destination is skipped and pending is removed as processed")
+    func existingDestinationIsSkippedAndProcessed() throws {
+        let fixture = try Fixture.make(sampleIDs: ["PN62"])
+        defer { fixture.cleanup() }
+
+        let pending = try fixture.makePending(fileName: "PN62_RT_1mA.dat", contents: "skip-existing")
+        let destination = fixture.destination(sampleID: "PN62", category: "General", fileName: pending.fileName)
+        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("already-there".utf8).write(to: destination)
+
+        let coordinator = ApplyCoordinator()
+        let service = InboxArchiveApplyService()
+        let outcome = coordinator.applySelected(
+            pendingID: pending.id,
+            pendingImports: [pending],
+            routingSnapshots: [pending.id: matchedSnapshot(targets: [SpinLabDomain.RouteTarget(sampleId: "PN62", channels: ["file"])])],
+            libraryIndex: fixture.libraryIndex,
+            libraryStore: fixture.libraryStore,
+            libraryRootURL: fixture.libraryRootURL,
+            applyService: service
+        )
+
+        #expect(outcome == .success(appliedIDs: [], skippedIDs: [pending.id]))
+
+        let inboxStore = fixture.makeInboxStore(pendingImports: [pending])
+        inboxStore.applyPending(processedIDs: outcome.processedIDs)
+        #expect(inboxStore.pendingImports.isEmpty)
     }
 
     @Test("display-name key is rejected when apply expects canonical sample id")

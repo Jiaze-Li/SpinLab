@@ -3,6 +3,7 @@ import Foundation
 enum SidebarMenuNodeKind: Hashable {
     case area(AppArea)
     case inboxReserved
+    case workbenchWorkflow(id: String)
     case libraryPrefix(String)
     case libraryBatch(prefix: String, batchId: String, sampleId: String?)
     case info
@@ -61,5 +62,9 @@ enum SidebarMenuNodeID {
 
     static func libraryBatch(prefix: String, batchID: String) -> String {
         "library-batch:\(prefix):\(batchID)"
+    }
+
+    static func workbenchWorkflow(_ id: String) -> String {
+        "workbench-workflow:\(id)"
     }
 }

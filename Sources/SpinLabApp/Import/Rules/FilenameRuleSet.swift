@@ -1,6 +1,23 @@
 import Foundation
 
 struct FilenameRuleSet: Decodable {
+    struct ExtraConditionEvaluation {
+        var values: [String: String]
+        var warnings: [String]
+    }
+
+    enum ConditionDefinitionKind: String, Decodable {
+        case unitSuffix = "unit_suffix"
+        case tokenMap = "token_map"
+    }
+
+    struct ConditionDefinition: Decodable {
+        var id: String
+        var label: String?
+        var kind: ConditionDefinitionKind
+        var binding: String
+    }
+
     struct Tokenization: Decodable {
         var separators: String
         var caseFold: String
@@ -26,9 +43,62 @@ struct FilenameRuleSet: Decodable {
     }
 
     struct ConditionRules: Decodable {
+        // Deprecated: canonical rule data lives in extraConditions["temperature"] / ["current"] / ["field"].
+        // These fields are kept for JSON decode compatibility and are written as empty strings on save.
+        // Remove once all stored rule files have been migrated (i.e. no user file predates v2.4).
         var temperaturePattern: String
         var currentPattern: String
         var fieldPattern: String
+        var extraConditions: [String: String]
+        var tokenMapRules: [String: [MapRule]]
+        var displayLabels: [String: String]
+
+        init(
+            temperaturePattern: String,
+            currentPattern: String,
+            fieldPattern: String,
+            extraConditions: [String: String] = [:],
+            tokenMapRules: [String: [MapRule]] = [:],
+            displayLabels: [String: String] = [:]
+        ) {
+            self.temperaturePattern = temperaturePattern
+            self.currentPattern = currentPattern
+            self.fieldPattern = fieldPattern
+            self.extraConditions = extraConditions
+            self.tokenMapRules = tokenMapRules
+            self.displayLabels = displayLabels
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case temperaturePattern
+            case currentPattern
+            case fieldPattern
+            case extraConditions
+            case tokenMapRules
+            case displayLabels
+        }
+
+        init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            temperaturePattern = try container.decode(String.self, forKey: .temperaturePattern)
+            currentPattern = try container.decode(String.self, forKey: .currentPattern)
+            fieldPattern = try container.decode(String.self, forKey: .fieldPattern)
+            extraConditions = try container.decodeIfPresent([String: String].self, forKey: .extraConditions) ?? [:]
+            tokenMapRules = try container.decodeIfPresent([String: [MapRule]].self, forKey: .tokenMapRules) ?? [:]
+            displayLabels = try container.decodeIfPresent([String: String].self, forKey: .displayLabels) ?? [:]
+        }
+
+        func patternMap() -> [String: String] {
+            var patterns: [String: String] = [
+                ConditionFieldCatalog.temperatureID: temperaturePattern,
+                ConditionFieldCatalog.currentID: currentPattern,
+                ConditionFieldCatalog.fieldID: fieldPattern
+            ]
+            for (key, value) in extraConditions {
+                patterns[key] = value
+            }
+            return patterns
+        }
     }
 
     struct RegistryRules: Decodable {
@@ -77,6 +147,7 @@ struct FilenameRuleSet: Decodable {
         var deviceRules: [MapRule]
         var rotationHintRules: [MapRule]
         var conditions: ConditionRules
+        var conditionDefinitions: [ConditionDefinition]?
     }
 
     struct LibraryRules: Decodable {
@@ -119,15 +190,13 @@ struct FilenameRuleSet: Decodable {
     struct CompiledRules {
         var sampleIdRegexes: [NSRegularExpression] = []
         var batchRegexes: [NSRegularExpression] = []
-        var temperatureRegex: NSRegularExpression?
-        var currentRegex: NSRegularExpression?
-        var fieldRegex: NSRegularExpression?
         var measurementNameRules: [CompiledMapRule] = []
         var measurementTagRules: [CompiledMapRule] = []
         var substrateTagRules: [CompiledMapRule] = []
-        var deviceRules: [CompiledMapRule] = []
         var rotationHintRules: [CompiledMapRule] = []
         var channelAliases: [String: String] = [:]
+        var conditionUnitSuffixRegexes: [String: NSRegularExpression] = [:]
+        var conditionTokenMapRules: [String: [CompiledMapRule]] = [:]
     }
 
     var version: Int
@@ -139,9 +208,13 @@ struct FilenameRuleSet: Decodable {
     var measurementTagRules: [MapRule]
     var substrateTagRules: [MapRule]
     var channel: ChannelRules
+    // Deprecated: device rules now live in conditions.tokenMapRules["device"] via conditionDefinitions.
+    // This field is decoded for migration and written as [] on save. Remove alongside temperaturePattern
+    // cleanup once all stored rule files have been migrated to v2.4+.
     var deviceRules: [MapRule]
     var rotationHintRules: [MapRule]
     var conditions: ConditionRules
+    var conditionDefinitions: [ConditionDefinition]
     var registry: RegistryRules?
     var importRules: ImportRules?
     var sharedSubstrate: SharedSubstrateRules?
@@ -162,6 +235,7 @@ struct FilenameRuleSet: Decodable {
         case deviceRules
         case rotationHintRules
         case conditions
+        case conditionDefinitions
         case registry
         case importRules
         case shared
@@ -182,6 +256,7 @@ struct FilenameRuleSet: Decodable {
         deviceRules: [MapRule],
         rotationHintRules: [MapRule],
         conditions: ConditionRules,
+        conditionDefinitions: [ConditionDefinition] = [],
         registry: RegistryRules?,
         importRules: ImportRules?,
         sharedSubstrate: SharedSubstrateRules?
@@ -198,6 +273,7 @@ struct FilenameRuleSet: Decodable {
         self.deviceRules = deviceRules
         self.rotationHintRules = rotationHintRules
         self.conditions = conditions
+        self.conditionDefinitions = conditionDefinitions
         self.registry = registry
         self.importRules = importRules
         self.sharedSubstrate = sharedSubstrate
@@ -230,6 +306,7 @@ struct FilenameRuleSet: Decodable {
             deviceRules = inbox.deviceRules
             rotationHintRules = inbox.rotationHintRules
             conditions = inbox.conditions
+            conditionDefinitions = inbox.conditionDefinitions ?? []
         } else {
             sources = try container.decode([Source].self, forKey: .sources)
             batch = try container.decode(BatchRules.self, forKey: .batch)
@@ -239,6 +316,7 @@ struct FilenameRuleSet: Decodable {
             deviceRules = try container.decode([MapRule].self, forKey: .deviceRules)
             rotationHintRules = try container.decode([MapRule].self, forKey: .rotationHintRules)
             conditions = try container.decode(ConditionRules.self, forKey: .conditions)
+            conditionDefinitions = try container.decodeIfPresent([ConditionDefinition].self, forKey: .conditionDefinitions) ?? []
         }
 
         if let library = try container.decodeIfPresent(LibraryRules.self, forKey: .library) {
@@ -264,15 +342,11 @@ struct FilenameRuleSet: Decodable {
             compileRegex(pattern, warnings: &warnings, label: "batch")
         }
 
-        compiled.temperatureRegex = compileRegex(conditions.temperaturePattern, warnings: &warnings, label: "conditions.temperature")
-        compiled.currentRegex = compileRegex(conditions.currentPattern, warnings: &warnings, label: "conditions.current")
-        compiled.fieldRegex = compileRegex(conditions.fieldPattern, warnings: &warnings, label: "conditions.field")
-
         compiled.measurementNameRules = compileMapRules(measurementNameRules, warnings: &warnings, label: "measurementNameRules")
         compiled.measurementTagRules = compileMapRules(measurementTagRules, warnings: &warnings, label: "measurementTagRules")
         compiled.substrateTagRules = compileMapRules(substrateTagRules, warnings: &warnings, label: "substrateTagRules")
-        compiled.deviceRules = compileMapRules(deviceRules, warnings: &warnings, label: "deviceRules")
         compiled.rotationHintRules = compileMapRules(rotationHintRules, warnings: &warnings, label: "rotationHintRules")
+        compileConditionDefinitions(warnings: &warnings)
 
         compiled.channelAliases = channel.aliases.reduce(into: [:]) { partial, entry in
             partial[entry.key.lowercased()] = entry.value
@@ -321,7 +395,11 @@ struct FilenameRuleSet: Decodable {
     }
 
     func deviceName(from tokens: [String]) -> String? {
-        firstMatchValue(from: compiled.deviceRules, tokens: tokens, joined: nil)
+        firstMatchValue(
+            from: compiled.conditionTokenMapRules[ConditionFieldCatalog.deviceID] ?? [],
+            tokens: tokens,
+            joined: nil
+        )
     }
 
     func rotationHint(from tokens: [String]) -> String? {
@@ -329,15 +407,60 @@ struct FilenameRuleSet: Decodable {
     }
 
     func temperature(from tokens: [String]) -> String? {
-        firstRegexMatch(in: tokens, regex: compiled.temperatureRegex)
+        firstRegexMatch(
+            in: tokens,
+            regex: compiled.conditionUnitSuffixRegexes[ConditionFieldCatalog.temperatureID]
+        )
     }
 
     func current(from tokens: [String]) -> String? {
-        firstRegexMatch(in: tokens, regex: compiled.currentRegex)
+        firstRegexMatch(
+            in: tokens,
+            regex: compiled.conditionUnitSuffixRegexes[ConditionFieldCatalog.currentID]
+        )
     }
 
     func field(from tokens: [String]) -> String? {
-        firstRegexMatch(in: tokens, regex: compiled.fieldRegex)
+        firstRegexMatch(
+            in: tokens,
+            regex: compiled.conditionUnitSuffixRegexes[ConditionFieldCatalog.fieldID]
+        )
+    }
+
+    func extraConditionValues(from tokens: [String]) -> [String: String] {
+        extraConditionEvaluation(from: tokens).values
+    }
+
+    func extraConditionEvaluation(from tokens: [String]) -> ExtraConditionEvaluation {
+        var reservedRuleIDs = ConditionFieldCatalog.builtInConditionIDs
+        reservedRuleIDs.insert(ConditionFieldCatalog.deviceID)
+        let allRuleIDs = Set(compiled.conditionUnitSuffixRegexes.keys)
+            .union(compiled.conditionTokenMapRules.keys)
+            .subtracting(reservedRuleIDs)
+            .sorted()
+        var values: [String: String] = [:]
+        var warnings: [String] = []
+
+        for ruleID in allRuleIDs {
+            let regexMatch = compiled.conditionUnitSuffixRegexes[ruleID]
+                .flatMap { firstRegexMatch(in: tokens, regex: $0) }
+            let tokenMapMatch = compiled.conditionTokenMapRules[ruleID]
+                .flatMap { firstMatchValue(from: $0, tokens: tokens, joined: nil) }
+
+            if let tokenMapMatch {
+                values[ruleID] = tokenMapMatch
+                if regexMatch != nil {
+                    warnings.append("Condition '\(ruleID)' matched both token-map and unit-suffix; token-map result applied.")
+                }
+                continue
+            }
+
+            if let regexMatch {
+                values[ruleID] = regexMatch
+            }
+        }
+
+        return ExtraConditionEvaluation(values: values, warnings: warnings)
     }
 
     func normalizeChannel(_ token: String) -> String? {
@@ -366,6 +489,49 @@ struct FilenameRuleSet: Decodable {
         }
     }
 
+    private mutating func compileConditionDefinitions(warnings: inout [String]) {
+        compiled.conditionUnitSuffixRegexes = [:]
+        compiled.conditionTokenMapRules = [:]
+
+        for definition in conditionDefinitions {
+            let id = definition.id.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !id.isEmpty else { continue }
+            let binding = definition.binding.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !binding.isEmpty else { continue }
+
+            switch definition.kind {
+            case .unitSuffix:
+                guard let pattern = unitSuffixPattern(for: binding), !pattern.isEmpty else { continue }
+                if let compiledRegex = compileRegex(pattern, warnings: &warnings, label: binding) {
+                    compiled.conditionUnitSuffixRegexes[id] = compiledRegex
+                }
+            case .tokenMap:
+                guard let rawRules = tokenMapRules(for: binding) else { continue }
+                compiled.conditionTokenMapRules[id] = compileMapRules(rawRules, warnings: &warnings, label: binding)
+            }
+        }
+    }
+
+    private func unitSuffixPattern(for binding: String) -> String? {
+        guard binding.hasPrefix("conditions.extraConditions.") else {
+            return nil
+        }
+        let key = String(binding.dropFirst("conditions.extraConditions.".count))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else { return nil }
+        return conditions.extraConditions[key]
+    }
+
+    private func tokenMapRules(for binding: String) -> [MapRule]? {
+        guard binding.hasPrefix("conditions.tokenMapRules.") else {
+            return nil
+        }
+        let key = String(binding.dropFirst("conditions.tokenMapRules.".count))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else { return nil }
+        return conditions.tokenMapRules[key] ?? []
+    }
+
     private func normalizeSampleIDToken(_ token: String) -> String? {
         let uppercased = token.uppercased()
         for regex in compiled.sampleIdRegexes {
@@ -378,8 +544,22 @@ struct FilenameRuleSet: Decodable {
 
     private func firstMatchValue(from rules: [CompiledMapRule], tokens: [String], joined: String?) -> String? {
         for rule in rules {
-            if matches(rule: rule, tokens: tokens, joined: joined) {
-                return rule.value
+            switch rule.match.scope {
+            case .tokens:
+                for token in tokens where tokenMatches(token: token, rule: rule) {
+                    if rule.value == "$MATCH" {
+                        return token
+                    }
+                    return rule.value
+                }
+            case .joined:
+                guard let joined else { continue }
+                if stringMatches(text: joined, rule: rule) {
+                    if rule.value == "$MATCH" {
+                        return joined
+                    }
+                    return rule.value
+                }
             }
         }
         return nil
@@ -389,6 +569,9 @@ struct FilenameRuleSet: Decodable {
         var collected: [String] = []
         for rule in rules {
             if matches(rule: rule, tokens: tokens, joined: joined) {
+                // Tag collection intentionally appends literal rule values only.
+                // "$MATCH" token substitution is supported in firstMatchValue paths,
+                // but is not expanded for multi-value tag collection.
                 collected.append(rule.value)
             }
         }
@@ -466,7 +649,46 @@ struct FilenameRuleSet: Decodable {
             channel: ChannelRules(aliases: [:]),
             deviceRules: [],
             rotationHintRules: [],
-            conditions: ConditionRules(temperaturePattern: "", currentPattern: "", fieldPattern: ""),
+            conditions: ConditionRules(
+                temperaturePattern: "",
+                currentPattern: "",
+                fieldPattern: "",
+                extraConditions: [
+                    ConditionFieldCatalog.temperatureID: "",
+                    ConditionFieldCatalog.currentID: "",
+                    ConditionFieldCatalog.fieldID: ""
+                ],
+                tokenMapRules: [
+                    ConditionFieldCatalog.deviceID: []
+                ],
+                displayLabels: ConditionFieldCatalog.builtInConditionLabels
+            ),
+            conditionDefinitions: [
+                ConditionDefinition(
+                    id: ConditionFieldCatalog.temperatureID,
+                    label: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.temperatureID],
+                    kind: .unitSuffix,
+                    binding: "conditions.extraConditions.\(ConditionFieldCatalog.temperatureID)"
+                ),
+                ConditionDefinition(
+                    id: ConditionFieldCatalog.currentID,
+                    label: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.currentID],
+                    kind: .unitSuffix,
+                    binding: "conditions.extraConditions.\(ConditionFieldCatalog.currentID)"
+                ),
+                ConditionDefinition(
+                    id: ConditionFieldCatalog.fieldID,
+                    label: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.fieldID],
+                    kind: .unitSuffix,
+                    binding: "conditions.extraConditions.\(ConditionFieldCatalog.fieldID)"
+                ),
+                ConditionDefinition(
+                    id: ConditionFieldCatalog.deviceID,
+                    label: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.deviceID],
+                    kind: .tokenMap,
+                    binding: "conditions.tokenMapRules.\(ConditionFieldCatalog.deviceID)"
+                )
+            ],
             registry: RegistryRules(
                 sampleHeaderAliases: ["sampleid", "sample", "编号", "样品编号"],
                 excludedSheetNames: ["实验大纲"],

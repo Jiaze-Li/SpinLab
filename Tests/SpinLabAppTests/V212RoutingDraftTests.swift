@@ -91,9 +91,8 @@ struct V212RoutingDraftTests {
                 batchName: "",
                 sampleName: "",
                 measurementName: "RT",
-                workflowTag: "RT",
-                deviceName: "",
-                temperature: "",
+                workflowID: "RT",
+                conditionValues: [:],
                 selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
                 newProjectName: ""
             ),

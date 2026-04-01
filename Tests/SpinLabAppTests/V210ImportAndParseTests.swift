@@ -22,7 +22,7 @@ struct V210ImportAndParseTests {
         ]
         for name in names {
             let url = input.appendingPathComponent(name)
-            try Data("content".utf8).write(to: url)
+            try Data("content-\(name)".utf8).write(to: url)
         }
 
         let storage = SpinLabManagedStorage(rootURL: root)
@@ -36,6 +36,31 @@ struct V210ImportAndParseTests {
         #expect(imported.count == 4)
         #expect(importedNames == Set(["a.dat", "b.lvm", "c.txt", "d.csv"]))
         #expect(!importedNames.contains("e.gph"))
+    }
+
+    @Test("managed storage deduplicates same-content files across different paths")
+    func managedStorageDeduplicatesByContentFingerprint() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("spinlab-tests-\(UUID().uuidString)", isDirectory: true)
+        let left = root.appendingPathComponent("left", isDirectory: true)
+        let right = root.appendingPathComponent("right", isDirectory: true)
+        try FileManager.default.createDirectory(at: left, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: right, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let fileName = "XY_90shift_80K_PN39_STO111_wafer_ch2_AMR.dat"
+        let contents = Data("same-content".utf8)
+        try contents.write(to: left.appendingPathComponent(fileName))
+        try contents.write(to: right.appendingPathComponent(fileName))
+
+        let storage = SpinLabManagedStorage(rootURL: root)
+        let imported = storage.importMeasurementFiles(
+            from: [left, right],
+            allowedFileExtensions: ["dat"]
+        )
+
+        #expect(imported.count == 1)
+        #expect(imported.first?.fileName == fileName)
     }
 
     @Test("import pipeline rejects gph files even if they are passed in")
@@ -177,6 +202,89 @@ struct V210ImportAndParseTests {
         let parsed = parser.parse(from: fileURL)
 
         #expect(parsed.temperature == "25C")
+    }
+
+    @Test("parser recognizes dynamic extra conditions when definition exists")
+    func parserRecognizesDynamicExtraConditions() throws {
+        var ruleSet = try loadBundledRuleSetForTests()
+        ruleSet.conditionDefinitions.append(
+            .init(
+                id: "abc",
+                label: "ABC",
+                kind: .unitSuffix,
+                binding: "conditions.extraConditions.abc"
+            )
+        )
+        ruleSet.conditions.extraConditions["abc"] = "^-?\\d+(?:\\.\\d+)?(?:abc)$"
+        ruleSet.loadWarnings = ruleSet.compile()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_12abc_1mA.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.extraConditionValues["abc"] == "12abc")
+    }
+
+    @Test("parser recognizes dynamic token-map conditions without schema changes")
+    func parserRecognizesDynamicTokenMapConditions() throws {
+        var ruleSet = try loadBundledRuleSetForTests()
+        ruleSet.conditionDefinitions.append(
+            .init(
+                id: "wafer_type",
+                label: "Wafer Type",
+                kind: .tokenMap,
+                binding: "conditions.tokenMapRules.wafer_type"
+            )
+        )
+        ruleSet.conditions.tokenMapRules["wafer_type"] = [
+            .init(
+                match: .init(scope: .tokens, type: .equals, value: "wafer", values: nil),
+                value: "wafer"
+            )
+        ]
+        ruleSet.loadWarnings = ruleSet.compile()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_wafer_1mA.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.extraConditionValues["wafer_type"] == "wafer")
+    }
+
+    @Test("token-map wins when same label matches both token-map and unit-suffix")
+    func tokenMapWinsWhenDualMatched() throws {
+        var ruleSet = try loadBundledRuleSetForTests()
+        ruleSet.conditionDefinitions.append(
+            .init(
+                id: "mode",
+                label: "Mode",
+                kind: .unitSuffix,
+                binding: "conditions.extraConditions.mode"
+            )
+        )
+        ruleSet.conditionDefinitions.append(
+            .init(
+                id: "mode",
+                label: "Mode",
+                kind: .tokenMap,
+                binding: "conditions.tokenMapRules.mode"
+            )
+        )
+        ruleSet.conditions.extraConditions["mode"] = "^-?\\d+(?:\\.\\d+)?(?:k)$"
+        ruleSet.conditions.tokenMapRules["mode"] = [
+            .init(
+                match: .init(scope: .tokens, type: .equals, value: "1k", values: nil),
+                value: "mode-token"
+            )
+        ]
+        ruleSet.loadWarnings = ruleSet.compile()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_1k_1mA.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.extraConditionValues["mode"] == "mode-token")
+        #expect(parsed.warnings.contains(where: { $0.contains("matched both token-map and unit-suffix") }))
     }
 
     private func loadBundledRuleSetForTests() throws -> FilenameRuleSet {

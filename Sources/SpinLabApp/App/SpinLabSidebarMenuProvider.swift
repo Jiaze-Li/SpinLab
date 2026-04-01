@@ -39,13 +39,37 @@ struct SpinLabSidebarMenuProvider {
                 )
             ]
         case .workbench:
-            return []
+            return workbenchChildren(appState: appState)
         case .library:
             guard selectedArea == .library else {
                 // Lazy build: avoid constructing full Library submenu unless Library is active.
                 return []
             }
             return libraryChildren(appState: appState)
+        }
+    }
+
+    private func workbenchChildren(appState: SpinLabAppState) -> [SidebarMenuNode] {
+        let definitions = appState.workbench.workflowDefinitions
+        guard !definitions.isEmpty else {
+            return [
+                SidebarMenuNode(
+                    id: "workbench:info-empty",
+                    kind: .info,
+                    title: "No workflows",
+                    isSelectable: false,
+                    isMuted: true
+                )
+            ]
+        }
+
+        return definitions.map { definition in
+            SidebarMenuNode(
+                id: SidebarMenuNodeID.workbenchWorkflow(definition.id),
+                kind: .workbenchWorkflow(id: definition.id),
+                title: definition.displayName.isEmpty ? definition.id : definition.displayName,
+                systemImage: "point.3.connected.trianglepath.dotted"
+            )
         }
     }
 

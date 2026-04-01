@@ -500,7 +500,7 @@ Keep (used outside confirm flow):
 1. `InboxViewModel.swift` + `InboxView.swift` — enable Apply button, add Apply All, remove placeholder text
 2. `./scripts/build_desktop_app.sh debug` — verify UI layer builds cleanly
 
-## V2.4
+## V2.4 ✓ done
 **Goal (one line)**
 Build a Workflow Registry in Workbench so the user can define their own workflows and the fields each one requires.
 
@@ -586,9 +586,34 @@ RT           → fields: Test Current (mA)
 8. `V240WorkflowRegistryTests.swift`
 9. `./scripts/build_desktop_app.sh debug`
 
+**Delivery record** (2026-04-01)
+
+All 4 acceptance scenarios pass. 100 tests pass total (6 additional tests beyond spec).
+
+Structural deviations from spec — carried forward as design decisions, not defects:
+
+1. `WorkflowConditionField` schema changed.
+   Spec defined: `{ key: String, label: String, unit: String?, required: Bool }` — a self-contained field definition.
+   Shipped as: `{ definitionID: String }` — a reference to a condition defined in the Rules Handbook (`conditionDefinitions`).
+   Reason: Rules Handbook (also v2.4) already owns condition metadata (label, unit). Duplicating it inside every workflow definition would create two sources of truth. `WorkflowConditionField` is now a pointer, not a definition.
+   V2.5 impact: when writing sidecar condition fields, resolve label/unit by looking up `definitionID` in the active `conditionDefinitions`, not by reading from `WorkflowConditionField` directly.
+
+2. XY seeded defaults differ from spec.
+   Spec: XY Rotation → Temperature (K), Rotation Angle (deg).
+   Shipped: XY Rotation → Temperature, Field (mT).
+   Reason: "rotation_angle" is not a defined condition in the Rules Handbook at this point. Field (mT) was used as a stand-in. If XY rotation workflows need a rotation angle condition, add `rotation_angle` to `conditionDefinitions` in the handbook first, then update the seeded defaults.
+
+3. `WorkflowDefinition` gained an `aliases: [String]` field not in spec.
+   Used by `canonicalWorkflowID()` in `SpinLabAppState` to resolve workflow tokens from parsed filenames via alternate names. No impact on V2.5.
+
 ## V2.5
 **Goal (one line)**
 When applying a file, automatically write a tag record alongside it capturing workflow, conditions, and test type.
+
+**Prerequisites from V2.4 delivery**
+- `WorkflowConditionField` stores only `definitionID`, not label/unit. When populating sidecar condition fields, resolve display metadata by looking up each `definitionID` in the `conditionDefinitions` array from the active `FilenameRuleSet` (via `ConditionFieldCatalog`).
+- The example sidecar in this spec uses `"rotation_angle"` as a condition key. That condition does not exist in the Rules Handbook yet. Before implementing that example, either update the spec to use conditions that are already defined (temperature, current, field, device), or add `rotation_angle` to `conditionDefinitions` in the handbook.
+- Condition values at apply time come from `PendingImportConfirmationDraft.conditionValues: [String: String]`, keyed by `definitionID`. This replaced the old `temperature: String` / `deviceName: String` fields as of v2.4.
 
 **Design rationale**
 The sidecar is a separate file (not merged into `sample.json`) because `sample.json` is owned by the Library registry sync — it reflects what's in the XLSX spreadsheet. Mixing apply-time measurement conditions into that file would conflate two different data sources and make registry sync logic more fragile. Keeping sidecar files separate means each data source stays clean and independently updatable.

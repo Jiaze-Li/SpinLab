@@ -208,6 +208,7 @@ struct RuleLoader {
         sourceLabel: String
     ) -> [String] {
         var warnings: [String] = []
+        warnings.append(contentsOf: Self.normalizeConditionDefinitionBindings(ruleSet: &ruleSet, sourceLabel: sourceLabel))
 
         if ruleSet.version == Self.currentSchemaVersion {
             return warnings
@@ -226,6 +227,115 @@ struct RuleLoader {
         warnings.append(
             "\(sourceLabel) schema v\(ruleSet.version) is newer than supported v\(Self.currentSchemaVersion); loading in compatibility mode."
         )
+        return warnings
+    }
+
+    static func normalizeConditionDefinitionBindings(
+        ruleSet: inout FilenameRuleSet,
+        sourceLabel: String
+    ) -> [String] {
+        var warnings: [String] = []
+
+        if ruleSet.conditionDefinitions.isEmpty {
+            var synthesized: [FilenameRuleSet.ConditionDefinition] = []
+
+            func appendSynthesizedDefinition(id: String, kind: FilenameRuleSet.ConditionDefinitionKind) {
+                synthesized.append(
+                    .init(
+                        id: id,
+                        label: ConditionFieldCatalog.defaultLabel(for: id),
+                        kind: kind,
+                        binding: kind == .unitSuffix
+                            ? "conditions.extraConditions.\(id)"
+                            : "conditions.tokenMapRules.\(id)"
+                    )
+                )
+            }
+
+            for id in [ConditionFieldCatalog.temperatureID, ConditionFieldCatalog.currentID, ConditionFieldCatalog.fieldID] {
+                appendSynthesizedDefinition(id: id, kind: .unitSuffix)
+            }
+            appendSynthesizedDefinition(id: ConditionFieldCatalog.deviceID, kind: .tokenMap)
+
+            for key in ruleSet.conditions.extraConditions.keys.sorted()
+                where !synthesized.contains(where: { $0.id.caseInsensitiveCompare(key) == .orderedSame && $0.kind == .unitSuffix }) {
+                appendSynthesizedDefinition(id: key, kind: .unitSuffix)
+            }
+            for key in ruleSet.conditions.tokenMapRules.keys.sorted()
+                where !synthesized.contains(where: { $0.id.caseInsensitiveCompare(key) == .orderedSame && $0.kind == .tokenMap }) {
+                appendSynthesizedDefinition(id: key, kind: .tokenMap)
+            }
+
+            if !ruleSet.deviceRules.isEmpty,
+               ruleSet.conditions.tokenMapRules[ConditionFieldCatalog.deviceID] == nil {
+                ruleSet.conditions.tokenMapRules[ConditionFieldCatalog.deviceID] = ruleSet.deviceRules
+            }
+            if !ruleSet.conditions.temperaturePattern.isEmpty,
+               ruleSet.conditions.extraConditions[ConditionFieldCatalog.temperatureID] == nil {
+                ruleSet.conditions.extraConditions[ConditionFieldCatalog.temperatureID] = ruleSet.conditions.temperaturePattern
+            }
+            if !ruleSet.conditions.currentPattern.isEmpty,
+               ruleSet.conditions.extraConditions[ConditionFieldCatalog.currentID] == nil {
+                ruleSet.conditions.extraConditions[ConditionFieldCatalog.currentID] = ruleSet.conditions.currentPattern
+            }
+            if !ruleSet.conditions.fieldPattern.isEmpty,
+               ruleSet.conditions.extraConditions[ConditionFieldCatalog.fieldID] == nil {
+                ruleSet.conditions.extraConditions[ConditionFieldCatalog.fieldID] = ruleSet.conditions.fieldPattern
+            }
+
+            ruleSet.conditionDefinitions = synthesized
+            warnings.append("\(sourceLabel) has no conditionDefinitions; synthesized canonical definitions for compatibility.")
+            return warnings
+        }
+
+        var changed = false
+        var normalized: [FilenameRuleSet.ConditionDefinition] = []
+
+        for definition in ruleSet.conditionDefinitions {
+            let id = definition.id.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !id.isEmpty else {
+                continue
+            }
+            var updated = definition
+            let binding = definition.binding.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            switch definition.kind {
+            case .unitSuffix:
+                if binding == "conditions.temperaturePattern",
+                   ruleSet.conditions.extraConditions[id] == nil {
+                    ruleSet.conditions.extraConditions[id] = ruleSet.conditions.temperaturePattern
+                } else if binding == "conditions.currentPattern",
+                          ruleSet.conditions.extraConditions[id] == nil {
+                    ruleSet.conditions.extraConditions[id] = ruleSet.conditions.currentPattern
+                } else if binding == "conditions.fieldPattern",
+                          ruleSet.conditions.extraConditions[id] == nil {
+                    ruleSet.conditions.extraConditions[id] = ruleSet.conditions.fieldPattern
+                }
+
+                let canonical = "conditions.extraConditions.\(id)"
+                if binding != canonical {
+                    updated.binding = canonical
+                    changed = true
+                }
+            case .tokenMap:
+                if (binding == "deviceRules" || binding == "inbox.deviceRules"),
+                   ruleSet.conditions.tokenMapRules[id] == nil {
+                    ruleSet.conditions.tokenMapRules[id] = ruleSet.deviceRules
+                }
+                let canonical = "conditions.tokenMapRules.\(id)"
+                if binding != canonical {
+                    updated.binding = canonical
+                    changed = true
+                }
+            }
+
+            normalized.append(updated)
+        }
+
+        if changed {
+            warnings.append("\(sourceLabel) conditionDefinitions bindings were normalized to canonical paths.")
+        }
+        ruleSet.conditionDefinitions = normalized
         return warnings
     }
 

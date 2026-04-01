@@ -1,6 +1,17 @@
 import Foundation
+import CryptoKit
 import Observation
 import SwiftUI
+
+struct ApplyProgressState {
+    var isRunning: Bool = false
+    var totalCount: Int = 0
+    var processedCount: Int = 0
+    var appliedCount: Int = 0
+    var skippedCount: Int = 0
+    var failedCount: Int = 0
+    var currentFileName: String = ""
+}
 
 @MainActor
 @Observable
@@ -117,6 +128,8 @@ final class SpinLabAppState {
     var registry: RegistryFeatureStore { registryFeatureStore }
     var library: LibraryFeatureStore { libraryFeatureStore }
     var workbench: WorkbenchFeatureStore { workbenchFeatureStore }
+    var conditionRulesHandbook: ConditionRulesHandbookStore { conditionRulesHandbookStore }
+    var workflowDefinitions: [WorkflowDefinition] = []
 
     var selectedPendingImportID: UUID? {
         get { inboxFeatureStore.selectedPendingImportID }
@@ -155,6 +168,7 @@ final class SpinLabAppState {
     }
     var activeAlert: AppAlertState?
     private(set) var appStateRevision: Int = 0
+    var applyProgressState: ApplyProgressState = .init()
     let workflow: SpinLabDomain.WorkflowKind
 
     private let persistence: SpinLabPersistence
@@ -170,11 +184,14 @@ final class SpinLabAppState {
     private var registryFeatureStore: RegistryFeatureStore
     private let libraryFeatureStore: LibraryFeatureStore
     private let workbenchFeatureStore: WorkbenchFeatureStore
+    private let conditionRulesHandbookStore: ConditionRulesHandbookStore
     private let appLogger = AppLogger.shared
     private let interactionSnapshotCoordinator: InteractionSnapshotCoordinator
     private var hasRestoredInteractionSnapshot = false
     private let dataActor: any SpinLabDataActing
     private let registryLifecycleService = RegistryLifecycleService()
+    @ObservationIgnored
+    private var contentFingerprintCache: [String: String] = [:]
     private let registryCoordinator = RegistryCoordinator()
     @ObservationIgnored
     private lazy var registryFacade = RegistryFacade(
@@ -209,6 +226,9 @@ final class SpinLabAppState {
         existingImportedOriginalPaths: { [weak self] in
             self?.existingImportedOriginalPaths() ?? []
         },
+        existingImportedContentFingerprints: { [weak self] in
+            self?.existingImportedContentFingerprints() ?? []
+        },
         syncInboxWorkspaceToPendingImports: { [weak self] in
             self?.syncInboxWorkspaceToPendingImports()
         },
@@ -232,14 +252,16 @@ final class SpinLabAppState {
         recomputedParsedHints: { [weak self] pending in
             self?.recomputedParsedHints(for: pending) ?? pending.parsedHints
         },
+        conditionDefinitions: { [weak self] in
+            self?.workbenchFeatureStore.conditionDefinitionOptions ?? []
+        },
         pendingDisplayDraft: { [weak self] pending in
             self?.pendingDisplayDraft(for: pending) ?? PendingImportConfirmationDraft(
                 batchName: "",
                 sampleName: "",
                 measurementName: pending.fileName,
-                workflowTag: "",
-                deviceName: "",
-                temperature: "",
+                workflowID: "",
+                conditionValues: [:],
                 selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
                 newProjectName: ""
             )
@@ -355,10 +377,20 @@ final class SpinLabAppState {
         )
         self.registryFeatureStore = RegistryFeatureStore()
         self.libraryFeatureStore = LibraryFeatureStore()
-        self.workbenchFeatureStore = WorkbenchFeatureStore(libraryRepository: self.libraryRepository)
+        self.conditionRulesHandbookStore = environment.conditionRulesHandbookStore
+        self.workbenchFeatureStore = WorkbenchFeatureStore(
+            libraryRepository: self.libraryRepository,
+            workflowRegistryStore: environment.workflowRegistryStore,
+            workflowIDAllocator: environment.workflowIDAllocator,
+            conditionRulesHandbookStore: self.conditionRulesHandbookStore
+        )
         let interactionMemory = InteractionMemoryStore(persistence: environment.persistence)
         self.interactionSnapshotCoordinator = InteractionSnapshotCoordinator(interactionMemory: interactionMemory)
         self.dataActor = environment.dataActor
+        self.workflowDefinitions = self.workbenchFeatureStore.workflowDefinitions
+        self.workbenchFeatureStore.onDefinitionsChanged = { [weak self] definitions in
+            self?.workflowDefinitions = definitions
+        }
 
         if !self.sampleRegistry.isLoaded, let currentRegistryURL = environment.managedStorage.currentSampleRegistryFileURL() {
             self.sampleRegistry = XLSXPrefixSampleRegistryIndex.fromFileURL(currentRegistryURL, previewRowCount: 10)
@@ -470,6 +502,12 @@ final class SpinLabAppState {
             selectedArea = .inbox
         case .workbench:
             selectedArea = .workbench
+            workbenchFeatureStore.selectedSection = .workflows
+            workbenchFeatureStore.currentRoute = .registry(selectedID: nil)
+        case let .workbenchWorkflow(id):
+            selectedArea = .workbench
+            workbenchFeatureStore.selectedSection = .workflows
+            workbenchFeatureStore.selectWorkflow(id)
         case .library:
             selectedArea = .library
         case let .libraryDrawer(prefix, batchId, sampleId):
@@ -702,8 +740,20 @@ final class SpinLabAppState {
         inboxFacade.clearPendingImports()
     }
 
+    func clearSelectedPendingImport() {
+        inboxFacade.clearSelectedPendingImport()
+    }
+
     func recomputeAllPendingParsedHints() {
         inboxFacade.recomputeAllPendingParsedHints()
+    }
+
+    func dryRunConditionRuleRecompute() -> [ConditionChangeProposal] {
+        inboxFacade.dryRunConditionRecompute()
+    }
+
+    func applyConditionRuleProposals(pendingIDs: Set<UUID>) {
+        inboxFacade.applyConditionProposals(pendingIDs: pendingIDs)
     }
 
     func loadSampleRegistry(from url: URL) {
@@ -972,12 +1022,14 @@ final class SpinLabAppState {
 
     func defaultConfirmationDraft(for pending: SpinLabDomain.PendingImport) -> PendingImportConfirmationDraft {
         let resolvedSampleID = pending.parsedHints.sampleIDs.first ?? sampleRegistry.sampleID(from: pending.fileName)
-        return importPipeline.metadataExtension.defaultConfirmationDraft(
+        var draft = importPipeline.metadataExtension.defaultConfirmationDraft(
             pending: pending,
             suggestedProjectName: suggestedProject(for: pending)?.name,
             registryLookup: registryLookup(for: pending),
             fallbackSampleID: resolvedSampleID
         )
+        draft.workflowID = canonicalWorkflowID(from: draft.workflowID) ?? ""
+        return draft
     }
 
     func pendingDisplayDraft(for pending: SpinLabDomain.PendingImport) -> PendingImportConfirmationDraft {
@@ -1032,9 +1084,8 @@ final class SpinLabAppState {
             batchName: pending.parsedHints.batchName ?? resolvedSampleID ?? "",
             sampleName: pending.parsedHints.sampleName ?? "",
             measurementName: pending.parsedHints.measurementName ?? pending.fileName,
-            workflowTag: pending.parsedHints.workflowName ?? "",
-            deviceName: pending.parsedHints.deviceName ?? "",
-            temperature: pending.parsedHints.temperature ?? "",
+            workflowID: canonicalWorkflowID(from: pending.parsedHints.workflowName) ?? "",
+            conditionValues: parsedHintsConditionValues(from: pending.parsedHints),
             selectedExistingProjectName: suggestedProject(for: pending)?.name ?? PendingImportConfirmationDraft.noProjectOption,
             newProjectName: ""
         )
@@ -1092,18 +1143,96 @@ final class SpinLabAppState {
     }
 
     private func performApplyAllPendingImports() {
-        performApply { pendingImports, routingSnapshots, libraryIndex, libraryRootURL in
-            applyCoordinator.applyAll(
-                pendingImports: pendingImports,
-                routingSnapshots: routingSnapshots,
-                libraryIndex: libraryIndex,
-                libraryStore: libraryFeatureStore.libraryStore,
-                libraryRootURL: libraryRootURL,
-                applyService: inboxArchiveApplyService
-            )
+        guard !applyProgressState.isRunning else {
+            return
+        }
+        guard let context = resolveApplyContext() else {
+            return
+        }
+
+        let matchedPending = context.pendingImports.filter { pending in
+            guard let snapshot = context.routingSnapshots[pending.id] else {
+                return false
+            }
+            return snapshot.verdict == .libraryMatched && !snapshot.routePlan.targets.isEmpty
+        }
+        guard !matchedPending.isEmpty else {
+            finalizeApplyOutcome(.nothingToApply)
+            return
+        }
+
+        applyProgressState = ApplyProgressState(
+            isRunning: true,
+            totalCount: matchedPending.count,
+            processedCount: 0,
+            appliedCount: 0,
+            skippedCount: 0,
+            failedCount: 0,
+            currentFileName: ""
+        )
+
+        Task { @MainActor in
+            var appliedIDs: [UUID] = []
+            var skippedIDs: [UUID] = []
+            var failedIDs: [UUID] = []
+            appliedIDs.reserveCapacity(matchedPending.count)
+            skippedIDs.reserveCapacity(matchedPending.count)
+            failedIDs.reserveCapacity(matchedPending.count)
+
+            for pending in matchedPending {
+                applyProgressState.currentFileName = pending.fileName
+
+                guard let snapshot = context.routingSnapshots[pending.id] else {
+                    failedIDs.append(pending.id)
+                    applyProgressState.failedCount = failedIDs.count
+                    applyProgressState.processedCount = appliedIDs.count + skippedIDs.count + failedIDs.count
+                    await Task.yield()
+                    continue
+                }
+
+                do {
+                    let applyResult = try inboxArchiveApplyService.apply(
+                        pending: pending,
+                        targets: snapshot.routePlan.targets,
+                        libraryIndex: context.libraryIndex,
+                        libraryStore: libraryFeatureStore.libraryStore,
+                        libraryRootURL: context.libraryRootURL
+                    )
+                    if applyResult.allTargetsSkipped {
+                        skippedIDs.append(pending.id)
+                        applyProgressState.skippedCount = skippedIDs.count
+                    } else {
+                        appliedIDs.append(pending.id)
+                        applyProgressState.appliedCount = appliedIDs.count
+                    }
+                } catch {
+                    failedIDs.append(pending.id)
+                    applyProgressState.failedCount = failedIDs.count
+                }
+
+                applyProgressState.processedCount = appliedIDs.count + skippedIDs.count + failedIDs.count
+                await Task.yield()
+            }
+
+            let outcome: InboxApplyOutcome
+            if (!appliedIDs.isEmpty || !skippedIDs.isEmpty) && failedIDs.isEmpty {
+                outcome = .success(appliedIDs: appliedIDs, skippedIDs: skippedIDs)
+            } else if (!appliedIDs.isEmpty || !skippedIDs.isEmpty) && !failedIDs.isEmpty {
+                outcome = .partialSuccess(appliedIDs: appliedIDs, skippedIDs: skippedIDs, failedIDs: failedIDs)
+            } else {
+                outcome = .failure(message: "No matched pending imports could be applied.")
+            }
+
+            finalizeApplyOutcome(outcome)
+            applyProgressState = .init()
         }
     }
 
+    // TODO(tech-debt): Two apply patterns exist side-by-side — this synchronous closure-based helper
+    // and the async Task loop in performApplyAllPendingImports(). The async path is the primary one;
+    // this helper survives because performApplySelectedPendingImport() still uses it. Once the selected
+    // apply path is migrated to async (with per-file progress), this helper and its ApplyContext typealias
+    // can be removed. Track in docs/plans/TECH_DEBT_BACKLOG.md § Apply pattern unification.
     private func performApply(
         resolver: (
             [SpinLabDomain.PendingImport],
@@ -1112,41 +1241,61 @@ final class SpinLabAppState {
             URL
         ) -> InboxApplyOutcome
     ) {
-        guard let libraryRootURL = resolvedLibraryRootURLForApply() else {
+        guard let context = resolveApplyContext() else {
             return
+        }
+        let outcome = resolver(context.pendingImports, context.routingSnapshots, context.libraryIndex, context.libraryRootURL)
+        finalizeApplyOutcome(outcome)
+    }
+
+    private typealias ApplyContext = (
+        pendingImports: [SpinLabDomain.PendingImport],
+        routingSnapshots: [UUID: SpinLabDomain.PendingRoutingSnapshot],
+        libraryIndex: LibraryIndex,
+        libraryRootURL: URL
+    )
+
+    private func resolveApplyContext() -> ApplyContext? {
+        guard let libraryRootURL = resolvedLibraryRootURLForApply() else {
+            return nil
         }
 
         let pendingImports = inboxFeatureStore.pendingImports
         let routingSnapshots = Dictionary(uniqueKeysWithValues: pendingImports.map { pending in
             (pending.id, routingSnapshotForApply(for: pending))
         })
-        let libraryIndex = libraryFeatureStore.libraryStore.snapshotIndexFromFilesystem(rootURL: libraryRootURL)
-        let outcome = resolver(pendingImports, routingSnapshots, libraryIndex, libraryRootURL)
-        let appliedIDs = outcome.appliedIDs
+        let libraryIndex =
+            libraryFeatureStore.libraryStore.loadIndex(from: libraryRootURL)
+            ?? libraryFeatureStore.libraryStore.snapshotIndexFromFilesystem(rootURL: libraryRootURL)
+        return (pendingImports, routingSnapshots, libraryIndex, libraryRootURL)
+    }
 
-        inboxFeatureStore.applyPending(appliedIDs: appliedIDs)
-        for pendingID in appliedIDs {
+    private func finalizeApplyOutcome(_ outcome: InboxApplyOutcome) {
+        let processedIDs = outcome.processedIDs
+
+        inboxFeatureStore.applyPending(processedIDs: processedIDs)
+        for pendingID in processedIDs {
             updateInteractionEntryValue(for: pendingID, in: \.inboxWorkspaceByPendingID, value: nil)
-        }
-
-        if !appliedIDs.isEmpty {
-            syncLibraryFromFiles()
         }
 
         switch outcome {
         case .nothingToApply:
             appLogger.info(.import, "Apply skipped: no matched pending imports")
-        case let .success(appliedIDs):
+        case let .success(appliedIDs, skippedIDs):
             appLogger.info(.import, "Apply completed", metadata: [
-                "appliedCount": "\(appliedIDs.count)"
+                "appliedCount": "\(appliedIDs.count)",
+                "skippedCount": "\(skippedIDs.count)"
             ])
-        case let .partialSuccess(appliedIDs, failedIDs):
+            if !appliedIDs.isEmpty { syncLibraryFromFiles() }
+        case let .partialSuccess(appliedIDs, skippedIDs, failedIDs):
             appLogger.warning(.import, "Apply partially completed", metadata: [
                 "appliedCount": "\(appliedIDs.count)",
+                "skippedCount": "\(skippedIDs.count)",
                 "failedCount": "\(failedIDs.count)"
             ])
+            if !appliedIDs.isEmpty { syncLibraryFromFiles() }
             present(
-                error: .state("Applied \(appliedIDs.count) files, but \(failedIDs.count) files failed."),
+                error: .state("Applied \(appliedIDs.count), skipped \(skippedIDs.count) existing, failed \(failedIDs.count)."),
                 title: "Apply Partially Completed"
             )
         case let .failure(message):
@@ -1232,6 +1381,38 @@ final class SpinLabAppState {
         }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func canonicalWorkflowID(from rawWorkflow: String?) -> String? {
+        guard let normalizedRaw = normalized(rawWorkflow) else { return nil }
+
+        if let exactID = workflowDefinitions.first(where: { $0.id == normalizedRaw }) {
+            return exactID.id
+        }
+
+        if let insensitiveID = workflowDefinitions.first(where: {
+            $0.id.caseInsensitiveCompare(normalizedRaw) == .orderedSame
+        }) {
+            return insensitiveID.id
+        }
+
+        var matchedIDs: Set<String> = []
+        for definition in workflowDefinitions {
+            if definition.displayName.caseInsensitiveCompare(normalizedRaw) == .orderedSame {
+                matchedIDs.insert(definition.id)
+                continue
+            }
+            if definition.aliases.contains(where: {
+                $0.caseInsensitiveCompare(normalizedRaw) == .orderedSame
+            }) {
+                matchedIDs.insert(definition.id)
+            }
+        }
+
+        if matchedIDs.count == 1, let id = matchedIDs.first {
+            return id
+        }
+        return nil
     }
 
     private func applyExistingIndex(_ index: LibraryIndex) {
@@ -1382,8 +1563,55 @@ final class SpinLabAppState {
         return paths
     }
 
+    private func existingImportedContentFingerprints() -> Set<String> {
+        var fingerprints: Set<String> = []
+        var seenPaths: Set<String> = []
+
+        func collectFingerprint(from path: String?) {
+            guard let path, !path.isEmpty else {
+                return
+            }
+            let normalized = normalizedPath(path)
+            guard seenPaths.insert(normalized).inserted else {
+                return
+            }
+            guard let fingerprint = contentFingerprint(atPath: normalized) else {
+                return
+            }
+            fingerprints.insert(fingerprint)
+        }
+
+        for pending in inboxFeatureStore.pendingImports {
+            collectFingerprint(from: pending.sourceFilePath)
+            collectFingerprint(from: pending.originalFilePath)
+        }
+
+        for record in workbenchFeatureStore.archivedRecords {
+            collectFingerprint(from: record.dataset.sourceFilePath)
+            collectFingerprint(from: record.dataset.originalFilePath)
+            collectFingerprint(from: record.measurement.sourceFilePath)
+            collectFingerprint(from: record.measurement.originalFilePath)
+        }
+
+        return fingerprints
+    }
+
     private func normalizedPath(_ path: String) -> String {
         URL(fileURLWithPath: path).standardizedFileURL.path
+    }
+
+    private func contentFingerprint(atPath path: String) -> String? {
+        if let cached = contentFingerprintCache[path] {
+            return cached
+        }
+        let url = URL(fileURLWithPath: path)
+        guard let data = try? Data(contentsOf: url, options: [.mappedIfSafe]) else {
+            return nil
+        }
+        let digest = SHA256.hash(data: data)
+        let fingerprint = digest.map { String(format: "%02x", $0) }.joined()
+        contentFingerprintCache[path] = fingerprint
+        return fingerprint
     }
 
     private func metadataValue(in lookup: SampleRegistryLookupResult?, keys: [String]) -> String? {
@@ -1410,6 +1638,10 @@ final class SpinLabAppState {
             for: pending,
             registryLookup: registryLookup
         )
+    }
+
+    private func parsedHintsConditionValues(from hints: SpinLabDomain.ParsedFilenameHints) -> [String: String] {
+        ConditionFieldCatalog.conditionValues(from: hints)
     }
 
     private func suggestedProject(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.Project? {

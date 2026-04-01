@@ -18,15 +18,16 @@ enum LibraryPendingSelectionChange: Equatable {
     case drawer(prefix: String, batchId: String, sampleId: String?)
 }
 
-struct PendingImportConfirmationDraft: Codable, Equatable {
+struct PendingImportConfirmationDraft: Equatable {
     static let noProjectOption = "None"
 
     var batchName: String
     var sampleName: String
     var measurementName: String
-    var workflowTag: String
-    var deviceName: String
-    var temperature: String
+    /// ID matching a WorkflowDefinition.id in the WorkflowRegistry.
+    var workflowID: String
+    /// Condition field values keyed by WorkflowConditionField.definitionID (e.g. "temperature", "device").
+    var conditionValues: [String: String]
     var selectedExistingProjectName: String
     var newProjectName: String
 
@@ -47,9 +48,71 @@ struct PendingImportConfirmationDraft: Codable, Equatable {
         return Self.normalized(selectedExistingProjectName)
     }
 
+    init(
+        batchName: String,
+        sampleName: String,
+        measurementName: String,
+        workflowID: String,
+        conditionValues: [String: String],
+        selectedExistingProjectName: String,
+        newProjectName: String
+    ) {
+        self.batchName = batchName
+        self.sampleName = sampleName
+        self.measurementName = measurementName
+        self.workflowID = workflowID
+        self.conditionValues = conditionValues
+        self.selectedExistingProjectName = selectedExistingProjectName
+        self.newProjectName = newProjectName
+    }
+
     static func normalized(_ value: String) -> String? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+extension PendingImportConfirmationDraft: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case batchName, sampleName, measurementName
+        case workflowID
+        case conditionValues
+        case selectedExistingProjectName, newProjectName
+        // Legacy keys — read-only migration path from v2.3 and earlier snapshots.
+        // Safe to remove once no active user has an interaction snapshot predating v2.4
+        // (i.e. after one full release cycle where v2.4 has been the minimum supported version).
+        case workflowTag, deviceName, temperature
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        batchName = try c.decodeIfPresent(String.self, forKey: .batchName) ?? ""
+        sampleName = try c.decodeIfPresent(String.self, forKey: .sampleName) ?? ""
+        measurementName = try c.decodeIfPresent(String.self, forKey: .measurementName) ?? ""
+        selectedExistingProjectName = try c.decodeIfPresent(String.self, forKey: .selectedExistingProjectName) ?? Self.noProjectOption
+        newProjectName = try c.decodeIfPresent(String.self, forKey: .newProjectName) ?? ""
+        workflowID = try c.decodeIfPresent(String.self, forKey: .workflowID)
+            ?? c.decodeIfPresent(String.self, forKey: .workflowTag)
+            ?? ""
+        if let stored = try c.decodeIfPresent([String: String].self, forKey: .conditionValues) {
+            conditionValues = stored
+        } else {
+            var migrated: [String: String] = [:]
+            if let t = try c.decodeIfPresent(String.self, forKey: .temperature), !t.isEmpty { migrated["temperature"] = t }
+            if let d = try c.decodeIfPresent(String.self, forKey: .deviceName), !d.isEmpty { migrated["device"] = d }
+            conditionValues = migrated
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(batchName, forKey: .batchName)
+        try c.encode(sampleName, forKey: .sampleName)
+        try c.encode(measurementName, forKey: .measurementName)
+        try c.encode(workflowID, forKey: .workflowID)
+        try c.encode(conditionValues, forKey: .conditionValues)
+        try c.encode(selectedExistingProjectName, forKey: .selectedExistingProjectName)
+        try c.encode(newProjectName, forKey: .newProjectName)
     }
 }
 

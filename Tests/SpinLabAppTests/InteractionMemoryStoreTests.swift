@@ -55,9 +55,8 @@ struct InteractionMemoryStoreTests {
                 batchName: "B",
                 sampleName: "S",
                 measurementName: "M",
-                workflowTag: "",
-                deviceName: "D",
-                temperature: "300",
+                workflowID: "",
+                conditionValues: ["device": "D", "temperature": "300"],
                 selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
                 newProjectName: ""
             ),
@@ -90,9 +89,8 @@ struct InboxWorkspaceSnapshotTests {
             batchName: "B1",
             sampleName: "S1",
             measurementName: "M1",
-            workflowTag: "",
-            deviceName: "D1",
-            temperature: "25",
+            workflowID: "",
+            conditionValues: ["device": "D1", "temperature": "25"],
             selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
             newProjectName: ""
         )

@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 enum ManagedStorageError: LocalizedError {
     case createDirectoryFailed(path: String, reason: String)
@@ -56,7 +57,8 @@ final class SpinLabManagedStorage {
         from urls: [URL],
         allowedFileExtensions: Set<String>,
         ignoredFileExtensions: Set<String> = [],
-        excludedOriginalFilePaths: Set<String> = []
+        excludedOriginalFilePaths: Set<String> = [],
+        excludedContentFingerprints: Set<String> = []
     ) -> [ImportedMeasurementFile] {
         let sourceFiles = expandMeasurementSourceFiles(
             from: urls,
@@ -64,7 +66,9 @@ final class SpinLabManagedStorage {
             ignoredFileExtensions: ignoredFileExtensions
         )
         let excluded = Set(excludedOriginalFilePaths.map(normalizedPath))
+        let excludedFingerprints = Set(excludedContentFingerprints.map { $0.lowercased() })
         var seenInCurrentBatch: Set<String> = []
+        var seenFingerprintsInCurrentBatch: Set<String> = []
         return sourceFiles.compactMap { sourceURL in
             let originalPath = normalizedPath(sourceURL.path)
             guard !excluded.contains(originalPath) else {
@@ -72,6 +76,14 @@ final class SpinLabManagedStorage {
             }
             guard seenInCurrentBatch.insert(originalPath).inserted else {
                 return nil
+            }
+            if let fingerprint = contentFingerprint(for: sourceURL) {
+                guard !excludedFingerprints.contains(fingerprint) else {
+                    return nil
+                }
+                guard seenFingerprintsInCurrentBatch.insert(fingerprint).inserted else {
+                    return nil
+                }
             }
             return ImportedMeasurementFile(
                 fileName: sourceURL.lastPathComponent,
@@ -217,5 +229,13 @@ final class SpinLabManagedStorage {
 
     private func normalizedPath(_ path: String) -> String {
         URL(fileURLWithPath: path).standardizedFileURL.path
+    }
+
+    private func contentFingerprint(for url: URL) -> String? {
+        guard let data = try? Data(contentsOf: url, options: [.mappedIfSafe]) else {
+            return nil
+        }
+        let digest = SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
     }
 }
