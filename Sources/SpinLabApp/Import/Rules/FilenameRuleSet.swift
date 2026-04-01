@@ -43,6 +43,9 @@ struct FilenameRuleSet: Decodable {
     }
 
     struct ConditionRules: Decodable {
+        // Deprecated: canonical rule data lives in extraConditions["temperature"] / ["current"] / ["field"].
+        // These fields are kept for JSON decode compatibility and are written as empty strings on save.
+        // Remove once all stored rule files have been migrated (i.e. no user file predates v2.4).
         var temperaturePattern: String
         var currentPattern: String
         var fieldPattern: String
@@ -205,6 +208,9 @@ struct FilenameRuleSet: Decodable {
     var measurementTagRules: [MapRule]
     var substrateTagRules: [MapRule]
     var channel: ChannelRules
+    // Deprecated: device rules now live in conditions.tokenMapRules["device"] via conditionDefinitions.
+    // This field is decoded for migration and written as [] on save. Remove alongside temperaturePattern
+    // cleanup once all stored rule files have been migrated to v2.4+.
     var deviceRules: [MapRule]
     var rotationHintRules: [MapRule]
     var conditions: ConditionRules

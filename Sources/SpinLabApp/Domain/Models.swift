@@ -284,6 +284,11 @@ extension SpinLabDomain {
         var channelHints: [ParsedChannelHint] = []
         var measurementTags: [String] = []
         var substrateTags: [String] = []
+        // TODO(tech-debt): temperature/current/field/deviceName are named fields while custom conditions
+        // use extraConditionValues. ConditionFieldCatalog.conditionValues() merges them at the boundary,
+        // but the split means adding a new "built-in" condition requires changes in 4 places vs 1 for custom.
+        // Target state: collapse into conditionValues: [String: String] only; named fields become computed
+        // accessors. Track in docs/plans/TECH_DEBT_BACKLOG.md § ParsedFilenameHints unification.
         var temperature: String?
         var growthTemperature: String?
         var current: String?

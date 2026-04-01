@@ -79,6 +79,8 @@ extension PendingImportConfirmationDraft: Codable {
         case conditionValues
         case selectedExistingProjectName, newProjectName
         // Legacy keys — read-only migration path from v2.3 and earlier snapshots.
+        // Safe to remove once no active user has an interaction snapshot predating v2.4
+        // (i.e. after one full release cycle where v2.4 has been the minimum supported version).
         case workflowTag, deviceName, temperature
     }
 

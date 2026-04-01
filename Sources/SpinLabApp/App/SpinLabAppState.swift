@@ -190,6 +190,8 @@ final class SpinLabAppState {
     private var hasRestoredInteractionSnapshot = false
     private let dataActor: any SpinLabDataActing
     private let registryLifecycleService = RegistryLifecycleService()
+    @ObservationIgnored
+    private var contentFingerprintCache: [String: String] = [:]
     private let registryCoordinator = RegistryCoordinator()
     @ObservationIgnored
     private lazy var registryFacade = RegistryFacade(
@@ -1226,6 +1228,11 @@ final class SpinLabAppState {
         }
     }
 
+    // TODO(tech-debt): Two apply patterns exist side-by-side — this synchronous closure-based helper
+    // and the async Task loop in performApplyAllPendingImports(). The async path is the primary one;
+    // this helper survives because performApplySelectedPendingImport() still uses it. Once the selected
+    // apply path is migrated to async (with per-file progress), this helper and its ApplyContext typealias
+    // can be removed. Track in docs/plans/TECH_DEBT_BACKLOG.md § Apply pattern unification.
     private func performApply(
         resolver: (
             [SpinLabDomain.PendingImport],
@@ -1594,12 +1601,17 @@ final class SpinLabAppState {
     }
 
     private func contentFingerprint(atPath path: String) -> String? {
+        if let cached = contentFingerprintCache[path] {
+            return cached
+        }
         let url = URL(fileURLWithPath: path)
         guard let data = try? Data(contentsOf: url, options: [.mappedIfSafe]) else {
             return nil
         }
         let digest = SHA256.hash(data: data)
-        return digest.map { String(format: "%02x", $0) }.joined()
+        let fingerprint = digest.map { String(format: "%02x", $0) }.joined()
+        contentFingerprintCache[path] = fingerprint
+        return fingerprint
     }
 
     private func metadataValue(in lookup: SampleRegistryLookupResult?, keys: [String]) -> String? {
