@@ -607,6 +607,8 @@ Structural deviations from spec — carried forward as design decisions, not def
    Used by `canonicalWorkflowID()` in `SpinLabAppState` to resolve workflow tokens from parsed filenames via alternate names. No impact on V2.5.
 
 ## V2.5
+Status: `done` (accepted on 2026-04-03)
+
 **Goal (one line)**
 When applying a file, automatically write a tag record alongside it capturing workflow and conditions.
 
@@ -680,7 +682,21 @@ If the file's workflow isn't found in the registry, the app records whatever con
 **Test file**
 `Tests/SpinLabAppTests/V250SidecarTests.swift` — 5 scenarios above.
 
+**Delivery record** (2026-04-03)
+
+- V2.5 sidecar writing flow is closed and verified:
+  - sidecar written per destination drawer during apply.
+  - apply data file + sidecar commit/rollback is atomic.
+  - draft-first condition sourcing and unknown-workflow fallback are in place.
+- Regression status:
+  - `V250SidecarTests` passed.
+  - full `swift test` passed in this branch verification round.
+- Scope note:
+  - workflow is the canonical test classification; no separate `testType` field is required.
+
 ## V2.6
+Status: `done` (accepted on 2026-04-03)
+
 **Goal (one line)**
 Show a "Measurements Done" history per sample in Library, built from the sidecar tag files.
 
@@ -734,6 +750,18 @@ struct AppliedMeasurement: Codable, Hashable, Identifiable, Sendable {
 
 **Test file**
 `Tests/SpinLabAppTests/V260MeasurementsDisplayTests.swift`
+
+**Delivery record** (2026-04-03)
+
+- V2.6 measurement history display flow is closed and verified:
+  - sidecars are scanned and decoded into `AppliedMeasurement`.
+  - per-sample measurement history is attached and rendered in Library detail section.
+  - display follows current product scope: workflow + ordered conditions.
+- Regression status:
+  - `V260MeasurementsDisplayTests` passed.
+  - full `swift test` passed in this branch verification round.
+- Scope note:
+  - `appliedAt` is retained for sorting/audit; row-level date display is intentionally deferred.
 
 ## V2.7
 **Goal (one line)**

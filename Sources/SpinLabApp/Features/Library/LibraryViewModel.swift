@@ -76,6 +76,9 @@ final class LibraryViewModel {
             syncLibraryFromFiles: {
                 appState.syncLibraryFromFiles()
             },
+            backfillLibraryMeasurementSidecars: {
+                appState.backfillLibraryMeasurementSidecars()
+            },
             updateAllowedBatchPrefixes: { value in
                 appState.library.updateAllowedBatchPrefixes(from: value)
             },
@@ -158,6 +161,10 @@ final class LibraryViewModel {
         actions.syncLibraryFromFiles()
     }
 
+    func backfillLibraryMeasurementSidecars() {
+        actions.backfillLibraryMeasurementSidecars()
+    }
+
     func updateAllowedBatchPrefixes(from value: String) {
         actions.updateAllowedBatchPrefixes(value)
     }
@@ -238,6 +245,7 @@ private struct LibraryViewActions {
     var verifyLibraryRoot: () -> Void = {}
     var validateLibraryCacheOnAppear: () -> Void = {}
     var syncLibraryFromFiles: () -> Void = {}
+    var backfillLibraryMeasurementSidecars: () -> Void = {}
     var updateAllowedBatchPrefixes: (String) -> Void = { _ in }
     var syncLibraryBackup: () -> Void = {}
     var syncLibraryFromRegistry: () -> Void = {}

@@ -3,6 +3,7 @@ import SwiftUI
 struct WorkflowRegistryView: View {
     @Environment(SpinLabAppState.self) private var appState
     @State private var isConfigurationExpanded = true
+    @State private var isSampleIDSectionExpanded = true
 
     var body: some View {
         @Bindable var workbench = appState.workbench
@@ -30,7 +31,7 @@ struct WorkflowRegistryView: View {
             .buttonStyle(.plain)
 
             if isConfigurationExpanded {
-                HStack(spacing: 16) {
+                HStack(alignment: .top, spacing: 16) {
                     GroupBox("Workflow Registry") {
                         VStack(alignment: .leading, spacing: 12) {
                             List(
@@ -77,7 +78,79 @@ struct WorkflowRegistryView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
             }
+            Divider()
+
+            Button {
+                isSampleIDSectionExpanded.toggle()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: isSampleIDSectionExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 20)
+                    Text("Sample ID Patterns")
+                        .font(.title3.weight(.semibold))
+                    Spacer()
+                }
+            }
+            .buttonStyle(.plain)
+
+            if isSampleIDSectionExpanded {
+                GroupBox {
+                    SampleIDPatternsEditor()
+                }
+            }
         }
+    }
+}
+
+private struct SampleIDPatternsEditor: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        @Bindable var workbench = appState.workbench
+
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Regex patterns for recognizing sample IDs in file and folder names.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if workbench.sampleIDPatterns.isEmpty {
+                Text("No patterns defined.")
+                    .foregroundStyle(.secondary)
+                    .font(.callout)
+            } else {
+                ForEach(Array(workbench.sampleIDPatterns.enumerated()), id: \.offset) { index, pattern in
+                    HStack(spacing: 8) {
+                        TextField("Regex pattern", text: Binding(
+                            get: { pattern },
+                            set: { workbench.updateSampleIDPattern(at: index, value: $0) }
+                        ))
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                        .onSubmit {
+                            workbench.commitSampleIDPatterns()
+                        }
+
+                        Button(role: .destructive) {
+                            workbench.removeSampleIDPattern(at: index)
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                }
+            }
+
+            Button {
+                workbench.addSampleIDPattern()
+            } label: {
+                Label("Add Pattern", systemImage: "plus.circle")
+            }
+            .buttonStyle(.bordered)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(4)
     }
 }
 
@@ -99,8 +172,7 @@ private struct WorkflowDefinitionEditor: View {
                             workbench.updateSelectedWorkflow(
                                 id: definition.id,
                                 displayName: value,
-                                parentID: definition.parentID,
-                                aliases: definition.aliases
+                                parentID: definition.parentID
                             )
                         }
                     )
@@ -116,24 +188,85 @@ private struct WorkflowDefinitionEditor: View {
                             workbench.updateSelectedWorkflow(
                                 id: definition.id,
                                 displayName: definition.displayName,
-                                parentID: normalized.isEmpty ? nil : normalized,
-                                aliases: definition.aliases
+                                parentID: normalized.isEmpty ? nil : normalized
                             )
                         }
                     )
                 )
                 .textFieldStyle(.roundedBorder)
 
-                TextField(
-                    "Aliases (comma-separated, optional)",
-                    text: binding(
-                        initial: definition.aliases.joined(separator: ", "),
-                        update: { value in
-                            workbench.updateSelectedWorkflowAliasesCSV(value)
+                Divider()
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Match Rules")
+                        .font(.headline)
+                    Text("Global parser rules for this workflow. Inbox matches files against these rules.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if workbench.selectedWorkflowMatchRules.isEmpty {
+                        Text("No match rules for this workflow.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(workbench.selectedWorkflowMatchRules) { rule in
+                            HStack(alignment: .center, spacing: 8) {
+                                Picker(
+                                    "Scope",
+                                    selection: Binding(
+                                        get: { rule.scope },
+                                        set: { workbench.updateMatchRuleScope(rule.id, scope: $0) }
+                                    )
+                                ) {
+                                    Text("tokens").tag(FilenameRuleSet.MatchScope.tokens)
+                                    Text("joined").tag(FilenameRuleSet.MatchScope.joined)
+                                }
+                                .labelsHidden()
+                                .frame(width: 90)
+
+                                Picker(
+                                    "Type",
+                                    selection: Binding(
+                                        get: { rule.type },
+                                        set: { workbench.updateMatchRuleType(rule.id, type: $0) }
+                                    )
+                                ) {
+                                    ForEach(matchTypeOptions(for: rule.type), id: \.self) { option in
+                                        Text(matchTypeLabel(option))
+                                            .tag(option)
+                                    }
+                                }
+                                .labelsHidden()
+                                .frame(width: 170)
+
+                                TextField(
+                                    "match tokens (comma-separated for *Any)",
+                                    text: Binding(
+                                        get: { workbench.matchRuleValuesCSV(rule.id) },
+                                        set: { workbench.updateMatchRuleValuesCSV(rule.id, csv: $0) }
+                                    )
+                                )
+                                .textFieldStyle(.roundedBorder)
+                                .onSubmit {
+                                    workbench.commitMatchRuleValuesCSV(rule.id)
+                                }
+
+                                Button(role: .destructive) {
+                                    workbench.removeMatchRule(rule.id)
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .buttonStyle(.borderless)
+                            }
                         }
-                    )
-                )
-                .textFieldStyle(.roundedBorder)
+                    }
+
+                    Button {
+                        workbench.addMatchRuleToSelectedWorkflow()
+                    } label: {
+                        Label("Add Match Rule", systemImage: "plus.circle")
+                    }
+                    .buttonStyle(.bordered)
+                }
 
                 Divider()
 
@@ -202,6 +335,31 @@ private struct WorkflowDefinitionEditor: View {
             get: { initial },
             set: { update($0) }
         )
+    }
+
+    private func matchTypeOptions(for current: FilenameRuleSet.MatchType) -> [FilenameRuleSet.MatchType] {
+        let preferred: [FilenameRuleSet.MatchType] = [.equals, .contains, .regex]
+        if preferred.contains(current) {
+            return preferred
+        }
+        return preferred + [current]
+    }
+
+    private func matchTypeLabel(_ type: FilenameRuleSet.MatchType) -> String {
+        switch type {
+        case .equals:
+            return "equals"
+        case .contains:
+            return "contains"
+        case .regex:
+            return "regex"
+        case .equalsAny:
+            return "equalsAny (legacy)"
+        case .containsAny:
+            return "containsAny (legacy)"
+        case .equalsOrContainsAny:
+            return "equalsOrContainsAny (legacy)"
+        }
     }
 }
 

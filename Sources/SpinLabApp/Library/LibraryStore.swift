@@ -1,6 +1,21 @@
 import Foundation
 
 final class LibraryStore {
+    struct SidecarSnapshot: Equatable {
+        var fileCount: Int
+        var fingerprint: String
+
+        static let empty = SidecarSnapshot(fileCount: 0, fingerprint: "")
+    }
+
+    struct BackfillSidecarsResult: Equatable {
+        var scannedSampleCount: Int
+        var scannedMeasurementFileCount: Int
+        var createdSidecarCount: Int
+        var skippedExistingSidecarCount: Int
+        var failedSidecarCount: Int
+    }
+
     private struct DirectoryEntriesCacheEntry {
         let modificationDate: Date?
         let entries: [URL]
@@ -320,6 +335,62 @@ final class LibraryStore {
 
     func drawerRootURL(for sample: LibrarySample, rootURL: URL) -> URL {
         sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
+    }
+
+    func sidecarSnapshot(for sample: LibrarySample, rootURL: URL) -> SidecarSnapshot {
+        let sampleDirectory = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
+        let signatures = sidecarSignatures(in: sampleDirectory)
+        guard !signatures.isEmpty else {
+            return .empty
+        }
+        return SidecarSnapshot(fileCount: signatures.count, fingerprint: signatures.joined(separator: "\n"))
+    }
+
+    func loadAppliedMeasurements(for sample: LibrarySample, rootURL: URL) -> [AppliedMeasurement] {
+        let sampleDirectory = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
+        return scanAppliedMeasurements(in: sampleDirectory)
+    }
+
+    func backfillMissingMeasurementSidecars(rootURL: URL) -> BackfillSidecarsResult {
+        ensureRoot(at: rootURL)
+        let batchDirectories = discoverBatchDirectories(rootURL: rootURL)
+        var scannedSampleCount = 0
+        var scannedMeasurementFileCount = 0
+        var createdSidecarCount = 0
+        var skippedExistingSidecarCount = 0
+        var failedSidecarCount = 0
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+
+        for batchDirectory in batchDirectories {
+            let batchJSONURL = batchDirectory.appending(path: "batch.json")
+            guard let batch = decodeBatch(from: batchJSONURL) else {
+                continue
+            }
+
+            for sample in decodeSamples(from: batchDirectory) {
+                scannedSampleCount += 1
+                let sampleDirectory = sampleDirectoryURL(rootURL, batchID: batch.id, sampleKey: sample.id)
+                let result = backfillSidecars(
+                    in: sampleDirectory,
+                    encoder: encoder
+                )
+                scannedMeasurementFileCount += result.scannedMeasurementFileCount
+                createdSidecarCount += result.createdSidecarCount
+                skippedExistingSidecarCount += result.skippedExistingSidecarCount
+                failedSidecarCount += result.failedSidecarCount
+            }
+        }
+
+        return BackfillSidecarsResult(
+            scannedSampleCount: scannedSampleCount,
+            scannedMeasurementFileCount: scannedMeasurementFileCount,
+            createdSidecarCount: createdSidecarCount,
+            skippedExistingSidecarCount: skippedExistingSidecarCount,
+            failedSidecarCount: failedSidecarCount
+        )
     }
 
     func syncBackup(from rootURL: URL, to backupURL: URL) -> Bool {
@@ -778,6 +849,155 @@ final class LibraryStore {
         return decoded
     }
 
+    private func scanAppliedMeasurements(in sampleDirectory: URL) -> [AppliedMeasurement] {
+        let measurementsURL = sampleDirectory.appending(path: "measurements", directoryHint: .isDirectory)
+        guard fileManager.fileExists(atPath: measurementsURL.path),
+              let enumerator = fileManager.enumerator(
+                at: measurementsURL,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+              ) else {
+            return []
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        var results: [AppliedMeasurement] = []
+        results.reserveCapacity(16)
+
+        for case let url as URL in enumerator {
+            guard url.lastPathComponent.hasSuffix(".spinlab.json") else { continue }
+            guard let data = try? Data(contentsOf: url),
+                  let sidecar = try? decoder.decode(SpinLabFileSidecar.self, from: data) else {
+                continue
+            }
+
+            let normalizedSourceFileName = URL(fileURLWithPath: sidecar.sourceFilePath).lastPathComponent
+            let sourceFileName: String
+            if normalizedSourceFileName.isEmpty {
+                sourceFileName = url.lastPathComponent.replacingOccurrences(of: ".spinlab.json", with: "")
+            } else {
+                sourceFileName = normalizedSourceFileName
+            }
+            // For sidecars written before workflowDisplayName was added, fall back to id.
+            let displayName = sidecar.workflowDisplayName.isEmpty
+                ? sidecar.workflow
+                : sidecar.workflowDisplayName
+            results.append(
+                AppliedMeasurement(
+                    id: url.path,
+                    workflow: sidecar.workflow,
+                    workflowDisplayName: displayName,
+                    conditions: sidecar.conditions,
+                    appliedAt: sidecar.appliedAt,
+                    sourceFileName: sourceFileName
+                )
+            )
+        }
+
+        return results.sorted { $0.appliedAt > $1.appliedAt }
+    }
+
+    private struct SidecarBackfillStats {
+        var scannedMeasurementFileCount: Int = 0
+        var createdSidecarCount: Int = 0
+        var skippedExistingSidecarCount: Int = 0
+        var failedSidecarCount: Int = 0
+    }
+
+    private func backfillSidecars(in sampleDirectory: URL, encoder: JSONEncoder) -> SidecarBackfillStats {
+        let measurementsURL = sampleDirectory.appending(path: "measurements", directoryHint: .isDirectory)
+        guard fileManager.fileExists(atPath: measurementsURL.path),
+              let enumerator = fileManager.enumerator(
+                at: measurementsURL,
+                includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
+                options: [.skipsHiddenFiles]
+              ) else {
+            return SidecarBackfillStats()
+        }
+
+        var stats = SidecarBackfillStats()
+        for case let url as URL in enumerator {
+            guard !url.lastPathComponent.hasSuffix(".spinlab.json") else { continue }
+            guard (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
+
+            stats.scannedMeasurementFileCount += 1
+
+            let sidecarURL = url.deletingPathExtension().appendingPathExtension(url.pathExtension + ".spinlab.json")
+            if fileManager.fileExists(atPath: sidecarURL.path) {
+                stats.skippedExistingSidecarCount += 1
+                continue
+            }
+
+            let workflow = inferredWorkflow(forMeasurementFile: url, measurementsRoot: measurementsURL)
+            let appliedAt = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .now
+            let sidecar = SpinLabFileSidecar(
+                workflow: workflow,
+                workflowDisplayName: workflow,
+                conditions: [:],
+                channels: [],
+                sourceFilePath: url.path,
+                appliedAt: appliedAt
+            )
+
+            do {
+                let data = try encoder.encode(sidecar)
+                try data.write(to: sidecarURL, options: .atomic)
+                stats.createdSidecarCount += 1
+            } catch {
+                stats.failedSidecarCount += 1
+                logger.warning(.library, "Failed to backfill sidecar", metadata: [
+                    "measurementPath": url.path,
+                    "sidecarPath": sidecarURL.path,
+                    "reason": error.localizedDescription
+                ])
+            }
+        }
+
+        if stats.createdSidecarCount > 0 {
+            invalidateNodeCache(at: sampleDirectory)
+        }
+        return stats
+    }
+
+    private func inferredWorkflow(forMeasurementFile fileURL: URL, measurementsRoot: URL) -> String {
+        let components = fileURL.pathComponents
+        guard let measurementsIndex = components.lastIndex(of: "measurements") else {
+            return "General"
+        }
+        let workflowIndex = measurementsIndex + 1
+        guard workflowIndex < components.count - 1 else {
+            return "General"
+        }
+        return components[workflowIndex]
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
+            ?? "General"
+    }
+
+    private func sidecarSignatures(in sampleDirectory: URL) -> [String] {
+        let measurementsURL = sampleDirectory.appending(path: "measurements", directoryHint: .isDirectory)
+        guard fileManager.fileExists(atPath: measurementsURL.path),
+              let enumerator = fileManager.enumerator(
+                at: measurementsURL,
+                includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey, .fileSizeKey],
+                options: [.skipsHiddenFiles]
+              ) else {
+            return []
+        }
+
+        var signatures: [String] = []
+        for case let url as URL in enumerator {
+            guard url.lastPathComponent.hasSuffix(".spinlab.json") else { continue }
+            let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+            let modifiedAt = values?.contentModificationDate?.timeIntervalSince1970 ?? 0
+            let fileSize = values?.fileSize ?? 0
+            signatures.append("\(url.path)|\(modifiedAt)|\(fileSize)")
+        }
+
+        return signatures.sorted()
+    }
+
     private func discoverBatchDirectories(rootURL: URL) -> [URL] {
         let batchesRoot = batchesDirectoryURL(rootURL)
         guard let entries = directoryEntries(at: batchesRoot) else {
@@ -873,5 +1093,11 @@ final class LibraryStore {
         fileListCache = fileListCache.filter { key, _ in
             key != nodePath && !key.hasPrefix(nodePath + "/")
         }
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }

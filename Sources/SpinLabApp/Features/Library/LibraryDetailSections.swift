@@ -126,3 +126,130 @@ struct LibrarySampleDetailHeaderView: View {
         }
     }
 }
+
+struct LibraryMeasurementsDoneSection: View {
+    let measurements: [AppliedMeasurement]
+    let workflowDisplayNameByID: [String: String]
+    let workflowConditionOrderByID: [String: [String]]
+    @State private var isExpanded = true
+    @State private var hoverRevealTask: Task<Void, Never>?
+    @State private var revealedFileNameMeasurementID: String?
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            if measurements.isEmpty {
+                Text("No measurements applied yet")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(measurements) { measurement in
+                        measurementRow(measurement)
+                    }
+                }
+            }
+        } label: {
+            Text("Measurements Done")
+                .font(.title3.weight(.semibold))
+        }
+        .textSelection(.enabled)
+        .onDisappear {
+            hoverRevealTask?.cancel()
+            hoverRevealTask = nil
+            revealedFileNameMeasurementID = nil
+        }
+    }
+
+    @ViewBuilder
+    private func measurementRow(_ measurement: AppliedMeasurement) -> some View {
+        let normalizedWorkflowID = measurement.workflow.trimmingCharacters(in: .whitespacesAndNewlines)
+        let registryDisplayName = workflowDisplayNameByID[normalizedWorkflowID]
+            ?? workflowDisplayNameByID.first(where: {
+                $0.key.caseInsensitiveCompare(normalizedWorkflowID) == .orderedSame
+            })?.value
+        let displayWorkflow = registryDisplayName
+            ?? (measurement.workflowDisplayName.isEmpty ? measurement.workflow : measurement.workflowDisplayName)
+        let conditionOrder = workflowConditionOrderByID[normalizedWorkflowID]
+            ?? workflowConditionOrderByID.first(where: {
+                $0.key.caseInsensitiveCompare(normalizedWorkflowID) == .orderedSame
+            })?.value
+            ?? []
+        let orderedConditionPairs = orderedConditions(
+            measurement.conditions,
+            preferredOrder: conditionOrder
+        )
+        VStack(alignment: .leading, spacing: 3) {
+            Text(displayWorkflow)
+                .font(.callout.weight(.semibold))
+            if !orderedConditionPairs.isEmpty {
+                HStack(spacing: 8) {
+                ForEach(orderedConditionPairs, id: \.key) { pair in
+                    Text(pair.value.isEmpty ? "—" : pair.value)
+                        .font(.callout)
+                        .foregroundStyle(.primary)
+                }
+                }
+            }
+            if revealedFileNameMeasurementID == measurement.id {
+                Text(measurement.sourceFileName)
+                    .font(.footnote)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.07)))
+        .onHover { isHovering in
+            if isHovering {
+                scheduleFileNameReveal(for: measurement.id)
+            } else {
+                cancelFileNameReveal(for: measurement.id)
+            }
+        }
+    }
+
+    private func orderedConditions(
+        _ conditions: [String: String],
+        preferredOrder: [String]
+    ) -> [(key: String, value: String)] {
+        guard !conditions.isEmpty else { return [] }
+        let indexByKey = Dictionary(
+            uniqueKeysWithValues: preferredOrder.enumerated().map { ($0.element.lowercased(), $0.offset) }
+        )
+        return conditions.sorted { lhs, rhs in
+            let leftIndex = indexByKey[lhs.key.lowercased()]
+            let rightIndex = indexByKey[rhs.key.lowercased()]
+            switch (leftIndex, rightIndex) {
+            case let (l?, r?):
+                if l != r { return l < r }
+            case (_?, nil):
+                return true
+            case (nil, _?):
+                return false
+            case (nil, nil):
+                break
+            }
+            return lhs.key.localizedCaseInsensitiveCompare(rhs.key) == .orderedAscending
+        }
+    }
+
+    private func scheduleFileNameReveal(for measurementID: String) {
+        hoverRevealTask?.cancel()
+        hoverRevealTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard !Task.isCancelled else { return }
+            revealedFileNameMeasurementID = measurementID
+        }
+    }
+
+    private func cancelFileNameReveal(for measurementID: String) {
+        hoverRevealTask?.cancel()
+        hoverRevealTask = nil
+        if revealedFileNameMeasurementID == measurementID {
+            revealedFileNameMeasurementID = nil
+        }
+    }
+}

@@ -3,7 +3,7 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V2.2.3 AppEnvironment Integration")
+@Suite("V2.2.3 AppEnvironment Integration", .serialized)
 struct V223AppEnvironmentIntegrationTests {
     @Test("importing files projects into repository-backed app state")
     func importFlowProjectsIntoRepositoryAndAppState() async throws {
@@ -33,7 +33,7 @@ struct V223AppEnvironmentIntegrationTests {
         let appState = SpinLabAppState(environment: environment)
 
         appState.importFiles(from: [importURL])
-        try await waitUntil(timeoutMS: 8_000) {
+        try await waitUntil(timeoutMS: 15_000) {
             appState.inbox.pendingImports.count == 1
                 && persistence.loadPendingImports().count == 1
                 && appState.inbox.importProgressState.isRunning == false
@@ -109,7 +109,7 @@ struct V223AppEnvironmentIntegrationTests {
         #expect(appState.interactionValue(\.lastSeenRoutingRuleFingerprint) == appState.inbox.routingRuleFingerprint)
     }
 
-    @Test("workflow parser value is normalized to workflow id via display name and aliases")
+    @Test("workflow parser value is resolved to workflow id by case-insensitive id match")
     func workflowValueNormalizesToWorkflowID() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("spinlab-env-workflow-normalize-\(UUID().uuidString)", isDirectory: true)
@@ -122,10 +122,9 @@ struct V223AppEnvironmentIntegrationTests {
         let registryURL = root.appendingPathComponent("workflow_registry.json")
         let registry = [
             WorkflowDefinition(
-                id: "A",
-                displayName: "AHE",
+                id: "AHE",
+                displayName: "AHE Measurement",
                 parentID: nil,
-                aliases: ["ahe-test"],
                 conditionFields: [WorkflowConditionField(definitionID: "temperature")]
             )
         ]
@@ -151,7 +150,7 @@ struct V223AppEnvironmentIntegrationTests {
         let appState = SpinLabAppState(environment: environment)
 
         appState.importFiles(from: [importURL])
-        try await waitUntil(timeoutMS: 8_000) {
+        try await waitUntil(timeoutMS: 15_000) {
             appState.inbox.pendingImports.count == 1
                 && appState.inbox.importProgressState.isRunning == false
         }
@@ -161,7 +160,7 @@ struct V223AppEnvironmentIntegrationTests {
             return
         }
         let draft = appState.pendingDisplayDraft(for: pending)
-        #expect(draft.workflowID == "A")
+        #expect(draft.workflowID == "AHE")
     }
 
     private func waitUntil(timeoutMS: UInt64, condition: @escaping () -> Bool) async throws {

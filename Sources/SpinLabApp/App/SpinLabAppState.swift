@@ -890,6 +890,10 @@ final class SpinLabAppState {
         libraryFacade.syncLibraryFromFiles()
     }
 
+    func backfillLibraryMeasurementSidecars() {
+        libraryFacade.backfillLibraryMeasurementSidecars()
+    }
+
     func selectExistingDrawer(prefix: String, batchId: String, sampleId: String?) {
         let outcome = libraryFeatureStore.selectExistingDrawer(prefix: prefix, batchId: batchId, sampleId: sampleId)
         handleLibrarySelectionChangeOutcome(outcome)
@@ -932,6 +936,7 @@ final class SpinLabAppState {
         case .deferred:
             break
         case let .appliedDrawer(prefix, batchId, sampleId):
+            libraryFeatureStore.refreshSelectedDrawerAppliedMeasurementsIfNeeded()
             appLogger.info(.ui, "Existing drawer selected", metadata: [
                 "prefix": prefix,
                 "batchId": batchId,
@@ -1084,7 +1089,7 @@ final class SpinLabAppState {
             batchName: pending.parsedHints.batchName ?? resolvedSampleID ?? "",
             sampleName: pending.parsedHints.sampleName ?? "",
             measurementName: pending.parsedHints.measurementName ?? pending.fileName,
-            workflowID: canonicalWorkflowID(from: pending.parsedHints.workflowName) ?? "",
+            workflowID: canonicalWorkflowID(from: pending.parsedHints.workflowID) ?? "",
             conditionValues: parsedHintsConditionValues(from: pending.parsedHints),
             selectedExistingProjectName: suggestedProject(for: pending)?.name ?? PendingImportConfirmationDraft.noProjectOption,
             newProjectName: ""
@@ -1129,6 +1134,7 @@ final class SpinLabAppState {
     }
 
     private func performApplySelectedPendingImport() {
+        let workspaceByPendingID = interactionValue(\.inboxWorkspaceByPendingID)
         performApply { pendingImports, routingSnapshots, libraryIndex, libraryRootURL in
             applyCoordinator.applySelected(
                 pendingID: selectedPendingImportID,
@@ -1137,7 +1143,12 @@ final class SpinLabAppState {
                 libraryIndex: libraryIndex,
                 libraryStore: libraryFeatureStore.libraryStore,
                 libraryRootURL: libraryRootURL,
-                applyService: inboxArchiveApplyService
+                applyService: inboxArchiveApplyService,
+                draftFor: { pendingID in
+                    let key = InteractionSnapshotKeyCodec.dictionaryKey(for: pendingID)
+                    return workspaceByPendingID[key]?.draft
+                },
+                workflowDefinitions: workflowDefinitions
             )
         }
     }
@@ -1170,6 +1181,7 @@ final class SpinLabAppState {
             failedCount: 0,
             currentFileName: ""
         )
+        let workspaceByPendingID = interactionValue(\.inboxWorkspaceByPendingID)
 
         Task { @MainActor in
             var appliedIDs: [UUID] = []
@@ -1196,7 +1208,9 @@ final class SpinLabAppState {
                         targets: snapshot.routePlan.targets,
                         libraryIndex: context.libraryIndex,
                         libraryStore: libraryFeatureStore.libraryStore,
-                        libraryRootURL: context.libraryRootURL
+                        libraryRootURL: context.libraryRootURL,
+                        draft: workspaceByPendingID[InteractionSnapshotKeyCodec.dictionaryKey(for: pending.id)]?.draft,
+                        workflowDefinitions: workflowDefinitions
                     )
                     if applyResult.allTargetsSkipped {
                         skippedIDs.append(pending.id)
@@ -1385,34 +1399,9 @@ final class SpinLabAppState {
 
     private func canonicalWorkflowID(from rawWorkflow: String?) -> String? {
         guard let normalizedRaw = normalized(rawWorkflow) else { return nil }
-
-        if let exactID = workflowDefinitions.first(where: { $0.id == normalizedRaw }) {
-            return exactID.id
-        }
-
-        if let insensitiveID = workflowDefinitions.first(where: {
+        return workflowDefinitions.first(where: {
             $0.id.caseInsensitiveCompare(normalizedRaw) == .orderedSame
-        }) {
-            return insensitiveID.id
-        }
-
-        var matchedIDs: Set<String> = []
-        for definition in workflowDefinitions {
-            if definition.displayName.caseInsensitiveCompare(normalizedRaw) == .orderedSame {
-                matchedIDs.insert(definition.id)
-                continue
-            }
-            if definition.aliases.contains(where: {
-                $0.caseInsensitiveCompare(normalizedRaw) == .orderedSame
-            }) {
-                matchedIDs.insert(definition.id)
-            }
-        }
-
-        if matchedIDs.count == 1, let id = matchedIDs.first {
-            return id
-        }
-        return nil
+        })?.id
     }
 
     private func applyExistingIndex(_ index: LibraryIndex) {
@@ -1434,6 +1423,7 @@ final class SpinLabAppState {
         inboxFeatureStore.rebuildDrawerMatchCandidates(from: index.samples)
         libraryFeatureStore.libraryExistingMessage = "Loaded existing drawers: \(index.samples.count) samples"
         libraryFeatureStore.normalizeLibrarySelection()
+        libraryFeatureStore.refreshSelectedDrawerAppliedMeasurementsIfNeeded()
         libraryFeatureStore.reconcileLibrarySampleEditingSelection()
         refreshPendingDrawerMatches()
     }
@@ -1560,6 +1550,8 @@ final class SpinLabAppState {
             }
         }
 
+        paths.formUnion(existingLibraryImportedOriginalPaths())
+
         return paths
     }
 
@@ -1593,7 +1585,80 @@ final class SpinLabAppState {
             collectFingerprint(from: record.measurement.originalFilePath)
         }
 
+        for fingerprint in existingLibraryImportedContentFingerprints() {
+            fingerprints.insert(fingerprint)
+        }
+
         return fingerprints
+    }
+
+    private func existingLibraryImportedOriginalPaths() -> Set<String> {
+        guard let rootPath = libraryFeatureStore.librarySettings.rootPath?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !rootPath.isEmpty else {
+            return []
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let batchesURL = rootURL.appending(path: "batches", directoryHint: .isDirectory)
+        guard FileManager.default.fileExists(atPath: batchesURL.path),
+              let enumerator = FileManager.default.enumerator(
+                at: batchesURL,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+              ) else {
+            return []
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        var collected: Set<String> = []
+        for case let url as URL in enumerator {
+            guard url.lastPathComponent.hasSuffix(".spinlab.json") else {
+                continue
+            }
+            guard let data = try? Data(contentsOf: url),
+                  let sidecar = try? decoder.decode(SpinLabFileSidecar.self, from: data) else {
+                continue
+            }
+            let normalized = sidecar.sourceFilePath.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalized.isEmpty else {
+                continue
+            }
+            collected.insert(normalizedPath(normalized))
+        }
+        return collected
+    }
+
+    private func existingLibraryImportedContentFingerprints() -> Set<String> {
+        guard let rootPath = libraryFeatureStore.librarySettings.rootPath?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !rootPath.isEmpty else {
+            return []
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let batchesURL = rootURL.appending(path: "batches", directoryHint: .isDirectory)
+        guard FileManager.default.fileExists(atPath: batchesURL.path),
+              let enumerator = FileManager.default.enumerator(
+                at: batchesURL,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+              ) else {
+            return []
+        }
+
+        var collected: Set<String> = []
+        for case let url as URL in enumerator {
+            guard url.path.contains("/measurements/") else {
+                continue
+            }
+            guard !url.lastPathComponent.hasSuffix(".spinlab.json") else {
+                continue
+            }
+            if let fingerprint = contentFingerprint(atPath: url.path) {
+                collected.insert(fingerprint)
+            }
+        }
+        return collected
     }
 
     private func normalizedPath(_ path: String) -> String {

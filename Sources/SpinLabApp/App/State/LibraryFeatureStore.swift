@@ -67,6 +67,12 @@ final class LibraryFeatureStore {
         var summaryMessage: String
     }
 
+    struct BackfillSidecarsOutcome {
+        var rootPath: String
+        var result: LibraryStore.BackfillSidecarsResult
+        var summaryMessage: String
+    }
+
     var librarySelectedPrefix: String?
     var librarySelectedBatchId: String?
     var librarySelectedSampleId: String?
@@ -117,6 +123,13 @@ final class LibraryFeatureStore {
     let librarySampleEditService: LibrarySampleEditService
     @ObservationIgnored
     lazy var librarySyncService = LibrarySyncService(libraryStore: libraryStore, libraryDiffEngine: libraryDiffEngine)
+    @ObservationIgnored
+    private var appliedMeasurementsCacheBySampleID: [String: AppliedMeasurementsCacheEntry] = [:]
+
+    private struct AppliedMeasurementsCacheEntry {
+        var snapshot: LibraryStore.SidecarSnapshot
+        var measurements: [AppliedMeasurement]
+    }
 
     init(
         librarySettingsStore: LibrarySettingsStore = LibrarySettingsStore(),
@@ -412,6 +425,27 @@ final class LibraryFeatureStore {
         )
     }
 
+    func backfillSidecarsForCurrentRoot() -> BackfillSidecarsOutcome? {
+        guard let rootPath = librarySettings.rootPath else {
+            libraryRootVerificationMessage = "No Library Root selected."
+            return nil
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let result = libraryStore.backfillMissingMeasurementSidecars(rootURL: rootURL)
+        appliedMeasurementsCacheBySampleID.removeAll()
+        refreshSelectedDrawerAppliedMeasurementsIfNeeded()
+        let summary = """
+        Sidecar backfill complete: scanned \(result.scannedSampleCount) samples, \
+        \(result.scannedMeasurementFileCount) measurement files; created \(result.createdSidecarCount), \
+        skipped \(result.skippedExistingSidecarCount), failed \(result.failedSidecarCount).
+        """
+        return BackfillSidecarsOutcome(
+            rootPath: rootPath,
+            result: result,
+            summaryMessage: summary
+        )
+    }
+
     func applyLoadedLibraryPreview(
         _ snapshot: LibraryPreviewParseSnapshot,
         refreshActionablePreviewGroups: () -> Void
@@ -668,6 +702,39 @@ final class LibraryFeatureStore {
         return group.samples.first(where: { $0.id == sampleId })
     }
 
+    func refreshSelectedDrawerAppliedMeasurementsIfNeeded() {
+        guard libraryActiveSelectionSource == .drawer,
+              let rootPath = librarySettings.rootPath,
+              let prefix = librarySelectedPrefix,
+              let batchId = librarySelectedBatchId,
+              let sample = selectedExistingDrawerSample() else {
+            return
+        }
+
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let snapshot = libraryStore.sidecarSnapshot(for: sample, rootURL: rootURL)
+        let measurements: [AppliedMeasurement]
+        if let cached = appliedMeasurementsCacheBySampleID[sample.id], cached.snapshot == snapshot {
+            measurements = cached.measurements
+        } else {
+            measurements = libraryStore.loadAppliedMeasurements(for: sample, rootURL: rootURL)
+            appliedMeasurementsCacheBySampleID[sample.id] = AppliedMeasurementsCacheEntry(
+                snapshot: snapshot,
+                measurements: measurements
+            )
+        }
+
+        guard sample.appliedMeasurements != measurements else {
+            return
+        }
+        updateSampleAppliedMeasurements(
+            prefix: prefix,
+            batchId: batchId,
+            sampleId: sample.id,
+            measurements: measurements
+        )
+    }
+
     func selectExistingDrawer(prefix: String, batchId: String, sampleId: String?) -> SelectionChangeOutcome {
         performSelectionChange(.drawer(prefix: prefix, batchId: batchId, sampleId: sampleId))
     }
@@ -721,6 +788,27 @@ final class LibraryFeatureStore {
         if librarySelectedSampleId == nil || !samples.contains(where: { $0.id == librarySelectedSampleId }) {
             librarySelectedSampleId = samples.first?.id
         }
+    }
+
+    private func updateSampleAppliedMeasurements(
+        prefix: String,
+        batchId: String,
+        sampleId: String,
+        measurements: [AppliedMeasurement]
+    ) {
+        guard var groups = libraryExistingGroups[prefix],
+              let groupIndex = groups.firstIndex(where: { $0.batchId == batchId }) else {
+            return
+        }
+        var group = groups[groupIndex]
+        guard let sampleIndex = group.samples.firstIndex(where: { $0.id == sampleId }) else {
+            return
+        }
+        var sample = group.samples[sampleIndex]
+        sample.appliedMeasurements = measurements
+        group.samples[sampleIndex] = sample
+        groups[groupIndex] = group
+        libraryExistingGroups[prefix] = groups
     }
 
     private func performSelectionChange(_ requested: LibraryPendingSelectionChange) -> SelectionChangeOutcome {

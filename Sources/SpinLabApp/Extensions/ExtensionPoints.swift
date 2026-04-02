@@ -110,7 +110,7 @@ struct AMRPHEMetadataExtension: MetadataExtension {
             batchName: pending.parsedHints.batchName ?? fallbackSampleID ?? "",
             sampleName: pending.parsedHints.sampleName ?? "",
             measurementName: pending.parsedHints.measurementName ?? pending.fileName,
-            workflowID: pending.parsedHints.workflowName ?? "",
+            workflowID: pending.parsedHints.workflowID ?? "",
             conditionValues: seedConditionValues(from: pending.parsedHints),
             selectedExistingProjectName: suggestedProjectName ?? PendingImportConfirmationDraft.noProjectOption,
             newProjectName: ""
@@ -205,7 +205,7 @@ struct DummyMetadataExtension: MetadataExtension {
     func parseFilename(from fileURL: URL) -> SpinLabDomain.ParsedFilenameHints {
         SpinLabDomain.ParsedFilenameHints(
             measurementName: "Dummy: \(fileURL.deletingPathExtension().lastPathComponent)",
-            workflowName: "Dummy",
+            workflowID: "Dummy",
             warnings: ["Dummy workflow parser active."]
         )
     }

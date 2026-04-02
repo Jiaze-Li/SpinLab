@@ -8,6 +8,7 @@ struct LibraryView: View {
     @State private var isLibrarySettingsExpanded = true
     @State private var isRegistryWorkspaceExpanded = true
     @State private var isSearchWorkspaceExpanded = true
+    @State private var isMetadataSectionExpanded = true
     @State private var isShowingSampleChangeLog = false
     @State private var isShowingGlobalManualLog = false
     @State private var isShowingMetadataSyncLog = false
@@ -28,6 +29,14 @@ struct LibraryView: View {
     private let level1HeaderFont: Font = .title2.bold()
     private let level2HeaderFont: Font = .title3.weight(.semibold)
     private let level3HeaderFont: Font = .headline
+    private var workflowDisplayNameByID: [String: String] {
+        Dictionary(uniqueKeysWithValues: appState.workflowDefinitions.map { ($0.id, $0.displayName) })
+    }
+    private var workflowConditionOrderByID: [String: [String]] {
+        Dictionary(uniqueKeysWithValues: appState.workflowDefinitions.map { definition in
+            (definition.id, definition.conditionFields.map(\.definitionID))
+        })
+    }
 
     var body: some View {
         HSplitView {
@@ -55,19 +64,16 @@ struct LibraryView: View {
         .onChange(of: viewModel.viewState.previewGroupsByPrefix) { _, _ in
             rebuildPreviewDerivedData()
             syncSelection()
-            rebuildPreviewDerivedData()
             scheduleInteractionStatePersist()
         }
         .onChange(of: viewModel.viewState.batchSyncStatusByID) { _, _ in
             rebuildPreviewDerivedData()
             syncSelection()
-            rebuildPreviewDerivedData()
             scheduleInteractionStatePersist()
         }
         .onChange(of: viewModel.viewState.existingGroupsByPrefix) { _, _ in
             rebuildPreviewDerivedData()
             syncSelection()
-            rebuildPreviewDerivedData()
             scheduleInteractionStatePersist()
         }
         .onChange(of: selectedPrefix) { _, _ in
@@ -197,6 +203,9 @@ struct LibraryView: View {
             },
             onSyncFiles: {
                 viewModel.syncLibraryFromFiles()
+            },
+            onBackfillSidecars: {
+                viewModel.backfillLibraryMeasurementSidecars()
             },
             onSavePrefixes: { value in
                 viewModel.updateAllowedBatchPrefixes(from: value)
@@ -352,7 +361,7 @@ struct LibraryView: View {
                             if !sections.numericFields.isEmpty {
                                 Divider()
                                 Text("Numeric Tags")
-                                    .font(.headline)
+                                    .font(sampleDetailSectionTitleFont)
                                 detailSection(
                                     fields: sections.numericFields,
                                     availableWidth: sectionWidth,
@@ -361,19 +370,29 @@ struct LibraryView: View {
                             }
 
                             Divider()
-                            Text("Metadata")
-                                .font(.headline)
-                            if sample.orderedMetadata.isEmpty {
-                                Text("No metadata")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            } else {
-                                detailSection(
-                                    fields: sections.metadataFields,
-                                    availableWidth: sectionWidth,
-                                    sharedFirstColumnWidth: globalFirstColumnWidth
-                                )
+                            DisclosureGroup(isExpanded: $isMetadataSectionExpanded) {
+                                if sample.orderedMetadata.isEmpty {
+                                    Text("No metadata")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    detailSection(
+                                        fields: sections.metadataFields,
+                                        availableWidth: sectionWidth,
+                                        sharedFirstColumnWidth: globalFirstColumnWidth
+                                    )
+                                }
+                            } label: {
+                                Text("Metadata")
+                                    .font(sampleDetailSectionTitleFont)
                             }
+
+                            Divider()
+                            LibraryMeasurementsDoneSection(
+                                measurements: sample.appliedMeasurements,
+                                workflowDisplayNameByID: workflowDisplayNameByID,
+                                workflowConditionOrderByID: workflowConditionOrderByID
+                            )
                         }
                     } else {
                         ContentUnavailableView(
@@ -871,6 +890,10 @@ struct LibraryView: View {
         computationService.adaptiveDetailSectionSpacing(for: height)
     }
 
+    private var sampleDetailSectionTitleFont: Font {
+        .title3.weight(.semibold)
+    }
+
     private static let logDateTimeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
@@ -1054,6 +1077,7 @@ struct LibraryView: View {
             isLibrarySettingsExpanded: isLibrarySettingsExpanded,
             isRegistryWorkspaceExpanded: isRegistryWorkspaceExpanded,
             isSearchWorkspaceExpanded: isSearchWorkspaceExpanded,
+            isMetadataSectionExpanded: isMetadataSectionExpanded,
             searchBatchIdText: searchBatchIdText,
             searchSubstrateText: searchSubstrateText,
             searchKeywordText: searchKeywordText,
@@ -1073,6 +1097,7 @@ struct LibraryView: View {
         isLibrarySettingsExpanded = restored.isLibrarySettingsExpanded
         isRegistryWorkspaceExpanded = restored.isRegistryWorkspaceExpanded
         isSearchWorkspaceExpanded = restored.isSearchWorkspaceExpanded
+        isMetadataSectionExpanded = restored.isMetadataSectionExpanded
         searchBatchIdText = restored.searchBatchIdText
         searchSubstrateText = restored.searchSubstrateText
         searchKeywordText = restored.searchKeywordText

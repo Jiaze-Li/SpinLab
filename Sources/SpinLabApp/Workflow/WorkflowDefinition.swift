@@ -4,20 +4,17 @@ struct WorkflowDefinition: Codable, Identifiable, Hashable, Sendable {
     var id: String
     var displayName: String
     var parentID: String?
-    var aliases: [String]
     var conditionFields: [WorkflowConditionField]
 
     init(
         id: String,
         displayName: String,
         parentID: String?,
-        aliases: [String] = [],
         conditionFields: [WorkflowConditionField]
     ) {
         self.id = id
         self.displayName = displayName
         self.parentID = parentID
-        self.aliases = aliases
         self.conditionFields = conditionFields
     }
 
@@ -25,7 +22,6 @@ struct WorkflowDefinition: Codable, Identifiable, Hashable, Sendable {
         case id
         case displayName
         case parentID
-        case aliases
         case conditionFields
     }
 
@@ -34,7 +30,6 @@ struct WorkflowDefinition: Codable, Identifiable, Hashable, Sendable {
         id = try container.decode(String.self, forKey: .id)
         displayName = try container.decode(String.self, forKey: .displayName)
         parentID = try container.decodeIfPresent(String.self, forKey: .parentID)
-        aliases = try container.decodeIfPresent([String].self, forKey: .aliases) ?? []
         conditionFields = try container.decode([WorkflowConditionField].self, forKey: .conditionFields)
     }
 }

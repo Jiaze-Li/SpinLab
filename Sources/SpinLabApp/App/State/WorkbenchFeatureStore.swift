@@ -67,6 +67,8 @@ final class WorkbenchFeatureStore {
     var workflowDefinitions: [WorkflowDefinition]
     var workflowRegistryMessage: String?
     private(set) var conditionDefinitionOptions: [ConditionDefinitionOption]
+    private(set) var workflowMatchRules: [WorkflowMatchRuleEntry]
+    private(set) var sampleIDPatterns: [String]
 
     var selectedWorkflowID: String? {
         switch currentRoute {
@@ -95,6 +97,11 @@ final class WorkbenchFeatureStore {
         self.selectedArchivedRecordID = initialArchivedRecords.first?.id
         self.workflowDefinitions = initialWorkflowDefinitions
         self.conditionDefinitionOptions = initialConditionOptions
+        self.workflowMatchRules = Self.canonicalized(
+            conditionRulesHandbookStore.loadWorkflowMatchRules(),
+            against: initialWorkflowDefinitions
+        )
+        self.sampleIDPatterns = conditionRulesHandbookStore.loadSampleIDPatterns()
         self.currentRoute = .registry(selectedID: initialWorkflowDefinitions.first?.id)
     }
 
@@ -167,6 +174,22 @@ final class WorkbenchFeatureStore {
         return workflowDefinitions.first { $0.id.caseInsensitiveCompare(selectedWorkflowID) == .orderedSame }
     }
 
+    var selectedWorkflowMatchRules: [WorkflowMatchRuleEntry] {
+        guard let definition = selectedWorkflowDefinition,
+              !definition.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
+        let canonicalID = definition.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return workflowMatchRules.filter { entry in
+            entry.workflowID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == canonicalID
+        }
+    }
+
+    func matchRuleValuesCSV(_ id: UUID) -> String {
+        guard let entry = workflowMatchRules.first(where: { $0.id == id }) else {
+            return ""
+        }
+        return entry.matchValues.joined(separator: ", ")
+    }
+
     func addWorkflow() {
         let newID = workflowIDAllocator.nextID(existingIDs: workflowDefinitions.map(\.id))
         let defaultConditionID = conditionDefinitionOptions.first?.id ?? "temperature"
@@ -193,6 +216,7 @@ final class WorkbenchFeatureStore {
             workflowRegistryMessage = "At least one workflow is required."
             return
         }
+        removeWorkflowMatchRules(for: selectedWorkflowID)
         workflowRegistryStore.remove(id: selectedWorkflowID)
         reloadWorkflowDefinitions(selectedID: nil)
         workflowRegistryMessage = nil
@@ -201,8 +225,7 @@ final class WorkbenchFeatureStore {
     func updateSelectedWorkflow(
         id: String,
         displayName: String,
-        parentID: String?,
-        aliases: [String]? = nil
+        parentID: String?
     ) {
         guard var definition = selectedWorkflowDefinition else {
             return
@@ -221,29 +244,16 @@ final class WorkbenchFeatureStore {
         }
 
         let normalizedDisplayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedAliases = aliases ?? definition.aliases
-        if let conflict = conflictingAlias(in: normalizedAliases, excludingWorkflowID: definition.id) {
-            workflowRegistryMessage = "Alias '\(conflict)' is already used by another workflow."
-            return
-        }
+        let originalID = definition.id
         definition.id = normalizedID
         definition.displayName = normalizedDisplayName.isEmpty ? normalizedID : normalizedDisplayName
         definition.parentID = normalizeOptional(parentID)
-        definition.aliases = normalizedAliases
+        if originalID.caseInsensitiveCompare(definition.id) != .orderedSame {
+            migrateWorkflowMatchRules(from: originalID, to: definition.id)
+        }
         workflowRegistryStore.update(definition)
         reloadWorkflowDefinitions(selectedID: definition.id)
         workflowRegistryMessage = nil
-    }
-
-    func updateSelectedWorkflowAliasesCSV(_ aliasesCSV: String) {
-        guard let definition = selectedWorkflowDefinition else { return }
-        let aliases = parseAliasesCSV(aliasesCSV)
-        updateSelectedWorkflow(
-            id: definition.id,
-            displayName: definition.displayName,
-            parentID: definition.parentID,
-            aliases: aliases
-        )
     }
 
     func selectWorkflow(_ id: String?) {
@@ -253,6 +263,52 @@ final class WorkbenchFeatureStore {
         }
         let resolvedID = workflowDefinitions.contains(where: { $0.id == id }) ? id : (workflowDefinitions.first?.id ?? id)
         currentRoute = .workflow(id: resolvedID)
+    }
+
+    func addMatchRuleToSelectedWorkflow() {
+        guard let selectedWorkflowID else { return }
+        let defaultToken = selectedWorkflowID.lowercased()
+        workflowMatchRules.append(
+            WorkflowMatchRuleEntry(
+                scope: .tokens,
+                type: .equals,
+                matchValues: [defaultToken],
+                workflowID: selectedWorkflowID
+            )
+        )
+        persistWorkflowMatchRules()
+    }
+
+    func removeMatchRule(_ id: UUID) {
+        guard let index = workflowMatchRules.firstIndex(where: { $0.id == id }) else { return }
+        workflowMatchRules.remove(at: index)
+        persistWorkflowMatchRules()
+    }
+
+    func updateMatchRuleScope(_ id: UUID, scope: FilenameRuleSet.MatchScope) {
+        guard let index = workflowMatchRules.firstIndex(where: { $0.id == id }) else { return }
+        workflowMatchRules[index].scope = scope
+        persistWorkflowMatchRules()
+    }
+
+    func updateMatchRuleType(_ id: UUID, type: FilenameRuleSet.MatchType) {
+        guard let index = workflowMatchRules.firstIndex(where: { $0.id == id }) else { return }
+        workflowMatchRules[index].type = type
+        persistWorkflowMatchRules()
+    }
+
+    func updateMatchRuleValuesCSV(_ id: UUID, csv: String) {
+        guard let index = workflowMatchRules.firstIndex(where: { $0.id == id }) else { return }
+        workflowMatchRules[index].matchValues = parseCSV(csv)
+    }
+
+    func commitMatchRuleValuesCSV(_ id: UUID) {
+        guard let entry = workflowMatchRules.first(where: { $0.id == id }) else { return }
+        guard !entry.matchValues.isEmpty else {
+            workflowRegistryMessage = "Match values cannot be empty in match rules."
+            return
+        }
+        persistWorkflowMatchRules()
     }
 
     func addConditionFieldToSelectedWorkflow() {
@@ -460,32 +516,14 @@ final class WorkbenchFeatureStore {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private func parseAliasesCSV(_ value: String) -> [String] {
-        value
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-    }
-
-    private func conflictingAlias(in aliases: [String], excludingWorkflowID: String) -> String? {
-        let normalizedSet = Set(aliases.map { $0.lowercased() })
-        guard !normalizedSet.isEmpty else { return nil }
-
-        for workflow in workflowDefinitions where workflow.id.caseInsensitiveCompare(excludingWorkflowID) != .orderedSame {
-            let existingTerms = [workflow.id, workflow.displayName] + workflow.aliases
-            for term in existingTerms {
-                let normalized = term.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                if normalizedSet.contains(normalized) {
-                    return term
-                }
-            }
-        }
-        return nil
-    }
-
     private func reloadWorkflowDefinitions(selectedID: String?) {
         conditionDefinitionOptions = conditionRulesHandbookStore.conditionDefinitionOptions()
         workflowDefinitions = workflowRegistryStore.load()
+        workflowMatchRules = Self.canonicalized(
+            conditionRulesHandbookStore.loadWorkflowMatchRules(),
+            against: workflowDefinitions
+        )
+        sampleIDPatterns = conditionRulesHandbookStore.loadSampleIDPatterns()
         if let selectedID,
            workflowDefinitions.contains(where: { $0.id.caseInsensitiveCompare(selectedID) == .orderedSame }) {
             let resolvedID = workflowDefinitions.first(where: {
@@ -502,6 +540,89 @@ final class WorkbenchFeatureStore {
             currentRoute = .registry(selectedID: fallbackID)
         }
         onDefinitionsChanged?(workflowDefinitions)
+    }
+
+    func addSampleIDPattern() {
+        sampleIDPatterns.append("")
+    }
+
+    func removeSampleIDPattern(at index: Int) {
+        guard sampleIDPatterns.indices.contains(index) else { return }
+        sampleIDPatterns.remove(at: index)
+        persistSampleIDPatterns()
+    }
+
+    func updateSampleIDPattern(at index: Int, value: String) {
+        guard sampleIDPatterns.indices.contains(index) else { return }
+        sampleIDPatterns[index] = value
+    }
+
+    func commitSampleIDPatterns() {
+        persistSampleIDPatterns()
+    }
+
+    private func persistSampleIDPatterns() {
+        do {
+            try conditionRulesHandbookStore.saveSampleIDPatterns(sampleIDPatterns)
+            sampleIDPatterns = conditionRulesHandbookStore.loadSampleIDPatterns()
+            workflowRegistryMessage = nil
+        } catch {
+            workflowRegistryMessage = error.localizedDescription
+        }
+    }
+
+    private func persistWorkflowMatchRules() {
+        do {
+            try conditionRulesHandbookStore.saveWorkflowMatchRules(workflowMatchRules)
+            workflowMatchRules = conditionRulesHandbookStore.loadWorkflowMatchRules()
+            workflowRegistryMessage = nil
+        } catch {
+            workflowRegistryMessage = error.localizedDescription
+        }
+    }
+
+    private func migrateWorkflowMatchRules(from oldID: String, to newID: String) {
+        guard !oldID.isEmpty else { return }
+        workflowMatchRules = workflowMatchRules.map { entry in
+            guard entry.workflowID.caseInsensitiveCompare(oldID) == .orderedSame else { return entry }
+            var updated = entry
+            updated.workflowID = newID
+            return updated
+        }
+        persistWorkflowMatchRules()
+    }
+
+    private func removeWorkflowMatchRules(for workflowID: String) {
+        workflowMatchRules.removeAll { $0.workflowID.caseInsensitiveCompare(workflowID) == .orderedSame }
+        persistWorkflowMatchRules()
+    }
+
+    private func parseCSV(_ value: String) -> [String] {
+        value
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private static func canonicalized(
+        _ rules: [WorkflowMatchRuleEntry],
+        against definitions: [WorkflowDefinition]
+    ) -> [WorkflowMatchRuleEntry] {
+        rules.map { entry in
+            if definitions.contains(where: {
+                $0.id.caseInsensitiveCompare(entry.workflowID) == .orderedSame
+            }) {
+                return entry
+            }
+            guard let definition = definitions.first(where: {
+                $0.displayName.caseInsensitiveCompare(entry.workflowID) == .orderedSame
+            }) else {
+                return entry
+            }
+            var migrated = entry
+            migrated.workflowID = definition.id
+            return migrated
+        }
     }
 
     @MainActor

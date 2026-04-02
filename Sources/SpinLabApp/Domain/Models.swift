@@ -279,7 +279,7 @@ extension SpinLabDomain {
         var folderDerivedSampleKeys: [String] = []
         var measurementName: String?
         var deviceName: String?
-        var workflowName: String?
+        var workflowID: String?
         var sampleIDs: [String] = []
         var channelHints: [ParsedChannelHint] = []
         var measurementTags: [String] = []
@@ -304,7 +304,7 @@ extension SpinLabDomain {
             folderDerivedSampleKeys: [String] = [],
             measurementName: String? = nil,
             deviceName: String? = nil,
-            workflowName: String? = nil,
+            workflowID: String? = nil,
             sampleIDs: [String] = [],
             channelHints: [ParsedChannelHint] = [],
             measurementTags: [String] = [],
@@ -323,7 +323,7 @@ extension SpinLabDomain {
             self.folderDerivedSampleKeys = folderDerivedSampleKeys
             self.measurementName = measurementName
             self.deviceName = deviceName
-            self.workflowName = workflowName
+            self.workflowID = workflowID
             self.sampleIDs = sampleIDs
             self.channelHints = channelHints
             self.measurementTags = measurementTags
@@ -344,6 +344,7 @@ extension SpinLabDomain {
             case folderDerivedSampleKeys
             case measurementName
             case deviceName
+            case workflowID
             case workflowName
             case sampleIDs
             case channelHints
@@ -366,7 +367,8 @@ extension SpinLabDomain {
             folderDerivedSampleKeys = try container.decodeIfPresent([String].self, forKey: .folderDerivedSampleKeys) ?? []
             measurementName = try container.decodeIfPresent(String.self, forKey: .measurementName)
             deviceName = try container.decodeIfPresent(String.self, forKey: .deviceName)
-            workflowName = try container.decodeIfPresent(String.self, forKey: .workflowName)
+            workflowID = try container.decodeIfPresent(String.self, forKey: .workflowID)
+                ?? container.decodeIfPresent(String.self, forKey: .workflowName)
             sampleIDs = try container.decodeIfPresent([String].self, forKey: .sampleIDs) ?? []
             channelHints = try container.decodeIfPresent([ParsedChannelHint].self, forKey: .channelHints) ?? []
             measurementTags = try container.decodeIfPresent([String].self, forKey: .measurementTags) ?? []
@@ -378,6 +380,28 @@ extension SpinLabDomain {
             extraConditionValues = try container.decodeIfPresent([String: String].self, forKey: .extraConditionValues) ?? [:]
             rotationHint = try container.decodeIfPresent(String.self, forKey: .rotationHint)
             warnings = try container.decodeIfPresent([String].self, forKey: .warnings) ?? []
+        }
+
+        func encode(to encoder: any Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encodeIfPresent(batchName, forKey: .batchName)
+            try container.encodeIfPresent(sampleName, forKey: .sampleName)
+            try container.encodeIfPresent(defaultSampleKey, forKey: .defaultSampleKey)
+            try container.encode(folderDerivedSampleKeys, forKey: .folderDerivedSampleKeys)
+            try container.encodeIfPresent(measurementName, forKey: .measurementName)
+            try container.encodeIfPresent(deviceName, forKey: .deviceName)
+            try container.encodeIfPresent(workflowID, forKey: .workflowID)
+            try container.encode(sampleIDs, forKey: .sampleIDs)
+            try container.encode(channelHints, forKey: .channelHints)
+            try container.encode(measurementTags, forKey: .measurementTags)
+            try container.encode(substrateTags, forKey: .substrateTags)
+            try container.encodeIfPresent(temperature, forKey: .temperature)
+            try container.encodeIfPresent(growthTemperature, forKey: .growthTemperature)
+            try container.encodeIfPresent(current, forKey: .current)
+            try container.encodeIfPresent(field, forKey: .field)
+            try container.encode(extraConditionValues, forKey: .extraConditionValues)
+            try container.encodeIfPresent(rotationHint, forKey: .rotationHint)
+            try container.encode(warnings, forKey: .warnings)
         }
     }
 

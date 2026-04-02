@@ -37,7 +37,9 @@ struct ApplyCoordinator {
         libraryIndex: LibraryIndex,
         libraryStore: LibraryStore,
         libraryRootURL: URL,
-        applyService: InboxArchiveApplyService
+        applyService: InboxArchiveApplyService,
+        draftFor: (UUID) -> PendingImportConfirmationDraft? = { _ in nil },
+        workflowDefinitions: [WorkflowDefinition] = []
     ) -> InboxApplyOutcome {
         guard let pendingID,
               let pending = pendingImports.first(where: { $0.id == pendingID }),
@@ -53,7 +55,9 @@ struct ApplyCoordinator {
                 targets: snapshot.routePlan.targets,
                 libraryIndex: libraryIndex,
                 libraryStore: libraryStore,
-                libraryRootURL: libraryRootURL
+                libraryRootURL: libraryRootURL,
+                draft: draftFor(pending.id),
+                workflowDefinitions: workflowDefinitions
             )
             if applyResult.allTargetsSkipped {
                 return .success(appliedIDs: [], skippedIDs: [pending.id])
@@ -70,7 +74,9 @@ struct ApplyCoordinator {
         libraryIndex: LibraryIndex,
         libraryStore: LibraryStore,
         libraryRootURL: URL,
-        applyService: InboxArchiveApplyService
+        applyService: InboxArchiveApplyService,
+        draftFor: (UUID) -> PendingImportConfirmationDraft? = { _ in nil },
+        workflowDefinitions: [WorkflowDefinition] = []
     ) -> InboxApplyOutcome {
         let matched = pendingImports.filter { pending in
             guard let snapshot = routingSnapshots[pending.id] else {
@@ -100,7 +106,9 @@ struct ApplyCoordinator {
                     targets: snapshot.routePlan.targets,
                     libraryIndex: libraryIndex,
                     libraryStore: libraryStore,
-                    libraryRootURL: libraryRootURL
+                    libraryRootURL: libraryRootURL,
+                    draft: draftFor(pending.id),
+                    workflowDefinitions: workflowDefinitions
                 )
                 if applyResult.allTargetsSkipped {
                     skippedIDs.append(pending.id)

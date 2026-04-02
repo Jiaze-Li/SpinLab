@@ -116,11 +116,6 @@ final class WorkflowRegistryStore {
                     id: definition.id.trimmingCharacters(in: .whitespacesAndNewlines),
                     displayName: definition.displayName.trimmingCharacters(in: .whitespacesAndNewlines),
                     parentID: normalizeOptional(definition.parentID),
-                    aliases: normalizeAliases(
-                        definition.aliases,
-                        id: definition.id,
-                        displayName: definition.displayName
-                    ),
                     conditionFields: definition.conditionFields.map {
                         WorkflowConditionField(
                             definitionID: $0.definitionID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -136,21 +131,5 @@ final class WorkflowRegistryStore {
         guard let value else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private func normalizeAliases(_ aliases: [String], id: String, displayName: String) -> [String] {
-        let canonicalID = id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let canonicalDisplay = displayName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        var seen: Set<String> = []
-        var normalized: [String] = []
-        for alias in aliases {
-            let trimmed = alias.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
-            let key = trimmed.lowercased()
-            guard key != canonicalID, key != canonicalDisplay else { continue }
-            guard seen.insert(key).inserted else { continue }
-            normalized.append(trimmed)
-        }
-        return normalized
     }
 }

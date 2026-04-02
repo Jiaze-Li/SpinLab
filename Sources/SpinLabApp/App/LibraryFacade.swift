@@ -48,6 +48,14 @@ final class LibraryFacade {
         featureStore.libraryRootVerificationPath = outcome.rootPath
     }
 
+    func backfillLibraryMeasurementSidecars() {
+        guard let outcome = featureStore.backfillSidecarsForCurrentRoot() else {
+            return
+        }
+        featureStore.libraryRootVerificationMessage = outcome.summaryMessage
+        featureStore.libraryRootVerificationPath = outcome.rootPath
+    }
+
     func deleteExistingDrawer(batchId: String) {
         if let context = commandCoordinator.deleteExistingDrawer(batchId: batchId) {
             commitLibraryMutation(context.rootURL, context.previewIndex)

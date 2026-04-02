@@ -437,23 +437,11 @@ private struct InboxOperationPanel: View {
     }
 }
 
-private func placeholderRoutingSnapshot(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.PendingRoutingSnapshot {
-    let mode: SpinLabDomain.RoutingScopeMode = pending.parsedHints.channelHints.isEmpty ? .fileLevel : .channelLevel
-    return SpinLabDomain.PendingRoutingSnapshot(
-        mode: mode,
-        verdict: .reviewRequired,
-        scopes: [],
-        unresolvedScopes: [],
-        conflicts: [],
-        routePlan: SpinLabDomain.RoutePlan(planningStatus: .reviewRequired)
-    )
-}
-
 private struct InboxInspectorPanel: View {
     let pending: SpinLabDomain.PendingImport
     @Environment(SpinLabAppState.self) private var appState
     private var routingSnapshot: SpinLabDomain.PendingRoutingSnapshot {
-        appState.cachedPendingRoutingSnapshot(for: pending.id) ?? placeholderRoutingSnapshot(for: pending)
+        appState.pendingRoutingSnapshot(for: pending)
     }
     private var routePlan: SpinLabDomain.RoutePlan { routingSnapshot.routePlan }
 
@@ -542,7 +530,7 @@ private struct InboxSelectionWorkbenchPanel: View {
     @State private var localRoutingRefreshTick: Int = 0
     private var routingSnapshot: SpinLabDomain.PendingRoutingSnapshot {
         _ = localRoutingRefreshTick
-        return appState.cachedPendingRoutingSnapshot(for: pending.id) ?? placeholderRoutingSnapshot(for: pending)
+        return appState.pendingRoutingSnapshot(for: pending)
     }
     private var routePlan: SpinLabDomain.RoutePlan { routingSnapshot.routePlan }
     private var warnings: [PendingDisplayWarning] { appState.pendingDisplayWarningItems(for: pending) }

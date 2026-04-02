@@ -28,11 +28,25 @@ struct FilenameRuleParser {
         let fileScopeTokens = fileTokensBeforeFirstChannel(fileTokens)
         let parentTokens = tokenize(parentName)
         let grandparentTokens = tokenize(grandparentName)
-        let contextTokens = tokensForSources(
+
+        // Scoped context: pre-channel file tokens + folder tokens.
+        // Used for sample ID, measurement name, substrate tags — avoids pulling
+        // channel-specific sample identifiers into global scope.
+        let scopedContextTokens = tokensForSources(
             fileTokens: fileScopeTokens,
             parentTokens: parentTokens,
             grandparentTokens: grandparentTokens
         )
+
+        // Full context: all file tokens + folder tokens.
+        // Conditions (temperature, field, current, …) are experiment-global values
+        // that may appear anywhere in the filename, including after channel markers.
+        let fullContextTokens = tokensForSources(
+            fileTokens: fileTokens,
+            parentTokens: parentTokens,
+            grandparentTokens: grandparentTokens
+        )
+
         let joined = joinedSourceText(
             fileStem: fileScopeTokens.joined(separator: " "),
             parentName: parentName,
@@ -46,10 +60,10 @@ struct FilenameRuleParser {
         )
         let allSampleIDs = uniquePreservingOrder(fileSampleIDs + folderSampleIDs)
 
-        let measurement = ruleSet.measurementName(from: contextTokens, joined: joined)
-        let measurementTags = uniquePreservingOrder(ruleSet.measurementTags(from: contextTokens))
-        let substrateTags = uniquePreservingOrder(ruleSet.substrateTags(from: contextTokens))
-        let extraConditionEvaluation = ruleSet.extraConditionEvaluation(from: contextTokens)
+        let measurement = ruleSet.measurementName(from: scopedContextTokens, joined: joined)
+        let measurementTags = uniquePreservingOrder(ruleSet.measurementTags(from: scopedContextTokens))
+        let substrateTags = uniquePreservingOrder(ruleSet.substrateTags(from: scopedContextTokens))
+        let extraConditionEvaluation = ruleSet.extraConditionEvaluation(from: fullContextTokens)
         let extraConditionValues = extraConditionEvaluation.values
         let channelHints = channelHints(from: fileTokens)
         let defaultSampleResolution = resolveDefaultSampleKey(
@@ -71,18 +85,18 @@ struct FilenameRuleParser {
             defaultSampleKey: defaultSampleKey,
             folderDerivedSampleKeys: folderSampleIDs,
             measurementName: measurement ?? fileStem,
-            deviceName: ruleSet.deviceName(from: contextTokens),
-            workflowName: measurement,
+            deviceName: ruleSet.deviceName(from: fullContextTokens),
+            workflowID: measurement,
             sampleIDs: allSampleIDs,
             channelHints: channelHints,
             measurementTags: measurementTags,
             substrateTags: substrateTags,
-            temperature: ruleSet.temperature(from: contextTokens),
+            temperature: ruleSet.temperature(from: fullContextTokens),
             growthTemperature: nil,
-            current: ruleSet.current(from: contextTokens),
-            field: ruleSet.field(from: contextTokens),
+            current: ruleSet.current(from: fullContextTokens),
+            field: ruleSet.field(from: fullContextTokens),
             extraConditionValues: extraConditionValues,
-            rotationHint: ruleSet.rotationHint(from: contextTokens),
+            rotationHint: ruleSet.rotationHint(from: fullContextTokens),
             warnings: warnings
         )
     }
