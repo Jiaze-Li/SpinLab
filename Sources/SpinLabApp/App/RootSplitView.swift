@@ -5,16 +5,18 @@ import SwiftUI
 struct RootSplitView: View {
     @Environment(SpinLabAppState.self) private var appState
     @State private var expandedSidebarNodeIDs: Set<String> = []
-    @State private var hoveredSidebarRowID: String?
     @State private var pendingDeleteDrawerBatchID: String?
     @State private var pendingDeleteDrawerPrefix: String?
     @State private var isPresentingDeleteDrawerConfirm = false
+    @State private var sidebarMenuProvider = SpinLabSidebarMenuProvider()
+    @State private var hasMountedInboxDetail = false
+    @State private var hasMountedWorkbenchDetail = false
+    @State private var hasMountedLibraryDetail = false
 
     private let sidebarTopInset: CGFloat = 64
     private let standardDetailTopInset: CGFloat = 86
     private let inboxDetailTopInset: CGFloat = 14
     private let libraryDetailTopInset: CGFloat = 20
-    private let sidebarMenuProvider = SpinLabSidebarMenuProvider()
     private let appRouter = AppRouter()
 
     var body: some View {
@@ -30,9 +32,7 @@ struct RootSplitView: View {
                         nodes: sidebarMenuProvider.makeMenu(appState: appState, selectedArea: appState.selectedArea),
                         expandedNodeIDs: expandedSidebarNodeIDs,
                         selectedNodeIDs: selectedSidebarNodeIDs,
-                        hoveredNodeID: hoveredSidebarRowID,
                         onNodeTap: handleSidebarNodeTap,
-                        onHoverNode: { hoveredSidebarRowID = $0 },
                         contextMenuItems: contextMenuItems(for:)
                     )
                     .padding(.horizontal, 10)
@@ -43,10 +43,8 @@ struct RootSplitView: View {
             .frame(maxHeight: .infinity, alignment: .top)
             .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 260)
         } detail: {
-            contentView
+            detailLayers
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .safeAreaPadding(.top, currentDetailTopInset)
-                .frame(maxHeight: .infinity, alignment: .top)
                 .overlay(alignment: .topTrailing) {
                     HStack(spacing: 10) {
                         if appState.selectedArea != .library {
@@ -69,16 +67,15 @@ struct RootSplitView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
+            markDetailMounted(for: appState.selectedArea)
             appState.loadExistingDrawers()
             restoreSidebarInteractionState()
             pruneExpandedSidebarStateForSelectedArea()
             persistSidebarInteractionState()
         }
-        .onChange(of: appState.selectedArea) { _, _ in
+        .onChange(of: appState.selectedArea) { _, newArea in
+            markDetailMounted(for: newArea)
             pruneExpandedSidebarStateForSelectedArea()
-            persistSidebarInteractionState()
-        }
-        .onChange(of: expandedSidebarNodeIDs) { _, _ in
             persistSidebarInteractionState()
         }
         .confirmationDialog(
@@ -113,27 +110,72 @@ struct RootSplitView: View {
         }
     }
 
-    @ViewBuilder
-    private var contentView: some View {
-        switch appState.selectedArea {
-        case .inbox:
-            InboxView()
-        case .workbench:
-            WorkbenchView()
-        case .library:
-            LibraryView()
+    private var detailLayers: some View {
+        ZStack {
+            if shouldRenderDetail(for: .inbox) {
+                detailLayer(
+                    area: .inbox,
+                    topInset: inboxDetailTopInset
+                ) {
+                    InboxView()
+                }
+            }
+
+            if shouldRenderDetail(for: .workbench) {
+                detailLayer(
+                    area: .workbench,
+                    topInset: standardDetailTopInset
+                ) {
+                    WorkbenchView()
+                }
+            }
+
+            if shouldRenderDetail(for: .library) {
+                detailLayer(
+                    area: .library,
+                    topInset: libraryDetailTopInset
+                ) {
+                    LibraryView()
+                }
+            }
         }
     }
 
-    private var currentDetailTopInset: CGFloat {
-        switch appState.selectedArea {
+    private func shouldRenderDetail(for area: AppArea) -> Bool {
+        switch area {
         case .inbox:
-            return inboxDetailTopInset
+            return hasMountedInboxDetail || appState.selectedArea == .inbox
         case .workbench:
-            return standardDetailTopInset
+            return hasMountedWorkbenchDetail || appState.selectedArea == .workbench
         case .library:
-            return libraryDetailTopInset
+            return hasMountedLibraryDetail || appState.selectedArea == .library
         }
+    }
+
+    private func markDetailMounted(for area: AppArea) {
+        switch area {
+        case .inbox:
+            hasMountedInboxDetail = true
+        case .workbench:
+            hasMountedWorkbenchDetail = true
+        case .library:
+            hasMountedLibraryDetail = true
+        }
+    }
+
+    private func detailLayer<Content: View>(
+        area: AppArea,
+        topInset: CGFloat,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        let isVisible = appState.selectedArea == area
+        return content()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .safeAreaPadding(.top, topInset)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .opacity(isVisible ? 1 : 0)
+            .allowsHitTesting(isVisible)
+            .accessibilityHidden(!isVisible)
     }
 
     private var selectedSidebarNodeIDs: Set<String> {
@@ -228,10 +270,11 @@ struct RootSplitView: View {
         }
 
         if case .area = node.kind {
-            appState.navigate(to: path)
-            if node.isExpandable {
-                toggleSidebarNodeExpansion(node.id)
+            let insertOutcome = expandedSidebarNodeIDs.insert(node.id)
+            if insertOutcome.inserted {
+                persistSidebarInteractionState()
             }
+            appState.navigate(to: path)
             return
         }
 
@@ -244,6 +287,7 @@ struct RootSplitView: View {
         } else {
             expandedSidebarNodeIDs.insert(nodeID)
         }
+        persistSidebarInteractionState()
     }
 
     private func contextMenuItems(for node: SidebarMenuNode) -> [SidebarContextMenuItem] {

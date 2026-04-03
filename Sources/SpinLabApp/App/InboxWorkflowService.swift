@@ -78,10 +78,6 @@ struct InboxWorkflowService {
         )
     }
 
-    func clearPendingImports(inboxStore: InboxFeatureStore) {
-        inboxStore.clearPendingImports()
-    }
-
     func recomputeAllPendingParsedHints(
         inboxStore: InboxFeatureStore,
         existingWorkspaceByPendingID: [String: InboxPendingWorkspaceState],

@@ -6,6 +6,11 @@ struct FilenameRuleSet: Decodable {
         var warnings: [String]
     }
 
+    private enum UnitValueNormalizationMode {
+        case trimNoise
+        case halfStep
+    }
+
     enum ConditionDefinitionKind: String, Decodable {
         case unitSuffix = "unit_suffix"
         case tokenMap = "token_map"
@@ -409,21 +414,24 @@ struct FilenameRuleSet: Decodable {
     func temperature(from tokens: [String]) -> String? {
         firstRegexMatch(
             in: tokens,
-            regex: compiled.conditionUnitSuffixRegexes[ConditionFieldCatalog.temperatureID]
+            regex: compiled.conditionUnitSuffixRegexes[ConditionFieldCatalog.temperatureID],
+            ruleID: ConditionFieldCatalog.temperatureID
         )
     }
 
     func current(from tokens: [String]) -> String? {
         firstRegexMatch(
             in: tokens,
-            regex: compiled.conditionUnitSuffixRegexes[ConditionFieldCatalog.currentID]
+            regex: compiled.conditionUnitSuffixRegexes[ConditionFieldCatalog.currentID],
+            ruleID: ConditionFieldCatalog.currentID
         )
     }
 
     func field(from tokens: [String]) -> String? {
         firstRegexMatch(
             in: tokens,
-            regex: compiled.conditionUnitSuffixRegexes[ConditionFieldCatalog.fieldID]
+            regex: compiled.conditionUnitSuffixRegexes[ConditionFieldCatalog.fieldID],
+            ruleID: ConditionFieldCatalog.fieldID
         )
     }
 
@@ -431,19 +439,16 @@ struct FilenameRuleSet: Decodable {
         extraConditionEvaluation(from: tokens).values
     }
 
-    func extraConditionEvaluation(from tokens: [String]) -> ExtraConditionEvaluation {
-        var reservedRuleIDs = ConditionFieldCatalog.builtInConditionIDs
-        reservedRuleIDs.insert(ConditionFieldCatalog.deviceID)
+    func conditionEvaluation(from tokens: [String]) -> ExtraConditionEvaluation {
         let allRuleIDs = Set(compiled.conditionUnitSuffixRegexes.keys)
             .union(compiled.conditionTokenMapRules.keys)
-            .subtracting(reservedRuleIDs)
             .sorted()
         var values: [String: String] = [:]
         var warnings: [String] = []
 
         for ruleID in allRuleIDs {
             let regexMatch = compiled.conditionUnitSuffixRegexes[ruleID]
-                .flatMap { firstRegexMatch(in: tokens, regex: $0) }
+                .flatMap { firstRegexMatch(in: tokens, regex: $0, ruleID: ruleID) }
             let tokenMapMatch = compiled.conditionTokenMapRules[ruleID]
                 .flatMap { firstMatchValue(from: $0, tokens: tokens, joined: nil) }
 
@@ -461,6 +466,16 @@ struct FilenameRuleSet: Decodable {
         }
 
         return ExtraConditionEvaluation(values: values, warnings: warnings)
+    }
+
+    func extraConditionEvaluation(from tokens: [String]) -> ExtraConditionEvaluation {
+        let evaluated = conditionEvaluation(from: tokens)
+        var filtered = evaluated.values
+        filtered.removeValue(forKey: ConditionFieldCatalog.deviceID)
+        for id in ConditionFieldCatalog.builtInConditionIDs {
+            filtered.removeValue(forKey: id)
+        }
+        return ExtraConditionEvaluation(values: filtered, warnings: evaluated.warnings)
     }
 
     func normalizeChannel(_ token: String) -> String? {
@@ -626,14 +641,102 @@ struct FilenameRuleSet: Decodable {
         return regex.firstMatch(in: text, options: [], range: range) != nil
     }
 
-    private func firstRegexMatch(in tokens: [String], regex: NSRegularExpression?) -> String? {
+    private func firstRegexMatch(in tokens: [String], regex: NSRegularExpression?, ruleID: String) -> String? {
         guard let regex else { return nil }
         for token in tokens {
             if regexMatch(regex: regex, text: token) {
-                return token
+                return normalizeUnitSuffixToken(token, ruleID: ruleID)
             }
         }
         return nil
+    }
+
+    private func normalizeUnitSuffixToken(_ token: String, ruleID: String) -> String {
+        guard let split = splitNumericUnitToken(token) else {
+            return token
+        }
+        guard let numericValue = Decimal(string: split.number, locale: Locale(identifier: "en_US_POSIX")) else {
+            return token
+        }
+
+        let normalized = normalize(numericValue, mode: normalizationMode(for: ruleID))
+        return "\(formatDecimal(normalized))\(split.unit)"
+    }
+
+    private func normalizationMode(for ruleID: String) -> UnitValueNormalizationMode {
+        switch ruleID {
+        case ConditionFieldCatalog.temperatureID, ConditionFieldCatalog.fieldID:
+            return .halfStep
+        default:
+            return .trimNoise
+        }
+    }
+
+    private func splitNumericUnitToken(_ token: String) -> (number: String, unit: String)? {
+        let pattern = #"^(-?\d+(?:\.\d+)?)(.+)$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return nil
+        }
+        let range = NSRange(token.startIndex..<token.endIndex, in: token)
+        guard let match = regex.firstMatch(in: token, options: [], range: range),
+              match.numberOfRanges == 3,
+              let numberRange = Range(match.range(at: 1), in: token),
+              let unitRange = Range(match.range(at: 2), in: token) else {
+            return nil
+        }
+        let number = String(token[numberRange])
+        let unit = String(token[unitRange])
+        guard !number.isEmpty, !unit.isEmpty else {
+            return nil
+        }
+        return (number: number, unit: unit)
+    }
+
+    private func normalize(_ value: Decimal, mode: UnitValueNormalizationMode) -> Decimal {
+        switch mode {
+        case .trimNoise:
+            return rounded(value, scale: 6)
+        case .halfStep:
+            return roundedToHalfStep(value)
+        }
+    }
+
+    private func rounded(_ value: Decimal, scale: Int) -> Decimal {
+        var source = value
+        var result = Decimal()
+        NSDecimalRound(&result, &source, scale, .plain)
+        return result
+    }
+
+    private func roundedToHalfStep(_ value: Decimal) -> Decimal {
+        var source = value
+        var two = Decimal(2)
+        var scaled = Decimal()
+        NSDecimalMultiply(&scaled, &source, &two, .plain)
+
+        var roundedScaled = Decimal()
+        var scaledSource = scaled
+        NSDecimalRound(&roundedScaled, &scaledSource, 0, .plain)
+
+        var result = Decimal()
+        NSDecimalDivide(&result, &roundedScaled, &two, .plain)
+        return result
+    }
+
+    private func formatDecimal(_ value: Decimal) -> String {
+        var mutable = value
+        let raw = NSDecimalString(&mutable, Locale(identifier: "en_US_POSIX"))
+        guard raw.contains(".") else {
+            return raw
+        }
+        var normalized = raw
+        while normalized.hasSuffix("0") {
+            normalized.removeLast()
+        }
+        if normalized.hasSuffix(".") {
+            normalized.removeLast()
+        }
+        return normalized
     }
 
     static func fallback() -> FilenameRuleSet {

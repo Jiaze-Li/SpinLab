@@ -87,6 +87,61 @@ Rationale:
 - Increase confidence in dependency-injected orchestration paths.
 - Make UI-state mutation thread guarantees explicit and compiler-checked.
 
+## 2026-04-03 Round E
+
+Scope:
+- Close high-impact V2.7 debt around apply path unification, duplicate-guard extraction, and rules canonicalization single-source.
+
+Completed:
+- Apply path unification:
+  - Moved shared apply context/progress loop ownership into `ApplyCoordinator`.
+  - `SpinLabAppState` selected/apply-all now share one coordinator async path.
+  - Removed local dual apply helper surface from `SpinLabAppState`.
+- Rules canonicalization single-source:
+  - Added `RuleCanonicalizer`.
+  - `RuleLoader` and `ConditionRulesHandbookStore` now both delegate to shared canonicalization routines.
+- Duplicate guard extraction:
+  - Added explicit `DuplicateGuard`.
+  - Integrated into `SpinLabManagedStorage.importMeasurementFiles(...)`.
+- Pending cleanup side-effect isolation:
+  - Added `PendingCleanupService` and routed `InboxFacade.clearPendingImports()` through it.
+  - Removed redundant clear helper from `InboxWorkflowService`.
+
+Rationale:
+- Reduce drift risk between runtime loader migration and handbook migration.
+- Keep app-shell orchestration thinner while preserving current behavior.
+- Make duplicate rejection and clear-imports safety boundaries explicit and testable.
+
+## 2026-04-03 Round F (UI切换卡顿排查与修正)
+
+Scope:
+- Investigate repeated first-level sidebar area-switch lag (`Inbox`/`Workbench`/`Library`) and apply low-risk responsiveness fixes.
+
+Completed:
+- Reproduced and instrumented sidebar switching path with temporary latency probes (later removed after conclusion).
+- Confirmed lag concentration at `tap -> selectedArea` transition window, not in snapshot persistence writes.
+- Applied/kept the following fixes:
+  - Keep detail views alive in `RootSplitView` using layered view composition (no full page reconstruction on each area switch).
+  - Persist sidebar provider instance in `RootSplitView` state so library subtree cache can survive view refreshes.
+  - Removed duplicate `rebuildPreviewDerivedData()` call on `LibraryView.onAppear`.
+  - Added short cooldown to `validateLibraryCacheOnAppear()` to avoid rapid repeated cache-validation sync checks during frequent switches.
+  - Reduced redundant sidebar interaction persistence churn by persisting on explicit expansion actions instead of generic expanded-set observer churn.
+- Removed all temporary latency logging code after diagnosis and fix validation.
+
+Evidence summary:
+- Field logs repeatedly showed area switch latency around ~8-23ms with occasional spikes (~25-29ms).
+- `navigate(...)` path itself remained low single-digit ms when observed.
+- No meaningful snapshot write-latency signals correlated with the perceived switch hitch.
+
+Conclusion:
+- Primary contributor was UI transaction/render cost from area-switch detail view rebuilds and same-frame sidebar state churn, not storage I/O.
+
+Validation:
+- Regression suite remained green during iterations:
+  - `V223AppEnvironmentIntegrationTests`
+  - `V230ApplyTests`
+  - `V272PendingCleanupSafetyTests`
+
 ## Next Planned Steps
 
 1. Continue splitting `SpinLabAppState` by extracting feature-owned mutable state and actions into focused `@Observable` stores while preserving current routing orchestration in app shell.

@@ -797,6 +797,34 @@ Every Apply action writes a timestamped entry to an import log (both in the Libr
 6. Perform targeted legacy-consumer cleanup in app/view/domain call sites where compatibility is no longer required.
 7. Keep deprecated rule fields + migration branches intact for one more release window; decide deletion after telemetry validation.
 
+**Delivery record** (2026-04-03)
+
+- Apply path unification delivered:
+  - `SpinLabAppState` now routes selected/apply-all through one coordinator-driven async apply engine.
+  - Removed local dual-path helpers (`performApply(resolver:)`, tuple `ApplyContext`, and local context resolver).
+  - Progress reporting semantics are shared via `ApplyCoordinator.ApplyProgressUpdate`.
+- Duplicate guard delivered:
+  - Added explicit `DuplicateGuard` and integrated it into `SpinLabManagedStorage.importMeasurementFiles(...)`.
+  - Duplicate rejection is hash-first (`contentFingerprint`) with path-level guard as fallback.
+- Rule canonicalization single-source delivered:
+  - Added `RuleCanonicalizer`.
+  - `RuleLoader.normalizeConditionDefinitionBindings(...)` and
+    `ConditionRulesHandbookStore.migrateUserRuleFileToCanonicalIfNeeded()` now delegate to shared canonicalization routines.
+- Audit logger delivered:
+  - Added `AuditEvent` + `AuditLogger` with dual sinks:
+    - App Support: `.../SpinLab/logs/import_audit.log`
+    - Library root: `<Library Root>/Logs/import_audit.log`
+  - `InboxArchiveApplyService.apply(...)` now records per-apply event outcomes (applied/skipped/failed).
+- Safe pending cleanup delivered:
+  - Added `PendingCleanupService`; `Clear Imports` now runs through one cleanup surface for
+    pending queue + routing state + interaction workspace snapshots.
+- Regression status:
+  - `V225RulesConfigContractTests`, `V230ApplyTests`,
+    `V270AuditLoggerTests`, `V271DuplicateGuardTests`,
+    `V272PendingCleanupSafetyTests` passed in this round.
+- Compatibility note:
+  - Deprecated fields (`temperaturePattern/currentPattern/fieldPattern`, `deviceRules`) are retained.
+
 ## Out-of-scope for this execution thread
 - Auto-apply without manual user action.
 - Plot preview in Inbox right panel (extension seam retained for future).

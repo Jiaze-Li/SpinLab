@@ -1,7 +1,10 @@
 import Foundation
 
 @MainActor
-struct SpinLabSidebarMenuProvider {
+final class SpinLabSidebarMenuProvider {
+    private var cachedLibraryChildrenKey: String?
+    private var cachedLibraryChildrenValue: [SidebarMenuNode] = []
+
     func makeMenu(appState: SpinLabAppState, selectedArea: AppArea) -> [SidebarMenuNode] {
         AppArea.allCases.map { area in
             SidebarMenuNode(
@@ -45,7 +48,7 @@ struct SpinLabSidebarMenuProvider {
                 // Lazy build: avoid constructing full Library submenu unless Library is active.
                 return []
             }
-            return libraryChildren(appState: appState)
+            return cachedLibraryChildren(appState: appState)
         }
     }
 
@@ -108,6 +111,34 @@ struct SpinLabSidebarMenuProvider {
                 children: batchChildren
             )
         }
+    }
+
+    private func cachedLibraryChildren(appState: SpinLabAppState) -> [SidebarMenuNode] {
+        let cacheKey = libraryChildrenCacheKey(appState: appState)
+        if cachedLibraryChildrenKey == cacheKey {
+            return cachedLibraryChildrenValue
+        }
+        let rebuilt = libraryChildren(appState: appState)
+        cachedLibraryChildrenKey = cacheKey
+        cachedLibraryChildrenValue = rebuilt
+        return rebuilt
+    }
+
+    private func libraryChildrenCacheKey(appState: SpinLabAppState) -> String {
+        let orderedPrefixes = orderedLibraryPrefixes(appState: appState)
+        var parts: [String] = []
+        parts.reserveCapacity(1 + orderedPrefixes.count * 8)
+        parts.append("prefixes:\(orderedPrefixes.joined(separator: ","))")
+        for prefix in orderedPrefixes {
+            let groups = appState.library.libraryExistingGroups[prefix] ?? []
+            parts.append("p:\(prefix)#\(groups.count)")
+            for group in groups {
+                parts.append("b:\(group.batchId)")
+                parts.append("n:\(group.samples.count)")
+                parts.append("f:\(group.samples.first?.id ?? "")")
+            }
+        }
+        return parts.joined(separator: "|")
     }
 
     private func orderedLibraryPrefixes(appState: SpinLabAppState) -> [String] {

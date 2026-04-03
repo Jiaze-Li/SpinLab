@@ -20,9 +20,12 @@ struct FilenameRuleParser {
     }
 
     func parse(from fileURL: URL) -> SpinLabDomain.ParsedFilenameHints {
-        let fileStem = fileURL.deletingPathExtension().lastPathComponent
-        let parentName = fileURL.deletingLastPathComponent().lastPathComponent
-        let grandparentName = fileURL.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent
+        let originalFileStem = fileURL.deletingPathExtension().lastPathComponent
+        let originalParentName = fileURL.deletingLastPathComponent().lastPathComponent
+        let originalGrandparentName = fileURL.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent
+        let fileStem = normalizedForParsing(originalFileStem)
+        let parentName = normalizedForParsing(originalParentName)
+        let grandparentName = normalizedForParsing(originalGrandparentName)
 
         let fileTokens = tokenize(fileStem)
         let fileScopeTokens = fileTokensBeforeFirstChannel(fileTokens)
@@ -63,8 +66,17 @@ struct FilenameRuleParser {
         let measurement = ruleSet.measurementName(from: scopedContextTokens, joined: joined)
         let measurementTags = uniquePreservingOrder(ruleSet.measurementTags(from: scopedContextTokens))
         let substrateTags = uniquePreservingOrder(ruleSet.substrateTags(from: scopedContextTokens))
-        let extraConditionEvaluation = ruleSet.extraConditionEvaluation(from: fullContextTokens)
-        let extraConditionValues = extraConditionEvaluation.values
+        let conditionEvaluation = ruleSet.conditionEvaluation(from: fullContextTokens)
+        let conditionValues = conditionEvaluation.values
+        let temperature = conditionValues[ConditionFieldCatalog.temperatureID]
+        let current = conditionValues[ConditionFieldCatalog.currentID]
+        let field = conditionValues[ConditionFieldCatalog.fieldID]
+        let deviceName = conditionValues[ConditionFieldCatalog.deviceID]
+        var extraConditionValues = conditionValues
+        extraConditionValues.removeValue(forKey: ConditionFieldCatalog.deviceID)
+        for id in ConditionFieldCatalog.builtInConditionIDs {
+            extraConditionValues.removeValue(forKey: id)
+        }
         let channelHints = channelHints(from: fileTokens)
         let defaultSampleResolution = resolveDefaultSampleKey(
             fileSampleIDs: fileSampleIDs,
@@ -74,7 +86,7 @@ struct FilenameRuleParser {
         let defaultSampleKey = defaultSampleResolution.key
         let warnings = uniquePreservingOrder(
             ruleSet.loadWarnings
-                + extraConditionEvaluation.warnings
+                + conditionEvaluation.warnings
                 + defaultSampleResolution.warnings
                 + conflictWarnings(fileSampleIDs: fileSampleIDs, folderSampleIDs: folderSampleIDs)
         )
@@ -85,16 +97,16 @@ struct FilenameRuleParser {
             defaultSampleKey: defaultSampleKey,
             folderDerivedSampleKeys: folderSampleIDs,
             measurementName: measurement ?? fileStem,
-            deviceName: ruleSet.deviceName(from: fullContextTokens),
+            deviceName: deviceName,
             workflowID: measurement,
             sampleIDs: allSampleIDs,
             channelHints: channelHints,
             measurementTags: measurementTags,
             substrateTags: substrateTags,
-            temperature: ruleSet.temperature(from: fullContextTokens),
+            temperature: temperature,
             growthTemperature: nil,
-            current: ruleSet.current(from: fullContextTokens),
-            field: ruleSet.field(from: fullContextTokens),
+            current: current,
+            field: field,
             extraConditionValues: extraConditionValues,
             rotationHint: ruleSet.rotationHint(from: fullContextTokens),
             warnings: warnings
@@ -103,6 +115,10 @@ struct FilenameRuleParser {
 
     private func tokenize(_ value: String) -> [String] {
         SampleTokenization.split(value, separators: ruleSet.tokenization.separators)
+    }
+
+    private func normalizedForParsing(_ value: String) -> String {
+        value.replacingOccurrences(of: #"\s+"#, with: "", options: .regularExpression)
     }
 
     private func fileTokensBeforeFirstChannel(_ fileTokens: [String]) -> [String] {
