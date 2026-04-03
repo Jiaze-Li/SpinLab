@@ -112,7 +112,7 @@ struct V210ImportAndParseTests {
         #expect(ch1?.tags.isEmpty == true)
 
         let ch2 = parsed.channelHints.first(where: { $0.channel == "ch2" })
-        #expect(ch2?.sampleID == "PN36")
+        #expect(ch2?.sampleID == "PN36 HF STO111 STO")
         #expect(ch2?.tags == ["HF", "STO111", "STO"])
 
         let ch3 = parsed.channelHints.first(where: { $0.channel == "ch3" })

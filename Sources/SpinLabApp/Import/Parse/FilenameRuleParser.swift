@@ -183,8 +183,11 @@ struct FilenameRuleParser {
                 index += 1
             }
 
-            let sampleID = ruleSet.sampleIDs(from: collected).first
             let tags = uniquePreservingOrder(ruleSet.substrateTags(from: collected))
+            let sampleID = defaultSampleName(
+                defaultSampleKey: ruleSet.sampleIDs(from: collected).first,
+                substrateTags: tags
+            )
             let rawTestInfo = collected.filter { !isSampleSignalToken($0) }
             let testInfoTags = uniquePreservingOrder(ruleSet.measurementTags(from: collected) + rawTestInfo)
             hints.append(

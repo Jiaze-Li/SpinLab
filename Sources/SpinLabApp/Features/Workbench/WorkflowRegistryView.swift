@@ -3,7 +3,6 @@ import SwiftUI
 struct WorkflowRegistryView: View {
     @Environment(SpinLabAppState.self) private var appState
     @State private var isConfigurationExpanded = true
-    @State private var isSampleIDSectionExpanded = true
 
     var body: some View {
         @Bindable var workbench = appState.workbench
@@ -78,79 +77,7 @@ struct WorkflowRegistryView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
             }
-            Divider()
-
-            Button {
-                isSampleIDSectionExpanded.toggle()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: isSampleIDSectionExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 20, height: 20)
-                    Text("Sample ID Patterns")
-                        .font(.title3.weight(.semibold))
-                    Spacer()
-                }
-            }
-            .buttonStyle(.plain)
-
-            if isSampleIDSectionExpanded {
-                GroupBox {
-                    SampleIDPatternsEditor()
-                }
-            }
         }
-    }
-}
-
-private struct SampleIDPatternsEditor: View {
-    @Environment(SpinLabAppState.self) private var appState
-
-    var body: some View {
-        @Bindable var workbench = appState.workbench
-
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Regex patterns for recognizing sample IDs in file and folder names.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            if workbench.sampleIDPatterns.isEmpty {
-                Text("No patterns defined.")
-                    .foregroundStyle(.secondary)
-                    .font(.callout)
-            } else {
-                ForEach(Array(workbench.sampleIDPatterns.enumerated()), id: \.offset) { index, pattern in
-                    HStack(spacing: 8) {
-                        TextField("Regex pattern", text: Binding(
-                            get: { pattern },
-                            set: { workbench.updateSampleIDPattern(at: index, value: $0) }
-                        ))
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(.body, design: .monospaced))
-                        .onSubmit {
-                            workbench.commitSampleIDPatterns()
-                        }
-
-                        Button(role: .destructive) {
-                            workbench.removeSampleIDPattern(at: index)
-                        } label: {
-                            Image(systemName: "trash")
-                        }
-                        .buttonStyle(.borderless)
-                    }
-                }
-            }
-
-            Button {
-                workbench.addSampleIDPattern()
-            } label: {
-                Label("Add Pattern", systemImage: "plus.circle")
-            }
-            .buttonStyle(.bordered)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(4)
     }
 }
 
@@ -266,6 +193,20 @@ private struct WorkflowDefinitionEditor: View {
                         Label("Add Match Rule", systemImage: "plus.circle")
                     }
                     .buttonStyle(.bordered)
+
+                    HStack(spacing: 8) {
+                        Button("Discard") {
+                            workbench.discardWorkflowMatchRulesEdits()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!workbench.hasUnsavedWorkflowMatchRules)
+
+                        Button("Confirm Save") {
+                            workbench.confirmWorkflowMatchRulesSave()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!workbench.hasUnsavedWorkflowMatchRules)
+                    }
                 }
 
                 Divider()
