@@ -92,6 +92,17 @@ struct LibraryBatch: Identifiable, Codable, Hashable, Sendable {
     var updatedAt: Date
 }
 
+struct AppliedMeasurement: Codable, Hashable, Identifiable, Sendable {
+    var id: String
+    /// Workflow identifier (matches WorkflowDefinition.id).
+    var workflow: String
+    /// Human-readable name captured from registry at apply time.
+    var workflowDisplayName: String
+    var conditions: [String: String]
+    var appliedAt: Date
+    var sourceFileName: String
+}
+
 struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
     var id: String
     var displayName: String
@@ -107,6 +118,8 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
     var sourceSheetName: String?
     var sourceRowNumber: Int?
     var updatedAt: Date
+    // Runtime-only V2.6 projection from sidecar scans.
+    var appliedMeasurements: [AppliedMeasurement] = []
 
     init(
         id: String,
@@ -122,7 +135,8 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         numericDisplay: [String: String],
         sourceSheetName: String? = nil,
         sourceRowNumber: Int? = nil,
-        updatedAt: Date
+        updatedAt: Date,
+        appliedMeasurements: [AppliedMeasurement] = []
     ) {
         self.id = id
         self.displayName = displayName
@@ -138,6 +152,7 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         self.sourceSheetName = sourceSheetName
         self.sourceRowNumber = sourceRowNumber
         self.updatedAt = updatedAt
+        self.appliedMeasurements = appliedMeasurements
     }
 
     enum CodingKeys: String, CodingKey {
@@ -173,6 +188,7 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         sourceSheetName = try container.decodeIfPresent(String.self, forKey: .sourceSheetName)
         sourceRowNumber = try container.decodeIfPresent(Int.self, forKey: .sourceRowNumber)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        appliedMeasurements = []
     }
 }
 

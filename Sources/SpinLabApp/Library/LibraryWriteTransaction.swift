@@ -10,6 +10,12 @@ struct LibraryWriteTransaction {
     private let transactionRootURL: URL
     private var preparedWrites: [PreparedWrite] = []
     private var committedDestinations: [URL] = []
+    private static let sidecarEncoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }()
 
     init() {
         transactionRootURL = fileManager.temporaryDirectory
@@ -27,6 +33,18 @@ struct LibraryWriteTransaction {
         try fileManager.createDirectory(at: transactionRootURL, withIntermediateDirectories: true)
         let tempURL = transactionRootURL.appending(path: UUID().uuidString, directoryHint: .notDirectory)
         try fileManager.copyItem(at: sourceURL, to: tempURL)
+        preparedWrites.append(PreparedWrite(temporaryURL: tempURL, destinationURL: destinationURL))
+    }
+
+    mutating func prepareSidecar(_ sidecar: SpinLabFileSidecar, destinationURL: URL) throws {
+        guard !fileManager.fileExists(atPath: destinationURL.path) else {
+            throw AppError.state("Destination already exists: \(destinationURL.path)")
+        }
+
+        try fileManager.createDirectory(at: transactionRootURL, withIntermediateDirectories: true)
+        let tempURL = transactionRootURL.appending(path: UUID().uuidString + ".json", directoryHint: .notDirectory)
+        let data = try Self.sidecarEncoder.encode(sidecar)
+        try data.write(to: tempURL)
         preparedWrites.append(PreparedWrite(temporaryURL: tempURL, destinationURL: destinationURL))
     }
 

@@ -216,6 +216,51 @@ struct V240WorkflowRegistryTests {
         }
     }
 
+    @Test("match rule editor uses workflow id token and allows inline edits before commit")
+    func matchRuleEditorDefaultsAndEdits() async throws {
+        let fileURL = try makeRegistryFileURL(prefix: "match-rule-editor")
+        let store = WorkflowRegistryStore(registryFileURL: fileURL)
+        let persistence = LocalPersistenceStub(
+            pendingImports: [],
+            archivedRecords: [],
+            projects: [],
+            interactionSnapshot: SpinLabInteractionSnapshot()
+        )
+        let repository = LibraryRepository(persistence: persistence)
+
+        let featureStore = await MainActor.run {
+            WorkbenchFeatureStore(
+                libraryRepository: repository,
+                workflowRegistryStore: store
+            )
+        }
+
+        await MainActor.run {
+            guard let selectedID = featureStore.selectedWorkflowID else {
+                Issue.record("Expected selected workflow id.")
+                return
+            }
+
+            featureStore.addMatchRuleToSelectedWorkflow()
+            guard let rule = featureStore.selectedWorkflowMatchRules.last else {
+                Issue.record("Expected a newly added match rule.")
+                return
+            }
+
+            #expect(rule.matchValues == [selectedID.lowercased()])
+            #expect(featureStore.matchRuleValuesCSV(rule.id) == selectedID.lowercased())
+
+            featureStore.updateMatchRuleValuesCSV(rule.id, csv: "XY")
+            #expect(featureStore.matchRuleValuesCSV(rule.id) == "XY")
+
+            featureStore.updateMatchRuleValuesCSV(rule.id, csv: "   ")
+            #expect(featureStore.matchRuleValuesCSV(rule.id).isEmpty)
+
+            featureStore.commitMatchRuleValuesCSV(rule.id)
+            #expect(featureStore.workflowRegistryMessage == "Match values cannot be empty in match rules.")
+        }
+    }
+
     @Test("removing selected workflow falls back to registry route")
     func removingSelectedWorkflowFallsBackToRegistryRoute() async throws {
         let fileURL = try makeRegistryFileURL(prefix: "route-remove")

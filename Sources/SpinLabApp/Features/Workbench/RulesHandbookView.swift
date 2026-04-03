@@ -926,7 +926,6 @@ private struct NewRuleEntrySheet: View {
     let onAdd: (String, String) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var ruleID: String = ""
     @State private var label: String = ""
     @State private var validationError: String?
 
@@ -936,12 +935,7 @@ private struct NewRuleEntrySheet: View {
                 .font(.headline)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Rule ID")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                TextField("e.g. wafer_type", text: $ruleID)
-                    .textFieldStyle(.roundedBorder)
-                Text("Label (optional)")
+                Text("Label")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 TextField("e.g. Wafer Type", text: $label)
@@ -987,15 +981,12 @@ private struct NewRuleEntrySheet: View {
     }
 
     private func commit() {
-        let normalizedID = ruleID.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedID.isEmpty else {
-            validationError = "Rule ID cannot be empty."
+        let normalizedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedLabel.isEmpty else {
+            validationError = "Label cannot be empty."
             return
         }
-        guard !normalizedID.contains(where: { $0.isWhitespace }) else {
-            validationError = "Rule ID cannot contain spaces."
-            return
-        }
+        let normalizedID = nextRuleID(for: normalizedLabel)
         let existsSameKind = existingEntries.contains {
             $0.ruleID.caseInsensitiveCompare(normalizedID) == .orderedSame &&
             $0.kind == kind
@@ -1005,12 +996,12 @@ private struct NewRuleEntrySheet: View {
             return
         }
 
-        onAdd(normalizedID, label)
+        onAdd(normalizedID, normalizedLabel)
         dismiss()
     }
 
     private var resolvedBindingPreview: String {
-        let normalizedID = ruleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedID = nextRuleID(for: label)
         guard !normalizedID.isEmpty else {
             return kind == .tokenMap ? "conditions.tokenMapRules.<rule_id>" : "conditions.extraConditions.<rule_id>"
         }
@@ -1036,4 +1027,31 @@ private struct NewRuleEntrySheet: View {
     }
 
     private var reservedNotice: String? { nil }
+
+    private func nextRuleID(for label: String) -> String {
+        let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+
+        var base = trimmed
+            .lowercased()
+            .replacingOccurrences(of: "[^a-z0-9]+", with: "_", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+        if base.isEmpty {
+            base = "rule"
+        }
+        if base.first?.isNumber == true {
+            base = "rule_\(base)"
+        }
+
+        let existingIDs = Set(existingEntries.map { $0.ruleID.lowercased() })
+        if !existingIDs.contains(base) {
+            return base
+        }
+
+        var suffix = 2
+        while existingIDs.contains("\(base)_\(suffix)") {
+            suffix += 1
+        }
+        return "\(base)_\(suffix)"
+    }
 }

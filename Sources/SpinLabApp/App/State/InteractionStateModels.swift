@@ -197,6 +197,7 @@ struct LibraryInteractionState: Codable, Equatable {
     var isLibrarySettingsExpanded: Bool = true
     var isRegistryWorkspaceExpanded: Bool = true
     var isSearchWorkspaceExpanded: Bool = true
+    var isMetadataSectionExpanded: Bool = true
     var searchBatchIdText: String = ""
     var searchSubstrateText: String = ""
     var searchKeywordText: String = ""
@@ -205,6 +206,96 @@ struct LibraryInteractionState: Codable, Equatable {
     var searchTemperatureText: String = ""
     var searchEnergyText: String = ""
     var searchHasExecuted: Bool = false
+
+    enum CodingKeys: String, CodingKey {
+        case selectedPrefix
+        case selectedBatchId
+        case selectedSampleId
+        case isLibrarySettingsExpanded
+        case isRegistryWorkspaceExpanded
+        case isSearchWorkspaceExpanded
+        case isMetadataSectionExpanded
+        case searchBatchIdText
+        case searchSubstrateText
+        case searchKeywordText
+        case searchThicknessText
+        case searchOxygenText
+        case searchTemperatureText
+        case searchEnergyText
+        case searchHasExecuted
+    }
+
+    init(
+        selectedPrefix: String? = nil,
+        selectedBatchId: String? = nil,
+        selectedSampleId: String? = nil,
+        isLibrarySettingsExpanded: Bool = true,
+        isRegistryWorkspaceExpanded: Bool = true,
+        isSearchWorkspaceExpanded: Bool = true,
+        isMetadataSectionExpanded: Bool = true,
+        searchBatchIdText: String = "",
+        searchSubstrateText: String = "",
+        searchKeywordText: String = "",
+        searchThicknessText: String = "",
+        searchOxygenText: String = "",
+        searchTemperatureText: String = "",
+        searchEnergyText: String = "",
+        searchHasExecuted: Bool = false
+    ) {
+        self.selectedPrefix = selectedPrefix
+        self.selectedBatchId = selectedBatchId
+        self.selectedSampleId = selectedSampleId
+        self.isLibrarySettingsExpanded = isLibrarySettingsExpanded
+        self.isRegistryWorkspaceExpanded = isRegistryWorkspaceExpanded
+        self.isSearchWorkspaceExpanded = isSearchWorkspaceExpanded
+        self.isMetadataSectionExpanded = isMetadataSectionExpanded
+        self.searchBatchIdText = searchBatchIdText
+        self.searchSubstrateText = searchSubstrateText
+        self.searchKeywordText = searchKeywordText
+        self.searchThicknessText = searchThicknessText
+        self.searchOxygenText = searchOxygenText
+        self.searchTemperatureText = searchTemperatureText
+        self.searchEnergyText = searchEnergyText
+        self.searchHasExecuted = searchHasExecuted
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        selectedPrefix = try container.decodeIfPresent(String.self, forKey: .selectedPrefix)
+        selectedBatchId = try container.decodeIfPresent(String.self, forKey: .selectedBatchId)
+        selectedSampleId = try container.decodeIfPresent(String.self, forKey: .selectedSampleId)
+        isLibrarySettingsExpanded = try container.decodeIfPresent(Bool.self, forKey: .isLibrarySettingsExpanded) ?? true
+        isRegistryWorkspaceExpanded = try container.decodeIfPresent(Bool.self, forKey: .isRegistryWorkspaceExpanded) ?? true
+        isSearchWorkspaceExpanded = try container.decodeIfPresent(Bool.self, forKey: .isSearchWorkspaceExpanded) ?? true
+        isMetadataSectionExpanded = try container.decodeIfPresent(Bool.self, forKey: .isMetadataSectionExpanded) ?? true
+        searchBatchIdText = try container.decodeIfPresent(String.self, forKey: .searchBatchIdText) ?? ""
+        searchSubstrateText = try container.decodeIfPresent(String.self, forKey: .searchSubstrateText) ?? ""
+        searchKeywordText = try container.decodeIfPresent(String.self, forKey: .searchKeywordText) ?? ""
+        searchThicknessText = try container.decodeIfPresent(String.self, forKey: .searchThicknessText) ?? ""
+        searchOxygenText = try container.decodeIfPresent(String.self, forKey: .searchOxygenText) ?? ""
+        searchTemperatureText = try container.decodeIfPresent(String.self, forKey: .searchTemperatureText) ?? ""
+        searchEnergyText = try container.decodeIfPresent(String.self, forKey: .searchEnergyText) ?? ""
+        searchHasExecuted = try container.decodeIfPresent(Bool.self, forKey: .searchHasExecuted) ?? false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(selectedPrefix, forKey: .selectedPrefix)
+        try container.encodeIfPresent(selectedBatchId, forKey: .selectedBatchId)
+        try container.encodeIfPresent(selectedSampleId, forKey: .selectedSampleId)
+        try container.encode(isLibrarySettingsExpanded, forKey: .isLibrarySettingsExpanded)
+        try container.encode(isRegistryWorkspaceExpanded, forKey: .isRegistryWorkspaceExpanded)
+        try container.encode(isSearchWorkspaceExpanded, forKey: .isSearchWorkspaceExpanded)
+        try container.encode(isMetadataSectionExpanded, forKey: .isMetadataSectionExpanded)
+        try container.encode(searchBatchIdText, forKey: .searchBatchIdText)
+        try container.encode(searchSubstrateText, forKey: .searchSubstrateText)
+        try container.encode(searchKeywordText, forKey: .searchKeywordText)
+        try container.encode(searchThicknessText, forKey: .searchThicknessText)
+        try container.encode(searchOxygenText, forKey: .searchOxygenText)
+        try container.encode(searchTemperatureText, forKey: .searchTemperatureText)
+        try container.encode(searchEnergyText, forKey: .searchEnergyText)
+        try container.encode(searchHasExecuted, forKey: .searchHasExecuted)
+    }
 }
 
 struct InboxInteractionState: Codable, Equatable {

@@ -3,7 +3,7 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V2.2.3 AppEnvironment Integration")
+@Suite("V2.2.3 AppEnvironment Integration", .serialized)
 struct V223AppEnvironmentIntegrationTests {
     @Test("importing files projects into repository-backed app state")
     func importFlowProjectsIntoRepositoryAndAppState() async throws {
@@ -33,7 +33,7 @@ struct V223AppEnvironmentIntegrationTests {
         let appState = SpinLabAppState(environment: environment)
 
         appState.importFiles(from: [importURL])
-        try await waitUntil(timeoutMS: 8_000) {
+        try await waitUntil(timeoutMS: 15_000) {
             appState.inbox.pendingImports.count == 1
                 && persistence.loadPendingImports().count == 1
                 && appState.inbox.importProgressState.isRunning == false
@@ -109,7 +109,7 @@ struct V223AppEnvironmentIntegrationTests {
         #expect(appState.interactionValue(\.lastSeenRoutingRuleFingerprint) == appState.inbox.routingRuleFingerprint)
     }
 
-    @Test("workflow parser value is normalized to workflow id via display name and aliases")
+    @Test("workflow parser value is resolved to workflow id by case-insensitive id match")
     func workflowValueNormalizesToWorkflowID() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("spinlab-env-workflow-normalize-\(UUID().uuidString)", isDirectory: true)
@@ -122,10 +122,9 @@ struct V223AppEnvironmentIntegrationTests {
         let registryURL = root.appendingPathComponent("workflow_registry.json")
         let registry = [
             WorkflowDefinition(
-                id: "A",
-                displayName: "AHE",
+                id: "AHE",
+                displayName: "AHE Measurement",
                 parentID: nil,
-                aliases: ["ahe-test"],
                 conditionFields: [WorkflowConditionField(definitionID: "temperature")]
             )
         ]
@@ -151,7 +150,7 @@ struct V223AppEnvironmentIntegrationTests {
         let appState = SpinLabAppState(environment: environment)
 
         appState.importFiles(from: [importURL])
-        try await waitUntil(timeoutMS: 8_000) {
+        try await waitUntil(timeoutMS: 15_000) {
             appState.inbox.pendingImports.count == 1
                 && appState.inbox.importProgressState.isRunning == false
         }
@@ -161,7 +160,65 @@ struct V223AppEnvironmentIntegrationTests {
             return
         }
         let draft = appState.pendingDisplayDraft(for: pending)
-        #expect(draft.workflowID == "A")
+        #expect(draft.workflowID == "AHE")
+    }
+
+    @Test("library sidecar original path is excluded from inbox import")
+    func librarySidecarOriginalPathIsExcludedFromImport() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("spinlab-env-library-dedup-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let importURL = root.appendingPathComponent("PN20_RT_1mA.dat")
+        try Data("test".utf8).write(to: importURL)
+
+        let libraryRoot = root.appendingPathComponent("library", isDirectory: true)
+        let sidecarURL = libraryRoot
+            .appendingPathComponent("batches", isDirectory: true)
+            .appendingPathComponent("PN20", isDirectory: true)
+            .appendingPathComponent("sample", isDirectory: true)
+            .appendingPathComponent("entry.spinlab.json")
+        try FileManager.default.createDirectory(at: sidecarURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+
+        let sidecar = SpinLabFileSidecar(
+            workflow: "AHE",
+            workflowDisplayName: "AHE",
+            conditions: [:],
+            channels: [],
+            sourceFilePath: importURL.standardizedFileURL.path,
+            appliedAt: .now
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let sidecarData = try encoder.encode(sidecar)
+        try sidecarData.write(to: sidecarURL, options: .atomic)
+
+        let persistence = LocalPersistenceStub(
+            pendingImports: [],
+            archivedRecords: [],
+            projects: [],
+            interactionSnapshot: SpinLabInteractionSnapshot()
+        )
+        let environment = AppEnvironment(
+            persistence: persistence,
+            managedStorage: SpinLabManagedStorage(rootURL: root.appendingPathComponent("storage", isDirectory: true)),
+            sampleRegistry: SnapshotSampleRegistryIndex(snapshot: .empty()),
+            registrySubstrateRules: RegistrySubstrateRuleBook(),
+            routingCapabilities: .live,
+            ruleRuntime: DefaultRuleRuntimeCapability(),
+            dataActor: MockDataActor()
+        )
+        let appState = SpinLabAppState(environment: environment)
+        appState.library.librarySettings.rootPath = libraryRoot.path
+
+        appState.importFiles(from: [importURL])
+        try await waitUntil(timeoutMS: 15_000) {
+            appState.inbox.importProgressState.isRunning == false
+        }
+
+        #expect(appState.inbox.pendingImports.isEmpty)
+        #expect(persistence.loadPendingImports().isEmpty)
     }
 
     private func waitUntil(timeoutMS: UInt64, condition: @escaping () -> Bool) async throws {

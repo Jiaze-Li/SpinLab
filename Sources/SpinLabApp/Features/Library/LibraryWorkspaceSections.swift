@@ -14,6 +14,7 @@ struct LibrarySettingsSectionView: View {
     let onChooseLibraryRoot: () -> Void
     let onVerifyRoot: () -> Void
     let onSyncFiles: () -> Void
+    let onBackfillSidecars: () -> Void
     let onSavePrefixes: (String) -> Void
     let onChooseBackupPath: () -> Void
     let onSyncBackup: () -> Void
@@ -81,6 +82,10 @@ struct LibrarySettingsSectionView: View {
                             }
                             Button("Sync Files") {
                                 onSyncFiles()
+                            }
+                            .disabled(viewState.libraryRootPath == nil)
+                            Button("Backfill Sidecars") {
+                                onBackfillSidecars()
                             }
                             .disabled(viewState.libraryRootPath == nil)
                         }
@@ -324,7 +329,7 @@ struct RegistryWorkspaceSectionView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                List {
+                LazyVStack(alignment: .leading, spacing: 2) {
                     ForEach(previewGroupsForSelectedPrefix) { group in
                         Button {
                             onSelectBatch(group)
@@ -338,12 +343,9 @@ struct RegistryWorkspaceSectionView: View {
                             )
                         }
                         .buttonStyle(.plain)
-                        .listRowInsets(EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4))
-                        .listRowSeparator(.hidden)
                     }
                 }
-                .listStyle(.plain)
-                .frame(height: 220)
+                .padding(.horizontal, 4)
             }
         }
     }
@@ -365,7 +367,7 @@ struct RegistryWorkspaceSectionView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                List {
+                LazyVStack(alignment: .leading, spacing: 2) {
                     ForEach(selectedBatchSamples) { sample in
                         Button {
                             onSelectSample(sample)
@@ -376,12 +378,9 @@ struct RegistryWorkspaceSectionView: View {
                             )
                         }
                         .buttonStyle(.plain)
-                        .listRowInsets(EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4))
-                        .listRowSeparator(.hidden)
                     }
                 }
-                .listStyle(.plain)
-                .frame(height: 260)
+                .padding(.horizontal, 4)
             }
         }
     }

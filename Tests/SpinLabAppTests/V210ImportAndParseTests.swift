@@ -89,7 +89,7 @@ struct V210ImportAndParseTests {
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.workflowName == "RT")
+        #expect(parsed.workflowID == "RT")
         #expect(parsed.defaultSampleKey == "PN40")
         #expect(parsed.folderDerivedSampleKeys == ["PN40"])
         #expect(parsed.temperature == nil)
@@ -177,7 +177,7 @@ struct V210ImportAndParseTests {
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.workflowName == nil)
+        #expect(parsed.workflowID == nil)
         #expect(parsed.measurementName == "unknown_pattern_file")
     }
 

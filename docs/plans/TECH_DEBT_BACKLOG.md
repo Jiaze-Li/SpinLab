@@ -9,6 +9,30 @@ Items are ordered by impact, not urgency. See `TECH_DEBT_EXECUTION_LOG.md` for c
 
 ## High Impact
 
+### Rule migration canonicalization single-source
+**Code:**
+- `Sources/SpinLabApp/Import/Rules/RuleLoader.swift` — `normalizeConditionDefinitionBindings`
+- `Sources/SpinLabApp/Import/Rules/ConditionRulesHandbookStore.swift` — `migrateUserRuleFileToCanonicalIfNeeded`
+
+**Problem:**
+Legacy-to-canonical migration logic is implemented in two places with overlapping behavior
+(legacy pattern/deviceRules lift, canonical binding rewrite, conditionDefinitions synthesis).
+Current behavior is aligned, but future schema changes can drift if only one side is updated.
+
+**Target state:**
+Extract a shared canonicalization helper (pure function over rule JSON / `FilenameRuleSet`) and
+call it from both loader-time migration and handbook save-time migration.
+
+**Migration steps:**
+1. Introduce a single canonicalization routine under `Import/Rules` that returns normalized data + warnings.
+2. Make `RuleLoader` and `ConditionRulesHandbookStore` delegate to it.
+3. Keep external behavior and warnings stable (no schema/output change in this round).
+4. Add regression tests asserting both call sites produce identical canonical output for the same legacy input.
+
+**Effort:** Medium (cross-file refactor, low product risk if test-first)
+
+---
+
 ### ParsedFilenameHints unification
 **Code:** `Sources/SpinLabApp/Domain/Models.swift` — `ParsedFilenameHints`
 **Also see:** `Sources/SpinLabApp/Import/Rules/ConditionFieldCatalog.swift`

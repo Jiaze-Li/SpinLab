@@ -32,7 +32,9 @@ struct InboxArchiveApplyService {
         targets: [SpinLabDomain.RouteTarget],
         libraryIndex: LibraryIndex,
         libraryStore: LibraryStore,
-        libraryRootURL: URL
+        libraryRootURL: URL,
+        draft: PendingImportConfirmationDraft? = nil,
+        workflowDefinitions: [WorkflowDefinition] = []
     ) throws -> InboxArchiveApplyResult {
         let sourceURL = URL(fileURLWithPath: pending.sourceFilePath)
         guard FileManager.default.fileExists(atPath: sourceURL.path) else {
@@ -54,8 +56,13 @@ struct InboxArchiveApplyService {
                 guard FileManager.default.fileExists(atPath: drawerRoot.path) else {
                     throw InboxArchiveApplyError.drawerNotFound(sampleId: target.sampleId, candidates: 0)
                 }
+                let workflow = resolvedWorkflow(
+                    draft: draft,
+                    pending: pending,
+                    workflowDefinitions: workflowDefinitions
+                )
                 let destinationDirectory = drawerRoot.appending(
-                    path: destinationSubpath(workflowName: pending.parsedHints.workflowName),
+                    path: destinationSubpath(workflowName: workflow),
                     directoryHint: .isDirectory
                 )
                 let destinationURL = destinationDirectory.appending(
@@ -67,6 +74,18 @@ struct InboxArchiveApplyService {
                     continue
                 }
                 try transaction.prepare(sourceURL: sourceURL, destinationURL: destinationURL)
+                let sidecarURL = destinationDirectory.appending(
+                    path: sourceURL.lastPathComponent + ".spinlab.json",
+                    directoryHint: .notDirectory
+                )
+                let sidecar = buildSidecar(
+                    pending: pending,
+                    target: target,
+                    draft: draft,
+                    workflow: workflow ?? "",
+                    workflowDefinitions: workflowDefinitions
+                )
+                try transaction.prepareSidecar(sidecar, destinationURL: sidecarURL)
                 copiedTargetCount += 1
             }
 
@@ -99,5 +118,100 @@ struct InboxArchiveApplyService {
             return "measurements/\(workflow)"
         }
         return "measurements/General"
+    }
+
+    private func buildSidecar(
+        pending: SpinLabDomain.PendingImport,
+        target: SpinLabDomain.RouteTarget,
+        draft: PendingImportConfirmationDraft?,
+        workflow: String,
+        workflowDefinitions: [WorkflowDefinition]
+    ) -> SpinLabFileSidecar {
+        let matchedDefinition = workflowDefinition(
+            for: workflow,
+            workflowDefinitions: workflowDefinitions
+        )
+        // Use registry displayName as the human-readable label; fall back to id.
+        let workflowDisplayName = matchedDefinition?.displayName ?? workflow
+
+        let sourceConditions = effectiveConditionValues(pending: pending, draft: draft)
+        let conditions: [String: String]
+        if let definition = matchedDefinition {
+            // Only persist non-empty, parsed/confirmed condition values.
+            // Do not hard-fill empty placeholders for missing fields.
+            let selectedIDs = definition.conditionFields.map(\.definitionID)
+            conditions = selectedIDs.reduce(into: [:]) { result, definitionID in
+                guard let value = sourceConditions[definitionID], !value.isEmpty else { return }
+                result[definitionID] = value
+            }
+        } else {
+            conditions = sourceConditions
+        }
+
+        return SpinLabFileSidecar(
+            workflow: workflow,
+            workflowDisplayName: workflowDisplayName,
+            conditions: conditions,
+            channels: target.channels,
+            sourceFilePath: pending.sourceFilePath,
+            appliedAt: .now
+        )
+    }
+
+    private func normalizedConditionValues(from values: [String: String]) -> [String: String] {
+        values.reduce(into: [:]) { partialResult, pair in
+            let key = pair.key.trimmingCharacters(in: .whitespacesAndNewlines)
+            let value = pair.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !key.isEmpty, !value.isEmpty else { return }
+            partialResult[key] = value
+        }
+    }
+
+    private func effectiveConditionValues(
+        pending: SpinLabDomain.PendingImport,
+        draft: PendingImportConfirmationDraft?
+    ) -> [String: String] {
+        // Boundary rule:
+        // - draft present: trust user-edited values only.
+        // - draft absent: fall back to parser baseline.
+        if let draft {
+            return normalizedConditionValues(from: draft.conditionValues)
+        }
+        let parsedConditions = ConditionFieldCatalog.conditionValues(from: pending.parsedHints)
+        return normalizedConditionValues(from: parsedConditions)
+    }
+
+    private func resolvedWorkflow(
+        draft: PendingImportConfirmationDraft?,
+        pending: SpinLabDomain.PendingImport,
+        workflowDefinitions: [WorkflowDefinition]
+    ) -> String? {
+        let candidate: String?
+        if let draft {
+            // Boundary rule: with an explicit draft, do not silently fall back
+            // to parser workflow.
+            candidate = draft.workflowID.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        } else {
+            candidate = pending.parsedHints.workflowID?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        }
+        guard let candidate else { return nil }
+        return workflowDefinition(for: candidate, workflowDefinitions: workflowDefinitions)?.id ?? candidate
+    }
+
+    private func workflowDefinition(
+        for workflowID: String,
+        workflowDefinitions: [WorkflowDefinition]
+    ) -> WorkflowDefinition? {
+        let normalized = workflowID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        return workflowDefinitions.first {
+            $0.id.caseInsensitiveCompare(normalized) == .orderedSame
+        }
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }

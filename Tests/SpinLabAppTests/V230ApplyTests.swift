@@ -158,7 +158,7 @@ struct V230ApplyTests {
         defer { fixture.cleanup() }
 
         var pending = try fixture.makePending(fileName: "PN61_RT_1mA.dat", contents: "workflow-rt")
-        pending.parsedHints.workflowName = "RT"
+        pending.parsedHints.workflowID = "RT"
         let target = SpinLabDomain.RouteTarget(sampleId: "PN61", channels: ["file"])
         let coordinator = ApplyCoordinator()
         let service = InboxArchiveApplyService()

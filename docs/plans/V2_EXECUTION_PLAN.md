@@ -607,8 +607,10 @@ Structural deviations from spec — carried forward as design decisions, not def
    Used by `canonicalWorkflowID()` in `SpinLabAppState` to resolve workflow tokens from parsed filenames via alternate names. No impact on V2.5.
 
 ## V2.5
+Status: `done` (accepted on 2026-04-03)
+
 **Goal (one line)**
-When applying a file, automatically write a tag record alongside it capturing workflow, conditions, and test type.
+When applying a file, automatically write a tag record alongside it capturing workflow and conditions.
 
 **Prerequisites from V2.4 delivery**
 - `WorkflowConditionField` stores only `definitionID`, not label/unit. When populating sidecar condition fields, resolve display metadata by looking up each `definitionID` in the `conditionDefinitions` array from the active `FilenameRuleSet` (via `ConditionFieldCatalog`).
@@ -625,7 +627,7 @@ The sidecar and data file must be atomic (both succeed or both roll back) becaus
 **User story**
 After V2.4 is in place and the user has defined their workflows, the Apply action gains a new behavior: alongside each copied data file, the app writes a small companion tag file (e.g. `mydata.spinlab.json`) in the same folder. This file records the conditions of the measurement — workflow, temperature, and any other fields defined for that workflow in the registry. The user doesn't need to do anything extra; it happens automatically on Apply. These tag files are what V2.6 will read to build the "Measurements Done" history per sample.
 
-If the file's workflow isn't found in the registry, the app records whatever is available (workflow text and temperature from the Inbox draft fields) as a fallback.
+If the file's workflow isn't found in the registry, the app records whatever condition values are available from the Inbox draft as a fallback.
 
 **Sidecar format** (example for workflow `XY`):
 ```json
@@ -634,7 +636,6 @@ If the file's workflow isn't found in the registry, the app records whatever is 
   "workflow": "XY",
   "conditions": { "temperature": "80K", "rotation_angle": "45deg" },
   "channels": ["XRD"],
-  "testType": "XRD",
   "sourceFilePath": "/original/path/myfile.dat",
   "appliedAt": "2026-03-28T10:00:00Z"
 }
@@ -646,7 +647,7 @@ If the file's workflow isn't found in the registry, the app records whatever is 
 3. Condition field values are read from the Inbox draft (the values the user filled in before Apply).
 4. Sidecar and data file are one atomic unit: if either write fails, both roll back.
 5. Each target drawer in a fan-out gets its own sidecar.
-6. Fallback for unknown workflow: record `workflow`, `temperature`, `channels`, `testType`, `sourceFilePath`, `appliedAt` from available data.
+6. Fallback for unknown workflow: record `workflow`, available `conditions`, `channels`, `sourceFilePath`, `appliedAt` from available data.
 
 **Test scenarios & acceptance criteria**
 1. Apply with known workflow → sidecar written with correct condition fields.
@@ -659,7 +660,7 @@ If the file's workflow isn't found in the registry, the app records whatever is 
 
 `Sources/SpinLabApp/Library/SpinLabFileSidecar.swift`
 - `struct SpinLabFileSidecar: Codable, Hashable, Sendable`
-- Fields: `version`, `workflow`, `conditions: [String: String]`, `channels`, `testType`, `sourceFilePath`, `appliedAt`
+- Fields: `version`, `workflow`, `conditions: [String: String]`, `channels`, `sourceFilePath`, `appliedAt`
 
 **Modified files**
 
@@ -681,7 +682,21 @@ If the file's workflow isn't found in the registry, the app records whatever is 
 **Test file**
 `Tests/SpinLabAppTests/V250SidecarTests.swift` — 5 scenarios above.
 
+**Delivery record** (2026-04-03)
+
+- V2.5 sidecar writing flow is closed and verified:
+  - sidecar written per destination drawer during apply.
+  - apply data file + sidecar commit/rollback is atomic.
+  - draft-first condition sourcing and unknown-workflow fallback are in place.
+- Regression status:
+  - `V250SidecarTests` passed.
+  - full `swift test` passed in this branch verification round.
+- Scope note:
+  - workflow is the canonical test classification; no separate `testType` field is required.
+
 ## V2.6
+Status: `done` (accepted on 2026-04-03)
+
 **Goal (one line)**
 Show a "Measurements Done" history per sample in Library, built from the sidecar tag files.
 
@@ -691,12 +706,12 @@ Sidecar reading is done during the existing `Library Sync Files` pass rather tha
 The display is added as a new collapsible section in the existing sample detail panel (alongside Sample, Numeric Tags, Metadata) rather than as a separate screen, because it's sample-scoped information. The user is already looking at a sample when they want to know what tests it has had — no navigation needed.
 
 **User story**
-After files have been applied with V2.5 sidecars, the Library sample detail panel (right column) gains a new collapsible section: **Measurements Done**. It lists every measurement that has been applied to this sample — test type, conditions, workflow, and date — so the user can see at a glance what tests have been run and under what conditions.
+After files have been applied with V2.5 sidecars, the Library sample detail panel (right column) gains a new collapsible section: **Measurements Done**. It lists every measurement that has been applied to this sample — workflow and conditions — so the user can see at a glance what tests have been run and under what conditions.
 
 ```
 ▾ Measurements Done
-  XRD @ 80K  |  workflow: XY   |  2026-03-28
-  M-H @ RT   |  workflow: AMR  |  2026-03-25
+  XY  |  80K
+  AMR |  RT
 ```
 
 The section can be collapsed with a chevron, same as the existing Sample / Numeric Tags / Metadata sections.
@@ -706,15 +721,17 @@ The section can be collapsed with a chevron, same as the existing Sample / Numer
 2. Decode each sidecar into an `AppliedMeasurement` record.
 3. Aggregate all records per sample; attach to `LibrarySample`.
 4. Display in a new collapsible "Measurements Done" section in the sample detail panel.
-5. Each row shows: test type, primary condition (temperature or equivalent), workflow, applied date.
+5. Each row shows: workflow + condition values (ordered by workflow condition definitions).
+6. `workflow` is the canonical test classification in V2.6 UI; no separate `testType` field is required.
+7. `appliedAt` remains stored in sidecar/model for sorting and auditability, but date display in the detail row is optional and deferred.
 
 **New model**
 ```swift
 struct AppliedMeasurement: Codable, Hashable, Identifiable, Sendable {
-    var id: UUID
+    var id: String
     var workflow: String
+    var workflowDisplayName: String
     var conditions: [String: String]   // e.g. {"temperature": "80K"}
-    var testType: String
     var appliedAt: Date
     var sourceFileName: String
 }
@@ -734,6 +751,18 @@ struct AppliedMeasurement: Codable, Hashable, Identifiable, Sendable {
 **Test file**
 `Tests/SpinLabAppTests/V260MeasurementsDisplayTests.swift`
 
+**Delivery record** (2026-04-03)
+
+- V2.6 measurement history display flow is closed and verified:
+  - sidecars are scanned and decoded into `AppliedMeasurement`.
+  - per-sample measurement history is attached and rendered in Library detail section.
+  - display follows current product scope: workflow + ordered conditions.
+- Regression status:
+  - `V260MeasurementsDisplayTests` passed.
+  - full `swift test` passed in this branch verification round.
+- Scope note:
+  - `appliedAt` is retained for sorting/audit; row-level date display is intentionally deferred.
+
 ## V2.7
 **Goal (one line)**
 Finalize auditability and safety with dual logs, strict duplicate guard, and safe pending cleanup.
@@ -746,6 +775,10 @@ Every Apply action writes a timestamped entry to an import log (both in the Libr
 2. Dual log sinks: one under `Library Root`, one under App Support.
 3. Duplicate import guard: reject duplicate by `fileName + contentHash`.
 4. `Clear Imports`: clears pending queue only; never touches archived Library files.
+5. Apply path unification: remove the dual apply execution paths in `SpinLabAppState` and converge selected/apply-all onto one async per-file engine with shared progress and error handling semantics.
+6. Rule migration canonicalization unification: remove duplicated legacy-to-canonical migration logic by introducing one shared canonicalization routine used by both `RuleLoader` and `ConditionRulesHandbookStore`.
+7. Legacy consumer cleanup (safe scope): remove low-risk legacy consumer traces that are no longer needed in active V2.x flows, while preserving required snapshot/config compatibility boundaries.
+8. Keep deprecated rule fields (`temperaturePattern/currentPattern/fieldPattern`, `deviceRules`) under observation and do not delete in V2.7 unless production telemetry confirms migration path is no longer used.
 
 **Test scenarios & acceptance criteria**
 1. Apply action → import log written to both sinks with consistent target summary.
@@ -756,6 +789,13 @@ Every Apply action writes a timestamped entry to an import log (both in the Libr
 1. Add `AuditEvent` model and `AuditLogger` with two sinks.
 2. Add `DuplicateGuard` for hash-based rejection.
 3. Add `PendingCleanupService` to isolate pending purge side effects.
+4. Refactor `SpinLabAppState` apply flow:
+   - Extract reusable async apply loop.
+   - Route both selected-apply and apply-all through the same loop.
+   - Remove `performApply(resolver:)` and `ApplyContext` once migration is complete.
+5. Extract rule canonicalization helper under `Import/Rules` and make both migration call sites delegate to it.
+6. Perform targeted legacy-consumer cleanup in app/view/domain call sites where compatibility is no longer required.
+7. Keep deprecated rule fields + migration branches intact for one more release window; decide deletion after telemetry validation.
 
 ## Out-of-scope for this execution thread
 - Auto-apply without manual user action.
