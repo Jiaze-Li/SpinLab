@@ -204,6 +204,62 @@ struct V210ImportAndParseTests {
         #expect(parsed.temperature == "25C")
     }
 
+    @Test("parser strips whitespace before tokenization so spaced unit suffix tokens are recognized")
+    func parserRecognizesSpacedUnitSuffixTokensAfterWhitespaceNormalization() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN69/RT_run/20260328000728_3w_0deg_O_Position_0.000000 degree_Iac_0.001000 A_T_160.002 K_Vg_0.000000 V_Ig_0.000000 A.lvm")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.temperature == "160K")
+        #expect(parsed.current == "0.001A")
+    }
+
+    @Test("parser rounds field values to nearest half-step and removes trailing .0")
+    func parserRoundsFieldToHalfStep() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+
+        let parsed61 = parser.parse(from: URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_6.1T_1mA.dat"))
+        #expect(parsed61.field == "6T")
+
+        let parsed65 = parser.parse(from: URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_6.5T_1mA.dat"))
+        #expect(parsed65.field == "6.5T")
+    }
+
+    @Test("parser trims current floating noise with fixed precision rounding")
+    func parserTrimsCurrentFloatingNoise() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_0.0001001A_1T.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.current == "0.0001A")
+    }
+
+    @Test("parser resolves device from unit-suffix definition when handbook defines device as unit-suffix")
+    func parserResolvesDeviceFromUnitSuffixDefinition() throws {
+        var ruleSet = try loadBundledRuleSetForTests()
+        ruleSet.conditionDefinitions.append(
+            .init(
+                id: "device",
+                label: "Device",
+                kind: .unitSuffix,
+                binding: "conditions.extraConditions.device"
+            )
+        )
+        ruleSet.conditions.extraConditions["device"] = "^-?\\d+(?:\\.\\d+)?(?:deg)$"
+        ruleSet.loadWarnings = ruleSet.compile()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN69/RT_run/run_0deg_1mA.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.deviceName == "0deg")
+    }
+
     @Test("parser recognizes dynamic extra conditions when definition exists")
     func parserRecognizesDynamicExtraConditions() throws {
         var ruleSet = try loadBundledRuleSetForTests()
