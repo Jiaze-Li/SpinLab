@@ -39,12 +39,18 @@ struct InboxArchiveApplyService {
         workflowDefinitions: [WorkflowDefinition] = []
     ) throws -> InboxArchiveApplyResult {
         let sourceURL = URL(fileURLWithPath: pending.sourceFilePath)
+        let samplesByID = Dictionary(uniqueKeysWithValues: libraryIndex.samples.map { ($0.id, $0) })
         var targetDrawers: [String] = []
         guard FileManager.default.fileExists(atPath: sourceURL.path) else {
             writeAuditEvent(
                 pending: pending,
                 sourceURL: sourceURL,
-                targetDrawers: targets.map(\.sampleId),
+                targetDrawers: resolvedTargetDrawers(
+                    for: targets,
+                    samplesByID: samplesByID,
+                    libraryStore: libraryStore,
+                    libraryRootURL: libraryRootURL
+                ),
                 result: "failed",
                 metadata: ["reason": InboxArchiveApplyError.sourceFileNotFound.localizedDescription],
                 libraryRootURL: libraryRootURL
@@ -52,7 +58,6 @@ struct InboxArchiveApplyService {
             throw InboxArchiveApplyError.sourceFileNotFound
         }
 
-        let samplesByID = Dictionary(uniqueKeysWithValues: libraryIndex.samples.map { ($0.id, $0) })
         var transaction = LibraryWriteTransaction()
         var copiedTargetCount = 0
         var skippedExistingTargetCount = 0
@@ -80,10 +85,7 @@ struct InboxArchiveApplyService {
                     path: sourceURL.lastPathComponent,
                     directoryHint: .notDirectory
                 )
-                let drawerSummary = destinationDirectory.path.replacingOccurrences(
-                    of: libraryRootURL.standardizedFileURL.path + "/",
-                    with: ""
-                )
+                let drawerSummary = relativePath(drawerRoot, from: libraryRootURL)
                 if !targetDrawers.contains(drawerSummary) {
                     targetDrawers.append(drawerSummary)
                 }
@@ -132,7 +134,14 @@ struct InboxArchiveApplyService {
             writeAuditEvent(
                 pending: pending,
                 sourceURL: sourceURL,
-                targetDrawers: targetDrawers.isEmpty ? targets.map(\.sampleId) : targetDrawers,
+                targetDrawers: targetDrawers.isEmpty
+                    ? resolvedTargetDrawers(
+                        for: targets,
+                        samplesByID: samplesByID,
+                        libraryStore: libraryStore,
+                        libraryRootURL: libraryRootURL
+                    )
+                    : targetDrawers,
                 result: "failed",
                 metadata: ["reason": error.localizedDescription],
                 libraryRootURL: libraryRootURL
@@ -144,7 +153,14 @@ struct InboxArchiveApplyService {
             writeAuditEvent(
                 pending: pending,
                 sourceURL: sourceURL,
-                targetDrawers: targetDrawers.isEmpty ? targets.map(\.sampleId) : targetDrawers,
+                targetDrawers: targetDrawers.isEmpty
+                    ? resolvedTargetDrawers(
+                        for: targets,
+                        samplesByID: samplesByID,
+                        libraryStore: libraryStore,
+                        libraryRootURL: libraryRootURL
+                    )
+                    : targetDrawers,
                 result: "failed",
                 metadata: ["reason": appError.localizedDescription],
                 libraryRootURL: libraryRootURL
@@ -175,6 +191,35 @@ struct InboxArchiveApplyService {
             metadata: metadata
         )
         auditLogger.logImportEvent(event, libraryRootURL: libraryRootURL)
+    }
+
+    private func resolvedTargetDrawers(
+        for targets: [SpinLabDomain.RouteTarget],
+        samplesByID: [String: LibrarySample],
+        libraryStore: LibraryStore,
+        libraryRootURL: URL
+    ) -> [String] {
+        var drawers: [String] = []
+        for target in targets {
+            guard let sample = samplesByID[target.sampleId] else {
+                continue
+            }
+            let drawerRoot = libraryStore.drawerRootURL(for: sample, rootURL: libraryRootURL)
+            let drawerPath = relativePath(drawerRoot, from: libraryRootURL)
+            if !drawers.contains(drawerPath) {
+                drawers.append(drawerPath)
+            }
+        }
+        return drawers
+    }
+
+    private func relativePath(_ url: URL, from rootURL: URL) -> String {
+        let rootPath = rootURL.standardizedFileURL.path
+        let absolute = url.standardizedFileURL.path
+        if absolute.hasPrefix(rootPath + "/") {
+            return String(absolute.dropFirst(rootPath.count + 1))
+        }
+        return absolute
     }
 
     private func destinationSubpath(workflowName: String?) -> String {
