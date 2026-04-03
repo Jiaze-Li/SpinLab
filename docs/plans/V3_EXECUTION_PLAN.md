@@ -615,6 +615,7 @@ Rule:
 10. Library metric editing disabled in V3
 11. condition rename handled by compatibility mapping + UI badge
 12. no cross-sample aggregate writeback in V3
+13. V3.1 atomic write scope is single commit interface (`temp-write -> fsync -> commit`) only; cross-artifact all-or-nothing transaction rollback is explicitly deferred to V3.4 reliability hardening
 
 ---
 
