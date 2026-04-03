@@ -1,5 +1,7 @@
 # SpinLab V2 Execution Plan
 
+Status: DONE (accepted on 2026-04-03)
+
 This document is the implementation handoff plan for a new execution thread.
 
 Rule governance: the routing rules framework must stay integrated in this execution plan and be updated in-place here.
@@ -764,6 +766,8 @@ struct AppliedMeasurement: Codable, Hashable, Identifiable, Sendable {
   - `appliedAt` is retained for sorting/audit; row-level date display is intentionally deferred.
 
 ## V2.7
+Status: `done` (accepted on 2026-04-03)
+
 **Goal (one line)**
 Finalize auditability and safety with dual logs, strict duplicate guard, and safe pending cleanup.
 
@@ -829,3 +833,6 @@ Every Apply action writes a timestamped entry to an import log (both in the Libr
 - Auto-apply without manual user action.
 - Plot preview in Inbox right panel (extension seam retained for future).
 - Workbench analysis tools (separate roadmap after V2.4 workflow registry is established).
+
+## Done Markers
+- v2-done

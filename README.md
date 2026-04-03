@@ -11,6 +11,7 @@ Full index at [`docs/README.md`](docs/README.md). Quick reference below.
 |---|---|
 | [`docs/plans/APP_FLOW.md`](docs/plans/APP_FLOW.md) | End-to-end app workflow and page responsibilities |
 | [`docs/plans/V2_EXECUTION_PLAN.md`](docs/plans/V2_EXECUTION_PLAN.md) | V2 staged implementation plan and acceptance criteria |
+| [`docs/plans/V3_EXECUTION_PLAN.md`](docs/plans/V3_EXECUTION_PLAN.md) | V3 architecture-first execution plan: workflow pipelines, unified plotting, and Library writeback model |
 | [`docs/plans/TECH_DEBT_EXECUTION_LOG.md`](docs/plans/TECH_DEBT_EXECUTION_LOG.md) | Completed technical debt rounds — what was done and why |
 | [`docs/plans/TECH_DEBT_BACKLOG.md`](docs/plans/TECH_DEBT_BACKLOG.md) | Pending technical improvements with migration steps and effort estimates |
 

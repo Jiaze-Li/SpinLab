@@ -6,6 +6,7 @@
 |---|---|---|
 | `plans/V1_EXECUTION_PLAN.md` | V1 execution history and completion record. | done |
 | `plans/V2_EXECUTION_PLAN.md` | V2 staged implementation plan and acceptance criteria. | active |
+| `plans/V3_EXECUTION_PLAN.md` | V3 architecture-first plan: workflow-specific processing, unified plotting, and sample-centric measurement data. | done |
 | `plans/APP_FLOW.md` | End-to-end app workflow and page responsibilities. | active |
 | `plans/TECH_DEBT_EXECUTION_LOG.md` | Completed technical debt reduction rounds — dates, scope, rationale. | active |
 | `plans/TECH_DEBT_BACKLOG.md` | Pending technical improvements that have been identified but not yet executed. | active |
