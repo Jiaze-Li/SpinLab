@@ -29,7 +29,7 @@ struct RuleLoader {
     func load() -> LoadResult {
         var warnings: [String] = []
 
-        let appSupportURL = applicationSupportRuleURL()
+        let appSupportURL = rulesConfigPaths().ruleURL
         logger.info(.import, "Rule source probe", metadata: [
             "source": "ApplicationSupport",
             "path": appSupportURL.path
@@ -206,11 +206,11 @@ struct RuleLoader {
 
     private func applySeparatedOverrides(ruleSet: inout FilenameRuleSet) -> [String] {
         var warnings: [String] = []
-        if isRunningTests(), !shouldEnableSeparatedOverridesDuringTests() {
+        if RulesConfigPaths.isRunningTests(), !shouldEnableSeparatedOverridesDuringTests() {
             return warnings
         }
 
-        let sampleIDURL = sampleIDRulesURL()
+        let sampleIDURL = rulesConfigPaths().sampleIDRulesURL
         if FileManager.default.fileExists(atPath: sampleIDURL.path) {
             do {
                 let data = try Data(contentsOf: sampleIDURL)
@@ -232,7 +232,7 @@ struct RuleLoader {
             }
         }
 
-        let workflowURL = workflowMatchRulesURL()
+        let workflowURL = rulesConfigPaths().workflowMatchRulesURL
         if FileManager.default.fileExists(atPath: workflowURL.path) {
             do {
                 let data = try Data(contentsOf: workflowURL)
@@ -278,7 +278,7 @@ struct RuleLoader {
             }
         }
 
-        let conditionsURL = conditionsRulesURL()
+        let conditionsURL = rulesConfigPaths().conditionsRulesURL
         if FileManager.default.fileExists(atPath: conditionsURL.path) {
             do {
                 let data = try Data(contentsOf: conditionsURL)
@@ -350,7 +350,7 @@ struct RuleLoader {
             }
         }
 
-        let substrateURL = substrateRulesURL()
+        let substrateURL = rulesConfigPaths().substrateRulesURL
         if FileManager.default.fileExists(atPath: substrateURL.path) {
             do {
                 let data = try Data(contentsOf: substrateURL)
@@ -384,7 +384,7 @@ struct RuleLoader {
             }
         }
 
-        let measurementTagURL = measurementTagRulesURL()
+        let measurementTagURL = rulesConfigPaths().measurementTagRulesURL
         if FileManager.default.fileExists(atPath: measurementTagURL.path) {
             do {
                 let data = try Data(contentsOf: measurementTagURL)
@@ -547,63 +547,20 @@ struct RuleLoader {
         return warnings
     }
 
-    private func applicationSupportRuleURL() -> URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support", isDirectory: true)
-        // Keep rules colocated with the rest of SpinLab persisted state.
-        // In tests, isolate from real user data.
-        let isRunningTests = isRunningTests()
-        let bundleID = Bundle.main.bundleIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let isMainAppBundle = bundleID?.caseInsensitiveCompare("com.spinlab.app") == .orderedSame
-        let appFolder: String
-        if !isRunningTests && isMainAppBundle {
-            appFolder = "SpinLab"
-        } else {
-            if let bundleID, !bundleID.isEmpty {
-                appFolder = bundleID
-            } else {
-                appFolder = "com.spinlab.tests.\(ProcessInfo.processInfo.processIdentifier)"
-            }
-        }
-        return base
-            .appendingPathComponent(appFolder, isDirectory: true)
-            .appendingPathComponent("config", isDirectory: true)
-            .appendingPathComponent("filename_rules.json")
-    }
-
-    private func sampleIDRulesURL() -> URL {
-        applicationSupportRuleURL()
-            .deletingLastPathComponent()
-            .appendingPathComponent("sample_id_rules.json")
-    }
-
-    private func workflowMatchRulesURL() -> URL {
-        applicationSupportRuleURL()
-            .deletingLastPathComponent()
-            .appendingPathComponent("workflow_match_rules.json")
-    }
-
-    private func conditionsRulesURL() -> URL {
-        applicationSupportRuleURL()
-            .deletingLastPathComponent()
-            .appendingPathComponent("conditions_rules.json")
-    }
-
-    private func substrateRulesURL() -> URL {
-        applicationSupportRuleURL()
-            .deletingLastPathComponent()
-            .appendingPathComponent("substrate_rules.json")
-    }
-
-    private func measurementTagRulesURL() -> URL {
-        applicationSupportRuleURL()
-            .deletingLastPathComponent()
-            .appendingPathComponent("measurement_tag_rules.json")
+    private func rulesConfigPaths() -> RulesConfigPaths {
+        RulesConfigPaths(fileManager: .default)
     }
 
     private func compositeHash(primaryData: Data, primaryURL: URL) -> String {
         var parts: [Data] = [primaryData]
-        for url in [sampleIDRulesURL(), workflowMatchRulesURL(), conditionsRulesURL(), substrateRulesURL(), measurementTagRulesURL()] {
+        let paths = rulesConfigPaths()
+        for url in [
+            paths.sampleIDRulesURL,
+            paths.workflowMatchRulesURL,
+            paths.conditionsRulesURL,
+            paths.substrateRulesURL,
+            paths.measurementTagRulesURL
+        ] {
             guard FileManager.default.fileExists(atPath: url.path),
                   let data = try? Data(contentsOf: url) else {
                 continue
@@ -612,12 +569,6 @@ struct RuleLoader {
             parts.append(data)
         }
         return hashHex(for: parts.reduce(into: Data(), { $0.append($1) }))
-    }
-
-    private func isRunningTests() -> Bool {
-        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-            || Bundle.main.bundleURL.pathExtension.caseInsensitiveCompare("xctest") == .orderedSame
-            || Bundle.main.bundlePath.localizedCaseInsensitiveContains(".xctest/")
     }
 
     private func shouldEnableSeparatedOverridesDuringTests() -> Bool {

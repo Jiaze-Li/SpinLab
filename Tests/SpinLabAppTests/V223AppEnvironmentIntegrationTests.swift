@@ -163,6 +163,64 @@ struct V223AppEnvironmentIntegrationTests {
         #expect(draft.workflowID == "AHE")
     }
 
+    @Test("library sidecar original path is excluded from inbox import")
+    func librarySidecarOriginalPathIsExcludedFromImport() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("spinlab-env-library-dedup-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let importURL = root.appendingPathComponent("PN20_RT_1mA.dat")
+        try Data("test".utf8).write(to: importURL)
+
+        let libraryRoot = root.appendingPathComponent("library", isDirectory: true)
+        let sidecarURL = libraryRoot
+            .appendingPathComponent("batches", isDirectory: true)
+            .appendingPathComponent("PN20", isDirectory: true)
+            .appendingPathComponent("sample", isDirectory: true)
+            .appendingPathComponent("entry.spinlab.json")
+        try FileManager.default.createDirectory(at: sidecarURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+
+        let sidecar = SpinLabFileSidecar(
+            workflow: "AHE",
+            workflowDisplayName: "AHE",
+            conditions: [:],
+            channels: [],
+            sourceFilePath: importURL.standardizedFileURL.path,
+            appliedAt: .now
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let sidecarData = try encoder.encode(sidecar)
+        try sidecarData.write(to: sidecarURL, options: .atomic)
+
+        let persistence = LocalPersistenceStub(
+            pendingImports: [],
+            archivedRecords: [],
+            projects: [],
+            interactionSnapshot: SpinLabInteractionSnapshot()
+        )
+        let environment = AppEnvironment(
+            persistence: persistence,
+            managedStorage: SpinLabManagedStorage(rootURL: root.appendingPathComponent("storage", isDirectory: true)),
+            sampleRegistry: SnapshotSampleRegistryIndex(snapshot: .empty()),
+            registrySubstrateRules: RegistrySubstrateRuleBook(),
+            routingCapabilities: .live,
+            ruleRuntime: DefaultRuleRuntimeCapability(),
+            dataActor: MockDataActor()
+        )
+        let appState = SpinLabAppState(environment: environment)
+        appState.library.librarySettings.rootPath = libraryRoot.path
+
+        appState.importFiles(from: [importURL])
+        try await waitUntil(timeoutMS: 15_000) {
+            appState.inbox.importProgressState.isRunning == false
+        }
+
+        #expect(appState.inbox.pendingImports.isEmpty)
+        #expect(persistence.loadPendingImports().isEmpty)
+    }
+
     private func waitUntil(timeoutMS: UInt64, condition: @escaping () -> Bool) async throws {
         let intervalNS: UInt64 = 20_000_000
         let deadline = DispatchTime.now().uptimeNanoseconds + timeoutMS * 1_000_000

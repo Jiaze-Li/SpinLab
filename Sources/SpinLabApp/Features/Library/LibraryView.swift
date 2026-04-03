@@ -1125,46 +1125,31 @@ struct LibraryView: View {
     }
 
     private func syncBrowserSelection() {
-        if selectedPrefix == nil || !previewPrefixes.contains(selectedPrefix ?? "") {
-            selectedPrefix = previewPrefixes.first
-        }
-        if let firstBatch = previewGroupsForSelectedPrefix.first?.batchId {
-            if selectedBatchId == nil || previewGroupsForSelectedPrefix.first(where: { $0.batchId == selectedBatchId }) == nil {
-                selectedBatchId = firstBatch
-            }
-        } else {
-            selectedBatchId = nil
-            selectedSampleId = nil
-            return
-        }
-        if selectedSampleId == nil || !selectedBatchSamples.contains(where: { $0.id == selectedSampleId }) {
-            selectedSampleId = selectedBatchSamples.first?.id
-        }
+        let output = LibrarySelectionSync.syncBrowserSelection(
+            input: .init(
+                selectedPrefix: selectedPrefix,
+                selectedBatchId: selectedBatchId,
+                selectedSampleId: selectedSampleId
+            ),
+            previewGroupsByPrefix: viewState.previewGroupsByPrefix
+        )
+        selectedPrefix = output.selectedPrefix
+        selectedBatchId = output.selectedBatchId
+        selectedSampleId = output.selectedSampleId
     }
 
     private func syncDrawerSelection() {
-        let existingGroups = viewState.existingGroupsByPrefix
-        let existingPrefixes = existingGroups.keys.sorted()
-
-        if selectedPrefix == nil || !existingPrefixes.contains(selectedPrefix ?? "") {
-            selectedPrefix = existingPrefixes.first
-        }
-        guard let prefix = selectedPrefix else {
-            selectedBatchId = nil
-            selectedSampleId = nil
-            return
-        }
-
-        let groups = existingGroups[prefix] ?? []
-        let batchIDs = groups.map(\.batchId)
-        if selectedBatchId == nil || !batchIDs.contains(selectedBatchId ?? "") {
-            selectedBatchId = groups.first?.batchId
-        }
-
-        let samples = groups.first(where: { $0.batchId == selectedBatchId })?.samples ?? []
-        if selectedSampleId == nil || !samples.contains(where: { $0.id == selectedSampleId }) {
-            selectedSampleId = samples.first?.id
-        }
+        let output = LibrarySelectionSync.syncDrawerSelection(
+            input: .init(
+                selectedPrefix: selectedPrefix,
+                selectedBatchId: selectedBatchId,
+                selectedSampleId: selectedSampleId
+            ),
+            existingGroupsByPrefix: viewState.existingGroupsByPrefix
+        )
+        selectedPrefix = output.selectedPrefix
+        selectedBatchId = output.selectedBatchId
+        selectedSampleId = output.selectedSampleId
     }
 
     private var allExistingDrawerSamples: [SearchResultItem] {

@@ -245,6 +245,15 @@ struct V225RulesConfigContractTests {
         #expect(issues.contains(where: { $0.severity == .warning }) == true)
     }
 
+    @Test("handbook store and shared config paths resolve identical files")
+    func handbookStoreUsesSharedRulesConfigPaths() {
+        let fileManager = FileManager.default
+        let store = ConditionRulesHandbookStore(fileManager: fileManager)
+        let paths = RulesConfigPaths(fileManager: fileManager)
+
+        #expect(store.userFileURL == paths.ruleURL)
+    }
+
     @Test("legacy user handbook file migrates to canonical condition schema")
     func legacyUserRulesMigrateToCanonicalConditionSchema() throws {
         let store = ConditionRulesHandbookStore()

@@ -239,6 +239,7 @@ final class ConditionRulesHandbookStore {
     }
 
     private let fileManager: FileManager
+    private let logger = AppLogger.shared
     let userFileURL: URL
     private let workflowMatchRulesFileURL: URL
     private let sampleIDRulesFileURL: URL
@@ -248,18 +249,19 @@ final class ConditionRulesHandbookStore {
 
     init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
-        self.userFileURL = Self.applicationSupportRuleURL(fileManager: fileManager)
-        self.workflowMatchRulesFileURL = Self.applicationSupportWorkflowMatchRulesURL(fileManager: fileManager)
-        self.sampleIDRulesFileURL = Self.applicationSupportSampleIDRulesURL(fileManager: fileManager)
-        self.conditionsRulesFileURL = Self.applicationSupportConditionsRulesURL(fileManager: fileManager)
-        self.substrateRulesFileURL = Self.applicationSupportSubstrateRulesURL(fileManager: fileManager)
-        self.measurementTagRulesFileURL = Self.applicationSupportMeasurementTagRulesURL(fileManager: fileManager)
+        let paths = RulesConfigPaths(fileManager: fileManager)
+        self.userFileURL = paths.ruleURL
+        self.workflowMatchRulesFileURL = paths.workflowMatchRulesURL
+        self.sampleIDRulesFileURL = paths.sampleIDRulesURL
+        self.conditionsRulesFileURL = paths.conditionsRulesURL
+        self.substrateRulesFileURL = paths.substrateRulesURL
+        self.measurementTagRulesFileURL = paths.measurementTagRulesURL
     }
 
     // MARK: Read
 
     func loadCurrentEntries() -> [RuleEntry] {
-        _ = migrateUserRuleFileToCanonicalIfNeeded()
+        migrateUserRuleFileToCanonicalIfNeeded()
         let ruleSet = RuleLoader.shared.loadCached().ruleSet
         return loadEntries(from: ruleSet)
     }
@@ -278,7 +280,7 @@ final class ConditionRulesHandbookStore {
     }
 
     func conditionDefinitionOptions() -> [ConditionDefinitionOption] {
-        _ = migrateUserRuleFileToCanonicalIfNeeded()
+        migrateUserRuleFileToCanonicalIfNeeded()
         let definitions = definitions(from: RuleLoader.shared.loadCached().ruleSet)
         var seenRuleIDs: Set<String> = []
         return definitions.compactMap { definition in
@@ -292,11 +294,17 @@ final class ConditionRulesHandbookStore {
         do {
             try ensureUserFileExists()
         } catch {
+            logger.warning(.import, "Rules migration skipped because user rule file could not be prepared", metadata: [
+                "reason": error.localizedDescription
+            ])
             return false
         }
 
         guard let data = try? Data(contentsOf: userFileURL),
               var json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            logger.warning(.import, "Rules migration skipped because user rule file could not be decoded", metadata: [
+                "fileName": userFileURL.lastPathComponent
+            ])
             return false
         }
 
@@ -433,6 +441,9 @@ final class ConditionRulesHandbookStore {
             withJSONObject: json,
             options: [.prettyPrinted, .sortedKeys]
         ) else {
+            logger.warning(.import, "Rules migration failed during JSON encoding", metadata: [
+                "fileName": userFileURL.lastPathComponent
+            ])
             return false
         }
         do {
@@ -440,6 +451,10 @@ final class ConditionRulesHandbookStore {
             _ = RuleLoader.shared.reloadCached()
             return true
         } catch {
+            logger.warning(.import, "Rules migration failed during file write", metadata: [
+                "fileName": userFileURL.lastPathComponent,
+                "reason": error.localizedDescription
+            ])
             return false
         }
     }
@@ -1624,63 +1639,6 @@ final class ConditionRulesHandbookStore {
         if fileManager.fileExists(atPath: c5.path) { return c5 }
 
         return nil
-    }
-
-    private static func applicationSupportRuleURL(fileManager: FileManager) -> URL {
-        applicationSupportConfigDirectory(fileManager: fileManager)
-            .appendingPathComponent("filename_rules.json")
-    }
-
-    private static func applicationSupportWorkflowMatchRulesURL(fileManager: FileManager) -> URL {
-        applicationSupportConfigDirectory(fileManager: fileManager)
-            .appendingPathComponent("workflow_match_rules.json")
-    }
-
-    private static func applicationSupportSampleIDRulesURL(fileManager: FileManager) -> URL {
-        applicationSupportConfigDirectory(fileManager: fileManager)
-            .appendingPathComponent("sample_id_rules.json")
-    }
-
-    private static func applicationSupportConditionsRulesURL(fileManager: FileManager) -> URL {
-        applicationSupportConfigDirectory(fileManager: fileManager)
-            .appendingPathComponent("conditions_rules.json")
-    }
-
-    private static func applicationSupportSubstrateRulesURL(fileManager: FileManager) -> URL {
-        applicationSupportConfigDirectory(fileManager: fileManager)
-            .appendingPathComponent("substrate_rules.json")
-    }
-
-    private static func applicationSupportMeasurementTagRulesURL(fileManager: FileManager) -> URL {
-        applicationSupportConfigDirectory(fileManager: fileManager)
-            .appendingPathComponent("measurement_tag_rules.json")
-    }
-
-    private static func applicationSupportConfigDirectory(fileManager: FileManager) -> URL {
-        let base = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? URL(fileURLWithPath: NSHomeDirectory())
-                .appendingPathComponent("Library/Application Support", isDirectory: true)
-        // Keep rules colocated with the rest of SpinLab persisted state.
-        // In tests, isolate from real user data.
-        let isRunningTests =
-            ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-            || Bundle.main.bundleURL.pathExtension.caseInsensitiveCompare("xctest") == .orderedSame
-            || Bundle.main.bundlePath.localizedCaseInsensitiveContains(".xctest/")
-        let bundleID = Bundle.main.bundleIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let isMainAppBundle = bundleID?.caseInsensitiveCompare("com.spinlab.app") == .orderedSame
-        let appFolder: String
-        if !isRunningTests && isMainAppBundle {
-            appFolder = "SpinLab"
-        } else {
-            if let bundleID, !bundleID.isEmpty {
-                appFolder = bundleID
-            } else {
-                appFolder = "com.spinlab.tests.\(ProcessInfo.processInfo.processIdentifier)"
-            }
-        }
-        return base
-            .appendingPathComponent(appFolder, isDirectory: true)
-            .appendingPathComponent("config", isDirectory: true)
     }
 
     enum HandbookError: LocalizedError {

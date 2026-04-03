@@ -192,6 +192,8 @@ final class SpinLabAppState {
     private let registryLifecycleService = RegistryLifecycleService()
     @ObservationIgnored
     private var contentFingerprintCache: [String: String] = [:]
+    @ObservationIgnored
+    private var libraryImportedOriginalPathsCache: (rootPath: String, batchesFingerprint: String, paths: Set<String>)?
     private let registryCoordinator = RegistryCoordinator()
     @ObservationIgnored
     private lazy var registryFacade = RegistryFacade(
@@ -1596,12 +1598,24 @@ final class SpinLabAppState {
         guard let rootPath = libraryFeatureStore.librarySettings.rootPath?
             .trimmingCharacters(in: .whitespacesAndNewlines),
               !rootPath.isEmpty else {
+            libraryImportedOriginalPathsCache = nil
             return []
         }
         let rootURL = URL(fileURLWithPath: rootPath)
         let batchesURL = rootURL.appending(path: "batches", directoryHint: .isDirectory)
-        guard FileManager.default.fileExists(atPath: batchesURL.path),
-              let enumerator = FileManager.default.enumerator(
+        guard FileManager.default.fileExists(atPath: batchesURL.path) else {
+            libraryImportedOriginalPathsCache = nil
+            return []
+        }
+
+        let cacheFingerprint = batchesDirectoryFingerprint(at: batchesURL)
+        if let cached = libraryImportedOriginalPathsCache,
+           cached.rootPath == rootPath,
+           cached.batchesFingerprint == cacheFingerprint {
+            return cached.paths
+        }
+
+        guard let enumerator = FileManager.default.enumerator(
                 at: batchesURL,
                 includingPropertiesForKeys: [.isRegularFileKey],
                 options: [.skipsHiddenFiles]
@@ -1626,7 +1640,14 @@ final class SpinLabAppState {
             }
             collected.insert(normalizedPath(normalized))
         }
+        libraryImportedOriginalPathsCache = (rootPath: rootPath, batchesFingerprint: cacheFingerprint, paths: collected)
         return collected
+    }
+
+    private func batchesDirectoryFingerprint(at batchesURL: URL) -> String {
+        let values = try? batchesURL.resourceValues(forKeys: [.contentModificationDateKey])
+        let timestamp = values?.contentModificationDate?.timeIntervalSince1970 ?? 0
+        return "\(Int(timestamp))"
     }
 
     private func existingLibraryImportedContentFingerprints() -> Set<String> {
