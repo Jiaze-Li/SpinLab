@@ -1136,154 +1136,65 @@ final class SpinLabAppState {
     }
 
     private func performApplySelectedPendingImport() {
-        let workspaceByPendingID = interactionValue(\.inboxWorkspaceByPendingID)
-        performApply { pendingImports, routingSnapshots, libraryIndex, libraryRootURL in
-            applyCoordinator.applySelected(
-                pendingID: selectedPendingImportID,
-                pendingImports: pendingImports,
-                routingSnapshots: routingSnapshots,
-                libraryIndex: libraryIndex,
-                libraryStore: libraryFeatureStore.libraryStore,
-                libraryRootURL: libraryRootURL,
-                applyService: inboxArchiveApplyService,
-                draftFor: { pendingID in
-                    let key = InteractionSnapshotKeyCodec.dictionaryKey(for: pendingID)
-                    return workspaceByPendingID[key]?.draft
-                },
-                workflowDefinitions: workflowDefinitions
-            )
-        }
+        runApply(scope: .selected(selectedPendingImportID))
     }
 
     private func performApplyAllPendingImports() {
         guard !applyProgressState.isRunning else {
             return
         }
-        guard let context = resolveApplyContext() else {
+        runApply(scope: .all)
+    }
+
+    private func runApply(scope: ApplyCoordinator.ApplyScope) {
+        guard let libraryRootURL = resolvedLibraryRootURLForApply() else {
             return
         }
 
-        let matchedPending = context.pendingImports.filter { pending in
-            guard let snapshot = context.routingSnapshots[pending.id] else {
-                return false
-            }
-            return snapshot.verdict == .libraryMatched && !snapshot.routePlan.targets.isEmpty
-        }
-        guard !matchedPending.isEmpty else {
-            finalizeApplyOutcome(.nothingToApply)
-            return
-        }
-
-        applyProgressState = ApplyProgressState(
+        let context = applyCoordinator.resolveContext(
+            libraryRootURL: libraryRootURL,
+            pendingImports: inboxFeatureStore.pendingImports,
+            routingSnapshotFor: { pending in
+                self.routingSnapshotForApply(for: pending)
+            },
+            libraryStore: libraryFeatureStore.libraryStore
+        )
+        let workspaceByPendingID = interactionValue(\.inboxWorkspaceByPendingID)
+        applyProgressState = .init(
             isRunning: true,
-            totalCount: matchedPending.count,
+            totalCount: 0,
             processedCount: 0,
             appliedCount: 0,
             skippedCount: 0,
             failedCount: 0,
             currentFileName: ""
         )
-        let workspaceByPendingID = interactionValue(\.inboxWorkspaceByPendingID)
 
         Task { @MainActor in
-            var appliedIDs: [UUID] = []
-            var skippedIDs: [UUID] = []
-            var failedIDs: [UUID] = []
-            appliedIDs.reserveCapacity(matchedPending.count)
-            skippedIDs.reserveCapacity(matchedPending.count)
-            failedIDs.reserveCapacity(matchedPending.count)
-
-            for pending in matchedPending {
-                applyProgressState.currentFileName = pending.fileName
-
-                guard let snapshot = context.routingSnapshots[pending.id] else {
-                    failedIDs.append(pending.id)
-                    applyProgressState.failedCount = failedIDs.count
-                    applyProgressState.processedCount = appliedIDs.count + skippedIDs.count + failedIDs.count
-                    await Task.yield()
-                    continue
-                }
-
-                do {
-                    let applyResult = try inboxArchiveApplyService.apply(
-                        pending: pending,
-                        targets: snapshot.routePlan.targets,
-                        libraryIndex: context.libraryIndex,
-                        libraryStore: libraryFeatureStore.libraryStore,
-                        libraryRootURL: context.libraryRootURL,
-                        draft: workspaceByPendingID[InteractionSnapshotKeyCodec.dictionaryKey(for: pending.id)]?.draft,
-                        workflowDefinitions: workflowDefinitions
+            let outcome = await applyCoordinator.apply(
+                scope: scope,
+                context: context,
+                libraryStore: libraryFeatureStore.libraryStore,
+                applyService: inboxArchiveApplyService,
+                draftFor: { pendingID in
+                    workspaceByPendingID[InteractionSnapshotKeyCodec.dictionaryKey(for: pendingID)]?.draft
+                },
+                workflowDefinitions: workflowDefinitions,
+                onProgress: { [weak self] update in
+                    self?.applyProgressState = .init(
+                        isRunning: true,
+                        totalCount: update.totalCount,
+                        processedCount: update.processedCount,
+                        appliedCount: update.appliedCount,
+                        skippedCount: update.skippedCount,
+                        failedCount: update.failedCount,
+                        currentFileName: update.currentFileName
                     )
-                    if applyResult.allTargetsSkipped {
-                        skippedIDs.append(pending.id)
-                        applyProgressState.skippedCount = skippedIDs.count
-                    } else {
-                        appliedIDs.append(pending.id)
-                        applyProgressState.appliedCount = appliedIDs.count
-                    }
-                } catch {
-                    failedIDs.append(pending.id)
-                    applyProgressState.failedCount = failedIDs.count
                 }
-
-                applyProgressState.processedCount = appliedIDs.count + skippedIDs.count + failedIDs.count
-                await Task.yield()
-            }
-
-            let outcome: InboxApplyOutcome
-            if (!appliedIDs.isEmpty || !skippedIDs.isEmpty) && failedIDs.isEmpty {
-                outcome = .success(appliedIDs: appliedIDs, skippedIDs: skippedIDs)
-            } else if (!appliedIDs.isEmpty || !skippedIDs.isEmpty) && !failedIDs.isEmpty {
-                outcome = .partialSuccess(appliedIDs: appliedIDs, skippedIDs: skippedIDs, failedIDs: failedIDs)
-            } else {
-                outcome = .failure(message: "No matched pending imports could be applied.")
-            }
-
+            )
             finalizeApplyOutcome(outcome)
             applyProgressState = .init()
         }
-    }
-
-    // TODO(tech-debt): Two apply patterns exist side-by-side — this synchronous closure-based helper
-    // and the async Task loop in performApplyAllPendingImports(). The async path is the primary one;
-    // this helper survives because performApplySelectedPendingImport() still uses it. Once the selected
-    // apply path is migrated to async (with per-file progress), this helper and its ApplyContext typealias
-    // can be removed. Track in docs/plans/TECH_DEBT_BACKLOG.md § Apply pattern unification.
-    private func performApply(
-        resolver: (
-            [SpinLabDomain.PendingImport],
-            [UUID: SpinLabDomain.PendingRoutingSnapshot],
-            LibraryIndex,
-            URL
-        ) -> InboxApplyOutcome
-    ) {
-        guard let context = resolveApplyContext() else {
-            return
-        }
-        let outcome = resolver(context.pendingImports, context.routingSnapshots, context.libraryIndex, context.libraryRootURL)
-        finalizeApplyOutcome(outcome)
-    }
-
-    private typealias ApplyContext = (
-        pendingImports: [SpinLabDomain.PendingImport],
-        routingSnapshots: [UUID: SpinLabDomain.PendingRoutingSnapshot],
-        libraryIndex: LibraryIndex,
-        libraryRootURL: URL
-    )
-
-    private func resolveApplyContext() -> ApplyContext? {
-        guard let libraryRootURL = resolvedLibraryRootURLForApply() else {
-            return nil
-        }
-
-        let pendingImports = inboxFeatureStore.pendingImports
-        let routingSnapshots = Dictionary(uniqueKeysWithValues: pendingImports.map { pending in
-            (pending.id, routingSnapshotForApply(for: pending))
-        })
-        let libraryIndex =
-            libraryFeatureStore.libraryStore.loadIndex(from: libraryRootURL)
-            ?? libraryFeatureStore.libraryStore.snapshotIndexFromFilesystem(rootURL: libraryRootURL)
-        return (pendingImports, routingSnapshots, libraryIndex, libraryRootURL)
     }
 
     private func finalizeApplyOutcome(_ outcome: InboxApplyOutcome) {

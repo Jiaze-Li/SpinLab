@@ -3,6 +3,7 @@ import Foundation
 @MainActor
 final class InboxFacade {
     private let inboxWorkflowService: InboxWorkflowService
+    private let pendingCleanupService: PendingCleanupService
     private let inboxStore: InboxFeatureStore
     private let managedStorage: SpinLabManagedStorage
     private let importPipeline: SpinLabImportPipeline
@@ -24,6 +25,7 @@ final class InboxFacade {
 
     init(
         inboxWorkflowService: InboxWorkflowService,
+        pendingCleanupService: PendingCleanupService = PendingCleanupService(),
         inboxStore: InboxFeatureStore,
         managedStorage: SpinLabManagedStorage,
         importPipeline: SpinLabImportPipeline,
@@ -43,6 +45,7 @@ final class InboxFacade {
         applyAll: @escaping () -> Void
     ) {
         self.inboxWorkflowService = inboxWorkflowService
+        self.pendingCleanupService = pendingCleanupService
         self.inboxStore = inboxStore
         self.managedStorage = managedStorage
         self.importPipeline = importPipeline
@@ -83,9 +86,11 @@ final class InboxFacade {
     }
 
     func clearPendingImports() {
-        inboxWorkflowService.clearPendingImports(inboxStore: inboxStore)
-        writeInboxWorkspace([:])
-        persistInteractionSnapshotIfReady()
+        pendingCleanupService.clearImports(
+            inboxStore: inboxStore,
+            writeInboxWorkspace: writeInboxWorkspace,
+            persistInteractionSnapshotIfReady: persistInteractionSnapshotIfReady
+        )
     }
 
     func clearSelectedPendingImport() {

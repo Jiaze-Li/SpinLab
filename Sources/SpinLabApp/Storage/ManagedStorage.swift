@@ -65,25 +65,15 @@ final class SpinLabManagedStorage {
             allowedFileExtensions: allowedFileExtensions,
             ignoredFileExtensions: ignoredFileExtensions
         )
-        let excluded = Set(excludedOriginalFilePaths.map(normalizedPath))
-        let excludedFingerprints = Set(excludedContentFingerprints.map { $0.lowercased() })
-        var seenInCurrentBatch: Set<String> = []
-        var seenFingerprintsInCurrentBatch: Set<String> = []
+        var duplicateGuard = DuplicateGuard(
+            excludedOriginalPaths: excludedOriginalFilePaths,
+            excludedContentFingerprints: excludedContentFingerprints
+        )
         return sourceFiles.compactMap { sourceURL in
-            let originalPath = normalizedPath(sourceURL.path)
-            guard !excluded.contains(originalPath) else {
+            let originalPath = sourceURL.path
+            let fingerprint = contentFingerprint(for: sourceURL)
+            guard duplicateGuard.accepts(originalPath: originalPath, contentFingerprint: fingerprint) else {
                 return nil
-            }
-            guard seenInCurrentBatch.insert(originalPath).inserted else {
-                return nil
-            }
-            if let fingerprint = contentFingerprint(for: sourceURL) {
-                guard !excludedFingerprints.contains(fingerprint) else {
-                    return nil
-                }
-                guard seenFingerprintsInCurrentBatch.insert(fingerprint).inserted else {
-                    return nil
-                }
             }
             return ImportedMeasurementFile(
                 fileName: sourceURL.lastPathComponent,

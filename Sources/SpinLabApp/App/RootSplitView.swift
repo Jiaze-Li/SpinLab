@@ -5,7 +5,6 @@ import SwiftUI
 struct RootSplitView: View {
     @Environment(SpinLabAppState.self) private var appState
     @State private var expandedSidebarNodeIDs: Set<String> = []
-    @State private var hoveredSidebarRowID: String?
     @State private var pendingDeleteDrawerBatchID: String?
     @State private var pendingDeleteDrawerPrefix: String?
     @State private var isPresentingDeleteDrawerConfirm = false
@@ -30,9 +29,7 @@ struct RootSplitView: View {
                         nodes: sidebarMenuProvider.makeMenu(appState: appState, selectedArea: appState.selectedArea),
                         expandedNodeIDs: expandedSidebarNodeIDs,
                         selectedNodeIDs: selectedSidebarNodeIDs,
-                        hoveredNodeID: hoveredSidebarRowID,
                         onNodeTap: handleSidebarNodeTap,
-                        onHoverNode: { hoveredSidebarRowID = $0 },
                         contextMenuItems: contextMenuItems(for:)
                     )
                     .padding(.horizontal, 10)

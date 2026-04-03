@@ -6,7 +6,7 @@ import Testing
 @Suite("V2.3.0 Apply")
 struct V230ApplyTests {
     @Test("single-target selected apply copies file and removes pending from queue")
-    func singleTargetSelectedApply() throws {
+    func singleTargetSelectedApply() async throws {
         let fixture = try Fixture.make(sampleIDs: ["PN38"])
         defer { fixture.cleanup() }
 
@@ -16,7 +16,8 @@ struct V230ApplyTests {
         let coordinator = ApplyCoordinator()
         let service = InboxArchiveApplyService()
 
-        let outcome = coordinator.applySelected(
+        let outcome = await applySelected(
+            coordinator: coordinator,
             pendingID: pending.id,
             pendingImports: [pending],
             routingSnapshots: [pending.id: snapshot],
@@ -35,7 +36,7 @@ struct V230ApplyTests {
     }
 
     @Test("multi-target selected apply copies file into all matched drawers")
-    func multiTargetSelectedApply() throws {
+    func multiTargetSelectedApply() async throws {
         let fixture = try Fixture.make(sampleIDs: ["PN36", "PN37"])
         defer { fixture.cleanup() }
 
@@ -47,7 +48,8 @@ struct V230ApplyTests {
         let coordinator = ApplyCoordinator()
         let service = InboxArchiveApplyService()
 
-        let outcome = coordinator.applySelected(
+        let outcome = await applySelected(
+            coordinator: coordinator,
             pendingID: pending.id,
             pendingImports: [pending],
             routingSnapshots: [pending.id: matchedSnapshot(targets: targets)],
@@ -63,7 +65,7 @@ struct V230ApplyTests {
     }
 
     @Test("multi-target apply failure leaves no partial artifacts")
-    func multiTargetRollbackOnFailure() throws {
+    func multiTargetRollbackOnFailure() async throws {
         let fixture = try Fixture.make(sampleIDs: ["PN40", "PN41"])
         defer { fixture.cleanup() }
 
@@ -79,7 +81,8 @@ struct V230ApplyTests {
 
         let coordinator = ApplyCoordinator()
         let service = InboxArchiveApplyService()
-        let outcome = coordinator.applySelected(
+        let outcome = await applySelected(
+            coordinator: coordinator,
             pendingID: pending.id,
             pendingImports: [pending],
             routingSnapshots: [pending.id: matchedSnapshot(targets: targets)],
@@ -99,7 +102,7 @@ struct V230ApplyTests {
     }
 
     @Test("apply-all processes library-matched and skips review-required")
-    func applyAllMixedQueue() throws {
+    func applyAllMixedQueue() async throws {
         let fixture = try Fixture.make(sampleIDs: ["PN50", "PN51"])
         defer { fixture.cleanup() }
 
@@ -113,7 +116,8 @@ struct V230ApplyTests {
 
         let coordinator = ApplyCoordinator()
         let service = InboxArchiveApplyService()
-        let outcome = coordinator.applyAll(
+        let outcome = await applyAll(
+            coordinator: coordinator,
             pendingImports: [matchedPending, reviewPending],
             routingSnapshots: snapshots,
             libraryIndex: fixture.libraryIndex,
@@ -128,7 +132,7 @@ struct V230ApplyTests {
     }
 
     @Test("channel alone falls back to measurements/General when workflow tag is absent")
-    func channelWithoutWorkflowFallsBackToGeneral() throws {
+    func channelWithoutWorkflowFallsBackToGeneral() async throws {
         let fixture = try Fixture.make(sampleIDs: ["PN60"])
         defer { fixture.cleanup() }
 
@@ -137,7 +141,8 @@ struct V230ApplyTests {
         let coordinator = ApplyCoordinator()
         let service = InboxArchiveApplyService()
 
-        let outcome = coordinator.applySelected(
+        let outcome = await applySelected(
+            coordinator: coordinator,
             pendingID: pending.id,
             pendingImports: [pending],
             routingSnapshots: [pending.id: matchedSnapshot(targets: [target])],
@@ -153,7 +158,7 @@ struct V230ApplyTests {
     }
 
     @Test("workflow tag routes file into measurements/RT")
-    func workflowCategoryRouting() throws {
+    func workflowCategoryRouting() async throws {
         let fixture = try Fixture.make(sampleIDs: ["PN61"])
         defer { fixture.cleanup() }
 
@@ -163,7 +168,8 @@ struct V230ApplyTests {
         let coordinator = ApplyCoordinator()
         let service = InboxArchiveApplyService()
 
-        let outcome = coordinator.applySelected(
+        let outcome = await applySelected(
+            coordinator: coordinator,
             pendingID: pending.id,
             pendingImports: [pending],
             routingSnapshots: [pending.id: matchedSnapshot(targets: [target])],
@@ -178,7 +184,7 @@ struct V230ApplyTests {
     }
 
     @Test("existing destination is skipped and pending is removed as processed")
-    func existingDestinationIsSkippedAndProcessed() throws {
+    func existingDestinationIsSkippedAndProcessed() async throws {
         let fixture = try Fixture.make(sampleIDs: ["PN62"])
         defer { fixture.cleanup() }
 
@@ -189,7 +195,8 @@ struct V230ApplyTests {
 
         let coordinator = ApplyCoordinator()
         let service = InboxArchiveApplyService()
-        let outcome = coordinator.applySelected(
+        let outcome = await applySelected(
+            coordinator: coordinator,
             pendingID: pending.id,
             pendingImports: [pending],
             routingSnapshots: [pending.id: matchedSnapshot(targets: [SpinLabDomain.RouteTarget(sampleId: "PN62", channels: ["file"])])],
@@ -207,7 +214,7 @@ struct V230ApplyTests {
     }
 
     @Test("display-name key is rejected when apply expects canonical sample id")
-    func displayNameKeyIsRejected() throws {
+    func displayNameKeyIsRejected() async throws {
         let fixture = try Fixture.make(samples: [Fixture.SampleSeed(id: "PT23|HF|STO|111", displayName: "PT23 - HF STO(111)")])
         defer { fixture.cleanup() }
 
@@ -216,7 +223,8 @@ struct V230ApplyTests {
         let coordinator = ApplyCoordinator()
         let service = InboxArchiveApplyService()
 
-        let outcome = coordinator.applySelected(
+        let outcome = await applySelected(
+            coordinator: coordinator,
             pendingID: pending.id,
             pendingImports: [pending],
             routingSnapshots: [pending.id: matchedSnapshot(targets: [target])],
@@ -235,6 +243,53 @@ struct V230ApplyTests {
             !FileManager.default.fileExists(
                 atPath: fixture.destination(sampleID: "PT23|HF|STO|111", category: "General", fileName: pending.fileName).path
             )
+        )
+    }
+
+    private func applySelected(
+        coordinator: ApplyCoordinator,
+        pendingID: UUID?,
+        pendingImports: [SpinLabDomain.PendingImport],
+        routingSnapshots: [UUID: SpinLabDomain.PendingRoutingSnapshot],
+        libraryIndex: LibraryIndex,
+        libraryStore: LibraryStore,
+        libraryRootURL: URL,
+        applyService: InboxArchiveApplyService
+    ) async -> InboxApplyOutcome {
+        let context = ApplyCoordinator.ApplyContext(
+            pendingImports: pendingImports,
+            routingSnapshots: routingSnapshots,
+            libraryIndex: libraryIndex,
+            libraryRootURL: libraryRootURL
+        )
+        return await coordinator.apply(
+            scope: .selected(pendingID),
+            context: context,
+            libraryStore: libraryStore,
+            applyService: applyService
+        )
+    }
+
+    private func applyAll(
+        coordinator: ApplyCoordinator,
+        pendingImports: [SpinLabDomain.PendingImport],
+        routingSnapshots: [UUID: SpinLabDomain.PendingRoutingSnapshot],
+        libraryIndex: LibraryIndex,
+        libraryStore: LibraryStore,
+        libraryRootURL: URL,
+        applyService: InboxArchiveApplyService
+    ) async -> InboxApplyOutcome {
+        let context = ApplyCoordinator.ApplyContext(
+            pendingImports: pendingImports,
+            routingSnapshots: routingSnapshots,
+            libraryIndex: libraryIndex,
+            libraryRootURL: libraryRootURL
+        )
+        return await coordinator.apply(
+            scope: .all,
+            context: context,
+            libraryStore: libraryStore,
+            applyService: applyService
         )
     }
 

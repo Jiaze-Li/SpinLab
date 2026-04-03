@@ -347,6 +347,7 @@ struct V225RulesConfigContractTests {
     }
 
     private func writeJSON(_ object: Any, to url: URL) throws {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
         try data.write(to: url, options: .atomic)
     }

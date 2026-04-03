@@ -9,27 +9,27 @@ Items are ordered by impact, not urgency. See `TECH_DEBT_EXECUTION_LOG.md` for c
 
 ## High Impact
 
-### Rule migration canonicalization single-source
+### Rule kind type ownership cleanup
 **Code:**
-- `Sources/SpinLabApp/Import/Rules/RuleLoader.swift` — `normalizeConditionDefinitionBindings`
-- `Sources/SpinLabApp/Import/Rules/ConditionRulesHandbookStore.swift` — `migrateUserRuleFileToCanonicalIfNeeded`
+- `Sources/SpinLabApp/Import/Rules/RuleCanonicalizer.swift` — `migrateUserRuleJSONToCanonical`
+- `Sources/SpinLabApp/Import/Rules/ConditionRulesHandbookStore.swift` — `RuleEntryKind`
 
 **Problem:**
-Legacy-to-canonical migration logic is implemented in two places with overlapping behavior
-(legacy pattern/deviceRules lift, canonical binding rewrite, conditionDefinitions synthesis).
-Current behavior is aligned, but future schema changes can drift if only one side is updated.
+`RuleCanonicalizer` (Import/Rules layer) currently references `RuleEntryKind`, whose ownership is in
+`ConditionRulesHandbookStore` (app-facing handbook layer). The module compiles because both files are
+in one target, but the dependency direction is inverted and will complicate future layer separation.
 
 **Target state:**
-Extract a shared canonicalization helper (pure function over rule JSON / `FilenameRuleSet`) and
-call it from both loader-time migration and handbook save-time migration.
+Move rule-kind type ownership to the Import/Rules layer (or unify on
+`FilenameRuleSet.ConditionDefinitionKind`) so both canonicalization and handbook code depend on the
+same lower-level type.
 
 **Migration steps:**
-1. Introduce a single canonicalization routine under `Import/Rules` that returns normalized data + warnings.
-2. Make `RuleLoader` and `ConditionRulesHandbookStore` delegate to it.
-3. Keep external behavior and warnings stable (no schema/output change in this round).
-4. Add regression tests asserting both call sites produce identical canonical output for the same legacy input.
+1. Introduce/import a rule-kind enum in Import/Rules.
+2. Replace `ConditionRulesHandbookStore.RuleEntryKind` usage with the lower-level type.
+3. Keep serialized `kind` values stable (`unit_suffix` / `token_map`) and behavior unchanged.
 
-**Effort:** Medium (cross-file refactor, low product risk if test-first)
+**Effort:** Low (mechanical refactor, no product behavior change)
 
 ---
 
@@ -81,37 +81,6 @@ var deviceName: String?  { conditionValues[ConditionFieldCatalog.deviceID] }
 
 ---
 
-### Apply pattern unification
-**Code:** `Sources/SpinLabApp/App/SpinLabAppState.swift` — `performApply(resolver:)` and `performApplyAllPendingImports()`
-
-**Problem:**
-Two apply patterns coexist:
-
-| Path | Style | Progress tracking |
-|------|-------|-------------------|
-| `performApplyAllPendingImports()` | async Task, per-file loop | Yes (`applyProgressState`) |
-| `performApply(resolver:)` | sync closure, batch result | No |
-
-`performApplySelectedPendingImport()` still calls the sync helper. This means "apply selected" has
-no progress state and a different error-handling path than "apply all". The `ApplyContext` typealias
-(a 4-tuple) was introduced to share context between the two, which is a sign the abstraction is
-incomplete.
-
-**Target state:**
-Merge into a single async apply engine. Both "apply selected" and "apply all" call the same
-per-file async loop, differing only in the input slice. `performApply(resolver:)` and the
-`ApplyContext` typealias are removed.
-
-**Migration steps:**
-1. Extract the per-file loop body in `performApplyAllPendingImports` into a reusable
-   `applyPendingImports(_ pending: [PendingImport]) async` method.
-2. Rewrite `performApplySelectedPendingImport` to call it with a single-element slice.
-3. Delete `performApply(resolver:)` and `ApplyContext`.
-
-**Effort:** Low-Medium (contained within `SpinLabAppState`; no domain model changes)
-
----
-
 ## Low Impact / Housekeeping
 
 ### Remove deprecated fields from ConditionRules and FilenameRuleSet
@@ -160,8 +129,7 @@ These items predated v2.4 and remain open:
 
 ### SpinLabAppState decomposition
 Continue splitting `SpinLabAppState` by extracting feature-owned mutable state and actions into
-focused `@Observable` stores. The apply-pattern unification above is a prerequisite for extracting
-the inbox apply surface cleanly.
+focused `@Observable` stores.
 
 ### try? audit in LibraryStore
 Audit high-impact `try?` usage in `LibraryStore` and convert selected write/read paths to explicit

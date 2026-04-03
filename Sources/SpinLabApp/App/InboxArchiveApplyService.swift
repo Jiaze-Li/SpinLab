@@ -10,6 +10,8 @@ struct InboxArchiveApplyResult: Equatable {
 }
 
 struct InboxArchiveApplyService {
+    private let auditLogger = AuditLogger.shared
+
     enum InboxArchiveApplyError: LocalizedError {
         case sourceFileNotFound
         case drawerNotFound(sampleId: String, candidates: Int)
@@ -37,7 +39,16 @@ struct InboxArchiveApplyService {
         workflowDefinitions: [WorkflowDefinition] = []
     ) throws -> InboxArchiveApplyResult {
         let sourceURL = URL(fileURLWithPath: pending.sourceFilePath)
+        var targetDrawers: [String] = []
         guard FileManager.default.fileExists(atPath: sourceURL.path) else {
+            writeAuditEvent(
+                pending: pending,
+                sourceURL: sourceURL,
+                targetDrawers: targets.map(\.sampleId),
+                result: "failed",
+                metadata: ["reason": InboxArchiveApplyError.sourceFileNotFound.localizedDescription],
+                libraryRootURL: libraryRootURL
+            )
             throw InboxArchiveApplyError.sourceFileNotFound
         }
 
@@ -69,6 +80,13 @@ struct InboxArchiveApplyService {
                     path: sourceURL.lastPathComponent,
                     directoryHint: .notDirectory
                 )
+                let drawerSummary = destinationDirectory.path.replacingOccurrences(
+                    of: libraryRootURL.standardizedFileURL.path + "/",
+                    with: ""
+                )
+                if !targetDrawers.contains(drawerSummary) {
+                    targetDrawers.append(drawerSummary)
+                }
                 if FileManager.default.fileExists(atPath: destinationURL.path) {
                     skippedExistingTargetCount += 1
                     continue
@@ -93,20 +111,70 @@ struct InboxArchiveApplyService {
                 try transaction.commit()
             }
 
-            return InboxArchiveApplyResult(
+            let result = InboxArchiveApplyResult(
                 copiedTargetCount: copiedTargetCount,
                 skippedExistingTargetCount: skippedExistingTargetCount
             )
+            writeAuditEvent(
+                pending: pending,
+                sourceURL: sourceURL,
+                targetDrawers: targetDrawers,
+                result: result.allTargetsSkipped ? "skipped_existing" : "applied",
+                metadata: [
+                    "copiedTargetCount": "\(result.copiedTargetCount)",
+                    "skippedExistingTargetCount": "\(result.skippedExistingTargetCount)"
+                ],
+                libraryRootURL: libraryRootURL
+            )
+            return result
         } catch let error as InboxArchiveApplyError {
             try? transaction.rollback()
+            writeAuditEvent(
+                pending: pending,
+                sourceURL: sourceURL,
+                targetDrawers: targetDrawers.isEmpty ? targets.map(\.sampleId) : targetDrawers,
+                result: "failed",
+                metadata: ["reason": error.localizedDescription],
+                libraryRootURL: libraryRootURL
+            )
             throw error
         } catch {
             try? transaction.rollback()
+            let appError = AppError.from(error, fallback: "Failed to commit file writes.")
+            writeAuditEvent(
+                pending: pending,
+                sourceURL: sourceURL,
+                targetDrawers: targetDrawers.isEmpty ? targets.map(\.sampleId) : targetDrawers,
+                result: "failed",
+                metadata: ["reason": appError.localizedDescription],
+                libraryRootURL: libraryRootURL
+            )
             throw InboxArchiveApplyError.commitFailed(
                 sampleId: targets.first?.sampleId ?? "unknown",
-                underlying: AppError.from(error, fallback: "Failed to commit file writes.")
+                underlying: appError
             )
         }
+    }
+
+    private func writeAuditEvent(
+        pending: SpinLabDomain.PendingImport,
+        sourceURL: URL,
+        targetDrawers: [String],
+        result: String,
+        metadata: [String: String],
+        libraryRootURL: URL
+    ) {
+        let event = AuditEvent(
+            eventID: UUID().uuidString,
+            timestamp: Self.auditTimestampFormatter.string(from: Date()),
+            action: "apply_import",
+            sourceFileName: pending.fileName,
+            sourceFilePath: sourceURL.path,
+            targetDrawers: targetDrawers,
+            result: result,
+            metadata: metadata
+        )
+        auditLogger.logImportEvent(event, libraryRootURL: libraryRootURL)
     }
 
     private func destinationSubpath(workflowName: String?) -> String {
@@ -208,6 +276,14 @@ struct InboxArchiveApplyService {
             $0.id.caseInsensitiveCompare(normalized) == .orderedSame
         }
     }
+}
+
+private extension InboxArchiveApplyService {
+    static let auditTimestampFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 }
 
 private extension String {

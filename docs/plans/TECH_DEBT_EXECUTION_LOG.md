@@ -87,6 +87,31 @@ Rationale:
 - Increase confidence in dependency-injected orchestration paths.
 - Make UI-state mutation thread guarantees explicit and compiler-checked.
 
+## 2026-04-03 Round E
+
+Scope:
+- Close high-impact V2.7 debt around apply path unification, duplicate-guard extraction, and rules canonicalization single-source.
+
+Completed:
+- Apply path unification:
+  - Moved shared apply context/progress loop ownership into `ApplyCoordinator`.
+  - `SpinLabAppState` selected/apply-all now share one coordinator async path.
+  - Removed local dual apply helper surface from `SpinLabAppState`.
+- Rules canonicalization single-source:
+  - Added `RuleCanonicalizer`.
+  - `RuleLoader` and `ConditionRulesHandbookStore` now both delegate to shared canonicalization routines.
+- Duplicate guard extraction:
+  - Added explicit `DuplicateGuard`.
+  - Integrated into `SpinLabManagedStorage.importMeasurementFiles(...)`.
+- Pending cleanup side-effect isolation:
+  - Added `PendingCleanupService` and routed `InboxFacade.clearPendingImports()` through it.
+  - Removed redundant clear helper from `InboxWorkflowService`.
+
+Rationale:
+- Reduce drift risk between runtime loader migration and handbook migration.
+- Keep app-shell orchestration thinner while preserving current behavior.
+- Make duplicate rejection and clear-imports safety boundaries explicit and testable.
+
 ## Next Planned Steps
 
 1. Continue splitting `SpinLabAppState` by extracting feature-owned mutable state and actions into focused `@Observable` stores while preserving current routing orchestration in app shell.
