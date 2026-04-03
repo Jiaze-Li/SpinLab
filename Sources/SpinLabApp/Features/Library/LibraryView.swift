@@ -1115,6 +1115,16 @@ struct LibraryView: View {
     }
 
     private func syncSelection() {
+        // When the active source is .drawer, validate against existing groups
+        // (not preview-derived data) so that unchanged batches stay selected.
+        if viewState.activeSelectionSource == .drawer {
+            syncDrawerSelection()
+            return
+        }
+        syncBrowserSelection()
+    }
+
+    private func syncBrowserSelection() {
         if selectedPrefix == nil || !previewPrefixes.contains(selectedPrefix ?? "") {
             selectedPrefix = previewPrefixes.first
         }
@@ -1129,6 +1139,31 @@ struct LibraryView: View {
         }
         if selectedSampleId == nil || !selectedBatchSamples.contains(where: { $0.id == selectedSampleId }) {
             selectedSampleId = selectedBatchSamples.first?.id
+        }
+    }
+
+    private func syncDrawerSelection() {
+        let existingGroups = viewState.existingGroupsByPrefix
+        let existingPrefixes = existingGroups.keys.sorted()
+
+        if selectedPrefix == nil || !existingPrefixes.contains(selectedPrefix ?? "") {
+            selectedPrefix = existingPrefixes.first
+        }
+        guard let prefix = selectedPrefix else {
+            selectedBatchId = nil
+            selectedSampleId = nil
+            return
+        }
+
+        let groups = existingGroups[prefix] ?? []
+        let batchIDs = groups.map(\.batchId)
+        if selectedBatchId == nil || !batchIDs.contains(selectedBatchId ?? "") {
+            selectedBatchId = groups.first?.batchId
+        }
+
+        let samples = groups.first(where: { $0.batchId == selectedBatchId })?.samples ?? []
+        if selectedSampleId == nil || !samples.contains(where: { $0.id == selectedSampleId }) {
+            selectedSampleId = samples.first?.id
         }
     }
 
