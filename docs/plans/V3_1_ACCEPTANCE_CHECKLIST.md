@@ -1,56 +1,56 @@
 # SpinLab V3.1 Acceptance Checklist
 
-Status: active
+Status: done (accepted on 2026-04-03)
 Owner: implementation + QA shared gate
 
 This checklist is the acceptance gate for V3.1 only.
 
 ## Scope Boundary (must pass)
 
-- [ ] V3.1 includes architecture skeleton + contracts only.
-- [ ] No V3.2 pipeline/render features are required for V3.1 acceptance.
-- [ ] No V3.3 Library read-model UI rollout is required for V3.1 acceptance.
-- [ ] Cross-artifact all-or-nothing transaction rollback is tracked for V3.4, not V3.1.
+- [x] V3.1 includes architecture skeleton + contracts only.
+- [x] No V3.2 pipeline/render features are required for V3.1 acceptance.
+- [x] No V3.3 Library read-model UI rollout is required for V3.1 acceptance.
+- [x] Cross-artifact all-or-nothing transaction rollback is tracked for V3.4, not V3.1.
 
 ## Contract and Schema (must pass)
 
-- [ ] `PlotPayload` contract exists in code with version field.
-- [ ] `MetricRecord` contract exists in code with sample-centric identity fields.
-- [ ] `RunManifest` contract exists in code with traceability fields.
-- [ ] Sample measurement data store contract exists (`records + latestIndex`).
-- [ ] Condition alias config contract exists with explicit `schemaVersion`.
+- [x] `PlotPayload` contract exists in code with version field.
+- [x] `MetricRecord` contract exists in code with sample-centric identity fields.
+- [x] `RunManifest` contract exists in code with traceability fields.
+- [x] Sample measurement data store contract exists (`records + latestIndex`).
+- [x] Condition alias config contract exists with explicit `schemaVersion`.
 
 ## Identity and Path (must pass)
 
-- [ ] Chart identity key generation is deterministic on semantic inputs.
-- [ ] Style-only changes do not alter chart identity key.
-- [ ] Metric identity key generation normalizes condition key/value input.
-- [ ] Relative-path persistence resolver exists and rejects root-escape input.
+- [x] Chart identity key generation is deterministic on semantic inputs.
+- [x] Style-only changes do not alter chart identity key.
+- [x] Metric identity key generation normalizes condition key/value input.
+- [x] Relative-path persistence resolver exists and rejects root-escape input.
 
 ## Persistence Interface (must pass)
 
-- [ ] Atomic write interface exists and is callable by downstream layers.
-- [ ] Atomic write interface follows `temp-write -> fsync -> commit`.
-- [ ] Atomic write overwrite path works for existing destination files.
+- [x] Atomic write interface exists and is callable by downstream layers.
+- [x] Atomic write interface follows `temp-write -> fsync -> commit`.
+- [x] Atomic write overwrite path works for existing destination files.
 
 ## Failure Policy (must pass)
 
-- [ ] Unknown condition-alias schema version fails explicitly (no silent fallback).
-- [ ] Invalid alias JSON fails with explicit validation error.
+- [x] Unknown condition-alias schema version fails explicitly (no silent fallback).
+- [x] Invalid alias JSON fails with explicit validation error.
 
 ## Tests (must pass)
 
-- [ ] Round-trip serialization tests for V3.1 core contracts pass.
-- [ ] Identity deterministic tests pass.
-- [ ] Alias schema fail-fast tests pass.
-- [ ] Path resolver round-trip + escape rejection tests pass.
-- [ ] Atomic write behavior tests pass.
+- [x] Round-trip serialization tests for V3.1 core contracts pass.
+- [x] Identity deterministic tests pass.
+- [x] Alias schema fail-fast tests pass.
+- [x] Path resolver round-trip + escape rejection tests pass.
+- [x] Atomic write behavior tests pass.
 
 ## Build and Runtime Gate (must pass)
 
-- [ ] `swift test` passes.
-- [ ] Desktop app build/overwrite completes for QA target.
-- [ ] App version is bumped to current V3.1 iteration.
+- [x] `swift test` passes.
+- [x] Desktop app build/overwrite completes for QA target.
+- [x] App version is bumped to current V3.1 iteration.
 
 ## Evidence (current implementation snapshot)
 
