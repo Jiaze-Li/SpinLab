@@ -8,12 +8,12 @@ struct RootSplitView: View {
     @State private var pendingDeleteDrawerBatchID: String?
     @State private var pendingDeleteDrawerPrefix: String?
     @State private var isPresentingDeleteDrawerConfirm = false
+    @State private var sidebarMenuProvider = SpinLabSidebarMenuProvider()
 
     private let sidebarTopInset: CGFloat = 64
     private let standardDetailTopInset: CGFloat = 86
     private let inboxDetailTopInset: CGFloat = 14
     private let libraryDetailTopInset: CGFloat = 20
-    private let sidebarMenuProvider = SpinLabSidebarMenuProvider()
     private let appRouter = AppRouter()
 
     var body: some View {
@@ -40,10 +40,8 @@ struct RootSplitView: View {
             .frame(maxHeight: .infinity, alignment: .top)
             .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 260)
         } detail: {
-            contentView
+            detailLayers
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .safeAreaPadding(.top, currentDetailTopInset)
-                .frame(maxHeight: .infinity, alignment: .top)
                 .overlay(alignment: .topTrailing) {
                     HStack(spacing: 10) {
                         if appState.selectedArea != .library {
@@ -73,9 +71,6 @@ struct RootSplitView: View {
         }
         .onChange(of: appState.selectedArea) { _, _ in
             pruneExpandedSidebarStateForSelectedArea()
-            persistSidebarInteractionState()
-        }
-        .onChange(of: expandedSidebarNodeIDs) { _, _ in
             persistSidebarInteractionState()
         }
         .confirmationDialog(
@@ -110,27 +105,44 @@ struct RootSplitView: View {
         }
     }
 
-    @ViewBuilder
-    private var contentView: some View {
-        switch appState.selectedArea {
-        case .inbox:
-            InboxView()
-        case .workbench:
-            WorkbenchView()
-        case .library:
-            LibraryView()
+    private var detailLayers: some View {
+        ZStack {
+            detailLayer(
+                area: .inbox,
+                topInset: inboxDetailTopInset
+            ) {
+                InboxView()
+            }
+
+            detailLayer(
+                area: .workbench,
+                topInset: standardDetailTopInset
+            ) {
+                WorkbenchView()
+            }
+
+            detailLayer(
+                area: .library,
+                topInset: libraryDetailTopInset
+            ) {
+                LibraryView()
+            }
         }
     }
 
-    private var currentDetailTopInset: CGFloat {
-        switch appState.selectedArea {
-        case .inbox:
-            return inboxDetailTopInset
-        case .workbench:
-            return standardDetailTopInset
-        case .library:
-            return libraryDetailTopInset
-        }
+    private func detailLayer<Content: View>(
+        area: AppArea,
+        topInset: CGFloat,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        let isVisible = appState.selectedArea == area
+        return content()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .safeAreaPadding(.top, topInset)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .opacity(isVisible ? 1 : 0)
+            .allowsHitTesting(isVisible)
+            .accessibilityHidden(!isVisible)
     }
 
     private var selectedSidebarNodeIDs: Set<String> {
@@ -225,10 +237,11 @@ struct RootSplitView: View {
         }
 
         if case .area = node.kind {
-            appState.navigate(to: path)
-            if node.isExpandable {
-                toggleSidebarNodeExpansion(node.id)
+            let insertOutcome = expandedSidebarNodeIDs.insert(node.id)
+            if insertOutcome.inserted {
+                persistSidebarInteractionState()
             }
+            appState.navigate(to: path)
             return
         }
 
@@ -241,6 +254,7 @@ struct RootSplitView: View {
         } else {
             expandedSidebarNodeIDs.insert(nodeID)
         }
+        persistSidebarInteractionState()
     }
 
     private func contextMenuItems(for node: SidebarMenuNode) -> [SidebarContextMenuItem] {

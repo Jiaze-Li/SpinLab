@@ -188,6 +188,8 @@ final class SpinLabAppState {
     private let appLogger = AppLogger.shared
     private let interactionSnapshotCoordinator: InteractionSnapshotCoordinator
     private var hasRestoredInteractionSnapshot = false
+    private var lastLibraryCacheValidationRootPath: String?
+    private var lastLibraryCacheValidationAt: Date?
     private let dataActor: any SpinLabDataActing
     private let registryLifecycleService = RegistryLifecycleService()
     @ObservationIgnored
@@ -881,6 +883,15 @@ final class SpinLabAppState {
         guard let rootPath = libraryFeatureStore.librarySettings.rootPath else {
             return
         }
+        let now = Date()
+        if lastLibraryCacheValidationRootPath == rootPath,
+           let lastLibraryCacheValidationAt,
+           now.timeIntervalSince(lastLibraryCacheValidationAt) < 12 {
+            return
+        }
+        lastLibraryCacheValidationRootPath = rootPath
+        lastLibraryCacheValidationAt = now
+
         let rootURL = URL(fileURLWithPath: rootPath)
         guard libraryFeatureStore.libraryStore.needsIndexRefresh(rootURL: rootURL) else {
             return
@@ -999,6 +1010,8 @@ final class SpinLabAppState {
 
     func updateLibraryRoot(to url: URL) {
         libraryFeatureStore.updateLibraryRoot(to: url)
+        lastLibraryCacheValidationRootPath = nil
+        lastLibraryCacheValidationAt = nil
         loadExistingDrawers()
     }
 

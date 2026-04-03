@@ -58,7 +58,6 @@ struct LibraryView: View {
             applyRestoredInteractionState()
             rebuildPreviewDerivedData()
             syncSelection()
-            rebuildPreviewDerivedData()
             scheduleInteractionStatePersist(immediate: true)
         }
         .onChange(of: viewModel.viewState.previewGroupsByPrefix) { _, _ in
