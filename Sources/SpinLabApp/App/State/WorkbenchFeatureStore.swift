@@ -718,7 +718,7 @@ final class WorkbenchFeatureStore {
                         xColumnOverride: xOverride.isEmpty ? nil : xOverride,
                         yColumnOverride: yOverride.isEmpty ? nil : yOverride
                     )
-                    let resolvedTitle = titleOverride.isEmpty ? "AHE Plot" : titleOverride
+                    let resolvedTitle = titleOverride.isEmpty ? "AHE" : titleOverride
                     let xField = xOverride.isEmpty ? ingestion.defaultAxisMapping.xField : xOverride
                     let yField = yOverride.isEmpty ? ingestion.defaultAxisMapping.yField : yOverride
                     var style: [String: String] = [:]

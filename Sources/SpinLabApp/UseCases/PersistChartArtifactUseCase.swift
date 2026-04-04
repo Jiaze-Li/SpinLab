@@ -39,15 +39,28 @@ struct PersistChartArtifactUseCase {
         let identityKey = WorkbenchChartIdentity.makeIdentityKey(from: payload)
         let isMulti = sampleKeys.count > 1
 
+        // Build a human-readable filename: "{sanitized title}_{timestamp}"
+        let rawTitle = payload.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let safeTitle = rawTitle.isEmpty ? "chart" : rawTitle
+            .components(separatedBy: CharacterSet.alphanumerics.union(.init(charactersIn: " -_")).inverted)
+            .joined()
+            .components(separatedBy: .whitespaces)
+            .filter { !$0.isEmpty }
+            .joined(separator: "_")
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyyMMdd_HHmmss"
+        let ts = fmt.string(from: generatedAt)
+        let fileName = "\(safeTitle)_\(ts)"
+
         let imageRelPath: String
         let manifestRelPath: String
         if isMulti {
-            imageRelPath    = "_spinlab/multi-sample/charts/\(identityKey).png"
-            manifestRelPath = "_spinlab/multi-sample/charts/\(identityKey).manifest.json"
+            imageRelPath    = "_spinlab/multi-sample/charts/\(fileName).png"
+            manifestRelPath = "_spinlab/multi-sample/charts/\(fileName).manifest.json"
         } else {
             let sk = sampleKeys.first ?? "unknown"
-            imageRelPath    = "samples/\(sk)/charts/\(identityKey).png"
-            manifestRelPath = "samples/\(sk)/charts/\(identityKey).manifest.json"
+            imageRelPath    = "samples/\(sk)/charts/\(fileName).png"
+            manifestRelPath = "samples/\(sk)/charts/\(fileName).manifest.json"
         }
 
         let imageAbsURL    = try pathResolver.absoluteURL(for: imageRelPath)
