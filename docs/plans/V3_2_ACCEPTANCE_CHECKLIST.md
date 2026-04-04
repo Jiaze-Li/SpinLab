@@ -13,10 +13,14 @@ This checklist is the acceptance gate for V3.2 only.
 
 ## Generic Search Layer (must pass)
 
-- [ ] `V3.2.0` broad workflow `type` query works across drawers.
-- [ ] Workflow lookup is generic (AHE/RT/3W aliases) and does not require preconfigured `id=AHE`.
-- [ ] Search returns unified `WorkflowMeasurementSearchHit`-style results.
-- [ ] Search remains independent from workflow-specific parsing and plotting.
+- [x] `V3.2.0` broad workflow `type` query works across drawers.
+- [x] Workflow lookup is generic (AHE/RT/3W aliases) and does not require preconfigured `id=AHE`.
+- [x] Search returns unified `WorkflowMeasurementSearchHit`-style results.
+- [x] Search remains independent from workflow-specific parsing and plotting.
+
+V3.2.0 completion note (2026-04-04):
+- Implemented and accepted as done.
+- Rule-governance consolidation (baseline manifest + guard script + CI gate + parser golden tests) was completed in the same delivery cycle.
 
 ## AHE Pipeline + Plot Path (must pass)
 

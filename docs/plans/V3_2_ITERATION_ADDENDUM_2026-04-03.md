@@ -51,6 +51,19 @@ Definition of Done (DoD):
 Test naming draft:
 - `Tests/SpinLabAppTests/V320WorkflowSearchAcrossDrawersTests.swift`
 
+Status: `done` (accepted on 2026-04-04)
+
+Implementation record (2026-04-04):
+- Search is workflow-generic and supports direct type-text query across drawers (AHE/RT/3W aliases), not AHE-only gating.
+- `WorkflowSearchQuery` -> `WorkflowMeasurementSearchHit` contract path is active in Workbench and validated by `V320WorkflowSearchAcrossDrawersTests`.
+- Search matching remains independent from workflow ingestion/plot pipeline.
+- Rule-governance consolidation delivered in same cycle:
+  - Added rule source baseline manifest: `docs/architecture/RULE_BASELINE_MANIFEST.md`.
+  - Added drift guard script: `scripts/test_rule_drift_guard.sh`.
+  - Added CI gate: `.github/workflows/rule-drift-guard.yml`.
+  - Locked parser arbitration behavior with golden tests in `V210ImportAndParseTests` (channel/file/folder priority, fallback warning boundary, tie/shortcut behavior).
+  - Exposed/recorded rule runtime observability fields and composite fingerprint contract for drift tracing.
+
 ### V3.2.1 AHE Ingestion + Axis Detection
 
 Scope:
