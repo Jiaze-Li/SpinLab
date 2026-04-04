@@ -1,0 +1,27 @@
+name: Rule Drift Guard
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  guard:
+    name: Run Rule Drift Guard
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Run Guard Script
+        run: ./scripts/test_rule_drift_guard.sh
+        env:
+          RULE_GUARD_BASE_REF: origin/main
