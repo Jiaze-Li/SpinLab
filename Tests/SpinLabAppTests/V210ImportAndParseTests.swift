@@ -96,6 +96,29 @@ struct V210ImportAndParseTests {
         #expect(parsed.current == "1mA")
     }
 
+    @Test("workflow uses file token when file and parent provide conflicting workflow categories")
+    func parserPrefersFileWorkflowOverParentWorkflowCategory() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/20260317_PN49to61_RT_MR_AHE/RT_1mA_ch1_PN59_ch2_PN60_ch3_PN61_wafer.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.workflowID == "RT")
+    }
+
+    @Test("condition value prefers file token over parent folder token in same category")
+    func parserPrefersFileConditionOverParentCondition() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/RT_300K_folder/RT_80K_1mA_ch1_PN40_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.temperature == "80K")
+        #expect(parsed.current == "1mA")
+    }
+
     @Test("parser keeps channel substrate tags out of file-level substrate tags")
     func parserSeparatesFileAndChannelScopesByFirstChannelToken() throws {
         let ruleSet = try loadBundledRuleSetForTests()

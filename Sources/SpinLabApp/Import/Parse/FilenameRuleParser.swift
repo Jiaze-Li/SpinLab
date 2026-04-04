@@ -40,6 +40,11 @@ struct FilenameRuleParser {
             parentTokens: parentTokens,
             grandparentTokens: grandparentTokens
         )
+        let folderContextTokens = tokensForSources(
+            fileTokens: [],
+            parentTokens: parentTokens,
+            grandparentTokens: grandparentTokens
+        )
 
         // Full context: all file tokens + folder tokens.
         // Conditions (temperature, field, current, …) are experiment-global values
@@ -55,6 +60,10 @@ struct FilenameRuleParser {
             parentName: parentName,
             grandparentName: grandparentName
         )
+        let fileJoined = fileScopeTokens.joined(separator: " ").lowercased()
+        let folderJoined = [parentName, grandparentName]
+            .joined(separator: " ")
+            .lowercased()
 
         let fileSampleIDs = ruleSet.sampleIDs(from: fileScopeTokens)
         let folderSampleIDs = uniquePreservingOrder(
@@ -63,10 +72,25 @@ struct FilenameRuleParser {
         )
         let allSampleIDs = uniquePreservingOrder(fileSampleIDs + folderSampleIDs)
 
-        let measurement = ruleSet.measurementName(from: scopedContextTokens, joined: joined)
-        let measurementTags = uniquePreservingOrder(ruleSet.measurementTags(from: scopedContextTokens))
-        let substrateTags = uniquePreservingOrder(ruleSet.substrateTags(from: scopedContextTokens))
-        let conditionEvaluation = ruleSet.conditionEvaluation(from: fullContextTokens)
+        let measurement = preferredValue(
+            fileValue: ruleSet.measurementName(from: fileScopeTokens, joined: fileJoined),
+            folderValue: ruleSet.measurementName(from: folderContextTokens, joined: folderJoined),
+            fallbackValue: ruleSet.measurementName(from: scopedContextTokens, joined: joined)
+        )
+        let measurementTags = preferredTags(
+            fileTags: uniquePreservingOrder(ruleSet.measurementTags(from: fileScopeTokens)),
+            folderTags: uniquePreservingOrder(ruleSet.measurementTags(from: folderContextTokens))
+        )
+        let substrateTags = preferredTags(
+            fileTags: uniquePreservingOrder(ruleSet.substrateTags(from: fileScopeTokens)),
+            folderTags: uniquePreservingOrder(ruleSet.substrateTags(from: folderContextTokens))
+        )
+        let fileConditionEvaluation = ruleSet.conditionEvaluation(from: fileTokens)
+        let folderConditionEvaluation = ruleSet.conditionEvaluation(from: folderContextTokens)
+        let conditionEvaluation = mergedConditionEvaluation(
+            fileEvaluation: fileConditionEvaluation,
+            folderEvaluation: folderConditionEvaluation
+        )
         let conditionValues = conditionEvaluation.values
         let temperature = conditionValues[ConditionFieldCatalog.temperatureID]
         let current = conditionValues[ConditionFieldCatalog.currentID]
@@ -340,5 +364,40 @@ struct FilenameRuleParser {
     private func uniquePreservingOrder(_ values: [String]) -> [String] {
         var seen: Set<String> = []
         return values.filter { seen.insert($0).inserted }
+    }
+
+    private func preferredValue(
+        fileValue: String?,
+        folderValue: String?,
+        fallbackValue: String?
+    ) -> String? {
+        normalized(fileValue) ?? normalized(folderValue) ?? normalized(fallbackValue)
+    }
+
+    private func preferredTags(fileTags: [String], folderTags: [String]) -> [String] {
+        if !fileTags.isEmpty {
+            return fileTags
+        }
+        return folderTags
+    }
+
+    private func mergedConditionEvaluation(
+        fileEvaluation: FilenameRuleSet.ExtraConditionEvaluation,
+        folderEvaluation: FilenameRuleSet.ExtraConditionEvaluation
+    ) -> FilenameRuleSet.ExtraConditionEvaluation {
+        let allKeys = Set(fileEvaluation.values.keys).union(folderEvaluation.values.keys)
+        var mergedValues: [String: String] = [:]
+        for key in allKeys {
+            if let fileValue = fileEvaluation.values[key] {
+                mergedValues[key] = fileValue
+            } else if let folderValue = folderEvaluation.values[key] {
+                mergedValues[key] = folderValue
+            }
+        }
+
+        return FilenameRuleSet.ExtraConditionEvaluation(
+            values: mergedValues,
+            warnings: uniquePreservingOrder(fileEvaluation.warnings + folderEvaluation.warnings)
+        )
     }
 }

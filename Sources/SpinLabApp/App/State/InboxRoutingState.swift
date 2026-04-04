@@ -6,6 +6,7 @@ import Foundation
 final class InboxRoutingState {
     private let routingCapabilities: RoutingCapabilities
     private let ruleRuntime: any RuleRuntimeCapability
+    private let sampleKeyNormalizer = SampleKeyNormalizer()
     private let pendingRoutePresentationBuilder = PendingRoutePresentationBuilder()
 
     private var pendingRoutingSnapshotByID: [UUID: SpinLabDomain.PendingRoutingSnapshot] = [:]
@@ -206,7 +207,11 @@ final class InboxRoutingState {
 
         var parsed = pending.parsedHints
         let trimmedDefault = draft.defaultSampleKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        parsed.defaultSampleKey = trimmedDefault.isEmpty ? nil : trimmedDefault
+        parsed.defaultSampleKey = trimmedDefault.isEmpty ? nil : normalizedSampleInput(
+            trimmedDefault,
+            fallbackBatchID: pending.parsedHints.sampleIDs.first,
+            fallbackSampleTags: pending.parsedHints.substrateTags
+        )
 
         var channelHints = parsed.channelHints
         for index in channelHints.indices {
@@ -215,7 +220,11 @@ final class InboxRoutingState {
                 continue
             }
             let trimmed = override.trimmingCharacters(in: .whitespacesAndNewlines)
-            channelHints[index].sampleID = trimmed.isEmpty ? nil : trimmed
+            channelHints[index].sampleID = trimmed.isEmpty ? nil : normalizedSampleInput(
+                trimmed,
+                fallbackBatchID: pending.parsedHints.sampleIDs.first,
+                fallbackSampleTags: channelHints[index].tags
+            )
         }
         parsed.channelHints = channelHints
         return parsed
@@ -254,5 +263,17 @@ final class InboxRoutingState {
         }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func normalizedSampleInput(
+        _ value: String,
+        fallbackBatchID: String?,
+        fallbackSampleTags: [String]
+    ) -> String {
+        sampleKeyNormalizer.canonicalOrOriginal(
+            from: value,
+            fallbackBatchID: fallbackBatchID,
+            fallbackSampleTags: fallbackSampleTags
+        )
     }
 }
