@@ -57,7 +57,7 @@ V3.2.4 completion note (2026-04-04):
 - Wiring into `WorkbenchFeatureStore.renderAHEPlot()` deferred to V3.2.7 (requires `libraryRootPath` persistence in store).
 - 12/12 tests pass (`V324ChartIdentityOverwriteTests`). 196/196 total. AppVersion bumped to v3.2.4.
 
-- [x] Run manifest provenance is emitted and visible (`V3.2.6`).
+- [x] Run manifest provenance is emitted and visible (`V3.2.6`). ⚠️ product-level acceptance (Workbench UI) closes in V3.2.7.
 
 V3.2.6 completion note (2026-04-04):
 - WorkbenchRunTraceProjection: read-only UI projection built from persisted manifest only, no recomputation from live payload.

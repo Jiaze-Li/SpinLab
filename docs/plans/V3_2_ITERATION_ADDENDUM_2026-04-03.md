@@ -161,14 +161,21 @@ Scope:
 - Route all V3.2 writes through `AtomicFileWriter`.
 - Resolve/store paths through `LibraryPathResolver`.
 - Ensure restart can restore generated artifacts.
+- [ADDED 2026-04-04] Wire `PersistChartArtifactUseCase` into `WorkbenchFeatureStore.renderAHEPlot()`.
+- [ADDED 2026-04-04] Persist `libraryRootPath` in store so `renderAHEPlot` can resolve artifact paths.
+- [ADDED 2026-04-04] Expose `currentRunTrace: WorkbenchRunTraceProjection?` in store; populate via `BuildRunTraceProjectionUseCase` after each render.
+- [ADDED 2026-04-04] Wire trace projection into `WorkbenchView` so user can see last run trace (closes V3.2.6 product-level acceptance).
 
 User-visible acceptance:
 - After app restart, previous V3.2 generated outputs remain discoverable/openable.
+- [ADDED 2026-04-04] User can inspect last run trace (runID, inputs, axis, output path, timestamp) in Workbench after any plot render.
 
 Definition of Done (DoD):
 - No direct non-atomic write path remains in V3.2 scope.
 - Relative path round-trip passes for artifacts.
 - Root-escape paths are rejected explicitly.
+- [ADDED 2026-04-04] `currentRunTrace` is populated after render and reflects the persisted manifest (not live payload).
+- [ADDED 2026-04-04] V3.2.6 product-level acceptance ("User can inspect last run trace from Workbench") is closed here.
 
 Test naming draft:
 - `Tests/SpinLabAppTests/V327V32PersistenceClosureTests.swift`
