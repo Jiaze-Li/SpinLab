@@ -697,6 +697,10 @@ final class WorkbenchFeatureStore {
         let legendAnchor = plotLegendAnchor
         let libraryRootPath = lastLibraryRootPath
         let firstSampleKey = selections.first?.sampleKey ?? "unknown"
+        let allSampleKeys: [String] = {
+            var seen = Set<String>()
+            return selections.compactMap { seen.insert($0.sampleKey).inserted ? $0.sampleKey : nil }
+        }()
 
         plotTask?.cancel()
         isPlotRendering = true
@@ -729,7 +733,7 @@ final class WorkbenchFeatureStore {
                     let png = try WorkbenchChartRenderer().renderPNG(payload: payload)
                     let trace = WorkbenchFeatureStore.attemptPersistAndTrace(
                         png: png, payload: payload,
-                        libraryRootPath: libraryRootPath, sampleKey: firstSampleKey
+                        libraryRootPath: libraryRootPath, sampleKeys: allSampleKeys
                     )
                     return (png, ingestion.candidateAxisFields, trace)
                 }.value
@@ -753,12 +757,12 @@ final class WorkbenchFeatureStore {
         png: Data,
         payload: WorkbenchPlotPayload,
         libraryRootPath: String,
-        sampleKey: String
+        sampleKeys: [String]
     ) -> WorkbenchRunTraceProjection? {
         guard !libraryRootPath.isEmpty else { return nil }
         let resolver = LibraryPathResolver(libraryRootURL: URL(filePath: libraryRootPath))
         let useCase = PersistChartArtifactUseCase(writer: AtomicFileWriter(), pathResolver: resolver)
-        guard let result = try? useCase.execute(sampleKey: sampleKey, payload: payload, imageData: png) else {
+        guard let result = try? useCase.execute(sampleKeys: sampleKeys, payload: payload, imageData: png) else {
             return nil
         }
         return BuildRunTraceProjectionUseCase().execute(
@@ -828,7 +832,7 @@ final class WorkbenchFeatureStore {
             for ch in channels {
                 selections.append(AHEPlotSelectionItem(
                     sampleKey: hit.sampleKey,
-                    sourceFilePath: hit.sourceFilePath,
+                    sourceFilePath: hit.measurementFilePath,
                     channel: ch,
                     conditions: hit.conditions,
                     workflowID: hit.workflowID

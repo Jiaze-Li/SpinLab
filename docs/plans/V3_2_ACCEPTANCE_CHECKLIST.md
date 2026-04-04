@@ -112,7 +112,13 @@ V3.2.8 completion note (2026-04-04):
 
 ## MR/RT Onboarding Readiness Check (must pass before starting MR/RT)
 
-- [ ] Unified plot API has been used by at least one real AHE batch end-to-end.
-- [ ] Atomic write-path works on real library paths (not test-only temp paths).
-- [ ] V3.2 architecture boundaries remain intact (workflow compute vs unified plot).
-- [ ] Decision recorded: MR/RT can onboard without changing unified plot main flow.
+- [x] Unified plot API has been used by at least one real AHE batch end-to-end.
+- [x] Atomic write-path works on real library paths (not test-only temp paths).
+- [x] V3.2 architecture boundaries remain intact (workflow compute vs unified plot).
+- [x] Decision recorded: MR/RT can onboard without changing unified plot main flow.
+
+MR/RT Onboarding Readiness closure note (2026-04-04):
+- Real AHE .dat files from library root verified end-to-end: search → select → plot → PNG → manifest → results_index.
+- AtomicFileWriter confirmed on real library path (/Users/jack/Downloads/data); relative path round-trip verified.
+- WorkbenchChartRenderer and PersistChartArtifactUseCase contain zero AHE/bridge/channel-specific logic (grep-verified).
+- Decision: MR/RT onboarding requires only a new IngestMRSelectionsUseCase; renderer, persist, and WorkbenchFeatureStore main flow are unchanged.

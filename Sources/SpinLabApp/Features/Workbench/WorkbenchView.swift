@@ -4,7 +4,6 @@ import AppKit
 struct WorkbenchView: View {
     @Environment(SpinLabAppState.self) private var appState
     @Environment(\.openWindow) private var openWindow
-    @State private var workflowSearchRootPathOverride: String = ""
 
     var body: some View {
         @Bindable var workbench = appState.workbench
@@ -65,20 +64,23 @@ struct WorkbenchView: View {
                 TextField("Query (examples: AHE, AHE PN31, AHE 80K, AHE PN31 80K)", text: $workbench.workflowSearchQueryText)
                     .textFieldStyle(.roundedBorder)
 
-                TextField("Library Root Path", text: $workflowSearchRootPathOverride)
-                    .textFieldStyle(.roundedBorder)
-                    .onAppear {
-                        if workflowSearchRootPathOverride.isEmpty {
-                            workflowSearchRootPathOverride = appState.library.librarySettings.rootPath ?? ""
-                        }
-                    }
+                let libraryRoot = appState.library.librarySettings.rootPath
+                HStack(spacing: 4) {
+                    Text("Library Root:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(libraryRoot ?? "Not configured — set in Library settings")
+                        .font(.caption)
+                        .foregroundStyle(libraryRoot == nil ? .red : .secondary)
+                        .textSelection(.enabled)
+                }
 
                 HStack(spacing: 10) {
                     Button("Search") {
-                        workbench.runWorkflowMeasurementSearch(libraryRootPath: resolvedSearchRootPath)
+                        workbench.runWorkflowMeasurementSearch(libraryRootPath: libraryRoot)
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(workbench.isWorkflowSearchRunning)
+                    .disabled(workbench.isWorkflowSearchRunning || libraryRoot == nil)
 
                     Button("Clear") {
                         workbench.clearWorkflowMeasurementSearch()
@@ -282,7 +284,7 @@ struct WorkbenchView: View {
                 traceRow(label: "Workflow", value: trace.workflowID)
                 traceRow(label: "X Axis", value: trace.axisMapping.xField)
                 traceRow(label: "Y Axis", value: trace.axisMapping.yField)
-                traceRow(label: "Inputs", value: trace.inputFiles.joined(separator: ", "))
+                traceRow(label: "Inputs", value: trace.inputFiles.joined(separator: "\n"))
                 traceRow(label: "Output", value: trace.outputImagePath)
                 traceRow(label: "Identity", value: trace.chartIdentityKey)
                 traceRow(label: "Generated", value: trace.generatedAt.formatted(.dateTime))
@@ -306,11 +308,4 @@ struct WorkbenchView: View {
         }
     }
 
-    private var resolvedSearchRootPath: String {
-        let override = workflowSearchRootPathOverride.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !override.isEmpty {
-            return override
-        }
-        return appState.library.librarySettings.rootPath ?? ""
-    }
 }

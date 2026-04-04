@@ -25,25 +25,34 @@ struct PersistChartArtifactUseCase {
         return d
     }()
 
+    /// Multi-sample entry point. When `sampleKeys` has more than one element the
+    /// PNG and manifest are written to `_spinlab/multi-sample/charts/` and a
+    /// reference is inserted into each sample's own `results_index.json`.
     func execute(
-        sampleKey: String,
+        sampleKeys: [String],
         payload: WorkbenchPlotPayload,
         imageData: Data,
         runID: String = UUID().uuidString,
         generatedAt: Date = Date(),
-        appVersion: String = "v3.2.4"
+        appVersion: String = AppVersion.current
     ) throws -> ChartArtifactPersistenceResult {
         let identityKey = WorkbenchChartIdentity.makeIdentityKey(from: payload)
+        let isMulti = sampleKeys.count > 1
 
-        let imageRelPath = "samples/\(sampleKey)/charts/\(identityKey).png"
-        let manifestRelPath = "samples/\(sampleKey)/charts/\(identityKey).manifest.json"
-        let indexRelPath = "samples/\(sampleKey)/_spinlab/results_index.json"
+        let imageRelPath: String
+        let manifestRelPath: String
+        if isMulti {
+            imageRelPath    = "_spinlab/multi-sample/charts/\(identityKey).png"
+            manifestRelPath = "_spinlab/multi-sample/charts/\(identityKey).manifest.json"
+        } else {
+            let sk = sampleKeys.first ?? "unknown"
+            imageRelPath    = "samples/\(sk)/charts/\(identityKey).png"
+            manifestRelPath = "samples/\(sk)/charts/\(identityKey).manifest.json"
+        }
 
-        let imageAbsURL = try pathResolver.absoluteURL(for: imageRelPath)
+        let imageAbsURL    = try pathResolver.absoluteURL(for: imageRelPath)
         let manifestAbsURL = try pathResolver.absoluteURL(for: manifestRelPath)
-        let indexAbsURL = try pathResolver.absoluteURL(for: indexRelPath)
-
-        let isOverwrite = FileManager.default.fileExists(atPath: imageAbsURL.path)
+        let isOverwrite    = FileManager.default.fileExists(atPath: imageAbsURL.path)
 
         // Build manifest
         let inputFiles = payload.series.compactMap(\.sourceRef)
@@ -60,16 +69,7 @@ struct PersistChartArtifactUseCase {
             appVersion: appVersion
         )
 
-        // Load existing index or create fresh one
-        var index: WorkbenchResultsIndex
-        if let existing = try? Data(contentsOf: indexAbsURL),
-           let decoded = try? Self.decoder.decode(WorkbenchResultsIndex.self, from: existing) {
-            index = decoded
-        } else {
-            index = WorkbenchResultsIndex(sampleKey: sampleKey, updatedAt: generatedAt, references: [])
-        }
-
-        // Upsert reference by chartIdentityKey
+        // Build the shared reference object (same for all samples)
         let reference = WorkbenchResultReference(
             chartIdentityKey: identityKey,
             chartImagePath: imageRelPath,
@@ -77,21 +77,43 @@ struct PersistChartArtifactUseCase {
             workflowID: payload.workflowID,
             generatedAt: generatedAt
         )
-        if let existingIdx = index.references.firstIndex(where: { $0.chartIdentityKey == identityKey }) {
-            index.references[existingIdx] = reference
-        } else {
-            index.references.append(reference)
+
+        // Upsert reference into each sample's results_index.json
+        var indexEntries: [(URL, Data)] = []
+        let uniqueKeys: [String] = {
+            var seen = Set<String>()
+            let deduped = sampleKeys.filter { seen.insert($0).inserted }
+            return deduped.isEmpty ? ["unknown"] : deduped
+        }()
+        for sk in uniqueKeys {
+            let indexRelPath = "samples/\(sk)/_spinlab/results_index.json"
+            let indexAbsURL  = try pathResolver.absoluteURL(for: indexRelPath)
+            var index: WorkbenchResultsIndex
+            if let existing = try? Data(contentsOf: indexAbsURL),
+               let decoded  = try? Self.decoder.decode(WorkbenchResultsIndex.self, from: existing) {
+                index = decoded
+            } else {
+                index = WorkbenchResultsIndex(sampleKey: sk, updatedAt: generatedAt, references: [])
+            }
+            if let existingIdx = index.references.firstIndex(where: { $0.chartIdentityKey == identityKey }) {
+                index.references[existingIdx] = reference
+            } else {
+                index.references.append(reference)
+            }
+            index.updatedAt = generatedAt
+            indexEntries.append((indexAbsURL, try Self.encoder.encode(index)))
         }
-        index.updatedAt = generatedAt
 
         let manifestData = try Self.encoder.encode(manifest)
-        let indexData = try Self.encoder.encode(index)
 
-        try writer.commit([
-            AtomicWriteEntry(destinationURL: imageAbsURL, data: imageData),
+        var writes: [AtomicWriteEntry] = [
+            AtomicWriteEntry(destinationURL: imageAbsURL,    data: imageData),
             AtomicWriteEntry(destinationURL: manifestAbsURL, data: manifestData),
-            AtomicWriteEntry(destinationURL: indexAbsURL, data: indexData),
-        ])
+        ]
+        for (url, data) in indexEntries {
+            writes.append(AtomicWriteEntry(destinationURL: url, data: data))
+        }
+        try writer.commit(writes)
 
         return ChartArtifactPersistenceResult(
             chartIdentityKey: identityKey,
@@ -99,6 +121,25 @@ struct PersistChartArtifactUseCase {
             manifestPath: manifestRelPath,
             isOverwrite: isOverwrite,
             manifest: manifest
+        )
+    }
+
+    /// Convenience wrapper for single-sample callers.
+    func execute(
+        sampleKey: String,
+        payload: WorkbenchPlotPayload,
+        imageData: Data,
+        runID: String = UUID().uuidString,
+        generatedAt: Date = Date(),
+        appVersion: String = AppVersion.current
+    ) throws -> ChartArtifactPersistenceResult {
+        try execute(
+            sampleKeys: [sampleKey],
+            payload: payload,
+            imageData: imageData,
+            runID: runID,
+            generatedAt: generatedAt,
+            appVersion: appVersion
         )
     }
 }

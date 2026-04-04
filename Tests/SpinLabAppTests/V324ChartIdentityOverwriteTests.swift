@@ -188,7 +188,7 @@ struct V324ChartIdentityOverwriteTests {
         #expect(manifest.workflowID == "AHE")
         #expect(manifest.outputImagePath == result.imagePath)
         #expect(manifest.inputFiles.contains("run1.dat"))
-        #expect(manifest.appVersion == "v3.2.4")
+        #expect(manifest.appVersion == AppVersion.current)
     }
 }
 

@@ -57,6 +57,18 @@ struct LibrarySettingsSectionView: View {
                             .disabled(!canReloadSampleRegistry)
                             Spacer()
                         }
+
+                        HStack {
+                            TextField("Allowed Prefixes (PN, PT, SL)", text: $allowedPrefixesDraft)
+                                .frame(width: 190)
+                                .textFieldStyle(.roundedBorder)
+                            Button("Save Prefixes") {
+                                onSavePrefixes(allowedPrefixesDraft)
+                            }
+                        }
+                        .onAppear {
+                            allowedPrefixesDraft = viewState.allowedBatchPrefixesText
+                        }
                     }
                 } label: {
                     Text("Registry")
@@ -98,18 +110,6 @@ struct LibrarySettingsSectionView: View {
 
                         if let path = viewState.rootVerificationPath {
                             MetadataValueRow(label: "Verified Path", value: path, monospaced: true)
-                        }
-
-                        HStack {
-                            TextField("Allowed Prefixes (PN, PT, SL)", text: $allowedPrefixesDraft)
-                                .frame(width: 190)
-                                .textFieldStyle(.roundedBorder)
-                            Button("Save Prefixes") {
-                                onSavePrefixes(allowedPrefixesDraft)
-                            }
-                        }
-                        .onAppear {
-                            allowedPrefixesDraft = viewState.allowedBatchPrefixesText
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
