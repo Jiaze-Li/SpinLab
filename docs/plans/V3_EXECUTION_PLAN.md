@@ -87,8 +87,9 @@ Why:
 
 ### 2.3 First Workflow in Scope
 
-AHE only for first closed loop.
-MR/RT are follow-on onboarding targets once architecture is validated.
+AHE is the first ingestion/plot closed loop.
+V3.2.0 search is workflow-generic (query by workflow type text across drawers, e.g. AHE/RT/3W).
+MR/RT ingestion and plotting are follow-on onboarding targets once architecture is validated.
 
 ---
 
