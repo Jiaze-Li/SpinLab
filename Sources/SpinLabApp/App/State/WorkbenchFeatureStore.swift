@@ -31,12 +31,37 @@ enum WorkbenchSection: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class WorkbenchFeatureStore {
+    private struct WorkflowMatchRuleSemantic: Equatable {
+        let scope: FilenameRuleSet.MatchScope
+        let type: FilenameRuleSet.MatchType
+        let matchValues: [String]
+        let workflowID: String
+    }
+
+    private struct SubstrateTagRuleSemantic: Equatable {
+        let scope: FilenameRuleSet.MatchScope
+        let type: FilenameRuleSet.MatchType
+        let matchValues: [String]
+        let value: String
+    }
+
+    private struct SubstrateRulesSemantic: Equatable {
+        let tokenSeparators: String
+        let originStandaloneTokens: [String]
+        let originContainsTokens: [String]
+        let tagRules: [SubstrateTagRuleSemantic]
+    }
+
     private let workbenchState = WorkbenchState()
 
     var archivedRecords: [SpinLabDomain.ArchivedRecord]
     var projectCatalog: [SpinLabDomain.Project]
     var selectedArchivedRecordID: UUID?
     var workbenchResultDraft: String = ""
+    var workflowSearchQueryText: String = ""
+    private(set) var workflowSearchResults: [WorkflowMeasurementSearchHit] = []
+    var workflowSearchMessage: String?
+    private(set) var isWorkflowSearchRunning = false
 
     @ObservationIgnored
     private var archivedRecordsProjectionTask: Task<Void, Never>?
@@ -50,9 +75,13 @@ final class WorkbenchFeatureStore {
     private var isArchivedRecordsProjectionDrainScheduled = false
     @ObservationIgnored
     private var isProjectCatalogProjectionDrainScheduled = false
+    @ObservationIgnored
+    private var workflowSearchTask: Task<Void, Never>?
 
     @ObservationIgnored
     private let libraryRepository: LibraryRepository
+    @ObservationIgnored
+    private let dataActor: any SpinLabDataActing
     @ObservationIgnored
     private let workflowRegistryStore: WorkflowRegistryStore
     @ObservationIgnored
@@ -68,7 +97,34 @@ final class WorkbenchFeatureStore {
     var workflowRegistryMessage: String?
     private(set) var conditionDefinitionOptions: [ConditionDefinitionOption]
     private(set) var workflowMatchRules: [WorkflowMatchRuleEntry]
+    @ObservationIgnored
+    private var persistedWorkflowMatchRulesSemantics: [WorkflowMatchRuleSemantic]
     private(set) var sampleIDPatterns: [String]
+    @ObservationIgnored
+    private var persistedSampleIDPatterns: [String]
+    private(set) var substrateTokenSeparators: String
+    private(set) var substrateOriginStandaloneTokens: [String]
+    private(set) var substrateOriginContainsTokens: [String]
+    private(set) var substrateTagRules: [MatchRuleEntry]
+    @ObservationIgnored
+    private var persistedSubstrateRulesSemantic: SubstrateRulesSemantic
+
+    var hasUnsavedWorkflowMatchRules: Bool {
+        Self.workflowMatchRulesSemantics(workflowMatchRules) != persistedWorkflowMatchRulesSemantics
+    }
+
+    var hasUnsavedSampleIDPatterns: Bool {
+        sampleIDPatterns != persistedSampleIDPatterns
+    }
+
+    var hasUnsavedSubstrateRules: Bool {
+        Self.substrateRulesSemantic(
+            tokenSeparators: substrateTokenSeparators,
+            originStandaloneTokens: substrateOriginStandaloneTokens,
+            originContainsTokens: substrateOriginContainsTokens,
+            tagRules: substrateTagRules
+        ) != persistedSubstrateRulesSemantic
+    }
 
     var selectedWorkflowID: String? {
         switch currentRoute {
@@ -79,6 +135,7 @@ final class WorkbenchFeatureStore {
 
     init(
         libraryRepository: LibraryRepository,
+        dataActor: any SpinLabDataActing = SpinLabDataActor(),
         workflowRegistryStore: WorkflowRegistryStore,
         workflowIDAllocator: any WorkflowIDAllocating = DefaultWorkflowIDAllocator(),
         conditionRulesHandbookStore: ConditionRulesHandbookStore = ConditionRulesHandbookStore()
@@ -87,8 +144,10 @@ final class WorkbenchFeatureStore {
         let initialProjectCatalog = libraryRepository.projects
         let initialWorkflowDefinitions = workflowRegistryStore.load()
         let initialConditionOptions = conditionRulesHandbookStore.conditionDefinitionOptions()
+        let initialRuleSet = RuleLoader.shared.loadCached().ruleSet
 
         self.libraryRepository = libraryRepository
+        self.dataActor = dataActor
         self.workflowRegistryStore = workflowRegistryStore
         self.workflowIDAllocator = workflowIDAllocator
         self.conditionRulesHandbookStore = conditionRulesHandbookStore
@@ -97,17 +156,36 @@ final class WorkbenchFeatureStore {
         self.selectedArchivedRecordID = initialArchivedRecords.first?.id
         self.workflowDefinitions = initialWorkflowDefinitions
         self.conditionDefinitionOptions = initialConditionOptions
-        self.workflowMatchRules = Self.canonicalized(
+        let initialWorkflowMatchRules = Self.canonicalized(
             conditionRulesHandbookStore.loadWorkflowMatchRules(),
             against: initialWorkflowDefinitions
         )
-        self.sampleIDPatterns = conditionRulesHandbookStore.loadSampleIDPatterns()
+        self.workflowMatchRules = initialWorkflowMatchRules
+        self.persistedWorkflowMatchRulesSemantics = Self.workflowMatchRulesSemantics(initialWorkflowMatchRules)
+        let initialSampleIDPatterns = conditionRulesHandbookStore.loadSampleIDPatterns()
+        self.sampleIDPatterns = initialSampleIDPatterns
+        self.persistedSampleIDPatterns = initialSampleIDPatterns
+        let initialSubstrateState = Self.makeInitialSubstrateState(
+            ruleSet: initialRuleSet,
+            separatedPatch: conditionRulesHandbookStore.loadSeparatedSubstrateRules()
+        )
+        self.substrateTokenSeparators = initialSubstrateState.tokenSeparators
+        self.substrateOriginStandaloneTokens = initialSubstrateState.originStandaloneTokens
+        self.substrateOriginContainsTokens = initialSubstrateState.originContainsTokens
+        self.substrateTagRules = initialSubstrateState.tagRules
+        self.persistedSubstrateRulesSemantic = Self.substrateRulesSemantic(
+            tokenSeparators: initialSubstrateState.tokenSeparators,
+            originStandaloneTokens: initialSubstrateState.originStandaloneTokens,
+            originContainsTokens: initialSubstrateState.originContainsTokens,
+            tagRules: initialSubstrateState.tagRules
+        )
         self.currentRoute = .registry(selectedID: initialWorkflowDefinitions.first?.id)
     }
 
     deinit {
         archivedRecordsProjectionTask?.cancel()
         projectCatalogProjectionTask?.cancel()
+        workflowSearchTask?.cancel()
     }
 
     func replaceArchivedRecords(_ records: [SpinLabDomain.ArchivedRecord], persist: Bool = true) -> [SpinLabDomain.ArchivedRecord] {
@@ -276,25 +354,21 @@ final class WorkbenchFeatureStore {
                 workflowID: selectedWorkflowID
             )
         )
-        persistWorkflowMatchRules()
     }
 
     func removeMatchRule(_ id: UUID) {
         guard let index = workflowMatchRules.firstIndex(where: { $0.id == id }) else { return }
         workflowMatchRules.remove(at: index)
-        persistWorkflowMatchRules()
     }
 
     func updateMatchRuleScope(_ id: UUID, scope: FilenameRuleSet.MatchScope) {
         guard let index = workflowMatchRules.firstIndex(where: { $0.id == id }) else { return }
         workflowMatchRules[index].scope = scope
-        persistWorkflowMatchRules()
     }
 
     func updateMatchRuleType(_ id: UUID, type: FilenameRuleSet.MatchType) {
         guard let index = workflowMatchRules.firstIndex(where: { $0.id == id }) else { return }
         workflowMatchRules[index].type = type
-        persistWorkflowMatchRules()
     }
 
     func updateMatchRuleValuesCSV(_ id: UUID, csv: String) {
@@ -308,7 +382,20 @@ final class WorkbenchFeatureStore {
             workflowRegistryMessage = "Match values cannot be empty in match rules."
             return
         }
+        workflowRegistryMessage = nil
+    }
+
+    func confirmWorkflowMatchRulesSave() {
         persistWorkflowMatchRules()
+    }
+
+    func discardWorkflowMatchRulesEdits() {
+        workflowMatchRules = Self.canonicalized(
+            conditionRulesHandbookStore.loadWorkflowMatchRules(),
+            against: workflowDefinitions
+        )
+        persistedWorkflowMatchRulesSemantics = Self.workflowMatchRulesSemantics(workflowMatchRules)
+        workflowRegistryMessage = nil
     }
 
     func addConditionFieldToSelectedWorkflow() {
@@ -504,6 +591,65 @@ final class WorkbenchFeatureStore {
         return archivedRecords
     }
 
+    func runWorkflowMeasurementSearch(libraryRootPath: String?) {
+        let query = workflowSearchQueryText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
+            workflowSearchResults = []
+            workflowSearchMessage = "Enter workflow query, for example: AHE PN31 80K"
+            isWorkflowSearchRunning = false
+            workflowSearchTask?.cancel()
+            workflowSearchTask = nil
+            return
+        }
+        guard let libraryRootPath = libraryRootPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !libraryRootPath.isEmpty else {
+            workflowSearchResults = []
+            workflowSearchMessage = "Set Library Root before searching."
+            isWorkflowSearchRunning = false
+            workflowSearchTask?.cancel()
+            workflowSearchTask = nil
+            return
+        }
+
+        workflowSearchTask?.cancel()
+        isWorkflowSearchRunning = true
+        workflowSearchMessage = nil
+
+        workflowSearchTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let result = try await dataActor.searchWorkflowMeasurements(
+                    libraryRootPath: libraryRootPath,
+                    query: WorkflowSearchQuery(rawText: query)
+                )
+                guard !Task.isCancelled else { return }
+                workflowSearchResults = result
+                workflowSearchMessage = result.isEmpty
+                    ? "No files matched query: \(query)"
+                    : "Found \(result.count) file(s)."
+                isWorkflowSearchRunning = false
+            } catch is CancellationError {
+                isWorkflowSearchRunning = false
+            } catch let error as AppError {
+                workflowSearchResults = []
+                workflowSearchMessage = error.localizedDescription
+                isWorkflowSearchRunning = false
+            } catch {
+                workflowSearchResults = []
+                workflowSearchMessage = AppError.from(error, fallback: "Workflow search failed.").localizedDescription
+                isWorkflowSearchRunning = false
+            }
+        }
+    }
+
+    func clearWorkflowMeasurementSearch() {
+        workflowSearchTask?.cancel()
+        workflowSearchTask = nil
+        workflowSearchResults = []
+        workflowSearchMessage = nil
+        isWorkflowSearchRunning = false
+    }
+
     private func namesEqual(_ lhs: String, _ rhs: String) -> Bool {
         lhs.caseInsensitiveCompare(rhs) == .orderedSame
     }
@@ -523,7 +669,10 @@ final class WorkbenchFeatureStore {
             conditionRulesHandbookStore.loadWorkflowMatchRules(),
             against: workflowDefinitions
         )
+        persistedWorkflowMatchRulesSemantics = Self.workflowMatchRulesSemantics(workflowMatchRules)
         sampleIDPatterns = conditionRulesHandbookStore.loadSampleIDPatterns()
+        persistedSampleIDPatterns = sampleIDPatterns
+        restoreSubstrateRulesFromSource()
         if let selectedID,
            workflowDefinitions.contains(where: { $0.id.caseInsensitiveCompare(selectedID) == .orderedSame }) {
             let resolvedID = workflowDefinitions.first(where: {
@@ -549,7 +698,6 @@ final class WorkbenchFeatureStore {
     func removeSampleIDPattern(at index: Int) {
         guard sampleIDPatterns.indices.contains(index) else { return }
         sampleIDPatterns.remove(at: index)
-        persistSampleIDPatterns()
     }
 
     func updateSampleIDPattern(at index: Int, value: String) {
@@ -561,10 +709,89 @@ final class WorkbenchFeatureStore {
         persistSampleIDPatterns()
     }
 
+    func confirmSampleIDPatternsSave() {
+        persistSampleIDPatterns()
+    }
+
+    func discardSampleIDPatternEdits() {
+        sampleIDPatterns = conditionRulesHandbookStore.loadSampleIDPatterns()
+        persistedSampleIDPatterns = sampleIDPatterns
+        workflowRegistryMessage = nil
+    }
+
+    func updateSubstrateTokenSeparators(_ value: String) {
+        substrateTokenSeparators = value
+    }
+
+    func updateSubstrateOriginStandaloneTokensCSV(_ csv: String) {
+        substrateOriginStandaloneTokens = parseCSV(csv)
+    }
+
+    func updateSubstrateOriginContainsTokensCSV(_ csv: String) {
+        substrateOriginContainsTokens = parseCSV(csv)
+    }
+
+    func substrateTagRuleValuesCSV(_ id: UUID) -> String {
+        guard let entry = substrateTagRules.first(where: { $0.id == id }) else {
+            return ""
+        }
+        return entry.matchValues.joined(separator: ", ")
+    }
+
+    func addSubstrateTagRule() {
+        substrateTagRules.append(
+            MatchRuleEntry(
+                scope: .tokens,
+                type: .equals,
+                matchValues: ["O"],
+                value: "o"
+            )
+        )
+    }
+
+    func removeSubstrateTagRule(_ id: UUID) {
+        guard let index = substrateTagRules.firstIndex(where: { $0.id == id }) else { return }
+        substrateTagRules.remove(at: index)
+    }
+
+    func updateSubstrateTagRuleScope(_ id: UUID, scope: FilenameRuleSet.MatchScope) {
+        guard let index = substrateTagRules.firstIndex(where: { $0.id == id }) else { return }
+        substrateTagRules[index].scope = scope
+    }
+
+    func updateSubstrateTagRuleType(_ id: UUID, type: FilenameRuleSet.MatchType) {
+        guard let index = substrateTagRules.firstIndex(where: { $0.id == id }) else { return }
+        substrateTagRules[index].type = type
+    }
+
+    func updateSubstrateTagRuleValuesCSV(_ id: UUID, csv: String) {
+        guard let index = substrateTagRules.firstIndex(where: { $0.id == id }) else { return }
+        substrateTagRules[index].matchValues = parseCSV(csv)
+    }
+
+    func updateSubstrateTagRuleValue(_ id: UUID, value: String) {
+        guard let index = substrateTagRules.firstIndex(where: { $0.id == id }) else { return }
+        substrateTagRules[index].value = value
+    }
+
+    func confirmSubstrateRulesSave() {
+        persistSubstrateRules()
+    }
+
+    func discardSubstrateRuleEdits() {
+        restoreSubstrateRulesFromSource()
+        workflowRegistryMessage = nil
+    }
+
     private func persistSampleIDPatterns() {
         do {
-            try conditionRulesHandbookStore.saveSampleIDPatterns(sampleIDPatterns)
+            let approvalToken = conditionRulesHandbookStore.issueWriteApproval(
+                for: .sampleIDPatterns,
+                actor: "WorkbenchFeatureStore.persistSampleIDPatterns"
+            )
+            try conditionRulesHandbookStore.saveSampleIDPatterns(sampleIDPatterns, approvalToken: approvalToken)
             sampleIDPatterns = conditionRulesHandbookStore.loadSampleIDPatterns()
+            persistedSampleIDPatterns = sampleIDPatterns
             workflowRegistryMessage = nil
         } catch {
             workflowRegistryMessage = error.localizedDescription
@@ -573,8 +800,57 @@ final class WorkbenchFeatureStore {
 
     private func persistWorkflowMatchRules() {
         do {
-            try conditionRulesHandbookStore.saveWorkflowMatchRules(workflowMatchRules)
+            let approvalToken = conditionRulesHandbookStore.issueWriteApproval(
+                for: .workflowMatchRules,
+                actor: "WorkbenchFeatureStore.persistWorkflowMatchRules"
+            )
+            try conditionRulesHandbookStore.saveWorkflowMatchRules(workflowMatchRules, approvalToken: approvalToken)
             workflowMatchRules = conditionRulesHandbookStore.loadWorkflowMatchRules()
+            persistedWorkflowMatchRulesSemantics = Self.workflowMatchRulesSemantics(workflowMatchRules)
+            workflowRegistryMessage = nil
+        } catch {
+            workflowRegistryMessage = error.localizedDescription
+        }
+    }
+
+    private func persistSubstrateRules() {
+        do {
+            let activeRuleSet = RuleLoader.shared.loadCached().ruleSet
+            let baseShared = activeRuleSet.sharedSubstrate ?? FilenameRuleSet.SharedSubstrateRules(
+                tokenSeparators: "_-",
+                originStandaloneTokens: ["O"],
+                originContainsTokens: ["ORIGIN", "ORIGINAL"],
+                treatmentKeywords: [:],
+                materialTokens: [],
+                materialAliases: nil,
+                materialDisplayNames: nil,
+                orientationTokens: nil,
+                orientationAliases: nil,
+                orientationPattern: "^(?:[0-9]{2,3}|[A-Za-z][0-9]{2,3})$"
+            )
+            let updatedShared = FilenameRuleSet.SharedSubstrateRules(
+                tokenSeparators: substrateTokenSeparators,
+                originStandaloneTokens: substrateOriginStandaloneTokens,
+                originContainsTokens: substrateOriginContainsTokens,
+                treatmentKeywords: baseShared.treatmentKeywords,
+                materialTokens: baseShared.materialTokens,
+                materialAliases: baseShared.materialAliases,
+                materialDisplayNames: baseShared.materialDisplayNames,
+                orientationTokens: baseShared.orientationTokens,
+                orientationAliases: baseShared.orientationAliases,
+                orientationPattern: baseShared.orientationPattern
+            )
+
+            let approvalToken = conditionRulesHandbookStore.issueWriteApproval(
+                for: .substrateRules,
+                actor: "WorkbenchFeatureStore.persistSubstrateRules"
+            )
+            let patch = SeparatedSubstratePatch(
+                substrateTagRules: substrateTagRules,
+                sharedSubstrate: updatedShared
+            )
+            try conditionRulesHandbookStore.saveSubstrateRules(patch, approvalToken: approvalToken)
+            restoreSubstrateRulesFromSource()
             workflowRegistryMessage = nil
         } catch {
             workflowRegistryMessage = error.localizedDescription
@@ -623,6 +899,97 @@ final class WorkbenchFeatureStore {
             migrated.workflowID = definition.id
             return migrated
         }
+    }
+
+    private static func workflowMatchRulesSemantics(_ rules: [WorkflowMatchRuleEntry]) -> [WorkflowMatchRuleSemantic] {
+        rules.map { entry in
+            WorkflowMatchRuleSemantic(
+                scope: entry.scope,
+                type: entry.type,
+                matchValues: entry.matchValues,
+                workflowID: entry.workflowID
+            )
+        }
+    }
+
+    private func restoreSubstrateRulesFromSource() {
+        let ruleSet = RuleLoader.shared.loadCached().ruleSet
+        let state = Self.makeInitialSubstrateState(
+            ruleSet: ruleSet,
+            separatedPatch: conditionRulesHandbookStore.loadSeparatedSubstrateRules()
+        )
+        substrateTokenSeparators = state.tokenSeparators
+        substrateOriginStandaloneTokens = state.originStandaloneTokens
+        substrateOriginContainsTokens = state.originContainsTokens
+        substrateTagRules = state.tagRules
+        persistedSubstrateRulesSemantic = Self.substrateRulesSemantic(
+            tokenSeparators: state.tokenSeparators,
+            originStandaloneTokens: state.originStandaloneTokens,
+            originContainsTokens: state.originContainsTokens,
+            tagRules: state.tagRules
+        )
+    }
+
+    private static func makeInitialSubstrateState(
+        ruleSet: FilenameRuleSet,
+        separatedPatch: SeparatedSubstratePatch?
+    ) -> (tokenSeparators: String, originStandaloneTokens: [String], originContainsTokens: [String], tagRules: [MatchRuleEntry]) {
+        let shared = separatedPatch?.sharedSubstrate ?? ruleSet.sharedSubstrate ?? FilenameRuleSet.SharedSubstrateRules(
+            tokenSeparators: "_-",
+            originStandaloneTokens: ["O"],
+            originContainsTokens: ["ORIGIN", "ORIGINAL"],
+            treatmentKeywords: [:],
+            materialTokens: [],
+            materialAliases: nil,
+            materialDisplayNames: nil,
+            orientationTokens: nil,
+            orientationAliases: nil,
+            orientationPattern: "^(?:[0-9]{2,3}|[A-Za-z][0-9]{2,3})$"
+        )
+        let tagRules = (separatedPatch?.substrateTagRules ?? mapRulesToEntries(ruleSet.substrateTagRules))
+        return (
+            tokenSeparators: shared.tokenSeparators,
+            originStandaloneTokens: shared.originStandaloneTokens,
+            originContainsTokens: shared.originContainsTokens,
+            tagRules: tagRules
+        )
+    }
+
+    private static func mapRulesToEntries(_ rules: [FilenameRuleSet.MapRule]) -> [MatchRuleEntry] {
+        rules.map { rule in
+            let values = (rule.match.values ?? []).map {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines)
+            }.filter { !$0.isEmpty }
+            let single = rule.match.value?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let matchValues = values.isEmpty ? (single.map { [$0] } ?? []) : values
+            return MatchRuleEntry(
+                scope: rule.match.scope,
+                type: rule.match.type,
+                matchValues: matchValues,
+                value: rule.value
+            )
+        }
+    }
+
+    private static func substrateRulesSemantic(
+        tokenSeparators: String,
+        originStandaloneTokens: [String],
+        originContainsTokens: [String],
+        tagRules: [MatchRuleEntry]
+    ) -> SubstrateRulesSemantic {
+        SubstrateRulesSemantic(
+            tokenSeparators: tokenSeparators,
+            originStandaloneTokens: originStandaloneTokens,
+            originContainsTokens: originContainsTokens,
+            tagRules: tagRules.map {
+                SubstrateTagRuleSemantic(
+                    scope: $0.scope,
+                    type: $0.type,
+                    matchValues: $0.matchValues,
+                    value: $0.value
+                )
+            }
+        )
     }
 
     @MainActor

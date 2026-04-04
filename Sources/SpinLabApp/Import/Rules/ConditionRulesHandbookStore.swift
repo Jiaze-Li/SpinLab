@@ -190,6 +190,28 @@ struct RulePatternCodec {
 // MARK: - Store
 
 final class ConditionRulesHandbookStore {
+    enum WriteScope: String {
+        case handbookEntries
+        case workflowMatchRules
+        case sampleIDPatterns
+        case conditions
+        case substrateRules
+        case measurementTagRules
+    }
+
+    struct RuleWriteToken {
+        fileprivate let id: UUID
+        fileprivate let scope: WriteScope
+    }
+
+    private struct PendingApproval {
+        let scope: WriteScope
+        let baseHash: String
+        let createdAt: Date
+        let expiresAt: Date
+        let actor: String
+    }
+
     private struct SharedSubstratePayload: Codable {
         var tokenSeparators: String
         var originStandaloneTokens: [String]
@@ -240,6 +262,10 @@ final class ConditionRulesHandbookStore {
 
     private let fileManager: FileManager
     private let logger = AppLogger.shared
+    private let auditLogger = AuditLogger.shared
+    private let approvalLock = NSLock()
+    private let approvalTTL: TimeInterval = 120
+    private var pendingApprovals: [UUID: PendingApproval] = [:]
     let userFileURL: URL
     private let workflowMatchRulesFileURL: URL
     private let sampleIDRulesFileURL: URL
@@ -354,7 +380,8 @@ final class ConditionRulesHandbookStore {
         }
     }
 
-    func saveWorkflowMatchRules(_ entries: [WorkflowMatchRuleEntry]) throws {
+    func saveWorkflowMatchRules(_ entries: [WorkflowMatchRuleEntry], approvalToken: RuleWriteToken) throws {
+        let approval = try consumeApprovalToken(approvalToken, expectedScope: .workflowMatchRules)
         let normalizedEntries = try entries.map { entry in
             let workflowID = entry.workflowID.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !workflowID.isEmpty else {
@@ -384,7 +411,11 @@ final class ConditionRulesHandbookStore {
             options: [.prettyPrinted, .sortedKeys]
         )
         try data.write(to: workflowMatchRulesFileURL, options: .atomic)
-        _ = RuleLoader.shared.reloadCached()
+        try finalizeApprovedWrite(
+            scope: .workflowMatchRules,
+            targetURL: workflowMatchRulesFileURL,
+            approval: approval
+        )
     }
 
     func loadSampleIDPatterns() -> [String] {
@@ -394,7 +425,8 @@ final class ConditionRulesHandbookStore {
         return RuleLoader.shared.loadCached().ruleSet.sampleId.patterns
     }
 
-    func saveSampleIDPatterns(_ patterns: [String]) throws {
+    func saveSampleIDPatterns(_ patterns: [String], approvalToken: RuleWriteToken) throws {
+        let approval = try consumeApprovalToken(approvalToken, expectedScope: .sampleIDPatterns)
         // Normalize: trim, filter empty, deduplicate
         var seen: Set<String> = []
         let normalized = patterns
@@ -421,7 +453,11 @@ final class ConditionRulesHandbookStore {
             options: [.prettyPrinted, .sortedKeys]
         )
         try data.write(to: sampleIDRulesFileURL, options: .atomic)
-        _ = RuleLoader.shared.reloadCached()
+        try finalizeApprovedWrite(
+            scope: .sampleIDPatterns,
+            targetURL: sampleIDRulesFileURL,
+            approval: approval
+        )
     }
 
     func loadSeparatedConditions() -> SeparatedConditionsPatch? {
@@ -480,7 +516,8 @@ final class ConditionRulesHandbookStore {
         )
     }
 
-    func saveConditions(_ patch: SeparatedConditionsPatch) throws {
+    func saveConditions(_ patch: SeparatedConditionsPatch, approvalToken: RuleWriteToken) throws {
+        let approval = try consumeApprovalToken(approvalToken, expectedScope: .conditions)
         for (key, pattern) in patch.extraConditions {
             let normalizedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
             let normalizedPattern = pattern.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -550,7 +587,7 @@ final class ConditionRulesHandbookStore {
             options: [.prettyPrinted, .sortedKeys]
         )
         try data.write(to: conditionsRulesFileURL, options: .atomic)
-        _ = RuleLoader.shared.reloadCached()
+        try finalizeApprovedWrite(scope: .conditions, targetURL: conditionsRulesFileURL, approval: approval)
     }
 
     func loadSeparatedSubstrateRules() -> SeparatedSubstratePatch? {
@@ -584,7 +621,8 @@ final class ConditionRulesHandbookStore {
         )
     }
 
-    func saveSubstrateRules(_ patch: SeparatedSubstratePatch) throws {
+    func saveSubstrateRules(_ patch: SeparatedSubstratePatch, approvalToken: RuleWriteToken) throws {
+        let approval = try consumeApprovalToken(approvalToken, expectedScope: .substrateRules)
         let serializedTagRules: [[String: Any]]?
         if let entries = patch.substrateTagRules {
             let normalized = try normalizedMapRuleEntries(
@@ -622,7 +660,7 @@ final class ConditionRulesHandbookStore {
             options: [.prettyPrinted, .sortedKeys]
         )
         try data.write(to: substrateRulesFileURL, options: .atomic)
-        _ = RuleLoader.shared.reloadCached()
+        try finalizeApprovedWrite(scope: .substrateRules, targetURL: substrateRulesFileURL, approval: approval)
     }
 
     func loadSeparatedMeasurementTagRules() -> [MatchRuleEntry]? {
@@ -637,7 +675,8 @@ final class ConditionRulesHandbookStore {
         return rules.compactMap { decodeMapRuleEntry($0) }
     }
 
-    func saveMeasurementTagRules(_ entries: [MatchRuleEntry]) throws {
+    func saveMeasurementTagRules(_ entries: [MatchRuleEntry], approvalToken: RuleWriteToken) throws {
+        let approval = try consumeApprovalToken(approvalToken, expectedScope: .measurementTagRules)
         let normalized = try normalizedMapRuleEntries(
             entries,
             context: "measurementTagRules"
@@ -652,7 +691,11 @@ final class ConditionRulesHandbookStore {
         )
         try ensureConfigDirectoryExists()
         try data.write(to: measurementTagRulesFileURL, options: .atomic)
-        _ = RuleLoader.shared.reloadCached()
+        try finalizeApprovedWrite(
+            scope: .measurementTagRules,
+            targetURL: measurementTagRulesFileURL,
+            approval: approval
+        )
     }
 
     // MARK: Validate
@@ -799,11 +842,31 @@ final class ConditionRulesHandbookStore {
         return RuleEntriesDiff(entries: entryDiffs)
     }
 
+    /// Must be called only from an explicit user-confirmed flow (for example, after a visible diff review).
+    /// Do not issue approvals from background/autonomous paths.
+    func issueWriteApproval(for scope: WriteScope, actor: String) -> RuleWriteToken {
+        approvalLock.lock()
+        defer { approvalLock.unlock() }
+        purgeExpiredApprovals(referenceDate: Date())
+        let tokenID = UUID()
+        let now = Date()
+        let currentHash = RuleLoader.shared.loadCached().metadata.contentHash
+        pendingApprovals[tokenID] = PendingApproval(
+            scope: scope,
+            baseHash: currentHash,
+            createdAt: now,
+            expiresAt: now.addingTimeInterval(approvalTTL),
+            actor: actor
+        )
+        return RuleWriteToken(id: tokenID, scope: scope)
+    }
+
     // MARK: Save
 
     /// Patches only mapped rule paths in the user rules file.
     /// Creates the file from the bundle if it doesn't exist yet.
-    func save(_ entries: [RuleEntry]) throws {
+    func save(_ entries: [RuleEntry], approvalToken: RuleWriteToken) throws {
+        let approval = try consumeApprovalToken(approvalToken, expectedScope: .handbookEntries)
         try ensureUserFileExists()
 
         let issues = validate(entries).filter { $0.severity == .error }
@@ -981,7 +1044,7 @@ final class ConditionRulesHandbookStore {
             options: [.prettyPrinted, .sortedKeys]
         )
         try updatedData.write(to: userFileURL, options: .atomic)
-        _ = RuleLoader.shared.reloadCached()
+        try finalizeApprovedWrite(scope: .handbookEntries, targetURL: userFileURL, approval: approval)
     }
 
     // MARK: Export
@@ -1309,6 +1372,108 @@ final class ConditionRulesHandbookStore {
         }
     }
 
+    private func consumeApprovalToken(_ token: RuleWriteToken, expectedScope: WriteScope) throws -> PendingApproval {
+        approvalLock.lock()
+        defer { approvalLock.unlock() }
+        purgeExpiredApprovals(referenceDate: Date())
+
+        guard token.scope == expectedScope else {
+            auditRuleWrite(
+                scope: expectedScope,
+                result: "denied",
+                targetPath: nil,
+                metadata: [
+                    "reason": "scope_mismatch",
+                    "tokenScope": token.scope.rawValue
+                ]
+            )
+            throw HandbookError.unauthorizedWrite("Approval scope mismatch.")
+        }
+
+        guard let approval = pendingApprovals.removeValue(forKey: token.id) else {
+            auditRuleWrite(
+                scope: expectedScope,
+                result: "denied",
+                targetPath: nil,
+                metadata: ["reason": "missing_or_consumed_token"]
+            )
+            throw HandbookError.unauthorizedWrite("Approval token is missing, expired, or already used.")
+        }
+
+        let currentHash = RuleLoader.shared.loadCached().metadata.contentHash
+        guard approval.baseHash == currentHash else {
+            auditRuleWrite(
+                scope: expectedScope,
+                result: "denied",
+                targetPath: nil,
+                metadata: [
+                    "reason": "stale_base_hash",
+                    "approvedBaseHash": approval.baseHash,
+                    "currentBaseHash": currentHash
+                ]
+            )
+            throw HandbookError.unauthorizedWrite("Rules changed since approval. Please review and save again.")
+        }
+        return approval
+    }
+
+    private func finalizeApprovedWrite(
+        scope: WriteScope,
+        targetURL: URL,
+        approval: PendingApproval
+    ) throws {
+        let reloaded = RuleLoader.shared.reloadCached()
+        auditRuleWrite(
+            scope: scope,
+            result: "success",
+            targetPath: targetURL.path,
+            metadata: [
+                "actor": approval.actor,
+                "targetPath": targetURL.path,
+                "oldHash": approval.baseHash,
+                "newHash": reloaded.metadata.contentHash,
+                "approvedAt": ISO8601DateFormatter().string(from: approval.createdAt)
+            ]
+        )
+    }
+
+    private func purgeExpiredApprovals(referenceDate: Date) {
+        pendingApprovals = pendingApprovals.filter { _, approval in
+            approval.expiresAt > referenceDate
+        }
+    }
+
+    private func auditRuleWrite(
+        scope: WriteScope,
+        result: String,
+        targetPath: String?,
+        metadata: [String: String]
+    ) {
+        auditLogger.logRuleWriteEvent(
+            action: "rules_write_\(scope.rawValue)",
+            result: result,
+            sourceFilePath: targetPath ?? targetPathForScope(scope),
+            metadata: metadata
+        )
+    }
+
+    private func targetPathForScope(_ scope: WriteScope) -> String {
+        switch scope {
+        case .handbookEntries:
+            return userFileURL.path
+        case .workflowMatchRules:
+            return workflowMatchRulesFileURL.path
+        case .sampleIDPatterns:
+            return sampleIDRulesFileURL.path
+        case .conditions:
+            return conditionsRulesFileURL.path
+        case .substrateRules:
+            return substrateRulesFileURL.path
+        case .measurementTagRules:
+            return measurementTagRulesFileURL.path
+        }
+    }
+
     private func ensureUserFileExists() throws {
         guard !fileManager.fileExists(atPath: userFileURL.path) else { return }
         guard let bundleURL = findBundleRuleFileURL() else {
@@ -1520,6 +1685,7 @@ final class ConditionRulesHandbookStore {
         case bundleFileNotFound
         case invalidFormat
         case invalidEntries(String)
+        case unauthorizedWrite(String)
 
         var errorDescription: String? {
             switch self {
@@ -1529,6 +1695,8 @@ final class ConditionRulesHandbookStore {
                 return "Rules JSON format is invalid"
             case let .invalidEntries(message):
                 return "Rule entries are invalid: \(message)"
+            case let .unauthorizedWrite(message):
+                return "Rule write rejected: \(message)"
             }
         }
     }

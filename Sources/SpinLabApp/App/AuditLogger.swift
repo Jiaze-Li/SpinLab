@@ -43,6 +43,25 @@ final class AuditLogger {
         return text.split(whereSeparator: \.isNewline).map(String.init)
     }
 
+    func logRuleWriteEvent(
+        action: String,
+        result: String,
+        sourceFilePath: String,
+        metadata: [String: String]
+    ) {
+        let event = AuditEvent(
+            eventID: UUID().uuidString,
+            timestamp: ISO8601DateFormatter().string(from: Date()),
+            action: action,
+            sourceFileName: "rules_handbook",
+            sourceFilePath: sourceFilePath,
+            targetDrawers: [],
+            result: result,
+            metadata: metadata
+        )
+        write(event: event, to: [appSupportLogURL])
+    }
+
     private func write(event: AuditEvent, to urls: [URL]) {
         guard let data = try? encoder.encode(event),
               let line = String(data: data, encoding: .utf8)?.appending("\n").data(using: .utf8) else {

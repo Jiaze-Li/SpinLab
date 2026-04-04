@@ -13,6 +13,12 @@ struct ApplyProgressState {
     var currentFileName: String = ""
 }
 
+enum PendingTagReadiness {
+    case notLibraryMatched
+    case allGood
+    case tagsMissing([String])
+}
+
 @MainActor
 @Observable
 final class SpinLabAppState {
@@ -384,6 +390,7 @@ final class SpinLabAppState {
         self.conditionRulesHandbookStore = environment.conditionRulesHandbookStore
         self.workbenchFeatureStore = WorkbenchFeatureStore(
             libraryRepository: self.libraryRepository,
+            dataActor: environment.dataActor,
             workflowRegistryStore: environment.workflowRegistryStore,
             workflowIDAllocator: environment.workflowIDAllocator,
             conditionRulesHandbookStore: self.conditionRulesHandbookStore
@@ -601,7 +608,15 @@ final class SpinLabAppState {
         let prunedWorkspace = inboxFeatureStore.pruneWorkspaceByValidPendingIDs(
             interactionValue(\.inboxWorkspaceByPendingID)
         )
-        updateInteractionValue(\.inboxWorkspaceByPendingID, to: prunedWorkspace)
+        let sanitizedWorkspace = prunedWorkspace.mapValues { state in
+            InboxPendingWorkspaceState.snapshotSafe(
+                draft: state.draft,
+                editableFileContents: state.editableFileContents,
+                hasEditableFileContents: state.hasEditableFileContents,
+                routingDraft: nil
+            )
+        }
+        updateInteractionValue(\.inboxWorkspaceByPendingID, to: sanitizedWorkspace)
     }
 
     private func applyArchivedRecordsProjection(_ records: [SpinLabDomain.ArchivedRecord]) {
@@ -1148,6 +1163,52 @@ final class SpinLabAppState {
         inboxFacade.applyAllPending()
     }
 
+    func pendingTagReadiness(
+        for pending: SpinLabDomain.PendingImport,
+        draftOverride: PendingImportConfirmationDraft? = nil
+    ) -> PendingTagReadiness {
+        guard pendingRouteStatus(for: pending) == .libraryMatched else {
+            return .notLibraryMatched
+        }
+        let missing = pendingMissingRequiredTagLabels(for: pending, draftOverride: draftOverride)
+        return missing.isEmpty ? .allGood : .tagsMissing(missing)
+    }
+
+    func pendingMissingRequiredTagLabels(
+        for pending: SpinLabDomain.PendingImport,
+        draftOverride: PendingImportConfirmationDraft? = nil
+    ) -> [String] {
+        let draft = effectivePendingDraft(for: pending, draftOverride: draftOverride)
+        let workflowID = canonicalWorkflowID(from: draft.workflowID)
+            ?? canonicalWorkflowID(from: pending.parsedHints.workflowID)
+        guard let workflowID,
+              let definition = workflowDefinitions.first(where: {
+                  $0.id.caseInsensitiveCompare(workflowID) == .orderedSame
+              }) else {
+            return []
+        }
+
+        return definition.conditionFields.compactMap { field in
+            let rawValue = draft.conditionValues[field.definitionID]
+            guard isMissingConditionValue(rawValue) else {
+                return nil
+            }
+            return workbenchFeatureStore.conditionLabel(for: field.definitionID)
+        }
+    }
+
+    func hasAnyAllGoodPendingImports() -> Bool {
+        let workspaceByPendingID = interactionValue(\.inboxWorkspaceByPendingID)
+        return inboxFeatureStore.pendingImports.contains { pending in
+            let key = InteractionSnapshotKeyCodec.dictionaryKey(for: pending.id)
+            let draftOverride = workspaceByPendingID[key]?.draft
+            if case .allGood = pendingTagReadiness(for: pending, draftOverride: draftOverride) {
+                return true
+            }
+            return false
+        }
+    }
+
     private func performApplySelectedPendingImport() {
         runApply(scope: .selected(selectedPendingImportID))
     }
@@ -1163,16 +1224,30 @@ final class SpinLabAppState {
         guard let libraryRootURL = resolvedLibraryRootURLForApply() else {
             return
         }
+        let workspaceByPendingID = interactionValue(\.inboxWorkspaceByPendingID)
+        let pendingImportsForScope: [SpinLabDomain.PendingImport]
+        switch scope {
+        case .all:
+            pendingImportsForScope = inboxFeatureStore.pendingImports.filter { pending in
+                let key = InteractionSnapshotKeyCodec.dictionaryKey(for: pending.id)
+                let draftOverride = workspaceByPendingID[key]?.draft
+                if case .allGood = pendingTagReadiness(for: pending, draftOverride: draftOverride) {
+                    return true
+                }
+                return false
+            }
+        case .selected:
+            pendingImportsForScope = inboxFeatureStore.pendingImports
+        }
 
         let context = applyCoordinator.resolveContext(
             libraryRootURL: libraryRootURL,
-            pendingImports: inboxFeatureStore.pendingImports,
+            pendingImports: pendingImportsForScope,
             routingSnapshotFor: { pending in
                 self.routingSnapshotForApply(for: pending)
             },
             libraryStore: libraryFeatureStore.libraryStore
         )
-        let workspaceByPendingID = interactionValue(\.inboxWorkspaceByPendingID)
         applyProgressState = .init(
             isRunning: true,
             totalCount: 0,
@@ -1328,6 +1403,27 @@ final class SpinLabAppState {
         return workflowDefinitions.first(where: {
             $0.id.caseInsensitiveCompare(normalizedRaw) == .orderedSame
         })?.id
+    }
+
+    private func effectivePendingDraft(
+        for pending: SpinLabDomain.PendingImport,
+        draftOverride: PendingImportConfirmationDraft?
+    ) -> PendingImportConfirmationDraft {
+        if let draftOverride {
+            return draftOverride
+        }
+        let key = InteractionSnapshotKeyCodec.dictionaryKey(for: pending.id)
+        if let workspaceDraft = interactionValue(\.inboxWorkspaceByPendingID)[key]?.draft {
+            return workspaceDraft
+        }
+        return pendingDisplayDraft(for: pending)
+    }
+
+    private func isMissingConditionValue(_ value: String?) -> Bool {
+        guard let normalizedValue = normalized(value) else {
+            return true
+        }
+        return normalizedValue.caseInsensitiveCompare("UNKNOWN") == .orderedSame
     }
 
     private func applyExistingIndex(_ index: LibraryIndex) {
@@ -1674,6 +1770,8 @@ final class SpinLabAppState {
             "routingRuleSource": inboxFeatureStore.routingRuleSourceLabel,
             "routingRulePath": inboxFeatureStore.routingRuleSourcePath,
             "routingRuleFingerprint": inboxFeatureStore.routingRuleFingerprint,
+            "routingRuleHashPrefix": inboxFeatureStore.routingRuleHashPrefix,
+            "routingRuleLoadedOverrideFiles": inboxFeatureStore.routingRuleLoadedOverrideFiles.joined(separator: ","),
             "pendingImportCount": "\(inboxFeatureStore.pendingImports.count)",
             "archivedRecordCount": "\(workbenchFeatureStore.archivedRecords.count)",
             "selectedArea": selectedArea.rawValue

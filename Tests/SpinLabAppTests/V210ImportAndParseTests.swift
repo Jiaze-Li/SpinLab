@@ -192,6 +192,41 @@ struct V210ImportAndParseTests {
         #expect(parsed.warnings.contains(where: { $0.lowercased().contains("score fallback") }))
     }
 
+    @Test("single file sample shortcut wins before score aggregation")
+    func parserSingleFileSampleShortcutWinsBeforeScoring() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN42/RT_run/RT_1mA_PN40_ch1_PN42_ch2_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.defaultSampleKey == "PN40")
+        #expect(!parsed.warnings.contains(where: { $0.lowercased().contains("score fallback") }))
+    }
+
+    @Test("single folder sample shortcut wins before single channel shortcut")
+    func parserSingleFolderSampleShortcutWinsBeforeSingleChannelShortcut() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_1mA_ch1_PN41_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.defaultSampleKey == "PN40")
+    }
+
+    @Test("score aggregation can let folder plus channel evidence outrank split file evidence")
+    func parserScoreAggregationAllowsFolderAndChannelToOutrankSplitFileEvidence() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN42/RT_run/RT_PN40_PN41_1mA_ch1_PN42_ch2_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.defaultSampleKey == "PN42")
+        #expect(!parsed.warnings.contains(where: { $0.lowercased().contains("ambiguous") }))
+    }
+
     @Test("parser falls back to file stem when no workflow token is detected")
     func parserFallsBackToFileStemWithoutWorkflowMatch() throws {
         let ruleSet = try loadBundledRuleSetForTests()

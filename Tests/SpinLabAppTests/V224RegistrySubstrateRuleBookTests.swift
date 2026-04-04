@@ -46,6 +46,7 @@ struct V224RegistrySubstrateRuleBookTests {
                 sourceLabel: "TestBundle",
                 sourcePath: ruleURL.path,
                 contentHash: "test",
+                loadedOverrideFiles: [],
                 loadedAt: .now
             )
         )

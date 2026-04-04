@@ -64,6 +64,254 @@ struct InboxView: View {
     }
 }
 
+private struct InboxExplicitRulesSheet: View {
+    @Environment(SpinLabAppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        @Bindable var workbench = appState.workbench
+
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Explicit Rules")
+                    .font(.title2.bold())
+                Spacer()
+                Button("Done") { dismiss() }
+                    .buttonStyle(.bordered)
+            }
+
+            if let message = workbench.workflowRegistryMessage {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            GroupBox("Sample ID Patterns") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Regex patterns used for sample ID recognition.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if workbench.sampleIDPatterns.isEmpty {
+                        Text("No patterns defined.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(workbench.sampleIDPatterns.enumerated()), id: \.offset) { index, pattern in
+                            HStack(spacing: 8) {
+                                TextField("Regex pattern", text: Binding(
+                                    get: { pattern },
+                                    set: { workbench.updateSampleIDPattern(at: index, value: $0) }
+                                ))
+                                .textFieldStyle(.roundedBorder)
+                                .font(.system(.body, design: .monospaced))
+
+                                Button(role: .destructive) {
+                                    workbench.removeSampleIDPattern(at: index)
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                        }
+                    }
+
+                    Button {
+                        workbench.addSampleIDPattern()
+                    } label: {
+                        Label("Add Pattern", systemImage: "plus.circle")
+                    }
+                    .buttonStyle(.bordered)
+
+                    HStack(spacing: 8) {
+                        Button("Discard") {
+                            workbench.discardSampleIDPatternEdits()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!workbench.hasUnsavedSampleIDPatterns)
+
+                        Button("Confirm Save") {
+                            workbench.confirmSampleIDPatternsSave()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!workbench.hasUnsavedSampleIDPatterns)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(4)
+            }
+
+            GroupBox("Substrate Rules") {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Origin recognition and substrate tag mapping.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Token Separators")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            TextField(
+                                "_-",
+                                text: Binding(
+                                    get: { workbench.substrateTokenSeparators },
+                                    set: { workbench.updateSubstrateTokenSeparators($0) }
+                                )
+                            )
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Origin Standalone Tokens (comma-separated)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            TextField(
+                                "O, o",
+                                text: Binding(
+                                    get: { workbench.substrateOriginStandaloneTokens.joined(separator: ", ") },
+                                    set: { workbench.updateSubstrateOriginStandaloneTokensCSV($0) }
+                                )
+                            )
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Origin Contains Tokens (comma-separated)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            TextField(
+                                "ORIGIN, ORIGINAL",
+                                text: Binding(
+                                    get: { workbench.substrateOriginContainsTokens.joined(separator: ", ") },
+                                    set: { workbench.updateSubstrateOriginContainsTokensCSV($0) }
+                                )
+                            )
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
+                        }
+
+                        Divider()
+
+                        Text("Substrate Tag Rules")
+                            .font(.subheadline.weight(.semibold))
+
+                        if workbench.substrateTagRules.isEmpty {
+                            Text("No substrate tag rules.")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(workbench.substrateTagRules) { rule in
+                                HStack(alignment: .top, spacing: 8) {
+                                    Picker(
+                                        "Scope",
+                                        selection: Binding(
+                                            get: { rule.scope },
+                                            set: { workbench.updateSubstrateTagRuleScope(rule.id, scope: $0) }
+                                        )
+                                    ) {
+                                        Text("tokens").tag(FilenameRuleSet.MatchScope.tokens)
+                                        Text("joined").tag(FilenameRuleSet.MatchScope.joined)
+                                    }
+                                    .labelsHidden()
+                                    .frame(width: 92)
+
+                                    Picker(
+                                        "Type",
+                                        selection: Binding(
+                                            get: { rule.type },
+                                            set: { workbench.updateSubstrateTagRuleType(rule.id, type: $0) }
+                                        )
+                                    ) {
+                                        ForEach(substrateMatchTypeOptions(for: rule.type), id: \.self) { option in
+                                            Text(substrateMatchTypeLabel(option)).tag(option)
+                                        }
+                                    }
+                                    .labelsHidden()
+                                    .frame(width: 180)
+
+                                    TextField(
+                                        "match values",
+                                        text: Binding(
+                                            get: { workbench.substrateTagRuleValuesCSV(rule.id) },
+                                            set: { workbench.updateSubstrateTagRuleValuesCSV(rule.id, csv: $0) }
+                                        )
+                                    )
+                                    .textFieldStyle(.roundedBorder)
+                                    .font(.system(.body, design: .monospaced))
+
+                                    TextField(
+                                        "tag value",
+                                        text: Binding(
+                                            get: { rule.value },
+                                            set: { workbench.updateSubstrateTagRuleValue(rule.id, value: $0) }
+                                        )
+                                    )
+                                    .textFieldStyle(.roundedBorder)
+                                    .font(.system(.body, design: .monospaced))
+                                    .frame(width: 120)
+
+                                    Button(role: .destructive) {
+                                        workbench.removeSubstrateTagRule(rule.id)
+                                    } label: {
+                                        Image(systemName: "trash")
+                                    }
+                                    .buttonStyle(.borderless)
+                                }
+                            }
+                        }
+
+                        Button {
+                            workbench.addSubstrateTagRule()
+                        } label: {
+                            Label("Add Substrate Rule", systemImage: "plus.circle")
+                        }
+                        .buttonStyle(.bordered)
+
+                        HStack(spacing: 8) {
+                            Button("Discard") {
+                                workbench.discardSubstrateRuleEdits()
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(!workbench.hasUnsavedSubstrateRules)
+
+                            Button("Confirm Save") {
+                                workbench.confirmSubstrateRulesSave()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!workbench.hasUnsavedSubstrateRules)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(4)
+                }
+                .frame(minHeight: 280, maxHeight: 420)
+            }
+        }
+        .padding(18)
+        .frame(minWidth: 900, minHeight: 700)
+    }
+
+    private func substrateMatchTypeOptions(for current: FilenameRuleSet.MatchType) -> [FilenameRuleSet.MatchType] {
+        let preferred: [FilenameRuleSet.MatchType] = [.equals, .contains, .regex, .equalsAny, .containsAny, .equalsOrContainsAny]
+        if preferred.contains(current) { return preferred }
+        return preferred + [current]
+    }
+
+    private func substrateMatchTypeLabel(_ type: FilenameRuleSet.MatchType) -> String {
+        switch type {
+        case .equals: return "equals"
+        case .contains: return "contains"
+        case .regex: return "regex"
+        case .equalsAny: return "equalsAny"
+        case .containsAny: return "containsAny"
+        case .equalsOrContainsAny: return "equalsOrContainsAny"
+        }
+    }
+}
+
 private struct ApplyProgressOverlay: View {
     let progress: ApplyProgressState
 
@@ -528,6 +776,8 @@ private struct InboxSelectionWorkbenchPanel: View {
     )
     @State private var routingDraft = PendingRoutingDraft(defaultSampleKey: "", channelSampleKeyOverrides: [:])
     @State private var localRoutingRefreshTick: Int = 0
+    @State private var isPresentingExplicitRules = false
+    @State private var isPresentingTagsMissingConfirm = false
     private var routingSnapshot: SpinLabDomain.PendingRoutingSnapshot {
         _ = localRoutingRefreshTick
         return appState.pendingRoutingSnapshot(for: pending)
@@ -627,12 +877,30 @@ private struct InboxSelectionWorkbenchPanel: View {
         routingSnapshot.verdict == .libraryMatched
     }
     private var canApplyAll: Bool {
-        appState.pendingRoutePresentationByID().values.contains { $0.isLibraryMatched }
+        appState.hasAnyAllGoodPendingImports()
+    }
+    private var missingTagLabelsForDraft: [String] {
+        appState.pendingMissingRequiredTagLabels(for: pending, draftOverride: draft)
+    }
+    private var fileTagStatusDisplay: (text: String, color: Color)? {
+        guard routingSnapshot.verdict == .libraryMatched else {
+            return nil
+        }
+        if missingTagLabelsForDraft.isEmpty {
+            return ("all good", .green)
+        }
+        return ("tags missing", .red)
+    }
+    private var tagsMissingConfirmMessage: String {
+        if missingTagLabelsForDraft.isEmpty {
+            return "Required tags are missing. Confirm deposit?"
+        }
+        return "\(missingTagLabelsForDraft.joined(separator: ", ")) tag missing, confirm deposit?"
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            GroupBox("Deposit Mapping") {
+            GroupBox {
                 VStack(alignment: .leading, spacing: 10) {
                     if shouldRenderChannelMappingRows {
                         ForEach(channelKeys, id: \.self) { channel in
@@ -661,9 +929,19 @@ private struct InboxSelectionWorkbenchPanel: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+            } label: {
+                HStack {
+                    Text("Deposit Mapping")
+                    Spacer()
+                    Button("Explicit Rules") {
+                        isPresentingExplicitRules = true
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
             }
 
-            GroupBox("File Tags") {
+            GroupBox {
                 VStack(alignment: .leading, spacing: 8) {
                     let fields = appState.workflowDefinitions
                         .first(where: { $0.id == draft.workflowID })?.conditionFields ?? []
@@ -685,6 +963,15 @@ private struct InboxSelectionWorkbenchPanel: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+            } label: {
+                HStack(spacing: 8) {
+                    Text("File Tags")
+                    if let status = fileTagStatusDisplay {
+                        Text(status.text)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(status.color)
+                    }
+                }
             }
 
             HStack {
@@ -703,7 +990,11 @@ private struct InboxSelectionWorkbenchPanel: View {
                 }
 
                 Button("Apply") {
-                    applySelected()
+                    if !missingTagLabelsForDraft.isEmpty {
+                        isPresentingTagsMissingConfirm = true
+                    } else {
+                        applySelected()
+                    }
                 }
                     .buttonStyle(.borderedProminent)
                     .disabled(!canApplySelected)
@@ -729,6 +1020,22 @@ private struct InboxSelectionWorkbenchPanel: View {
         .onChange(of: routingDraft) { _, _ in
             persistDraftState()
         }
+        .sheet(isPresented: $isPresentingExplicitRules) {
+            InboxExplicitRulesSheet()
+                .environment(appState)
+        }
+        .confirmationDialog(
+            "Tags Missing",
+            isPresented: $isPresentingTagsMissingConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Confirm") {
+                applySelected()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(tagsMissingConfirmMessage)
+        }
     }
 
     private func restoreDraftState() {
@@ -737,7 +1044,7 @@ private struct InboxSelectionWorkbenchPanel: View {
         if let restored = appState.interactionEntryValue(for: pending.id, in: \.inboxWorkspaceByPendingID) {
             draft = restored.draft
             draft.sampleName = normalizedSampleDisplay(draft.sampleName)
-            routingDraft = restored.routingDraft ?? baseRoutingDraft
+            routingDraft = baseRoutingDraft
             return
         }
         draft = baseDraft
@@ -754,7 +1061,7 @@ private struct InboxSelectionWorkbenchPanel: View {
                 draft: draft,
                 editableFileContents: existing?.editableFileContents ?? "",
                 hasEditableFileContents: existing?.hasEditableFileContents ?? false,
-                routingDraft: routingDraft
+                routingDraft: nil
             )
         )
     }

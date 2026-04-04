@@ -13,10 +13,15 @@ struct RuleLoader {
         var sourceLabel: String
         var sourcePath: String
         var contentHash: String
+        var loadedOverrideFiles: [String]
         var loadedAt: Date
 
         var fingerprint: String {
             "v\(version):\(contentHash)"
+        }
+
+        var contentHashPrefix8: String {
+            String(contentHash.prefix(8))
         }
     }
 
@@ -59,6 +64,7 @@ struct RuleLoader {
             sourceLabel: "Fallback",
             sourcePath: "builtin:fallback",
             contentHash: hashHex(for: Data("fallback".utf8)),
+            loadedOverrideFiles: [],
             loadedAt: Date()
         )
         return LoadResult(ruleSet: fallback, warnings: warnings, metadata: fallbackMetadata)
@@ -153,7 +159,8 @@ struct RuleLoader {
             var ruleSet = try decodeRuleSet(from: data, source: "\(sourceLabel):\(url.path)")
             let schemaWarnings = migrateRuleSetSchemaIfNeeded(ruleSet: &ruleSet, sourceLabel: sourceLabel)
             warnings.append(contentsOf: schemaWarnings)
-            warnings.append(contentsOf: applySeparatedOverrides(ruleSet: &ruleSet))
+            let overrideResult = applySeparatedOverrides(ruleSet: &ruleSet)
+            warnings.append(contentsOf: overrideResult.warnings)
             let compileWarnings = ruleSet.compile()
             if !compileWarnings.isEmpty {
                 warnings.append(contentsOf: compileWarnings.map { "\(sourceLabel) compile warning: \($0)" })
@@ -164,6 +171,7 @@ struct RuleLoader {
                 sourceLabel: sourceLabel,
                 sourcePath: url.path,
                 contentHash: compositeHash(primaryData: data, primaryURL: url),
+                loadedOverrideFiles: overrideResult.loadedOverrideFiles,
                 loadedAt: Date()
             )
             logger.info(.import, "Rule source loaded", metadata: [
@@ -171,7 +179,9 @@ struct RuleLoader {
                 "path": url.path,
                 "sampleIdPatternCount": "\(ruleSet.sampleId.patterns.count)",
                 "ruleVersion": "\(ruleSet.version)",
-                "ruleFingerprint": metadata.fingerprint
+                "ruleFingerprint": metadata.fingerprint,
+                "ruleHashPrefix": metadata.contentHashPrefix8,
+                "loadedOverrideFiles": metadata.loadedOverrideFiles.joined(separator: ",")
             ])
             return LoadResult(ruleSet: ruleSet, warnings: warnings, metadata: metadata)
         } catch {
@@ -204,10 +214,16 @@ struct RuleLoader {
         }
     }
 
-    private func applySeparatedOverrides(ruleSet: inout FilenameRuleSet) -> [String] {
+    private struct OverrideApplyResult {
+        var warnings: [String]
+        var loadedOverrideFiles: [String]
+    }
+
+    private func applySeparatedOverrides(ruleSet: inout FilenameRuleSet) -> OverrideApplyResult {
         var warnings: [String] = []
+        var loadedOverrideFiles: [String] = []
         if RulesConfigPaths.isRunningTests(), !shouldEnableSeparatedOverridesDuringTests() {
-            return warnings
+            return OverrideApplyResult(warnings: warnings, loadedOverrideFiles: loadedOverrideFiles)
         }
 
         let sampleIDURL = rulesConfigPaths().sampleIDRulesURL
@@ -221,6 +237,7 @@ struct RuleLoader {
                         .filter { !$0.isEmpty }
                     if !normalized.isEmpty {
                         ruleSet.sampleId = .init(patterns: normalized)
+                        loadedOverrideFiles.append(sampleIDURL.lastPathComponent)
                     } else {
                         warnings.append("sample_id_rules.json contains no valid patterns; keeping existing sampleId rules.")
                     }
@@ -269,6 +286,7 @@ struct RuleLoader {
                         warnings.append("workflow_match_rules.json contains no valid rules; keeping existing workflow rules.")
                     } else {
                         ruleSet.measurementNameRules = parsed
+                        loadedOverrideFiles.append(workflowURL.lastPathComponent)
                     }
                 } else {
                     warnings.append("workflow_match_rules.json is invalid; ignoring workflow override.")
@@ -342,6 +360,9 @@ struct RuleLoader {
                             ruleSet.conditions.tokenMapRules[key] = parsedRules
                         }
                     }
+                    if hasExtraConditions || hasTokenMapRules {
+                        loadedOverrideFiles.append(conditionsURL.lastPathComponent)
+                    }
                 } else {
                     warnings.append("conditions_rules.json is invalid; ignoring conditions override.")
                 }
@@ -376,6 +397,9 @@ struct RuleLoader {
                         let decoded = try JSONDecoder().decode(FilenameRuleSet.SharedSubstrateRules.self, from: fragmentData)
                         ruleSet.sharedSubstrate = decoded
                     }
+                    if hasTagRules || hasSharedSubstrate {
+                        loadedOverrideFiles.append(substrateURL.lastPathComponent)
+                    }
                 } else {
                     warnings.append("substrate_rules.json is invalid; ignoring substrate override.")
                 }
@@ -396,6 +420,7 @@ struct RuleLoader {
                             warnings.append("measurement_tag_rules.json contains empty rules; keeping existing measurementTagRules.")
                         } else {
                             ruleSet.measurementTagRules = decoded
+                            loadedOverrideFiles.append(measurementTagURL.lastPathComponent)
                         }
                     } else {
                         warnings.append("measurement_tag_rules.json has no rules key; keeping existing measurementTagRules.")
@@ -408,7 +433,8 @@ struct RuleLoader {
             }
         }
 
-        return warnings
+        loadedOverrideFiles = Array(Set(loadedOverrideFiles)).sorted()
+        return OverrideApplyResult(warnings: warnings, loadedOverrideFiles: loadedOverrideFiles)
     }
 
     private func migrateRuleSetSchemaIfNeeded(

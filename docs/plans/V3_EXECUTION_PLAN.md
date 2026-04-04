@@ -619,6 +619,25 @@ Rule:
 
 ---
 
+## 14A. [UPDATED 2026-04-03] Iteration Addendum Reference (Non-destructive)
+
+This plan file remains unchanged as the original V3 architecture baseline.
+
+Execution sequencing and acceptance granularity were refined in:
+
+- `docs/plans/V3_2_ITERATION_ADDENDUM_2026-04-03.md`
+
+Update notes:
+
+- Added V3.2 functional micro-iterations (`V3.2.0` through `V3.2.8`) with per-iteration DoD and test file naming drafts.
+- [UPDATED 2026-04-03] Plot UX freeze moved after persistence closure (`V3.2.8`).
+- [ADDED 2026-04-03] V3.2 stage gate checklist: `docs/plans/V3_2_ACCEPTANCE_CHECKLIST.md`.
+- Renumbered downstream phases:
+  - original V3.3 -> V3.4
+  - original V3.4 -> V3.5
+
+This section is additive and does not remove or invalidate prior architectural sections.
+
 ## 15. V3 Completion Criteria
 
 V3 is complete only when all are true:
