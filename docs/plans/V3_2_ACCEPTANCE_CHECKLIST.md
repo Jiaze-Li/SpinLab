@@ -107,7 +107,7 @@ V3.2.8 completion note (2026-04-04):
 ## Build and Runtime Gate (must pass)
 
 - [x] `swift test` passes. (228/228, 2026-04-04)
-- [ ] Desktop app build/overwrite completes for QA target.
+- [x] Desktop app build/overwrite completes for QA target. (v3.2.8 debug build, 2026-04-04, ~/Desktop/SpinLab.app)
 - [x] App version is bumped to the accepted V3.2 iteration. (v3.2.8)
 
 ## MR/RT Onboarding Readiness Check (must pass before starting MR/RT)
