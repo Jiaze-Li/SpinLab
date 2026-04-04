@@ -47,8 +47,16 @@ V3.2.2 + V3.2.3 completion note (2026-04-04):
 
 ## Identity + Trace + Persistence (must pass)
 
-- [ ] Chart identity is semantic-based and deterministic (`V3.2.4`).
-- [ ] Style-only changes overwrite; semantic changes produce new artifacts.
+- [x] Chart identity is semantic-based and deterministic (`V3.2.4`).
+- [x] Style-only changes overwrite; semantic changes produce new artifacts.
+
+V3.2.4 completion note (2026-04-04):
+- `WorkbenchChartIdentity.makeIdentityKey(from:)` hashes workflowID + inputFiles + axisMapping + semanticParams; styleParams and title are excluded.
+- `PersistChartArtifactUseCase` implements overwrite (same identity → same path, atomic replace) and new-artifact (different identity → distinct path) logic via `AtomicFileWriter`.
+- `WorkbenchResultsIndex` is upserted by `chartIdentityKey`; same identity updates in place, new identity appends.
+- Wiring into `WorkbenchFeatureStore.renderAHEPlot()` deferred to V3.2.7 (requires `libraryRootPath` persistence in store).
+- 12/12 tests pass (`V324ChartIdentityOverwriteTests`). 196/196 total. AppVersion bumped to v3.2.4.
+
 - [ ] Run manifest provenance is emitted and visible (`V3.2.6`).
 - [ ] V3.2 writes use `AtomicFileWriter` + `LibraryPathResolver` (`V3.2.7`).
 - [ ] App restart can rediscover/open persisted V3.2 artifacts.
