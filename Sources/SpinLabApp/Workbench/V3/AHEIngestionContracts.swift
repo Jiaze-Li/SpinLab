@@ -1,0 +1,45 @@
+import Foundation
+
+enum AHEChannel: String, Codable, Hashable, Sendable, CaseIterable {
+    case ch1
+    case ch2
+    case ch3
+
+    var bridgeIndex: Int {
+        switch self {
+        case .ch1: return 1
+        case .ch2: return 2
+        case .ch3: return 3
+        }
+    }
+}
+
+struct AHEPlotSelectionItem: Codable, Hashable, Sendable {
+    var sampleKey: String
+    var sourceFilePath: String
+    var channel: AHEChannel
+    var conditions: [String: String]
+    var workflowID: String
+
+    init(
+        sampleKey: String,
+        sourceFilePath: String,
+        channel: AHEChannel,
+        conditions: [String: String] = [:],
+        workflowID: String = "AHE"
+    ) {
+        self.sampleKey = sampleKey
+        self.sourceFilePath = sourceFilePath
+        self.channel = channel
+        self.conditions = conditions
+        self.workflowID = workflowID
+    }
+}
+
+struct AHEIngestionResult: Codable, Hashable, Sendable {
+    var candidateAxisFields: [String]
+    var defaultAxisMapping: WorkbenchAxisMapping
+    var series: [WorkbenchPlotSeries]
+    var sourceFiles: [String]
+    var warnings: [String]
+}

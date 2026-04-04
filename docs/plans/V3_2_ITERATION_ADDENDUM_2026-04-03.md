@@ -1,7 +1,26 @@
 # SpinLab V3.2-V3.5 Iteration Addendum (2026-04-03)
 
-Status: active  
+Status: closed (2026-04-04)
 Type: additive update (does not delete or replace existing V3 plan text)
+
+---
+
+## [ADDED 2026-04-04] V3.2 Closure Summary
+
+Closed: 2026-04-04. All 228/228 tests pass. AppVersion v3.2.8.
+
+Completed iterations: V3.2.0 → V3.2.1 → V3.2.2 → V3.2.3 → V3.2.4 → V3.2.6 → V3.2.7 → V3.2.8.
+
+Post-acceptance fixes applied in same session (not new iterations):
+- Library root enforcement: Workbench search and persist now always use `appState.library.librarySettings.rootPath`; editable override TextField removed from WorkbenchView. Library root shown as read-only label; Search disabled if not configured.
+- `buildAHESelections()` now uses `hit.measurementFilePath` (library-resident path) instead of `hit.sourceFilePath` (original OneDrive source path), fixing manifest `inputFiles` showing external paths.
+- `PersistChartArtifactUseCase.appVersion` default corrected from hardcoded `"v3.2.4"` to `AppVersion.current`.
+- Multi-sample chart storage: single-sample charts stored under `samples/<sk>/charts/`; multi-sample charts stored under `_spinlab/multi-sample/charts/` with a reference inserted into each participating sample's `results_index.json`. `sampleKeys` deduplication enforced inside use case.
+- Last Run Trace "Inputs" display: multiple input files now separated by newline for readability.
+
+MR/RT Onboarding Readiness: all 4 gate items closed. Architecture decision recorded: MR/RT onboarding requires only a new `IngestMRSelectionsUseCase`; `WorkbenchChartRenderer`, `PersistChartArtifactUseCase`, and `WorkbenchFeatureStore` main flow are unchanged.
+
+Next workflow: 3W (3-omega). To be planned as a new iteration addendum before implementation starts.
 
 ---
 
@@ -161,14 +180,21 @@ Scope:
 - Route all V3.2 writes through `AtomicFileWriter`.
 - Resolve/store paths through `LibraryPathResolver`.
 - Ensure restart can restore generated artifacts.
+- [ADDED 2026-04-04] Wire `PersistChartArtifactUseCase` into `WorkbenchFeatureStore.renderAHEPlot()`.
+- [ADDED 2026-04-04] Persist `libraryRootPath` in store so `renderAHEPlot` can resolve artifact paths.
+- [ADDED 2026-04-04] Expose `currentRunTrace: WorkbenchRunTraceProjection?` in store; populate via `BuildRunTraceProjectionUseCase` after each render.
+- [ADDED 2026-04-04] Wire trace projection into `WorkbenchView` so user can see last run trace (closes V3.2.6 product-level acceptance).
 
 User-visible acceptance:
 - After app restart, previous V3.2 generated outputs remain discoverable/openable.
+- [ADDED 2026-04-04] User can inspect last run trace (runID, inputs, axis, output path, timestamp) in Workbench after any plot render.
 
 Definition of Done (DoD):
 - No direct non-atomic write path remains in V3.2 scope.
 - Relative path round-trip passes for artifacts.
 - Root-escape paths are rejected explicitly.
+- [ADDED 2026-04-04] `currentRunTrace` is populated after render and reflects the persisted manifest (not live payload).
+- [ADDED 2026-04-04] V3.2.6 product-level acceptance ("User can inspect last run trace from Workbench") is closed here.
 
 Test naming draft:
 - `Tests/SpinLabAppTests/V327V32PersistenceClosureTests.swift`
