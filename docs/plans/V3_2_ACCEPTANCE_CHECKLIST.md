@@ -1,15 +1,15 @@
 # SpinLab V3.2 Acceptance Checklist
 
-Status: draft (gate not yet executed)  
+Status: in-progress (gate executing 2026-04-04)
 Owner: implementation + QA shared gate
 
 This checklist is the acceptance gate for V3.2 only.
 
 ## Scope Boundary (must pass)
 
-- [ ] V3.2 includes `V3.2.0` through `V3.2.8` from `V3_2_ITERATION_ADDENDUM_2026-04-03.md`.
-- [ ] V3.2 does not include V3.4 (Library writeback/read models) scope items.
-- [ ] V3.2 does not include V3.5 reliability hardening scope items.
+- [x] V3.2 includes `V3.2.0` through `V3.2.8` from `V3_2_ITERATION_ADDENDUM_2026-04-03.md`.
+- [x] V3.2 does not include V3.4 (Library writeback/read models) scope items.
+- [x] V3.2 does not include V3.5 reliability hardening scope items.
 
 ## Generic Search Layer (must pass)
 
@@ -102,13 +102,13 @@ V3.2.8 completion note (2026-04-04):
 ## Early Integration Risk Control (must pass)
 
 - [x] Atomic write-path smoke test passes immediately after default render (`V3.2.2`).
-- [ ] No late-discovered write-path incompatibility blocks V3.2 final gate.
+- [x] No late-discovered write-path incompatibility blocks V3.2 final gate. (V3.2.7 verified: AtomicFileWriter + LibraryPathResolver + relative path round-trip all pass)
 
 ## Build and Runtime Gate (must pass)
 
-- [ ] `swift test` passes.
+- [x] `swift test` passes. (228/228, 2026-04-04)
 - [ ] Desktop app build/overwrite completes for QA target.
-- [ ] App version is bumped to the accepted V3.2 iteration.
+- [x] App version is bumped to the accepted V3.2 iteration. (v3.2.8)
 
 ## MR/RT Onboarding Readiness Check (must pass before starting MR/RT)
 
