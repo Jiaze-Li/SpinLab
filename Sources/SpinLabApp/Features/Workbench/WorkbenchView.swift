@@ -97,7 +97,15 @@ struct WorkbenchView: View {
                     .buttonStyle(.bordered)
                     .disabled(workbench.currentPlotImageData == nil && !workbench.isPlotRendering)
 
-                    if workbench.isWorkflowSearchRunning || workbench.isPlotRendering {
+                    if let firstHit = workbench.workflowSearchResults.first {
+                        Button("Load Saved") {
+                            workbench.loadPersistedArtifact(sampleKey: firstHit.sampleKey)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(workbench.isLoadingArtifact)
+                    }
+
+                    if workbench.isWorkflowSearchRunning || workbench.isPlotRendering || workbench.isLoadingArtifact {
                         ProgressView()
                             .controlSize(.small)
                     }
@@ -112,6 +120,12 @@ struct WorkbenchView: View {
                 // Plot status + preview — shown immediately below buttons
                 if let plotMsg = workbench.plotMessage, !plotMsg.isEmpty {
                     Text(plotMsg)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let loadMsg = workbench.artifactLoadMessage, !loadMsg.isEmpty {
+                    Text(loadMsg)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

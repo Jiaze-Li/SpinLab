@@ -68,9 +68,13 @@ final class WorkbenchFeatureStore {
     var plotMessage: String?
     private(set) var currentCandidateAxisFields: [String] = []
     private(set) var currentRunTrace: WorkbenchRunTraceProjection?
+    private(set) var isLoadingArtifact: Bool = false
+    var artifactLoadMessage: String?
 
     @ObservationIgnored
     private var lastLibraryRootPath: String = ""
+    @ObservationIgnored
+    private var artifactLoadTask: Task<Void, Never>?
     var plotAxisXOverride: String = ""
     var plotAxisYOverride: String = ""
     var plotTitleOverride: String = ""
@@ -645,6 +649,9 @@ final class WorkbenchFeatureStore {
                     ? "No files matched query: \(query)"
                     : "Found \(result.count) file(s)."
                 isWorkflowSearchRunning = false
+                if let firstSampleKey = result.first?.sampleKey {
+                    loadPersistedArtifact(sampleKey: firstSampleKey)
+                }
             } catch is CancellationError {
                 isWorkflowSearchRunning = false
             } catch let error as AppError {
@@ -771,6 +778,36 @@ final class WorkbenchFeatureStore {
         plotAxisYOverride = ""
         plotTitleOverride = ""
         showPlotGrid = false
+    }
+
+    func loadPersistedArtifact(sampleKey: String) {
+        guard !lastLibraryRootPath.isEmpty else { return }
+        let libraryRootPath = lastLibraryRootPath
+
+        artifactLoadTask?.cancel()
+        isLoadingArtifact = true
+        artifactLoadMessage = nil
+
+        artifactLoadTask = Task { [weak self] in
+            guard let self else { return }
+            let artifact = await Task.detached(priority: .userInitiated) {
+                let resolver = LibraryPathResolver(libraryRootURL: URL(filePath: libraryRootPath))
+                return LoadLatestChartArtifactUseCase(pathResolver: resolver).execute(sampleKey: sampleKey)
+            }.value
+            guard !Task.isCancelled else { return }
+            if let artifact {
+                self.currentPlotImageData = artifact.imageData
+                self.currentRunTrace = BuildRunTraceProjectionUseCase().execute(
+                    manifest: artifact.manifest,
+                    chartIdentityKey: artifact.chartIdentityKey,
+                    manifestPath: artifact.manifestPath
+                )
+                self.artifactLoadMessage = "Loaded saved chart for \(sampleKey)."
+            } else {
+                self.artifactLoadMessage = nil
+            }
+            self.isLoadingArtifact = false
+        }
     }
 
     private func buildAHESelections() -> [AHEPlotSelectionItem] {

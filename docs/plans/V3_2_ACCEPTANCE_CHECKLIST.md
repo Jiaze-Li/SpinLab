@@ -67,7 +67,14 @@ V3.2.6 completion note (2026-04-04):
 - Wiring into WorkbenchFeatureStore deferred to V3.2.7 alongside libraryRootPath persistence.
 - 7/7 tests pass (V326RunManifestTraceTests). 203/203 total. AppVersion bumped to v3.2.6.
 - [x] V3.2 writes use `AtomicFileWriter` + `LibraryPathResolver` (`V3.2.7`).
-- [ ] App restart can rediscover/open persisted V3.2 artifacts.
+- [x] App restart can rediscover/open persisted V3.2 artifacts.
+
+V3.2.7 rediscovery note (2026-04-04):
+- LoadLatestChartArtifactUseCase: reads results_index.json, picks most recent by generatedAt, loads PNG + manifest; returns nil gracefully on missing index, corrupted JSON, or missing files.
+- WorkbenchFeatureStore.loadPersistedArtifact(sampleKey:): runs in background task, sets currentPlotImageData + currentRunTrace + artifactLoadMessage.
+- Auto-triggered after search completes (first result's sampleKey).
+- WorkbenchView: "Load Saved" button (manual fallback); artifactLoadMessage displayed below plot status.
+- 6/6 tests pass (V327ArtifactRediscoveryTests). 218/218 total.
 
 V3.2.7 completion note (2026-04-04):
 - PersistChartArtifactUseCase wired into WorkbenchFeatureStore.renderAHEPlot(); libraryRootPath captured from runWorkflowMeasurementSearch and passed to persist + trace pipeline.
