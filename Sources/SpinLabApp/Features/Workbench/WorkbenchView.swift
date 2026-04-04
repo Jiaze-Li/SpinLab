@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct WorkbenchView: View {
     @Environment(SpinLabAppState.self) private var appState
@@ -84,7 +85,19 @@ struct WorkbenchView: View {
                     }
                     .buttonStyle(.bordered)
 
-                    if workbench.isWorkflowSearchRunning {
+                    Button("Plot") {
+                        workbench.renderAHEPlot()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(workbench.selectedSearchResultIDs.isEmpty || workbench.isPlotRendering)
+
+                    Button("Clear Plot") {
+                        workbench.clearPlot()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(workbench.currentPlotImageData == nil && !workbench.isPlotRendering)
+
+                    if workbench.isWorkflowSearchRunning || workbench.isPlotRendering {
                         ProgressView()
                             .controlSize(.small)
                     }
@@ -96,6 +109,26 @@ struct WorkbenchView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                // Plot status + preview — shown immediately below buttons
+                if let plotMsg = workbench.plotMessage, !plotMsg.isEmpty {
+                    Text(plotMsg)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let imageData = workbench.currentPlotImageData,
+                   let nsImage = NSImage(data: imageData) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxWidth: .infinity, minHeight: 360)
+                        .background(.background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+
+                if !workbench.workflowSearchResults.isEmpty {
+                    plotControlsSection
+                }
+
                 if workbench.workflowSearchResults.isEmpty {
                     ContentUnavailableView(
                         "No Search Results",
@@ -104,9 +137,15 @@ struct WorkbenchView: View {
                     )
                     .frame(maxWidth: .infinity, minHeight: 220)
                 } else {
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 10) {
-                            ForEach(workbench.workflowSearchResults) { hit in
+                    // No inner ScrollView — outer ScrollView handles all scrolling
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(workbench.workflowSearchResults) { hit in
+                            let isSelected = workbench.selectedSearchResultIDs.contains(hit.id)
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                                    .font(.body)
+                                    .padding(.top, 2)
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                                         Text("Workflow")
@@ -136,15 +175,72 @@ struct WorkbenchView: View {
                                         .foregroundStyle(.secondary)
                                         .textSelection(.enabled)
                                 }
-                                .padding(10)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            }
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                isSelected
+                                    ? AnyShapeStyle(Color.accentColor.opacity(0.08))
+                                    : AnyShapeStyle(.regularMaterial),
+                                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .stroke(isSelected ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
+                            )
+                            .onTapGesture {
+                                workbench.toggleSearchHitSelection(hit.id)
                             }
                         }
                     }
-                    .frame(minHeight: 240)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var plotControlsSection: some View {
+        @Bindable var workbench = appState.workbench
+        let candidates = workbench.currentCandidateAxisFields.isEmpty
+            ? ["Magnetic Field (Oe)", "Temperature (K)", "Bridge 1 Resistance (Ohms)", "Bridge 2 Resistance (Ohms)", "Bridge 3 Resistance (Ohms)"]
+            : workbench.currentCandidateAxisFields
+
+        GroupBox("Plot Controls") {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("X Axis").font(.caption).foregroundStyle(.secondary)
+                        Picker("X Axis", selection: $workbench.plotAxisXOverride) {
+                            Text("Default").tag("")
+                            ForEach(candidates, id: \.self) { field in
+                                Text(field).tag(field)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(minWidth: 200)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Y Axis").font(.caption).foregroundStyle(.secondary)
+                        Picker("Y Axis", selection: $workbench.plotAxisYOverride) {
+                            Text("Default").tag("")
+                            ForEach(candidates, id: \.self) { field in
+                                Text(field).tag(field)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(minWidth: 200)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Title Override").font(.caption).foregroundStyle(.secondary)
+                        TextField("AHE Plot", text: $workbench.plotTitleOverride)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(minWidth: 140)
+                    }
+                    Toggle("Grid", isOn: $workbench.showPlotGrid)
+                        .toggleStyle(.checkbox)
+                }
+            }
+            .padding(.vertical, 4)
         }
     }
 

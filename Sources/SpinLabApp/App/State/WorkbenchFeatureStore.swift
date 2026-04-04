@@ -62,6 +62,15 @@ final class WorkbenchFeatureStore {
     private(set) var workflowSearchResults: [WorkflowMeasurementSearchHit] = []
     var workflowSearchMessage: String?
     private(set) var isWorkflowSearchRunning = false
+    var selectedSearchResultIDs: Set<String> = []
+    private(set) var currentPlotImageData: Data?
+    private(set) var isPlotRendering: Bool = false
+    var plotMessage: String?
+    private(set) var currentCandidateAxisFields: [String] = []
+    var plotAxisXOverride: String = ""
+    var plotAxisYOverride: String = ""
+    var plotTitleOverride: String = ""
+    var showPlotGrid: Bool = false
 
     @ObservationIgnored
     private var archivedRecordsProjectionTask: Task<Void, Never>?
@@ -77,6 +86,8 @@ final class WorkbenchFeatureStore {
     private var isProjectCatalogProjectionDrainScheduled = false
     @ObservationIgnored
     private var workflowSearchTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var plotTask: Task<Void, Never>?
 
     @ObservationIgnored
     private let libraryRepository: LibraryRepository
@@ -648,6 +659,108 @@ final class WorkbenchFeatureStore {
         workflowSearchResults = []
         workflowSearchMessage = nil
         isWorkflowSearchRunning = false
+    }
+
+    func toggleSearchHitSelection(_ id: String) {
+        if selectedSearchResultIDs.contains(id) {
+            selectedSearchResultIDs.remove(id)
+        } else {
+            selectedSearchResultIDs.insert(id)
+        }
+    }
+
+    func renderAHEPlot() {
+        let selections = buildAHESelections()
+        guard !selections.isEmpty else {
+            plotMessage = "Select at least one AHE measurement to plot."
+            return
+        }
+        // Capture overrides before leaving MainActor
+        let xOverride = plotAxisXOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+        let yOverride = plotAxisYOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+        let titleOverride = plotTitleOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+        let grid = showPlotGrid
+
+        plotTask?.cancel()
+        isPlotRendering = true
+        plotMessage = nil
+        currentPlotImageData = nil
+
+        plotTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let seriesCount = selections.count
+                let (imageData, candidates) = try await Task.detached(priority: .userInitiated) {
+                    let ingestion = try IngestAHESelectionsUseCase().execute(
+                        selections: selections,
+                        xColumnOverride: xOverride.isEmpty ? nil : xOverride,
+                        yColumnOverride: yOverride.isEmpty ? nil : yOverride
+                    )
+                    let resolvedTitle = titleOverride.isEmpty ? "AHE Plot" : titleOverride
+                    let xField = xOverride.isEmpty ? ingestion.defaultAxisMapping.xField : xOverride
+                    let yField = yOverride.isEmpty ? ingestion.defaultAxisMapping.yField : yOverride
+                    var style: [String: String] = [:]
+                    if grid { style["showGrid"] = "true" }
+                    let payload = BuildAHEPlotPayloadUseCase().execute(
+                        ingestion: ingestion,
+                        title: resolvedTitle,
+                        axisMappingOverride: WorkbenchAxisMapping(xField: xField, yField: yField),
+                        styleParams: style
+                    )
+                    let png = try WorkbenchChartRenderer().renderPNG(payload: payload)
+                    return (png, ingestion.candidateAxisFields)
+                }.value
+                guard !Task.isCancelled else { return }
+                self.currentPlotImageData = imageData
+                self.currentCandidateAxisFields = candidates
+                self.isPlotRendering = false
+                self.plotMessage = "Rendered \(seriesCount) series."
+            } catch is CancellationError {
+                self.isPlotRendering = false
+            } catch {
+                self.currentPlotImageData = nil
+                self.isPlotRendering = false
+                self.plotMessage = "Plot failed: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func clearPlot() {
+        plotTask?.cancel()
+        plotTask = nil
+        currentPlotImageData = nil
+        isPlotRendering = false
+        plotMessage = nil
+        selectedSearchResultIDs = []
+        currentCandidateAxisFields = []
+        plotAxisXOverride = ""
+        plotAxisYOverride = ""
+        plotTitleOverride = ""
+        showPlotGrid = false
+    }
+
+    private func buildAHESelections() -> [AHEPlotSelectionItem] {
+        let hits = workflowSearchResults.filter { selectedSearchResultIDs.contains($0.id) }
+        var selections: [AHEPlotSelectionItem] = []
+        for hit in hits {
+            let channels: [AHEChannel]
+            if hit.channels.isEmpty {
+                channels = [.ch1]
+            } else {
+                let mapped = hit.channels.compactMap { AHEChannel(rawValue: $0.lowercased()) }
+                channels = mapped.isEmpty ? [.ch1] : mapped
+            }
+            for ch in channels {
+                selections.append(AHEPlotSelectionItem(
+                    sampleKey: hit.sampleKey,
+                    sourceFilePath: hit.sourceFilePath,
+                    channel: ch,
+                    conditions: hit.conditions,
+                    workflowID: hit.workflowID
+                ))
+            }
+        }
+        return selections
     }
 
     private func namesEqual(_ lhs: String, _ rhs: String) -> Bool {
