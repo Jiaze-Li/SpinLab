@@ -24,10 +24,26 @@ V3.2.0 completion note (2026-04-04):
 
 ## AHE Pipeline + Plot Path (must pass)
 
-- [ ] AHE `.dat` / `.lvm` ingestion works (`V3.2.1`).
-- [ ] Axis detection provides default `x/y` and candidate fields.
-- [ ] Unified plot entry renders PNG from standardized payload (`V3.2.2`).
-- [ ] Manual axis/style adjustments are reflected in render (`V3.2.3`).
+- [x] AHE `.dat` / `.lvm` ingestion works (`V3.2.1`).
+- [x] Axis detection provides default `x/y` and candidate fields.
+
+V3.2.1 completion note (2026-04-04):
+- Selection-centric ingestion pipeline implemented: `AHEPlotSelectionItem` → `IngestAHESelectionsUseCase` → `AHEIngestionResult`.
+- PPMS MultiVu `.dat` format supported (Variant A with `[Header]/[Data]`, Variant B headerless).
+- `AHEChannel` enum enforces ch1/ch2/ch3 closed set; bridge mapping is type-safe.
+- Default axis: x = `Magnetic Field (Oe)`, y = first active `Bridge N Resistance (Ohms)`.
+- Same file parsed once; inactive bridge produces warning, not crash.
+- 10/10 tests pass (`V321AHEIngestionAxisDetectionTests`). AppVersion bumped to v3.2.1.
+- [x] Unified plot entry renders PNG from standardized payload (`V3.2.2`).
+- [x] Manual axis/style adjustments are reflected in render (`V3.2.3`).
+
+V3.2.2 + V3.2.3 completion note (2026-04-04):
+- WorkbenchChartRenderer (CoreGraphics PNG, no SwiftUI/AppKit): title, axis box, series polylines, legend, nice tick marks + numeric labels (k-notation for large values), tick-aligned grid.
+- BuildAHEPlotPayloadUseCase: thin mapper AHEIngestionResult → WorkbenchPlotPayload with axisMappingOverride + styleParams.
+- IngestAHESelectionsUseCase: xColumnOverride + yColumnOverride optional params (backward-compatible).
+- WorkbenchFeatureStore: selectedSearchResultIDs, currentPlotImageData, currentCandidateAxisFields, plotAxisXOverride/YOverride, plotTitleOverride, showPlotGrid; renderAHEPlot (detached task), clearPlot.
+- WorkbenchView: hit selection (tap to toggle, checkmark icon, accent highlight), Plot Controls GroupBox (X/Y picker, title field, grid toggle), PNG preview above results list.
+- 184/184 tests pass. AppVersion v3.2.3. Real AHE .dat files verified end-to-end.
 
 ## Identity + Trace + Persistence (must pass)
 
@@ -46,7 +62,7 @@ V3.2.0 completion note (2026-04-04):
 
 ## Early Integration Risk Control (must pass)
 
-- [ ] Atomic write-path smoke test passes immediately after default render (`V3.2.2`).
+- [x] Atomic write-path smoke test passes immediately after default render (`V3.2.2`).
 - [ ] No late-discovered write-path incompatibility blocks V3.2 final gate.
 
 ## Build and Runtime Gate (must pass)
