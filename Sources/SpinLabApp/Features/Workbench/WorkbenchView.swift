@@ -3,6 +3,7 @@ import SwiftUI
 struct WorkbenchView: View {
     @Environment(SpinLabAppState.self) private var appState
     @Environment(\.openWindow) private var openWindow
+    @State private var workflowSearchRootPathOverride: String = ""
 
     var body: some View {
         @Bindable var workbench = appState.workbench
@@ -53,13 +54,105 @@ struct WorkbenchView: View {
     @ViewBuilder
     private var workflowWorkspacePlaceholder: some View {
         let selected = appState.workbench.selectedWorkflowDefinition
-        GroupBox(selected?.displayName ?? selected?.id ?? "Workflow") {
-            ContentUnavailableView(
-                "Workflow Workspace",
-                systemImage: "hammer",
-                description: Text("Workflow operation workspace is reserved for upcoming features.")
-            )
-            .frame(maxWidth: .infinity, minHeight: 260)
+        @Bindable var workbench = appState.workbench
+
+        GroupBox(selected?.displayName ?? selected?.id ?? "Workflow Search") {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("V3.2.0 Workflow Search")
+                    .font(.headline)
+
+                TextField("Query (examples: AHE, AHE PN31, AHE 80K, AHE PN31 80K)", text: $workbench.workflowSearchQueryText)
+                    .textFieldStyle(.roundedBorder)
+
+                TextField("Library Root Path", text: $workflowSearchRootPathOverride)
+                    .textFieldStyle(.roundedBorder)
+                    .onAppear {
+                        if workflowSearchRootPathOverride.isEmpty {
+                            workflowSearchRootPathOverride = appState.library.librarySettings.rootPath ?? ""
+                        }
+                    }
+
+                HStack(spacing: 10) {
+                    Button("Search") {
+                        workbench.runWorkflowMeasurementSearch(libraryRootPath: resolvedSearchRootPath)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(workbench.isWorkflowSearchRunning)
+
+                    Button("Clear") {
+                        workbench.clearWorkflowMeasurementSearch()
+                    }
+                    .buttonStyle(.bordered)
+
+                    if workbench.isWorkflowSearchRunning {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+
+                if let message = workbench.workflowSearchMessage, !message.isEmpty {
+                    Text(message)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                if workbench.workflowSearchResults.isEmpty {
+                    ContentUnavailableView(
+                        "No Search Results",
+                        systemImage: "magnifyingglass",
+                        description: Text("Run a workflow query to inspect files across drawers.")
+                    )
+                    .frame(maxWidth: .infinity, minHeight: 220)
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 10) {
+                            ForEach(workbench.workflowSearchResults) { hit in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                        Text("Workflow")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(hit.workflowDisplayName)
+                                            .font(.body.weight(.semibold))
+                                    }
+                                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                        Text("Sample")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(hit.sampleBatchAndSubstrate)
+                                        Text("[\(hit.sampleKey)]")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                        Text("Condition")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(hit.conditionSummary)
+                                            .font(.caption)
+                                    }
+                                    Text(hit.measurementFilePath)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                }
+                                .padding(10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            }
+                        }
+                    }
+                    .frame(minHeight: 240)
+                }
+            }
         }
+    }
+
+    private var resolvedSearchRootPath: String {
+        let override = workflowSearchRootPathOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !override.isEmpty {
+            return override
+        }
+        return appState.library.librarySettings.rootPath ?? ""
     }
 }

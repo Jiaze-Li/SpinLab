@@ -11,6 +11,8 @@ struct DrawerMatchIndex {
 }
 
 struct DrawerMatchEngine {
+    private let sampleKeyNormalizer = SampleKeyNormalizer()
+
     func makeIndex(from samples: [LibrarySample]) -> DrawerMatchIndex {
         var index = DrawerMatchIndex()
         index.candidates = samples.map { sample in
@@ -21,7 +23,11 @@ struct DrawerMatchEngine {
         }
 
         for sample in samples {
-            guard let canonical = SampleSemanticDescriptor.fromSampleKey(sample.id)?.canonicalKey else {
+            guard let canonical = sampleKeyNormalizer.canonicalKey(
+                from: sample.id,
+                fallbackBatchID: sample.batchId,
+                fallbackSampleTags: sample.substrateTokens
+            ) else {
                 continue
             }
             index.sampleIDsByCanonicalKey[canonical, default: []].append(sample.id)
@@ -61,26 +67,30 @@ struct DrawerMatchEngine {
     }
 
     private func canonicalKey(fromSampleInput value: String) -> String? {
-        if let exact = SampleSemanticDescriptor.fromSampleKey(value)?.canonicalKey {
-            return exact
-        }
-
-        let rules = FileRoutingRuleBook()
-        guard let descriptor = rules.resolvedDescriptor(sampleInput: value, sampleTags: [], fallback: nil) else {
-            return nil
-        }
-        return descriptor.canonicalKey
+        sampleKeyNormalizer.canonicalKey(from: value)
     }
 
     private func sampleKeyTokens(from sample: LibrarySample) -> [String] {
+        var tokens: [String] = []
+        if let canonical = sampleKeyNormalizer.canonicalKey(
+            from: sample.id,
+            fallbackBatchID: sample.batchId,
+            fallbackSampleTags: sample.substrateTokens
+        ) {
+            let canonicalParts = canonical.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+            tokens.append(contentsOf: canonicalParts.flatMap { SampleTokenization.matchingTokens(from: $0) })
+        }
+
         if sample.id.contains("|") {
             let parts = sample.id.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
-            return parts.flatMap { SampleTokenization.matchingTokens(from: $0) }
+            tokens.append(contentsOf: parts.flatMap { SampleTokenization.matchingTokens(from: $0) })
+            return tokens
         }
-        return SampleTokenization.matchingTokens(from: [
+        tokens.append(contentsOf: SampleTokenization.matchingTokens(from: [
             sample.id,
             sample.batchId,
             sample.substrateTokens.joined(separator: " ")
-        ].joined(separator: " "))
+        ].joined(separator: " ")))
+        return tokens
     }
 }

@@ -73,4 +73,41 @@ struct V221RoutingExplanationTests {
         #expect(snapshot.scopes[0].warning == "Upstream warning")
         #expect(snapshot.scopes[0].warningReason == .upstreamResolutionWarning)
     }
+
+    @Test("rulebook keeps empty scopes as review-required")
+    func rulebookReturnsReviewRequiredForEmptyScopes() {
+        let verdict = PendingRoutingRuleBook().verdict(for: [])
+        #expect(verdict == .reviewRequired)
+    }
+
+    @Test("snapshot is review-required when any evaluated scope is unmatched")
+    func evaluatorMarksReviewRequiredWhenAnyScopeUnmatched() {
+        let evaluator = PendingRoutingSnapshotEvaluator()
+        let routePlan = SpinLabDomain.RoutePlan(
+            channelResolutions: [
+                SpinLabDomain.RouteChannelResolution(
+                    channel: "ch1",
+                    sampleId: "PN41",
+                    source: "channelToken"
+                ),
+                SpinLabDomain.RouteChannelResolution(
+                    channel: "ch2",
+                    sampleId: "PN42",
+                    source: "channelToken"
+                )
+            ]
+        )
+
+        let snapshot = evaluator.makeSnapshot(
+            routePlan: routePlan,
+            matchDrawer: { sample in
+                sample == "PN41" ? "PN41" : nil
+            }
+        )
+
+        #expect(snapshot.verdict == .reviewRequired)
+        #expect(snapshot.scopes.count == 2)
+        #expect(snapshot.scopes.contains(where: { $0.scope == "ch1" && $0.isMatched }))
+        #expect(snapshot.scopes.contains(where: { $0.scope == "ch2" && !$0.isMatched }))
+    }
 }

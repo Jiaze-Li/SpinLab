@@ -40,7 +40,7 @@ struct V212RoutingDraftTests {
         appState.saveRoutingDraft(draft, for: pending.id)
 
         let plan = appState.pendingRoutePlan(for: pending)
-        #expect(plan.targets.first?.sampleId == "PN14||STO|001")
+        #expect(plan.targets.first?.sampleId == "PN14")
         #expect(plan.unresolvedChannels.isEmpty)
     }
 
@@ -82,8 +82,8 @@ struct V212RoutingDraftTests {
         #expect(appState.pendingRoutePlan(for: pending).targets.first?.sampleId == "PN41||STO|001")
     }
 
-    @Test("routing draft is restored from interaction snapshot on app launch")
-    func routingDraftRestoresFromInteractionSnapshot() {
+    @Test("routing draft in interaction snapshot is ignored on app launch")
+    func routingDraftSnapshotIsIgnoredOnLaunch() {
         let pending = makePendingImport()
         let persistence = MockPersistenceForRoutingDraft(pendingImports: [pending])
         persistence.interactionSnapshotValue.inboxWorkspaceByPendingID[pending.id.uuidString.lowercased()] = InboxPendingWorkspaceState.snapshotSafe(
@@ -107,8 +107,8 @@ struct V212RoutingDraftTests {
         )
 
         let plan = appState.pendingRoutePlan(for: pending)
-        #expect(plan.targets.first?.sampleId == "PN40||STO|001")
-        #expect(appState.hasSavedRoutingDraft(for: pending) == true)
+        #expect(plan.targets.first?.sampleId == "PN41||STO|001")
+        #expect(appState.hasSavedRoutingDraft(for: pending) == false)
     }
 
     @Test("saved draft marker is false before save and true after save")
@@ -177,7 +177,7 @@ struct V212RoutingDraftTests {
 
         let plan = appState.pendingRoutePlan(for: pending)
         let ch2 = plan.channelResolutions.first { $0.channel == "ch2" }
-        #expect(ch2?.sampleId == "PN44|HF+o|STO|111")
+        #expect(ch2?.sampleId == "PN44|HF|STO|111")
         #expect(plan.conflicts.isEmpty)
     }
 

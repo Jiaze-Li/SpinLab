@@ -209,7 +209,11 @@ struct V225RulesConfigContractTests {
                     ],
                     sharedSubstrate: nil
                 )
-                try store.saveSubstrateRules(substratePatch)
+                let substrateApproval = store.issueWriteApproval(
+                    for: .substrateRules,
+                    actor: "V225RulesConfigContractTests.storeSubstrateAndMeasurementSeparatedFilesRoundTrip"
+                )
+                try store.saveSubstrateRules(substratePatch, approvalToken: substrateApproval)
                 let loadedSubstrate = try #require(store.loadSeparatedSubstrateRules())
                 #expect(loadedSubstrate.substrateTagRules?.first?.value == "STO(001)")
 
@@ -221,7 +225,11 @@ struct V225RulesConfigContractTests {
                         value: "ROT_TEST"
                     )
                 ]
-                try store.saveMeasurementTagRules(measurementEntries)
+                let measurementApproval = store.issueWriteApproval(
+                    for: .measurementTagRules,
+                    actor: "V225RulesConfigContractTests.storeSubstrateAndMeasurementSeparatedFilesRoundTrip"
+                )
+                try store.saveMeasurementTagRules(measurementEntries, approvalToken: measurementApproval)
                 let loadedMeasurement = try #require(store.loadSeparatedMeasurementTagRules())
                 #expect(loadedMeasurement.count == 1)
                 #expect(loadedMeasurement.first?.value == "ROT_TEST")

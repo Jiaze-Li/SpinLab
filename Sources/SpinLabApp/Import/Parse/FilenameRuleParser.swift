@@ -10,6 +10,12 @@ struct FilenameRuleParser {
         case scoreFallback = "score-fallback"
     }
 
+    private enum SampleKeyScore {
+        static let channel = 100
+        static let file = 60
+        static let folder = 45
+    }
+
     private struct SampleKeyResolution {
         var key: String?
         var warnings: [String]
@@ -40,6 +46,11 @@ struct FilenameRuleParser {
             parentTokens: parentTokens,
             grandparentTokens: grandparentTokens
         )
+        let folderContextTokens = tokensForSources(
+            fileTokens: [],
+            parentTokens: parentTokens,
+            grandparentTokens: grandparentTokens
+        )
 
         // Full context: all file tokens + folder tokens.
         // Conditions (temperature, field, current, …) are experiment-global values
@@ -55,6 +66,10 @@ struct FilenameRuleParser {
             parentName: parentName,
             grandparentName: grandparentName
         )
+        let fileJoined = fileScopeTokens.joined(separator: " ").lowercased()
+        let folderJoined = [parentName, grandparentName]
+            .joined(separator: " ")
+            .lowercased()
 
         let fileSampleIDs = ruleSet.sampleIDs(from: fileScopeTokens)
         let folderSampleIDs = uniquePreservingOrder(
@@ -63,10 +78,25 @@ struct FilenameRuleParser {
         )
         let allSampleIDs = uniquePreservingOrder(fileSampleIDs + folderSampleIDs)
 
-        let measurement = ruleSet.measurementName(from: scopedContextTokens, joined: joined)
-        let measurementTags = uniquePreservingOrder(ruleSet.measurementTags(from: scopedContextTokens))
-        let substrateTags = uniquePreservingOrder(ruleSet.substrateTags(from: scopedContextTokens))
-        let conditionEvaluation = ruleSet.conditionEvaluation(from: fullContextTokens)
+        let measurement = preferredValue(
+            fileValue: ruleSet.measurementName(from: fileScopeTokens, joined: fileJoined),
+            folderValue: ruleSet.measurementName(from: folderContextTokens, joined: folderJoined),
+            fallbackValue: ruleSet.measurementName(from: scopedContextTokens, joined: joined)
+        )
+        let measurementTags = preferredTags(
+            fileTags: uniquePreservingOrder(ruleSet.measurementTags(from: fileScopeTokens)),
+            folderTags: uniquePreservingOrder(ruleSet.measurementTags(from: folderContextTokens))
+        )
+        let substrateTags = preferredTags(
+            fileTags: uniquePreservingOrder(ruleSet.substrateTags(from: fileScopeTokens)),
+            folderTags: uniquePreservingOrder(ruleSet.substrateTags(from: folderContextTokens))
+        )
+        let fileConditionEvaluation = ruleSet.conditionEvaluation(from: fileTokens)
+        let folderConditionEvaluation = ruleSet.conditionEvaluation(from: folderContextTokens)
+        let conditionEvaluation = mergedConditionEvaluation(
+            fileEvaluation: fileConditionEvaluation,
+            folderEvaluation: folderConditionEvaluation
+        )
         let conditionValues = conditionEvaluation.values
         let temperature = conditionValues[ConditionFieldCatalog.temperatureID]
         let current = conditionValues[ConditionFieldCatalog.currentID]
@@ -183,8 +213,11 @@ struct FilenameRuleParser {
                 index += 1
             }
 
-            let sampleID = ruleSet.sampleIDs(from: collected).first
             let tags = uniquePreservingOrder(ruleSet.substrateTags(from: collected))
+            let sampleID = defaultSampleName(
+                defaultSampleKey: ruleSet.sampleIDs(from: collected).first,
+                substrateTags: tags
+            )
             let rawTestInfo = collected.filter { !isSampleSignalToken($0) }
             let testInfoTags = uniquePreservingOrder(ruleSet.measurementTags(from: collected) + rawTestInfo)
             hints.append(
@@ -212,6 +245,14 @@ struct FilenameRuleParser {
         folderSampleIDs: [String],
         channelHints: [SpinLabDomain.ParsedChannelHint]
     ) -> SampleKeyResolution {
+        if channelHints.count == 1,
+           let singleChannelSample = normalized(channelHints[0].sampleID) {
+            return SampleKeyResolution(
+                key: singleChannelSample,
+                warnings: []
+            )
+        }
+
         if fileSampleIDs.count == 1 {
             return SampleKeyResolution(
                 key: fileSampleIDs[0],
@@ -222,13 +263,6 @@ struct FilenameRuleParser {
         if fileSampleIDs.isEmpty, folderSampleIDs.count == 1 {
             return SampleKeyResolution(
                 key: folderSampleIDs[0],
-                warnings: []
-            )
-        }
-
-        if channelHints.count == 1 {
-            return SampleKeyResolution(
-                key: channelHints[0].sampleID,
                 warnings: []
             )
         }
@@ -257,7 +291,7 @@ struct FilenameRuleParser {
 
         let winner = topCandidates[0]
         var warnings: [String] = []
-        if winner.score < 100 {
+        if winner.score < SampleKeyScore.file {
             let sourceSummary = winner.sources.map(\.rawValue).sorted().joined(separator: "/")
             warnings.append(
                 "Default sample key \(winner.sampleID) was selected via score fallback (\(winner.score)) from \(sourceSummary). Please review."
@@ -278,15 +312,15 @@ struct FilenameRuleParser {
         var sourcesBySampleID: [String: Set<SampleKeySource>] = [:]
 
         for sampleID in fileSampleIDs {
-            scoreBySampleID[sampleID, default: 0] += 100
+            scoreBySampleID[sampleID, default: 0] += SampleKeyScore.file
             sourcesBySampleID[sampleID, default: []].insert(.file)
         }
         for sampleID in folderSampleIDs {
-            scoreBySampleID[sampleID, default: 0] += 60
+            scoreBySampleID[sampleID, default: 0] += SampleKeyScore.folder
             sourcesBySampleID[sampleID, default: []].insert(.folder)
         }
         for sampleID in channelSampleIDs {
-            scoreBySampleID[sampleID, default: 0] += 45
+            scoreBySampleID[sampleID, default: 0] += SampleKeyScore.channel
             sourcesBySampleID[sampleID, default: []].insert(.channel)
         }
 
@@ -337,5 +371,40 @@ struct FilenameRuleParser {
     private func uniquePreservingOrder(_ values: [String]) -> [String] {
         var seen: Set<String> = []
         return values.filter { seen.insert($0).inserted }
+    }
+
+    private func preferredValue(
+        fileValue: String?,
+        folderValue: String?,
+        fallbackValue: String?
+    ) -> String? {
+        normalized(fileValue) ?? normalized(folderValue) ?? normalized(fallbackValue)
+    }
+
+    private func preferredTags(fileTags: [String], folderTags: [String]) -> [String] {
+        if !fileTags.isEmpty {
+            return fileTags
+        }
+        return folderTags
+    }
+
+    private func mergedConditionEvaluation(
+        fileEvaluation: FilenameRuleSet.ExtraConditionEvaluation,
+        folderEvaluation: FilenameRuleSet.ExtraConditionEvaluation
+    ) -> FilenameRuleSet.ExtraConditionEvaluation {
+        let allKeys = Set(fileEvaluation.values.keys).union(folderEvaluation.values.keys)
+        var mergedValues: [String: String] = [:]
+        for key in allKeys {
+            if let fileValue = fileEvaluation.values[key] {
+                mergedValues[key] = fileValue
+            } else if let folderValue = folderEvaluation.values[key] {
+                mergedValues[key] = folderValue
+            }
+        }
+
+        return FilenameRuleSet.ExtraConditionEvaluation(
+            values: mergedValues,
+            warnings: uniquePreservingOrder(fileEvaluation.warnings + folderEvaluation.warnings)
+        )
     }
 }

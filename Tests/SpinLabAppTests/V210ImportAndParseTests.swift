@@ -96,6 +96,29 @@ struct V210ImportAndParseTests {
         #expect(parsed.current == "1mA")
     }
 
+    @Test("workflow uses file token when file and parent provide conflicting workflow categories")
+    func parserPrefersFileWorkflowOverParentWorkflowCategory() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/20260317_PN49to61_RT_MR_AHE/RT_1mA_ch1_PN59_ch2_PN60_ch3_PN61_wafer.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.workflowID == "RT")
+    }
+
+    @Test("condition value prefers file token over parent folder token in same category")
+    func parserPrefersFileConditionOverParentCondition() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/RT_300K_folder/RT_80K_1mA_ch1_PN40_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.temperature == "80K")
+        #expect(parsed.current == "1mA")
+    }
+
     @Test("parser keeps channel substrate tags out of file-level substrate tags")
     func parserSeparatesFileAndChannelScopesByFirstChannelToken() throws {
         let ruleSet = try loadBundledRuleSetForTests()
@@ -112,7 +135,7 @@ struct V210ImportAndParseTests {
         #expect(ch1?.tags.isEmpty == true)
 
         let ch2 = parsed.channelHints.first(where: { $0.channel == "ch2" })
-        #expect(ch2?.sampleID == "PN36")
+        #expect(ch2?.sampleID == "PN36 HF STO111 STO")
         #expect(ch2?.tags == ["HF", "STO111", "STO"])
 
         let ch3 = parsed.channelHints.first(where: { $0.channel == "ch3" })
@@ -157,8 +180,8 @@ struct V210ImportAndParseTests {
         #expect(parsed.warnings.contains(where: { $0.lowercased().contains("arbitration is ambiguous") }))
     }
 
-    @Test("parser emits score-fallback warning when low-confidence channel-only winner is chosen")
-    func parserEmitsScoreFallbackWarningForLowConfidenceWinner() throws {
+    @Test("channel-only winner is selected without ambiguity warning under channel-first priority")
+    func parserSelectsChannelOnlyWinnerWithoutAmbiguityWarning() throws {
         let ruleSet = try loadBundledRuleSetForTests()
         let parser = FilenameRuleParser(ruleSet: ruleSet)
         let fileURL = URL(fileURLWithPath: "/tmp/misc/RT_1mA_ch1_PN40_ch2_AMR.dat")
@@ -166,7 +189,84 @@ struct V210ImportAndParseTests {
         let parsed = parser.parse(from: fileURL)
 
         #expect(parsed.defaultSampleKey == "PN40")
-        #expect(parsed.warnings.contains(where: { $0.lowercased().contains("score fallback") }))
+        #expect(!parsed.warnings.contains(where: { $0.lowercased().contains("ambiguous") }))
+    }
+
+    @Test("single file sample shortcut wins before score aggregation")
+    func parserSingleFileSampleShortcutWinsBeforeScoring() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN42/RT_run/RT_1mA_PN40_ch1_PN42_ch2_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.defaultSampleKey == "PN40")
+        #expect(!parsed.warnings.contains(where: { $0.lowercased().contains("score fallback") }))
+    }
+
+    @Test("file-only winner is high-confidence and does not emit score fallback warning")
+    func parserDoesNotWarnForFileOnlyWinner() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/misc/RT_PN40_PN41_1mA_ch1_PN40_ch2_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.defaultSampleKey == "PN40")
+        #expect(!parsed.warnings.contains(where: { $0.lowercased().contains("score fallback") }))
+    }
+
+    @Test("single channel sample shortcut wins before single folder sample shortcut")
+    func parserSingleChannelSampleShortcutWinsBeforeSingleFolderSampleShortcut() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_1mA_ch1_PN41_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.defaultSampleKey == "PN41")
+    }
+
+    @Test("score aggregation lets channel evidence outrank split file and folder evidence")
+    func parserScoreAggregationLetsChannelEvidenceOutrankFileAndFolder() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN42/RT_run/RT_PN40_PN41_1mA_ch1_PN42_ch2_PN43_AMR.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.defaultSampleKey == "PN42")
+        #expect(!parsed.warnings.contains(where: { $0.lowercased().contains("ambiguous") }))
+    }
+
+    @Test("trailing file-level condition after channels is still parsed as global condition")
+    func parserParsesTrailingFileLevelConditionAfterChannels() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/misc/C1_PN21_STO_001_C2_PN21_STO_111_C3_PN20_STO_001_80K.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.temperature == "80K")
+        #expect(parsed.channelHints.count == 3)
+    }
+
+    @Test("channel test-content tokens are not interpreted as channel sample keys")
+    func parserKeepsChannelTestContentOutOfChannelSampleKeys() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(
+            fileURLWithPath: "/tmp/misc/XY_90shift_80K_PN36_original_STO111_wafer_ch2_AMR_ch3_PHE_8T_1mA.dat"
+        )
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.defaultSampleKey == "PN36")
+        #expect(parsed.temperature == "80K")
+        #expect(parsed.field == "8T")
+        #expect(parsed.current == "1mA")
+        #expect(parsed.channelHints.first(where: { $0.channel == "ch2" })?.sampleID == nil)
+        #expect(parsed.channelHints.first(where: { $0.channel == "ch3" })?.sampleID == nil)
     }
 
     @Test("parser falls back to file stem when no workflow token is detected")

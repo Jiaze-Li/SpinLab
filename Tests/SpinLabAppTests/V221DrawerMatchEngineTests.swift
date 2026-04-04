@@ -93,6 +93,30 @@ struct V221DrawerMatchEngineTests {
         #expect(matched == "legacy-pn50-hf-sto111")
     }
 
+    @Test("legacy display-style sample ids can be resolved by canonical sample input")
+    func legacyDisplayStyleSampleIDResolvesFromCanonicalInput() {
+        let engine = DrawerMatchEngine()
+        let index = engine.makeIndex(from: [
+            LibrarySample(
+                id: "PN50 - HF STO(111)",
+                displayName: "PN50 - HF STO(111)",
+                batchId: "PN50",
+                substrateRaw: "HF STO(111)",
+                substrateDisplay: "HF STO(111)",
+                substrateTokens: ["HF", "STO", "111"],
+                substrateTags: ["HF STO(111)"],
+                metadata: [:],
+                numericTags: [:],
+                numericDisplay: [:],
+                updatedAt: .now
+            )
+        ])
+
+        let matched = engine.match(sampleInput: "PN50|HF|STO|111", index: index)
+
+        #expect(matched == "PN50 - HF STO(111)")
+    }
+
     @Test("empty sample input returns nil immediately")
     func emptyInputReturnsNil() {
         let engine = DrawerMatchEngine()

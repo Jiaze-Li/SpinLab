@@ -15,6 +15,7 @@ struct RulesHandbookView: View {
     @State private var showAddCustomEntrySheet: Bool = false
     @State private var addCustomKind: RuleEntryKind = .unitSuffix
     @State private var showCancelConfirmAlert: Bool = false
+    @State private var pendingHandbookApprovalToken: ConditionRulesHandbookStore.RuleWriteToken?
 
     private let store: ConditionRulesHandbookStore
     private let originalEntries: [RuleEntry]
@@ -274,7 +275,7 @@ struct RulesHandbookView: View {
             HStack {
                 Button("Back") { step = .edit }
                 Spacer()
-                Button("Save & Apply") { commitSave() }
+                Button("Save & Apply") { confirmAndCommitSave() }
                     .buttonStyle(.borderedProminent)
             }
             .padding(.horizontal, 24)
@@ -621,15 +622,14 @@ struct RulesHandbookView: View {
             validationIssues = issues
             return
         }
-        do {
-            if draft != originalEntries {
-                validationIssues = issues
-                try store.save(draft)
-            }
+        guard draft != originalEntries else {
             dismiss()
-        } catch {
-            saveError = "Save failed: \(error.localizedDescription)"
+            return
         }
+
+        validationIssues = issues
+        let diff = store.diff(from: originalEntries, to: draft)
+        step = .confirmSave(diff: diff)
     }
 
     private func handleCancel() {
@@ -640,14 +640,29 @@ struct RulesHandbookView: View {
         showCancelConfirmAlert = true
     }
 
+    private func confirmAndCommitSave() {
+        pendingHandbookApprovalToken = store.issueWriteApproval(
+            for: .handbookEntries,
+            actor: "RulesHandbookView.confirmSave"
+        )
+        commitSave()
+    }
+
     private func commitSave() {
+        guard let approvalToken = pendingHandbookApprovalToken else {
+            step = .edit
+            saveError = "Save failed: approval token missing. Please confirm and save again."
+            return
+        }
         do {
-            try store.save(draft)
+            try store.save(draft, approvalToken: approvalToken)
+            pendingHandbookApprovalToken = nil
             let found = appState.dryRunConditionRuleRecompute()
             proposals = found
             acceptedProposalIDs = Set(found.map(\.id))
             step = .reviewProposals
         } catch {
+            pendingHandbookApprovalToken = nil
             step = .edit
             saveError = "Save failed: \(error.localizedDescription)"
         }

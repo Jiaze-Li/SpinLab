@@ -87,8 +87,9 @@ Why:
 
 ### 2.3 First Workflow in Scope
 
-AHE only for first closed loop.
-MR/RT are follow-on onboarding targets once architecture is validated.
+AHE is the first ingestion/plot closed loop.
+V3.2.0 search is workflow-generic (query by workflow type text across drawers, e.g. AHE/RT/3W).
+MR/RT ingestion and plotting are follow-on onboarding targets once architecture is validated.
 
 ---
 
@@ -618,6 +619,25 @@ Rule:
 13. V3.1 atomic write scope is single commit interface (`temp-write -> fsync -> commit`) only; cross-artifact all-or-nothing transaction rollback is explicitly deferred to V3.4 reliability hardening
 
 ---
+
+## 14A. [UPDATED 2026-04-03] Iteration Addendum Reference (Non-destructive)
+
+This plan file remains unchanged as the original V3 architecture baseline.
+
+Execution sequencing and acceptance granularity were refined in:
+
+- `docs/plans/V3_2_ITERATION_ADDENDUM_2026-04-03.md`
+
+Update notes:
+
+- Added V3.2 functional micro-iterations (`V3.2.0` through `V3.2.8`) with per-iteration DoD and test file naming drafts.
+- [UPDATED 2026-04-03] Plot UX freeze moved after persistence closure (`V3.2.8`).
+- [ADDED 2026-04-03] V3.2 stage gate checklist: `docs/plans/V3_2_ACCEPTANCE_CHECKLIST.md`.
+- Renumbered downstream phases:
+  - original V3.3 -> V3.4
+  - original V3.4 -> V3.5
+
+This section is additive and does not remove or invalidate prior architectural sections.
 
 ## 15. V3 Completion Criteria
 

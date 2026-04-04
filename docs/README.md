@@ -8,6 +8,8 @@
 | `plans/V2_EXECUTION_PLAN.md` | V2 staged implementation plan and acceptance criteria. | active |
 | `plans/V3_EXECUTION_PLAN.md` | V3 architecture-first plan: workflow-specific processing, unified plotting, and sample-centric measurement data. | done |
 | `plans/V3_1_ACCEPTANCE_CHECKLIST.md` | V3.1 acceptance gate checklist (scope boundary, contract/tests/build evidence). | done |
+| `plans/V3_2_ITERATION_ADDENDUM_2026-04-03.md` | [ADDED 2026-04-03] Functional micro-iterations for V3.2 (with DoD + test naming drafts), plus V3.3~V3.5 renumbering notes. | active |
+| `plans/V3_2_ACCEPTANCE_CHECKLIST.md` | [ADDED 2026-04-03] V3.2 stage-gate checklist aggregating V3.2.0~V3.2.8 plus MR/RT onboarding readiness criteria. | draft |
 | `plans/APP_FLOW.md` | End-to-end app workflow and page responsibilities. | active |
 | `plans/TECH_DEBT_EXECUTION_LOG.md` | Completed technical debt reduction rounds — dates, scope, rationale. | active |
 | `plans/TECH_DEBT_BACKLOG.md` | Pending technical improvements that have been identified but not yet executed. | active |
