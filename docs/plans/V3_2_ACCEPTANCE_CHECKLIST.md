@@ -57,7 +57,15 @@ V3.2.4 completion note (2026-04-04):
 - Wiring into `WorkbenchFeatureStore.renderAHEPlot()` deferred to V3.2.7 (requires `libraryRootPath` persistence in store).
 - 12/12 tests pass (`V324ChartIdentityOverwriteTests`). 196/196 total. AppVersion bumped to v3.2.4.
 
-- [ ] Run manifest provenance is emitted and visible (`V3.2.6`).
+- [x] Run manifest provenance is emitted and visible (`V3.2.6`).
+
+V3.2.6 completion note (2026-04-04):
+- WorkbenchRunTraceProjection: read-only UI projection built from persisted manifest only, no recomputation from live payload.
+- BuildRunTraceProjectionUseCase: maps WorkbenchRunManifest + chartIdentityKey + manifestPath → projection.
+- All provenance fields verified: runID, workflowID, inputFiles, axisMapping, semanticParams, outputImagePath, generatedAt, appVersion.
+- Paths in projection are library-root-relative (no leading slash).
+- Wiring into WorkbenchFeatureStore deferred to V3.2.7 alongside libraryRootPath persistence.
+- 7/7 tests pass (V326RunManifestTraceTests). 203/203 total. AppVersion bumped to v3.2.6.
 - [ ] V3.2 writes use `AtomicFileWriter` + `LibraryPathResolver` (`V3.2.7`).
 - [ ] App restart can rediscover/open persisted V3.2 artifacts.
 
