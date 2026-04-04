@@ -125,6 +125,10 @@ struct WorkbenchView: View {
                         .background(.background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
 
+                if let trace = workbench.currentRunTrace {
+                    runTraceSection(trace)
+                }
+
                 if !workbench.workflowSearchResults.isEmpty {
                     plotControlsSection
                 }
@@ -241,6 +245,38 @@ struct WorkbenchView: View {
                 }
             }
             .padding(.vertical, 4)
+        }
+    }
+
+    @ViewBuilder
+    private func runTraceSection(_ trace: WorkbenchRunTraceProjection) -> some View {
+        GroupBox("Last Run Trace") {
+            VStack(alignment: .leading, spacing: 6) {
+                traceRow(label: "Run ID", value: trace.runID)
+                traceRow(label: "Workflow", value: trace.workflowID)
+                traceRow(label: "X Axis", value: trace.axisMapping.xField)
+                traceRow(label: "Y Axis", value: trace.axisMapping.yField)
+                traceRow(label: "Inputs", value: trace.inputFiles.joined(separator: ", "))
+                traceRow(label: "Output", value: trace.outputImagePath)
+                traceRow(label: "Identity", value: trace.chartIdentityKey)
+                traceRow(label: "Generated", value: trace.generatedAt.formatted(.dateTime))
+                traceRow(label: "Version", value: trace.appVersion)
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    @ViewBuilder
+    private func traceRow(label: String, value: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 64, alignment: .trailing)
+            Text(value)
+                .font(.caption)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

@@ -5,6 +5,7 @@ struct ChartArtifactPersistenceResult: Sendable {
     var imagePath: String       // relative to library root
     var manifestPath: String    // relative to library root
     var isOverwrite: Bool
+    var manifest: WorkbenchRunManifest
 }
 
 struct PersistChartArtifactUseCase {
@@ -96,7 +97,8 @@ struct PersistChartArtifactUseCase {
             chartIdentityKey: identityKey,
             imagePath: imageRelPath,
             manifestPath: manifestRelPath,
-            isOverwrite: isOverwrite
+            isOverwrite: isOverwrite,
+            manifest: manifest
         )
     }
 }

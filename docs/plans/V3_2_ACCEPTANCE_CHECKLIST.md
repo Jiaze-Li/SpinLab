@@ -57,7 +57,7 @@ V3.2.4 completion note (2026-04-04):
 - Wiring into `WorkbenchFeatureStore.renderAHEPlot()` deferred to V3.2.7 (requires `libraryRootPath` persistence in store).
 - 12/12 tests pass (`V324ChartIdentityOverwriteTests`). 196/196 total. AppVersion bumped to v3.2.4.
 
-- [x] Run manifest provenance is emitted and visible (`V3.2.6`). ⚠️ product-level acceptance (Workbench UI) closes in V3.2.7.
+- [x] Run manifest provenance is emitted and visible (`V3.2.6`). Product-level acceptance (Workbench UI) closed in V3.2.7.
 
 V3.2.6 completion note (2026-04-04):
 - WorkbenchRunTraceProjection: read-only UI projection built from persisted manifest only, no recomputation from live payload.
@@ -66,8 +66,16 @@ V3.2.6 completion note (2026-04-04):
 - Paths in projection are library-root-relative (no leading slash).
 - Wiring into WorkbenchFeatureStore deferred to V3.2.7 alongside libraryRootPath persistence.
 - 7/7 tests pass (V326RunManifestTraceTests). 203/203 total. AppVersion bumped to v3.2.6.
-- [ ] V3.2 writes use `AtomicFileWriter` + `LibraryPathResolver` (`V3.2.7`).
+- [x] V3.2 writes use `AtomicFileWriter` + `LibraryPathResolver` (`V3.2.7`).
 - [ ] App restart can rediscover/open persisted V3.2 artifacts.
+
+V3.2.7 completion note (2026-04-04):
+- PersistChartArtifactUseCase wired into WorkbenchFeatureStore.renderAHEPlot(); libraryRootPath captured from runWorkflowMeasurementSearch and passed to persist + trace pipeline.
+- currentRunTrace (WorkbenchRunTraceProjection) populated after each render; cleared on clearPlot().
+- WorkbenchView: Last Run Trace GroupBox shows runID, workflowID, axis mapping, inputs, output path, identity key, timestamp, appVersion.
+- V3.2.6 product-level acceptance ("User can inspect last run trace from Workbench") closed.
+- Relative path round-trip verified; root-escape rejection verified; injected writer (no direct FileManager writes) verified.
+- 9/9 tests pass (V327V32PersistenceClosureTests). 212/212 total. AppVersion bumped to v3.2.7.
 
 ## Plot UX Freeze (must pass)
 

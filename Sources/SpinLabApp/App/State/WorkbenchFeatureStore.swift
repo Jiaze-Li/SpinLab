@@ -67,6 +67,10 @@ final class WorkbenchFeatureStore {
     private(set) var isPlotRendering: Bool = false
     var plotMessage: String?
     private(set) var currentCandidateAxisFields: [String] = []
+    private(set) var currentRunTrace: WorkbenchRunTraceProjection?
+
+    @ObservationIgnored
+    private var lastLibraryRootPath: String = ""
     var plotAxisXOverride: String = ""
     var plotAxisYOverride: String = ""
     var plotTitleOverride: String = ""
@@ -622,6 +626,8 @@ final class WorkbenchFeatureStore {
             return
         }
 
+        lastLibraryRootPath = libraryRootPath
+
         workflowSearchTask?.cancel()
         isWorkflowSearchRunning = true
         workflowSearchMessage = nil
@@ -675,22 +681,25 @@ final class WorkbenchFeatureStore {
             plotMessage = "Select at least one AHE measurement to plot."
             return
         }
-        // Capture overrides before leaving MainActor
+        // Capture overrides and context before leaving MainActor
         let xOverride = plotAxisXOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         let yOverride = plotAxisYOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         let titleOverride = plotTitleOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         let grid = showPlotGrid
+        let libraryRootPath = lastLibraryRootPath
+        let firstSampleKey = selections.first?.sampleKey ?? "unknown"
 
         plotTask?.cancel()
         isPlotRendering = true
         plotMessage = nil
         currentPlotImageData = nil
+        currentRunTrace = nil
 
         plotTask = Task { [weak self] in
             guard let self else { return }
             do {
                 let seriesCount = selections.count
-                let (imageData, candidates) = try await Task.detached(priority: .userInitiated) {
+                let (imageData, candidates, trace) = try await Task.detached(priority: .userInitiated) {
                     let ingestion = try IngestAHESelectionsUseCase().execute(
                         selections: selections,
                         xColumnOverride: xOverride.isEmpty ? nil : xOverride,
@@ -708,11 +717,16 @@ final class WorkbenchFeatureStore {
                         styleParams: style
                     )
                     let png = try WorkbenchChartRenderer().renderPNG(payload: payload)
-                    return (png, ingestion.candidateAxisFields)
+                    let trace = WorkbenchFeatureStore.attemptPersistAndTrace(
+                        png: png, payload: payload,
+                        libraryRootPath: libraryRootPath, sampleKey: firstSampleKey
+                    )
+                    return (png, ingestion.candidateAxisFields, trace)
                 }.value
                 guard !Task.isCancelled else { return }
                 self.currentPlotImageData = imageData
                 self.currentCandidateAxisFields = candidates
+                self.currentRunTrace = trace
                 self.isPlotRendering = false
                 self.plotMessage = "Rendered \(seriesCount) series."
             } catch is CancellationError {
@@ -725,10 +739,30 @@ final class WorkbenchFeatureStore {
         }
     }
 
+    private nonisolated static func attemptPersistAndTrace(
+        png: Data,
+        payload: WorkbenchPlotPayload,
+        libraryRootPath: String,
+        sampleKey: String
+    ) -> WorkbenchRunTraceProjection? {
+        guard !libraryRootPath.isEmpty else { return nil }
+        let resolver = LibraryPathResolver(libraryRootURL: URL(filePath: libraryRootPath))
+        let useCase = PersistChartArtifactUseCase(writer: AtomicFileWriter(), pathResolver: resolver)
+        guard let result = try? useCase.execute(sampleKey: sampleKey, payload: payload, imageData: png) else {
+            return nil
+        }
+        return BuildRunTraceProjectionUseCase().execute(
+            manifest: result.manifest,
+            chartIdentityKey: result.chartIdentityKey,
+            manifestPath: result.manifestPath
+        )
+    }
+
     func clearPlot() {
         plotTask?.cancel()
         plotTask = nil
         currentPlotImageData = nil
+        currentRunTrace = nil
         isPlotRendering = false
         plotMessage = nil
         selectedSearchResultIDs = []
