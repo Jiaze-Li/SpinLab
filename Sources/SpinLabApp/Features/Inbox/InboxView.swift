@@ -829,14 +829,14 @@ private struct InboxSelectionWorkbenchPanel: View {
     private func remainingConditionFieldRows(fields: [WorkflowConditionField]) -> some View {
         let remaining = fields.count > 1 ? Array(fields.dropFirst()) : []
         if !remaining.isEmpty {
-            let pairs = stride(from: 0, to: remaining.count, by: 2).map {
-                (remaining[$0], $0 + 1 < remaining.count ? remaining[$0 + 1] : nil)
-            }
-            ForEach(Array(pairs.enumerated()), id: \.offset) { _, pair in
+            let rowStarts = Array(stride(from: 0, to: remaining.count, by: 2))
+            ForEach(rowStarts, id: \.self) { startIndex in
+                let first = remaining[startIndex]
+                let second: WorkflowConditionField? = startIndex + 1 < remaining.count ? remaining[startIndex + 1] : nil
                 HStack(alignment: .top, spacing: 12) {
-                    conditionField(pair.0)
+                    conditionField(first)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    if let second = pair.1 {
+                    if let second {
                         conditionField(second)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
