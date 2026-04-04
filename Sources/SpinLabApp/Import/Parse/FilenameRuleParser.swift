@@ -10,6 +10,12 @@ struct FilenameRuleParser {
         case scoreFallback = "score-fallback"
     }
 
+    private enum SampleKeyScore {
+        static let channel = 100
+        static let file = 60
+        static let folder = 45
+    }
+
     private struct SampleKeyResolution {
         var key: String?
         var warnings: [String]
@@ -239,6 +245,14 @@ struct FilenameRuleParser {
         folderSampleIDs: [String],
         channelHints: [SpinLabDomain.ParsedChannelHint]
     ) -> SampleKeyResolution {
+        if channelHints.count == 1,
+           let singleChannelSample = normalized(channelHints[0].sampleID) {
+            return SampleKeyResolution(
+                key: singleChannelSample,
+                warnings: []
+            )
+        }
+
         if fileSampleIDs.count == 1 {
             return SampleKeyResolution(
                 key: fileSampleIDs[0],
@@ -249,13 +263,6 @@ struct FilenameRuleParser {
         if fileSampleIDs.isEmpty, folderSampleIDs.count == 1 {
             return SampleKeyResolution(
                 key: folderSampleIDs[0],
-                warnings: []
-            )
-        }
-
-        if channelHints.count == 1 {
-            return SampleKeyResolution(
-                key: channelHints[0].sampleID,
                 warnings: []
             )
         }
@@ -284,7 +291,7 @@ struct FilenameRuleParser {
 
         let winner = topCandidates[0]
         var warnings: [String] = []
-        if winner.score < 100 {
+        if winner.score < SampleKeyScore.file {
             let sourceSummary = winner.sources.map(\.rawValue).sorted().joined(separator: "/")
             warnings.append(
                 "Default sample key \(winner.sampleID) was selected via score fallback (\(winner.score)) from \(sourceSummary). Please review."
@@ -305,15 +312,15 @@ struct FilenameRuleParser {
         var sourcesBySampleID: [String: Set<SampleKeySource>] = [:]
 
         for sampleID in fileSampleIDs {
-            scoreBySampleID[sampleID, default: 0] += 100
+            scoreBySampleID[sampleID, default: 0] += SampleKeyScore.file
             sourcesBySampleID[sampleID, default: []].insert(.file)
         }
         for sampleID in folderSampleIDs {
-            scoreBySampleID[sampleID, default: 0] += 60
+            scoreBySampleID[sampleID, default: 0] += SampleKeyScore.folder
             sourcesBySampleID[sampleID, default: []].insert(.folder)
         }
         for sampleID in channelSampleIDs {
-            scoreBySampleID[sampleID, default: 0] += 45
+            scoreBySampleID[sampleID, default: 0] += SampleKeyScore.channel
             sourcesBySampleID[sampleID, default: []].insert(.channel)
         }
 

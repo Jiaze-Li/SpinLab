@@ -1,7 +1,21 @@
 import Foundation
 
+protocol SampleDescriptorResolving {
+    func resolvedDescriptor(
+        sampleInput: String?,
+        sampleTags: [String],
+        fallback: SampleSemanticDescriptor?
+    ) -> SampleSemanticDescriptor?
+}
+
+extension FileRoutingRuleBook: SampleDescriptorResolving {}
+
 struct SampleKeyNormalizer {
-    private let rules = FileRoutingRuleBook()
+    private let rules: any SampleDescriptorResolving
+
+    init(rules: any SampleDescriptorResolving = FileRoutingRuleBook()) {
+        self.rules = rules
+    }
 
     func canonicalKey(
         from sampleInput: String,
