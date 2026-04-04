@@ -256,6 +256,18 @@ struct WorkbenchView: View {
                     }
                     Toggle("Grid", isOn: $workbench.showPlotGrid)
                         .toggleStyle(.checkbox)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Legend").font(.caption).foregroundStyle(.secondary)
+                        Picker("Legend", selection: $workbench.plotLegendAnchor) {
+                            Text("Top Right").tag("")
+                            Text("Top Left").tag("top-left")
+                            Text("Bottom Right").tag("bottom-right")
+                            Text("Bottom Left").tag("bottom-left")
+                        }
+                        .labelsHidden()
+                        .frame(minWidth: 110)
+                    }
                 }
             }
             .padding(.vertical, 4)

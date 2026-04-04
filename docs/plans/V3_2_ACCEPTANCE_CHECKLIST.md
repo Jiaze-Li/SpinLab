@@ -86,10 +86,18 @@ V3.2.7 completion note (2026-04-04):
 
 ## Plot UX Freeze (must pass)
 
-- [ ] Plot UX freeze is completed after persistence closure (`V3.2.8`).
-- [ ] Legend drag/reposition works.
-- [ ] In-plot title editing works.
-- [ ] Plot interaction model is workflow-agnostic and reusable.
+- [x] Plot UX freeze is completed after persistence closure (`V3.2.8`).
+- [x] Legend drag/reposition works.
+- [x] In-plot title editing works.
+- [x] Plot interaction model is workflow-agnostic and reusable.
+
+V3.2.8 completion note (2026-04-04):
+- WorkbenchChartRenderer: styleParams["legendAnchor"] drives legend position (top-right default, top-left, bottom-right, bottom-left); drawLeftAligned helper added.
+- legendAnchor is styleParams-only: does not affect chart identity key.
+- plotLegendAnchor in WorkbenchFeatureStore wired to styleParams in renderAHEPlot; cleared on clearPlot.
+- WorkbenchView plotControlsSection: Legend Picker added (4 positions); all UX controls (showGrid, legendAnchor, title) are in the workflow-agnostic Workbench layer.
+- Title editing via plotTitleOverride TextField remains the in-plot title control; excluded from identity (style-only, same as legendAnchor).
+- 10/10 tests pass (V328PlotUXFreezeTests). 228/228 total. AppVersion bumped to v3.2.8.
 
 ## Early Integration Risk Control (must pass)
 

@@ -167,8 +167,9 @@ struct WorkbenchChartRenderer {
                       size: 11,
                       color: CGColor(red: 0.25, green: 0.25, blue: 0.25, alpha: 1))
 
-        // Legend (top-right of plot area, one row per series)
-        drawLegend(ctx, series: payload.series, plotRect: plotRect)
+        // Legend — anchor position via styleParams["legendAnchor"]
+        let legendAnchor = payload.styleParams["legendAnchor"] ?? "top-right"
+        drawLegend(ctx, series: payload.series, plotRect: plotRect, anchor: legendAnchor)
     }
 
     // MARK: - Tick computation
@@ -286,24 +287,52 @@ struct WorkbenchChartRenderer {
 
     // MARK: - Legend
 
-    private func drawLegend(_ ctx: CGContext, series: [WorkbenchPlotSeries], plotRect: CGRect) {
+    /// anchor: "top-right" (default), "top-left", "bottom-right", "bottom-left"
+    private func drawLegend(_ ctx: CGContext, series: [WorkbenchPlotSeries],
+                             plotRect: CGRect, anchor: String = "top-right") {
         let lineLen: CGFloat = 18
         let rowH: CGFloat = 15
         let gap: CGFloat = 4
-        let rightX = plotRect.maxX - 6
+        let margin: CGFloat = 6
+
+        let isLeft   = anchor == "top-left"  || anchor == "bottom-left"
+        let isBottom = anchor == "bottom-right" || anchor == "bottom-left"
+
         for (i, s) in series.enumerated() {
-            let y = plotRect.maxY - CGFloat(i + 1) * rowH + rowH * 0.4
+            // Row index from anchor edge
+            let rowIndex = CGFloat(i + 1)
+            let y: CGFloat
+            if isBottom {
+                y = plotRect.minY + rowIndex * rowH - rowH * 0.6
+            } else {
+                y = plotRect.maxY - rowIndex * rowH + rowH * 0.4
+            }
+
             let color = Self.seriesColors[i % Self.seriesColors.count]
             ctx.setStrokeColor(color)
             ctx.setLineWidth(1.5)
-            ctx.strokeLineSegments(between: [
-                CGPoint(x: rightX - lineLen, y: y),
-                CGPoint(x: rightX, y: y)
-            ])
-            drawRightAligned(ctx, text: s.label,
-                             rightEdge: CGPoint(x: rightX - lineLen - gap, y: y),
-                             size: 9, bold: false,
-                             color: CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1))
+
+            if isLeft {
+                let leftX = plotRect.minX + margin
+                ctx.strokeLineSegments(between: [
+                    CGPoint(x: leftX, y: y),
+                    CGPoint(x: leftX + lineLen, y: y)
+                ])
+                drawLeftAligned(ctx, text: s.label,
+                                leftEdge: CGPoint(x: leftX + lineLen + gap, y: y),
+                                size: 9, bold: false,
+                                color: CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1))
+            } else {
+                let rightX = plotRect.maxX - margin
+                ctx.strokeLineSegments(between: [
+                    CGPoint(x: rightX - lineLen, y: y),
+                    CGPoint(x: rightX, y: y)
+                ])
+                drawRightAligned(ctx, text: s.label,
+                                 rightEdge: CGPoint(x: rightX - lineLen - gap, y: y),
+                                 size: 9, bold: false,
+                                 color: CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1))
+            }
         }
     }
 
@@ -316,6 +345,17 @@ struct WorkbenchChartRenderer {
         ctx.textPosition = CGPoint(
             x: center.x - bounds.width / 2 - bounds.minX,
             y: center.y - bounds.height / 2 - bounds.minY
+        )
+        CTLineDraw(line, ctx)
+    }
+
+    private func drawLeftAligned(_ ctx: CGContext, text: String, leftEdge: CGPoint,
+                                  size: CGFloat, bold: Bool, color: CGColor) {
+        let line = makeLine(text: text, size: size, bold: bold, color: color)
+        let bounds = CTLineGetBoundsWithOptions(line, [])
+        ctx.textPosition = CGPoint(
+            x: leftEdge.x - bounds.minX,
+            y: leftEdge.y - bounds.height / 2 - bounds.minY
         )
         CTLineDraw(line, ctx)
     }

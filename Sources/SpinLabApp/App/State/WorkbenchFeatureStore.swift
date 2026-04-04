@@ -79,6 +79,7 @@ final class WorkbenchFeatureStore {
     var plotAxisYOverride: String = ""
     var plotTitleOverride: String = ""
     var showPlotGrid: Bool = false
+    var plotLegendAnchor: String = ""   // "" = default (top-right)
 
     @ObservationIgnored
     private var archivedRecordsProjectionTask: Task<Void, Never>?
@@ -693,6 +694,7 @@ final class WorkbenchFeatureStore {
         let yOverride = plotAxisYOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         let titleOverride = plotTitleOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         let grid = showPlotGrid
+        let legendAnchor = plotLegendAnchor
         let libraryRootPath = lastLibraryRootPath
         let firstSampleKey = selections.first?.sampleKey ?? "unknown"
 
@@ -717,6 +719,7 @@ final class WorkbenchFeatureStore {
                     let yField = yOverride.isEmpty ? ingestion.defaultAxisMapping.yField : yOverride
                     var style: [String: String] = [:]
                     if grid { style["showGrid"] = "true" }
+                    if !legendAnchor.isEmpty { style["legendAnchor"] = legendAnchor }
                     let payload = BuildAHEPlotPayloadUseCase().execute(
                         ingestion: ingestion,
                         title: resolvedTitle,
@@ -778,6 +781,7 @@ final class WorkbenchFeatureStore {
         plotAxisYOverride = ""
         plotTitleOverride = ""
         showPlotGrid = false
+        plotLegendAnchor = ""
     }
 
     func loadPersistedArtifact(sampleKey: String) {
