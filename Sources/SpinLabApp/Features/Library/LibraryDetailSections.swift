@@ -132,9 +132,32 @@ struct LibraryMeasurementsDoneSection: View {
     let measurements: [AppliedMeasurement]
     let workflowDisplayNameByID: [String: String]
     let workflowConditionOrderByID: [String: [String]]
+    var onDelete: ((AppliedMeasurement) -> Void)? = nil
     @State private var isExpanded = true
     @State private var hoverRevealTask: Task<Void, Never>?
     @State private var revealedFileNameMeasurementID: String?
+
+    private var sortedMeasurements: [AppliedMeasurement] {
+        measurements.sorted { lhs, rhs in
+            let lName = resolvedDisplayName(lhs)
+            let rName = resolvedDisplayName(rhs)
+            if lName != rName { return lName.localizedCaseInsensitiveCompare(rName) == .orderedAscending }
+            return conditionSortKey(lhs).localizedStandardCompare(conditionSortKey(rhs)) == .orderedAscending
+        }
+    }
+
+    private func resolvedDisplayName(_ m: AppliedMeasurement) -> String {
+        let normalized = m.workflow.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let name = workflowDisplayNameByID[normalized] { return name }
+        if let name = workflowDisplayNameByID.first(where: {
+            $0.key.caseInsensitiveCompare(normalized) == .orderedSame
+        })?.value { return name }
+        return m.workflowDisplayName.isEmpty ? m.workflow : m.workflowDisplayName
+    }
+
+    private func conditionSortKey(_ m: AppliedMeasurement) -> String {
+        m.conditions.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+    }
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
@@ -144,7 +167,7 @@ struct LibraryMeasurementsDoneSection: View {
                     .foregroundStyle(.secondary)
             } else {
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(measurements) { measurement in
+                    ForEach(sortedMeasurements) { measurement in
                         measurementRow(measurement)
                     }
                 }
@@ -179,24 +202,41 @@ struct LibraryMeasurementsDoneSection: View {
             measurement.conditions,
             preferredOrder: conditionOrder
         )
-        VStack(alignment: .leading, spacing: 3) {
-            Text(displayWorkflow)
-                .font(.callout.weight(.semibold))
-            if !orderedConditionPairs.isEmpty {
-                HStack(spacing: 8) {
-                ForEach(orderedConditionPairs, id: \.key) { pair in
-                    Text(pair.value.isEmpty ? "—" : pair.value)
-                        .font(.callout)
-                        .foregroundStyle(.primary)
+        HStack(alignment: .top, spacing: 0) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(displayWorkflow)
+                    .font(.callout.weight(.semibold))
+                if !orderedConditionPairs.isEmpty {
+                    HStack(spacing: 8) {
+                    ForEach(orderedConditionPairs, id: \.key) { pair in
+                        Text(pair.value.isEmpty ? "—" : pair.value)
+                            .font(.callout)
+                            .foregroundStyle(.primary)
+                    }
+                    }
                 }
+                if revealedFileNameMeasurementID == measurement.id {
+                    Text(measurement.sourceFileName)
+                        .font(.footnote)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                 }
             }
-            if revealedFileNameMeasurementID == measurement.id {
-                Text(measurement.sourceFileName)
-                    .font(.footnote)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if onDelete != nil {
+                Button {
+                    onDelete?(measurement)
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 6)
+                .padding(.top, 2)
+                .help("Delete this measurement record")
             }
         }
         .padding(.vertical, 4)
