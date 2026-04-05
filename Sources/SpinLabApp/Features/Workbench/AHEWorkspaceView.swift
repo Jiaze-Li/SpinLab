@@ -65,24 +65,24 @@ struct AHEWorkspaceView: View, WorkflowWorkspaceProvider {
                 // 内容区
                 WorkbenchStatusArea(
                     searchMessage: nil,
-                    plotMessage: appState.workbench.plotMessage,
+                    plotMessage: appState.workbench.aheWorkspace.plotMessage,
                     loadMessage: nil
                 )
 
                 WorkbenchPlotCanvas(
-                    imageData: appState.workbench.currentPlotImageData,
-                    layout: appState.workbench.currentPlotLayout,
-                    seriesLabelOverrides: appState.workbench.plotSeriesLabelOverrides,
-                    onLegendDrag: { pt in appState.workbench.updateLegendPoint(pt) },
-                    onEditTitle: { title in appState.workbench.updatePlotTitle(title) },
-                    onEditXLabel: { label in appState.workbench.updateXAxisLabel(label) },
-                    onEditYLabel: { label in appState.workbench.updateYAxisLabel(label) },
+                    imageData: appState.workbench.aheWorkspace.currentPlotImageData,
+                    layout: appState.workbench.aheWorkspace.currentPlotLayout,
+                    seriesLabelOverrides: appState.workbench.aheWorkspace.plotSeriesLabelOverrides,
+                    onLegendDrag: { pt in appState.workbench.aheWorkspace.updateLegendPoint(pt) },
+                    onEditTitle: { title in appState.workbench.aheWorkspace.updatePlotTitle(title) },
+                    onEditXLabel: { label in appState.workbench.aheWorkspace.updateXAxisLabel(label) },
+                    onEditYLabel: { label in appState.workbench.aheWorkspace.updateYAxisLabel(label) },
                     onEditLegendLabel: { orig, label in
-                        appState.workbench.updateSeriesLabel(originalLabel: orig, newLabel: label)
+                        appState.workbench.aheWorkspace.updateSeriesLabel(originalLabel: orig, newLabel: label)
                     }
                 )
 
-                WorkbenchTracePanel(trace: appState.workbench.currentRunTrace)
+                WorkbenchTracePanel(trace: appState.workbench.aheWorkspace.currentRunTrace)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
@@ -98,6 +98,7 @@ private struct AHESearchSection: View {
 
     var body: some View {
         @Bindable var workbench = appState.workbench
+        let ahe = appState.workbench.aheWorkspace
         let libraryRoot = appState.library.librarySettings.rootPath
 
         VStack(alignment: .leading, spacing: 8) {
@@ -127,18 +128,18 @@ private struct AHESearchSection: View {
                 .buttonStyle(.bordered)
 
                 Button("Plot") {
-                    workbench.renderAHEPlot()
+                    ahe.renderAHEPlot()
                 }
                 .buttonStyle(.bordered)
-                .disabled(workbench.selectedSearchResultIDs.isEmpty || workbench.isPlotRendering)
+                .disabled(ahe.selectedSearchResultIDs.isEmpty || ahe.isPlotRendering)
 
                 Button("Clear Plot") {
-                    workbench.clearPlot()
+                    ahe.clearPlot()
                 }
                 .buttonStyle(.bordered)
-                .disabled(workbench.currentPlotImageData == nil && !workbench.isPlotRendering)
+                .disabled(ahe.currentPlotImageData == nil && !ahe.isPlotRendering)
 
-                if workbench.isWorkflowSearchRunning || workbench.isPlotRendering {
+                if workbench.isWorkflowSearchRunning || ahe.isPlotRendering {
                     ProgressView().controlSize(.small)
                 }
             }
@@ -152,7 +153,8 @@ private struct AHEResultsList: View {
     @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
-        @Bindable var workbench = appState.workbench
+        let workbench = appState.workbench
+        let ahe = appState.workbench.aheWorkspace
 
         if workbench.workflowSearchResults.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
@@ -180,9 +182,9 @@ private struct AHEResultsList: View {
                             .foregroundStyle(.secondary)
                     }
                     ForEach(workbench.workflowSearchResults) { hit in
-                        let isSelected = workbench.selectedSearchResultIDs.contains(hit.id)
+                        let isSelected = ahe.selectedSearchResultIDs.contains(hit.id)
                         AHEHitRow(hit: hit, isSelected: isSelected) {
-                            workbench.toggleSearchHitSelection(hit.id)
+                            ahe.toggleSearchHitSelection(hit.id)
                         }
                     }
                 }
@@ -199,17 +201,17 @@ private struct AHEPlotControlsPanel: View {
     @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
-        @Bindable var workbench = appState.workbench
-        let candidates = workbench.currentCandidateAxisFields.isEmpty
+        @Bindable var ahe = appState.workbench.aheWorkspace
+        let candidates = ahe.currentCandidateAxisFields.isEmpty
             ? ["Magnetic Field (Oe)", "Magnetic Field (T)", "Temperature (K)",
                "R_H (\u{03A9})", "Bridge 1 Resistance (Ohms)", "Bridge 2 Resistance (Ohms)", "Bridge 3 Resistance (Ohms)"]
-            : workbench.currentCandidateAxisFields
+            : ahe.currentCandidateAxisFields
 
         GroupBox("Plot Controls") {
             VStack(alignment: .leading, spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("X Axis").font(.caption).foregroundStyle(.secondary)
-                    Picker("X Axis", selection: $workbench.plotAxisXOverride) {
+                    Picker("X Axis", selection: $ahe.plotAxisXOverride) {
                         Text("Default").tag("")
                         ForEach(candidates, id: \.self) { Text($0).tag($0) }
                     }
@@ -218,7 +220,7 @@ private struct AHEPlotControlsPanel: View {
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Y Axis").font(.caption).foregroundStyle(.secondary)
-                    Picker("Y Axis", selection: $workbench.plotAxisYOverride) {
+                    Picker("Y Axis", selection: $ahe.plotAxisYOverride) {
                         Text("Default").tag("")
                         ForEach(candidates, id: \.self) { Text($0).tag($0) }
                     }
@@ -227,15 +229,15 @@ private struct AHEPlotControlsPanel: View {
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Title").font(.caption).foregroundStyle(.secondary)
-                    TextField("AHE", text: $workbench.plotTitleOverride)
+                    TextField("AHE", text: $ahe.plotTitleOverride)
                         .textFieldStyle(.roundedBorder)
                 }
                 HStack(spacing: 16) {
-                    Toggle("Grid", isOn: $workbench.showPlotGrid)
+                    Toggle("Grid", isOn: $ahe.showPlotGrid)
                         .toggleStyle(.checkbox)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Legend").font(.caption).foregroundStyle(.secondary)
-                        Picker("Legend", selection: $workbench.plotLegendAnchor) {
+                        Picker("Legend", selection: $ahe.plotLegendAnchor) {
                             Text("Top Right").tag("")
                             Text("Top Left").tag("top-left")
                             Text("Bottom Right").tag("bottom-right")
