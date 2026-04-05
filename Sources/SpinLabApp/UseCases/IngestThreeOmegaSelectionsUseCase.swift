@@ -45,7 +45,10 @@ struct IngestThreeOmegaSelectionsUseCase {
                 let tempOverride = parseFile == nil
                     ? _parseConditionTemperatureK(hit.conditions["temperature"])
                     : nil
-                let file = try (parseFile.map { try $0(url) } ?? parser.parse(fileURL: url, temperatureOverride: tempOverride))
+                let kindOverride: ThreeOmegaFileKind? = parseFile == nil
+                    ? _parseKind(hit.workflowCanonicalID)
+                    : nil
+                let file = try (parseFile.map { try $0(url) } ?? parser.parse(fileURL: url, temperatureOverride: tempOverride, kindOverride: kindOverride))
                 if angleLabel.isEmpty { angleLabel = file.angleLabel }
 
                 switch file.fileKind {
@@ -97,6 +100,16 @@ struct IngestThreeOmegaSelectionsUseCase {
     }
 
     // MARK: - Private
+
+    /// Maps sidecar workflowCanonicalID to a file kind override.
+    /// Returns nil if unknown — parser falls back to filename heuristic.
+    private func _parseKind(_ canonicalID: String) -> ThreeOmegaFileKind? {
+        switch canonicalID {
+        case "rt":  return .rtSweep
+        case "3w":  return .fieldSweep
+        default:    return nil
+        }
+    }
 
     /// Parses temperature in Kelvin from a sidecar condition string, e.g. "20K" → 20.0.
     private func _parseConditionTemperatureK(_ raw: String?) -> Double? {

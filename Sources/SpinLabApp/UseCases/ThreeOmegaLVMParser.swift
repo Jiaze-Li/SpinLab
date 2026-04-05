@@ -55,12 +55,14 @@ struct ThreeOmegaLVMParser {
     /// Tableau marker string used in LVM headers.
     var marker: String = "Tableau:"
 
-    func parse(fileURL: URL, temperatureOverride: Double? = nil) throws -> ThreeOmegaLVMFile {
+    func parse(fileURL: URL, temperatureOverride: Double? = nil, kindOverride: ThreeOmegaFileKind? = nil) throws -> ThreeOmegaLVMFile {
         let stem = fileURL.deletingPathExtension().lastPathComponent
 
-        // Classify file kind
+        // Classify file kind: sidecar override takes priority over filename heuristic.
         let kind: ThreeOmegaFileKind
-        if stem.contains("_RT_") || stem.uppercased().hasPrefix("RT_") {
+        if let k = kindOverride {
+            kind = k
+        } else if stem.contains("_RT_") || stem.uppercased().hasPrefix("RT_") {
             kind = .rtSweep
         } else {
             kind = .fieldSweep
