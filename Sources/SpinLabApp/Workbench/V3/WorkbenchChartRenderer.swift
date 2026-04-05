@@ -235,7 +235,7 @@ struct WorkbenchChartRenderer {
         let labelGap: CGFloat = 5
         let tickColor = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
         let labelColor = CGColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1)
-        let labelSize: CGFloat = 16
+        let labelSize: CGFloat = 19
 
         ctx.setStrokeColor(tickColor)
         ctx.setLineWidth(0.8)
@@ -298,14 +298,31 @@ struct WorkbenchChartRenderer {
     private func drawLegend(_ ctx: CGContext,
                              rows: [WorkbenchPlotLayout.LegendRow],
                              series: [WorkbenchPlotSeries]) {
+        guard !rows.isEmpty else { return }
         let labelColor = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
+        let rowH   = WorkbenchPlotLayout.legendRowH
+        let boxPad: CGFloat = 6
+
+        // Bounding box around all rows
+        let minX = rows.map(\.cgOriginX).min()! - boxPad
+        let maxX = rows.map { $0.labelAnchor.x + WorkbenchPlotLayout.legendEstLabelW }.max()! + boxPad
+        let minY = rows.map(\.cgRowY).min()! - rowH * 0.5 - boxPad
+        let maxY = rows.map(\.cgRowY).max()! + rowH * 0.5 + boxPad
+        let boxRect = CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+
+        // White fill + light border
+        ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 0.92))
+        ctx.fill(boxRect)
+        ctx.setStrokeColor(CGColor(red: 0.75, green: 0.75, blue: 0.75, alpha: 1))
+        ctx.setLineWidth(0.8)
+        ctx.stroke(boxRect)
+
         for (i, (row, s)) in zip(rows, series).enumerated() {
             ctx.setStrokeColor(Self.seriesColors[i % Self.seriesColors.count])
             ctx.setLineWidth(1.5)
             ctx.strokeLineSegments(between: [row.lineStart, row.lineEnd])
-            // Always [line][text] — labelAnchor is the left edge of the text for all anchors.
             drawLeftAligned(ctx, text: s.label, leftEdge: row.labelAnchor,
-                            size: 15, bold: false, color: labelColor)
+                            size: 18, bold: false, color: labelColor)
         }
     }
 

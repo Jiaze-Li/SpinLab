@@ -22,8 +22,13 @@ final class ThreeOmegaWorkspaceStore {
 
     private(set) var ingestionResult: ThreeOmegaIngestionResult?
     private(set) var scalingResult: ThreeOmegaScalingResult?
+    private(set) var currentRunTrace: WorkbenchRunTraceProjection?
     private(set) var isAnalyzing: Bool = false
     var analysisMessage: String?
+
+    // MARK: - Warning log (persists across runs within the session)
+
+    private(set) var warningLog: [ThreeOmegaWarningEntry] = []
 
     // MARK: - Tab selection
 
@@ -47,10 +52,15 @@ final class ThreeOmegaWorkspaceStore {
     var showPlotGrid: Bool = true
     var plotLegendAnchor: String = ""           // "" = top-right (default)
     var plotTitleOverride: String = ""
+    var stackOffsetMultiplier: Double = 1.2     // 0 = no stacking; >0 = curve spacing
 
-    // Per-tab state (legend drag position and series label renames)
+    // Per-tab state (legend drag position, axis label overrides, and series label renames)
     var plotLegendPoints: [ThreeOmegaWorkbenchTab: CGPoint] = [:]
     var plotSeriesLabelOverrides: [ThreeOmegaWorkbenchTab: [String: String]] = [:]
+    /// Display-only x-axis label overrides per tab (does not affect data).
+    var plotXLabelOverrides: [ThreeOmegaWorkbenchTab: String] = [:]
+    /// Display-only y-axis label overrides per tab (does not affect data).
+    var plotYLabelOverrides: [ThreeOmegaWorkbenchTab: String] = [:]
 
     // MARK: - Private
 
@@ -72,6 +82,10 @@ final class ThreeOmegaWorkspaceStore {
         }
     }
 
+    func selectAll() {
+        selectedSearchResultIDs = Set(cachedSearchResults.map { $0.id })
+    }
+
     // MARK: - Analysis
 
     /// Parse all selected files, fit RAHE/Hc, render tabs 1–5.
@@ -87,8 +101,9 @@ final class ThreeOmegaWorkspaceStore {
         analysisMessage = nil
         _clearPlots()
 
-        let capturedGrid   = showPlotGrid
-        let capturedAnchor = plotLegendAnchor
+        let capturedGrid       = showPlotGrid
+        let capturedAnchor     = plotLegendAnchor
+        let capturedMultiplier = stackOffsetMultiplier
 
         analysisTask = Task { [weak self] in
             guard let self else { return }
@@ -97,8 +112,9 @@ final class ThreeOmegaWorkspaceStore {
                     let ingestUseCase = IngestThreeOmegaSelectionsUseCase()
                     let result = ingestUseCase.execute(hits: selectedHits)
                     var renderer = ThreeOmegaPlotRenderer()
-                    renderer.showGrid    = capturedGrid
-                    renderer.legendAnchor = capturedAnchor
+                    renderer.showGrid             = capturedGrid
+                    renderer.legendAnchor         = capturedAnchor
+                    renderer.stackOffsetMultiplier = capturedMultiplier
                     let plots = renderer.renderAllTabs(result: result)
                     return (result, plots)
                 }.value
@@ -111,6 +127,26 @@ final class ThreeOmegaWorkspaceStore {
                 let rtNote     = result.rtResult != nil ? ", RT curve loaded" : ""
                 let warnNote   = result.warnings.isEmpty ? "" : " (\(result.warnings.count) warning(s))"
                 self.analysisMessage = "Analyzed \(sweepCount) field-sweep file(s)\(rtNote)\(warnNote)."
+
+                for w in result.warnings {
+                    self.warningLog.append(ThreeOmegaWarningEntry(source: "Ingestion", message: w))
+                    print("[SpinLab][3ω Ingestion] \(w)")
+                }
+
+                self.currentRunTrace = WorkbenchRunTraceProjection(
+                    runID: UUID().uuidString,
+                    workflowID: "3W",
+                    inputFiles: selectedHits.map { $0.measurementFilePath },
+                    axisMapping: WorkbenchAxisMapping(xField: "H (Oe)", yField: "R (Ω)"),
+                    semanticParams: [
+                        "angle":        result.angleLabel.isEmpty ? "unknown" : result.angleLabel,
+                        "fieldSweeps":  "\(sweepCount)",
+                        "rtLoaded":     result.rtResult != nil ? "yes" : "no"
+                    ],
+                    outputImagePath: "",
+                    manifestPath: "",
+                    generatedAt: Date()
+                )
                 self.isAnalyzing = false
             } catch is CancellationError {
                 self.isAnalyzing = false
@@ -128,7 +164,7 @@ final class ThreeOmegaWorkspaceStore {
             return
         }
         guard geometry.isComplete else {
-            analysisMessage = "Enter L_xx, L_xy, and d to compute Fig 5b scaling."
+            analysisMessage = "Enter L_xx, L_xy, and d to compute Scaling Law."
             return
         }
 
@@ -162,10 +198,42 @@ final class ThreeOmegaWorkspaceStore {
             self.plotScaling   = scalingData
             if let l = scalingLayout { self.plotLayouts[.scaling] = l }
 
+            for w in scalingRes.warnings {
+                self.warningLog.append(ThreeOmegaWarningEntry(source: "Scaling", message: w))
+                print("[SpinLab][3ω Scaling] \(w)")
+            }
+
             if let beta = scalingRes.beta, let r2 = scalingRes.rSquared {
                 self.analysisMessage = String(format: "Scaling: β = %.4e, R² = %.4f", beta, r2)
             } else if !scalingRes.warnings.isEmpty {
                 self.analysisMessage = scalingRes.warnings.first
+            }
+        }
+    }
+
+    // MARK: - Stack offset
+
+    /// Re-renders Tab 1 and Tab 2 after stack offset multiplier changes.
+    func rerenderFieldSweepTabs() {
+        guard let ingestion = ingestionResult else { return }
+        let capturedGrid       = showPlotGrid
+        let capturedAnchor     = plotLegendAnchor
+        let capturedMultiplier = stackOffsetMultiplier
+
+        Task.detached(priority: .userInitiated) { [weak self] in
+            guard let self else { return }
+            var r = ThreeOmegaPlotRenderer()
+            r.showGrid              = capturedGrid
+            r.legendAnchor          = capturedAnchor
+            r.stackOffsetMultiplier = capturedMultiplier
+            let r1 = r.renderR1omega(sweeps: ingestion.fieldSweeps, angleLabel: ingestion.angleLabel)
+            let r3 = r.renderR3omega(sweeps: ingestion.fieldSweeps, angleLabel: ingestion.angleLabel)
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.plotR1omega = r1.0
+                self.plotR3omega = r3.0
+                if let l = r1.1 { self.plotLayouts[.fieldSweep1omega] = l }
+                if let l = r3.1 { self.plotLayouts[.fieldSweep3omega] = l }
             }
         }
     }
@@ -184,12 +252,13 @@ final class ThreeOmegaWorkspaceStore {
     }
 
     func updateXAxisLabel(_ label: String) {
-        // X/Y label overrides are applied via payload mutation in re-render
-        _rerenderActiveTab(xLabelOverride: label)
+        plotXLabelOverrides[activeTab] = label.isEmpty ? nil : label
+        _rerenderActiveTab()
     }
 
     func updateYAxisLabel(_ label: String) {
-        _rerenderActiveTab(yLabelOverride: label)
+        plotYLabelOverrides[activeTab] = label.isEmpty ? nil : label
+        _rerenderActiveTab()
     }
 
     func updateSeriesLabel(originalLabel: String, newLabel: String) {
@@ -213,6 +282,7 @@ final class ThreeOmegaWorkspaceStore {
         selectedSearchResultIDs  = []
         ingestionResult          = nil
         scalingResult            = nil
+        currentRunTrace          = nil
         isAnalyzing              = false
         analysisMessage          = nil
         geometry                 = ThreeOmegaGeometry()
@@ -222,6 +292,9 @@ final class ThreeOmegaWorkspaceStore {
         plotTitleOverride        = ""
         plotLegendPoints         = [:]
         plotSeriesLabelOverrides = [:]
+        plotXLabelOverrides      = [:]
+        plotYLabelOverrides      = [:]
+        warningLog               = []
         _clearPlots()
     }
 
@@ -242,7 +315,7 @@ final class ThreeOmegaWorkspaceStore {
     }
 
     /// Re-renders only the active tab using cached ingestion/scaling result.
-    private func _rerenderActiveTab(xLabelOverride: String? = nil, yLabelOverride: String? = nil) {
+    private func _rerenderActiveTab() {
         guard let ingestion = ingestionResult else { return }
 
         let tab            = activeTab
@@ -250,6 +323,8 @@ final class ThreeOmegaWorkspaceStore {
         let capturedAnchor = plotLegendAnchor
         let capturedLegend = plotLegendPoints[tab]
         let titleOverride  = plotTitleOverride
+        let xLabelOverride = plotXLabelOverrides[tab] ?? ""
+        let yLabelOverride = plotYLabelOverrides[tab] ?? ""
         let labelOverrides = plotSeriesLabelOverrides[tab] ?? [:]
         let capturedScaling = scalingResult
         let capturedGeometry = geometry
@@ -257,9 +332,13 @@ final class ThreeOmegaWorkspaceStore {
         Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
             var r = ThreeOmegaPlotRenderer()
-            r.showGrid     = capturedGrid
-            r.legendAnchor = capturedAnchor
-            r.legendPoint  = capturedLegend
+            r.showGrid              = capturedGrid
+            r.legendAnchor          = capturedAnchor
+            r.legendPoint           = capturedLegend
+            r.titleOverride         = titleOverride
+            r.xLabelOverride        = xLabelOverride
+            r.yLabelOverride        = yLabelOverride
+            r.seriesLabelOverrides  = labelOverrides
 
             var result: (Data?, WorkbenchPlotLayout?) = (nil, nil)
             switch tab {
@@ -278,14 +357,6 @@ final class ThreeOmegaWorkspaceStore {
                     result = r.renderScaling(result: sr)
                 }
             }
-
-            // Apply title and series label overrides to the rendered payload is complex
-            // post-render; for now title/label override is stored and used on next full render.
-            // TODO: pass overrides into renderer for live preview.
-            _ = titleOverride
-            _ = xLabelOverride
-            _ = yLabelOverride
-            _ = labelOverrides
 
             await MainActor.run { [weak self] in
                 guard let self, self.activeTab == tab else { return }
@@ -310,6 +381,21 @@ final class ThreeOmegaWorkspaceStore {
         plotRT      = nil
         plotScaling = nil
         plotLayouts = [:]
+    }
+}
+
+// MARK: - Warning log entry
+
+struct ThreeOmegaWarningEntry: Identifiable, Sendable {
+    let id = UUID()
+    let timestamp: Date
+    let source: String   // "Ingestion" or "Scaling"
+    let message: String
+
+    init(source: String, message: String) {
+        self.timestamp = Date()
+        self.source = source
+        self.message = message
     }
 }
 

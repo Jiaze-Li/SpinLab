@@ -93,6 +93,12 @@ private struct ThreeOmegaSearchSection: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(workbench.isWorkflowSearchRunning || libraryRoot == nil)
 
+                Button("Select All") {
+                    store.selectAll()
+                }
+                .buttonStyle(.bordered)
+                .disabled(workbench.workflowSearchResults.isEmpty)
+
                 Button("Analyze") {
                     store.runAnalysis()
                 }
@@ -141,6 +147,43 @@ private struct ThreeOmegaPlotControlsPanel: View {
                     Text("Title").font(.caption).foregroundStyle(.secondary)
                     TextField("", text: $store.plotTitleOverride)
                         .textFieldStyle(.roundedBorder)
+                        .onChange(of: store.plotTitleOverride) { _, _ in
+                            store.updatePlotTitle(store.plotTitleOverride)
+                        }
+                }
+
+                // X / Y axis label overrides (display-only, per-tab)
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("X Label").font(.caption).foregroundStyle(.secondary)
+                        TextField("", text: Binding(
+                            get: { store.plotXLabelOverrides[store.activeTab] ?? "" },
+                            set: { store.updateXAxisLabel($0) }
+                        ))
+                        .textFieldStyle(.roundedBorder)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Y Label").font(.caption).foregroundStyle(.secondary)
+                        TextField("", text: Binding(
+                            get: { store.plotYLabelOverrides[store.activeTab] ?? "" },
+                            set: { store.updateYAxisLabel($0) }
+                        ))
+                        .textFieldStyle(.roundedBorder)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Stack Offset").font(.caption).foregroundStyle(.secondary)
+                    HStack(spacing: 6) {
+                        Slider(value: $store.stackOffsetMultiplier, in: 0...1.6, step: 0.1)
+                            .onChange(of: store.stackOffsetMultiplier) { _, _ in
+                                store.rerenderFieldSweepTabs()
+                            }
+                        Text(String(format: "%.1f×", store.stackOffsetMultiplier))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 32, alignment: .trailing)
+                    }
                 }
 
                 HStack(spacing: 16) {
@@ -179,7 +222,7 @@ private struct ThreeOmegaGeometryPanel: View {
     var body: some View {
         @Bindable var store = appState.workbench.threeOmegaWorkspace
 
-        GroupBox("Geometry (for Fig 5b scaling)") {
+        GroupBox("Geometry (for Scaling Law)") {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text("L_xx (μm):")
@@ -337,6 +380,17 @@ private struct ThreeOmegaRightColumn: View {
                     loadMessage: nil
                 )
 
+                if let warnings = store.ingestionResult?.warnings, !warnings.isEmpty {
+                    VStack(alignment: .leading, spacing: 3) {
+                        ForEach(warnings, id: \.self) { w in
+                            Text("⚠ \(w)")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                    .textSelection(.enabled)
+                }
+
                 WorkbenchPlotCanvas(
                     imageData: _activeImageData(store),
                     layout: store.plotLayouts[store.activeTab],
@@ -350,10 +404,14 @@ private struct ThreeOmegaRightColumn: View {
                     }
                 )
 
-                // Fig 5b fit results (only on scaling tab)
+                // Scaling Law fit results (only on scaling tab)
                 if store.activeTab == .scaling, let sr = store.scalingResult {
                     ThreeOmegaScalingResultPanel(result: sr)
                 }
+
+                WorkbenchTracePanel(trace: store.currentRunTrace)
+
+                ThreeOmegaWarningLogPanel(entries: store.warningLog)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
@@ -373,13 +431,58 @@ private struct ThreeOmegaRightColumn: View {
     }
 }
 
+// MARK: - Warning log panel
+
+private struct ThreeOmegaWarningLogPanel: View {
+    let entries: [ThreeOmegaWarningEntry]
+
+    @State private var isExpanded = true
+
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        return f
+    }()
+
+    var body: some View {
+        if !entries.isEmpty {
+            DisclosureGroup(isExpanded: $isExpanded) {
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(entries) { entry in
+                        HStack(alignment: .top, spacing: 6) {
+                            Text(Self.timeFormatter.string(from: entry.timestamp))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 54, alignment: .leading)
+                            Text("[\(entry.source)]")
+                                .font(.caption2.bold())
+                                .foregroundStyle(.orange)
+                            Text(entry.message)
+                                .font(.caption2)
+                                .foregroundStyle(.primary)
+                        }
+                    }
+                }
+                .textSelection(.enabled)
+                .padding(.top, 4)
+            } label: {
+                Label("Warnings (\(entries.count))", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption.bold())
+                    .foregroundStyle(.orange)
+            }
+            .groupBoxStyle(.automatic)
+            .padding(.vertical, 4)
+        }
+    }
+}
+
 // MARK: - Scaling result panel
 
 private struct ThreeOmegaScalingResultPanel: View {
     let result: ThreeOmegaScalingResult
 
     var body: some View {
-        GroupBox("Fig 5b Fit Results") {
+        GroupBox("Scaling Law Fit Results") {
             VStack(alignment: .leading, spacing: 4) {
                 if let beta = result.beta {
                     Text(String(format: "β (Q_xxz) = %.4e", beta))

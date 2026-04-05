@@ -11,8 +11,15 @@ struct ThreeOmegaPlotRenderer {
     var showGrid: Bool = true
     var legendAnchor: String = ""           // "" = top-right (default)
     var legendPoint: CGPoint? = nil         // normalized free-position; overrides anchor
+    var stackOffsetMultiplier: Double = 1.2 // spacing between stacked curves; 0 = no stacking
 
-    private let options = WorkbenchChartRenderer.Options()
+    // Display-only overrides applied after payload construction (mirrors AHEWorkspaceStore pattern)
+    var titleOverride: String = ""
+    var xLabelOverride: String = ""
+    var yLabelOverride: String = ""
+    var seriesLabelOverrides: [String: String] = [:]
+
+    private let defaultOptions = WorkbenchChartRenderer.Options()
 
     // MARK: - Render all 5 analysis tabs (excludes scaling — geometry required)
 
@@ -33,35 +40,55 @@ struct ThreeOmegaPlotRenderer {
     /// Tab 1: R¹ω vs H, stacked by temperature
     func renderR1omega(sweeps: [ThreeOmegaFieldSweepResult], angleLabel: String) -> (Data?, WorkbenchPlotLayout?) {
         guard !sweeps.isEmpty else { return (nil, nil) }
-        let series = sweeps.map { sweep in
-            WorkbenchPlotSeries(label: _tempLabel(sweep.temperatureK), x: sweep.hField, y: sweep.r1omega)
-        }
+        let offsets = ThreeOmegaStackOffsetUseCase().execute(
+            yValues: sweeps.map { $0.r1omega },
+            multiplier: stackOffsetMultiplier
+        )
+        // Reverse so legend order matches visual order: high temp at top of legend = top of plot
+        let series = zip(sweeps, offsets).map { (sweep, offset) in
+            WorkbenchPlotSeries(
+                label: _tempLabel(sweep.temperatureK),
+                x: sweep.hField.map { $0 / 10000 },
+                y: sweep.r1omega.map { $0 + offset }
+            )
+        }.reversed() as [WorkbenchPlotSeries]
+        let yLabel = stackOffsetMultiplier > 0 ? "R¹ω (Ω, stacked)" : "R¹ω (Ω)"
         var payload = WorkbenchPlotPayload(
             workflowID: "3W",
             workflowDisplayName: "3ω AHE",
             title: "R¹ω vs H  \(angleLabel)",
-            // Formula: R¹ω(H) = V¹ω_X(H) / I_rms, centered
-            axisMapping: WorkbenchAxisMapping(xField: "H (Oe)", yField: "R¹ω (Ω)"),
+            // Formula: R¹ω(H) = V¹ω_X(H) / I_rms, centered, then stacked by temperature
+            axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: yLabel),
             series: series
         )
-        return _render(payload: &payload)
+        return _render(payload: &payload, options: _stackedOptions(sweepCount: sweeps.count))
     }
 
     /// Tab 2: R³ω vs H, stacked by temperature
     func renderR3omega(sweeps: [ThreeOmegaFieldSweepResult], angleLabel: String) -> (Data?, WorkbenchPlotLayout?) {
         guard !sweeps.isEmpty else { return (nil, nil) }
-        let series = sweeps.map { sweep in
-            WorkbenchPlotSeries(label: _tempLabel(sweep.temperatureK), x: sweep.hField, y: sweep.r3omega)
-        }
+        let offsets = ThreeOmegaStackOffsetUseCase().execute(
+            yValues: sweeps.map { $0.r3omega },
+            multiplier: stackOffsetMultiplier
+        )
+        // Reverse so legend order matches visual order: high temp at top of legend = top of plot
+        let series = zip(sweeps, offsets).map { (sweep, offset) in
+            WorkbenchPlotSeries(
+                label: _tempLabel(sweep.temperatureK),
+                x: sweep.hField.map { $0 / 10000 },
+                y: sweep.r3omega.map { $0 + offset }
+            )
+        }.reversed() as [WorkbenchPlotSeries]
+        let yLabel = stackOffsetMultiplier > 0 ? "R³ω (Ω, stacked)" : "R³ω (Ω)"
         var payload = WorkbenchPlotPayload(
             workflowID: "3W",
             workflowDisplayName: "3ω AHE",
             title: "R³ω vs H  \(angleLabel)",
-            // Formula: R³ω(H) = V³ω_X(H) / I_rms, centered
-            axisMapping: WorkbenchAxisMapping(xField: "H (Oe)", yField: "R³ω (Ω)"),
+            // Formula: R³ω(H) = V³ω_X(H) / I_rms, centered, then stacked by temperature
+            axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: yLabel),
             series: series
         )
-        return _render(payload: &payload)
+        return _render(payload: &payload, options: _stackedOptions(sweepCount: sweeps.count))
     }
 
     /// Tab 3: RAHE¹ω and RAHE³ω vs T
@@ -146,7 +173,7 @@ struct ThreeOmegaPlotRenderer {
         var payload = WorkbenchPlotPayload(
             workflowID: "3W",
             workflowDisplayName: "3ω AHE",
-            title: "Fig 5b: Berry Curvature Quadrupole Scaling\(r2Str)",
+            title: "Scaling Law: Berry Curvature Quadrupole\(r2Str)",
             // Formula: Y = E^(3ω)_AHE / (E_xx³ × σ_xx) = α·σ²_xx + β
             // β → Q_xxz Berry curvature quadrupole; E_xx³ = E_xx to the power 3
             axisMapping: WorkbenchAxisMapping(
@@ -161,19 +188,42 @@ struct ThreeOmegaPlotRenderer {
     // MARK: - Private
 
     /// Applies current style params (grid, legend), renders PNG and computes layout.
-    private func _render(payload: inout WorkbenchPlotPayload) -> (Data?, WorkbenchPlotLayout?) {
+    /// Pass `options` to override the default size (e.g. for stacked waterfall plots).
+    private func _render(
+        payload: inout WorkbenchPlotPayload,
+        options: WorkbenchChartRenderer.Options? = nil
+    ) -> (Data?, WorkbenchPlotLayout?) {
+        let opts = options ?? defaultOptions
         if showGrid { payload.styleParams["showGrid"] = "true" }
         if !legendAnchor.isEmpty { payload.styleParams["legendAnchor"] = legendAnchor }
         if let pt = legendPoint {
             payload.styleParams["legendX"] = "\(pt.x)"
             payload.styleParams["legendY"] = "\(pt.y)"
         }
-        let layout = WorkbenchPlotLayout.compute(options: options, payload: payload, legendPoint: legendPoint)
-        let data = try? WorkbenchChartRenderer().renderPNG(payload: payload, options: options)
+        // Apply display-only overrides (mirrors AHEWorkspaceStore pattern)
+        if !titleOverride.isEmpty { payload.title = titleOverride }
+        if !xLabelOverride.isEmpty { payload.axisMapping.xField = xLabelOverride }
+        if !yLabelOverride.isEmpty { payload.axisMapping.yField = yLabelOverride }
+        if !seriesLabelOverrides.isEmpty {
+            payload.series = payload.series.map { s in
+                guard let custom = seriesLabelOverrides[s.label] else { return s }
+                var copy = s; copy.label = custom; return copy
+            }
+        }
+        let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: legendPoint)
+        let data = try? WorkbenchChartRenderer().renderPNG(payload: payload, options: opts)
         return (data, layout)
     }
 
+    /// Computes chart height for stacked waterfall plots.
+    /// Base 600px fits ~6 curves comfortably; each additional curve adds 40px.
+    private func _stackedOptions(sweepCount: Int) -> WorkbenchChartRenderer.Options {
+        var opts = defaultOptions
+        opts.height = max(defaultOptions.height, defaultOptions.height + (sweepCount - 6) * 40)
+        return opts
+    }
+
     private func _tempLabel(_ t: Double) -> String {
-        t.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(t)) K" : String(format: "%.1f K", t)
+        "\(Int(t.rounded())) K"
     }
 }

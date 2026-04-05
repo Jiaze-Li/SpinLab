@@ -11,9 +11,9 @@ struct WorkbenchPlotLayout: Sendable {
 
     // MARK: - Shared legend geometry constants
 
-    static let legendLineLen:  CGFloat = 18
-    static let legendRowH:     CGFloat = 15
-    static let legendGap:      CGFloat = 4
+    static let legendLineLen:  CGFloat = 22
+    static let legendRowH:     CGFloat = 26
+    static let legendGap:      CGFloat = 6
     static let legendMargin:   CGFloat = 6
     /// Estimated label text width used for hit-rect sizing; visual label may be shorter.
     static let legendEstLabelW: CGFloat = 110
