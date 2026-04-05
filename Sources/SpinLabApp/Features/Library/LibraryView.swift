@@ -399,7 +399,8 @@ struct LibraryView: View {
                             LibraryMeasurementsDoneSection(
                                 measurements: sample.appliedMeasurements,
                                 workflowDisplayNameByID: workflowDisplayNameByID,
-                                workflowConditionOrderByID: workflowConditionOrderByID
+                                workflowConditionOrderByID: workflowConditionOrderByID,
+                                onDelete: { m in appState.library.deleteAppliedMeasurement(m) }
                             )
 
                             Divider()

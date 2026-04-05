@@ -1005,6 +1005,25 @@ final class LibraryFeatureStore {
         loadWorkbenchResultsForCurrentSelection()
     }
 
+    // MARK: - Applied Measurement delete (V3.5)
+
+    /// Deletes the `.spinlab.json` sidecar file for a given `AppliedMeasurement` and
+    /// refreshes the in-memory applied measurements for the current selection.
+    ///
+    /// `AppliedMeasurement.id` is the full file-system path of the sidecar file,
+    /// so it can be removed directly without additional path resolution.
+    func deleteAppliedMeasurement(_ measurement: AppliedMeasurement) {
+        let sidecarPath = measurement.id
+        guard !sidecarPath.isEmpty else { return }
+        try? FileManager.default.removeItem(atPath: sidecarPath)
+
+        // Invalidate the cache so the next refresh re-scans from disk.
+        if let sample = selectedExistingDrawerSample() {
+            appliedMeasurementsCacheBySampleID.removeValue(forKey: sample.id)
+        }
+        refreshSelectedDrawerAppliedMeasurementsIfNeeded()
+    }
+
     func reconcileLibrarySampleEditingSelection() {
         guard let draft = librarySampleEditDraft else {
             return
