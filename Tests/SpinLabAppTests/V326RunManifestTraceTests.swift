@@ -77,7 +77,6 @@ struct V326RunManifestTraceTests {
 
         let projection = BuildRunTraceProjectionUseCase().execute(
             manifest: manifest,
-            chartIdentityKey: result.chartIdentityKey,
             manifestPath: result.manifestPath
         )
 
@@ -88,28 +87,6 @@ struct V326RunManifestTraceTests {
         #expect(projection.semanticParams == manifest.semanticParams)
         #expect(projection.outputImagePath == manifest.outputImagePath)
         #expect(projection.generatedAt == manifest.generatedAt)
-        #expect(projection.appVersion == manifest.appVersion)
-    }
-
-    @Test("projection carries chartIdentityKey from result, not recomputed")
-    func projectionCarriesIdentityKeyFromResult() throws {
-        let fixture = try Fixture326()
-        defer { fixture.cleanup() }
-
-        let payload = makePayload(sourceRef: "run1.dat")
-        let result = try fixture.makePersistUseCase().execute(
-            sampleKey: "S1", payload: payload, imageData: Data([0x00])
-        )
-        let manifest = try fixture.loadManifest(at: result.manifestPath)
-
-        let projection = BuildRunTraceProjectionUseCase().execute(
-            manifest: manifest,
-            chartIdentityKey: result.chartIdentityKey,
-            manifestPath: result.manifestPath
-        )
-
-        #expect(projection.chartIdentityKey == result.chartIdentityKey)
-        #expect(projection.chartIdentityKey.hasPrefix("chart_"))
     }
 
     @Test("projection manifestPath matches the path passed in, not recomputed")
@@ -125,7 +102,6 @@ struct V326RunManifestTraceTests {
 
         let projection = BuildRunTraceProjectionUseCase().execute(
             manifest: manifest,
-            chartIdentityKey: "chart_abc",
             manifestPath: "samples/S1/charts/chart_abc.manifest.json"
         )
 
@@ -140,9 +116,11 @@ struct V326RunManifestTraceTests {
         defer { fixture.cleanup() }
 
         let payloadA = makePayload(sourceRef: "run1.dat",
-                                   xField: "Magnetic Field (Oe)", yField: "Bridge 1 Resistance (Ohms)")
+                                   xField: "Magnetic Field (Oe)", yField: "Bridge 1 Resistance (Ohms)",
+                                   title: "Run A")
         let payloadB = makePayload(sourceRef: "run1.dat",
-                                   xField: "Temperature (K)", yField: "Bridge 1 Resistance (Ohms)")
+                                   xField: "Temperature (K)", yField: "Bridge 1 Resistance (Ohms)",
+                                   title: "Run B")
         let persist = fixture.makePersistUseCase()
         let pngData = Data([0x00])
 
@@ -155,15 +133,14 @@ struct V326RunManifestTraceTests {
         let manifestB = try fixture.loadManifest(at: resultB.manifestPath)
 
         let traceA = BuildRunTraceProjectionUseCase().execute(
-            manifest: manifestA, chartIdentityKey: resultA.chartIdentityKey,
+            manifest: manifestA,
             manifestPath: resultA.manifestPath
         )
         let traceB = BuildRunTraceProjectionUseCase().execute(
-            manifest: manifestB, chartIdentityKey: resultB.chartIdentityKey,
+            manifest: manifestB,
             manifestPath: resultB.manifestPath
         )
 
-        #expect(traceA.chartIdentityKey != traceB.chartIdentityKey)
         #expect(traceA.outputImagePath != traceB.outputImagePath)
         #expect(traceA.manifestPath != traceB.manifestPath)
         #expect(traceA.runID != traceB.runID)
@@ -176,12 +153,13 @@ private func makePayload(
     sourceRef: String,
     xField: String = "X",
     yField: String = "Y",
+    title: String = "Test",
     semanticParams: [String: String] = [:]
 ) -> WorkbenchPlotPayload {
     WorkbenchPlotPayload(
         workflowID: "AHE",
         workflowDisplayName: "AHE",
-        title: "Test",
+        title: title,
         axisMapping: WorkbenchAxisMapping(xField: xField, yField: yField),
         series: [WorkbenchPlotSeries(label: "S", x: [1.0], y: [1.0], sourceRef: sourceRef)],
         semanticParams: semanticParams

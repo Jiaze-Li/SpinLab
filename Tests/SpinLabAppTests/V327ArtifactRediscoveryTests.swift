@@ -38,7 +38,7 @@ struct V327ArtifactRediscoveryTests {
         defer { fixture.cleanup() }
 
         let payload = makePayload(sourceRef: "run1.dat", xField: "X", yField: "Y")
-        let result = try fixture.makePersistUseCase().execute(
+        _ = try fixture.makePersistUseCase().execute(
             sampleKey: "S1", payload: payload, imageData: Data([0xAB]),
             runID: "trace-run", appVersion: "v3.2.7"
         )
@@ -48,13 +48,10 @@ struct V327ArtifactRediscoveryTests {
 
         let trace = BuildRunTraceProjectionUseCase().execute(
             manifest: loaded.manifest,
-            chartIdentityKey: loaded.chartIdentityKey,
             manifestPath: loaded.manifestPath
         )
 
         #expect(trace.runID == "trace-run")
-        #expect(trace.appVersion == "v3.2.7")
-        #expect(trace.chartIdentityKey == result.chartIdentityKey)
         #expect(!trace.outputImagePath.hasPrefix("/"))
     }
 

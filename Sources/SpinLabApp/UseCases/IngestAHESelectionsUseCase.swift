@@ -57,8 +57,9 @@ struct IngestAHESelectionsUseCase {
 
             let bridgeIndex = selection.channel.bridgeIndex
 
+            let isRHRequest = yColumnOverride == "R_H (\u{03A9})"
             let resolvedYCol: String
-            if let yOverride = yColumnOverride {
+            if let yOverride = yColumnOverride, !isRHRequest {
                 resolvedYCol = yOverride
             } else {
                 guard let col = detector.yColumnName(from: file, bridgeIndex: bridgeIndex) else {
@@ -76,12 +77,14 @@ struct IngestAHESelectionsUseCase {
                 )
             }
 
-            let xColumn = xColumnOverride ?? "Magnetic Field (Oe)"
-            let (xs, ys) = detector.pairedValues(
+            let isTeslaRequest = xColumnOverride == "Magnetic Field (T)" || xColumnOverride == nil
+            let xColumn = isTeslaRequest ? "Magnetic Field (Oe)" : (xColumnOverride ?? "Magnetic Field (Oe)")
+            let (rawXs, ys) = detector.pairedValues(
                 from: file,
                 xColumn: xColumn,
                 yColumn: resolvedYCol
             )
+            let xs = isTeslaRequest ? rawXs.map { $0 * 1e-4 } : rawXs
 
             guard !xs.isEmpty else {
                 warnings.append(
@@ -103,7 +106,10 @@ struct IngestAHESelectionsUseCase {
             ))
         }
 
-        let candidateAxisFields = detector.candidateAxisFields(from: allParsed)
+        var candidateAxisFields = detector.candidateAxisFields(from: allParsed)
+        if let oeIndex = candidateAxisFields.firstIndex(of: "Magnetic Field (Oe)") {
+            candidateAxisFields.insert("Magnetic Field (T)", at: oeIndex + 1)
+        }
         let defaultAxisMapping = detector.defaultAxisMapping(from: allParsed)
         let sourceFiles = orderedPaths.filter { parsedFiles[$0] != nil }
 

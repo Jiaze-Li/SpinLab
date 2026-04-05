@@ -39,20 +39,34 @@ struct PersistChartArtifactUseCase {
         let identityKey = WorkbenchChartIdentity.makeIdentityKey(from: payload)
         let isMulti = sampleKeys.count > 1
 
+        // Build a human-readable filename: "{sanitized title}_{timestamp}"
+        let rawTitle = payload.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let safeTitle = rawTitle.isEmpty ? "chart" : rawTitle
+            .components(separatedBy: CharacterSet.alphanumerics.union(.init(charactersIn: " -_")).inverted)
+            .joined()
+            .components(separatedBy: .whitespaces)
+            .filter { !$0.isEmpty }
+            .joined(separator: "_")
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyyMMdd_HHmmss"
+        let ts = fmt.string(from: generatedAt)
+        // Drop the "chart_" type prefix; take 16 hex chars (64-bit entropy) for uniqueness.
+        let hexSuffix = String(identityKey.dropFirst(6).prefix(16))
+        let fileName = "\(safeTitle)_\(ts)_\(hexSuffix)"
+
         let imageRelPath: String
         let manifestRelPath: String
         if isMulti {
-            imageRelPath    = "_spinlab/multi-sample/charts/\(identityKey).png"
-            manifestRelPath = "_spinlab/multi-sample/charts/\(identityKey).manifest.json"
+            imageRelPath    = "_spinlab/multi-sample/charts/\(fileName).png"
+            manifestRelPath = "_spinlab/multi-sample/charts/\(fileName).manifest.json"
         } else {
             let sk = sampleKeys.first ?? "unknown"
-            imageRelPath    = "samples/\(sk)/charts/\(identityKey).png"
-            manifestRelPath = "samples/\(sk)/charts/\(identityKey).manifest.json"
+            imageRelPath    = "samples/\(sk)/charts/\(fileName).png"
+            manifestRelPath = "samples/\(sk)/charts/\(fileName).manifest.json"
         }
 
         let imageAbsURL    = try pathResolver.absoluteURL(for: imageRelPath)
         let manifestAbsURL = try pathResolver.absoluteURL(for: manifestRelPath)
-        let isOverwrite    = FileManager.default.fileExists(atPath: imageAbsURL.path)
 
         // Build manifest
         let inputFiles = payload.series.compactMap(\.sourceRef)
@@ -78,8 +92,13 @@ struct PersistChartArtifactUseCase {
             generatedAt: generatedAt
         )
 
-        // Upsert reference into each sample's results_index.json
+        // Upsert reference into each sample's results_index.json.
+        // isOverwrite is determined at identity level (not file-level) so that a title
+        // change — which produces a new filename — still reports as an overwrite.
+        // Stale paths are collected when the filename changed and cleaned up after commit.
         var indexEntries: [(URL, Data)] = []
+        var isOverwrite = false
+        var staleRelPaths = Set<String>()
         let uniqueKeys: [String] = {
             var seen = Set<String>()
             let deduped = sampleKeys.filter { seen.insert($0).inserted }
@@ -96,6 +115,12 @@ struct PersistChartArtifactUseCase {
                 index = WorkbenchResultsIndex(sampleKey: sk, updatedAt: generatedAt, references: [])
             }
             if let existingIdx = index.references.firstIndex(where: { $0.chartIdentityKey == identityKey }) {
+                isOverwrite = true
+                let old = index.references[existingIdx]
+                if old.chartImagePath != imageRelPath {
+                    staleRelPaths.insert(old.chartImagePath)
+                    staleRelPaths.insert(old.manifestPath)
+                }
                 index.references[existingIdx] = reference
             } else {
                 index.references.append(reference)
@@ -114,6 +139,14 @@ struct PersistChartArtifactUseCase {
             writes.append(AtomicWriteEntry(destinationURL: url, data: data))
         }
         try writer.commit(writes)
+
+        // Best-effort orphan cleanup: remove stale image/manifest whose path changed.
+        // Runs after successful commit so a write failure never leaves the library inconsistent.
+        for stalePath in staleRelPaths {
+            if let staleURL = try? pathResolver.absoluteURL(for: stalePath) {
+                try? FileManager.default.removeItem(at: staleURL)
+            }
+        }
 
         return ChartArtifactPersistenceResult(
             chartIdentityKey: identityKey,

@@ -10,9 +10,9 @@ struct WorkbenchChartRenderer {
     struct Options: Sendable {
         var width: Int = 800
         var height: Int = 600
-        var paddingTop: CGFloat = 50
-        var paddingBottom: CGFloat = 72   // space for x tick labels + field label
-        var paddingLeft: CGFloat = 82     // space for y tick labels + field label
+        var paddingTop: CGFloat = 64
+        var paddingBottom: CGFloat = 88   // space for x tick labels + field label
+        var paddingLeft: CGFloat = 96     // space for y tick labels + field label
         var paddingRight: CGFloat = 30
     }
 
@@ -86,11 +86,21 @@ struct WorkbenchChartRenderer {
         ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
         ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
 
+        // Compute layout — single source of truth for all text-element positions
+        var legendNormalizedPoint: CGPoint? = nil
+        if let lxStr = payload.styleParams["legendX"], let lyStr = payload.styleParams["legendY"],
+           let lx = Double(lxStr), let ly = Double(lyStr) {
+            legendNormalizedPoint = CGPoint(x: lx, y: ly)
+        }
+        let layout = WorkbenchPlotLayout.compute(
+            options: options, payload: payload, legendPoint: legendNormalizedPoint
+        )
+
         // Title
         let title = payload.title.isEmpty ? payload.workflowDisplayName : payload.title
         drawCentered(ctx, text: title,
-                     at: CGPoint(x: w / 2, y: h - options.paddingTop * 0.45),
-                     size: 14, bold: true,
+                     at: layout.titleCenter,
+                     size: 25, bold: true,
                      color: CGColor(red: 0, green: 0, blue: 0, alpha: 1))
 
         let allX = payload.series.flatMap(\.x)
@@ -120,7 +130,7 @@ struct WorkbenchChartRenderer {
             )
         }
 
-        let (xTicks, xStep) = niceTicks(min: xMin, max: xMax, targetCount: 5)
+        let (xTicks, xStep) = niceTicks(min: xMin, max: xMax, targetCount: 9)
         let (yTicks, yStep) = niceTicks(min: yMin, max: yMax, targetCount: 5)
 
         // Grid lines aligned with ticks (opt-in via styleParams["showGrid"] = "true")
@@ -157,19 +167,15 @@ struct WorkbenchChartRenderer {
                       yTicks: yTicks, yStep: yStep,
                       xMin: xMin, xSpan: xSpan, yMin: yMin, ySpan: ySpan)
 
-        // Axis field name labels
-        drawCentered(ctx, text: payload.axisMapping.xField,
-                     at: CGPoint(x: w / 2, y: options.paddingBottom * 0.20),
-                     size: 11, bold: false,
-                     color: CGColor(red: 0.25, green: 0.25, blue: 0.25, alpha: 1))
-        drawRotated90(ctx, text: payload.axisMapping.yField,
-                      at: CGPoint(x: options.paddingLeft * 0.22, y: h / 2),
-                      size: 11,
-                      color: CGColor(red: 0.25, green: 0.25, blue: 0.25, alpha: 1))
+        // Axis field name labels (markup: _X renders X as subscript)
+        let axisColor = CGColor(red: 0.25, green: 0.25, blue: 0.25, alpha: 1)
+        drawCenteredMarkup(ctx, text: payload.axisMapping.xField,
+                           at: layout.xLabelCenter, size: 20, color: axisColor)
+        drawRotated90Markup(ctx, text: payload.axisMapping.yField,
+                            at: layout.yLabelCenter, size: 20, color: axisColor)
 
-        // Legend — anchor position via styleParams["legendAnchor"]
-        let legendAnchor = payload.styleParams["legendAnchor"] ?? "top-right"
-        drawLegend(ctx, series: payload.series, plotRect: plotRect, anchor: legendAnchor)
+        // Legend — positions come from layout (same math, no duplication)
+        drawLegend(ctx, rows: layout.legendRows, series: payload.series)
     }
 
     // MARK: - Tick computation
@@ -226,35 +232,35 @@ struct WorkbenchChartRenderer {
         yMin: Double, ySpan: Double
     ) {
         let tickLen: CGFloat = 5
-        let labelGap: CGFloat = 3
+        let labelGap: CGFloat = 5
         let tickColor = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
         let labelColor = CGColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1)
-        let labelSize: CGFloat = 9
+        let labelSize: CGFloat = 16
 
         ctx.setStrokeColor(tickColor)
         ctx.setLineWidth(0.8)
 
-        // X-axis ticks (bottom)
+        // X-axis ticks (bottom, inward)
         for tick in xTicks {
             let cx = plotRect.minX + CGFloat((tick - xMin) / xSpan) * plotRect.width
             ctx.move(to: CGPoint(x: cx, y: plotRect.minY))
-            ctx.addLine(to: CGPoint(x: cx, y: plotRect.minY - tickLen))
+            ctx.addLine(to: CGPoint(x: cx, y: plotRect.minY + tickLen))
             ctx.strokePath()
             let label = formatTick(tick, step: xStep)
-            let labelY = plotRect.minY - tickLen - labelGap - 5
+            let labelY = plotRect.minY - labelGap - 6
             drawCentered(ctx, text: label,
                          at: CGPoint(x: cx, y: labelY),
                          size: labelSize, bold: false, color: labelColor)
         }
 
-        // Y-axis ticks (left)
+        // Y-axis ticks (left, inward)
         for tick in yTicks {
             let cy = plotRect.minY + CGFloat((tick - yMin) / ySpan) * plotRect.height
             ctx.move(to: CGPoint(x: plotRect.minX, y: cy))
-            ctx.addLine(to: CGPoint(x: plotRect.minX - tickLen, y: cy))
+            ctx.addLine(to: CGPoint(x: plotRect.minX + tickLen, y: cy))
             ctx.strokePath()
             let label = formatTick(tick, step: yStep)
-            let labelX = plotRect.minX - tickLen - labelGap
+            let labelX = plotRect.minX - labelGap
             drawRightAligned(ctx, text: label,
                              rightEdge: CGPoint(x: labelX, y: cy),
                              size: labelSize, bold: false, color: labelColor)
@@ -287,52 +293,19 @@ struct WorkbenchChartRenderer {
 
     // MARK: - Legend
 
-    /// anchor: "top-right" (default), "top-left", "bottom-right", "bottom-left"
-    private func drawLegend(_ ctx: CGContext, series: [WorkbenchPlotSeries],
-                             plotRect: CGRect, anchor: String = "top-right") {
-        let lineLen: CGFloat = 18
-        let rowH: CGFloat = 15
-        let gap: CGFloat = 4
-        let margin: CGFloat = 6
-
-        let isLeft   = anchor == "top-left"  || anchor == "bottom-left"
-        let isBottom = anchor == "bottom-right" || anchor == "bottom-left"
-
-        for (i, s) in series.enumerated() {
-            // Row index from anchor edge
-            let rowIndex = CGFloat(i + 1)
-            let y: CGFloat
-            if isBottom {
-                y = plotRect.minY + rowIndex * rowH - rowH * 0.6
-            } else {
-                y = plotRect.maxY - rowIndex * rowH + rowH * 0.4
-            }
-
-            let color = Self.seriesColors[i % Self.seriesColors.count]
-            ctx.setStrokeColor(color)
+    /// Draws legend using pre-computed row positions from WorkbenchPlotLayout.
+    /// All position math lives in WorkbenchPlotLayout — no duplication here.
+    private func drawLegend(_ ctx: CGContext,
+                             rows: [WorkbenchPlotLayout.LegendRow],
+                             series: [WorkbenchPlotSeries]) {
+        let labelColor = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
+        for (i, (row, s)) in zip(rows, series).enumerated() {
+            ctx.setStrokeColor(Self.seriesColors[i % Self.seriesColors.count])
             ctx.setLineWidth(1.5)
-
-            if isLeft {
-                let leftX = plotRect.minX + margin
-                ctx.strokeLineSegments(between: [
-                    CGPoint(x: leftX, y: y),
-                    CGPoint(x: leftX + lineLen, y: y)
-                ])
-                drawLeftAligned(ctx, text: s.label,
-                                leftEdge: CGPoint(x: leftX + lineLen + gap, y: y),
-                                size: 9, bold: false,
-                                color: CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1))
-            } else {
-                let rightX = plotRect.maxX - margin
-                ctx.strokeLineSegments(between: [
-                    CGPoint(x: rightX - lineLen, y: y),
-                    CGPoint(x: rightX, y: y)
-                ])
-                drawRightAligned(ctx, text: s.label,
-                                 rightEdge: CGPoint(x: rightX - lineLen - gap, y: y),
-                                 size: 9, bold: false,
-                                 color: CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1))
-            }
+            ctx.strokeLineSegments(between: [row.lineStart, row.lineEnd])
+            // Always [line][text] — labelAnchor is the left edge of the text for all anchors.
+            drawLeftAligned(ctx, text: s.label, leftEdge: row.labelAnchor,
+                            size: 15, bold: false, color: labelColor)
         }
     }
 
@@ -386,8 +359,61 @@ struct WorkbenchChartRenderer {
         ctx.restoreGState()
     }
 
+    /// Renders text where `_X` notation draws X as a subscript (smaller font + lowered baseline).
+    /// Falls back to plain rendering when no `_` is present.
+    private func makeMarkupLine(text: String, size: CGFloat, color: CGColor) -> CTLine {
+        guard text.contains("_") else { return makeLine(text: text, size: size, bold: false, color: color) }
+        let font    = CTFontCreateWithName("ArialMT" as CFString, size, nil)
+        let subFont = CTFontCreateWithName("ArialMT" as CFString, size * 0.65, nil)
+        let baseAttrs: [NSAttributedString.Key: Any] = [
+            NSAttributedString.Key(rawValue: kCTFontAttributeName as String): font,
+            NSAttributedString.Key(rawValue: kCTForegroundColorAttributeName as String): color,
+        ]
+        let subAttrs: [NSAttributedString.Key: Any] = [
+            NSAttributedString.Key(rawValue: kCTFontAttributeName as String): subFont,
+            NSAttributedString.Key(rawValue: kCTForegroundColorAttributeName as String): color,
+            .baselineOffset: NSNumber(value: -size * 0.20),
+        ]
+        let result = NSMutableAttributedString()
+        var scalars = text.unicodeScalars.makeIterator()
+        while let scalar = scalars.next() {
+            if scalar == "_", let next = scalars.next() {
+                result.append(NSAttributedString(string: String(next), attributes: subAttrs))
+            } else {
+                result.append(NSAttributedString(string: String(scalar), attributes: baseAttrs))
+            }
+        }
+        return CTLineCreateWithAttributedString(result)
+    }
+
+    private func drawCenteredMarkup(_ ctx: CGContext, text: String, at center: CGPoint,
+                                    size: CGFloat, color: CGColor) {
+        let line = makeMarkupLine(text: text, size: size, color: color)
+        let bounds = CTLineGetBoundsWithOptions(line, [])
+        ctx.textPosition = CGPoint(
+            x: center.x - bounds.width / 2 - bounds.minX,
+            y: center.y - bounds.height / 2 - bounds.minY
+        )
+        CTLineDraw(line, ctx)
+    }
+
+    private func drawRotated90Markup(_ ctx: CGContext, text: String, at center: CGPoint,
+                                     size: CGFloat, color: CGColor) {
+        let line = makeMarkupLine(text: text, size: size, color: color)
+        let bounds = CTLineGetBoundsWithOptions(line, [])
+        ctx.saveGState()
+        ctx.translateBy(x: center.x, y: center.y)
+        ctx.rotate(by: .pi / 2)
+        ctx.textPosition = CGPoint(
+            x: -bounds.width / 2 - bounds.minX,
+            y: -bounds.height / 2 - bounds.minY
+        )
+        CTLineDraw(line, ctx)
+        ctx.restoreGState()
+    }
+
     private func makeLine(text: String, size: CGFloat, bold: Bool, color: CGColor) -> CTLine {
-        let fontName: CFString = bold ? "Helvetica-Bold" as CFString : "Helvetica" as CFString
+        let fontName: CFString = bold ? "Arial-BoldMT" as CFString : "ArialMT" as CFString
         let font = CTFontCreateWithName(fontName, size, nil)
         let attrs: [CFString: Any] = [
             kCTFontAttributeName: font,

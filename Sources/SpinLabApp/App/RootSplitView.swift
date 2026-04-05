@@ -14,7 +14,7 @@ struct RootSplitView: View {
     @State private var hasMountedLibraryDetail = false
 
     private let sidebarTopInset: CGFloat = 64
-    private let standardDetailTopInset: CGFloat = 86
+    private let standardDetailTopInset: CGFloat = 20
     private let inboxDetailTopInset: CGFloat = 14
     private let libraryDetailTopInset: CGFloat = 20
     private let appRouter = AppRouter()

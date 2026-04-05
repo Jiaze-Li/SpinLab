@@ -62,24 +62,8 @@ final class WorkbenchFeatureStore {
     private(set) var workflowSearchResults: [WorkflowMeasurementSearchHit] = []
     var workflowSearchMessage: String?
     private(set) var isWorkflowSearchRunning = false
-    var selectedSearchResultIDs: Set<String> = []
-    private(set) var currentPlotImageData: Data?
-    private(set) var isPlotRendering: Bool = false
-    var plotMessage: String?
-    private(set) var currentCandidateAxisFields: [String] = []
-    private(set) var currentRunTrace: WorkbenchRunTraceProjection?
-    private(set) var isLoadingArtifact: Bool = false
-    var artifactLoadMessage: String?
-
-    @ObservationIgnored
-    private var lastLibraryRootPath: String = ""
-    @ObservationIgnored
-    private var artifactLoadTask: Task<Void, Never>?
-    var plotAxisXOverride: String = ""
-    var plotAxisYOverride: String = ""
-    var plotTitleOverride: String = ""
-    var showPlotGrid: Bool = false
-    var plotLegendAnchor: String = ""   // "" = default (top-right)
+    /// AHE-specific workspace state. All plot, selection, and artifact state lives here.
+    let aheWorkspace = AHEWorkspaceStore()
 
     @ObservationIgnored
     private var archivedRecordsProjectionTask: Task<Void, Never>?
@@ -95,8 +79,6 @@ final class WorkbenchFeatureStore {
     private var isProjectCatalogProjectionDrainScheduled = false
     @ObservationIgnored
     private var workflowSearchTask: Task<Void, Never>?
-    @ObservationIgnored
-    private var plotTask: Task<Void, Never>?
 
     @ObservationIgnored
     private let libraryRepository: LibraryRepository
@@ -631,7 +613,7 @@ final class WorkbenchFeatureStore {
             return
         }
 
-        lastLibraryRootPath = libraryRootPath
+        aheWorkspace.lastLibraryRootPath = libraryRootPath
 
         workflowSearchTask?.cancel()
         isWorkflowSearchRunning = true
@@ -646,12 +628,13 @@ final class WorkbenchFeatureStore {
                 )
                 guard !Task.isCancelled else { return }
                 workflowSearchResults = result
+                aheWorkspace.cachedSearchResults = result
                 workflowSearchMessage = result.isEmpty
                     ? "No files matched query: \(query)"
                     : "Found \(result.count) file(s)."
                 isWorkflowSearchRunning = false
                 if let firstSampleKey = result.first?.sampleKey {
-                    loadPersistedArtifact(sampleKey: firstSampleKey)
+                    aheWorkspace.loadPersistedArtifact(sampleKey: firstSampleKey)
                 }
             } catch is CancellationError {
                 isWorkflowSearchRunning = false
@@ -671,175 +654,9 @@ final class WorkbenchFeatureStore {
         workflowSearchTask?.cancel()
         workflowSearchTask = nil
         workflowSearchResults = []
+        aheWorkspace.cachedSearchResults = []
         workflowSearchMessage = nil
         isWorkflowSearchRunning = false
-    }
-
-    func toggleSearchHitSelection(_ id: String) {
-        if selectedSearchResultIDs.contains(id) {
-            selectedSearchResultIDs.remove(id)
-        } else {
-            selectedSearchResultIDs.insert(id)
-        }
-    }
-
-    func renderAHEPlot() {
-        let selections = buildAHESelections()
-        guard !selections.isEmpty else {
-            plotMessage = "Select at least one AHE measurement to plot."
-            return
-        }
-        // Capture overrides and context before leaving MainActor
-        let xOverride = plotAxisXOverride.trimmingCharacters(in: .whitespacesAndNewlines)
-        let yOverride = plotAxisYOverride.trimmingCharacters(in: .whitespacesAndNewlines)
-        let titleOverride = plotTitleOverride.trimmingCharacters(in: .whitespacesAndNewlines)
-        let grid = showPlotGrid
-        let legendAnchor = plotLegendAnchor
-        let libraryRootPath = lastLibraryRootPath
-        let firstSampleKey = selections.first?.sampleKey ?? "unknown"
-        let allSampleKeys: [String] = {
-            var seen = Set<String>()
-            return selections.compactMap { seen.insert($0.sampleKey).inserted ? $0.sampleKey : nil }
-        }()
-
-        plotTask?.cancel()
-        isPlotRendering = true
-        plotMessage = nil
-        currentPlotImageData = nil
-        currentRunTrace = nil
-
-        plotTask = Task { [weak self] in
-            guard let self else { return }
-            do {
-                let seriesCount = selections.count
-                let (imageData, candidates, trace) = try await Task.detached(priority: .userInitiated) {
-                    let ingestion = try IngestAHESelectionsUseCase().execute(
-                        selections: selections,
-                        xColumnOverride: xOverride.isEmpty ? nil : xOverride,
-                        yColumnOverride: yOverride.isEmpty ? nil : yOverride
-                    )
-                    let resolvedTitle = titleOverride.isEmpty ? "AHE Plot" : titleOverride
-                    let xField = xOverride.isEmpty ? ingestion.defaultAxisMapping.xField : xOverride
-                    let yField = yOverride.isEmpty ? ingestion.defaultAxisMapping.yField : yOverride
-                    var style: [String: String] = [:]
-                    if grid { style["showGrid"] = "true" }
-                    if !legendAnchor.isEmpty { style["legendAnchor"] = legendAnchor }
-                    let payload = BuildAHEPlotPayloadUseCase().execute(
-                        ingestion: ingestion,
-                        title: resolvedTitle,
-                        axisMappingOverride: WorkbenchAxisMapping(xField: xField, yField: yField),
-                        styleParams: style
-                    )
-                    let png = try WorkbenchChartRenderer().renderPNG(payload: payload)
-                    let trace = WorkbenchFeatureStore.attemptPersistAndTrace(
-                        png: png, payload: payload,
-                        libraryRootPath: libraryRootPath, sampleKeys: allSampleKeys
-                    )
-                    return (png, ingestion.candidateAxisFields, trace)
-                }.value
-                guard !Task.isCancelled else { return }
-                self.currentPlotImageData = imageData
-                self.currentCandidateAxisFields = candidates
-                self.currentRunTrace = trace
-                self.isPlotRendering = false
-                self.plotMessage = "Rendered \(seriesCount) series."
-            } catch is CancellationError {
-                self.isPlotRendering = false
-            } catch {
-                self.currentPlotImageData = nil
-                self.isPlotRendering = false
-                self.plotMessage = "Plot failed: \(error.localizedDescription)"
-            }
-        }
-    }
-
-    private nonisolated static func attemptPersistAndTrace(
-        png: Data,
-        payload: WorkbenchPlotPayload,
-        libraryRootPath: String,
-        sampleKeys: [String]
-    ) -> WorkbenchRunTraceProjection? {
-        guard !libraryRootPath.isEmpty else { return nil }
-        let resolver = LibraryPathResolver(libraryRootURL: URL(filePath: libraryRootPath))
-        let useCase = PersistChartArtifactUseCase(writer: AtomicFileWriter(), pathResolver: resolver)
-        guard let result = try? useCase.execute(sampleKeys: sampleKeys, payload: payload, imageData: png) else {
-            return nil
-        }
-        return BuildRunTraceProjectionUseCase().execute(
-            manifest: result.manifest,
-            chartIdentityKey: result.chartIdentityKey,
-            manifestPath: result.manifestPath
-        )
-    }
-
-    func clearPlot() {
-        plotTask?.cancel()
-        plotTask = nil
-        currentPlotImageData = nil
-        currentRunTrace = nil
-        isPlotRendering = false
-        plotMessage = nil
-        selectedSearchResultIDs = []
-        currentCandidateAxisFields = []
-        plotAxisXOverride = ""
-        plotAxisYOverride = ""
-        plotTitleOverride = ""
-        showPlotGrid = false
-        plotLegendAnchor = ""
-    }
-
-    func loadPersistedArtifact(sampleKey: String) {
-        guard !lastLibraryRootPath.isEmpty else { return }
-        let libraryRootPath = lastLibraryRootPath
-
-        artifactLoadTask?.cancel()
-        isLoadingArtifact = true
-        artifactLoadMessage = nil
-
-        artifactLoadTask = Task { [weak self] in
-            guard let self else { return }
-            let artifact = await Task.detached(priority: .userInitiated) {
-                let resolver = LibraryPathResolver(libraryRootURL: URL(filePath: libraryRootPath))
-                return LoadLatestChartArtifactUseCase(pathResolver: resolver).execute(sampleKey: sampleKey)
-            }.value
-            guard !Task.isCancelled else { return }
-            if let artifact {
-                self.currentPlotImageData = artifact.imageData
-                self.currentRunTrace = BuildRunTraceProjectionUseCase().execute(
-                    manifest: artifact.manifest,
-                    chartIdentityKey: artifact.chartIdentityKey,
-                    manifestPath: artifact.manifestPath
-                )
-                self.artifactLoadMessage = "Loaded saved chart for \(sampleKey)."
-            } else {
-                self.artifactLoadMessage = nil
-            }
-            self.isLoadingArtifact = false
-        }
-    }
-
-    private func buildAHESelections() -> [AHEPlotSelectionItem] {
-        let hits = workflowSearchResults.filter { selectedSearchResultIDs.contains($0.id) }
-        var selections: [AHEPlotSelectionItem] = []
-        for hit in hits {
-            let channels: [AHEChannel]
-            if hit.channels.isEmpty {
-                channels = [.ch1]
-            } else {
-                let mapped = hit.channels.compactMap { AHEChannel(rawValue: $0.lowercased()) }
-                channels = mapped.isEmpty ? [.ch1] : mapped
-            }
-            for ch in channels {
-                selections.append(AHEPlotSelectionItem(
-                    sampleKey: hit.sampleKey,
-                    sourceFilePath: hit.measurementFilePath,
-                    channel: ch,
-                    conditions: hit.conditions,
-                    workflowID: hit.workflowID
-                ))
-            }
-        }
-        return selections
     }
 
     private func namesEqual(_ lhs: String, _ rhs: String) -> Bool {

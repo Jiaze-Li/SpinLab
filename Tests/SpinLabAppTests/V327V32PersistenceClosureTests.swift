@@ -120,15 +120,12 @@ struct V327V32PersistenceClosureTests {
 
         let trace = BuildRunTraceProjectionUseCase().execute(
             manifest: result.manifest,
-            chartIdentityKey: result.chartIdentityKey,
             manifestPath: result.manifestPath
         )
 
         #expect(trace.runID == "r42")
-        #expect(trace.appVersion == "v3.2.7")
         #expect(trace.outputImagePath == result.imagePath)
         #expect(trace.manifestPath == result.manifestPath)
-        #expect(trace.chartIdentityKey == result.chartIdentityKey)
         #expect(!trace.outputImagePath.hasPrefix("/"))
         #expect(!trace.manifestPath.hasPrefix("/"))
     }

@@ -34,6 +34,9 @@ struct AHEAxisDetector {
 
         for field in Self.xPriority { add(field) }
 
+        let rhLabel = "R_H (\u{03A9})"
+        result.append(rhLabel)
+        seen.insert(rhLabel)
         for n in Self.bridgeRange {
             add("Bridge \(n) Resistance (Ohms)")
         }
@@ -52,22 +55,9 @@ struct AHEAxisDetector {
     // MARK: - Default axis mapping
 
     func defaultAxisMapping(from files: [PPMSParsedFile]) -> WorkbenchAxisMapping {
-        let xField = "Magnetic Field (Oe)"
-        for n in Self.bridgeRange {
-            let name = "Bridge \(n) Resistance (Ohms)"
-            if files.contains(where: { hasActiveColumn(name, in: $0) }) {
-                return WorkbenchAxisMapping(xField: xField, yField: name)
-            }
-        }
-        for n in Self.bridgeRange {
-            for file in files {
-                if let name = file.columnNames.first(where: { $0.hasPrefix("Bridge \(n) Resistivity") }),
-                   hasActiveColumn(name, in: file) {
-                    return WorkbenchAxisMapping(xField: xField, yField: name)
-                }
-            }
-        }
-        return WorkbenchAxisMapping(xField: xField, yField: "Bridge 1 Resistance (Ohms)")
+        let xField = "Magnetic Field (T)"
+        let yField = "R_H (\u{03A9})"
+        return WorkbenchAxisMapping(xField: xField, yField: yField)
     }
 
     // MARK: - Per-bridge y column resolution
