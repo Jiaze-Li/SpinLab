@@ -809,7 +809,6 @@ final class WorkbenchFeatureStore {
         }
         return BuildRunTraceProjectionUseCase().execute(
             manifest: result.manifest,
-            chartIdentityKey: result.chartIdentityKey,
             manifestPath: result.manifestPath
         )
     }
@@ -900,7 +899,6 @@ final class WorkbenchFeatureStore {
                 self.currentPlotImageData = artifact.imageData
                 self.currentRunTrace = BuildRunTraceProjectionUseCase().execute(
                     manifest: artifact.manifest,
-                    chartIdentityKey: artifact.chartIdentityKey,
                     manifestPath: artifact.manifestPath
                 )
                 self.artifactLoadMessage = "Loaded saved chart for \(sampleKey)."

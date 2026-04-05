@@ -3,7 +3,6 @@ import Foundation
 struct LoadedChartArtifact: Sendable {
     var imageData: Data
     var manifest: WorkbenchRunManifest
-    var chartIdentityKey: String
     var manifestPath: String
 }
 
@@ -41,7 +40,6 @@ struct LoadLatestChartArtifactUseCase {
         return LoadedChartArtifact(
             imageData: imageData,
             manifest: manifest,
-            chartIdentityKey: latest.chartIdentityKey,
             manifestPath: latest.manifestPath
         )
     }
