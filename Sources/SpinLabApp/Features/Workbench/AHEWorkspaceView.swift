@@ -69,7 +69,10 @@ struct AHEWorkspaceView: View, WorkflowWorkspaceProvider {
                     loadMessage: nil
                 )
 
-                WorkbenchPlotCanvas(imageData: appState.workbench.currentPlotImageData)
+                WorkbenchPlotCanvas(
+                    imageData: appState.workbench.currentPlotImageData,
+                    onLegendDrag: { pt in appState.workbench.updateLegendPoint(pt) }
+                )
 
                 WorkbenchTracePanel(trace: appState.workbench.currentRunTrace)
             }
@@ -190,8 +193,8 @@ private struct AHEPlotControlsPanel: View {
     var body: some View {
         @Bindable var workbench = appState.workbench
         let candidates = workbench.currentCandidateAxisFields.isEmpty
-            ? ["Magnetic Field (Oe)", "Temperature (K)",
-               "Bridge 1 Resistance (Ohms)", "Bridge 2 Resistance (Ohms)", "Bridge 3 Resistance (Ohms)"]
+            ? ["Magnetic Field (Oe)", "Magnetic Field (T)", "Temperature (K)",
+               "R_H (\u{03A9})", "Bridge 1 Resistance (Ohms)", "Bridge 2 Resistance (Ohms)", "Bridge 3 Resistance (Ohms)"]
             : workbench.currentCandidateAxisFields
 
         GroupBox("Plot Controls") {

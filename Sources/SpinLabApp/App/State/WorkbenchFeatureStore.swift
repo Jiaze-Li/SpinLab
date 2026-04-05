@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Observation
 
@@ -80,6 +81,7 @@ final class WorkbenchFeatureStore {
     var plotTitleOverride: String = ""
     var showPlotGrid: Bool = false
     var plotLegendAnchor: String = ""   // "" = default (top-right)
+    var plotLegendPoint: CGPoint? = nil // normalized (0-1) in plotRect; overrides anchor when set
 
     @ObservationIgnored
     private var archivedRecordsProjectionTask: Task<Void, Never>?
@@ -683,7 +685,7 @@ final class WorkbenchFeatureStore {
         }
     }
 
-    func renderAHEPlot() {
+    func renderAHEPlot(persistArtifact: Bool = true) {
         let selections = buildAHESelections()
         guard !selections.isEmpty else {
             plotMessage = "Select at least one AHE measurement to plot."
@@ -695,7 +697,9 @@ final class WorkbenchFeatureStore {
         let titleOverride = plotTitleOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         let grid = showPlotGrid
         let legendAnchor = plotLegendAnchor
+        let legendPoint = plotLegendPoint
         let libraryRootPath = lastLibraryRootPath
+        let savedTrace = currentRunTrace  // preserved when not persisting
         let firstSampleKey = selections.first?.sampleKey ?? "unknown"
         let allSampleKeys: [String] = {
             var seen = Set<String>()
@@ -723,7 +727,12 @@ final class WorkbenchFeatureStore {
                     let yField = yOverride.isEmpty ? ingestion.defaultAxisMapping.yField : yOverride
                     var style: [String: String] = [:]
                     if grid { style["showGrid"] = "true" }
-                    if !legendAnchor.isEmpty { style["legendAnchor"] = legendAnchor }
+                    if let lp = legendPoint {
+                        style["legendX"] = String(format: "%.4f", lp.x)
+                        style["legendY"] = String(format: "%.4f", lp.y)
+                    } else if !legendAnchor.isEmpty {
+                        style["legendAnchor"] = legendAnchor
+                    }
                     let payload = BuildAHEPlotPayloadUseCase().execute(
                         ingestion: ingestion,
                         title: resolvedTitle,
@@ -731,10 +740,15 @@ final class WorkbenchFeatureStore {
                         styleParams: style
                     )
                     let png = try WorkbenchChartRenderer().renderPNG(payload: payload)
-                    let trace = WorkbenchFeatureStore.attemptPersistAndTrace(
-                        png: png, payload: payload,
-                        libraryRootPath: libraryRootPath, sampleKeys: allSampleKeys
-                    )
+                    let trace: WorkbenchRunTraceProjection?
+                    if persistArtifact {
+                        trace = WorkbenchFeatureStore.attemptPersistAndTrace(
+                            png: png, payload: payload,
+                            libraryRootPath: libraryRootPath, sampleKeys: allSampleKeys
+                        )
+                    } else {
+                        trace = savedTrace  // legend reposition: preserve existing trace
+                    }
                     return (png, ingestion.candidateAxisFields, trace)
                 }.value
                 guard !Task.isCancelled else { return }
@@ -772,6 +786,22 @@ final class WorkbenchFeatureStore {
         )
     }
 
+    /// Updates the legend position and re-renders the current workflow's plot.
+    /// `point` is normalized: (0,0) = bottom-left, (1,1) = top-right of the plot area.
+    func updateLegendPoint(_ point: CGPoint) {
+        plotLegendPoint = point
+        rerenderCurrentPlot()
+    }
+
+    /// Dispatches a re-render to the active workflow. Extend the switch as new workflows are added.
+    func rerenderCurrentPlot() {
+        guard case .workflow(let id) = currentRoute else { return }
+        switch id.uppercased() {
+        case "A": renderAHEPlot(persistArtifact: false)
+        default: break
+        }
+    }
+
     func clearPlot() {
         plotTask?.cancel()
         plotTask = nil
@@ -786,6 +816,7 @@ final class WorkbenchFeatureStore {
         plotTitleOverride = ""
         showPlotGrid = false
         plotLegendAnchor = ""
+        plotLegendPoint = nil
     }
 
     func loadPersistedArtifact(sampleKey: String) {

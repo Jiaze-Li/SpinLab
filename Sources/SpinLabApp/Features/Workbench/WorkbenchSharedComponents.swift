@@ -11,9 +11,18 @@ import AppKit
 /// - 占位符图标和文字可按需修改
 struct WorkbenchPlotCanvas: View {
     let imageData: Data?
+    /// Called with a plotRect-normalized point (x,y ∈ [0,1], y=0 bottom, y=1 top)
+    /// when the user finishes a drag over the plot area. Nil = drag disabled.
+    var onLegendDrag: ((CGPoint) -> Void)? = nil
 
     // TODO(用户设计): 调整最小高度、背景样式、空状态文字
     var minHeight: CGFloat = 360
+
+    @State private var canvasSize: CGSize = .zero
+    /// Screen-space point of an in-progress drag (nil when not dragging).
+    @State private var dragPreviewPt: CGPoint? = nil
+
+    private static let rendererSize = CGSize(width: 800, height: 600)
 
     var body: some View {
         if let data = imageData, let nsImage = NSImage(data: data) {
@@ -22,8 +31,35 @@ struct WorkbenchPlotCanvas: View {
                 .aspectRatio(contentMode: .fit)
                 .frame(maxWidth: .infinity, minHeight: minHeight)
                 .background(
+                    GeometryReader { geo in
+                        Color.clear.task(id: geo.size) { canvasSize = geo.size }
+                    }
+                )
+                .overlay { legendDragPreview }
+                .background(
                     .background,
                     in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                )
+                .gesture(
+                    DragGesture(minimumDistance: 4)
+                        .onChanged { value in
+                            guard onLegendDrag != nil else { return }
+                            let fitted = fittedRect(in: canvasSize)
+                            // Show preview only when drag is within the plot area
+                            if plotNormalized(location: value.location, fittedRect: fitted) != nil {
+                                dragPreviewPt = value.location
+                            } else {
+                                dragPreviewPt = nil
+                            }
+                        }
+                        .onEnded { value in
+                            dragPreviewPt = nil
+                            guard let callback = onLegendDrag else { return }
+                            let fitted = fittedRect(in: canvasSize)
+                            guard let pt = plotNormalized(location: value.location,
+                                                          fittedRect: fitted) else { return }
+                            callback(pt)
+                        }
                 )
         } else {
             ContentUnavailableView(
@@ -33,6 +69,53 @@ struct WorkbenchPlotCanvas: View {
             )
             .frame(maxWidth: .infinity, minHeight: minHeight)
         }
+    }
+
+    /// Dashed rectangle preview shown while dragging. Top-left anchored at drag location.
+    @ViewBuilder
+    private var legendDragPreview: some View {
+        if let pt = dragPreviewPt {
+            let boxW: CGFloat = 96
+            let boxH: CGFloat = 28
+            Rectangle()
+                .strokeBorder(
+                    Color.accentColor.opacity(0.85),
+                    style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])
+                )
+                .frame(width: boxW, height: boxH)
+                // .position centers the view; offset so pt is the top-left corner
+                .position(x: pt.x + boxW / 2, y: pt.y + boxH / 2)
+        }
+    }
+
+    private func fittedRect(in size: CGSize) -> CGRect {
+        guard size.width > 0, size.height > 0 else { return .zero }
+        let imageAspect = Self.rendererSize.width / Self.rendererSize.height
+        let containerAspect = size.width / size.height
+        let w: CGFloat
+        let h: CGFloat
+        if containerAspect > imageAspect {
+            h = size.height; w = h * imageAspect
+        } else {
+            w = size.width; h = w / imageAspect
+        }
+        return CGRect(x: (size.width - w) / 2, y: (size.height - h) / 2, width: w, height: h)
+    }
+
+    private func plotNormalized(location: CGPoint, fittedRect: CGRect) -> CGPoint? {
+        guard !fittedRect.isEmpty, fittedRect.contains(location) else { return nil }
+        let px = (location.x - fittedRect.minX) / fittedRect.width  * Self.rendererSize.width
+        let py = (location.y - fittedRect.minY) / fittedRect.height * Self.rendererSize.height
+        let opts = WorkbenchChartRenderer.Options()
+        let plotW    = CGFloat(opts.width)  - opts.paddingLeft - opts.paddingRight
+        let plotH    = CGFloat(opts.height) - opts.paddingTop  - opts.paddingBottom
+        let plotMinX = opts.paddingLeft
+        let plotMinY = opts.paddingTop
+        guard px >= plotMinX, px <= plotMinX + plotW,
+              py >= plotMinY, py <= plotMinY + plotH else { return nil }
+        let nx = (px - plotMinX) / plotW
+        let ny = 1.0 - (py - plotMinY) / plotH
+        return CGPoint(x: min(max(nx, 0), 1), y: min(max(ny, 0), 1))
     }
 }
 
