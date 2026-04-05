@@ -204,13 +204,15 @@ struct ThreeOmegaPlotRenderer {
         if !titleOverride.isEmpty { payload.title = titleOverride }
         if !xLabelOverride.isEmpty { payload.axisMapping.xField = xLabelOverride }
         if !yLabelOverride.isEmpty { payload.axisMapping.yField = yLabelOverride }
+        // Compute layout BEFORE series label overrides so legendRow.originalLabel
+        // is the stable pre-override key used by plotSeriesLabelOverrides.
+        let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: legendPoint)
         if !seriesLabelOverrides.isEmpty {
             payload.series = payload.series.map { s in
                 guard let custom = seriesLabelOverrides[s.label] else { return s }
                 var copy = s; copy.label = custom; return copy
             }
         }
-        let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: legendPoint)
         let data = try? WorkbenchChartRenderer().renderPNG(payload: payload, options: opts)
         return (data, layout)
     }
