@@ -14,8 +14,8 @@ struct WorkbenchPlotCanvas: View {
     let imageData: Data?
     /// Layout from the most recent render. Nil = hit-testing and editing disabled.
     var layout: WorkbenchPlotLayout? = nil
-    /// Current series label overrides, used to pre-fill the legend-label edit field.
-    var seriesLabelOverrides: [String: String] = [:]
+    /// Current series label overrides keyed by series index, used to pre-fill the edit field.
+    var seriesLabelOverrides: [Int: String] = [:]
 
     /// Called with a plotRect-normalized point (x,y ∈ [0,1], y=0 bottom, y=1 top)
     /// when the user finishes a drag over the plot area. Nil = drag disabled.
@@ -24,8 +24,8 @@ struct WorkbenchPlotCanvas: View {
     var onEditTitle:       ((String) -> Void)?               = nil
     var onEditXLabel:      ((String) -> Void)?               = nil
     var onEditYLabel:      ((String) -> Void)?               = nil
-    /// (originalLabel, newLabel)
-    var onEditLegendLabel: ((String, String) -> Void)?       = nil
+    /// (seriesIndex, newLabel)
+    var onEditLegendLabel: ((Int, String) -> Void)?          = nil
 
     // TODO(用户设计): 调整最小高度、背景样式、空状态文字
     var minHeight: CGFloat = 360
@@ -52,7 +52,7 @@ struct WorkbenchPlotCanvas: View {
         case title
         case xLabel
         case yLabel
-        case legend(originalLabel: String)
+        case legend(seriesIndex: Int, originalLabel: String)
     }
 
     var body: some View {
@@ -214,7 +214,7 @@ struct WorkbenchPlotCanvas: View {
             case .title:            return "Title"
             case .xLabel:           return "X Label"
             case .yLabel:           return "Y Label"
-            case .legend(let orig): return "Legend · \(orig)"
+            case .legend(_, let orig): return "Legend · \(orig)"
             }
         }()
         let pos = editPanelPosition()
@@ -295,9 +295,9 @@ struct WorkbenchPlotCanvas: View {
             for row in layout.legendRows {
                 let sr = toScreen(row.hitRect)
                 if sr.contains(location) {
-                    editText = seriesLabelOverrides[row.originalLabel] ?? row.originalLabel
+                    editText = seriesLabelOverrides[row.seriesIndex] ?? row.originalLabel
                     editTargetScreenRect = sr
-                    editingElement = .legend(originalLabel: row.originalLabel)
+                    editingElement = .legend(seriesIndex: row.seriesIndex, originalLabel: row.originalLabel)
                     return
                 }
             }
@@ -313,7 +313,7 @@ struct WorkbenchPlotCanvas: View {
         case .title:              onEditTitle?(text)
         case .xLabel:             onEditXLabel?(text)
         case .yLabel:             onEditYLabel?(text)
-        case .legend(let orig):   onEditLegendLabel?(orig, text)
+        case .legend(let idx, _): onEditLegendLabel?(idx, text)
         }
         editingElement = nil
         editText = ""

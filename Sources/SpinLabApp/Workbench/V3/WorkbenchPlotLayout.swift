@@ -21,7 +21,9 @@ struct WorkbenchPlotLayout: Sendable {
     // MARK: - LegendRow
 
     struct LegendRow {
-        /// Stable key for `plotSeriesLabelOverrides` — the original (pre-override) series label.
+        /// Zero-based series index — the stable key for `plotSeriesLabelOverrides`.
+        let seriesIndex:   Int
+        /// Original (pre-override) label, used for display in the edit panel.
         let originalLabel: String
         let cgRowY:        CGFloat   // CG y-center of this row
         let cgOriginX:     CGFloat   // X start of the color swatch line
@@ -174,6 +176,7 @@ struct WorkbenchPlotLayout: Sendable {
             }
 
             return LegendRow(
+                seriesIndex:   i,
                 originalLabel: s.label,
                 cgRowY:        cgRowY,
                 cgOriginX:     cgOriginX

@@ -399,8 +399,8 @@ private struct ThreeOmegaRightColumn: View {
                     onEditTitle:  { title in store.updatePlotTitle(title) },
                     onEditXLabel: { label in store.updateXAxisLabel(label) },
                     onEditYLabel: { label in store.updateYAxisLabel(label) },
-                    onEditLegendLabel: { orig, label in
-                        store.updateSeriesLabel(originalLabel: orig, newLabel: label)
+                    onEditLegendLabel: { idx, label in
+                        store.updateSeriesLabel(index: idx, newLabel: label)
                     }
                 )
 

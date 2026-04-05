@@ -77,8 +77,8 @@ struct AHEWorkspaceView: View, WorkflowWorkspaceProvider {
                     onEditTitle: { title in appState.workbench.aheWorkspace.updatePlotTitle(title) },
                     onEditXLabel: { label in appState.workbench.aheWorkspace.updateXAxisLabel(label) },
                     onEditYLabel: { label in appState.workbench.aheWorkspace.updateYAxisLabel(label) },
-                    onEditLegendLabel: { orig, label in
-                        appState.workbench.aheWorkspace.updateSeriesLabel(originalLabel: orig, newLabel: label)
+                    onEditLegendLabel: { idx, label in
+                        appState.workbench.aheWorkspace.updateSeriesLabel(index: idx, newLabel: label)
                     }
                 )
 

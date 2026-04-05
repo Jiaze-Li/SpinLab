@@ -56,7 +56,7 @@ final class ThreeOmegaWorkspaceStore {
 
     // Per-tab state (legend drag position, axis label overrides, and series label renames)
     var plotLegendPoints: [ThreeOmegaWorkbenchTab: CGPoint] = [:]
-    var plotSeriesLabelOverrides: [ThreeOmegaWorkbenchTab: [String: String]] = [:]
+    var plotSeriesLabelOverrides: [ThreeOmegaWorkbenchTab: [Int: String]] = [:]
     /// Display-only x-axis label overrides per tab (does not affect data).
     var plotXLabelOverrides: [ThreeOmegaWorkbenchTab: String] = [:]
     /// Display-only y-axis label overrides per tab (does not affect data).
@@ -261,15 +261,15 @@ final class ThreeOmegaWorkspaceStore {
         _rerenderActiveTab()
     }
 
-    func updateSeriesLabel(originalLabel: String, newLabel: String) {
+    func updateSeriesLabel(index: Int, newLabel: String) {
         let trimmed = newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty || trimmed == originalLabel {
-            plotSeriesLabelOverrides[activeTab]?.removeValue(forKey: originalLabel)
+        if trimmed.isEmpty {
+            plotSeriesLabelOverrides[activeTab]?.removeValue(forKey: index)
         } else {
             if plotSeriesLabelOverrides[activeTab] == nil {
                 plotSeriesLabelOverrides[activeTab] = [:]
             }
-            plotSeriesLabelOverrides[activeTab]![originalLabel] = trimmed
+            plotSeriesLabelOverrides[activeTab]![index] = trimmed
         }
         _rerenderActiveTab()
     }

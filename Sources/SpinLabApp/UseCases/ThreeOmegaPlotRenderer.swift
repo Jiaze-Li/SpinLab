@@ -17,7 +17,7 @@ struct ThreeOmegaPlotRenderer {
     var titleOverride: String = ""
     var xLabelOverride: String = ""
     var yLabelOverride: String = ""
-    var seriesLabelOverrides: [String: String] = [:]
+    var seriesLabelOverrides: [Int: String] = [:]
 
     private let defaultOptions = WorkbenchChartRenderer.Options()
 
@@ -208,8 +208,8 @@ struct ThreeOmegaPlotRenderer {
         // is the stable pre-override key used by plotSeriesLabelOverrides.
         let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: legendPoint)
         if !seriesLabelOverrides.isEmpty {
-            payload.series = payload.series.map { s in
-                guard let custom = seriesLabelOverrides[s.label] else { return s }
+            payload.series = payload.series.enumerated().map { i, s in
+                guard let custom = seriesLabelOverrides[i] else { return s }
                 var copy = s; copy.label = custom; return copy
             }
         }

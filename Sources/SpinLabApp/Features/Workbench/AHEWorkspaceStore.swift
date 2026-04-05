@@ -68,7 +68,7 @@ final class AHEWorkspaceStore {
     var plotLegendAnchor: String = ""
     var plotLegendPoint: CGPoint? = nil
     /// Keyed by the series' original label (pre-override). Stable across sort/filter changes.
-    var plotSeriesLabelOverrides: [String: String] = [:]
+    var plotSeriesLabelOverrides: [Int: String] = [:]
     /// Display-only label override for the X axis (does not affect which data column is used).
     var plotXLabelOverride: String = ""
     /// Display-only label override for the Y axis (does not affect which data column is used).
@@ -192,10 +192,10 @@ final class AHEWorkspaceStore {
                     let plotLayout = WorkbenchPlotLayout.compute(
                         options: rendererOptions, payload: payload, legendPoint: legendPoint
                     )
-                    // Apply series label overrides (keyed by original label, stable across re-renders)
+                    // Apply series label overrides (keyed by series index for per-row isolation)
                     if !labelOverrides.isEmpty {
-                        payload.series = payload.series.map { s in
-                            guard let custom = labelOverrides[s.label] else { return s }
+                        payload.series = payload.series.enumerated().map { i, s in
+                            guard let custom = labelOverrides[i] else { return s }
                             var copy = s; copy.label = custom; return copy
                         }
                     }
@@ -320,12 +320,12 @@ final class AHEWorkspaceStore {
 
     /// Overrides the display label for a series identified by its original label.
     /// Pass an empty or whitespace-only string to remove the override.
-    func updateSeriesLabel(originalLabel: String, newLabel: String) {
+    func updateSeriesLabel(index: Int, newLabel: String) {
         let trimmed = newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty || trimmed == originalLabel {
-            plotSeriesLabelOverrides.removeValue(forKey: originalLabel)
+        if trimmed.isEmpty {
+            plotSeriesLabelOverrides.removeValue(forKey: index)
         } else {
-            plotSeriesLabelOverrides[originalLabel] = trimmed
+            plotSeriesLabelOverrides[index] = trimmed
         }
         renderAHEPlot(persistArtifact: false)
     }
