@@ -1015,7 +1015,12 @@ final class LibraryFeatureStore {
     func deleteAppliedMeasurement(_ measurement: AppliedMeasurement) {
         let sidecarPath = measurement.id
         guard !sidecarPath.isEmpty else { return }
-        try? FileManager.default.removeItem(atPath: sidecarPath)
+        do {
+            try FileManager.default.removeItem(atPath: sidecarPath)
+        } catch {
+            librarySampleEditError = AppError.from(error, fallback: "Failed to delete measurement").localizedDescription
+            return
+        }
 
         // Invalidate the cache so the next refresh re-scans from disk.
         if let sample = selectedExistingDrawerSample() {

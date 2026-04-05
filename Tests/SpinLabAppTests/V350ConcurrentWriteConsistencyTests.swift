@@ -248,6 +248,60 @@ struct V350ConcurrentWriteConsistencyTests {
         }
     }
 
+    // MARK: - V3.5 regression: dual-metric persist and sidecar delete
+
+    @Test("single-sample persist writes both Hc and R_AHE records to measurement_data.json")
+    func singleSamplePersistWritesBothHcAndRAHE() throws {
+        let (resolver, root) = try makeFixture()
+        defer { cleanup(root) }
+
+        let sampleKey = "PN20-DUAL-METRIC"
+        let runID = UUID().uuidString
+        let writer = AtomicFileWriter()
+        let useCase = PersistMeasurementDataUseCase(writer: writer, pathResolver: resolver)
+
+        try useCase.execute(sampleKey: sampleKey, record: makeRecord(sampleKey: sampleKey, metric: "Hc", value: 0.05, runID: runID))
+        try useCase.execute(sampleKey: sampleKey, record: makeRecord(sampleKey: sampleKey, metric: "R_AHE", value: 120.5, runID: runID))
+
+        let store = try decodeMeasurementStore(
+            at: "samples/\(sampleKey)/_spinlab/measurement_data.json",
+            resolver: resolver
+        )
+        let metrics = Set(store.records.map { $0.metric })
+        #expect(metrics.contains("Hc"), "Hc record must be persisted")
+        #expect(metrics.contains("R_AHE"), "R_AHE record must be persisted")
+        #expect(store.records.count == 2)
+    }
+
+    @Test("deleteAppliedMeasurement removes sidecar file from disk")
+    @MainActor
+    func deleteAppliedMeasurementRemovesSidecarFile() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appending(path: "v350-delete-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let sidecarURL = dir.appending(path: "test.spinlab.json")
+        try Data("{}".utf8).write(to: sidecarURL)
+        let sidecarPath = sidecarURL.path(percentEncoded: false)
+
+        let featureStore = LibraryFeatureStore()
+        let measurement = AppliedMeasurement(
+            id: sidecarPath,
+            workflow: "AHE",
+            workflowDisplayName: "AHE",
+            conditions: [:],
+            appliedAt: Date(),
+            sourceFileName: "test.dat"
+        )
+        featureStore.deleteAppliedMeasurement(measurement)
+
+        #expect(!FileManager.default.fileExists(atPath: sidecarPath),
+                "sidecar file must be removed after deleteAppliedMeasurement")
+        #expect(featureStore.librarySampleEditError == nil,
+                "no error should be set on successful delete")
+    }
+
     /// Baseline: sequential chart persists must retain all references.
     @Test("sequential chart persists to results_index.json retain all references")
     func sequentialResultsIndexWritesRetainAllReferences() throws {
