@@ -46,6 +46,14 @@ final class AHEWorkspaceStore {
     /// Displayed in the override panel so the user can see the algorithm result before deciding to correct it.
     private(set) var lastExtractedHc: Double? = nil
 
+    /// A pending manual correction for the extracted R_AHE value.
+    /// Mirrors `pendingMetricOverride` but for the R_AHE metric. Cleared after a successful persist.
+    var pendingRAHEOverride: WorkbenchMetricOverrideCandidate? = nil
+
+    /// The R_AHE value auto-extracted from the most recently rendered series.
+    /// Updated on every render alongside `lastExtractedHc`.
+    private(set) var lastExtractedRAHE: Double? = nil
+
     // MARK: - Artifact loading
 
     private(set) var isLoadingArtifact: Bool = false
@@ -134,8 +142,9 @@ final class AHEWorkspaceStore {
         // Generate runID once; passed into both chart and metric persistence (Adj-2)
         let runID = UUID().uuidString
         let generatedAt = Date()
-        // Capture pending override before leaving MainActor; cleared after successful persist
+        // Capture pending overrides before leaving MainActor; cleared after successful persist
         let capturedOverride = pendingMetricOverride
+        let capturedRAHEOverride = pendingRAHEOverride
 
         plotTask?.cancel()
         isPlotRendering = true
@@ -148,13 +157,13 @@ final class AHEWorkspaceStore {
         plotTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let (imageData, plotLayout, candidates, outcome, extractedHc) = try await Task.detached(priority: .userInitiated) {
+                let (imageData, plotLayout, candidates, outcome, extractedHc, extractedRAHE) = try await Task.detached(priority: .userInitiated) {
                     let ingestion = try IngestAHESelectionsUseCase().execute(
                         selections: selections,
                         xColumnOverride: xOverride.isEmpty ? nil : xOverride,
                         yColumnOverride: yOverride.isEmpty ? nil : yOverride
                     )
-                    let extractedHc = AHEWorkspaceStore.extractHcEstimate(from: ingestion.series)
+                    let (extractedHc, extractedRAHE) = AHEWorkspaceStore.extractAHEMetrics(from: ingestion.series)
                     let resolvedTitle = titleOverride.isEmpty ? "AHE" : titleOverride
                     let xField = xOverride.isEmpty ? ingestion.defaultAxisMapping.xField : xOverride
                     let yField = yOverride.isEmpty ? ingestion.defaultAxisMapping.yField : yOverride
@@ -201,9 +210,11 @@ final class AHEWorkspaceStore {
                             png: png,
                             payload: manifestPayload,
                             extractedHc: extractedHc,
+                            extractedRAHE: extractedRAHE,
                             firstSampleKey: firstSampleKey,
                             conditionsBySampleKey: conditionsBySampleKey,
                             pendingOverride: capturedOverride,
+                            pendingRAHEOverride: capturedRAHEOverride,
                             libraryRootPath: libraryRootPath,
                             sampleKeys: allSampleKeys,
                             runID: runID,
@@ -212,13 +223,14 @@ final class AHEWorkspaceStore {
                     } else {
                         outcome = nil
                     }
-                    return (png, plotLayout, ingestion.candidateAxisFields, outcome, extractedHc)
+                    return (png, plotLayout, ingestion.candidateAxisFields, outcome, extractedHc, extractedRAHE)
                 }.value
                 guard !Task.isCancelled else { return }
                 self.currentPlotImageData = imageData
                 self.currentPlotLayout = plotLayout
                 self.currentCandidateAxisFields = candidates
                 self.lastExtractedHc = extractedHc
+                self.lastExtractedRAHE = extractedRAHE
                 self.isPlotRendering = false
                 if let outcome {
                     self.persistenceOutcome = outcome
@@ -226,6 +238,7 @@ final class AHEWorkspaceStore {
                     switch outcome {
                     case .success:
                         self.pendingMetricOverride = nil   // clear after successful persist
+                        self.pendingRAHEOverride = nil
                         self.persistCount += 1
                         self.plotMessage = "Rendered \(seriesCount) series."
                     case .partial(_, let metricError):
@@ -255,7 +268,9 @@ final class AHEWorkspaceStore {
         currentRunTrace = nil
         persistenceOutcome = nil
         pendingMetricOverride = nil
+        pendingRAHEOverride = nil
         lastExtractedHc = nil
+        lastExtractedRAHE = nil
         isPlotRendering = false
         plotMessage = nil
         selectedSearchResultIDs = []
@@ -378,9 +393,11 @@ final class AHEWorkspaceStore {
         png: Data,
         payload: WorkbenchPlotPayload,
         extractedHc: Double,
+        extractedRAHE: Double,
         firstSampleKey: String,
         conditionsBySampleKey: [String: [String: String]],
         pendingOverride: WorkbenchMetricOverrideCandidate?,
+        pendingRAHEOverride: WorkbenchMetricOverrideCandidate?,
         libraryRootPath: String,
         sampleKeys: [String],
         runID: String,
@@ -463,37 +480,80 @@ final class AHEWorkspaceStore {
                 metricError: AppError.from(error, fallback: "Metric persist failed").localizedDescription
             )
         }
+
+        // 3. Persist R_AHE metric record.
+        let rAHEStoredValue: Double
+        let rAHEOverrideInfo: WorkbenchMetricOverrideInfo?
+        if let rOverride = pendingRAHEOverride {
+            rAHEStoredValue = rOverride.proposedValue
+            rAHEOverrideInfo = WorkbenchMetricOverrideInfo(
+                oldValue: extractedRAHE,
+                newValue: rOverride.proposedValue,
+                reason: rOverride.reason,
+                source: rOverride.source,
+                at: generatedAt
+            )
+        } else {
+            rAHEStoredValue = extractedRAHE
+            rAHEOverrideInfo = nil
+        }
+
+        let rAHERecord = WorkbenchMetricRecord(
+            recordID: UUID().uuidString,
+            sampleKey: singleKey,
+            displayKey: singleKey,
+            workflowID: payload.workflowID,
+            metric: "R_AHE",
+            value: rAHEStoredValue,
+            canonicalUnit: "Ω",
+            conditions: conditionsBySampleKey[singleKey] ?? [:],
+            generatedAt: generatedAt,
+            runID: runID,
+            overrideInfo: rAHEOverrideInfo
+        )
+        do {
+            try PersistMeasurementDataUseCase(writer: writer, pathResolver: resolver)
+                .execute(sampleKey: singleKey, record: rAHERecord)
+        } catch {
+            return .partial(
+                trace: trace,
+                metricError: AppError.from(error, fallback: "R_AHE metric persist failed").localizedDescription
+            )
+        }
         return .success(trace: trace)
     }
 
-    /// Estimates the coercive field Hc from AHE series data.
+    /// Extracts both Hc and R_AHE from AHE series data in a single pass.
     ///
-    /// AHE measurements from PPMS carry a large ordinary-Hall background that shifts the entire
-    /// curve away from zero. Hc is therefore extracted relative to the midpoint of the y range
-    /// rather than relative to zero:
+    /// **Shared background removal:**
+    /// AHE measurements from PPMS carry a large ordinary-Hall background. Both metrics are
+    /// derived from the background-corrected curve:
     ///
     ///   threshold = (ymin + ymax) / 2
     ///   y_shifted = y − threshold
     ///
-    /// Zero crossings are then found on y_shifted via linear interpolation. For a full hysteresis
-    /// loop this produces a crossing on the ascending branch (+Hc) and one on the descending
-    /// branch (-Hc); Hc = (|Hc+| + |Hc-|) / 2. For a partial loop the absolute value of the
-    /// sole crossing is returned. Falls back to the x at minimum |y_shifted| if no crossing exists.
-    /// Returns 0.0 if the series is empty or has only one point.
-    private nonisolated static func extractHcEstimate(from series: [WorkbenchPlotSeries]) -> Double {
-        guard let first = series.first, first.x.count > 1 else { return 0.0 }
+    /// **Hc** — coercive field:
+    /// Zero crossings on y_shifted found via linear interpolation. Full loop:
+    /// Hc = (|Hc+| + |Hc-|) / 2. Partial loop: average of absolute crossings.
+    /// Fallback: x at minimum |y_shifted|. Returns 0.0 for empty/single-point series.
+    ///
+    /// **R_AHE** — saturated Hall resistance amplitude:
+    /// R_AHE = (plateau_top − plateau_bottom) / 2, where plateau regions are defined as
+    /// |H| > 80 % of H_max on the shifted curve. Each plateau value is the median of all
+    /// points in that region. Falls back to (ymax − ymin) / 2 if either plateau is empty.
+    private nonisolated static func extractAHEMetrics(
+        from series: [WorkbenchPlotSeries]
+    ) -> (hc: Double, rAHE: Double) {
+        guard let first = series.first, first.x.count > 1 else { return (0.0, 0.0) }
         let xs = first.x
         let rawYs = first.y
 
-        // Shift y values so the midpoint of the hysteresis loop sits at zero.
-        // This removes the ordinary-Hall background and makes the algorithm
-        // agnostic to whether the raw curve crosses zero or not.
         let yMin = rawYs.min()!
         let yMax = rawYs.max()!
         let threshold = (yMin + yMax) / 2.0
         let ys = rawYs.map { $0 - threshold }
 
-        // Collect all zero crossings on the shifted curve via linear interpolation.
+        // --- Hc ---
         var crossings: [Double] = []
         for i in 0..<xs.count - 1 {
             let y0 = ys[i], y1 = ys[i + 1]
@@ -503,28 +563,47 @@ final class AHEWorkspaceStore {
             }
         }
 
-        guard !crossings.isEmpty else {
-            // Fallback: x at minimum |y_shifted|
+        let hc: Double
+        if crossings.isEmpty {
             var minAbs = Double.infinity
             var result = 0.0
             for i in 0..<xs.count {
                 let a = abs(ys[i])
                 if a < minAbs { minAbs = a; result = xs[i] }
             }
-            return abs(result)
+            hc = abs(result)
+        } else {
+            let posCrossings = crossings.filter { $0 > 0 }
+            let negCrossings = crossings.filter { $0 < 0 }
+            if !posCrossings.isEmpty && !negCrossings.isEmpty {
+                hc = (posCrossings.max()! + abs(negCrossings.min()!)) / 2.0
+            } else {
+                hc = crossings.map { abs($0) }.reduce(0, +) / Double(crossings.count)
+            }
         }
 
-        // Full hysteresis loop: pair the outermost positive and negative crossings.
-        // Hc = (Hc_ascending + |Hc_descending|) / 2
-        let positiveCrossings = crossings.filter { $0 > 0 }
-        let negativeCrossings = crossings.filter { $0 < 0 }
-        if !positiveCrossings.isEmpty && !negativeCrossings.isEmpty {
-            let hcPos = positiveCrossings.max()!
-            let hcNeg = abs(negativeCrossings.min()!)
-            return (hcPos + hcNeg) / 2.0
+        // --- R_AHE ---
+        let hMax = xs.map { abs($0) }.max() ?? 0.0
+        let rAHE: Double
+        if hMax > 0 {
+            let satThreshold = 0.8 * hMax
+            let topPlateau = zip(xs, ys).compactMap { $0.0 > satThreshold ? $0.1 : nil }
+            let bottomPlateau = zip(xs, ys).compactMap { $0.0 < -satThreshold ? $0.1 : nil }
+            if !topPlateau.isEmpty && !bottomPlateau.isEmpty {
+                rAHE = (AHEWorkspaceStore.median(topPlateau) - AHEWorkspaceStore.median(bottomPlateau)) / 2.0
+            } else {
+                rAHE = (yMax - yMin) / 2.0
+            }
+        } else {
+            rAHE = (yMax - yMin) / 2.0
         }
 
-        // Partial loop: average absolute values of all found crossings.
-        return crossings.map { abs($0) }.reduce(0, +) / Double(crossings.count)
+        return (hc, rAHE)
+    }
+
+    private nonisolated static func median(_ values: [Double]) -> Double {
+        let sorted = values.sorted()
+        let n = sorted.count
+        return n % 2 == 1 ? sorted[n / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0
     }
 }

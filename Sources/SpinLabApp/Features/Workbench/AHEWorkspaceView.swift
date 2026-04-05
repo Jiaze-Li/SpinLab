@@ -146,6 +146,9 @@ private struct AHESearchSection: View {
 
             AHEMetricOverridePanel()
                 .environment(appState)
+
+            AHERAHEOverridePanel()
+                .environment(appState)
         }
     }
 }
@@ -229,6 +232,86 @@ private struct AHEMetricOverridePanel: View {
             // Non-empty but unparseable (e.g. mid-edit "0." or "abc"): clear any prior override
             // so a stale valid value is never accidentally committed under invalid-looking input.
             appState.workbench.aheWorkspace.pendingMetricOverride = nil
+        }
+    }
+}
+
+// MARK: - Pre-persist R_AHE Override Panel
+
+/// Lets the user enter an optional manual correction for the extracted R_AHE value
+/// before clicking "Plot". Mirrors `AHEMetricOverridePanel` for the R_AHE metric.
+private struct AHERAHEOverridePanel: View {
+    @Environment(SpinLabAppState.self) private var appState
+    @State private var valueText: String = ""
+    @State private var reasonText: String = ""
+
+    var body: some View {
+        @Bindable var ahe = appState.workbench.aheWorkspace
+
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text("R_AHE Override (optional)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let rAHE = ahe.lastExtractedRAHE {
+                    Text("Auto-detected: \(String(format: "%g", rAHE)) Ω")
+                        .font(.caption)
+                        .foregroundStyle(.primary)
+                }
+            }
+
+            HStack(spacing: 6) {
+                TextField("Corrected R_AHE (Ω)", text: $valueText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 140)
+                    .onChange(of: valueText) { _, new in updateCandidate(value: new, reason: reasonText) }
+
+                TextField("Reason", text: $reasonText)
+                    .textFieldStyle(.roundedBorder)
+                    .onChange(of: reasonText) { _, new in updateCandidate(value: valueText, reason: new) }
+
+                if ahe.pendingRAHEOverride != nil {
+                    Button("Clear") {
+                        valueText = ""
+                        reasonText = ""
+                        ahe.pendingRAHEOverride = nil
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+
+            if ahe.pendingRAHEOverride != nil {
+                Text("Override will be applied on next Plot.")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+        }
+        .onAppear {
+            if let o = appState.workbench.aheWorkspace.pendingRAHEOverride {
+                valueText = String(o.proposedValue)
+                reasonText = o.reason
+            }
+        }
+        .onChange(of: appState.workbench.aheWorkspace.pendingRAHEOverride) { _, new in
+            if new == nil { valueText = ""; reasonText = "" }
+        }
+    }
+
+    private func updateCandidate(value: String, reason: String) {
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedReason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedValue.isEmpty {
+            appState.workbench.aheWorkspace.pendingRAHEOverride = nil
+        } else if let parsed = Double(trimmedValue) {
+            let effectiveReason = trimmedReason.isEmpty ? "visual check" : trimmedReason
+            appState.workbench.aheWorkspace.pendingRAHEOverride = WorkbenchMetricOverrideCandidate(
+                proposedValue: parsed,
+                reason: effectiveReason,
+                source: .manual
+            )
+        } else {
+            appState.workbench.aheWorkspace.pendingRAHEOverride = nil
         }
     }
 }
