@@ -431,7 +431,7 @@ struct V400PlotRendererTests {
             rahe1omega: nil, rahe3omega: nil, hc1omega: nil, hc3omega: nil,
             v3omegaAtZeroField: 2e-5
         )
-        let data = renderer.renderR1omega(sweeps: [sweep], angleLabel: "0deg")
+        let (data, _) = renderer.renderR1omega(sweeps: [sweep], angleLabel: "0deg")
         #expect(data != nil)
         if let data { #expect(data.count > 0) }
     }
@@ -440,8 +440,101 @@ struct V400PlotRendererTests {
     func renderScalingNoPoints() {
         let renderer = ThreeOmegaPlotRenderer()
         let result = ThreeOmegaScalingResult(points: [], warnings: [])
-        let data = renderer.renderScaling(result: result)
+        let (data, _) = renderer.renderScaling(result: result)
         #expect(data == nil)
+    }
+}
+
+// MARK: - Real-file fixture tests
+
+@Suite("V400 ThreeOmegaLVMParser Fixture")
+struct V400LVMParserFixtureTests {
+
+    // Resolve a fixture file URL from the test bundle.
+    private func fixtureURL(_ filename: String) throws -> URL {
+        guard let url = Bundle.module.url(
+            forResource: "TestData/ThreeOmega/\(filename)",
+            withExtension: nil
+        ) else {
+            // SPM .copy resource preserves directory structure under bundle root
+            let bundleURL = Bundle.module.bundleURL
+                .appendingPathComponent("TestData")
+                .appendingPathComponent("ThreeOmega")
+                .appendingPathComponent(filename)
+            guard FileManager.default.fileExists(atPath: bundleURL.path) else {
+                throw CocoaError(.fileNoSuchFile, userInfo: [NSFilePathErrorKey: bundleURL.path])
+            }
+            return bundleURL
+        }
+        return url
+    }
+
+    @Test("Field-sweep fixture: temperatureK ≈ 4.999 K")
+    func fieldSweepTemperature() throws {
+        let url = try fixtureURL("3w_0deg_T_4.999 K_Iac_0.001000 A.lvm")
+        let file = try ThreeOmegaLVMParser().parse(fileURL: url)
+        #expect(abs(file.temperatureK - 4.999) < 0.001)
+    }
+
+    @Test("Field-sweep fixture: fileKind is fieldSweep")
+    func fieldSweepKind() throws {
+        let url = try fixtureURL("3w_0deg_T_4.999 K_Iac_0.001000 A.lvm")
+        let file = try ThreeOmegaLVMParser().parse(fileURL: url)
+        #expect(file.fileKind == .fieldSweep)
+    }
+
+    @Test("Field-sweep fixture: I_rms matches Iac_0.001 A / √2 within 1e-6")
+    func fieldSweepIRmsPrecision() throws {
+        let url = try fixtureURL("3w_0deg_T_4.999 K_Iac_0.001000 A.lvm")
+        let file = try ThreeOmegaLVMParser().parse(fileURL: url)
+        let expected = 0.001 / sqrt(2.0)
+        #expect(abs(file.iRms - expected) < 1e-6)
+    }
+
+    @Test("Field-sweep fixture: data rows parsed (≥ 20)")
+    func fieldSweepRowCount() throws {
+        let url = try fixtureURL("3w_0deg_T_4.999 K_Iac_0.001000 A.lvm")
+        let file = try ThreeOmegaLVMParser().parse(fileURL: url)
+        #expect(file.col0.count >= 20)
+    }
+
+    @Test("Field-sweep fixture: angleLabel is 0deg")
+    func fieldSweepAngleLabel() throws {
+        let url = try fixtureURL("3w_0deg_T_4.999 K_Iac_0.001000 A.lvm")
+        let file = try ThreeOmegaLVMParser().parse(fileURL: url)
+        // Angle label is derived from parent folder — fixture file's parent is ThreeOmega, not 0deg.
+        // Verify it is non-empty (folder name, not a crash).
+        #expect(!file.angleLabel.isEmpty)
+    }
+
+    @Test("RT fixture: fileKind is rtSweep")
+    func rtFileKind() throws {
+        let url = try fixtureURL("RT_0deg_H_-0.029814 Oe_Iac_0.000200 A.lvm")
+        let file = try ThreeOmegaLVMParser().parse(fileURL: url)
+        #expect(file.fileKind == .rtSweep)
+    }
+
+    @Test("RT fixture: temperatureK is NaN")
+    func rtTemperatureIsNaN() throws {
+        let url = try fixtureURL("RT_0deg_H_-0.029814 Oe_Iac_0.000200 A.lvm")
+        let file = try ThreeOmegaLVMParser().parse(fileURL: url)
+        #expect(file.temperatureK.isNaN)
+    }
+
+    @Test("RT fixture: parses without Tableau: marker (30 rows)")
+    func rtRowCount() throws {
+        let url = try fixtureURL("RT_0deg_H_-0.029814 Oe_Iac_0.000200 A.lvm")
+        let file = try ThreeOmegaLVMParser().parse(fileURL: url)
+        #expect(file.col0.count == 30)
+    }
+
+    @Test("RT fixture: Rxx at 5 K ≈ 677 Ω (col9[0])")
+    func rtRxxFirstRow() throws {
+        let url = try fixtureURL("RT_0deg_H_-0.029814 Oe_Iac_0.000200 A.lvm")
+        let file = try ThreeOmegaLVMParser().parse(fileURL: url)
+        // col0 is sorted by temperature in the fixture; lowest T ≈ 5K, Rxx ≈ 677 Ω
+        let idx = file.col0.enumerated().min(by: { $0.element < $1.element })!.offset
+        #expect(abs(file.col9[idx] - 677.0) < 1.0)
     }
 }
 

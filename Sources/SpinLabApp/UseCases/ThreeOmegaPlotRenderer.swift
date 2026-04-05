@@ -3,37 +3,40 @@ import Foundation
 // MARK: - ThreeOmegaPlotRenderer
 //
 // Converts ThreeOmegaIngestionResult / ThreeOmegaScalingResult into
-// WorkbenchPlotPayload and renders them to PNG Data using WorkbenchChartRenderer.
+// WorkbenchPlotPayload and renders them to PNG Data + WorkbenchPlotLayout
+// using WorkbenchChartRenderer / WorkbenchPlotLayout.
 
 struct ThreeOmegaPlotRenderer {
 
-    private let renderer = WorkbenchChartRenderer()
+    var showGrid: Bool = true
+    var legendAnchor: String = ""           // "" = top-right (default)
+    var legendPoint: CGPoint? = nil         // normalized free-position; overrides anchor
+
+    private let options = WorkbenchChartRenderer.Options()
 
     // MARK: - Render all 5 analysis tabs (excludes scaling — geometry required)
 
     func renderAllTabs(result: ThreeOmegaIngestionResult) -> ThreeOmegaRenderedPlots {
         var plots = ThreeOmegaRenderedPlots()
-        plots.r1omega  = renderR1omega(sweeps: result.fieldSweeps, angleLabel: result.angleLabel)
-        plots.r3omega  = renderR3omega(sweeps: result.fieldSweeps, angleLabel: result.angleLabel)
-        plots.raheVsT  = renderRAHEvsT(sweeps: result.fieldSweeps, angleLabel: result.angleLabel)
-        plots.hcVsT    = renderHcVsT(sweeps: result.fieldSweeps, angleLabel: result.angleLabel)
-        plots.rtCurve  = result.rtResult.flatMap { renderRT(rt: $0) }
+        (plots.r1omega,  plots.layoutR1omega)  = renderR1omega(sweeps: result.fieldSweeps, angleLabel: result.angleLabel)
+        (plots.r3omega,  plots.layoutR3omega)  = renderR3omega(sweeps: result.fieldSweeps, angleLabel: result.angleLabel)
+        (plots.raheVsT,  plots.layoutRAHEvsT)  = renderRAHEvsT(sweeps: result.fieldSweeps, angleLabel: result.angleLabel)
+        (plots.hcVsT,    plots.layoutHcVsT)    = renderHcVsT(sweeps: result.fieldSweeps, angleLabel: result.angleLabel)
+        if let rt = result.rtResult {
+            (plots.rtCurve, plots.layoutRTCurve) = renderRT(rt: rt)
+        }
         return plots
     }
 
     // MARK: - Individual tab renderers
 
     /// Tab 1: R¹ω vs H, stacked by temperature
-    func renderR1omega(sweeps: [ThreeOmegaFieldSweepResult], angleLabel: String) -> Data? {
-        guard !sweeps.isEmpty else { return nil }
+    func renderR1omega(sweeps: [ThreeOmegaFieldSweepResult], angleLabel: String) -> (Data?, WorkbenchPlotLayout?) {
+        guard !sweeps.isEmpty else { return (nil, nil) }
         let series = sweeps.map { sweep in
-            WorkbenchPlotSeries(
-                label: _tempLabel(sweep.temperatureK),
-                x: sweep.hField,
-                y: sweep.r1omega
-            )
+            WorkbenchPlotSeries(label: _tempLabel(sweep.temperatureK), x: sweep.hField, y: sweep.r1omega)
         }
-        let payload = WorkbenchPlotPayload(
+        var payload = WorkbenchPlotPayload(
             workflowID: "3W",
             workflowDisplayName: "3ω AHE",
             title: "R¹ω vs H  \(angleLabel)",
@@ -41,20 +44,16 @@ struct ThreeOmegaPlotRenderer {
             axisMapping: WorkbenchAxisMapping(xField: "H (Oe)", yField: "R¹ω (Ω)"),
             series: series
         )
-        return try? renderer.renderPNG(payload: payload)
+        return _render(payload: &payload)
     }
 
     /// Tab 2: R³ω vs H, stacked by temperature
-    func renderR3omega(sweeps: [ThreeOmegaFieldSweepResult], angleLabel: String) -> Data? {
-        guard !sweeps.isEmpty else { return nil }
+    func renderR3omega(sweeps: [ThreeOmegaFieldSweepResult], angleLabel: String) -> (Data?, WorkbenchPlotLayout?) {
+        guard !sweeps.isEmpty else { return (nil, nil) }
         let series = sweeps.map { sweep in
-            WorkbenchPlotSeries(
-                label: _tempLabel(sweep.temperatureK),
-                x: sweep.hField,
-                y: sweep.r3omega
-            )
+            WorkbenchPlotSeries(label: _tempLabel(sweep.temperatureK), x: sweep.hField, y: sweep.r3omega)
         }
-        let payload = WorkbenchPlotPayload(
+        var payload = WorkbenchPlotPayload(
             workflowID: "3W",
             workflowDisplayName: "3ω AHE",
             title: "R³ω vs H  \(angleLabel)",
@@ -62,27 +61,22 @@ struct ThreeOmegaPlotRenderer {
             axisMapping: WorkbenchAxisMapping(xField: "H (Oe)", yField: "R³ω (Ω)"),
             series: series
         )
-        return try? renderer.renderPNG(payload: payload)
+        return _render(payload: &payload)
     }
 
     /// Tab 3: RAHE¹ω and RAHE³ω vs T
-    func renderRAHEvsT(sweeps: [ThreeOmegaFieldSweepResult], angleLabel: String) -> Data? {
+    func renderRAHEvsT(sweeps: [ThreeOmegaFieldSweepResult], angleLabel: String) -> (Data?, WorkbenchPlotLayout?) {
         let temps1 = sweeps.compactMap { $0.rahe1omega != nil ? $0.temperatureK : nil }
         let rahe1  = sweeps.compactMap { $0.rahe1omega }
         let temps3 = sweeps.compactMap { $0.rahe3omega != nil ? $0.temperatureK : nil }
         let rahe3  = sweeps.compactMap { $0.rahe3omega }
-
-        guard !temps1.isEmpty || !temps3.isEmpty else { return nil }
+        guard !temps1.isEmpty || !temps3.isEmpty else { return (nil, nil) }
 
         var series: [WorkbenchPlotSeries] = []
-        if !temps1.isEmpty {
-            series.append(WorkbenchPlotSeries(label: "R¹ω_AHE", x: temps1, y: rahe1))
-        }
-        if !temps3.isEmpty {
-            series.append(WorkbenchPlotSeries(label: "R³ω_AHE", x: temps3, y: rahe3))
-        }
+        if !temps1.isEmpty { series.append(WorkbenchPlotSeries(label: "R¹ω_AHE", x: temps1, y: rahe1)) }
+        if !temps3.isEmpty { series.append(WorkbenchPlotSeries(label: "R³ω_AHE", x: temps3, y: rahe3)) }
 
-        let payload = WorkbenchPlotPayload(
+        var payload = WorkbenchPlotPayload(
             workflowID: "3W",
             workflowDisplayName: "3ω AHE",
             title: "RAHE vs T  \(angleLabel)",
@@ -90,27 +84,22 @@ struct ThreeOmegaPlotRenderer {
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE (Ω)"),
             series: series
         )
-        return try? renderer.renderPNG(payload: payload)
+        return _render(payload: &payload)
     }
 
     /// Tab 4: Hc¹ω and Hc³ω vs T
-    func renderHcVsT(sweeps: [ThreeOmegaFieldSweepResult], angleLabel: String) -> Data? {
+    func renderHcVsT(sweeps: [ThreeOmegaFieldSweepResult], angleLabel: String) -> (Data?, WorkbenchPlotLayout?) {
         let temps1 = sweeps.compactMap { $0.hc1omega != nil ? $0.temperatureK : nil }
         let hc1    = sweeps.compactMap { $0.hc1omega }
         let temps3 = sweeps.compactMap { $0.hc3omega != nil ? $0.temperatureK : nil }
         let hc3    = sweeps.compactMap { $0.hc3omega }
-
-        guard !temps1.isEmpty || !temps3.isEmpty else { return nil }
+        guard !temps1.isEmpty || !temps3.isEmpty else { return (nil, nil) }
 
         var series: [WorkbenchPlotSeries] = []
-        if !temps1.isEmpty {
-            series.append(WorkbenchPlotSeries(label: "Hc¹ω", x: temps1, y: hc1))
-        }
-        if !temps3.isEmpty {
-            series.append(WorkbenchPlotSeries(label: "Hc³ω", x: temps3, y: hc3))
-        }
+        if !temps1.isEmpty { series.append(WorkbenchPlotSeries(label: "Hc¹ω", x: temps1, y: hc1)) }
+        if !temps3.isEmpty { series.append(WorkbenchPlotSeries(label: "Hc³ω", x: temps3, y: hc3)) }
 
-        let payload = WorkbenchPlotPayload(
+        var payload = WorkbenchPlotPayload(
             workflowID: "3W",
             workflowDisplayName: "3ω AHE",
             title: "Hc vs T  \(angleLabel)",
@@ -118,48 +107,43 @@ struct ThreeOmegaPlotRenderer {
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "Hc (Oe)"),
             series: series
         )
-        return try? renderer.renderPNG(payload: payload)
+        return _render(payload: &payload)
     }
 
     /// Tab 5: Rxx vs T (from RT file)
-    func renderRT(rt: ThreeOmegaRTResult) -> Data? {
-        guard !rt.temperatureK.isEmpty else { return nil }
-        let series = [WorkbenchPlotSeries(label: "Rxx", x: rt.temperatureK, y: rt.rxx)]
-        let payload = WorkbenchPlotPayload(
+    func renderRT(rt: ThreeOmegaRTResult) -> (Data?, WorkbenchPlotLayout?) {
+        guard !rt.temperatureK.isEmpty else { return (nil, nil) }
+        var payload = WorkbenchPlotPayload(
             workflowID: "3W",
             workflowDisplayName: "3ω AHE",
             title: "Rxx vs T  \(rt.angleLabel)",
             // Formula: Rxx(T) = Col[9] = V¹ω_X / I_rms (pre-calculated in RT file)
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "Rxx (Ω)"),
-            series: series
+            series: [WorkbenchPlotSeries(label: "Rxx", x: rt.temperatureK, y: rt.rxx)]
         )
-        return try? renderer.renderPNG(payload: payload)
+        return _render(payload: &payload)
     }
 
     /// Tab 6: Fig 5b — E^(3ω)_AHE / (E_xx³ × σ_xx) vs σ²_xx
-    func renderScaling(result: ThreeOmegaScalingResult) -> Data? {
-        guard !result.points.isEmpty else { return nil }
+    func renderScaling(result: ThreeOmegaScalingResult) -> (Data?, WorkbenchPlotLayout?) {
+        guard !result.points.isEmpty else { return (nil, nil) }
 
         let xs = result.points.map { $0.sigma2xx }
         let ys = result.points.map { $0.scalingY }
-        var series: [WorkbenchPlotSeries] = [
-            WorkbenchPlotSeries(label: "Data", x: xs, y: ys)
-        ]
+        var series: [WorkbenchPlotSeries] = [WorkbenchPlotSeries(label: "Data", x: xs, y: ys)]
 
-        // Overlay linear fit line if available
         if let alpha = result.alpha, let beta = result.beta, xs.count >= 2 {
             let xMin = xs.min()!, xMax = xs.max()!
-            let fitX = [xMin, xMax]
-            let fitY = fitX.map { alpha * $0 + beta }
+            let fitY = [xMin, xMax].map { alpha * $0 + beta }
             series.append(WorkbenchPlotSeries(
                 label: String(format: "Fit: β=%.3e", beta),
-                x: fitX,
+                x: [xMin, xMax],
                 y: fitY
             ))
         }
 
         let r2Str = result.rSquared.map { String(format: " R²=%.3f", $0) } ?? ""
-        let payload = WorkbenchPlotPayload(
+        var payload = WorkbenchPlotPayload(
             workflowID: "3W",
             workflowDisplayName: "3ω AHE",
             title: "Fig 5b: Berry Curvature Quadrupole Scaling\(r2Str)",
@@ -171,15 +155,25 @@ struct ThreeOmegaPlotRenderer {
             ),
             series: series
         )
-        return try? renderer.renderPNG(payload: payload)
+        return _render(payload: &payload)
     }
 
-    // MARK: - Private helpers
+    // MARK: - Private
+
+    /// Applies current style params (grid, legend), renders PNG and computes layout.
+    private func _render(payload: inout WorkbenchPlotPayload) -> (Data?, WorkbenchPlotLayout?) {
+        if showGrid { payload.styleParams["showGrid"] = "true" }
+        if !legendAnchor.isEmpty { payload.styleParams["legendAnchor"] = legendAnchor }
+        if let pt = legendPoint {
+            payload.styleParams["legendX"] = "\(pt.x)"
+            payload.styleParams["legendY"] = "\(pt.y)"
+        }
+        let layout = WorkbenchPlotLayout.compute(options: options, payload: payload, legendPoint: legendPoint)
+        let data = try? WorkbenchChartRenderer().renderPNG(payload: payload, options: options)
+        return (data, layout)
+    }
 
     private func _tempLabel(_ t: Double) -> String {
-        if t.truncatingRemainder(dividingBy: 1) == 0 {
-            return "\(Int(t)) K"
-        }
-        return String(format: "%.1f K", t)
+        t.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(t)) K" : String(format: "%.1f K", t)
     }
 }

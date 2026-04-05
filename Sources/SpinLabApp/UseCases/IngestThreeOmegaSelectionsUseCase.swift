@@ -34,8 +34,7 @@ struct IngestThreeOmegaSelectionsUseCase {
 
         var warnings: [String] = []
         var fieldSweeps: [ThreeOmegaFieldSweepResult] = []
-        var rtTemps: [Double] = []
-        var rtRxx: [Double] = []
+        var rtFiles: [ThreeOmegaLVMFile] = []   // collect all RT files; pick best at end
         var angleLabel = ""
         var iRmsValues: [Double: Double] = [:]
 
@@ -57,11 +56,8 @@ struct IngestThreeOmegaSelectionsUseCase {
                     iRmsValues[file.temperatureK] = file.iRms
 
                 case .rtSweep:
-                    // RT file: col0 = temperature (K), col9 = Rxx (Ω)
-                    // Formula: Rxx(T) = Col[9]  (pre-calculated R_H = longitudinal Rxx in RT geometry)
-                    // Merge multiple RT files by appending (sorted later)
-                    rtTemps.append(contentsOf: file.col0)
-                    rtRxx.append(contentsOf: file.col9)
+                    // Collect all RT files; select the best one after the loop.
+                    rtFiles.append(file)
                 }
             } catch {
                 warnings.append("Parse failed [\(url.lastPathComponent)]: \(error.localizedDescription)")
@@ -71,10 +67,16 @@ struct IngestThreeOmegaSelectionsUseCase {
         // Sort field sweeps by temperature ascending
         fieldSweeps.sort { $0.temperatureK < $1.temperatureK }
 
-        // Build RT result if we have RT data
-        let rtResult: ThreeOmegaRTResult? = rtTemps.isEmpty ? nil : {
-            // Sort RT data by temperature
-            let pairs = zip(rtTemps, rtRxx).sorted { $0.0 < $1.0 }
+        // Build RT result: pick the RT file with the most data rows.
+        // Rationale: when multiple RT files exist (e.g. one aborted at 1 row and one
+        // complete at 30 rows), the longest file is the real RT curve.
+        let rtResult: ThreeOmegaRTResult? = {
+            guard let best = rtFiles.max(by: { $0.col0.count < $1.col0.count }),
+                  !best.col0.isEmpty else { return nil }
+            if rtFiles.count > 1 {
+                warnings.append("Multiple RT files found — using the one with most data rows (\(best.col0.count) pts, \(best.stem)).")
+            }
+            let pairs = zip(best.col0, best.col9).sorted { $0.0 < $1.0 }
             return ThreeOmegaRTResult(
                 angleLabel: angleLabel,
                 temperatureK: pairs.map { $0.0 },

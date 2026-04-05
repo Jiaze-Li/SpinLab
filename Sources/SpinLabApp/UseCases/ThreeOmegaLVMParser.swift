@@ -87,19 +87,31 @@ struct ThreeOmegaLVMParser {
         let content = try String(contentsOf: fileURL, encoding: .utf8)
         let lines = content.components(separatedBy: .newlines)
 
-        var markerLine: Int?
+        // Locate data start: prefer explicit "Tableau:" marker (field-sweep files).
+        // Fallback: find first line whose first tab-separated token parses as Double.
+        // RT files from this instrument omit the Tableau: marker entirely.
+        var dataStart: Int?
         for (i, line) in lines.enumerated() {
             if line.trimmingCharacters(in: .whitespaces).hasPrefix(marker) {
-                markerLine = i
+                dataStart = i + 1   // data begins on the line after "Tableau:"
                 break
             }
         }
-        guard let ml = markerLine else {
+        if dataStart == nil {
+            for (i, line) in lines.enumerated() {
+                let first = line.components(separatedBy: "\t").first?
+                    .trimmingCharacters(in: .whitespaces) ?? ""
+                if Double(first) != nil {
+                    dataStart = i
+                    break
+                }
+            }
+        }
+        guard let start = dataStart else {
             throw ParseError.markerNotFound(fileURL.path)
         }
 
-        // Data rows start at markerLine + 1
-        let dataLines = lines[(ml + 1)...].filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        let dataLines = lines[start...].filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
         guard !dataLines.isEmpty else {
             throw ParseError.noDataRows(fileURL)
         }

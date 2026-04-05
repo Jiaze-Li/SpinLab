@@ -2,9 +2,9 @@ import SwiftUI
 
 /// 3ω AHE workflow workspace.
 ///
-/// Layout:
-///   Left column  — search, analyze button, geometry inputs, results list
-///   Right column — 6 tab strip + plot canvas + fit parameters (Fig 5b)
+/// 列结构与 AHEWorkspaceView 对齐：
+///   左列 → 搜索 + PlotControlsPanel + GeometryPanel (Fig 5b) + ResultsList
+///   右列 → "Result" + WorkbenchStatusArea + WorkbenchPlotCanvas (交互) + ScalingResultPanel
 struct ThreeOmegaWorkspaceView: View, WorkflowWorkspaceProvider {
     @Environment(SpinLabAppState.self) private var appState
 
@@ -19,7 +19,7 @@ struct ThreeOmegaWorkspaceView: View, WorkflowWorkspaceProvider {
     }
 }
 
-// MARK: - Left column
+// MARK: - 左列
 
 private struct ThreeOmegaLeftColumn: View {
     @Environment(SpinLabAppState.self) private var appState
@@ -27,7 +27,7 @@ private struct ThreeOmegaLeftColumn: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
 
-            // Fixed controls
+            // ── 固定控制区 ──────────────────────────────────────────
             VStack(alignment: .leading, spacing: 10) {
 
                 HStack(alignment: .firstTextBaseline) {
@@ -40,14 +40,21 @@ private struct ThreeOmegaLeftColumn: View {
                 ThreeOmegaSearchSection()
                     .environment(appState)
 
-                ThreeOmegaGeometryPanel()
+                ThreeOmegaPlotControlsPanel()
                     .environment(appState)
+
+                // Geometry panel 只在 Fig 5b tab 时显示
+                if appState.workbench.threeOmegaWorkspace.activeTab == .scaling {
+                    ThreeOmegaGeometryPanel()
+                        .environment(appState)
+                }
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
 
             Divider()
 
+            // ── 可滚动结果列表 ──────────────────────────────────────
             ThreeOmegaResultsList()
                 .environment(appState)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -55,7 +62,7 @@ private struct ThreeOmegaLeftColumn: View {
     }
 }
 
-// MARK: - Search + action buttons
+// MARK: - 搜索 + 操作按钮
 
 private struct ThreeOmegaSearchSection: View {
     @Environment(SpinLabAppState.self) private var appState
@@ -106,7 +113,65 @@ private struct ThreeOmegaSearchSection: View {
     }
 }
 
-// MARK: - Geometry panel
+// MARK: - Plot Controls Panel
+
+private struct ThreeOmegaPlotControlsPanel: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        @Bindable var store = appState.workbench.threeOmegaWorkspace
+
+        GroupBox("Plot Controls") {
+            VStack(alignment: .leading, spacing: 8) {
+
+                // Tab 选择
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Tab").font(.caption).foregroundStyle(.secondary)
+                    Picker("Tab", selection: $store.activeTab) {
+                        ForEach(ThreeOmegaWorkbenchTab.allCases) { tab in
+                            Text(tab.rawValue).tag(tab)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity)
+                }
+
+                // Title override
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Title").font(.caption).foregroundStyle(.secondary)
+                    TextField("", text: $store.plotTitleOverride)
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                HStack(spacing: 16) {
+                    Toggle("Grid", isOn: $store.showPlotGrid)
+                        .toggleStyle(.checkbox)
+                        .onChange(of: store.showPlotGrid) { _, _ in
+                            store.updateLegendPoint(store.plotLegendPoints[store.activeTab] ?? .zero)
+                        }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Legend").font(.caption).foregroundStyle(.secondary)
+                        Picker("Legend", selection: $store.plotLegendAnchor) {
+                            Text("Top Right").tag("")
+                            Text("Top Left").tag("top-left")
+                            Text("Bottom Right").tag("bottom-right")
+                            Text("Bottom Left").tag("bottom-left")
+                        }
+                        .labelsHidden()
+                        .onChange(of: store.plotLegendAnchor) { _, _ in
+                            store.plotLegendPoints[store.activeTab] = nil
+                            store.updateLegendPoint(.zero)
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+}
+
+// MARK: - Geometry Panel (Fig 5b only)
 
 private struct ThreeOmegaGeometryPanel: View {
     @Environment(SpinLabAppState.self) private var appState
@@ -137,9 +202,8 @@ private struct ThreeOmegaGeometryPanel: View {
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 80)
                 }
-
                 Button("Run Scaling") {
-                    appState.workbench.threeOmegaWorkspace.runScaling()
+                    store.runScaling()
                 }
                 .buttonStyle(.bordered)
                 .disabled(!store.geometry.isComplete || store.ingestionResult == nil)
@@ -177,18 +241,20 @@ private struct ThreeOmegaResultsList: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         } else {
             ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let msg = workbench.workflowSearchMessage, !msg.isEmpty {
+                        Text(msg)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                     ForEach(workbench.workflowSearchResults) { hit in
-                        ThreeOmegaResultRow(
-                            hit: hit,
-                            isSelected: store.selectedSearchResultIDs.contains(hit.id)
-                        )
-                        .onTapGesture {
+                        let isSelected = store.selectedSearchResultIDs.contains(hit.id)
+                        ThreeOmegaResultRow(hit: hit, isSelected: isSelected) {
                             store.toggleSearchHitSelection(hit.id)
                         }
                     }
                 }
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 12)
                 .padding(.vertical, 8)
             }
         }
@@ -198,108 +264,104 @@ private struct ThreeOmegaResultsList: View {
 private struct ThreeOmegaResultRow: View {
     let hit: WorkflowMeasurementSearchHit
     let isSelected: Bool
+    let onTap: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                 .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-                .frame(width: 16)
+                .font(.body)
+                .padding(.top, 2)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(hit.sampleKey)
-                    .font(.subheadline.bold())
-                    .lineLimit(1)
-                Text(URL(fileURLWithPath: hit.sourceFilePath).lastPathComponent)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                if !hit.conditionSummary.isEmpty && hit.conditionSummary != "-" {
-                    Text(hit.conditionSummary)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("Workflow").font(.caption).foregroundStyle(.secondary)
+                    Text(hit.workflowDisplayName).font(.body.weight(.semibold))
                 }
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("Sample").font(.caption).foregroundStyle(.secondary)
+                    Text(hit.sampleBatchAndSubstrate)
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("Condition").font(.caption).foregroundStyle(.secondary)
+                    Text(hit.conditionSummary).font(.callout)
+                }
+                if !hit.channels.isEmpty {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("Channels").font(.caption).foregroundStyle(.secondary)
+                        Text(hit.channels.joined(separator: ", ")).font(.callout)
+                    }
+                }
+                Text(hit.measurementFilePath)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
             }
-
-            Spacer()
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            isSelected
+                ? AnyShapeStyle(Color.accentColor.opacity(0.08))
+                : AnyShapeStyle(.regularMaterial),
+            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(isSelected ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
+        )
+        .onTapGesture(perform: onTap)
     }
 }
 
-// MARK: - Right column
+// MARK: - 右列
 
 private struct ThreeOmegaRightColumn: View {
     @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
-        @Bindable var store = appState.workbench.threeOmegaWorkspace
+        let store = appState.workbench.threeOmegaWorkspace
 
-        VStack(alignment: .leading, spacing: 0) {
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 12) {
 
-            // Tab strip
-            HStack(spacing: 0) {
-                ForEach(ThreeOmegaWorkbenchTab.allCases) { tab in
-                    Button(tab.rawValue) {
-                        store.activeTab = tab
+                HStack {
+                    Text("Result")
+                        .font(.title2.bold())
+                    Spacer()
+                }
+
+                WorkbenchStatusArea(
+                    searchMessage: nil,
+                    plotMessage: store.analysisMessage,
+                    loadMessage: nil
+                )
+
+                WorkbenchPlotCanvas(
+                    imageData: _activeImageData(store),
+                    layout: store.plotLayouts[store.activeTab],
+                    seriesLabelOverrides: store.plotSeriesLabelOverrides[store.activeTab] ?? [:],
+                    onLegendDrag: { pt in store.updateLegendPoint(pt) },
+                    onEditTitle:  { title in store.updatePlotTitle(title) },
+                    onEditXLabel: { label in store.updateXAxisLabel(label) },
+                    onEditYLabel: { label in store.updateYAxisLabel(label) },
+                    onEditLegendLabel: { orig, label in
+                        store.updateSeriesLabel(originalLabel: orig, newLabel: label)
                     }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(store.activeTab == tab ? Color.accentColor.opacity(0.15) : Color.clear)
-                    .overlay(alignment: .bottom) {
-                        if store.activeTab == tab {
-                            Rectangle()
-                                .frame(height: 2)
-                                .foregroundStyle(Color.accentColor)
-                        }
-                    }
-                    .font(.subheadline)
+                )
+
+                // Fig 5b fit results (only on scaling tab)
+                if store.activeTab == .scaling, let sr = store.scalingResult {
+                    ThreeOmegaScalingResultPanel(result: sr)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
             .padding(.top, 4)
-
-            Divider()
-
-            ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: 12) {
-
-                    // Status
-                    WorkbenchStatusArea(
-                        searchMessage: nil,
-                        plotMessage: store.analysisMessage,
-                        loadMessage: nil
-                    )
-
-                    // Plot canvas for active tab
-                    WorkbenchPlotCanvas(
-                        imageData: activeTabImageData(store),
-                        layout: nil,
-                        seriesLabelOverrides: [:],
-                        onLegendDrag: { _ in },
-                        onEditTitle: { _ in },
-                        onEditXLabel: { _ in },
-                        onEditYLabel: { _ in },
-                        onEditLegendLabel: { _, _ in }
-                    )
-
-                    // Fig 5b fit parameters (shown only on scaling tab)
-                    if store.activeTab == .scaling, let sr = store.scalingResult {
-                        ThreeOmegaScalingResultPanel(result: sr)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 12)
-                .padding(.top, 8)
-            }
         }
     }
 
-    private func activeTabImageData(_ store: ThreeOmegaWorkspaceStore) -> Data? {
+    private func _activeImageData(_ store: ThreeOmegaWorkspaceStore) -> Data? {
         switch store.activeTab {
         case .fieldSweep1omega: return store.plotR1omega
         case .fieldSweep3omega: return store.plotR3omega
@@ -311,7 +373,7 @@ private struct ThreeOmegaRightColumn: View {
     }
 }
 
-// MARK: - Scaling result panel (Fig 5b fit parameters)
+// MARK: - Scaling result panel
 
 private struct ThreeOmegaScalingResultPanel: View {
     let result: ThreeOmegaScalingResult
