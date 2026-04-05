@@ -36,6 +36,9 @@ struct WorkbenchPlotCanvas: View {
     /// Normalized offset (plot-space, Y-up) from legend origin to cursor at drag start.
     /// Captured on the first onChanged frame; nil = not dragging.
     @State private var dragGrabOffsetNorm: CGSize? = nil
+    /// Last valid adjusted normalized point during an active drag.
+    /// Used by onEnded as fallback when cursor lands in padding area (plotNormalized → nil).
+    @State private var lastValidDragNorm: CGPoint? = nil
     /// Which chart element is currently being edited.
     @State private var editingElement: EditTarget? = nil
     /// Live text for the active edit field.
@@ -98,24 +101,41 @@ struct WorkbenchPlotCanvas: View {
                             }
                             let grab = dragGrabOffsetNorm ?? .zero
                             let adjusted = CGPoint(
-                                x: min(max(cursorNorm.x - grab.width,  0), 1),
-                                y: min(max(cursorNorm.y - grab.height, 0), 1)
+                                x: cursorNorm.x - grab.width,
+                                y: cursorNorm.y - grab.height
                             )
-                            dragPreviewPt = legendScreenOrigin(normalized: adjusted, fittedRect: fitted)
+                            lastValidDragNorm = adjusted
+                            // Clamp only for preview so it matches the renderer's clamped output.
+                            // The unclamped value is kept in lastValidDragNorm / callback so the
+                            // cursor can reach the actual plot boundary without an air wall.
+                            let previewNorm = CGPoint(
+                                x: min(max(adjusted.x, 0), 1),
+                                y: min(max(adjusted.y, 0), 1)
+                            )
+                            dragPreviewPt = legendScreenOrigin(normalized: previewNorm, fittedRect: fitted)
                         }
                         .onEnded { value in
-                            let grab = dragGrabOffsetNorm ?? .zero
-                            dragPreviewPt = nil
+                            let grab      = dragGrabOffsetNorm ?? .zero
+                            let lastNorm  = lastValidDragNorm
+                            dragPreviewPt     = nil
                             dragGrabOffsetNorm = nil
+                            lastValidDragNorm  = nil
                             guard let callback = onLegendDrag else { return }
                             let fitted = fittedRect(in: canvasSize)
-                            guard let cursorNorm = plotNormalized(location: value.location,
-                                                                   fittedRect: fitted) else { return }
-                            let adjusted = CGPoint(
-                                x: min(max(cursorNorm.x - grab.width,  0), 1),
-                                y: min(max(cursorNorm.y - grab.height, 0), 1)
-                            )
-                            callback(adjusted)
+                            // Prefer cursor position; fall back to last valid position from onChanged
+                            // (handles the case where the cursor lands in the padding area on release).
+                            let finalNorm: CGPoint
+                            if let cn = plotNormalized(location: value.location, fittedRect: fitted) {
+                                finalNorm = CGPoint(
+                                    x: cn.x - grab.width,
+                                    y: cn.y - grab.height
+                                )
+                            } else if let last = lastNorm {
+                                finalNorm = last
+                            } else {
+                                return
+                            }
+                            callback(finalNorm)
                         }
                 )
         } else {
@@ -133,18 +153,31 @@ struct WorkbenchPlotCanvas: View {
     @ViewBuilder
     private var legendDragPreview: some View {
         if let pt = dragPreviewPt {
-            let rowCount = CGFloat(layout?.legendRows.count ?? 1)
-            let boxW = WorkbenchPlotLayout.legendLineLen
-                     + WorkbenchPlotLayout.legendGap
-                     + WorkbenchPlotLayout.legendEstLabelW + 12
-            let boxH = rowCount * WorkbenchPlotLayout.legendRowH + 12
-            Rectangle()
-                .strokeBorder(
-                    Color.accentColor.opacity(0.85),
-                    style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])
-                )
-                .frame(width: boxW, height: boxH)
-                .position(x: pt.x + boxW / 2, y: pt.y + boxH / 2)
+            let fitted = fittedRect(in: canvasSize)
+            if fitted.width > 0 && fitted.height > 0 {
+                let opts    = WorkbenchChartRenderer.Options()
+                let scaleX  = fitted.width  / CGFloat(opts.width)
+                let scaleY  = fitted.height / CGFloat(opts.height)
+                let boxPad: CGFloat = 6
+                let rowCount = CGFloat(layout?.legendRows.count ?? 1)
+                // Match drawLegend's exact box formula, scaled to screen space.
+                let boxW = (WorkbenchPlotLayout.legendLineLen
+                          + WorkbenchPlotLayout.legendGap
+                          + WorkbenchPlotLayout.legendEstLabelW
+                          + 2 * boxPad) * scaleX
+                let boxH = (rowCount * WorkbenchPlotLayout.legendRowH + 2 * boxPad) * scaleY
+                // pt is screen position of (cgOriginX, originY).
+                // Legend box top-left is offset by (-boxPad, -(0.1*rowH + boxPad)) in renderer space.
+                let topLeftX = pt.x - boxPad * scaleX
+                let topLeftY = pt.y - (WorkbenchPlotLayout.legendRowH * 0.1 + boxPad) * scaleY
+                Rectangle()
+                    .strokeBorder(
+                        Color.accentColor.opacity(0.85),
+                        style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])
+                    )
+                    .frame(width: boxW, height: boxH)
+                    .position(x: topLeftX + boxW / 2, y: topLeftY + boxH / 2)
+            }
         }
     }
 
