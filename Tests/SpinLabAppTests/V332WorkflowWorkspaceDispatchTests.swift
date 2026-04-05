@@ -10,7 +10,9 @@ struct V332WorkflowWorkspaceDispatchTests {
 
     @Test("WorkflowWorkspaceRegistry type exists and compiles")
     func registryExists() {
-        #expect(WorkflowWorkspaceRegistry.self is WorkflowWorkspaceRegistry.Type)
+        // Compile-time smoke test: if WorkflowWorkspaceRegistry is removed or
+        // renamed this function body will no longer build.
+        _ = WorkflowWorkspaceRegistry.self
     }
 
     @MainActor

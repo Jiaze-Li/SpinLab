@@ -106,52 +106,27 @@ struct LibraryView: View {
             interactionPersistTask = nil
             viewModel.persistInteractionState(interactionStateSnapshot)
         }
-        .confirmationDialog(
-            "Unsaved Edits",
-            isPresented: pendingSelectionChangeDialogBinding,
-            titleVisibility: .visible
-        ) {
-            Button("Save and Switch") {
-                viewModel.saveAndContinuePendingSelectionChange()
-            }
-            Button("Discard and Switch", role: .destructive) {
-                viewModel.discardAndContinuePendingSelectionChange()
-            }
-            Button("Cancel", role: .cancel) {
-                viewModel.cancelPendingSelectionChange()
-            }
-        } message: {
-            let msg = viewModel.viewState.pendingSelectionChangePrompt ?? "You have unsaved sample edits."
-            Text(msg)
-        }
-        .sheet(isPresented: $isShowingSampleChangeLog) {
-            SampleChangeLogSheetView(
-                sample: selectedSample,
-                entries: selectedSample.map { appState.library.sampleChangeLog(for: $0) } ?? [],
-                isPresented: $isShowingSampleChangeLog
-            )
-        }
-        .sheet(isPresented: $isShowingGlobalManualLog) {
-            GlobalManualLogSheetView(
-                logs: viewModel.viewState.globalManualLogs,
-                error: viewModel.viewState.globalManualLogError,
-                message: viewModel.viewState.globalManualLogMessage,
-                isPresented: $isShowingGlobalManualLog,
-                onRefresh: { viewModel.loadLibraryGlobalManualLogs() },
-                onMarkStatus: { rowIndex, status in
-                    viewModel.markLibraryGlobalManualLogStatus(rowIndex: rowIndex, status: status)
-                }
-            )
-        }
-        .sheet(isPresented: $isShowingMetadataSyncLog) {
-            MetadataSyncLogSheetView(
-                entries: viewModel.viewState.metadataSyncLogs,
-                error: viewModel.viewState.metadataSyncLogError,
-                message: viewModel.viewState.metadataSyncLogMessage,
-                isPresented: $isShowingMetadataSyncLog,
-                onRefresh: { viewModel.loadLibraryMetadataSyncLogs() }
-            )
-        }
+        .modifier(LibraryDialogsModifier(
+            pendingSelectionChangeDialogBinding: pendingSelectionChangeDialogBinding,
+            pendingPrompt: viewModel.viewState.pendingSelectionChangePrompt,
+            onSaveAndSwitch: { viewModel.saveAndContinuePendingSelectionChange() },
+            onDiscardAndSwitch: { viewModel.discardAndContinuePendingSelectionChange() },
+            onCancelSwitch: { viewModel.cancelPendingSelectionChange() },
+            isShowingSampleChangeLog: $isShowingSampleChangeLog,
+            selectedSample: selectedSample,
+            changeLogEntries: selectedSample.map { appState.library.sampleChangeLog(for: $0) } ?? [],
+            isShowingGlobalManualLog: $isShowingGlobalManualLog,
+            globalManualLogs: viewModel.viewState.globalManualLogs,
+            globalManualLogError: viewModel.viewState.globalManualLogError,
+            globalManualLogMessage: viewModel.viewState.globalManualLogMessage,
+            onRefreshGlobalManualLog: { viewModel.loadLibraryGlobalManualLogs() },
+            onMarkStatus: { viewModel.markLibraryGlobalManualLogStatus(rowIndex: $0, status: $1) },
+            isShowingMetadataSyncLog: $isShowingMetadataSyncLog,
+            metadataSyncEntries: viewModel.viewState.metadataSyncLogs,
+            metadataSyncLogError: viewModel.viewState.metadataSyncLogError,
+            metadataSyncLogMessage: viewModel.viewState.metadataSyncLogMessage,
+            onRefreshMetadataSyncLog: { viewModel.loadLibraryMetadataSyncLogs() }
+        ))
     }
 
     private var librarySettingsColumn: some View {

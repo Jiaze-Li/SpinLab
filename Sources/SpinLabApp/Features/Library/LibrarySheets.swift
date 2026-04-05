@@ -1,5 +1,77 @@
 import SwiftUI
 
+// MARK: - Dialogs + Sheets modifier
+
+/// Attaches the confirmation dialog and all three sheet presentations to LibraryView's
+/// root view. Extracting them into a ViewModifier keeps LibraryView.body shallow enough
+/// for the Swift type-checker to handle without timeouts.
+struct LibraryDialogsModifier: ViewModifier {
+    // Confirmation dialog
+    let pendingSelectionChangeDialogBinding: Binding<Bool>
+    let pendingPrompt: String?
+    let onSaveAndSwitch: () -> Void
+    let onDiscardAndSwitch: () -> Void
+    let onCancelSwitch: () -> Void
+
+    // Sample change log sheet
+    @Binding var isShowingSampleChangeLog: Bool
+    let selectedSample: LibrarySample?
+    let changeLogEntries: [LibrarySampleChangeLogEntry]
+
+    // Global manual log sheet
+    @Binding var isShowingGlobalManualLog: Bool
+    let globalManualLogs: [LibraryManualUpdateLogEntry]
+    let globalManualLogError: String?
+    let globalManualLogMessage: String?
+    let onRefreshGlobalManualLog: () -> Void
+    let onMarkStatus: (Int, LibraryManualLogStatus) -> Void
+
+    // Metadata sync log sheet
+    @Binding var isShowingMetadataSyncLog: Bool
+    let metadataSyncEntries: [LibraryMetadataSyncLogEntry]
+    let metadataSyncLogError: String?
+    let metadataSyncLogMessage: String?
+    let onRefreshMetadataSyncLog: () -> Void
+
+    func body(content: Content) -> some View {
+        let msg = pendingPrompt ?? "You have unsaved sample edits."
+        content
+            .confirmationDialog("Unsaved Edits", isPresented: pendingSelectionChangeDialogBinding, titleVisibility: .visible) {
+                Button("Save and Switch") { onSaveAndSwitch() }
+                Button("Discard and Switch", role: .destructive) { onDiscardAndSwitch() }
+                Button("Cancel", role: .cancel) { onCancelSwitch() }
+            } message: {
+                Text(msg)
+            }
+            .sheet(isPresented: $isShowingSampleChangeLog) {
+                SampleChangeLogSheetView(
+                    sample: selectedSample,
+                    entries: changeLogEntries,
+                    isPresented: $isShowingSampleChangeLog
+                )
+            }
+            .sheet(isPresented: $isShowingGlobalManualLog) {
+                GlobalManualLogSheetView(
+                    logs: globalManualLogs,
+                    error: globalManualLogError,
+                    message: globalManualLogMessage,
+                    isPresented: $isShowingGlobalManualLog,
+                    onRefresh: onRefreshGlobalManualLog,
+                    onMarkStatus: onMarkStatus
+                )
+            }
+            .sheet(isPresented: $isShowingMetadataSyncLog) {
+                MetadataSyncLogSheetView(
+                    entries: metadataSyncEntries,
+                    error: metadataSyncLogError,
+                    message: metadataSyncLogMessage,
+                    isPresented: $isShowingMetadataSyncLog,
+                    onRefresh: onRefreshMetadataSyncLog
+                )
+            }
+    }
+}
+
 // MARK: - Shared helpers
 
 private let logDateTimeFormatter: DateFormatter = {
