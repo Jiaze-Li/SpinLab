@@ -49,21 +49,6 @@ struct ConditionFieldCatalog {
     }
 
     static func conditionValues(from hints: SpinLabDomain.ParsedFilenameHints) -> [String: String] {
-        var values: [String: String] = [:]
-        if let v = hints.temperature, !v.isEmpty { values[temperatureID] = v }
-        if let v = hints.current, !v.isEmpty { values[currentID] = v }
-        if let v = hints.field, !v.isEmpty { values[fieldID] = v }
-        if let v = hints.deviceName, !v.isEmpty { values[deviceID] = v }
-
-        for (key, value) in hints.extraConditionValues {
-            let normalizedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
-            let normalizedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !normalizedKey.isEmpty, !normalizedValue.isEmpty else { continue }
-            if values[normalizedKey] == nil {
-                values[normalizedKey] = normalizedValue
-            }
-        }
-
-        return values
+        hints.conditionValues
     }
 }

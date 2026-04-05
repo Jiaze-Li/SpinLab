@@ -67,6 +67,15 @@ struct PersistMeasurementDataUseCase {
                 "sampleKey mismatch: path key '\(sampleKey)' does not match record.sampleKey '\(record.sampleKey)'"
             )
         }
+        // Adj-8: condition keys must be canonical (lowercase, trimmed) so that
+        // makeIdentityKey produces a stable, collision-free hash. Alias keys must
+        // be resolved to canonical form before this point by the caller.
+        assert(
+            record.conditions.keys.allSatisfy {
+                $0 == $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            },
+            "Adj-8: record.conditions keys must be canonical (lowercase, trimmed). Got: \(record.conditions.keys.sorted())"
+        )
         let relPath = "samples/\(sampleKey)/_spinlab/measurement_data.json"
         let absURL = try pathResolver.absoluteURL(for: relPath)
 

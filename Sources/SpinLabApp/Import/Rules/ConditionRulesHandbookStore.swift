@@ -2,11 +2,6 @@ import Foundation
 
 // MARK: - Models
 
-enum RuleEntryKind: String, Equatable {
-    case unitSuffix = "unit_suffix"
-    case tokenMap = "token_map"
-    case customReadOnly = "custom_read_only"
-}
 
 enum TokenMatchType: String, CaseIterable, Equatable {
     case equals

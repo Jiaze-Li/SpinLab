@@ -245,7 +245,7 @@ enum SampleData {
                 batchName: "B2404",
                 sampleName: "S18",
                 measurementName: "AMR_PHE",
-                deviceName: "Device2"
+                conditionValues: ["device": "Device2"]
             )
         )
     ]

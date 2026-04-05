@@ -146,3 +146,26 @@ Validation:
 
 1. Continue splitting `SpinLabAppState` by extracting feature-owned mutable state and actions into focused `@Observable` stores while preserving current routing orchestration in app shell.
 2. Audit high-impact `try?` usage in `LibraryStore` and convert selected write/read paths to explicit error propagation.
+
+## 2026-04-05 Round E (3.4 debt clearance)
+
+Scope:
+- Clear all actionable debt before merging 3.4 branch to main.
+
+Completed:
+- **Force unwrap removed** (`LoadLatestChartArtifactUseCase.swift:30`): replaced `.max()!` with `guard let`.
+- **Adj-8 canonical key assertion**: added `assert` in `PersistMeasurementDataUseCase.execute` to catch non-canonical condition keys in debug builds.
+- **Adj-2 verified**: RunID is already generated once and shared between chart and metric persist paths (no change needed).
+- **Adj-10 error logging**: `LoadMeasurementDataUseCase` and `LoadWorkbenchResultsUseCase` now log non-missing-file errors to stderr; fail-soft nil return preserved.
+- **Deprecated `RoutePlan.status` removed**: computed alias deleted from `Models.swift`; legacy `CodingKeys.status` decode path retained for JSON backward compat.
+- **`RuleEntryKind` ownership fixed**: moved from `ConditionRulesHandbookStore.swift` to new `RuleEntryKind.swift` in Import/Rules layer; dependency direction corrected.
+- **`LibraryStore.writeJSON` error logging**: explicit error handling added to the central JSON write helper; encodes and writes now log failures to stderr instead of silently swallowing them.
+- **`ParsedFilenameHints` unified**: replaced `temperature`/`current`/`field`/`deviceName`/`extraConditionValues` stored properties with single `conditionValues: [String: String]`; named fields become computed accessors; `ConditionFieldCatalog.conditionValues(from:)` simplified to `hints.conditionValues`; `FilenameRuleParser` passes `conditionEvaluation.values` directly; backward-compat decode migrates old sidecar JSON format on first read.
+
+Deferred (conditions not yet met per backlog):
+- `temperaturePattern`/`currentPattern`/`fieldPattern` fields in `ConditionRules` — deletion blocked on zero synthesis-path hits in production.
+- Legacy `CodingKeys` in `PendingImportConfirmationDraft` — blocked on one full release cycle at v2.4+ minimum.
+- `SpinLabAppState` decomposition — ongoing, not scoped to 3.4.
+
+Validation:
+- 279/279 tests passed after all changes.

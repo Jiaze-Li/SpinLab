@@ -97,16 +97,6 @@ struct FilenameRuleParser {
             fileEvaluation: fileConditionEvaluation,
             folderEvaluation: folderConditionEvaluation
         )
-        let conditionValues = conditionEvaluation.values
-        let temperature = conditionValues[ConditionFieldCatalog.temperatureID]
-        let current = conditionValues[ConditionFieldCatalog.currentID]
-        let field = conditionValues[ConditionFieldCatalog.fieldID]
-        let deviceName = conditionValues[ConditionFieldCatalog.deviceID]
-        var extraConditionValues = conditionValues
-        extraConditionValues.removeValue(forKey: ConditionFieldCatalog.deviceID)
-        for id in ConditionFieldCatalog.builtInConditionIDs {
-            extraConditionValues.removeValue(forKey: id)
-        }
         let channelHints = channelHints(from: fileTokens)
         let defaultSampleResolution = resolveDefaultSampleKey(
             fileSampleIDs: fileSampleIDs,
@@ -127,17 +117,12 @@ struct FilenameRuleParser {
             defaultSampleKey: defaultSampleKey,
             folderDerivedSampleKeys: folderSampleIDs,
             measurementName: measurement ?? fileStem,
-            deviceName: deviceName,
             workflowID: measurement,
             sampleIDs: allSampleIDs,
             channelHints: channelHints,
             measurementTags: measurementTags,
             substrateTags: substrateTags,
-            temperature: temperature,
-            growthTemperature: nil,
-            current: current,
-            field: field,
-            extraConditionValues: extraConditionValues,
+            conditionValues: conditionEvaluation.values,
             rotationHint: ruleSet.rotationHint(from: fullContextTokens),
             warnings: warnings
         )

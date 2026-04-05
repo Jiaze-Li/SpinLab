@@ -1,6 +1,6 @@
 # SpinLab V3.4 Iteration Plan (2026-04-05)
 
-Status: planning
+Status: done — all items delivered, debt cleared, 279/279 tests passing, manual QA complete (2026-04-05)
 Type: additive (does not delete or replace existing V3 plan text)
 
 ---
