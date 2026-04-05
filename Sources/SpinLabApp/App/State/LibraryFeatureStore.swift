@@ -931,13 +931,14 @@ final class LibraryFeatureStore {
 
     /// Removes `ref` from every sample's `results_index.json`, then deletes the chart files.
     ///
-    /// Correct order (index-first):
-    /// 1. Collect updated index data for ALL samples that reference this identity key.
-    /// 2. Atomically commit all index rewrites in one pass — if this fails, no files are touched.
-    /// 3. Only after indexes are consistent, delete the PNG and manifest (best-effort).
-    ///
-    /// Multi-sample charts live under `_spinlab/multi-sample/` and may be referenced by several
-    /// samples simultaneously. Scanning all samples ensures no dangling references are left behind.
+    /// Algorithm (fail-closed, index-first):
+    /// 1. Enumerate ALL `results_index.json` files directly from the filesystem under `samples/*/`
+    ///    — does not depend on LibraryIndex being loadable, so a corrupt or missing library index
+    ///    cannot cause partial cleanup.
+    /// 2. For each index that contains this identity key, prepare an atomic write entry.
+    ///    If ANY write entry cannot be prepared (path resolution or encode failure), abort entirely.
+    /// 3. Atomically commit all index rewrites. Abort if the commit throws.
+    /// 4. Only after all indexes are consistent, delete the PNG and manifest (best-effort).
     func deleteWorkbenchResult(_ ref: WorkbenchResultReference) {
         guard let rootPath = librarySettings.rootPath else { return }
         let rootURL = URL(fileURLWithPath: rootPath)
@@ -948,39 +949,59 @@ final class LibraryFeatureStore {
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
-        // Enumerate all known sample keys so multi-sample chart references are fully removed.
-        let allSampleKeys: [String]
-        if let idx = libraryStore.loadIndex(from: rootURL) {
-            allSampleKeys = idx.samples.map { $0.id }
-        } else {
-            allSampleKeys = librarySelectedSampleId.map { [$0] } ?? []
-        }
+        // 1. Enumerate all results_index.json files directly from the filesystem.
+        //    This is resilient to LibraryIndex load failures and covers multi-sample charts
+        //    whose PNG is shared across several samples.
+        let samplesURL = rootURL.appending(path: "samples")
+        let sampleDirs = (try? FileManager.default.contentsOfDirectory(
+            at: samplesURL,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: .skipsHiddenFiles
+        )) ?? []
 
-        // 1. Build atomic write entries for every sample index that contains this reference.
+        // 2. For every index that references this identity key, build an updated write entry.
+        //    Track whether any preparation step failed — a silent continue would hide errors.
         let now = Date()
         var indexWrites: [AtomicWriteEntry] = []
-        for sk in allSampleKeys {
-            guard var index = LoadWorkbenchResultsUseCase(pathResolver: resolver).execute(sampleKey: sk),
-                  index.references.contains(where: { $0.chartIdentityKey == ref.chartIdentityKey }),
-                  let indexURL = try? resolver.absoluteURL(for: "samples/\(sk)/_spinlab/results_index.json")
-            else { continue }
+        var preparationFailed = false
+
+        for sampleDir in sampleDirs {
+            let indexURL = sampleDir.appending(path: "_spinlab/results_index.json")
+            guard FileManager.default.fileExists(atPath: indexURL.path) else { continue }
+            let sk = sampleDir.lastPathComponent
+
+            guard var index = LoadWorkbenchResultsUseCase(pathResolver: resolver).execute(sampleKey: sk) else {
+                continue  // Index unreadable — skip (no reference to remove)
+            }
+            guard index.references.contains(where: { $0.chartIdentityKey == ref.chartIdentityKey }) else {
+                continue  // This sample does not reference the chart — nothing to do
+            }
+
+            // Reference found: build the write entry. Any failure here must abort the whole operation.
             index.references.removeAll { $0.chartIdentityKey == ref.chartIdentityKey }
             index.updatedAt = now
-            guard let data = try? encoder.encode(index) else { continue }
+            guard let data = try? encoder.encode(index) else {
+                fputs("[SpinLab] deleteWorkbenchResult: encode failed for \(sk)\n", stderr)
+                preparationFailed = true
+                break
+            }
             indexWrites.append(AtomicWriteEntry(destinationURL: indexURL, data: data))
         }
 
-        // 2. Commit all index updates atomically — abort entirely if this fails.
-        guard (try? writer.commit(indexWrites)) != nil || indexWrites.isEmpty else { return }
+        // Abort if any write entry could not be prepared — do not touch files.
+        guard !preparationFailed else { return }
 
-        // 3. Delete the chart files only after indexes are consistent.
+        // 3. Atomically commit all index updates. Abort if the commit fails.
+        guard (try? writer.commit(indexWrites)) != nil else { return }
+
+        // 4. Delete the chart files only after all indexes are consistent.
         for relPath in [ref.chartImagePath, ref.manifestPath] {
             if let url = try? resolver.absoluteURL(for: relPath) {
                 try? FileManager.default.removeItem(at: url)
             }
         }
 
-        // 4. Refresh the in-memory projection.
+        // 5. Refresh the in-memory projection.
         loadWorkbenchResultsForCurrentSelection()
     }
 
