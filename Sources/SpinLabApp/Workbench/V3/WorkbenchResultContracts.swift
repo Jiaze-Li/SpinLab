@@ -50,10 +50,23 @@ struct WorkbenchPlotPayload: Codable, Hashable, Sendable {
     }
 }
 
+/// Identifies how a metric value override was produced (Adj-7).
+/// Stored in `WorkbenchMetricOverrideInfo.source` for audit and future UI drill-down.
+enum OverrideSource: String, Codable, Hashable, Sendable {
+    /// User manually entered a corrected value before persisting.
+    case manual
+    /// Value was supplied by an import/batch pipeline rather than live computation.
+    case `import`
+    /// Value was updated by a re-computation pass (e.g. algorithm update).
+    case recompute
+}
+
 struct WorkbenchMetricOverrideInfo: Codable, Hashable, Sendable {
     var oldValue: Double
     var newValue: Double
     var reason: String
+    /// How this override was produced (Adj-7).
+    var source: OverrideSource
     var at: Date
 }
 

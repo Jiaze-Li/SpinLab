@@ -111,6 +111,23 @@ final class LibraryFeatureStore {
     var libraryMetadataSyncLogMessage: String?
     var libraryState = LibraryState()
 
+    // MARK: - Workbench Results projection (V3.4.2)
+
+    /// Most recent `WorkbenchResultsIndex` for the currently selected Library sample.
+    /// Nil when no sample is selected, the library root is not set, or no results file exists.
+    /// Updated each time the Library sample selection changes.
+    private(set) var workbenchResults: WorkbenchResultsIndex? = nil
+
+    // MARK: - Measurement Data projection (V3.4.3)
+
+    /// Latest `WorkbenchMeasurementDataStore` for the currently selected Library sample.
+    /// Nil when no sample is selected, root is not set, or no measurement data file exists.
+    private(set) var measurementData: WorkbenchMeasurementDataStore? = nil
+
+    /// Condition alias book loaded from `_spinlab/condition_aliases.json` at the library root.
+    /// Nil when the file is absent or fails to load (best-effort, non-fatal per Adj-5).
+    private(set) var conditionAliasBook: ConditionAliasBook? = nil
+
     @ObservationIgnored
     let librarySettingsStore: LibrarySettingsStore
     @ObservationIgnored
@@ -859,18 +876,88 @@ final class LibraryFeatureStore {
             libraryActiveSelectionSource = .drawer
             incrementLibrarySelectionVersion()
             reconcileLibrarySampleEditingSelection()
+            loadWorkbenchResultsForCurrentSelection()
+            loadMeasurementDataForCurrentSelection()
             return .appliedDrawer(prefix: prefix, batchId: batchId, sampleId: librarySelectedSampleId)
 
         case .browser:
             libraryActiveSelectionSource = .browser
             incrementLibrarySelectionVersion()
             reconcileLibrarySampleEditingSelection()
+            loadWorkbenchResultsForCurrentSelection()
+            loadMeasurementDataForCurrentSelection()
             return .appliedBrowser(
                 prefix: librarySelectedPrefix,
                 batchId: librarySelectedBatchId,
                 sampleId: librarySelectedSampleId
             )
         }
+    }
+
+    // MARK: - Workbench Results load (V3.4.2)
+
+    /// Loads the `WorkbenchResultsIndex` for the currently selected sample.
+    /// Called automatically from selection changes; idempotent when called manually.
+    func loadWorkbenchResultsForCurrentSelection() {
+        guard let sampleKey = librarySelectedSampleId,
+              let rootPath = librarySettings.rootPath else {
+            workbenchResults = nil
+            return
+        }
+        let resolver = LibraryPathResolver(libraryRootURL: URL(fileURLWithPath: rootPath))
+        workbenchResults = LoadWorkbenchResultsUseCase(pathResolver: resolver).execute(sampleKey: sampleKey)
+    }
+
+    // MARK: - Measurement Data load (V3.4.3)
+
+    /// Loads the `WorkbenchMeasurementDataStore` and `ConditionAliasBook` for the current selection.
+    /// Called automatically from selection changes; idempotent when called manually.
+    func loadMeasurementDataForCurrentSelection() {
+        guard let sampleKey = librarySelectedSampleId,
+              let rootPath = librarySettings.rootPath else {
+            measurementData = nil
+            conditionAliasBook = nil
+            return
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let resolver = LibraryPathResolver(libraryRootURL: rootURL)
+        measurementData = LoadMeasurementDataUseCase(pathResolver: resolver).execute(sampleKey: sampleKey)
+        // Alias config is library-level; nil on any failure is non-fatal (Adj-5).
+        let aliasConfigURL = rootURL.appending(path: "_spinlab/condition_aliases.json")
+        conditionAliasBook = try? ConditionAliasConfigLoader().load(from: aliasConfigURL)
+    }
+
+    // MARK: - Workbench Results deletion (V3.4.3)
+
+    /// Removes `ref` from the sample's `results_index.json` and deletes the chart PNG from disk.
+    /// Reloads the workbench-results projection when done. Silently ignores I/O failures.
+    func deleteWorkbenchResult(_ ref: WorkbenchResultReference) {
+        guard let sampleKey = librarySelectedSampleId,
+              let rootPath = librarySettings.rootPath else { return }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let resolver = LibraryPathResolver(libraryRootURL: rootURL)
+
+        // 1. Delete the PNG file (best-effort)
+        if let pngURL = try? resolver.absoluteURL(for: ref.chartImagePath) {
+            try? FileManager.default.removeItem(at: pngURL)
+        }
+
+        // 2. Remove the reference from the index and rewrite it atomically
+        let indexRelPath = "samples/\(sampleKey)/_spinlab/results_index.json"
+        if var index = LoadWorkbenchResultsUseCase(pathResolver: resolver).execute(sampleKey: sampleKey) {
+            index.references.removeAll { $0.chartIdentityKey == ref.chartIdentityKey }
+            index.updatedAt = Date()
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            if let data = try? encoder.encode(index),
+               let indexURL = try? resolver.absoluteURL(for: indexRelPath) {
+                try? AtomicFileWriter().write(data, to: indexURL)
+            }
+        }
+
+        // 3. Refresh the in-memory projection
+        loadWorkbenchResultsForCurrentSelection()
     }
 
     func reconcileLibrarySampleEditingSelection() {

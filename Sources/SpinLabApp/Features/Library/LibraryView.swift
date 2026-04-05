@@ -58,6 +58,11 @@ struct LibraryView: View {
             applyRestoredInteractionState()
             rebuildPreviewDerivedData()
             syncSelection()
+            // Load Workbench Results and Measurement Data for the restored/initial selection.
+            // onChange(of: selectedSampleId) does not fire when the value is
+            // already set before onAppear, so we must call these explicitly here.
+            appState.library.loadWorkbenchResultsForCurrentSelection()
+            appState.library.loadMeasurementDataForCurrentSelection()
             scheduleInteractionStatePersist(immediate: true)
         }
         .onChange(of: viewModel.viewState.previewGroupsByPrefix) { _, _ in
@@ -84,6 +89,8 @@ struct LibraryView: View {
             scheduleInteractionStatePersist()
         }
         .onChange(of: selectedSampleId) { _, _ in
+            appState.library.loadWorkbenchResultsForCurrentSelection()
+            appState.library.loadMeasurementDataForCurrentSelection()
             scheduleInteractionStatePersist()
         }
         .onChange(of: interactionStateSnapshot) { _, newValue in
@@ -114,7 +121,8 @@ struct LibraryView: View {
                 viewModel.cancelPendingSelectionChange()
             }
         } message: {
-            Text(viewModel.viewState.pendingSelectionChangePrompt ?? "You have unsaved sample edits.")
+            let msg = viewModel.viewState.pendingSelectionChangePrompt ?? "You have unsaved sample edits."
+            Text(msg)
         }
         .sheet(isPresented: $isShowingSampleChangeLog) {
             sampleChangeLogSheet
@@ -369,6 +377,13 @@ struct LibraryView: View {
                             }
 
                             Divider()
+                            MeasurementDataSectionView(
+                                measurementData: appState.library.measurementData,
+                                conditionAliasBook: appState.library.conditionAliasBook,
+                                availableWidth: sectionWidth
+                            )
+
+                            Divider()
                             DisclosureGroup(isExpanded: $isMetadataSectionExpanded) {
                                 if sample.orderedMetadata.isEmpty {
                                     Text("No metadata")
@@ -392,6 +407,13 @@ struct LibraryView: View {
                                 workflowDisplayNameByID: workflowDisplayNameByID,
                                 workflowConditionOrderByID: workflowConditionOrderByID
                             )
+
+                            Divider()
+                            WorkbenchResultsSectionView(
+                                workbenchResults: appState.library.workbenchResults,
+                                libraryRootURL: appState.library.librarySettings.rootPath.map { URL(fileURLWithPath: $0) },
+                                onDelete: { ref in appState.library.deleteWorkbenchResult(ref) }
+                            )
                         }
                     } else {
                         ContentUnavailableView(
@@ -405,6 +427,10 @@ struct LibraryView: View {
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .padding(.horizontal, 12)
             }
+        }
+        .onChange(of: appState.workbench.aheWorkspace.persistCount) { _, _ in
+            appState.library.loadWorkbenchResultsForCurrentSelection()
+            appState.library.loadMeasurementDataForCurrentSelection()
         }
     }
 
