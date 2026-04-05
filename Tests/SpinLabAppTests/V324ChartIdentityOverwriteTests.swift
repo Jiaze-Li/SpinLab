@@ -138,6 +138,32 @@ struct V324ChartIdentityOverwriteTests {
         #expect(resultA.manifestPath != resultB.manifestPath)
     }
 
+    // MARK: - Same-second, different-identity: no filename collision
+
+    @Test("same-second different-identity writes produce distinct artifact paths")
+    func sameSecondDifferentIdentityDistinctPaths() throws {
+        let fixture = try Fixture324()
+        defer { fixture.cleanup() }
+
+        let sameMoment = Date()
+        // Same title + same timestamp — only difference is sourceRef, so identityKeys differ.
+        let payloadA = makePayload(workflowID: "AHE", sourceRef: "run_a.dat",
+                                   xField: "X", yField: "Y", title: "My Chart")
+        let payloadB = makePayload(workflowID: "AHE", sourceRef: "run_b.dat",
+                                   xField: "X", yField: "Y", title: "My Chart")
+        let useCase = fixture.makeUseCase()
+        let pngData = Data([0x89, 0x50, 0x4E, 0x47])
+
+        let resultA = try useCase.execute(sampleKey: "S1", payload: payloadA,
+                                          imageData: pngData, generatedAt: sameMoment)
+        let resultB = try useCase.execute(sampleKey: "S1", payload: payloadB,
+                                          imageData: pngData, generatedAt: sameMoment)
+
+        #expect(resultA.imagePath != resultB.imagePath)
+        #expect(resultA.manifestPath != resultB.manifestPath)
+        #expect(resultA.chartIdentityKey != resultB.chartIdentityKey)
+    }
+
     // MARK: - Index upsert behavior
 
     @Test("same identity twice results in one index entry")

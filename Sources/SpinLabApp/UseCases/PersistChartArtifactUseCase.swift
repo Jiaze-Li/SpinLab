@@ -50,7 +50,9 @@ struct PersistChartArtifactUseCase {
         let fmt = DateFormatter()
         fmt.dateFormat = "yyyyMMdd_HHmmss"
         let ts = fmt.string(from: generatedAt)
-        let fileName = "\(safeTitle)_\(ts)_\(identityKey.prefix(8))"
+        // Drop the "chart_" type prefix; take 16 hex chars (64-bit entropy) for uniqueness.
+        let hexSuffix = String(identityKey.dropFirst(6).prefix(16))
+        let fileName = "\(safeTitle)_\(ts)_\(hexSuffix)"
 
         let imageRelPath: String
         let manifestRelPath: String
