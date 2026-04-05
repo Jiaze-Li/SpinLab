@@ -244,6 +244,10 @@ private struct AHEPlotControlsPanel: View {
                             Text("Bottom Left").tag("bottom-left")
                         }
                         .labelsHidden()
+                        .onChange(of: ahe.plotLegendAnchor) { _, _ in
+                            ahe.plotLegendPoint = nil
+                            ahe.renderAHEPlot(persistArtifact: false)
+                        }
                     }
                 }
             }

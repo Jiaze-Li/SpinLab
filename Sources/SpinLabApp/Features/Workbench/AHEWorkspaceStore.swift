@@ -132,6 +132,8 @@ final class AHEWorkspaceStore {
                         axisMappingOverride: WorkbenchAxisMapping(xField: xField, yField: yField),
                         styleParams: style
                     )
+                    // Preserve data-column axisMapping for manifest; label overrides are display-only.
+                    let manifestAxisMapping = payload.axisMapping
                     // Apply display-only axis label overrides to payload before layout computation
                     if !xLabelOverride.isEmpty { payload.axisMapping.xField = xLabelOverride }
                     if !yLabelOverride.isEmpty { payload.axisMapping.yField = yLabelOverride }
@@ -151,8 +153,12 @@ final class AHEWorkspaceStore {
                     let png = try WorkbenchChartRenderer().renderPNG(payload: payload, options: rendererOptions)
                     let trace: WorkbenchRunTraceProjection?
                     if persistArtifact {
+                        // Restore data-column axisMapping so the manifest records the actual
+                        // data columns used, not the display-only label overrides.
+                        var manifestPayload = payload
+                        manifestPayload.axisMapping = manifestAxisMapping
                         trace = AHEWorkspaceStore.attemptPersistAndTrace(
-                            png: png, payload: payload,
+                            png: png, payload: manifestPayload,
                             libraryRootPath: libraryRootPath, sampleKeys: allSampleKeys
                         )
                     } else {

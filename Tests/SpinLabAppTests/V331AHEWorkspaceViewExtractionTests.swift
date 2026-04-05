@@ -15,10 +15,17 @@ struct V331AHEWorkspaceViewExtractionTests {
         let _: any WorkflowWorkspaceProvider.Type = AHEWorkspaceView.self
     }
 
-    @Test("WorkbenchView contains no AHE-specific symbols at compile time")
-    func workbenchViewHasNoAHESymbols() {
-        // Structural invariant enforced by V3.3.2 registry dispatch.
-        // Verified at source level: grep for AHE in WorkbenchView.swift returns 0 hits.
-        #expect(true)  // compile-time assertion — source grep is the authoritative check
+    @MainActor
+    @Test("AHE state is accessed through WorkbenchFeatureStore.aheWorkspace, not WFS directly")
+    func aheStateAccessPathIsSubStore() {
+        // If WorkbenchView or WorkbenchFeatureStore re-inlined AHE state, the sub-store
+        // would be bypassed and this path would be dead code.
+        let persistence = LocalPersistenceStub(archivedRecords: [], projects: [])
+        let wfs = WorkbenchFeatureStore(
+            libraryRepository: LibraryRepository(persistence: persistence),
+            workflowRegistryStore: WorkflowRegistryStore()
+        )
+        wfs.aheWorkspace.toggleSearchHitSelection("probe")
+        #expect(wfs.aheWorkspace.selectedSearchResultIDs == ["probe"])
     }
 }

@@ -13,11 +13,26 @@ struct V332WorkflowWorkspaceDispatchTests {
         #expect(WorkflowWorkspaceRegistry.self is WorkflowWorkspaceRegistry.Type)
     }
 
-    @Test("WorkbenchFeatureStore has no AHE-specific state properties at compile time")
-    func workbenchFeatureStoreHasNoAHEState() {
-        // Structural invariant: verified at source level by grep (zero hits).
-        // If AHE state were re-added to WorkbenchFeatureStore this test suite would
-        // need to be updated as part of the regression investigation.
-        #expect(true)
+    @MainActor
+    @Test("clearWorkflowMeasurementSearch propagates cache-clear to aheWorkspace")
+    func clearSearchPropagatestoAHESubStore() {
+        // Behavioural invariant: if WFS stopped routing through aheWorkspace this would fail.
+        let persistence = LocalPersistenceStub(archivedRecords: [], projects: [])
+        let wfs = WorkbenchFeatureStore(
+            libraryRepository: LibraryRepository(persistence: persistence),
+            workflowRegistryStore: WorkflowRegistryStore()
+        )
+        wfs.aheWorkspace.cachedSearchResults = [
+            WorkflowMeasurementSearchHit(
+                sidecarPath: "/s/sc.json", measurementFilePath: "/s/m.dat",
+                sourceFilePath: "/s/m.dat", workflowID: "A",
+                workflowDisplayName: "AHE", workflowCanonicalID: "A",
+                batchID: "B1", sampleKey: "s1", sampleSubstrate: "",
+                conditions: [:], channels: [], appliedAt: .distantPast
+            )
+        ]
+        #expect(wfs.aheWorkspace.cachedSearchResults.count == 1)
+        wfs.clearWorkflowMeasurementSearch()
+        #expect(wfs.aheWorkspace.cachedSearchResults.isEmpty)
     }
 }
