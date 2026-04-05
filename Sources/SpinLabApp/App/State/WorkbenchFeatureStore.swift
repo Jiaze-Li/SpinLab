@@ -82,6 +82,14 @@ final class WorkbenchFeatureStore {
     var showPlotGrid: Bool = false
     var plotLegendAnchor: String = ""   // "" = default (top-right)
     var plotLegendPoint: CGPoint? = nil // normalized (0-1) in plotRect; overrides anchor when set
+    /// Keyed by the series' original label (pre-override). Stable across sort/filter changes.
+    var plotSeriesLabelOverrides: [String: String] = [:]
+    /// Display-only label override for the X axis (does not affect which data column is used).
+    var plotXLabelOverride: String = ""
+    /// Display-only label override for the Y axis (does not affect which data column is used).
+    var plotYLabelOverride: String = ""
+    /// Layout computed from the most recent render — nil when no plot is displayed.
+    private(set) var currentPlotLayout: WorkbenchPlotLayout? = nil
 
     @ObservationIgnored
     private var archivedRecordsProjectionTask: Task<Void, Never>?
@@ -698,6 +706,9 @@ final class WorkbenchFeatureStore {
         let grid = showPlotGrid
         let legendAnchor = plotLegendAnchor
         let legendPoint = plotLegendPoint
+        let labelOverrides = plotSeriesLabelOverrides
+        let xLabelOverride = plotXLabelOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+        let yLabelOverride = plotYLabelOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         let libraryRootPath = lastLibraryRootPath
         let savedTrace = currentRunTrace  // preserved when not persisting
         let firstSampleKey = selections.first?.sampleKey ?? "unknown"
@@ -716,7 +727,7 @@ final class WorkbenchFeatureStore {
             guard let self else { return }
             do {
                 let seriesCount = selections.count
-                let (imageData, candidates, trace) = try await Task.detached(priority: .userInitiated) {
+                let (imageData, plotLayout, candidates, trace) = try await Task.detached(priority: .userInitiated) {
                     let ingestion = try IngestAHESelectionsUseCase().execute(
                         selections: selections,
                         xColumnOverride: xOverride.isEmpty ? nil : xOverride,
@@ -733,13 +744,29 @@ final class WorkbenchFeatureStore {
                     } else if !legendAnchor.isEmpty {
                         style["legendAnchor"] = legendAnchor
                     }
-                    let payload = BuildAHEPlotPayloadUseCase().execute(
+                    var payload = BuildAHEPlotPayloadUseCase().execute(
                         ingestion: ingestion,
                         title: resolvedTitle,
                         axisMappingOverride: WorkbenchAxisMapping(xField: xField, yField: yField),
                         styleParams: style
                     )
-                    let png = try WorkbenchChartRenderer().renderPNG(payload: payload)
+                    // Apply display-only axis label overrides to payload before layout computation
+                    if !xLabelOverride.isEmpty { payload.axisMapping.xField = xLabelOverride }
+                    if !yLabelOverride.isEmpty { payload.axisMapping.yField = yLabelOverride }
+                    // Compute layout BEFORE series label overrides so legendRow.originalLabel
+                    // is the stable pre-override key used by plotSeriesLabelOverrides.
+                    let rendererOptions = WorkbenchChartRenderer.Options()
+                    let plotLayout = WorkbenchPlotLayout.compute(
+                        options: rendererOptions, payload: payload, legendPoint: legendPoint
+                    )
+                    // Apply series label overrides (keyed by original label, stable across re-renders)
+                    if !labelOverrides.isEmpty {
+                        payload.series = payload.series.map { s in
+                            guard let custom = labelOverrides[s.label] else { return s }
+                            var copy = s; copy.label = custom; return copy
+                        }
+                    }
+                    let png = try WorkbenchChartRenderer().renderPNG(payload: payload, options: rendererOptions)
                     let trace: WorkbenchRunTraceProjection?
                     if persistArtifact {
                         trace = WorkbenchFeatureStore.attemptPersistAndTrace(
@@ -749,10 +776,11 @@ final class WorkbenchFeatureStore {
                     } else {
                         trace = savedTrace  // legend reposition: preserve existing trace
                     }
-                    return (png, ingestion.candidateAxisFields, trace)
+                    return (png, plotLayout, ingestion.candidateAxisFields, trace)
                 }.value
                 guard !Task.isCancelled else { return }
                 self.currentPlotImageData = imageData
+                self.currentPlotLayout = plotLayout
                 self.currentCandidateAxisFields = candidates
                 self.currentRunTrace = trace
                 self.isPlotRendering = false
@@ -786,10 +814,40 @@ final class WorkbenchFeatureStore {
         )
     }
 
+    /// Overrides the display label for a series identified by its original label.
+    /// Pass an empty or whitespace-only string to remove the override.
+    func updateSeriesLabel(originalLabel: String, newLabel: String) {
+        let trimmed = newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || trimmed == originalLabel {
+            plotSeriesLabelOverrides.removeValue(forKey: originalLabel)
+        } else {
+            plotSeriesLabelOverrides[originalLabel] = trimmed
+        }
+        rerenderCurrentPlot()
+    }
+
     /// Updates the legend position and re-renders the current workflow's plot.
     /// `point` is normalized: (0,0) = bottom-left, (1,1) = top-right of the plot area.
     func updateLegendPoint(_ point: CGPoint) {
         plotLegendPoint = point
+        rerenderCurrentPlot()
+    }
+
+    /// Overrides the chart title displayed on the chart. Pass empty string to revert to default.
+    func updatePlotTitle(_ title: String) {
+        plotTitleOverride = title
+        rerenderCurrentPlot()
+    }
+
+    /// Overrides the X-axis display label without changing the data column.
+    func updateXAxisLabel(_ label: String) {
+        plotXLabelOverride = label
+        rerenderCurrentPlot()
+    }
+
+    /// Overrides the Y-axis display label without changing the data column.
+    func updateYAxisLabel(_ label: String) {
+        plotYLabelOverride = label
         rerenderCurrentPlot()
     }
 
@@ -817,6 +875,10 @@ final class WorkbenchFeatureStore {
         showPlotGrid = false
         plotLegendAnchor = ""
         plotLegendPoint = nil
+        plotSeriesLabelOverrides = [:]
+        plotXLabelOverride = ""
+        plotYLabelOverride = ""
+        currentPlotLayout = nil
     }
 
     func loadPersistedArtifact(sampleKey: String) {

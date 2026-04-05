@@ -71,7 +71,15 @@ struct AHEWorkspaceView: View, WorkflowWorkspaceProvider {
 
                 WorkbenchPlotCanvas(
                     imageData: appState.workbench.currentPlotImageData,
-                    onLegendDrag: { pt in appState.workbench.updateLegendPoint(pt) }
+                    layout: appState.workbench.currentPlotLayout,
+                    seriesLabelOverrides: appState.workbench.plotSeriesLabelOverrides,
+                    onLegendDrag: { pt in appState.workbench.updateLegendPoint(pt) },
+                    onEditTitle: { title in appState.workbench.updatePlotTitle(title) },
+                    onEditXLabel: { label in appState.workbench.updateXAxisLabel(label) },
+                    onEditYLabel: { label in appState.workbench.updateYAxisLabel(label) },
+                    onEditLegendLabel: { orig, label in
+                        appState.workbench.updateSeriesLabel(originalLabel: orig, newLabel: label)
+                    }
                 )
 
                 WorkbenchTracePanel(trace: appState.workbench.currentRunTrace)
