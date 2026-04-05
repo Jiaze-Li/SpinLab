@@ -25,7 +25,6 @@ struct WorkbenchPlotLayout: Sendable {
         let originalLabel: String
         let cgRowY:        CGFloat   // CG y-center of this row
         let cgOriginX:     CGFloat   // X start of the color swatch line
-        let isLeftAligned: Bool      // true → label text goes right; false → right-aligned text
 
         // MARK: Renderer drawing helpers
 
@@ -177,8 +176,7 @@ struct WorkbenchPlotLayout: Sendable {
             return LegendRow(
                 originalLabel: s.label,
                 cgRowY:        cgRowY,
-                cgOriginX:     cgOriginX,
-                isLeftAligned: isLeftAligned
+                cgOriginX:     cgOriginX
             )
         }
     }

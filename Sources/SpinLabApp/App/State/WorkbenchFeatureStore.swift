@@ -711,7 +711,6 @@ final class WorkbenchFeatureStore {
         let yLabelOverride = plotYLabelOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         let libraryRootPath = lastLibraryRootPath
         let savedTrace = currentRunTrace  // preserved when not persisting
-        let firstSampleKey = selections.first?.sampleKey ?? "unknown"
         let allSampleKeys: [String] = {
             var seen = Set<String>()
             return selections.compactMap { seen.insert($0.sampleKey).inserted ? $0.sampleKey : nil }
