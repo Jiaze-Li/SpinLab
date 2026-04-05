@@ -28,10 +28,6 @@ struct IngestThreeOmegaSelectionsUseCase {
             )
         }
 
-        let parseImpl: (URL) throws -> ThreeOmegaLVMFile = parseFile ?? { [parser] url in
-            try parser.parse(fileURL: url)
-        }
-
         var warnings: [String] = []
         var fieldSweeps: [ThreeOmegaFieldSweepResult] = []
         var rtFiles: [ThreeOmegaLVMFile] = []   // collect all RT files; pick best at end
@@ -42,11 +38,14 @@ struct IngestThreeOmegaSelectionsUseCase {
         var seen = Set<String>()
 
         for hit in hits {
-            guard seen.insert(hit.sourceFilePath).inserted else { continue }
-            let url = URL(fileURLWithPath: hit.sourceFilePath)
+            guard seen.insert(hit.measurementFilePath).inserted else { continue }
+            let url = URL(fileURLWithPath: hit.measurementFilePath)
 
             do {
-                let file = try parseImpl(url)
+                let tempOverride = parseFile == nil
+                    ? _parseConditionTemperatureK(hit.conditions["temperature"])
+                    : nil
+                let file = try (parseFile.map { try $0(url) } ?? parser.parse(fileURL: url, temperatureOverride: tempOverride))
                 if angleLabel.isEmpty { angleLabel = file.angleLabel }
 
                 switch file.fileKind {
@@ -85,7 +84,7 @@ struct IngestThreeOmegaSelectionsUseCase {
         }()
 
         if rtResult == nil {
-            warnings.append("No RT files found among selections — Rxx(T) and Fig 5b scaling unavailable.")
+            warnings.append("No RT files found among selections — Rxx(T) and Scaling Law unavailable.")
         }
 
         return ThreeOmegaIngestionResult(
@@ -95,5 +94,17 @@ struct IngestThreeOmegaSelectionsUseCase {
             iRmsValues: iRmsValues,
             warnings: warnings
         )
+    }
+
+    // MARK: - Private
+
+    /// Parses temperature in Kelvin from a sidecar condition string, e.g. "20K" → 20.0.
+    private func _parseConditionTemperatureK(_ raw: String?) -> Double? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespaces)
+        let digits = trimmed.hasSuffix("K") || trimmed.hasSuffix("k")
+            ? String(trimmed.dropLast())
+            : trimmed
+        return Double(digits.trimmingCharacters(in: .whitespaces))
     }
 }

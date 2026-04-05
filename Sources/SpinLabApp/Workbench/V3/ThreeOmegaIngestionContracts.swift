@@ -155,7 +155,7 @@ enum ThreeOmegaWorkbenchTab: String, CaseIterable, Identifiable {
     case raheVsT          = "RAHE vs T"
     case hcVsT            = "Hc vs T"
     case rtCurve          = "Rxx vs T"
-    case scaling          = "Fig 5b"
+    case scaling          = "Scaling Law"
 
     var id: String { rawValue }
 }

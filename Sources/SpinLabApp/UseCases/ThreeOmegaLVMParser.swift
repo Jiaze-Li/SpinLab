@@ -55,7 +55,7 @@ struct ThreeOmegaLVMParser {
     /// Tableau marker string used in LVM headers.
     var marker: String = "Tableau:"
 
-    func parse(fileURL: URL) throws -> ThreeOmegaLVMFile {
+    func parse(fileURL: URL, temperatureOverride: Double? = nil) throws -> ThreeOmegaLVMFile {
         let stem = fileURL.deletingPathExtension().lastPathComponent
 
         // Classify file kind
@@ -69,13 +69,17 @@ struct ThreeOmegaLVMParser {
         // Parse angle label from parent folder name
         let angleLabel = _angleLabel(from: fileURL)
 
-        // Parse temperature from filename
+        // Resolve temperature: prefer override (from sidecar conditions), fall back to filename.
         let temperatureK: Double
         if kind == .fieldSweep {
-            guard let t = _parseTemperature(stem: stem) else {
-                throw ParseError.temperatureNotFound(stem)
+            if let t = temperatureOverride {
+                temperatureK = t
+            } else {
+                guard let t = _parseTemperature(stem: stem) else {
+                    throw ParseError.temperatureNotFound(stem)
+                }
+                temperatureK = t
             }
-            temperatureK = t
         } else {
             temperatureK = .nan  // RT files have no single temperature
         }

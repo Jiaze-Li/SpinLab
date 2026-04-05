@@ -33,6 +33,9 @@ struct WorkbenchPlotCanvas: View {
     @State private var canvasSize: CGSize = .zero
     /// Screen-space point of an in-progress drag (nil when not dragging).
     @State private var dragPreviewPt: CGPoint? = nil
+    /// Normalized offset (plot-space, Y-up) from legend origin to cursor at drag start.
+    /// Captured on the first onChanged frame; nil = not dragging.
+    @State private var dragGrabOffsetNorm: CGSize? = nil
     /// Which chart element is currently being edited.
     @State private var editingElement: EditTarget? = nil
     /// Live text for the active edit field.
@@ -81,21 +84,38 @@ struct WorkbenchPlotCanvas: View {
                         .onChanged { value in
                             guard onLegendDrag != nil else { return }
                             let fitted = fittedRect(in: canvasSize)
-                            if let norm = plotNormalized(location: value.location, fittedRect: fitted) {
-                                // Round-trip through the same transform the renderer uses so the
-                                // preview box is anchored at exactly the rendered legend origin.
-                                dragPreviewPt = legendScreenOrigin(normalized: norm, fittedRect: fitted)
-                            } else {
-                                dragPreviewPt = nil
+                            guard let cursorNorm = plotNormalized(location: value.location, fittedRect: fitted) else {
+                                // Cursor left plot area — keep last preview position.
+                                return
                             }
+                            // Capture grab offset once on the first valid drag frame.
+                            if dragGrabOffsetNorm == nil {
+                                let origin = currentLegendOriginNorm()
+                                dragGrabOffsetNorm = CGSize(
+                                    width:  cursorNorm.x - origin.x,
+                                    height: cursorNorm.y - origin.y
+                                )
+                            }
+                            let grab = dragGrabOffsetNorm ?? .zero
+                            let adjusted = CGPoint(
+                                x: min(max(cursorNorm.x - grab.width,  0), 1),
+                                y: min(max(cursorNorm.y - grab.height, 0), 1)
+                            )
+                            dragPreviewPt = legendScreenOrigin(normalized: adjusted, fittedRect: fitted)
                         }
                         .onEnded { value in
+                            let grab = dragGrabOffsetNorm ?? .zero
                             dragPreviewPt = nil
+                            dragGrabOffsetNorm = nil
                             guard let callback = onLegendDrag else { return }
                             let fitted = fittedRect(in: canvasSize)
-                            guard let pt = plotNormalized(location: value.location,
-                                                          fittedRect: fitted) else { return }
-                            callback(pt)
+                            guard let cursorNorm = plotNormalized(location: value.location,
+                                                                   fittedRect: fitted) else { return }
+                            let adjusted = CGPoint(
+                                x: min(max(cursorNorm.x - grab.width,  0), 1),
+                                y: min(max(cursorNorm.y - grab.height, 0), 1)
+                            )
+                            callback(adjusted)
                         }
                 )
         } else {
@@ -113,8 +133,11 @@ struct WorkbenchPlotCanvas: View {
     @ViewBuilder
     private var legendDragPreview: some View {
         if let pt = dragPreviewPt {
-            let boxW: CGFloat = 96
-            let boxH: CGFloat = 28
+            let rowCount = CGFloat(layout?.legendRows.count ?? 1)
+            let boxW = WorkbenchPlotLayout.legendLineLen
+                     + WorkbenchPlotLayout.legendGap
+                     + WorkbenchPlotLayout.legendEstLabelW + 12
+            let boxH = rowCount * WorkbenchPlotLayout.legendRowH + 12
             Rectangle()
                 .strokeBorder(
                     Color.accentColor.opacity(0.85),
@@ -123,6 +146,26 @@ struct WorkbenchPlotCanvas: View {
                 .frame(width: boxW, height: boxH)
                 .position(x: pt.x + boxW / 2, y: pt.y + boxH / 2)
         }
+    }
+
+    /// Returns the current legend origin as a normalized plot point (x,y ∈ [0,1], Y-up).
+    /// Derived from legendRows[0] by reversing the renderer's free-position math.
+    /// Falls back to (0.5, 0.5) when layout is unavailable.
+    private func currentLegendOriginNorm() -> CGPoint {
+        guard let rows = layout?.legendRows, !rows.isEmpty else {
+            return CGPoint(x: 0.5, y: 0.5)
+        }
+        let opts = WorkbenchChartRenderer.Options()
+        let plotMinX = opts.paddingLeft
+        let plotMinY = opts.paddingBottom   // CG Y-up: plot bottom edge
+        let plotW = CGFloat(opts.width)  - opts.paddingLeft - opts.paddingRight
+        let plotH = CGFloat(opts.height) - opts.paddingTop  - opts.paddingBottom
+        let row0 = rows[0]
+        let nx = (row0.cgOriginX - plotMinX) / plotW
+        // Reverse: originY = cgRowY + legendRowH * 0.4  (from computeLegendRows, i=0)
+        let cgOriginY = row0.cgRowY + WorkbenchPlotLayout.legendRowH * 0.4
+        let ny = (cgOriginY - plotMinY) / plotH
+        return CGPoint(x: min(max(nx, 0), 1), y: min(max(ny, 0), 1))
     }
 
     // MARK: - Inline edit panel

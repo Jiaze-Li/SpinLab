@@ -1,5 +1,5 @@
 enum AppVersion {
     // Keep this in sync with active Library roadmap phase.
-    static let library = "v3.5.0"
+    static let library = "v4.1.3"
     static let current = library
 }
