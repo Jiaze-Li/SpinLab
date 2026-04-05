@@ -9,7 +9,7 @@ Items are ordered by impact, not urgency. See `TECH_DEBT_EXECUTION_LOG.md` for c
 
 ## High Impact
 
-### Rule kind type ownership cleanup
+### ~~Rule kind type ownership cleanup~~ ✅ Done 2026-04-05 (Round E)
 **Code:**
 - `Sources/SpinLabApp/Import/Rules/RuleCanonicalizer.swift` — `migrateUserRuleJSONToCanonical`
 - `Sources/SpinLabApp/Import/Rules/ConditionRulesHandbookStore.swift` — `RuleEntryKind`
@@ -33,7 +33,7 @@ same lower-level type.
 
 ---
 
-### ParsedFilenameHints unification
+### ~~ParsedFilenameHints unification~~ ✅ Done 2026-04-05 (Round E)
 **Code:** `Sources/SpinLabApp/Domain/Models.swift` — `ParsedFilenameHints`
 **Also see:** `Sources/SpinLabApp/Import/Rules/ConditionFieldCatalog.swift`
 
@@ -132,5 +132,7 @@ Continue splitting `SpinLabAppState` by extracting feature-owned mutable state a
 focused `@Observable` stores.
 
 ### try? audit in LibraryStore
-Audit high-impact `try?` usage in `LibraryStore` and convert selected write/read paths to explicit
-error propagation with structured error types.
+~~Audit high-impact `try?` usage in `LibraryStore` and convert selected write/read paths to explicit
+error propagation with structured error types.~~
+
+✅ Partial done 2026-04-05 (Round E): `writeJSON` now logs encode/write failures to stderr. Remaining `try?` on `createDirectory` and read paths are lower risk; full audit deferred to future round.

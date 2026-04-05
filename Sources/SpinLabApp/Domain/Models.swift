@@ -123,12 +123,6 @@ extension SpinLabDomain {
         var unresolvedChannels: [String] = []
         var conflicts: [String] = []
 
-        @available(*, deprecated, message: "Use planningStatus. Final business state should come from PendingRoutingSnapshot.verdict.")
-        var status: RouteStatus {
-            get { planningStatus }
-            set { planningStatus = newValue }
-        }
-
         enum CodingKeys: String, CodingKey {
             case planningStatus
             case status
@@ -278,24 +272,23 @@ extension SpinLabDomain {
         var defaultSampleKey: String?
         var folderDerivedSampleKeys: [String] = []
         var measurementName: String?
-        var deviceName: String?
         var workflowID: String?
         var sampleIDs: [String] = []
         var channelHints: [ParsedChannelHint] = []
         var measurementTags: [String] = []
         var substrateTags: [String] = []
-        // TODO(tech-debt): temperature/current/field/deviceName are named fields while custom conditions
-        // use extraConditionValues. ConditionFieldCatalog.conditionValues() merges them at the boundary,
-        // but the split means adding a new "built-in" condition requires changes in 4 places vs 1 for custom.
-        // Target state: collapse into conditionValues: [String: String] only; named fields become computed
-        // accessors. Track in docs/plans/TECH_DEBT_BACKLOG.md § ParsedFilenameHints unification.
-        var temperature: String?
         var growthTemperature: String?
-        var current: String?
-        var field: String?
-        var extraConditionValues: [String: String] = [:]
+        /// All condition values keyed by definition ID (e.g. "temperature", "current", "field", "device").
+        /// Custom conditions are stored here alongside built-in ones.
+        var conditionValues: [String: String] = [:]
         var rotationHint: String?
         var warnings: [String] = []
+
+        // Named accessors for built-in condition fields (callsite convenience).
+        var temperature: String? { conditionValues[ConditionFieldCatalog.temperatureID] }
+        var current: String?     { conditionValues[ConditionFieldCatalog.currentID] }
+        var field: String?       { conditionValues[ConditionFieldCatalog.fieldID] }
+        var deviceName: String?  { conditionValues[ConditionFieldCatalog.deviceID] }
 
         init(
             batchName: String? = nil,
@@ -303,17 +296,13 @@ extension SpinLabDomain {
             defaultSampleKey: String? = nil,
             folderDerivedSampleKeys: [String] = [],
             measurementName: String? = nil,
-            deviceName: String? = nil,
             workflowID: String? = nil,
             sampleIDs: [String] = [],
             channelHints: [ParsedChannelHint] = [],
             measurementTags: [String] = [],
             substrateTags: [String] = [],
-            temperature: String? = nil,
             growthTemperature: String? = nil,
-            current: String? = nil,
-            field: String? = nil,
-            extraConditionValues: [String: String] = [:],
+            conditionValues: [String: String] = [:],
             rotationHint: String? = nil,
             warnings: [String] = []
         ) {
@@ -322,17 +311,13 @@ extension SpinLabDomain {
             self.defaultSampleKey = defaultSampleKey
             self.folderDerivedSampleKeys = folderDerivedSampleKeys
             self.measurementName = measurementName
-            self.deviceName = deviceName
             self.workflowID = workflowID
             self.sampleIDs = sampleIDs
             self.channelHints = channelHints
             self.measurementTags = measurementTags
             self.substrateTags = substrateTags
-            self.temperature = temperature
             self.growthTemperature = growthTemperature
-            self.current = current
-            self.field = field
-            self.extraConditionValues = extraConditionValues
+            self.conditionValues = conditionValues
             self.rotationHint = rotationHint
             self.warnings = warnings
         }
@@ -343,15 +328,17 @@ extension SpinLabDomain {
             case defaultSampleKey
             case folderDerivedSampleKeys
             case measurementName
-            case deviceName
             case workflowID
             case workflowName
             case sampleIDs
             case channelHints
             case measurementTags
             case substrateTags
-            case temperature
             case growthTemperature
+            case conditionValues
+            // Legacy decode keys (pre-v3.5 sidecar format)
+            case deviceName
+            case temperature
             case current
             case field
             case extraConditionValues
@@ -366,20 +353,38 @@ extension SpinLabDomain {
             defaultSampleKey = try container.decodeIfPresent(String.self, forKey: .defaultSampleKey)
             folderDerivedSampleKeys = try container.decodeIfPresent([String].self, forKey: .folderDerivedSampleKeys) ?? []
             measurementName = try container.decodeIfPresent(String.self, forKey: .measurementName)
-            deviceName = try container.decodeIfPresent(String.self, forKey: .deviceName)
             workflowID = try container.decodeIfPresent(String.self, forKey: .workflowID)
                 ?? container.decodeIfPresent(String.self, forKey: .workflowName)
             sampleIDs = try container.decodeIfPresent([String].self, forKey: .sampleIDs) ?? []
             channelHints = try container.decodeIfPresent([ParsedChannelHint].self, forKey: .channelHints) ?? []
             measurementTags = try container.decodeIfPresent([String].self, forKey: .measurementTags) ?? []
             substrateTags = try container.decodeIfPresent([String].self, forKey: .substrateTags) ?? []
-            temperature = try container.decodeIfPresent(String.self, forKey: .temperature)
             growthTemperature = try container.decodeIfPresent(String.self, forKey: .growthTemperature)
-            current = try container.decodeIfPresent(String.self, forKey: .current)
-            field = try container.decodeIfPresent(String.self, forKey: .field)
-            extraConditionValues = try container.decodeIfPresent([String: String].self, forKey: .extraConditionValues) ?? [:]
             rotationHint = try container.decodeIfPresent(String.self, forKey: .rotationHint)
             warnings = try container.decodeIfPresent([String].self, forKey: .warnings) ?? []
+            // Decode conditionValues: new format first; fall back to migrating legacy named fields.
+            if let cv = try container.decodeIfPresent([String: String].self, forKey: .conditionValues) {
+                conditionValues = cv
+            } else {
+                var cv: [String: String] = [:]
+                if let v = try container.decodeIfPresent(String.self, forKey: .temperature), !v.isEmpty {
+                    cv[ConditionFieldCatalog.temperatureID] = v
+                }
+                if let v = try container.decodeIfPresent(String.self, forKey: .current), !v.isEmpty {
+                    cv[ConditionFieldCatalog.currentID] = v
+                }
+                if let v = try container.decodeIfPresent(String.self, forKey: .field), !v.isEmpty {
+                    cv[ConditionFieldCatalog.fieldID] = v
+                }
+                if let v = try container.decodeIfPresent(String.self, forKey: .deviceName), !v.isEmpty {
+                    cv[ConditionFieldCatalog.deviceID] = v
+                }
+                let extra = try container.decodeIfPresent([String: String].self, forKey: .extraConditionValues) ?? [:]
+                for (k, v) in extra where !k.isEmpty && !v.isEmpty {
+                    if cv[k] == nil { cv[k] = v }
+                }
+                conditionValues = cv
+            }
         }
 
         func encode(to encoder: any Encoder) throws {
@@ -389,17 +394,13 @@ extension SpinLabDomain {
             try container.encodeIfPresent(defaultSampleKey, forKey: .defaultSampleKey)
             try container.encode(folderDerivedSampleKeys, forKey: .folderDerivedSampleKeys)
             try container.encodeIfPresent(measurementName, forKey: .measurementName)
-            try container.encodeIfPresent(deviceName, forKey: .deviceName)
             try container.encodeIfPresent(workflowID, forKey: .workflowID)
             try container.encode(sampleIDs, forKey: .sampleIDs)
             try container.encode(channelHints, forKey: .channelHints)
             try container.encode(measurementTags, forKey: .measurementTags)
             try container.encode(substrateTags, forKey: .substrateTags)
-            try container.encodeIfPresent(temperature, forKey: .temperature)
             try container.encodeIfPresent(growthTemperature, forKey: .growthTemperature)
-            try container.encodeIfPresent(current, forKey: .current)
-            try container.encodeIfPresent(field, forKey: .field)
-            try container.encode(extraConditionValues, forKey: .extraConditionValues)
+            try container.encode(conditionValues, forKey: .conditionValues)
             try container.encodeIfPresent(rotationHint, forKey: .rotationHint)
             try container.encode(warnings, forKey: .warnings)
         }

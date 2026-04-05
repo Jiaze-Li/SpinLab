@@ -100,8 +100,8 @@ struct V250SidecarTests {
 
         var pending = try fixture.makePending(fileName: "PN86_AHE_170K_8T.dat", contents: "parsed-fallback")
         pending.parsedHints.workflowID = "AHE"
-        pending.parsedHints.temperature = "170K"
-        pending.parsedHints.field = "8T"
+        pending.parsedHints.conditionValues["temperature"] = "170K"
+        pending.parsedHints.conditionValues["field"] = "8T"
         let draft = PendingImportConfirmationDraft(
             batchName: "",
             sampleName: "PN86",

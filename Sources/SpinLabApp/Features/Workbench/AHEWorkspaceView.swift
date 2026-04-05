@@ -143,6 +143,92 @@ private struct AHESearchSection: View {
                     ProgressView().controlSize(.small)
                 }
             }
+
+            AHEMetricOverridePanel()
+                .environment(appState)
+        }
+    }
+}
+
+// MARK: - Pre-persist Metric Override Panel
+
+/// Lets the user enter an optional manual correction for the extracted Hc value
+/// before clicking "Plot" (which triggers persist). If left empty, no override is applied.
+private struct AHEMetricOverridePanel: View {
+    @Environment(SpinLabAppState.self) private var appState
+    @State private var valueText: String = ""
+    @State private var reasonText: String = ""
+
+    var body: some View {
+        @Bindable var ahe = appState.workbench.aheWorkspace
+
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text("Hc Override (optional)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let hc = ahe.lastExtractedHc {
+                    Text("Auto-detected: \(String(format: "%g", hc)) T")
+                        .font(.caption)
+                        .foregroundStyle(.primary)
+                }
+            }
+
+            HStack(spacing: 6) {
+                TextField("Corrected Hc (T)", text: $valueText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 120)
+                    .onChange(of: valueText) { _, new in updateCandidate(value: new, reason: reasonText) }
+
+                TextField("Reason", text: $reasonText)
+                    .textFieldStyle(.roundedBorder)
+                    .onChange(of: reasonText) { _, new in updateCandidate(value: valueText, reason: new) }
+
+                if ahe.pendingMetricOverride != nil {
+                    Button("Clear") {
+                        valueText = ""
+                        reasonText = ""
+                        ahe.pendingMetricOverride = nil
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+
+            if ahe.pendingMetricOverride != nil {
+                Text("Override will be applied on next Plot.")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+        }
+        .onAppear {
+            // Sync text fields if override was set programmatically
+            if let o = appState.workbench.aheWorkspace.pendingMetricOverride {
+                valueText = String(o.proposedValue)
+                reasonText = o.reason
+            }
+        }
+        .onChange(of: appState.workbench.aheWorkspace.pendingMetricOverride) { _, new in
+            if new == nil { valueText = ""; reasonText = "" }
+        }
+    }
+
+    private func updateCandidate(value: String, reason: String) {
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedReason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedValue.isEmpty {
+            appState.workbench.aheWorkspace.pendingMetricOverride = nil
+        } else if let parsed = Double(trimmedValue) {
+            let effectiveReason = trimmedReason.isEmpty ? "visual check" : trimmedReason
+            appState.workbench.aheWorkspace.pendingMetricOverride = WorkbenchMetricOverrideCandidate(
+                proposedValue: parsed,
+                reason: effectiveReason,
+                source: .manual
+            )
+        } else {
+            // Non-empty but unparseable (e.g. mid-edit "0." or "abc"): clear any prior override
+            // so a stale valid value is never accidentally committed under invalid-looking input.
+            appState.workbench.aheWorkspace.pendingMetricOverride = nil
         }
     }
 }

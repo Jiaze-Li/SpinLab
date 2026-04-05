@@ -27,7 +27,9 @@ struct LoadLatestChartArtifactUseCase {
         }
 
         // Most recent by generatedAt
-        let latest = index.references.max(by: { $0.generatedAt < $1.generatedAt })!
+        guard let latest = index.references.max(by: { $0.generatedAt < $1.generatedAt }) else {
+            return nil
+        }
 
         guard let imageURL = try? pathResolver.absoluteURL(for: latest.chartImagePath),
               let imageData = try? Data(contentsOf: imageURL),

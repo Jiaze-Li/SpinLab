@@ -378,7 +378,7 @@ struct V210ImportAndParseTests {
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.extraConditionValues["abc"] == "12abc")
+        #expect(parsed.conditionValues["abc"] == "12abc")
     }
 
     @Test("parser recognizes dynamic token-map conditions without schema changes")
@@ -404,7 +404,7 @@ struct V210ImportAndParseTests {
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.extraConditionValues["wafer_type"] == "wafer")
+        #expect(parsed.conditionValues["wafer_type"] == "wafer")
     }
 
     @Test("token-map wins when same label matches both token-map and unit-suffix")
@@ -439,7 +439,7 @@ struct V210ImportAndParseTests {
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.extraConditionValues["mode"] == "mode-token")
+        #expect(parsed.conditionValues["mode"] == "mode-token")
         #expect(parsed.warnings.contains(where: { $0.contains("matched both token-map and unit-suffix") }))
     }
 

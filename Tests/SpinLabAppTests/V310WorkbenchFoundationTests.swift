@@ -35,7 +35,7 @@ struct V310WorkbenchFoundationTests {
             conditions: ["device": "30deg", "temperature": "80K"],
             generatedAt: now,
             runID: "run-1",
-            overrideInfo: WorkbenchMetricOverrideInfo(oldValue: 0.95, newValue: 1.0, reason: "manual correction", at: now)
+            overrideInfo: WorkbenchMetricOverrideInfo(oldValue: 0.95, newValue: 1.0, reason: "manual correction", source: .manual, at: now)
         )
         let manifest = WorkbenchRunManifest(
             manifestID: "manifest-1",

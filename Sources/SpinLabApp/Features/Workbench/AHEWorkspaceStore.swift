@@ -24,6 +24,28 @@ final class AHEWorkspaceStore {
     private(set) var currentRunTrace: WorkbenchRunTraceProjection?
     private(set) var currentPlotLayout: WorkbenchPlotLayout? = nil
 
+    // MARK: - Persistence outcome
+
+    /// Set after each `renderAHEPlot(persistArtifact: true)` call.
+    /// Nil when no persist has occurred or after `clearPlot()`.
+    private(set) var persistenceOutcome: PersistenceOutcome? = nil
+
+    /// Incremented every time a persist completes (success or partial).
+    /// Use this for `onChange` observation — avoids requiring `PersistenceOutcome: Equatable`.
+    private(set) var persistCount: Int = 0
+
+    // MARK: - Pre-persist metric override (V3.4.1)
+
+    /// A pending manual correction the user has entered before clicking "Save to Library".
+    /// When non-nil, `attemptPersist` wraps the extracted metric value in `WorkbenchMetricOverrideInfo`
+    /// and writes `newValue` as the stored value. Cleared after a successful persist.
+    var pendingMetricOverride: WorkbenchMetricOverrideCandidate? = nil
+
+    /// The Hc value auto-extracted from the most recently rendered series.
+    /// Updated on every render (including preview renders without persist).
+    /// Displayed in the override panel so the user can see the algorithm result before deciding to correct it.
+    private(set) var lastExtractedHc: Double? = nil
+
     // MARK: - Artifact loading
 
     private(set) var isLoadingArtifact: Bool = false
@@ -98,23 +120,41 @@ final class AHEWorkspaceStore {
             var seen = Set<String>()
             return selections.compactMap { seen.insert($0.sampleKey).inserted ? $0.sampleKey : nil }
         }()
+        // Capture per-sample conditions for metric records (Fix-1: each sample uses its own conditions,
+        // not firstConditions which caused wrong condition data for non-first samples).
+        // First selection for each sampleKey wins (canonical keys from rule parser, Adj-8).
+        let firstSampleKey = allSampleKeys.first ?? "unknown"
+        let conditionsBySampleKey: [String: [String: String]] = {
+            var map: [String: [String: String]] = [:]
+            for sel in selections where map[sel.sampleKey] == nil {
+                map[sel.sampleKey] = sel.conditions
+            }
+            return map
+        }()
+        // Generate runID once; passed into both chart and metric persistence (Adj-2)
+        let runID = UUID().uuidString
+        let generatedAt = Date()
+        // Capture pending override before leaving MainActor; cleared after successful persist
+        let capturedOverride = pendingMetricOverride
 
         plotTask?.cancel()
         isPlotRendering = true
         plotMessage = nil
         currentPlotImageData = nil
         currentRunTrace = nil
+        persistenceOutcome = nil
 
         let seriesCount = selections.count
         plotTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let (imageData, plotLayout, candidates, trace) = try await Task.detached(priority: .userInitiated) {
+                let (imageData, plotLayout, candidates, outcome, extractedHc) = try await Task.detached(priority: .userInitiated) {
                     let ingestion = try IngestAHESelectionsUseCase().execute(
                         selections: selections,
                         xColumnOverride: xOverride.isEmpty ? nil : xOverride,
                         yColumnOverride: yOverride.isEmpty ? nil : yOverride
                     )
+                    let extractedHc = AHEWorkspaceStore.extractHcEstimate(from: ingestion.series)
                     let resolvedTitle = titleOverride.isEmpty ? "AHE" : titleOverride
                     let xField = xOverride.isEmpty ? ingestion.defaultAxisMapping.xField : xOverride
                     let yField = yOverride.isEmpty ? ingestion.defaultAxisMapping.yField : yOverride
@@ -151,28 +191,53 @@ final class AHEWorkspaceStore {
                         }
                     }
                     let png = try WorkbenchChartRenderer().renderPNG(payload: payload, options: rendererOptions)
-                    let trace: WorkbenchRunTraceProjection?
+                    let outcome: PersistenceOutcome?
                     if persistArtifact {
                         // Restore data-column axisMapping so the manifest records the actual
                         // data columns used, not the display-only label overrides.
                         var manifestPayload = payload
                         manifestPayload.axisMapping = manifestAxisMapping
-                        trace = AHEWorkspaceStore.attemptPersistAndTrace(
-                            png: png, payload: manifestPayload,
-                            libraryRootPath: libraryRootPath, sampleKeys: allSampleKeys
+                        outcome = AHEWorkspaceStore.attemptPersist(
+                            png: png,
+                            payload: manifestPayload,
+                            extractedHc: extractedHc,
+                            firstSampleKey: firstSampleKey,
+                            conditionsBySampleKey: conditionsBySampleKey,
+                            pendingOverride: capturedOverride,
+                            libraryRootPath: libraryRootPath,
+                            sampleKeys: allSampleKeys,
+                            runID: runID,
+                            generatedAt: generatedAt
                         )
                     } else {
-                        trace = savedTrace  // legend reposition: preserve existing trace
+                        outcome = nil
                     }
-                    return (png, plotLayout, ingestion.candidateAxisFields, trace)
+                    return (png, plotLayout, ingestion.candidateAxisFields, outcome, extractedHc)
                 }.value
                 guard !Task.isCancelled else { return }
                 self.currentPlotImageData = imageData
                 self.currentPlotLayout = plotLayout
                 self.currentCandidateAxisFields = candidates
-                self.currentRunTrace = trace
+                self.lastExtractedHc = extractedHc
                 self.isPlotRendering = false
-                self.plotMessage = "Rendered \(seriesCount) series."
+                if let outcome {
+                    self.persistenceOutcome = outcome
+                    self.currentRunTrace = outcome.trace
+                    switch outcome {
+                    case .success:
+                        self.pendingMetricOverride = nil   // clear after successful persist
+                        self.persistCount += 1
+                        self.plotMessage = "Rendered \(seriesCount) series."
+                    case .partial(_, let metricError):
+                        self.persistCount += 1
+                        self.plotMessage = "Rendered \(seriesCount) series (metric write failed: \(metricError))."
+                    case .failure(let msg):
+                        self.plotMessage = "Persist failed: \(msg)."
+                    }
+                } else {
+                    self.currentRunTrace = savedTrace
+                    self.plotMessage = "Rendered \(seriesCount) series."
+                }
             } catch is CancellationError {
                 self.isPlotRendering = false
             } catch {
@@ -188,6 +253,9 @@ final class AHEWorkspaceStore {
         plotTask = nil
         currentPlotImageData = nil
         currentRunTrace = nil
+        persistenceOutcome = nil
+        pendingMetricOverride = nil
+        lastExtractedHc = nil
         isPlotRendering = false
         plotMessage = nil
         selectedSearchResultIDs = []
@@ -298,21 +366,165 @@ final class AHEWorkspaceStore {
         return selections
     }
 
-    private nonisolated static func attemptPersistAndTrace(
+    /// Persists chart + metric artifacts for a completed render.
+    ///
+    /// `runID` is generated once by the caller and passed into both
+    /// `PersistChartArtifactUseCase` and `PersistMeasurementDataUseCase` so that
+    /// the run manifest and the metric record share the same identifier (Adj-2).
+    ///
+    /// Returns `PersistenceOutcome` — never throws or returns nil — so partial
+    /// failures (chart OK, metric failed) are surfaced to the store (Adj-3).
+    private nonisolated static func attemptPersist(
         png: Data,
         payload: WorkbenchPlotPayload,
+        extractedHc: Double,
+        firstSampleKey: String,
+        conditionsBySampleKey: [String: [String: String]],
+        pendingOverride: WorkbenchMetricOverrideCandidate?,
         libraryRootPath: String,
-        sampleKeys: [String]
-    ) -> WorkbenchRunTraceProjection? {
-        guard !libraryRootPath.isEmpty else { return nil }
-        let resolver = LibraryPathResolver(libraryRootURL: URL(filePath: libraryRootPath))
-        let useCase = PersistChartArtifactUseCase(writer: AtomicFileWriter(), pathResolver: resolver)
-        guard let result = try? useCase.execute(sampleKeys: sampleKeys, payload: payload, imageData: png) else {
-            return nil
+        sampleKeys: [String],
+        runID: String,
+        generatedAt: Date
+    ) -> PersistenceOutcome {
+        guard !libraryRootPath.isEmpty else {
+            return .failure("Library root path not set")
         }
-        return BuildRunTraceProjectionUseCase().execute(
-            manifest: result.manifest,
-            manifestPath: result.manifestPath
+        let resolver = LibraryPathResolver(libraryRootURL: URL(filePath: libraryRootPath))
+        let writer = AtomicFileWriter()
+
+        // 1. Persist chart + manifest + results_index
+        let chartResult: ChartArtifactPersistenceResult
+        do {
+            chartResult = try PersistChartArtifactUseCase(writer: writer, pathResolver: resolver)
+                .execute(
+                    sampleKeys: sampleKeys,
+                    payload: payload,
+                    imageData: png,
+                    runID: runID,
+                    generatedAt: generatedAt
+                )
+        } catch {
+            return .failure(AppError.from(error, fallback: "Chart persist failed").localizedDescription)
+        }
+
+        let trace = BuildRunTraceProjectionUseCase().execute(
+            manifest: chartResult.manifest,
+            manifestPath: chartResult.manifestPath
         )
+
+        // 2. Persist a metric record for single-sample renders only.
+        //
+        // Multi-sample renders are intentionally skipped: extractHcEstimate operates on
+        // series.first, which belongs to one specific sample's curve. Writing that value into
+        // every sample's measurement_data.json would record incorrect Hc for non-first samples.
+        // Per-sample Hc extraction for multi-sample renders is deferred to a future iteration.
+        guard sampleKeys.count == 1, let singleKey = sampleKeys.first else {
+            return .success(trace: trace)
+        }
+
+        // Conditions are sourced per-sample from conditionsBySampleKey (Fix-1: canonical keys
+        // from the rule parser, not alias keys — Adj-8).
+        // If the user entered a manual correction, use the proposed value and record override info.
+        let storedValue: Double
+        let overrideInfo: WorkbenchMetricOverrideInfo?
+        if let override = pendingOverride {
+            storedValue = override.proposedValue
+            overrideInfo = WorkbenchMetricOverrideInfo(
+                oldValue: extractedHc,
+                newValue: override.proposedValue,
+                reason: override.reason,
+                source: override.source,
+                at: generatedAt
+            )
+        } else {
+            storedValue = extractedHc
+            overrideInfo = nil
+        }
+
+        let record = WorkbenchMetricRecord(
+            recordID: UUID().uuidString,
+            sampleKey: singleKey,
+            displayKey: singleKey,
+            workflowID: payload.workflowID,
+            metric: "Hc",
+            value: storedValue,
+            canonicalUnit: "T",
+            conditions: conditionsBySampleKey[singleKey] ?? [:],
+            generatedAt: generatedAt,
+            runID: runID,
+            overrideInfo: overrideInfo
+        )
+        do {
+            try PersistMeasurementDataUseCase(writer: writer, pathResolver: resolver)
+                .execute(sampleKey: singleKey, record: record)
+        } catch {
+            return .partial(
+                trace: trace,
+                metricError: AppError.from(error, fallback: "Metric persist failed").localizedDescription
+            )
+        }
+        return .success(trace: trace)
+    }
+
+    /// Estimates the coercive field Hc from AHE series data.
+    ///
+    /// AHE measurements from PPMS carry a large ordinary-Hall background that shifts the entire
+    /// curve away from zero. Hc is therefore extracted relative to the midpoint of the y range
+    /// rather than relative to zero:
+    ///
+    ///   threshold = (ymin + ymax) / 2
+    ///   y_shifted = y − threshold
+    ///
+    /// Zero crossings are then found on y_shifted via linear interpolation. For a full hysteresis
+    /// loop this produces a crossing on the ascending branch (+Hc) and one on the descending
+    /// branch (-Hc); Hc = (|Hc+| + |Hc-|) / 2. For a partial loop the absolute value of the
+    /// sole crossing is returned. Falls back to the x at minimum |y_shifted| if no crossing exists.
+    /// Returns 0.0 if the series is empty or has only one point.
+    private nonisolated static func extractHcEstimate(from series: [WorkbenchPlotSeries]) -> Double {
+        guard let first = series.first, first.x.count > 1 else { return 0.0 }
+        let xs = first.x
+        let rawYs = first.y
+
+        // Shift y values so the midpoint of the hysteresis loop sits at zero.
+        // This removes the ordinary-Hall background and makes the algorithm
+        // agnostic to whether the raw curve crosses zero or not.
+        let yMin = rawYs.min()!
+        let yMax = rawYs.max()!
+        let threshold = (yMin + yMax) / 2.0
+        let ys = rawYs.map { $0 - threshold }
+
+        // Collect all zero crossings on the shifted curve via linear interpolation.
+        var crossings: [Double] = []
+        for i in 0..<xs.count - 1 {
+            let y0 = ys[i], y1 = ys[i + 1]
+            if y0 * y1 <= 0, y0 != y1 {
+                let t = y0 / (y0 - y1)
+                crossings.append(xs[i] + t * (xs[i + 1] - xs[i]))
+            }
+        }
+
+        guard !crossings.isEmpty else {
+            // Fallback: x at minimum |y_shifted|
+            var minAbs = Double.infinity
+            var result = 0.0
+            for i in 0..<xs.count {
+                let a = abs(ys[i])
+                if a < minAbs { minAbs = a; result = xs[i] }
+            }
+            return abs(result)
+        }
+
+        // Full hysteresis loop: pair the outermost positive and negative crossings.
+        // Hc = (Hc_ascending + |Hc_descending|) / 2
+        let positiveCrossings = crossings.filter { $0 > 0 }
+        let negativeCrossings = crossings.filter { $0 < 0 }
+        if !positiveCrossings.isEmpty && !negativeCrossings.isEmpty {
+            let hcPos = positiveCrossings.max()!
+            let hcNeg = abs(negativeCrossings.min()!)
+            return (hcPos + hcNeg) / 2.0
+        }
+
+        // Partial loop: average absolute values of all found crossings.
+        return crossings.map { abs($0) }.reduce(0, +) / Double(crossings.count)
     }
 }

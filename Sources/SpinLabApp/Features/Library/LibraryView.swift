@@ -58,6 +58,11 @@ struct LibraryView: View {
             applyRestoredInteractionState()
             rebuildPreviewDerivedData()
             syncSelection()
+            // Load Workbench Results and Measurement Data for the restored/initial selection.
+            // onChange(of: selectedSampleId) does not fire when the value is
+            // already set before onAppear, so we must call these explicitly here.
+            appState.library.loadWorkbenchResultsForCurrentSelection()
+            appState.library.loadMeasurementDataForCurrentSelection()
             scheduleInteractionStatePersist(immediate: true)
         }
         .onChange(of: viewModel.viewState.previewGroupsByPrefix) { _, _ in
@@ -84,6 +89,8 @@ struct LibraryView: View {
             scheduleInteractionStatePersist()
         }
         .onChange(of: selectedSampleId) { _, _ in
+            appState.library.loadWorkbenchResultsForCurrentSelection()
+            appState.library.loadMeasurementDataForCurrentSelection()
             scheduleInteractionStatePersist()
         }
         .onChange(of: interactionStateSnapshot) { _, newValue in
@@ -99,32 +106,27 @@ struct LibraryView: View {
             interactionPersistTask = nil
             viewModel.persistInteractionState(interactionStateSnapshot)
         }
-        .confirmationDialog(
-            "Unsaved Edits",
-            isPresented: pendingSelectionChangeDialogBinding,
-            titleVisibility: .visible
-        ) {
-            Button("Save and Switch") {
-                viewModel.saveAndContinuePendingSelectionChange()
-            }
-            Button("Discard and Switch", role: .destructive) {
-                viewModel.discardAndContinuePendingSelectionChange()
-            }
-            Button("Cancel", role: .cancel) {
-                viewModel.cancelPendingSelectionChange()
-            }
-        } message: {
-            Text(viewModel.viewState.pendingSelectionChangePrompt ?? "You have unsaved sample edits.")
-        }
-        .sheet(isPresented: $isShowingSampleChangeLog) {
-            sampleChangeLogSheet
-        }
-        .sheet(isPresented: $isShowingGlobalManualLog) {
-            globalManualLogSheet
-        }
-        .sheet(isPresented: $isShowingMetadataSyncLog) {
-            metadataSyncLogSheet
-        }
+        .modifier(LibraryDialogsModifier(
+            pendingSelectionChangeDialogBinding: pendingSelectionChangeDialogBinding,
+            pendingPrompt: viewModel.viewState.pendingSelectionChangePrompt,
+            onSaveAndSwitch: { viewModel.saveAndContinuePendingSelectionChange() },
+            onDiscardAndSwitch: { viewModel.discardAndContinuePendingSelectionChange() },
+            onCancelSwitch: { viewModel.cancelPendingSelectionChange() },
+            isShowingSampleChangeLog: $isShowingSampleChangeLog,
+            selectedSample: selectedSample,
+            changeLogEntries: selectedSample.map { appState.library.sampleChangeLog(for: $0) } ?? [],
+            isShowingGlobalManualLog: $isShowingGlobalManualLog,
+            globalManualLogs: viewModel.viewState.globalManualLogs,
+            globalManualLogError: viewModel.viewState.globalManualLogError,
+            globalManualLogMessage: viewModel.viewState.globalManualLogMessage,
+            onRefreshGlobalManualLog: { viewModel.loadLibraryGlobalManualLogs() },
+            onMarkStatus: { viewModel.markLibraryGlobalManualLogStatus(rowIndex: $0, status: $1) },
+            isShowingMetadataSyncLog: $isShowingMetadataSyncLog,
+            metadataSyncEntries: viewModel.viewState.metadataSyncLogs,
+            metadataSyncLogError: viewModel.viewState.metadataSyncLogError,
+            metadataSyncLogMessage: viewModel.viewState.metadataSyncLogMessage,
+            onRefreshMetadataSyncLog: { viewModel.loadLibraryMetadataSyncLogs() }
+        ))
     }
 
     private var librarySettingsColumn: some View {
@@ -369,6 +371,13 @@ struct LibraryView: View {
                             }
 
                             Divider()
+                            MeasurementDataSectionView(
+                                measurementData: appState.library.measurementData,
+                                conditionAliasBook: appState.library.conditionAliasBook,
+                                availableWidth: sectionWidth
+                            )
+
+                            Divider()
                             DisclosureGroup(isExpanded: $isMetadataSectionExpanded) {
                                 if sample.orderedMetadata.isEmpty {
                                     Text("No metadata")
@@ -392,6 +401,13 @@ struct LibraryView: View {
                                 workflowDisplayNameByID: workflowDisplayNameByID,
                                 workflowConditionOrderByID: workflowConditionOrderByID
                             )
+
+                            Divider()
+                            WorkbenchResultsSectionView(
+                                workbenchResults: appState.library.workbenchResults,
+                                libraryRootURL: appState.library.librarySettings.rootPath.map { URL(fileURLWithPath: $0) },
+                                onDelete: { ref in appState.library.deleteWorkbenchResult(ref) }
+                            )
                         }
                     } else {
                         ContentUnavailableView(
@@ -405,6 +421,10 @@ struct LibraryView: View {
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .padding(.horizontal, 12)
             }
+        }
+        .onChange(of: appState.workbench.aheWorkspace.persistCount) { _, _ in
+            appState.library.loadWorkbenchResultsForCurrentSelection()
+            appState.library.loadMeasurementDataForCurrentSelection()
         }
     }
 
@@ -496,163 +516,6 @@ struct LibraryView: View {
                 viewModel.beginEditingSelectedLibrarySample()
             }
         )
-    }
-
-    @ViewBuilder
-    private var globalManualLogSheet: some View {
-        NavigationStack {
-            List {
-                if viewState.globalManualLogs.isEmpty {
-                    Text("No global manual log records.")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(viewState.globalManualLogs) { entry in
-                        Section {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("\(entry.sampleId) · \(entry.fieldType): \(entry.fieldKey)")
-                                    .font(.callout.weight(.semibold))
-                                Text("\(computationService.displayValue(entry.oldValue)) -> \(computationService.displayValue(entry.newValue))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text("Sheet: \(entry.sheetName) · Row: \(entry.rowNumber)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            HStack(spacing: 8) {
-                                statusButton(for: entry, targetStatus: .pending, title: "Pending")
-                                statusButton(for: entry, targetStatus: .done, title: "Done")
-                                statusButton(for: entry, targetStatus: .ignored, title: "Ignored")
-                                Spacer()
-                            }
-                        } header: {
-                            Text("\(entry.batchId) · \(formattedLogTimestamp(entry.timestamp)) · \(entry.status.rawValue)")
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Numeric日志")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Refresh") {
-                        viewModel.loadLibraryGlobalManualLogs()
-                    }
-                }
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        isShowingGlobalManualLog = false
-                    }
-                }
-            }
-            .overlay(alignment: .bottomLeading) {
-                VStack(alignment: .leading, spacing: 4) {
-                    if let error = viewState.globalManualLogError {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    } else if let message = viewState.globalManualLogMessage {
-                        Text(message)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(12)
-            }
-        }
-        .frame(minWidth: 760, minHeight: 520)
-    }
-
-    @ViewBuilder
-    private func statusButton(for entry: LibraryManualUpdateLogEntry, targetStatus: LibraryManualLogStatus, title: String) -> some View {
-        if targetStatus == entry.status {
-            Button(title) {
-                viewModel.markLibraryGlobalManualLogStatus(rowIndex: entry.rowIndex, status: targetStatus)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(true)
-        } else {
-            Button(title) {
-                viewModel.markLibraryGlobalManualLogStatus(rowIndex: entry.rowIndex, status: targetStatus)
-            }
-            .buttonStyle(.bordered)
-        }
-    }
-
-    private func formattedLogTimestamp(_ timestamp: Date?) -> String {
-        guard let timestamp else {
-            return "Unknown time"
-        }
-        return Self.logDateTimeFormatter.string(from: timestamp)
-    }
-
-    @ViewBuilder
-    private var metadataSyncLogSheet: some View {
-        let entries = viewState.metadataSyncLogs
-        NavigationStack {
-            List {
-                if entries.isEmpty {
-                    Text("No metadata sync log records.")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(entries, content: metadataLogEntrySection)
-                }
-            }
-            .navigationTitle("Metadata同步日志")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Refresh") {
-                        viewModel.loadLibraryMetadataSyncLogs()
-                    }
-                }
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        isShowingMetadataSyncLog = false
-                    }
-                }
-            }
-            .overlay(alignment: .bottomLeading) {
-                VStack(alignment: .leading, spacing: 4) {
-                    if let error = viewState.metadataSyncLogError {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    } else if let message = viewState.metadataSyncLogMessage {
-                        Text(message)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(12)
-            }
-        }
-        .frame(minWidth: 760, minHeight: 520)
-    }
-
-    @ViewBuilder
-    private func metadataLogEntrySection(_ entry: LibraryMetadataSyncLogEntry) -> some View {
-        Section {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("\(entry.sampleId) · \(entry.columnName)")
-                    .font(.callout.weight(.semibold))
-                Text("\(computationService.displayValue(entry.oldValue)) -> \(computationService.displayValue(entry.newValue))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text("Sheet: \(entry.sheetName) · Row: \(entry.rowNumber)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Text(metadataResultText(for: entry))
-                    .font(.caption2)
-                    .foregroundStyle(entry.writeResult.lowercased() == "success" ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.red))
-            }
-        } header: {
-            Text("\(entry.batchId) · \(formattedLogTimestamp(entry.timestamp))")
-        }
-    }
-
-    private func metadataResultText(for entry: LibraryMetadataSyncLogEntry) -> String {
-        if let error = entry.errorMessage, !error.isEmpty {
-            return "Result: \(entry.writeResult) · \(error)"
-        }
-        return "Result: \(entry.writeResult)"
     }
 
     private var isEditingSelectedSample: Bool {
@@ -792,52 +655,6 @@ struct LibraryView: View {
     }
 
     @ViewBuilder
-    private var sampleChangeLogSheet: some View {
-        NavigationStack {
-            if let sample = selectedSample {
-                let entries = appState.librarySampleChangeLog(for: sample)
-                List {
-                    if entries.isEmpty {
-                        Text("No change log records for this sample.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(entries) { entry in
-                            Section {
-                                ForEach(entry.changes, id: \.self) { change in
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(change.key)
-                                            .font(.caption.weight(.semibold))
-                                            Text("\(computationService.displayValue(change.oldValue)) -> \(computationService.displayValue(change.newValue))")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                            } header: {
-                                Text("\(Self.logDateTimeFormatter.string(from: entry.changedAt)) · \(entry.source)")
-                            }
-                        }
-                    }
-                }
-                .navigationTitle("\(sample.batchId) · \(sample.substrateDisplay)")
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Close") {
-                            isShowingSampleChangeLog = false
-                        }
-                    }
-                }
-            } else {
-                ContentUnavailableView(
-                    "No Sample Selected",
-                    systemImage: "tray",
-                    description: Text("Select a sample to view change log.")
-                )
-            }
-        }
-        .frame(minWidth: 540, minHeight: 420)
-    }
-
-    @ViewBuilder
     private func detailSection(
         fields: [DetailField],
         availableWidth: CGFloat,
@@ -892,12 +709,6 @@ struct LibraryView: View {
     private var sampleDetailSectionTitleFont: Font {
         .title3.weight(.semibold)
     }
-
-    private static let logDateTimeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        return formatter
-    }()
 
     @ViewBuilder
     private func pendingChangesSection(for sample: LibrarySample) -> some View {
