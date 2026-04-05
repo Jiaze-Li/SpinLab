@@ -65,7 +65,6 @@ struct PersistChartArtifactUseCase {
 
         let imageAbsURL    = try pathResolver.absoluteURL(for: imageRelPath)
         let manifestAbsURL = try pathResolver.absoluteURL(for: manifestRelPath)
-        let isOverwrite    = FileManager.default.fileExists(atPath: imageAbsURL.path)
 
         // Build manifest
         let inputFiles = payload.series.compactMap(\.sourceRef)
@@ -91,8 +90,13 @@ struct PersistChartArtifactUseCase {
             generatedAt: generatedAt
         )
 
-        // Upsert reference into each sample's results_index.json
+        // Upsert reference into each sample's results_index.json.
+        // isOverwrite is determined at identity level (not file-level) so that a title
+        // change — which produces a new filename — still reports as an overwrite.
+        // Stale paths are collected when the filename changed and cleaned up after commit.
         var indexEntries: [(URL, Data)] = []
+        var isOverwrite = false
+        var staleRelPaths = Set<String>()
         let uniqueKeys: [String] = {
             var seen = Set<String>()
             let deduped = sampleKeys.filter { seen.insert($0).inserted }
@@ -109,6 +113,12 @@ struct PersistChartArtifactUseCase {
                 index = WorkbenchResultsIndex(sampleKey: sk, updatedAt: generatedAt, references: [])
             }
             if let existingIdx = index.references.firstIndex(where: { $0.chartIdentityKey == identityKey }) {
+                isOverwrite = true
+                let old = index.references[existingIdx]
+                if old.chartImagePath != imageRelPath {
+                    staleRelPaths.insert(old.chartImagePath)
+                    staleRelPaths.insert(old.manifestPath)
+                }
                 index.references[existingIdx] = reference
             } else {
                 index.references.append(reference)
@@ -127,6 +137,14 @@ struct PersistChartArtifactUseCase {
             writes.append(AtomicWriteEntry(destinationURL: url, data: data))
         }
         try writer.commit(writes)
+
+        // Best-effort orphan cleanup: remove stale image/manifest whose path changed.
+        // Runs after successful commit so a write failure never leaves the library inconsistent.
+        for stalePath in staleRelPaths {
+            if let staleURL = try? pathResolver.absoluteURL(for: stalePath) {
+                try? FileManager.default.removeItem(at: staleURL)
+            }
+        }
 
         return ChartArtifactPersistenceResult(
             chartIdentityKey: identityKey,
