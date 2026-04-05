@@ -163,9 +163,16 @@ private struct AHEMetricOverridePanel: View {
         @Bindable var ahe = appState.workbench.aheWorkspace
 
         VStack(alignment: .leading, spacing: 6) {
-            Text("Hc Override (optional)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                Text("Hc Override (optional)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let hc = ahe.lastExtractedHc {
+                    Text("Auto-detected: \(String(format: "%g", hc)) T")
+                        .font(.caption)
+                        .foregroundStyle(.primary)
+                }
+            }
 
             HStack(spacing: 6) {
                 TextField("Corrected Hc (T)", text: $valueText)

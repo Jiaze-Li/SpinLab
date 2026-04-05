@@ -41,6 +41,11 @@ final class AHEWorkspaceStore {
     /// and writes `newValue` as the stored value. Cleared after a successful persist.
     var pendingMetricOverride: WorkbenchMetricOverrideCandidate? = nil
 
+    /// The Hc value auto-extracted from the most recently rendered series.
+    /// Updated on every render (including preview renders without persist).
+    /// Displayed in the override panel so the user can see the algorithm result before deciding to correct it.
+    private(set) var lastExtractedHc: Double? = nil
+
     // MARK: - Artifact loading
 
     private(set) var isLoadingArtifact: Bool = false
@@ -143,12 +148,13 @@ final class AHEWorkspaceStore {
         plotTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let (imageData, plotLayout, candidates, outcome) = try await Task.detached(priority: .userInitiated) {
+                let (imageData, plotLayout, candidates, outcome, extractedHc) = try await Task.detached(priority: .userInitiated) {
                     let ingestion = try IngestAHESelectionsUseCase().execute(
                         selections: selections,
                         xColumnOverride: xOverride.isEmpty ? nil : xOverride,
                         yColumnOverride: yOverride.isEmpty ? nil : yOverride
                     )
+                    let extractedHc = AHEWorkspaceStore.extractHcEstimate(from: ingestion.series)
                     let resolvedTitle = titleOverride.isEmpty ? "AHE" : titleOverride
                     let xField = xOverride.isEmpty ? ingestion.defaultAxisMapping.xField : xOverride
                     let yField = yOverride.isEmpty ? ingestion.defaultAxisMapping.yField : yOverride
@@ -194,7 +200,7 @@ final class AHEWorkspaceStore {
                         outcome = AHEWorkspaceStore.attemptPersist(
                             png: png,
                             payload: manifestPayload,
-                            ingestionSeries: ingestion.series,
+                            extractedHc: extractedHc,
                             firstSampleKey: firstSampleKey,
                             conditionsBySampleKey: conditionsBySampleKey,
                             pendingOverride: capturedOverride,
@@ -206,12 +212,13 @@ final class AHEWorkspaceStore {
                     } else {
                         outcome = nil
                     }
-                    return (png, plotLayout, ingestion.candidateAxisFields, outcome)
+                    return (png, plotLayout, ingestion.candidateAxisFields, outcome, extractedHc)
                 }.value
                 guard !Task.isCancelled else { return }
                 self.currentPlotImageData = imageData
                 self.currentPlotLayout = plotLayout
                 self.currentCandidateAxisFields = candidates
+                self.lastExtractedHc = extractedHc
                 self.isPlotRendering = false
                 if let outcome {
                     self.persistenceOutcome = outcome
@@ -248,6 +255,7 @@ final class AHEWorkspaceStore {
         currentRunTrace = nil
         persistenceOutcome = nil
         pendingMetricOverride = nil
+        lastExtractedHc = nil
         isPlotRendering = false
         plotMessage = nil
         selectedSearchResultIDs = []
@@ -369,7 +377,7 @@ final class AHEWorkspaceStore {
     private nonisolated static func attemptPersist(
         png: Data,
         payload: WorkbenchPlotPayload,
-        ingestionSeries: [WorkbenchPlotSeries],
+        extractedHc: Double,
         firstSampleKey: String,
         conditionsBySampleKey: [String: [String: String]],
         pendingOverride: WorkbenchMetricOverrideCandidate?,
@@ -404,11 +412,10 @@ final class AHEWorkspaceStore {
             manifestPath: chartResult.manifestPath
         )
 
-        // 2. Extract Hc estimate and persist a metric record for every sample key.
+        // 2. Persist a metric record for every sample key using the pre-computed Hc estimate.
         // Conditions are sourced per-sample from conditionsBySampleKey (Fix-1: canonical keys
         // from the rule parser, not alias keys — Adj-8). Each sample gets its own
         // measurement_data.json entry so results_index coverage matches metric coverage.
-        let extractedHc = extractHcEstimate(from: ingestionSeries)
         // If the user entered a manual correction, use the proposed value and record override info.
         let storedValue: Double
         let overrideInfo: WorkbenchMetricOverrideInfo?
@@ -457,28 +464,63 @@ final class AHEWorkspaceStore {
 
     /// Estimates the coercive field Hc from AHE series data.
     ///
-    /// Hc is the x-value at which the Hall resistance (y) crosses zero.
-    /// Uses linear interpolation between the two adjacent points that straddle the zero crossing.
-    /// Falls back to the x-value at minimum |y| if no zero crossing is found.
-    /// Returns 0.0 if the series is empty.
+    /// AHE measurements from PPMS carry a large ordinary-Hall background that shifts the entire
+    /// curve away from zero. Hc is therefore extracted relative to the midpoint of the y range
+    /// rather than relative to zero:
+    ///
+    ///   threshold = (ymin + ymax) / 2
+    ///   y_shifted = y − threshold
+    ///
+    /// Zero crossings are then found on y_shifted via linear interpolation. For a full hysteresis
+    /// loop this produces a crossing on the ascending branch (+Hc) and one on the descending
+    /// branch (-Hc); Hc = (|Hc+| + |Hc-|) / 2. For a partial loop the absolute value of the
+    /// sole crossing is returned. Falls back to the x at minimum |y_shifted| if no crossing exists.
+    /// Returns 0.0 if the series is empty or has only one point.
     private nonisolated static func extractHcEstimate(from series: [WorkbenchPlotSeries]) -> Double {
         guard let first = series.first, first.x.count > 1 else { return 0.0 }
         let xs = first.x
-        let ys = first.y
+        let rawYs = first.y
+
+        // Shift y values so the midpoint of the hysteresis loop sits at zero.
+        // This removes the ordinary-Hall background and makes the algorithm
+        // agnostic to whether the raw curve crosses zero or not.
+        let yMin = rawYs.min()!
+        let yMax = rawYs.max()!
+        let threshold = (yMin + yMax) / 2.0
+        let ys = rawYs.map { $0 - threshold }
+
+        // Collect all zero crossings on the shifted curve via linear interpolation.
+        var crossings: [Double] = []
         for i in 0..<xs.count - 1 {
             let y0 = ys[i], y1 = ys[i + 1]
             if y0 * y1 <= 0, y0 != y1 {
                 let t = y0 / (y0 - y1)
-                return xs[i] + t * (xs[i + 1] - xs[i])
+                crossings.append(xs[i] + t * (xs[i + 1] - xs[i]))
             }
         }
-        // Fallback: x at minimum |y|
-        var minAbs = Double.infinity
-        var result = 0.0
-        for i in 0..<xs.count {
-            let a = abs(ys[i])
-            if a < minAbs { minAbs = a; result = xs[i] }
+
+        guard !crossings.isEmpty else {
+            // Fallback: x at minimum |y_shifted|
+            var minAbs = Double.infinity
+            var result = 0.0
+            for i in 0..<xs.count {
+                let a = abs(ys[i])
+                if a < minAbs { minAbs = a; result = xs[i] }
+            }
+            return abs(result)
         }
-        return result
+
+        // Full hysteresis loop: pair the outermost positive and negative crossings.
+        // Hc = (Hc_ascending + |Hc_descending|) / 2
+        let positiveCrossings = crossings.filter { $0 > 0 }
+        let negativeCrossings = crossings.filter { $0 < 0 }
+        if !positiveCrossings.isEmpty && !negativeCrossings.isEmpty {
+            let hcPos = positiveCrossings.max()!
+            let hcNeg = abs(negativeCrossings.min()!)
+            return (hcPos + hcNeg) / 2.0
+        }
+
+        // Partial loop: average absolute values of all found crossings.
+        return crossings.map { abs($0) }.reduce(0, +) / Double(crossings.count)
     }
 }
