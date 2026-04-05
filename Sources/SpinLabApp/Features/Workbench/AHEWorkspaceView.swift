@@ -225,6 +225,10 @@ private struct AHEMetricOverridePanel: View {
                 reason: effectiveReason,
                 source: .manual
             )
+        } else {
+            // Non-empty but unparseable (e.g. mid-edit "0." or "abc"): clear any prior override
+            // so a stale valid value is never accidentally committed under invalid-looking input.
+            appState.workbench.aheWorkspace.pendingMetricOverride = nil
         }
     }
 }

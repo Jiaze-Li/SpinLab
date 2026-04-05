@@ -412,10 +412,18 @@ final class AHEWorkspaceStore {
             manifestPath: chartResult.manifestPath
         )
 
-        // 2. Persist a metric record for every sample key using the pre-computed Hc estimate.
+        // 2. Persist a metric record for single-sample renders only.
+        //
+        // Multi-sample renders are intentionally skipped: extractHcEstimate operates on
+        // series.first, which belongs to one specific sample's curve. Writing that value into
+        // every sample's measurement_data.json would record incorrect Hc for non-first samples.
+        // Per-sample Hc extraction for multi-sample renders is deferred to a future iteration.
+        guard sampleKeys.count == 1, let singleKey = sampleKeys.first else {
+            return .success(trace: trace)
+        }
+
         // Conditions are sourced per-sample from conditionsBySampleKey (Fix-1: canonical keys
-        // from the rule parser, not alias keys — Adj-8). Each sample gets its own
-        // measurement_data.json entry so results_index coverage matches metric coverage.
+        // from the rule parser, not alias keys — Adj-8).
         // If the user entered a manual correction, use the proposed value and record override info.
         let storedValue: Double
         let overrideInfo: WorkbenchMetricOverrideInfo?
@@ -433,31 +441,27 @@ final class AHEWorkspaceStore {
             overrideInfo = nil
         }
 
-        let metricUseCase = PersistMeasurementDataUseCase(writer: writer, pathResolver: resolver)
-        var metricErrors: [String] = []
-        for sk in sampleKeys {
-            let record = WorkbenchMetricRecord(
-                recordID: UUID().uuidString,
-                sampleKey: sk,
-                displayKey: sk,
-                workflowID: payload.workflowID,
-                metric: "Hc",
-                value: storedValue,
-                canonicalUnit: "T",
-                conditions: conditionsBySampleKey[sk] ?? [:],
-                generatedAt: generatedAt,
-                runID: runID,
-                overrideInfo: overrideInfo
+        let record = WorkbenchMetricRecord(
+            recordID: UUID().uuidString,
+            sampleKey: singleKey,
+            displayKey: singleKey,
+            workflowID: payload.workflowID,
+            metric: "Hc",
+            value: storedValue,
+            canonicalUnit: "T",
+            conditions: conditionsBySampleKey[singleKey] ?? [:],
+            generatedAt: generatedAt,
+            runID: runID,
+            overrideInfo: overrideInfo
+        )
+        do {
+            try PersistMeasurementDataUseCase(writer: writer, pathResolver: resolver)
+                .execute(sampleKey: singleKey, record: record)
+        } catch {
+            return .partial(
+                trace: trace,
+                metricError: AppError.from(error, fallback: "Metric persist failed").localizedDescription
             )
-            do {
-                try metricUseCase.execute(sampleKey: sk, record: record)
-            } catch {
-                metricErrors.append("\(sk): \(AppError.from(error, fallback: "Metric persist failed").localizedDescription)")
-            }
-        }
-
-        if !metricErrors.isEmpty {
-            return .partial(trace: trace, metricError: metricErrors.joined(separator: "; "))
         }
         return .success(trace: trace)
     }

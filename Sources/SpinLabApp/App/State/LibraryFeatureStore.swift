@@ -929,34 +929,58 @@ final class LibraryFeatureStore {
 
     // MARK: - Workbench Results deletion (V3.4.3)
 
-    /// Removes `ref` from the sample's `results_index.json` and deletes the chart PNG from disk.
-    /// Reloads the workbench-results projection when done. Silently ignores I/O failures.
+    /// Removes `ref` from every sample's `results_index.json`, then deletes the chart files.
+    ///
+    /// Correct order (index-first):
+    /// 1. Collect updated index data for ALL samples that reference this identity key.
+    /// 2. Atomically commit all index rewrites in one pass — if this fails, no files are touched.
+    /// 3. Only after indexes are consistent, delete the PNG and manifest (best-effort).
+    ///
+    /// Multi-sample charts live under `_spinlab/multi-sample/` and may be referenced by several
+    /// samples simultaneously. Scanning all samples ensures no dangling references are left behind.
     func deleteWorkbenchResult(_ ref: WorkbenchResultReference) {
-        guard let sampleKey = librarySelectedSampleId,
-              let rootPath = librarySettings.rootPath else { return }
+        guard let rootPath = librarySettings.rootPath else { return }
         let rootURL = URL(fileURLWithPath: rootPath)
         let resolver = LibraryPathResolver(libraryRootURL: rootURL)
+        let writer = AtomicFileWriter()
 
-        // 1. Delete the PNG file (best-effort)
-        if let pngURL = try? resolver.absoluteURL(for: ref.chartImagePath) {
-            try? FileManager.default.removeItem(at: pngURL)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+
+        // Enumerate all known sample keys so multi-sample chart references are fully removed.
+        let allSampleKeys: [String]
+        if let idx = libraryStore.loadIndex(from: rootURL) {
+            allSampleKeys = idx.samples.map { $0.id }
+        } else {
+            allSampleKeys = librarySelectedSampleId.map { [$0] } ?? []
         }
 
-        // 2. Remove the reference from the index and rewrite it atomically
-        let indexRelPath = "samples/\(sampleKey)/_spinlab/results_index.json"
-        if var index = LoadWorkbenchResultsUseCase(pathResolver: resolver).execute(sampleKey: sampleKey) {
+        // 1. Build atomic write entries for every sample index that contains this reference.
+        let now = Date()
+        var indexWrites: [AtomicWriteEntry] = []
+        for sk in allSampleKeys {
+            guard var index = LoadWorkbenchResultsUseCase(pathResolver: resolver).execute(sampleKey: sk),
+                  index.references.contains(where: { $0.chartIdentityKey == ref.chartIdentityKey }),
+                  let indexURL = try? resolver.absoluteURL(for: "samples/\(sk)/_spinlab/results_index.json")
+            else { continue }
             index.references.removeAll { $0.chartIdentityKey == ref.chartIdentityKey }
-            index.updatedAt = Date()
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            if let data = try? encoder.encode(index),
-               let indexURL = try? resolver.absoluteURL(for: indexRelPath) {
-                try? AtomicFileWriter().write(data, to: indexURL)
+            index.updatedAt = now
+            guard let data = try? encoder.encode(index) else { continue }
+            indexWrites.append(AtomicWriteEntry(destinationURL: indexURL, data: data))
+        }
+
+        // 2. Commit all index updates atomically — abort entirely if this fails.
+        guard (try? writer.commit(indexWrites)) != nil || indexWrites.isEmpty else { return }
+
+        // 3. Delete the chart files only after indexes are consistent.
+        for relPath in [ref.chartImagePath, ref.manifestPath] {
+            if let url = try? resolver.absoluteURL(for: relPath) {
+                try? FileManager.default.removeItem(at: url)
             }
         }
 
-        // 3. Refresh the in-memory projection
+        // 4. Refresh the in-memory projection.
         loadWorkbenchResultsForCurrentSelection()
     }
 
