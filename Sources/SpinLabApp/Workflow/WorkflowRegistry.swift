@@ -73,6 +73,14 @@ final class WorkflowRegistry {
         )
         register(
             WorkflowBundle(
+                workflowExtension: ThreeOmegaAHEWorkflowExtension(),
+                metadataExtension: ThreeOmegaAHEMetadataExtension(),
+                analysisModule: ThreeOmegaAHEAnalysisModuleExtension(),
+                viewExtension: ThreeOmegaAHEViewExtension()
+            )
+        )
+        register(
+            WorkflowBundle(
                 workflowExtension: DummyWorkflowExtension(),
                 metadataExtension: DummyMetadataExtension(),
                 analysisModule: DummyAnalysisModuleExtension(),

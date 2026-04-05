@@ -64,6 +64,8 @@ final class WorkbenchFeatureStore {
     private(set) var isWorkflowSearchRunning = false
     /// AHE-specific workspace state. All plot, selection, and artifact state lives here.
     let aheWorkspace = AHEWorkspaceStore()
+    /// 3ω AHE workspace state. Independent workflow — parsing, fitting, scaling, 6 plots.
+    let threeOmegaWorkspace = ThreeOmegaWorkspaceStore()
 
     @ObservationIgnored
     private var archivedRecordsProjectionTask: Task<Void, Never>?
@@ -629,6 +631,7 @@ final class WorkbenchFeatureStore {
                 guard !Task.isCancelled else { return }
                 workflowSearchResults = result
                 aheWorkspace.cachedSearchResults = result
+                threeOmegaWorkspace.cachedSearchResults = result
                 workflowSearchMessage = result.isEmpty
                     ? "No files matched query: \(query)"
                     : "Found \(result.count) file(s)."
@@ -655,6 +658,7 @@ final class WorkbenchFeatureStore {
         workflowSearchTask = nil
         workflowSearchResults = []
         aheWorkspace.cachedSearchResults = []
+        threeOmegaWorkspace.cachedSearchResults = []
         workflowSearchMessage = nil
         isWorkflowSearchRunning = false
     }
