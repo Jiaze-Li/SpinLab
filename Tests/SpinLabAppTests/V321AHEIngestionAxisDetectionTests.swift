@@ -38,7 +38,7 @@ struct V321AHEIngestionAxisDetectionTests {
 
     // MARK: - Default axis mapping
 
-    @Test("default x axis is Magnetic Field (Oe)")
+    @Test("default x axis is Magnetic Field (T)")
     func defaultXAxisIsMagneticField() throws {
         let fixture = try AHEDatFixture()
         defer { fixture.cleanup() }
@@ -49,10 +49,10 @@ struct V321AHEIngestionAxisDetectionTests {
             parseFile: { try AHEDataParser().parse(fileURL: $0) }
         )
 
-        #expect(result.defaultAxisMapping.xField == "Magnetic Field (Oe)")
+        #expect(result.defaultAxisMapping.xField == "Magnetic Field (T)")
     }
 
-    @Test("default y axis is Bridge 1 Resistance (Ohms) when Bridge 1 is active")
+    @Test("default y axis is R_H (Ω) when Bridge 1 is active")
     func defaultYAxisIsFirstActiveBridgeResistance() throws {
         let fixture = try AHEDatFixture()
         defer { fixture.cleanup() }
@@ -63,7 +63,7 @@ struct V321AHEIngestionAxisDetectionTests {
             parseFile: { try AHEDataParser().parse(fileURL: $0) }
         )
 
-        #expect(result.defaultAxisMapping.yField == "Bridge 1 Resistance (Ohms)")
+        #expect(result.defaultAxisMapping.yField == "R_H (\u{03A9})")
     }
 
     // MARK: - Parse-once guarantee

@@ -122,9 +122,11 @@ struct V324ChartIdentityOverwriteTests {
         defer { fixture.cleanup() }
 
         let payloadA = makePayload(workflowID: "AHE", sourceRef: "a.dat",
-                                   xField: "Magnetic Field (Oe)", yField: "Bridge 1 Resistance (Ohms)")
+                                   xField: "Magnetic Field (Oe)", yField: "Bridge 1 Resistance (Ohms)",
+                                   title: "Run A")
         let payloadB = makePayload(workflowID: "AHE", sourceRef: "a.dat",
-                                   xField: "Temperature (K)", yField: "Bridge 1 Resistance (Ohms)")
+                                   xField: "Temperature (K)", yField: "Bridge 1 Resistance (Ohms)",
+                                   title: "Run B")
         let useCase = fixture.makeUseCase()
         let pngData = Data([0x89, 0x50, 0x4E, 0x47])
 
