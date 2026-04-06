@@ -17,10 +17,16 @@ import Testing
 private func makeSyntheticLVMFile(
     temperatureK: Double = 5.0,
     iRms: Double = 0.001 / sqrt(2.0),
-    nRows: Int = 20,
+    nRows: Int = 40,
     h_values: [Double]? = nil
 ) -> ThreeOmegaLVMFile {
-    let H: [Double] = h_values ?? stride(from: -20000.0, through: 20000.0, by: 20000.0 / Double(nRows - 1)).map { $0 }
+    // Real measurement sweeps H: +max → −max (descending) then −max → +max (ascending),
+    // producing ≥2 zero crossings required by _windowV3w.
+    let halfN = nRows / 2
+    let step = 40000.0 / Double(halfN)
+    let Hdown = (0...halfN).map { 20000.0 - step * Double($0) }        // +20k → −20k
+    let Hup   = (1...halfN).map { -20000.0 + step * Double($0) }       // −20k → +20k (skip dup at −20k)
+    let H: [Double] = h_values ?? (Hdown + Hup)
     let iAmp = iRms * sqrt(2.0)
     // R¹ω simulates a step: sign of R ~ sign of H, |R| = 1Ω
     let r1 = H.map { $0 >= 0 ? 1.0 : -1.0 }
@@ -28,8 +34,12 @@ private func makeSyntheticLVMFile(
     let col1 = r1.map { $0 * iRms }
     // R_H = Col[9] pre-calculated
     let col9 = r1
-    // V³ω_X: small constant 2e-5 V (flat plateau)
-    let col5 = Array(repeating: 2e-5, count: H.count)
+    // V³ω_X: simulates AHE — flips sign between descending and ascending branches.
+    // Descending branch (first half): −1e-5 V; ascending branch (second half): +1e-5 V.
+    // _windowV3w returns ascAvg − descAvg = 1e-5 − (−1e-5) = 2e-5 V.
+    let col5 = H.enumerated().map { i, _ -> Double in
+        i <= halfN ? -1e-5 : 1e-5
+    }
     return ThreeOmegaLVMFile(
         iRms: iRms,
         iAmpFromFilename: iAmp,
@@ -145,7 +155,7 @@ struct V400FitUseCaseTests {
     func v3AtZeroField() {
         let file = makeSyntheticLVMFile()
         let result = fitter.process(file: file)
-        // All col5 entries are 2e-5, so v3omegaWindow should be 2e-5
+        // col5 = −1e-5 (descending) / +1e-5 (ascending) → ascAvg − descAvg = 2e-5
         #expect(abs(result.v3omegaWindow - 2e-5) < 1e-10)
     }
 
