@@ -169,11 +169,6 @@ struct V400ScalingUseCaseTests {
         // Generate synthetic scaling points on exact line Y = 2*σ² + 3
         let xs: [Double] = [1e6, 2e6, 3e6, 4e6, 5e6]
         let ys = xs.map { 2.0 * $0 + 3.0 }
-        let points = zip(xs, ys).map {
-            ThreeOmegaScalingPoint(temperatureK: 10.0, sigma2xx: $0, scalingY: $1)
-        }
-        let result = ThreeOmegaScalingResult(points: points, alpha: nil, beta: nil, rSquared: nil)
-
         // Use the private _linearFit via executeWithIRms with precomputed points
         // We test via public output — use a geometry that reproduces known inputs
         // This verifies the linear algebra
@@ -439,7 +434,7 @@ struct V400PlotRendererTests {
     @Test("renderScaling with no points returns nil")
     func renderScalingNoPoints() {
         let renderer = ThreeOmegaPlotRenderer()
-        let result = ThreeOmegaScalingResult(points: [], warnings: [])
+        let result = ThreeOmegaScalingResult(points: [], segments: [], warnings: [])
         let (data, _) = renderer.renderScaling(result: result)
         #expect(data == nil)
     }

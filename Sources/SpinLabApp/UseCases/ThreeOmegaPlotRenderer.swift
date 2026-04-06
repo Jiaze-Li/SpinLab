@@ -154,7 +154,7 @@ struct ThreeOmegaPlotRenderer {
     /// Tab 6: Fig 5b — E^(3ω)_AHE / (E_xx³ × σ_xx) vs σ²_xx
     /// Display units: X in 10⁷ S²/cm², Y in Ω·μm³·V⁻²
     /// Conversions: X_SI (S/m)² × 1e-11 → 10⁷ S²/cm²
-    ///              Y_SI (Ω·m³/V²) × 1e18 → Ω·μm³·V⁻²
+    ///              Y_SI (Ω·m³/V²) × 1e20 → Ω·μm³·V⁻² × 10²
     func renderScaling(result: ThreeOmegaScalingResult) -> (Data?, WorkbenchPlotLayout?) {
         guard !result.points.isEmpty else { return (nil, nil) }
 
@@ -166,21 +166,40 @@ struct ThreeOmegaPlotRenderer {
                                 isScatter: true, pointLabels: tempLabels)
         ]
 
-        if let alpha = result.alpha, let beta = result.beta, xs.count >= 2 {
-            let xMin = xs.min()!, xMax = xs.max()!
+        let isSingleFull = result.isSingleFullRange()
+        for segment in result.segments {
+            // Convert segment's participating x values to display units
+            let segXsDisplay = segment.participatingXValues.map { $0 * 1e-11 }
+            let xMin = segXsDisplay.min() ?? 0
+            let xMax = segXsDisplay.max() ?? 0
+            let dx = xMax - xMin
+            // Extend fit line 5% beyond data on each side; guard against dx=0
+            let ext = max(0.05 * dx, 0.01 * abs(xMin), 1e-11)
+            let x0 = xMin - ext
+            let x1 = xMax + ext
             // Fit in display units: alpha_d = alpha_SI × 1e31, beta_d = beta_SI × 1e20
-            let alphaD = alpha * 1e31
-            let betaD  = beta  * 1e20
-            let fitY = [xMin, xMax].map { alphaD * $0 + betaD }
+            let alphaD = segment.alpha * 1e31
+            let betaD  = segment.beta  * 1e20
+            let fitY = [x0, x1].map { alphaD * $0 + betaD }
+            // Single full-range segment keeps the legacy label; partial/multi use temperature range
+            let label = isSingleFull
+                ? "Fitting Results"
+                : "Fit \(Int(segment.tLo.rounded()))K–\(Int(segment.tHi.rounded()))K"
             series.append(WorkbenchPlotSeries(
-                label: "Fitting Results",
-                x: [xMin, xMax],
+                label: label,
+                x: [x0, x1],
                 y: fitY,
                 lineWidth: 2.5
             ))
         }
 
-        let r2Str = result.rSquared.map { String(format: " R²=%.3f", $0) } ?? ""
+        // Show R² in title only for single full-range fit
+        let r2Str: String
+        if isSingleFull, let seg = result.segments.first {
+            r2Str = String(format: " R²=%.3f", seg.rSquared)
+        } else {
+            r2Str = ""
+        }
         var payload = WorkbenchPlotPayload(
             workflowID: "3W",
             workflowDisplayName: "3ω AHE",

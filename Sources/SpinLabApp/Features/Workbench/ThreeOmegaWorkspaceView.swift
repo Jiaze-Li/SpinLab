@@ -171,42 +171,107 @@ private struct ThreeOmegaGeometryPanel: View {
         @Bindable var store = appState.workbench.threeOmegaWorkspace
 
         GroupBox("Geometry (for Scaling Law)") {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 12) {
-                    HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
+
+                // ── Geometry dimensions ───────────────────────────────
+                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 8, verticalSpacing: 6) {
+                    GridRow {
                         (Text("L").font(.body)
                          + Text("xx").font(.system(size: 9)).baselineOffset(-3)
                          + Text(" (μm)").font(.body))
+                        .gridColumnAlignment(.trailing)
                         TextField("e.g. 26", value: $store.geometry.lxx, format: .number)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 64)
-                    }
-                    HStack(spacing: 6) {
                         (Text("L").font(.body)
                          + Text("xy").font(.system(size: 9)).baselineOffset(-3)
                          + Text(" (μm)").font(.body))
+                        .gridColumnAlignment(.trailing)
                         TextField("e.g. 21", value: $store.geometry.lxy, format: .number)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 64)
                     }
-                }
-                HStack(spacing: 8) {
-                    HStack(spacing: 6) {
+                    GridRow {
                         Text("d (nm)").font(.body)
+                            .gridColumnAlignment(.trailing)
                         TextField("e.g. 30", value: $store.geometry.dNm, format: .number)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 64)
+                        Button("Run Scaling") {
+                            store.runScaling()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!store.geometry.isComplete || store.ingestionResult == nil)
+                        .gridCellColumns(2)
+                        .gridCellAnchor(.trailing)
                     }
+                }
+
+                Divider()
+
+                // ── Fit Ranges ────────────────────────────────────────
+                HStack {
+                    Text("Fit Ranges")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     Spacer()
-                    Button("Run Scaling") {
-                        store.runScaling()
+                    Button {
+                        store.addFitRange()
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(!store.geometry.isComplete || store.ingestionResult == nil)
+                    .buttonStyle(.plain)
+                }
+
+                ForEach($store.fitRanges) { $range in
+                    HStack(spacing: 4) {
+                        FitRangeBoundField(placeholder: "T_lo (K)", value: $range.tLo)
+                        Text("–")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        FitRangeBoundField(placeholder: "T_hi (K)", value: $range.tHi)
+                        Button {
+                            store.removeFitRange(id: range.id)
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(store.fitRanges.count <= 1)
+                    }
                 }
             }
             .padding(.vertical, 4)
         }
+    }
+}
+
+/// Text field for an optional Double temperature bound.
+/// Empty field = nil (use data boundary). Accepts integer or decimal input.
+private struct FitRangeBoundField: View {
+    let placeholder: String
+    @Binding var value: Double?
+
+    @State private var text: String = ""
+    @State private var didAppear = false
+
+    var body: some View {
+        TextField(placeholder, text: $text)
+            .textFieldStyle(.roundedBorder)
+            .frame(width: 68)
+            .onAppear {
+                guard !didAppear else { return }
+                didAppear = true
+                text = value.map { String(Int($0.rounded())) } ?? ""
+            }
+            .onChange(of: text) { _, newVal in
+                let trimmed = newVal.trimmingCharacters(in: .whitespaces)
+                if trimmed.isEmpty {
+                    value = nil
+                } else if let d = Double(trimmed) {
+                    value = d
+                }
+            }
     }
 }
 
@@ -384,22 +449,35 @@ private struct ThreeOmegaScalingResultPanel: View {
 
     var body: some View {
         GroupBox("Scaling Law Fit Results") {
-            VStack(alignment: .leading, spacing: 4) {
-                if let beta = result.beta {
-                    Text(String(format: "β (Q_xxz) = %.4e Ω·μm³·V⁻²", beta * 1e20))
+            VStack(alignment: .leading, spacing: 6) {
+                if result.isSingleFullRange(), let seg = result.segments.first {
+                    // Compact format when one segment covers all points (legacy behaviour)
+                    Text(String(format: "β (Q_xxz) = %.4e Ω·μm³·V⁻²", seg.beta * 1e20))
                         .font(.system(.body, design: .monospaced))
-                }
-                if let alpha = result.alpha {
-                    Text(String(format: "α (skew) = %.4e Ω·μm³·cm²·V⁻²·S⁻²", alpha * 1e31))
+                    Text(String(format: "α (skew) = %.4e Ω·μm³·cm²·V⁻²·S⁻²", seg.alpha * 1e31))
                         .font(.system(.body, design: .monospaced))
-                }
-                if let r2 = result.rSquared {
-                    Text(String(format: "R² = %.4f", r2))
+                    Text(String(format: "R² = %.4f", seg.rSquared))
                         .font(.system(.body, design: .monospaced))
+                    Text("\(result.points.count) data point(s)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    // Multi-segment format: one block per segment, ascending temperature order
+                    ForEach(Array(result.segments.enumerated()), id: \.element.id) { idx, seg in
+                        if idx > 0 { Divider() }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(Int(seg.tLo.rounded())) K – \(Int(seg.tHi.rounded())) K  (n=\(seg.pointCount))")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                            Text(String(format: "β (Q_xxz) = %.4e Ω·μm³·V⁻²", seg.beta * 1e20))
+                                .font(.system(.caption, design: .monospaced))
+                            Text(String(format: "α (skew) = %.4e Ω·μm³·cm²·V⁻²·S⁻²", seg.alpha * 1e31))
+                                .font(.system(.caption, design: .monospaced))
+                            Text(String(format: "R² = %.4f", seg.rSquared))
+                                .font(.system(.caption, design: .monospaced))
+                        }
+                    }
                 }
-                Text("\(result.points.count) data point(s)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
                 ForEach(result.warnings, id: \.self) { w in
                     Text("⚠ \(w)")
                         .font(.caption)

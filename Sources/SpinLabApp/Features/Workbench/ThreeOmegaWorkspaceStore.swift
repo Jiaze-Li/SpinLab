@@ -18,6 +18,10 @@ final class ThreeOmegaWorkspaceStore {
 
     var geometry = ThreeOmegaGeometry()
 
+    // MARK: - Fit ranges (session-only, not persisted)
+
+    var fitRanges: [ThreeOmegaFitRange] = [ThreeOmegaFitRange()]
+
     // MARK: - Analysis output
 
     private(set) var ingestionResult: ThreeOmegaIngestionResult?
@@ -84,6 +88,23 @@ final class ThreeOmegaWorkspaceStore {
 
     func selectAll() {
         selectedSearchResultIDs = Set(cachedSearchResults.map { $0.id })
+    }
+
+    // MARK: - Fit range management
+
+    func addFitRange() {
+        fitRanges.append(ThreeOmegaFitRange())
+    }
+
+    func removeFitRange(id: UUID) {
+        guard fitRanges.count > 1 else { return }
+        fitRanges.removeAll { $0.id == id }
+    }
+
+    func updateFitRange(id: UUID, tLo: Double?, tHi: Double?) {
+        guard let idx = fitRanges.firstIndex(where: { $0.id == id }) else { return }
+        fitRanges[idx].tLo = tLo
+        fitRanges[idx].tHi = tHi
     }
 
     // MARK: - Analysis
@@ -173,6 +194,7 @@ final class ThreeOmegaWorkspaceStore {
         let capturedGrid     = showPlotGrid
         let capturedAnchor   = plotLegendAnchor
         let capturedLegend   = plotLegendPoints[.scaling]
+        let capturedRanges   = fitRanges
 
         scalingTask?.cancel()
         scalingTask = Task { [weak self] in
@@ -183,7 +205,8 @@ final class ThreeOmegaWorkspaceStore {
                     fieldSweeps: capturedResult.fieldSweeps,
                     rtResult: rt,
                     geometry: capturedGeometry,
-                    iRmsValues: capturedResult.iRmsValues
+                    iRmsValues: capturedResult.iRmsValues,
+                    fitRanges: capturedRanges
                 )
                 var renderer = ThreeOmegaPlotRenderer()
                 renderer.showGrid     = capturedGrid
@@ -203,8 +226,10 @@ final class ThreeOmegaWorkspaceStore {
                 print("[SpinLab][3ω Scaling] \(w)")
             }
 
-            if let beta = scalingRes.beta, let r2 = scalingRes.rSquared {
-                self.analysisMessage = String(format: "Scaling: β = %.4e, R² = %.4f", beta, r2)
+            if scalingRes.isSingleFullRange(), let seg = scalingRes.segments.first {
+                self.analysisMessage = String(format: "Scaling: β = %.4e, R² = %.4f", seg.beta, seg.rSquared)
+            } else if !scalingRes.segments.isEmpty {
+                self.analysisMessage = "Scaling: \(scalingRes.segments.count) segment(s) fitted."
             } else if !scalingRes.warnings.isEmpty {
                 self.analysisMessage = scalingRes.warnings.first
             }
@@ -286,6 +311,7 @@ final class ThreeOmegaWorkspaceStore {
         isAnalyzing              = false
         analysisMessage          = nil
         geometry                 = ThreeOmegaGeometry()
+        fitRanges                = [ThreeOmegaFitRange()]
         activeTab                = .fieldSweep1omega
         showPlotGrid             = true
         plotLegendAnchor         = ""

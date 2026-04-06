@@ -129,15 +129,41 @@ struct ThreeOmegaScalingPoint: Codable, Hashable, Sendable {
     var scalingY: Double
 }
 
-struct ThreeOmegaScalingResult: Codable, Hashable, Sendable {
-    var points: [ThreeOmegaScalingPoint]
+/// One independent temperature range submitted for linear fitting.
+/// tLo/tHi are session-only; nil means "use data boundary".
+struct ThreeOmegaFitRange: Codable, Hashable, Sendable, Identifiable {
+    var id: UUID = UUID()
+    var tLo: Double?   // nil = data T_min
+    var tHi: Double?   // nil = data T_max
+}
+
+/// Result of one independent linear fit Y = α·σ²_xx + β on a temperature sub-range.
+struct ThreeOmegaScalingSegment: Codable, Hashable, Sendable, Identifiable {
+    let id: UUID
+    let tLo: Double
+    let tHi: Double
     // Formula: Y = α × σ²_xx + β
     // β → Berry curvature quadrupole Q_xxz (intrinsic, main physical result)
     // α → extrinsic skew-scattering contribution
-    var alpha: Double?
-    var beta: Double?
-    var rSquared: Double?
+    let alpha: Double
+    let beta: Double
+    let rSquared: Double
+    let pointCount: Int
+    /// σ²_xx values (S/m)² for points that participated in this fit.
+    /// Used by the renderer to determine the x-range of the fit line.
+    let participatingXValues: [Double]
+}
+
+struct ThreeOmegaScalingResult: Codable, Hashable, Sendable {
+    var points: [ThreeOmegaScalingPoint]
+    var segments: [ThreeOmegaScalingSegment]
     var warnings: [String] = []
+
+    /// True when there is exactly one segment and it covers every computed point.
+    /// Drives the compact (legacy) display format in the results panel.
+    func isSingleFullRange() -> Bool {
+        segments.count == 1 && segments[0].pointCount == points.count
+    }
 }
 
 // MARK: - Top-level ingestion result

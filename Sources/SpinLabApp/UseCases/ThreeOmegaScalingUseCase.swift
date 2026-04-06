@@ -13,15 +13,19 @@ import Foundation
 struct ThreeOmegaScalingUseCase {
 
     /// Primary entry point: takes a mapping from temperatureK → iRms (A).
+    /// fitRanges controls which temperature sub-ranges are fitted independently.
+    /// A single default ThreeOmegaFitRange() (both bounds nil) = full-range fit.
     func executeWithIRms(
         fieldSweeps: [ThreeOmegaFieldSweepResult],
         rtResult: ThreeOmegaRTResult,
         geometry: ThreeOmegaGeometry,
-        iRmsValues: [Double: Double]   // temperatureK → iRms (A)
+        iRmsValues: [Double: Double],   // temperatureK → iRms (A)
+        fitRanges: [ThreeOmegaFitRange] = [ThreeOmegaFitRange()]
     ) -> ThreeOmegaScalingResult {
         guard geometry.isComplete else {
             return ThreeOmegaScalingResult(
                 points: [],
+                segments: [],
                 warnings: ["Geometry incomplete — L_xx, L_xy, d required (all > 0)."]
             )
         }
@@ -90,33 +94,108 @@ struct ThreeOmegaScalingUseCase {
             ))
         }
 
-        // Linear fit: Y = α·σ²_xx + β
-        var alpha: Double? = nil
-        var beta: Double? = nil
-        var rSquared: Double? = nil
-
-        if points.count >= 2 {
-            let xs = points.map { $0.sigma2xx }
-            let ys = points.map { $0.scalingY }
-            if let (a, b, r2) = _linearFit(x: xs, y: ys) {
-                alpha = a
-                beta = b
-                rSquared = r2
-            }
-        } else if points.count < 2 {
+        guard points.count >= 2 else {
             warnings.append("Fewer than 2 scaling points — linear fit not possible.")
+            return ThreeOmegaScalingResult(points: points, segments: [], warnings: warnings)
         }
 
-        return ThreeOmegaScalingResult(
-            points: points,
-            alpha: alpha,
-            beta: beta,
-            rSquared: rSquared,
-            warnings: warnings
+        // Normalize fit ranges against actual data temperature bounds
+        let dataTMin = points.map { $0.temperatureK }.min()!
+        let dataTMax = points.map { $0.temperatureK }.max()!
+        let (normalizedRanges, rangeWarnings) = _normalizeFitRanges(
+            fitRanges,
+            dataTMin: dataTMin,
+            dataTMax: dataTMax
         )
+        warnings.append(contentsOf: rangeWarnings)
+
+        // Fit each segment independently
+        var segments: [ThreeOmegaScalingSegment] = []
+        for (segIdx, range) in normalizedRanges.enumerated() {
+            let segNum = segIdx + 1
+            let segLabel = "Segment \(segNum) (\(Int(range.lo.rounded()))K–\(Int(range.hi.rounded()))K)"
+
+            let segPoints = points.filter {
+                $0.temperatureK >= range.lo && $0.temperatureK <= range.hi
+            }
+
+            guard segPoints.count >= 2 else {
+                warnings.append("\(segLabel): fewer than 2 valid points, skipped.")
+                continue
+            }
+
+            let xs = segPoints.map { $0.sigma2xx }
+            let ys = segPoints.map { $0.scalingY }
+
+            guard let (alpha, beta, r2) = _linearFit(x: xs, y: ys) else {
+                warnings.append("\(segLabel): fit failed (degenerate data), skipped.")
+                continue
+            }
+
+            segments.append(ThreeOmegaScalingSegment(
+                id: UUID(),
+                tLo: range.lo,
+                tHi: range.hi,
+                alpha: alpha,
+                beta: beta,
+                rSquared: r2,
+                pointCount: segPoints.count,
+                participatingXValues: xs
+            ))
+        }
+
+        return ThreeOmegaScalingResult(points: points, segments: segments, warnings: warnings)
     }
 
     // MARK: - Private helpers
+
+    /// Resolved temperature range after normalization.
+    private struct _ResolvedRange {
+        let lo: Double
+        let hi: Double
+    }
+
+    /// Normalises fit ranges:
+    ///   1. Resolve nil bounds to data T_min / T_max.
+    ///   2. Swap reversed bounds (tLo > tHi).
+    ///   3. Clip to [dataTMin, dataTMax].
+    ///   4. Sort by lo ascending.
+    ///   5. Detect closed-interval overlaps and emit warnings.
+    private func _normalizeFitRanges(
+        _ ranges: [ThreeOmegaFitRange],
+        dataTMin: Double,
+        dataTMax: Double
+    ) -> ([_ResolvedRange], [String]) {
+        var warnings: [String] = []
+
+        // Steps 1–3
+        var resolved: [_ResolvedRange] = ranges.map { range in
+            var lo = range.tLo ?? dataTMin
+            var hi = range.tHi ?? dataTMax
+            if lo > hi { swap(&lo, &hi) }
+            lo = max(lo, dataTMin)
+            hi = min(hi, dataTMax)
+            return _ResolvedRange(lo: lo, hi: hi)
+        }
+
+        // Step 4: sort by lo
+        resolved.sort { $0.lo < $1.lo }
+
+        // Step 5: overlap detection on sorted list (check adjacent pairs)
+        // Closed-interval overlap: max(lo1, lo2) <= min(hi1, hi2)
+        for i in 0..<(resolved.count - 1) {
+            let a = resolved[i]
+            let b = resolved[i + 1]
+            if max(a.lo, b.lo) <= min(a.hi, b.hi) {
+                warnings.append(
+                    "Segment \(i + 1) (\(Int(a.lo.rounded()))K–\(Int(a.hi.rounded()))K) and " +
+                    "Segment \(i + 2) (\(Int(b.lo.rounded()))K–\(Int(b.hi.rounded()))K) overlap."
+                )
+            }
+        }
+
+        return (resolved, warnings)
+    }
 
     /// Linear interpolation of Rxx at a given temperature from the RT curve.
     /// Uses nearest-neighbour within ±2K tolerance, then linear interpolation.
