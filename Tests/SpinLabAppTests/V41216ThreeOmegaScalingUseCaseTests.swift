@@ -34,7 +34,7 @@ private func makeSweep(t: Double, v3w: Double, rxx: Double, iRms: Double) -> Thr
 ///
 /// Strategy: choose geometry so that σ_xx = 1/ρ_xx is trivial to compute, then
 /// pick v3w to make scalingY land on a straight line.
-private struct SyntheticScalingRig {
+struct SyntheticScalingRig {
     /// geometry: lxx=1μm, lxy=1μm, d=1nm → ρ_xx = Rxx × 1e-15, σ_xx = 1/ρ_xx
     let geo = ThreeOmegaGeometry(lxx: 1, lxy: 1, dNm: 1)
 
