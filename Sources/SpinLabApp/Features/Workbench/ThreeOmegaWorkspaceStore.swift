@@ -399,6 +399,10 @@ struct ThreeOmegaWarningEntry: Identifiable, Sendable {
     }
 }
 
+// MARK: - WorkbenchPlottingStore conformance
+
+extension ThreeOmegaWorkspaceStore: WorkbenchPlottingStore {}
+
 // MARK: - Rendered plot bundle
 
 struct ThreeOmegaRenderedPlots: Sendable {

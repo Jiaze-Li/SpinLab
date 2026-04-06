@@ -607,3 +607,7 @@ final class AHEWorkspaceStore {
         return n % 2 == 1 ? sorted[n / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0
     }
 }
+
+// MARK: - WorkbenchPlottingStore conformance
+
+extension AHEWorkspaceStore: WorkbenchPlottingStore {}

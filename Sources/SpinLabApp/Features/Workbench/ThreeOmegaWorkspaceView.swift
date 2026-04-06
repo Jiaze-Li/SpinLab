@@ -127,41 +127,37 @@ private struct ThreeOmegaPlotControlsPanel: View {
     var body: some View {
         @Bindable var store = appState.workbench.threeOmegaWorkspace
 
-        GroupBox("Plot Controls") {
-            VStack(alignment: .leading, spacing: 8) {
-
-                // Tab 选择 + Grid
-                HStack(spacing: 8) {
-                    Picker("Tab", selection: $store.activeTab) {
-                        ForEach(ThreeOmegaWorkbenchTab.allCases) { tab in
-                            Text(tab.rawValue).tag(tab)
-                        }
+        WorkbenchPlotControlsPanel {
+            // Tab 选择 + Grid
+            HStack(spacing: 8) {
+                Picker("Tab", selection: $store.activeTab) {
+                    ForEach(ThreeOmegaWorkbenchTab.allCases) { tab in
+                        Text(tab.rawValue).tag(tab)
                     }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity)
-
-                    Toggle("Grid", isOn: $store.showPlotGrid)
-                        .toggleStyle(.checkbox)
-                        .onChange(of: store.showPlotGrid) { _, _ in
-                            store.updateLegendPoint(store.plotLegendPoints[store.activeTab] ?? .zero)
-                        }
                 }
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Stack Offset").font(.caption).foregroundStyle(.secondary)
-                    HStack(spacing: 6) {
-                        Slider(value: $store.stackOffsetMultiplier, in: 0...1.6, step: 0.1)
-                            .onChange(of: store.stackOffsetMultiplier) { _, _ in
-                                store.rerenderFieldSweepTabs()
-                            }
-                        Text(String(format: "%.1f×", store.stackOffsetMultiplier))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 32, alignment: .trailing)
+                Toggle("Grid", isOn: $store.showPlotGrid)
+                    .toggleStyle(.checkbox)
+                    .onChange(of: store.showPlotGrid) { _, _ in
+                        store.updateLegendPoint(store.plotLegendPoints[store.activeTab] ?? .zero)
                     }
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Stack Offset").font(.caption).foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Slider(value: $store.stackOffsetMultiplier, in: 0...1.6, step: 0.1)
+                        .onChange(of: store.stackOffsetMultiplier) { _, _ in
+                            store.rerenderFieldSweepTabs()
+                        }
+                    Text(String(format: "%.1f×", store.stackOffsetMultiplier))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 32, alignment: .trailing)
                 }
             }
-            .padding(.vertical, 4)
         }
     }
 }
@@ -250,7 +246,7 @@ private struct ThreeOmegaResultsList: View {
                     }
                     ForEach(workbench.workflowSearchResults) { hit in
                         let isSelected = store.selectedSearchResultIDs.contains(hit.id)
-                        ThreeOmegaResultRow(hit: hit, isSelected: isSelected) {
+                        WorkflowHitRow(hit: hit, isSelected: isSelected) {
                             store.toggleSearchHitSelection(hit.id)
                         }
                     }
@@ -259,59 +255,6 @@ private struct ThreeOmegaResultsList: View {
                 .padding(.vertical, 8)
             }
         }
-    }
-}
-
-private struct ThreeOmegaResultRow: View {
-    let hit: WorkflowMeasurementSearchHit
-    let isSelected: Bool
-    let onTap: () -> Void
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-                .font(.body)
-                .padding(.top, 2)
-
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("Workflow").font(.caption).foregroundStyle(.secondary)
-                    Text(hit.workflowDisplayName).font(.body.weight(.semibold))
-                }
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("Sample").font(.caption).foregroundStyle(.secondary)
-                    Text(hit.sampleBatchAndSubstrate)
-                }
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("Condition").font(.caption).foregroundStyle(.secondary)
-                    Text(hit.conditionSummary).font(.callout)
-                }
-                if !hit.channels.isEmpty {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("Channels").font(.caption).foregroundStyle(.secondary)
-                        Text(hit.channels.joined(separator: ", ")).font(.callout)
-                    }
-                }
-                Text(hit.measurementFilePath)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-            }
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            isSelected
-                ? AnyShapeStyle(Color.accentColor.opacity(0.08))
-                : AnyShapeStyle(.regularMaterial),
-            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(isSelected ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
-        )
-        .onTapGesture(perform: onTap)
     }
 }
 

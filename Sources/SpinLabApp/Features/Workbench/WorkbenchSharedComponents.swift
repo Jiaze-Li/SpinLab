@@ -1,6 +1,28 @@
 import SwiftUI
 import AppKit
 
+// MARK: - WorkbenchPlottingStore
+
+/// 所有 workflow workspace store 必须实现的 canvas 交互合约。
+/// 确保任何新 workflow 都能接入 WorkbenchPlotCanvas 的拖拽、行内编辑等交互。
+@MainActor
+protocol WorkbenchPlottingStore: AnyObject {
+    /// 是否显示网格线。
+    var showPlotGrid: Bool { get set }
+    /// 最近一次运行的 trace（nil = 尚未运行）。
+    var currentRunTrace: WorkbenchRunTraceProjection? { get }
+    /// 用户拖拽图例后回调，point 为 plot 归一化坐标（x,y ∈ [0,1]，Y-up）。
+    func updateLegendPoint(_ point: CGPoint)
+    /// 用户行内编辑图表标题后回调。
+    func updatePlotTitle(_ title: String)
+    /// 用户行内编辑 X 轴标签后回调。
+    func updateXAxisLabel(_ label: String)
+    /// 用户行内编辑 Y 轴标签后回调。
+    func updateYAxisLabel(_ label: String)
+    /// 用户重命名图例标签后回调。
+    func updateSeriesLabel(index: Int, newLabel: String)
+}
+
 // MARK: - WorkbenchPlotCanvas
 
 /// 通用图像显示组件。
@@ -443,5 +465,80 @@ struct WorkbenchStatusArea: View {
                 Text(msg).font(.footnote).foregroundStyle(.secondary)
             }
         }
+    }
+}
+
+// MARK: - WorkbenchPlotControlsPanel
+
+/// 通用 Plot Controls 容器。
+/// 提供统一的 GroupBox 标题、内部 VStack 间距和 padding。
+/// 所有 workflow 的 PlotControlsPanel 必须以此为容器，workflow 专属控件通过 ViewBuilder 注入。
+struct WorkbenchPlotControlsPanel<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        GroupBox("Plot Controls") {
+            VStack(alignment: .leading, spacing: 8) {
+                content()
+            }
+            .padding(.vertical, 4)
+        }
+    }
+}
+
+// MARK: - WorkflowHitRow
+
+/// 通用搜索结果行。
+/// 适用于所有 workflow 的 WorkflowMeasurementSearchHit 显示。
+struct WorkflowHitRow: View {
+    let hit: WorkflowMeasurementSearchHit
+    let isSelected: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                .font(.body)
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("Workflow").font(.caption).foregroundStyle(.secondary)
+                    Text(hit.workflowDisplayName).font(.body.weight(.semibold))
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("Sample").font(.caption).foregroundStyle(.secondary)
+                    Text(hit.sampleBatchAndSubstrate)
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("Condition").font(.caption).foregroundStyle(.secondary)
+                    Text(hit.conditionSummary).font(.callout)
+                }
+                if !hit.channels.isEmpty {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("Channels").font(.caption).foregroundStyle(.secondary)
+                        Text(hit.channels.joined(separator: ", ")).font(.callout)
+                    }
+                }
+                Text(hit.measurementFilePath)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            isSelected
+                ? AnyShapeStyle(Color.accentColor.opacity(0.08))
+                : AnyShapeStyle(.regularMaterial),
+            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(isSelected ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
+        )
+        .onTapGesture(perform: onTap)
     }
 }
