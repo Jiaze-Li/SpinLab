@@ -173,7 +173,7 @@ struct ThreeOmegaPlotRenderer {
             let betaD  = beta  * 1e20
             let fitY = [xMin, xMax].map { alphaD * $0 + betaD }
             series.append(WorkbenchPlotSeries(
-                label: String(format: "Fit: β=%.3e Ω·μm³·V⁻², α=%.3e Ω·μm³·cm²·V⁻²·S⁻²", betaD, alphaD),
+                label: "Fitting Results",
                 x: [xMin, xMax],
                 y: fitY,
                 lineWidth: 2.5

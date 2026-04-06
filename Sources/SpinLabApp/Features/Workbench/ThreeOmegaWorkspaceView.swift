@@ -485,11 +485,11 @@ private struct ThreeOmegaScalingResultPanel: View {
         GroupBox("Scaling Law Fit Results") {
             VStack(alignment: .leading, spacing: 4) {
                 if let beta = result.beta {
-                    Text(String(format: "β (Q_xxz) = %.4e", beta))
+                    Text(String(format: "β (Q_xxz) = %.4e Ω·μm³·V⁻²", beta * 1e20))
                         .font(.system(.body, design: .monospaced))
                 }
                 if let alpha = result.alpha {
-                    Text(String(format: "α (skew) = %.4e", alpha))
+                    Text(String(format: "α (skew) = %.4e Ω·μm³·cm²·V⁻²·S⁻²", alpha * 1e31))
                         .font(.system(.body, design: .monospaced))
                 }
                 if let r2 = result.rSquared {
