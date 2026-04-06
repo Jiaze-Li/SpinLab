@@ -106,7 +106,7 @@ struct WorkbenchPlotLayout: Sendable {
         )
 
         // Y axis label (rotated 90°) — left-margin strip
-        let yLabelCenter  = CGPoint(x: options.paddingLeft * 0.20, y: h / 2)
+        let yLabelCenter  = CGPoint(x: options.paddingLeft * 0.38, y: h / 2)
         let yLabelHitRect = CGRect(
             x: 0, y: plotRect.minY,
             width:  options.paddingLeft * 0.50,

@@ -10,12 +10,26 @@ struct WorkbenchPlotSeries: Codable, Hashable, Sendable {
     var x: [Double]
     var y: [Double]
     var sourceRef: String?
+    var isScatter: Bool
+    var pointLabels: [String]   // per-point annotation text for scatter series (empty = none)
+    var lineWidth: Double        // line width for line series; default 1.5
 
-    init(label: String, x: [Double], y: [Double], sourceRef: String? = nil) {
+    init(
+        label: String,
+        x: [Double],
+        y: [Double],
+        sourceRef: String? = nil,
+        isScatter: Bool = false,
+        pointLabels: [String] = [],
+        lineWidth: Double = 1.5
+    ) {
         self.label = label
         self.x = x
         self.y = y
         self.sourceRef = sourceRef
+        self.isScatter = isScatter
+        self.pointLabels = pointLabels
+        self.lineWidth = lineWidth
     }
 }
 

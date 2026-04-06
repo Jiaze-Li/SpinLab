@@ -160,7 +160,11 @@ struct ThreeOmegaPlotRenderer {
 
         let xs = result.points.map { $0.sigma2xx * 1e-11 }   // (S/m)² → 10⁷ S²/cm²
         let ys = result.points.map { $0.scalingY  * 1e20  }  // Ω·m³/V² → Ω·μm³·V⁻² × 10²
-        var series: [WorkbenchPlotSeries] = [WorkbenchPlotSeries(label: "Data", x: xs, y: ys)]
+        let tempLabels = result.points.map { "\(Int($0.temperatureK.rounded())) K" }
+        var series: [WorkbenchPlotSeries] = [
+            WorkbenchPlotSeries(label: "Experiment Data", x: xs, y: ys,
+                                isScatter: true, pointLabels: tempLabels)
+        ]
 
         if let alpha = result.alpha, let beta = result.beta, xs.count >= 2 {
             let xMin = xs.min()!, xMax = xs.max()!
@@ -169,9 +173,10 @@ struct ThreeOmegaPlotRenderer {
             let betaD  = beta  * 1e20
             let fitY = [xMin, xMax].map { alphaD * $0 + betaD }
             series.append(WorkbenchPlotSeries(
-                label: String(format: "Fit: β=%.3e Ω·μm³·V⁻²×10²", betaD),
+                label: String(format: "Fit: β=%.3e Ω·μm³·V⁻², α=%.3e Ω·μm³·cm²·V⁻²·S⁻²", betaD, alphaD),
                 x: [xMin, xMax],
-                y: fitY
+                y: fitY,
+                lineWidth: 2.5
             ))
         }
 
@@ -183,8 +188,8 @@ struct ThreeOmegaPlotRenderer {
             // Formula: Y = E^(3ω)_AHE / (E_xx³ × σ_xx) = α·σ²_xx + β
             // β → Q_xxz Berry curvature quadrupole; E_xx³ = E_xx to the power 3
             axisMapping: WorkbenchAxisMapping(
-                xField: "σ²_xx (10⁷ S²/cm²)",
-                yField: "Y × 10² (Ω·μm³·V⁻²)"
+                xField: "σ²_x_x (10⁷ S²/cm²)",
+                yField: "E^(^3^ω)_A_H_E / (E³_x_x · σ_x_x) × 10² (Ω·μm³·V⁻²)"
             ),
             series: series
         )
