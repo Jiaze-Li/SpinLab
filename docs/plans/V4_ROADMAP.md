@@ -269,6 +269,11 @@
 - `V41216ThreeOmegaScalingUseCaseTests`：`SyntheticScalingRig` Rxx 改为温度依赖 `T/100`，修复 OLS 退化；β 调至可恢复量级
 - `V400ThreeOmegaTests`：`makeSyntheticLVMFile` H 扫描改为 desc→asc 双支路（2 次过零），col5 按支路翻转，nRows=40
 
+### ✅ Workbench Result 删除功能修复 + 测试（v4.1.2.18）
+
+- `LibraryFeatureStore.deleteWorkbenchResultOnDisk` 添加 `nonisolated` 标记，修复 MainActor 隔离问题（静态方法不需要 actor 绑定）
+- 新增 `V343DeleteWorkbenchResultTests.swift` — Workbench Result 磁盘删除功能的完整测试套件（fixture 基于临时目录，覆盖 results_index 更新 + PNG/manifest 文件清理）
+
 ---
 
 ## 4.2 🔲 — XY Rotation Workflow
