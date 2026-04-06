@@ -35,25 +35,28 @@ private func makeSweep(t: Double, v3w: Double, rxx: Double, iRms: Double) -> Thr
 /// Strategy: choose geometry so that σ_xx = 1/ρ_xx is trivial to compute, then
 /// pick v3w to make scalingY land on a straight line.
 struct SyntheticScalingRig {
-    /// geometry: lxx=1μm, lxy=1μm, d=1nm → ρ_xx = Rxx × 1e-15, σ_xx = 1/ρ_xx
+    /// geometry: lxx=1μm, lxy=1μm, d=1nm
     let geo = ThreeOmegaGeometry(lxx: 1, lxy: 1, dNm: 1)
 
-    /// For each temperature, Rxx(T) = 1Ω, iRms fixed at 1A.
-    /// Then σ_xx = 1/(Rxx × d_m) = 1/(1 × 1e-9) = 1e9 S/m
-    ///      σ²_xx = 1e18 (S/m)²
-    ///      E_xx  = iRms × Rxx / L_xx_m = 1 × 1 / 1e-6 = 1e6 V/m
-    ///      E_xx³ = 1e18
-    ///      scalingY = v3w / L_xy_m  / (E_xx³ × σ_xx)
-    ///              = v3w × 1e6 / (1e18 × 1e9)
-    ///              = v3w × 1e6 / 1e27
-    ///              = v3w × 1e-21
+    /// Rxx(T) = T/100 (Ω) — varies with temperature so σ²_xx differs per point.
     ///
-    /// To place scalingY = α_target × σ²_xx + β_target  (with σ²_xx = 1e18):
-    ///   scalingY = α_target × 1e18 + β_target
-    ///   v3w = scalingY × 1e21 = (α_target × 1e18 + β_target) × 1e21
+    /// Derivation (iRms = 1A):
+    ///   ρ_xx   = Rxx × d_m = Rxx × 1e-9
+    ///   σ_xx   = 1 / ρ_xx = 1e9 / Rxx
+    ///   σ²_xx  = 1e18 / Rxx²
+    ///   E_xx   = iRms × Rxx / L_xx_m = Rxx × 1e6
+    ///   E_xx³  = Rxx³ × 1e18
+    ///   scalingY = (v3w / L_xy_m) / (E_xx³ × σ_xx)
+    ///            = v3w / (Rxx² × 1e21)
+    ///
+    /// To place scalingY = α × σ²_xx + β = α × 1e18/Rxx² + β:
+    ///   v3w = (α × 1e18/Rxx² + β) × Rxx² × 1e21
+    ///       = (α × 1e18 + β × Rxx²) × 1e21
 
-    func v3w(alpha: Double, beta: Double) -> Double {
-        (alpha * 1e18 + beta) * 1e21
+    func rxxForTemp(_ t: Double) -> Double { t / 100.0 }
+
+    func v3w(alpha: Double, beta: Double, rxx: Double) -> Double {
+        (alpha * 1e18 + beta * rxx * rxx) * 1e21
     }
 
     func iRmsValues(temps: [Double]) -> [Double: Double] {
@@ -61,7 +64,7 @@ struct SyntheticScalingRig {
     }
 
     func rtResult(temps: [Double]) -> ThreeOmegaRTResult {
-        makeRT(temps: temps, rxx: Array(repeating: 1.0, count: temps.count))
+        makeRT(temps: temps, rxx: temps.map { rxxForTemp($0) })
     }
 }
 
@@ -76,10 +79,11 @@ struct V41216ScalingUseCaseTests {
     @Test("Single default range equals legacy single-fit output")
     func singleFullRangeRegression() {
         let alpha_t = 2.0e-18   // SI units for α
-        let beta_t  = 3.0e-20   // SI units for β
+        let beta_t  = 0.5       // scaled up so β is recoverable by OLS at Double precision
         let temps: [Double] = [100, 150, 200, 250, 300]
         let sweeps = temps.map { t in
-            makeSweep(t: t, v3w: rig.v3w(alpha: alpha_t, beta: beta_t), rxx: 1.0, iRms: 1.0)
+            let rxx = rig.rxxForTemp(t)
+            return makeSweep(t: t, v3w: rig.v3w(alpha: alpha_t, beta: beta_t, rxx: rxx), rxx: rxx, iRms: 1.0)
         }
         let result = uc.executeWithIRms(
             fieldSweeps: sweeps,
@@ -102,15 +106,21 @@ struct V41216ScalingUseCaseTests {
     func twoIndependentSegments() {
         // Low range: 100–200K  →  α=2e-18, β=3e-20
         // High range: 300–500K →  α=5e-18, β=1e-20
-        let alphaLo = 2.0e-18, betaLo = 3.0e-20
-        let alphaHi = 5.0e-18, betaHi = 1.0e-20
+        let alphaLo = 2.0e-18, betaLo = 0.5
+        let alphaHi = 5.0e-18, betaHi = 0.3
 
         let tempsLo: [Double] = [100, 150, 200]
         let tempsHi: [Double] = [300, 400, 500]
         let allTemps = tempsLo + tempsHi
 
-        let sweeps = tempsLo.map { makeSweep(t: $0, v3w: rig.v3w(alpha: alphaLo, beta: betaLo), rxx: 1.0, iRms: 1.0) }
-                   + tempsHi.map { makeSweep(t: $0, v3w: rig.v3w(alpha: alphaHi, beta: betaHi), rxx: 1.0, iRms: 1.0) }
+        let sweeps = tempsLo.map { t -> ThreeOmegaFieldSweepResult in
+                        let rxx = rig.rxxForTemp(t)
+                        return makeSweep(t: t, v3w: rig.v3w(alpha: alphaLo, beta: betaLo, rxx: rxx), rxx: rxx, iRms: 1.0)
+                   }
+                   + tempsHi.map { t -> ThreeOmegaFieldSweepResult in
+                        let rxx = rig.rxxForTemp(t)
+                        return makeSweep(t: t, v3w: rig.v3w(alpha: alphaHi, beta: betaHi, rxx: rxx), rxx: rxx, iRms: 1.0)
+                   }
 
         let ranges: [ThreeOmegaFitRange] = [
             ThreeOmegaFitRange(tLo: 100, tHi: 200),
@@ -142,7 +152,7 @@ struct V41216ScalingUseCaseTests {
     @Test("Reversed tLo/tHi is silently swapped before fitting")
     func reversedBoundsSwapped() {
         let temps: [Double] = [100, 200, 300]
-        let sweeps = temps.map { makeSweep(t: $0, v3w: rig.v3w(alpha: 2e-18, beta: 3e-20), rxx: 1.0, iRms: 1.0) }
+        let sweeps = temps.map { t in let rxx = rig.rxxForTemp(t); return makeSweep(t: t, v3w: rig.v3w(alpha: 2e-18, beta: 3e-20, rxx: rxx), rxx: rxx, iRms: 1.0) }
 
         // Input reversed: tLo=300, tHi=100 — should be treated as 100–300
         let ranges: [ThreeOmegaFitRange] = [ThreeOmegaFitRange(tLo: 300, tHi: 100)]
@@ -162,7 +172,7 @@ struct V41216ScalingUseCaseTests {
     @Test("Overlapping ranges emit a warning")
     func overlappingRangesWarn() {
         let temps: [Double] = [100, 200, 300, 400]
-        let sweeps = temps.map { makeSweep(t: $0, v3w: rig.v3w(alpha: 2e-18, beta: 3e-20), rxx: 1.0, iRms: 1.0) }
+        let sweeps = temps.map { t in let rxx = rig.rxxForTemp(t); return makeSweep(t: t, v3w: rig.v3w(alpha: 2e-18, beta: 3e-20, rxx: rxx), rxx: rxx, iRms: 1.0) }
 
         let ranges: [ThreeOmegaFitRange] = [
             ThreeOmegaFitRange(tLo: 100, tHi: 250),
@@ -185,7 +195,7 @@ struct V41216ScalingUseCaseTests {
     @Test("Range with fewer than 2 points emits a warning and is skipped")
     func tooFewPointsSkipped() {
         let temps: [Double] = [100, 200, 300]
-        let sweeps = temps.map { makeSweep(t: $0, v3w: rig.v3w(alpha: 2e-18, beta: 3e-20), rxx: 1.0, iRms: 1.0) }
+        let sweeps = temps.map { t in let rxx = rig.rxxForTemp(t); return makeSweep(t: t, v3w: rig.v3w(alpha: 2e-18, beta: 3e-20, rxx: rxx), rxx: rxx, iRms: 1.0) }
 
         // Second range covers only one data point
         let ranges: [ThreeOmegaFitRange] = [
@@ -208,7 +218,7 @@ struct V41216ScalingUseCaseTests {
     @Test("isSingleFullRange false when range covers a subset of points")
     func isSingleFullRangeSubset() {
         let temps: [Double] = [100, 200, 300, 400]
-        let sweeps = temps.map { makeSweep(t: $0, v3w: rig.v3w(alpha: 2e-18, beta: 3e-20), rxx: 1.0, iRms: 1.0) }
+        let sweeps = temps.map { t in let rxx = rig.rxxForTemp(t); return makeSweep(t: t, v3w: rig.v3w(alpha: 2e-18, beta: 3e-20, rxx: rxx), rxx: rxx, iRms: 1.0) }
 
         // Narrow range → fewer points than total
         let ranges: [ThreeOmegaFitRange] = [ThreeOmegaFitRange(tLo: 100, tHi: 200)]

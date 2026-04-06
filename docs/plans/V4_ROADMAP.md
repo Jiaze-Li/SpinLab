@@ -1,7 +1,7 @@
 # SpinLab V4 总路线图
 
 状态：进行中
-更新：2026-04-06（4.1.2 完成，4.1.4 Scaling 多段拟合已超前实现）
+更新：2026-04-06（4.1.2 完成，4.1.4 Scaling 多段拟合已超前实现，Library 合并 Workbench Results + 测试 rig 修复）
 
 ---
 
@@ -238,6 +238,41 @@
 1. **Open Q1 — V^(3ω)_AHE 提取方法**：决策时机在 4.1.2 完成后，看 Tab 2 的 5K 曲线形状
 2. **Open Q2 — 多 RT 文件**：选 `|H|` 最小的 RT 文件（实现在 4.1.3）
 3. **Open Q3 — 温度插值精度**：±5K guard；若 4.1.4 丢点 >3 个则放宽到 ±10K
+
+---
+
+## Library 基础设施改进（跨版本，v4.1.2.17–v4.1.2.18）
+
+以下改动不属于任何 4.1.x workflow 迭代，是 Library 层面的独立改进。
+
+### ✅ 合并 Workbench Results 到 Measurements Done（v4.1.2.17）
+
+**动机：** 用户实际工作流是"找 measurement 文件 → 看它参与过的图"，不需要独立的 Workbench Results 区块。
+
+**改动：**
+- 移除 Library detail 中的 `WorkbenchResultsSectionView` 区块
+- `LibraryMeasurementsDoneSection` 新增 hover 预览：250ms 后弹出 `MeasurementPlotPreviewPanel`，显示该文件参与过的所有图缩略图
+- 点击缩略图用系统默认程序打开 PNG；每张图叠加删除按钮（删 PNG + manifest + index 条目）
+- `sourceFileName` 改为始终显示在 footnote
+
+**新增持久化：** `samples/{sampleKey}/_spinlab/measurement_plot_index.json`
+- `MeasurementPlotIndex` 反向索引：`sourceFileName → [chartIdentityKey]`
+- 在 `PersistChartArtifactUseCase` 中与 `results_index.json` 原子写入
+- `LoadMeasurementPlotIndexUseCase`（fail-soft Adj-10）
+- `BackfillMeasurementPlotIndexUseCase`：旧图首次加载时从 manifest 回填
+- 脏引用过滤在 `LibraryFeatureStore` 中完成（加载后内存过滤，不回写）
+
+**测试：** `V41217MeasurementPlotIndexTests.swift` — 13 个测试覆盖 upsert / persist / load / fail-soft / dirty filtering
+
+### ✅ 3ω 测试 rig 修复（v4.1.2.18）
+
+- `V41216ThreeOmegaScalingUseCaseTests`：`SyntheticScalingRig` Rxx 改为温度依赖 `T/100`，修复 OLS 退化；β 调至可恢复量级
+- `V400ThreeOmegaTests`：`makeSyntheticLVMFile` H 扫描改为 desc→asc 双支路（2 次过零），col5 按支路翻转，nRows=40
+
+### ✅ Workbench Result 删除功能修复 + 测试（v4.1.2.18）
+
+- `LibraryFeatureStore.deleteWorkbenchResultOnDisk` 添加 `nonisolated` 标记，修复 MainActor 隔离问题（静态方法不需要 actor 绑定）
+- 新增 `V343DeleteWorkbenchResultTests.swift` — Workbench Result 磁盘删除功能的完整测试套件（fixture 基于临时目录，覆盖 results_index 更新 + PNG/manifest 文件清理）
 
 ---
 

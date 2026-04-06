@@ -127,6 +127,33 @@ struct PersistChartArtifactUseCase {
             }
             index.updatedAt = generatedAt
             indexEntries.append((indexAbsURL, try Self.encoder.encode(index)))
+
+            // Update measurement_plot_index.json for this sample.
+            // I/O failure → rethrow; decode failure → log + rebuild (no data loss on write path).
+            let plotIndexRelPath = "samples/\(sk)/_spinlab/measurement_plot_index.json"
+            let plotIndexAbsURL  = try pathResolver.absoluteURL(for: plotIndexRelPath)
+            var plotIndex: MeasurementPlotIndex
+            do {
+                let data = try Data(contentsOf: plotIndexAbsURL)
+                if let decoded = try? Self.decoder.decode(MeasurementPlotIndex.self, from: data) {
+                    plotIndex = decoded
+                } else {
+                    fputs("[SpinLab] PersistChartArtifact: decode failed for plot index \(sk), rebuilding\n", stderr)
+                    plotIndex = MeasurementPlotIndex(sampleKey: sk, updatedAt: generatedAt)
+                }
+            } catch {
+                let nsErr = error as NSError
+                if nsErr.domain == NSCocoaErrorDomain && nsErr.code == NSFileReadNoSuchFileError {
+                    plotIndex = MeasurementPlotIndex(sampleKey: sk, updatedAt: generatedAt)
+                } else {
+                    throw error
+                }
+            }
+            for inputFile in manifest.inputFiles {
+                plotIndex.upsert(chartIdentityKey: identityKey, sourceFile: inputFile)
+            }
+            plotIndex.updatedAt = generatedAt
+            indexEntries.append((plotIndexAbsURL, try Self.encoder.encode(plotIndex)))
         }
 
         let manifestData = try Self.encoder.encode(manifest)

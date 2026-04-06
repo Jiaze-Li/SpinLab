@@ -128,53 +128,46 @@ final class ThreeOmegaWorkspaceStore {
 
         analysisTask = Task { [weak self] in
             guard let self else { return }
-            do {
-                let (result, plots) = try await Task.detached(priority: .userInitiated) { [selectedHits] in
-                    let ingestUseCase = IngestThreeOmegaSelectionsUseCase()
-                    let result = ingestUseCase.execute(hits: selectedHits)
-                    var renderer = ThreeOmegaPlotRenderer()
-                    renderer.showGrid             = capturedGrid
-                    renderer.legendAnchor         = capturedAnchor
-                    renderer.stackOffsetMultiplier = capturedMultiplier
-                    let plots = renderer.renderAllTabs(result: result)
-                    return (result, plots)
-                }.value
+            let (result, plots) = await Task.detached(priority: .userInitiated) { [selectedHits] in
+                let ingestUseCase = IngestThreeOmegaSelectionsUseCase()
+                let result = ingestUseCase.execute(hits: selectedHits)
+                var renderer = ThreeOmegaPlotRenderer()
+                renderer.showGrid             = capturedGrid
+                renderer.legendAnchor         = capturedAnchor
+                renderer.stackOffsetMultiplier = capturedMultiplier
+                let plots = renderer.renderAllTabs(result: result)
+                return (result, plots)
+            }.value
 
-                guard !Task.isCancelled else { return }
-                self.ingestionResult = result
-                self._applyPlots(plots)
+            guard !Task.isCancelled else { return }
+            self.ingestionResult = result
+            self._applyPlots(plots)
 
-                let sweepCount = result.fieldSweeps.count
-                let rtNote     = result.rtResult != nil ? ", RT curve loaded" : ""
-                let warnNote   = result.warnings.isEmpty ? "" : " (\(result.warnings.count) warning(s))"
-                self.analysisMessage = "Analyzed \(sweepCount) field-sweep file(s)\(rtNote)\(warnNote)."
+            let sweepCount = result.fieldSweeps.count
+            let rtNote     = result.rtResult != nil ? ", RT curve loaded" : ""
+            let warnNote   = result.warnings.isEmpty ? "" : " (\(result.warnings.count) warning(s))"
+            self.analysisMessage = "Analyzed \(sweepCount) field-sweep file(s)\(rtNote)\(warnNote)."
 
-                for w in result.warnings {
-                    self.warningLog.append(ThreeOmegaWarningEntry(source: "Ingestion", message: w))
-                    print("[SpinLab][3ω Ingestion] \(w)")
-                }
-
-                self.currentRunTrace = WorkbenchRunTraceProjection(
-                    runID: UUID().uuidString,
-                    workflowID: "3W",
-                    inputFiles: selectedHits.map { $0.measurementFilePath },
-                    axisMapping: WorkbenchAxisMapping(xField: "H (Oe)", yField: "R (Ω)"),
-                    semanticParams: [
-                        "angle":        result.angleLabel.isEmpty ? "unknown" : result.angleLabel,
-                        "fieldSweeps":  "\(sweepCount)",
-                        "rtLoaded":     result.rtResult != nil ? "yes" : "no"
-                    ],
-                    outputImagePath: "",
-                    manifestPath: "",
-                    generatedAt: Date()
-                )
-                self.isAnalyzing = false
-            } catch is CancellationError {
-                self.isAnalyzing = false
-            } catch {
-                self.isAnalyzing = false
-                self.analysisMessage = "Analysis failed: \(error.localizedDescription)"
+            for w in result.warnings {
+                self.warningLog.append(ThreeOmegaWarningEntry(source: "Ingestion", message: w))
+                print("[SpinLab][3ω Ingestion] \(w)")
             }
+
+            self.currentRunTrace = WorkbenchRunTraceProjection(
+                runID: UUID().uuidString,
+                workflowID: "3W",
+                inputFiles: selectedHits.map { $0.measurementFilePath },
+                axisMapping: WorkbenchAxisMapping(xField: "H (Oe)", yField: "R (Ω)"),
+                semanticParams: [
+                    "angle":        result.angleLabel.isEmpty ? "unknown" : result.angleLabel,
+                    "fieldSweeps":  "\(sweepCount)",
+                    "rtLoaded":     result.rtResult != nil ? "yes" : "no"
+                ],
+                outputImagePath: "",
+                manifestPath: "",
+                generatedAt: Date()
+            )
+            self.isAnalyzing = false
         }
     }
 
@@ -372,35 +365,39 @@ final class ThreeOmegaWorkspaceStore {
             r.yLabelOverride        = yLabelOverride
             r.seriesLabelOverrides  = labelOverrides
 
-            var result: (Data?, WorkbenchPlotLayout?) = (nil, nil)
+            let rendered: (Data?, WorkbenchPlotLayout?)
             switch tab {
             case .fieldSweep1omega:
-                result = r.renderR1omega(sweeps: ingestion.fieldSweeps, angleLabel: ingestion.angleLabel)
+                rendered = r.renderR1omega(sweeps: ingestion.fieldSweeps, angleLabel: ingestion.angleLabel)
             case .fieldSweep3omega:
-                result = r.renderR3omega(sweeps: ingestion.fieldSweeps, angleLabel: ingestion.angleLabel)
+                rendered = r.renderR3omega(sweeps: ingestion.fieldSweeps, angleLabel: ingestion.angleLabel)
             case .raheVsT:
-                result = r.renderRAHEvsT(sweeps: ingestion.fieldSweeps, angleLabel: ingestion.angleLabel)
+                rendered = r.renderRAHEvsT(sweeps: ingestion.fieldSweeps, angleLabel: ingestion.angleLabel)
             case .hcVsT:
-                result = r.renderHcVsT(sweeps: ingestion.fieldSweeps, angleLabel: ingestion.angleLabel)
+                rendered = r.renderHcVsT(sweeps: ingestion.fieldSweeps, angleLabel: ingestion.angleLabel)
             case .rtCurve:
-                if let rt = ingestion.rtResult { result = r.renderRT(rt: rt) }
+                rendered = ingestion.rtResult.map { r.renderRT(rt: $0) } ?? (nil, nil)
             case .scaling:
                 if let sr = capturedScaling, capturedGeometry.isComplete {
-                    result = r.renderScaling(result: sr)
+                    rendered = r.renderScaling(result: sr)
+                } else {
+                    rendered = (nil, nil)
                 }
             }
 
+            let plotData   = rendered.0
+            let plotLayout = rendered.1
             await MainActor.run { [weak self] in
                 guard let self, self.activeTab == tab else { return }
                 switch tab {
-                case .fieldSweep1omega: self.plotR1omega = result.0
-                case .fieldSweep3omega: self.plotR3omega = result.0
-                case .raheVsT:          self.plotRAHEvsT = result.0
-                case .hcVsT:            self.plotHcvsT   = result.0
-                case .rtCurve:          self.plotRT      = result.0
-                case .scaling:          self.plotScaling = result.0
+                case .fieldSweep1omega: self.plotR1omega = plotData
+                case .fieldSweep3omega: self.plotR3omega = plotData
+                case .raheVsT:          self.plotRAHEvsT = plotData
+                case .hcVsT:            self.plotHcvsT   = plotData
+                case .rtCurve:          self.plotRT      = plotData
+                case .scaling:          self.plotScaling = plotData
                 }
-                if let l = result.1 { self.plotLayouts[tab] = l }
+                if let l = plotLayout { self.plotLayouts[tab] = l }
             }
         }
     }
