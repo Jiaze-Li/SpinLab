@@ -67,8 +67,11 @@ struct WorkbenchPlotCanvas: View {
     @State private var editText: String = ""
     /// Screen-space rect of the element being edited, used to position the edit panel.
     @State private var editTargetScreenRect: CGRect = .zero
+    /// Pixel size of the current rendered PNG used for coordinate conversion.
+    /// Falls back to 800x600 until image metadata is available.
+    @State private var rendererPixelSize: CGSize = CGSize(width: 800, height: 600)
 
-    private static let rendererSize = CGSize(width: 800, height: 600)
+    private static let defaultRendererSize = CGSize(width: 800, height: 600)
 
     private enum EditTarget: Equatable {
         case title
@@ -109,57 +112,45 @@ struct WorkbenchPlotCanvas: View {
                         .onChanged { value in
                             guard onLegendDrag != nil else { return }
                             let fitted = fittedRect(in: canvasSize)
-                            guard let cursorNorm = plotNormalized(location: value.location, fittedRect: fitted) else {
-                                // Cursor left plot area — keep last preview position.
-                                return
-                            }
-                            // Capture grab offset once on the first valid drag frame.
+                            // plotNormalized always returns a value (clamps to fitted+plot boundary).
+                            guard let cursorNorm = plotNormalized(location: value.location, fittedRect: fitted) else { return }
+                            // Capture grab offset once using startLocation (not first-frame location)
+                            // to avoid the minimumDistance:4 threshold causing a positional jump.
                             if dragGrabOffsetNorm == nil {
+                                let startNorm = plotNormalized(location: value.startLocation, fittedRect: fitted) ?? cursorNorm
                                 let origin = currentLegendOriginNorm()
                                 dragGrabOffsetNorm = CGSize(
-                                    width:  cursorNorm.x - origin.x,
-                                    height: cursorNorm.y - origin.y
+                                    width:  startNorm.x - origin.x,
+                                    height: startNorm.y - origin.y
                                 )
                             }
                             let grab = dragGrabOffsetNorm ?? .zero
+                            // Legend origin follows cursor minus the grab offset.
+                            // cursorNorm is already clamped to [0,1] so adjusted is too.
                             let adjusted = CGPoint(
-                                x: cursorNorm.x - grab.width,
-                                y: cursorNorm.y - grab.height
+                                x: min(max(cursorNorm.x - grab.width,  0), 1),
+                                y: min(max(cursorNorm.y - grab.height, 0), 1)
                             )
                             lastValidDragNorm = adjusted
-                            // Clamp only for preview so it matches the renderer's clamped output.
-                            // The unclamped value is kept in lastValidDragNorm / callback so the
-                            // cursor can reach the actual plot boundary without an air wall.
-                            let previewNorm = CGPoint(
-                                x: min(max(adjusted.x, 0), 1),
-                                y: min(max(adjusted.y, 0), 1)
-                            )
-                            dragPreviewPt = legendScreenOrigin(normalized: previewNorm, fittedRect: fitted)
+                            dragPreviewPt = legendScreenOrigin(normalized: adjusted, fittedRect: fitted)
                         }
                         .onEnded { value in
-                            let grab      = dragGrabOffsetNorm ?? .zero
-                            let lastNorm  = lastValidDragNorm
-                            dragPreviewPt     = nil
+                            let last = lastValidDragNorm
+                            dragPreviewPt      = nil
                             dragGrabOffsetNorm = nil
                             lastValidDragNorm  = nil
-                            guard let callback = onLegendDrag else { return }
-                            let fitted = fittedRect(in: canvasSize)
-                            // Prefer cursor position; fall back to last valid position from onChanged
-                            // (handles the case where the cursor lands in the padding area on release).
-                            let finalNorm: CGPoint
-                            if let cn = plotNormalized(location: value.location, fittedRect: fitted) {
-                                finalNorm = CGPoint(
-                                    x: cn.x - grab.width,
-                                    y: cn.y - grab.height
-                                )
-                            } else if let last = lastNorm {
-                                finalNorm = last
-                            } else {
-                                return
-                            }
+                            guard let callback = onLegendDrag, let finalNorm = last else { return }
+                            // finalNorm is already clamped to [0,1] from onChanged.
+                            // It matches exactly the last preview position, so landing = preview.
                             callback(finalNorm)
                         }
                 )
+                .onAppear {
+                    rendererPixelSize = Self.extractRendererPixelSize(from: nsImage) ?? Self.defaultRendererSize
+                }
+                .onChange(of: imageData) { _, _ in
+                    rendererPixelSize = Self.extractRendererPixelSize(from: nsImage) ?? Self.defaultRendererSize
+                }
         } else {
             ContentUnavailableView(
                 "No Plot",
@@ -177,15 +168,17 @@ struct WorkbenchPlotCanvas: View {
         if let pt = dragPreviewPt {
             let fitted = fittedRect(in: canvasSize)
             if fitted.width > 0 && fitted.height > 0 {
-                let opts    = WorkbenchChartRenderer.Options()
-                let scaleX  = fitted.width  / CGFloat(opts.width)
-                let scaleY  = fitted.height / CGFloat(opts.height)
+                let scaleX  = fitted.width  / rendererPixelSize.width
+                let scaleY  = fitted.height / rendererPixelSize.height
                 let boxPad: CGFloat = 6
                 let rowCount = CGFloat(layout?.legendRows.count ?? 1)
-                // Match drawLegend's exact box formula, scaled to screen space.
+                // Use the CoreText-measured max label width so the preview box matches the
+                // rendered legend box exactly (same formula as drawLegend).
+                let maxLabelW = layout?.legendRows.map(\.measuredLabelWidth).max()
+                              ?? WorkbenchPlotLayout.legendEstLabelW
                 let boxW = (WorkbenchPlotLayout.legendLineLen
                           + WorkbenchPlotLayout.legendGap
-                          + WorkbenchPlotLayout.legendEstLabelW
+                          + maxLabelW
                           + 2 * boxPad) * scaleX
                 let boxH = (rowCount * WorkbenchPlotLayout.legendRowH + 2 * boxPad) * scaleY
                 // pt is screen position of (cgOriginX, originY).
@@ -213,8 +206,8 @@ struct WorkbenchPlotCanvas: View {
         let opts = WorkbenchChartRenderer.Options()
         let plotMinX = opts.paddingLeft
         let plotMinY = opts.paddingBottom   // CG Y-up: plot bottom edge
-        let plotW = CGFloat(opts.width)  - opts.paddingLeft - opts.paddingRight
-        let plotH = CGFloat(opts.height) - opts.paddingTop  - opts.paddingBottom
+        let plotW = rendererPixelSize.width  - opts.paddingLeft - opts.paddingRight
+        let plotH = rendererPixelSize.height - opts.paddingTop  - opts.paddingBottom
         let row0 = rows[0]
         let nx = (row0.cgOriginX - plotMinX) / plotW
         // Reverse: originY = cgRowY + legendRowH * 0.4  (from computeLegendRows, i=0)
@@ -287,8 +280,8 @@ struct WorkbenchPlotCanvas: View {
     private func handleTap(at location: CGPoint) {
         guard let layout else { return }
         let fitted = fittedRect(in: canvasSize)
-        let rW = Self.rendererSize.width
-        let rH = Self.rendererSize.height
+        let rW = rendererPixelSize.width
+        let rH = rendererPixelSize.height
 
         func toScreen(_ cr: CGRect) -> CGRect {
             WorkbenchPlotLayout.cgToScreen(cr, fittedIn: fitted,
@@ -345,7 +338,7 @@ struct WorkbenchPlotCanvas: View {
 
     private func fittedRect(in size: CGSize) -> CGRect {
         guard size.width > 0, size.height > 0 else { return .zero }
-        let imageAspect = Self.rendererSize.width / Self.rendererSize.height
+        let imageAspect = rendererPixelSize.width / rendererPixelSize.height
         let containerAspect = size.width / size.height
         let w: CGFloat
         let h: CGFloat
@@ -358,16 +351,18 @@ struct WorkbenchPlotCanvas: View {
     }
 
     private func plotNormalized(location: CGPoint, fittedRect: CGRect) -> CGPoint? {
-        guard !fittedRect.isEmpty, fittedRect.contains(location) else { return nil }
-        let px = (location.x - fittedRect.minX) / fittedRect.width  * Self.rendererSize.width
-        let py = (location.y - fittedRect.minY) / fittedRect.height * Self.rendererSize.height
+        guard !fittedRect.isEmpty else { return nil }
+        // Clamp cursor to fittedRect before projecting so dragging outside the image
+        // (or into any padding margin) stays responsive with no invisible air wall.
+        let cx = min(max(location.x, fittedRect.minX), fittedRect.maxX)
+        let cy = min(max(location.y, fittedRect.minY), fittedRect.maxY)
+        let px = (cx - fittedRect.minX) / fittedRect.width  * rendererPixelSize.width
+        let py = (cy - fittedRect.minY) / fittedRect.height * rendererPixelSize.height
         let opts = WorkbenchChartRenderer.Options()
-        let plotW    = CGFloat(opts.width)  - opts.paddingLeft - opts.paddingRight
-        let plotH    = CGFloat(opts.height) - opts.paddingTop  - opts.paddingBottom
+        let plotW    = rendererPixelSize.width  - opts.paddingLeft - opts.paddingRight
+        let plotH    = rendererPixelSize.height - opts.paddingTop  - opts.paddingBottom
         let plotMinX = opts.paddingLeft
         let plotMinY = opts.paddingTop
-        guard px >= plotMinX, px <= plotMinX + plotW,
-              py >= plotMinY, py <= plotMinY + plotH else { return nil }
         let nx = (px - plotMinX) / plotW
         let ny = 1.0 - (py - plotMinY) / plotH
         return CGPoint(x: min(max(nx, 0), 1), y: min(max(ny, 0), 1))
@@ -379,18 +374,26 @@ struct WorkbenchPlotCanvas: View {
     /// rendered legend origin rather than the raw drag location.
     private func legendScreenOrigin(normalized: CGPoint, fittedRect: CGRect) -> CGPoint {
         let opts = WorkbenchChartRenderer.Options()
-        let plotW = CGFloat(opts.width)  - opts.paddingLeft - opts.paddingRight
-        let plotH = CGFloat(opts.height) - opts.paddingTop  - opts.paddingBottom
+        let plotW = rendererPixelSize.width  - opts.paddingLeft - opts.paddingRight
+        let plotH = rendererPixelSize.height - opts.paddingTop  - opts.paddingBottom
         // Renderer CG space (Y-up)
         let cgOriginX = opts.paddingLeft   + normalized.x * plotW
         let cgOriginY = opts.paddingBottom + normalized.y * plotH
         // PNG space (Y-down, same as screen)
         let pngX = cgOriginX
-        let pngY = CGFloat(opts.height) - cgOriginY
+        let pngY = rendererPixelSize.height - cgOriginY
         return CGPoint(
-            x: fittedRect.minX + pngX / CGFloat(opts.width)  * fittedRect.width,
-            y: fittedRect.minY + pngY / CGFloat(opts.height) * fittedRect.height
+            x: fittedRect.minX + pngX / rendererPixelSize.width  * fittedRect.width,
+            y: fittedRect.minY + pngY / rendererPixelSize.height * fittedRect.height
         )
+    }
+
+    private static func extractRendererPixelSize(from image: NSImage) -> CGSize? {
+        for rep in image.representations {
+            let size = CGSize(width: CGFloat(rep.pixelsWide), height: CGFloat(rep.pixelsHigh))
+            if size.width > 0, size.height > 0 { return size }
+        }
+        return nil
     }
 }
 
