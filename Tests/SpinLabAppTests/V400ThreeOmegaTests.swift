@@ -141,12 +141,12 @@ struct V400FitUseCaseTests {
         }
     }
 
-    @Test("v3omegaAtZeroField returns value at H closest to zero")
+    @Test("v3omegaWindow returns value at H closest to zero")
     func v3AtZeroField() {
         let file = makeSyntheticLVMFile()
         let result = fitter.process(file: file)
-        // All col5 entries are 2e-5, so v3AtZero should be 2e-5
-        #expect(abs(result.v3omegaAtZeroField - 2e-5) < 1e-10)
+        // All col5 entries are 2e-5, so v3omegaWindow should be 2e-5
+        #expect(abs(result.v3omegaWindow - 2e-5) < 1e-10)
     }
 
     @Test("R1omega and R3omega arrays have same length as hField")
@@ -215,7 +215,7 @@ struct V400ScalingUseCaseTests {
             temperatureK: 5.0, angleLabel: "0deg",
             hField: [-100, 0, 100], r1omega: [-1, 0, 1], r3omega: [0, 0, 0],
             rahe1omega: 1.0, rahe3omega: nil, hc1omega: nil, hc3omega: nil,
-            v3omegaAtZeroField: 2e-5
+            v3omegaWindow: 2e-5
         )
         let rt = ThreeOmegaRTResult(angleLabel: "0deg", temperatureK: [5.0], rxx: [100.0])
         let geo = ThreeOmegaGeometry(lxx: 26, lxy: 21, dNm: 30)
@@ -429,7 +429,7 @@ struct V400PlotRendererTests {
             temperatureK: 5.0, angleLabel: "0deg",
             hField: [-100, 0, 100], r1omega: [-1, 0, 1], r3omega: [0, 0, 0],
             rahe1omega: nil, rahe3omega: nil, hc1omega: nil, hc3omega: nil,
-            v3omegaAtZeroField: 2e-5
+            v3omegaWindow: 2e-5
         )
         let (data, _) = renderer.renderR1omega(sweeps: [sweep], angleLabel: "0deg")
         #expect(data != nil)

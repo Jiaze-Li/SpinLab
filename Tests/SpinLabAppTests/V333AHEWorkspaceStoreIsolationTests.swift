@@ -62,7 +62,7 @@ struct V333AHEWorkspaceStoreIsolationTests {
         store.plotTitleOverride = "My Plot"
         store.showPlotGrid = true
         store.plotLegendAnchor = "top-left"
-        store.plotSeriesLabelOverrides = ["A": "Custom A"]
+        store.plotSeriesLabelOverrides = [0: "Custom A"]
         store.plotXLabelOverride = "X"
         store.plotYLabelOverride = "Y"
 

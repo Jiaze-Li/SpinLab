@@ -1,4 +1,5 @@
 import CoreGraphics
+import CoreText
 
 /// Single source of truth for chart text-element positions.
 ///
@@ -27,6 +28,8 @@ struct WorkbenchPlotLayout: Sendable {
         let originalLabel: String
         let cgRowY:        CGFloat   // CG y-center of this row
         let cgOriginX:     CGFloat   // X start of the color swatch line
+        /// CoreText-measured label width in renderer coordinates (same font/size as drawLegend).
+        let measuredLabelWidth: CGFloat
 
         // MARK: Renderer drawing helpers
 
@@ -48,7 +51,7 @@ struct WorkbenchPlotLayout: Sendable {
         var hitRect: CGRect {
             let w = WorkbenchPlotLayout.legendLineLen
                   + WorkbenchPlotLayout.legendGap
-                  + WorkbenchPlotLayout.legendEstLabelW
+                  + measuredLabelWidth
             let h = WorkbenchPlotLayout.legendRowH
             // Block always extends rightward from cgOriginX ([line][gap][text]).
             return CGRect(x: cgOriginX, y: cgRowY - h / 2, width: w, height: h)
@@ -149,6 +152,7 @@ struct WorkbenchPlotLayout: Sendable {
             let cgRowY:      CGFloat
             let cgOriginX:   CGFloat
             let isLeftAligned: Bool
+            let measuredW = measureLabelWidth(s.label)
 
             if let np = legendPoint {
                 // Free-position mode — mirrors drawLegend free-position math exactly
@@ -176,12 +180,23 @@ struct WorkbenchPlotLayout: Sendable {
             }
 
             return LegendRow(
-                seriesIndex:   i,
-                originalLabel: s.label,
-                cgRowY:        cgRowY,
-                cgOriginX:     cgOriginX
+                seriesIndex:        i,
+                originalLabel:      s.label,
+                cgRowY:             cgRowY,
+                cgOriginX:          cgOriginX,
+                measuredLabelWidth: measuredW
             )
         }
+    }
+
+    /// Measures label text width in renderer coordinates using the same font as drawLegend.
+    private static func measureLabelWidth(_ text: String) -> CGFloat {
+        let font = CTFontCreateWithName("ArialMT" as CFString, 18, nil)
+        let attrs: [CFString: Any] = [kCTFontAttributeName: font]
+        let attrStr = CFAttributedStringCreate(kCFAllocatorDefault, text as CFString, attrs as CFDictionary)!
+        let line = CTLineCreateWithAttributedString(attrStr)
+        let w = CTLineGetBoundsWithOptions(line, []).width
+        return w > 0 ? w : legendEstLabelW
     }
 
     // MARK: - Coordinate conversion
