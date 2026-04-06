@@ -998,7 +998,7 @@ final class LibraryFeatureStore {
     /// `measurement_plot_index.json` files, then deletes chart files.
     /// Returns `true` on success, `false` if aborted (fail-closed).
     @discardableResult
-    static func deleteWorkbenchResultOnDisk(
+    nonisolated static func deleteWorkbenchResultOnDisk(
         _ ref: WorkbenchResultReference,
         rootURL: URL
     ) -> Bool {
