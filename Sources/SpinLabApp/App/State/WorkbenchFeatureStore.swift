@@ -285,9 +285,13 @@ final class WorkbenchFeatureStore {
                 )
             ]
         )
-        workflowRegistryStore.add(definition)
-        reloadWorkflowDefinitions(selectedID: definition.id)
-        workflowRegistryMessage = nil
+        do {
+            try workflowRegistryStore.add(definition)
+            reloadWorkflowDefinitions(selectedID: definition.id)
+            workflowRegistryMessage = nil
+        } catch {
+            workflowRegistryMessage = "Workflow could not be saved: \(error.localizedDescription)"
+        }
     }
 
     func removeSelectedWorkflow() {
@@ -299,9 +303,13 @@ final class WorkbenchFeatureStore {
             return
         }
         removeWorkflowMatchRules(for: selectedWorkflowID)
-        workflowRegistryStore.remove(id: selectedWorkflowID)
-        reloadWorkflowDefinitions(selectedID: nil)
-        workflowRegistryMessage = nil
+        do {
+            try workflowRegistryStore.remove(id: selectedWorkflowID)
+            reloadWorkflowDefinitions(selectedID: nil)
+            workflowRegistryMessage = nil
+        } catch {
+            workflowRegistryMessage = "Workflow could not be saved: \(error.localizedDescription)"
+        }
     }
 
     func updateSelectedWorkflow(
@@ -333,9 +341,13 @@ final class WorkbenchFeatureStore {
         if originalID.caseInsensitiveCompare(definition.id) != .orderedSame {
             migrateWorkflowMatchRules(from: originalID, to: definition.id)
         }
-        workflowRegistryStore.update(definition)
-        reloadWorkflowDefinitions(selectedID: definition.id)
-        workflowRegistryMessage = nil
+        do {
+            try workflowRegistryStore.update(definition)
+            reloadWorkflowDefinitions(selectedID: definition.id)
+            workflowRegistryMessage = nil
+        } catch {
+            workflowRegistryMessage = "Workflow could not be saved: \(error.localizedDescription)"
+        }
     }
 
     func selectWorkflow(_ id: String?) {
@@ -416,9 +428,13 @@ final class WorkbenchFeatureStore {
                 definitionID: nextDefinitionID
             )
         )
-        workflowRegistryStore.update(definition)
-        reloadWorkflowDefinitions(selectedID: definition.id)
-        workflowRegistryMessage = nil
+        do {
+            try workflowRegistryStore.update(definition)
+            reloadWorkflowDefinitions(selectedID: definition.id)
+            workflowRegistryMessage = nil
+        } catch {
+            workflowRegistryMessage = "Workflow could not be saved: \(error.localizedDescription)"
+        }
     }
 
     func addConditionFieldToSelectedWorkflow(definitionID: String) {
@@ -442,9 +458,13 @@ final class WorkbenchFeatureStore {
         }
 
         definition.conditionFields.append(WorkflowConditionField(definitionID: normalizedDefinitionID))
-        workflowRegistryStore.update(definition)
-        reloadWorkflowDefinitions(selectedID: definition.id)
-        workflowRegistryMessage = nil
+        do {
+            try workflowRegistryStore.update(definition)
+            reloadWorkflowDefinitions(selectedID: definition.id)
+            workflowRegistryMessage = nil
+        } catch {
+            workflowRegistryMessage = "Workflow could not be saved: \(error.localizedDescription)"
+        }
     }
 
     func removeConditionFieldFromSelectedWorkflow(at index: Int) {
@@ -457,9 +477,13 @@ final class WorkbenchFeatureStore {
             return
         }
         definition.conditionFields.remove(at: index)
-        workflowRegistryStore.update(definition)
-        reloadWorkflowDefinitions(selectedID: definition.id)
-        workflowRegistryMessage = nil
+        do {
+            try workflowRegistryStore.update(definition)
+            reloadWorkflowDefinitions(selectedID: definition.id)
+            workflowRegistryMessage = nil
+        } catch {
+            workflowRegistryMessage = "Workflow could not be saved: \(error.localizedDescription)"
+        }
     }
 
     func moveConditionFieldOnSelectedWorkflow(from sourceIndex: Int, to destinationIndex: Int) {
@@ -474,9 +498,13 @@ final class WorkbenchFeatureStore {
 
         let moved = definition.conditionFields.remove(at: sourceIndex)
         definition.conditionFields.insert(moved, at: destinationIndex)
-        workflowRegistryStore.update(definition)
-        reloadWorkflowDefinitions(selectedID: definition.id)
-        workflowRegistryMessage = nil
+        do {
+            try workflowRegistryStore.update(definition)
+            reloadWorkflowDefinitions(selectedID: definition.id)
+            workflowRegistryMessage = nil
+        } catch {
+            workflowRegistryMessage = "Workflow could not be saved: \(error.localizedDescription)"
+        }
     }
 
     func updateConditionFieldOnSelectedWorkflow(
@@ -505,9 +533,13 @@ final class WorkbenchFeatureStore {
         definition.conditionFields[index] = WorkflowConditionField(
             definitionID: normalizedDefinitionID
         )
-        workflowRegistryStore.update(definition)
-        reloadWorkflowDefinitions(selectedID: definition.id)
-        workflowRegistryMessage = nil
+        do {
+            try workflowRegistryStore.update(definition)
+            reloadWorkflowDefinitions(selectedID: definition.id)
+            workflowRegistryMessage = nil
+        } catch {
+            workflowRegistryMessage = "Workflow could not be saved: \(error.localizedDescription)"
+        }
     }
 
     func canonicalProject(named name: String) -> SpinLabDomain.Project? {
