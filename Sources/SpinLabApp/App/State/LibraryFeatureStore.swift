@@ -118,6 +118,13 @@ final class LibraryFeatureStore {
     /// Updated each time the Library sample selection changes.
     private(set) var workbenchResults: WorkbenchResultsIndex? = nil
 
+    // MARK: - Measurement Plot Index (v4.1.2.17)
+
+    /// Reverse index mapping source measurement filename → chart identity keys.
+    /// Stale keys (not present in `workbenchResults.references`) are filtered out in memory.
+    /// Nil when no sample is selected, the root is not set, or no index file exists.
+    private(set) var measurementPlotIndex: MeasurementPlotIndex? = nil
+
     // MARK: - Measurement Data projection (V3.4.3)
 
     /// Latest `WorkbenchMeasurementDataStore` for the currently selected Library sample.
@@ -906,6 +913,43 @@ final class LibraryFeatureStore {
         }
         let resolver = LibraryPathResolver(libraryRootURL: URL(fileURLWithPath: rootPath))
         workbenchResults = LoadWorkbenchResultsUseCase(pathResolver: resolver).execute(sampleKey: sampleKey)
+        // Refresh measurement plot index after results are loaded so dirty-key filtering is current.
+        loadMeasurementPlotIndexForCurrentSelection()
+    }
+
+    // MARK: - Measurement Plot Index load (v4.1.2.17)
+
+    /// Loads `MeasurementPlotIndex` and filters out stale chart identity keys
+    /// (those absent from the current `workbenchResults.references`).
+    /// Must be called after `loadWorkbenchResultsForCurrentSelection()` to ensure valid filtering.
+    func loadMeasurementPlotIndexForCurrentSelection() {
+        guard let sampleKey = librarySelectedSampleId,
+              let rootPath = librarySettings.rootPath else {
+            measurementPlotIndex = nil
+            return
+        }
+        let resolver = LibraryPathResolver(libraryRootURL: URL(fileURLWithPath: rootPath))
+        let raw: MeasurementPlotIndex?
+        if let loaded = LoadMeasurementPlotIndexUseCase(pathResolver: resolver).execute(sampleKey: sampleKey) {
+            raw = loaded
+        } else if let results = workbenchResults, !results.references.isEmpty {
+            // Index missing but old charts exist — backfill once from manifests.
+            raw = BackfillMeasurementPlotIndexUseCase(pathResolver: resolver)
+                .execute(sampleKey: sampleKey, results: results)
+        } else {
+            raw = nil
+        }
+        guard let raw else {
+            measurementPlotIndex = nil
+            return
+        }
+        // Filter out chartIdentityKeys that no longer exist in results_index.json.
+        let validKeys = Set(workbenchResults?.references.map(\.chartIdentityKey) ?? [])
+        var clean = raw
+        clean.entries = raw.entries
+            .mapValues { $0.filter { validKeys.contains($0) } }
+            .filter { !$0.value.isEmpty }
+        measurementPlotIndex = clean
     }
 
     // MARK: - Measurement Data load (V3.4.3)

@@ -200,6 +200,44 @@ struct WorkbenchLatestMetricPointer: Codable, Hashable, Sendable {
     var generatedAt: Date
 }
 
+// MARK: - MeasurementPlotIndex (v4.1.2.17)
+
+/// Reverse index from source measurement filename to chart identity keys.
+/// Stored at `samples/{sampleKey}/_spinlab/measurement_plot_index.json`.
+/// Images are NOT duplicated — this struct holds only `chartIdentityKey` references
+/// that point into `WorkbenchResultsIndex.references`.
+struct MeasurementPlotIndex: Codable, Hashable, Sendable {
+    var schemaVersion: Int
+    var sampleKey: String
+    var updatedAt: Date
+    /// Key: `URL(fileURLWithPath: sourceRef).lastPathComponent` (matches `AppliedMeasurement.sourceFileName`)
+    /// Value: ordered list of `chartIdentityKey` strings
+    var entries: [String: [String]]
+
+    init(
+        schemaVersion: Int = 1,
+        sampleKey: String,
+        updatedAt: Date,
+        entries: [String: [String]] = [:]
+    ) {
+        self.schemaVersion = schemaVersion
+        self.sampleKey = sampleKey
+        self.updatedAt = updatedAt
+        self.entries = entries
+    }
+
+    /// Adds `chartIdentityKey` under the normalized filename key for `sourceFile`.
+    /// Idempotent: duplicate keys are not inserted.
+    mutating func upsert(chartIdentityKey: String, sourceFile: String) {
+        let key = URL(fileURLWithPath: sourceFile).lastPathComponent
+        var ids = entries[key] ?? []
+        if !ids.contains(chartIdentityKey) {
+            ids.append(chartIdentityKey)
+        }
+        entries[key] = ids
+    }
+}
+
 struct WorkbenchMeasurementDataStore: Codable, Hashable, Sendable {
     var schemaVersion: Int
     var records: [WorkbenchMetricRecord]

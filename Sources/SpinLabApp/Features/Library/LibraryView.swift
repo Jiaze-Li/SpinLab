@@ -400,14 +400,10 @@ struct LibraryView: View {
                                 measurements: sample.appliedMeasurements,
                                 workflowDisplayNameByID: workflowDisplayNameByID,
                                 workflowConditionOrderByID: workflowConditionOrderByID,
-                                onDelete: { m in appState.library.deleteAppliedMeasurement(m) }
-                            )
-
-                            Divider()
-                            WorkbenchResultsSectionView(
+                                onDelete: { m in appState.library.deleteAppliedMeasurement(m) },
                                 workbenchResults: appState.library.workbenchResults,
-                                libraryRootURL: appState.library.librarySettings.rootPath.map { URL(fileURLWithPath: $0) },
-                                onDelete: { ref in appState.library.deleteWorkbenchResult(ref) }
+                                measurementPlotIndex: appState.library.measurementPlotIndex,
+                                libraryRootURL: appState.library.librarySettings.rootPath.map { URL(fileURLWithPath: $0) }
                             )
                         }
                     } else {

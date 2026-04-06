@@ -133,9 +133,14 @@ struct LibraryMeasurementsDoneSection: View {
     let workflowDisplayNameByID: [String: String]
     let workflowConditionOrderByID: [String: [String]]
     var onDelete: ((AppliedMeasurement) -> Void)? = nil
+    // v4.1.2.17 — plot preview props
+    var workbenchResults: WorkbenchResultsIndex? = nil
+    var measurementPlotIndex: MeasurementPlotIndex? = nil
+    var libraryRootURL: URL? = nil
     @State private var isExpanded = true
-    @State private var hoverRevealTask: Task<Void, Never>?
-    @State private var revealedFileNameMeasurementID: String?
+    @State private var hoverTask: Task<Void, Never>?
+    @State private var hoveredMeasurementID: String?
+    @State private var isHoveringPreviewPanel = false
 
     private var sortedMeasurements: [AppliedMeasurement] {
         measurements.sorted { lhs, rhs in
@@ -178,10 +183,20 @@ struct LibraryMeasurementsDoneSection: View {
         }
         .textSelection(.enabled)
         .onDisappear {
-            hoverRevealTask?.cancel()
-            hoverRevealTask = nil
-            revealedFileNameMeasurementID = nil
+            hoverTask?.cancel()
+            hoverTask = nil
+            hoveredMeasurementID = nil
+            isHoveringPreviewPanel = false
         }
+    }
+
+    /// Returns `WorkbenchResultReference` objects linked to this measurement via the plot index.
+    private func plotRefs(for measurement: AppliedMeasurement) -> [WorkbenchResultReference] {
+        guard let plotIndex = measurementPlotIndex,
+              let results = workbenchResults else { return [] }
+        let keys = plotIndex.entries[measurement.sourceFileName] ?? []
+        let refsByKey = Dictionary(uniqueKeysWithValues: results.references.map { ($0.chartIdentityKey, $0) })
+        return keys.compactMap { refsByKey[$0] }
     }
 
     @ViewBuilder
@@ -215,13 +230,11 @@ struct LibraryMeasurementsDoneSection: View {
                     }
                     }
                 }
-                if revealedFileNameMeasurementID == measurement.id {
-                    Text(measurement.sourceFileName)
-                        .font(.footnote)
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
+                Text(measurement.sourceFileName)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -242,13 +255,38 @@ struct LibraryMeasurementsDoneSection: View {
         .padding(.vertical, 4)
         .padding(.horizontal, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.07)))
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(hoveredMeasurementID == measurement.id
+                      ? Color.accentColor.opacity(0.10)
+                      : Color.secondary.opacity(0.07))
+        )
         .onHover { isHovering in
             if isHovering {
-                scheduleFileNameReveal(for: measurement.id)
+                schedulePopover(for: measurement.id)
             } else {
-                cancelFileNameReveal(for: measurement.id)
+                cancelPopover(for: measurement.id)
             }
+        }
+        .popover(
+            isPresented: .init(
+                get: { hoveredMeasurementID == measurement.id },
+                set: { if !$0 { hoveredMeasurementID = nil } }
+            ),
+            arrowEdge: .leading
+        ) {
+            MeasurementPlotPreviewPanel(
+                references: plotRefs(for: measurement),
+                libraryRootURL: libraryRootURL,
+                onHoverChanged: { isHovering in
+                    isHoveringPreviewPanel = isHovering
+                    if isHovering {
+                        hoverTask?.cancel()
+                    } else {
+                        cancelPopover(for: measurement.id)
+                    }
+                }
+            )
         }
     }
 
@@ -277,31 +315,127 @@ struct LibraryMeasurementsDoneSection: View {
         }
     }
 
-    private func scheduleFileNameReveal(for measurementID: String) {
-        hoverRevealTask?.cancel()
-        hoverRevealTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
+    private func schedulePopover(for measurementID: String) {
+        hoverTask?.cancel()
+        hoverTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 250_000_000)
             guard !Task.isCancelled else { return }
-            revealedFileNameMeasurementID = measurementID
+            hoveredMeasurementID = measurementID
         }
     }
 
-    private func cancelFileNameReveal(for measurementID: String) {
-        hoverRevealTask?.cancel()
-        hoverRevealTask = nil
-        if revealedFileNameMeasurementID == measurementID {
-            revealedFileNameMeasurementID = nil
+    // Hide delay lets mouse travel from row into the popover without blinking.
+    private func cancelPopover(for measurementID: String) {
+        hoverTask?.cancel()
+        hoverTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled else { return }
+            guard !isHoveringPreviewPanel else { return }
+            if hoveredMeasurementID == measurementID { hoveredMeasurementID = nil }
         }
     }
 }
 
-// MARK: - Workbench Results Section (V3.4.2)
+// MARK: - Measurement Plot Preview Panel (v4.1.2.17)
 
-/// Read-only list of chart artifacts linked to this Library sample.
+/// Popover panel shown on hover over a Measurements Done row.
+/// Displays thumbnails of all charts that used the hovered measurement file.
 ///
-/// Each row shows the chart filename (title_timestamp_hex format).
-/// Hovering over a row lazy-loads the chart image and shows it in a popover.
-/// Clicking a row opens the PNG in the default viewer via NSWorkspace.
+/// Designed to be extended: add `onTitleEdit`, `onOpenInWorkbench`, etc. as needed.
+/// Images are lazy-loaded in the background; empty state is shown when no plots exist.
+struct MeasurementPlotPreviewPanel: View {
+    let references: [WorkbenchResultReference]
+    let libraryRootURL: URL?
+    var onHoverChanged: ((Bool) -> Void)? = nil
+
+    @State private var loadedImages: [String: NSImage] = [:]
+
+    var body: some View {
+        Group {
+            if references.isEmpty {
+                Text("No plots yet")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 200, height: 80)
+                    .padding()
+            } else {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 8) {
+                        ForEach(references, id: \.chartIdentityKey) { ref in
+                            plotThumbnail(for: ref)
+                        }
+                    }
+                    .padding(8)
+                }
+                .frame(width: 340, height: min(CGFloat(references.count) * 200 + 16, 420))
+            }
+        }
+        .onAppear {
+            for ref in references { loadImageIfNeeded(ref) }
+        }
+        .onHover { isHovering in
+            onHoverChanged?(isHovering)
+        }
+    }
+
+    @ViewBuilder
+    private func plotThumbnail(for ref: WorkbenchResultReference) -> some View {
+        let title = URL(fileURLWithPath: ref.chartImagePath)
+            .deletingPathExtension()
+            .lastPathComponent
+
+        VStack(alignment: .leading, spacing: 4) {
+            if let image = loadedImages[ref.chartIdentityKey] {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+            } else {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.secondary.opacity(0.12))
+                    .frame(height: 140)
+                    .overlay(ProgressView().scaleEffect(0.7))
+            }
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { openChart(ref) }
+        .help("Click to open in viewer")
+    }
+
+    private func openChart(_ ref: WorkbenchResultReference) {
+        guard let rootURL = libraryRootURL else { return }
+        let resolver = LibraryPathResolver(libraryRootURL: rootURL)
+        guard let chartURL = try? resolver.absoluteURL(for: ref.chartImagePath) else { return }
+        NSWorkspace.shared.open(chartURL)
+    }
+
+    private func loadImageIfNeeded(_ ref: WorkbenchResultReference) {
+        guard loadedImages[ref.chartIdentityKey] == nil,
+              let rootURL = libraryRootURL else { return }
+        let chartPath = ref.chartImagePath
+        let key = ref.chartIdentityKey
+        Task {
+            let image = await Task.detached(priority: .userInitiated) { () -> NSImage? in
+                let resolver = LibraryPathResolver(libraryRootURL: rootURL)
+                guard let url = try? resolver.absoluteURL(for: chartPath) else { return nil }
+                return NSImage(contentsOf: url)
+            }.value
+            if let image { loadedImages[key] = image }
+        }
+    }
+}
+
+// MARK: - Workbench Results Section (V3.4.2) — REMOVED from UI in v4.1.2.17
+// WorkbenchResultsSectionView has been superseded by per-measurement hover previews
+// in LibraryMeasurementsDoneSection + MeasurementPlotPreviewPanel.
+// Struct retained below for reference only; not used in any view.
+
 struct WorkbenchResultsSectionView: View {
     let workbenchResults: WorkbenchResultsIndex?
     let libraryRootURL: URL?
