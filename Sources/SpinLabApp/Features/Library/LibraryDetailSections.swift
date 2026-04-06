@@ -165,12 +165,28 @@ struct LibraryMeasurementsDoneSection: View {
         m.conditions.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
     }
 
+    /// All chart references, used as fallback when no measurement rows exist.
+    private var allRefs: [WorkbenchResultReference] {
+        workbenchResults?.references ?? []
+    }
+
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             if measurements.isEmpty {
-                Text("No measurements applied yet")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if allRefs.isEmpty {
+                    Text("No measurements applied yet")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    // Fallback: charts exist but no measurement sidecars.
+                    // Show all charts directly so they remain accessible.
+                    MeasurementPlotPreviewPanel(
+                        references: allRefs,
+                        libraryRootURL: libraryRootURL,
+                        onDelete: onDeleteChart,
+                        onHoverChanged: nil
+                    )
+                }
             } else {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(sortedMeasurements) { measurement in
