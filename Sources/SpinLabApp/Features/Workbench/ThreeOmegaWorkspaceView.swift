@@ -141,7 +141,7 @@ private struct ThreeOmegaPlotControlsPanel: View {
                 Toggle("Grid", isOn: $store.showPlotGrid)
                     .toggleStyle(.checkbox)
                     .onChange(of: store.showPlotGrid) { _, _ in
-                        store.updateLegendPoint(store.plotLegendPoints[store.activeTab] ?? .zero)
+                        store.rerenderForStyleChange()
                     }
             }
 

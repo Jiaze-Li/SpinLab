@@ -183,6 +183,7 @@ struct ThreeOmegaScalingUseCase {
 
         // Step 5: overlap detection on sorted list (check adjacent pairs)
         // Closed-interval overlap: max(lo1, lo2) <= min(hi1, hi2)
+        guard resolved.count >= 2 else { return (resolved, warnings) }
         for i in 0..<(resolved.count - 1) {
             let a = resolved[i]
             let b = resolved[i + 1]

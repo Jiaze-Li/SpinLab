@@ -271,6 +271,12 @@ final class ThreeOmegaWorkspaceStore {
         _rerenderActiveTab()
     }
 
+    /// Re-renders the active tab for style-only changes (grid, etc.)
+    /// without mutating legend position or anchor state.
+    func rerenderForStyleChange() {
+        _rerenderActiveTab()
+    }
+
     func updatePlotTitle(_ title: String) {
         plotTitleOverride = title
         _rerenderActiveTab()
