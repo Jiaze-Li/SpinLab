@@ -130,9 +130,8 @@ private struct ThreeOmegaPlotControlsPanel: View {
         GroupBox("Plot Controls") {
             VStack(alignment: .leading, spacing: 8) {
 
-                // Tab 选择
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Tab").font(.caption).foregroundStyle(.secondary)
+                // Tab 选择 + Grid
+                HStack(spacing: 8) {
                     Picker("Tab", selection: $store.activeTab) {
                         ForEach(ThreeOmegaWorkbenchTab.allCases) { tab in
                             Text(tab.rawValue).tag(tab)
@@ -140,36 +139,12 @@ private struct ThreeOmegaPlotControlsPanel: View {
                     }
                     .labelsHidden()
                     .frame(maxWidth: .infinity)
-                }
 
-                // Title override
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Title").font(.caption).foregroundStyle(.secondary)
-                    TextField("", text: $store.plotTitleOverride)
-                        .textFieldStyle(.roundedBorder)
-                        .onChange(of: store.plotTitleOverride) { _, _ in
-                            store.updatePlotTitle(store.plotTitleOverride)
+                    Toggle("Grid", isOn: $store.showPlotGrid)
+                        .toggleStyle(.checkbox)
+                        .onChange(of: store.showPlotGrid) { _, _ in
+                            store.updateLegendPoint(store.plotLegendPoints[store.activeTab] ?? .zero)
                         }
-                }
-
-                // X / Y axis label overrides (display-only, per-tab)
-                HStack(spacing: 8) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("X Label").font(.caption).foregroundStyle(.secondary)
-                        TextField("", text: Binding(
-                            get: { store.plotXLabelOverrides[store.activeTab] ?? "" },
-                            set: { store.updateXAxisLabel($0) }
-                        ))
-                        .textFieldStyle(.roundedBorder)
-                    }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Y Label").font(.caption).foregroundStyle(.secondary)
-                        TextField("", text: Binding(
-                            get: { store.plotYLabelOverrides[store.activeTab] ?? "" },
-                            set: { store.updateYAxisLabel($0) }
-                        ))
-                        .textFieldStyle(.roundedBorder)
-                    }
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -183,29 +158,6 @@ private struct ThreeOmegaPlotControlsPanel: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .frame(width: 32, alignment: .trailing)
-                    }
-                }
-
-                HStack(spacing: 16) {
-                    Toggle("Grid", isOn: $store.showPlotGrid)
-                        .toggleStyle(.checkbox)
-                        .onChange(of: store.showPlotGrid) { _, _ in
-                            store.updateLegendPoint(store.plotLegendPoints[store.activeTab] ?? .zero)
-                        }
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Legend").font(.caption).foregroundStyle(.secondary)
-                        Picker("Legend", selection: $store.plotLegendAnchor) {
-                            Text("Top Right").tag("")
-                            Text("Top Left").tag("top-left")
-                            Text("Bottom Right").tag("bottom-right")
-                            Text("Bottom Left").tag("bottom-left")
-                        }
-                        .labelsHidden()
-                        .onChange(of: store.plotLegendAnchor) { _, _ in
-                            store.plotLegendPoints[store.activeTab] = nil
-                            store.updateLegendPoint(.zero)
-                        }
                     }
                 }
             }
@@ -224,32 +176,38 @@ private struct ThreeOmegaGeometryPanel: View {
 
         GroupBox("Geometry (for Scaling Law)") {
             VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("L_xx (μm):")
-                        .frame(width: 80, alignment: .trailing)
-                    TextField("e.g. 26", value: $store.geometry.lxx, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 80)
+                HStack(spacing: 12) {
+                    HStack(spacing: 6) {
+                        (Text("L").font(.body)
+                         + Text("xx").font(.system(size: 9)).baselineOffset(-3)
+                         + Text(" (μm)").font(.body))
+                        TextField("e.g. 26", value: $store.geometry.lxx, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 64)
+                    }
+                    HStack(spacing: 6) {
+                        (Text("L").font(.body)
+                         + Text("xy").font(.system(size: 9)).baselineOffset(-3)
+                         + Text(" (μm)").font(.body))
+                        TextField("e.g. 21", value: $store.geometry.lxy, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 64)
+                    }
                 }
-                HStack {
-                    Text("L_xy (μm):")
-                        .frame(width: 80, alignment: .trailing)
-                    TextField("e.g. 21", value: $store.geometry.lxy, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 80)
+                HStack(spacing: 8) {
+                    HStack(spacing: 6) {
+                        Text("d (nm)").font(.body)
+                        TextField("e.g. 30", value: $store.geometry.dNm, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 64)
+                    }
+                    Spacer()
+                    Button("Run Scaling") {
+                        store.runScaling()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!store.geometry.isComplete || store.ingestionResult == nil)
                 }
-                HStack {
-                    Text("d (nm):")
-                        .frame(width: 80, alignment: .trailing)
-                    TextField("e.g. 30", value: $store.geometry.dNm, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 80)
-                }
-                Button("Run Scaling") {
-                    store.runScaling()
-                }
-                .buttonStyle(.bordered)
-                .disabled(!store.geometry.isComplete || store.ingestionResult == nil)
             }
             .padding(.vertical, 4)
         }
