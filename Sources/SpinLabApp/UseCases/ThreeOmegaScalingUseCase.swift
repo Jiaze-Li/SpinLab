@@ -48,9 +48,6 @@ struct ThreeOmegaScalingUseCase {
                 warnings.append("No I_rms for T=\(Int(sweep.temperatureK))K — skipping.")
                 continue
             }
-            // Formula: I_amp = I_rms × √2
-            let iAmp = iRms * sqrt(2.0)
-
             // Formula: ρ_xx = Rxx(T) × (d_m × L_xy_m / L_xx_m)
             let rho_xx = rxx * (d_m * lxy_m / lxx_m)
             guard rho_xx > 0 else {
@@ -61,16 +58,17 @@ struct ThreeOmegaScalingUseCase {
             // Formula: σ_xx = 1 / ρ_xx   (S/m)
             let sigma_xx = 1.0 / rho_xx
 
-            // Formula: E_xx = I_amp × Rxx(T) / L_xx_m   (V/m)
-            let E_xx = iAmp * rxx / lxx_m
+            // Formula: E_xx = Ixx × Rxx(T) / L_xx_m   (V/m)
+            // Ixx = iRms (rms value, per docs/specs/three_omega_physics.md §2.2)
+            let E_xx = iRms * rxx / lxx_m
             guard E_xx > 0 else {
                 warnings.append("E_xx ≤ 0 at T=\(Int(sweep.temperatureK))K — skipping.")
                 continue
             }
 
             // Formula: E^(3ω)_AHE = V^(3ω)_AHE / L_xy_m   (V/m)
-            // v3omegaAtZeroField is in Volts (raw V³ω_X at H≈0)
-            let E3w_AHE = sweep.v3omegaAtZeroField / lxy_m
+            // v3omegaWindow: window-average primary result (ascending − descending near H=0)
+            let E3w_AHE = sweep.v3omegaWindow / lxy_m
 
             // X-axis: σ²_xx(T)   (S/m)²
             let sigma2xx = sigma_xx * sigma_xx

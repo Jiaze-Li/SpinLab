@@ -152,18 +152,24 @@ struct ThreeOmegaPlotRenderer {
     }
 
     /// Tab 6: Fig 5b — E^(3ω)_AHE / (E_xx³ × σ_xx) vs σ²_xx
+    /// Display units: X in 10⁷ S²/cm², Y in Ω·μm³·V⁻²
+    /// Conversions: X_SI (S/m)² × 1e-11 → 10⁷ S²/cm²
+    ///              Y_SI (Ω·m³/V²) × 1e18 → Ω·μm³·V⁻²
     func renderScaling(result: ThreeOmegaScalingResult) -> (Data?, WorkbenchPlotLayout?) {
         guard !result.points.isEmpty else { return (nil, nil) }
 
-        let xs = result.points.map { $0.sigma2xx }
-        let ys = result.points.map { $0.scalingY }
+        let xs = result.points.map { $0.sigma2xx * 1e-11 }   // (S/m)² → 10⁷ S²/cm²
+        let ys = result.points.map { $0.scalingY  * 1e20  }  // Ω·m³/V² → Ω·μm³·V⁻² × 10²
         var series: [WorkbenchPlotSeries] = [WorkbenchPlotSeries(label: "Data", x: xs, y: ys)]
 
         if let alpha = result.alpha, let beta = result.beta, xs.count >= 2 {
             let xMin = xs.min()!, xMax = xs.max()!
-            let fitY = [xMin, xMax].map { alpha * $0 + beta }
+            // Fit in display units: alpha_d = alpha_SI × 1e31, beta_d = beta_SI × 1e20
+            let alphaD = alpha * 1e31
+            let betaD  = beta  * 1e20
+            let fitY = [xMin, xMax].map { alphaD * $0 + betaD }
             series.append(WorkbenchPlotSeries(
-                label: String(format: "Fit: β=%.3e", beta),
+                label: String(format: "Fit: β=%.3e Ω·μm³·V⁻²×10²", betaD),
                 x: [xMin, xMax],
                 y: fitY
             ))
@@ -177,8 +183,8 @@ struct ThreeOmegaPlotRenderer {
             // Formula: Y = E^(3ω)_AHE / (E_xx³ × σ_xx) = α·σ²_xx + β
             // β → Q_xxz Berry curvature quadrupole; E_xx³ = E_xx to the power 3
             axisMapping: WorkbenchAxisMapping(
-                xField: "σ²_xx (S/m)²",
-                yField: "E^(3ω)_AHE / (E³_xx · σ_xx)"
+                xField: "σ²_xx (10⁷ S²/cm²)",
+                yField: "Y × 10² (Ω·μm³·V⁻²)"
             ),
             series: series
         )

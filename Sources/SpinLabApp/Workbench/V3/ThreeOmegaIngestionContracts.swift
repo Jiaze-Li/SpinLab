@@ -79,9 +79,13 @@ struct ThreeOmegaFieldSweepResult: Codable, Hashable, Sendable, Identifiable {
     var hc1omega: Double?    // Oe
     var hc3omega: Double?    // Oe
 
-    // V^(3ω)_AHE extracted at H≈0 (direct read, before high-T background subtraction).
-    // Method TBD after first plot: may switch to plateau average or RAHE-style intercept.
-    var v3omegaAtZeroField: Double  // V
+    // V^(3ω)_AHE — primary: window average of (ascending − descending) near H=0.
+    // Formula: V3w_AHE = mean(col5 | ascending, |H|<Hwin) − mean(col5 | descending, |H|<Hwin)
+    var v3omegaWindow: Double       // V  (primary result)
+
+    // V^(3ω)_AHE — cross-check: high-field linear extrapolation (b⁺ − b⁻) / 2.
+    // nil when high-field point count is insufficient for a stable fit.
+    var v3omegaFit: Double?         // V  (cross-check; nil = fit failed)
 }
 
 // MARK: - RT result
