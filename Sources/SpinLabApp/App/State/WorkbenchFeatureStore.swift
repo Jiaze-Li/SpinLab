@@ -302,11 +302,10 @@ final class WorkbenchFeatureStore {
             workflowRegistryMessage = "At least one workflow is required."
             return
         }
-        removeWorkflowMatchRules(for: selectedWorkflowID)
         do {
             try workflowRegistryStore.remove(id: selectedWorkflowID)
             reloadWorkflowDefinitions(selectedID: nil)
-            workflowRegistryMessage = nil
+            removeWorkflowMatchRules(for: selectedWorkflowID)
         } catch {
             workflowRegistryMessage = "Workflow could not be saved: \(error.localizedDescription)"
         }
@@ -338,13 +337,14 @@ final class WorkbenchFeatureStore {
         definition.id = normalizedID
         definition.displayName = normalizedDisplayName.isEmpty ? normalizedID : normalizedDisplayName
         definition.parentID = normalizeOptional(parentID)
-        if originalID.caseInsensitiveCompare(definition.id) != .orderedSame {
-            migrateWorkflowMatchRules(from: originalID, to: definition.id)
-        }
         do {
             try workflowRegistryStore.update(definition)
             reloadWorkflowDefinitions(selectedID: definition.id)
-            workflowRegistryMessage = nil
+            if originalID.caseInsensitiveCompare(definition.id) != .orderedSame {
+                migrateWorkflowMatchRules(from: originalID, to: definition.id)
+            } else {
+                workflowRegistryMessage = nil
+            }
         } catch {
             workflowRegistryMessage = "Workflow could not be saved: \(error.localizedDescription)"
         }
