@@ -166,15 +166,20 @@ struct ThreeOmegaPlotRenderer {
                                 isScatter: true, pointLabels: tempLabels)
         ]
 
+        // Visual extension: all segments extend by the same amount = 3% of the full
+        // plot x-span (all scatter points), so every fit line looks equally long at the ends
+        // regardless of where the segment falls on the axis.
+        let allXsDisplay = xs   // already computed above in display units
+        let plotXSpan = (allXsDisplay.max() ?? 0) - (allXsDisplay.min() ?? 0)
+        let sharedExt = max(0.02 * plotXSpan, 1e-11)
+
         let isSingleFull = result.isSingleFullRange()
         for segment in result.segments {
             // Convert segment's participating x values to display units
             let segXsDisplay = segment.participatingXValues.map { $0 * 1e-11 }
             let xMin = segXsDisplay.min() ?? 0
             let xMax = segXsDisplay.max() ?? 0
-            let dx = xMax - xMin
-            // Extend fit line 5% beyond data on each side; guard against dx=0
-            let ext = max(0.05 * dx, 0.01 * abs(xMin), 1e-11)
+            let ext = sharedExt
             let x0 = xMin - ext
             let x1 = xMax + ext
             // Fit in display units: alpha_d = alpha_SI × 1e31, beta_d = beta_SI × 1e20
