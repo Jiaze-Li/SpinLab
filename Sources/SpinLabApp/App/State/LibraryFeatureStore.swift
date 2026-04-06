@@ -986,6 +986,22 @@ final class LibraryFeatureStore {
     func deleteWorkbenchResult(_ ref: WorkbenchResultReference) {
         guard let rootPath = librarySettings.rootPath else { return }
         let rootURL = URL(fileURLWithPath: rootPath)
+
+        guard Self.deleteWorkbenchResultOnDisk(ref, rootURL: rootURL) else { return }
+
+        // Refresh the in-memory projection (both indexes).
+        loadWorkbenchResultsForCurrentSelection()
+        loadMeasurementPlotIndexForCurrentSelection()
+    }
+
+    /// Pure filesystem operation: removes `ref` from all `results_index.json` and
+    /// `measurement_plot_index.json` files, then deletes chart files.
+    /// Returns `true` on success, `false` if aborted (fail-closed).
+    @discardableResult
+    static func deleteWorkbenchResultOnDisk(
+        _ ref: WorkbenchResultReference,
+        rootURL: URL
+    ) -> Bool {
         let resolver = LibraryPathResolver(libraryRootURL: rootURL)
         let writer = AtomicFileWriter()
 
@@ -994,8 +1010,6 @@ final class LibraryFeatureStore {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
         // 1. Enumerate all results_index.json files directly from the filesystem.
-        //    This is resilient to LibraryIndex load failures and covers multi-sample charts
-        //    whose PNG is shared across several samples.
         let samplesURL = rootURL.appending(path: "samples")
         let sampleDirs = (try? FileManager.default.contentsOfDirectory(
             at: samplesURL,
@@ -1004,7 +1018,6 @@ final class LibraryFeatureStore {
         )) ?? []
 
         // 2. For every index that references this identity key, build an updated write entry.
-        //    Track whether any preparation step failed — a silent continue would hide errors.
         let now = Date()
         var indexWrites: [AtomicWriteEntry] = []
         var preparationFailed = false
@@ -1014,8 +1027,13 @@ final class LibraryFeatureStore {
             guard FileManager.default.fileExists(atPath: indexURL.path) else { continue }
             let sk = sampleDir.lastPathComponent
 
+            // Fail-closed: if the file exists but cannot be decoded, abort entirely.
+            // A corrupt index may still reference this chart; deleting the chart files
+            // without cleaning the reference would leave a dangling pointer.
             guard var index = LoadWorkbenchResultsUseCase(pathResolver: resolver).execute(sampleKey: sk) else {
-                continue  // Index unreadable — skip (no reference to remove)
+                fputs("[SpinLab] deleteWorkbenchResult: results_index unreadable for \(sk), aborting\n", stderr)
+                preparationFailed = true
+                break
             }
             guard index.references.contains(where: { $0.chartIdentityKey == ref.chartIdentityKey }) else {
                 continue  // This sample does not reference the chart — nothing to do
@@ -1030,13 +1048,37 @@ final class LibraryFeatureStore {
                 break
             }
             indexWrites.append(AtomicWriteEntry(destinationURL: indexURL, data: data))
+
+            // Also clean measurement_plot_index.json for this sample (P1: disk-level cleanup).
+            let plotIndexURL = sampleDir.appending(path: "_spinlab/measurement_plot_index.json")
+            if var plotIndex = LoadMeasurementPlotIndexUseCase(pathResolver: resolver).execute(sampleKey: sk) {
+                let keyToRemove = ref.chartIdentityKey
+                var changed = false
+                plotIndex.entries = plotIndex.entries
+                    .mapValues { keys in
+                        let filtered = keys.filter { $0 != keyToRemove }
+                        if filtered.count != keys.count { changed = true }
+                        return filtered
+                    }
+                    .filter { !$0.value.isEmpty }
+                if changed {
+                    plotIndex.updatedAt = now
+                    guard let plotData = try? encoder.encode(plotIndex) else {
+                        fputs("[SpinLab] deleteWorkbenchResult: plot index encode failed for \(sk)\n", stderr)
+                        preparationFailed = true
+                        break
+                    }
+                    indexWrites.append(AtomicWriteEntry(destinationURL: plotIndexURL, data: plotData))
+                }
+            }
+            // measurement_plot_index.json missing → nothing to clean (not an error).
         }
 
         // Abort if any write entry could not be prepared — do not touch files.
-        guard !preparationFailed else { return }
+        guard !preparationFailed else { return false }
 
         // 3. Atomically commit all index updates. Abort if the commit fails.
-        guard (try? writer.commit(indexWrites)) != nil else { return }
+        guard (try? writer.commit(indexWrites)) != nil else { return false }
 
         // 4. Delete the chart files only after all indexes are consistent.
         for relPath in [ref.chartImagePath, ref.manifestPath] {
@@ -1044,9 +1086,7 @@ final class LibraryFeatureStore {
                 try? FileManager.default.removeItem(at: url)
             }
         }
-
-        // 5. Refresh the in-memory projection.
-        loadWorkbenchResultsForCurrentSelection()
+        return true
     }
 
     // MARK: - Applied Measurement delete (V3.5)

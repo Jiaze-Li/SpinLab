@@ -137,6 +137,7 @@ struct LibraryMeasurementsDoneSection: View {
     var workbenchResults: WorkbenchResultsIndex? = nil
     var measurementPlotIndex: MeasurementPlotIndex? = nil
     var libraryRootURL: URL? = nil
+    var onDeleteChart: ((WorkbenchResultReference) -> Void)? = nil
     @State private var isExpanded = true
     @State private var hoverTask: Task<Void, Never>?
     @State private var hoveredMeasurementID: String?
@@ -278,6 +279,7 @@ struct LibraryMeasurementsDoneSection: View {
             MeasurementPlotPreviewPanel(
                 references: plotRefs(for: measurement),
                 libraryRootURL: libraryRootURL,
+                onDelete: onDeleteChart,
                 onHoverChanged: { isHovering in
                     isHoveringPreviewPanel = isHovering
                     if isHovering {
@@ -346,6 +348,7 @@ struct LibraryMeasurementsDoneSection: View {
 struct MeasurementPlotPreviewPanel: View {
     let references: [WorkbenchResultReference]
     let libraryRootURL: URL?
+    var onDelete: ((WorkbenchResultReference) -> Void)? = nil
     var onHoverChanged: ((Bool) -> Void)? = nil
 
     @State private var loadedImages: [String: NSImage] = [:]
@@ -384,7 +387,7 @@ struct MeasurementPlotPreviewPanel: View {
             .deletingPathExtension()
             .lastPathComponent
 
-        VStack(alignment: .leading, spacing: 4) {
+        ZStack(alignment: .topLeading) {
             if let image = loadedImages[ref.chartIdentityKey] {
                 Image(nsImage: image)
                     .resizable()
@@ -397,11 +400,32 @@ struct MeasurementPlotPreviewPanel: View {
                     .frame(height: 140)
                     .overlay(ProgressView().scaleEffect(0.7))
             }
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
+
+            HStack(spacing: 4) {
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                if onDelete != nil {
+                    Button {
+                        onDelete?(ref)
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Delete this chart and its files")
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(.black.opacity(0.5))
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .padding(4)
         }
         .contentShape(Rectangle())
         .onTapGesture { openChart(ref) }
@@ -428,157 +452,6 @@ struct MeasurementPlotPreviewPanel: View {
             }.value
             if let image { loadedImages[key] = image }
         }
-    }
-}
-
-// MARK: - Workbench Results Section (V3.4.2) — REMOVED from UI in v4.1.2.17
-// WorkbenchResultsSectionView has been superseded by per-measurement hover previews
-// in LibraryMeasurementsDoneSection + MeasurementPlotPreviewPanel.
-// Struct retained below for reference only; not used in any view.
-
-struct WorkbenchResultsSectionView: View {
-    let workbenchResults: WorkbenchResultsIndex?
-    let libraryRootURL: URL?
-    var onDelete: ((WorkbenchResultReference) -> Void)? = nil
-    @State private var isExpanded = false
-    @State private var loadedImages: [String: NSImage] = [:]
-    @State private var hoveredKey: String? = nil
-    @State private var hoverTask: Task<Void, Never>? = nil
-
-    var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            if let refs = workbenchResults?.references, !refs.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(refs.sorted(by: { $0.generatedAt > $1.generatedAt }), id: \.chartIdentityKey) { ref in
-                        resultRow(ref)
-                    }
-                }
-            } else {
-                Text("No Workbench results yet")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        } label: {
-            Text("Workbench Results")
-                .font(.title3.weight(.semibold))
-        }
-        .onDisappear {
-            hoverTask?.cancel()
-            hoveredKey = nil
-        }
-    }
-
-    @ViewBuilder
-    private func resultRow(_ ref: WorkbenchResultReference) -> some View {
-        let displayName = URL(fileURLWithPath: ref.chartImagePath)
-            .deletingPathExtension()
-            .lastPathComponent
-
-        HStack(spacing: 0) {
-            Text(displayName)
-                .font(.callout)
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            if onDelete != nil {
-                Button {
-                    onDelete?(ref)
-                } label: {
-                    Image(systemName: "trash")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .padding(.leading, 6)
-                .help("Delete this chart")
-            }
-        }
-        .padding(.vertical, 5)
-        .padding(.horizontal, 6)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(hoveredKey == ref.chartIdentityKey
-                      ? Color.accentColor.opacity(0.10)
-                      : Color.secondary.opacity(0.07))
-        )
-        .onTapGesture { openChart(ref) }
-        .onHover { isHovering in
-            if isHovering {
-                scheduleReveal(for: ref)
-            } else {
-                scheduleHide(for: ref)
-            }
-        }
-        .popover(
-            isPresented: .init(
-                get: { hoveredKey == ref.chartIdentityKey },
-                set: { if !$0 { hoveredKey = nil } }
-            ),
-            arrowEdge: .leading
-        ) {
-            chartPopover(for: ref)
-        }
-    }
-
-    @ViewBuilder
-    private func chartPopover(for ref: WorkbenchResultReference) -> some View {
-        if let image = loadedImages[ref.chartIdentityKey] {
-            Image(nsImage: image)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 440, height: 330)
-                .padding(8)
-        } else {
-            ProgressView("Loading…")
-                .frame(width: 200, height: 150)
-                .padding()
-        }
-    }
-
-    // Show popover after a 250 ms settle; start image load immediately on hover.
-    private func scheduleReveal(for ref: WorkbenchResultReference) {
-        hoverTask?.cancel()
-        loadImageIfNeeded(ref)
-        hoverTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 250_000_000)
-            guard !Task.isCancelled else { return }
-            hoveredKey = ref.chartIdentityKey
-        }
-    }
-
-    // Small hide delay lets mouse travel from row into the popover without blinking.
-    private func scheduleHide(for ref: WorkbenchResultReference) {
-        hoverTask?.cancel()
-        hoverTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 120_000_000)
-            guard !Task.isCancelled else { return }
-            if hoveredKey == ref.chartIdentityKey { hoveredKey = nil }
-        }
-    }
-
-    private func loadImageIfNeeded(_ ref: WorkbenchResultReference) {
-        guard loadedImages[ref.chartIdentityKey] == nil,
-              let rootURL = libraryRootURL else { return }
-        let chartPath = ref.chartImagePath
-        let key = ref.chartIdentityKey
-        Task {
-            let image = await Task.detached(priority: .userInitiated) { () -> NSImage? in
-                let resolver = LibraryPathResolver(libraryRootURL: rootURL)
-                guard let url = try? resolver.absoluteURL(for: chartPath) else { return nil }
-                return NSImage(contentsOf: url)
-            }.value
-            if let image { loadedImages[key] = image }
-        }
-    }
-
-    private func openChart(_ ref: WorkbenchResultReference) {
-        guard let rootURL = libraryRootURL else { return }
-        let resolver = LibraryPathResolver(libraryRootURL: rootURL)
-        guard let chartURL = try? resolver.absoluteURL(for: ref.chartImagePath) else { return }
-        NSWorkspace.shared.open(chartURL)
     }
 }
 
