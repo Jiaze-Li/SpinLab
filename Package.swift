@@ -36,6 +36,9 @@ let package = Package(
             path: "Tests/SpinLabAppTests",
             exclude: [
                 "README.md"
+            ],
+            resources: [
+                .copy("TestData")
             ]
         )
     ],

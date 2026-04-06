@@ -15,8 +15,8 @@ enum WorkflowWorkspaceRegistry {
             AHEWorkspaceView()
         // case "RT":
         //     RTWorkspaceView()
-        // case "3W":
-        //     ThreeOmegaWorkspaceView()
+        case "3W", "B":
+            ThreeOmegaWorkspaceView()
         default:
             UnsupportedWorkspaceView(workflowID: workflowID)
         }

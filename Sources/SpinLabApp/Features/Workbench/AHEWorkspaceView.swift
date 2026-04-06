@@ -77,8 +77,8 @@ struct AHEWorkspaceView: View, WorkflowWorkspaceProvider {
                     onEditTitle: { title in appState.workbench.aheWorkspace.updatePlotTitle(title) },
                     onEditXLabel: { label in appState.workbench.aheWorkspace.updateXAxisLabel(label) },
                     onEditYLabel: { label in appState.workbench.aheWorkspace.updateYAxisLabel(label) },
-                    onEditLegendLabel: { orig, label in
-                        appState.workbench.aheWorkspace.updateSeriesLabel(originalLabel: orig, newLabel: label)
+                    onEditLegendLabel: { idx, label in
+                        appState.workbench.aheWorkspace.updateSeriesLabel(index: idx, newLabel: label)
                     }
                 )
 
@@ -352,7 +352,7 @@ private struct AHEResultsList: View {
                     }
                     ForEach(workbench.workflowSearchResults) { hit in
                         let isSelected = ahe.selectedSearchResultIDs.contains(hit.id)
-                        AHEHitRow(hit: hit, isSelected: isSelected) {
+                        WorkflowHitRow(hit: hit, isSelected: isSelected) {
                             ahe.toggleSearchHitSelection(hit.id)
                         }
                     }
@@ -376,106 +376,30 @@ private struct AHEPlotControlsPanel: View {
                "R_H (\u{03A9})", "Bridge 1 Resistance (Ohms)", "Bridge 2 Resistance (Ohms)", "Bridge 3 Resistance (Ohms)"]
             : ahe.currentCandidateAxisFields
 
-        GroupBox("Plot Controls") {
-            VStack(alignment: .leading, spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("X Axis").font(.caption).foregroundStyle(.secondary)
-                    Picker("X Axis", selection: $ahe.plotAxisXOverride) {
-                        Text("Default").tag("")
-                        ForEach(candidates, id: \.self) { Text($0).tag($0) }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity)
+        WorkbenchPlotControlsPanel {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("X Axis").font(.caption).foregroundStyle(.secondary)
+                Picker("X Axis", selection: $ahe.plotAxisXOverride) {
+                    Text("Default").tag("")
+                    ForEach(candidates, id: \.self) { Text($0).tag($0) }
                 }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Y Axis").font(.caption).foregroundStyle(.secondary)
-                    Picker("Y Axis", selection: $ahe.plotAxisYOverride) {
-                        Text("Default").tag("")
-                        ForEach(candidates, id: \.self) { Text($0).tag($0) }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Title").font(.caption).foregroundStyle(.secondary)
-                    TextField("AHE", text: $ahe.plotTitleOverride)
-                        .textFieldStyle(.roundedBorder)
-                }
-                HStack(spacing: 16) {
-                    Toggle("Grid", isOn: $ahe.showPlotGrid)
-                        .toggleStyle(.checkbox)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Legend").font(.caption).foregroundStyle(.secondary)
-                        Picker("Legend", selection: $ahe.plotLegendAnchor) {
-                            Text("Top Right").tag("")
-                            Text("Top Left").tag("top-left")
-                            Text("Bottom Right").tag("bottom-right")
-                            Text("Bottom Left").tag("bottom-left")
-                        }
-                        .labelsHidden()
-                        .onChange(of: ahe.plotLegendAnchor) { _, _ in
-                            ahe.plotLegendPoint = nil
-                            ahe.renderAHEPlot(persistArtifact: false)
-                        }
-                    }
-                }
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
             }
-            .padding(.vertical, 4)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Y Axis").font(.caption).foregroundStyle(.secondary)
+                Picker("Y Axis", selection: $ahe.plotAxisYOverride) {
+                    Text("Default").tag("")
+                    ForEach(candidates, id: \.self) { Text($0).tag($0) }
+                }
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+            }
+            HStack(spacing: 8) {
+                Toggle("Grid", isOn: $ahe.showPlotGrid)
+                    .toggleStyle(.checkbox)
+            }
         }
     }
 }
 
-// MARK: - 搜索结果行
-
-private struct AHEHitRow: View {
-    let hit: WorkflowMeasurementSearchHit
-    let isSelected: Bool
-    let onTap: () -> Void
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-                .font(.body)
-                .padding(.top, 2)
-
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("Workflow").font(.caption).foregroundStyle(.secondary)
-                    Text(hit.workflowDisplayName).font(.body.weight(.semibold))
-                }
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("Sample").font(.caption).foregroundStyle(.secondary)
-                    Text(hit.sampleBatchAndSubstrate)
-                }
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("Condition").font(.caption).foregroundStyle(.secondary)
-                    Text(hit.conditionSummary).font(.callout)
-                }
-                if !hit.channels.isEmpty {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("Channels").font(.caption).foregroundStyle(.secondary)
-                        Text(hit.channels.joined(separator: ", ")).font(.callout)
-                    }
-                }
-                Text(hit.measurementFilePath)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-            }
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            isSelected
-                ? AnyShapeStyle(Color.accentColor.opacity(0.08))
-                : AnyShapeStyle(.regularMaterial),
-            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(isSelected ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
-        )
-        .onTapGesture(perform: onTap)
-    }
-}

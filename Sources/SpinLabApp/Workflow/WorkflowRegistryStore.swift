@@ -34,45 +34,51 @@ final class WorkflowRegistryStore {
             }
         } catch {
             definitions = Self.seededDefaults()
-            try? save()
+            if (try? save()) == nil {
+                fputs("[WorkflowRegistryStore] Failed to seed defaults: \(registryFileURL.path)\n", stderr)
+            }
         }
 
         return definitions
     }
 
     func save() throws {
+        try persist(normalize(definitions))
+    }
+
+    func add(_ definition: WorkflowDefinition) throws {
+        var next = definitions
+        next.removeAll { $0.id.caseInsensitiveCompare(definition.id) == .orderedSame }
+        next.append(definition)
+        try persist(normalize(next))
+    }
+
+    func remove(id: String) throws {
+        var next = definitions
+        next.removeAll { $0.id.caseInsensitiveCompare(id) == .orderedSame }
+        try persist(normalize(next))
+    }
+
+    func update(_ definition: WorkflowDefinition) throws {
+        guard let index = definitions.firstIndex(where: { $0.id.caseInsensitiveCompare(definition.id) == .orderedSame }) else {
+            try add(definition)
+            return
+        }
+        var next = definitions
+        next[index] = definition
+        try persist(normalize(next))
+    }
+
+    /// Encodes `next`, writes atomically to disk, then — and only then — updates `definitions`.
+    /// On throw, `definitions` is unchanged; memory and disk remain consistent.
+    private func persist(_ next: [WorkflowDefinition]) throws {
         let parentURL = registryFileURL.deletingLastPathComponent()
         if !fileManager.fileExists(atPath: parentURL.path) {
             try fileManager.createDirectory(at: parentURL, withIntermediateDirectories: true)
         }
-
-        let normalized = normalize(definitions)
-        let data = try encoder.encode(normalized)
+        let data = try encoder.encode(next)
         try data.write(to: registryFileURL, options: .atomic)
-        definitions = normalized
-    }
-
-    func add(_ definition: WorkflowDefinition) {
-        definitions.removeAll { $0.id.caseInsensitiveCompare(definition.id) == .orderedSame }
-        definitions.append(definition)
-        definitions = normalize(definitions)
-        try? save()
-    }
-
-    func remove(id: String) {
-        definitions.removeAll { $0.id.caseInsensitiveCompare(id) == .orderedSame }
-        definitions = normalize(definitions)
-        try? save()
-    }
-
-    func update(_ definition: WorkflowDefinition) {
-        guard let index = definitions.firstIndex(where: { $0.id.caseInsensitiveCompare(definition.id) == .orderedSame }) else {
-            add(definition)
-            return
-        }
-        definitions[index] = definition
-        definitions = normalize(definitions)
-        try? save()
+        definitions = next
     }
 
     func definition(for id: String) -> WorkflowDefinition? {

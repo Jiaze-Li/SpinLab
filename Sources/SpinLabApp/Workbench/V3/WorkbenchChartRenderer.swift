@@ -117,11 +117,17 @@ struct WorkbenchChartRenderer {
             return
         }
 
-        // Data extents
-        let xMin = allX.min()!, xMax = allX.max()!
-        let yMin = allY.min()!, yMax = allY.max()!
-        let xSpan = xMax == xMin ? 1.0 : xMax - xMin
-        let ySpan = yMax == yMin ? 1.0 : yMax - yMin
+        // Data extents with 5% x-padding and 8% y-padding so points/labels don't touch the axes
+        let xRaw = allX.min()!, xRawMax = allX.max()!
+        let yRaw = allY.min()!, yRawMax = allY.max()!
+        let xRawSpan = xRawMax == xRaw ? 1.0 : xRawMax - xRaw
+        let yRawSpan = yRawMax == yRaw ? 1.0 : yRawMax - yRaw
+        let xMin = xRaw    - xRawSpan * 0.05
+        let xMax = xRawMax + xRawSpan * 0.05
+        let yMin = yRaw    - yRawSpan * 0.05
+        let yMax = yRawMax + yRawSpan * 0.05
+        let xSpan = xMax - xMin
+        let ySpan = yMax - yMin
 
         func pt(_ x: Double, _ y: Double) -> CGPoint {
             CGPoint(
@@ -130,7 +136,7 @@ struct WorkbenchChartRenderer {
             )
         }
 
-        let (xTicks, xStep) = niceTicks(min: xMin, max: xMax, targetCount: 9)
+        let (xTicks, xStep) = niceTicks(min: xMin, max: xMax, targetCount: 6)
         let (yTicks, yStep) = niceTicks(min: yMin, max: yMax, targetCount: 5)
 
         // Grid lines aligned with ticks (opt-in via styleParams["showGrid"] = "true")
@@ -145,21 +151,64 @@ struct WorkbenchChartRenderer {
         ctx.setLineWidth(1.2)
         ctx.stroke(plotRect)
 
-        // Series lines — clipped to plot area
+        // Series lines/scatter — dots and lines clipped to plot area;
+        // point labels collected here and drawn after restoreGState so they are never clipped.
+        var pendingLabels: [(text: String, center: CGPoint, color: CGColor)] = []
+
         ctx.saveGState()
         ctx.clip(to: plotRect)
         for (i, series) in payload.series.enumerated() {
-            guard series.x.count == series.y.count, series.x.count >= 2 else { continue }
-            ctx.setStrokeColor(Self.seriesColors[i % Self.seriesColors.count])
-            ctx.setLineWidth(1.5)
-            ctx.beginPath()
-            ctx.move(to: pt(series.x[0], series.y[0]))
-            for k in 1..<series.x.count {
-                ctx.addLine(to: pt(series.x[k], series.y[k]))
+            guard series.x.count == series.y.count, !series.x.isEmpty else { continue }
+            let color = Self.seriesColors[i % Self.seriesColors.count]
+            if series.isScatter {
+                let r: CGFloat = 3.5
+                ctx.setFillColor(color)
+                for k in 0..<series.x.count {
+                    let center = pt(series.x[k], series.y[k])
+                    ctx.fillEllipse(in: CGRect(x: center.x - r, y: center.y - r,
+                                               width: r * 2, height: r * 2))
+                    if k < series.pointLabels.count {
+                        pendingLabels.append((series.pointLabels[k], center, color))
+                    }
+                }
+            } else {
+                guard series.x.count >= 2 else { continue }
+                ctx.setStrokeColor(color)
+                ctx.setLineWidth(CGFloat(series.lineWidth))
+                ctx.beginPath()
+                ctx.move(to: pt(series.x[0], series.y[0]))
+                for k in 1..<series.x.count {
+                    ctx.addLine(to: pt(series.x[k], series.y[k]))
+                }
+                ctx.strokePath()
             }
-            ctx.strokePath()
         }
         ctx.restoreGState()
+
+        // Draw point labels outside clip — smart positioning to avoid edge cutoff
+        let labelFont: CGFloat = 16
+        let r: CGFloat = 3.5
+        let gap: CGFloat = 4
+        let approxLabelW: CGFloat = 36   // rough width of "300 K" at size 13
+        let approxLabelH: CGFloat = 14
+        for (text, center, color) in pendingLabels {
+            // Flip to left when too close to right edge; flip to below when too close to top
+            let nearRight = center.x + r + gap + approxLabelW > plotRect.maxX
+            let nearTop   = center.y + approxLabelH * 0.5 > plotRect.maxY
+            if nearRight {
+                let labelPt = CGPoint(x: center.x - r - gap, y: center.y)
+                drawRightAligned(ctx, text: text, rightEdge: labelPt,
+                                 size: labelFont, bold: false, color: color)
+            } else if nearTop {
+                let labelPt = CGPoint(x: center.x, y: center.y - r - gap - approxLabelH)
+                drawCentered(ctx, text: text, at: labelPt,
+                             size: labelFont, bold: false, color: color)
+            } else {
+                let labelPt = CGPoint(x: center.x + r + gap, y: center.y)
+                drawLeftAligned(ctx, text: text, leftEdge: labelPt,
+                                size: labelFont, bold: false, color: color)
+            }
+        }
 
         // Tick marks + numeric labels on both axes
         drawAxisTicks(ctx, plotRect: plotRect, options: options,
@@ -235,7 +284,7 @@ struct WorkbenchChartRenderer {
         let labelGap: CGFloat = 5
         let tickColor = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
         let labelColor = CGColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1)
-        let labelSize: CGFloat = 16
+        let labelSize: CGFloat = 19
 
         ctx.setStrokeColor(tickColor)
         ctx.setLineWidth(0.8)
@@ -298,14 +347,46 @@ struct WorkbenchChartRenderer {
     private func drawLegend(_ ctx: CGContext,
                              rows: [WorkbenchPlotLayout.LegendRow],
                              series: [WorkbenchPlotSeries]) {
+        guard !rows.isEmpty else { return }
         let labelColor = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
+        let rowH   = WorkbenchPlotLayout.legendRowH
+        let boxPad: CGFloat = 6
+
+        // Bounding box — use measured label widths so the box always encloses the text
+        let measuredLabelWidths: [CGFloat] = series.map { s in
+            let line = makeLine(text: s.label, size: 18, bold: false, color: labelColor)
+            return CTLineGetBoundsWithOptions(line, []).width
+        }
+        let minX = rows.map(\.cgOriginX).min()! - boxPad
+        let maxX = zip(rows, measuredLabelWidths).map { row, w in row.labelAnchor.x + w }.max()! + boxPad
+        let minY = rows.map(\.cgRowY).min()! - rowH * 0.5 - boxPad
+        let maxY = rows.map(\.cgRowY).max()! + rowH * 0.5 + boxPad
+        let boxRect = CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+
+        // White fill + light border
+        ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 0.92))
+        ctx.fill(boxRect)
+        ctx.setStrokeColor(CGColor(red: 0.75, green: 0.75, blue: 0.75, alpha: 1))
+        ctx.setLineWidth(0.8)
+        ctx.stroke(boxRect)
+
         for (i, (row, s)) in zip(rows, series).enumerated() {
-            ctx.setStrokeColor(Self.seriesColors[i % Self.seriesColors.count])
-            ctx.setLineWidth(1.5)
-            ctx.strokeLineSegments(between: [row.lineStart, row.lineEnd])
-            // Always [line][text] — labelAnchor is the left edge of the text for all anchors.
+            let color = Self.seriesColors[i % Self.seriesColors.count]
+            if s.isScatter {
+                // Scatter legend: filled circle at midpoint of the line slot
+                let mid = CGPoint(x: (row.lineStart.x + row.lineEnd.x) / 2,
+                                  y: (row.lineStart.y + row.lineEnd.y) / 2)
+                let r: CGFloat = 4.0
+                ctx.setFillColor(color)
+                ctx.fillEllipse(in: CGRect(x: mid.x - r, y: mid.y - r,
+                                           width: r * 2, height: r * 2))
+            } else {
+                ctx.setStrokeColor(color)
+                ctx.setLineWidth(CGFloat(s.lineWidth))
+                ctx.strokeLineSegments(between: [row.lineStart, row.lineEnd])
+            }
             drawLeftAligned(ctx, text: s.label, leftEdge: row.labelAnchor,
-                            size: 15, bold: false, color: labelColor)
+                            size: 18, bold: false, color: labelColor)
         }
     }
 
@@ -359,12 +440,15 @@ struct WorkbenchChartRenderer {
         ctx.restoreGState()
     }
 
-    /// Renders text where `_X` notation draws X as a subscript (smaller font + lowered baseline).
-    /// Falls back to plain rendering when no `_` is present.
+    /// Renders text where `_X` draws X as a subscript and `^X` draws X as a superscript.
+    /// Falls back to plain rendering when neither marker is present.
     private func makeMarkupLine(text: String, size: CGFloat, color: CGColor) -> CTLine {
-        guard text.contains("_") else { return makeLine(text: text, size: size, bold: false, color: color) }
+        guard text.contains("_") || text.contains("^") else {
+            return makeLine(text: text, size: size, bold: false, color: color)
+        }
         let font    = CTFontCreateWithName("ArialMT" as CFString, size, nil)
         let subFont = CTFontCreateWithName("ArialMT" as CFString, size * 0.65, nil)
+        let supFont = CTFontCreateWithName("ArialMT" as CFString, size * 0.65, nil)
         let baseAttrs: [NSAttributedString.Key: Any] = [
             NSAttributedString.Key(rawValue: kCTFontAttributeName as String): font,
             NSAttributedString.Key(rawValue: kCTForegroundColorAttributeName as String): color,
@@ -374,11 +458,18 @@ struct WorkbenchChartRenderer {
             NSAttributedString.Key(rawValue: kCTForegroundColorAttributeName as String): color,
             .baselineOffset: NSNumber(value: -size * 0.20),
         ]
+        let supAttrs: [NSAttributedString.Key: Any] = [
+            NSAttributedString.Key(rawValue: kCTFontAttributeName as String): supFont,
+            NSAttributedString.Key(rawValue: kCTForegroundColorAttributeName as String): color,
+            .baselineOffset: NSNumber(value: size * 0.30),
+        ]
         let result = NSMutableAttributedString()
         var scalars = text.unicodeScalars.makeIterator()
         while let scalar = scalars.next() {
             if scalar == "_", let next = scalars.next() {
                 result.append(NSAttributedString(string: String(next), attributes: subAttrs))
+            } else if scalar == "^", let next = scalars.next() {
+                result.append(NSAttributedString(string: String(next), attributes: supAttrs))
             } else {
                 result.append(NSAttributedString(string: String(scalar), attributes: baseAttrs))
             }

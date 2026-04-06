@@ -1,6 +1,28 @@
 import SwiftUI
 import AppKit
 
+// MARK: - WorkbenchPlottingStore
+
+/// 所有 workflow workspace store 必须实现的 canvas 交互合约。
+/// 确保任何新 workflow 都能接入 WorkbenchPlotCanvas 的拖拽、行内编辑等交互。
+@MainActor
+protocol WorkbenchPlottingStore: AnyObject {
+    /// 是否显示网格线。
+    var showPlotGrid: Bool { get set }
+    /// 最近一次运行的 trace（nil = 尚未运行）。
+    var currentRunTrace: WorkbenchRunTraceProjection? { get }
+    /// 用户拖拽图例后回调，point 为 plot 归一化坐标（x,y ∈ [0,1]，Y-up）。
+    func updateLegendPoint(_ point: CGPoint)
+    /// 用户行内编辑图表标题后回调。
+    func updatePlotTitle(_ title: String)
+    /// 用户行内编辑 X 轴标签后回调。
+    func updateXAxisLabel(_ label: String)
+    /// 用户行内编辑 Y 轴标签后回调。
+    func updateYAxisLabel(_ label: String)
+    /// 用户重命名图例标签后回调。
+    func updateSeriesLabel(index: Int, newLabel: String)
+}
+
 // MARK: - WorkbenchPlotCanvas
 
 /// 通用图像显示组件。
@@ -14,8 +36,8 @@ struct WorkbenchPlotCanvas: View {
     let imageData: Data?
     /// Layout from the most recent render. Nil = hit-testing and editing disabled.
     var layout: WorkbenchPlotLayout? = nil
-    /// Current series label overrides, used to pre-fill the legend-label edit field.
-    var seriesLabelOverrides: [String: String] = [:]
+    /// Current series label overrides keyed by series index, used to pre-fill the edit field.
+    var seriesLabelOverrides: [Int: String] = [:]
 
     /// Called with a plotRect-normalized point (x,y ∈ [0,1], y=0 bottom, y=1 top)
     /// when the user finishes a drag over the plot area. Nil = drag disabled.
@@ -24,8 +46,8 @@ struct WorkbenchPlotCanvas: View {
     var onEditTitle:       ((String) -> Void)?               = nil
     var onEditXLabel:      ((String) -> Void)?               = nil
     var onEditYLabel:      ((String) -> Void)?               = nil
-    /// (originalLabel, newLabel)
-    var onEditLegendLabel: ((String, String) -> Void)?       = nil
+    /// (seriesIndex, newLabel)
+    var onEditLegendLabel: ((Int, String) -> Void)?          = nil
 
     // TODO(用户设计): 调整最小高度、背景样式、空状态文字
     var minHeight: CGFloat = 360
@@ -33,20 +55,29 @@ struct WorkbenchPlotCanvas: View {
     @State private var canvasSize: CGSize = .zero
     /// Screen-space point of an in-progress drag (nil when not dragging).
     @State private var dragPreviewPt: CGPoint? = nil
+    /// Normalized offset (plot-space, Y-up) from legend origin to cursor at drag start.
+    /// Captured on the first onChanged frame; nil = not dragging.
+    @State private var dragGrabOffsetNorm: CGSize? = nil
+    /// Last valid adjusted normalized point during an active drag.
+    /// Used by onEnded as fallback when cursor lands in padding area (plotNormalized → nil).
+    @State private var lastValidDragNorm: CGPoint? = nil
     /// Which chart element is currently being edited.
     @State private var editingElement: EditTarget? = nil
     /// Live text for the active edit field.
     @State private var editText: String = ""
     /// Screen-space rect of the element being edited, used to position the edit panel.
     @State private var editTargetScreenRect: CGRect = .zero
+    /// Pixel size of the current rendered PNG used for coordinate conversion.
+    /// Falls back to 800x600 until image metadata is available.
+    @State private var rendererPixelSize: CGSize = CGSize(width: 800, height: 600)
 
-    private static let rendererSize = CGSize(width: 800, height: 600)
+    private static let defaultRendererSize = CGSize(width: 800, height: 600)
 
     private enum EditTarget: Equatable {
         case title
         case xLabel
         case yLabel
-        case legend(originalLabel: String)
+        case legend(seriesIndex: Int, originalLabel: String)
     }
 
     var body: some View {
@@ -81,23 +112,45 @@ struct WorkbenchPlotCanvas: View {
                         .onChanged { value in
                             guard onLegendDrag != nil else { return }
                             let fitted = fittedRect(in: canvasSize)
-                            if let norm = plotNormalized(location: value.location, fittedRect: fitted) {
-                                // Round-trip through the same transform the renderer uses so the
-                                // preview box is anchored at exactly the rendered legend origin.
-                                dragPreviewPt = legendScreenOrigin(normalized: norm, fittedRect: fitted)
-                            } else {
-                                dragPreviewPt = nil
+                            // plotNormalized always returns a value (clamps to fitted+plot boundary).
+                            guard let cursorNorm = plotNormalized(location: value.location, fittedRect: fitted) else { return }
+                            // Capture grab offset once using startLocation (not first-frame location)
+                            // to avoid the minimumDistance:4 threshold causing a positional jump.
+                            if dragGrabOffsetNorm == nil {
+                                let startNorm = plotNormalized(location: value.startLocation, fittedRect: fitted) ?? cursorNorm
+                                let origin = currentLegendOriginNorm()
+                                dragGrabOffsetNorm = CGSize(
+                                    width:  startNorm.x - origin.x,
+                                    height: startNorm.y - origin.y
+                                )
                             }
+                            let grab = dragGrabOffsetNorm ?? .zero
+                            // Legend origin follows cursor minus the grab offset.
+                            // cursorNorm is already clamped to [0,1] so adjusted is too.
+                            let adjusted = CGPoint(
+                                x: min(max(cursorNorm.x - grab.width,  0), 1),
+                                y: min(max(cursorNorm.y - grab.height, 0), 1)
+                            )
+                            lastValidDragNorm = adjusted
+                            dragPreviewPt = legendScreenOrigin(normalized: adjusted, fittedRect: fitted)
                         }
                         .onEnded { value in
-                            dragPreviewPt = nil
-                            guard let callback = onLegendDrag else { return }
-                            let fitted = fittedRect(in: canvasSize)
-                            guard let pt = plotNormalized(location: value.location,
-                                                          fittedRect: fitted) else { return }
-                            callback(pt)
+                            let last = lastValidDragNorm
+                            dragPreviewPt      = nil
+                            dragGrabOffsetNorm = nil
+                            lastValidDragNorm  = nil
+                            guard let callback = onLegendDrag, let finalNorm = last else { return }
+                            // finalNorm is already clamped to [0,1] from onChanged.
+                            // It matches exactly the last preview position, so landing = preview.
+                            callback(finalNorm)
                         }
                 )
+                .onAppear {
+                    rendererPixelSize = Self.extractRendererPixelSize(from: nsImage) ?? Self.defaultRendererSize
+                }
+                .onChange(of: imageData) { _, _ in
+                    rendererPixelSize = Self.extractRendererPixelSize(from: nsImage) ?? Self.defaultRendererSize
+                }
         } else {
             ContentUnavailableView(
                 "No Plot",
@@ -113,16 +166,54 @@ struct WorkbenchPlotCanvas: View {
     @ViewBuilder
     private var legendDragPreview: some View {
         if let pt = dragPreviewPt {
-            let boxW: CGFloat = 96
-            let boxH: CGFloat = 28
-            Rectangle()
-                .strokeBorder(
-                    Color.accentColor.opacity(0.85),
-                    style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])
-                )
-                .frame(width: boxW, height: boxH)
-                .position(x: pt.x + boxW / 2, y: pt.y + boxH / 2)
+            let fitted = fittedRect(in: canvasSize)
+            if fitted.width > 0 && fitted.height > 0 {
+                let scaleX  = fitted.width  / rendererPixelSize.width
+                let scaleY  = fitted.height / rendererPixelSize.height
+                let boxPad: CGFloat = 6
+                let rowCount = CGFloat(layout?.legendRows.count ?? 1)
+                // Use the CoreText-measured max label width so the preview box matches the
+                // rendered legend box exactly (same formula as drawLegend).
+                let maxLabelW = layout?.legendRows.map(\.measuredLabelWidth).max()
+                              ?? WorkbenchPlotLayout.legendEstLabelW
+                let boxW = (WorkbenchPlotLayout.legendLineLen
+                          + WorkbenchPlotLayout.legendGap
+                          + maxLabelW
+                          + 2 * boxPad) * scaleX
+                let boxH = (rowCount * WorkbenchPlotLayout.legendRowH + 2 * boxPad) * scaleY
+                // pt is screen position of (cgOriginX, originY).
+                // Legend box top-left is offset by (-boxPad, -(0.1*rowH + boxPad)) in renderer space.
+                let topLeftX = pt.x - boxPad * scaleX
+                let topLeftY = pt.y - (WorkbenchPlotLayout.legendRowH * 0.1 + boxPad) * scaleY
+                Rectangle()
+                    .strokeBorder(
+                        Color.accentColor.opacity(0.85),
+                        style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])
+                    )
+                    .frame(width: boxW, height: boxH)
+                    .position(x: topLeftX + boxW / 2, y: topLeftY + boxH / 2)
+            }
         }
+    }
+
+    /// Returns the current legend origin as a normalized plot point (x,y ∈ [0,1], Y-up).
+    /// Derived from legendRows[0] by reversing the renderer's free-position math.
+    /// Falls back to (0.5, 0.5) when layout is unavailable.
+    private func currentLegendOriginNorm() -> CGPoint {
+        guard let rows = layout?.legendRows, !rows.isEmpty else {
+            return CGPoint(x: 0.5, y: 0.5)
+        }
+        let opts = WorkbenchChartRenderer.Options()
+        let plotMinX = opts.paddingLeft
+        let plotMinY = opts.paddingBottom   // CG Y-up: plot bottom edge
+        let plotW = rendererPixelSize.width  - opts.paddingLeft - opts.paddingRight
+        let plotH = rendererPixelSize.height - opts.paddingTop  - opts.paddingBottom
+        let row0 = rows[0]
+        let nx = (row0.cgOriginX - plotMinX) / plotW
+        // Reverse: originY = cgRowY + legendRowH * 0.4  (from computeLegendRows, i=0)
+        let cgOriginY = row0.cgRowY + WorkbenchPlotLayout.legendRowH * 0.4
+        let ny = (cgOriginY - plotMinY) / plotH
+        return CGPoint(x: min(max(nx, 0), 1), y: min(max(ny, 0), 1))
     }
 
     // MARK: - Inline edit panel
@@ -138,7 +229,7 @@ struct WorkbenchPlotCanvas: View {
             case .title:            return "Title"
             case .xLabel:           return "X Label"
             case .yLabel:           return "Y Label"
-            case .legend(let orig): return "Legend · \(orig)"
+            case .legend(_, let orig): return "Legend · \(orig)"
             }
         }()
         let pos = editPanelPosition()
@@ -189,8 +280,8 @@ struct WorkbenchPlotCanvas: View {
     private func handleTap(at location: CGPoint) {
         guard let layout else { return }
         let fitted = fittedRect(in: canvasSize)
-        let rW = Self.rendererSize.width
-        let rH = Self.rendererSize.height
+        let rW = rendererPixelSize.width
+        let rH = rendererPixelSize.height
 
         func toScreen(_ cr: CGRect) -> CGRect {
             WorkbenchPlotLayout.cgToScreen(cr, fittedIn: fitted,
@@ -219,9 +310,9 @@ struct WorkbenchPlotCanvas: View {
             for row in layout.legendRows {
                 let sr = toScreen(row.hitRect)
                 if sr.contains(location) {
-                    editText = seriesLabelOverrides[row.originalLabel] ?? row.originalLabel
+                    editText = seriesLabelOverrides[row.seriesIndex] ?? row.originalLabel
                     editTargetScreenRect = sr
-                    editingElement = .legend(originalLabel: row.originalLabel)
+                    editingElement = .legend(seriesIndex: row.seriesIndex, originalLabel: row.originalLabel)
                     return
                 }
             }
@@ -237,7 +328,7 @@ struct WorkbenchPlotCanvas: View {
         case .title:              onEditTitle?(text)
         case .xLabel:             onEditXLabel?(text)
         case .yLabel:             onEditYLabel?(text)
-        case .legend(let orig):   onEditLegendLabel?(orig, text)
+        case .legend(let idx, _): onEditLegendLabel?(idx, text)
         }
         editingElement = nil
         editText = ""
@@ -247,7 +338,7 @@ struct WorkbenchPlotCanvas: View {
 
     private func fittedRect(in size: CGSize) -> CGRect {
         guard size.width > 0, size.height > 0 else { return .zero }
-        let imageAspect = Self.rendererSize.width / Self.rendererSize.height
+        let imageAspect = rendererPixelSize.width / rendererPixelSize.height
         let containerAspect = size.width / size.height
         let w: CGFloat
         let h: CGFloat
@@ -260,16 +351,18 @@ struct WorkbenchPlotCanvas: View {
     }
 
     private func plotNormalized(location: CGPoint, fittedRect: CGRect) -> CGPoint? {
-        guard !fittedRect.isEmpty, fittedRect.contains(location) else { return nil }
-        let px = (location.x - fittedRect.minX) / fittedRect.width  * Self.rendererSize.width
-        let py = (location.y - fittedRect.minY) / fittedRect.height * Self.rendererSize.height
+        guard !fittedRect.isEmpty else { return nil }
+        // Clamp cursor to fittedRect before projecting so dragging outside the image
+        // (or into any padding margin) stays responsive with no invisible air wall.
+        let cx = min(max(location.x, fittedRect.minX), fittedRect.maxX)
+        let cy = min(max(location.y, fittedRect.minY), fittedRect.maxY)
+        let px = (cx - fittedRect.minX) / fittedRect.width  * rendererPixelSize.width
+        let py = (cy - fittedRect.minY) / fittedRect.height * rendererPixelSize.height
         let opts = WorkbenchChartRenderer.Options()
-        let plotW    = CGFloat(opts.width)  - opts.paddingLeft - opts.paddingRight
-        let plotH    = CGFloat(opts.height) - opts.paddingTop  - opts.paddingBottom
+        let plotW    = rendererPixelSize.width  - opts.paddingLeft - opts.paddingRight
+        let plotH    = rendererPixelSize.height - opts.paddingTop  - opts.paddingBottom
         let plotMinX = opts.paddingLeft
         let plotMinY = opts.paddingTop
-        guard px >= plotMinX, px <= plotMinX + plotW,
-              py >= plotMinY, py <= plotMinY + plotH else { return nil }
         let nx = (px - plotMinX) / plotW
         let ny = 1.0 - (py - plotMinY) / plotH
         return CGPoint(x: min(max(nx, 0), 1), y: min(max(ny, 0), 1))
@@ -281,18 +374,26 @@ struct WorkbenchPlotCanvas: View {
     /// rendered legend origin rather than the raw drag location.
     private func legendScreenOrigin(normalized: CGPoint, fittedRect: CGRect) -> CGPoint {
         let opts = WorkbenchChartRenderer.Options()
-        let plotW = CGFloat(opts.width)  - opts.paddingLeft - opts.paddingRight
-        let plotH = CGFloat(opts.height) - opts.paddingTop  - opts.paddingBottom
+        let plotW = rendererPixelSize.width  - opts.paddingLeft - opts.paddingRight
+        let plotH = rendererPixelSize.height - opts.paddingTop  - opts.paddingBottom
         // Renderer CG space (Y-up)
         let cgOriginX = opts.paddingLeft   + normalized.x * plotW
         let cgOriginY = opts.paddingBottom + normalized.y * plotH
         // PNG space (Y-down, same as screen)
         let pngX = cgOriginX
-        let pngY = CGFloat(opts.height) - cgOriginY
+        let pngY = rendererPixelSize.height - cgOriginY
         return CGPoint(
-            x: fittedRect.minX + pngX / CGFloat(opts.width)  * fittedRect.width,
-            y: fittedRect.minY + pngY / CGFloat(opts.height) * fittedRect.height
+            x: fittedRect.minX + pngX / rendererPixelSize.width  * fittedRect.width,
+            y: fittedRect.minY + pngY / rendererPixelSize.height * fittedRect.height
         )
+    }
+
+    private static func extractRendererPixelSize(from image: NSImage) -> CGSize? {
+        for rep in image.representations {
+            let size = CGSize(width: CGFloat(rep.pixelsWide), height: CGFloat(rep.pixelsHigh))
+            if size.width > 0, size.height > 0 { return size }
+        }
+        return nil
     }
 }
 
@@ -367,5 +468,80 @@ struct WorkbenchStatusArea: View {
                 Text(msg).font(.footnote).foregroundStyle(.secondary)
             }
         }
+    }
+}
+
+// MARK: - WorkbenchPlotControlsPanel
+
+/// 通用 Plot Controls 容器。
+/// 提供统一的 GroupBox 标题、内部 VStack 间距和 padding。
+/// 所有 workflow 的 PlotControlsPanel 必须以此为容器，workflow 专属控件通过 ViewBuilder 注入。
+struct WorkbenchPlotControlsPanel<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        GroupBox("Plot Controls") {
+            VStack(alignment: .leading, spacing: 8) {
+                content()
+            }
+            .padding(.vertical, 4)
+        }
+    }
+}
+
+// MARK: - WorkflowHitRow
+
+/// 通用搜索结果行。
+/// 适用于所有 workflow 的 WorkflowMeasurementSearchHit 显示。
+struct WorkflowHitRow: View {
+    let hit: WorkflowMeasurementSearchHit
+    let isSelected: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                .font(.body)
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("Workflow").font(.caption).foregroundStyle(.secondary)
+                    Text(hit.workflowDisplayName).font(.body.weight(.semibold))
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("Sample").font(.caption).foregroundStyle(.secondary)
+                    Text(hit.sampleBatchAndSubstrate)
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("Condition").font(.caption).foregroundStyle(.secondary)
+                    Text(hit.conditionSummary).font(.callout)
+                }
+                if !hit.channels.isEmpty {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("Channels").font(.caption).foregroundStyle(.secondary)
+                        Text(hit.channels.joined(separator: ", ")).font(.callout)
+                    }
+                }
+                Text(hit.measurementFilePath)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            isSelected
+                ? AnyShapeStyle(Color.accentColor.opacity(0.08))
+                : AnyShapeStyle(.regularMaterial),
+            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(isSelected ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
+        )
+        .onTapGesture(perform: onTap)
     }
 }

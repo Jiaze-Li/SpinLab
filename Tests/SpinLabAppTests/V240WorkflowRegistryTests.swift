@@ -23,7 +23,7 @@ struct V240WorkflowRegistryTests {
         let first = WorkflowRegistryStore(registryFileURL: fileURL)
         _ = first.load()
 
-        first.add(
+        try first.add(
             WorkflowDefinition(
                 id: "AHE",
                 displayName: "Anomalous Hall",
@@ -46,7 +46,7 @@ struct V240WorkflowRegistryTests {
         let store = WorkflowRegistryStore(registryFileURL: fileURL)
         _ = store.load()
 
-        store.remove(id: "RT")
+        try store.remove(id: "RT")
 
         let data = try Data(contentsOf: fileURL)
         let decoded = try JSONDecoder().decode([WorkflowDefinition].self, from: data)
@@ -72,7 +72,7 @@ struct V240WorkflowRegistryTests {
         xy.conditionFields[0] = WorkflowConditionField(
             definitionID: firstField.definitionID
         )
-        first.update(xy)
+        try first.update(xy)
 
         let second = WorkflowRegistryStore(registryFileURL: fileURL)
         let reloaded = second.load()

@@ -183,6 +183,17 @@
           "scope": "joined",
           "type": "containsAny",
           "values": [
+            "3w",
+            "3omega"
+          ]
+        },
+        "value": "3W"
+      },
+      {
+        "match": {
+          "scope": "joined",
+          "type": "containsAny",
+          "values": [
             "xy",
             "rotation"
           ]

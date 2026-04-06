@@ -1,4 +1,5 @@
 import CoreGraphics
+import CoreText
 
 /// Single source of truth for chart text-element positions.
 ///
@@ -11,9 +12,9 @@ struct WorkbenchPlotLayout: Sendable {
 
     // MARK: - Shared legend geometry constants
 
-    static let legendLineLen:  CGFloat = 18
-    static let legendRowH:     CGFloat = 15
-    static let legendGap:      CGFloat = 4
+    static let legendLineLen:  CGFloat = 22
+    static let legendRowH:     CGFloat = 26
+    static let legendGap:      CGFloat = 6
     static let legendMargin:   CGFloat = 6
     /// Estimated label text width used for hit-rect sizing; visual label may be shorter.
     static let legendEstLabelW: CGFloat = 110
@@ -21,10 +22,14 @@ struct WorkbenchPlotLayout: Sendable {
     // MARK: - LegendRow
 
     struct LegendRow {
-        /// Stable key for `plotSeriesLabelOverrides` — the original (pre-override) series label.
+        /// Zero-based series index — the stable key for `plotSeriesLabelOverrides`.
+        let seriesIndex:   Int
+        /// Original (pre-override) label, used for display in the edit panel.
         let originalLabel: String
         let cgRowY:        CGFloat   // CG y-center of this row
         let cgOriginX:     CGFloat   // X start of the color swatch line
+        /// CoreText-measured label width in renderer coordinates (same font/size as drawLegend).
+        let measuredLabelWidth: CGFloat
 
         // MARK: Renderer drawing helpers
 
@@ -46,7 +51,7 @@ struct WorkbenchPlotLayout: Sendable {
         var hitRect: CGRect {
             let w = WorkbenchPlotLayout.legendLineLen
                   + WorkbenchPlotLayout.legendGap
-                  + WorkbenchPlotLayout.legendEstLabelW
+                  + measuredLabelWidth
             let h = WorkbenchPlotLayout.legendRowH
             // Block always extends rightward from cgOriginX ([line][gap][text]).
             return CGRect(x: cgOriginX, y: cgRowY - h / 2, width: w, height: h)
@@ -104,7 +109,7 @@ struct WorkbenchPlotLayout: Sendable {
         )
 
         // Y axis label (rotated 90°) — left-margin strip
-        let yLabelCenter  = CGPoint(x: options.paddingLeft * 0.20, y: h / 2)
+        let yLabelCenter  = CGPoint(x: options.paddingLeft * 0.38, y: h / 2)
         let yLabelHitRect = CGRect(
             x: 0, y: plotRect.minY,
             width:  options.paddingLeft * 0.50,
@@ -147,6 +152,7 @@ struct WorkbenchPlotLayout: Sendable {
             let cgRowY:      CGFloat
             let cgOriginX:   CGFloat
             let isLeftAligned: Bool
+            let measuredW = measureLabelWidth(s.label)
 
             if let np = legendPoint {
                 // Free-position mode — mirrors drawLegend free-position math exactly
@@ -174,11 +180,23 @@ struct WorkbenchPlotLayout: Sendable {
             }
 
             return LegendRow(
-                originalLabel: s.label,
-                cgRowY:        cgRowY,
-                cgOriginX:     cgOriginX
+                seriesIndex:        i,
+                originalLabel:      s.label,
+                cgRowY:             cgRowY,
+                cgOriginX:          cgOriginX,
+                measuredLabelWidth: measuredW
             )
         }
+    }
+
+    /// Measures label text width in renderer coordinates using the same font as drawLegend.
+    private static func measureLabelWidth(_ text: String) -> CGFloat {
+        let font = CTFontCreateWithName("ArialMT" as CFString, 18, nil)
+        let attrs: [CFString: Any] = [kCTFontAttributeName: font]
+        let attrStr = CFAttributedStringCreate(kCFAllocatorDefault, text as CFString, attrs as CFDictionary)!
+        let line = CTLineCreateWithAttributedString(attrStr)
+        let w = CTLineGetBoundsWithOptions(line, []).width
+        return w > 0 ? w : legendEstLabelW
     }
 
     // MARK: - Coordinate conversion
