@@ -40,7 +40,7 @@
 4.1.0 ✅  Scaffold — 所有文件已创建，编译通过
 4.1.1 ✅  LVM Parser 真实文件验证 + 单元测试完整化
 4.1.2 ✅  FitUseCase 验证 + 第一次真实数据可视化 (Tabs 1–2)
-4.1.3 🔲  V^(3ω)_AHE 提取方法决策 + Tabs 3–5
+4.1.3 ✅  V^(3ω)_AHE 提取方法决策 + Tabs 3–5
 4.1.4 🔲  Fig 5b Scaling 完整流程 (Tab 6) ← 多段拟合 UI/逻辑已超前实现（v4.1.2.16）
 4.1.5 🔲  Import/Inbox 集成 — LVM 文件入库
 4.1.6 🔲  多角度支持 (30deg / 60deg) + 健壮性
@@ -132,7 +132,7 @@
 
 ---
 
-### 4.1.3 🔲 — V^(3ω)_AHE 提取方法决策 + Tabs 3–5
+### 4.1.3 ✅ — V^(3ω)_AHE 提取方法决策 + Tabs 3–5
 
 **目标：** 看到 RAHE/Hc vs T 和 Rxx vs T 曲线后，确定 V^(3ω)_AHE 提取方法，并用正确方法填 `v3omegaAtZeroField`。
 
