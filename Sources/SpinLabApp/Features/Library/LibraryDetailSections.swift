@@ -161,6 +161,10 @@ struct LibraryMeasurementsDoneSection: View {
     // v4.1.5.2 — delete measurement confirmation
     @State private var pendingDeleteMeasurement: AppliedMeasurement? = nil
     @State private var isShowingDeleteMeasurementConfirm = false
+    // Expansion state for dynamic DisclosureGroups (keyed by workflowID / setID)
+    @State private var expandedWorkflows: Set<String> = []
+    @State private var expandedSets: Set<String> = []
+    @State private var expandedUncategorized: Set<String> = []
 
     // MARK: - Grouping helpers
 
@@ -257,8 +261,10 @@ struct LibraryMeasurementsDoneSection: View {
         } label: {
             Text("Measurements Done")
                 .font(.title3.weight(.semibold))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture { isExpanded.toggle() }
         }
-        .textSelection(.enabled)
         .onDisappear {
             hoverTask?.cancel()
             hoverTask = nil
@@ -307,7 +313,7 @@ struct LibraryMeasurementsDoneSection: View {
     @ViewBuilder
     private func workflowSection(_ group: (workflowID: String, displayName: String, measurements: [AppliedMeasurement])) -> some View {
         let sets = setsForWorkflow(group.workflowID)
-        DisclosureGroup {
+        DisclosureGroup(isExpanded: toggleBinding(for: group.workflowID, in: $expandedWorkflows)) {
             if sets.isEmpty {
                 // No sets — flat measurement list (two-level)
                 VStack(alignment: .leading, spacing: 4) {
@@ -324,7 +330,7 @@ struct LibraryMeasurementsDoneSection: View {
                     }
                     let uncategorized = uncategorizedMeasurements(in: group.measurements, sets: sets)
                     if !uncategorized.isEmpty {
-                        DisclosureGroup {
+                        DisclosureGroup(isExpanded: toggleBinding(for: group.workflowID, in: $expandedUncategorized)) {
                             VStack(alignment: .leading, spacing: 4) {
                                 ForEach(uncategorized) { m in
                                     measurementRow(m, workflowID: group.workflowID, setID: nil)
@@ -332,39 +338,26 @@ struct LibraryMeasurementsDoneSection: View {
                             }
                             .padding(.leading, 12)
                         } label: {
-                            HStack(spacing: 4) {
-                                Text("Uncategorized")
-                                    .font(.callout.weight(.medium))
-                                    .foregroundStyle(.secondary)
-                                Text("\(uncategorized.count)")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 5)
-                                    .padding(.vertical, 1)
-                                    .background(Capsule().fill(Color.secondary.opacity(0.15)))
-                                Spacer()
+                            disclosureLabel("Uncategorized", count: uncategorized.count, style: .secondary) {
+                                if expandedUncategorized.contains(group.workflowID) {
+                                    expandedUncategorized.remove(group.workflowID)
+                                } else {
+                                    expandedUncategorized.insert(group.workflowID)
+                                }
                             }
-                            .frame(maxWidth: .infinity)
-                            .contentShape(Rectangle())
                         }
                     }
                 }
                 .padding(.leading, 12)
             }
         } label: {
-            HStack(spacing: 4) {
-                Text(group.displayName)
-                    .font(.callout.weight(.semibold))
-                Text("\(group.measurements.count)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1)
-                    .background(Capsule().fill(Color.secondary.opacity(0.15)))
-                Spacer()
+            disclosureLabel(group.displayName, count: group.measurements.count, style: .primary) {
+                if expandedWorkflows.contains(group.workflowID) {
+                    expandedWorkflows.remove(group.workflowID)
+                } else {
+                    expandedWorkflows.insert(group.workflowID)
+                }
             }
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
         }
     }
 
@@ -373,7 +366,7 @@ struct LibraryMeasurementsDoneSection: View {
     @ViewBuilder
     private func setSection(_ set: MeasurementSet, workflowMeasurements: [AppliedMeasurement], workflowID: String) -> some View {
         let members = measurementsInSet(set, from: workflowMeasurements)
-        DisclosureGroup {
+        DisclosureGroup(isExpanded: toggleBinding(for: set.id, in: $expandedSets)) {
             if members.isEmpty {
                 Text("No measurements in this set")
                     .font(.caption)
@@ -389,19 +382,13 @@ struct LibraryMeasurementsDoneSection: View {
                 .padding(.leading, 12)
             }
         } label: {
-            HStack(spacing: 4) {
-                Text(set.name)
-                    .font(.callout.weight(.medium))
-                Text("\(members.count)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1)
-                    .background(Capsule().fill(Color.secondary.opacity(0.15)))
-                Spacer()
+            disclosureLabel(set.name, count: members.count, style: .primary) {
+                if expandedSets.contains(set.id) {
+                    expandedSets.remove(set.id)
+                } else {
+                    expandedSets.insert(set.id)
+                }
             }
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
         }
         .contextMenu {
             Button("Rename Set...") {
@@ -466,6 +453,7 @@ struct LibraryMeasurementsDoneSection: View {
                       ? Color.accentColor.opacity(0.10)
                       : Color.secondary.opacity(0.07))
         )
+        .textSelection(.enabled)
         .contextMenu {
             measurementContextMenu(measurement, workflowID: workflowID, setID: setID)
         }
@@ -574,6 +562,46 @@ struct LibraryMeasurementsDoneSection: View {
             guard !isHoveringPreviewPanel else { return }
             if hoveredMeasurementID == measurementID { hoveredMeasurementID = nil }
         }
+    }
+
+    // MARK: - Disclosure helpers
+
+    private enum LabelStyle { case primary, secondary }
+
+    /// Full-width clickable label for DisclosureGroup headers.
+    /// `onTap` manually toggles the bound `isExpanded` state, since macOS
+    /// DisclosureGroup only responds to clicks on the chevron by default.
+    @ViewBuilder
+    private func disclosureLabel(_ title: String, count: Int, style: LabelStyle, onTap: @escaping () -> Void) -> some View {
+        HStack(spacing: 4) {
+            Text(title)
+                .font(.callout.weight(style == .primary ? .semibold : .medium))
+                .foregroundStyle(style == .primary ? .primary : .secondary)
+            Text("\(count)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(Capsule().fill(Color.secondary.opacity(0.15)))
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture { onTap() }
+    }
+
+    /// Creates a Binding<Bool> that toggles membership of `key` in a `Set<String>`.
+    private func toggleBinding(for key: String, in set: Binding<Set<String>>) -> Binding<Bool> {
+        Binding<Bool>(
+            get: { set.wrappedValue.contains(key) },
+            set: { isExpanded in
+                if isExpanded {
+                    set.wrappedValue.insert(key)
+                } else {
+                    set.wrappedValue.remove(key)
+                }
+            }
+        )
     }
 }
 
@@ -785,6 +813,9 @@ struct MeasurementDataSectionView: View {
         } label: {
             Text("Measurement Data")
                 .font(.title3.weight(.semibold))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture { isExpanded.toggle() }
         }
     }
 

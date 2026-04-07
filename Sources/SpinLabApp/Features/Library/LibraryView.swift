@@ -393,6 +393,9 @@ struct LibraryView: View {
                             } label: {
                                 Text("Metadata")
                                     .font(sampleDetailSectionTitleFont)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture { isMetadataSectionExpanded.toggle() }
                             }
 
                             Divider()
