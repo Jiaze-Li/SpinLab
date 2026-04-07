@@ -34,6 +34,9 @@ struct V333AHEWorkspaceStoreIsolationTests {
         #expect(store.currentPlotLayout == nil)
         #expect(store.lastLibraryRootPath == "")
         #expect(store.cachedSearchResults.isEmpty)
+        #expect(store.lastExtractedMetrics.isEmpty)
+        #expect(store.lastExtractedHc == nil)
+        #expect(store.lastExtractedRAHE == nil)
     }
 
     @MainActor

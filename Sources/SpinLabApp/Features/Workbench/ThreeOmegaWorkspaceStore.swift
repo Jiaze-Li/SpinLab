@@ -113,7 +113,7 @@ final class ThreeOmegaWorkspaceStore {
     func runAnalysis() {
         let selectedHits = cachedSearchResults.filter { selectedSearchResultIDs.contains($0.id) }
         guard !selectedHits.isEmpty else {
-            analysisMessage = "Select at least one 3ω AHE measurement file."
+            analysisMessage = "Select at least one 3 Omega measurement file."
             return
         }
 
@@ -155,7 +155,7 @@ final class ThreeOmegaWorkspaceStore {
 
             self.currentRunTrace = WorkbenchRunTraceProjection(
                 runID: UUID().uuidString,
-                workflowID: "3W",
+                workflowID: "3w",
                 inputFiles: selectedHits.map { $0.measurementFilePath },
                 axisMapping: WorkbenchAxisMapping(xField: "H (Oe)", yField: "R (Ω)"),
                 semanticParams: [

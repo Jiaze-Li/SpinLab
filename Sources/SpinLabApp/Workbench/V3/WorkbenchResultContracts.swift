@@ -238,6 +238,20 @@ struct MeasurementPlotIndex: Codable, Hashable, Sendable {
     }
 }
 
+/// Per-series AHE metric extraction result, keyed by sampleKey for stable mapping.
+struct AHEExtractedMetric: Equatable, Sendable {
+    var sampleKey: String
+    var hc: Double
+    var rAHE: Double
+}
+
+/// Error produced when AHE metric extraction fails for one or more series.
+enum AHEMetricExtractionError: Error, Equatable, Sendable {
+    /// One or more series labels could not be parsed to extract a sampleKey.
+    /// The associated value lists the unparseable labels for diagnostics.
+    case unparseableLabels([String])
+}
+
 struct WorkbenchMeasurementDataStore: Codable, Hashable, Sendable {
     var schemaVersion: Int
     var records: [WorkbenchMetricRecord]

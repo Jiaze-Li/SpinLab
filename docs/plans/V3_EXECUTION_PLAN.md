@@ -177,7 +177,7 @@ Use multi-series structure, not hardcoded x1/x2/y1/y2 fields.
 ```json
 {
   "schemaVersion": 1,
-  "workflowID": "A",
+  "workflowID": "ahe",
   "workflowDisplayName": "AHE",
   "title": "AHE PN20 STO001",
   "axisMapping": {
@@ -189,7 +189,7 @@ Use multi-series structure, not hardcoded x1/x2/y1/y2 fields.
       "label": "PN20 80K 30deg",
       "x": [0.0, 0.1],
       "y": [1.2, 1.3],
-      "sourceRef": "batches/PN20/samples/PN20_STO001/measurements/A/...dat"
+      "sourceRef": "batches/PN20/samples/PN20_STO001/measurements/ahe/...dat"
     }
   ],
   "semanticParams": {
@@ -211,7 +211,7 @@ Metric records are sample-centric and condition-aware.
   "recordID": "uuid",
   "sampleKey": "sid_7f8c3a...",
   "displayKey": "PN20||STO|001",
-  "workflowID": "A",
+  "workflowID": "ahe",
   "metric": "Hc",
   "value": 1.0,
   "canonicalUnit": "T",
@@ -240,10 +240,10 @@ Lightweight trace document per chart output.
   "schemaVersion": 1,
   "manifestID": "manifest_...",
   "runID": "run_...",
-  "workflowID": "A",
+  "workflowID": "ahe",
   "inputFiles": [
-    "batches/PN20/samples/PN20_STO001/measurements/A/a.dat",
-    "batches/PN20/samples/PN20_STO001/measurements/A/b.lvm"
+    "batches/PN20/samples/PN20_STO001/measurements/ahe/a.dat",
+    "batches/PN20/samples/PN20_STO001/measurements/ahe/b.lvm"
   ],
   "filters": {
     "sampleID": "sid_7f8c3a...",

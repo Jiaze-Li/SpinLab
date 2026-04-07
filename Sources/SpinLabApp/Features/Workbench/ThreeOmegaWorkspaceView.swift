@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 3ω AHE workflow workspace.
+/// 3 Omega workflow workspace.
 ///
 /// 列结构与 AHEWorkspaceView 对齐：
 ///   左列 → 搜索 + PlotControlsPanel + GeometryPanel (Fig 5b) + ResultsList
@@ -31,7 +31,7 @@ private struct ThreeOmegaLeftColumn: View {
             VStack(alignment: .leading, spacing: 10) {
 
                 HStack(alignment: .firstTextBaseline) {
-                    Text("3ω AHE")
+                    Text("3 Omega")
                         .font(.title2.bold())
                     Spacer()
                 }
@@ -66,15 +66,24 @@ private struct ThreeOmegaLeftColumn: View {
 
 private struct ThreeOmegaSearchSection: View {
     @Environment(SpinLabAppState.self) private var appState
+    private let wf: WorkbenchWorkflowID = .threeOmega
 
     var body: some View {
         @Bindable var workbench = appState.workbench
         let store = appState.workbench.threeOmegaWorkspace
         let libraryRoot = appState.library.librarySettings.rootPath
 
+        let queryBinding = Binding<String>(
+            get: { workbench.searchQueryText(for: wf) },
+            set: { workbench.setSearchQueryText($0, for: wf) }
+        )
+
         VStack(alignment: .leading, spacing: 8) {
-            TextField("3ω, PN69, 5K …", text: $workbench.workflowSearchQueryText)
+            TextField("3w PN69, 3w 5K …", text: queryBinding)
                 .textFieldStyle(.roundedBorder)
+                .onSubmit {
+                    workbench.runWorkflowMeasurementSearch(workflowID: wf, libraryRootPath: libraryRoot)
+                }
 
             HStack(spacing: 4) {
                 Text("Library Root:")
@@ -88,16 +97,16 @@ private struct ThreeOmegaSearchSection: View {
 
             HStack(spacing: 8) {
                 Button("Search") {
-                    workbench.runWorkflowMeasurementSearch(libraryRootPath: libraryRoot)
+                    workbench.runWorkflowMeasurementSearch(workflowID: wf, libraryRootPath: libraryRoot)
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(workbench.isWorkflowSearchRunning || libraryRoot == nil)
+                .disabled(workbench.isSearchRunning(for: wf) || libraryRoot == nil)
 
                 Button("Select All") {
                     store.selectAll()
                 }
                 .buttonStyle(.bordered)
-                .disabled(workbench.workflowSearchResults.isEmpty)
+                .disabled(workbench.searchResultsList(for: wf).isEmpty)
 
                 Button("Analyze") {
                     store.runAnalysis()
@@ -107,11 +116,11 @@ private struct ThreeOmegaSearchSection: View {
 
                 Button("Clear") {
                     store.clearAll()
-                    workbench.clearWorkflowMeasurementSearch()
+                    workbench.clearWorkflowMeasurementSearch(workflowID: wf)
                 }
                 .buttonStyle(.bordered)
 
-                if workbench.isWorkflowSearchRunning || store.isAnalyzing {
+                if workbench.isSearchRunning(for: wf) || store.isAnalyzing {
                     ProgressView().controlSize(.small)
                 }
             }
@@ -279,14 +288,17 @@ private struct FitRangeBoundField: View {
 
 private struct ThreeOmegaResultsList: View {
     @Environment(SpinLabAppState.self) private var appState
+    private let wf: WorkbenchWorkflowID = .threeOmega
 
     var body: some View {
         let workbench = appState.workbench
         let store = workbench.threeOmegaWorkspace
+        let results = workbench.searchResultsList(for: wf)
+        let message = workbench.searchMessage(for: wf)
 
-        if workbench.workflowSearchResults.isEmpty {
+        if results.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                if let msg = workbench.workflowSearchMessage, !msg.isEmpty {
+                if let msg = message, !msg.isEmpty {
                     Text(msg)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -296,7 +308,7 @@ private struct ThreeOmegaResultsList: View {
                 ContentUnavailableView(
                     "No Results",
                     systemImage: "magnifyingglass",
-                    description: Text("Run a search to find 3ω AHE measurements.")
+                    description: Text("Run a search to find 3 Omega measurements.")
                 )
                 .frame(maxWidth: .infinity)
             }
@@ -304,12 +316,12 @@ private struct ThreeOmegaResultsList: View {
         } else {
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 8) {
-                    if let msg = workbench.workflowSearchMessage, !msg.isEmpty {
+                    if let msg = message, !msg.isEmpty {
                         Text(msg)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
-                    ForEach(workbench.workflowSearchResults) { hit in
+                    ForEach(results) { hit in
                         let isSelected = store.selectedSearchResultIDs.contains(hit.id)
                         WorkflowHitRow(hit: hit, isSelected: isSelected) {
                             store.toggleSearchHitSelection(hit.id)
