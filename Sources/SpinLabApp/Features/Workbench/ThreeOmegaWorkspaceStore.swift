@@ -86,8 +86,16 @@ final class ThreeOmegaWorkspaceStore {
         }
     }
 
+    var isAllSelected: Bool {
+        !cachedSearchResults.isEmpty && selectedSearchResultIDs.count == cachedSearchResults.count
+    }
+
     func selectAll() {
         selectedSearchResultIDs = Set(cachedSearchResults.map { $0.id })
+    }
+
+    func deselectAll() {
+        selectedSearchResultIDs = []
     }
 
     // MARK: - Fit range management

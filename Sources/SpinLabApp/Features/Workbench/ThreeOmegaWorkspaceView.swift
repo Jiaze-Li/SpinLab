@@ -102,8 +102,12 @@ private struct ThreeOmegaSearchSection: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(workbench.isSearchRunning(for: wf) || libraryRoot == nil)
 
-                Button("Select All") {
-                    store.selectAll()
+                Button(store.isAllSelected ? "Deselect All" : "Select All") {
+                    if store.isAllSelected {
+                        store.deselectAll()
+                    } else {
+                        store.selectAll()
+                    }
                 }
                 .buttonStyle(.bordered)
                 .disabled(workbench.searchResultsList(for: wf).isEmpty)
