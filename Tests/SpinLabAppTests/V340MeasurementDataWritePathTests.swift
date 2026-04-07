@@ -278,7 +278,7 @@ struct V340MeasurementDataWritePathTests {
             title: "E2E Test",
             axisMapping: WorkbenchAxisMapping(xField: "field", yField: "rxy"),
             series: [WorkbenchPlotSeries(label: "s1", x: [-0.1, 0.0, 0.1], y: [1.0, 0.0, -1.0],
-                                         sourceRef: "samples/\(sampleKey)/measurements/A/test.dat")]
+                                         sourceRef: "samples/\(sampleKey)/measurements/ahe/test.dat")]
         )
 
         // Persist chart with shared runID
