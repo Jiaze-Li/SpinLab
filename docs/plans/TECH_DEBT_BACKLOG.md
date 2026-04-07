@@ -9,6 +9,30 @@ Items are ordered by impact, not urgency. See `TECH_DEBT_EXECUTION_LOG.md` for c
 
 ## High Impact
 
+### Workflow ID alias hardcoding in SearchWorkflowMeasurementsUseCase
+
+**Code:**
+- `Sources/SpinLabApp/UseCases/SearchWorkflowMeasurementsUseCase.swift` — `canonicalWorkflowID(from:displayName:)` (line 168) and `workflowAliases(canonicalID:workflowID:workflowDisplayName:)` (line 155)
+
+**Problem:**
+Workflow ID canonicalization and alias generation are hardcoded if-else chains (`"a"/"ahe"` → `"ahe"`, `"3w"/"3omega"` → `"3w"`, etc.). Every new workflow either needs a new branch or falls through to the `default` case which only does `normalizeToken`. This creates maintenance burden and inconsistency — some workflows get explicit aliases while others don't.
+
+**Target state:**
+- `WorkbenchWorkflowID` (or a shared `WorkflowIDCatalog`) owns the canonical ID → alias mapping as data, not code.
+- Each workflow declares its own aliases: e.g., `case xyRotation = "xy"` declares `aliases: ["xy", "xyrotation", "xy rotation"]`.
+- `SearchWorkflowMeasurementsUseCase` reads the alias table instead of hardcoding branches.
+- New workflows get search support by adding their enum case + aliases, zero changes to the search UseCase.
+
+**Migration steps:**
+1. Add `var aliases: [String]` computed property to `WorkbenchWorkflowID`.
+2. Add a static lookup: `WorkbenchWorkflowID.canonical(from: String) -> WorkbenchWorkflowID?`.
+3. Replace `canonicalWorkflowID()` and `workflowAliases()` in SearchUseCase with calls to the lookup.
+4. Remove all hardcoded if-else branches.
+
+**Effort:** Small (~1h). No persistence migration needed — only runtime search matching logic.
+
+---
+
 ### ~~Rule kind type ownership cleanup~~ ✅ Done 2026-04-05 (Round E)
 **Code:**
 - `Sources/SpinLabApp/Import/Rules/RuleCanonicalizer.swift` — `migrateUserRuleJSONToCanonical`

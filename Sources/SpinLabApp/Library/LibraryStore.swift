@@ -12,6 +12,7 @@ final class LibraryStore {
         var scannedSampleCount: Int
         var scannedMeasurementFileCount: Int
         var createdSidecarCount: Int
+        var updatedSidecarCount: Int
         var skippedExistingSidecarCount: Int
         var failedSidecarCount: Int
     }
@@ -384,6 +385,7 @@ final class LibraryStore {
         var scannedSampleCount = 0
         var scannedMeasurementFileCount = 0
         var createdSidecarCount = 0
+        var updatedSidecarCount = 0
         var skippedExistingSidecarCount = 0
         var failedSidecarCount = 0
 
@@ -406,6 +408,7 @@ final class LibraryStore {
                 )
                 scannedMeasurementFileCount += result.scannedMeasurementFileCount
                 createdSidecarCount += result.createdSidecarCount
+                updatedSidecarCount += result.updatedSidecarCount
                 skippedExistingSidecarCount += result.skippedExistingSidecarCount
                 failedSidecarCount += result.failedSidecarCount
             }
@@ -415,6 +418,7 @@ final class LibraryStore {
             scannedSampleCount: scannedSampleCount,
             scannedMeasurementFileCount: scannedMeasurementFileCount,
             createdSidecarCount: createdSidecarCount,
+            updatedSidecarCount: updatedSidecarCount,
             skippedExistingSidecarCount: skippedExistingSidecarCount,
             failedSidecarCount: failedSidecarCount
         )
@@ -936,6 +940,7 @@ final class LibraryStore {
     private struct SidecarBackfillStats {
         var scannedMeasurementFileCount: Int = 0
         var createdSidecarCount: Int = 0
+        var updatedSidecarCount: Int = 0
         var skippedExistingSidecarCount: Int = 0
         var failedSidecarCount: Int = 0
     }
@@ -951,45 +956,89 @@ final class LibraryStore {
             return SidecarBackfillStats()
         }
 
+        let ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
         var stats = SidecarBackfillStats()
+        var mutated = false
         for case let url as URL in enumerator {
             guard !url.lastPathComponent.hasSuffix(".spinlab.json") else { continue }
             guard (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
 
             stats.scannedMeasurementFileCount += 1
 
+            // Re-parse conditions from the measurement filename using current rules.
+            let parser = FilenameRuleParser(ruleSet: ruleProvider.ruleSet())
+            let hints = parser.parse(from: url)
+            let parsedConditions = ConditionFieldCatalog.conditionValues(from: hints)
+
             let sidecarURL = url.deletingPathExtension().appendingPathExtension(url.pathExtension + ".spinlab.json")
+
             if fileManager.fileExists(atPath: sidecarURL.path) {
-                stats.skippedExistingSidecarCount += 1
-                continue
-            }
+                // Existing sidecar: merge newly parsed conditions into missing keys only.
+                guard let existingData = try? Data(contentsOf: sidecarURL),
+                      var existing = try? decoder.decode(SpinLabFileSidecar.self, from: existingData) else {
+                    stats.skippedExistingSidecarCount += 1
+                    continue
+                }
 
-            let workflow = inferredWorkflow(forMeasurementFile: url, measurementsRoot: measurementsURL)
-            let appliedAt = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .now
-            let sidecar = SpinLabFileSidecar(
-                workflow: workflow,
-                workflowDisplayName: workflow,
-                conditions: [:],
-                channels: [],
-                sourceFilePath: url.path,
-                appliedAt: appliedAt
-            )
+                var changed = false
+                for (key, value) in parsedConditions {
+                    let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmedValue.isEmpty else { continue }
+                    if existing.conditions[key, default: ""].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        existing.conditions[key] = trimmedValue
+                        changed = true
+                    }
+                }
 
-            do {
-                let data = try encoder.encode(sidecar)
-                try data.write(to: sidecarURL, options: .atomic)
-                stats.createdSidecarCount += 1
-            } catch {
-                stats.failedSidecarCount += 1
-                logger.warning(.library, "Failed to backfill sidecar", metadata: [
-                    "measurementPath": url.path,
-                    "sidecarPath": sidecarURL.path,
-                    "reason": error.localizedDescription
-                ])
+                if changed {
+                    do {
+                        let data = try encoder.encode(existing)
+                        try data.write(to: sidecarURL, options: .atomic)
+                        stats.updatedSidecarCount += 1
+                        mutated = true
+                    } catch {
+                        stats.failedSidecarCount += 1
+                        logger.warning(.library, "Failed to update sidecar conditions", metadata: [
+                            "sidecarPath": sidecarURL.path,
+                            "reason": error.localizedDescription
+                        ])
+                    }
+                } else {
+                    stats.skippedExistingSidecarCount += 1
+                }
+            } else {
+                // New sidecar: create with parsed conditions.
+                let workflow = inferredWorkflow(forMeasurementFile: url, measurementsRoot: measurementsURL)
+                let appliedAt = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .now
+                let sidecar = SpinLabFileSidecar(
+                    workflow: workflow,
+                    workflowDisplayName: workflow,
+                    conditions: parsedConditions,
+                    channels: [],
+                    sourceFilePath: url.path,
+                    appliedAt: appliedAt
+                )
+
+                do {
+                    let data = try encoder.encode(sidecar)
+                    try data.write(to: sidecarURL, options: .atomic)
+                    stats.createdSidecarCount += 1
+                    mutated = true
+                } catch {
+                    stats.failedSidecarCount += 1
+                    logger.warning(.library, "Failed to backfill sidecar", metadata: [
+                        "measurementPath": url.path,
+                        "sidecarPath": sidecarURL.path,
+                        "reason": error.localizedDescription
+                    ])
+                }
             }
         }
 
-        if stats.createdSidecarCount > 0 {
+        if mutated {
             invalidateNodeCache(at: sampleDirectory)
         }
         return stats

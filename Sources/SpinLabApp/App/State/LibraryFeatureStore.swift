@@ -463,6 +463,7 @@ final class LibraryFeatureStore {
         let summary = """
         Sidecar backfill complete: scanned \(result.scannedSampleCount) samples, \
         \(result.scannedMeasurementFileCount) measurement files; created \(result.createdSidecarCount), \
+        updated \(result.updatedSidecarCount), \
         skipped \(result.skippedExistingSidecarCount), failed \(result.failedSidecarCount).
         """
         return BackfillSidecarsOutcome(
