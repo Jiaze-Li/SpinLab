@@ -40,3 +40,7 @@ This file supersedes legacy `UI_RULES.md` and is the active UI rule contract.
 - UI logic must be user-perspective-first: visible state is the source of truth.
 - Do not split "visual state" and "internal state" for the same interaction contract.
 - If a section appears collapsed to the user, its persisted/runtime expansion state must also be collapsed.
+
+## Disclosure / collapsible section hit area
+- All DisclosureGroup (or manual chevron toggle) labels must have a full-width hit area: clicking anywhere on the header row toggles expand/collapse, not only the chevron icon.
+- Implementation: label HStack must include `Spacer()` + `.frame(maxWidth: .infinity)` + `.contentShape(Rectangle())` to extend the tappable region across the full row width.

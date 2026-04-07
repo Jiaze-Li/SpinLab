@@ -351,6 +351,33 @@ final class LibraryStore {
         return scanAppliedMeasurements(in: sampleDirectory)
     }
 
+    // MARK: - Measurement Sets
+
+    private static let measurementSetsFileName = "measurement_sets.json"
+
+    func loadMeasurementSets(for sample: LibrarySample, rootURL: URL) -> [MeasurementSet] {
+        let sampleDir = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
+        let fileURL = sampleDir.appending(path: Self.measurementSetsFileName)
+        guard let data = try? Data(contentsOf: fileURL) else { return [] }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return (try? decoder.decode([MeasurementSet].self, from: data)) ?? []
+    }
+
+    func saveMeasurementSets(_ sets: [MeasurementSet], for sample: LibrarySample, rootURL: URL) throws {
+        let sampleDir = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
+        let fileURL = sampleDir.appending(path: Self.measurementSetsFileName)
+        if sets.isEmpty {
+            try? FileManager.default.removeItem(at: fileURL)
+            return
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(sets)
+        try data.write(to: fileURL, options: .atomic)
+    }
+
     func backfillMissingMeasurementSidecars(rootURL: URL) -> BackfillSidecarsResult {
         ensureRoot(at: rootURL)
         let batchDirectories = discoverBatchDirectories(rootURL: rootURL)

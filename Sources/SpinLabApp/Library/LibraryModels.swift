@@ -103,6 +103,18 @@ struct AppliedMeasurement: Codable, Hashable, Identifiable, Sendable {
     var sourceFileName: String
 }
 
+/// User-created grouping of measurements within a single workflow.
+/// Pure UI organisation — does not affect search, analysis, or plotting.
+struct MeasurementSet: Codable, Hashable, Identifiable, Sendable {
+    var id: String
+    var name: String
+    /// Workflow ID this set belongs to (e.g. "ahe", "3w"). Matches AppliedMeasurement.workflow.
+    var workflow: String
+    /// Ordered list of sourceFileName values belonging to this set.
+    var memberFileNames: [String]
+    var createdAt: Date
+}
+
 struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
     var id: String
     var displayName: String
@@ -120,6 +132,8 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
     var updatedAt: Date
     // Runtime-only V2.6 projection from sidecar scans.
     var appliedMeasurements: [AppliedMeasurement] = []
+    // Runtime-only: user-created measurement sets loaded from measurement_sets.json.
+    var measurementSets: [MeasurementSet] = []
 
     init(
         id: String,
@@ -136,7 +150,8 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         sourceSheetName: String? = nil,
         sourceRowNumber: Int? = nil,
         updatedAt: Date,
-        appliedMeasurements: [AppliedMeasurement] = []
+        appliedMeasurements: [AppliedMeasurement] = [],
+        measurementSets: [MeasurementSet] = []
     ) {
         self.id = id
         self.displayName = displayName
@@ -153,6 +168,7 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         self.sourceRowNumber = sourceRowNumber
         self.updatedAt = updatedAt
         self.appliedMeasurements = appliedMeasurements
+        self.measurementSets = measurementSets
     }
 
     enum CodingKeys: String, CodingKey {
@@ -189,6 +205,7 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         sourceRowNumber = try container.decodeIfPresent(Int.self, forKey: .sourceRowNumber)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         appliedMeasurements = []
+        measurementSets = []
     }
 }
 

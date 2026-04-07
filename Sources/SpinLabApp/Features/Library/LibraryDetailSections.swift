@@ -130,6 +130,7 @@ struct LibrarySampleDetailHeaderView: View {
 
 struct LibraryMeasurementsDoneSection: View {
     let measurements: [AppliedMeasurement]
+    let measurementSets: [MeasurementSet]
     let workflowDisplayNameByID: [String: String]
     let workflowConditionOrderByID: [String: [String]]
     var onDelete: ((AppliedMeasurement) -> Void)? = nil
@@ -138,37 +139,94 @@ struct LibraryMeasurementsDoneSection: View {
     var measurementPlotIndex: MeasurementPlotIndex? = nil
     var libraryRootURL: URL? = nil
     var onDeleteChart: ((WorkbenchResultReference) -> Void)? = nil
+    // v4.1.5 — measurement set callbacks
+    var onCreateSet: ((_ name: String, _ workflow: String, _ initialMember: String?) -> Void)? = nil
+    var onAddToSet: ((_ setID: String, _ fileName: String) -> Void)? = nil
+    var onRemoveFromSet: ((_ setID: String, _ fileName: String) -> Void)? = nil
+    var onRenameSet: ((_ setID: String, _ newName: String) -> Void)? = nil
+    var onDeleteSet: ((_ setID: String) -> Void)? = nil
+
     @State private var isExpanded = true
     @State private var hoverTask: Task<Void, Never>?
     @State private var hoveredMeasurementID: String?
     @State private var isHoveringPreviewPanel = false
+    // Alert state for "New Set..." / "Rename Set..."
+    @State private var newSetAlertShown = false
+    @State private var newSetName = ""
+    @State private var newSetWorkflow = ""
+    @State private var newSetInitialMember: String? = nil
+    @State private var renameSetAlertShown = false
+    @State private var renameSetName = ""
+    @State private var renameSetID = ""
 
-    private var sortedMeasurements: [AppliedMeasurement] {
-        measurements.sorted { lhs, rhs in
-            let lName = resolvedDisplayName(lhs)
-            let rName = resolvedDisplayName(rhs)
-            if lName != rName { return lName.localizedCaseInsensitiveCompare(rName) == .orderedAscending }
-            return conditionSortKey(lhs).localizedStandardCompare(conditionSortKey(rhs)) == .orderedAscending
+    // MARK: - Grouping helpers
+
+    /// Distinct workflow IDs from measurements, sorted by display name.
+    private var workflowGroups: [(workflowID: String, displayName: String, measurements: [AppliedMeasurement])] {
+        let grouped = Dictionary(grouping: measurements) {
+            $0.workflow.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return grouped.keys.sorted { lhs, rhs in
+            resolvedDisplayName(forWorkflow: lhs)
+                .localizedCaseInsensitiveCompare(resolvedDisplayName(forWorkflow: rhs)) == .orderedAscending
+        }.map { wfID in
+            (workflowID: wfID,
+             displayName: resolvedDisplayName(forWorkflow: wfID),
+             measurements: sortByConditions(grouped[wfID] ?? []))
         }
     }
 
-    private func resolvedDisplayName(_ m: AppliedMeasurement) -> String {
-        let normalized = m.workflow.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let name = workflowDisplayNameByID[normalized] { return name }
+    private func resolvedDisplayName(forWorkflow wfID: String) -> String {
+        if let name = workflowDisplayNameByID[wfID] { return name }
         if let name = workflowDisplayNameByID.first(where: {
-            $0.key.caseInsensitiveCompare(normalized) == .orderedSame
+            $0.key.caseInsensitiveCompare(wfID) == .orderedSame
         })?.value { return name }
-        return m.workflowDisplayName.isEmpty ? m.workflow : m.workflowDisplayName
+        // Fallback: use the first measurement's display name
+        if let m = measurements.first(where: {
+            $0.workflow.trimmingCharacters(in: .whitespacesAndNewlines) == wfID
+        }) {
+            return m.workflowDisplayName.isEmpty ? m.workflow : m.workflowDisplayName
+        }
+        return wfID
+    }
+
+    private func sortByConditions(_ items: [AppliedMeasurement]) -> [AppliedMeasurement] {
+        items.sorted { lhs, rhs in
+            conditionSortKey(lhs).localizedStandardCompare(conditionSortKey(rhs)) == .orderedAscending
+        }
     }
 
     private func conditionSortKey(_ m: AppliedMeasurement) -> String {
         m.conditions.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
     }
 
+    private func setsForWorkflow(_ workflowID: String) -> [MeasurementSet] {
+        measurementSets.filter {
+            $0.workflow.trimmingCharacters(in: .whitespacesAndNewlines)
+                .caseInsensitiveCompare(workflowID) == .orderedSame
+        }.sorted { $0.createdAt < $1.createdAt }
+    }
+
+    private func uncategorizedMeasurements(
+        in workflowMeasurements: [AppliedMeasurement],
+        sets: [MeasurementSet]
+    ) -> [AppliedMeasurement] {
+        let allSetMembers = Set(sets.flatMap(\.memberFileNames))
+        return workflowMeasurements.filter { !allSetMembers.contains($0.sourceFileName) }
+    }
+
+    private func measurementsInSet(_ set: MeasurementSet, from workflowMeasurements: [AppliedMeasurement]) -> [AppliedMeasurement] {
+        let memberSet = Set(set.memberFileNames)
+        let matched = workflowMeasurements.filter { memberSet.contains($0.sourceFileName) }
+        return sortByConditions(matched)
+    }
+
     /// All chart references, used as fallback when no measurement rows exist.
     private var allRefs: [WorkbenchResultReference] {
         workbenchResults?.references ?? []
     }
+
+    // MARK: - Body
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
@@ -178,8 +236,6 @@ struct LibraryMeasurementsDoneSection: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    // Fallback: charts exist but no measurement sidecars.
-                    // Show all charts directly so they remain accessible.
                     MeasurementPlotPreviewPanel(
                         references: allRefs,
                         libraryRootURL: libraryRootURL,
@@ -188,11 +244,12 @@ struct LibraryMeasurementsDoneSection: View {
                     )
                 }
             } else {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(sortedMeasurements) { measurement in
-                        measurementRow(measurement)
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(workflowGroups, id: \.workflowID) { group in
+                        workflowSection(group)
                     }
                 }
+                .padding(.leading, 12)
             }
         } label: {
             Text("Measurements Done")
@@ -205,7 +262,141 @@ struct LibraryMeasurementsDoneSection: View {
             hoveredMeasurementID = nil
             isHoveringPreviewPanel = false
         }
+        .alert("New Measurement Set", isPresented: $newSetAlertShown) {
+            TextField("Set name", text: $newSetName)
+            Button("Create") {
+                let name = newSetName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty else { return }
+                onCreateSet?(name, newSetWorkflow, newSetInitialMember)
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+        .alert("Rename Set", isPresented: $renameSetAlertShown) {
+            TextField("New name", text: $renameSetName)
+            Button("Rename") {
+                let name = renameSetName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty else { return }
+                onRenameSet?(renameSetID, name)
+            }
+            Button("Cancel", role: .cancel) {}
+        }
     }
+
+    // MARK: - Level 1: Workflow section
+
+    @ViewBuilder
+    private func workflowSection(_ group: (workflowID: String, displayName: String, measurements: [AppliedMeasurement])) -> some View {
+        let sets = setsForWorkflow(group.workflowID)
+        DisclosureGroup {
+            if sets.isEmpty {
+                // No sets — flat measurement list (two-level)
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(group.measurements) { m in
+                        measurementRow(m, workflowID: group.workflowID, setID: nil)
+                    }
+                }
+                .padding(.leading, 12)
+            } else {
+                // Has sets — show sets + uncategorized (three-level)
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(sets) { set in
+                        setSection(set, workflowMeasurements: group.measurements, workflowID: group.workflowID)
+                    }
+                    let uncategorized = uncategorizedMeasurements(in: group.measurements, sets: sets)
+                    if !uncategorized.isEmpty {
+                        DisclosureGroup {
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(uncategorized) { m in
+                                    measurementRow(m, workflowID: group.workflowID, setID: nil)
+                                }
+                            }
+                            .padding(.leading, 12)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text("Uncategorized")
+                                    .font(.callout.weight(.medium))
+                                    .foregroundStyle(.secondary)
+                                Text("\(uncategorized.count)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(Capsule().fill(Color.secondary.opacity(0.15)))
+                                Spacer()
+                            }
+                            .frame(maxWidth: .infinity)
+                            .contentShape(Rectangle())
+                        }
+                    }
+                }
+                .padding(.leading, 12)
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(group.displayName)
+                    .font(.callout.weight(.semibold))
+                Text("\(group.measurements.count)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(Capsule().fill(Color.secondary.opacity(0.15)))
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+    }
+
+    // MARK: - Level 2: Set section
+
+    @ViewBuilder
+    private func setSection(_ set: MeasurementSet, workflowMeasurements: [AppliedMeasurement], workflowID: String) -> some View {
+        let members = measurementsInSet(set, from: workflowMeasurements)
+        DisclosureGroup {
+            if members.isEmpty {
+                Text("No measurements in this set")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 2)
+                    .padding(.leading, 12)
+            } else {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(members) { m in
+                        measurementRow(m, workflowID: workflowID, setID: set.id)
+                    }
+                }
+                .padding(.leading, 12)
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(set.name)
+                    .font(.callout.weight(.medium))
+                Text("\(members.count)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(Capsule().fill(Color.secondary.opacity(0.15)))
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .contextMenu {
+            Button("Rename Set...") {
+                renameSetID = set.id
+                renameSetName = set.name
+                renameSetAlertShown = true
+            }
+            Divider()
+            Button("Delete Set", role: .destructive) {
+                onDeleteSet?(set.id)
+            }
+        }
+    }
+
+    // MARK: - Level 3: Measurement row
 
     /// Returns `WorkbenchResultReference` objects linked to this measurement via the plot index.
     private func plotRefs(for measurement: AppliedMeasurement) -> [WorkbenchResultReference] {
@@ -217,17 +408,10 @@ struct LibraryMeasurementsDoneSection: View {
     }
 
     @ViewBuilder
-    private func measurementRow(_ measurement: AppliedMeasurement) -> some View {
-        let normalizedWorkflowID = measurement.workflow.trimmingCharacters(in: .whitespacesAndNewlines)
-        let registryDisplayName = workflowDisplayNameByID[normalizedWorkflowID]
-            ?? workflowDisplayNameByID.first(where: {
-                $0.key.caseInsensitiveCompare(normalizedWorkflowID) == .orderedSame
-            })?.value
-        let displayWorkflow = registryDisplayName
-            ?? (measurement.workflowDisplayName.isEmpty ? measurement.workflow : measurement.workflowDisplayName)
-        let conditionOrder = workflowConditionOrderByID[normalizedWorkflowID]
+    private func measurementRow(_ measurement: AppliedMeasurement, workflowID: String, setID: String?) -> some View {
+        let conditionOrder = workflowConditionOrderByID[workflowID]
             ?? workflowConditionOrderByID.first(where: {
-                $0.key.caseInsensitiveCompare(normalizedWorkflowID) == .orderedSame
+                $0.key.caseInsensitiveCompare(workflowID) == .orderedSame
             })?.value
             ?? []
         let orderedConditionPairs = orderedConditions(
@@ -236,15 +420,13 @@ struct LibraryMeasurementsDoneSection: View {
         )
         HStack(alignment: .top, spacing: 0) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(displayWorkflow)
-                    .font(.callout.weight(.semibold))
                 if !orderedConditionPairs.isEmpty {
                     HStack(spacing: 8) {
-                    ForEach(orderedConditionPairs, id: \.key) { pair in
-                        Text(pair.value.isEmpty ? "—" : pair.value)
-                            .font(.callout)
-                            .foregroundStyle(.primary)
-                    }
+                        ForEach(orderedConditionPairs, id: \.key) { pair in
+                            Text(pair.value.isEmpty ? "—" : pair.value)
+                                .font(.callout)
+                                .foregroundStyle(.primary)
+                        }
                     }
                 }
                 Text(measurement.sourceFileName)
@@ -278,6 +460,9 @@ struct LibraryMeasurementsDoneSection: View {
                       ? Color.accentColor.opacity(0.10)
                       : Color.secondary.opacity(0.07))
         )
+        .contextMenu {
+            measurementContextMenu(measurement, workflowID: workflowID, setID: setID)
+        }
         .onHover { isHovering in
             if isHovering {
                 schedulePopover(for: measurement.id)
@@ -307,6 +492,32 @@ struct LibraryMeasurementsDoneSection: View {
             )
         }
     }
+
+    // MARK: - Context menu
+
+    @ViewBuilder
+    private func measurementContextMenu(_ measurement: AppliedMeasurement, workflowID: String, setID: String?) -> some View {
+        let sets = setsForWorkflow(workflowID)
+        ForEach(sets) { set in
+            Button("Add to: \(set.name)") {
+                onAddToSet?(set.id, measurement.sourceFileName)
+            }
+        }
+        Button("New Set...") {
+            newSetWorkflow = workflowID
+            newSetInitialMember = measurement.sourceFileName
+            newSetName = ""
+            newSetAlertShown = true
+        }
+        if let setID {
+            Divider()
+            Button("Remove from Set") {
+                onRemoveFromSet?(setID, measurement.sourceFileName)
+            }
+        }
+    }
+
+    // MARK: - Helpers
 
     private func orderedConditions(
         _ conditions: [String: String],
@@ -342,7 +553,6 @@ struct LibraryMeasurementsDoneSection: View {
         }
     }
 
-    // Hide delay lets mouse travel from row into the popover without blinking.
     private func cancelPopover(for measurementID: String) {
         hoverTask?.cancel()
         hoverTask = Task { @MainActor in

@@ -748,7 +748,9 @@ final class LibraryFeatureStore {
             )
         }
 
-        guard sample.appliedMeasurements != measurements else {
+        let sets = libraryStore.loadMeasurementSets(for: sample, rootURL: rootURL)
+
+        guard sample.appliedMeasurements != measurements || sample.measurementSets != sets else {
             return
         }
         updateSampleAppliedMeasurements(
@@ -757,6 +759,14 @@ final class LibraryFeatureStore {
             sampleId: sample.id,
             measurements: measurements
         )
+        if sample.measurementSets != sets {
+            updateSampleMeasurementSets(
+                prefix: prefix,
+                batchId: batchId,
+                sampleId: sample.id,
+                sets: sets
+            )
+        }
     }
 
     func selectExistingDrawer(prefix: String, batchId: String, sampleId: String?) -> SelectionChangeOutcome {
@@ -833,6 +843,117 @@ final class LibraryFeatureStore {
         group.samples[sampleIndex] = sample
         groups[groupIndex] = group
         libraryExistingGroups[prefix] = groups
+    }
+
+    private func updateSampleMeasurementSets(
+        prefix: String,
+        batchId: String,
+        sampleId: String,
+        sets: [MeasurementSet]
+    ) {
+        guard var groups = libraryExistingGroups[prefix],
+              let groupIndex = groups.firstIndex(where: { $0.batchId == batchId }) else {
+            return
+        }
+        var group = groups[groupIndex]
+        guard let sampleIndex = group.samples.firstIndex(where: { $0.id == sampleId }) else {
+            return
+        }
+        var sample = group.samples[sampleIndex]
+        sample.measurementSets = sets
+        group.samples[sampleIndex] = sample
+        groups[groupIndex] = group
+        libraryExistingGroups[prefix] = groups
+    }
+
+    // MARK: - Measurement Set CRUD
+
+    func createMeasurementSet(name: String, workflow: String, initialMember: String?) {
+        guard let sample = selectedExistingDrawerSample(),
+              let rootPath = librarySettings.rootPath,
+              let prefix = librarySelectedPrefix,
+              let batchId = librarySelectedBatchId else { return }
+
+        var sets = sample.measurementSets
+        var members: [String] = []
+        if let member = initialMember { members.append(member) }
+        let newSet = MeasurementSet(
+            id: UUID().uuidString,
+            name: name,
+            workflow: workflow,
+            memberFileNames: members,
+            createdAt: Date()
+        )
+        sets.append(newSet)
+        persistAndUpdateSets(sets, sample: sample, rootPath: rootPath, prefix: prefix, batchId: batchId)
+    }
+
+    func addToMeasurementSet(setID: String, fileName: String) {
+        guard let sample = selectedExistingDrawerSample(),
+              let rootPath = librarySettings.rootPath,
+              let prefix = librarySelectedPrefix,
+              let batchId = librarySelectedBatchId else { return }
+
+        var sets = sample.measurementSets
+        guard let idx = sets.firstIndex(where: { $0.id == setID }) else { return }
+        if !sets[idx].memberFileNames.contains(fileName) {
+            sets[idx].memberFileNames.append(fileName)
+        }
+        persistAndUpdateSets(sets, sample: sample, rootPath: rootPath, prefix: prefix, batchId: batchId)
+    }
+
+    func removeFromMeasurementSet(setID: String, fileName: String) {
+        guard let sample = selectedExistingDrawerSample(),
+              let rootPath = librarySettings.rootPath,
+              let prefix = librarySelectedPrefix,
+              let batchId = librarySelectedBatchId else { return }
+
+        var sets = sample.measurementSets
+        guard let idx = sets.firstIndex(where: { $0.id == setID }) else { return }
+        sets[idx].memberFileNames.removeAll { $0 == fileName }
+        persistAndUpdateSets(sets, sample: sample, rootPath: rootPath, prefix: prefix, batchId: batchId)
+    }
+
+    func renameMeasurementSet(setID: String, newName: String) {
+        guard let sample = selectedExistingDrawerSample(),
+              let rootPath = librarySettings.rootPath,
+              let prefix = librarySelectedPrefix,
+              let batchId = librarySelectedBatchId else { return }
+
+        var sets = sample.measurementSets
+        guard let idx = sets.firstIndex(where: { $0.id == setID }) else { return }
+        sets[idx].name = newName
+        persistAndUpdateSets(sets, sample: sample, rootPath: rootPath, prefix: prefix, batchId: batchId)
+    }
+
+    func deleteMeasurementSet(setID: String) {
+        guard let sample = selectedExistingDrawerSample(),
+              let rootPath = librarySettings.rootPath,
+              let prefix = librarySelectedPrefix,
+              let batchId = librarySelectedBatchId else { return }
+
+        var sets = sample.measurementSets
+        sets.removeAll { $0.id == setID }
+        persistAndUpdateSets(sets, sample: sample, rootPath: rootPath, prefix: prefix, batchId: batchId)
+    }
+
+    private func persistAndUpdateSets(
+        _ sets: [MeasurementSet],
+        sample: LibrarySample,
+        rootPath: String,
+        prefix: String,
+        batchId: String
+    ) {
+        let rootURL = URL(fileURLWithPath: rootPath)
+        Task.detached { [libraryStore] in
+            try? libraryStore.saveMeasurementSets(sets, for: sample, rootURL: rootURL)
+        }
+        updateSampleMeasurementSets(
+            prefix: prefix,
+            batchId: batchId,
+            sampleId: sample.id,
+            sets: sets
+        )
     }
 
     private func performSelectionChange(_ requested: LibraryPendingSelectionChange) -> SelectionChangeOutcome {
