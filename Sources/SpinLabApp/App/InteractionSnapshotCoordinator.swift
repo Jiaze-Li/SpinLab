@@ -58,7 +58,10 @@ final class InteractionSnapshotCoordinator {
             )
             workbenchStore.restoreInteraction(
                 selectedArchivedRecordID: snapshot.selectedArchivedRecordID,
-                workbenchResultDraft: snapshot.workbenchResultDraft
+                workbenchResultDraft: snapshot.workbenchResultDraft,
+                threeOmegaGeometryLxx: snapshot.threeOmegaGeometryLxx,
+                threeOmegaGeometryLxy: snapshot.threeOmegaGeometryLxy,
+                threeOmegaGeometryDNm: snapshot.threeOmegaGeometryDNm
             )
             snapshot.inboxWorkspaceByPendingID = inboxStore.pruneWorkspaceByValidPendingIDs(
                 snapshot.inboxWorkspaceByPendingID

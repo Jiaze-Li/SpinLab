@@ -267,18 +267,28 @@ final class WorkbenchFeatureStore {
 
     func restoreInteraction(
         selectedArchivedRecordID: UUID?,
-        workbenchResultDraft: String
+        workbenchResultDraft: String,
+        threeOmegaGeometryLxx: Double? = nil,
+        threeOmegaGeometryLxy: Double? = nil,
+        threeOmegaGeometryDNm: Double? = nil
     ) {
         if let selectedArchivedRecordID,
            archivedRecords.contains(where: { $0.id == selectedArchivedRecordID }) {
             self.selectedArchivedRecordID = selectedArchivedRecordID
         }
         self.workbenchResultDraft = workbenchResultDraft
+        if let v = threeOmegaGeometryLxx, v > 0 { threeOmegaWorkspace.geometry.lxx = v }
+        if let v = threeOmegaGeometryLxy, v > 0 { threeOmegaWorkspace.geometry.lxy = v }
+        if let v = threeOmegaGeometryDNm, v > 0 { threeOmegaWorkspace.geometry.dNm = v }
     }
 
     func captureInteraction(into snapshot: inout SpinLabInteractionSnapshot) {
         snapshot.selectedArchivedRecordID = selectedArchivedRecordID
         snapshot.workbenchResultDraft = workbenchResultDraft
+        let geo = threeOmegaWorkspace.geometry
+        snapshot.threeOmegaGeometryLxx = geo.lxx > 0 ? geo.lxx : nil
+        snapshot.threeOmegaGeometryLxy = geo.lxy > 0 ? geo.lxy : nil
+        snapshot.threeOmegaGeometryDNm = geo.dNm > 0 ? geo.dNm : nil
     }
 
     func selectedArchivedRecord() -> SpinLabDomain.ArchivedRecord? {
