@@ -247,6 +247,63 @@ struct ThreeOmegaAHEViewExtension: ViewExtension {
     let displayName: String = "3w Workspace"
 }
 
+// MARK: - XY Rotation
+
+struct XYRotationWorkflowExtension: WorkflowExtension {
+    let workflow: SpinLabDomain.WorkflowKind = .xyRotation
+    let supportedMeasurementTypes: [SpinLabDomain.MeasurementType] = [.xyRotation]
+
+    func createArchivedRecord(context: ArchivedRecordBuildContext) -> SpinLabDomain.ArchivedRecord {
+        buildArchivedRecord(context: context, measurementType: .xyRotation, rawSeriesName: "Raw XY Rotation")
+    }
+}
+
+struct XYRotationMetadataExtension: MetadataExtension {
+    let workflow: SpinLabDomain.WorkflowKind = .xyRotation
+    private let ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared
+
+    func parseFilename(from fileURL: URL) -> SpinLabDomain.ParsedFilenameHints {
+        let parser = FilenameRuleParser(ruleSet: ruleProvider.ruleSet())
+        var hints = parser.parse(from: fileURL)
+        if hints.workflowID == nil || hints.workflowID?.isEmpty == true {
+            hints.workflowID = "xy"
+        }
+        return hints
+    }
+
+    func defaultConfirmationDraft(
+        pending: SpinLabDomain.PendingImport,
+        suggestedProjectName: String?,
+        registryLookup: SampleRegistryLookupResult?,
+        fallbackSampleID: String?
+    ) -> PendingImportConfirmationDraft {
+        PendingImportConfirmationDraft(
+            batchName: pending.parsedHints.batchName ?? fallbackSampleID ?? "",
+            sampleName: pending.parsedHints.sampleName ?? fallbackSampleID ?? "",
+            measurementName: pending.parsedHints.measurementName ?? pending.fileName,
+            workflowID: "xy",
+            conditionValues: seedConditionValues(from: pending.parsedHints),
+            selectedExistingProjectName: suggestedProjectName ?? PendingImportConfirmationDraft.noProjectOption,
+            newProjectName: ""
+        )
+    }
+}
+
+struct XYRotationAnalysisModuleExtension: AnalysisModuleExtension {
+    let workflow: SpinLabDomain.WorkflowKind = .xyRotation
+
+    func defaultResultSummary(for measurement: SpinLabDomain.Measurement) -> String {
+        "XY Rotation result for \(measurement.name)"
+    }
+}
+
+struct XYRotationViewExtension: ViewExtension {
+    let workflow: SpinLabDomain.WorkflowKind = .xyRotation
+    let displayName: String = "XY Rotation Workspace"
+}
+
+// MARK: - Dummy
+
 struct DummyWorkflowExtension: WorkflowExtension {
     let workflow: SpinLabDomain.WorkflowKind = .dummy
     let supportedMeasurementTypes: [SpinLabDomain.MeasurementType] = [.dummy]

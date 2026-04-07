@@ -81,6 +81,14 @@ final class WorkflowRegistry {
         )
         register(
             WorkflowBundle(
+                workflowExtension: XYRotationWorkflowExtension(),
+                metadataExtension: XYRotationMetadataExtension(),
+                analysisModule: XYRotationAnalysisModuleExtension(),
+                viewExtension: XYRotationViewExtension()
+            )
+        )
+        register(
+            WorkflowBundle(
                 workflowExtension: DummyWorkflowExtension(),
                 metadataExtension: DummyMetadataExtension(),
                 analysisModule: DummyAnalysisModuleExtension(),

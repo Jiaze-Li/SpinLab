@@ -17,13 +17,14 @@ enum WorkbenchRoute: Equatable {
 enum WorkbenchWorkflowID: String, CaseIterable, Hashable {
     case ahe
     case threeOmega = "3w"
-    // Future: case rt, case mr, case xy
+    case xyRotation = "xy"
 
     /// Default search prefix pre-filled into the search box.
     var searchPrefix: String {
         switch self {
         case .ahe:        return "ahe "
         case .threeOmega: return "3w "
+        case .xyRotation: return "xy "
         }
     }
 }
@@ -126,6 +127,8 @@ final class WorkbenchFeatureStore {
     let threeOmegaWorkspace = ThreeOmegaWorkspaceStore()
     /// In-memory vault for saved analysis packs (shared across workflows).
     let analysisVault = AnalysisVault()
+    /// XY Rotation workspace state. Angle-dependent resistance R(φ), dual parser (LVM + DAT).
+    let xyRotationWorkspace = XYRotationWorkspaceStore()
 
     @ObservationIgnored
     private var archivedRecordsProjectionTask: Task<Void, Never>?
@@ -819,6 +822,8 @@ final class WorkbenchFeatureStore {
                         }
                     }
                     threeOmegaWorkspace.cachedSampleNumericDisplay = displayCache
+                case .xyRotation:
+                    xyRotationWorkspace.cachedSearchResults = result
                 }
                 searchMessages[wf] = result.isEmpty
                     ? "No files matched query: \(query)"
@@ -908,6 +913,7 @@ final class WorkbenchFeatureStore {
         case .threeOmega:
             threeOmegaWorkspace.cachedSearchResults = []
             _clearThreeOmegaTitleContext()
+        case .xyRotation: xyRotationWorkspace.cachedSearchResults = []
         }
         searchMessages[wf] = nil
         searchRunning[wf] = false

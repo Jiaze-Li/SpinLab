@@ -17,6 +17,8 @@ enum WorkflowWorkspaceRegistry {
         //     RTWorkspaceView()
         case "3w":
             ThreeOmegaWorkspaceView()
+        case "xy":
+            XYRotationWorkspaceView()
         default:
             UnsupportedWorkspaceView(workflowID: workflowID)
         }
