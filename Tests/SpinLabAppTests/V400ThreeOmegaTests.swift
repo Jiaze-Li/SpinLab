@@ -44,7 +44,7 @@ private func makeSyntheticLVMFile(
         iRms: iRms,
         iAmpFromFilename: iAmp,
         temperatureK: temperatureK,
-        angleLabel: "0deg",
+        device: "0deg",
         fileKind: .fieldSweep,
         stem: "3w_0deg_STO111_1mA_Iac_0.001 A_T_\(Int(temperatureK)) K",
         col0: H, col1: col1, col5: col5, col9: col9
@@ -88,7 +88,7 @@ struct V400LVMParserTests {
             iRms: 0.001 / sqrt(2.0),
             iAmpFromFilename: nil,
             temperatureK: .nan,
-            angleLabel: "0deg",
+            device: "0deg",
             fileKind: .rtSweep,
             stem: "RT_0deg_STO111_Iac_0.001 A",
             col0: [5.0, 10.0, 100.0], col1: [0.1, 0.2, 0.5],
@@ -128,7 +128,7 @@ struct V400FitUseCaseTests {
         let col5 = Array(repeating: 2e-5, count: n)
         let file = ThreeOmegaLVMFile(
             iRms: iRms, iAmpFromFilename: nil,
-            temperatureK: 10.0, angleLabel: "0deg",
+            temperatureK: 10.0, device: "0deg",
             fileKind: .fieldSweep,
             stem: "test",
             col0: H, col1: col1, col5: col5, col9: col9
@@ -203,7 +203,7 @@ struct V400ScalingUseCaseTests {
         let geo = ThreeOmegaGeometry(lxx: 0, lxy: 0, dNm: 0)
         #expect(!geo.isComplete)
 
-        let rt = ThreeOmegaRTResult(angleLabel: "0deg", temperatureK: [5, 10], rxx: [100, 90])
+        let rt = ThreeOmegaRTResult(device: "0deg", temperatureK: [5, 10], rxx: [100, 90])
         let result = uc.executeWithIRms(
             fieldSweeps: [],
             rtResult: rt,
@@ -217,12 +217,12 @@ struct V400ScalingUseCaseTests {
     @Test("Missing I_rms for temperature produces warning and skips point")
     func missingIRmsWarning() {
         let sweep = ThreeOmegaFieldSweepResult(
-            temperatureK: 5.0, angleLabel: "0deg",
+            temperatureK: 5.0, device: "0deg",
             hField: [-100, 0, 100], r1omega: [-1, 0, 1], r3omega: [0, 0, 0],
             rahe1omega: 1.0, rahe3omega: nil, hc1omega: nil, hc3omega: nil,
             v3omegaWindow: 2e-5
         )
-        let rt = ThreeOmegaRTResult(angleLabel: "0deg", temperatureK: [5.0], rxx: [100.0])
+        let rt = ThreeOmegaRTResult(device: "0deg", temperatureK: [5.0], rxx: [100.0])
         let geo = ThreeOmegaGeometry(lxx: 26, lxy: 21, dNm: 30)
 
         // Pass empty iRmsValues — should warn and skip
@@ -310,7 +310,7 @@ struct V400IngestionUseCaseTests {
         let uc = IngestThreeOmegaSelectionsUseCase()
         let rtFile = ThreeOmegaLVMFile(
             iRms: 0.001 / sqrt(2.0), iAmpFromFilename: nil,
-            temperatureK: .nan, angleLabel: "0deg",
+            temperatureK: .nan, device: "0deg",
             fileKind: .rtSweep, stem: "RT_test",
             col0: [5.0, 10.0, 50.0],
             col1: [0.1, 0.2, 0.5],
@@ -431,12 +431,12 @@ struct V400PlotRendererTests {
     func renderR1omegaReturnsData() {
         let renderer = ThreeOmegaPlotRenderer()
         let sweep = ThreeOmegaFieldSweepResult(
-            temperatureK: 5.0, angleLabel: "0deg",
+            temperatureK: 5.0, device: "0deg",
             hField: [-100, 0, 100], r1omega: [-1, 0, 1], r3omega: [0, 0, 0],
             rahe1omega: nil, rahe3omega: nil, hc1omega: nil, hc3omega: nil,
             v3omegaWindow: 2e-5
         )
-        let (data, _) = renderer.renderR1omega(sweeps: [sweep], angleLabel: "0deg")
+        let (data, _) = renderer.renderR1omega(sweeps: [sweep], device: "0deg")
         #expect(data != nil)
         if let data { #expect(data.count > 0) }
     }
@@ -503,13 +503,13 @@ struct V400LVMParserFixtureTests {
         #expect(file.col0.count >= 20)
     }
 
-    @Test("Field-sweep fixture: angleLabel is 0deg")
+    @Test("Field-sweep fixture: device is 0deg")
     func fieldSweepAngleLabel() throws {
         let url = try fixtureURL("3w_0deg_T_4.999 K_Iac_0.001000 A.lvm")
         let file = try ThreeOmegaLVMParser().parse(fileURL: url)
         // Angle label is derived from parent folder — fixture file's parent is ThreeOmega, not 0deg.
         // Verify it is non-empty (folder name, not a crash).
-        #expect(!file.angleLabel.isEmpty)
+        #expect(!file.device.isEmpty)
     }
 
     @Test("RT fixture: fileKind is rtSweep")
@@ -551,7 +551,7 @@ private func makeFakeHit(path: String) -> WorkflowMeasurementSearchHit {
         measurementFilePath: path,
         sourceFilePath: path,
         workflowID: "3w",
-        workflowDisplayName: "3 Omega",
+        workflowDisplayName: "3w",
         workflowCanonicalID: "3w",
         batchID: "batch-1",
         sampleKey: "STO111",

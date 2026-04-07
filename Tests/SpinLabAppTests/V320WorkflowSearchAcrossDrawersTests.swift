@@ -85,7 +85,7 @@ struct V320WorkflowSearchAcrossDrawersTests {
             workflowFolder: "3w",
             measurementFileName: "3W_PN40_30K.dat",
             workflowID: "3w",
-            workflowDisplayName: "3 Omega",
+            workflowDisplayName: "3w",
             conditions: ["temperature": "30K"]
         )
 

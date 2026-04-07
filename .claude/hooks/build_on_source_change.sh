@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-PROJECT='/Users/jack/Downloads/scripts/Codex SpinLab/SpinLab-4.0'
+PROJECT='/Users/jack/Downloads/scripts/Codex SpinLab/SpinLab-4.1'
 PIDFILE=/tmp/spinlab_build.pid
 LOGDIR=/tmp/spinlab_build_logs
 

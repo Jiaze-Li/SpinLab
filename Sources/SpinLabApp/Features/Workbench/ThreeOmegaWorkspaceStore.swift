@@ -113,7 +113,7 @@ final class ThreeOmegaWorkspaceStore {
     func runAnalysis() {
         let selectedHits = cachedSearchResults.filter { selectedSearchResultIDs.contains($0.id) }
         guard !selectedHits.isEmpty else {
-            analysisMessage = "Select at least one 3 Omega measurement file."
+            analysisMessage = "Select at least one 3w measurement file."
             return
         }
 
@@ -159,7 +159,7 @@ final class ThreeOmegaWorkspaceStore {
                 inputFiles: selectedHits.map { $0.measurementFilePath },
                 axisMapping: WorkbenchAxisMapping(xField: "H (Oe)", yField: "R (Ω)"),
                 semanticParams: [
-                    "angle":        result.angleLabel.isEmpty ? "unknown" : result.angleLabel,
+                    "device":       result.device.isEmpty ? "unknown" : result.device,
                     "fieldSweeps":  "\(sweepCount)",
                     "rtLoaded":     result.rtResult != nil ? "yes" : "no"
                 ],
@@ -244,8 +244,8 @@ final class ThreeOmegaWorkspaceStore {
             r.showGrid              = capturedGrid
             r.legendAnchor          = capturedAnchor
             r.stackOffsetMultiplier = capturedMultiplier
-            let r1 = r.renderR1omega(sweeps: ingestion.fieldSweeps, angleLabel: ingestion.angleLabel)
-            let r3 = r.renderR3omega(sweeps: ingestion.fieldSweeps, angleLabel: ingestion.angleLabel)
+            let r1 = r.renderR1omega(sweeps: ingestion.fieldSweeps, device: ingestion.device)
+            let r3 = r.renderR3omega(sweeps: ingestion.fieldSweeps, device: ingestion.device)
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.plotR1omega = r1.0
@@ -368,13 +368,13 @@ final class ThreeOmegaWorkspaceStore {
             let rendered: (Data?, WorkbenchPlotLayout?)
             switch tab {
             case .fieldSweep1omega:
-                rendered = r.renderR1omega(sweeps: ingestion.fieldSweeps, angleLabel: ingestion.angleLabel)
+                rendered = r.renderR1omega(sweeps: ingestion.fieldSweeps, device: ingestion.device)
             case .fieldSweep3omega:
-                rendered = r.renderR3omega(sweeps: ingestion.fieldSweeps, angleLabel: ingestion.angleLabel)
+                rendered = r.renderR3omega(sweeps: ingestion.fieldSweeps, device: ingestion.device)
             case .raheVsT:
-                rendered = r.renderRAHEvsT(sweeps: ingestion.fieldSweeps, angleLabel: ingestion.angleLabel)
+                rendered = r.renderRAHEvsT(sweeps: ingestion.fieldSweeps, device: ingestion.device)
             case .hcVsT:
-                rendered = r.renderHcVsT(sweeps: ingestion.fieldSweeps, angleLabel: ingestion.angleLabel)
+                rendered = r.renderHcVsT(sweeps: ingestion.fieldSweeps, device: ingestion.device)
             case .rtCurve:
                 rendered = ingestion.rtResult.map { r.renderRT(rt: $0) } ?? (nil, nil)
             case .scaling:

@@ -219,15 +219,46 @@ struct RuleLoader {
         var loadedOverrideFiles: [String]
     }
 
+    /// Resolves the override file URL: prefers Application Support, falls back to bundle.
+    /// In test environments (without explicit opt-in), only bundle is checked.
+    private func resolveOverrideURL(filename: String) -> URL? {
+        let isTest = RulesConfigPaths.isRunningTests() && !shouldEnableSeparatedOverridesDuringTests()
+        if !isTest {
+            let runtimeURL = rulesConfigPaths().configDirectoryURL.appendingPathComponent(filename)
+            if FileManager.default.fileExists(atPath: runtimeURL.path) {
+                return runtimeURL
+            }
+        }
+        // Bundle fallback: check all candidate bundle config directories.
+        for candidate in bundleOverrideCandidateURLs(filename: filename) {
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+        }
+        return nil
+    }
+
+    private func bundleOverrideCandidateURLs(filename: String) -> [URL] {
+        var candidates: [URL] = []
+        if let direct = Bundle.main.url(forResource: filename.replacingOccurrences(of: ".json", with: ""), withExtension: "json", subdirectory: "config") {
+            candidates.append(direct)
+        }
+        if let resources = Bundle.main.resourceURL {
+            candidates.append(resources.appendingPathComponent("config/\(filename)"))
+        }
+        let bundleRoot = Bundle.main.bundleURL
+        candidates.append(bundleRoot.appendingPathComponent("Contents/Resources/config/\(filename)"))
+        // SwiftPM test fallback
+        let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+        candidates.append(cwd.appendingPathComponent("Sources/SpinLabApp/config/\(filename)"))
+        return candidates
+    }
+
     private func applySeparatedOverrides(ruleSet: inout FilenameRuleSet) -> OverrideApplyResult {
         var warnings: [String] = []
         var loadedOverrideFiles: [String] = []
-        if RulesConfigPaths.isRunningTests(), !shouldEnableSeparatedOverridesDuringTests() {
-            return OverrideApplyResult(warnings: warnings, loadedOverrideFiles: loadedOverrideFiles)
-        }
 
-        let sampleIDURL = rulesConfigPaths().sampleIDRulesURL
-        if FileManager.default.fileExists(atPath: sampleIDURL.path) {
+        if let sampleIDURL = resolveOverrideURL(filename: "sample_id_rules.json") {
             do {
                 let data = try Data(contentsOf: sampleIDURL)
                 if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -249,8 +280,7 @@ struct RuleLoader {
             }
         }
 
-        let workflowURL = rulesConfigPaths().workflowMatchRulesURL
-        if FileManager.default.fileExists(atPath: workflowURL.path) {
+        if let workflowURL = resolveOverrideURL(filename: "workflow_match_rules.json") {
             do {
                 let data = try Data(contentsOf: workflowURL)
                 if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -296,8 +326,7 @@ struct RuleLoader {
             }
         }
 
-        let conditionsURL = rulesConfigPaths().conditionsRulesURL
-        if FileManager.default.fileExists(atPath: conditionsURL.path) {
+        if let conditionsURL = resolveOverrideURL(filename: "conditions_rules.json") {
             do {
                 let data = try Data(contentsOf: conditionsURL)
                 if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
@@ -371,8 +400,7 @@ struct RuleLoader {
             }
         }
 
-        let substrateURL = rulesConfigPaths().substrateRulesURL
-        if FileManager.default.fileExists(atPath: substrateURL.path) {
+        if let substrateURL = resolveOverrideURL(filename: "substrate_rules.json") {
             do {
                 let data = try Data(contentsOf: substrateURL)
                 if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
@@ -408,8 +436,7 @@ struct RuleLoader {
             }
         }
 
-        let measurementTagURL = rulesConfigPaths().measurementTagRulesURL
-        if FileManager.default.fileExists(atPath: measurementTagURL.path) {
+        if let measurementTagURL = resolveOverrideURL(filename: "measurement_tag_rules.json") {
             do {
                 let data = try Data(contentsOf: measurementTagURL)
                 if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {

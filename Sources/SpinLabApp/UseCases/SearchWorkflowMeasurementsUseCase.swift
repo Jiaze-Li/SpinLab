@@ -98,7 +98,7 @@ struct SearchWorkflowMeasurementsUseCase {
         case "rt":
             return "RT"
         case "3w":
-            return "3 Omega"
+            return "3w"
         default:
             let trimmedID = workflowID.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmedID.isEmpty ? canonicalID.uppercased() : trimmedID

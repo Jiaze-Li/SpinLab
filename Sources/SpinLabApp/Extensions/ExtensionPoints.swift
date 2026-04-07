@@ -197,7 +197,7 @@ struct ThreeOmegaAHEWorkflowExtension: WorkflowExtension {
     let supportedMeasurementTypes: [SpinLabDomain.MeasurementType] = [.threeOmegaAHE]
 
     func createArchivedRecord(context: ArchivedRecordBuildContext) -> SpinLabDomain.ArchivedRecord {
-        buildArchivedRecord(context: context, measurementType: .threeOmegaAHE, rawSeriesName: "Raw 3 Omega")
+        buildArchivedRecord(context: context, measurementType: .threeOmegaAHE, rawSeriesName: "Raw 3w")
     }
 }
 
@@ -238,13 +238,13 @@ struct ThreeOmegaAHEAnalysisModuleExtension: AnalysisModuleExtension {
     let workflow: SpinLabDomain.WorkflowKind = .threeOmegaAHE
 
     func defaultResultSummary(for measurement: SpinLabDomain.Measurement) -> String {
-        "3 Omega result for \(measurement.name)"
+        "3w result for \(measurement.name)"
     }
 }
 
 struct ThreeOmegaAHEViewExtension: ViewExtension {
     let workflow: SpinLabDomain.WorkflowKind = .threeOmegaAHE
-    let displayName: String = "3 Omega Workspace"
+    let displayName: String = "3w Workspace"
 }
 
 struct DummyWorkflowExtension: WorkflowExtension {

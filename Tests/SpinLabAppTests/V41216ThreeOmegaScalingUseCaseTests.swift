@@ -13,13 +13,13 @@ import Testing
 //   - isSingleFullRange: returns true iff 1 segment covers all points
 
 private func makeRT(temps: [Double], rxx: [Double]) -> ThreeOmegaRTResult {
-    ThreeOmegaRTResult(angleLabel: "0deg", temperatureK: temps, rxx: rxx)
+    ThreeOmegaRTResult(device: "0deg", temperatureK: temps, rxx: rxx)
 }
 
 private func makeSweep(t: Double, v3w: Double, rxx: Double, iRms: Double) -> ThreeOmegaFieldSweepResult {
     ThreeOmegaFieldSweepResult(
         temperatureK: t,
-        angleLabel: "0deg",
+        device: "0deg",
         hField: [-100, 0, 100],
         r1omega: [-rxx, 0, rxx],
         r3omega: [0, 0, 0],

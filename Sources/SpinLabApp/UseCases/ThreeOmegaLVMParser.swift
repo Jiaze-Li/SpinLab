@@ -68,8 +68,8 @@ struct ThreeOmegaLVMParser {
             kind = .fieldSweep
         }
 
-        // Parse angle label from parent folder name
-        let angleLabel = _angleLabel(from: fileURL)
+        // Parse device label from parent folder name (fallback only)
+        let device = _device(from: fileURL)
 
         // Resolve temperature: prefer override (from sidecar conditions), fall back to filename.
         let temperatureK: Double
@@ -172,7 +172,7 @@ struct ThreeOmegaLVMParser {
             iRms: iRms,
             iAmpFromFilename: iAmpFromFilename,
             temperatureK: temperatureK,
-            angleLabel: angleLabel,
+            device: device,
             fileKind: kind,
             stem: stem,
             col0: col0,
@@ -205,9 +205,11 @@ struct ThreeOmegaLVMParser {
         return Double(stem[iRange])
     }
 
-    /// Derive angle label from the file's parent folder name.
+    /// Derive device label from the file's parent folder name.
     /// E.g. path ".../0deg/file.lvm" → "0deg"
-    private func _angleLabel(from url: URL) -> String {
+    /// NOTE: After library import, parent folder is "3w" not the original angle.
+    /// Prefer sidecar conditions["device"] over this fallback.
+    private func _device(from url: URL) -> String {
         url.deletingLastPathComponent().lastPathComponent
     }
 }

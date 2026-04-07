@@ -247,7 +247,7 @@ extension SpinLabDomain {
 
     enum WorkflowKind: String, Codable, CaseIterable, Hashable, Identifiable {
         case amrPhe = "AMR/PHE"
-        case threeOmegaAHE = "3 Omega"
+        case threeOmegaAHE = "3w"
         case dummy = "Dummy"
 
         var id: String { rawValue }
@@ -255,7 +255,7 @@ extension SpinLabDomain {
 
     enum MeasurementType: String, Codable, CaseIterable, Hashable, Identifiable {
         case amrPhe = "AMR/PHE"
-        case threeOmegaAHE = "3 Omega"
+        case threeOmegaAHE = "3w"
         case dummy = "Dummy"
 
         var id: String { rawValue }

@@ -25,7 +25,7 @@ struct V413ThreeOmegaFitUseCaseTests {
     /// col5 (raw V³ω_X) has a known offset between branches to test window extraction.
     private func makeFieldSweepFile(
         temperatureK: Double = 200,
-        angleLabel: String = "0deg",
+        device: String = "0deg",
         iRms: Double = 1e-4,
         hMax: Double = 10_000,
         rahe: Double = 0.5,
@@ -78,7 +78,7 @@ struct V413ThreeOmegaFitUseCaseTests {
             iRms: iRms,
             iAmpFromFilename: iRms * sqrt(2),
             temperatureK: temperatureK,
-            angleLabel: angleLabel,
+            device: device,
             fileKind: .fieldSweep,
             stem: "test_3w_\(Int(temperatureK))K",
             col0: H,
@@ -90,7 +90,7 @@ struct V413ThreeOmegaFitUseCaseTests {
 
     /// Builds a synthetic RT sweep file.
     private func makeRTFile(
-        angleLabel: String = "0deg",
+        device: String = "0deg",
         temperatures: [Double],
         rxx: [Double],
         stem: String = "test_RT"
@@ -98,7 +98,7 @@ struct V413ThreeOmegaFitUseCaseTests {
         ThreeOmegaLVMFile(
             iRms: 1e-4,
             temperatureK: .nan,
-            angleLabel: angleLabel,
+            device: device,
             fileKind: .rtSweep,
             stem: stem,
             col0: temperatures,
@@ -117,7 +117,7 @@ struct V413ThreeOmegaFitUseCaseTests {
             measurementFilePath: path,
             sourceFilePath: path,
             workflowID: "3w",
-            workflowDisplayName: "3 Omega",
+            workflowDisplayName: "3w",
             workflowCanonicalID: canonicalID,
             batchID: "B1",
             sampleKey: "TestSample",
@@ -252,7 +252,7 @@ struct V413ThreeOmegaFitUseCaseTests {
         let file = ThreeOmegaLVMFile(
             iRms: 1e-4,
             temperatureK: 300,
-            angleLabel: "0deg",
+            device: "0deg",
             fileKind: .fieldSweep,
             stem: "empty",
             col0: [], col1: [], col5: [], col9: []
@@ -265,12 +265,12 @@ struct V413ThreeOmegaFitUseCaseTests {
         #expect(result.v3omegaFit == nil)
     }
 
-    @Test("temperature and angleLabel pass through from file to result")
+    @Test("temperature and device pass through from file to result")
     func metadataPassthrough() {
-        let file = makeFieldSweepFile(temperatureK: 77, angleLabel: "30deg")
+        let file = makeFieldSweepFile(temperatureK: 77, device: "30deg")
         let result = ThreeOmegaFitUseCase().process(file: file)
         #expect(result.temperatureK == 77)
-        #expect(result.angleLabel == "30deg")
+        #expect(result.device == "30deg")
     }
 
     // MARK: - PlotRenderer Tab 3–5
@@ -281,14 +281,14 @@ struct V413ThreeOmegaFitUseCaseTests {
             ThreeOmegaFitUseCase().process(file: makeFieldSweepFile(temperatureK: t))
         }
         let renderer = ThreeOmegaPlotRenderer()
-        let (data, _) = renderer.renderRAHEvsT(sweeps: sweeps, angleLabel: "0deg")
+        let (data, _) = renderer.renderRAHEvsT(sweeps: sweeps, device: "0deg")
         #expect(data != nil)
     }
 
     @Test("renderRAHEvsT returns nil for empty sweeps")
     func renderRAHEvsTEmpty() {
         let renderer = ThreeOmegaPlotRenderer()
-        let (data, _) = renderer.renderRAHEvsT(sweeps: [], angleLabel: "0deg")
+        let (data, _) = renderer.renderRAHEvsT(sweeps: [], device: "0deg")
         #expect(data == nil)
     }
 
@@ -298,21 +298,21 @@ struct V413ThreeOmegaFitUseCaseTests {
             ThreeOmegaFitUseCase().process(file: makeFieldSweepFile(temperatureK: t))
         }
         let renderer = ThreeOmegaPlotRenderer()
-        let (data, _) = renderer.renderHcVsT(sweeps: sweeps, angleLabel: "0deg")
+        let (data, _) = renderer.renderHcVsT(sweeps: sweeps, device: "0deg")
         #expect(data != nil)
     }
 
     @Test("renderHcVsT returns nil for empty sweeps")
     func renderHcVsTEmpty() {
         let renderer = ThreeOmegaPlotRenderer()
-        let (data, _) = renderer.renderHcVsT(sweeps: [], angleLabel: "0deg")
+        let (data, _) = renderer.renderHcVsT(sweeps: [], device: "0deg")
         #expect(data == nil)
     }
 
     @Test("renderRT produces non-nil PNG for valid RT result")
     func renderRTNonNil() {
         let rt = ThreeOmegaRTResult(
-            angleLabel: "0deg",
+            device: "0deg",
             temperatureK: [10, 50, 100, 200, 300],
             rxx: [500, 450, 400, 350, 300]
         )
@@ -323,7 +323,7 @@ struct V413ThreeOmegaFitUseCaseTests {
 
     @Test("renderRT returns nil for empty RT data")
     func renderRTEmpty() {
-        let rt = ThreeOmegaRTResult(angleLabel: "0deg", temperatureK: [], rxx: [])
+        let rt = ThreeOmegaRTResult(device: "0deg", temperatureK: [], rxx: [])
         let renderer = ThreeOmegaPlotRenderer()
         let (data, _) = renderer.renderRT(rt: rt)
         #expect(data == nil)
