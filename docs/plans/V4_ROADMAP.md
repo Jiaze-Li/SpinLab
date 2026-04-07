@@ -1,7 +1,7 @@
 # SpinLab V4 总路线图
 
 状态：进行中
-更新：2026-04-06（4.1.2 完成，4.1.4 Scaling 多段拟合已超前实现，Library 合并 Workbench Results + 测试 rig 修复）
+更新：2026-04-07（4.1.4 完成，Scaling 完整流程验收通过）
 
 ---
 
@@ -41,7 +41,7 @@
 4.1.1 ✅  LVM Parser 真实文件验证 + 单元测试完整化
 4.1.2 ✅  FitUseCase 验证 + 第一次真实数据可视化 (Tabs 1–2)
 4.1.3 ✅  V^(3ω)_AHE 提取方法决策 + Tabs 3–5
-4.1.4 🔲  Fig 5b Scaling 完整流程 (Tab 6) ← 多段拟合 UI/逻辑已超前实现（v4.1.2.16）
+4.1.4 ✅  Fig 5b Scaling 完整流程 (Tab 6)
 4.1.5 🔲  Import/Inbox 集成 — LVM 文件入库
 4.1.6 🔲  多角度支持 (30deg / 60deg) + 健壮性
 4.1.7 🔲  验收测试 + 文档
@@ -175,21 +175,21 @@ v4.1.3 将 workflow ID 从单字母改为语义命名（`c3b81e7`），运行时
 
 ---
 
-### 4.1.4 🔲 — Fig 5b Scaling 完整流程
+### 4.1.4 ✅ — Fig 5b Scaling 完整流程（已完成，2026-04-07）
 
 **目标：** Tab 6 显示散点 + 线性拟合，β (Q_xxz) 数值物理合理。
 
-**验收条件：**
-- [ ] 输入 L_xx=26μm, L_xy=21μm, d=30nm → Run Scaling
-- [ ] Tab 6 显示 ≤17 个散点（高温点可能因 RT 插值范围被裁掉）
-- [ ] 线性拟合线叠加在散点上，R² 显示
-- [ ] β 和 α 显示在 Fit Results panel
-- [ ] `scalingResult.warnings` 中提示被跳过的温度点（若有）
-- [ ] 几何参数改变后点击 "Run Scaling" 立即更新图，不重跑 parser
+**验收条件（全部通过）：**
+- [x] 输入 L_xx=26μm, L_xy=21μm, d=30nm → Run Scaling
+- [x] Tab 6 显示 ≤17 个散点（高温点可能因 RT 插值范围被裁掉）
+- [x] 线性拟合线叠加在散点上，R² 显示
+- [x] β 和 α 显示在 Fit Results panel
+- [x] `scalingResult.warnings` 中提示被跳过的温度点（若有）
+- [x] 几何参数改变后点击 "Run Scaling" 立即更新图，不重跑 parser
 
-**可能需修改：**
-- 确认 `E_xx³` 使用 `I_amp`（= `I_rms × √2`）不是 `I_rms`（当前代码已正确）
-- 确认温度插值在 RT 范围边界的 extrapolation guard（±5K）不会丢掉过多点
+**已确认：**
+- `E_xx³` 使用 `I_rms`（物理正确；已修正 Contracts 注释与代码一致）
+- 温度插值 ±5K extrapolation guard 正常工作
 
 ---
 

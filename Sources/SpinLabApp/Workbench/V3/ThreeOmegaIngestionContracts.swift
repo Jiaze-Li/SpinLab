@@ -124,7 +124,7 @@ struct ThreeOmegaScalingPoint: Codable, Hashable, Sendable {
     var sigma2xx: Double
     // Y-axis: E^(3ω)_AHE / ( E_xx(T)³ × σ_xx(T) )
     // Formula: E^(3ω)_AHE = V^(3ω)_AHE / L_xy_m
-    // Formula: E_xx = I_amp × Rxx(T) / L_xx_m
+    // Formula: E_xx = I_rms × Rxx(T) / L_xx_m
     // NOTE: denominator uses E_xx to the POWER of 3, not "third harmonic"
     var scalingY: Double
 }
