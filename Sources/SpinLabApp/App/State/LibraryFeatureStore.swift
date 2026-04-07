@@ -1210,20 +1210,17 @@ final class LibraryFeatureStore {
         return true
     }
 
-    // MARK: - Applied Measurement delete (V3.5)
+    // MARK: - Applied Measurement delete (V4.1.6)
 
-    /// Deletes the `.spinlab.json` sidecar file for a given `AppliedMeasurement` and
-    /// refreshes the in-memory applied measurements for the current selection.
-    ///
-    /// `AppliedMeasurement.id` is the full file-system path of the sidecar file,
-    /// so it can be removed directly without additional path resolution.
+    /// Cascade-deletes an applied measurement: associated charts, sidecar, data file,
+    /// and measurement set membership. Refreshes all in-memory projections afterward.
     func deleteAppliedMeasurement(_ measurement: AppliedMeasurement) {
-        let sidecarPath = measurement.id
-        guard !sidecarPath.isEmpty else { return }
-        do {
-            try FileManager.default.removeItem(atPath: sidecarPath)
-        } catch {
-            librarySampleEditError = AppError.from(error, fallback: "Failed to delete measurement").localizedDescription
+        guard !measurement.id.isEmpty else { return }
+        guard let rootPath = librarySettings.rootPath else { return }
+        let rootURL = URL(fileURLWithPath: rootPath)
+
+        guard Self.deleteAppliedMeasurementOnDisk(measurement, rootURL: rootURL) else {
+            librarySampleEditError = "Failed to delete measurement (index may be corrupt)."
             return
         }
 
@@ -1232,6 +1229,156 @@ final class LibraryFeatureStore {
             appliedMeasurementsCacheBySampleID.removeValue(forKey: sample.id)
         }
         refreshSelectedDrawerAppliedMeasurementsIfNeeded()
+        // Internally also refreshes measurement plot index (line 1038).
+        loadWorkbenchResultsForCurrentSelection()
+    }
+
+    /// Pure filesystem operation: cascade-deletes an applied measurement's charts,
+    /// sidecar, data file, and measurement set membership.
+    ///
+    /// Fail-closed: if any index file exists but cannot be decoded, returns `false`
+    /// without deleting any files. Missing sidecar or data file is non-fatal.
+    @discardableResult
+    nonisolated static func deleteAppliedMeasurementOnDisk(
+        _ measurement: AppliedMeasurement,
+        rootURL: URL
+    ) -> Bool {
+        let sidecarURL = URL(fileURLWithPath: measurement.id).standardizedFileURL
+        let sidecarPath = sidecarURL.path
+        let rootPath = rootURL.standardizedFileURL.path
+        let fm = FileManager.default
+
+        // Guard: sidecar must be inside library root.
+        guard sidecarPath.hasPrefix(rootPath + "/") else {
+            fputs("[SpinLab] deleteAppliedMeasurement: sidecar outside library root\n", stderr)
+            return false
+        }
+
+        // Dual condition: (1) path is in a /measurements/ subtree,
+        //                 (2) derived sample dir contains a measurements/ subdirectory.
+        guard let measurementsRange = sidecarPath.range(of: "/measurements/") else {
+            fputs("[SpinLab] deleteAppliedMeasurement: sidecar not in measurements/ subtree\n", stderr)
+            return false
+        }
+        let batchSampleDirPath = String(sidecarPath[..<measurementsRange.lowerBound])
+        let batchSampleDirURL = URL(fileURLWithPath: batchSampleDirPath)
+
+        guard fm.fileExists(atPath: batchSampleDirURL.appending(path: "measurements").path) else {
+            fputs("[SpinLab] deleteAppliedMeasurement: derived sample dir missing measurements/\n", stderr)
+            return false
+        }
+
+        let sampleKey = batchSampleDirURL.lastPathComponent
+        let resolver = LibraryPathResolver(libraryRootURL: rootURL)
+        let sourceFileName = measurement.sourceFileName
+
+        // --- Step 1: Cascade-delete associated charts (scoped to this sample) ---
+
+        let plotIndexRelPath = "samples/\(sampleKey)/_spinlab/measurement_plot_index.json"
+        if let plotIndexAbsURL = try? resolver.absoluteURL(for: plotIndexRelPath),
+           fm.fileExists(atPath: plotIndexAbsURL.path) {
+            // File exists — must be decodable or fail-closed.
+            guard let plotIndex = LoadMeasurementPlotIndexUseCase(pathResolver: resolver)
+                .execute(sampleKey: sampleKey) else {
+                fputs("[SpinLab] deleteAppliedMeasurement: measurement_plot_index corrupt for \(sampleKey), aborting\n", stderr)
+                return false
+            }
+
+            if let chartKeys = plotIndex.entries[sourceFileName], !chartKeys.isEmpty {
+                let resultsIndexRelPath = "samples/\(sampleKey)/_spinlab/results_index.json"
+                if let resultsIndexAbsURL = try? resolver.absoluteURL(for: resultsIndexRelPath),
+                   fm.fileExists(atPath: resultsIndexAbsURL.path) {
+                    // File exists — must be decodable or fail-closed.
+                    guard let resultsIndex = LoadWorkbenchResultsUseCase(pathResolver: resolver)
+                        .execute(sampleKey: sampleKey) else {
+                        fputs("[SpinLab] deleteAppliedMeasurement: results_index corrupt for \(sampleKey), aborting\n", stderr)
+                        return false
+                    }
+
+                    for chartKey in chartKeys {
+                        if let ref = resultsIndex.references.first(where: { $0.chartIdentityKey == chartKey }) {
+                            guard deleteWorkbenchResultOnDisk(ref, rootURL: rootURL) else {
+                                fputs("[SpinLab] deleteAppliedMeasurement: chart cascade failed for \(chartKey), aborting\n", stderr)
+                                return false
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // measurement_plot_index absent → no charts to cascade (not an error).
+
+        // --- Step 2: Delete sidecar (missing = non-fatal, delete failure = fatal) ---
+
+        if fm.fileExists(atPath: sidecarPath) {
+            do {
+                try fm.removeItem(atPath: sidecarPath)
+            } catch {
+                fputs("[SpinLab] deleteAppliedMeasurement: failed to delete sidecar: \(error)\n", stderr)
+                return false
+            }
+        } else {
+            fputs("[SpinLab] deleteAppliedMeasurement: sidecar already absent\n", stderr)
+        }
+
+        // --- Step 3: Delete data file (missing = non-fatal, delete failure = fatal) ---
+
+        let sidecarFileName = sidecarURL.lastPathComponent
+        let sidecarSuffix = ".spinlab.json"
+        if sidecarFileName.hasSuffix(sidecarSuffix) {
+            let dataFileName = String(sidecarFileName.dropLast(sidecarSuffix.count))
+            let dataFileURL = sidecarURL.deletingLastPathComponent().appending(path: dataFileName)
+            if fm.fileExists(atPath: dataFileURL.path) {
+                do {
+                    try fm.removeItem(at: dataFileURL)
+                } catch {
+                    fputs("[SpinLab] deleteAppliedMeasurement: failed to delete data file: \(error)\n", stderr)
+                    return false
+                }
+            } else {
+                fputs("[SpinLab] deleteAppliedMeasurement: data file already absent\n", stderr)
+            }
+        }
+
+        // --- Step 4: Remove from measurement sets ---
+
+        let setsFileURL = batchSampleDirURL.appending(path: "measurement_sets.json")
+        if fm.fileExists(atPath: setsFileURL.path),
+           let setsData = try? Data(contentsOf: setsFileURL) {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            if var sets = try? decoder.decode([MeasurementSet].self, from: setsData) {
+                var changed = false
+                for i in sets.indices {
+                    if sets[i].memberFileNames.contains(sourceFileName) {
+                        sets[i].memberFileNames.removeAll { $0 == sourceFileName }
+                        changed = true
+                    }
+                }
+                let beforeCount = sets.count
+                sets.removeAll { $0.memberFileNames.isEmpty }
+                if sets.count != beforeCount { changed = true }
+
+                if changed {
+                    let encoder = JSONEncoder()
+                    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                    encoder.dateEncodingStrategy = .iso8601
+                    do {
+                        if sets.isEmpty {
+                            try fm.removeItem(at: setsFileURL)
+                        } else {
+                            let data = try encoder.encode(sets)
+                            try data.write(to: setsFileURL, options: .atomic)
+                        }
+                    } catch {
+                        fputs("[SpinLab] deleteAppliedMeasurement: failed to update measurement_sets.json: \(error)\n", stderr)
+                        return false
+                    }
+                }
+            }
+        }
+
+        return true
     }
 
     func reconcileLibrarySampleEditingSelection() {

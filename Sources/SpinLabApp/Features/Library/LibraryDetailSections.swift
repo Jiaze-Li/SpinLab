@@ -158,6 +158,9 @@ struct LibraryMeasurementsDoneSection: View {
     @State private var renameSetAlertShown = false
     @State private var renameSetName = ""
     @State private var renameSetID = ""
+    // v4.1.5.2 — delete measurement confirmation
+    @State private var pendingDeleteMeasurement: AppliedMeasurement? = nil
+    @State private var isShowingDeleteMeasurementConfirm = false
 
     // MARK: - Grouping helpers
 
@@ -279,6 +282,23 @@ struct LibraryMeasurementsDoneSection: View {
                 onRenameSet?(renameSetID, name)
             }
             Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog(
+            "Delete Measurement?",
+            isPresented: $isShowingDeleteMeasurementConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Measurement", role: .destructive) {
+                if let m = pendingDeleteMeasurement {
+                    onDelete?(m)
+                }
+                pendingDeleteMeasurement = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDeleteMeasurement = nil
+            }
+        } message: {
+            Text("This will permanently delete the measurement data file, metadata, and all associated charts. This cannot be undone.")
         }
     }
 
@@ -436,20 +456,6 @@ struct LibraryMeasurementsDoneSection: View {
                     .truncationMode(.middle)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-
-            if onDelete != nil {
-                Button {
-                    onDelete?(measurement)
-                } label: {
-                    Image(systemName: "trash")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .padding(.leading, 6)
-                .padding(.top, 2)
-                .help("Delete this measurement record")
-            }
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 6)
@@ -515,6 +521,13 @@ struct LibraryMeasurementsDoneSection: View {
                 onRemoveFromSet?(setID, measurement.sourceFileName)
             }
         }
+        if onDelete != nil {
+            Divider()
+            Button("Delete Measurement\u{2026}", role: .destructive) {
+                pendingDeleteMeasurement = measurement
+                isShowingDeleteMeasurementConfirm = true
+            }
+        }
     }
 
     // MARK: - Helpers
@@ -578,6 +591,9 @@ struct MeasurementPlotPreviewPanel: View {
     var onHoverChanged: ((Bool) -> Void)? = nil
 
     @State private var loadedImages: [String: NSImage] = [:]
+    // v4.1.5.2 — delete chart confirmation
+    @State private var pendingDeleteChart: WorkbenchResultReference? = nil
+    @State private var isShowingDeleteChartConfirm = false
 
     var body: some View {
         Group {
@@ -605,6 +621,23 @@ struct MeasurementPlotPreviewPanel: View {
         .onHover { isHovering in
             onHoverChanged?(isHovering)
         }
+        .confirmationDialog(
+            "Delete Chart?",
+            isPresented: $isShowingDeleteChartConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Chart", role: .destructive) {
+                if let ref = pendingDeleteChart {
+                    onDelete?(ref)
+                }
+                pendingDeleteChart = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDeleteChart = nil
+            }
+        } message: {
+            Text("This will permanently delete the chart image and its manifest. This cannot be undone.")
+        }
     }
 
     @ViewBuilder
@@ -627,35 +660,29 @@ struct MeasurementPlotPreviewPanel: View {
                     .overlay(ProgressView().scaleEffect(0.7))
             }
 
-            HStack(spacing: 4) {
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                if onDelete != nil {
-                    Button {
-                        onDelete?(ref)
-                    } label: {
-                        Image(systemName: "trash")
-                            .font(.caption)
-                            .foregroundStyle(.white)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Delete this chart and its files")
-                }
-            }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(.black.opacity(0.5))
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-            .padding(4)
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(.black.opacity(0.5))
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .padding(4)
         }
         .contentShape(Rectangle())
         .onTapGesture { openChart(ref) }
         .help("Click to open in viewer")
+        .contextMenu {
+            if onDelete != nil {
+                Button("Delete Chart\u{2026}", role: .destructive) {
+                    pendingDeleteChart = ref
+                    isShowingDeleteChartConfirm = true
+                }
+            }
+        }
     }
 
     private func openChart(_ ref: WorkbenchResultReference) {
