@@ -17,7 +17,7 @@
 
 ```
 4.0  ✅  架构 & 脚手架（AMR/PHE 延续 + 3ω 全部文件就位，swift build 通过）
-4.1  🔲  3ω AHE workflow（4.1.0–4.1.7）
+4.1  🔲  3ω AHE workflow（4.1.0–4.1.8）
 4.2  🔲  XY Rotation workflow
 4.3  🔲  RT workflow
 4.4  🔲  MR workflow
@@ -45,6 +45,7 @@
 4.1.5 ✅  Import/Inbox 集成 — LVM 文件入库
 4.1.6 ✅  多角度支持 (30deg / 60deg) + 健壮性
 4.1.7 🔲  验收测试 + 文档
+4.1.8 🔲  3ω 图表/指标持久化到 Library
 ```
 
 ---
@@ -263,6 +264,49 @@ Workbench 参数必须来自 sidecar conditions（用户在 Import 时确认的�
 
 ---
 
+### 4.1.8 🔲 — 3ω 图表/指标持久化到 Library
+
+**目标：** 3ω Scaling 分析结果（图表 + alpha/beta 指标）持久化到 Library，与 AHE 的 persist 流程对齐。
+
+**现状：**
+- AHE 已通过 `PersistChartArtifactUseCase` + `PersistMeasurementDataUseCase` 保存图表和指标（Hc, R_AHE）
+- 3ω 的图表和指标（alpha, beta, r²）仅存在于内存，关闭后丢失
+- 基础设施全部就绪，只需在 3ω 侧接入
+
+**实现方案：**
+
+1. **图表持久化**（存入 Measurements Done）
+   - `ThreeOmegaWorkspaceStore` 新增 `attemptPersist()` 方法，对标 `AHEWorkspaceStore.attemptPersist()`
+   - 调用已有 `PersistChartArtifactUseCase` 保存 Scaling chart PNG + manifest
+   - 调用已有 `MeasurementPlotIndex.upsert()` 建立源文件→图表映射
+   - 图表自动出现在 Library Measurements Done 的 hover 预览中
+
+2. **指标持久化**（存入 Measurement Data）
+   - 调用已有 `PersistMeasurementDataUseCase` 写入 metric records
+   - 每个 `ThreeOmegaScalingSegment` 生成 3 条记录：
+     - `metric="alpha"`, value=seg.alpha
+     - `metric="beta"`, value=seg.beta
+     - `metric="r_squared"`, value=seg.rSquared
+   - conditions 带上 T_lo/T_hi 标识 segment
+   - 值自动出现在 Library Measurement Data section
+
+3. **UI 触发**
+   - 在 Scaling Result Panel 加 "Save to Library" 按钮，或在 `runScaling()` 成功后自动 persist
+
+**关键文件：**
+- `ThreeOmegaWorkspaceStore.swift` — 新增 `attemptPersist()`（主要改动）
+- `ThreeOmegaWorkspaceView.swift` — 加 Save 按钮或自动触发
+- `PersistChartArtifactUseCase.swift` — 已有，直接调用
+- `PersistMeasurementDataUseCase.swift` — 已有，直接调用
+
+**验收条件：**
+- [ ] Scaling 图表出现在 Library Measurements Done 的 hover 预览中
+- [ ] alpha, beta, r² 出现在 Library Measurement Data section
+- [ ] 退出 app 重开后数据保留
+- [ ] 测试文件 `V418ThreeOmegaPersistTests.swift`
+
+---
+
 ### 版本间依赖关系（4.1.x 内部）
 
 ```
@@ -274,6 +318,7 @@ Workbench 参数必须来自 sidecar conditions（用户在 Import 时确认的�
 4.1.5 (Import 集成) ← 可与 4.1.2 并行
 4.1.6 (多角度)      ← 依赖 4.1.4
 4.1.7 (验收)        ← 依赖全部
+4.1.8 (3ω 持久化)   ← 依赖 4.1.4
 ```
 
 ### 当前阻塞项 / 决策
