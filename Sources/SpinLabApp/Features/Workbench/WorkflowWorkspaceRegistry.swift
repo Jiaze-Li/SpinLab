@@ -11,11 +11,11 @@ enum WorkflowWorkspaceRegistry {
     @ViewBuilder
     static func workspace(for workflowID: String) -> some View {
         switch workflowID {
-        case "A":
+        case "ahe":
             AHEWorkspaceView()
         // case "RT":
         //     RTWorkspaceView()
-        case "3W", "B":
+        case "3w":
             ThreeOmegaWorkspaceView()
         default:
             UnsupportedWorkspaceView(workflowID: workflowID)

@@ -54,8 +54,8 @@ struct ThreeOmegaPlotRenderer {
         }.reversed() as [WorkbenchPlotSeries]
         let yLabel = stackOffsetMultiplier > 0 ? "R¹ω (Ω, stacked)" : "R¹ω (Ω)"
         var payload = WorkbenchPlotPayload(
-            workflowID: "3W",
-            workflowDisplayName: "3ω AHE",
+            workflowID: "3w",
+            workflowDisplayName: "3 Omega",
             title: "R¹ω vs H  \(angleLabel)",
             // Formula: R¹ω(H) = V¹ω_X(H) / I_rms, centered, then stacked by temperature
             axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: yLabel),
@@ -81,8 +81,8 @@ struct ThreeOmegaPlotRenderer {
         }.reversed() as [WorkbenchPlotSeries]
         let yLabel = stackOffsetMultiplier > 0 ? "R³ω (Ω, stacked)" : "R³ω (Ω)"
         var payload = WorkbenchPlotPayload(
-            workflowID: "3W",
-            workflowDisplayName: "3ω AHE",
+            workflowID: "3w",
+            workflowDisplayName: "3 Omega",
             title: "R³ω vs H  \(angleLabel)",
             // Formula: R³ω(H) = V³ω_X(H) / I_rms, centered, then stacked by temperature
             axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: yLabel),
@@ -104,8 +104,8 @@ struct ThreeOmegaPlotRenderer {
         if !temps3.isEmpty { series.append(WorkbenchPlotSeries(label: "R³ω_AHE", x: temps3, y: rahe3)) }
 
         var payload = WorkbenchPlotPayload(
-            workflowID: "3W",
-            workflowDisplayName: "3ω AHE",
+            workflowID: "3w",
+            workflowDisplayName: "3 Omega",
             title: "RAHE vs T  \(angleLabel)",
             // Formula: RAHE = (b⁺ - b⁻) / 2  where b± are high-field linear intercepts
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE (Ω)"),
@@ -127,8 +127,8 @@ struct ThreeOmegaPlotRenderer {
         if !temps3.isEmpty { series.append(WorkbenchPlotSeries(label: "Hc³ω", x: temps3, y: hc3)) }
 
         var payload = WorkbenchPlotPayload(
-            workflowID: "3W",
-            workflowDisplayName: "3ω AHE",
+            workflowID: "3w",
+            workflowDisplayName: "3 Omega",
             title: "Hc vs T  \(angleLabel)",
             // Formula: Hc = (|Hc⁺| + |Hc⁻|) / 2  (midpoint crossing on each branch)
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "Hc (Oe)"),
@@ -141,8 +141,8 @@ struct ThreeOmegaPlotRenderer {
     func renderRT(rt: ThreeOmegaRTResult) -> (Data?, WorkbenchPlotLayout?) {
         guard !rt.temperatureK.isEmpty else { return (nil, nil) }
         var payload = WorkbenchPlotPayload(
-            workflowID: "3W",
-            workflowDisplayName: "3ω AHE",
+            workflowID: "3w",
+            workflowDisplayName: "3 Omega",
             title: "Rxx vs T  \(rt.angleLabel)",
             // Formula: Rxx(T) = Col[9] = V¹ω_X / I_rms (pre-calculated in RT file)
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "Rxx (Ω)"),
@@ -206,8 +206,8 @@ struct ThreeOmegaPlotRenderer {
             r2Str = ""
         }
         var payload = WorkbenchPlotPayload(
-            workflowID: "3W",
-            workflowDisplayName: "3ω AHE",
+            workflowID: "3w",
+            workflowDisplayName: "3 Omega",
             title: "Scaling Law: Berry Curvature Quadrupole\(r2Str)",
             // Formula: Y = E^(3ω)_AHE / (E_xx³ × σ_xx) = α·σ²_xx + β
             // β → Q_xxz Berry curvature quadrupole; E_xx³ = E_xx to the power 3

@@ -197,7 +197,7 @@ struct ThreeOmegaAHEWorkflowExtension: WorkflowExtension {
     let supportedMeasurementTypes: [SpinLabDomain.MeasurementType] = [.threeOmegaAHE]
 
     func createArchivedRecord(context: ArchivedRecordBuildContext) -> SpinLabDomain.ArchivedRecord {
-        buildArchivedRecord(context: context, measurementType: .threeOmegaAHE, rawSeriesName: "Raw 3ω AHE")
+        buildArchivedRecord(context: context, measurementType: .threeOmegaAHE, rawSeriesName: "Raw 3 Omega")
     }
 }
 
@@ -207,11 +207,11 @@ struct ThreeOmegaAHEMetadataExtension: MetadataExtension {
 
     func parseFilename(from fileURL: URL) -> SpinLabDomain.ParsedFilenameHints {
         // Delegate to the generic filename rule parser (handles .lvm, temperature, current).
-        // Workflow ID is injected as "3W" to match WorkflowWorkspaceRegistry routing.
+        // Workflow ID is injected as "3w" to match WorkflowWorkspaceRegistry routing.
         let parser = FilenameRuleParser(ruleSet: ruleProvider.ruleSet())
         var hints = parser.parse(from: fileURL)
         if hints.workflowID == nil || hints.workflowID?.isEmpty == true {
-            hints.workflowID = "3W"
+            hints.workflowID = "3w"
         }
         return hints
     }
@@ -226,7 +226,7 @@ struct ThreeOmegaAHEMetadataExtension: MetadataExtension {
             batchName: pending.parsedHints.batchName ?? fallbackSampleID ?? "",
             sampleName: pending.parsedHints.sampleName ?? fallbackSampleID ?? "",
             measurementName: pending.parsedHints.measurementName ?? pending.fileName,
-            workflowID: "3W",
+            workflowID: "3w",
             conditionValues: seedConditionValues(from: pending.parsedHints),
             selectedExistingProjectName: suggestedProjectName ?? PendingImportConfirmationDraft.noProjectOption,
             newProjectName: ""
@@ -238,13 +238,13 @@ struct ThreeOmegaAHEAnalysisModuleExtension: AnalysisModuleExtension {
     let workflow: SpinLabDomain.WorkflowKind = .threeOmegaAHE
 
     func defaultResultSummary(for measurement: SpinLabDomain.Measurement) -> String {
-        "3ω AHE result for \(measurement.name)"
+        "3 Omega result for \(measurement.name)"
     }
 }
 
 struct ThreeOmegaAHEViewExtension: ViewExtension {
     let workflow: SpinLabDomain.WorkflowKind = .threeOmegaAHE
-    let displayName: String = "3ω AHE Workspace"
+    let displayName: String = "3 Omega Workspace"
 }
 
 struct DummyWorkflowExtension: WorkflowExtension {

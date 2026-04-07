@@ -40,7 +40,7 @@
 4.1.0 ✅  Scaffold — 所有文件已创建，编译通过
 4.1.1 ✅  LVM Parser 真实文件验证 + 单元测试完整化
 4.1.2 ✅  FitUseCase 验证 + 第一次真实数据可视化 (Tabs 1–2)
-4.1.3 🔲  V^(3ω)_AHE 提取方法决策 + Tabs 3–5
+4.1.3 ✅  V^(3ω)_AHE 提取方法决策 + Tabs 3–5
 4.1.4 🔲  Fig 5b Scaling 完整流程 (Tab 6) ← 多段拟合 UI/逻辑已超前实现（v4.1.2.16）
 4.1.5 🔲  Import/Inbox 集成 — LVM 文件入库
 4.1.6 🔲  多角度支持 (30deg / 60deg) + 健壮性
@@ -132,7 +132,7 @@
 
 ---
 
-### 4.1.3 🔲 — V^(3ω)_AHE 提取方法决策 + Tabs 3–5
+### 4.1.3 ✅ — V^(3ω)_AHE 提取方法决策 + Tabs 3–5
 
 **目标：** 看到 RAHE/Hc vs T 和 Rxx vs T 曲线后，确定 V^(3ω)_AHE 提取方法，并用正确方法填 `v3omegaAtZeroField`。
 
@@ -157,6 +157,21 @@
 **修改范围：**
 - `ThreeOmegaFitUseCase.swift` 或 `IngestThreeOmegaSelectionsUseCase.swift`（取决于方法选择）
 - `V400ThreeOmegaTests.swift` 补充对应方法的单元测试
+
+**附带完成：Workflow ID 运行时数据迁移（2026-04-07）**
+
+v4.1.3 将 workflow ID 从单字母改为语义命名（`c3b81e7`），运行时配置文件需同步迁移：
+
+| 旧 ID | 新 ID | 含义 |
+|-------|-------|------|
+| `A`   | `ahe` | AMR/PHE (Anomalous Hall Effect) workflow |
+| `B`   | `3w`  | 3 Omega workflow |
+
+已迁移的运行时文件：
+- `~/Library/Application Support/SpinLab/config/workflow_match_rules.json` — workflowID 字段
+- `~/Library/Application Support/SpinLab/config/filename_rules.json` — workflowRouteRules value 字段
+
+⚠️ **排查提示：** 如果今后在 sidecar、持久化 JSON、或日志中遇到 workflowID 为 `"A"` 或 `"B"` 的记录，说明该数据是迁移前生成的，需手动将 `"A"` → `"ahe"`、`"B"` → `"3w"`。代码中不保留旧 ID 兼容逻辑。
 
 ---
 

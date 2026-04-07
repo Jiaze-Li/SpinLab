@@ -4,17 +4,17 @@ import Testing
 
 @Suite("V3.2.0 Workflow Search Across Drawers")
 struct V320WorkflowSearchAcrossDrawersTests {
-    @Test("query AHE returns sidecars stored under workflow folder A")
-    func queryAHEFindsWorkflowA() throws {
+    @Test("query AHE returns sidecars stored under workflow folder ahe")
+    func queryAHEFindsWorkflowAHE() throws {
         let fixture = try WorkflowSearchFixture()
         defer { fixture.cleanup() }
 
         try fixture.writeSidecar(
             batchID: "PN31",
             sampleKey: "PN31|b|STO|111",
-            workflowFolder: "A",
+            workflowFolder: "ahe",
             measurementFileName: "AHE_PN31_80K.dat",
-            workflowID: "A",
+            workflowID: "ahe",
             workflowDisplayName: "",
             conditions: ["temperature": "80K", "field": "3T"]
         )
@@ -48,18 +48,18 @@ struct V320WorkflowSearchAcrossDrawersTests {
         try fixture.writeSidecar(
             batchID: "PN31",
             sampleKey: "PN31|b|STO|111",
-            workflowFolder: "A",
+            workflowFolder: "ahe",
             measurementFileName: "AHE_PN31_80K.dat",
-            workflowID: "A",
+            workflowID: "ahe",
             workflowDisplayName: "AHE",
             conditions: ["temperature": "80K"]
         )
         try fixture.writeSidecar(
             batchID: "PN31",
             sampleKey: "PN31|b|STO|111",
-            workflowFolder: "A",
+            workflowFolder: "ahe",
             measurementFileName: "AHE_PN31_150K.dat",
-            workflowID: "A",
+            workflowID: "ahe",
             workflowDisplayName: "AHE",
             conditions: ["temperature": "150K"]
         )
@@ -82,10 +82,10 @@ struct V320WorkflowSearchAcrossDrawersTests {
         try fixture.writeSidecar(
             batchID: "PN40",
             sampleKey: "PN40|HF|STO|111",
-            workflowFolder: "3W",
+            workflowFolder: "3w",
             measurementFileName: "3W_PN40_30K.dat",
-            workflowID: "3W",
-            workflowDisplayName: "3W",
+            workflowID: "3w",
+            workflowDisplayName: "3 Omega",
             conditions: ["temperature": "30K"]
         )
 
@@ -112,18 +112,18 @@ struct V320WorkflowSearchAcrossDrawersTests {
         try fixture.writeSidecar(
             batchID: "PN27",
             sampleKey: "PN27|b|STO|111",
-            workflowFolder: "A",
+            workflowFolder: "ahe",
             measurementFileName: "B_file.dat",
-            workflowID: "A",
+            workflowID: "ahe",
             workflowDisplayName: "AHE",
             conditions: ["temperature": "80K"]
         )
         try fixture.writeSidecar(
             batchID: "PN18",
             sampleKey: "PN18|b|STO|111",
-            workflowFolder: "A",
+            workflowFolder: "ahe",
             measurementFileName: "A_file.dat",
-            workflowID: "A",
+            workflowID: "ahe",
             workflowDisplayName: "AHE",
             conditions: ["temperature": "80K"]
         )
@@ -146,9 +146,9 @@ struct V320WorkflowSearchAcrossDrawersTests {
         try fixture.writeSidecar(
             batchID: "PN27",
             sampleKey: "PN27|b|STO|111",
-            workflowFolder: "A",
+            workflowFolder: "ahe",
             measurementFileName: "contains_HF_in_filename_only.dat",
-            workflowID: "A",
+            workflowID: "ahe",
             workflowDisplayName: "AHE",
             conditions: ["temperature": "80K"],
             channels: ["ch1"]
@@ -171,18 +171,18 @@ struct V320WorkflowSearchAcrossDrawersTests {
         try fixture.writeSidecar(
             batchID: "PN31",
             sampleKey: "PN31|o|STO|111",
-            workflowFolder: "A",
+            workflowFolder: "ahe",
             measurementFileName: "AHE_PN31_80K.dat",
-            workflowID: "A",
+            workflowID: "ahe",
             workflowDisplayName: "AHE",
             conditions: ["temperature": "80K"]
         )
         try fixture.writeSidecar(
             batchID: "PN32",
             sampleKey: "PN32|b|STO|111",
-            workflowFolder: "A",
+            workflowFolder: "ahe",
             measurementFileName: "AHE_PN32_80K.dat",
-            workflowID: "A",
+            workflowID: "ahe",
             workflowDisplayName: "AHE",
             conditions: ["temperature": "80K"]
         )
@@ -205,18 +205,18 @@ struct V320WorkflowSearchAcrossDrawersTests {
         try fixture.writeSidecar(
             batchID: "PN31",
             sampleKey: "PN31|o|STO|111",
-            workflowFolder: "A",
+            workflowFolder: "ahe",
             measurementFileName: "AHE_PN31_80K.dat",
-            workflowID: "A",
+            workflowID: "ahe",
             workflowDisplayName: "AHE",
             conditions: ["temperature": "80K"]
         )
         try fixture.writeSidecar(
             batchID: "PN32",
             sampleKey: "PN32|b|STO|111",
-            workflowFolder: "A",
+            workflowFolder: "ahe",
             measurementFileName: "AHE_PN32_80K.dat",
-            workflowID: "A",
+            workflowID: "ahe",
             workflowDisplayName: "AHE",
             conditions: ["temperature": "80K"]
         )
@@ -239,9 +239,9 @@ struct V320WorkflowSearchAcrossDrawersTests {
         try fixture.writeSidecar(
             batchID: "PN31",
             sampleKey: "PN31 - o STO(111)",
-            workflowFolder: "A",
+            workflowFolder: "ahe",
             measurementFileName: "AHE_PN31_80K.dat",
-            workflowID: "A",
+            workflowID: "ahe",
             workflowDisplayName: "AHE",
             conditions: ["temperature": "80K"]
         )

@@ -41,18 +41,20 @@ final class AHEWorkspaceStore {
     /// and writes `newValue` as the stored value. Cleared after a successful persist.
     var pendingMetricOverride: WorkbenchMetricOverrideCandidate? = nil
 
-    /// The Hc value auto-extracted from the most recently rendered series.
+    /// Per-series AHE metrics extracted from the most recently rendered plot, keyed by sampleKey.
     /// Updated on every render (including preview renders without persist).
-    /// Displayed in the override panel so the user can see the algorithm result before deciding to correct it.
-    private(set) var lastExtractedHc: Double? = nil
+    /// Single-sample: one entry; multi-sample: one entry per curve.
+    private(set) var lastExtractedMetrics: [String: AHEExtractedMetric] = [:]
 
     /// A pending manual correction for the extracted R_AHE value.
     /// Mirrors `pendingMetricOverride` but for the R_AHE metric. Cleared after a successful persist.
     var pendingRAHEOverride: WorkbenchMetricOverrideCandidate? = nil
 
-    /// The R_AHE value auto-extracted from the most recently rendered series.
-    /// Updated on every render alongside `lastExtractedHc`.
-    private(set) var lastExtractedRAHE: Double? = nil
+    /// Convenience: Hc from the first (or only) extracted metric, for single-sample UI binding.
+    var lastExtractedHc: Double? { lastExtractedMetrics.values.first?.hc }
+
+    /// Convenience: R_AHE from the first (or only) extracted metric, for single-sample UI binding.
+    var lastExtractedRAHE: Double? { lastExtractedMetrics.values.first?.rAHE }
 
     // MARK: - Artifact loading
 
@@ -131,7 +133,6 @@ final class AHEWorkspaceStore {
         // Capture per-sample conditions for metric records (Fix-1: each sample uses its own conditions,
         // not firstConditions which caused wrong condition data for non-first samples).
         // First selection for each sampleKey wins (canonical keys from rule parser, Adj-8).
-        let firstSampleKey = allSampleKeys.first ?? "unknown"
         let conditionsBySampleKey: [String: [String: String]] = {
             var map: [String: [String: String]] = [:]
             for sel in selections where map[sel.sampleKey] == nil {
@@ -157,13 +158,13 @@ final class AHEWorkspaceStore {
         plotTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let (imageData, plotLayout, candidates, outcome, extractedHc, extractedRAHE) = try await Task.detached(priority: .userInitiated) {
+                let (imageData, plotLayout, candidates, outcome, extractedMetrics) = try await Task.detached(priority: .userInitiated) {
                     let ingestion = try IngestAHESelectionsUseCase().execute(
                         selections: selections,
                         xColumnOverride: xOverride.isEmpty ? nil : xOverride,
                         yColumnOverride: yOverride.isEmpty ? nil : yOverride
                     )
-                    let (extractedHc, extractedRAHE) = AHEWorkspaceStore.extractAHEMetrics(from: ingestion.series)
+                    let extractedMetrics = try AHEWorkspaceStore.extractAHEMetricsPerSeries(from: ingestion.series).get()
                     let resolvedTitle = titleOverride.isEmpty ? "AHE" : titleOverride
                     let xField = xOverride.isEmpty ? ingestion.defaultAxisMapping.xField : xOverride
                     let yField = yOverride.isEmpty ? ingestion.defaultAxisMapping.yField : yOverride
@@ -209,9 +210,7 @@ final class AHEWorkspaceStore {
                         outcome = AHEWorkspaceStore.attemptPersist(
                             png: png,
                             payload: manifestPayload,
-                            extractedHc: extractedHc,
-                            extractedRAHE: extractedRAHE,
-                            firstSampleKey: firstSampleKey,
+                            extractedMetrics: extractedMetrics,
                             conditionsBySampleKey: conditionsBySampleKey,
                             pendingOverride: capturedOverride,
                             pendingRAHEOverride: capturedRAHEOverride,
@@ -223,14 +222,13 @@ final class AHEWorkspaceStore {
                     } else {
                         outcome = nil
                     }
-                    return (png, plotLayout, ingestion.candidateAxisFields, outcome, extractedHc, extractedRAHE)
+                    return (png, plotLayout, ingestion.candidateAxisFields, outcome, extractedMetrics)
                 }.value
                 guard !Task.isCancelled else { return }
                 self.currentPlotImageData = imageData
                 self.currentPlotLayout = plotLayout
                 self.currentCandidateAxisFields = candidates
-                self.lastExtractedHc = extractedHc
-                self.lastExtractedRAHE = extractedRAHE
+                self.lastExtractedMetrics = extractedMetrics
                 self.isPlotRendering = false
                 if let outcome {
                     self.persistenceOutcome = outcome
@@ -269,8 +267,7 @@ final class AHEWorkspaceStore {
         persistenceOutcome = nil
         pendingMetricOverride = nil
         pendingRAHEOverride = nil
-        lastExtractedHc = nil
-        lastExtractedRAHE = nil
+        lastExtractedMetrics = [:]
         isPlotRendering = false
         plotMessage = nil
         selectedSearchResultIDs = []
@@ -389,12 +386,15 @@ final class AHEWorkspaceStore {
     ///
     /// Returns `PersistenceOutcome` — never throws or returns nil — so partial
     /// failures (chart OK, metric failed) are surfaced to the store (Adj-3).
-    private nonisolated static func attemptPersist(
+    ///
+    /// Multi-sample renders now persist per-sample metrics using `extractedMetrics`
+    /// keyed by sampleKey. A consistency check ensures every sampleKey maps to
+    /// exactly one extracted metric; mismatches abort all metric writes.
+    /// Manual overrides are only applied for single-sample renders.
+    nonisolated static func attemptPersist(
         png: Data,
         payload: WorkbenchPlotPayload,
-        extractedHc: Double,
-        extractedRAHE: Double,
-        firstSampleKey: String,
+        extractedMetrics: [String: AHEExtractedMetric],
         conditionsBySampleKey: [String: [String: String]],
         pendingOverride: WorkbenchMetricOverrideCandidate?,
         pendingRAHEOverride: WorkbenchMetricOverrideCandidate?,
@@ -429,124 +429,165 @@ final class AHEWorkspaceStore {
             manifestPath: chartResult.manifestPath
         )
 
-        // 2. Persist a metric record for single-sample renders only.
-        //
-        // Multi-sample renders are intentionally skipped: extractHcEstimate operates on
-        // series.first, which belongs to one specific sample's curve. Writing that value into
-        // every sample's measurement_data.json would record incorrect Hc for non-first samples.
-        // Per-sample Hc extraction for multi-sample renders is deferred to a future iteration.
-        guard sampleKeys.count == 1, let singleKey = sampleKeys.first else {
-            return .success(trace: trace)
-        }
-
-        // Conditions are sourced per-sample from conditionsBySampleKey (Fix-1: canonical keys
-        // from the rule parser, not alias keys — Adj-8).
-        // If the user entered a manual correction, use the proposed value and record override info.
-        let storedValue: Double
-        let overrideInfo: WorkbenchMetricOverrideInfo?
-        if let override = pendingOverride {
-            storedValue = override.proposedValue
-            overrideInfo = WorkbenchMetricOverrideInfo(
-                oldValue: extractedHc,
-                newValue: override.proposedValue,
-                reason: override.reason,
-                source: override.source,
-                at: generatedAt
-            )
-        } else {
-            storedValue = extractedHc
-            overrideInfo = nil
-        }
-
-        let record = WorkbenchMetricRecord(
-            recordID: UUID().uuidString,
-            sampleKey: singleKey,
-            displayKey: singleKey,
-            workflowID: payload.workflowID,
-            metric: "Hc",
-            value: storedValue,
-            canonicalUnit: "T",
-            conditions: conditionsBySampleKey[singleKey] ?? [:],
-            generatedAt: generatedAt,
-            runID: runID,
-            overrideInfo: overrideInfo
-        )
-        do {
-            try PersistMeasurementDataUseCase(writer: writer, pathResolver: resolver)
-                .execute(sampleKey: singleKey, record: record)
-        } catch {
+        // 2. Consistency check: every sampleKey must have a corresponding extracted metric.
+        let missingSampleKeys = sampleKeys.filter { extractedMetrics[$0] == nil }
+        guard missingSampleKeys.isEmpty else {
             return .partial(
                 trace: trace,
-                metricError: AppError.from(error, fallback: "Metric persist failed").localizedDescription
+                metricError: "Metric extraction mismatch: no metrics for sampleKeys \(missingSampleKeys). Metric write aborted."
             )
         }
-
-        // 3. Persist R_AHE metric record.
-        let rAHEStoredValue: Double
-        let rAHEOverrideInfo: WorkbenchMetricOverrideInfo?
-        if let rOverride = pendingRAHEOverride {
-            rAHEStoredValue = rOverride.proposedValue
-            rAHEOverrideInfo = WorkbenchMetricOverrideInfo(
-                oldValue: extractedRAHE,
-                newValue: rOverride.proposedValue,
-                reason: rOverride.reason,
-                source: rOverride.source,
-                at: generatedAt
-            )
-        } else {
-            rAHEStoredValue = extractedRAHE
-            rAHEOverrideInfo = nil
-        }
-
-        let rAHERecord = WorkbenchMetricRecord(
-            recordID: UUID().uuidString,
-            sampleKey: singleKey,
-            displayKey: singleKey,
-            workflowID: payload.workflowID,
-            metric: "R_AHE",
-            value: rAHEStoredValue,
-            canonicalUnit: "Ω",
-            conditions: conditionsBySampleKey[singleKey] ?? [:],
-            generatedAt: generatedAt,
-            runID: runID,
-            overrideInfo: rAHEOverrideInfo
-        )
-        do {
-            try PersistMeasurementDataUseCase(writer: writer, pathResolver: resolver)
-                .execute(sampleKey: singleKey, record: rAHERecord)
-        } catch {
+        guard sampleKeys.count == extractedMetrics.count else {
             return .partial(
                 trace: trace,
-                metricError: AppError.from(error, fallback: "R_AHE metric persist failed").localizedDescription
+                metricError: "Metric extraction mismatch: \(sampleKeys.count) sampleKeys vs \(extractedMetrics.count) extracted metrics. Metric write aborted."
             )
         }
+
+        // 3. Persist metric records for each sample.
+        // Manual overrides are only supported for single-sample renders.
+        let isSingleSample = sampleKeys.count == 1
+        let persistUseCase = PersistMeasurementDataUseCase(writer: writer, pathResolver: resolver)
+
+        for key in sampleKeys {
+            let metric = extractedMetrics[key]!
+            let conditions = conditionsBySampleKey[key] ?? [:]
+
+            // --- Hc ---
+            let hcStoredValue: Double
+            let hcOverrideInfo: WorkbenchMetricOverrideInfo?
+            if isSingleSample, let override = pendingOverride {
+                hcStoredValue = override.proposedValue
+                hcOverrideInfo = WorkbenchMetricOverrideInfo(
+                    oldValue: metric.hc,
+                    newValue: override.proposedValue,
+                    reason: override.reason,
+                    source: override.source,
+                    at: generatedAt
+                )
+            } else {
+                hcStoredValue = metric.hc
+                hcOverrideInfo = nil
+            }
+
+            let hcRecord = WorkbenchMetricRecord(
+                recordID: UUID().uuidString,
+                sampleKey: key,
+                displayKey: key,
+                workflowID: payload.workflowID,
+                metric: "Hc",
+                value: hcStoredValue,
+                canonicalUnit: "T",
+                conditions: conditions,
+                generatedAt: generatedAt,
+                runID: runID,
+                overrideInfo: hcOverrideInfo
+            )
+            do {
+                try persistUseCase.execute(sampleKey: key, record: hcRecord)
+            } catch {
+                return .partial(
+                    trace: trace,
+                    metricError: AppError.from(error, fallback: "Hc metric persist failed for \(key)").localizedDescription
+                )
+            }
+
+            // --- R_AHE ---
+            let rAHEStoredValue: Double
+            let rAHEOverrideInfo: WorkbenchMetricOverrideInfo?
+            if isSingleSample, let rOverride = pendingRAHEOverride {
+                rAHEStoredValue = rOverride.proposedValue
+                rAHEOverrideInfo = WorkbenchMetricOverrideInfo(
+                    oldValue: metric.rAHE,
+                    newValue: rOverride.proposedValue,
+                    reason: rOverride.reason,
+                    source: rOverride.source,
+                    at: generatedAt
+                )
+            } else {
+                rAHEStoredValue = metric.rAHE
+                rAHEOverrideInfo = nil
+            }
+
+            let rAHERecord = WorkbenchMetricRecord(
+                recordID: UUID().uuidString,
+                sampleKey: key,
+                displayKey: key,
+                workflowID: payload.workflowID,
+                metric: "R_AHE",
+                value: rAHEStoredValue,
+                canonicalUnit: "Ω",
+                conditions: conditions,
+                generatedAt: generatedAt,
+                runID: runID,
+                overrideInfo: rAHEOverrideInfo
+            )
+            do {
+                try persistUseCase.execute(sampleKey: key, record: rAHERecord)
+            } catch {
+                return .partial(
+                    trace: trace,
+                    metricError: AppError.from(error, fallback: "R_AHE metric persist failed for \(key)").localizedDescription
+                )
+            }
+        }
+
         return .success(trace: trace)
     }
 
-    /// Extracts both Hc and R_AHE from AHE series data in a single pass.
+    /// Extracts Hc and R_AHE for every series, keyed by sampleKey parsed from the series label.
     ///
-    /// **Shared background removal:**
-    /// AHE measurements from PPMS carry a large ordinary-Hall background. Both metrics are
-    /// derived from the background-corrected curve:
+    /// Series label format (from IngestAHESelectionsUseCase):
+    ///   "sampleKey | channel" or "sampleKey | channel | temperature"
+    /// The sampleKey is the first segment before " | ".
     ///
-    ///   threshold = (ymin + ymax) / 2
-    ///   y_shifted = y − threshold
+    /// When multiple series share the same sampleKey (e.g. different channels), only the
+    /// first series for that key is used for metric extraction (consistent with single-file-per-sample semantics).
     ///
-    /// **Hc** — coercive field:
-    /// Zero crossings on y_shifted found via linear interpolation. Full loop:
-    /// Hc = (|Hc+| + |Hc-|) / 2. Partial loop: average of absolute crossings.
-    /// Fallback: x at minimum |y_shifted|. Returns 0.0 for empty/single-point series.
-    ///
-    /// **R_AHE** — saturated Hall resistance amplitude:
-    /// R_AHE = (plateau_top − plateau_bottom) / 2, where plateau regions are defined as
-    /// |H| > 80 % of H_max on the shifted curve. Each plateau value is the median of all
-    /// points in that region. Falls back to (ymax − ymin) / 2 if either plateau is empty.
-    private nonisolated static func extractAHEMetrics(
+    /// If any series label cannot be parsed to extract a sampleKey, returns
+    /// `.failure(.unparseableLabels([...]))` with the full list of unparseable labels.
+    nonisolated static func extractAHEMetricsPerSeries(
         from series: [WorkbenchPlotSeries]
+    ) -> Result<[String: AHEExtractedMetric], AHEMetricExtractionError> {
+        var result: [String: AHEExtractedMetric] = [:]
+        var failedLabels: [String] = []
+        for s in series {
+            guard let key = parseSampleKey(from: s.label) else {
+                failedLabels.append(s.label.isEmpty ? "<empty>" : s.label)
+                continue
+            }
+            guard result[key] == nil else { continue }
+            let (hc, rAHE) = extractSingleSeriesMetrics(s)
+            result[key] = AHEExtractedMetric(sampleKey: key, hc: hc, rAHE: rAHE)
+        }
+        guard failedLabels.isEmpty else {
+            return .failure(.unparseableLabels(failedLabels))
+        }
+        return .success(result)
+    }
+
+    /// Parses the sampleKey from an AHE series label.
+    /// Label format: "sampleKey | channel | temperature" or "sampleKey | channel".
+    /// Returns nil if the label is empty or has no " | " separator.
+    nonisolated static func parseSampleKey(from label: String) -> String? {
+        let segment = label.components(separatedBy: " | ").first?.trimmingCharacters(in: .whitespaces)
+        guard let key = segment, !key.isEmpty else { return nil }
+        return key
+    }
+
+    /// Extracts Hc and R_AHE from a single series.
+    ///
+    /// **Background removal:**
+    ///   threshold = (ymin + ymax) / 2;  y_shifted = y − threshold
+    ///
+    /// **Hc** — coercive field via zero-crossing interpolation.
+    /// **R_AHE** — saturation plateau method (|H| > 80% H_max).
+    nonisolated static func extractSingleSeriesMetrics(
+        _ series: WorkbenchPlotSeries
     ) -> (hc: Double, rAHE: Double) {
-        guard let first = series.first, first.x.count > 1 else { return (0.0, 0.0) }
-        let xs = first.x
-        let rawYs = first.y
+        guard series.x.count > 1 else { return (0.0, 0.0) }
+        let xs = series.x
+        let rawYs = series.y
 
         let yMin = rawYs.min()!
         let yMax = rawYs.max()!

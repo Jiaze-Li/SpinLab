@@ -27,14 +27,14 @@ struct V332WorkflowWorkspaceDispatchTests {
         wfs.aheWorkspace.cachedSearchResults = [
             WorkflowMeasurementSearchHit(
                 sidecarPath: "/s/sc.json", measurementFilePath: "/s/m.dat",
-                sourceFilePath: "/s/m.dat", workflowID: "A",
-                workflowDisplayName: "AHE", workflowCanonicalID: "A",
+                sourceFilePath: "/s/m.dat", workflowID: "ahe",
+                workflowDisplayName: "AHE", workflowCanonicalID: "ahe",
                 batchID: "B1", sampleKey: "s1", sampleSubstrate: "",
                 conditions: [:], channels: [], appliedAt: .distantPast
             )
         ]
         #expect(wfs.aheWorkspace.cachedSearchResults.count == 1)
-        wfs.clearWorkflowMeasurementSearch()
+        wfs.clearWorkflowMeasurementSearch(workflowID: .ahe)
         #expect(wfs.aheWorkspace.cachedSearchResults.isEmpty)
     }
 }

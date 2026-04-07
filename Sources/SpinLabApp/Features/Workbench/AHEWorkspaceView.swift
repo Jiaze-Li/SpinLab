@@ -96,14 +96,24 @@ struct AHEWorkspaceView: View, WorkflowWorkspaceProvider {
 private struct AHESearchSection: View {
     @Environment(SpinLabAppState.self) private var appState
 
+    private let wf: WorkbenchWorkflowID = .ahe
+
     var body: some View {
         @Bindable var workbench = appState.workbench
         let ahe = appState.workbench.aheWorkspace
         let libraryRoot = appState.library.librarySettings.rootPath
 
+        let queryBinding = Binding<String>(
+            get: { workbench.searchQueryText(for: wf) },
+            set: { workbench.setSearchQueryText($0, for: wf) }
+        )
+
         VStack(alignment: .leading, spacing: 8) {
-            TextField("AHE, AHE PN31, AHE 80K …", text: $workbench.workflowSearchQueryText)
+            TextField("ahe PN31, ahe 80K …", text: queryBinding)
                 .textFieldStyle(.roundedBorder)
+                .onSubmit {
+                    workbench.runWorkflowMeasurementSearch(workflowID: wf, libraryRootPath: libraryRoot)
+                }
 
             HStack(spacing: 4) {
                 Text("Library Root:")
@@ -117,13 +127,13 @@ private struct AHESearchSection: View {
 
             HStack(spacing: 8) {
                 Button("Search") {
-                    workbench.runWorkflowMeasurementSearch(libraryRootPath: libraryRoot)
+                    workbench.runWorkflowMeasurementSearch(workflowID: wf, libraryRootPath: libraryRoot)
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(workbench.isWorkflowSearchRunning || libraryRoot == nil)
+                .disabled(workbench.isSearchRunning(for: wf) || libraryRoot == nil)
 
                 Button("Clear") {
-                    workbench.clearWorkflowMeasurementSearch()
+                    workbench.clearWorkflowMeasurementSearch(workflowID: wf)
                 }
                 .buttonStyle(.bordered)
 
@@ -139,7 +149,7 @@ private struct AHESearchSection: View {
                 .buttonStyle(.bordered)
                 .disabled(ahe.currentPlotImageData == nil && !ahe.isPlotRendering)
 
-                if workbench.isWorkflowSearchRunning || ahe.isPlotRendering {
+                if workbench.isSearchRunning(for: wf) || ahe.isPlotRendering {
                     ProgressView().controlSize(.small)
                 }
             }
@@ -157,55 +167,76 @@ private struct AHESearchSection: View {
 
 /// Lets the user enter an optional manual correction for the extracted Hc value
 /// before clicking "Plot" (which triggers persist). If left empty, no override is applied.
+/// Multi-sample mode: shows per-sample auto-detected values read-only; override is disabled.
 private struct AHEMetricOverridePanel: View {
     @Environment(SpinLabAppState.self) private var appState
     @State private var valueText: String = ""
     @State private var reasonText: String = ""
 
+    private var isMultiSample: Bool {
+        appState.workbench.aheWorkspace.lastExtractedMetrics.count > 1
+    }
+
     var body: some View {
         @Bindable var ahe = appState.workbench.aheWorkspace
+        let sortedMetrics = ahe.lastExtractedMetrics.values.sorted(by: { $0.sampleKey < $1.sampleKey })
 
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text("Hc Override (optional)")
+            if isMultiSample {
+                // Multi-sample: read-only per-sample display
+                Text("Hc (auto-detected per sample)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                if let hc = ahe.lastExtractedHc {
-                    Text("Auto-detected: \(String(format: "%g", hc)) T")
+                ForEach(sortedMetrics, id: \.sampleKey) { m in
+                    Text("\(m.sampleKey): \(String(format: "%g", m.hc)) T")
                         .font(.caption)
                         .foregroundStyle(.primary)
                 }
-            }
-
-            HStack(spacing: 6) {
-                TextField("Corrected Hc (T)", text: $valueText)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 120)
-                    .onChange(of: valueText) { _, new in updateCandidate(value: new, reason: reasonText) }
-
-                TextField("Reason", text: $reasonText)
-                    .textFieldStyle(.roundedBorder)
-                    .onChange(of: reasonText) { _, new in updateCandidate(value: valueText, reason: new) }
-
-                if ahe.pendingMetricOverride != nil {
-                    Button("Clear") {
-                        valueText = ""
-                        reasonText = ""
-                        ahe.pendingMetricOverride = nil
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-            }
-
-            if ahe.pendingMetricOverride != nil {
-                Text("Override will be applied on next Plot.")
+                Text("多样本模式不支持统一 override，请逐个绘制后修正")
                     .font(.caption2)
                     .foregroundStyle(.orange)
+            } else {
+                // Single-sample: editable override
+                HStack(spacing: 8) {
+                    Text("Hc Override (optional)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if let hc = ahe.lastExtractedHc {
+                        Text("Auto-detected: \(String(format: "%g", hc)) T")
+                            .font(.caption)
+                            .foregroundStyle(.primary)
+                    }
+                }
+
+                HStack(spacing: 6) {
+                    TextField("Corrected Hc (T)", text: $valueText)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 120)
+                        .onChange(of: valueText) { _, new in updateCandidate(value: new, reason: reasonText) }
+
+                    TextField("Reason", text: $reasonText)
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: reasonText) { _, new in updateCandidate(value: valueText, reason: new) }
+
+                    if ahe.pendingMetricOverride != nil {
+                        Button("Clear") {
+                            valueText = ""
+                            reasonText = ""
+                            ahe.pendingMetricOverride = nil
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+
+                if ahe.pendingMetricOverride != nil {
+                    Text("Override will be applied on next Plot.")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
             }
         }
         .onAppear {
-            // Sync text fields if override was set programmatically
             if let o = appState.workbench.aheWorkspace.pendingMetricOverride {
                 valueText = String(o.proposedValue)
                 reasonText = o.reason
@@ -229,8 +260,6 @@ private struct AHEMetricOverridePanel: View {
                 source: .manual
             )
         } else {
-            // Non-empty but unparseable (e.g. mid-edit "0." or "abc"): clear any prior override
-            // so a stale valid value is never accidentally committed under invalid-looking input.
             appState.workbench.aheWorkspace.pendingMetricOverride = nil
         }
     }
@@ -240,51 +269,71 @@ private struct AHEMetricOverridePanel: View {
 
 /// Lets the user enter an optional manual correction for the extracted R_AHE value
 /// before clicking "Plot". Mirrors `AHEMetricOverridePanel` for the R_AHE metric.
+/// Multi-sample mode: shows per-sample auto-detected values read-only; override is disabled.
 private struct AHERAHEOverridePanel: View {
     @Environment(SpinLabAppState.self) private var appState
     @State private var valueText: String = ""
     @State private var reasonText: String = ""
 
+    private var isMultiSample: Bool {
+        appState.workbench.aheWorkspace.lastExtractedMetrics.count > 1
+    }
+
     var body: some View {
         @Bindable var ahe = appState.workbench.aheWorkspace
+        let sortedMetrics = ahe.lastExtractedMetrics.values.sorted(by: { $0.sampleKey < $1.sampleKey })
 
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text("R_AHE Override (optional)")
+            if isMultiSample {
+                Text("R_AHE (auto-detected per sample)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                if let rAHE = ahe.lastExtractedRAHE {
-                    Text("Auto-detected: \(String(format: "%g", rAHE)) Ω")
+                ForEach(sortedMetrics, id: \.sampleKey) { m in
+                    Text("\(m.sampleKey): \(String(format: "%g", m.rAHE)) Ω")
                         .font(.caption)
                         .foregroundStyle(.primary)
                 }
-            }
-
-            HStack(spacing: 6) {
-                TextField("Corrected R_AHE (Ω)", text: $valueText)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 140)
-                    .onChange(of: valueText) { _, new in updateCandidate(value: new, reason: reasonText) }
-
-                TextField("Reason", text: $reasonText)
-                    .textFieldStyle(.roundedBorder)
-                    .onChange(of: reasonText) { _, new in updateCandidate(value: valueText, reason: new) }
-
-                if ahe.pendingRAHEOverride != nil {
-                    Button("Clear") {
-                        valueText = ""
-                        reasonText = ""
-                        ahe.pendingRAHEOverride = nil
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-            }
-
-            if ahe.pendingRAHEOverride != nil {
-                Text("Override will be applied on next Plot.")
+                Text("多样本模式不支持统一 override，请逐个绘制后修正")
                     .font(.caption2)
                     .foregroundStyle(.orange)
+            } else {
+                HStack(spacing: 8) {
+                    Text("R_AHE Override (optional)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if let rAHE = ahe.lastExtractedRAHE {
+                        Text("Auto-detected: \(String(format: "%g", rAHE)) Ω")
+                            .font(.caption)
+                            .foregroundStyle(.primary)
+                    }
+                }
+
+                HStack(spacing: 6) {
+                    TextField("Corrected R_AHE (Ω)", text: $valueText)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 140)
+                        .onChange(of: valueText) { _, new in updateCandidate(value: new, reason: reasonText) }
+
+                    TextField("Reason", text: $reasonText)
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: reasonText) { _, new in updateCandidate(value: valueText, reason: new) }
+
+                    if ahe.pendingRAHEOverride != nil {
+                        Button("Clear") {
+                            valueText = ""
+                            reasonText = ""
+                            ahe.pendingRAHEOverride = nil
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+
+                if ahe.pendingRAHEOverride != nil {
+                    Text("Override will be applied on next Plot.")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
             }
         }
         .onAppear {
@@ -320,14 +369,17 @@ private struct AHERAHEOverridePanel: View {
 
 private struct AHEResultsList: View {
     @Environment(SpinLabAppState.self) private var appState
+    private let wf: WorkbenchWorkflowID = .ahe
 
     var body: some View {
         let workbench = appState.workbench
         let ahe = appState.workbench.aheWorkspace
+        let results = workbench.searchResultsList(for: wf)
+        let message = workbench.searchMessage(for: wf)
 
-        if workbench.workflowSearchResults.isEmpty {
+        if results.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                if let msg = workbench.workflowSearchMessage, !msg.isEmpty {
+                if let msg = message, !msg.isEmpty {
                     Text(msg)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -345,12 +397,12 @@ private struct AHEResultsList: View {
         } else {
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 8) {
-                    if let msg = workbench.workflowSearchMessage, !msg.isEmpty {
+                    if let msg = message, !msg.isEmpty {
                         Text(msg)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
-                    ForEach(workbench.workflowSearchResults) { hit in
+                    ForEach(results) { hit in
                         let isSelected = ahe.selectedSearchResultIDs.contains(hit.id)
                         WorkflowHitRow(hit: hit, isSelected: isSelected) {
                             ahe.toggleSearchHitSelection(hit.id)

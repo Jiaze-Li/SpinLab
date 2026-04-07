@@ -61,7 +61,7 @@ Test naming:
 
 Scope:
 - Move all content from `workflowWorkspacePlaceholder` in `WorkbenchView` into a new standalone `AHEWorkspaceView.swift`.
-- `WorkbenchView` `.workflow` route dispatches to `AHEWorkspaceView` directly for the AHE case (hardcoded `workflowID == "A"` branch is acceptable in this iteration — generic dispatch comes in V3.3.2).
+- `WorkbenchView` `.workflow` route dispatches to `AHEWorkspaceView` directly for the AHE case (hardcoded `workflowID == "ahe"` branch is acceptable in this iteration — generic dispatch comes in V3.3.2).
 - `AHEWorkspaceView` conforms to `WorkflowWorkspaceProvider` (defined in V3.3.0).
 - No state changes. `AHEWorkspaceView` reads from `WorkbenchFeatureStore` exactly as the inline placeholder did.
 - No logic changes. Behavior must be identical to V3.2.8.
@@ -87,7 +87,7 @@ Test naming:
 Scope:
 - Introduce a `WorkflowWorkspaceRegistry` (or equivalent factory/lookup) that maps `workflowID: String` → a view conforming to `WorkflowWorkspaceProvider`.
 - `WorkbenchView` resolves workspace view from registry; no direct `AHEWorkspaceView` import or reference in `WorkbenchView`.
-- AHE workspace is registered as the entry for `workflowID == "A"`.
+- AHE workspace is registered as the entry for `workflowID == "ahe"`.
 - Unknown `workflowID` renders a generic unsupported-workflow placeholder (not a crash).
 - Dispatch mechanism must require no changes to `WorkbenchView` when a new workflow is added in the future.
 
@@ -96,14 +96,14 @@ User-visible acceptance:
 - Unknown workflow ID shows a clean unsupported placeholder instead of crashing.
 
 Definition of Done (DoD):
-- `WorkbenchView.swift` contains zero AHE-specific symbols (no import of AHE types, no `workflowID == "A"` branch).
+- `WorkbenchView.swift` contains zero AHE-specific symbols (no import of AHE types, no `workflowID == "ahe"` branch).
 - `WorkflowWorkspaceRegistry` routes workflowID → workspace view.
 - Adding RT workspace in future requires only: (1) create `RTWorkspaceView`, (2) register it — no other file changes.
 - 228/228 existing tests pass.
 
 Test naming:
 - `Tests/SpinLabAppTests/V332WorkflowWorkspaceDispatchTests.swift`
-- Tests: workflowID "A" resolves to AHEWorkspaceView, unknown ID resolves to fallback, registry is closed to WorkbenchView internals.
+- Tests: workflowID "ahe" resolves to AHEWorkspaceView, unknown ID resolves to fallback, registry is closed to WorkbenchView internals.
 
 ---
 

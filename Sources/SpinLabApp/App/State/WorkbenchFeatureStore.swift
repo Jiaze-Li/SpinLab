@@ -12,6 +12,22 @@ enum WorkbenchRoute: Equatable {
     case workflow(id: String)
 }
 
+/// Typed key for per-workflow search state (query text, results, messages).
+/// Add new cases as workflows are implemented.
+enum WorkbenchWorkflowID: String, CaseIterable, Hashable {
+    case ahe
+    case threeOmega = "3w"
+    // Future: case rt, case mr, case xy
+
+    /// Default search prefix pre-filled into the search box.
+    var searchPrefix: String {
+        switch self {
+        case .ahe:        return "ahe "
+        case .threeOmega: return "3w "
+        }
+    }
+}
+
 enum WorkbenchSection: String, CaseIterable, Identifiable {
     case workflows
     case measurements
@@ -58,13 +74,36 @@ final class WorkbenchFeatureStore {
     var projectCatalog: [SpinLabDomain.Project]
     var selectedArchivedRecordID: UUID?
     var workbenchResultDraft: String = ""
-    var workflowSearchQueryText: String = ""
-    private(set) var workflowSearchResults: [WorkflowMeasurementSearchHit] = []
-    var workflowSearchMessage: String?
-    private(set) var isWorkflowSearchRunning = false
+    /// Per-workflow search state, keyed by WorkbenchWorkflowID.
+    var searchQueryTexts: [WorkbenchWorkflowID: String] = [:]
+    private(set) var searchResults: [WorkbenchWorkflowID: [WorkflowMeasurementSearchHit]] = [:]
+    var searchMessages: [WorkbenchWorkflowID: String] = [:]
+    private(set) var searchRunning: [WorkbenchWorkflowID: Bool] = [:]
+
+    // MARK: - Per-workflow search accessors
+
+    func searchQueryText(for wf: WorkbenchWorkflowID) -> String {
+        searchQueryTexts[wf] ?? wf.searchPrefix
+    }
+
+    func setSearchQueryText(_ text: String, for wf: WorkbenchWorkflowID) {
+        searchQueryTexts[wf] = text
+    }
+
+    func searchResultsList(for wf: WorkbenchWorkflowID) -> [WorkflowMeasurementSearchHit] {
+        searchResults[wf] ?? []
+    }
+
+    func searchMessage(for wf: WorkbenchWorkflowID) -> String? {
+        searchMessages[wf]
+    }
+
+    func isSearchRunning(for wf: WorkbenchWorkflowID) -> Bool {
+        searchRunning[wf] ?? false
+    }
     /// AHE-specific workspace state. All plot, selection, and artifact state lives here.
     let aheWorkspace = AHEWorkspaceStore()
-    /// 3ω AHE workspace state. Independent workflow — parsing, fitting, scaling, 6 plots.
+    /// 3 Omega workspace state. Independent workflow — parsing, fitting, scaling, 6 plots.
     let threeOmegaWorkspace = ThreeOmegaWorkspaceStore()
 
     @ObservationIgnored
@@ -627,21 +666,21 @@ final class WorkbenchFeatureStore {
         return archivedRecords
     }
 
-    func runWorkflowMeasurementSearch(libraryRootPath: String?) {
-        let query = workflowSearchQueryText.trimmingCharacters(in: .whitespacesAndNewlines)
+    func runWorkflowMeasurementSearch(workflowID wf: WorkbenchWorkflowID, libraryRootPath: String?) {
+        let query = searchQueryText(for: wf).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else {
-            workflowSearchResults = []
-            workflowSearchMessage = "Enter workflow query, for example: AHE PN31 80K"
-            isWorkflowSearchRunning = false
+            searchResults[wf] = []
+            searchMessages[wf] = "Enter workflow query, for example: AHE PN31 80K"
+            searchRunning[wf] = false
             workflowSearchTask?.cancel()
             workflowSearchTask = nil
             return
         }
         guard let libraryRootPath = libraryRootPath?.trimmingCharacters(in: .whitespacesAndNewlines),
               !libraryRootPath.isEmpty else {
-            workflowSearchResults = []
-            workflowSearchMessage = "Set Library Root before searching."
-            isWorkflowSearchRunning = false
+            searchResults[wf] = []
+            searchMessages[wf] = "Set Library Root before searching."
+            searchRunning[wf] = false
             workflowSearchTask?.cancel()
             workflowSearchTask = nil
             return
@@ -650,8 +689,8 @@ final class WorkbenchFeatureStore {
         aheWorkspace.lastLibraryRootPath = libraryRootPath
 
         workflowSearchTask?.cancel()
-        isWorkflowSearchRunning = true
-        workflowSearchMessage = nil
+        searchRunning[wf] = true
+        searchMessages[wf] = nil
 
         workflowSearchTask = Task { [weak self] in
             guard let self else { return }
@@ -661,38 +700,43 @@ final class WorkbenchFeatureStore {
                     query: WorkflowSearchQuery(rawText: query)
                 )
                 guard !Task.isCancelled else { return }
-                workflowSearchResults = result
-                aheWorkspace.cachedSearchResults = result
-                threeOmegaWorkspace.cachedSearchResults = result
-                workflowSearchMessage = result.isEmpty
+                searchResults[wf] = result
+                switch wf {
+                case .ahe:        aheWorkspace.cachedSearchResults = result
+                case .threeOmega: threeOmegaWorkspace.cachedSearchResults = result
+                }
+                searchMessages[wf] = result.isEmpty
                     ? "No files matched query: \(query)"
                     : "Found \(result.count) file(s)."
-                isWorkflowSearchRunning = false
-                if let firstSampleKey = result.first?.sampleKey {
+                searchRunning[wf] = false
+                if wf == .ahe, let firstSampleKey = result.first?.sampleKey {
                     aheWorkspace.loadPersistedArtifact(sampleKey: firstSampleKey)
                 }
             } catch is CancellationError {
-                isWorkflowSearchRunning = false
+                searchRunning[wf] = false
             } catch let error as AppError {
-                workflowSearchResults = []
-                workflowSearchMessage = error.localizedDescription
-                isWorkflowSearchRunning = false
+                searchResults[wf] = []
+                searchMessages[wf] = error.localizedDescription
+                searchRunning[wf] = false
             } catch {
-                workflowSearchResults = []
-                workflowSearchMessage = AppError.from(error, fallback: "Workflow search failed.").localizedDescription
-                isWorkflowSearchRunning = false
+                searchResults[wf] = []
+                searchMessages[wf] = AppError.from(error, fallback: "Workflow search failed.").localizedDescription
+                searchRunning[wf] = false
             }
         }
     }
 
-    func clearWorkflowMeasurementSearch() {
+    func clearWorkflowMeasurementSearch(workflowID wf: WorkbenchWorkflowID) {
         workflowSearchTask?.cancel()
         workflowSearchTask = nil
-        workflowSearchResults = []
-        aheWorkspace.cachedSearchResults = []
-        threeOmegaWorkspace.cachedSearchResults = []
-        workflowSearchMessage = nil
-        isWorkflowSearchRunning = false
+        searchResults[wf] = []
+        switch wf {
+        case .ahe:        aheWorkspace.cachedSearchResults = []
+        case .threeOmega: threeOmegaWorkspace.cachedSearchResults = []
+        }
+        searchMessages[wf] = nil
+        searchRunning[wf] = false
+        searchQueryTexts[wf] = wf.searchPrefix
     }
 
     private func namesEqual(_ lhs: String, _ rhs: String) -> Bool {

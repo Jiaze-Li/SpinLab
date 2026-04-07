@@ -8,7 +8,7 @@ struct V310WorkbenchFoundationTests {
     func schemaRoundTrip() throws {
         let now = Date(timeIntervalSince1970: 1_712_146_400)
         let payload = WorkbenchPlotPayload(
-            workflowID: "A",
+            workflowID: "ahe",
             workflowDisplayName: "AHE",
             title: "AHE PN20 STO001",
             axisMapping: WorkbenchAxisMapping(xField: "field", yField: "rxy"),
@@ -17,7 +17,7 @@ struct V310WorkbenchFoundationTests {
                     label: "PN20 80K 30deg",
                     x: [0.0, 0.1],
                     y: [1.2, 1.3],
-                    sourceRef: "batches/PN20/samples/PN20_STO001/measurements/A/a.dat"
+                    sourceRef: "batches/PN20/samples/PN20_STO001/measurements/ahe/a.dat"
                 )
             ],
             semanticParams: ["normalization": "none"],
@@ -27,7 +27,7 @@ struct V310WorkbenchFoundationTests {
             recordID: "record-1",
             sampleKey: "sid_7f8c3a",
             displayKey: "PN20||STO|001",
-            workflowID: "A",
+            workflowID: "ahe",
             metric: "Hc",
             value: 1.0,
             canonicalUnit: "T",
@@ -40,15 +40,15 @@ struct V310WorkbenchFoundationTests {
         let manifest = WorkbenchRunManifest(
             manifestID: "manifest-1",
             runID: "run-1",
-            workflowID: "A",
+            workflowID: "ahe",
             inputFiles: [
-                "batches/PN20/samples/PN20_STO001/measurements/A/a.dat",
-                "batches/PN20/samples/PN20_STO001/measurements/A/b.lvm"
+                "batches/PN20/samples/PN20_STO001/measurements/ahe/a.dat",
+                "batches/PN20/samples/PN20_STO001/measurements/ahe/b.lvm"
             ],
             filters: ["sampleID": "sid_7f8c3a", "temperature": "80K"],
             axisMapping: WorkbenchAxisMapping(xField: "field", yField: "rxy"),
             semanticParams: ["normalization": "none"],
-            outputImagePath: "analysis/workflows/A/charts/chart.png",
+            outputImagePath: "analysis/workflows/ahe/charts/chart.png",
             generatedAt: now,
             appVersion: "3.1.0"
         )
@@ -68,12 +68,12 @@ struct V310WorkbenchFoundationTests {
     @Test("chart identity is deterministic and style-independent")
     func chartIdentityDeterministic() {
         let payloadA = WorkbenchPlotPayload(
-            workflowID: "A",
+            workflowID: "ahe",
             workflowDisplayName: "AHE",
             title: "Chart A",
             axisMapping: WorkbenchAxisMapping(xField: "Field", yField: "Rxy"),
             series: [
-                WorkbenchPlotSeries(label: "S1", x: [0], y: [1], sourceRef: "Batches\\PN20\\A.DAT"),
+                WorkbenchPlotSeries(label: "S1", x: [0], y: [1], sourceRef: "Batches\\PN20\\ahe.DAT"),
                 WorkbenchPlotSeries(label: "S2", x: [0], y: [1], sourceRef: "batches/pn20/a.dat")
             ],
             semanticParams: ["normalization": "none"],
@@ -92,13 +92,13 @@ struct V310WorkbenchFoundationTests {
     func metricIdentityNormalization() {
         let keyA = WorkbenchMetricIdentity.makeIdentityKey(
             sampleKey: "SID_001",
-            workflowID: "A",
+            workflowID: "ahe",
             metric: "Hc",
             conditions: ["Temperature": "80K", "Device": "30DEG"]
         )
         let keyB = WorkbenchMetricIdentity.makeIdentityKey(
             sampleKey: "sid_001",
-            workflowID: "a",
+            workflowID: "AHE",
             metric: "hc",
             conditions: ["device": "30deg", "temperature": "80k"]
         )
@@ -138,9 +138,9 @@ struct V310WorkbenchFoundationTests {
         try FileManager.default.createDirectory(at: libraryRoot, withIntermediateDirectories: true)
         let resolver = LibraryPathResolver(libraryRootURL: libraryRoot)
 
-        let chartURL = libraryRoot.appending(path: "analysis/workflows/A/charts/chart.png")
+        let chartURL = libraryRoot.appending(path: "analysis/workflows/ahe/charts/chart.png")
         let relative = try resolver.relativePath(for: chartURL)
-        #expect(relative == "analysis/workflows/A/charts/chart.png")
+        #expect(relative == "analysis/workflows/ahe/charts/chart.png")
         let restored = try resolver.absoluteURL(for: relative)
         #expect(restored == chartURL.standardizedFileURL)
 
