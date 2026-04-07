@@ -123,6 +123,45 @@ snapshots have been naturally overwritten).
 
 ---
 
+## Rules Architecture Cleanup (post-4.1.7)
+
+### Override 加载逻辑去重
+**Code:**
+- `Sources/SpinLabApp/Import/Rules/RuleLoader.swift` — `applySeparatedOverrides()`
+- `Sources/SpinLabApp/Import/Rules/ConditionRulesHandbookStore.swift` — `loadSeparated*()` 系列方法
+
+**Problem:**
+RuleLoader 和 ConditionRulesHandbookStore 各自有一套 separated override 文件的加载/解码逻辑，代码重复。
+
+**Target state:**
+抽取统一的 `SeparatedOverrideLoader`，两处调用同一实现。
+
+**Effort:** Low
+
+---
+
+### Override 文件删除时静默复活问题
+**Problem:**
+5 个 separated override 文件是整段替换（conditions_rules.json 除外）。如果 override 文件被删除，主文件中的旧规则会悄悄"复活"，用户无感知。
+
+**Target state:**
+RuleLoader 加载后检测：如果某个 override 曾经存在但现在缺失，发出 warning（可通过 `loadWarnings` 传递到 UI）。
+
+**Effort:** Low
+
+---
+
+### condition_aliases.json 定位明确化
+**Problem:**
+`condition_aliases.json` 当前只有 `angle → device` 一条映射，使用范围窄，像是半成品。
+
+**Target state:**
+评估是否需要保留。若保留，补充文档说明用途和扩展方式；若不需要，移除并将 `angle → device` 映射硬编码或移入 `filename_rules.json`。
+
+**Effort:** Trivial
+
+---
+
 ## From previous backlog (TECH_DEBT_EXECUTION_LOG.md § Next Planned Steps)
 
 These items predated v2.4 and remain open:
