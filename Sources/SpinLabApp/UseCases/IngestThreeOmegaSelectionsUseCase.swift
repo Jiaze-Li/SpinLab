@@ -58,10 +58,10 @@ struct IngestThreeOmegaSelectionsUseCase {
 
                 // Device priority: sidecar condition > parser fallback
                 let resolvedDevice = hitDevice.isEmpty ? file.device : hitDevice
-                if device.isEmpty { device = resolvedDevice }
 
                 switch file.fileKind {
                 case .fieldSweep:
+                    if device.isEmpty { device = resolvedDevice }
                     let result = fitter.process(file: file, deviceOverride: resolvedDevice)
                     fieldSweeps.append(result)
                     iRmsValues[file.temperatureK] = file.iRms

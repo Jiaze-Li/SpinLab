@@ -149,6 +149,8 @@ final class LibraryFeatureStore {
     lazy var librarySyncService = LibrarySyncService(libraryStore: libraryStore, libraryDiffEngine: libraryDiffEngine)
     @ObservationIgnored
     private var appliedMeasurementsCacheBySampleID: [String: AppliedMeasurementsCacheEntry] = [:]
+    @ObservationIgnored
+    private var measurementSetsPersistTask: Task<Void, Never>?
 
     private struct AppliedMeasurementsCacheEntry {
         var snapshot: LibraryStore.SidecarSnapshot
@@ -945,8 +947,15 @@ final class LibraryFeatureStore {
         batchId: String
     ) {
         let rootURL = URL(fileURLWithPath: rootPath)
-        Task.detached { [libraryStore] in
-            try? libraryStore.saveMeasurementSets(sets, for: sample, rootURL: rootURL)
+        // Serialize writes: cancel any in-flight persist before starting a new one
+        // to prevent an older snapshot from overwriting a newer one.
+        measurementSetsPersistTask?.cancel()
+        measurementSetsPersistTask = Task.detached { [libraryStore] in
+            do {
+                try libraryStore.saveMeasurementSets(sets, for: sample, rootURL: rootURL)
+            } catch {
+                fputs("[SpinLab] persistAndUpdateSets: save failed for \(sample.id): \(error)\n", stderr)
+            }
         }
         updateSampleMeasurementSets(
             prefix: prefix,
@@ -1340,7 +1349,7 @@ final class LibraryFeatureStore {
             }
         }
 
-        // --- Step 4: Remove from measurement sets ---
+        // --- Step 4: Remove from measurement sets (scoped to matching workflow) ---
 
         let setsFileURL = batchSampleDirURL.appending(path: "measurement_sets.json")
         if fm.fileExists(atPath: setsFileURL.path),
@@ -1350,6 +1359,7 @@ final class LibraryFeatureStore {
             if var sets = try? decoder.decode([MeasurementSet].self, from: setsData) {
                 var changed = false
                 for i in sets.indices {
+                    guard sets[i].workflow == measurement.workflow else { continue }
                     if sets[i].memberFileNames.contains(sourceFileName) {
                         sets[i].memberFileNames.removeAll { $0 == sourceFileName }
                         changed = true
