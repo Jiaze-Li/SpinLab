@@ -27,6 +27,14 @@ Device is optional.
 Dataset maps to one measurement by default.
 Results can be rated.
 
+Workflow ID mapping (v4.1.3+):
+| Old ID | New ID | Workflow |
+|--------|--------|----------|
+| A      | ahe    | AMR/PHE (Anomalous Hall Effect) |
+| B      | 3w     | 3 Omega |
+
+If you encounter `"A"` or `"B"` as workflowID in sidecar files, persisted JSON, or logs, it is a pre-v4.1.3 artifact. Replace with the new ID. No backward-compatibility code exists.
+
 ---
 
 Instruction priority policy (required):

@@ -158,6 +158,21 @@
 - `ThreeOmegaFitUseCase.swift` 或 `IngestThreeOmegaSelectionsUseCase.swift`（取决于方法选择）
 - `V400ThreeOmegaTests.swift` 补充对应方法的单元测试
 
+**附带完成：Workflow ID 运行时数据迁移（2026-04-07）**
+
+v4.1.3 将 workflow ID 从单字母改为语义命名（`c3b81e7`），运行时配置文件需同步迁移：
+
+| 旧 ID | 新 ID | 含义 |
+|-------|-------|------|
+| `A`   | `ahe` | AMR/PHE (Anomalous Hall Effect) workflow |
+| `B`   | `3w`  | 3 Omega workflow |
+
+已迁移的运行时文件：
+- `~/Library/Application Support/SpinLab/config/workflow_match_rules.json` — workflowID 字段
+- `~/Library/Application Support/SpinLab/config/filename_rules.json` — workflowRouteRules value 字段
+
+⚠️ **排查提示：** 如果今后在 sidecar、持久化 JSON、或日志中遇到 workflowID 为 `"A"` 或 `"B"` 的记录，说明该数据是迁移前生成的，需手动将 `"A"` → `"ahe"`、`"B"` → `"3w"`。代码中不保留旧 ID 兼容逻辑。
+
 ---
 
 ### 4.1.4 🔲 — Fig 5b Scaling 完整流程
