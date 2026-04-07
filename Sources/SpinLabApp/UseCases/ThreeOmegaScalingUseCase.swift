@@ -71,8 +71,17 @@ struct ThreeOmegaScalingUseCase {
             }
 
             // Formula: E^(3ω)_AHE = V^(3ω)_AHE / L_xy_m   (V/m)
-            // v3omegaWindow: window-average primary result (ascending − descending near H=0)
-            let E3w_AHE = sweep.v3omegaWindow / lxy_m
+            // Primary: high-field extrapolation (more robust); fallback: window-average near H=0.
+            let v3ahe = sweep.v3omegaFit ?? sweep.v3omegaWindow
+            let E3w_AHE = v3ahe / lxy_m
+
+            // Cross-check: flag divergence between the two extraction methods.
+            if let fit = sweep.v3omegaFit, !fit.isNaN, !sweep.v3omegaWindow.isNaN, abs(fit) > 1e-30 {
+                let pct = abs(fit - sweep.v3omegaWindow) / abs(fit) * 100
+                if pct > 20 {
+                    warnings.append(String(format: "T=%dK: V3ω extraction methods diverge by %.0f%% — check data quality.", Int(sweep.temperatureK), pct))
+                }
+            }
 
             // X-axis: σ²_xx(T)   (S/m)²
             let sigma2xx = sigma_xx * sigma_xx
