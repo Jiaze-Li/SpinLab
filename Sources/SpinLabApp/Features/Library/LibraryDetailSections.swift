@@ -660,29 +660,36 @@ struct MeasurementPlotPreviewPanel: View {
                     .overlay(ProgressView().scaleEffect(0.7))
             }
 
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(.black.opacity(0.5))
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-                .padding(4)
+            HStack(spacing: 4) {
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                if onDelete != nil {
+                    Button {
+                        pendingDeleteChart = ref
+                        isShowingDeleteChartConfirm = true
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Delete this chart and its files")
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(.black.opacity(0.5))
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .padding(4)
         }
         .contentShape(Rectangle())
         .onTapGesture { openChart(ref) }
         .help("Click to open in viewer")
-        .contextMenu {
-            if onDelete != nil {
-                Button("Delete Chart\u{2026}", role: .destructive) {
-                    pendingDeleteChart = ref
-                    isShowingDeleteChartConfirm = true
-                }
-            }
-        }
     }
 
     private func openChart(_ ref: WorkbenchResultReference) {
