@@ -103,7 +103,7 @@ final class WorkbenchFeatureStore {
     }
     /// AHE-specific workspace state. All plot, selection, and artifact state lives here.
     let aheWorkspace = AHEWorkspaceStore()
-    /// 3 Omega workspace state. Independent workflow — parsing, fitting, scaling, 6 plots.
+    /// 3w workspace state. Independent workflow — parsing, fitting, scaling, 6 plots.
     let threeOmegaWorkspace = ThreeOmegaWorkspaceStore()
 
     @ObservationIgnored

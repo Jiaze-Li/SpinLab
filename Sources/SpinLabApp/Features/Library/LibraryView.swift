@@ -393,18 +393,27 @@ struct LibraryView: View {
                             } label: {
                                 Text("Metadata")
                                     .font(sampleDetailSectionTitleFont)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture { isMetadataSectionExpanded.toggle() }
                             }
 
                             Divider()
                             LibraryMeasurementsDoneSection(
                                 measurements: sample.appliedMeasurements,
+                                measurementSets: sample.measurementSets,
                                 workflowDisplayNameByID: workflowDisplayNameByID,
                                 workflowConditionOrderByID: workflowConditionOrderByID,
                                 onDelete: { m in appState.library.deleteAppliedMeasurement(m) },
                                 workbenchResults: appState.library.workbenchResults,
                                 measurementPlotIndex: appState.library.measurementPlotIndex,
                                 libraryRootURL: appState.library.librarySettings.rootPath.map { URL(fileURLWithPath: $0) },
-                                onDeleteChart: { ref in appState.library.deleteWorkbenchResult(ref) }
+                                onDeleteChart: { ref in appState.library.deleteWorkbenchResult(ref) },
+                                onCreateSet: { name, wf, member in appState.library.createMeasurementSet(name: name, workflow: wf, initialMember: member) },
+                                onAddToSet: { setID, fileName in appState.library.addToMeasurementSet(setID: setID, fileName: fileName) },
+                                onRemoveFromSet: { setID, fileName in appState.library.removeFromMeasurementSet(setID: setID, fileName: fileName) },
+                                onRenameSet: { setID, newName in appState.library.renameMeasurementSet(setID: setID, newName: newName) },
+                                onDeleteSet: { setID in appState.library.deleteMeasurementSet(setID: setID) }
                             )
                         }
                     } else {

@@ -49,6 +49,7 @@ Engineering quality and execution gate (required):
 - `[HARD][must]` Prefer long-term maintainability over short-term convenience. Reject approaches that are fast now but increase future complexity/cost.
 - `[HARD][must]` Sign-off criteria are structural quality + maintainability + testability, not just feature-level correctness.
 - `[HARD][must]` Do not start any code modification, file edit, or behavior-changing command until the user gives an explicit execution instruction (for example: "执行", "开始执行", "apply now").
+- `[HARD][must]` Do not rename, remap, or reformat any user-defined display name, workflow ID, condition field name, or configuration value unless the user explicitly requests that specific rename. "Cleanup" or "normalization" of user-chosen names is forbidden. 迁移或兼容性转换（如旧 ID 到新 ID）也必须获得用户明确指令后才可执行。
 
 ---
 

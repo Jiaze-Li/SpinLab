@@ -38,8 +38,9 @@ struct ThreeOmegaLVMFile: Sendable {
     /// NaN for RT files.
     var temperatureK: Double
 
-    /// Angle label derived from the enclosing folder name (e.g. "0deg", "30deg").
-    var angleLabel: String
+    /// Device label from sidecar conditions (e.g. "0deg", "30deg").
+    /// Fallback: parser derives from parent folder name.
+    var device: String
 
     var fileKind: ThreeOmegaFileKind
 
@@ -57,10 +58,10 @@ struct ThreeOmegaLVMFile: Sendable {
 
 /// One temperature's worth of processed field-sweep data.
 struct ThreeOmegaFieldSweepResult: Codable, Hashable, Sendable, Identifiable {
-    var id: String { "\(angleLabel)_\(String(format: "%.1f", temperatureK))K" }
+    var id: String { "\(device)_\(String(format: "%.1f", temperatureK))K" }
 
     var temperatureK: Double
-    var angleLabel: String
+    var device: String
 
     // Formula: R¹ω(H) = V¹ω_X(H) / I_rms   (Col[1] / I_rms)
     // Then centered: R¹ω_c(H) = R¹ω(H) - (max(R¹ω) + min(R¹ω)) / 2
@@ -92,9 +93,9 @@ struct ThreeOmegaFieldSweepResult: Codable, Hashable, Sendable, Identifiable {
 
 /// Resistance vs. temperature from RT sweep files.
 struct ThreeOmegaRTResult: Codable, Hashable, Sendable, Identifiable {
-    var id: String { angleLabel }
+    var id: String { device }
 
-    var angleLabel: String
+    var device: String
 
     // Formula: Rxx(T) = Col[9](T)  (pre-calculated R_H in RT file = longitudinal Rxx)
     var temperatureK: [Double]
@@ -171,7 +172,7 @@ struct ThreeOmegaScalingResult: Codable, Hashable, Sendable {
 struct ThreeOmegaIngestionResult: Codable, Hashable, Sendable {
     var fieldSweeps: [ThreeOmegaFieldSweepResult]   // sorted by temperatureK ascending
     var rtResult: ThreeOmegaRTResult?
-    var angleLabel: String
+    var device: String
     /// I_rms (A) keyed by temperatureK — required for scaling use case.
     var iRmsValues: [Double: Double] = [:]
     var warnings: [String] = []

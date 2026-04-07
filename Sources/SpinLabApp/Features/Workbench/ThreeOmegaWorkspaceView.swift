@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 3 Omega workflow workspace.
+/// 3w workflow workspace.
 ///
 /// 列结构与 AHEWorkspaceView 对齐：
 ///   左列 → 搜索 + PlotControlsPanel + GeometryPanel (Fig 5b) + ResultsList
@@ -31,7 +31,7 @@ private struct ThreeOmegaLeftColumn: View {
             VStack(alignment: .leading, spacing: 10) {
 
                 HStack(alignment: .firstTextBaseline) {
-                    Text("3 Omega")
+                    Text("3w")
                         .font(.title2.bold())
                     Spacer()
                 }
@@ -102,8 +102,12 @@ private struct ThreeOmegaSearchSection: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(workbench.isSearchRunning(for: wf) || libraryRoot == nil)
 
-                Button("Select All") {
-                    store.selectAll()
+                Button(store.isAllSelected ? "Deselect All" : "Select All") {
+                    if store.isAllSelected {
+                        store.deselectAll()
+                    } else {
+                        store.selectAll()
+                    }
                 }
                 .buttonStyle(.bordered)
                 .disabled(workbench.searchResultsList(for: wf).isEmpty)
@@ -308,7 +312,7 @@ private struct ThreeOmegaResultsList: View {
                 ContentUnavailableView(
                     "No Results",
                     systemImage: "magnifyingglass",
-                    description: Text("Run a search to find 3 Omega measurements.")
+                    description: Text("Run a search to find 3w measurements.")
                 )
                 .frame(maxWidth: .infinity)
             }

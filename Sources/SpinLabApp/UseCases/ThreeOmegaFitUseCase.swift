@@ -21,7 +21,7 @@ struct ThreeOmegaFitUseCase {
     /// Points with |H| ≤ windowHalfWidth on each branch are averaged.
     var windowHalfWidth: Double = 3000
 
-    func process(file: ThreeOmegaLVMFile) -> ThreeOmegaFieldSweepResult {
+    func process(file: ThreeOmegaLVMFile, deviceOverride: String? = nil) -> ThreeOmegaFieldSweepResult {
         let H = file.col0   // Oe
         let iRms = file.iRms
 
@@ -58,7 +58,7 @@ struct ThreeOmegaFitUseCase {
 
         return ThreeOmegaFieldSweepResult(
             temperatureK: file.temperatureK,
-            angleLabel: file.angleLabel,
+            device: deviceOverride ?? file.device,
             hField: H,
             r1omega: r1,
             r3omega: r3,

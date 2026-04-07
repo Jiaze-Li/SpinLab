@@ -42,8 +42,8 @@
 4.1.2 ✅  FitUseCase 验证 + 第一次真实数据可视化 (Tabs 1–2)
 4.1.3 ✅  V^(3ω)_AHE 提取方法决策 + Tabs 3–5
 4.1.4 ✅  Fig 5b Scaling 完整流程 (Tab 6)
-4.1.5 🔲  Import/Inbox 集成 — LVM 文件入库
-4.1.6 🔲  多角度支持 (30deg / 60deg) + 健壮性
+4.1.5 ✅  Import/Inbox 集成 — LVM 文件入库
+4.1.6 ✅  多角度支持 (30deg / 60deg) + 健壮性
 4.1.7 🔲  验收测试 + 文档
 ```
 
@@ -193,33 +193,61 @@ v4.1.3 将 workflow ID 从单字母改为语义命名（`c3b81e7`），运行时
 
 ---
 
-### 4.1.5 🔲 — Import/Inbox 集成
+### 4.1.5 ✅ — Import/Inbox 集成（已完成，2026-04-07）
 
 **目标：** 用户可从 Inbox 正常导入 `.lvm` 文件，而不只是从文件系统直接读路径。
 
-**验收条件：**
-- [ ] 拖入 `.lvm` 文件到 Inbox → 文件被正确路由到 `MeasurementType.threeOmegaAHE`
-- [ ] Inbox 显示正确的 sampleKey / conditionSummary（温度、角度、电流）
-- [ ] Workbench → Search "3ω" → 结果中出现已导入文件
-- [ ] 导入的文件在 Library 中有正确的 `workflowID = "3W"`
+**验收条件（全部通过）：**
+- [x] 拖入 `.lvm` 文件到 Inbox → 文件被正确路由到 `MeasurementType.threeOmegaAHE`
+- [x] Inbox 显示正确的 sampleKey / conditionSummary（温度、角度、电流）
+- [x] Workbench → Search "3w" → 结果中出现已导入文件
+- [x] 导入的文件在 Library 中有正确的 `workflowID = "3w"`
 
-**修改范围：**
-- `ThreeOmegaAHEMetadataExtension.parseFilename` — 验证 sampleKey / conditionSummary 生成逻辑
-- Import pipeline 的 routing 规则 — 确认 `.lvm` 不被其他规则拦截
+**已确认：**
+- Import 全链路无需代码改动：运行时规则手册已覆盖 `.lvm` 路由（`measurementNameRules` 匹配 "3w" token → `workflowID = "3W"`）
+- condition 提取：temperature（四舍五入到 0.5K）、current、device(angle)、field(Oe) 全部通过运行时 `filename_rules.json` 的 unit_suffix regex 匹配
+- 磁盘验证：59 个 sidecar 全部 `workflow: "3w"`，conditions 完整
+
+**附带完成：**
+- Bundle 规则同步脚本 `scripts/sync_runtime_rules_to_bundle.sh`（同步 4 个 separated override 文件到 bundle）
+- PostToolUse hook：build_desktop_app 后自动同步 override 到 bundle
+- 规则架构审计 → 3 项清理写入 `TECH_DEBT_BACKLOG.md`（post-4.1.7）
 
 ---
 
-### 4.1.6 🔲 — 多角度支持 + 健壮性
+### 4.1.6 ✅ — 多角度支持 + 健壮性（已完成，2026-04-07）
 
 **目标：** 30deg / 60deg 文件夹各自独立分析正确；边界情况不崩溃。
 
-**验收条件：**
-- [ ] 分别选 30deg 文件夹的文件 → Analyze → 图 title 显示 "30deg"
-- [ ] 混选 0deg + 30deg → `analysisMessage` 有警告
-- [ ] 少于 2 个 field-sweep 文件时 RAHE / Hc 图为空但不崩溃
-- [ ] 无 RT 文件时 Tab 5 显示占位符，"Run Scaling" 按钮被禁用
+**验收条件（全部通过）：**
+- [x] 分别选 30deg 文件夹的文件 → Analyze → 图 title 显示 "30deg"
+- [x] 混选 0deg + 30deg → `analysisMessage` 有警告
+- [x] 少于 2 个 field-sweep 文件时 RAHE / Hc 图为空但不崩溃
+- [x] 无 RT 文件时 Tab 5 显示占位符，"Run Scaling" 按钮被禁用
 
-**策略（混角度）：** 只取第一个 `angleLabel`，不同角度混选时给警告。多角度对比是 V4.1+ 的功能。
+**策略（混角度）：** 只取第一个 device，不同 device 混选时给警告。多角度对比是 V4.1+ 的功能。
+
+**重构：`angleLabel` → `device`（全链路重命名）**
+
+Workbench 参数必须来自 sidecar conditions（用户在 Import 时确认的值），不应重新解析文件名/路径。
+- `ThreeOmegaIngestionContracts` / `ThreeOmegaLVMParser` / `ThreeOmegaFitUseCase` / `ThreeOmegaPlotRenderer` / `IngestThreeOmegaSelectionsUseCase` / `ThreeOmegaWorkspaceStore` / `ThreeOmegaWorkspaceView` — `angleLabel` → `device`
+- `IngestThreeOmegaSelectionsUseCase`：device 值优先从 `hit.conditions["device"]` 读取，parser 仅作 fallback
+- `ThreeOmegaFitUseCase`：新增 `deviceOverride` 参数
+
+**修复：撤销未授权的 "3 Omega" display name**
+
+`c3b81e7` 在重命名 workflow ID 时擅自将用户定义的 display name "3w" 改为 "3 Omega"。全部恢复：
+- `Domain/Models.swift` rawValue、`SearchWorkflowMeasurementsUseCase`、`ThreeOmegaPlotRenderer`（6处）、`ExtensionPoints`、`WorkspaceView/Store`、测试文件
+- 运行时 `workflow_registry.json` + 3 个 sidecar 的 `workflowDisplayName` 修复
+- CLAUDE.md 新增硬规则：禁止未经用户指令重命名用户定义的名称/配置值
+
+**规则加载改进：bundle override fallback**
+
+- 4 个 separated override 文件（workflow_match、sample_id、substrate、measurement_tag）复制到 bundle
+- `RuleLoader.resolveOverrideURL`：运行时优先，bundle fallback；测试环境默认只走 bundle
+- 修复 stop hook 路径：SpinLab-4.0 → SpinLab-4.1
+
+**UI 小改进：** Select All / Deselect All toggle 按钮
 
 ---
 

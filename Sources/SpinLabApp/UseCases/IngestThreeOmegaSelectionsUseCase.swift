@@ -5,14 +5,17 @@ import Foundation
 // Orchestrates parsing and fitting of a set of selected 3ω AHE measurement files.
 // Separates field-sweep files from RT files, processes each, sorts by temperature,
 // and produces a ThreeOmegaIngestionResult ready for display and scaling analysis.
+//
+// All display-facing parameters (device, temperature) are read from sidecar conditions
+// confirmed at import time. The LVM parser provides fallback values only when sidecar
+// conditions are absent (e.g. in unit tests with synthetic files).
 
 struct IngestThreeOmegaSelectionsUseCase {
 
     var parser = ThreeOmegaLVMParser()
     var fitter = ThreeOmegaFitUseCase()
 
-    /// Returns ingestion result for one angle's worth of selected hits.
-    /// All hits are expected to belong to the same angle folder.
+    /// Returns ingestion result for one device's worth of selected hits.
     ///
     /// - Parameter parseFile: Injectable for testing. Defaults to real LVM parser.
     func execute(
@@ -23,23 +26,26 @@ struct IngestThreeOmegaSelectionsUseCase {
             return ThreeOmegaIngestionResult(
                 fieldSweeps: [],
                 rtResult: nil,
-                angleLabel: "",
+                device: "",
                 warnings: ["No files selected."]
             )
         }
 
         var warnings: [String] = []
         var fieldSweeps: [ThreeOmegaFieldSweepResult] = []
-        var rtFiles: [ThreeOmegaLVMFile] = []   // collect all RT files; pick best at end
-        var angleLabel = ""
+        var rtFiles: [ThreeOmegaLVMFile] = []
+        var device = ""
+        var deviceValues: [String] = []
         var iRmsValues: [Double: Double] = [:]
 
-        // Parse each unique file exactly once (deduplicate by sourceFilePath)
         var seen = Set<String>()
 
         for hit in hits {
             guard seen.insert(hit.measurementFilePath).inserted else { continue }
             let url = URL(fileURLWithPath: hit.measurementFilePath)
+
+            // Device (angle) from sidecar conditions — confirmed by user at import.
+            let hitDevice = hit.conditions["device"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
             do {
                 let tempOverride = parseFile == nil
@@ -49,16 +55,19 @@ struct IngestThreeOmegaSelectionsUseCase {
                     ? _parseKind(hit.workflowCanonicalID)
                     : nil
                 let file = try (parseFile.map { try $0(url) } ?? parser.parse(fileURL: url, temperatureOverride: tempOverride, kindOverride: kindOverride))
-                if angleLabel.isEmpty { angleLabel = file.angleLabel }
+
+                // Device priority: sidecar condition > parser fallback
+                let resolvedDevice = hitDevice.isEmpty ? file.device : hitDevice
 
                 switch file.fileKind {
                 case .fieldSweep:
-                    let result = fitter.process(file: file)
+                    if device.isEmpty { device = resolvedDevice }
+                    let result = fitter.process(file: file, deviceOverride: resolvedDevice)
                     fieldSweeps.append(result)
                     iRmsValues[file.temperatureK] = file.iRms
+                    if !hitDevice.isEmpty { deviceValues.append(hitDevice) }
 
                 case .rtSweep:
-                    // Collect all RT files; select the best one after the loop.
                     rtFiles.append(file)
                 }
             } catch {
@@ -66,12 +75,8 @@ struct IngestThreeOmegaSelectionsUseCase {
             }
         }
 
-        // Sort field sweeps by temperature ascending
         fieldSweeps.sort { $0.temperatureK < $1.temperatureK }
 
-        // Build RT result: pick the RT file with the most data rows.
-        // Rationale: when multiple RT files exist (e.g. one aborted at 1 row and one
-        // complete at 30 rows), the longest file is the real RT curve.
         let rtResult: ThreeOmegaRTResult? = {
             guard let best = rtFiles.max(by: { $0.col0.count < $1.col0.count }),
                   !best.col0.isEmpty else { return nil }
@@ -80,11 +85,17 @@ struct IngestThreeOmegaSelectionsUseCase {
             }
             let pairs = zip(best.col0, best.col9).sorted { $0.0 < $1.0 }
             return ThreeOmegaRTResult(
-                angleLabel: angleLabel,
+                device: device,
                 temperatureK: pairs.map { $0.0 },
                 rxx: pairs.map { $0.1 }
             )
         }()
+
+        // Detect mixed device values from sidecar conditions (field-sweep files only).
+        let uniqueDevices = Set(deviceValues)
+        if uniqueDevices.count > 1 {
+            warnings.append("Mixed device angles detected (\(uniqueDevices.sorted().joined(separator: ", "))) — only the first device (\(device)) is used for analysis.")
+        }
 
         if rtResult == nil {
             warnings.append("No RT files found among selections — Rxx(T) and Scaling Law unavailable.")
@@ -93,7 +104,7 @@ struct IngestThreeOmegaSelectionsUseCase {
         return ThreeOmegaIngestionResult(
             fieldSweeps: fieldSweeps,
             rtResult: rtResult,
-            angleLabel: angleLabel,
+            device: device,
             iRmsValues: iRmsValues,
             warnings: warnings
         )
@@ -101,8 +112,6 @@ struct IngestThreeOmegaSelectionsUseCase {
 
     // MARK: - Private
 
-    /// Maps sidecar workflowCanonicalID to a file kind override.
-    /// Returns nil if unknown — parser falls back to filename heuristic.
     private func _parseKind(_ canonicalID: String) -> ThreeOmegaFileKind? {
         switch canonicalID {
         case "rt":  return .rtSweep
@@ -111,7 +120,6 @@ struct IngestThreeOmegaSelectionsUseCase {
         }
     }
 
-    /// Parses temperature in Kelvin from a sidecar condition string, e.g. "20K" → 20.0.
     private func _parseConditionTemperatureK(_ raw: String?) -> Double? {
         guard let raw else { return nil }
         let trimmed = raw.trimmingCharacters(in: .whitespaces)

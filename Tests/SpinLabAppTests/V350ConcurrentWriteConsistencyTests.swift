@@ -273,19 +273,23 @@ struct V350ConcurrentWriteConsistencyTests {
         #expect(store.records.count == 2)
     }
 
-    @Test("deleteAppliedMeasurement removes sidecar file from disk")
-    @MainActor
-    func deleteAppliedMeasurementRemovesSidecarFile() throws {
-        let dir = FileManager.default.temporaryDirectory
+    @Test("deleteAppliedMeasurement removes sidecar and data file from disk (v4.1.5.1+)")
+    func deleteAppliedMeasurementRemovesSidecarAndDataFile() throws {
+        // Build a minimal library directory structure required by the v4.1.5.1 cascade delete.
+        let rootDir = FileManager.default.temporaryDirectory
             .appending(path: "v350-delete-\(UUID().uuidString)", directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: dir) }
+        let measurementsDir = rootDir
+            .appending(path: "batches/A/batch1/samples/S1/measurements/AHE", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: measurementsDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: rootDir) }
 
-        let sidecarURL = dir.appending(path: "test.spinlab.json")
+        let dataFileURL = measurementsDir.appending(path: "test.dat")
+        try Data("data".utf8).write(to: dataFileURL)
+        let sidecarURL = measurementsDir.appending(path: "test.dat.spinlab.json")
         try Data("{}".utf8).write(to: sidecarURL)
         let sidecarPath = sidecarURL.path(percentEncoded: false)
+        let dataFilePath = dataFileURL.path(percentEncoded: false)
 
-        let featureStore = LibraryFeatureStore()
         let measurement = AppliedMeasurement(
             id: sidecarPath,
             workflow: "AHE",
@@ -294,12 +298,13 @@ struct V350ConcurrentWriteConsistencyTests {
             appliedAt: Date(),
             sourceFileName: "test.dat"
         )
-        featureStore.deleteAppliedMeasurement(measurement)
+        let success = LibraryFeatureStore.deleteAppliedMeasurementOnDisk(measurement, rootURL: rootDir)
 
+        #expect(success)
         #expect(!FileManager.default.fileExists(atPath: sidecarPath),
                 "sidecar file must be removed after deleteAppliedMeasurement")
-        #expect(featureStore.librarySampleEditError == nil,
-                "no error should be set on successful delete")
+        #expect(!FileManager.default.fileExists(atPath: dataFilePath),
+                "data file must be removed after deleteAppliedMeasurement")
     }
 
     /// Baseline: sequential chart persists must retain all references.
