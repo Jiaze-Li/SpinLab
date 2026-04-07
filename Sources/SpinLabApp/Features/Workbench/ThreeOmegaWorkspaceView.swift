@@ -79,11 +79,16 @@ private struct ThreeOmegaSearchSection: View {
         )
 
         VStack(alignment: .leading, spacing: 8) {
-            TextField("3w PN69, 3w 5K …", text: queryBinding)
-                .textFieldStyle(.roundedBorder)
-                .onSubmit {
-                    workbench.runWorkflowMeasurementSearch(workflowID: wf, libraryRootPath: libraryRoot)
-                }
+            HStack(spacing: 6) {
+                TextField("3w PN69, 3w 5K …", text: queryBinding)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit {
+                        workbench.runWorkflowMeasurementSearch(workflowID: wf, libraryRootPath: libraryRoot)
+                    }
+
+                ThreeOmegaRTSearchField()
+                    .environment(appState)
+            }
 
             HStack(spacing: 4) {
                 Text("Library Root:")
@@ -503,5 +508,98 @@ private struct ThreeOmegaScalingResultPanel: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 4)
         }
+    }
+}
+
+// MARK: - RT search field with popover
+
+private struct ThreeOmegaRTSearchField: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        @Bindable var store = appState.workbench.threeOmegaWorkspace
+        let libraryRoot = appState.library.librarySettings.rootPath
+
+        HStack(spacing: 4) {
+            TextField("RT file…", text: $store.rtQuery)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 140)
+                .onChange(of: store.rtQuery) { _, _ in
+                    // Editing the text clears any prior RT selection.
+                    store.clearRTSelection()
+                }
+                .onSubmit {
+                    appState.workbench.runThreeOmegaRTSearch(libraryRootPath: libraryRoot)
+                }
+                .popover(isPresented: $store.showRTPopover, arrowEdge: .bottom) {
+                    ThreeOmegaRTPopover()
+                        .environment(appState)
+                }
+
+            Button {
+                appState.workbench.runThreeOmegaRTSearch(libraryRootPath: libraryRoot)
+            } label: {
+                Image(systemName: "magnifyingglass")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(store.rtQuery.trimmingCharacters(in: .whitespaces).isEmpty || store.isRTSearching || libraryRoot == nil)
+        }
+    }
+}
+
+private struct ThreeOmegaRTPopover: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        let store = appState.workbench.threeOmegaWorkspace
+
+        VStack(alignment: .leading, spacing: 6) {
+            if store.isRTSearching {
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Searching…").font(.caption)
+                }
+            } else if store.rtSearchResults.isEmpty {
+                Text(store.rtSearchMessage ?? "No results.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(store.rtSearchMessage ?? "")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ScrollView(.vertical) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(store.rtSearchResults) { hit in
+                            Button {
+                                store.selectRTHit(hit)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(hit.measurementFilePath.components(separatedBy: "/").last ?? hit.id)
+                                        .font(.caption)
+                                        .lineLimit(1)
+                                    Text(hit.conditionSummary)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.vertical, 2)
+                            .padding(.horizontal, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.accentColor.opacity(0.08))
+                            )
+                        }
+                    }
+                }
+                .frame(maxHeight: 200)
+            }
+        }
+        .padding(8)
+        .frame(width: 280)
     }
 }

@@ -20,6 +20,7 @@ struct IngestThreeOmegaSelectionsUseCase {
     /// - Parameter parseFile: Injectable for testing. Defaults to real LVM parser.
     func execute(
         hits: [WorkflowMeasurementSearchHit],
+        rtHit: WorkflowMeasurementSearchHit? = nil,
         parseFile: ((URL) throws -> ThreeOmegaLVMFile)? = nil
     ) -> ThreeOmegaIngestionResult {
         guard !hits.isEmpty else {
@@ -77,7 +78,31 @@ struct IngestThreeOmegaSelectionsUseCase {
 
         fieldSweeps.sort { $0.temperatureK < $1.temperatureK }
 
+        // RT file: prefer dedicated rtHit (user-selected), fall back to auto-detected from hits.
         let rtResult: ThreeOmegaRTResult? = {
+            if let rtHit {
+                let url = URL(fileURLWithPath: rtHit.measurementFilePath)
+                do {
+                    let tempOverride = parseFile == nil
+                        ? _parseConditionTemperatureK(rtHit.conditions["temperature"])
+                        : nil
+                    let file = try (parseFile.map { try $0(url) } ?? parser.parse(fileURL: url, temperatureOverride: tempOverride, kindOverride: .rtSweep))
+                    guard !file.col0.isEmpty else {
+                        warnings.append("Dedicated RT file has no data rows: \(url.lastPathComponent)")
+                        return nil
+                    }
+                    let pairs = zip(file.col0, file.col9).sorted { $0.0 < $1.0 }
+                    return ThreeOmegaRTResult(
+                        device: device,
+                        temperatureK: pairs.map { $0.0 },
+                        rxx: pairs.map { $0.1 }
+                    )
+                } catch {
+                    warnings.append("Failed to parse dedicated RT file [\(url.lastPathComponent)]: \(error.localizedDescription)")
+                    return nil
+                }
+            }
+
             guard let best = rtFiles.max(by: { $0.col0.count < $1.col0.count }),
                   !best.col0.isEmpty else { return nil }
             if rtFiles.count > 1 {

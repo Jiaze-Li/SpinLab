@@ -14,6 +14,26 @@ final class ThreeOmegaWorkspaceStore {
     var selectedSearchResultIDs: Set<String> = []
     var cachedSearchResults: [WorkflowMeasurementSearchHit] = []
 
+    // MARK: - RT file search (independent of main 3w search)
+
+    var rtQuery: String = ""
+    var rtSearchResults: [WorkflowMeasurementSearchHit] = []
+    var rtSearchMessage: String?
+    var isRTSearching: Bool = false
+    var showRTPopover: Bool = false
+    private(set) var selectedRTHit: WorkflowMeasurementSearchHit?
+
+    func selectRTHit(_ hit: WorkflowMeasurementSearchHit) {
+        selectedRTHit = hit
+        rtQuery = hit.measurementFilePath.components(separatedBy: "/").last ?? hit.id
+        rtSearchResults = []
+        showRTPopover = false
+    }
+
+    func clearRTSelection() {
+        selectedRTHit = nil
+    }
+
     // MARK: - Geometry (session-only, not persisted)
 
     var geometry = ThreeOmegaGeometry()
@@ -134,11 +154,13 @@ final class ThreeOmegaWorkspaceStore {
         let capturedAnchor     = plotLegendAnchor
         let capturedMultiplier = stackOffsetMultiplier
 
+        let capturedRTHit = selectedRTHit
+
         analysisTask = Task { [weak self] in
             guard let self else { return }
             let (result, plots) = await Task.detached(priority: .userInitiated) { [selectedHits] in
                 let ingestUseCase = IngestThreeOmegaSelectionsUseCase()
-                let result = ingestUseCase.execute(hits: selectedHits)
+                let result = ingestUseCase.execute(hits: selectedHits, rtHit: capturedRTHit)
                 var renderer = ThreeOmegaPlotRenderer()
                 renderer.showGrid             = capturedGrid
                 renderer.legendAnchor         = capturedAnchor
@@ -327,6 +349,12 @@ final class ThreeOmegaWorkspaceStore {
         plotSeriesLabelOverrides = [:]
         plotXLabelOverrides      = [:]
         plotYLabelOverrides      = [:]
+        rtQuery                  = ""
+        rtSearchResults          = []
+        rtSearchMessage          = nil
+        isRTSearching            = false
+        showRTPopover            = false
+        selectedRTHit            = nil
         warningLog               = []
         _clearPlots()
     }

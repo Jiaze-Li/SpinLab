@@ -736,6 +736,50 @@ final class WorkbenchFeatureStore {
         }
     }
 
+    func runThreeOmegaRTSearch(libraryRootPath: String?) {
+        let store = threeOmegaWorkspace
+        let query = store.rtQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
+            store.rtSearchResults = []
+            store.rtSearchMessage = "Enter RT search query."
+            store.isRTSearching = false
+            return
+        }
+        guard let libraryRootPath = libraryRootPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !libraryRootPath.isEmpty else {
+            store.rtSearchResults = []
+            store.rtSearchMessage = "Set Library Root before searching."
+            store.isRTSearching = false
+            return
+        }
+
+        store.isRTSearching = true
+        store.rtSearchMessage = nil
+        store.rtSearchResults = []
+        store.showRTPopover = true
+
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let result = try await dataActor.searchWorkflowMeasurements(
+                    libraryRootPath: libraryRootPath,
+                    query: WorkflowSearchQuery(rawText: query)
+                )
+                store.rtSearchResults = result
+                store.rtSearchMessage = result.isEmpty
+                    ? "No files matched: \(query)"
+                    : "Found \(result.count) file(s)."
+                store.isRTSearching = false
+            } catch is CancellationError {
+                store.isRTSearching = false
+            } catch {
+                store.rtSearchResults = []
+                store.rtSearchMessage = "Search failed."
+                store.isRTSearching = false
+            }
+        }
+    }
+
     func clearWorkflowMeasurementSearch(workflowID wf: WorkbenchWorkflowID) {
         workflowSearchTask?.cancel()
         workflowSearchTask = nil
