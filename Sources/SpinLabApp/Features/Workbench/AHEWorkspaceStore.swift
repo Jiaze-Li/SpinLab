@@ -76,6 +76,12 @@ final class AHEWorkspaceStore {
     /// Display-only label override for the Y axis (does not affect which data column is used).
     var plotYLabelOverride: String = ""
 
+    // MARK: - Title template
+
+    var titleTemplate: String = "#tab #device #sample"
+    /// Cached per-sample numericDisplay from library index, populated by WorkbenchFeatureStore.
+    var cachedSampleNumericDisplay: [String: [String: String]] = [:]
+
     // MARK: - Context set by WorkbenchFeatureStore after search
 
     /// Updated by WorkbenchFeatureStore when search results change.
@@ -128,6 +134,17 @@ final class AHEWorkspaceStore {
         let xOverride = plotAxisXOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         let yOverride = plotAxisYOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         let titleOverride = plotTitleOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+        let capturedTemplate = titleTemplate
+        // Build title tokens from representative hit
+        let capturedTitleTokens: [String: String] = {
+            let sortedHits = selections.sorted(by: { $0.sampleKey < $1.sampleKey })
+            guard let hit = sortedHits.first,
+                  let searchHit = cachedSearchResults.first(where: { $0.sampleKey == hit.sampleKey }) else { return [:] }
+            var tokens: [String: String] = ["sample": searchHit.sampleBatchAndSubstrate]
+            let numericDisplay = cachedSampleNumericDisplay[searchHit.sampleKey] ?? [:]
+            for (k, v) in numericDisplay { tokens[k] = v }
+            return tokens
+        }()
         let grid = showPlotGrid
         let legendAnchor = plotLegendAnchor
         let legendPoint = plotLegendPoint
@@ -166,7 +183,12 @@ final class AHEWorkspaceStore {
                         yColumnOverride: yOverride.isEmpty ? nil : yOverride
                     )
                     let extractedMetrics = try AHEWorkspaceStore.extractAHEMetricsPerSeries(from: ingestion.series).get()
-                    let resolvedTitle = titleOverride.isEmpty ? "AHE" : titleOverride
+                    let resolvedTitle: String = {
+                        if !titleOverride.isEmpty { return titleOverride }
+                        var tokens = capturedTitleTokens
+                        tokens["tab"] = "AHE"
+                        return WorkbenchTitleResolver.resolve(template: capturedTemplate, tokens: tokens)
+                    }()
                     let xField = xOverride.isEmpty ? ingestion.defaultAxisMapping.xField : xOverride
                     let yField = yOverride.isEmpty ? ingestion.defaultAxisMapping.yField : yOverride
                     var style: [String: String] = [:]

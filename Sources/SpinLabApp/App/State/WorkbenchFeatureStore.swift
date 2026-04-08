@@ -296,7 +296,8 @@ final class WorkbenchFeatureStore {
         threeOmegaStackOffsetMultiplier: Double? = nil,
         threeOmegaMinGapFraction: Double? = nil,
         threeOmegaRTSidecarPath: String? = nil,
-        threeOmegaFitRanges: [ThreeOmegaFitRange]? = nil
+        threeOmegaFitRanges: [ThreeOmegaFitRange]? = nil,
+        aheTitleTemplate: String? = nil
     ) {
         if let selectedArchivedRecordID,
            archivedRecords.contains(where: { $0.id == selectedArchivedRecordID }) {
@@ -314,6 +315,7 @@ final class WorkbenchFeatureStore {
         if let v = threeOmegaMinGapFraction { threeOmegaWorkspace.minGapFraction = v }
         if let p = threeOmegaRTSidecarPath { threeOmegaWorkspace.pendingRTSidecarPath = p }
         if let ranges = threeOmegaFitRanges, !ranges.isEmpty { threeOmegaWorkspace.fitRanges = ranges }
+        if let t = aheTitleTemplate { aheWorkspace.titleTemplate = t }
     }
 
     func captureInteraction(into snapshot: inout SpinLabInteractionSnapshot) {
@@ -330,6 +332,7 @@ final class WorkbenchFeatureStore {
         snapshot.threeOmegaRTSidecarPath = threeOmegaWorkspace.selectedRTHit?.sidecarPath
             ?? threeOmegaWorkspace.pendingRTSidecarPath
         snapshot.threeOmegaFitRanges = threeOmegaWorkspace.fitRanges
+        snapshot.aheTitleTemplate = aheWorkspace.titleTemplate
     }
 
     func selectedArchivedRecord() -> SpinLabDomain.ArchivedRecord? {
@@ -757,7 +760,22 @@ final class WorkbenchFeatureStore {
                 guard !Task.isCancelled else { return }
                 searchResults[wf] = result
                 switch wf {
-                case .ahe:        aheWorkspace.cachedSearchResults = result
+                case .ahe:
+                    aheWorkspace.cachedSearchResults = result
+                    // Cache numericDisplay for AHE title template
+                    let aheUniqueSampleKeys = Set(result.map { $0.sampleKey })
+                    var aheDisplayCache: [String: [String: String]] = [:]
+                    for sk in aheUniqueSampleKeys {
+                        do {
+                            let nd = try await dataActor.lookupSampleNumericDisplay(
+                                libraryRootPath: libraryRootPath, sampleKey: sk
+                            )
+                            if !nd.isEmpty { aheDisplayCache[sk] = nd }
+                        } catch {
+                            print("[SpinLab][Workbench] numericDisplay lookup failed for \(sk): \(error)")
+                        }
+                    }
+                    aheWorkspace.cachedSampleNumericDisplay = aheDisplayCache
                 case .threeOmega:
                     threeOmegaWorkspace.cachedSearchResults = result
                     // Cache numericDisplay for title suffix

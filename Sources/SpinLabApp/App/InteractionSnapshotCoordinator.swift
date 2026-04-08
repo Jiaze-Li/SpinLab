@@ -67,7 +67,8 @@ final class InteractionSnapshotCoordinator {
                 threeOmegaStackOffsetMultiplier: snapshot.threeOmegaStackOffsetMultiplier,
                 threeOmegaMinGapFraction: snapshot.threeOmegaMinGapFraction,
                 threeOmegaRTSidecarPath: snapshot.threeOmegaRTSidecarPath,
-                threeOmegaFitRanges: snapshot.threeOmegaFitRanges
+                threeOmegaFitRanges: snapshot.threeOmegaFitRanges,
+                aheTitleTemplate: snapshot.aheTitleTemplate
             )
             snapshot.inboxWorkspaceByPendingID = inboxStore.pruneWorkspaceByValidPendingIDs(
                 snapshot.inboxWorkspaceByPendingID

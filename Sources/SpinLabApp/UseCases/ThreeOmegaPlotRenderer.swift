@@ -271,13 +271,7 @@ struct ThreeOmegaPlotRenderer {
         tokens["tab"] = tabName
         tokens["device"] = device
         if !method.isEmpty { tokens["method"] = method }
-        var result = titleTemplate
-        for (key, value) in tokens {
-            result = result.replacingOccurrences(of: "#\(key)", with: value)
-        }
-        // Remove unresolved tokens and clean up extra spaces
-        result = result.replacingOccurrences(of: "#\\S+", with: "", options: .regularExpression)
-        return result.split(separator: " ").joined(separator: " ").trimmingCharacters(in: .whitespaces)
+        return WorkbenchTitleResolver.resolve(template: titleTemplate, tokens: tokens)
     }
 
     private func _tempLabel(_ t: Double) -> String {

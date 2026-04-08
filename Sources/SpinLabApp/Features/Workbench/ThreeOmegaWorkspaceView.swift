@@ -180,39 +180,23 @@ private struct ThreeOmegaPlotControlsPanel: View {
             }
 
             // Row 2: Title template + Grid
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    Text("Title")
-                        .font(.body)
-                    TextField("#tab #device #sample #氧压 #能量", text: $store.titleTemplate)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.body)
-                        .frame(maxWidth: 280)
-                        .onChange(of: store.titleTemplate) { _, _ in
-                            store.rerenderForStyleChange()
-                            appState.flushInteractionSnapshotNow()
-                        }
-                    Toggle("Grid", isOn: $store.showPlotGrid)
-                        .toggleStyle(.checkbox)
-                        .onChange(of: store.showPlotGrid) { _, _ in
-                            store.rerenderForStyleChange()
-                        }
-                }
-                Text(_titleHint(store: store))
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+            HStack(alignment: .top, spacing: 12) {
+                WorkbenchTitleTemplateField(
+                    titleTemplate: $store.titleTemplate,
+                    numericDisplayCache: store.cachedSampleNumericDisplay,
+                    onChange: {
+                        store.rerenderForStyleChange()
+                        appState.flushInteractionSnapshotNow()
+                    }
+                )
+                Toggle("Grid", isOn: $store.showPlotGrid)
+                    .toggleStyle(.checkbox)
+                    .onChange(of: store.showPlotGrid) { _, _ in
+                        store.rerenderForStyleChange()
+                    }
+                    .padding(.top, 2)
             }
         }
-    }
-
-    private func _titleHint(store: ThreeOmegaWorkspaceStore) -> String {
-        var tokens = ["#tab", "#method", "#device", "#sample"]
-        let numericKeys = store.cachedSampleNumericDisplay.values
-            .flatMap { $0.keys }
-        for key in Set(numericKeys).sorted() {
-            tokens.append("#\(key)")
-        }
-        return "Available: " + tokens.joined(separator: " ")
     }
 }
 

@@ -437,27 +437,37 @@ private struct AHEPlotControlsPanel: View {
             : ahe.currentCandidateAxisFields
 
         WorkbenchPlotControlsPanel {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("X Axis").font(.caption).foregroundStyle(.secondary)
-                Picker("X Axis", selection: $ahe.plotAxisXOverride) {
-                    Text("Default").tag("")
-                    ForEach(candidates, id: \.self) { Text($0).tag($0) }
-                }
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Y Axis").font(.caption).foregroundStyle(.secondary)
-                Picker("Y Axis", selection: $ahe.plotAxisYOverride) {
-                    Text("Default").tag("")
-                    ForEach(candidates, id: \.self) { Text($0).tag($0) }
-                }
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
-            }
             HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("X Axis").font(.caption).foregroundStyle(.secondary)
+                    Picker("X Axis", selection: $ahe.plotAxisXOverride) {
+                        Text("Default").tag("")
+                        ForEach(candidates, id: \.self) { Text($0).tag($0) }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Y Axis").font(.caption).foregroundStyle(.secondary)
+                    Picker("Y Axis", selection: $ahe.plotAxisYOverride) {
+                        Text("Default").tag("")
+                        ForEach(candidates, id: \.self) { Text($0).tag($0) }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            HStack(alignment: .top, spacing: 12) {
+                WorkbenchTitleTemplateField(
+                    titleTemplate: $ahe.titleTemplate,
+                    numericDisplayCache: ahe.cachedSampleNumericDisplay,
+                    onChange: {
+                        appState.flushInteractionSnapshotNow()
+                    }
+                )
                 Toggle("Grid", isOn: $ahe.showPlotGrid)
                     .toggleStyle(.checkbox)
+                    .padding(.top, 2)
             }
         }
     }
