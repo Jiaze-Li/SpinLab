@@ -85,7 +85,7 @@ final class ThreeOmegaWorkspaceStore {
     var showPlotGrid: Bool = true
     var plotLegendAnchor: String = ""           // "" = top-right (default)
     var plotTitleOverride: String = ""
-    var titleTemplate: String = "#tab #device #sample #氧压 #能量"
+    var titleTemplate: String = "#tab #method #device #sample #氧压 #能量"
     var stackOffsetMultiplier: Double = 1.2     // 0 = no stacking; >0 = curve spacing
     var minGapFraction: Double = 0.15            // minimum gap as fraction of max peak-to-peak
 
@@ -173,7 +173,6 @@ final class ThreeOmegaWorkspaceStore {
             var tokens: [String: String] = ["sample": hit.sampleBatchAndSubstrate]
             let numericDisplay = cachedSampleNumericDisplay[hit.sampleKey] ?? [:]
             for (k, v) in numericDisplay { tokens[k] = v }
-            tokens["method"] = v3Method == .highField ? "HFE" : "WA"
             _titleTokens = tokens
         } else {
             _titleTokens = [:]
@@ -252,9 +251,6 @@ final class ThreeOmegaWorkspaceStore {
             return
         }
 
-        // Update method token before scaling render
-        _titleTokens["method"] = v3Method == .highField ? "HFE" : "WA"
-
         let capturedResult   = result
         let capturedGeometry = geometry
         let capturedGrid     = showPlotGrid
@@ -285,7 +281,8 @@ final class ThreeOmegaWorkspaceStore {
                 renderer.legendPoint  = capturedLegend
                 renderer.titleTemplate = capturedTemplate
                 renderer.titleTokens   = capturedTokens
-                let (data, layout) = renderer.renderScaling(result: res, device: capturedDevice)
+                let method = capturedV3Method == .highField ? "(HFE)" : "(WA)"
+                let (data, layout) = renderer.renderScaling(result: res, device: capturedDevice, method: method)
                 return (res, data, layout)
             }.value
 
@@ -458,7 +455,7 @@ final class ThreeOmegaWorkspaceStore {
         var chartResult: ChartArtifactPersistenceResult?
         if let png = scalingPNG {
             let payload = makePayload(
-                title: resolveTitle("Scaling Law") + " (\(methodTag))",
+                title: resolveTitle("Scaling Law") + " (" + methodTag + ")",
                 xField: "σ²_xx (S²/m²)", yField: "E(3ω)_AHE / (E³_xx · σ_xx)",
                 files: inputFiles,
                 extraParams: ["v3method": methodTag]
@@ -668,6 +665,7 @@ final class ThreeOmegaWorkspaceStore {
         let capturedTemplate = titleTemplate
         let capturedTokens  = _titleTokens
         let capturedDevice  = ingestion.device
+        let capturedV3Method = v3Method
 
         Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
@@ -698,7 +696,8 @@ final class ThreeOmegaWorkspaceStore {
                 rendered = ingestion.rtResult.map { r.renderRT(rt: $0) } ?? (nil, nil)
             case .scaling:
                 if let sr = capturedScaling, capturedGeometry.isComplete {
-                    rendered = r.renderScaling(result: sr, device: capturedDevice)
+                    let method = capturedV3Method == .highField ? "(HFE)" : "(WA)"
+                    rendered = r.renderScaling(result: sr, device: capturedDevice, method: method)
                 } else {
                     rendered = (nil, nil)
                 }

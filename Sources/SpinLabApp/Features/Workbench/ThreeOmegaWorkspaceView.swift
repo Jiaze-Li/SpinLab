@@ -206,7 +206,7 @@ private struct ThreeOmegaPlotControlsPanel: View {
     }
 
     private func _titleHint(store: ThreeOmegaWorkspaceStore) -> String {
-        var tokens = ["#tab", "#device", "#sample", "#method"]
+        var tokens = ["#tab", "#method", "#device", "#sample"]
         let numericKeys = store.cachedSampleNumericDisplay.values
             .flatMap { $0.keys }
         for key in Set(numericKeys).sorted() {

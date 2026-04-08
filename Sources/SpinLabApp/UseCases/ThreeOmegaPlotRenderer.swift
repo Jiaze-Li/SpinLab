@@ -13,7 +13,7 @@ struct ThreeOmegaPlotRenderer {
     var legendPoint: CGPoint? = nil         // normalized free-position; overrides anchor
     var stackOffsetMultiplier: Double = 1.2 // spacing between stacked curves; 0 = no stacking
     var minGapFraction: Double = 0.15      // minimum gap as fraction of max peak-to-peak; 0 = no floor
-    var titleTemplate: String = "#tab #device #sample"
+    var titleTemplate: String = "#tab #method #device #sample"
     var titleTokens: [String: String] = [:]  // sample, numericDisplay keys
 
     // Display-only overrides applied after payload construction (mirrors AHEWorkspaceStore pattern)
@@ -160,7 +160,7 @@ struct ThreeOmegaPlotRenderer {
     /// Display units: X in 10⁷ S²/cm², Y in Ω·μm³·V⁻²
     /// Conversions: X_SI (S/m)² × 1e-11 → 10⁷ S²/cm²
     ///              Y_SI (Ω·m³/V²) × 1e20 → Ω·μm³·V⁻² × 10²
-    func renderScaling(result: ThreeOmegaScalingResult, device: String = "", methodTag: String = "") -> (Data?, WorkbenchPlotLayout?) {
+    func renderScaling(result: ThreeOmegaScalingResult, device: String = "", method: String = "") -> (Data?, WorkbenchPlotLayout?) {
         guard !result.points.isEmpty else { return (nil, nil) }
 
         let xs = result.points.map { $0.sigma2xx * 1e-11 }   // (S/m)² → 10⁷ S²/cm²
@@ -213,7 +213,7 @@ struct ThreeOmegaPlotRenderer {
         var payload = WorkbenchPlotPayload(
             workflowID: "3w",
             workflowDisplayName: "3w",
-            title: _defaultTitle(methodTag.isEmpty ? "Scaling Law" : "Scaling Law (\(methodTag))", device: device) + r2Str,
+            title: _defaultTitle("Scaling Law", device: device, method: method) + r2Str,
             // Formula: Y = E^(3ω)_AHE / (E_xx³ × σ_xx) = α·σ²_xx + β
             // β → Q_xxz Berry curvature quadrupole; E_xx³ = E_xx to the power 3
             axisMapping: WorkbenchAxisMapping(
@@ -265,10 +265,11 @@ struct ThreeOmegaPlotRenderer {
         return opts
     }
 
-    private func _defaultTitle(_ tabName: String, device: String) -> String {
+    private func _defaultTitle(_ tabName: String, device: String, method: String = "") -> String {
         var tokens = titleTokens
         tokens["tab"] = tabName
         tokens["device"] = device
+        if !method.isEmpty { tokens["method"] = method }
         var result = titleTemplate
         for (key, value) in tokens {
             result = result.replacingOccurrences(of: "#\(key)", with: value)
