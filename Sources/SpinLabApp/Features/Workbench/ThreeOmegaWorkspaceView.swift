@@ -146,7 +146,7 @@ private struct ThreeOmegaPlotControlsPanel: View {
         @Bindable var store = appState.workbench.threeOmegaWorkspace
 
         WorkbenchPlotControlsPanel {
-            // Row 1: Tab + Stack Offset + Grid
+            // Row 1: Tab + Stack Offset + Min Gap
             HStack(spacing: 8) {
                 Picker("Tab", selection: $store.activeTab) {
                     ForEach(ThreeOmegaWorkbenchTab.allCases) { tab in
@@ -159,20 +159,27 @@ private struct ThreeOmegaPlotControlsPanel: View {
                 Slider(value: $store.stackOffsetMultiplier, in: 0...1.6, step: 0.1)
                     .onChange(of: store.stackOffsetMultiplier) { _, _ in
                         store.rerenderFieldSweepTabs()
+                        appState.flushInteractionSnapshotNow()
                     }
                 Text(String(format: "%.1f×", store.stackOffsetMultiplier))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(width: 28, alignment: .trailing)
 
-                Toggle("Grid", isOn: $store.showPlotGrid)
-                    .toggleStyle(.checkbox)
-                    .onChange(of: store.showPlotGrid) { _, _ in
-                        store.rerenderForStyleChange()
+                Text("Gap")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                TextField("0.15", value: $store.minGapFraction, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 48)
+                    .font(.caption)
+                    .onSubmit {
+                        store.rerenderFieldSweepTabs()
+                        appState.flushInteractionSnapshotNow()
                     }
             }
 
-            // Row 2: Title template
+            // Row 2: Title template + Grid
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
                     Text("Title")
@@ -180,9 +187,15 @@ private struct ThreeOmegaPlotControlsPanel: View {
                     TextField("#tab #device #sample #氧压 #能量", text: $store.titleTemplate)
                         .textFieldStyle(.roundedBorder)
                         .font(.body)
+                        .frame(maxWidth: 280)
                         .onChange(of: store.titleTemplate) { _, _ in
                             store.rerenderForStyleChange()
                             appState.flushInteractionSnapshotNow()
+                        }
+                    Toggle("Grid", isOn: $store.showPlotGrid)
+                        .toggleStyle(.checkbox)
+                        .onChange(of: store.showPlotGrid) { _, _ in
+                            store.rerenderForStyleChange()
                         }
                 }
                 Text(_titleHint(store: store))
@@ -193,7 +206,7 @@ private struct ThreeOmegaPlotControlsPanel: View {
     }
 
     private func _titleHint(store: ThreeOmegaWorkspaceStore) -> String {
-        var tokens = ["#tab", "#device", "#sample"]
+        var tokens = ["#tab", "#device", "#sample", "#method"]
         let numericKeys = store.cachedSampleNumericDisplay.values
             .flatMap { $0.keys }
         for key in Set(numericKeys).sorted() {

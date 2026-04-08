@@ -87,6 +87,7 @@ final class ThreeOmegaWorkspaceStore {
     var plotTitleOverride: String = ""
     var titleTemplate: String = "#tab #device #sample #氧压 #能量"
     var stackOffsetMultiplier: Double = 1.2     // 0 = no stacking; >0 = curve spacing
+    var minGapFraction: Double = 0.15            // minimum gap as fraction of max peak-to-peak
 
     // Per-tab state (legend drag position, axis label overrides, and series label renames)
     var plotLegendPoints: [ThreeOmegaWorkbenchTab: CGPoint] = [:]
@@ -172,6 +173,7 @@ final class ThreeOmegaWorkspaceStore {
             var tokens: [String: String] = ["sample": hit.sampleBatchAndSubstrate]
             let numericDisplay = cachedSampleNumericDisplay[hit.sampleKey] ?? [:]
             for (k, v) in numericDisplay { tokens[k] = v }
+            tokens["method"] = v3Method == .highField ? "HFE" : "WA"
             _titleTokens = tokens
         } else {
             _titleTokens = [:]
@@ -185,6 +187,7 @@ final class ThreeOmegaWorkspaceStore {
         let capturedGrid       = showPlotGrid
         let capturedAnchor     = plotLegendAnchor
         let capturedMultiplier = stackOffsetMultiplier
+        let capturedMinGap     = minGapFraction
         let capturedTemplate   = titleTemplate
         let capturedTokens     = _titleTokens
 
@@ -199,6 +202,7 @@ final class ThreeOmegaWorkspaceStore {
                 renderer.showGrid              = capturedGrid
                 renderer.legendAnchor          = capturedAnchor
                 renderer.stackOffsetMultiplier = capturedMultiplier
+                renderer.minGapFraction        = capturedMinGap
                 renderer.titleTemplate          = capturedTemplate
                 renderer.titleTokens            = capturedTokens
                 let plots = renderer.renderAllTabs(result: result)
@@ -247,6 +251,9 @@ final class ThreeOmegaWorkspaceStore {
             analysisMessage = "Enter L_xx, L_xy, and d to compute Scaling Law."
             return
         }
+
+        // Update method token before scaling render
+        _titleTokens["method"] = v3Method == .highField ? "HFE" : "WA"
 
         let capturedResult   = result
         let capturedGeometry = geometry
@@ -330,6 +337,7 @@ final class ThreeOmegaWorkspaceStore {
         let capturedRTHit = selectedRTHit
         let capturedTemplate = titleTemplate
         let capturedTokens = _titleTokens
+        let capturedV3Method = v3Method
 
         Task { [weak self] in
             guard let self else { return }
@@ -347,7 +355,8 @@ final class ThreeOmegaWorkspaceStore {
                     rtFilePath: capturedRTHit?.measurementFilePath,
                     libraryRootPath: libraryRootPath,
                     titleTemplate: capturedTemplate,
-                    titleTokens: capturedTokens
+                    titleTokens: capturedTokens,
+                    v3Method: capturedV3Method
                 )
             }.value
             self.persistenceOutcome = outcome
@@ -375,7 +384,8 @@ final class ThreeOmegaWorkspaceStore {
         rtFilePath: String?,
         libraryRootPath: String,
         titleTemplate: String,
-        titleTokens: [String: String]
+        titleTokens: [String: String],
+        v3Method: ThreeOmegaV3Method = .highField
     ) -> PersistenceOutcome {
         guard !libraryRootPath.isEmpty else {
             return .failure("Library root path not set")
@@ -386,15 +396,19 @@ final class ThreeOmegaWorkspaceStore {
         let runID = UUID().uuidString
         let generatedAt = Date()
 
+        let methodTag = v3Method == .highField ? "HFE" : "WA"
+
         // Helper to build a payload for each chart
-        func makePayload(title: String, xField: String, yField: String, files: [String]) -> WorkbenchPlotPayload {
-            WorkbenchPlotPayload(
+        func makePayload(title: String, xField: String, yField: String, files: [String], extraParams: [String: String] = [:]) -> WorkbenchPlotPayload {
+            var params: [String: String] = ["device": device]
+            for (k, v) in extraParams { params[k] = v }
+            return WorkbenchPlotPayload(
                 workflowID: "3w",
                 workflowDisplayName: "3w",
                 title: title,
                 axisMapping: WorkbenchAxisMapping(xField: xField, yField: yField),
                 series: files.map { WorkbenchPlotSeries(label: $0, x: [], y: []) },
-                semanticParams: ["device": device]
+                semanticParams: params
             )
         }
 
@@ -440,13 +454,14 @@ final class ThreeOmegaWorkspaceStore {
             _ = try? chartUseCase.execute(sampleKeys: [sampleKey], payload: payload, imageData: png, runID: runID, generatedAt: generatedAt)
         }
 
-        // 4. Persist Scaling Law chart
+        // 4. Persist Scaling Law chart (identity differs by v3Method → HFE/WA stored separately)
         var chartResult: ChartArtifactPersistenceResult?
         if let png = scalingPNG {
             let payload = makePayload(
-                title: resolveTitle("Scaling Law"),
+                title: resolveTitle("Scaling Law") + " (\(methodTag))",
                 xField: "σ²_xx (S²/m²)", yField: "E(3ω)_AHE / (E³_xx · σ_xx)",
-                files: inputFiles
+                files: inputFiles,
+                extraParams: ["v3method": methodTag]
             )
             chartResult = try? chartUseCase.execute(sampleKeys: [sampleKey], payload: payload, imageData: png, runID: runID, generatedAt: generatedAt)
         }
@@ -468,6 +483,7 @@ final class ThreeOmegaWorkspaceStore {
                 var c = conditions.reduce(into: [:]) { $0[$1.key.lowercased().trimmingCharacters(in: .whitespaces)] = $1.value }
                 c["t_lo"] = "\(Int(seg.tLo.rounded()))K"
                 c["t_hi"] = "\(Int(seg.tHi.rounded()))K"
+                c["v3method"] = methodTag
                 return c
             }()
 
@@ -516,6 +532,7 @@ final class ThreeOmegaWorkspaceStore {
         let capturedGrid       = showPlotGrid
         let capturedAnchor     = plotLegendAnchor
         let capturedMultiplier = stackOffsetMultiplier
+        let capturedMinGap     = minGapFraction
         let capturedTemplate   = titleTemplate
         let capturedTokens     = _titleTokens
 
@@ -525,6 +542,7 @@ final class ThreeOmegaWorkspaceStore {
             r.showGrid              = capturedGrid
             r.legendAnchor          = capturedAnchor
             r.stackOffsetMultiplier = capturedMultiplier
+            r.minGapFraction        = capturedMinGap
             r.titleTemplate         = capturedTemplate
             r.titleTokens           = capturedTokens
             let r1 = r.renderR1omega(sweeps: ingestion.fieldSweeps, device: ingestion.device)
@@ -639,6 +657,8 @@ final class ThreeOmegaWorkspaceStore {
         let capturedGrid   = showPlotGrid
         let capturedAnchor = plotLegendAnchor
         let capturedLegend = plotLegendPoints[tab]
+        let capturedMultiplier = stackOffsetMultiplier
+        let capturedMinGap     = minGapFraction
         let titleOverride  = plotTitleOverride
         let xLabelOverride = plotXLabelOverrides[tab] ?? ""
         let yLabelOverride = plotYLabelOverrides[tab] ?? ""
@@ -655,6 +675,8 @@ final class ThreeOmegaWorkspaceStore {
             r.showGrid              = capturedGrid
             r.legendAnchor          = capturedAnchor
             r.legendPoint           = capturedLegend
+            r.stackOffsetMultiplier = capturedMultiplier
+            r.minGapFraction        = capturedMinGap
             r.titleOverride         = titleOverride
             r.xLabelOverride        = xLabelOverride
             r.yLabelOverride        = yLabelOverride

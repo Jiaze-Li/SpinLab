@@ -324,4 +324,6 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var threeOmegaGeometryDNm: Double?
     var threeOmegaV3Method: String?
     var threeOmegaTitleTemplate: String?
+    var threeOmegaStackOffsetMultiplier: Double?
+    var threeOmegaMinGapFraction: Double?
 }

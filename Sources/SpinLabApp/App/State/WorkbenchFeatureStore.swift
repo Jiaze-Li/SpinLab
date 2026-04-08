@@ -292,7 +292,9 @@ final class WorkbenchFeatureStore {
         threeOmegaGeometryLxy: Double? = nil,
         threeOmegaGeometryDNm: Double? = nil,
         threeOmegaV3Method: String? = nil,
-        threeOmegaTitleTemplate: String? = nil
+        threeOmegaTitleTemplate: String? = nil,
+        threeOmegaStackOffsetMultiplier: Double? = nil,
+        threeOmegaMinGapFraction: Double? = nil
     ) {
         if let selectedArchivedRecordID,
            archivedRecords.contains(where: { $0.id == selectedArchivedRecordID }) {
@@ -306,6 +308,8 @@ final class WorkbenchFeatureStore {
             threeOmegaWorkspace.v3Method = method
         }
         if let t = threeOmegaTitleTemplate { threeOmegaWorkspace.titleTemplate = t }
+        if let v = threeOmegaStackOffsetMultiplier { threeOmegaWorkspace.stackOffsetMultiplier = v }
+        if let v = threeOmegaMinGapFraction { threeOmegaWorkspace.minGapFraction = v }
     }
 
     func captureInteraction(into snapshot: inout SpinLabInteractionSnapshot) {
@@ -317,6 +321,8 @@ final class WorkbenchFeatureStore {
         snapshot.threeOmegaGeometryDNm = geo.dNm > 0 ? geo.dNm : nil
         snapshot.threeOmegaV3Method = threeOmegaWorkspace.v3Method.rawValue
         snapshot.threeOmegaTitleTemplate = threeOmegaWorkspace.titleTemplate
+        snapshot.threeOmegaStackOffsetMultiplier = threeOmegaWorkspace.stackOffsetMultiplier
+        snapshot.threeOmegaMinGapFraction = threeOmegaWorkspace.minGapFraction
     }
 
     func selectedArchivedRecord() -> SpinLabDomain.ArchivedRecord? {
