@@ -146,7 +146,7 @@ private struct ThreeOmegaPlotControlsPanel: View {
         @Bindable var store = appState.workbench.threeOmegaWorkspace
 
         WorkbenchPlotControlsPanel {
-            // Tab 选择 + Grid
+            // Row 1: Tab + Stack Offset + Grid
             HStack(spacing: 8) {
                 Picker("Tab", selection: $store.activeTab) {
                     ForEach(ThreeOmegaWorkbenchTab.allCases) { tab in
@@ -154,7 +154,16 @@ private struct ThreeOmegaPlotControlsPanel: View {
                     }
                 }
                 .labelsHidden()
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: 160)
+
+                Slider(value: $store.stackOffsetMultiplier, in: 0...1.6, step: 0.1)
+                    .onChange(of: store.stackOffsetMultiplier) { _, _ in
+                        store.rerenderFieldSweepTabs()
+                    }
+                Text(String(format: "%.1f×", store.stackOffsetMultiplier))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, alignment: .trailing)
 
                 Toggle("Grid", isOn: $store.showPlotGrid)
                     .toggleStyle(.checkbox)
@@ -163,20 +172,34 @@ private struct ThreeOmegaPlotControlsPanel: View {
                     }
             }
 
+            // Row 2: Title template
             VStack(alignment: .leading, spacing: 2) {
-                Text("Stack Offset").font(.caption).foregroundStyle(.secondary)
-                HStack(spacing: 6) {
-                    Slider(value: $store.stackOffsetMultiplier, in: 0...1.6, step: 0.1)
-                        .onChange(of: store.stackOffsetMultiplier) { _, _ in
-                            store.rerenderFieldSweepTabs()
+                HStack(spacing: 4) {
+                    Text("Title")
+                        .font(.body)
+                    TextField("#tab #device #sample #氧压 #能量", text: $store.titleTemplate)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.body)
+                        .onChange(of: store.titleTemplate) { _, _ in
+                            store.rerenderForStyleChange()
+                            appState.flushInteractionSnapshotNow()
                         }
-                    Text(String(format: "%.1f×", store.stackOffsetMultiplier))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 32, alignment: .trailing)
                 }
+                Text(_titleHint(store: store))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
         }
+    }
+
+    private func _titleHint(store: ThreeOmegaWorkspaceStore) -> String {
+        var tokens = ["#tab", "#device", "#sample"]
+        let numericKeys = store.cachedSampleNumericDisplay.values
+            .flatMap { $0.keys }
+        for key in Set(numericKeys).sorted() {
+            tokens.append("#\(key)")
+        }
+        return "Available: " + tokens.joined(separator: " ")
     }
 }
 
@@ -264,6 +287,9 @@ private struct ThreeOmegaGeometryPanel: View {
             }
             .padding(.vertical, 4)
             .onChange(of: store.geometry) { _, _ in
+                appState.flushInteractionSnapshotNow()
+            }
+            .onChange(of: store.v3Method) { _, _ in
                 appState.flushInteractionSnapshotNow()
             }
         }

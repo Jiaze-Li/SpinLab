@@ -82,7 +82,6 @@ struct IngestThreeOmegaSelectionsUseCase {
         let rtResult: ThreeOmegaRTResult? = {
             if let rtHit {
                 let url = URL(fileURLWithPath: rtHit.measurementFilePath)
-                print("[SpinLab][3ω RT] Dedicated RT hit: \(url.path), exists: \(FileManager.default.fileExists(atPath: url.path))")
                 do {
                     let tempOverride = parseFile == nil
                         ? _parseConditionTemperatureK(rtHit.conditions["temperature"])

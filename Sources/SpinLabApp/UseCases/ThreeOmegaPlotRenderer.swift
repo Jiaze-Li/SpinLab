@@ -12,7 +12,8 @@ struct ThreeOmegaPlotRenderer {
     var legendAnchor: String = ""           // "" = top-right (default)
     var legendPoint: CGPoint? = nil         // normalized free-position; overrides anchor
     var stackOffsetMultiplier: Double = 1.2 // spacing between stacked curves; 0 = no stacking
-    var titleSuffix: String = ""            // e.g., "PN69 o STO111 20 mT 100 mJ"
+    var titleTemplate: String = "#tab #device #sample"
+    var titleTokens: [String: String] = [:]  // sample, numericDisplay keys
 
     // Display-only overrides applied after payload construction (mirrors AHEWorkspaceStore pattern)
     var titleOverride: String = ""
@@ -262,9 +263,16 @@ struct ThreeOmegaPlotRenderer {
     }
 
     private func _defaultTitle(_ tabName: String, device: String) -> String {
-        [tabName, device, titleSuffix]
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
+        var tokens = titleTokens
+        tokens["tab"] = tabName
+        tokens["device"] = device
+        var result = titleTemplate
+        for (key, value) in tokens {
+            result = result.replacingOccurrences(of: "#\(key)", with: value)
+        }
+        // Remove unresolved tokens and clean up extra spaces
+        result = result.replacingOccurrences(of: "#\\S+", with: "", options: .regularExpression)
+        return result.split(separator: " ").joined(separator: " ").trimmingCharacters(in: .whitespaces)
     }
 
     private func _tempLabel(_ t: Double) -> String {

@@ -77,7 +77,7 @@ final class ThreeOmegaWorkspaceStore {
     var showPlotGrid: Bool = true
     var plotLegendAnchor: String = ""           // "" = top-right (default)
     var plotTitleOverride: String = ""
-    var plotTitleSuffix: String = ""            // e.g., "PN69 o STO111 20 mT 100 mJ"
+    var titleTemplate: String = "#tab #device #sample #氧压 #能量"
     var stackOffsetMultiplier: Double = 1.2     // 0 = no stacking; >0 = curve spacing
 
     // Per-tab state (legend drag position, axis label overrides, and series label renames)
@@ -90,6 +90,8 @@ final class ThreeOmegaWorkspaceStore {
 
     /// Cached per-sample numericDisplay from library index, populated by WorkbenchFeatureStore after search.
     var cachedSampleNumericDisplay: [String: [String: String]] = [:]
+    /// Title tokens resolved from selected hit (sample + numericDisplay). Tab/device added by renderer.
+    private(set) var _titleTokens: [String: String] = [:]
 
     // MARK: - Private
 
@@ -151,16 +153,14 @@ final class ThreeOmegaWorkspaceStore {
             return
         }
 
-        // Compute title suffix from representative hit (stable: sorted by path)
+        // Build title token dictionary from representative hit (stable: sorted by path)
         if let hit = selectedHits.first {
-            let sampleLabel = hit.sampleBatchAndSubstrate
+            var tokens: [String: String] = ["sample": hit.sampleBatchAndSubstrate]
             let numericDisplay = cachedSampleNumericDisplay[hit.sampleKey] ?? [:]
-            let numericParts = ["氧压", "能量"].compactMap { numericDisplay[$0] }
-            plotTitleSuffix = ([sampleLabel] + numericParts)
-                .filter { !$0.isEmpty }
-                .joined(separator: " ")
+            for (k, v) in numericDisplay { tokens[k] = v }
+            _titleTokens = tokens
         } else {
-            plotTitleSuffix = ""
+            _titleTokens = [:]
         }
 
         analysisTask?.cancel()
@@ -171,7 +171,8 @@ final class ThreeOmegaWorkspaceStore {
         let capturedGrid       = showPlotGrid
         let capturedAnchor     = plotLegendAnchor
         let capturedMultiplier = stackOffsetMultiplier
-        let capturedSuffix     = plotTitleSuffix
+        let capturedTemplate   = titleTemplate
+        let capturedTokens     = _titleTokens
 
         let capturedRTHit = selectedRTHit
 
@@ -184,7 +185,8 @@ final class ThreeOmegaWorkspaceStore {
                 renderer.showGrid              = capturedGrid
                 renderer.legendAnchor          = capturedAnchor
                 renderer.stackOffsetMultiplier = capturedMultiplier
-                renderer.titleSuffix           = capturedSuffix
+                renderer.titleTemplate          = capturedTemplate
+                renderer.titleTokens            = capturedTokens
                 let plots = renderer.renderAllTabs(result: result)
                 return (result, plots)
             }.value
@@ -238,7 +240,8 @@ final class ThreeOmegaWorkspaceStore {
         let capturedAnchor   = plotLegendAnchor
         let capturedLegend   = plotLegendPoints[.scaling]
         let capturedRanges   = fitRanges
-        let capturedSuffix   = plotTitleSuffix
+        let capturedTemplate = titleTemplate
+        let capturedTokens   = _titleTokens
         let capturedDevice   = result.device
         let capturedV3Method = v3Method
 
@@ -259,7 +262,8 @@ final class ThreeOmegaWorkspaceStore {
                 renderer.showGrid     = capturedGrid
                 renderer.legendAnchor = capturedAnchor
                 renderer.legendPoint  = capturedLegend
-                renderer.titleSuffix  = capturedSuffix
+                renderer.titleTemplate = capturedTemplate
+                renderer.titleTokens   = capturedTokens
                 let (data, layout) = renderer.renderScaling(result: res, device: capturedDevice)
                 return (res, data, layout)
             }.value
@@ -292,7 +296,8 @@ final class ThreeOmegaWorkspaceStore {
         let capturedGrid       = showPlotGrid
         let capturedAnchor     = plotLegendAnchor
         let capturedMultiplier = stackOffsetMultiplier
-        let capturedSuffix     = plotTitleSuffix
+        let capturedTemplate   = titleTemplate
+        let capturedTokens     = _titleTokens
 
         Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
@@ -300,7 +305,8 @@ final class ThreeOmegaWorkspaceStore {
             r.showGrid              = capturedGrid
             r.legendAnchor          = capturedAnchor
             r.stackOffsetMultiplier = capturedMultiplier
-            r.titleSuffix           = capturedSuffix
+            r.titleTemplate         = capturedTemplate
+            r.titleTokens           = capturedTokens
             let r1 = r.renderR1omega(sweeps: ingestion.fieldSweeps, device: ingestion.device)
             let r3 = r.renderR3omega(sweeps: ingestion.fieldSweeps, device: ingestion.device)
             await MainActor.run { [weak self] in
@@ -373,7 +379,7 @@ final class ThreeOmegaWorkspaceStore {
         showPlotGrid             = true
         plotLegendAnchor         = ""
         plotTitleOverride        = ""
-        plotTitleSuffix          = ""
+        _titleTokens             = [:]
         plotLegendPoints         = [:]
         plotSeriesLabelOverrides = [:]
         plotXLabelOverrides      = [:]
@@ -419,7 +425,8 @@ final class ThreeOmegaWorkspaceStore {
         let labelOverrides = plotSeriesLabelOverrides[tab] ?? [:]
         let capturedScaling = scalingResult
         let capturedGeometry = geometry
-        let capturedSuffix  = plotTitleSuffix
+        let capturedTemplate = titleTemplate
+        let capturedTokens  = _titleTokens
         let capturedDevice  = ingestion.device
 
         Task.detached(priority: .userInitiated) { [weak self] in
@@ -432,7 +439,8 @@ final class ThreeOmegaWorkspaceStore {
             r.xLabelOverride        = xLabelOverride
             r.yLabelOverride        = yLabelOverride
             r.seriesLabelOverrides  = labelOverrides
-            r.titleSuffix           = capturedSuffix
+            r.titleTemplate         = capturedTemplate
+            r.titleTokens           = capturedTokens
 
             let rendered: (Data?, WorkbenchPlotLayout?)
             switch tab {
