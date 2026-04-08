@@ -17,7 +17,7 @@
 
 ```
 4.0  ✅  架构 & 脚手架（AMR/PHE 延续 + 3ω 全部文件就位，swift build 通过）
-4.1  🔲  3ω AHE workflow（4.1.0–4.1.8）
+4.1  ✅  3ω AHE workflow（4.1.0–4.1.11）
 4.2  🔲  XY Rotation workflow
 4.3  🔲  RT workflow
 4.4  🔲  MR workflow
