@@ -413,7 +413,36 @@ Workbench 参数必须来自 sidecar conditions（用户在 Import 时确认的�
 - `#method` token 只在 Scaling tab 解析为 `(HFE)`/`(WA)`，其他 tab 自动移除
 - RT restore 测试：4 个测试覆盖成功/失败/workflow 不匹配/文件缺失
 
-**Commits：** `cd147ed` → `bb66505`（7 个 commit）
+**4. Save to Library 模块化重构**
+
+- 新增 `SaveActiveChartToLibraryUseCase`：通用 UseCase，入口校验 sourceRef/sampleKeys/libraryRoot，内部 normalize conditions
+- 新增 `ActiveChartProviding` 协议：任何 workflow store 实现即可接入 Save to Library
+- 3ω：`persistToLibrary()` 改为只存 active tab 的图，Scaling tab 带 metrics
+- AHE：删除 `attemptPersist`，render 不再自动存图，新增手动 "Save to Library" 按钮
+- 快照一致性：sampleKeys/inputFiles/conditions 在渲染时冻结，Save 不读 UI 当前状态
+- Library 自动刷新：Save 完成后触发 `loadWorkbenchResultsForCurrentSelection` + `loadMeasurementDataForCurrentSelection`
+
+**5. Metric 删除**
+
+- `LibraryFeatureStore.deleteMetricRecord(identityKey:)` — 从 `measurement_data.json` 移除 record + latestIndex 条目
+- Measurement Data cell 右键菜单：Copy Value / Delete（含确认弹窗）
+- 修复 `.textSelection(.enabled)` 抢占右键事件
+
+**6. Sidebar 独立展开状态**
+
+- 移除 `pruneExpandedSidebarStateForSelectedArea`（旧逻辑：切换 area 时强制收起其他 area）
+- 一级菜单点击改为 toggle（原来只做 insert，无法收起）
+- Library children 在非活跃时返回缓存值（不返回空数组）
+- 效果：每个 chevron 只听用户点击，切换 area 不影响其他菜单展开状态
+
+**7. AHE Title Template + 共享组件**
+
+- AHE workspace 新增 `titleTemplate` 支持（与 3ω 对称）
+- 抽取 `WorkbenchTitleResolver` 共享工具
+- 抽取 `WorkbenchTitleTemplateField` 共享 UI 组件
+- AHE title template 持久化到 InteractionSnapshot
+
+**Commits：** `cd147ed` → `ef44685`（12 个 commit）
 
 ---
 
