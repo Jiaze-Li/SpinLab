@@ -212,23 +212,29 @@ private struct ThreeOmegaGeometryPanel: View {
             VStack(alignment: .leading, spacing: 8) {
 
                 // ── Geometry dimensions (single row) ─────────────────
-                HStack(spacing: 8) {
-                    (Text("L").font(.body)
-                     + Text("xx").font(.system(size: 9)).baselineOffset(-3)
-                     + Text(" (μm)").font(.body))
-                    TextField("26", value: $store.geometry.lxx, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 52)
-                    (Text("L").font(.body)
-                     + Text("xy").font(.system(size: 9)).baselineOffset(-3)
-                     + Text(" (μm)").font(.body))
-                    TextField("21", value: $store.geometry.lxy, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 52)
-                    Text("d (nm)").font(.body)
-                    TextField("30", value: $store.geometry.dNm, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 52)
+                HStack(spacing: 16) {
+                    HStack(spacing: 4) {
+                        (Text("L").font(.body)
+                         + Text("xx").font(.system(size: 9)).baselineOffset(-3)
+                         + Text(" (μm)").font(.body))
+                        TextField("26", value: $store.geometry.lxx, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 52)
+                    }
+                    HStack(spacing: 4) {
+                        (Text("L").font(.body)
+                         + Text("xy").font(.system(size: 9)).baselineOffset(-3)
+                         + Text(" (μm)").font(.body))
+                        TextField("21", value: $store.geometry.lxy, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 52)
+                    }
+                    HStack(spacing: 4) {
+                        Text("d (nm)").font(.body)
+                        TextField("30", value: $store.geometry.dNm, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 52)
+                    }
                 }
 
                 // ── V(3ω) method + Run Scaling (same row) ───────────

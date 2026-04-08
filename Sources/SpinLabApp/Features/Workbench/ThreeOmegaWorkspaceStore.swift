@@ -33,7 +33,6 @@ final class ThreeOmegaWorkspaceStore {
 
     func selectRTHit(_ hit: WorkflowMeasurementSearchHit) {
         selectedRTHit = hit
-        rtQuery = hit.measurementFilePath.components(separatedBy: "/").last ?? hit.id
         rtSearchResults = []
         showRTPopover = false
     }
