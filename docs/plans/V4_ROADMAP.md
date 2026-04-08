@@ -50,6 +50,9 @@
 4.1.9 ✅  搜索查询持久化
 4.1.10 ✅ 自适应 stack offset + minGap
 4.1.11 ✅ 持久化完善 + Measurement Data 显示重构
+4.1.12 ✅ V3 method selection 回归测试
+4.1.13 ✅ Library name conflict warning + filename-based import dedup
+4.1.14 ✅ Y 轴 title 动态 padding（长 tick label 不再重叠）
 ```
 
 ---
