@@ -787,9 +787,23 @@ struct MeasurementDataSectionView: View {
         var unit: String
         var method: String
         var range: String
+        var device: String
     }
 
-    private var workflowGroups: [(workflowID: String, cards: [MethodCard])] {
+    // Top-level: workflow + device. e.g. "3W · 0deg"
+    private struct DeviceGroup: Identifiable {
+        var id: String
+        var workflowID: String
+        var device: String      // "" for workflows without device
+        var cards: [MethodCard]
+
+        var displayHeader: String {
+            if device.isEmpty { return workflowID.uppercased() }
+            return "\(workflowID.uppercased()) · \(device)"
+        }
+    }
+
+    private var deviceGroups: [DeviceGroup] {
         guard let store = measurementData, !store.latestIndex.isEmpty else { return [] }
         let recordsByID = Dictionary(uniqueKeysWithValues: store.records.map { ($0.recordID, $0) })
 
@@ -803,20 +817,36 @@ struct MeasurementDataSectionView: View {
                 value: pointer.value,
                 unit: pointer.canonicalUnit,
                 method: record.conditions["v3method"] ?? "",
-                range: record.conditions["range"] ?? ""
+                range: record.conditions["range"] ?? "",
+                device: record.conditions["device"] ?? ""
             ))
         }
 
-        let byWorkflow = Dictionary(grouping: resolved, by: { $0.workflowID })
-        var result: [(workflowID: String, cards: [MethodCard])] = []
+        // Group: workflowID → device → method → range
+        let byWfDevice = Dictionary(grouping: resolved, by: { "\($0.workflowID)|\($0.device)" })
+        var groups: [DeviceGroup] = []
 
-        for wfID in byWorkflow.keys.sorted() {
-            let records = byWorkflow[wfID]!
+        for wfDeviceKey in byWfDevice.keys.sorted() {
+            let records = byWfDevice[wfDeviceKey]!
+            let wfID = records.first?.workflowID ?? ""
+            let device = records.first?.device ?? ""
+
             let byMethod = Dictionary(grouping: records, by: { $0.method })
             var cards: [MethodCard] = []
 
             for method in byMethod.keys.sorted() {
                 let methodRecords = byMethod[method]!
+
+                // Collect unit legend for header: metric → unit (skip empty units)
+                var unitMap: [(metric: String, unit: String)] = []
+                var seenMetrics = Set<String>()
+                for r in methodRecords.sorted(by: { $0.metric < $1.metric }) {
+                    if !r.unit.isEmpty && seenMetrics.insert(r.metric).inserted {
+                        let displayMetric = r.metric == "r_squared" ? "r²" : r.metric
+                        unitMap.append((metric: displayMetric, unit: r.unit))
+                    }
+                }
+
                 let byRange = Dictionary(grouping: methodRecords, by: { $0.range })
                 var columns: [RangeColumn] = []
 
@@ -825,7 +855,8 @@ struct MeasurementDataSectionView: View {
                     let entries = rangeRecords
                         .sorted(by: { $0.metric < $1.metric })
                         .map { r in
-                            let formatted = measurementValueText(value: r.value, unit: r.unit, isOverridden: false)
+                            // Value only, no unit (unit is in header)
+                            let formatted = String(format: "%g", r.value)
                             return (metric: r.metric, value: formatted, identityKey: r.identityKey)
                         }
                     columns.append(RangeColumn(
@@ -835,31 +866,42 @@ struct MeasurementDataSectionView: View {
                     ))
                 }
 
+                var cardMethod = method
+                if !unitMap.isEmpty {
+                    let unitStr = unitMap.map { "\($0.metric): \($0.unit)" }.joined(separator: ", ")
+                    cardMethod = method.isEmpty ? "(\(unitStr))" : "\(method) (\(unitStr))"
+                }
+
                 cards.append(MethodCard(
-                    id: "\(wfID)|\(method)",
-                    method: method,
+                    id: "\(wfID)|\(device)|\(method)",
+                    method: cardMethod,
                     columns: columns
                 ))
             }
-            result.append((workflowID: wfID, cards: cards))
+            groups.append(DeviceGroup(
+                id: wfDeviceKey,
+                workflowID: wfID,
+                device: device,
+                cards: cards
+            ))
         }
-        return result
+        return groups
     }
 
     private var useTwoColumns: Bool { availableWidth >= 400 }
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
-            let groups = workflowGroups
+            let groups = deviceGroups
             if groups.isEmpty {
                 Text("No measurement data yet")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
                 VStack(alignment: .leading, spacing: 12) {
-                    ForEach(groups, id: \.workflowID) { group in
+                    ForEach(groups) { group in
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(group.workflowID.uppercased())
+                            Text(group.displayHeader)
                                 .font(.caption.weight(.bold))
                                 .foregroundStyle(.secondary)
                             ForEach(group.cards) { card in

@@ -774,13 +774,15 @@ extension ThreeOmegaWorkspaceStore: ActiveChartProviding {
         }
         guard let sampleKey = cachedSampleKeys.first else { return [] }
         let methodTag = v3Method == .highField ? "HFE" : "WA"
+        let device = ingestionResult?.device ?? ""
 
         var entries: [PendingMetricEntry] = []
         for seg in scaling.segments {
-            let segConditions: [String: String] = [
+            var segConditions: [String: String] = [
                 "range": "\(Int(seg.tLo.rounded()))K–\(Int(seg.tHi.rounded()))K",
                 "v3method": methodTag
             ]
+            if !device.isEmpty { segConditions["device"] = device }
 
             entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "alpha", value: seg.alpha * 1e31, canonicalUnit: "Ω·μm³·cm²·V⁻²·S⁻²", conditions: segConditions))
             entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "beta", value: seg.beta * 1e20, canonicalUnit: "Ω·μm³·V⁻²", conditions: segConditions))
