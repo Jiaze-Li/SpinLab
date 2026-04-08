@@ -239,6 +239,9 @@ final class SpinLabAppState {
         existingImportedContentFingerprints: { [weak self] in
             self?.existingImportedContentFingerprints() ?? []
         },
+        existingImportedFileNames: { [weak self] in
+            self?.existingImportedFileNames() ?? []
+        },
         syncInboxWorkspaceToPendingImports: { [weak self] in
             self?.syncInboxWorkspaceToPendingImports()
         },
@@ -418,6 +421,7 @@ final class SpinLabAppState {
             )
         )
         refreshRoutingRuleMetadata(forceReload: false)
+        wireNameConflictChecker()
         loadExistingDrawers()
         restoreInteractionSnapshot()
         notifyIfRoutingRulesChanged()
@@ -545,6 +549,27 @@ final class SpinLabAppState {
 
     func cachedPendingRoutingSnapshot(for pendingID: UUID) -> SpinLabDomain.PendingRoutingSnapshot? {
         inboxFeatureStore.cachedPendingRoutingSnapshot(for: pendingID)
+    }
+
+    private func wireNameConflictChecker() {
+        inboxFeatureStore.inboxRoutingState.nameExistsInLibraryDrawer = { [weak self] fileName, matchedSampleID, workflowID in
+            guard let self,
+                  let rootPath = self.libraryFeatureStore.librarySettings.rootPath else {
+                return false
+            }
+            let sample = self.libraryFeatureStore.libraryExistingGroups.values
+                .flatMap { $0 }
+                .flatMap { $0.samples }
+                .first { $0.id == matchedSampleID }
+            guard let sample else { return false }
+            let rootURL = URL(fileURLWithPath: rootPath)
+            let drawerRoot = self.libraryFeatureStore.libraryStore.drawerRootURL(for: sample, rootURL: rootURL)
+            let subpath = LibraryDestinationSubpath.subpath(workflowName: workflowID)
+            let destinationURL = drawerRoot
+                .appending(path: subpath, directoryHint: .isDirectory)
+                .appending(path: fileName, directoryHint: .notDirectory)
+            return FileManager.default.fileExists(atPath: destinationURL.path)
+        }
     }
 
     private func refreshRoutingRuleMetadata(forceReload: Bool) {
@@ -1612,6 +1637,56 @@ final class SpinLabAppState {
         }
 
         return fingerprints
+    }
+
+    private func existingImportedFileNames() -> Set<String> {
+        var names: Set<String> = []
+
+        for pending in inboxFeatureStore.pendingImports {
+            names.insert(pending.fileName.lowercased())
+        }
+
+        for record in workbenchFeatureStore.archivedRecords {
+            let path = record.measurement.sourceFilePath
+            let fileName = URL(fileURLWithPath: path).lastPathComponent.lowercased()
+            if !fileName.isEmpty {
+                names.insert(fileName)
+            }
+        }
+
+        names.formUnion(existingLibraryMeasurementFileNames())
+
+        return names
+    }
+
+    private func existingLibraryMeasurementFileNames() -> Set<String> {
+        guard let rootPath = libraryFeatureStore.librarySettings.rootPath?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !rootPath.isEmpty else {
+            return []
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let batchesURL = rootURL.appending(path: "batches", directoryHint: .isDirectory)
+        guard FileManager.default.fileExists(atPath: batchesURL.path),
+              let enumerator = FileManager.default.enumerator(
+                at: batchesURL,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+              ) else {
+            return []
+        }
+
+        var collected: Set<String> = []
+        for case let url as URL in enumerator {
+            guard url.path.contains("/measurements/") else {
+                continue
+            }
+            guard !url.lastPathComponent.hasSuffix(".spinlab.json") else {
+                continue
+            }
+            collected.insert(url.lastPathComponent.lowercased())
+        }
+        return collected
     }
 
     private func existingLibraryImportedOriginalPaths() -> Set<String> {

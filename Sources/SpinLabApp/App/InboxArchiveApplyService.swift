@@ -223,14 +223,7 @@ struct InboxArchiveApplyService {
     }
 
     private func destinationSubpath(workflowName: String?) -> String {
-        let sanitized = workflowName?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .components(separatedBy: CharacterSet(charactersIn: "/\\:*?\"<>|"))
-            .joined(separator: "_")
-        if let workflow = sanitized, !workflow.isEmpty {
-            return "measurements/\(workflow)"
-        }
-        return "measurements/General"
+        LibraryDestinationSubpath.subpath(workflowName: workflowName)
     }
 
     private func buildSidecar(

@@ -13,6 +13,13 @@ enum RoutingExplanationBook {
         )
     }
 
+    static func nameConflictInLibrary() -> RoutingExplanation {
+        RoutingExplanation(
+            message: "Library drawer already contains a file with this name.",
+            reason: .nameConflictInLibrary
+        )
+    }
+
     static func resolveScopeWarning(
         resolutionWarning: String?,
         matchedDrawer: String?

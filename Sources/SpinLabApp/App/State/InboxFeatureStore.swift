@@ -149,6 +149,7 @@ final class InboxFeatureStore {
         importPipeline: SpinLabImportPipeline,
         excludedOriginalFilePaths: Set<String>,
         excludedContentFingerprints: Set<String>,
+        excludedFileNames: Set<String>,
         onCompleted: @escaping @MainActor ([SpinLabDomain.PendingImport]) -> Void
     ) {
         importTask?.cancel()
@@ -159,7 +160,8 @@ final class InboxFeatureStore {
             allowedFileExtensions: importPipeline.supportedFileExtensions,
             ignoredFileExtensions: importPipeline.ignoredFileExtensions,
             excludedOriginalFilePaths: excludedOriginalFilePaths,
-            excludedContentFingerprints: excludedContentFingerprints
+            excludedContentFingerprints: excludedContentFingerprints,
+            excludedFileNames: excludedFileNames
         )
         guard !managedFiles.isEmpty else {
             return

@@ -16,6 +16,8 @@ final class InboxRoutingState {
     private var drawerMatchRuleFingerprint: String = "unknown"
     private var routingRuleFingerprint: String = "unknown"
 
+    var nameExistsInLibraryDrawer: (_ fileName: String, _ matchedSampleID: String, _ workflowID: String?) -> Bool = { _, _, _ in false }
+
     init(
         routingCapabilities: RoutingCapabilities,
         ruleRuntime: any RuleRuntimeCapability
@@ -192,12 +194,32 @@ final class InboxRoutingState {
     ) -> SpinLabDomain.PendingRoutingSnapshot {
         let parsed = parsedHintsApplyingRoutingDraft(for: pending)
         let routePlan = routingCapabilities.planner.makeRoutePlan(from: parsed)
-        return routingCapabilities.evaluator.makeSnapshot(
+        var snapshot = routingCapabilities.evaluator.makeSnapshot(
             routePlan: routePlan,
             matchDrawer: { [weak self] sampleInput in
                 self?.matchedExistingLibraryDrawer(sampleInput: sampleInput)
             }
         )
+        snapshot.nameConflictWarning = resolveNameConflictWarning(
+            fileName: pending.fileName,
+            scopes: snapshot.scopes,
+            workflowID: parsed.workflowID
+        )
+        return snapshot
+    }
+
+    private func resolveNameConflictWarning(
+        fileName: String,
+        scopes: [SpinLabDomain.RoutingScopeEvaluation],
+        workflowID: String?
+    ) -> String? {
+        for scope in scopes {
+            guard let matchedDrawer = scope.matchedDrawer else { continue }
+            if nameExistsInLibraryDrawer(fileName, matchedDrawer, workflowID) {
+                return RoutingExplanationBook.nameConflictInLibrary().message
+            }
+        }
+        return nil
     }
 
     private func parsedHintsApplyingRoutingDraft(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.ParsedFilenameHints {
