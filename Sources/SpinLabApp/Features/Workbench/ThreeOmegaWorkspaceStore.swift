@@ -42,6 +42,54 @@ final class ThreeOmegaWorkspaceStore {
         selectedRTHit = nil
     }
 
+    /// Set during restore; consumed on first 3w search to rebuild selectedRTHit.
+    var pendingRTSidecarPath: String?
+
+    /// Applies a pre-built hit from background restoration. Called by WorkbenchFeatureStore.
+    func applyRestoredRTHit(_ hit: WorkflowMeasurementSearchHit) {
+        selectRTHit(hit)
+        pendingRTSidecarPath = nil
+    }
+
+    /// Clears pending restore (called when restore fails).
+    func clearPendingRTRestore() {
+        pendingRTSidecarPath = nil
+    }
+
+    /// Parses a sidecar file and rebuilds a lightweight hit. Runs off MainActor.
+    nonisolated static func rebuildRTHit(fromSidecarPath sidecarPath: String) -> WorkflowMeasurementSearchHit? {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: sidecarPath) else { return nil }
+
+        let suffix = ".spinlab.json"
+        guard sidecarPath.hasSuffix(suffix) else { return nil }
+        let baseName = String(sidecarPath.dropLast(suffix.count))
+        guard fm.fileExists(atPath: baseName) else { return nil }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: sidecarPath)),
+              let sidecar = try? decoder.decode(SpinLabFileSidecar.self, from: data) else { return nil }
+
+        let wfID = sidecar.workflow.lowercased()
+        guard wfID == "3w" || wfID == "rt" else { return nil }
+
+        return WorkflowMeasurementSearchHit(
+            sidecarPath: sidecarPath,
+            measurementFilePath: baseName,
+            sourceFilePath: sidecar.sourceFilePath,
+            workflowID: sidecar.workflow,
+            workflowDisplayName: sidecar.workflowDisplayName,
+            workflowCanonicalID: wfID,
+            batchID: "",
+            sampleKey: "",
+            sampleSubstrate: "",
+            conditions: sidecar.conditions,
+            channels: sidecar.channels,
+            appliedAt: sidecar.appliedAt
+        )
+    }
+
     // MARK: - Geometry (session-only, not persisted)
 
     var geometry = ThreeOmegaGeometry()
@@ -107,6 +155,18 @@ final class ThreeOmegaWorkspaceStore {
     /// Set by WorkbenchFeatureStore during search; required for artifact I/O.
     var lastLibraryRootPath: String = ""
     private(set) var persistenceOutcome: PersistenceOutcome?
+
+    /// Cached manifest payloads per tab, built at render time with sourceRef populated.
+    /// Used by SaveActiveChartToLibraryUseCase for stable identity keys.
+    @ObservationIgnored private(set) var cachedManifestPayloads: [ThreeOmegaWorkbenchTab: WorkbenchPlotPayload] = [:]
+    /// Sample keys snapshot from the analysis run that produced current plots.
+    @ObservationIgnored private(set) var cachedSampleKeys: [String] = []
+    /// Per-sample conditions snapshot from the analysis run.
+    @ObservationIgnored private(set) var cachedConditionsBySampleKey: [String: [String: String]] = [:]
+    /// Input file paths snapshot from the analysis run.
+    @ObservationIgnored private(set) var cachedInputFiles: [String] = []
+    /// RT file path snapshot from the analysis run.
+    @ObservationIgnored private(set) var cachedRTFilePath: String? = nil
 
     // MARK: - Private
 
@@ -236,6 +296,7 @@ final class ThreeOmegaWorkspaceStore {
                 manifestPath: "",
                 generatedAt: Date()
             )
+            self._snapshotAndCacheManifestPayloads()
             self.isAnalyzing = false
         }
     }
@@ -290,6 +351,8 @@ final class ThreeOmegaWorkspaceStore {
             self.scalingResult = scalingRes
             self.plotScaling   = scalingData
             if let l = scalingLayout { self.plotLayouts[.scaling] = l }
+            // Refresh manifest payloads (v3Method may have changed) using frozen inputFiles
+            self._refreshManifestPayloads()
 
             for w in scalingRes.warnings {
                 self.warningLog.append(ThreeOmegaWarningEntry(source: "Scaling", message: w))
@@ -308,106 +371,58 @@ final class ThreeOmegaWorkspaceStore {
 
     // MARK: - Persist to Library
 
-    /// Saves R(1ω), R(3ω), Scaling, and Rxx charts + alpha/beta/r² metrics to Library.
+    /// Saves the active tab's chart (+ metrics for scaling) to Library.
     func persistToLibrary() {
-        guard let ingestion = ingestionResult else {
-            analysisMessage = "Run analysis first."
+        guard let png = activeChartPNG else {
+            analysisMessage = "No chart to save. Run analysis first."
+            return
+        }
+        guard let payload = activeChartManifestPayload else {
+            analysisMessage = "No manifest payload available for the active tab."
             return
         }
         let libraryRootPath = lastLibraryRootPath
-        let selectedHits = cachedSearchResults.filter { selectedSearchResultIDs.contains($0.id) }
-            .sorted(by: { $0.measurementFilePath < $1.measurementFilePath })
-        guard let representativeHit = selectedHits.first else {
-            analysisMessage = "No files selected."
-            return
-        }
+        let sampleKeys = activeChartSampleKeys
+        let metrics = buildActiveChartMetrics()
 
-        let capturedIngestion = ingestion
-        let capturedScaling = scalingResult
-        let capturedR1omega = plotR1omega
-        let capturedR3omega = plotR3omega
-        let capturedRT = plotRT
-        let capturedScalingPNG = plotScaling
-        let capturedSampleKey = representativeHit.sampleKey
-        let capturedConditions = representativeHit.conditions
-        let capturedInputFiles = selectedHits.map { $0.measurementFilePath }
-        let capturedRTHit = selectedRTHit
-        let capturedTemplate = titleTemplate
-        let capturedTokens = _titleTokens
-        let capturedV3Method = v3Method
+        let input = SaveActiveChartInput(
+            png: png,
+            payload: payload,
+            sampleKeys: sampleKeys,
+            libraryRootPath: libraryRootPath,
+            metrics: metrics
+        )
 
         Task { [weak self] in
             guard let self else { return }
             let outcome = await Task.detached(priority: .userInitiated) {
-                ThreeOmegaWorkspaceStore.attemptPersist(
-                    r1omegaPNG: capturedR1omega,
-                    r3omegaPNG: capturedR3omega,
-                    scalingPNG: capturedScalingPNG,
-                    rtPNG: capturedRT,
-                    scalingResult: capturedScaling,
-                    device: capturedIngestion.device,
-                    sampleKey: capturedSampleKey,
-                    conditions: capturedConditions,
-                    inputFiles: capturedInputFiles,
-                    rtFilePath: capturedRTHit?.measurementFilePath,
-                    libraryRootPath: libraryRootPath,
-                    titleTemplate: capturedTemplate,
-                    titleTokens: capturedTokens,
-                    v3Method: capturedV3Method
-                )
+                SaveActiveChartToLibraryUseCase().execute(input: input)
             }.value
             self.persistenceOutcome = outcome
             switch outcome {
             case .success:
                 self.analysisMessage = "Saved to Library."
             case .partial(_, let err):
-                self.analysisMessage = "Charts saved; metric error: \(err)"
+                self.analysisMessage = "Chart saved; metric error: \(err)"
             case .failure(let err):
                 self.analysisMessage = "Save failed: \(err)"
             }
         }
     }
 
-    nonisolated static func attemptPersist(
-        r1omegaPNG: Data?,
-        r3omegaPNG: Data?,
-        scalingPNG: Data?,
-        rtPNG: Data?,
-        scalingResult: ThreeOmegaScalingResult?,
+    // MARK: - Manifest payload helpers
+
+    /// Builds a manifest payload for the given tab with sourceRef properly filled.
+    private func _buildManifestPayload(
+        tab: ThreeOmegaWorkbenchTab,
         device: String,
-        sampleKey: String,
-        conditions: [String: String],
         inputFiles: [String],
         rtFilePath: String?,
-        libraryRootPath: String,
         titleTemplate: String,
         titleTokens: [String: String],
-        v3Method: ThreeOmegaV3Method = .highField
-    ) -> PersistenceOutcome {
-        guard !libraryRootPath.isEmpty else {
-            return .failure("Library root path not set")
-        }
-        let resolver = LibraryPathResolver(libraryRootURL: URL(filePath: libraryRootPath))
-        let writer = AtomicFileWriter()
-        let chartUseCase = PersistChartArtifactUseCase(writer: writer, pathResolver: resolver)
-        let runID = UUID().uuidString
-        let generatedAt = Date()
-
+        v3Method: ThreeOmegaV3Method
+    ) -> WorkbenchPlotPayload? {
         let methodTag = v3Method == .highField ? "HFE" : "WA"
-
-        // Helper to build a payload for each chart
-        func makePayload(title: String, xField: String, yField: String, files: [String], extraParams: [String: String] = [:]) -> WorkbenchPlotPayload {
-            var params: [String: String] = ["device": device]
-            for (k, v) in extraParams { params[k] = v }
-            return WorkbenchPlotPayload(
-                workflowID: "3w",
-                workflowDisplayName: "3w",
-                title: title,
-                axisMapping: WorkbenchAxisMapping(xField: xField, yField: yField),
-                series: files.map { WorkbenchPlotSeries(label: $0, x: [], y: []) },
-                semanticParams: params
-            )
-        }
 
         func resolveTitle(_ tabName: String) -> String {
             var tokens = titleTokens
@@ -421,104 +436,79 @@ final class ThreeOmegaWorkspaceStore {
             return result.split(separator: " ").joined(separator: " ").trimmingCharacters(in: .whitespaces)
         }
 
-        // 1. Persist R(1ω) chart
-        if let png = r1omegaPNG {
-            let payload = makePayload(
-                title: resolveTitle("R(1ω)"),
-                xField: "H (T)", yField: "R(1ω) (Ω)",
-                files: inputFiles
+        func makePayload(title: String, xField: String, yField: String, files: [String], extraParams: [String: String] = [:]) -> WorkbenchPlotPayload {
+            var params: [String: String] = ["device": device]
+            for (k, v) in extraParams { params[k] = v }
+            return WorkbenchPlotPayload(
+                workflowID: "3w",
+                workflowDisplayName: "3w",
+                title: title,
+                axisMapping: WorkbenchAxisMapping(xField: xField, yField: yField),
+                series: files.map { WorkbenchPlotSeries(label: URL(fileURLWithPath: $0).lastPathComponent, x: [], y: [], sourceRef: $0) },
+                semanticParams: params
             )
-            _ = try? chartUseCase.execute(sampleKeys: [sampleKey], payload: payload, imageData: png, runID: runID, generatedAt: generatedAt)
         }
 
-        // 2. Persist R(3ω) chart
-        if let png = r3omegaPNG {
-            let payload = makePayload(
-                title: resolveTitle("R(3ω)"),
-                xField: "H (T)", yField: "R(3ω) (Ω)",
-                files: inputFiles
-            )
-            _ = try? chartUseCase.execute(sampleKeys: [sampleKey], payload: payload, imageData: png, runID: runID, generatedAt: generatedAt)
-        }
-
-        // 3. Persist Rxx vs T chart (linked to RT file only)
-        if let png = rtPNG, let rtPath = rtFilePath {
-            let payload = makePayload(
-                title: resolveTitle("Rxx vs T"),
-                xField: "T (K)", yField: "Rxx (Ω)",
-                files: [rtPath]
-            )
-            _ = try? chartUseCase.execute(sampleKeys: [sampleKey], payload: payload, imageData: png, runID: runID, generatedAt: generatedAt)
-        }
-
-        // 4. Persist Scaling Law chart (identity differs by v3Method → HFE/WA stored separately)
-        var chartResult: ChartArtifactPersistenceResult?
-        if let png = scalingPNG {
-            let payload = makePayload(
-                title: resolveTitle("Scaling Law") + " (" + methodTag + ")",
+        switch tab {
+        case .fieldSweep1omega:
+            return makePayload(title: resolveTitle("R(1ω)"), xField: "H (T)", yField: "R(1ω) (Ω)", files: inputFiles)
+        case .fieldSweep3omega:
+            return makePayload(title: resolveTitle("R(3ω)"), xField: "H (T)", yField: "R(3ω) (Ω)", files: inputFiles)
+        case .raheVsT:
+            return makePayload(title: resolveTitle("RAHE vs T"), xField: "T (K)", yField: "RAHE (Ω)", files: inputFiles)
+        case .hcVsT:
+            return makePayload(title: resolveTitle("Hc vs T"), xField: "T (K)", yField: "Hc (T)", files: inputFiles)
+        case .rtCurve:
+            guard let rtPath = rtFilePath else { return nil }
+            return makePayload(title: resolveTitle("Rxx vs T"), xField: "T (K)", yField: "Rxx (Ω)", files: [rtPath])
+        case .scaling:
+            return makePayload(
+                title: resolveTitle("Scaling Law") + " (\(methodTag))",
                 xField: "σ²_xx (S²/m²)", yField: "E(3ω)_AHE / (E³_xx · σ_xx)",
                 files: inputFiles,
                 extraParams: ["v3method": methodTag]
             )
-            chartResult = try? chartUseCase.execute(sampleKeys: [sampleKey], payload: payload, imageData: png, runID: runID, generatedAt: generatedAt)
         }
+    }
 
-        // 5. Persist metric records (alpha, beta, r²) per scaling segment
-        guard let scaling = scalingResult, !scaling.segments.isEmpty else {
-            if chartResult != nil {
-                let trace = chartResult.map {
-                    BuildRunTraceProjectionUseCase().execute(manifest: $0.manifest, manifestPath: $0.manifestPath)
-                }
-                return .success(trace: trace!)
-            }
-            return .failure("No scaling result to persist.")
+    /// Caches manifest payloads for all tabs after analysis completes.
+    /// Snapshots sampleKeys, conditions, inputFiles from the current selection.
+    /// Called once after runAnalysis completes; scaling re-runs call `_refreshManifestPayloads()` instead.
+    private func _snapshotAndCacheManifestPayloads() {
+        let selectedHits = cachedSearchResults.filter { selectedSearchResultIDs.contains($0.id) }
+            .sorted(by: { $0.measurementFilePath < $1.measurementFilePath })
+
+        // Snapshot from current selection — frozen for the lifetime of this analysis run
+        cachedInputFiles = selectedHits.map { $0.measurementFilePath }
+        cachedRTFilePath = selectedRTHit?.measurementFilePath
+        var seen = Set<String>()
+        cachedSampleKeys = selectedHits.compactMap { seen.insert($0.sampleKey).inserted ? $0.sampleKey : nil }
+        var condMap: [String: [String: String]] = [:]
+        for hit in selectedHits where condMap[hit.sampleKey] == nil {
+            condMap[hit.sampleKey] = hit.conditions
         }
+        cachedConditionsBySampleKey = condMap
 
-        let metricUseCase = PersistMeasurementDataUseCase(writer: writer, pathResolver: resolver)
-        for seg in scaling.segments {
-            let segConditions: [String: String] = {
-                var c = conditions.reduce(into: [:]) { $0[$1.key.lowercased().trimmingCharacters(in: .whitespaces)] = $1.value }
-                c["t_lo"] = "\(Int(seg.tLo.rounded()))K"
-                c["t_hi"] = "\(Int(seg.tHi.rounded()))K"
-                c["v3method"] = methodTag
-                return c
-            }()
+        _refreshManifestPayloads()
+    }
 
-            let metrics: [(String, Double, String)] = [
-                ("alpha", seg.alpha, "Ω·m³/V²"),
-                ("beta", seg.beta, "Ω·m³/V²"),
-                ("r_squared", seg.rSquared, ""),
-            ]
+    /// Rebuilds manifest payloads from cached (frozen) inputFiles/sampleKeys.
+    /// Safe to call after scaling reruns — does NOT re-read UI selection.
+    private func _refreshManifestPayloads() {
+        let device = ingestionResult?.device ?? ""
 
-            for (name, value, unit) in metrics {
-                let record = WorkbenchMetricRecord(
-                    recordID: UUID().uuidString,
-                    sampleKey: sampleKey,
-                    displayKey: sampleKey,
-                    workflowID: "3w",
-                    metric: name,
-                    value: value,
-                    canonicalUnit: unit,
-                    conditions: segConditions,
-                    generatedAt: generatedAt,
-                    runID: runID,
-                    overrideInfo: nil
-                )
-                do {
-                    try metricUseCase.execute(sampleKey: sampleKey, record: record)
-                } catch {
-                    let trace = chartResult.map {
-                        BuildRunTraceProjectionUseCase().execute(manifest: $0.manifest, manifestPath: $0.manifestPath)
-                    }
-                    return .partial(trace: trace, metricError: "Metric '\(name)' persist failed: \(error.localizedDescription)")
-                }
-            }
+        cachedManifestPayloads = [:]
+        for tab in ThreeOmegaWorkbenchTab.allCases {
+            cachedManifestPayloads[tab] = _buildManifestPayload(
+                tab: tab,
+                device: device,
+                inputFiles: cachedInputFiles,
+                rtFilePath: cachedRTFilePath,
+                titleTemplate: titleTemplate,
+                titleTokens: _titleTokens,
+                v3Method: v3Method
+            )
         }
-
-        let trace = chartResult.map {
-            BuildRunTraceProjectionUseCase().execute(manifest: $0.manifest, manifestPath: $0.manifestPath)
-        }!
-        return .success(trace: trace)
     }
 
     // MARK: - Stack offset
@@ -728,6 +718,11 @@ final class ThreeOmegaWorkspaceStore {
         plotRT      = nil
         plotScaling = nil
         plotLayouts = [:]
+        cachedManifestPayloads = [:]
+        cachedSampleKeys = []
+        cachedConditionsBySampleKey = [:]
+        cachedInputFiles = []
+        cachedRTFilePath = nil
     }
 }
 
@@ -749,6 +744,51 @@ struct ThreeOmegaWarningEntry: Identifiable, Sendable {
 // MARK: - WorkbenchPlottingStore conformance
 
 extension ThreeOmegaWorkspaceStore: WorkbenchPlottingStore {}
+
+// MARK: - ActiveChartProviding conformance
+
+extension ThreeOmegaWorkspaceStore: ActiveChartProviding {
+
+    var activeChartPNG: Data? {
+        switch activeTab {
+        case .fieldSweep1omega: return plotR1omega
+        case .fieldSweep3omega: return plotR3omega
+        case .raheVsT:          return plotRAHEvsT
+        case .hcVsT:            return plotHcvsT
+        case .rtCurve:          return plotRT
+        case .scaling:          return plotScaling
+        }
+    }
+
+    var activeChartManifestPayload: WorkbenchPlotPayload? {
+        cachedManifestPayloads[activeTab]
+    }
+
+    var activeChartSampleKeys: [String] { cachedSampleKeys }
+
+    func buildActiveChartMetrics() -> [PendingMetricEntry] {
+        guard activeTab == .scaling,
+              let scaling = scalingResult, !scaling.segments.isEmpty else {
+            return []
+        }
+        guard let sampleKey = cachedSampleKeys.first else { return [] }
+        let conditions = cachedConditionsBySampleKey[sampleKey] ?? [:]
+        let methodTag = v3Method == .highField ? "HFE" : "WA"
+
+        var entries: [PendingMetricEntry] = []
+        for seg in scaling.segments {
+            var segConditions = conditions
+            segConditions["t_lo"] = "\(Int(seg.tLo.rounded()))K"
+            segConditions["t_hi"] = "\(Int(seg.tHi.rounded()))K"
+            segConditions["v3method"] = methodTag
+
+            entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "alpha", value: seg.alpha, canonicalUnit: "Ω·m³/V²", conditions: segConditions))
+            entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "beta", value: seg.beta, canonicalUnit: "Ω·m³/V²", conditions: segConditions))
+            entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "r_squared", value: seg.rSquared, canonicalUnit: "", conditions: segConditions))
+        }
+        return entries
+    }
+}
 
 // MARK: - Rendered plot bundle
 

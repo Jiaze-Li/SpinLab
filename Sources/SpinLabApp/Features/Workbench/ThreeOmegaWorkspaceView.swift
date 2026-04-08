@@ -305,6 +305,9 @@ private struct ThreeOmegaGeometryPanel: View {
             .onChange(of: store.v3Method) { _, _ in
                 appState.flushInteractionSnapshotNow()
             }
+            .onChange(of: store.fitRanges) { _, _ in
+                appState.flushInteractionSnapshotNow()
+            }
         }
     }
 }
@@ -574,16 +577,8 @@ private struct ThreeOmegaRTSearchField: View {
             TextField("RT file…", text: $store.rtQuery)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 140)
-                .onChange(of: store.rtQuery) { _, newValue in
-                    // Clear RT selection only if the user edits the text manually
-                    // (not when selectRTHit programmatically sets rtQuery).
-                    if let hit = store.selectedRTHit {
-                        let hitName = hit.measurementFilePath.components(separatedBy: "/").last ?? hit.id
-                        if newValue == hitName { return }
-                    }
-                    store.clearRTSelection()
-                }
                 .onSubmit {
+                    store.clearRTSelection()
                     appState.workbench.runThreeOmegaRTSearch(libraryRootPath: libraryRoot)
                 }
                 .popover(isPresented: $store.showRTPopover, arrowEdge: .bottom) {
@@ -592,6 +587,7 @@ private struct ThreeOmegaRTSearchField: View {
                 }
 
             Button {
+                store.clearRTSelection()
                 appState.workbench.runThreeOmegaRTSearch(libraryRootPath: libraryRoot)
             } label: {
                 Image(systemName: "magnifyingglass")
@@ -628,6 +624,7 @@ private struct ThreeOmegaRTPopover: View {
                         ForEach(store.rtSearchResults) { hit in
                             Button {
                                 store.selectRTHit(hit)
+                                appState.flushInteractionSnapshotNow()
                             } label: {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(hit.measurementFilePath.components(separatedBy: "/").last ?? hit.id)

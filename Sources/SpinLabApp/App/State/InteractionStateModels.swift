@@ -326,4 +326,6 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var threeOmegaTitleTemplate: String?
     var threeOmegaStackOffsetMultiplier: Double?
     var threeOmegaMinGapFraction: Double?
+    var threeOmegaRTSidecarPath: String?
+    var threeOmegaFitRanges: [ThreeOmegaFitRange]?
 }

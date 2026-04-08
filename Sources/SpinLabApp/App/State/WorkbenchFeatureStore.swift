@@ -294,7 +294,9 @@ final class WorkbenchFeatureStore {
         threeOmegaV3Method: String? = nil,
         threeOmegaTitleTemplate: String? = nil,
         threeOmegaStackOffsetMultiplier: Double? = nil,
-        threeOmegaMinGapFraction: Double? = nil
+        threeOmegaMinGapFraction: Double? = nil,
+        threeOmegaRTSidecarPath: String? = nil,
+        threeOmegaFitRanges: [ThreeOmegaFitRange]? = nil
     ) {
         if let selectedArchivedRecordID,
            archivedRecords.contains(where: { $0.id == selectedArchivedRecordID }) {
@@ -310,6 +312,8 @@ final class WorkbenchFeatureStore {
         if let t = threeOmegaTitleTemplate { threeOmegaWorkspace.titleTemplate = t }
         if let v = threeOmegaStackOffsetMultiplier { threeOmegaWorkspace.stackOffsetMultiplier = v }
         if let v = threeOmegaMinGapFraction { threeOmegaWorkspace.minGapFraction = v }
+        if let p = threeOmegaRTSidecarPath { threeOmegaWorkspace.pendingRTSidecarPath = p }
+        if let ranges = threeOmegaFitRanges, !ranges.isEmpty { threeOmegaWorkspace.fitRanges = ranges }
     }
 
     func captureInteraction(into snapshot: inout SpinLabInteractionSnapshot) {
@@ -323,6 +327,9 @@ final class WorkbenchFeatureStore {
         snapshot.threeOmegaTitleTemplate = threeOmegaWorkspace.titleTemplate
         snapshot.threeOmegaStackOffsetMultiplier = threeOmegaWorkspace.stackOffsetMultiplier
         snapshot.threeOmegaMinGapFraction = threeOmegaWorkspace.minGapFraction
+        snapshot.threeOmegaRTSidecarPath = threeOmegaWorkspace.selectedRTHit?.sidecarPath
+            ?? threeOmegaWorkspace.pendingRTSidecarPath
+        snapshot.threeOmegaFitRanges = threeOmegaWorkspace.fitRanges
     }
 
     func selectedArchivedRecord() -> SpinLabDomain.ArchivedRecord? {
@@ -774,6 +781,17 @@ final class WorkbenchFeatureStore {
                 searchRunning[wf] = false
                 if wf == .ahe, let firstSampleKey = result.first?.sampleKey {
                     aheWorkspace.loadPersistedArtifact(sampleKey: firstSampleKey)
+                }
+                if wf == .threeOmega, let rtPath = threeOmegaWorkspace.pendingRTSidecarPath {
+                    // Restore RT selection in background (avoid main-thread I/O)
+                    let hit = await Task.detached {
+                        ThreeOmegaWorkspaceStore.rebuildRTHit(fromSidecarPath: rtPath)
+                    }.value
+                    if let hit {
+                        threeOmegaWorkspace.applyRestoredRTHit(hit)
+                    } else {
+                        threeOmegaWorkspace.clearPendingRTRestore()
+                    }
                 }
             } catch is CancellationError {
                 searchRunning[wf] = false

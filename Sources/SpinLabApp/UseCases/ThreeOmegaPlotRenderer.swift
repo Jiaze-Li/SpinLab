@@ -171,25 +171,26 @@ struct ThreeOmegaPlotRenderer {
                                 isScatter: true, pointLabels: tempLabels)
         ]
 
-        // Visual extension: all segments extend by the same amount = 3% of the full
-        // plot x-span (all scatter points), so every fit line looks equally long at the ends
-        // regardless of where the segment falls on the axis.
-        let allXsDisplay = xs   // already computed above in display units
-        let plotXSpan = (allXsDisplay.max() ?? 0) - (allXsDisplay.min() ?? 0)
-        let sharedExt = max(0.02 * plotXSpan, 1e-11)
-
         let isSingleFull = result.isSingleFullRange()
         for segment in result.segments {
-            // Convert segment's participating x values to display units
-            let segXsDisplay = segment.participatingXValues.map { $0 * 1e-11 }
-            let xMin = segXsDisplay.min() ?? 0
-            let xMax = segXsDisplay.max() ?? 0
-            let ext = sharedExt
-            let x0 = xMin - ext
-            let x1 = xMax + ext
             // Fit in display units: alpha_d = alpha_SI × 1e31, beta_d = beta_SI × 1e20
             let alphaD = segment.alpha * 1e31
             let betaD  = segment.beta  * 1e20
+
+            // Compute fit line range using perpendicular projection of each data point
+            // onto the line y = alphaD * x + betaD.
+            // Foot x-coordinate: x_foot = (xi + alphaD * (yi - betaD)) / (1 + alphaD²)
+            let denom = 1.0 + alphaD * alphaD
+            let segPointIndices = result.points.enumerated().compactMap { i, pt in
+                segment.participatingXValues.contains(pt.sigma2xx) ? i : nil
+            }
+            let footXs: [Double] = segPointIndices.map { i in
+                let xi = result.points[i].sigma2xx * 1e-11
+                let yi = result.points[i].scalingY * 1e20
+                return (xi + alphaD * (yi - betaD)) / denom
+            }
+            let x0 = footXs.min() ?? (segment.participatingXValues.min() ?? 0) * 1e-11
+            let x1 = footXs.max() ?? (segment.participatingXValues.max() ?? 0) * 1e-11
             let fitY = [x0, x1].map { alphaD * $0 + betaD }
             // Single full-range segment keeps the legacy label; partial/multi use temperature range
             let label = isSingleFull
