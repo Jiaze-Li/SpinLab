@@ -12,6 +12,7 @@ struct ThreeOmegaPlotRenderer {
     var legendAnchor: String = ""           // "" = top-right (default)
     var legendPoint: CGPoint? = nil         // normalized free-position; overrides anchor
     var stackOffsetMultiplier: Double = 1.2 // spacing between stacked curves; 0 = no stacking
+    var titleSuffix: String = ""            // e.g., "PN69 o STO111 20 mT 100 mJ"
 
     // Display-only overrides applied after payload construction (mirrors AHEWorkspaceStore pattern)
     var titleOverride: String = ""
@@ -37,7 +38,7 @@ struct ThreeOmegaPlotRenderer {
 
     // MARK: - Individual tab renderers
 
-    /// Tab 1: R¹ω vs H, stacked by temperature
+    /// Tab 1: R(1ω) vs H, stacked by temperature
     func renderR1omega(sweeps: [ThreeOmegaFieldSweepResult], device: String) -> (Data?, WorkbenchPlotLayout?) {
         guard !sweeps.isEmpty else { return (nil, nil) }
         let offsets = ThreeOmegaStackOffsetUseCase().execute(
@@ -52,19 +53,19 @@ struct ThreeOmegaPlotRenderer {
                 y: sweep.r1omega.map { $0 + offset }
             )
         }.reversed() as [WorkbenchPlotSeries]
-        let yLabel = stackOffsetMultiplier > 0 ? "R¹ω (Ω, stacked)" : "R¹ω (Ω)"
+        let yLabel = stackOffsetMultiplier > 0 ? "R(1ω) (Ω, stacked)" : "R(1ω) (Ω)"
         var payload = WorkbenchPlotPayload(
             workflowID: "3w",
             workflowDisplayName: "3w",
-            title: "R¹ω vs H  \(device)",
-            // Formula: R¹ω(H) = V¹ω_X(H) / I_rms, centered, then stacked by temperature
+            title: _defaultTitle("R(1ω)", device: device),
+            // Formula: R(1ω)(H) = V¹ω_X(H) / I_rms, centered, then stacked by temperature
             axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: yLabel),
             series: series
         )
         return _render(payload: &payload, options: _stackedOptions(sweepCount: sweeps.count))
     }
 
-    /// Tab 2: R³ω vs H, stacked by temperature
+    /// Tab 2: R(3ω) vs H, stacked by temperature
     func renderR3omega(sweeps: [ThreeOmegaFieldSweepResult], device: String) -> (Data?, WorkbenchPlotLayout?) {
         guard !sweeps.isEmpty else { return (nil, nil) }
         let offsets = ThreeOmegaStackOffsetUseCase().execute(
@@ -79,12 +80,12 @@ struct ThreeOmegaPlotRenderer {
                 y: sweep.r3omega.map { $0 + offset }
             )
         }.reversed() as [WorkbenchPlotSeries]
-        let yLabel = stackOffsetMultiplier > 0 ? "R³ω (Ω, stacked)" : "R³ω (Ω)"
+        let yLabel = stackOffsetMultiplier > 0 ? "R(3ω) (Ω, stacked)" : "R(3ω) (Ω)"
         var payload = WorkbenchPlotPayload(
             workflowID: "3w",
             workflowDisplayName: "3w",
-            title: "R³ω vs H  \(device)",
-            // Formula: R³ω(H) = V³ω_X(H) / I_rms, centered, then stacked by temperature
+            title: _defaultTitle("R(3ω)", device: device),
+            // Formula: R(3ω)(H) = V³ω_X(H) / I_rms, centered, then stacked by temperature
             axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: yLabel),
             series: series
         )
@@ -100,13 +101,13 @@ struct ThreeOmegaPlotRenderer {
         guard !temps1.isEmpty || !temps3.isEmpty else { return (nil, nil) }
 
         var series: [WorkbenchPlotSeries] = []
-        if !temps1.isEmpty { series.append(WorkbenchPlotSeries(label: "R¹ω_AHE", x: temps1, y: rahe1)) }
-        if !temps3.isEmpty { series.append(WorkbenchPlotSeries(label: "R³ω_AHE", x: temps3, y: rahe3)) }
+        if !temps1.isEmpty { series.append(WorkbenchPlotSeries(label: "R(1ω)_AHE", x: temps1, y: rahe1)) }
+        if !temps3.isEmpty { series.append(WorkbenchPlotSeries(label: "R(3ω)_AHE", x: temps3, y: rahe3)) }
 
         var payload = WorkbenchPlotPayload(
             workflowID: "3w",
             workflowDisplayName: "3w",
-            title: "RAHE vs T  \(device)",
+            title: _defaultTitle("RAHE vs T", device: device),
             // Formula: RAHE = (b⁺ - b⁻) / 2  where b± are high-field linear intercepts
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE (Ω)"),
             series: series
@@ -129,7 +130,7 @@ struct ThreeOmegaPlotRenderer {
         var payload = WorkbenchPlotPayload(
             workflowID: "3w",
             workflowDisplayName: "3w",
-            title: "Hc vs T  \(device)",
+            title: _defaultTitle("Hc vs T", device: device),
             // Formula: Hc = (|Hc⁺| + |Hc⁻|) / 2  (midpoint crossing on each branch)
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "Hc (Oe)"),
             series: series
@@ -143,7 +144,7 @@ struct ThreeOmegaPlotRenderer {
         var payload = WorkbenchPlotPayload(
             workflowID: "3w",
             workflowDisplayName: "3w",
-            title: "Rxx vs T  \(rt.device)",
+            title: _defaultTitle("Rxx vs T", device: rt.device),
             // Formula: Rxx(T) = Col[9] = V¹ω_X / I_rms (pre-calculated in RT file)
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "Rxx (Ω)"),
             series: [WorkbenchPlotSeries(label: "Rxx", x: rt.temperatureK, y: rt.rxx)]
@@ -155,7 +156,7 @@ struct ThreeOmegaPlotRenderer {
     /// Display units: X in 10⁷ S²/cm², Y in Ω·μm³·V⁻²
     /// Conversions: X_SI (S/m)² × 1e-11 → 10⁷ S²/cm²
     ///              Y_SI (Ω·m³/V²) × 1e20 → Ω·μm³·V⁻² × 10²
-    func renderScaling(result: ThreeOmegaScalingResult) -> (Data?, WorkbenchPlotLayout?) {
+    func renderScaling(result: ThreeOmegaScalingResult, device: String = "") -> (Data?, WorkbenchPlotLayout?) {
         guard !result.points.isEmpty else { return (nil, nil) }
 
         let xs = result.points.map { $0.sigma2xx * 1e-11 }   // (S/m)² → 10⁷ S²/cm²
@@ -208,7 +209,7 @@ struct ThreeOmegaPlotRenderer {
         var payload = WorkbenchPlotPayload(
             workflowID: "3w",
             workflowDisplayName: "3w",
-            title: "Scaling Law: Berry Curvature Quadrupole\(r2Str)",
+            title: _defaultTitle("Scaling Law", device: device) + r2Str,
             // Formula: Y = E^(3ω)_AHE / (E_xx³ × σ_xx) = α·σ²_xx + β
             // β → Q_xxz Berry curvature quadrupole; E_xx³ = E_xx to the power 3
             axisMapping: WorkbenchAxisMapping(
@@ -258,6 +259,12 @@ struct ThreeOmegaPlotRenderer {
         var opts = defaultOptions
         opts.height = max(defaultOptions.height, defaultOptions.height + (sweepCount - 6) * 40)
         return opts
+    }
+
+    private func _defaultTitle(_ tabName: String, device: String) -> String {
+        [tabName, device, titleSuffix]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
     }
 
     private func _tempLabel(_ t: Double) -> String {

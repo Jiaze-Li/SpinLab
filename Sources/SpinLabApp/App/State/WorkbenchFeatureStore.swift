@@ -684,6 +684,7 @@ final class WorkbenchFeatureStore {
             searchRunning[wf] = false
             workflowSearchTask?.cancel()
             workflowSearchTask = nil
+            if wf == .threeOmega { _clearThreeOmegaTitleContext() }
             return
         }
         guard let libraryRootPath = libraryRootPath?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -693,6 +694,7 @@ final class WorkbenchFeatureStore {
             searchRunning[wf] = false
             workflowSearchTask?.cancel()
             workflowSearchTask = nil
+            if wf == .threeOmega { _clearThreeOmegaTitleContext() }
             return
         }
 
@@ -714,7 +716,22 @@ final class WorkbenchFeatureStore {
                 searchResults[wf] = result
                 switch wf {
                 case .ahe:        aheWorkspace.cachedSearchResults = result
-                case .threeOmega: threeOmegaWorkspace.cachedSearchResults = result
+                case .threeOmega:
+                    threeOmegaWorkspace.cachedSearchResults = result
+                    // Cache numericDisplay for title suffix
+                    let uniqueSampleKeys = Set(result.map { $0.sampleKey })
+                    var displayCache: [String: [String: String]] = [:]
+                    for sk in uniqueSampleKeys {
+                        do {
+                            let nd = try await dataActor.lookupSampleNumericDisplay(
+                                libraryRootPath: libraryRootPath, sampleKey: sk
+                            )
+                            if !nd.isEmpty { displayCache[sk] = nd }
+                        } catch {
+                            print("[SpinLab][Workbench] numericDisplay lookup failed for \(sk): \(error)")
+                        }
+                    }
+                    threeOmegaWorkspace.cachedSampleNumericDisplay = displayCache
                 }
                 searchMessages[wf] = result.isEmpty
                     ? "No files matched query: \(query)"
@@ -729,10 +746,12 @@ final class WorkbenchFeatureStore {
                 searchResults[wf] = []
                 searchMessages[wf] = error.localizedDescription
                 searchRunning[wf] = false
+                if wf == .threeOmega { _clearThreeOmegaTitleContext() }
             } catch {
                 searchResults[wf] = []
                 searchMessages[wf] = AppError.from(error, fallback: "Workflow search failed.").localizedDescription
                 searchRunning[wf] = false
+                if wf == .threeOmega { _clearThreeOmegaTitleContext() }
             }
         }
     }
@@ -788,11 +807,18 @@ final class WorkbenchFeatureStore {
         searchResults[wf] = []
         switch wf {
         case .ahe:        aheWorkspace.cachedSearchResults = []
-        case .threeOmega: threeOmegaWorkspace.cachedSearchResults = []
+        case .threeOmega:
+            threeOmegaWorkspace.cachedSearchResults = []
+            _clearThreeOmegaTitleContext()
         }
         searchMessages[wf] = nil
         searchRunning[wf] = false
         searchQueryTexts[wf] = wf.searchPrefix
+    }
+
+    private func _clearThreeOmegaTitleContext() {
+        threeOmegaWorkspace.plotTitleSuffix = ""
+        threeOmegaWorkspace.cachedSampleNumericDisplay = [:]
     }
 
     private func namesEqual(_ lhs: String, _ rhs: String) -> Bool {

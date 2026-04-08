@@ -9,6 +9,7 @@ protocol SpinLabDataActing: Sendable {
     func loadRegistrySnapshot(from xlsxURL: URL, previewRowCount: Int) async throws -> SampleRegistrySnapshot
     func parseLibraryPreview(registryPath: String, settings: LibrarySettings) async throws -> LibraryPreviewParseSnapshot
     func searchWorkflowMeasurements(libraryRootPath: String, query: WorkflowSearchQuery, workflowDefinitions: [WorkflowDefinition]) async throws -> [WorkflowMeasurementSearchHit]
+    func lookupSampleNumericDisplay(libraryRootPath: String, sampleKey: String) async throws -> [String: String]
 }
 
 actor SpinLabDataActor: SpinLabDataActing {
@@ -49,5 +50,12 @@ actor SpinLabDataActor: SpinLabDataActing {
         } catch {
             throw AppError.from(error, fallback: "Workflow search failed.")
         }
+    }
+
+    func lookupSampleNumericDisplay(libraryRootPath: String, sampleKey: String) throws -> [String: String] {
+        let rootURL = URL(fileURLWithPath: libraryRootPath, isDirectory: true)
+        let store = LibraryStore()
+        guard let index = store.loadIndex(from: rootURL) else { return [:] }
+        return index.samples.first(where: { $0.id == sampleKey })?.numericDisplay ?? [:]
     }
 }

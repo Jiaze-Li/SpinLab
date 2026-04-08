@@ -191,38 +191,41 @@ private struct ThreeOmegaGeometryPanel: View {
         GroupBox("Geometry (for Scaling Law)") {
             VStack(alignment: .leading, spacing: 8) {
 
-                // ── Geometry dimensions ───────────────────────────────
-                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 8, verticalSpacing: 6) {
-                    GridRow {
-                        (Text("L").font(.body)
-                         + Text("xx").font(.system(size: 9)).baselineOffset(-3)
-                         + Text(" (μm)").font(.body))
-                        .gridColumnAlignment(.trailing)
-                        TextField("e.g. 26", value: $store.geometry.lxx, format: .number)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 64)
-                        (Text("L").font(.body)
-                         + Text("xy").font(.system(size: 9)).baselineOffset(-3)
-                         + Text(" (μm)").font(.body))
-                        .gridColumnAlignment(.trailing)
-                        TextField("e.g. 21", value: $store.geometry.lxy, format: .number)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 64)
-                    }
-                    GridRow {
-                        Text("d (nm)").font(.body)
-                            .gridColumnAlignment(.trailing)
-                        TextField("e.g. 30", value: $store.geometry.dNm, format: .number)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 64)
-                        Button("Run Scaling") {
-                            store.runScaling()
+                // ── Geometry dimensions (single row) ─────────────────
+                HStack(spacing: 8) {
+                    (Text("L").font(.body)
+                     + Text("xx").font(.system(size: 9)).baselineOffset(-3)
+                     + Text(" (μm)").font(.body))
+                    TextField("26", value: $store.geometry.lxx, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 52)
+                    (Text("L").font(.body)
+                     + Text("xy").font(.system(size: 9)).baselineOffset(-3)
+                     + Text(" (μm)").font(.body))
+                    TextField("21", value: $store.geometry.lxy, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 52)
+                    Text("d (nm)").font(.body)
+                    TextField("30", value: $store.geometry.dNm, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 52)
+                }
+
+                // ── V(3ω) method + Run Scaling (same row) ───────────
+                HStack {
+                    Picker("V(3ω)", selection: $store.v3Method) {
+                        ForEach(ThreeOmegaV3Method.allCases) { method in
+                            Text(method.rawValue).tag(method)
                         }
-                        .buttonStyle(.bordered)
-                        .disabled(!store.geometry.isComplete || store.ingestionResult == nil)
-                        .gridCellColumns(2)
-                        .gridCellAnchor(.trailing)
                     }
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: 220)
+                    Spacer()
+                    Button("Run Scaling") {
+                        store.runScaling()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!store.geometry.isComplete || store.ingestionResult == nil)
                 }
 
                 Divider()
@@ -260,6 +263,9 @@ private struct ThreeOmegaGeometryPanel: View {
                 }
             }
             .padding(.vertical, 4)
+            .onChange(of: store.geometry) { _, _ in
+                appState.flushInteractionSnapshotNow()
+            }
         }
     }
 }
@@ -524,8 +530,13 @@ private struct ThreeOmegaRTSearchField: View {
             TextField("RT file…", text: $store.rtQuery)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 140)
-                .onChange(of: store.rtQuery) { _, _ in
-                    // Editing the text clears any prior RT selection.
+                .onChange(of: store.rtQuery) { _, newValue in
+                    // Clear RT selection only if the user edits the text manually
+                    // (not when selectRTHit programmatically sets rtQuery).
+                    if let hit = store.selectedRTHit {
+                        let hitName = hit.measurementFilePath.components(separatedBy: "/").last ?? hit.id
+                        if newValue == hitName { return }
+                    }
                     store.clearRTSelection()
                 }
                 .onSubmit {
@@ -596,10 +607,10 @@ private struct ThreeOmegaRTPopover: View {
                         }
                     }
                 }
-                .frame(maxHeight: 200)
+                .frame(minHeight: 120, maxHeight: 360)
             }
         }
         .padding(8)
-        .frame(width: 280)
+        .frame(width: 320)
     }
 }

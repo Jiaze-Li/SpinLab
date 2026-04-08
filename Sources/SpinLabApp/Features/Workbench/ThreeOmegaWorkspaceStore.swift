@@ -37,6 +37,7 @@ final class ThreeOmegaWorkspaceStore {
     // MARK: - Geometry (session-only, not persisted)
 
     var geometry = ThreeOmegaGeometry()
+    var v3Method: ThreeOmegaV3Method = .highField
 
     // MARK: - Fit ranges (session-only, not persisted)
 
@@ -76,6 +77,7 @@ final class ThreeOmegaWorkspaceStore {
     var showPlotGrid: Bool = true
     var plotLegendAnchor: String = ""           // "" = top-right (default)
     var plotTitleOverride: String = ""
+    var plotTitleSuffix: String = ""            // e.g., "PN69 o STO111 20 mT 100 mJ"
     var stackOffsetMultiplier: Double = 1.2     // 0 = no stacking; >0 = curve spacing
 
     // Per-tab state (legend drag position, axis label overrides, and series label renames)
@@ -85,6 +87,9 @@ final class ThreeOmegaWorkspaceStore {
     var plotXLabelOverrides: [ThreeOmegaWorkbenchTab: String] = [:]
     /// Display-only y-axis label overrides per tab (does not affect data).
     var plotYLabelOverrides: [ThreeOmegaWorkbenchTab: String] = [:]
+
+    /// Cached per-sample numericDisplay from library index, populated by WorkbenchFeatureStore after search.
+    var cachedSampleNumericDisplay: [String: [String: String]] = [:]
 
     // MARK: - Private
 
@@ -140,9 +145,22 @@ final class ThreeOmegaWorkspaceStore {
     /// Parse all selected files, fit RAHE/Hc, render tabs 1–5.
     func runAnalysis() {
         let selectedHits = cachedSearchResults.filter { selectedSearchResultIDs.contains($0.id) }
+            .sorted(by: { $0.measurementFilePath < $1.measurementFilePath })
         guard !selectedHits.isEmpty else {
             analysisMessage = "Select at least one 3w measurement file."
             return
+        }
+
+        // Compute title suffix from representative hit (stable: sorted by path)
+        if let hit = selectedHits.first {
+            let sampleLabel = hit.sampleBatchAndSubstrate
+            let numericDisplay = cachedSampleNumericDisplay[hit.sampleKey] ?? [:]
+            let numericParts = ["氧压", "能量"].compactMap { numericDisplay[$0] }
+            plotTitleSuffix = ([sampleLabel] + numericParts)
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+        } else {
+            plotTitleSuffix = ""
         }
 
         analysisTask?.cancel()
@@ -153,6 +171,7 @@ final class ThreeOmegaWorkspaceStore {
         let capturedGrid       = showPlotGrid
         let capturedAnchor     = plotLegendAnchor
         let capturedMultiplier = stackOffsetMultiplier
+        let capturedSuffix     = plotTitleSuffix
 
         let capturedRTHit = selectedRTHit
 
@@ -162,9 +181,10 @@ final class ThreeOmegaWorkspaceStore {
                 let ingestUseCase = IngestThreeOmegaSelectionsUseCase()
                 let result = ingestUseCase.execute(hits: selectedHits, rtHit: capturedRTHit)
                 var renderer = ThreeOmegaPlotRenderer()
-                renderer.showGrid             = capturedGrid
-                renderer.legendAnchor         = capturedAnchor
+                renderer.showGrid              = capturedGrid
+                renderer.legendAnchor          = capturedAnchor
                 renderer.stackOffsetMultiplier = capturedMultiplier
+                renderer.titleSuffix           = capturedSuffix
                 let plots = renderer.renderAllTabs(result: result)
                 return (result, plots)
             }.value
@@ -218,6 +238,9 @@ final class ThreeOmegaWorkspaceStore {
         let capturedAnchor   = plotLegendAnchor
         let capturedLegend   = plotLegendPoints[.scaling]
         let capturedRanges   = fitRanges
+        let capturedSuffix   = plotTitleSuffix
+        let capturedDevice   = result.device
+        let capturedV3Method = v3Method
 
         scalingTask?.cancel()
         scalingTask = Task { [weak self] in
@@ -229,13 +252,15 @@ final class ThreeOmegaWorkspaceStore {
                     rtResult: rt,
                     geometry: capturedGeometry,
                     iRmsValues: capturedResult.iRmsValues,
-                    fitRanges: capturedRanges
+                    fitRanges: capturedRanges,
+                    v3Method: capturedV3Method
                 )
                 var renderer = ThreeOmegaPlotRenderer()
                 renderer.showGrid     = capturedGrid
                 renderer.legendAnchor = capturedAnchor
                 renderer.legendPoint  = capturedLegend
-                let (data, layout) = renderer.renderScaling(result: res)
+                renderer.titleSuffix  = capturedSuffix
+                let (data, layout) = renderer.renderScaling(result: res, device: capturedDevice)
                 return (res, data, layout)
             }.value
 
@@ -267,6 +292,7 @@ final class ThreeOmegaWorkspaceStore {
         let capturedGrid       = showPlotGrid
         let capturedAnchor     = plotLegendAnchor
         let capturedMultiplier = stackOffsetMultiplier
+        let capturedSuffix     = plotTitleSuffix
 
         Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
@@ -274,6 +300,7 @@ final class ThreeOmegaWorkspaceStore {
             r.showGrid              = capturedGrid
             r.legendAnchor          = capturedAnchor
             r.stackOffsetMultiplier = capturedMultiplier
+            r.titleSuffix           = capturedSuffix
             let r1 = r.renderR1omega(sweeps: ingestion.fieldSweeps, device: ingestion.device)
             let r3 = r.renderR3omega(sweeps: ingestion.fieldSweeps, device: ingestion.device)
             await MainActor.run { [weak self] in
@@ -340,11 +367,13 @@ final class ThreeOmegaWorkspaceStore {
         isAnalyzing              = false
         analysisMessage          = nil
         geometry                 = ThreeOmegaGeometry()
+        v3Method                 = .highField
         fitRanges                = [ThreeOmegaFitRange()]
         activeTab                = .fieldSweep1omega
         showPlotGrid             = true
         plotLegendAnchor         = ""
         plotTitleOverride        = ""
+        plotTitleSuffix          = ""
         plotLegendPoints         = [:]
         plotSeriesLabelOverrides = [:]
         plotXLabelOverrides      = [:]
@@ -356,6 +385,7 @@ final class ThreeOmegaWorkspaceStore {
         showRTPopover            = false
         selectedRTHit            = nil
         warningLog               = []
+        cachedSampleNumericDisplay = [:]
         _clearPlots()
     }
 
@@ -389,6 +419,8 @@ final class ThreeOmegaWorkspaceStore {
         let labelOverrides = plotSeriesLabelOverrides[tab] ?? [:]
         let capturedScaling = scalingResult
         let capturedGeometry = geometry
+        let capturedSuffix  = plotTitleSuffix
+        let capturedDevice  = ingestion.device
 
         Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
@@ -400,22 +432,23 @@ final class ThreeOmegaWorkspaceStore {
             r.xLabelOverride        = xLabelOverride
             r.yLabelOverride        = yLabelOverride
             r.seriesLabelOverrides  = labelOverrides
+            r.titleSuffix           = capturedSuffix
 
             let rendered: (Data?, WorkbenchPlotLayout?)
             switch tab {
             case .fieldSweep1omega:
-                rendered = r.renderR1omega(sweeps: ingestion.fieldSweeps, device: ingestion.device)
+                rendered = r.renderR1omega(sweeps: ingestion.fieldSweeps, device: capturedDevice)
             case .fieldSweep3omega:
-                rendered = r.renderR3omega(sweeps: ingestion.fieldSweeps, device: ingestion.device)
+                rendered = r.renderR3omega(sweeps: ingestion.fieldSweeps, device: capturedDevice)
             case .raheVsT:
-                rendered = r.renderRAHEvsT(sweeps: ingestion.fieldSweeps, device: ingestion.device)
+                rendered = r.renderRAHEvsT(sweeps: ingestion.fieldSweeps, device: capturedDevice)
             case .hcVsT:
-                rendered = r.renderHcVsT(sweeps: ingestion.fieldSweeps, device: ingestion.device)
+                rendered = r.renderHcVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice)
             case .rtCurve:
                 rendered = ingestion.rtResult.map { r.renderRT(rt: $0) } ?? (nil, nil)
             case .scaling:
                 if let sr = capturedScaling, capturedGeometry.isComplete {
-                    rendered = r.renderScaling(result: sr)
+                    rendered = r.renderScaling(result: sr, device: capturedDevice)
                 } else {
                     rendered = (nil, nil)
                 }

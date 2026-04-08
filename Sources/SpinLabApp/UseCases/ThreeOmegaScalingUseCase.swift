@@ -20,7 +20,8 @@ struct ThreeOmegaScalingUseCase {
         rtResult: ThreeOmegaRTResult,
         geometry: ThreeOmegaGeometry,
         iRmsValues: [Double: Double],   // temperatureK → iRms (A)
-        fitRanges: [ThreeOmegaFitRange] = [ThreeOmegaFitRange()]
+        fitRanges: [ThreeOmegaFitRange] = [ThreeOmegaFitRange()],
+        v3Method: ThreeOmegaV3Method = .highField
     ) -> ThreeOmegaScalingResult {
         guard geometry.isComplete else {
             return ThreeOmegaScalingResult(
@@ -71,8 +72,8 @@ struct ThreeOmegaScalingUseCase {
             }
 
             // Formula: E^(3ω)_AHE = V^(3ω)_AHE / L_xy_m   (V/m)
-            // Primary: high-field extrapolation (more robust); fallback: window-average near H=0.
-            let v3ahe = sweep.v3omegaFit ?? sweep.v3omegaWindow
+            // Method selected by user: high-field extrapolation or window-average near H=0.
+            let v3ahe = v3Method.v3ahe(from: sweep)
             let E3w_AHE = v3ahe / lxy_m
 
             // Cross-check: flag divergence between the two extraction methods.
