@@ -4,6 +4,13 @@ import Testing
 
 @Suite("V3.2.0 Workflow Search Across Drawers")
 struct V320WorkflowSearchAcrossDrawersTests {
+    private static let testDefinitions: [WorkflowDefinition] = [
+        WorkflowDefinition(id: "ahe", displayName: "AHE", parentID: nil, conditionFields: []),
+        WorkflowDefinition(id: "3w", displayName: "3 Omega", parentID: nil, conditionFields: []),
+        WorkflowDefinition(id: "RT", displayName: "RT", parentID: nil, conditionFields: []),
+        WorkflowDefinition(id: "XY", displayName: "XY Rotation", parentID: nil, conditionFields: []),
+    ]
+
     @Test("query AHE returns sidecars stored under workflow folder ahe")
     func queryAHEFindsWorkflowAHE() throws {
         let fixture = try WorkflowSearchFixture()
@@ -31,7 +38,8 @@ struct V320WorkflowSearchAcrossDrawersTests {
         let useCase = SearchWorkflowMeasurementsUseCase()
         let hits = try useCase.execute(
             query: WorkflowSearchQuery(rawText: "AHE"),
-            libraryRootURL: fixture.rootURL
+            libraryRootURL: fixture.rootURL,
+            workflowDefinitions: Self.testDefinitions
         )
 
         #expect(hits.count == 1)

@@ -6,6 +6,7 @@ struct SearchWorkflowMeasurementsUseCase {
     func execute(
         query: WorkflowSearchQuery,
         libraryRootURL: URL,
+        workflowDefinitions: [WorkflowDefinition] = [],
         fileManager: FileManager = .default
     ) throws -> [WorkflowMeasurementSearchHit] {
         guard fileManager.fileExists(atPath: libraryRootURL.path) else {
@@ -18,13 +19,18 @@ struct SearchWorkflowMeasurementsUseCase {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
 
+        let displayNameByID = Dictionary(
+            workflowDefinitions.map { ($0.id.lowercased(), $0.displayName) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
         var hits: [WorkflowMeasurementSearchHit] = []
         hits.reserveCapacity(sidecarURLs.count)
 
         for sidecarURL in sidecarURLs {
             let data = try Data(contentsOf: sidecarURL, options: [.mappedIfSafe])
             let sidecar = try decoder.decode(SpinLabFileSidecar.self, from: data)
-            let hit = buildHit(sidecar: sidecar, sidecarURL: sidecarURL)
+            let hit = buildHit(sidecar: sidecar, sidecarURL: sidecarURL, displayNameByID: displayNameByID)
             if matches(hit: hit, queryTokens: queryTokens) {
                 hits.append(hit)
             }
@@ -56,14 +62,15 @@ struct SearchWorkflowMeasurementsUseCase {
         return urls
     }
 
-    private func buildHit(sidecar: SpinLabFileSidecar, sidecarURL: URL) -> WorkflowMeasurementSearchHit {
+    private func buildHit(sidecar: SpinLabFileSidecar, sidecarURL: URL, displayNameByID: [String: String]) -> WorkflowMeasurementSearchHit {
         let pathInfo = parsePathInfo(sidecarURL: sidecarURL)
         let workflowID = firstNonEmpty(sidecar.workflow, pathInfo.workflowFolder) ?? ""
         let workflowCanonicalID = canonicalWorkflowID(from: workflowID, displayName: sidecar.workflowDisplayName)
         let workflowDisplayName = preferredWorkflowDisplayName(
             sidecarDisplayName: sidecar.workflowDisplayName,
             workflowID: workflowID,
-            canonicalID: workflowCanonicalID
+            canonicalID: workflowCanonicalID,
+            displayNameByID: displayNameByID
         )
 
         return WorkflowMeasurementSearchHit(
@@ -85,24 +92,23 @@ struct SearchWorkflowMeasurementsUseCase {
     private func preferredWorkflowDisplayName(
         sidecarDisplayName: String,
         workflowID: String,
-        canonicalID: String
+        canonicalID: String,
+        displayNameByID: [String: String]
     ) -> String {
         let trimmedSidecar = sidecarDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedSidecar.isEmpty {
             return trimmedSidecar
         }
 
-        switch canonicalID {
-        case "ahe":
-            return "AHE"
-        case "rt":
-            return "RT"
-        case "3w":
-            return "3w"
-        default:
-            let trimmedID = workflowID.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmedID.isEmpty ? canonicalID.uppercased() : trimmedID
+        // Look up from registry definitions (case-insensitive via lowercased key).
+        if let registryName = displayNameByID[workflowID.lowercased()]
+            ?? displayNameByID[canonicalID.lowercased()],
+           !registryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return registryName
         }
+
+        let trimmedID = workflowID.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedID.isEmpty ? canonicalID.uppercased() : trimmedID
     }
 
     private func measurementFilePath(fromSidecarURL sidecarURL: URL) -> String {

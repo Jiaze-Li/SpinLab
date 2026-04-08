@@ -707,7 +707,8 @@ final class WorkbenchFeatureStore {
             do {
                 let result = try await dataActor.searchWorkflowMeasurements(
                     libraryRootPath: libraryRootPath,
-                    query: WorkflowSearchQuery(rawText: query)
+                    query: WorkflowSearchQuery(rawText: query),
+                    workflowDefinitions: workflowDefinitions
                 )
                 guard !Task.isCancelled else { return }
                 searchResults[wf] = result
@@ -763,7 +764,8 @@ final class WorkbenchFeatureStore {
             do {
                 let result = try await dataActor.searchWorkflowMeasurements(
                     libraryRootPath: libraryRootPath,
-                    query: WorkflowSearchQuery(rawText: query)
+                    query: WorkflowSearchQuery(rawText: query),
+                    workflowDefinitions: workflowDefinitions
                 )
                 store.rtSearchResults = result
                 store.rtSearchMessage = result.isEmpty

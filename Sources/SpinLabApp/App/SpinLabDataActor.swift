@@ -8,7 +8,7 @@ struct LibraryPreviewParseSnapshot: Sendable {
 protocol SpinLabDataActing: Sendable {
     func loadRegistrySnapshot(from xlsxURL: URL, previewRowCount: Int) async throws -> SampleRegistrySnapshot
     func parseLibraryPreview(registryPath: String, settings: LibrarySettings) async throws -> LibraryPreviewParseSnapshot
-    func searchWorkflowMeasurements(libraryRootPath: String, query: WorkflowSearchQuery) async throws -> [WorkflowMeasurementSearchHit]
+    func searchWorkflowMeasurements(libraryRootPath: String, query: WorkflowSearchQuery, workflowDefinitions: [WorkflowDefinition]) async throws -> [WorkflowMeasurementSearchHit]
 }
 
 actor SpinLabDataActor: SpinLabDataActing {
@@ -37,7 +37,7 @@ actor SpinLabDataActor: SpinLabDataActing {
         return LibraryPreviewParseSnapshot(index: result.index, warnings: result.warnings)
     }
 
-    func searchWorkflowMeasurements(libraryRootPath: String, query: WorkflowSearchQuery) throws -> [WorkflowMeasurementSearchHit] {
+    func searchWorkflowMeasurements(libraryRootPath: String, query: WorkflowSearchQuery, workflowDefinitions: [WorkflowDefinition]) throws -> [WorkflowMeasurementSearchHit] {
         let normalizedPath = libraryRootPath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedPath.isEmpty else {
             throw AppError.validation("Library root path is required for workflow search.")
@@ -45,7 +45,7 @@ actor SpinLabDataActor: SpinLabDataActing {
         let rootURL = URL(fileURLWithPath: normalizedPath, isDirectory: true)
         let useCase = SearchWorkflowMeasurementsUseCase()
         do {
-            return try useCase.execute(query: query, libraryRootURL: rootURL)
+            return try useCase.execute(query: query, libraryRootURL: rootURL, workflowDefinitions: workflowDefinitions)
         } catch {
             throw AppError.from(error, fallback: "Workflow search failed.")
         }
