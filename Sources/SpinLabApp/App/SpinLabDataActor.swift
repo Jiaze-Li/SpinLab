@@ -8,7 +8,8 @@ struct LibraryPreviewParseSnapshot: Sendable {
 protocol SpinLabDataActing: Sendable {
     func loadRegistrySnapshot(from xlsxURL: URL, previewRowCount: Int) async throws -> SampleRegistrySnapshot
     func parseLibraryPreview(registryPath: String, settings: LibrarySettings) async throws -> LibraryPreviewParseSnapshot
-    func searchWorkflowMeasurements(libraryRootPath: String, query: WorkflowSearchQuery) async throws -> [WorkflowMeasurementSearchHit]
+    func searchWorkflowMeasurements(libraryRootPath: String, query: WorkflowSearchQuery, workflowDefinitions: [WorkflowDefinition]) async throws -> [WorkflowMeasurementSearchHit]
+    func lookupSampleNumericDisplay(libraryRootPath: String, sampleKey: String) async throws -> [String: String]
 }
 
 actor SpinLabDataActor: SpinLabDataActing {
@@ -37,7 +38,7 @@ actor SpinLabDataActor: SpinLabDataActing {
         return LibraryPreviewParseSnapshot(index: result.index, warnings: result.warnings)
     }
 
-    func searchWorkflowMeasurements(libraryRootPath: String, query: WorkflowSearchQuery) throws -> [WorkflowMeasurementSearchHit] {
+    func searchWorkflowMeasurements(libraryRootPath: String, query: WorkflowSearchQuery, workflowDefinitions: [WorkflowDefinition]) throws -> [WorkflowMeasurementSearchHit] {
         let normalizedPath = libraryRootPath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedPath.isEmpty else {
             throw AppError.validation("Library root path is required for workflow search.")
@@ -45,9 +46,16 @@ actor SpinLabDataActor: SpinLabDataActing {
         let rootURL = URL(fileURLWithPath: normalizedPath, isDirectory: true)
         let useCase = SearchWorkflowMeasurementsUseCase()
         do {
-            return try useCase.execute(query: query, libraryRootURL: rootURL)
+            return try useCase.execute(query: query, libraryRootURL: rootURL, workflowDefinitions: workflowDefinitions)
         } catch {
             throw AppError.from(error, fallback: "Workflow search failed.")
         }
+    }
+
+    func lookupSampleNumericDisplay(libraryRootPath: String, sampleKey: String) throws -> [String: String] {
+        let rootURL = URL(fileURLWithPath: libraryRootPath, isDirectory: true)
+        let store = LibraryStore()
+        guard let index = store.loadIndex(from: rootURL) else { return [:] }
+        return index.samples.first(where: { $0.id == sampleKey })?.numericDisplay ?? [:]
     }
 }

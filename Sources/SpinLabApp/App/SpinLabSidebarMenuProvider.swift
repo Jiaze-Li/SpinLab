@@ -44,11 +44,11 @@ final class SpinLabSidebarMenuProvider {
         case .workbench:
             return workbenchChildren(appState: appState)
         case .library:
-            guard selectedArea == .library else {
-                // Lazy build: avoid constructing full Library submenu unless Library is active.
-                return []
+            if selectedArea == .library {
+                return cachedLibraryChildren(appState: appState)
             }
-            return cachedLibraryChildren(appState: appState)
+            // Not active: return last cached children so the tree stays expanded.
+            return cachedLibraryChildrenValue
         }
     }
 

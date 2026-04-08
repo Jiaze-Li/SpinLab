@@ -10,6 +10,7 @@ final class InboxFacade {
 
     private let existingImportedOriginalPaths: () -> Set<String>
     private let existingImportedContentFingerprints: () -> Set<String>
+    private let existingImportedFileNames: () -> Set<String>
     private let syncInboxWorkspaceToPendingImports: () -> Void
     private let persistInteractionSnapshotIfReady: () -> Void
     private let selectFirstImportedPendingAndFocusInbox: (UUID) -> Void
@@ -31,6 +32,7 @@ final class InboxFacade {
         importPipeline: SpinLabImportPipeline,
         existingImportedOriginalPaths: @escaping () -> Set<String>,
         existingImportedContentFingerprints: @escaping () -> Set<String>,
+        existingImportedFileNames: @escaping () -> Set<String>,
         syncInboxWorkspaceToPendingImports: @escaping () -> Void,
         persistInteractionSnapshotIfReady: @escaping () -> Void,
         selectFirstImportedPendingAndFocusInbox: @escaping (UUID) -> Void,
@@ -51,6 +53,7 @@ final class InboxFacade {
         self.importPipeline = importPipeline
         self.existingImportedOriginalPaths = existingImportedOriginalPaths
         self.existingImportedContentFingerprints = existingImportedContentFingerprints
+        self.existingImportedFileNames = existingImportedFileNames
         self.syncInboxWorkspaceToPendingImports = syncInboxWorkspaceToPendingImports
         self.persistInteractionSnapshotIfReady = persistInteractionSnapshotIfReady
         self.selectFirstImportedPendingAndFocusInbox = selectFirstImportedPendingAndFocusInbox
@@ -75,6 +78,7 @@ final class InboxFacade {
             importPipeline: importPipeline,
             excludedOriginalFilePaths: existingImportedOriginalPaths(),
             excludedContentFingerprints: existingImportedContentFingerprints(),
+            excludedFileNames: existingImportedFileNames(),
             onCompleted: { imported in
                 sync()
                 persist()

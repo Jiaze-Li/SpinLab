@@ -80,6 +80,24 @@ final class WorkbenchFeatureStore {
     var searchMessages: [WorkbenchWorkflowID: String] = [:]
     private(set) var searchRunning: [WorkbenchWorkflowID: Bool] = [:]
 
+    // MARK: - Per-workflow search persistence
+
+    private static let searchQueryDefaultsPrefix = "workbench.searchQuery."
+
+    private static func restoreSearchQueryTexts() -> [WorkbenchWorkflowID: String] {
+        var result: [WorkbenchWorkflowID: String] = [:]
+        for wf in WorkbenchWorkflowID.allCases {
+            if let saved = UserDefaults.standard.string(forKey: searchQueryDefaultsPrefix + wf.rawValue) {
+                result[wf] = saved
+            }
+        }
+        return result
+    }
+
+    private static func persistSearchQueryText(_ text: String, for wf: WorkbenchWorkflowID) {
+        UserDefaults.standard.set(text, forKey: searchQueryDefaultsPrefix + wf.rawValue)
+    }
+
     // MARK: - Per-workflow search accessors
 
     func searchQueryText(for wf: WorkbenchWorkflowID) -> String {
@@ -88,6 +106,7 @@ final class WorkbenchFeatureStore {
 
     func setSearchQueryText(_ text: String, for wf: WorkbenchWorkflowID) {
         searchQueryTexts[wf] = text
+        Self.persistSearchQueryText(text, for: wf)
     }
 
     func searchResultsList(for wf: WorkbenchWorkflowID) -> [WorkflowMeasurementSearchHit] {
@@ -222,6 +241,7 @@ final class WorkbenchFeatureStore {
             originContainsTokens: initialSubstrateState.originContainsTokens,
             tagRules: initialSubstrateState.tagRules
         )
+        self.searchQueryTexts = Self.restoreSearchQueryTexts()
         self.currentRoute = .registry(selectedID: initialWorkflowDefinitions.first?.id)
     }
 
@@ -267,18 +287,52 @@ final class WorkbenchFeatureStore {
 
     func restoreInteraction(
         selectedArchivedRecordID: UUID?,
-        workbenchResultDraft: String
+        workbenchResultDraft: String,
+        threeOmegaGeometryLxx: Double? = nil,
+        threeOmegaGeometryLxy: Double? = nil,
+        threeOmegaGeometryDNm: Double? = nil,
+        threeOmegaV3Method: String? = nil,
+        threeOmegaTitleTemplate: String? = nil,
+        threeOmegaStackOffsetMultiplier: Double? = nil,
+        threeOmegaMinGapFraction: Double? = nil,
+        threeOmegaRTSidecarPath: String? = nil,
+        threeOmegaFitRanges: [ThreeOmegaFitRange]? = nil,
+        aheTitleTemplate: String? = nil
     ) {
         if let selectedArchivedRecordID,
            archivedRecords.contains(where: { $0.id == selectedArchivedRecordID }) {
             self.selectedArchivedRecordID = selectedArchivedRecordID
         }
         self.workbenchResultDraft = workbenchResultDraft
+        if let v = threeOmegaGeometryLxx, v > 0 { threeOmegaWorkspace.geometry.lxx = v }
+        if let v = threeOmegaGeometryLxy, v > 0 { threeOmegaWorkspace.geometry.lxy = v }
+        if let v = threeOmegaGeometryDNm, v > 0 { threeOmegaWorkspace.geometry.dNm = v }
+        if let m = threeOmegaV3Method, let method = ThreeOmegaV3Method(rawValue: m) {
+            threeOmegaWorkspace.v3Method = method
+        }
+        if let t = threeOmegaTitleTemplate { threeOmegaWorkspace.titleTemplate = t }
+        if let v = threeOmegaStackOffsetMultiplier { threeOmegaWorkspace.stackOffsetMultiplier = v }
+        if let v = threeOmegaMinGapFraction { threeOmegaWorkspace.minGapFraction = v }
+        if let p = threeOmegaRTSidecarPath { threeOmegaWorkspace.pendingRTSidecarPath = p }
+        if let ranges = threeOmegaFitRanges, !ranges.isEmpty { threeOmegaWorkspace.fitRanges = ranges }
+        if let t = aheTitleTemplate { aheWorkspace.titleTemplate = t }
     }
 
     func captureInteraction(into snapshot: inout SpinLabInteractionSnapshot) {
         snapshot.selectedArchivedRecordID = selectedArchivedRecordID
         snapshot.workbenchResultDraft = workbenchResultDraft
+        let geo = threeOmegaWorkspace.geometry
+        snapshot.threeOmegaGeometryLxx = geo.lxx > 0 ? geo.lxx : nil
+        snapshot.threeOmegaGeometryLxy = geo.lxy > 0 ? geo.lxy : nil
+        snapshot.threeOmegaGeometryDNm = geo.dNm > 0 ? geo.dNm : nil
+        snapshot.threeOmegaV3Method = threeOmegaWorkspace.v3Method.rawValue
+        snapshot.threeOmegaTitleTemplate = threeOmegaWorkspace.titleTemplate
+        snapshot.threeOmegaStackOffsetMultiplier = threeOmegaWorkspace.stackOffsetMultiplier
+        snapshot.threeOmegaMinGapFraction = threeOmegaWorkspace.minGapFraction
+        snapshot.threeOmegaRTSidecarPath = threeOmegaWorkspace.selectedRTHit?.sidecarPath
+            ?? threeOmegaWorkspace.pendingRTSidecarPath
+        snapshot.threeOmegaFitRanges = threeOmegaWorkspace.fitRanges
+        snapshot.aheTitleTemplate = aheWorkspace.titleTemplate
     }
 
     func selectedArchivedRecord() -> SpinLabDomain.ArchivedRecord? {
@@ -674,6 +728,7 @@ final class WorkbenchFeatureStore {
             searchRunning[wf] = false
             workflowSearchTask?.cancel()
             workflowSearchTask = nil
+            if wf == .threeOmega { _clearThreeOmegaTitleContext() }
             return
         }
         guard let libraryRootPath = libraryRootPath?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -683,10 +738,12 @@ final class WorkbenchFeatureStore {
             searchRunning[wf] = false
             workflowSearchTask?.cancel()
             workflowSearchTask = nil
+            if wf == .threeOmega { _clearThreeOmegaTitleContext() }
             return
         }
 
         aheWorkspace.lastLibraryRootPath = libraryRootPath
+        threeOmegaWorkspace.lastLibraryRootPath = libraryRootPath
 
         workflowSearchTask?.cancel()
         searchRunning[wf] = true
@@ -697,13 +754,44 @@ final class WorkbenchFeatureStore {
             do {
                 let result = try await dataActor.searchWorkflowMeasurements(
                     libraryRootPath: libraryRootPath,
-                    query: WorkflowSearchQuery(rawText: query)
+                    query: WorkflowSearchQuery(rawText: query),
+                    workflowDefinitions: workflowDefinitions
                 )
                 guard !Task.isCancelled else { return }
                 searchResults[wf] = result
                 switch wf {
-                case .ahe:        aheWorkspace.cachedSearchResults = result
-                case .threeOmega: threeOmegaWorkspace.cachedSearchResults = result
+                case .ahe:
+                    aheWorkspace.cachedSearchResults = result
+                    // Cache numericDisplay for AHE title template
+                    let aheUniqueSampleKeys = Set(result.map { $0.sampleKey })
+                    var aheDisplayCache: [String: [String: String]] = [:]
+                    for sk in aheUniqueSampleKeys {
+                        do {
+                            let nd = try await dataActor.lookupSampleNumericDisplay(
+                                libraryRootPath: libraryRootPath, sampleKey: sk
+                            )
+                            if !nd.isEmpty { aheDisplayCache[sk] = nd }
+                        } catch {
+                            print("[SpinLab][Workbench] numericDisplay lookup failed for \(sk): \(error)")
+                        }
+                    }
+                    aheWorkspace.cachedSampleNumericDisplay = aheDisplayCache
+                case .threeOmega:
+                    threeOmegaWorkspace.cachedSearchResults = result
+                    // Cache numericDisplay for title suffix
+                    let uniqueSampleKeys = Set(result.map { $0.sampleKey })
+                    var displayCache: [String: [String: String]] = [:]
+                    for sk in uniqueSampleKeys {
+                        do {
+                            let nd = try await dataActor.lookupSampleNumericDisplay(
+                                libraryRootPath: libraryRootPath, sampleKey: sk
+                            )
+                            if !nd.isEmpty { displayCache[sk] = nd }
+                        } catch {
+                            print("[SpinLab][Workbench] numericDisplay lookup failed for \(sk): \(error)")
+                        }
+                    }
+                    threeOmegaWorkspace.cachedSampleNumericDisplay = displayCache
                 }
                 searchMessages[wf] = result.isEmpty
                     ? "No files matched query: \(query)"
@@ -712,16 +800,74 @@ final class WorkbenchFeatureStore {
                 if wf == .ahe, let firstSampleKey = result.first?.sampleKey {
                     aheWorkspace.loadPersistedArtifact(sampleKey: firstSampleKey)
                 }
+                if wf == .threeOmega, let rtPath = threeOmegaWorkspace.pendingRTSidecarPath {
+                    // Restore RT selection in background (avoid main-thread I/O)
+                    let hit = await Task.detached {
+                        ThreeOmegaWorkspaceStore.rebuildRTHit(fromSidecarPath: rtPath)
+                    }.value
+                    if let hit {
+                        threeOmegaWorkspace.applyRestoredRTHit(hit)
+                    } else {
+                        threeOmegaWorkspace.clearPendingRTRestore()
+                    }
+                }
             } catch is CancellationError {
                 searchRunning[wf] = false
             } catch let error as AppError {
                 searchResults[wf] = []
                 searchMessages[wf] = error.localizedDescription
                 searchRunning[wf] = false
+                if wf == .threeOmega { _clearThreeOmegaTitleContext() }
             } catch {
                 searchResults[wf] = []
                 searchMessages[wf] = AppError.from(error, fallback: "Workflow search failed.").localizedDescription
                 searchRunning[wf] = false
+                if wf == .threeOmega { _clearThreeOmegaTitleContext() }
+            }
+        }
+    }
+
+    func runThreeOmegaRTSearch(libraryRootPath: String?) {
+        let store = threeOmegaWorkspace
+        let query = store.rtQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
+            store.rtSearchResults = []
+            store.rtSearchMessage = "Enter RT search query."
+            store.isRTSearching = false
+            return
+        }
+        guard let libraryRootPath = libraryRootPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !libraryRootPath.isEmpty else {
+            store.rtSearchResults = []
+            store.rtSearchMessage = "Set Library Root before searching."
+            store.isRTSearching = false
+            return
+        }
+
+        store.isRTSearching = true
+        store.rtSearchMessage = nil
+        store.rtSearchResults = []
+        store.showRTPopover = true
+
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let result = try await dataActor.searchWorkflowMeasurements(
+                    libraryRootPath: libraryRootPath,
+                    query: WorkflowSearchQuery(rawText: query),
+                    workflowDefinitions: workflowDefinitions
+                )
+                store.rtSearchResults = result
+                store.rtSearchMessage = result.isEmpty
+                    ? "No files matched: \(query)"
+                    : "Found \(result.count) file(s)."
+                store.isRTSearching = false
+            } catch is CancellationError {
+                store.isRTSearching = false
+            } catch {
+                store.rtSearchResults = []
+                store.rtSearchMessage = "Search failed."
+                store.isRTSearching = false
             }
         }
     }
@@ -732,11 +878,18 @@ final class WorkbenchFeatureStore {
         searchResults[wf] = []
         switch wf {
         case .ahe:        aheWorkspace.cachedSearchResults = []
-        case .threeOmega: threeOmegaWorkspace.cachedSearchResults = []
+        case .threeOmega:
+            threeOmegaWorkspace.cachedSearchResults = []
+            _clearThreeOmegaTitleContext()
         }
         searchMessages[wf] = nil
         searchRunning[wf] = false
         searchQueryTexts[wf] = wf.searchPrefix
+        Self.persistSearchQueryText(wf.searchPrefix, for: wf)
+    }
+
+    private func _clearThreeOmegaTitleContext() {
+        threeOmegaWorkspace.cachedSampleNumericDisplay = [:]
     }
 
     private func namesEqual(_ lhs: String, _ rhs: String) -> Bool {

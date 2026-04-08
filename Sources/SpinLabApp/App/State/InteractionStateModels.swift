@@ -319,4 +319,14 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var sidebar: SidebarInteractionState = SidebarInteractionState()
     var libraryView: LibraryInteractionState = LibraryInteractionState()
     var inboxView: InboxInteractionState = InboxInteractionState()
+    var threeOmegaGeometryLxx: Double?
+    var threeOmegaGeometryLxy: Double?
+    var threeOmegaGeometryDNm: Double?
+    var threeOmegaV3Method: String?
+    var threeOmegaTitleTemplate: String?
+    var threeOmegaStackOffsetMultiplier: Double?
+    var threeOmegaMinGapFraction: Double?
+    var threeOmegaRTSidecarPath: String?
+    var threeOmegaFitRanges: [ThreeOmegaFitRange]?
+    var aheTitleTemplate: String?
 }

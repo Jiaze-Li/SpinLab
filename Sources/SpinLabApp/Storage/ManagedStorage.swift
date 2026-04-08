@@ -58,7 +58,8 @@ final class SpinLabManagedStorage {
         allowedFileExtensions: Set<String>,
         ignoredFileExtensions: Set<String> = [],
         excludedOriginalFilePaths: Set<String> = [],
-        excludedContentFingerprints: Set<String> = []
+        excludedContentFingerprints: Set<String> = [],
+        excludedFileNames: Set<String> = []
     ) -> [ImportedMeasurementFile] {
         let sourceFiles = expandMeasurementSourceFiles(
             from: urls,
@@ -67,7 +68,8 @@ final class SpinLabManagedStorage {
         )
         var duplicateGuard = DuplicateGuard(
             excludedOriginalPaths: excludedOriginalFilePaths,
-            excludedContentFingerprints: excludedContentFingerprints
+            excludedContentFingerprints: excludedContentFingerprints,
+            excludedFileNames: excludedFileNames
         )
         return sourceFiles.compactMap { sourceURL in
             let originalPath = sourceURL.path

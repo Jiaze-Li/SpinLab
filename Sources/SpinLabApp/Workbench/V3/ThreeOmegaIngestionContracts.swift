@@ -89,6 +89,24 @@ struct ThreeOmegaFieldSweepResult: Codable, Hashable, Sendable, Identifiable {
     var v3omegaFit: Double?         // V  (cross-check; nil = fit failed)
 }
 
+/// Which V^(3ω)_AHE extraction method to use in Scaling Law.
+enum ThreeOmegaV3Method: String, CaseIterable, Identifiable {
+    case highField = "High-field extrapolation"
+    case window    = "Window average"
+
+    var id: String { rawValue }
+
+    /// Pick the appropriate value from a field-sweep result.
+    func v3ahe(from sweep: ThreeOmegaFieldSweepResult) -> Double {
+        switch self {
+        case .highField:
+            return sweep.v3omegaFit ?? sweep.v3omegaWindow
+        case .window:
+            return sweep.v3omegaWindow
+        }
+    }
+}
+
 // MARK: - RT result
 
 /// Resistance vs. temperature from RT sweep files.
@@ -181,8 +199,8 @@ struct ThreeOmegaIngestionResult: Codable, Hashable, Sendable {
 // MARK: - UI tab enum
 
 enum ThreeOmegaWorkbenchTab: String, CaseIterable, Identifiable {
-    case fieldSweep1omega = "R¹ω vs H"
-    case fieldSweep3omega = "R³ω vs H"
+    case fieldSweep1omega = "R(1ω) vs H"
+    case fieldSweep3omega = "R(3ω) vs H"
     case raheVsT          = "RAHE vs T"
     case hcVsT            = "Hc vs T"
     case rtCurve          = "Rxx vs T"

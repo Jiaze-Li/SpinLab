@@ -48,14 +48,6 @@ struct RootSplitView: View {
                 .overlay(alignment: .topTrailing) {
                     HStack(spacing: 10) {
                         if appState.selectedArea != .library {
-                            Button("Export Audit") {
-                                presentAuditTrailExportPanel()
-                            }
-                            .font(.caption)
-                            .buttonStyle(.bordered)
-                        }
-
-                        if appState.selectedArea != .library {
                             Text(AppVersion.current)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -224,21 +216,9 @@ struct RootSplitView: View {
         return ids
     }
 
-    /// Enforces WYSIWYG sidebar state:
-    /// if a section is visually collapsed because another area is active,
-    /// its expansion state is also removed from memory.
-    private func pruneExpandedSidebarStateForSelectedArea() {
-        let selectedAreaNodeID = SidebarMenuNodeID.area(appState.selectedArea)
-        expandedSidebarNodeIDs = expandedSidebarNodeIDs.filter { nodeID in
-            if nodeID.hasPrefix("area:") {
-                return nodeID == selectedAreaNodeID
-            }
-            if nodeID.hasPrefix("library-prefix:") {
-                return appState.selectedArea == .library
-            }
-            return true
-        }
-    }
+    /// No-op: all chevron states are preserved across area switches.
+    /// Each chevron only responds to direct user interaction.
+    private func pruneExpandedSidebarStateForSelectedArea() {}
 
     private func persistSidebarInteractionState() {
         let isLibraryTreeExpanded = expandedSidebarNodeIDs.contains(SidebarMenuNodeID.area(.library))
@@ -270,10 +250,7 @@ struct RootSplitView: View {
         }
 
         if case .area = node.kind {
-            let insertOutcome = expandedSidebarNodeIDs.insert(node.id)
-            if insertOutcome.inserted {
-                persistSidebarInteractionState()
-            }
+            toggleSidebarNodeExpansion(node.id)
             appState.navigate(to: path)
             return
         }

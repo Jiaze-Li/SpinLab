@@ -83,6 +83,18 @@ struct PendingWarningAggregator {
                     )
                 )
             }
+
+            if let nameConflict = normalized(routingSnapshot.nameConflictWarning) {
+                warnings.append(
+                    PendingDisplayWarning(
+                        message: nameConflict,
+                        source: .routing,
+                        severity: .warning,
+                        reasonCode: SpinLabDomain.RoutingWarningReason.nameConflictInLibrary.rawValue,
+                        affectedScopes: []
+                    )
+                )
+            }
         }
 
         var mergedByKey: [String: PendingDisplayWarning] = [:]

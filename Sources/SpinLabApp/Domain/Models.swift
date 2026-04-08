@@ -28,6 +28,7 @@ extension SpinLabDomain {
         case channelSampleSignalWithoutToken = "channel-sample-signal-without-token"
         case noMatchingLibraryDrawer = "no-matching-library-drawer"
         case upstreamResolutionWarning = "upstream-resolution-warning"
+        case nameConflictInLibrary = "name-conflict-in-library"
     }
 
     struct RouteChannelResolution: Codable, Hashable {
@@ -235,6 +236,7 @@ extension SpinLabDomain {
         var unresolvedScopes: [String] = []
         var conflicts: [String] = []
         var routePlan: RoutePlan
+        var nameConflictWarning: String?
     }
 
     struct ParsedChannelHint: Codable, Hashable, Identifiable {

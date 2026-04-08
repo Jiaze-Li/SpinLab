@@ -79,11 +79,16 @@ private struct ThreeOmegaSearchSection: View {
         )
 
         VStack(alignment: .leading, spacing: 8) {
-            TextField("3w PN69, 3w 5K …", text: queryBinding)
-                .textFieldStyle(.roundedBorder)
-                .onSubmit {
-                    workbench.runWorkflowMeasurementSearch(workflowID: wf, libraryRootPath: libraryRoot)
-                }
+            HStack(alignment: .top, spacing: 12) {
+                TextField("3w PN69, 3w 5K …", text: queryBinding)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit {
+                        workbench.runWorkflowMeasurementSearch(workflowID: wf, libraryRootPath: libraryRoot)
+                    }
+
+                ThreeOmegaRTSearchField()
+                    .environment(appState)
+            }
 
             HStack(spacing: 4) {
                 Text("Library Root:")
@@ -141,7 +146,7 @@ private struct ThreeOmegaPlotControlsPanel: View {
         @Bindable var store = appState.workbench.threeOmegaWorkspace
 
         WorkbenchPlotControlsPanel {
-            // Tab 选择 + Grid
+            // Row 1: Tab + Stack Offset + Min Gap
             HStack(spacing: 8) {
                 Picker("Tab", selection: $store.activeTab) {
                     ForEach(ThreeOmegaWorkbenchTab.allCases) { tab in
@@ -149,27 +154,47 @@ private struct ThreeOmegaPlotControlsPanel: View {
                     }
                 }
                 .labelsHidden()
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: 160)
 
+                Slider(value: $store.stackOffsetMultiplier, in: 0...1.6, step: 0.1)
+                    .onChange(of: store.stackOffsetMultiplier) { _, _ in
+                        store.rerenderFieldSweepTabs()
+                        appState.flushInteractionSnapshotNow()
+                    }
+                Text(String(format: "%.1f×", store.stackOffsetMultiplier))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, alignment: .trailing)
+
+                Text("Gap")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                TextField("0.15", value: $store.minGapFraction, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 48)
+                    .font(.caption)
+                    .onSubmit {
+                        store.rerenderFieldSweepTabs()
+                        appState.flushInteractionSnapshotNow()
+                    }
+            }
+
+            // Row 2: Title template + Grid
+            HStack(alignment: .top, spacing: 12) {
+                WorkbenchTitleTemplateField(
+                    titleTemplate: $store.titleTemplate,
+                    numericDisplayCache: store.cachedSampleNumericDisplay,
+                    onChange: {
+                        store.rerenderForStyleChange()
+                        appState.flushInteractionSnapshotNow()
+                    }
+                )
                 Toggle("Grid", isOn: $store.showPlotGrid)
                     .toggleStyle(.checkbox)
                     .onChange(of: store.showPlotGrid) { _, _ in
                         store.rerenderForStyleChange()
                     }
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Stack Offset").font(.caption).foregroundStyle(.secondary)
-                HStack(spacing: 6) {
-                    Slider(value: $store.stackOffsetMultiplier, in: 0...1.6, step: 0.1)
-                        .onChange(of: store.stackOffsetMultiplier) { _, _ in
-                            store.rerenderFieldSweepTabs()
-                        }
-                    Text(String(format: "%.1f×", store.stackOffsetMultiplier))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 32, alignment: .trailing)
-                }
+                    .padding(.top, 2)
             }
         }
     }
@@ -186,38 +211,47 @@ private struct ThreeOmegaGeometryPanel: View {
         GroupBox("Geometry (for Scaling Law)") {
             VStack(alignment: .leading, spacing: 8) {
 
-                // ── Geometry dimensions ───────────────────────────────
-                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 8, verticalSpacing: 6) {
-                    GridRow {
+                // ── Geometry dimensions (single row) ─────────────────
+                HStack(spacing: 16) {
+                    HStack(spacing: 4) {
                         (Text("L").font(.body)
                          + Text("xx").font(.system(size: 9)).baselineOffset(-3)
                          + Text(" (μm)").font(.body))
-                        .gridColumnAlignment(.trailing)
-                        TextField("e.g. 26", value: $store.geometry.lxx, format: .number)
+                        TextField("26", value: $store.geometry.lxx, format: .number)
                             .textFieldStyle(.roundedBorder)
-                            .frame(width: 64)
+                            .frame(width: 52)
+                    }
+                    HStack(spacing: 4) {
                         (Text("L").font(.body)
                          + Text("xy").font(.system(size: 9)).baselineOffset(-3)
                          + Text(" (μm)").font(.body))
-                        .gridColumnAlignment(.trailing)
-                        TextField("e.g. 21", value: $store.geometry.lxy, format: .number)
+                        TextField("21", value: $store.geometry.lxy, format: .number)
                             .textFieldStyle(.roundedBorder)
-                            .frame(width: 64)
+                            .frame(width: 52)
                     }
-                    GridRow {
+                    HStack(spacing: 4) {
                         Text("d (nm)").font(.body)
-                            .gridColumnAlignment(.trailing)
-                        TextField("e.g. 30", value: $store.geometry.dNm, format: .number)
+                        TextField("30", value: $store.geometry.dNm, format: .number)
                             .textFieldStyle(.roundedBorder)
-                            .frame(width: 64)
-                        Button("Run Scaling") {
-                            store.runScaling()
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(!store.geometry.isComplete || store.ingestionResult == nil)
-                        .gridCellColumns(2)
-                        .gridCellAnchor(.trailing)
+                            .frame(width: 52)
                     }
+                }
+
+                // ── V(3ω) method + Run Scaling (same row) ───────────
+                HStack {
+                    Picker("V(3ω)", selection: $store.v3Method) {
+                        ForEach(ThreeOmegaV3Method.allCases) { method in
+                            Text(method.rawValue).tag(method)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: 220)
+                    Spacer()
+                    Button("Run Scaling") {
+                        store.runScaling()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!store.geometry.isComplete || store.ingestionResult == nil)
                 }
 
                 Divider()
@@ -255,6 +289,15 @@ private struct ThreeOmegaGeometryPanel: View {
                 }
             }
             .padding(.vertical, 4)
+            .onChange(of: store.geometry) { _, _ in
+                appState.flushInteractionSnapshotNow()
+            }
+            .onChange(of: store.v3Method) { _, _ in
+                appState.flushInteractionSnapshotNow()
+            }
+            .onChange(of: store.fitRanges) { _, _ in
+                appState.flushInteractionSnapshotNow()
+            }
         }
     }
 }
@@ -354,6 +397,14 @@ private struct ThreeOmegaRightColumn: View {
                     Text("Result")
                         .font(.title2.bold())
                     Spacer()
+                    Button("Save to Library") {
+                        store.persistToLibrary {
+                            appState.library.loadWorkbenchResultsForCurrentSelection()
+                            appState.library.loadMeasurementDataForCurrentSelection()
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(store.ingestionResult == nil)
                 }
 
                 WorkbenchStatusArea(
@@ -503,5 +554,110 @@ private struct ThreeOmegaScalingResultPanel: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 4)
         }
+    }
+}
+
+// MARK: - RT search field with popover
+
+private struct ThreeOmegaRTSearchField: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        @Bindable var store = appState.workbench.threeOmegaWorkspace
+        let libraryRoot = appState.library.librarySettings.rootPath
+
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                TextField("RT file…", text: $store.rtQuery)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 140)
+                    .onSubmit {
+                        store.clearRTSelection()
+                        appState.workbench.runThreeOmegaRTSearch(libraryRootPath: libraryRoot)
+                    }
+                    .popover(isPresented: $store.showRTPopover, arrowEdge: .bottom) {
+                        ThreeOmegaRTPopover()
+                            .environment(appState)
+                    }
+
+                Button {
+                    store.clearRTSelection()
+                    appState.workbench.runThreeOmegaRTSearch(libraryRootPath: libraryRoot)
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(store.rtQuery.trimmingCharacters(in: .whitespaces).isEmpty || store.isRTSearching || libraryRoot == nil)
+            }
+
+            if let hit = store.selectedRTHit {
+                let fullName = hit.measurementFilePath.components(separatedBy: "/").last ?? hit.id
+                Text("✓ \(fullName)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(fullName)
+            }
+        }
+        .frame(width: 170, alignment: .leading)
+    }
+}
+
+private struct ThreeOmegaRTPopover: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        let store = appState.workbench.threeOmegaWorkspace
+
+        VStack(alignment: .leading, spacing: 6) {
+            if store.isRTSearching {
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Searching…").font(.caption)
+                }
+            } else if store.rtSearchResults.isEmpty {
+                Text(store.rtSearchMessage ?? "No results.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(store.rtSearchMessage ?? "")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ScrollView(.vertical) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(store.rtSearchResults) { hit in
+                            Button {
+                                store.selectRTHit(hit)
+                                appState.flushInteractionSnapshotNow()
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(hit.measurementFilePath.components(separatedBy: "/").last ?? hit.id)
+                                        .font(.caption)
+                                        .lineLimit(1)
+                                    Text(hit.conditionSummary)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.vertical, 2)
+                            .padding(.horizontal, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.accentColor.opacity(0.08))
+                            )
+                        }
+                    }
+                }
+                .frame(minHeight: 120, maxHeight: 360)
+            }
+        }
+        .padding(8)
+        .frame(width: 320)
     }
 }

@@ -17,7 +17,7 @@
 
 ```
 4.0  ✅  架构 & 脚手架（AMR/PHE 延续 + 3ω 全部文件就位，swift build 通过）
-4.1  🔲  3ω AHE workflow（4.1.0–4.1.7）
+4.1  ✅  3ω AHE workflow（4.1.0–4.1.11）
 4.2  🔲  XY Rotation workflow
 4.3  🔲  RT workflow
 4.4  🔲  MR workflow
@@ -44,7 +44,12 @@
 4.1.4 ✅  Fig 5b Scaling 完整流程 (Tab 6)
 4.1.5 ✅  Import/Inbox 集成 — LVM 文件入库
 4.1.6 ✅  多角度支持 (30deg / 60deg) + 健壮性
-4.1.7 🔲  验收测试 + 文档
+4.1.6.1 ✅ 3ω Workbench 增强（title template, V3 method, RT fix, persist fix）
+4.1.7 ✅  验收测试 + 文档
+4.1.8 ✅  3ω 图表/指标持久化到 Library
+4.1.9 ✅  搜索查询持久化
+4.1.10 ✅ 自适应 stack offset + minGap
+4.1.11 ✅ 持久化完善 + Measurement Data 显示重构
 ```
 
 ---
@@ -251,15 +256,193 @@ Workbench 参数必须来自 sidecar conditions（用户在 Import 时确认的�
 
 ---
 
-### 4.1.7 🔲 — 验收测试 + 文档
+### 4.1.6.1 ✅ — 3ω Workbench 增强（已完成，2026-04-08）
+
+**目标：** 图表标题信息完整化 + 工作台交互改进 + 技术债清理。
+
+**功能变动：**
+
+1. **默认 chart title** — 6 个 tab 标题包含 tab + device + sample + numeric tags
+   - 基于 `#token` 模板系统（`#tab #device #sample #氧压 #能量` 等）
+   - 用户可在 Plot Controls 编辑模板，动态 hint 显示当前 sample 可用的 token
+   - 模板持久化到 InteractionSnapshot
+
+2. **R(1ω)/R(3ω) 标记法** — 替换 Unicode 上标 R¹ω/R³ω；field-sweep tab 标题去掉 "vs H"
+
+3. **V(3ω) 提取方法选择** — Geometry panel 新增 Picker（高场拟合 / 窗口法）
+   - `ThreeOmegaV3Method` enum 传入 `ThreeOmegaScalingUseCase`
+   - 选择持久化到 InteractionSnapshot
+
+4. **RT 搜索框 popover 修复** — 增大尺寸（minHeight 120, maxHeight 360, width 320）
+
+5. **RT 选中 bug 修复** — `selectRTHit()` 设置 rtQuery 触发 `onChange` 竞争清除 selectedRTHit
+
+6. **Geometry 持久化修复** — geometry onChange 触发 `flushInteractionSnapshotNow()`
+
+7. **Plot Controls 布局优化** — Tab + stack offset slider + Grid 一行；Title 模板第二行
+
+8. **numericDisplay 查询** — `SpinLabDataActor.lookupSampleNumericDisplay()` 从 library index 读取
+
+**技术债清理：**
+- 移除 debug print（IngestThreeOmegaSelectionsUseCase）
+- 移除废弃 `plotTitleSuffix` 属性
+- 替换硬编码 `["氧压", "能量"]` 为 template 系统
+
+**Commits:** `d472949`, `c39fd8f`
+
+---
+
+### 4.1.7 ✅ — 验收测试 + 文档（已完成，2026-04-08）
 
 **目标：** 所有单元测试 ≥20 个并全绿；功能对照原始计划完整验收。
 
-**验收条件：**
-- [ ] `swift test` 全绿，`V400ThreeOmegaTests` ≥ 20 个测试
-- [ ] 按 `V4_0_3W_AHE_ITERATION_PLAN_2026-04-05.md` §Verification 人工测试清单全部通过（6 步，含 30deg/60deg）
-- [ ] Open Questions 1–3 全部有记录结论
-- [ ] 本文档 4.1 节状态栏全部更新为 ✅
+**验收条件（全部通过）：**
+- [x] `swift test` 全绿 — 407 tests in 67 suites passed
+- [x] 3ω 相关测试 34 个（12 个 suite），远超 ≥20 要求
+- [x] 人工测试清单 6 步全部通过（Import → Analyze → Tabs 1-6 → 30deg/60deg）
+- [x] Open Questions 1–3 全部有记录结论（见下）
+- [x] 本文档 4.1 节状态栏全部更新为 ✅
+
+**Open Questions 结论：**
+
+| Question | 结论 | 实现版本 |
+|----------|------|----------|
+| Q1 — V^(3ω)_AHE 提取方法 | 高场拟合为主，窗口法 fallback；4.1.6.1 加用户可选 Picker | 4.1.3 + 4.1.6.1 |
+| Q2 — 多 RT 文件 | 自动取行数最多的 RT 文件；4.1.6.1 加独立 RT 搜索框手动指定 | 4.1.3 + 4.1.6.1 |
+| Q3 — 温度插值精度 | ±5K guard 正常工作，未丢 >3 个点，无需放宽 | 4.1.4 |
+
+---
+
+### 4.1.8 ✅ — 3ω 图表/指标持久化到 Library（已完成，2026-04-08）
+
+**目标：** 3ω 分析结果（图表 + alpha/beta 指标）持久化到 Library。
+
+**实现（超出原计划范围）：**
+
+1. **4 张图表持久化**（不只 Scaling，还包括 R(1ω)、R(3ω)、Rxx vs T）
+   - R(1ω) / R(3ω)：关联 field-sweep 文件，hover 可见
+   - Rxx vs T：关联 RT 文件
+   - Scaling Law：关联 field-sweep 文件，标题含方法标记 (HFE)/(WA)
+   - HFE 和 WA 的 Scaling 图各自独立存储（`semanticParams["v3method"]` 区分 identity key）
+
+2. **指标持久化**
+   - 每个 segment 生成 3 条 metric record：alpha、beta、r²
+   - conditions 只含 `range`（如 `90K–130K`）、`v3method`（HFE/WA）、`device`（0deg）
+   - 不继承 sidecar conditions（current/field/temperature 是测量级别，不是分析结果级别）
+   - alpha 存为 `×1e31` 单位 `Ω·μm³·cm²·V⁻²·S⁻²`，beta 存为 `×1e20` 单位 `Ω·μm³·V⁻²`（与 Scaling Result Panel 一致）
+
+3. **UI**
+   - "Save to Library" 按钮在右列 Result 标题旁（Analyze 后即可点，不限 Scaling tab）
+   - Export Audit 按钮从 Inbox/Workbench overlay 移除（Library-only）
+
+**验收条件（全部通过）：**
+- [x] 4 张图表出现在 Library Measurements Done 的 hover 预览中
+- [x] alpha, beta, r² 出现在 Library Measurement Data section
+- [x] HFE 和 WA 分别存储，不覆盖
+- [x] 退出 app 重开后数据保留
+
+---
+
+### 4.1.9 ✅ — 搜索查询持久化（已完成，2026-04-08，用户实现）
+
+**目标：** Workbench 搜索框文字跨 session 持久化。
+
+**实现：** 搜索 query text 通过 UserDefaults 持久化。
+
+---
+
+### 4.1.10 ✅ — 自适应 stack offset + minGap（已完成，2026-04-08，用户实现）
+
+**目标：** R(1ω)/R(3ω) 瀑布图的 stack offset 自适应，增加 minGap 参数。
+
+**实现：** `ThreeOmegaStackOffsetUseCase` 新增 `minGapFraction` 参数，UI 增加 Gap 输入框。
+
+---
+
+### 4.1.11 ✅ — 持久化完善 + Measurement Data 显示重构（已完成，2026-04-08）
+
+**目标：** 补全所有 workbench 状态持久化缺口 + 重新设计 Measurement Data 显示。
+
+**1. 持久化完善**
+
+| 状态项 | 持久化方式 | 说明 |
+|--------|-----------|------|
+| RT 选中文件 | InteractionSnapshot (`threeOmegaRTSidecarPath`) | 首次 3w 搜索后从 sidecar 重建 hit |
+| Fit ranges | InteractionSnapshot (`threeOmegaFitRanges`) | 直接存 Codable 数组 |
+| V3 method | InteractionSnapshot (`threeOmegaV3Method`) | 存 rawValue |
+| Title template | InteractionSnapshot (`threeOmegaTitleTemplate`) | 用户可编辑模板 |
+| Stack offset | InteractionSnapshot (`threeOmegaStackOffsetMultiplier`) | 用户实现 |
+| Min gap | InteractionSnapshot (`threeOmegaMinGapFraction`) | 用户实现 |
+
+**RT 选中持久化设计要点：**
+- 不在启动时全量扫描库，只按持久化的 sidecar 路径读一次文件
+- sidecar I/O 在 `nonisolated static func rebuildRTHit()` 中执行，不阻塞 MainActor
+- 恢复时机：首次 3w 搜索结果加载完成后
+- 失败静默降级：路径不存在 / sidecar 不可解析 / workflow 不匹配 → 清空快照字段
+- capture 时保留未消费的 `pendingRTSidecarPath`，避免多次重启覆盖为 nil
+- 去掉 `onChange(of: rtQuery)` 的 clearRTSelection（竞争条件导致间歇性失败），改为只在搜索触发时清除
+
+**2. Measurement Data 显示重构**
+
+**设计思路：**
+- 旧设计：每个 metric record 一个 cell，conditions 全部平铺显示 → 信息冗余，难以对比
+- 新设计：数据驱动分组，无硬编码特定 workflow 逻辑
+
+**分组层级：** workflow → device → method → range
+```
+3W · 0deg
+┌─ HFE (alpha: Ω·μm³·cm²·V⁻²·S⁻², beta: Ω·μm³·V⁻²) ──┐
+│ 90K–130K           │ 5K–80K                             │
+│   alpha  1.23e+00  │   alpha  2.34e+00                  │
+│    beta  4.56e-01  │    beta  5.67e-01                  │
+│      r²  0.9987    │      r²  0.9991                    │
+└────────────────────┴────────────────────────────────────┘
+```
+
+**显示规则（全部数据驱动，非硬编码）：**
+- 分组 key 从 record.conditions 的 `v3method`、`range`、`device` 字段读取
+- 单位提到 method 卡片标题（从 entries 去重收集），entries 只显示数值
+- `r_squared` 显示为 `r²`
+- 宽度 ≥400 时同 method 不同 range 自适应两列并排
+- 右键 Copy All / Delete 整个 range 组（如 "Delete HFE (5K–80K)"）
+- 所有文字 `.textSelection(.enabled)`
+
+**3. 其他改进**
+
+- Scaling 拟合线端点：改为数据点到拟合线的**垂直投影**（perpendicular foot），而非固定 x 延伸，解决视觉不对称问题
+- `#method` token 只在 Scaling tab 解析为 `(HFE)`/`(WA)`，其他 tab 自动移除
+- RT restore 测试：4 个测试覆盖成功/失败/workflow 不匹配/文件缺失
+
+**4. Save to Library 模块化重构**
+
+- 新增 `SaveActiveChartToLibraryUseCase`：通用 UseCase，入口校验 sourceRef/sampleKeys/libraryRoot，内部 normalize conditions
+- 新增 `ActiveChartProviding` 协议：任何 workflow store 实现即可接入 Save to Library
+- 3ω：`persistToLibrary()` 改为只存 active tab 的图，Scaling tab 带 metrics
+- AHE：删除 `attemptPersist`，render 不再自动存图，新增手动 "Save to Library" 按钮
+- 快照一致性：sampleKeys/inputFiles/conditions 在渲染时冻结，Save 不读 UI 当前状态
+- Library 自动刷新：Save 完成后触发 `loadWorkbenchResultsForCurrentSelection` + `loadMeasurementDataForCurrentSelection`
+
+**5. Metric 删除**
+
+- `LibraryFeatureStore.deleteMetricRecord(identityKey:)` — 从 `measurement_data.json` 移除 record + latestIndex 条目
+- Measurement Data cell 右键菜单：Copy Value / Delete（含确认弹窗）
+- 修复 `.textSelection(.enabled)` 抢占右键事件
+
+**6. Sidebar 独立展开状态**
+
+- 移除 `pruneExpandedSidebarStateForSelectedArea`（旧逻辑：切换 area 时强制收起其他 area）
+- 一级菜单点击改为 toggle（原来只做 insert，无法收起）
+- Library children 在非活跃时返回缓存值（不返回空数组）
+- 效果：每个 chevron 只听用户点击，切换 area 不影响其他菜单展开状态
+
+**7. AHE Title Template + 共享组件**
+
+- AHE workspace 新增 `titleTemplate` 支持（与 3ω 对称）
+- 抽取 `WorkbenchTitleResolver` 共享工具
+- 抽取 `WorkbenchTitleTemplateField` 共享 UI 组件
+- AHE title template 持久化到 InteractionSnapshot
+
+**Commits：** `cd147ed` → `ef44685`（12 个 commit）
 
 ---
 
@@ -274,13 +457,14 @@ Workbench 参数必须来自 sidecar conditions（用户在 Import 时确认的�
 4.1.5 (Import 集成) ← 可与 4.1.2 并行
 4.1.6 (多角度)      ← 依赖 4.1.4
 4.1.7 (验收)        ← 依赖全部
+4.1.8 (3ω 持久化)   ← 依赖 4.1.4
 ```
 
 ### 当前阻塞项 / 决策
 
-1. **Open Q1 — V^(3ω)_AHE 提取方法**：决策时机在 4.1.2 完成后，看 Tab 2 的 5K 曲线形状
-2. **Open Q2 — 多 RT 文件**：选 `|H|` 最小的 RT 文件（实现在 4.1.3）
-3. **Open Q3 — 温度插值精度**：±5K guard；若 4.1.4 丢点 >3 个则放宽到 ±10K
+1. **Open Q1 — V^(3ω)_AHE 提取方法** ✅：高场拟合为主，窗口法 fallback（4.1.3）；用户可选 Picker（4.1.6.1）
+2. **Open Q2 — 多 RT 文件** ✅：自动取行数最多的 RT；独立 RT 搜索框手动指定（4.1.6.1）
+3. **Open Q3 — 温度插值精度** ✅：±5K guard 正常工作，无需放宽（4.1.4 确认）
 
 ---
 

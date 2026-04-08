@@ -374,7 +374,10 @@ struct LibraryView: View {
                             MeasurementDataSectionView(
                                 measurementData: appState.library.measurementData,
                                 conditionAliasBook: appState.library.conditionAliasBook,
-                                availableWidth: sectionWidth
+                                availableWidth: sectionWidth,
+                                onDeleteMetric: { identityKey in
+                                    appState.library.deleteMetricRecord(identityKey: identityKey)
+                                }
                             )
 
                             Divider()

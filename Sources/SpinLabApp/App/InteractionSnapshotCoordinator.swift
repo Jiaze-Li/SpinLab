@@ -58,7 +58,17 @@ final class InteractionSnapshotCoordinator {
             )
             workbenchStore.restoreInteraction(
                 selectedArchivedRecordID: snapshot.selectedArchivedRecordID,
-                workbenchResultDraft: snapshot.workbenchResultDraft
+                workbenchResultDraft: snapshot.workbenchResultDraft,
+                threeOmegaGeometryLxx: snapshot.threeOmegaGeometryLxx,
+                threeOmegaGeometryLxy: snapshot.threeOmegaGeometryLxy,
+                threeOmegaGeometryDNm: snapshot.threeOmegaGeometryDNm,
+                threeOmegaV3Method: snapshot.threeOmegaV3Method,
+                threeOmegaTitleTemplate: snapshot.threeOmegaTitleTemplate,
+                threeOmegaStackOffsetMultiplier: snapshot.threeOmegaStackOffsetMultiplier,
+                threeOmegaMinGapFraction: snapshot.threeOmegaMinGapFraction,
+                threeOmegaRTSidecarPath: snapshot.threeOmegaRTSidecarPath,
+                threeOmegaFitRanges: snapshot.threeOmegaFitRanges,
+                aheTitleTemplate: snapshot.aheTitleTemplate
             )
             snapshot.inboxWorkspaceByPendingID = inboxStore.pruneWorkspaceByValidPendingIDs(
                 snapshot.inboxWorkspaceByPendingID

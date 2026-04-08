@@ -14,9 +14,85 @@ final class ThreeOmegaWorkspaceStore {
     var selectedSearchResultIDs: Set<String> = []
     var cachedSearchResults: [WorkflowMeasurementSearchHit] = []
 
+    // MARK: - RT file search (independent of main 3w search)
+
+    private static let rtQueryDefaultsKey = "workbench.searchQuery.3w.rt"
+
+    var rtQuery: String = "" {
+        didSet { UserDefaults.standard.set(rtQuery, forKey: Self.rtQueryDefaultsKey) }
+    }
+    var rtSearchResults: [WorkflowMeasurementSearchHit] = []
+    var rtSearchMessage: String?
+    var isRTSearching: Bool = false
+    var showRTPopover: Bool = false
+    private(set) var selectedRTHit: WorkflowMeasurementSearchHit?
+
+    init() {
+        self.rtQuery = UserDefaults.standard.string(forKey: Self.rtQueryDefaultsKey) ?? ""
+    }
+
+    func selectRTHit(_ hit: WorkflowMeasurementSearchHit) {
+        selectedRTHit = hit
+        rtSearchResults = []
+        showRTPopover = false
+    }
+
+    func clearRTSelection() {
+        selectedRTHit = nil
+    }
+
+    /// Set during restore; consumed on first 3w search to rebuild selectedRTHit.
+    var pendingRTSidecarPath: String?
+
+    /// Applies a pre-built hit from background restoration. Called by WorkbenchFeatureStore.
+    func applyRestoredRTHit(_ hit: WorkflowMeasurementSearchHit) {
+        selectRTHit(hit)
+        pendingRTSidecarPath = nil
+    }
+
+    /// Clears pending restore (called when restore fails).
+    func clearPendingRTRestore() {
+        pendingRTSidecarPath = nil
+    }
+
+    /// Parses a sidecar file and rebuilds a lightweight hit. Runs off MainActor.
+    nonisolated static func rebuildRTHit(fromSidecarPath sidecarPath: String) -> WorkflowMeasurementSearchHit? {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: sidecarPath) else { return nil }
+
+        let suffix = ".spinlab.json"
+        guard sidecarPath.hasSuffix(suffix) else { return nil }
+        let baseName = String(sidecarPath.dropLast(suffix.count))
+        guard fm.fileExists(atPath: baseName) else { return nil }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: sidecarPath)),
+              let sidecar = try? decoder.decode(SpinLabFileSidecar.self, from: data) else { return nil }
+
+        let wfID = sidecar.workflow.lowercased()
+        guard wfID == "3w" || wfID == "rt" else { return nil }
+
+        return WorkflowMeasurementSearchHit(
+            sidecarPath: sidecarPath,
+            measurementFilePath: baseName,
+            sourceFilePath: sidecar.sourceFilePath,
+            workflowID: sidecar.workflow,
+            workflowDisplayName: sidecar.workflowDisplayName,
+            workflowCanonicalID: wfID,
+            batchID: "",
+            sampleKey: "",
+            sampleSubstrate: "",
+            conditions: sidecar.conditions,
+            channels: sidecar.channels,
+            appliedAt: sidecar.appliedAt
+        )
+    }
+
     // MARK: - Geometry (session-only, not persisted)
 
     var geometry = ThreeOmegaGeometry()
+    var v3Method: ThreeOmegaV3Method = .highField
 
     // MARK: - Fit ranges (session-only, not persisted)
 
@@ -56,7 +132,9 @@ final class ThreeOmegaWorkspaceStore {
     var showPlotGrid: Bool = true
     var plotLegendAnchor: String = ""           // "" = top-right (default)
     var plotTitleOverride: String = ""
+    var titleTemplate: String = "#tab #method #device #sample #氧压 #能量"
     var stackOffsetMultiplier: Double = 1.2     // 0 = no stacking; >0 = curve spacing
+    var minGapFraction: Double = 0.15            // minimum gap as fraction of max peak-to-peak
 
     // Per-tab state (legend drag position, axis label overrides, and series label renames)
     var plotLegendPoints: [ThreeOmegaWorkbenchTab: CGPoint] = [:]
@@ -65,6 +143,29 @@ final class ThreeOmegaWorkspaceStore {
     var plotXLabelOverrides: [ThreeOmegaWorkbenchTab: String] = [:]
     /// Display-only y-axis label overrides per tab (does not affect data).
     var plotYLabelOverrides: [ThreeOmegaWorkbenchTab: String] = [:]
+
+    /// Cached per-sample numericDisplay from library index, populated by WorkbenchFeatureStore after search.
+    var cachedSampleNumericDisplay: [String: [String: String]] = [:]
+    /// Title tokens resolved from selected hit (sample + numericDisplay). Tab/device added by renderer.
+    private(set) var _titleTokens: [String: String] = [:]
+
+    // MARK: - Persistence
+
+    /// Set by WorkbenchFeatureStore during search; required for artifact I/O.
+    var lastLibraryRootPath: String = ""
+    private(set) var persistenceOutcome: PersistenceOutcome?
+
+    /// Cached manifest payloads per tab, built at render time with sourceRef populated.
+    /// Used by SaveActiveChartToLibraryUseCase for stable identity keys.
+    @ObservationIgnored private(set) var cachedManifestPayloads: [ThreeOmegaWorkbenchTab: WorkbenchPlotPayload] = [:]
+    /// Sample keys snapshot from the analysis run that produced current plots.
+    @ObservationIgnored private(set) var cachedSampleKeys: [String] = []
+    /// Per-sample conditions snapshot from the analysis run.
+    @ObservationIgnored private(set) var cachedConditionsBySampleKey: [String: [String: String]] = [:]
+    /// Input file paths snapshot from the analysis run.
+    @ObservationIgnored private(set) var cachedInputFiles: [String] = []
+    /// RT file path snapshot from the analysis run.
+    @ObservationIgnored private(set) var cachedRTFilePath: String? = nil
 
     // MARK: - Private
 
@@ -120,9 +221,20 @@ final class ThreeOmegaWorkspaceStore {
     /// Parse all selected files, fit RAHE/Hc, render tabs 1–5.
     func runAnalysis() {
         let selectedHits = cachedSearchResults.filter { selectedSearchResultIDs.contains($0.id) }
+            .sorted(by: { $0.measurementFilePath < $1.measurementFilePath })
         guard !selectedHits.isEmpty else {
             analysisMessage = "Select at least one 3w measurement file."
             return
+        }
+
+        // Build title token dictionary from representative hit (stable: sorted by path)
+        if let hit = selectedHits.first {
+            var tokens: [String: String] = ["sample": hit.sampleBatchAndSubstrate]
+            let numericDisplay = cachedSampleNumericDisplay[hit.sampleKey] ?? [:]
+            for (k, v) in numericDisplay { tokens[k] = v }
+            _titleTokens = tokens
+        } else {
+            _titleTokens = [:]
         }
 
         analysisTask?.cancel()
@@ -133,16 +245,24 @@ final class ThreeOmegaWorkspaceStore {
         let capturedGrid       = showPlotGrid
         let capturedAnchor     = plotLegendAnchor
         let capturedMultiplier = stackOffsetMultiplier
+        let capturedMinGap     = minGapFraction
+        let capturedTemplate   = titleTemplate
+        let capturedTokens     = _titleTokens
+
+        let capturedRTHit = selectedRTHit
 
         analysisTask = Task { [weak self] in
             guard let self else { return }
             let (result, plots) = await Task.detached(priority: .userInitiated) { [selectedHits] in
                 let ingestUseCase = IngestThreeOmegaSelectionsUseCase()
-                let result = ingestUseCase.execute(hits: selectedHits)
+                let result = ingestUseCase.execute(hits: selectedHits, rtHit: capturedRTHit)
                 var renderer = ThreeOmegaPlotRenderer()
-                renderer.showGrid             = capturedGrid
-                renderer.legendAnchor         = capturedAnchor
+                renderer.showGrid              = capturedGrid
+                renderer.legendAnchor          = capturedAnchor
                 renderer.stackOffsetMultiplier = capturedMultiplier
+                renderer.minGapFraction        = capturedMinGap
+                renderer.titleTemplate          = capturedTemplate
+                renderer.titleTokens            = capturedTokens
                 let plots = renderer.renderAllTabs(result: result)
                 return (result, plots)
             }.value
@@ -175,6 +295,7 @@ final class ThreeOmegaWorkspaceStore {
                 manifestPath: "",
                 generatedAt: Date()
             )
+            self._snapshotAndCacheManifestPayloads()
             self.isAnalyzing = false
         }
     }
@@ -196,6 +317,10 @@ final class ThreeOmegaWorkspaceStore {
         let capturedAnchor   = plotLegendAnchor
         let capturedLegend   = plotLegendPoints[.scaling]
         let capturedRanges   = fitRanges
+        let capturedTemplate = titleTemplate
+        let capturedTokens   = _titleTokens
+        let capturedDevice   = result.device
+        let capturedV3Method = v3Method
 
         scalingTask?.cancel()
         scalingTask = Task { [weak self] in
@@ -207,13 +332,17 @@ final class ThreeOmegaWorkspaceStore {
                     rtResult: rt,
                     geometry: capturedGeometry,
                     iRmsValues: capturedResult.iRmsValues,
-                    fitRanges: capturedRanges
+                    fitRanges: capturedRanges,
+                    v3Method: capturedV3Method
                 )
                 var renderer = ThreeOmegaPlotRenderer()
                 renderer.showGrid     = capturedGrid
                 renderer.legendAnchor = capturedAnchor
                 renderer.legendPoint  = capturedLegend
-                let (data, layout) = renderer.renderScaling(result: res)
+                renderer.titleTemplate = capturedTemplate
+                renderer.titleTokens   = capturedTokens
+                let method = capturedV3Method == .highField ? "(HFE)" : "(WA)"
+                let (data, layout) = renderer.renderScaling(result: res, device: capturedDevice, method: method)
                 return (res, data, layout)
             }.value
 
@@ -221,6 +350,8 @@ final class ThreeOmegaWorkspaceStore {
             self.scalingResult = scalingRes
             self.plotScaling   = scalingData
             if let l = scalingLayout { self.plotLayouts[.scaling] = l }
+            // Refresh manifest payloads (v3Method may have changed) using frozen inputFiles
+            self._refreshManifestPayloads()
 
             for w in scalingRes.warnings {
                 self.warningLog.append(ThreeOmegaWarningEntry(source: "Scaling", message: w))
@@ -237,6 +368,149 @@ final class ThreeOmegaWorkspaceStore {
         }
     }
 
+    // MARK: - Persist to Library
+
+    /// Saves the active tab's chart (+ metrics for scaling) to Library.
+    func persistToLibrary(onComplete: (() -> Void)? = nil) {
+        guard let png = activeChartPNG else {
+            analysisMessage = "No chart to save. Run analysis first."
+            return
+        }
+        guard let payload = activeChartManifestPayload else {
+            analysisMessage = "No manifest payload available for the active tab."
+            return
+        }
+        let libraryRootPath = lastLibraryRootPath
+        let sampleKeys = activeChartSampleKeys
+        let metrics = buildActiveChartMetrics()
+
+        let input = SaveActiveChartInput(
+            png: png,
+            payload: payload,
+            sampleKeys: sampleKeys,
+            libraryRootPath: libraryRootPath,
+            metrics: metrics
+        )
+
+        Task { [weak self] in
+            guard let self else { return }
+            let outcome = await Task.detached(priority: .userInitiated) {
+                SaveActiveChartToLibraryUseCase().execute(input: input)
+            }.value
+            self.persistenceOutcome = outcome
+            switch outcome {
+            case .success:
+                self.analysisMessage = "Saved to Library."
+            case .partial(_, let err):
+                self.analysisMessage = "Chart saved; metric error: \(err)"
+            case .failure(let err):
+                self.analysisMessage = "Save failed: \(err)"
+            }
+            onComplete?()
+        }
+    }
+
+    // MARK: - Manifest payload helpers
+
+    /// Builds a manifest payload for the given tab with sourceRef properly filled.
+    private func _buildManifestPayload(
+        tab: ThreeOmegaWorkbenchTab,
+        device: String,
+        inputFiles: [String],
+        rtFilePath: String?,
+        titleTemplate: String,
+        titleTokens: [String: String],
+        v3Method: ThreeOmegaV3Method
+    ) -> WorkbenchPlotPayload? {
+        let methodTag = v3Method == .highField ? "HFE" : "WA"
+
+        func resolveTitle(_ tabName: String) -> String {
+            var tokens = titleTokens
+            tokens["tab"] = tabName
+            tokens["device"] = device
+            var result = titleTemplate
+            for (key, value) in tokens {
+                result = result.replacingOccurrences(of: "#\(key)", with: value)
+            }
+            result = result.replacingOccurrences(of: "#\\S+", with: "", options: .regularExpression)
+            return result.split(separator: " ").joined(separator: " ").trimmingCharacters(in: .whitespaces)
+        }
+
+        func makePayload(title: String, xField: String, yField: String, files: [String], extraParams: [String: String] = [:]) -> WorkbenchPlotPayload {
+            var params: [String: String] = ["device": device]
+            for (k, v) in extraParams { params[k] = v }
+            return WorkbenchPlotPayload(
+                workflowID: "3w",
+                workflowDisplayName: "3w",
+                title: title,
+                axisMapping: WorkbenchAxisMapping(xField: xField, yField: yField),
+                series: files.map { WorkbenchPlotSeries(label: URL(fileURLWithPath: $0).lastPathComponent, x: [], y: [], sourceRef: $0) },
+                semanticParams: params
+            )
+        }
+
+        switch tab {
+        case .fieldSweep1omega:
+            return makePayload(title: resolveTitle("R(1ω)"), xField: "H (T)", yField: "R(1ω) (Ω)", files: inputFiles)
+        case .fieldSweep3omega:
+            return makePayload(title: resolveTitle("R(3ω)"), xField: "H (T)", yField: "R(3ω) (Ω)", files: inputFiles)
+        case .raheVsT:
+            return makePayload(title: resolveTitle("RAHE vs T"), xField: "T (K)", yField: "RAHE (Ω)", files: inputFiles)
+        case .hcVsT:
+            return makePayload(title: resolveTitle("Hc vs T"), xField: "T (K)", yField: "Hc (T)", files: inputFiles)
+        case .rtCurve:
+            guard let rtPath = rtFilePath else { return nil }
+            return makePayload(title: resolveTitle("Rxx vs T"), xField: "T (K)", yField: "Rxx (Ω)", files: [rtPath])
+        case .scaling:
+            return makePayload(
+                title: resolveTitle("Scaling Law") + " (\(methodTag))",
+                xField: "σ²_xx (S²/m²)", yField: "E(3ω)_AHE / (E³_xx · σ_xx)",
+                files: inputFiles,
+                extraParams: ["v3method": methodTag]
+            )
+        }
+    }
+
+    /// Caches manifest payloads for all tabs after analysis completes.
+    /// Snapshots sampleKeys, conditions, inputFiles from the current selection.
+    /// Called once after runAnalysis completes; scaling re-runs call `_refreshManifestPayloads()` instead.
+    private func _snapshotAndCacheManifestPayloads() {
+        let selectedHits = cachedSearchResults.filter { selectedSearchResultIDs.contains($0.id) }
+            .sorted(by: { $0.measurementFilePath < $1.measurementFilePath })
+
+        // Snapshot from current selection — frozen for the lifetime of this analysis run
+        cachedInputFiles = selectedHits.map { $0.measurementFilePath }
+        cachedRTFilePath = selectedRTHit?.measurementFilePath
+        var seen = Set<String>()
+        cachedSampleKeys = selectedHits.compactMap { seen.insert($0.sampleKey).inserted ? $0.sampleKey : nil }
+        var condMap: [String: [String: String]] = [:]
+        for hit in selectedHits where condMap[hit.sampleKey] == nil {
+            condMap[hit.sampleKey] = hit.conditions
+        }
+        cachedConditionsBySampleKey = condMap
+
+        _refreshManifestPayloads()
+    }
+
+    /// Rebuilds manifest payloads from cached (frozen) inputFiles/sampleKeys.
+    /// Safe to call after scaling reruns — does NOT re-read UI selection.
+    private func _refreshManifestPayloads() {
+        let device = ingestionResult?.device ?? ""
+
+        cachedManifestPayloads = [:]
+        for tab in ThreeOmegaWorkbenchTab.allCases {
+            cachedManifestPayloads[tab] = _buildManifestPayload(
+                tab: tab,
+                device: device,
+                inputFiles: cachedInputFiles,
+                rtFilePath: cachedRTFilePath,
+                titleTemplate: titleTemplate,
+                titleTokens: _titleTokens,
+                v3Method: v3Method
+            )
+        }
+    }
+
     // MARK: - Stack offset
 
     /// Re-renders Tab 1 and Tab 2 after stack offset multiplier changes.
@@ -245,6 +519,9 @@ final class ThreeOmegaWorkspaceStore {
         let capturedGrid       = showPlotGrid
         let capturedAnchor     = plotLegendAnchor
         let capturedMultiplier = stackOffsetMultiplier
+        let capturedMinGap     = minGapFraction
+        let capturedTemplate   = titleTemplate
+        let capturedTokens     = _titleTokens
 
         Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
@@ -252,6 +529,9 @@ final class ThreeOmegaWorkspaceStore {
             r.showGrid              = capturedGrid
             r.legendAnchor          = capturedAnchor
             r.stackOffsetMultiplier = capturedMultiplier
+            r.minGapFraction        = capturedMinGap
+            r.titleTemplate         = capturedTemplate
+            r.titleTokens           = capturedTokens
             let r1 = r.renderR1omega(sweeps: ingestion.fieldSweeps, device: ingestion.device)
             let r3 = r.renderR3omega(sweeps: ingestion.fieldSweeps, device: ingestion.device)
             await MainActor.run { [weak self] in
@@ -318,16 +598,25 @@ final class ThreeOmegaWorkspaceStore {
         isAnalyzing              = false
         analysisMessage          = nil
         geometry                 = ThreeOmegaGeometry()
+        v3Method                 = .highField
         fitRanges                = [ThreeOmegaFitRange()]
         activeTab                = .fieldSweep1omega
         showPlotGrid             = true
         plotLegendAnchor         = ""
         plotTitleOverride        = ""
+        _titleTokens             = [:]
         plotLegendPoints         = [:]
         plotSeriesLabelOverrides = [:]
         plotXLabelOverrides      = [:]
         plotYLabelOverrides      = [:]
+        rtQuery                  = ""
+        rtSearchResults          = []
+        rtSearchMessage          = nil
+        isRTSearching            = false
+        showRTPopover            = false
+        selectedRTHit            = nil
         warningLog               = []
+        cachedSampleNumericDisplay = [:]
         _clearPlots()
     }
 
@@ -355,12 +644,18 @@ final class ThreeOmegaWorkspaceStore {
         let capturedGrid   = showPlotGrid
         let capturedAnchor = plotLegendAnchor
         let capturedLegend = plotLegendPoints[tab]
+        let capturedMultiplier = stackOffsetMultiplier
+        let capturedMinGap     = minGapFraction
         let titleOverride  = plotTitleOverride
         let xLabelOverride = plotXLabelOverrides[tab] ?? ""
         let yLabelOverride = plotYLabelOverrides[tab] ?? ""
         let labelOverrides = plotSeriesLabelOverrides[tab] ?? [:]
         let capturedScaling = scalingResult
         let capturedGeometry = geometry
+        let capturedTemplate = titleTemplate
+        let capturedTokens  = _titleTokens
+        let capturedDevice  = ingestion.device
+        let capturedV3Method = v3Method
 
         Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
@@ -368,26 +663,31 @@ final class ThreeOmegaWorkspaceStore {
             r.showGrid              = capturedGrid
             r.legendAnchor          = capturedAnchor
             r.legendPoint           = capturedLegend
+            r.stackOffsetMultiplier = capturedMultiplier
+            r.minGapFraction        = capturedMinGap
             r.titleOverride         = titleOverride
             r.xLabelOverride        = xLabelOverride
             r.yLabelOverride        = yLabelOverride
             r.seriesLabelOverrides  = labelOverrides
+            r.titleTemplate         = capturedTemplate
+            r.titleTokens           = capturedTokens
 
             let rendered: (Data?, WorkbenchPlotLayout?)
             switch tab {
             case .fieldSweep1omega:
-                rendered = r.renderR1omega(sweeps: ingestion.fieldSweeps, device: ingestion.device)
+                rendered = r.renderR1omega(sweeps: ingestion.fieldSweeps, device: capturedDevice)
             case .fieldSweep3omega:
-                rendered = r.renderR3omega(sweeps: ingestion.fieldSweeps, device: ingestion.device)
+                rendered = r.renderR3omega(sweeps: ingestion.fieldSweeps, device: capturedDevice)
             case .raheVsT:
-                rendered = r.renderRAHEvsT(sweeps: ingestion.fieldSweeps, device: ingestion.device)
+                rendered = r.renderRAHEvsT(sweeps: ingestion.fieldSweeps, device: capturedDevice)
             case .hcVsT:
-                rendered = r.renderHcVsT(sweeps: ingestion.fieldSweeps, device: ingestion.device)
+                rendered = r.renderHcVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice)
             case .rtCurve:
                 rendered = ingestion.rtResult.map { r.renderRT(rt: $0) } ?? (nil, nil)
             case .scaling:
                 if let sr = capturedScaling, capturedGeometry.isComplete {
-                    rendered = r.renderScaling(result: sr)
+                    let method = capturedV3Method == .highField ? "(HFE)" : "(WA)"
+                    rendered = r.renderScaling(result: sr, device: capturedDevice, method: method)
                 } else {
                     rendered = (nil, nil)
                 }
@@ -418,6 +718,11 @@ final class ThreeOmegaWorkspaceStore {
         plotRT      = nil
         plotScaling = nil
         plotLayouts = [:]
+        cachedManifestPayloads = [:]
+        cachedSampleKeys = []
+        cachedConditionsBySampleKey = [:]
+        cachedInputFiles = []
+        cachedRTFilePath = nil
     }
 }
 
@@ -439,6 +744,52 @@ struct ThreeOmegaWarningEntry: Identifiable, Sendable {
 // MARK: - WorkbenchPlottingStore conformance
 
 extension ThreeOmegaWorkspaceStore: WorkbenchPlottingStore {}
+
+// MARK: - ActiveChartProviding conformance
+
+extension ThreeOmegaWorkspaceStore: ActiveChartProviding {
+
+    var activeChartPNG: Data? {
+        switch activeTab {
+        case .fieldSweep1omega: return plotR1omega
+        case .fieldSweep3omega: return plotR3omega
+        case .raheVsT:          return plotRAHEvsT
+        case .hcVsT:            return plotHcvsT
+        case .rtCurve:          return plotRT
+        case .scaling:          return plotScaling
+        }
+    }
+
+    var activeChartManifestPayload: WorkbenchPlotPayload? {
+        cachedManifestPayloads[activeTab]
+    }
+
+    var activeChartSampleKeys: [String] { cachedSampleKeys }
+
+    func buildActiveChartMetrics() -> [PendingMetricEntry] {
+        guard activeTab == .scaling,
+              let scaling = scalingResult, !scaling.segments.isEmpty else {
+            return []
+        }
+        guard let sampleKey = cachedSampleKeys.first else { return [] }
+        let methodTag = v3Method == .highField ? "HFE" : "WA"
+        let device = ingestionResult?.device ?? ""
+
+        var entries: [PendingMetricEntry] = []
+        for seg in scaling.segments {
+            var segConditions: [String: String] = [
+                "range": "\(Int(seg.tLo.rounded()))K–\(Int(seg.tHi.rounded()))K",
+                "v3method": methodTag
+            ]
+            if !device.isEmpty { segConditions["device"] = device }
+
+            entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "alpha", value: seg.alpha * 1e31, canonicalUnit: "Ω·μm³·cm²·V⁻²·S⁻²", conditions: segConditions))
+            entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "beta", value: seg.beta * 1e20, canonicalUnit: "Ω·μm³·V⁻²", conditions: segConditions))
+            entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "r_squared", value: seg.rSquared, canonicalUnit: "", conditions: segConditions))
+        }
+        return entries
+    }
+}
 
 // MARK: - Rendered plot bundle
 

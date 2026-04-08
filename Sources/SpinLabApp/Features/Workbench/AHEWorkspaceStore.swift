@@ -26,7 +26,7 @@ final class AHEWorkspaceStore {
 
     // MARK: - Persistence outcome
 
-    /// Set after each `renderAHEPlot(persistArtifact: true)` call.
+    /// Set after each `persistToLibrary()` call.
     /// Nil when no persist has occurred or after `clearPlot()`.
     private(set) var persistenceOutcome: PersistenceOutcome? = nil
 
@@ -37,7 +37,7 @@ final class AHEWorkspaceStore {
     // MARK: - Pre-persist metric override (V3.4.1)
 
     /// A pending manual correction the user has entered before clicking "Save to Library".
-    /// When non-nil, `attemptPersist` wraps the extracted metric value in `WorkbenchMetricOverrideInfo`
+    /// When non-nil, `persistToLibrary` wraps the extracted metric value in `WorkbenchMetricOverrideInfo`
     /// and writes `newValue` as the stored value. Cleared after a successful persist.
     var pendingMetricOverride: WorkbenchMetricOverrideCandidate? = nil
 
@@ -76,6 +76,12 @@ final class AHEWorkspaceStore {
     /// Display-only label override for the Y axis (does not affect which data column is used).
     var plotYLabelOverride: String = ""
 
+    // MARK: - Title template
+
+    var titleTemplate: String = "#tab #device #sample"
+    /// Cached per-sample numericDisplay from library index, populated by WorkbenchFeatureStore.
+    var cachedSampleNumericDisplay: [String: [String: String]] = [:]
+
     // MARK: - Context set by WorkbenchFeatureStore after search
 
     /// Updated by WorkbenchFeatureStore when search results change.
@@ -83,6 +89,16 @@ final class AHEWorkspaceStore {
     var cachedSearchResults: [WorkflowMeasurementSearchHit] = []
     /// Updated by WorkbenchFeatureStore when a search runs. Required for artifact I/O.
     var lastLibraryRootPath: String = ""
+
+    /// Manifest payload captured at render time for stable Save to Library identity.
+    @ObservationIgnored
+    private(set) var lastRenderedManifestPayload: WorkbenchPlotPayload?
+    /// Sample keys snapshot from the render that produced currentPlotImageData.
+    @ObservationIgnored
+    private(set) var lastRenderedSampleKeys: [String] = []
+    /// Per-sample conditions snapshot from the render.
+    @ObservationIgnored
+    private(set) var lastRenderedConditionsBySampleKey: [String: [String: String]] = [:]
 
     // MARK: - Private
 
@@ -108,7 +124,7 @@ final class AHEWorkspaceStore {
 
     // MARK: - Plot
 
-    func renderAHEPlot(persistArtifact: Bool = true) {
+    func renderAHEPlot() {
         let selections = buildAHESelections()
         guard !selections.isEmpty else {
             plotMessage = "Select at least one AHE measurement to plot."
@@ -118,34 +134,36 @@ final class AHEWorkspaceStore {
         let xOverride = plotAxisXOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         let yOverride = plotAxisYOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         let titleOverride = plotTitleOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+        let capturedTemplate = titleTemplate
+        // Build title tokens from representative hit
+        let capturedTitleTokens: [String: String] = {
+            let sortedHits = selections.sorted(by: { $0.sampleKey < $1.sampleKey })
+            guard let hit = sortedHits.first,
+                  let searchHit = cachedSearchResults.first(where: { $0.sampleKey == hit.sampleKey }) else { return [:] }
+            var tokens: [String: String] = ["sample": searchHit.sampleBatchAndSubstrate]
+            let numericDisplay = cachedSampleNumericDisplay[searchHit.sampleKey] ?? [:]
+            for (k, v) in numericDisplay { tokens[k] = v }
+            return tokens
+        }()
         let grid = showPlotGrid
         let legendAnchor = plotLegendAnchor
         let legendPoint = plotLegendPoint
         let labelOverrides = plotSeriesLabelOverrides
         let xLabelOverride = plotXLabelOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         let yLabelOverride = plotYLabelOverride.trimmingCharacters(in: .whitespacesAndNewlines)
-        let libraryRootPath = lastLibraryRootPath
-        let savedTrace = currentRunTrace  // preserved when not persisting
-        let allSampleKeys: [String] = {
+
+        // Snapshot sampleKeys and conditions at render time (not at save time)
+        let snapshotSampleKeys: [String] = {
             var seen = Set<String>()
             return selections.compactMap { seen.insert($0.sampleKey).inserted ? $0.sampleKey : nil }
         }()
-        // Capture per-sample conditions for metric records (Fix-1: each sample uses its own conditions,
-        // not firstConditions which caused wrong condition data for non-first samples).
-        // First selection for each sampleKey wins (canonical keys from rule parser, Adj-8).
-        let conditionsBySampleKey: [String: [String: String]] = {
+        let snapshotConditions: [String: [String: String]] = {
             var map: [String: [String: String]] = [:]
             for sel in selections where map[sel.sampleKey] == nil {
                 map[sel.sampleKey] = sel.conditions
             }
             return map
         }()
-        // Generate runID once; passed into both chart and metric persistence (Adj-2)
-        let runID = UUID().uuidString
-        let generatedAt = Date()
-        // Capture pending overrides before leaving MainActor; cleared after successful persist
-        let capturedOverride = pendingMetricOverride
-        let capturedRAHEOverride = pendingRAHEOverride
 
         plotTask?.cancel()
         isPlotRendering = true
@@ -158,14 +176,19 @@ final class AHEWorkspaceStore {
         plotTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let (imageData, plotLayout, candidates, outcome, extractedMetrics) = try await Task.detached(priority: .userInitiated) {
+                let (imageData, plotLayout, candidates, manifestPayload, extractedMetrics) = try await Task.detached(priority: .userInitiated) {
                     let ingestion = try IngestAHESelectionsUseCase().execute(
                         selections: selections,
                         xColumnOverride: xOverride.isEmpty ? nil : xOverride,
                         yColumnOverride: yOverride.isEmpty ? nil : yOverride
                     )
                     let extractedMetrics = try AHEWorkspaceStore.extractAHEMetricsPerSeries(from: ingestion.series).get()
-                    let resolvedTitle = titleOverride.isEmpty ? "AHE" : titleOverride
+                    let resolvedTitle: String = {
+                        if !titleOverride.isEmpty { return titleOverride }
+                        var tokens = capturedTitleTokens
+                        tokens["tab"] = "AHE"
+                        return WorkbenchTitleResolver.resolve(template: capturedTemplate, tokens: tokens)
+                    }()
                     let xField = xOverride.isEmpty ? ingestion.defaultAxisMapping.xField : xOverride
                     let yField = yOverride.isEmpty ? ingestion.defaultAxisMapping.yField : yOverride
                     var style: [String: String] = [:]
@@ -201,54 +224,21 @@ final class AHEWorkspaceStore {
                         }
                     }
                     let png = try WorkbenchChartRenderer().renderPNG(payload: payload, options: rendererOptions)
-                    let outcome: PersistenceOutcome?
-                    if persistArtifact {
-                        // Restore data-column axisMapping so the manifest records the actual
-                        // data columns used, not the display-only label overrides.
-                        var manifestPayload = payload
-                        manifestPayload.axisMapping = manifestAxisMapping
-                        outcome = AHEWorkspaceStore.attemptPersist(
-                            png: png,
-                            payload: manifestPayload,
-                            extractedMetrics: extractedMetrics,
-                            conditionsBySampleKey: conditionsBySampleKey,
-                            pendingOverride: capturedOverride,
-                            pendingRAHEOverride: capturedRAHEOverride,
-                            libraryRootPath: libraryRootPath,
-                            sampleKeys: allSampleKeys,
-                            runID: runID,
-                            generatedAt: generatedAt
-                        )
-                    } else {
-                        outcome = nil
-                    }
-                    return (png, plotLayout, ingestion.candidateAxisFields, outcome, extractedMetrics)
+                    // Build manifest payload with data-column axisMapping (not display overrides)
+                    var manifestPayload = payload
+                    manifestPayload.axisMapping = manifestAxisMapping
+                    return (png, plotLayout, ingestion.candidateAxisFields, manifestPayload, extractedMetrics)
                 }.value
                 guard !Task.isCancelled else { return }
                 self.currentPlotImageData = imageData
                 self.currentPlotLayout = plotLayout
                 self.currentCandidateAxisFields = candidates
                 self.lastExtractedMetrics = extractedMetrics
+                self.lastRenderedManifestPayload = manifestPayload
+                self.lastRenderedSampleKeys = snapshotSampleKeys
+                self.lastRenderedConditionsBySampleKey = snapshotConditions
                 self.isPlotRendering = false
-                if let outcome {
-                    self.persistenceOutcome = outcome
-                    self.currentRunTrace = outcome.trace
-                    switch outcome {
-                    case .success:
-                        self.pendingMetricOverride = nil   // clear after successful persist
-                        self.pendingRAHEOverride = nil
-                        self.persistCount += 1
-                        self.plotMessage = "Rendered \(seriesCount) series."
-                    case .partial(_, let metricError):
-                        self.persistCount += 1
-                        self.plotMessage = "Rendered \(seriesCount) series (metric write failed: \(metricError))."
-                    case .failure(let msg):
-                        self.plotMessage = "Persist failed: \(msg)."
-                    }
-                } else {
-                    self.currentRunTrace = savedTrace
-                    self.plotMessage = "Rendered \(seriesCount) series."
-                }
+                self.plotMessage = "Rendered \(seriesCount) series."
             } catch is CancellationError {
                 self.isPlotRendering = false
             } catch {
@@ -313,6 +303,52 @@ final class AHEWorkspaceStore {
         }
     }
 
+    // MARK: - Save to Library
+
+    func persistToLibrary(onComplete: (() -> Void)? = nil) {
+        guard let png = activeChartPNG else {
+            plotMessage = "No chart to save. Render first."
+            return
+        }
+        guard let payload = activeChartManifestPayload else {
+            plotMessage = "No manifest payload available."
+            return
+        }
+        let libraryRootPath = lastLibraryRootPath
+        let sampleKeys = activeChartSampleKeys
+        let metrics = buildActiveChartMetrics()
+
+        let input = SaveActiveChartInput(
+            png: png,
+            payload: payload,
+            sampleKeys: sampleKeys,
+            libraryRootPath: libraryRootPath,
+            metrics: metrics
+        )
+
+        Task { [weak self] in
+            guard let self else { return }
+            let outcome = await Task.detached(priority: .userInitiated) {
+                SaveActiveChartToLibraryUseCase().execute(input: input)
+            }.value
+            self.persistenceOutcome = outcome
+            self.currentRunTrace = outcome.trace
+            switch outcome {
+            case .success:
+                self.pendingMetricOverride = nil
+                self.pendingRAHEOverride = nil
+                self.persistCount += 1
+                self.plotMessage = "Saved to Library."
+            case .partial(_, let metricError):
+                self.persistCount += 1
+                self.plotMessage = "Chart saved; metric error: \(metricError)"
+            case .failure(let msg):
+                self.plotMessage = "Save failed: \(msg)"
+            }
+            onComplete?()
+        }
+    }
+
     // MARK: - Plot label / position overrides
 
     /// Overrides the display label for a series identified by its original label.
@@ -324,32 +360,32 @@ final class AHEWorkspaceStore {
         } else {
             plotSeriesLabelOverrides[index] = trimmed
         }
-        renderAHEPlot(persistArtifact: false)
+        renderAHEPlot()
     }
 
     /// Updates the legend position and re-renders without persisting.
     /// `point` is normalized: (0,0) = bottom-left, (1,1) = top-right of the plot area.
     func updateLegendPoint(_ point: CGPoint) {
         plotLegendPoint = point
-        renderAHEPlot(persistArtifact: false)
+        renderAHEPlot()
     }
 
     /// Overrides the chart title displayed on the chart. Pass empty string to revert to default.
     func updatePlotTitle(_ title: String) {
         plotTitleOverride = title
-        renderAHEPlot(persistArtifact: false)
+        renderAHEPlot()
     }
 
     /// Overrides the X-axis display label without changing the data column.
     func updateXAxisLabel(_ label: String) {
         plotXLabelOverride = label
-        renderAHEPlot(persistArtifact: false)
+        renderAHEPlot()
     }
 
     /// Overrides the Y-axis display label without changing the data column.
     func updateYAxisLabel(_ label: String) {
         plotYLabelOverride = label
-        renderAHEPlot(persistArtifact: false)
+        renderAHEPlot()
     }
 
     // MARK: - Private helpers
@@ -387,154 +423,6 @@ final class AHEWorkspaceStore {
     /// Returns `PersistenceOutcome` — never throws or returns nil — so partial
     /// failures (chart OK, metric failed) are surfaced to the store (Adj-3).
     ///
-    /// Multi-sample renders now persist per-sample metrics using `extractedMetrics`
-    /// keyed by sampleKey. A consistency check ensures every sampleKey maps to
-    /// exactly one extracted metric; mismatches abort all metric writes.
-    /// Manual overrides are only applied for single-sample renders.
-    nonisolated static func attemptPersist(
-        png: Data,
-        payload: WorkbenchPlotPayload,
-        extractedMetrics: [String: AHEExtractedMetric],
-        conditionsBySampleKey: [String: [String: String]],
-        pendingOverride: WorkbenchMetricOverrideCandidate?,
-        pendingRAHEOverride: WorkbenchMetricOverrideCandidate?,
-        libraryRootPath: String,
-        sampleKeys: [String],
-        runID: String,
-        generatedAt: Date
-    ) -> PersistenceOutcome {
-        guard !libraryRootPath.isEmpty else {
-            return .failure("Library root path not set")
-        }
-        let resolver = LibraryPathResolver(libraryRootURL: URL(filePath: libraryRootPath))
-        let writer = AtomicFileWriter()
-
-        // 1. Persist chart + manifest + results_index
-        let chartResult: ChartArtifactPersistenceResult
-        do {
-            chartResult = try PersistChartArtifactUseCase(writer: writer, pathResolver: resolver)
-                .execute(
-                    sampleKeys: sampleKeys,
-                    payload: payload,
-                    imageData: png,
-                    runID: runID,
-                    generatedAt: generatedAt
-                )
-        } catch {
-            return .failure(AppError.from(error, fallback: "Chart persist failed").localizedDescription)
-        }
-
-        let trace = BuildRunTraceProjectionUseCase().execute(
-            manifest: chartResult.manifest,
-            manifestPath: chartResult.manifestPath
-        )
-
-        // 2. Consistency check: every sampleKey must have a corresponding extracted metric.
-        let missingSampleKeys = sampleKeys.filter { extractedMetrics[$0] == nil }
-        guard missingSampleKeys.isEmpty else {
-            return .partial(
-                trace: trace,
-                metricError: "Metric extraction mismatch: no metrics for sampleKeys \(missingSampleKeys). Metric write aborted."
-            )
-        }
-        guard sampleKeys.count == extractedMetrics.count else {
-            return .partial(
-                trace: trace,
-                metricError: "Metric extraction mismatch: \(sampleKeys.count) sampleKeys vs \(extractedMetrics.count) extracted metrics. Metric write aborted."
-            )
-        }
-
-        // 3. Persist metric records for each sample.
-        // Manual overrides are only supported for single-sample renders.
-        let isSingleSample = sampleKeys.count == 1
-        let persistUseCase = PersistMeasurementDataUseCase(writer: writer, pathResolver: resolver)
-
-        for key in sampleKeys {
-            let metric = extractedMetrics[key]!
-            let conditions = conditionsBySampleKey[key] ?? [:]
-
-            // --- Hc ---
-            let hcStoredValue: Double
-            let hcOverrideInfo: WorkbenchMetricOverrideInfo?
-            if isSingleSample, let override = pendingOverride {
-                hcStoredValue = override.proposedValue
-                hcOverrideInfo = WorkbenchMetricOverrideInfo(
-                    oldValue: metric.hc,
-                    newValue: override.proposedValue,
-                    reason: override.reason,
-                    source: override.source,
-                    at: generatedAt
-                )
-            } else {
-                hcStoredValue = metric.hc
-                hcOverrideInfo = nil
-            }
-
-            let hcRecord = WorkbenchMetricRecord(
-                recordID: UUID().uuidString,
-                sampleKey: key,
-                displayKey: key,
-                workflowID: payload.workflowID,
-                metric: "Hc",
-                value: hcStoredValue,
-                canonicalUnit: "T",
-                conditions: conditions,
-                generatedAt: generatedAt,
-                runID: runID,
-                overrideInfo: hcOverrideInfo
-            )
-            do {
-                try persistUseCase.execute(sampleKey: key, record: hcRecord)
-            } catch {
-                return .partial(
-                    trace: trace,
-                    metricError: AppError.from(error, fallback: "Hc metric persist failed for \(key)").localizedDescription
-                )
-            }
-
-            // --- R_AHE ---
-            let rAHEStoredValue: Double
-            let rAHEOverrideInfo: WorkbenchMetricOverrideInfo?
-            if isSingleSample, let rOverride = pendingRAHEOverride {
-                rAHEStoredValue = rOverride.proposedValue
-                rAHEOverrideInfo = WorkbenchMetricOverrideInfo(
-                    oldValue: metric.rAHE,
-                    newValue: rOverride.proposedValue,
-                    reason: rOverride.reason,
-                    source: rOverride.source,
-                    at: generatedAt
-                )
-            } else {
-                rAHEStoredValue = metric.rAHE
-                rAHEOverrideInfo = nil
-            }
-
-            let rAHERecord = WorkbenchMetricRecord(
-                recordID: UUID().uuidString,
-                sampleKey: key,
-                displayKey: key,
-                workflowID: payload.workflowID,
-                metric: "R_AHE",
-                value: rAHEStoredValue,
-                canonicalUnit: "Ω",
-                conditions: conditions,
-                generatedAt: generatedAt,
-                runID: runID,
-                overrideInfo: rAHEOverrideInfo
-            )
-            do {
-                try persistUseCase.execute(sampleKey: key, record: rAHERecord)
-            } catch {
-                return .partial(
-                    trace: trace,
-                    metricError: AppError.from(error, fallback: "R_AHE metric persist failed for \(key)").localizedDescription
-                )
-            }
-        }
-
-        return .success(trace: trace)
-    }
-
     /// Extracts Hc and R_AHE for every series, keyed by sampleKey parsed from the series label.
     ///
     /// Series label format (from IngestAHESelectionsUseCase):
@@ -652,3 +540,64 @@ final class AHEWorkspaceStore {
 // MARK: - WorkbenchPlottingStore conformance
 
 extension AHEWorkspaceStore: WorkbenchPlottingStore {}
+
+// MARK: - ActiveChartProviding conformance
+
+extension AHEWorkspaceStore: ActiveChartProviding {
+
+    var activeChartPNG: Data? { currentPlotImageData }
+
+    var activeChartManifestPayload: WorkbenchPlotPayload? { lastRenderedManifestPayload }
+
+    var activeChartSampleKeys: [String] { lastRenderedSampleKeys }
+
+    func buildActiveChartMetrics() -> [PendingMetricEntry] {
+        let sampleKeys = lastRenderedSampleKeys
+        let isSingleSample = sampleKeys.count == 1
+        let generatedAt = Date()
+        let conditionsBySampleKey = lastRenderedConditionsBySampleKey
+
+        var entries: [PendingMetricEntry] = []
+        for key in sampleKeys {
+            guard let metric = lastExtractedMetrics[key] else { continue }
+            let conditions = conditionsBySampleKey[key] ?? [:]
+
+            // Hc
+            let hcValue: Double
+            let hcOverride: WorkbenchMetricOverrideInfo?
+            if isSingleSample, let override = pendingMetricOverride {
+                hcValue = override.proposedValue
+                hcOverride = WorkbenchMetricOverrideInfo(
+                    oldValue: metric.hc, newValue: override.proposedValue,
+                    reason: override.reason, source: override.source, at: generatedAt
+                )
+            } else {
+                hcValue = metric.hc
+                hcOverride = nil
+            }
+            entries.append(PendingMetricEntry(
+                sampleKey: key, metric: "Hc", value: hcValue,
+                canonicalUnit: "T", conditions: conditions, overrideInfo: hcOverride
+            ))
+
+            // R_AHE
+            let rAHEValue: Double
+            let rAHEOverride: WorkbenchMetricOverrideInfo?
+            if isSingleSample, let override = pendingRAHEOverride {
+                rAHEValue = override.proposedValue
+                rAHEOverride = WorkbenchMetricOverrideInfo(
+                    oldValue: metric.rAHE, newValue: override.proposedValue,
+                    reason: override.reason, source: override.source, at: generatedAt
+                )
+            } else {
+                rAHEValue = metric.rAHE
+                rAHEOverride = nil
+            }
+            entries.append(PendingMetricEntry(
+                sampleKey: key, metric: "R_AHE", value: rAHEValue,
+                canonicalUnit: "Ω", conditions: conditions, overrideInfo: rAHEOverride
+            ))
+        }
+        return entries
+    }
+}
