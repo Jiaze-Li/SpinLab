@@ -391,6 +391,11 @@ private struct ThreeOmegaRightColumn: View {
                     Text("Result")
                         .font(.title2.bold())
                     Spacer()
+                    Button("Save to Library") {
+                        store.persistToLibrary()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(store.ingestionResult == nil)
                 }
 
                 WorkbenchStatusArea(

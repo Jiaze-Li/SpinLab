@@ -93,6 +93,12 @@ final class ThreeOmegaWorkspaceStore {
     /// Title tokens resolved from selected hit (sample + numericDisplay). Tab/device added by renderer.
     private(set) var _titleTokens: [String: String] = [:]
 
+    // MARK: - Persistence
+
+    /// Set by WorkbenchFeatureStore during search; required for artifact I/O.
+    var lastLibraryRootPath: String = ""
+    private(set) var persistenceOutcome: PersistenceOutcome?
+
     // MARK: - Private
 
     @ObservationIgnored private var analysisTask: Task<Void, Never>?
@@ -286,6 +292,212 @@ final class ThreeOmegaWorkspaceStore {
                 self.analysisMessage = scalingRes.warnings.first
             }
         }
+    }
+
+    // MARK: - Persist to Library
+
+    /// Saves R(1ω), R(3ω), Scaling, and Rxx charts + alpha/beta/r² metrics to Library.
+    func persistToLibrary() {
+        guard let ingestion = ingestionResult else {
+            analysisMessage = "Run analysis first."
+            return
+        }
+        let libraryRootPath = lastLibraryRootPath
+        let selectedHits = cachedSearchResults.filter { selectedSearchResultIDs.contains($0.id) }
+            .sorted(by: { $0.measurementFilePath < $1.measurementFilePath })
+        guard let representativeHit = selectedHits.first else {
+            analysisMessage = "No files selected."
+            return
+        }
+
+        let capturedIngestion = ingestion
+        let capturedScaling = scalingResult
+        let capturedR1omega = plotR1omega
+        let capturedR3omega = plotR3omega
+        let capturedRT = plotRT
+        let capturedScalingPNG = plotScaling
+        let capturedSampleKey = representativeHit.sampleKey
+        let capturedConditions = representativeHit.conditions
+        let capturedInputFiles = selectedHits.map { $0.measurementFilePath }
+        let capturedRTHit = selectedRTHit
+        let capturedTemplate = titleTemplate
+        let capturedTokens = _titleTokens
+
+        Task { [weak self] in
+            guard let self else { return }
+            let outcome = await Task.detached(priority: .userInitiated) {
+                ThreeOmegaWorkspaceStore.attemptPersist(
+                    r1omegaPNG: capturedR1omega,
+                    r3omegaPNG: capturedR3omega,
+                    scalingPNG: capturedScalingPNG,
+                    rtPNG: capturedRT,
+                    scalingResult: capturedScaling,
+                    device: capturedIngestion.device,
+                    sampleKey: capturedSampleKey,
+                    conditions: capturedConditions,
+                    inputFiles: capturedInputFiles,
+                    rtFilePath: capturedRTHit?.measurementFilePath,
+                    libraryRootPath: libraryRootPath,
+                    titleTemplate: capturedTemplate,
+                    titleTokens: capturedTokens
+                )
+            }.value
+            self.persistenceOutcome = outcome
+            switch outcome {
+            case .success:
+                self.analysisMessage = "Saved to Library."
+            case .partial(_, let err):
+                self.analysisMessage = "Charts saved; metric error: \(err)"
+            case .failure(let err):
+                self.analysisMessage = "Save failed: \(err)"
+            }
+        }
+    }
+
+    nonisolated static func attemptPersist(
+        r1omegaPNG: Data?,
+        r3omegaPNG: Data?,
+        scalingPNG: Data?,
+        rtPNG: Data?,
+        scalingResult: ThreeOmegaScalingResult?,
+        device: String,
+        sampleKey: String,
+        conditions: [String: String],
+        inputFiles: [String],
+        rtFilePath: String?,
+        libraryRootPath: String,
+        titleTemplate: String,
+        titleTokens: [String: String]
+    ) -> PersistenceOutcome {
+        guard !libraryRootPath.isEmpty else {
+            return .failure("Library root path not set")
+        }
+        let resolver = LibraryPathResolver(libraryRootURL: URL(filePath: libraryRootPath))
+        let writer = AtomicFileWriter()
+        let chartUseCase = PersistChartArtifactUseCase(writer: writer, pathResolver: resolver)
+        let runID = UUID().uuidString
+        let generatedAt = Date()
+
+        // Helper to build a payload for each chart
+        func makePayload(title: String, xField: String, yField: String, files: [String]) -> WorkbenchPlotPayload {
+            WorkbenchPlotPayload(
+                workflowID: "3w",
+                workflowDisplayName: "3w",
+                title: title,
+                axisMapping: WorkbenchAxisMapping(xField: xField, yField: yField),
+                series: files.map { WorkbenchPlotSeries(label: $0, x: [], y: []) },
+                semanticParams: ["device": device]
+            )
+        }
+
+        func resolveTitle(_ tabName: String) -> String {
+            var tokens = titleTokens
+            tokens["tab"] = tabName
+            tokens["device"] = device
+            var result = titleTemplate
+            for (key, value) in tokens {
+                result = result.replacingOccurrences(of: "#\(key)", with: value)
+            }
+            result = result.replacingOccurrences(of: "#\\S+", with: "", options: .regularExpression)
+            return result.split(separator: " ").joined(separator: " ").trimmingCharacters(in: .whitespaces)
+        }
+
+        // 1. Persist R(1ω) chart
+        if let png = r1omegaPNG {
+            let payload = makePayload(
+                title: resolveTitle("R(1ω)"),
+                xField: "H (T)", yField: "R(1ω) (Ω)",
+                files: inputFiles
+            )
+            _ = try? chartUseCase.execute(sampleKeys: [sampleKey], payload: payload, imageData: png, runID: runID, generatedAt: generatedAt)
+        }
+
+        // 2. Persist R(3ω) chart
+        if let png = r3omegaPNG {
+            let payload = makePayload(
+                title: resolveTitle("R(3ω)"),
+                xField: "H (T)", yField: "R(3ω) (Ω)",
+                files: inputFiles
+            )
+            _ = try? chartUseCase.execute(sampleKeys: [sampleKey], payload: payload, imageData: png, runID: runID, generatedAt: generatedAt)
+        }
+
+        // 3. Persist Rxx vs T chart (linked to RT file only)
+        if let png = rtPNG, let rtPath = rtFilePath {
+            let payload = makePayload(
+                title: resolveTitle("Rxx vs T"),
+                xField: "T (K)", yField: "Rxx (Ω)",
+                files: [rtPath]
+            )
+            _ = try? chartUseCase.execute(sampleKeys: [sampleKey], payload: payload, imageData: png, runID: runID, generatedAt: generatedAt)
+        }
+
+        // 4. Persist Scaling Law chart
+        var chartResult: ChartArtifactPersistenceResult?
+        if let png = scalingPNG {
+            let payload = makePayload(
+                title: resolveTitle("Scaling Law"),
+                xField: "σ²_xx (S²/m²)", yField: "E(3ω)_AHE / (E³_xx · σ_xx)",
+                files: inputFiles
+            )
+            chartResult = try? chartUseCase.execute(sampleKeys: [sampleKey], payload: payload, imageData: png, runID: runID, generatedAt: generatedAt)
+        }
+
+        // 5. Persist metric records (alpha, beta, r²) per scaling segment
+        guard let scaling = scalingResult, !scaling.segments.isEmpty else {
+            if chartResult != nil {
+                let trace = chartResult.map {
+                    BuildRunTraceProjectionUseCase().execute(manifest: $0.manifest, manifestPath: $0.manifestPath)
+                }
+                return .success(trace: trace!)
+            }
+            return .failure("No scaling result to persist.")
+        }
+
+        let metricUseCase = PersistMeasurementDataUseCase(writer: writer, pathResolver: resolver)
+        for seg in scaling.segments {
+            let segConditions: [String: String] = {
+                var c = conditions.reduce(into: [:]) { $0[$1.key.lowercased().trimmingCharacters(in: .whitespaces)] = $1.value }
+                c["t_lo"] = "\(Int(seg.tLo.rounded()))K"
+                c["t_hi"] = "\(Int(seg.tHi.rounded()))K"
+                return c
+            }()
+
+            let metrics: [(String, Double, String)] = [
+                ("alpha", seg.alpha, "Ω·m³/V²"),
+                ("beta", seg.beta, "Ω·m³/V²"),
+                ("r_squared", seg.rSquared, ""),
+            ]
+
+            for (name, value, unit) in metrics {
+                let record = WorkbenchMetricRecord(
+                    recordID: UUID().uuidString,
+                    sampleKey: sampleKey,
+                    displayKey: sampleKey,
+                    workflowID: "3w",
+                    metric: name,
+                    value: value,
+                    canonicalUnit: unit,
+                    conditions: segConditions,
+                    generatedAt: generatedAt,
+                    runID: runID,
+                    overrideInfo: nil
+                )
+                do {
+                    try metricUseCase.execute(sampleKey: sampleKey, record: record)
+                } catch {
+                    let trace = chartResult.map {
+                        BuildRunTraceProjectionUseCase().execute(manifest: $0.manifest, manifestPath: $0.manifestPath)
+                    }
+                    return .partial(trace: trace, metricError: "Metric '\(name)' persist failed: \(error.localizedDescription)")
+                }
+            }
+        }
+
+        let trace = chartResult.map {
+            BuildRunTraceProjectionUseCase().execute(manifest: $0.manifest, manifestPath: $0.manifestPath)
+        }!
+        return .success(trace: trace)
     }
 
     // MARK: - Stack offset

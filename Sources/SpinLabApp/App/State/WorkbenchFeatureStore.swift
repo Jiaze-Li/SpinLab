@@ -707,6 +707,7 @@ final class WorkbenchFeatureStore {
         }
 
         aheWorkspace.lastLibraryRootPath = libraryRootPath
+        threeOmegaWorkspace.lastLibraryRootPath = libraryRootPath
 
         workflowSearchTask?.cancel()
         searchRunning[wf] = true

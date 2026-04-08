@@ -48,14 +48,6 @@ struct RootSplitView: View {
                 .overlay(alignment: .topTrailing) {
                     HStack(spacing: 10) {
                         if appState.selectedArea != .library {
-                            Button("Export Audit") {
-                                presentAuditTrailExportPanel()
-                            }
-                            .font(.caption)
-                            .buttonStyle(.bordered)
-                        }
-
-                        if appState.selectedArea != .library {
                             Text(AppVersion.current)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
