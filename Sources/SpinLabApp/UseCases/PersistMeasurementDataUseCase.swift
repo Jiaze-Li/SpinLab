@@ -2,7 +2,7 @@ import Foundation
 
 /// Outcome of a single render-and-persist cycle.
 ///
-/// Returned by `AHEWorkspaceStore` after each `renderAHEPlot(persistArtifact: true)` call.
+/// Returned by `SaveActiveChartToLibraryUseCase` and workflow stores after persist operations.
 /// Surfaces partial failures (chart OK but metric write failed) so the UI can reflect them
 /// instead of silently swallowing errors (replaces `try?` pattern — Adj-3).
 enum PersistenceOutcome: Sendable {

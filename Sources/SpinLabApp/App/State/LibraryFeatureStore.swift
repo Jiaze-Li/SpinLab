@@ -1101,6 +1101,74 @@ final class LibraryFeatureStore {
         conditionAliasBook = try? ConditionAliasConfigLoader().load(from: aliasConfigURL)
     }
 
+    // MARK: - Metric record deletion (V4.1.11)
+
+    /// Deletes a single metric record from measurement_data.json by identity key.
+    /// Removes the record from `records` and `latestIndex`, then writes back atomically.
+    func deleteMetricRecord(identityKey: String) {
+        guard let sampleKey = librarySelectedSampleId,
+              let rootPath = librarySettings.rootPath else { return }
+        let rootURL = URL(fileURLWithPath: rootPath)
+
+        guard Self.deleteMetricRecordOnDisk(identityKey: identityKey, sampleKey: sampleKey, rootURL: rootURL) else {
+            librarySampleEditError = "Failed to delete metric record."
+            return
+        }
+
+        loadMeasurementDataForCurrentSelection()
+    }
+
+    @discardableResult
+    nonisolated static func deleteMetricRecordOnDisk(
+        identityKey: String,
+        sampleKey: String,
+        rootURL: URL
+    ) -> Bool {
+        let resolver = LibraryPathResolver(libraryRootURL: rootURL)
+        let relPath = "samples/\(sampleKey)/_spinlab/measurement_data.json"
+
+        guard let absURL = try? resolver.absoluteURL(for: relPath),
+              let data = try? Data(contentsOf: absURL) else {
+            return false
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard var store = try? decoder.decode(WorkbenchMeasurementDataStore.self, from: data) else {
+            fputs("[SpinLab] deleteMetricRecord: measurement_data.json unreadable for \(sampleKey), aborting\n", stderr)
+            return false
+        }
+
+        // Find the recordID referenced by this identity key
+        guard let pointer = store.latestIndex[identityKey] else {
+            fputs("[SpinLab] deleteMetricRecord: identity key not found in latestIndex\n", stderr)
+            return false
+        }
+
+        // Remove from records and latestIndex
+        store.records.removeAll { $0.recordID == pointer.recordID }
+        store.latestIndex.removeValue(forKey: identityKey)
+
+        // Write back atomically
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        guard let encoded = try? encoder.encode(store) else {
+            fputs("[SpinLab] deleteMetricRecord: encode failed for \(sampleKey)\n", stderr)
+            return false
+        }
+
+        let writer = AtomicFileWriter()
+        do {
+            try writer.commit([AtomicWriteEntry(destinationURL: absURL, data: encoded)])
+        } catch {
+            fputs("[SpinLab] deleteMetricRecord: write failed: \(error)\n", stderr)
+            return false
+        }
+
+        return true
+    }
+
     // MARK: - Workbench Results deletion (V3.4.3)
 
     /// Removes `ref` from every sample's `results_index.json`, then deletes the chart files.

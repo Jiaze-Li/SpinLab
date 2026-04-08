@@ -372,7 +372,7 @@ final class ThreeOmegaWorkspaceStore {
     // MARK: - Persist to Library
 
     /// Saves the active tab's chart (+ metrics for scaling) to Library.
-    func persistToLibrary() {
+    func persistToLibrary(onComplete: (() -> Void)? = nil) {
         guard let png = activeChartPNG else {
             analysisMessage = "No chart to save. Run analysis first."
             return
@@ -407,6 +407,7 @@ final class ThreeOmegaWorkspaceStore {
             case .failure(let err):
                 self.analysisMessage = "Save failed: \(err)"
             }
+            onComplete?()
         }
     }
 
@@ -772,18 +773,17 @@ extension ThreeOmegaWorkspaceStore: ActiveChartProviding {
             return []
         }
         guard let sampleKey = cachedSampleKeys.first else { return [] }
-        let conditions = cachedConditionsBySampleKey[sampleKey] ?? [:]
         let methodTag = v3Method == .highField ? "HFE" : "WA"
 
         var entries: [PendingMetricEntry] = []
         for seg in scaling.segments {
-            var segConditions = conditions
-            segConditions["t_lo"] = "\(Int(seg.tLo.rounded()))K"
-            segConditions["t_hi"] = "\(Int(seg.tHi.rounded()))K"
-            segConditions["v3method"] = methodTag
+            let segConditions: [String: String] = [
+                "range": "\(Int(seg.tLo.rounded()))K–\(Int(seg.tHi.rounded()))K",
+                "v3method": methodTag
+            ]
 
-            entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "alpha", value: seg.alpha, canonicalUnit: "Ω·m³/V²", conditions: segConditions))
-            entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "beta", value: seg.beta, canonicalUnit: "Ω·m³/V²", conditions: segConditions))
+            entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "alpha", value: seg.alpha * 1e31, canonicalUnit: "Ω·μm³·cm²·V⁻²·S⁻²", conditions: segConditions))
+            entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "beta", value: seg.beta * 1e20, canonicalUnit: "Ω·μm³·V⁻²", conditions: segConditions))
             entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "r_squared", value: seg.rSquared, canonicalUnit: "", conditions: segConditions))
         }
         return entries

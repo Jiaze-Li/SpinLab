@@ -153,82 +153,36 @@ struct V413AHEMultiSeriesExtractionTests {
         }
     }
 
-    // MARK: - Persist consistency guards
+    // MARK: - Persist consistency guards (migrated to SaveActiveChartToLibraryUseCase)
 
-    @Test("persist fails when sampleKeys count does not match metrics count")
-    func mismatchCountAbortsPersist() throws {
+    @Test("persist fails when metric sampleKey not in sampleKeys")
+    func metricSampleKeyMismatchFails() throws {
+        let payload = WorkbenchPlotPayload(
+            workflowID: "AHE",
+            workflowDisplayName: "AHE",
+            title: "Test",
+            axisMapping: WorkbenchAxisMapping(xField: "H", yField: "R"),
+            series: [WorkbenchPlotSeries(label: "f1", x: [], y: [], sourceRef: "/fake/f1.csv")]
+        )
         let root = FileManager.default.temporaryDirectory
             .appending(path: "v413-mismatch-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let metrics: [String: AHEExtractedMetric] = [
-            "SK-A": AHEExtractedMetric(sampleKey: "SK-A", hc: 0.05, rAHE: 0.3)
-        ]
-        let payload = WorkbenchPlotPayload(
-            workflowID: "AHE",
-            workflowDisplayName: "AHE",
-            title: "Test",
-            axisMapping: WorkbenchAxisMapping(xField: "H", yField: "R"),
-            series: []
-        )
-
-        let outcome = AHEWorkspaceStore.attemptPersist(
-            png: Data(),
+        let input = SaveActiveChartInput(
+            png: Data([0xFF]),
             payload: payload,
-            extractedMetrics: metrics,
-            conditionsBySampleKey: [:],
-            pendingOverride: nil,
-            pendingRAHEOverride: nil,
+            sampleKeys: ["SK-A"],
             libraryRootPath: root.path,
-            sampleKeys: ["SK-A", "SK-B"],  // 2 keys but only 1 metric
-            runID: UUID().uuidString,
-            generatedAt: Date()
+            metrics: [
+                PendingMetricEntry(sampleKey: "SK-B", metric: "Hc", value: 0.05, canonicalUnit: "T", conditions: [:])
+            ]
         )
-
-        if case .partial(_, let error) = outcome {
-            #expect(error.contains("mismatch"))
+        let outcome = SaveActiveChartToLibraryUseCase().execute(input: input)
+        if case .failure(let msg) = outcome {
+            #expect(msg.contains("not in sampleKeys"))
         } else {
-            Issue.record("Expected .partial with mismatch error, got \(outcome)")
-        }
-    }
-
-    @Test("persist fails when a sampleKey has no corresponding metric")
-    func missingSampleKeyAbortsPersist() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appending(path: "v413-missing-\(UUID().uuidString)", directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        let metrics: [String: AHEExtractedMetric] = [
-            "SK-A": AHEExtractedMetric(sampleKey: "SK-A", hc: 0.05, rAHE: 0.3),
-            "SK-C": AHEExtractedMetric(sampleKey: "SK-C", hc: 0.06, rAHE: 0.4)
-        ]
-        let payload = WorkbenchPlotPayload(
-            workflowID: "AHE",
-            workflowDisplayName: "AHE",
-            title: "Test",
-            axisMapping: WorkbenchAxisMapping(xField: "H", yField: "R"),
-            series: []
-        )
-
-        let outcome = AHEWorkspaceStore.attemptPersist(
-            png: Data(),
-            payload: payload,
-            extractedMetrics: metrics,
-            conditionsBySampleKey: [:],
-            pendingOverride: nil,
-            pendingRAHEOverride: nil,
-            libraryRootPath: root.path,
-            sampleKeys: ["SK-A", "SK-B"],  // SK-B not in metrics
-            runID: UUID().uuidString,
-            generatedAt: Date()
-        )
-
-        if case .partial(_, let error) = outcome {
-            #expect(error.contains("mismatch"))
-        } else {
-            Issue.record("Expected .partial with mismatch error, got \(outcome)")
+            Issue.record("Expected .failure with sampleKey mismatch, got \(outcome)")
         }
     }
 }

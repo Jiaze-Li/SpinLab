@@ -408,7 +408,10 @@ private struct ThreeOmegaRightColumn: View {
                         .font(.title2.bold())
                     Spacer()
                     Button("Save to Library") {
-                        store.persistToLibrary()
+                        store.persistToLibrary {
+                            appState.library.loadWorkbenchResultsForCurrentSelection()
+                            appState.library.loadMeasurementDataForCurrentSelection()
+                        }
                     }
                     .buttonStyle(.bordered)
                     .disabled(store.ingestionResult == nil)

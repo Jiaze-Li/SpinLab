@@ -60,6 +60,14 @@ struct AHEWorkspaceView: View, WorkflowWorkspaceProvider {
                     Text("Result")
                         .font(.title2.bold())
                     Spacer()
+                    Button("Save to Library") {
+                        appState.workbench.aheWorkspace.persistToLibrary {
+                            appState.library.loadWorkbenchResultsForCurrentSelection()
+                            appState.library.loadMeasurementDataForCurrentSelection()
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(appState.workbench.aheWorkspace.currentPlotImageData == nil)
                 }
 
                 // 内容区

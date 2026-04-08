@@ -150,6 +150,7 @@ struct LibraryMeasurementsDoneSection: View {
     @State private var hoverTask: Task<Void, Never>?
     @State private var hoveredMeasurementID: String?
     @State private var isHoveringPreviewPanel = false
+    @State private var isPreviewDialogActive = false
     // Alert state for "New Set..." / "Rename Set..."
     @State private var newSetAlertShown = false
     @State private var newSetName = ""
@@ -482,6 +483,9 @@ struct LibraryMeasurementsDoneSection: View {
                     } else {
                         cancelPopover(for: measurement.id)
                     }
+                },
+                onDialogActiveChanged: { active in
+                    isPreviewDialogActive = active
                 }
             )
         }
@@ -559,7 +563,7 @@ struct LibraryMeasurementsDoneSection: View {
         hoverTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 500_000_000)
             guard !Task.isCancelled else { return }
-            guard !isHoveringPreviewPanel else { return }
+            guard !isHoveringPreviewPanel, !isPreviewDialogActive else { return }
             if hoveredMeasurementID == measurementID { hoveredMeasurementID = nil }
         }
     }
@@ -617,6 +621,7 @@ struct MeasurementPlotPreviewPanel: View {
     let libraryRootURL: URL?
     var onDelete: ((WorkbenchResultReference) -> Void)? = nil
     var onHoverChanged: ((Bool) -> Void)? = nil
+    var onDialogActiveChanged: ((Bool) -> Void)? = nil
 
     @State private var loadedImages: [String: NSImage] = [:]
     // v4.1.5.2 — delete chart confirmation
@@ -648,6 +653,9 @@ struct MeasurementPlotPreviewPanel: View {
         }
         .onHover { isHovering in
             onHoverChanged?(isHovering)
+        }
+        .onChange(of: isShowingDeleteChartConfirm) { _, active in
+            onDialogActiveChanged?(active)
         }
         .confirmationDialog(
             "Delete Chart?",
@@ -753,60 +761,111 @@ struct MeasurementDataSectionView: View {
     let measurementData: WorkbenchMeasurementDataStore?
     let conditionAliasBook: ConditionAliasBook?
     let availableWidth: CGFloat
+    var onDeleteMetric: ((String) -> Void)? = nil  // identity key
     @State private var isExpanded = false
+    @State private var pendingDeleteKeys: Set<String> = []
 
-    // One grid item per metric entry. Label = metric (+ condition summary if any),
-    // value = formatted number + unit (with * and orange tint for overridden values).
-    private struct MetricCell: Identifiable {
-        var id: String          // latestIndex identity key
-        var label: String       // e.g. "Hc" or "Hc · 80K"
-        var value: String       // e.g. "0.05 T" or "0.05 T *"
-        var isOverridden: Bool
+    // A range column within a method card.
+    private struct RangeColumn: Identifiable {
+        var id: String   // range string or "default"
+        var range: String
+        var entries: [(metric: String, value: String, identityKey: String)]
     }
 
-    private var cells: [MetricCell] {
+    // A card grouped by (workflow, method). Contains 1+ range columns.
+    private struct MethodCard: Identifiable {
+        var id: String
+        var method: String       // e.g. "HFE", "" for AHE
+        var columns: [RangeColumn]
+    }
+
+    private struct ResolvedRecord {
+        var identityKey: String
+        var workflowID: String
+        var metric: String
+        var value: Double
+        var unit: String
+        var method: String
+        var range: String
+    }
+
+    private var workflowGroups: [(workflowID: String, cards: [MethodCard])] {
         guard let store = measurementData, !store.latestIndex.isEmpty else { return [] }
         let recordsByID = Dictionary(uniqueKeysWithValues: store.records.map { ($0.recordID, $0) })
-        return store.latestIndex
-            .sorted(by: { $0.key < $1.key })
-            .compactMap { key, pointer -> MetricCell? in
-                guard let record = recordsByID[pointer.recordID] else { return nil }
-                let condSummary = record.conditions
-                    .sorted(by: { $0.key < $1.key })
-                    .map { (k, v) in
-                        let displayKey = conditionDisplayLabel(key: k, aliasBook: conditionAliasBook)
-                        return "\(displayKey): \(v)"
-                    }
-                    .joined(separator: " · ")
-                let label = condSummary.isEmpty ? record.metric : "\(record.metric)\n\(condSummary)"
-                let value = measurementValueText(
-                    value: pointer.value,
-                    unit: pointer.canonicalUnit,
-                    isOverridden: record.overrideInfo != nil
-                )
-                return MetricCell(
-                    id: key,
-                    label: label,
-                    value: value,
-                    isOverridden: record.overrideInfo != nil
-                )
+
+        var resolved: [ResolvedRecord] = []
+        for (key, pointer) in store.latestIndex {
+            guard let record = recordsByID[pointer.recordID] else { continue }
+            resolved.append(ResolvedRecord(
+                identityKey: key,
+                workflowID: record.workflowID,
+                metric: record.metric,
+                value: pointer.value,
+                unit: pointer.canonicalUnit,
+                method: record.conditions["v3method"] ?? "",
+                range: record.conditions["range"] ?? ""
+            ))
+        }
+
+        let byWorkflow = Dictionary(grouping: resolved, by: { $0.workflowID })
+        var result: [(workflowID: String, cards: [MethodCard])] = []
+
+        for wfID in byWorkflow.keys.sorted() {
+            let records = byWorkflow[wfID]!
+            let byMethod = Dictionary(grouping: records, by: { $0.method })
+            var cards: [MethodCard] = []
+
+            for method in byMethod.keys.sorted() {
+                let methodRecords = byMethod[method]!
+                let byRange = Dictionary(grouping: methodRecords, by: { $0.range })
+                var columns: [RangeColumn] = []
+
+                for range in byRange.keys.sorted() {
+                    let rangeRecords = byRange[range]!
+                    let entries = rangeRecords
+                        .sorted(by: { $0.metric < $1.metric })
+                        .map { r in
+                            let formatted = measurementValueText(value: r.value, unit: r.unit, isOverridden: false)
+                            return (metric: r.metric, value: formatted, identityKey: r.identityKey)
+                        }
+                    columns.append(RangeColumn(
+                        id: range.isEmpty ? "default" : range,
+                        range: range,
+                        entries: entries
+                    ))
+                }
+
+                cards.append(MethodCard(
+                    id: "\(wfID)|\(method)",
+                    method: method,
+                    columns: columns
+                ))
             }
+            result.append((workflowID: wfID, cards: cards))
+        }
+        return result
     }
 
-    // Switch from 1 to 2 columns when panel is wide enough to hold two ~140 pt cells.
-    private var columnCount: Int { availableWidth >= 300 ? 2 : 1 }
+    private var useTwoColumns: Bool { availableWidth >= 400 }
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
-            if cells.isEmpty {
+            let groups = workflowGroups
+            if groups.isEmpty {
                 Text("No measurement data yet")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                let columns = Array(repeating: GridItem(.flexible(), alignment: .topLeading), count: columnCount)
-                LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
-                    ForEach(cells) { cell in
-                        metricCell(cell)
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(groups, id: \.workflowID) { group in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(group.workflowID.uppercased())
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(.secondary)
+                            ForEach(group.cards) { card in
+                                methodCardView(card)
+                            }
+                        }
                     }
                 }
             }
@@ -820,15 +879,85 @@ struct MeasurementDataSectionView: View {
     }
 
     @ViewBuilder
-    private func metricCell(_ cell: MetricCell) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(cell.label)
-                .font(.callout.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(cell.value)
-                .font(.body)
-                .foregroundStyle(cell.isOverridden ? .orange : .primary)
-                .textSelection(.enabled)
+    private func methodCardView(_ card: MethodCard) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if !card.method.isEmpty {
+                Text(card.method)
+                    .font(.callout.weight(.semibold))
+            }
+
+            if useTwoColumns && card.columns.count >= 2 {
+                // Side-by-side: same method, different ranges
+                let pairs = stride(from: 0, to: card.columns.count, by: 2).map { i in
+                    (card.columns[i], i + 1 < card.columns.count ? card.columns[i + 1] : nil)
+                }
+                ForEach(Array(pairs.enumerated()), id: \.offset) { _, pair in
+                    HStack(alignment: .top, spacing: 8) {
+                        rangeColumnView(pair.0)
+                        if let second = pair.1 {
+                            rangeColumnView(second)
+                        }
+                    }
+                }
+            } else {
+                ForEach(card.columns) { col in
+                    rangeColumnView(col)
+                }
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 6).fill(.quaternary.opacity(0.5)))
+        .contextMenu {
+            Button("Copy All") {
+                let text = card.columns.map { col in
+                    let header = col.range.isEmpty ? "" : "\(col.range)\n"
+                    let body = col.entries.map { e in
+                        let name = e.metric == "r_squared" ? "r²" : e.metric
+                        return "  \(name) = \(e.value)"
+                    }.joined(separator: "\n")
+                    return header + body
+                }.joined(separator: "\n\n")
+                let full = card.method.isEmpty ? text : "\(card.method)\n\(text)"
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(full, forType: .string)
+            }
+            if onDeleteMetric != nil {
+                Divider()
+                // Delete entire range group (e.g. "Delete HFE (5K–80K)")
+                ForEach(card.columns) { col in
+                    let label = [card.method, col.range].filter { !$0.isEmpty }.joined(separator: " ")
+                    Button("Delete \(label.isEmpty ? "all" : label)", role: .destructive) {
+                        for entry in col.entries {
+                            onDeleteMetric?(entry.identityKey)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func rangeColumnView(_ col: RangeColumn) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if !col.range.isEmpty {
+                Text(col.range)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 8, verticalSpacing: 2) {
+                ForEach(col.entries, id: \.identityKey) { entry in
+                    GridRow {
+                        Text(entry.metric == "r_squared" ? "r²" : entry.metric)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .gridColumnAlignment(.trailing)
+                        Text(entry.value)
+                            .font(.system(.callout, design: .monospaced))
+                            .textSelection(.enabled)
+                    }
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
