@@ -46,7 +46,10 @@
 4.1.6 ✅  多角度支持 (30deg / 60deg) + 健壮性
 4.1.6.1 ✅ 3ω Workbench 增强（title template, V3 method, RT fix, persist fix）
 4.1.7 ✅  验收测试 + 文档
-4.1.8 🔲  3ω 图表/指标持久化到 Library
+4.1.8 ✅  3ω 图表/指标持久化到 Library
+4.1.9 ✅  搜索查询持久化
+4.1.10 ✅ 自适应 stack offset + minGap
+4.1.11 ✅ 持久化完善 + Measurement Data 显示重构
 ```
 
 ---
@@ -310,46 +313,107 @@ Workbench 参数必须来自 sidecar conditions（用户在 Import 时确认的�
 
 ---
 
-### 4.1.8 🔲 — 3ω 图表/指标持久化到 Library
+### 4.1.8 ✅ — 3ω 图表/指标持久化到 Library（已完成，2026-04-08）
 
-**目标：** 3ω Scaling 分析结果（图表 + alpha/beta 指标）持久化到 Library，与 AHE 的 persist 流程对齐。
+**目标：** 3ω 分析结果（图表 + alpha/beta 指标）持久化到 Library。
 
-**现状：**
-- AHE 已通过 `PersistChartArtifactUseCase` + `PersistMeasurementDataUseCase` 保存图表和指标（Hc, R_AHE）
-- 3ω 的图表和指标（alpha, beta, r²）仅存在于内存，关闭后丢失
-- 基础设施全部就绪，只需在 3ω 侧接入
+**实现（超出原计划范围）：**
 
-**实现方案：**
+1. **4 张图表持久化**（不只 Scaling，还包括 R(1ω)、R(3ω)、Rxx vs T）
+   - R(1ω) / R(3ω)：关联 field-sweep 文件，hover 可见
+   - Rxx vs T：关联 RT 文件
+   - Scaling Law：关联 field-sweep 文件，标题含方法标记 (HFE)/(WA)
+   - HFE 和 WA 的 Scaling 图各自独立存储（`semanticParams["v3method"]` 区分 identity key）
 
-1. **图表持久化**（存入 Measurements Done）
-   - `ThreeOmegaWorkspaceStore` 新增 `attemptPersist()` 方法，对标 `AHEWorkspaceStore.attemptPersist()`
-   - 调用已有 `PersistChartArtifactUseCase` 保存 Scaling chart PNG + manifest
-   - 调用已有 `MeasurementPlotIndex.upsert()` 建立源文件→图表映射
-   - 图表自动出现在 Library Measurements Done 的 hover 预览中
+2. **指标持久化**
+   - 每个 segment 生成 3 条 metric record：alpha、beta、r²
+   - conditions 只含 `range`（如 `90K–130K`）、`v3method`（HFE/WA）、`device`（0deg）
+   - 不继承 sidecar conditions（current/field/temperature 是测量级别，不是分析结果级别）
+   - alpha 存为 `×1e31` 单位 `Ω·μm³·cm²·V⁻²·S⁻²`，beta 存为 `×1e20` 单位 `Ω·μm³·V⁻²`（与 Scaling Result Panel 一致）
 
-2. **指标持久化**（存入 Measurement Data）
-   - 调用已有 `PersistMeasurementDataUseCase` 写入 metric records
-   - 每个 `ThreeOmegaScalingSegment` 生成 3 条记录：
-     - `metric="alpha"`, value=seg.alpha
-     - `metric="beta"`, value=seg.beta
-     - `metric="r_squared"`, value=seg.rSquared
-   - conditions 带上 T_lo/T_hi 标识 segment
-   - 值自动出现在 Library Measurement Data section
+3. **UI**
+   - "Save to Library" 按钮在右列 Result 标题旁（Analyze 后即可点，不限 Scaling tab）
+   - Export Audit 按钮从 Inbox/Workbench overlay 移除（Library-only）
 
-3. **UI 触发**
-   - 在 Scaling Result Panel 加 "Save to Library" 按钮，或在 `runScaling()` 成功后自动 persist
+**验收条件（全部通过）：**
+- [x] 4 张图表出现在 Library Measurements Done 的 hover 预览中
+- [x] alpha, beta, r² 出现在 Library Measurement Data section
+- [x] HFE 和 WA 分别存储，不覆盖
+- [x] 退出 app 重开后数据保留
 
-**关键文件：**
-- `ThreeOmegaWorkspaceStore.swift` — 新增 `attemptPersist()`（主要改动）
-- `ThreeOmegaWorkspaceView.swift` — 加 Save 按钮或自动触发
-- `PersistChartArtifactUseCase.swift` — 已有，直接调用
-- `PersistMeasurementDataUseCase.swift` — 已有，直接调用
+---
 
-**验收条件：**
-- [ ] Scaling 图表出现在 Library Measurements Done 的 hover 预览中
-- [ ] alpha, beta, r² 出现在 Library Measurement Data section
-- [ ] 退出 app 重开后数据保留
-- [ ] 测试文件 `V418ThreeOmegaPersistTests.swift`
+### 4.1.9 ✅ — 搜索查询持久化（已完成，2026-04-08，用户实现）
+
+**目标：** Workbench 搜索框文字跨 session 持久化。
+
+**实现：** 搜索 query text 通过 UserDefaults 持久化。
+
+---
+
+### 4.1.10 ✅ — 自适应 stack offset + minGap（已完成，2026-04-08，用户实现）
+
+**目标：** R(1ω)/R(3ω) 瀑布图的 stack offset 自适应，增加 minGap 参数。
+
+**实现：** `ThreeOmegaStackOffsetUseCase` 新增 `minGapFraction` 参数，UI 增加 Gap 输入框。
+
+---
+
+### 4.1.11 ✅ — 持久化完善 + Measurement Data 显示重构（已完成，2026-04-08）
+
+**目标：** 补全所有 workbench 状态持久化缺口 + 重新设计 Measurement Data 显示。
+
+**1. 持久化完善**
+
+| 状态项 | 持久化方式 | 说明 |
+|--------|-----------|------|
+| RT 选中文件 | InteractionSnapshot (`threeOmegaRTSidecarPath`) | 首次 3w 搜索后从 sidecar 重建 hit |
+| Fit ranges | InteractionSnapshot (`threeOmegaFitRanges`) | 直接存 Codable 数组 |
+| V3 method | InteractionSnapshot (`threeOmegaV3Method`) | 存 rawValue |
+| Title template | InteractionSnapshot (`threeOmegaTitleTemplate`) | 用户可编辑模板 |
+| Stack offset | InteractionSnapshot (`threeOmegaStackOffsetMultiplier`) | 用户实现 |
+| Min gap | InteractionSnapshot (`threeOmegaMinGapFraction`) | 用户实现 |
+
+**RT 选中持久化设计要点：**
+- 不在启动时全量扫描库，只按持久化的 sidecar 路径读一次文件
+- sidecar I/O 在 `nonisolated static func rebuildRTHit()` 中执行，不阻塞 MainActor
+- 恢复时机：首次 3w 搜索结果加载完成后
+- 失败静默降级：路径不存在 / sidecar 不可解析 / workflow 不匹配 → 清空快照字段
+- capture 时保留未消费的 `pendingRTSidecarPath`，避免多次重启覆盖为 nil
+- 去掉 `onChange(of: rtQuery)` 的 clearRTSelection（竞争条件导致间歇性失败），改为只在搜索触发时清除
+
+**2. Measurement Data 显示重构**
+
+**设计思路：**
+- 旧设计：每个 metric record 一个 cell，conditions 全部平铺显示 → 信息冗余，难以对比
+- 新设计：数据驱动分组，无硬编码特定 workflow 逻辑
+
+**分组层级：** workflow → device → method → range
+```
+3W · 0deg
+┌─ HFE (alpha: Ω·μm³·cm²·V⁻²·S⁻², beta: Ω·μm³·V⁻²) ──┐
+│ 90K–130K           │ 5K–80K                             │
+│   alpha  1.23e+00  │   alpha  2.34e+00                  │
+│    beta  4.56e-01  │    beta  5.67e-01                  │
+│      r²  0.9987    │      r²  0.9991                    │
+└────────────────────┴────────────────────────────────────┘
+```
+
+**显示规则（全部数据驱动，非硬编码）：**
+- 分组 key 从 record.conditions 的 `v3method`、`range`、`device` 字段读取
+- 单位提到 method 卡片标题（从 entries 去重收集），entries 只显示数值
+- `r_squared` 显示为 `r²`
+- 宽度 ≥400 时同 method 不同 range 自适应两列并排
+- 右键 Copy All / Delete 整个 range 组（如 "Delete HFE (5K–80K)"）
+- 所有文字 `.textSelection(.enabled)`
+
+**3. 其他改进**
+
+- Scaling 拟合线端点：改为数据点到拟合线的**垂直投影**（perpendicular foot），而非固定 x 延伸，解决视觉不对称问题
+- `#method` token 只在 Scaling tab 解析为 `(HFE)`/`(WA)`，其他 tab 自动移除
+- RT restore 测试：4 个测试覆盖成功/失败/workflow 不匹配/文件缺失
+
+**Commits：** `cd147ed` → `bb66505`（7 个 commit）
 
 ---
 
