@@ -44,6 +44,7 @@
 4.1.4 ✅  Fig 5b Scaling 完整流程 (Tab 6)
 4.1.5 ✅  Import/Inbox 集成 — LVM 文件入库
 4.1.6 ✅  多角度支持 (30deg / 60deg) + 健壮性
+4.1.6.1 ✅ 3ω Workbench 增强（title template, V3 method, RT fix, persist fix）
 4.1.7 🔲  验收测试 + 文档
 4.1.8 🔲  3ω 图表/指标持久化到 Library
 ```
@@ -249,6 +250,42 @@ Workbench 参数必须来自 sidecar conditions（用户在 Import 时确认的�
 - 修复 stop hook 路径：SpinLab-4.0 → SpinLab-4.1
 
 **UI 小改进：** Select All / Deselect All toggle 按钮
+
+---
+
+### 4.1.6.1 ✅ — 3ω Workbench 增强（已完成，2026-04-08）
+
+**目标：** 图表标题信息完整化 + 工作台交互改进 + 技术债清理。
+
+**功能变动：**
+
+1. **默认 chart title** — 6 个 tab 标题包含 tab + device + sample + numeric tags
+   - 基于 `#token` 模板系统（`#tab #device #sample #氧压 #能量` 等）
+   - 用户可在 Plot Controls 编辑模板，动态 hint 显示当前 sample 可用的 token
+   - 模板持久化到 InteractionSnapshot
+
+2. **R(1ω)/R(3ω) 标记法** — 替换 Unicode 上标 R¹ω/R³ω；field-sweep tab 标题去掉 "vs H"
+
+3. **V(3ω) 提取方法选择** — Geometry panel 新增 Picker（高场拟合 / 窗口法）
+   - `ThreeOmegaV3Method` enum 传入 `ThreeOmegaScalingUseCase`
+   - 选择持久化到 InteractionSnapshot
+
+4. **RT 搜索框 popover 修复** — 增大尺寸（minHeight 120, maxHeight 360, width 320）
+
+5. **RT 选中 bug 修复** — `selectRTHit()` 设置 rtQuery 触发 `onChange` 竞争清除 selectedRTHit
+
+6. **Geometry 持久化修复** — geometry onChange 触发 `flushInteractionSnapshotNow()`
+
+7. **Plot Controls 布局优化** — Tab + stack offset slider + Grid 一行；Title 模板第二行
+
+8. **numericDisplay 查询** — `SpinLabDataActor.lookupSampleNumericDisplay()` 从 library index 读取
+
+**技术债清理：**
+- 移除 debug print（IngestThreeOmegaSelectionsUseCase）
+- 移除废弃 `plotTitleSuffix` 属性
+- 替换硬编码 `["氧压", "能量"]` 为 template 系统
+
+**Commits:** `d472949`, `c39fd8f`
 
 ---
 
