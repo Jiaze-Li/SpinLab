@@ -79,7 +79,7 @@ private struct ThreeOmegaSearchSection: View {
         )
 
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
+            HStack(alignment: .top, spacing: 12) {
                 TextField("3w PN69, 3w 5K …", text: queryBinding)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit {
@@ -560,29 +560,42 @@ private struct ThreeOmegaRTSearchField: View {
         @Bindable var store = appState.workbench.threeOmegaWorkspace
         let libraryRoot = appState.library.librarySettings.rootPath
 
-        HStack(spacing: 4) {
-            TextField("RT file…", text: $store.rtQuery)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 140)
-                .onSubmit {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                TextField("RT file…", text: $store.rtQuery)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 140)
+                    .onSubmit {
+                        store.clearRTSelection()
+                        appState.workbench.runThreeOmegaRTSearch(libraryRootPath: libraryRoot)
+                    }
+                    .popover(isPresented: $store.showRTPopover, arrowEdge: .bottom) {
+                        ThreeOmegaRTPopover()
+                            .environment(appState)
+                    }
+
+                Button {
                     store.clearRTSelection()
                     appState.workbench.runThreeOmegaRTSearch(libraryRootPath: libraryRoot)
+                } label: {
+                    Image(systemName: "magnifyingglass")
                 }
-                .popover(isPresented: $store.showRTPopover, arrowEdge: .bottom) {
-                    ThreeOmegaRTPopover()
-                        .environment(appState)
-                }
-
-            Button {
-                store.clearRTSelection()
-                appState.workbench.runThreeOmegaRTSearch(libraryRootPath: libraryRoot)
-            } label: {
-                Image(systemName: "magnifyingglass")
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(store.rtQuery.trimmingCharacters(in: .whitespaces).isEmpty || store.isRTSearching || libraryRoot == nil)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .disabled(store.rtQuery.trimmingCharacters(in: .whitespaces).isEmpty || store.isRTSearching || libraryRoot == nil)
+
+            if let hit = store.selectedRTHit {
+                let fullName = hit.measurementFilePath.components(separatedBy: "/").last ?? hit.id
+                Text("✓ \(fullName)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(fullName)
+            }
         }
+        .frame(width: 170, alignment: .leading)
     }
 }
 
