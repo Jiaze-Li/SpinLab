@@ -45,7 +45,7 @@
 4.1.5 ✅  Import/Inbox 集成 — LVM 文件入库
 4.1.6 ✅  多角度支持 (30deg / 60deg) + 健壮性
 4.1.6.1 ✅ 3ω Workbench 增强（title template, V3 method, RT fix, persist fix）
-4.1.7 🔲  验收测试 + 文档
+4.1.7 ✅  验收测试 + 文档
 4.1.8 🔲  3ω 图表/指标持久化到 Library
 ```
 
@@ -289,15 +289,24 @@ Workbench 参数必须来自 sidecar conditions（用户在 Import 时确认的�
 
 ---
 
-### 4.1.7 🔲 — 验收测试 + 文档
+### 4.1.7 ✅ — 验收测试 + 文档（已完成，2026-04-08）
 
 **目标：** 所有单元测试 ≥20 个并全绿；功能对照原始计划完整验收。
 
-**验收条件：**
-- [ ] `swift test` 全绿，`V400ThreeOmegaTests` ≥ 20 个测试
-- [ ] 按 `V4_0_3W_AHE_ITERATION_PLAN_2026-04-05.md` §Verification 人工测试清单全部通过（6 步，含 30deg/60deg）
-- [ ] Open Questions 1–3 全部有记录结论
-- [ ] 本文档 4.1 节状态栏全部更新为 ✅
+**验收条件（全部通过）：**
+- [x] `swift test` 全绿 — 407 tests in 67 suites passed
+- [x] 3ω 相关测试 34 个（12 个 suite），远超 ≥20 要求
+- [x] 人工测试清单 6 步全部通过（Import → Analyze → Tabs 1-6 → 30deg/60deg）
+- [x] Open Questions 1–3 全部有记录结论（见下）
+- [x] 本文档 4.1 节状态栏全部更新为 ✅
+
+**Open Questions 结论：**
+
+| Question | 结论 | 实现版本 |
+|----------|------|----------|
+| Q1 — V^(3ω)_AHE 提取方法 | 高场拟合为主，窗口法 fallback；4.1.6.1 加用户可选 Picker | 4.1.3 + 4.1.6.1 |
+| Q2 — 多 RT 文件 | 自动取行数最多的 RT 文件；4.1.6.1 加独立 RT 搜索框手动指定 | 4.1.3 + 4.1.6.1 |
+| Q3 — 温度插值精度 | ±5K guard 正常工作，未丢 >3 个点，无需放宽 | 4.1.4 |
 
 ---
 
@@ -360,9 +369,9 @@ Workbench 参数必须来自 sidecar conditions（用户在 Import 时确认的�
 
 ### 当前阻塞项 / 决策
 
-1. **Open Q1 — V^(3ω)_AHE 提取方法**：决策时机在 4.1.2 完成后，看 Tab 2 的 5K 曲线形状
-2. **Open Q2 — 多 RT 文件**：选 `|H|` 最小的 RT 文件（实现在 4.1.3）
-3. **Open Q3 — 温度插值精度**：±5K guard；若 4.1.4 丢点 >3 个则放宽到 ±10K
+1. **Open Q1 — V^(3ω)_AHE 提取方法** ✅：高场拟合为主，窗口法 fallback（4.1.3）；用户可选 Picker（4.1.6.1）
+2. **Open Q2 — 多 RT 文件** ✅：自动取行数最多的 RT；独立 RT 搜索框手动指定（4.1.6.1）
+3. **Open Q3 — 温度插值精度** ✅：±5K guard 正常工作，无需放宽（4.1.4 确认）
 
 ---
 
