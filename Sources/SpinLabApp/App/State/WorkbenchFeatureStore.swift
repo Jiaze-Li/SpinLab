@@ -80,6 +80,24 @@ final class WorkbenchFeatureStore {
     var searchMessages: [WorkbenchWorkflowID: String] = [:]
     private(set) var searchRunning: [WorkbenchWorkflowID: Bool] = [:]
 
+    // MARK: - Per-workflow search persistence
+
+    private static let searchQueryDefaultsPrefix = "workbench.searchQuery."
+
+    private static func restoreSearchQueryTexts() -> [WorkbenchWorkflowID: String] {
+        var result: [WorkbenchWorkflowID: String] = [:]
+        for wf in WorkbenchWorkflowID.allCases {
+            if let saved = UserDefaults.standard.string(forKey: searchQueryDefaultsPrefix + wf.rawValue) {
+                result[wf] = saved
+            }
+        }
+        return result
+    }
+
+    private static func persistSearchQueryText(_ text: String, for wf: WorkbenchWorkflowID) {
+        UserDefaults.standard.set(text, forKey: searchQueryDefaultsPrefix + wf.rawValue)
+    }
+
     // MARK: - Per-workflow search accessors
 
     func searchQueryText(for wf: WorkbenchWorkflowID) -> String {
@@ -88,6 +106,7 @@ final class WorkbenchFeatureStore {
 
     func setSearchQueryText(_ text: String, for wf: WorkbenchWorkflowID) {
         searchQueryTexts[wf] = text
+        Self.persistSearchQueryText(text, for: wf)
     }
 
     func searchResultsList(for wf: WorkbenchWorkflowID) -> [WorkflowMeasurementSearchHit] {
@@ -222,6 +241,7 @@ final class WorkbenchFeatureStore {
             originContainsTokens: initialSubstrateState.originContainsTokens,
             tagRules: initialSubstrateState.tagRules
         )
+        self.searchQueryTexts = Self.restoreSearchQueryTexts()
         self.currentRoute = .registry(selectedID: initialWorkflowDefinitions.first?.id)
     }
 
@@ -823,6 +843,7 @@ final class WorkbenchFeatureStore {
         searchMessages[wf] = nil
         searchRunning[wf] = false
         searchQueryTexts[wf] = wf.searchPrefix
+        Self.persistSearchQueryText(wf.searchPrefix, for: wf)
     }
 
     private func _clearThreeOmegaTitleContext() {

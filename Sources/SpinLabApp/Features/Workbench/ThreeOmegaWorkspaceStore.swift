@@ -16,12 +16,20 @@ final class ThreeOmegaWorkspaceStore {
 
     // MARK: - RT file search (independent of main 3w search)
 
-    var rtQuery: String = ""
+    private static let rtQueryDefaultsKey = "workbench.searchQuery.3w.rt"
+
+    var rtQuery: String = "" {
+        didSet { UserDefaults.standard.set(rtQuery, forKey: Self.rtQueryDefaultsKey) }
+    }
     var rtSearchResults: [WorkflowMeasurementSearchHit] = []
     var rtSearchMessage: String?
     var isRTSearching: Bool = false
     var showRTPopover: Bool = false
     private(set) var selectedRTHit: WorkflowMeasurementSearchHit?
+
+    init() {
+        self.rtQuery = UserDefaults.standard.string(forKey: Self.rtQueryDefaultsKey) ?? ""
+    }
 
     func selectRTHit(_ hit: WorkflowMeasurementSearchHit) {
         selectedRTHit = hit
