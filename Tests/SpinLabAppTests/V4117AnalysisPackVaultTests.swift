@@ -124,7 +124,8 @@ final class V4117AnalysisPackVaultTests: XCTestCase {
         let snapshot = OverlaySnapshot(
             label: pack.label,
             sweeps: [],
-            sourceFiles: ["/a.lvm"]
+            sourceFiles: ["/a.lvm"],
+            sampleKeys: pack.sampleKeys
         )
         store.overlaySnapshots[pack.id] = snapshot
         store.overlayPackIDs.append(pack.id)

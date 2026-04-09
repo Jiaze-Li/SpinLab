@@ -215,6 +215,7 @@ final class ThreeOmegaWorkspaceStore {
     // MARK: - Private
 
     @ObservationIgnored private var analysisTask: Task<Void, Never>?
+    @ObservationIgnored private var _renderRevision: UInt64 = 0
     @ObservationIgnored private var scalingTask: Task<Void, Never>?
 
     deinit {
@@ -847,7 +848,8 @@ final class ThreeOmegaWorkspaceStore {
         overlaySnapshots[id] = OverlaySnapshot(
             label: pack.label,
             sweeps: result.ingestionResult.fieldSweeps,
-            sourceFiles: pack.filePaths
+            sourceFiles: pack.filePaths,
+            sampleKeys: pack.sampleKeys
         )
         overlayPackIDs.append(id)
         _renderRAHEWithOverlays()
@@ -945,6 +947,9 @@ final class ThreeOmegaWorkspaceStore {
         let capturedRAHE1Method = rahe1omegaMethod
         let capturedRAHE3Method = rahe3omegaMethod
 
+        _renderRevision &+= 1
+        let revision = _renderRevision
+
         Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
             var r = ThreeOmegaPlotRenderer()
@@ -986,7 +991,7 @@ final class ThreeOmegaWorkspaceStore {
             let plotData   = rendered.0
             let plotLayout = rendered.1
             await MainActor.run { [weak self] in
-                guard let self else { return }
+                guard let self, self._renderRevision == revision else { return }
                 switch tab {
                 case .fieldSweep1omega: self.plotR1omega        = plotData
                 case .fieldSweep3omega: self.plotR3omega        = plotData
@@ -1257,8 +1262,8 @@ extension ThreeOmegaWorkspaceStore: ActiveChartProviding {
         var seen = Set(cachedSampleKeys)
         var merged = cachedSampleKeys
         for oid in overlayPackIDs {
-            if let pack = vault?.get(id: oid) {
-                for key in pack.sampleKeys where seen.insert(key).inserted {
+            if let snap = overlaySnapshots[oid] {
+                for key in snap.sampleKeys where seen.insert(key).inserted {
                     merged.append(key)
                 }
             }
@@ -1298,6 +1303,7 @@ struct OverlaySnapshot: Sendable {
     let label: String
     let sweeps: [ThreeOmegaFieldSweepResult]
     let sourceFiles: [String]
+    let sampleKeys: [String]
 }
 
 // MARK: - Rendered plot bundle

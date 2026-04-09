@@ -36,6 +36,7 @@ final class AnalysisVault {
             .appendingPathComponent("_spinlab/analysis_packs", isDirectory: true)
         guard baseURL != persistenceBaseURL else { return }
         persistenceBaseURL = baseURL
+        packs = [:]
         _loadAllFromDisk()
     }
 
@@ -101,7 +102,10 @@ final class AnalysisVault {
     private func _loadAllFromDisk() {
         guard let baseURL = persistenceBaseURL else { return }
         let fm = FileManager.default
-        guard fm.fileExists(atPath: baseURL.path) else { return }
+        guard fm.fileExists(atPath: baseURL.path) else {
+            packs = [:]
+            return
+        }
 
         // Scan <baseURL>/<workflowID>/<packID>.json
         guard let workflowDirs = try? fm.contentsOfDirectory(
