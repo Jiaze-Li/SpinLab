@@ -135,6 +135,58 @@ struct ThreeOmegaPlotRenderer {
         return _render(payload: &payload)
     }
 
+    /// Tab 3a multi-group: RAHE(1ω) vs T with overlays from multiple analysis packs
+    func renderRAHE1omegaVsTMulti(
+        groups: [(label: String, sweeps: [ThreeOmegaFieldSweepResult], sourceFiles: [String])],
+        method: ThreeOmegaV3Method
+    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?) {
+        return _renderRAHEMulti(groups: groups, harmonic: 1, method: method)
+    }
+
+    /// Tab 3b multi-group: RAHE(3ω) vs T with overlays from multiple analysis packs
+    func renderRAHE3omegaVsTMulti(
+        groups: [(label: String, sweeps: [ThreeOmegaFieldSweepResult], sourceFiles: [String])],
+        method: ThreeOmegaV3Method
+    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?) {
+        return _renderRAHEMulti(groups: groups, harmonic: 3, method: method)
+    }
+
+    private func _renderRAHEMulti(
+        groups: [(label: String, sweeps: [ThreeOmegaFieldSweepResult], sourceFiles: [String])],
+        harmonic: Int,
+        method: ThreeOmegaV3Method
+    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?) {
+        let hLabel = harmonic == 1 ? "1ω" : "3ω"
+        let methodTag = method == .highField ? "HFE" : "WA"
+
+        var series: [WorkbenchPlotSeries] = []
+        for group in groups {
+            let temps = group.sweeps.compactMap { $0.rahe(harmonic: harmonic, method: method) != nil ? $0.temperatureK : nil }
+            let vals  = group.sweeps.compactMap { $0.rahe(harmonic: harmonic, method: method) }
+            guard !temps.isEmpty else { continue }
+            let sourceRef = group.sourceFiles.joined(separator: ";")
+            series.append(WorkbenchPlotSeries(
+                label: group.label,
+                x: temps,
+                y: vals,
+                sourceRef: sourceRef.isEmpty ? nil : sourceRef
+            ))
+        }
+        guard !series.isEmpty else { return (nil, nil, nil) }
+
+        let device = groups.first?.sweeps.first?.device ?? ""
+        var payload = WorkbenchPlotPayload(
+            workflowID: "3w",
+            workflowDisplayName: "3w",
+            title: _defaultTitle("RAHE(\(hLabel)) (\(methodTag))", device: device),
+            axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE(\(hLabel)) (Ω)"),
+            series: series,
+            semanticParams: ["device": device, "tabKey": harmonic == 1 ? "rahe1omegaVsT" : "rahe3omegaVsT", "v3method": methodTag]
+        )
+        let (data, layout) = _render(payload: &payload)
+        return (data, layout, payload)
+    }
+
     /// Tab 4: Hc¹ω and Hc³ω vs T
     func renderHcVsT(sweeps: [ThreeOmegaFieldSweepResult], device: String) -> (Data?, WorkbenchPlotLayout?) {
         let temps1 = sweeps.compactMap { $0.hc1omega != nil ? $0.temperatureK : nil }

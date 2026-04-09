@@ -177,6 +177,7 @@ struct WorkbenchResultReference: Codable, Hashable, Sendable {
     var manifestPath: String
     var workflowID: String
     var generatedAt: Date
+    var tabKey: String?
 }
 
 struct WorkbenchResultsIndex: Codable, Hashable, Sendable {

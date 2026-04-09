@@ -81,7 +81,10 @@ struct AHEWorkspaceView: View, WorkflowWorkspaceProvider {
                     imageData: appState.workbench.aheWorkspace.currentPlotImageData,
                     layout: appState.workbench.aheWorkspace.currentPlotLayout,
                     seriesLabelOverrides: appState.workbench.aheWorkspace.plotSeriesLabelOverrides,
-                    onLegendDrag: { pt in appState.workbench.aheWorkspace.updateLegendPoint(pt) },
+                    onLegendDrag: { pt in
+                        appState.workbench.aheWorkspace.updateLegendPoint(pt)
+                        appState.flushInteractionSnapshotNow()
+                    },
                     onEditTitle: { title in appState.workbench.aheWorkspace.updatePlotTitle(title) },
                     onEditXLabel: { label in appState.workbench.aheWorkspace.updateXAxisLabel(label) },
                     onEditYLabel: { label in appState.workbench.aheWorkspace.updateYAxisLabel(label) },

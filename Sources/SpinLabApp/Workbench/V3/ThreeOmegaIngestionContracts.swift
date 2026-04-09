@@ -229,4 +229,22 @@ enum ThreeOmegaWorkbenchTab: String, CaseIterable, Identifiable {
     case scaling          = "Scaling Law"
 
     var id: String { rawValue }
+
+    /// Stable identity key for persistence. Hand-written, never derived via reflection.
+    var stableKey: String {
+        switch self {
+        case .fieldSweep1omega: return "fieldSweep1omega"
+        case .fieldSweep3omega: return "fieldSweep3omega"
+        case .rahe1omegaVsT:    return "rahe1omegaVsT"
+        case .rahe3omegaVsT:    return "rahe3omegaVsT"
+        case .hcVsT:            return "hcVsT"
+        case .rtCurve:          return "rtCurve"
+        case .scaling:          return "scaling"
+        }
+    }
+
+    /// Index in `allCases` order, used for sort rank.
+    static let stableKeyRank: [String: Int] = {
+        Dictionary(uniqueKeysWithValues: allCases.enumerated().map { ($1.stableKey, $0) })
+    }()
 }

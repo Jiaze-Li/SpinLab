@@ -352,5 +352,7 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var threeOmegaMinGapFraction: Double?
     var threeOmegaRTSidecarPath: String?
     var threeOmegaFitRanges: [ThreeOmegaFitRange]?
+    /// Per-tab legend positions keyed by ThreeOmegaWorkbenchTab.stableKey.
+    var threeOmegaPlotLegendPoints: [String: [Double]]?
     var aheTitleTemplate: String?
 }

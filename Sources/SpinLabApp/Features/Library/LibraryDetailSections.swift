@@ -406,13 +406,28 @@ struct LibraryMeasurementsDoneSection: View {
 
     // MARK: - Level 3: Measurement row
 
-    /// Returns `WorkbenchResultReference` objects linked to this measurement via the plot index.
+    /// Returns `WorkbenchResultReference` objects linked to this measurement via the plot index,
+    /// sorted by tab order (ThreeOmegaWorkbenchTab.allCases), then generatedAt, then original index.
     private func plotRefs(for measurement: AppliedMeasurement) -> [WorkbenchResultReference] {
         guard let plotIndex = measurementPlotIndex,
               let results = workbenchResults else { return [] }
         let keys = plotIndex.entries[measurement.sourceFileName] ?? []
         let refsByKey = Dictionary(uniqueKeysWithValues: results.references.map { ($0.chartIdentityKey, $0) })
-        return keys.compactMap { refsByKey[$0] }
+        let unsorted = keys.compactMap { refsByKey[$0] }
+
+        let rankMap = ThreeOmegaWorkbenchTab.stableKeyRank
+        let fallbackRank = rankMap.count
+        return unsorted.enumerated()
+            .sorted { a, b in
+                let rankA = a.element.tabKey.flatMap { rankMap[$0] } ?? fallbackRank
+                let rankB = b.element.tabKey.flatMap { rankMap[$0] } ?? fallbackRank
+                if rankA != rankB { return rankA < rankB }
+                if a.element.generatedAt != b.element.generatedAt {
+                    return a.element.generatedAt < b.element.generatedAt
+                }
+                return a.offset < b.offset
+            }
+            .map(\.element)
     }
 
     @ViewBuilder
