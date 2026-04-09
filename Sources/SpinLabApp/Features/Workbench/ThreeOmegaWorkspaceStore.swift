@@ -462,11 +462,15 @@ final class ThreeOmegaWorkspaceStore {
             guard let rtPath = rtFilePath else { return nil }
             return makePayload(title: resolveTitle("Rxx vs T"), xField: "T (K)", yField: "Rxx (Ω)", files: [rtPath])
         case .scaling:
+            let rangeSig = fitRanges
+                .sorted { ($0.tLo ?? 0) < ($1.tLo ?? 0) }
+                .map { "\(Int(($0.tLo ?? 0).rounded()))K-\(Int(($0.tHi ?? 9999).rounded()))K" }
+                .joined(separator: ",")
             return makePayload(
                 title: resolveTitle("Scaling Law") + " (\(methodTag))",
                 xField: "σ²_xx (S²/m²)", yField: "E(3ω)_AHE / (E³_xx · σ_xx)",
                 files: inputFiles,
-                extraParams: ["v3method": methodTag]
+                extraParams: ["v3method": methodTag, "fitRanges": rangeSig]
             )
         }
     }
