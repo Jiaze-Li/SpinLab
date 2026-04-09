@@ -242,7 +242,111 @@ Y：Ω·μm³·V⁻²
 
 ---
 
-## 4. TODO
+## 4. RAHE 提取策略
+
+### 4.1 数据来源不对称
+
+| 谐波 | 原始数据 | 是否有仪器直出 R |
+|---|---|---|
+| 1ω | col1 = Vw_xy(H), col9 = R1w_xy(H) | ✅ col9 是锁相放大器直出 |
+| 3ω | col5 = V3w_xy(H) | ❌ R3w = V3w/Ixx 是派生量 |
+
+### 4.2 RAHE_1ω
+
+col9 = R1w_xy(H) 是仪器直接测量的原始电阻，不需要经过 V→R 转换。
+提取 RAHE_1ω 应直接对 col9 做 HFE 或 WA：
+
+```
+HFE: RAHE_1ω = (b+_col9 - b-_col9) / 2
+WA:  RAHE_1ω = mean(col9 | ascending, |H|≤Hwin) − mean(col9 | descending, |H|≤Hwin)
+```
+
+注意：当前代码用 `col1 / iRms` 派生 R1w 再做 HFE，数值等价（因 col1/iRms ≈ col9），
+但 col9 是更直接的数据来源，且避免了对 Ixx 的依赖。
+
+### 4.3 RAHE_3ω
+
+3ω 没有仪器直出的电阻。V3w_AHE 已有两种提取（§1.3-1.4）：
+
+```
+v3omegaFit    = V3w_AHE via HFE（高场线性外推）
+v3omegaWindow = V3w_AHE via WA（零场窗口平均）
+```
+
+RAHE_3ω = V3w_AHE / Ixx，其中 Ixx = iRms。
+
+HFE 下精确成立（线性背底和常数偏移在截距差中完全消去）。
+WA 下近似成立（残差 ~ k_bg · Δ⟨H⟩_window，实际可忽略）。
+
+### 4.4 数学等价性证明（HFE 路径）
+
+设 V(H) 为原始电压，R(H) = V(H)/I 为电阻，经 centering 减去常数 C、背景减除减去 k_bg·H 后：
+
+```
+R_processed(H) = V(H)/I - C - k_bg·H
+```
+
+对 R_processed 做 HFE 取截距差：
+- centering 常数 C 在 b⁺ - b⁻ 中消去
+- 线性项 k_bg·H 被拟合斜率吸收，不影响截距
+
+因此 RAHE(HFE on R) = V_AHE(HFE on V) / I，对任意谐波成立。
+
+### 4.5 实现方案（v4.1.15 确定）
+
+#### 字段与计算路径
+
+**R(1ω) — 画图用（不动）：**
+
+```
+r1omega = col1 / iRms → centering → bg subtraction
+```
+
+用于 R(1ω) vs H 磁滞回线画图，不用于 RAHE 提取。
+
+**RAHE_1ω — 直接对 col9（仪器原始 R）：**
+
+| 字段 | 方法 | 计算 |
+|------|------|------|
+| `rahe1omega` (现有，改数据源) | HFE | `_fitRAHE(H, col9)` |
+| `rahe1omegaWA` (新增) | WA | `_windowV3w(H, col9)` |
+
+col9 是锁相放大器直出的 R1w_xy(H)，与 col1/iRms 数值一致（~1e-11），
+但 col9 是原始测量量，避免了对 Ixx 的依赖。
+
+**R(3ω) — 画图用（不动）：**
+
+```
+r3omega = col5 / iRms → centering → bg subtraction
+```
+
+**RAHE_3ω — 从现有电压级提取派生：**
+
+| 方法 | 计算 | 依赖字段 |
+|------|------|----------|
+| HFE | `v3omegaFit / iRms` | 现有 `v3omegaFit` + 新增 `iRms` |
+| WA | `v3omegaWindow / iRms` | 现有 `v3omegaWindow` + 新增 `iRms` |
+
+不新增独立字段，使用处直接算。现有 `rahe3omega` 字段冗余，可移除。
+
+**新增字段汇总：**
+
+| 字段 | 加在 | 说明 |
+|------|------|------|
+| `iRms: Double` | `ThreeOmegaFieldSweepResult` | 从 LVMFile 带入 |
+| `rahe1omegaWA: Double?` | `ThreeOmegaFieldSweepResult` | WA on col9 |
+
+#### 不对称性封装
+
+在 `ThreeOmegaFieldSweepResult` 上提供统一方法，隐藏 1ω/3ω 数据来源差异：
+
+```
+func rahe(harmonic: 1|3, method: HFE|WA) → Double?
+```
+
+---
+
+## 5. TODO
 
 - [x] Ixx 定义：使用 rms 值，I_amp = Ixx · sqrt(2)
 - [ ] 代码 bug：现有 Exx 用了 iAmp（iRms × √2），应改为 iRms
