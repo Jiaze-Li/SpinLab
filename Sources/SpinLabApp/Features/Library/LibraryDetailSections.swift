@@ -678,11 +678,7 @@ struct MeasurementPlotPreviewPanel: View {
 
     @ViewBuilder
     private func plotThumbnail(for ref: WorkbenchResultReference) -> some View {
-        let title = URL(fileURLWithPath: ref.chartImagePath)
-            .deletingPathExtension()
-            .lastPathComponent
-
-        ZStack(alignment: .topLeading) {
+        ZStack(alignment: .topTrailing) {
             if let image = loadedImages[ref.chartIdentityKey] {
                 Image(nsImage: image)
                     .resizable()
@@ -696,32 +692,22 @@ struct MeasurementPlotPreviewPanel: View {
                     .overlay(ProgressView().scaleEffect(0.7))
             }
 
-            HStack(spacing: 4) {
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                if onDelete != nil {
-                    Button {
-                        pendingDeleteChart = ref
-                        isShowingDeleteChartConfirm = true
-                    } label: {
-                        Image(systemName: "trash")
-                            .font(.caption)
-                            .foregroundStyle(.white)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Delete this chart and its files")
+            if onDelete != nil {
+                Button {
+                    pendingDeleteChart = ref
+                    isShowingDeleteChartConfirm = true
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.caption2)
+                        .foregroundStyle(.white)
+                        .padding(4)
+                        .background(.black.opacity(0.5))
+                        .clipShape(Circle())
                 }
+                .buttonStyle(.plain)
+                .padding(4)
+                .help("Delete this chart and its files")
             }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(.black.opacity(0.5))
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-            .padding(4)
         }
         .contentShape(Rectangle())
         .onTapGesture { openChart(ref) }
