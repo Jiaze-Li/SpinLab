@@ -196,6 +196,23 @@ private struct ThreeOmegaPlotControlsPanel: View {
                     }
                     .padding(.top, 2)
             }
+
+            // Row 3: RAHE method picker + Run (visible on RAHE tabs only)
+            if store.activeTab == .rahe1omegaVsT || store.activeTab == .rahe3omegaVsT {
+                HStack {
+                    Picker("AHE Method", selection: Binding<ThreeOmegaV3Method>(
+                        get: { store.activeRAHEMethod ?? .highField },
+                        set: { store.updateRAHEMethod($0) }
+                    )) {
+                        ForEach(ThreeOmegaV3Method.allCases) { method in
+                            Text(method.rawValue).tag(method)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: 220)
+                    Spacer()
+                }
+            }
         }
     }
 }
@@ -407,22 +424,19 @@ private struct ThreeOmegaRightColumn: View {
                     .disabled(store.ingestionResult == nil)
                 }
 
-                WorkbenchStatusArea(
-                    searchMessage: nil,
-                    plotMessage: store.analysisMessage,
-                    loadMessage: nil
-                )
-
-                if let warnings = store.ingestionResult?.warnings, !warnings.isEmpty {
-                    VStack(alignment: .leading, spacing: 3) {
-                        ForEach(warnings, id: \.self) { w in
-                            Text("⚠ \(w)")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                        }
+                if let msg = store.analysisMessage, !msg.isEmpty {
+                    let warnCount = store.ingestionResult?.warnings.count ?? 0
+                    if warnCount > 0 {
+                        (Text(msg).foregroundStyle(.secondary)
+                         + Text(" (\(warnCount) warning(s))").foregroundStyle(.orange))
+                            .font(.footnote)
+                    } else {
+                        Text(msg)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
-                    .textSelection(.enabled)
                 }
+
 
                 WorkbenchPlotCanvas(
                     imageData: _activeImageData(store),
@@ -456,7 +470,8 @@ private struct ThreeOmegaRightColumn: View {
         switch store.activeTab {
         case .fieldSweep1omega: return store.plotR1omega
         case .fieldSweep3omega: return store.plotR3omega
-        case .raheVsT:          return store.plotRAHEvsT
+        case .rahe1omegaVsT:    return store.plotRAHE1omegaVsT
+        case .rahe3omegaVsT:    return store.plotRAHE3omegaVsT
         case .hcVsT:            return store.plotHcvsT
         case .rtCurve:          return store.plotRT
         case .scaling:          return store.plotScaling

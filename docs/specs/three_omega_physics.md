@@ -258,7 +258,7 @@ col9 = R1w_xy(H) 是仪器直接测量的原始电阻，不需要经过 V→R �
 
 ```
 HFE: RAHE_1ω = (b+_col9 - b-_col9) / 2
-WA:  RAHE_1ω = mean(col9 | ascending, |H|≤Hwin) − mean(col9 | descending, |H|≤Hwin)
+WA:  RAHE_1ω = (col9_desc@H≈0 − col9_asc@H≈0) / 2
 ```
 
 注意：当前代码用 `col1 / iRms` 派生 R1w 再做 HFE，数值等价（因 col1/iRms ≈ col9），
@@ -270,13 +270,25 @@ WA:  RAHE_1ω = mean(col9 | ascending, |H|≤Hwin) − mean(col9 | descending, |
 
 ```
 v3omegaFit    = V3w_AHE via HFE（高场线性外推）
-v3omegaWindow = V3w_AHE via WA（零场窗口平均）
+v3omegaWindow = V3w_AHE via WA（零场最近点近似）
 ```
 
 RAHE_3ω = V3w_AHE / Ixx，其中 Ixx = iRms。
 
 HFE 下精确成立（线性背底和常数偏移在截距差中完全消去）。
-WA 下近似成立（残差 ~ k_bg · Δ⟨H⟩_window，实际可忽略）。
+WA 下近似成立（取最接近 H=0 的单点，残差 ~ k_bg · H_nearest，实际可忽略）。
+
+### 4.3.1 WA 算法定义（v4.1.16 更新）
+
+WA (Window Approximation) 不再使用窗口内多点平均，改为零场最近点法：
+
+1. 将扫描按零场穿越拆分为降支（第一次穿零前）和升支（第二次穿零后）
+2. 在降支上找 |H| 最小的点，取其信号值 V_desc
+3. 在升支上找 |H| 最小的点，取其信号值 V_asc
+4. WA = (V_desc − V_asc) / 2
+
+极性与 HFE 的 (b⁺ − b⁻) / 2 对齐：降支从正高场扫到零场对应 b⁺ 侧，
+升支从负高场扫到零场对应 b⁻ 侧。
 
 ### 4.4 数学等价性证明（HFE 路径）
 

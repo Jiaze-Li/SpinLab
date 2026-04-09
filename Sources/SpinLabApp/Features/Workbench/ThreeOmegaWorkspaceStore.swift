@@ -94,6 +94,35 @@ final class ThreeOmegaWorkspaceStore {
     var geometry = ThreeOmegaGeometry()
     var v3Method: ThreeOmegaV3Method = .highField
 
+    // MARK: - Per-tab RAHE method (independent of v3Method used by Scaling Law)
+
+    var rahe1omegaMethod: ThreeOmegaV3Method = .highField
+    var rahe3omegaMethod: ThreeOmegaV3Method = .highField
+
+    /// The RAHE method for the currently active RAHE tab (nil if not on RAHE tab).
+    var activeRAHEMethod: ThreeOmegaV3Method? {
+        switch activeTab {
+        case .rahe1omegaVsT: return rahe1omegaMethod
+        case .rahe3omegaVsT: return rahe3omegaMethod
+        default: return nil
+        }
+    }
+
+    /// Explicit RAHE method switch — re-renders active tab and refreshes manifests.
+    func updateRAHEMethod(_ method: ThreeOmegaV3Method) {
+        switch activeTab {
+        case .rahe1omegaVsT:
+            guard method != rahe1omegaMethod else { return }
+            rahe1omegaMethod = method
+        case .rahe3omegaVsT:
+            guard method != rahe3omegaMethod else { return }
+            rahe3omegaMethod = method
+        default: return
+        }
+        _rerenderActiveTab()
+        _refreshManifestPayloads()
+    }
+
     // MARK: - Fit ranges (session-only, not persisted)
 
     var fitRanges: [ThreeOmegaFitRange] = [ThreeOmegaFitRange()]
@@ -118,7 +147,8 @@ final class ThreeOmegaWorkspaceStore {
 
     private(set) var plotR1omega: Data?
     private(set) var plotR3omega: Data?
-    private(set) var plotRAHEvsT: Data?
+    private(set) var plotRAHE1omegaVsT: Data?
+    private(set) var plotRAHE3omegaVsT: Data?
     private(set) var plotHcvsT: Data?
     private(set) var plotRT: Data?
     private(set) var plotScaling: Data?
@@ -248,6 +278,8 @@ final class ThreeOmegaWorkspaceStore {
         let capturedMinGap     = minGapFraction
         let capturedTemplate   = titleTemplate
         let capturedTokens     = _titleTokens
+        let capturedRAHE1MethodForPlots = rahe1omegaMethod
+        let capturedRAHE3MethodForPlots = rahe3omegaMethod
 
         let capturedRTHit = selectedRTHit
 
@@ -263,7 +295,7 @@ final class ThreeOmegaWorkspaceStore {
                 renderer.minGapFraction        = capturedMinGap
                 renderer.titleTemplate          = capturedTemplate
                 renderer.titleTokens            = capturedTokens
-                let plots = renderer.renderAllTabs(result: result)
+                let plots = renderer.renderAllTabs(result: result, rahe1Method: capturedRAHE1MethodForPlots, rahe3Method: capturedRAHE3MethodForPlots)
                 return (result, plots)
             }.value
 
@@ -273,8 +305,7 @@ final class ThreeOmegaWorkspaceStore {
 
             let sweepCount = result.fieldSweeps.count
             let rtNote     = result.rtResult != nil ? ", RT curve loaded" : ""
-            let warnNote   = result.warnings.isEmpty ? "" : " (\(result.warnings.count) warning(s))"
-            self.analysisMessage = "Analyzed \(sweepCount) field-sweep file(s)\(rtNote)\(warnNote)."
+            self.analysisMessage = "Analyzed \(sweepCount) field-sweep file(s)\(rtNote)."
 
             for w in result.warnings {
                 self.warningLog.append(ThreeOmegaWarningEntry(source: "Ingestion", message: w))
@@ -358,13 +389,8 @@ final class ThreeOmegaWorkspaceStore {
                 print("[SpinLab][3ω Scaling] \(w)")
             }
 
-            if scalingRes.isSingleFullRange(), let seg = scalingRes.segments.first {
-                self.analysisMessage = String(format: "Scaling: β = %.4e, R² = %.4f", seg.beta, seg.rSquared)
-            } else if !scalingRes.segments.isEmpty {
-                self.analysisMessage = "Scaling: \(scalingRes.segments.count) segment(s) fitted."
-            } else if !scalingRes.warnings.isEmpty {
-                self.analysisMessage = scalingRes.warnings.first
-            }
+            // Scaling results are shown in the dedicated ScalingResultPanel below the plot.
+            // Do not overwrite analysisMessage — keep the ingestion summary visible.
         }
     }
 
@@ -454,13 +480,25 @@ final class ThreeOmegaWorkspaceStore {
             return makePayload(title: resolveTitle("R(1ω)"), xField: "H (T)", yField: "R(1ω) (Ω)", files: inputFiles)
         case .fieldSweep3omega:
             return makePayload(title: resolveTitle("R(3ω)"), xField: "H (T)", yField: "R(3ω) (Ω)", files: inputFiles)
-        case .raheVsT:
-            return makePayload(title: resolveTitle("RAHE vs T"), xField: "T (K)", yField: "RAHE (Ω)", files: inputFiles)
+        case .rahe1omegaVsT:
+            let tag = rahe1omegaMethod == .highField ? "HFE" : "WA"
+            return makePayload(
+                title: resolveTitle("RAHE(1ω)") + " (\(tag))",
+                xField: "T (K)", yField: "RAHE(1ω) (Ω)", files: inputFiles,
+                extraParams: ["v3method": tag]
+            )
+        case .rahe3omegaVsT:
+            let tag = rahe3omegaMethod == .highField ? "HFE" : "WA"
+            return makePayload(
+                title: resolveTitle("RAHE(3ω)") + " (\(tag))",
+                xField: "T (K)", yField: "RAHE(3ω) (Ω)", files: inputFiles,
+                extraParams: ["v3method": tag]
+            )
         case .hcVsT:
-            return makePayload(title: resolveTitle("Hc vs T"), xField: "T (K)", yField: "Hc (T)", files: inputFiles)
+            return makePayload(title: resolveTitle("Hc"), xField: "T (K)", yField: "Hc (T)", files: inputFiles)
         case .rtCurve:
             guard let rtPath = rtFilePath else { return nil }
-            return makePayload(title: resolveTitle("Rxx vs T"), xField: "T (K)", yField: "Rxx (Ω)", files: [rtPath])
+            return makePayload(title: resolveTitle("RT"), xField: "T (K)", yField: "Rxx (Ω)", files: [rtPath])
         case .scaling:
             let rangeSig = fitRanges
                 .sorted { ($0.tLo ?? 0) < ($1.tLo ?? 0) }
@@ -627,17 +665,19 @@ final class ThreeOmegaWorkspaceStore {
     // MARK: - Private helpers
 
     private func _applyPlots(_ plots: ThreeOmegaRenderedPlots) {
-        plotR1omega  = plots.r1omega
-        plotR3omega  = plots.r3omega
-        plotRAHEvsT  = plots.raheVsT
-        plotHcvsT    = plots.hcVsT
-        plotRT       = plots.rtCurve
-        plotScaling  = plots.scaling
-        if let l = plots.layoutR1omega  { plotLayouts[.fieldSweep1omega] = l }
-        if let l = plots.layoutR3omega  { plotLayouts[.fieldSweep3omega] = l }
-        if let l = plots.layoutRAHEvsT  { plotLayouts[.raheVsT]         = l }
-        if let l = plots.layoutHcVsT    { plotLayouts[.hcVsT]           = l }
-        if let l = plots.layoutRTCurve  { plotLayouts[.rtCurve]         = l }
+        plotR1omega        = plots.r1omega
+        plotR3omega        = plots.r3omega
+        plotRAHE1omegaVsT  = plots.rahe1omegaVsT
+        plotRAHE3omegaVsT  = plots.rahe3omegaVsT
+        plotHcvsT          = plots.hcVsT
+        plotRT             = plots.rtCurve
+        plotScaling        = plots.scaling
+        if let l = plots.layoutR1omega         { plotLayouts[.fieldSweep1omega] = l }
+        if let l = plots.layoutR3omega         { plotLayouts[.fieldSweep3omega] = l }
+        if let l = plots.layoutRAHE1omegaVsT   { plotLayouts[.rahe1omegaVsT]   = l }
+        if let l = plots.layoutRAHE3omegaVsT   { plotLayouts[.rahe3omegaVsT]   = l }
+        if let l = plots.layoutHcVsT           { plotLayouts[.hcVsT]           = l }
+        if let l = plots.layoutRTCurve         { plotLayouts[.rtCurve]         = l }
     }
 
     /// Re-renders only the active tab using cached ingestion/scaling result.
@@ -660,6 +700,8 @@ final class ThreeOmegaWorkspaceStore {
         let capturedTokens  = _titleTokens
         let capturedDevice  = ingestion.device
         let capturedV3Method = v3Method
+        let capturedRAHE1Method = rahe1omegaMethod
+        let capturedRAHE3Method = rahe3omegaMethod
 
         Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
@@ -682,8 +724,10 @@ final class ThreeOmegaWorkspaceStore {
                 rendered = r.renderR1omega(sweeps: ingestion.fieldSweeps, device: capturedDevice)
             case .fieldSweep3omega:
                 rendered = r.renderR3omega(sweeps: ingestion.fieldSweeps, device: capturedDevice)
-            case .raheVsT:
-                rendered = r.renderRAHEvsT(sweeps: ingestion.fieldSweeps, device: capturedDevice)
+            case .rahe1omegaVsT:
+                rendered = r.renderRAHE1omegaVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE1Method)
+            case .rahe3omegaVsT:
+                rendered = r.renderRAHE3omegaVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE3Method)
             case .hcVsT:
                 rendered = r.renderHcVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice)
             case .rtCurve:
@@ -702,12 +746,13 @@ final class ThreeOmegaWorkspaceStore {
             await MainActor.run { [weak self] in
                 guard let self, self.activeTab == tab else { return }
                 switch tab {
-                case .fieldSweep1omega: self.plotR1omega = plotData
-                case .fieldSweep3omega: self.plotR3omega = plotData
-                case .raheVsT:          self.plotRAHEvsT = plotData
-                case .hcVsT:            self.plotHcvsT   = plotData
-                case .rtCurve:          self.plotRT      = plotData
-                case .scaling:          self.plotScaling = plotData
+                case .fieldSweep1omega: self.plotR1omega        = plotData
+                case .fieldSweep3omega: self.plotR3omega        = plotData
+                case .rahe1omegaVsT:    self.plotRAHE1omegaVsT  = plotData
+                case .rahe3omegaVsT:    self.plotRAHE3omegaVsT  = plotData
+                case .hcVsT:            self.plotHcvsT          = plotData
+                case .rtCurve:          self.plotRT             = plotData
+                case .scaling:          self.plotScaling        = plotData
                 }
                 if let l = plotLayout { self.plotLayouts[tab] = l }
             }
@@ -715,10 +760,11 @@ final class ThreeOmegaWorkspaceStore {
     }
 
     private func _clearPlots() {
-        plotR1omega = nil
-        plotR3omega = nil
-        plotRAHEvsT = nil
-        plotHcvsT   = nil
+        plotR1omega        = nil
+        plotR3omega        = nil
+        plotRAHE1omegaVsT  = nil
+        plotRAHE3omegaVsT  = nil
+        plotHcvsT          = nil
         plotRT      = nil
         plotScaling = nil
         plotLayouts = [:]
@@ -757,7 +803,8 @@ extension ThreeOmegaWorkspaceStore: ActiveChartProviding {
         switch activeTab {
         case .fieldSweep1omega: return plotR1omega
         case .fieldSweep3omega: return plotR3omega
-        case .raheVsT:          return plotRAHEvsT
+        case .rahe1omegaVsT:    return plotRAHE1omegaVsT
+        case .rahe3omegaVsT:    return plotRAHE3omegaVsT
         case .hcVsT:            return plotHcvsT
         case .rtCurve:          return plotRT
         case .scaling:          return plotScaling
@@ -798,17 +845,19 @@ extension ThreeOmegaWorkspaceStore: ActiveChartProviding {
 // MARK: - Rendered plot bundle
 
 struct ThreeOmegaRenderedPlots: Sendable {
-    var r1omega:  Data?
-    var r3omega:  Data?
-    var raheVsT:  Data?
-    var hcVsT:    Data?
-    var rtCurve:  Data?
-    var scaling:  Data?
+    var r1omega:        Data?
+    var r3omega:        Data?
+    var rahe1omegaVsT:  Data?
+    var rahe3omegaVsT:  Data?
+    var hcVsT:          Data?
+    var rtCurve:        Data?
+    var scaling:        Data?
     // Layouts for interactive WorkbenchPlotCanvas
-    var layoutR1omega:  WorkbenchPlotLayout?
-    var layoutR3omega:  WorkbenchPlotLayout?
-    var layoutRAHEvsT:  WorkbenchPlotLayout?
-    var layoutHcVsT:    WorkbenchPlotLayout?
-    var layoutRTCurve:  WorkbenchPlotLayout?
-    var layoutScaling:  WorkbenchPlotLayout?
+    var layoutR1omega:         WorkbenchPlotLayout?
+    var layoutR3omega:         WorkbenchPlotLayout?
+    var layoutRAHE1omegaVsT:   WorkbenchPlotLayout?
+    var layoutRAHE3omegaVsT:   WorkbenchPlotLayout?
+    var layoutHcVsT:           WorkbenchPlotLayout?
+    var layoutRTCurve:         WorkbenchPlotLayout?
+    var layoutScaling:         WorkbenchPlotLayout?
 }

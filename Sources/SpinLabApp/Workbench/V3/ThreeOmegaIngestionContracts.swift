@@ -69,11 +69,14 @@ struct ThreeOmegaFieldSweepResult: Codable, Hashable, Sendable, Identifiable {
     var r1omega: [Double]   // Ω, centered
     var r3omega: [Double]   // Ω, centered
 
-    // Formula: R¹ω_AHE = (b⁺ - b⁻) / 2
+    // I_rms — carried from LVM file for RAHE(3ω) derivation.
+    var iRms: Double
+
+    // Formula: R¹ω_AHE = (b⁺ - b⁻) / 2  (HFE on col9)
     //   b⁺ = linear fit intercept at H=0 for H > 0.7×Hmax
     //   b⁻ = linear fit intercept at H=0 for H < -0.7×Hmax
-    var rahe1omega: Double?  // Ω
-    var rahe3omega: Double?  // Ω
+    var rahe1omega: Double?     // Ω, HFE on col9
+    var rahe1omegaWA: Double?   // Ω, WA on col9
 
     // Formula: R_mid = (max(R) + min(R)) / 2
     // Hc = average of |crossing field| on positive and negative branches
@@ -87,6 +90,24 @@ struct ThreeOmegaFieldSweepResult: Codable, Hashable, Sendable, Identifiable {
     // V^(3ω)_AHE — cross-check: high-field linear extrapolation (b⁺ − b⁻) / 2.
     // nil when high-field point count is insufficient for a stable fit.
     var v3omegaFit: Double?         // V  (cross-check; nil = fit failed)
+
+    /// Unified RAHE accessor — hides 1ω/3ω data-source asymmetry.
+    /// 1ω: directly from col9 (instrument R). 3ω: derived from V_AHE / iRms.
+    /// HFE fallback for 3ω: v3omegaFit ?? v3omegaWindow (aligned with Scaling Law).
+    func rahe(harmonic: Int, method: ThreeOmegaV3Method) -> Double? {
+        switch (harmonic, method) {
+        case (1, .highField): return rahe1omega
+        case (1, .window):    return rahe1omegaWA
+        case (3, .highField):
+            guard abs(iRms) > 1e-30 else { return nil }
+            let v = v3omegaFit ?? (v3omegaWindow.isNaN ? nil : v3omegaWindow)
+            return v.map { $0 / iRms }
+        case (3, .window):
+            guard abs(iRms) > 1e-30, !v3omegaWindow.isNaN else { return nil }
+            return v3omegaWindow / iRms
+        default: return nil
+        }
+    }
 }
 
 /// Which V^(3ω)_AHE extraction method to use in Scaling Law.
@@ -199,11 +220,12 @@ struct ThreeOmegaIngestionResult: Codable, Hashable, Sendable {
 // MARK: - UI tab enum
 
 enum ThreeOmegaWorkbenchTab: String, CaseIterable, Identifiable {
-    case fieldSweep1omega = "R(1ω) vs H"
-    case fieldSweep3omega = "R(3ω) vs H"
-    case raheVsT          = "RAHE vs T"
-    case hcVsT            = "Hc vs T"
-    case rtCurve          = "Rxx vs T"
+    case fieldSweep1omega = "AHE (1ω)"
+    case fieldSweep3omega = "AHE (3ω)"
+    case rahe1omegaVsT    = "RAHE (1ω)"
+    case rahe3omegaVsT    = "RAHE (3ω)"
+    case hcVsT            = "Hc"
+    case rtCurve          = "RT"
     case scaling          = "Scaling Law"
 
     var id: String { rawValue }

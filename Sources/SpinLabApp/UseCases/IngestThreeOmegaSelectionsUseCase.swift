@@ -78,6 +78,16 @@ struct IngestThreeOmegaSelectionsUseCase {
 
         fieldSweeps.sort { $0.temperatureK < $1.temperatureK }
 
+        // RAHE(1ω) HFE/WA divergence check
+        for sweep in fieldSweeps {
+            if let hfe = sweep.rahe1omega, let wa = sweep.rahe1omegaWA, abs(hfe) > 1e-30 {
+                let pct = abs(hfe - wa) / abs(hfe) * 100
+                if pct > 20 {
+                    warnings.append(String(format: "T=%dK: RAHE(1ω) HFE/WA diverge by %.1f%%", Int(sweep.temperatureK), pct))
+                }
+            }
+        }
+
         // RT file: prefer dedicated rtHit (user-selected), fall back to auto-detected from hits.
         let rtResult: ThreeOmegaRTResult? = {
             if let rtHit {

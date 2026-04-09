@@ -23,7 +23,8 @@ private func makeSweep(t: Double, v3w: Double, rxx: Double, iRms: Double) -> Thr
         hField: [-100, 0, 100],
         r1omega: [-rxx, 0, rxx],
         r3omega: [0, 0, 0],
-        rahe1omega: nil, rahe3omega: nil,
+        iRms: iRms,
+        rahe1omega: nil, rahe1omegaWA: nil,
         hc1omega: nil, hc3omega: nil,
         v3omegaWindow: v3w
     )
