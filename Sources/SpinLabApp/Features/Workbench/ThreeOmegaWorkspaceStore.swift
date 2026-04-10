@@ -198,6 +198,48 @@ final class ThreeOmegaWorkspaceStore {
     /// RT file path snapshot from the analysis run.
     @ObservationIgnored private(set) var cachedRTFilePath: String? = nil
 
+    // MARK: - Related charts (hover popover)
+
+    /// Charts grouped by canonical inputFiles key, loaded from library indices.
+    private(set) var relatedChartsGrouped: [String: [WorkbenchResultReference]] = [:]
+    @ObservationIgnored private var relatedChartsTask: Task<Void, Never>?
+
+    /// Refreshes the related charts cache from library indices.
+    /// Cancels any in-flight load and guards against stale results.
+    func refreshRelatedCharts() {
+        relatedChartsTask?.cancel()
+        relatedChartsTask = nil
+
+        let keys = cachedSampleKeys
+        let rootPath = lastLibraryRootPath
+        guard !keys.isEmpty, !rootPath.isEmpty else {
+            relatedChartsGrouped = [:]
+            return
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        guard FileManager.default.fileExists(atPath: rootPath) else {
+            relatedChartsGrouped = [:]
+            return
+        }
+        relatedChartsTask?.cancel()
+        relatedChartsTask = Task { [weak self] in
+            let result = await Task.detached(priority: .utility) {
+                LoadRelatedChartsUseCase().execute(sampleKeys: keys, libraryRootURL: rootURL)
+            }.value
+            guard !Task.isCancelled, let self else { return }
+            self.relatedChartsGrouped = result
+        }
+    }
+
+    /// Returns related charts for a specific tab based on that tab's inputFiles.
+    func relatedCharts(for tab: ThreeOmegaWorkbenchTab) -> [WorkbenchResultReference] {
+        guard let payload = cachedManifestPayloads[tab] else { return [] }
+        let inputFiles = payload.series.compactMap(\.sourceRef)
+        guard !inputFiles.isEmpty else { return [] }
+        let key = InputFilesCanonicalKey.make(from: inputFiles)
+        return relatedChartsGrouped[key] ?? []
+    }
+
     // MARK: - Analysis Pack (vault integration)
 
     /// Vault reference, set by WorkbenchFeatureStore after init.
@@ -221,6 +263,7 @@ final class ThreeOmegaWorkspaceStore {
     deinit {
         analysisTask?.cancel()
         scalingTask?.cancel()
+        relatedChartsTask?.cancel()
     }
 
     // MARK: - Selection
@@ -345,6 +388,7 @@ final class ThreeOmegaWorkspaceStore {
             )
             self._snapshotAndCacheManifestPayloads()
             self.isAnalyzing = false
+            self.refreshRelatedCharts()
         }
     }
 
@@ -444,8 +488,10 @@ final class ThreeOmegaWorkspaceStore {
             switch outcome {
             case .success:
                 self.analysisMessage = "Saved to Library."
+                self.refreshRelatedCharts()
             case .partial(_, let err):
                 self.analysisMessage = "Chart saved; metric error: \(err)"
+                self.refreshRelatedCharts()
             case .failure(let err):
                 self.analysisMessage = "Save failed: \(err)"
             }
@@ -841,6 +887,7 @@ final class ThreeOmegaWorkspaceStore {
         // Re-render all tabs
         _rerenderAllTabs()
         _snapshotAndCacheManifestPayloads()
+        refreshRelatedCharts()
 
         analysisMessage = "Loaded: \(pack.label)"
     }
@@ -902,6 +949,9 @@ final class ThreeOmegaWorkspaceStore {
         activePackID             = nil
         overlayPackIDs           = []
         overlaySnapshots         = [:]
+        relatedChartsTask?.cancel()
+        relatedChartsTask        = nil
+        relatedChartsGrouped     = [:]
         _clearPlots()
     }
 

@@ -194,6 +194,26 @@ struct WorkbenchResultReference: Codable, Hashable, Sendable {
     }
 }
 
+extension WorkbenchResultReference {
+    /// Canonical sort: tab rank (1ω → 3ω → RAHE → Hc → RT → Scaling), then generatedAt ascending.
+    /// Shared by Library detail and Workbench related-charts popover.
+    static func sortedByTabRank(_ refs: [WorkbenchResultReference]) -> [WorkbenchResultReference] {
+        let rankMap = ThreeOmegaWorkbenchTab.stableKeyRank
+        let fallbackRank = rankMap.count
+        return refs.enumerated()
+            .sorted { a, b in
+                let rankA = a.element.resolvedTabKey.flatMap { rankMap[$0] } ?? fallbackRank
+                let rankB = b.element.resolvedTabKey.flatMap { rankMap[$0] } ?? fallbackRank
+                if rankA != rankB { return rankA < rankB }
+                if a.element.generatedAt != b.element.generatedAt {
+                    return a.element.generatedAt < b.element.generatedAt
+                }
+                return a.offset < b.offset
+            }
+            .map(\.element)
+    }
+}
+
 struct WorkbenchResultsIndex: Codable, Hashable, Sendable {
     var schemaVersion: Int
     var sampleKey: String

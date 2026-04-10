@@ -13,7 +13,7 @@ struct InboxView: View {
         let isBusy = applyProgress.isRunning || importProgress.isRunning
 
         ZStack {
-            HSplitView {
+            AppColumnShell(columnKey: "inbox", defaults: .inbox) {
                 InboxOperationPanel(
                     isImportSourceExpanded: $bindableViewModel.isImportSourceExpanded,
                     isPendingQueueExpanded: $bindableViewModel.isPendingQueueExpanded,
@@ -23,10 +23,8 @@ struct InboxView: View {
                     applySelected: { viewModel.applySelected() },
                     applyAll: { viewModel.applyAll() }
                 )
-                .frame(minWidth: 380, idealWidth: 500, maxWidth: 1200)
-
+            } right: {
                 InboxInspectorReservedPanel()
-                    .frame(minWidth: 280, idealWidth: 660, maxWidth: .infinity)
             }
 
             if applyProgress.isRunning {
@@ -58,6 +56,7 @@ struct InboxView: View {
         .onChange(of: viewModel.isPendingQueueExpanded) { _, _ in viewModel.persistInteractionState(to: appState) }
         .onChange(of: viewModel.isRoutingReviewExpanded) { _, _ in viewModel.persistInteractionState(to: appState) }
         .onChange(of: viewModel.isApplyExpanded) { _, _ in viewModel.persistInteractionState(to: appState) }
+        .onChange(of: viewModel.fileFilter) { _, _ in viewModel.persistInteractionState(to: appState) }
         .onDisappear {
             viewModel.persistInteractionState(to: appState)
         }

@@ -45,16 +45,9 @@ struct LoadRelatedChartsUseCase {
             grouped[key, default: []].append(ref)
         }
 
-        // Sort each group by tab rank (ascending), then generatedAt (ascending) — same as Library
-        let rankMap = ThreeOmegaWorkbenchTab.stableKeyRank
-        let fallbackRank = rankMap.count
+        // Sort each group by tab rank → generatedAt (shared with Library)
         for key in grouped.keys {
-            grouped[key]?.sort { a, b in
-                let rankA = a.resolvedTabKey.flatMap { rankMap[$0] } ?? fallbackRank
-                let rankB = b.resolvedTabKey.flatMap { rankMap[$0] } ?? fallbackRank
-                if rankA != rankB { return rankA < rankB }
-                return a.generatedAt < b.generatedAt
-            }
+            grouped[key] = WorkbenchResultReference.sortedByTabRank(grouped[key]!)
         }
 
         return grouped

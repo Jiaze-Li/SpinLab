@@ -614,3 +614,30 @@ Workbench 参数必须来自 sidecar conditions（用户在 Import 时确认的�
 **当前状态：** 无代码。架构笔记（`V3_2_ITERATION_ADDENDUM_2026-04-03.md`）记录：只需新增 `IngestMRSelectionsUseCase`，现有 workbench plot pipeline 无需改动。
 
 工作范围待定。
+
+---
+
+## Future / Wishlist
+
+以下功能已明确需求，待排期。
+
+### 🔲 Library detail section 拖拽排序
+
+**动机：** 用户希望自定义 Library 右侧 detail 区域的 section 顺序（Sample Primary、Numeric Tags、Measurement Data、Metadata、Measurements Done 等）。
+
+**方案草案：**
+- 定义 `LibraryDetailSection` 枚举，用数组控制渲染顺序
+- 用 `ForEach` + drag & drop 实现拖拽排序
+- 顺序持久化到 `InteractionSnapshot` 或 `@AppStorage`
+- 条件显示的 section（如 Pending Changes）需特殊处理
+- SwiftUI `onMove` 在 `ScrollView > VStack` 中不直接生效，需要 `List` 或自定义 drag handler
+
+**复杂点：**
+- 各 section 间的 Divider 需动态处理
+- 拖拽交互方式待定（长按拖拽 / 拖拽手柄）
+
+### 🔲 AppColumnShell sidebar 列宽持久化
+
+**动机：** NavigationSplitView 的 sidebar 列宽目前硬编码（min:180, ideal:220, max:260），API 不支持动态宽度绑定。
+
+**方案：** 待 macOS SDK 提供列宽绑定 API，或用 NSViewRepresentable 包装实现。

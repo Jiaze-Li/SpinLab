@@ -147,10 +147,7 @@ struct LibraryMeasurementsDoneSection: View {
     var onDeleteSet: ((_ setID: String) -> Void)? = nil
 
     @State private var isExpanded = true
-    @State private var hoverTask: Task<Void, Never>?
     @State private var hoveredMeasurementID: String?
-    @State private var isHoveringPreviewPanel = false
-    @State private var isPreviewDialogActive = false
     // Alert state for "New Set..." / "Rename Set..."
     @State private var newSetAlertShown = false
     @State private var newSetName = ""
@@ -163,9 +160,10 @@ struct LibraryMeasurementsDoneSection: View {
     @State private var pendingDeleteMeasurement: AppliedMeasurement? = nil
     @State private var isShowingDeleteMeasurementConfirm = false
     // Expansion state for dynamic DisclosureGroups (keyed by workflowID / setID)
-    @State private var expandedWorkflows: Set<String> = []
-    @State private var expandedSets: Set<String> = []
-    @State private var expandedUncategorized: Set<String> = []
+    // Owned by LibraryView, passed as Binding for persistence across area switches.
+    @Binding var expandedWorkflows: Set<String>
+    @Binding var expandedSets: Set<String>
+    @Binding var expandedUncategorized: Set<String>
 
     // MARK: - Grouping helpers
 
@@ -248,21 +246,7 @@ struct LibraryMeasurementsDoneSection: View {
 
     /// All chart references, sorted by tab rank → generatedAt → original index.
     private var sortedAllRefs: [WorkbenchResultReference] {
-        let unsorted = workbenchResults?.references ?? []
-        guard !unsorted.isEmpty else { return [] }
-        let rankMap = ThreeOmegaWorkbenchTab.stableKeyRank
-        let fallbackRank = rankMap.count
-        return unsorted.enumerated()
-            .sorted { a, b in
-                let rankA = a.element.resolvedTabKey.flatMap { rankMap[$0] } ?? fallbackRank
-                let rankB = b.element.resolvedTabKey.flatMap { rankMap[$0] } ?? fallbackRank
-                if rankA != rankB { return rankA < rankB }
-                if a.element.generatedAt != b.element.generatedAt {
-                    return a.element.generatedAt < b.element.generatedAt
-                }
-                return a.offset < b.offset
-            }
-            .map(\.element)
+        WorkbenchResultReference.sortedByTabRank(workbenchResults?.references ?? [])
     }
 
     // MARK: - Body
@@ -298,10 +282,7 @@ struct LibraryMeasurementsDoneSection: View {
                 .onTapGesture { isExpanded.toggle() }
         }
         .onDisappear {
-            hoverTask?.cancel()
-            hoverTask = nil
             hoveredMeasurementID = nil
-            isHoveringPreviewPanel = false
         }
         .alert("New Measurement Set", isPresented: $newSetAlertShown) {
             TextField("Set name", text: $newSetName)
@@ -445,20 +426,7 @@ struct LibraryMeasurementsDoneSection: View {
         let keys = plotIndex.entries[measurement.sourceFileName] ?? []
         let refsByKey = Dictionary(uniqueKeysWithValues: results.references.map { ($0.chartIdentityKey, $0) })
         let unsorted = keys.compactMap { refsByKey[$0] }
-
-        let rankMap = ThreeOmegaWorkbenchTab.stableKeyRank
-        let fallbackRank = rankMap.count
-        return unsorted.enumerated()
-            .sorted { a, b in
-                let rankA = a.element.resolvedTabKey.flatMap { rankMap[$0] } ?? fallbackRank
-                let rankB = b.element.resolvedTabKey.flatMap { rankMap[$0] } ?? fallbackRank
-                if rankA != rankB { return rankA < rankB }
-                if a.element.generatedAt != b.element.generatedAt {
-                    return a.element.generatedAt < b.element.generatedAt
-                }
-                return a.offset < b.offset
-            }
-            .map(\.element)
+        return WorkbenchResultReference.sortedByTabRank(unsorted)
     }
 
     @ViewBuilder
@@ -504,35 +472,19 @@ struct LibraryMeasurementsDoneSection: View {
         .contextMenu {
             measurementContextMenu(measurement, workflowID: workflowID, setID: setID)
         }
-        .onHover { isHovering in
-            if isHovering {
-                schedulePopover(for: measurement.id)
-            } else {
-                cancelPopover(for: measurement.id)
+        .hoverPopover(
+            arrowEdge: .leading,
+            isEnabled: !plotRefs(for: measurement).isEmpty,
+            onPresentedChanged: { presented in
+                hoveredMeasurementID = presented ? measurement.id : nil
             }
-        }
-        .popover(
-            isPresented: .init(
-                get: { hoveredMeasurementID == measurement.id },
-                set: { if !$0 { hoveredMeasurementID = nil } }
-            ),
-            arrowEdge: .leading
-        ) {
+        ) { onHoverChanged, onDialogActiveChanged in
             MeasurementPlotPreviewPanel(
                 references: plotRefs(for: measurement),
                 libraryRootURL: libraryRootURL,
                 onDelete: onDeleteChart,
-                onHoverChanged: { isHovering in
-                    isHoveringPreviewPanel = isHovering
-                    if isHovering {
-                        hoverTask?.cancel()
-                    } else {
-                        cancelPopover(for: measurement.id)
-                    }
-                },
-                onDialogActiveChanged: { active in
-                    isPreviewDialogActive = active
-                }
+                onHoverChanged: onHoverChanged,
+                onDialogActiveChanged: onDialogActiveChanged
             )
         }
     }
@@ -595,24 +547,7 @@ struct LibraryMeasurementsDoneSection: View {
         }
     }
 
-    private func schedulePopover(for measurementID: String) {
-        hoverTask?.cancel()
-        hoverTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 250_000_000)
-            guard !Task.isCancelled else { return }
-            hoveredMeasurementID = measurementID
-        }
-    }
-
-    private func cancelPopover(for measurementID: String) {
-        hoverTask?.cancel()
-        hoverTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            guard !Task.isCancelled else { return }
-            guard !isHoveringPreviewPanel, !isPreviewDialogActive else { return }
-            if hoveredMeasurementID == measurementID { hoveredMeasurementID = nil }
-        }
-    }
+    // Hover popover timing is now managed by HoverPopoverModifier.
 
     // MARK: - Disclosure helpers
 
@@ -920,7 +855,7 @@ struct MeasurementDataSectionView: View {
         return groups
     }
 
-    private var useTwoColumns: Bool { availableWidth >= 400 }
+    private var useTwoColumns: Bool { availableWidth >= 320 }
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {

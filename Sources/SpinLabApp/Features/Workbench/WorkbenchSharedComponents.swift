@@ -49,6 +49,11 @@ struct WorkbenchPlotCanvas: View {
     /// (seriesIndex, newLabel)
     var onEditLegendLabel: ((Int, String) -> Void)?          = nil
 
+    /// Related charts for hover popover (nil or empty = no popover).
+    var relatedCharts: [WorkbenchResultReference]? = nil
+    /// Library root for loading chart thumbnails.
+    var libraryRootURL: URL? = nil
+
     // TODO(用户设计): 调整最小高度、背景样式、空状态文字
     var minHeight: CGFloat = 360
 
@@ -70,6 +75,7 @@ struct WorkbenchPlotCanvas: View {
     /// Pixel size of the current rendered PNG used for coordinate conversion.
     /// Falls back to 800x600 until image metadata is available.
     @State private var rendererPixelSize: CGSize = CGSize(width: 800, height: 600)
+    // Related charts hover popover state is managed by HoverPopoverModifier.
 
     private static let defaultRendererSize = CGSize(width: 800, height: 600)
 
@@ -150,6 +156,19 @@ struct WorkbenchPlotCanvas: View {
                 }
                 .onChange(of: imageData) { _, _ in
                     rendererPixelSize = Self.extractRendererPixelSize(from: nsImage) ?? Self.defaultRendererSize
+                }
+                .hoverPopover(
+                    showDelay: .seconds(1),
+                    dismissDelay: .milliseconds(500),
+                    arrowEdge: .trailing,
+                    isEnabled: relatedCharts?.isEmpty == false
+                ) { onHoverChanged, onDialogActiveChanged in
+                    MeasurementPlotPreviewPanel(
+                        references: relatedCharts ?? [],
+                        libraryRootURL: libraryRootURL,
+                        onHoverChanged: onHoverChanged,
+                        onDialogActiveChanged: onDialogActiveChanged
+                    )
                 }
         } else {
             ContentUnavailableView(
