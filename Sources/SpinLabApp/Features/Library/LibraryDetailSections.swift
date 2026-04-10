@@ -178,9 +178,10 @@ struct LibraryMeasurementsDoneSection: View {
             resolvedDisplayName(forWorkflow: lhs)
                 .localizedCaseInsensitiveCompare(resolvedDisplayName(forWorkflow: rhs)) == .orderedAscending
         }.map { wfID in
-            (workflowID: wfID,
-             displayName: resolvedDisplayName(forWorkflow: wfID),
-             measurements: sortByConditions(grouped[wfID] ?? []))
+            let condOrder = resolvedConditionOrder(forWorkflow: wfID)
+            return (workflowID: wfID,
+                    displayName: resolvedDisplayName(forWorkflow: wfID),
+                    measurements: sortByConditions(grouped[wfID] ?? [], conditionOrder: condOrder))
         }
     }
 
@@ -198,14 +199,30 @@ struct LibraryMeasurementsDoneSection: View {
         return wfID
     }
 
-    private func sortByConditions(_ items: [AppliedMeasurement]) -> [AppliedMeasurement] {
+    private func resolvedConditionOrder(forWorkflow wfID: String) -> [String] {
+        if let order = workflowConditionOrderByID[wfID] { return order }
+        if let order = workflowConditionOrderByID.first(where: {
+            $0.key.caseInsensitiveCompare(wfID) == .orderedSame
+        })?.value { return order }
+        return []
+    }
+
+    private func sortByConditions(_ items: [AppliedMeasurement], conditionOrder: [String]) -> [AppliedMeasurement] {
         items.sorted { lhs, rhs in
-            conditionSortKey(lhs).localizedStandardCompare(conditionSortKey(rhs)) == .orderedAscending
+            conditionSortKey(lhs, conditionOrder: conditionOrder)
+                .localizedStandardCompare(conditionSortKey(rhs, conditionOrder: conditionOrder)) == .orderedAscending
         }
     }
 
-    private func conditionSortKey(_ m: AppliedMeasurement) -> String {
-        m.conditions.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+    private func conditionSortKey(_ m: AppliedMeasurement, conditionOrder: [String]) -> String {
+        let orderSet = Set(conditionOrder)
+        let ordered = conditionOrder.compactMap { key in
+            m.conditions[key].map { (key, $0) }
+        }
+        let remaining = m.conditions
+            .filter { !orderSet.contains($0.key) }
+            .sorted { $0.key < $1.key }
+        return (ordered + remaining).map { "\($0.0)=\($0.1)" }.joined(separator: ",")
     }
 
     private func setsForWorkflow(_ workflowID: String) -> [MeasurementSet] {
@@ -223,15 +240,29 @@ struct LibraryMeasurementsDoneSection: View {
         return workflowMeasurements.filter { !allSetMembers.contains($0.sourceFileName) }
     }
 
-    private func measurementsInSet(_ set: MeasurementSet, from workflowMeasurements: [AppliedMeasurement]) -> [AppliedMeasurement] {
+    private func measurementsInSet(_ set: MeasurementSet, from workflowMeasurements: [AppliedMeasurement], workflowID: String) -> [AppliedMeasurement] {
         let memberSet = Set(set.memberFileNames)
         let matched = workflowMeasurements.filter { memberSet.contains($0.sourceFileName) }
-        return sortByConditions(matched)
+        return sortByConditions(matched, conditionOrder: resolvedConditionOrder(forWorkflow: workflowID))
     }
 
-    /// All chart references, used as fallback when no measurement rows exist.
-    private var allRefs: [WorkbenchResultReference] {
-        workbenchResults?.references ?? []
+    /// All chart references, sorted by tab rank → generatedAt → original index.
+    private var sortedAllRefs: [WorkbenchResultReference] {
+        let unsorted = workbenchResults?.references ?? []
+        guard !unsorted.isEmpty else { return [] }
+        let rankMap = ThreeOmegaWorkbenchTab.stableKeyRank
+        let fallbackRank = rankMap.count
+        return unsorted.enumerated()
+            .sorted { a, b in
+                let rankA = a.element.resolvedTabKey.flatMap { rankMap[$0] } ?? fallbackRank
+                let rankB = b.element.resolvedTabKey.flatMap { rankMap[$0] } ?? fallbackRank
+                if rankA != rankB { return rankA < rankB }
+                if a.element.generatedAt != b.element.generatedAt {
+                    return a.element.generatedAt < b.element.generatedAt
+                }
+                return a.offset < b.offset
+            }
+            .map(\.element)
     }
 
     // MARK: - Body
@@ -239,13 +270,13 @@ struct LibraryMeasurementsDoneSection: View {
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             if measurements.isEmpty {
-                if allRefs.isEmpty {
+                if sortedAllRefs.isEmpty {
                     Text("No measurements applied yet")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
                     MeasurementPlotPreviewPanel(
-                        references: allRefs,
+                        references: sortedAllRefs,
                         libraryRootURL: libraryRootURL,
                         onDelete: onDeleteChart,
                         onHoverChanged: nil
@@ -366,7 +397,7 @@ struct LibraryMeasurementsDoneSection: View {
 
     @ViewBuilder
     private func setSection(_ set: MeasurementSet, workflowMeasurements: [AppliedMeasurement], workflowID: String) -> some View {
-        let members = measurementsInSet(set, from: workflowMeasurements)
+        let members = measurementsInSet(set, from: workflowMeasurements, workflowID: workflowID)
         DisclosureGroup(isExpanded: toggleBinding(for: set.id, in: $expandedSets)) {
             if members.isEmpty {
                 Text("No measurements in this set")
@@ -419,8 +450,8 @@ struct LibraryMeasurementsDoneSection: View {
         let fallbackRank = rankMap.count
         return unsorted.enumerated()
             .sorted { a, b in
-                let rankA = a.element.tabKey.flatMap { rankMap[$0] } ?? fallbackRank
-                let rankB = b.element.tabKey.flatMap { rankMap[$0] } ?? fallbackRank
+                let rankA = a.element.resolvedTabKey.flatMap { rankMap[$0] } ?? fallbackRank
+                let rankB = b.element.resolvedTabKey.flatMap { rankMap[$0] } ?? fallbackRank
                 if rankA != rankB { return rankA < rankB }
                 if a.element.generatedAt != b.element.generatedAt {
                     return a.element.generatedAt < b.element.generatedAt

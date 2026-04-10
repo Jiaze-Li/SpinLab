@@ -178,6 +178,20 @@ struct WorkbenchResultReference: Codable, Hashable, Sendable {
     var workflowID: String
     var generatedAt: Date
     var tabKey: String?
+
+    /// Returns stored `tabKey` if present, otherwise infers from `chartImagePath` filename prefix.
+    var resolvedTabKey: String? {
+        if let tabKey { return tabKey }
+        let filename = URL(fileURLWithPath: chartImagePath).lastPathComponent
+        if filename.hasPrefix("R1ω_") || filename.hasPrefix("R1\u{03C9}_")   { return "fieldSweep1omega" }
+        if filename.hasPrefix("R3ω_") || filename.hasPrefix("R3\u{03C9}_")   { return "fieldSweep3omega" }
+        if filename.hasPrefix("RAHE1ω") || filename.hasPrefix("RAHE1\u{03C9}") { return "rahe1omegaVsT" }
+        if filename.hasPrefix("RAHE3ω") || filename.hasPrefix("RAHE3\u{03C9}") { return "rahe3omegaVsT" }
+        if filename.hasPrefix("Hc_")             { return "hcVsT" }
+        if filename.hasPrefix("Rxx_vs_T_") || filename.hasPrefix("RT_") { return "rtCurve" }
+        if filename.hasPrefix("Scaling_Law_")    { return "scaling" }
+        return nil
+    }
 }
 
 struct WorkbenchResultsIndex: Codable, Hashable, Sendable {
@@ -236,6 +250,16 @@ struct MeasurementPlotIndex: Codable, Hashable, Sendable {
             ids.append(chartIdentityKey)
         }
         entries[key] = ids
+    }
+}
+
+// MARK: - Canonical InputFiles Key
+
+enum InputFilesCanonicalKey {
+    /// Produces a stable, order-independent key from a list of input file paths.
+    /// Used to group charts that share the exact same set of source files.
+    static func make(from inputFiles: [String]) -> String {
+        inputFiles.sorted().joined(separator: "\n")
     }
 }
 
