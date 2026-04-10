@@ -100,7 +100,7 @@ struct XYRotationDATParser {
             stem: stem,
             sourceKind: .dat,
             angleDeg: angleDeg,
-            resistance: rxx,
+            resistanceXX: rxx,
             resistanceXY: rxy.isEmpty ? nil : rxy,
             defaultPhiOffset: 0
         )

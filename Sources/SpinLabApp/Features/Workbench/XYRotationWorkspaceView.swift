@@ -42,6 +42,9 @@ private struct XYRotationLeftColumn: View {
 
                 XYRotationPlotControlsPanel()
                     .environment(appState)
+
+                XYRotationPhiOffsetPanel()
+                    .environment(appState)
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
@@ -103,7 +106,7 @@ private struct XYRotationSearchSection: View {
                 .disabled(workbench.searchResultsList(for: wf).isEmpty)
 
                 Button("Analyze") {
-                    // TODO: 4.2.2 — wire to IngestXYRotationSelectionsUseCase
+                    store.runAnalysis()
                 }
                 .buttonStyle(.bordered)
                 .disabled(store.selectedSearchResultIDs.isEmpty || store.isAnalyzing)
@@ -130,19 +133,22 @@ private struct XYRotationPlotControlsPanel: View {
     var body: some View {
         @Bindable var store = appState.workbench.xyRotationWorkspace
 
-        WorkbenchPlotControlsPanel {
-            HStack(spacing: 8) {
-                Picker("Tab", selection: $store.activeTab) {
-                    ForEach(XYRotationWorkbenchTab.allCases) { tab in
-                        Text(tab.displayName).tag(tab)
-                    }
+        WorkbenchStandardPlotControls(
+            activeTab: $store.activeTab,
+            tabLabel: { $0.displayName },
+            stackOffset: $store.stackOffsetMultiplier,
+            stackRange: 0...1.6,
+            minGapFraction: $store.minGapFraction,
+            showGrid: $store.showPlotGrid,
+            titleTemplate: $store.titleTemplate,
+            numericDisplayCache: store.cachedSampleNumericDisplay,
+            onChange: { store.rerenderForStyleChange() }
+        ) {
+            Toggle("Center", isOn: $store.centerBaseline)
+                .toggleStyle(.checkbox)
+                .onChange(of: store.centerBaseline) { _, _ in
+                    store.rerenderForStyleChange()
                 }
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
-
-                Toggle("Grid", isOn: $store.showPlotGrid)
-                    .toggleStyle(.checkbox)
-            }
         }
     }
 }
@@ -221,13 +227,67 @@ private struct XYRotationRightColumn: View {
                     loadMessage: nil
                 )
 
-                // TODO: 4.2.3 — WorkbenchPlotCanvas here
+                WorkbenchPlotCanvas(
+                    imageData: store.activePlotImageData,
+                    layout: store.plotLayouts[store.activeTab],
+                    seriesLabelOverrides: store.plotSeriesLabelOverrides,
+                    onLegendDrag: { pt in store.updateLegendPoint(pt) },
+                    onEditTitle: { title in store.updatePlotTitle(title) },
+                    onEditXLabel: { label in store.updateXAxisLabel(label) },
+                    onEditYLabel: { label in store.updateYAxisLabel(label) },
+                    onEditLegendLabel: { idx, label in store.updateSeriesLabel(index: idx, newLabel: label) }
+                )
 
                 WorkbenchTracePanel(trace: store.currentRunTrace)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
             .padding(.top, 4)
+        }
+    }
+}
+
+// MARK: - φ Offset Panel
+
+private struct XYRotationPhiOffsetPanel: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        let store = appState.workbench.xyRotationWorkspace
+
+        GroupBox("φ Offset (deg)") {
+            if let result = store.ingestionResult, !result.sweeps.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(result.sweeps) { sweep in
+                        HStack(spacing: 6) {
+                            Text(sweep.stem)
+                                .font(.caption)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+
+                            let currentValue = store.phiOffsetOverrides[sweep.id]
+                                ?? sweep.defaultPhiOffset
+
+                            TextField(
+                                "0",
+                                value: Binding(
+                                    get: { currentValue },
+                                    set: { store.updatePhiOffset(sweepID: sweep.id, offset: $0) }
+                                ),
+                                format: .number
+                            )
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 64)
+                            .monospacedDigit()
+                        }
+                    }
+                }
+            } else {
+                Text("Run analysis to see per-file offsets.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }

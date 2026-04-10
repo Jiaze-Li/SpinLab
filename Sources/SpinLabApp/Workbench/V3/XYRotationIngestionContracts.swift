@@ -16,7 +16,7 @@ struct XYRotationAngleSweep: Codable, Hashable, Sendable, Identifiable {
     var stem: String
     var sourceKind: XYRotationFileKind
     var angleDeg: [Double]
-    var resistance: [Double]
+    var resistanceXX: [Double]
     var resistanceXY: [Double]?
     var defaultPhiOffset: Double
 }
@@ -24,18 +24,21 @@ struct XYRotationAngleSweep: Codable, Hashable, Sendable, Identifiable {
 /// Aggregated result from ingesting multiple XY Rotation files.
 struct XYRotationIngestionResult: Codable, Hashable, Sendable {
     var sweeps: [XYRotationAngleSweep] = []
+    var device: String = ""
     var warnings: [String] = []
 }
 
 /// Tab identifiers for the XY Rotation workbench.
 enum XYRotationWorkbenchTab: String, CaseIterable, Hashable, Identifiable {
-    case rVsPhi
+    case rxxVsPhi
+    case rxyVsPhi
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .rVsPhi: return "R vs φ"
+        case .rxxVsPhi: return "Rxx vs φ"
+        case .rxyVsPhi: return "Rxy vs φ"
         }
     }
 }

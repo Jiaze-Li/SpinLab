@@ -149,7 +149,7 @@ struct XYRotationLVMParser {
             stem: stem,
             sourceKind: .lvm,
             angleDeg: angleDeg,
-            resistance: rxx,
+            resistanceXX: rxx,
             resistanceXY: rxy,
             defaultPhiOffset: 0
         )

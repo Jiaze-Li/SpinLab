@@ -824,6 +824,20 @@ final class WorkbenchFeatureStore {
                     threeOmegaWorkspace.cachedSampleNumericDisplay = displayCache
                 case .xyRotation:
                     xyRotationWorkspace.cachedSearchResults = result
+                    // Cache numericDisplay for XY Rotation title template
+                    let xyUniqueSampleKeys = Set(result.map { $0.sampleKey })
+                    var xyDisplayCache: [String: [String: String]] = [:]
+                    for sk in xyUniqueSampleKeys {
+                        do {
+                            let nd = try await dataActor.lookupSampleNumericDisplay(
+                                libraryRootPath: libraryRootPath, sampleKey: sk
+                            )
+                            if !nd.isEmpty { xyDisplayCache[sk] = nd }
+                        } catch {
+                            print("[SpinLab][Workbench] numericDisplay lookup failed for \(sk): \(error)")
+                        }
+                    }
+                    xyRotationWorkspace.cachedSampleNumericDisplay = xyDisplayCache
                 }
                 searchMessages[wf] = result.isEmpty
                     ? "No files matched query: \(query)"
@@ -913,7 +927,9 @@ final class WorkbenchFeatureStore {
         case .threeOmega:
             threeOmegaWorkspace.cachedSearchResults = []
             _clearThreeOmegaTitleContext()
-        case .xyRotation: xyRotationWorkspace.cachedSearchResults = []
+        case .xyRotation:
+            xyRotationWorkspace.cachedSearchResults = []
+            xyRotationWorkspace.cachedSampleNumericDisplay = [:]
         }
         searchMessages[wf] = nil
         searchRunning[wf] = false

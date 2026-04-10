@@ -603,13 +603,14 @@ Workbench 参数必须来自 sidecar conditions（用户在 Import 时确认的�
 **特殊需求：** per-file φ offset（来自 sidecar `conditions["shift"]`）。
 
 ```
-4.2.0 🔲  Scaffold — 编译通过，sidebar 显示
-4.2.1 🔲  Data Model + Dual Parsers + φ Offset
-4.2.2 🔲  Ingestion UseCase + Search
-4.2.3 🔲  R(φ) Plot + Offset UI + Library Persist
-4.2.4 🔲  Fourier Fit + Metric Persist
-4.2.5 🔲  AMR/PHE vs T Plots (Tabs 2-3)
-4.2.6 🔲  Fourier Spectrum Tab + Polish
+4.2.0 ✅  Scaffold — 编译通过，sidebar 显示
+4.2.1 ✅  Data Model + Dual Parsers + φ Offset
+4.2.2 ✅/🔲  Workspace UI done, IngestUseCase 移入 4.2.3
+4.2.3 🔲  Ingest + R(φ) Plot + Offset UI（可视化里程碑）
+4.2.4 🔲  Save to Library + Vault + InteractionSnapshot（持久化里程碑）
+4.2.5 🔲  Fourier Fit + Metric Persist
+4.2.6 🔲  AMR/PHE vs T Plots (Tabs 2-3) + stableKeyRank
+4.2.7 🔲  Fourier Spectrum Tab + Polish
 ```
 
 ---

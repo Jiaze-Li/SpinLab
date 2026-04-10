@@ -21,7 +21,8 @@ struct V420XYRotationTests {
 
     @Test("Workbench tab has display name")
     func tabDisplayName() {
-        #expect(XYRotationWorkbenchTab.rVsPhi.displayName == "R vs φ")
+        #expect(XYRotationWorkbenchTab.rxxVsPhi.displayName == "Rxx vs φ")
+        #expect(XYRotationWorkbenchTab.rxyVsPhi.displayName == "Rxy vs φ")
     }
 
     // MARK: - LVM Parser Tests (v4.2.1)
@@ -38,7 +39,7 @@ struct V420XYRotationTests {
         }
         let sweep = try XYRotationLVMParser().parse(fileURL: url, temperatureOverride: 80)
         #expect(sweep.angleDeg.count == 7)
-        #expect(sweep.resistance.count == 7)
+        #expect(sweep.resistanceXX.count == 7)
         #expect(sweep.resistanceXY != nil)
         #expect(sweep.resistanceXY?.count == 7)
         #expect(sweep.sourceKind == .lvm)
@@ -52,7 +53,7 @@ struct V420XYRotationTests {
         guard let url = lvmFixtureURL() else { return }
         let sweep = try XYRotationLVMParser().parse(fileURL: url, temperatureOverride: 80)
         // First row: R_H = -3.6280234729
-        #expect(abs(sweep.resistance[0] - (-3.6280234729)) < 1e-6)
+        #expect(abs(sweep.resistanceXX[0] - (-3.6280234729)) < 1e-6)
     }
 
     @Test("LVM parser: I_rms derivation and Rxy = col5 / I_rms")
@@ -88,7 +89,7 @@ struct V420XYRotationTests {
         }
         let sweep = try XYRotationDATParser().parse(fileURL: url)
         #expect(sweep.angleDeg.count > 5)
-        #expect(sweep.resistance.count == sweep.angleDeg.count)
+        #expect(sweep.resistanceXX.count == sweep.angleDeg.count)
         #expect(sweep.sourceKind == .dat)
         // First data row: Sample Position ≈ 360
         #expect(abs(sweep.angleDeg[0] - 360.0) < 1.0)
@@ -107,7 +108,7 @@ struct V420XYRotationTests {
         guard let url = datFixtureURL() else { return }
         let sweep = try XYRotationDATParser().parse(fileURL: url)
         // First data row: Bridge 2 Resistivity = 150.359689941406
-        #expect(abs(sweep.resistance[0] - 150.3597) < 0.01)
+        #expect(abs(sweep.resistanceXX[0] - 150.3597) < 0.01)
         // Bridge 3 Resistivity = -1.83892154693604
         #expect(sweep.resistanceXY != nil)
         #expect(abs(sweep.resistanceXY![0] - (-1.8389)) < 0.01)
