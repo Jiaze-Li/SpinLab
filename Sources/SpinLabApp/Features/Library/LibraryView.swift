@@ -19,6 +19,10 @@ struct LibraryView: View {
     @State private var searchOxygenText: String = ""
     @State private var searchTemperatureText: String = ""
     @State private var searchEnergyText: String = ""
+    @State private var searchThicknessToleranceText: String = ""
+    @State private var searchOxygenToleranceText: String = ""
+    @State private var searchTemperatureToleranceText: String = ""
+    @State private var searchEnergyToleranceText: String = ""
     @State private var searchMatchedResults: [SearchResultItem] = []
     @State private var searchHasExecuted = false
     @State private var searchDebounceTask: Task<Void, Never>?
@@ -275,6 +279,10 @@ struct LibraryView: View {
             oxygenText: $searchOxygenText,
             temperatureText: $searchTemperatureText,
             energyText: $searchEnergyText,
+            thicknessToleranceText: $searchThicknessToleranceText,
+            oxygenToleranceText: $searchOxygenToleranceText,
+            temperatureToleranceText: $searchTemperatureToleranceText,
+            energyToleranceText: $searchEnergyToleranceText,
             level2HeaderFont: level2HeaderFont,
             level3HeaderFont: level3HeaderFont,
             searchHasExecuted: searchHasExecuted,
@@ -905,6 +913,10 @@ struct LibraryView: View {
             searchOxygenText: searchOxygenText,
             searchTemperatureText: searchTemperatureText,
             searchEnergyText: searchEnergyText,
+            searchThicknessToleranceText: searchThicknessToleranceText,
+            searchOxygenToleranceText: searchOxygenToleranceText,
+            searchTemperatureToleranceText: searchTemperatureToleranceText,
+            searchEnergyToleranceText: searchEnergyToleranceText,
             searchHasExecuted: searchHasExecuted
         )
     }
@@ -925,6 +937,10 @@ struct LibraryView: View {
         searchOxygenText = restored.searchOxygenText
         searchTemperatureText = restored.searchTemperatureText
         searchEnergyText = restored.searchEnergyText
+        searchThicknessToleranceText = restored.searchThicknessToleranceText
+        searchOxygenToleranceText = restored.searchOxygenToleranceText
+        searchTemperatureToleranceText = restored.searchTemperatureToleranceText
+        searchEnergyToleranceText = restored.searchEnergyToleranceText
 
         if restored.searchHasExecuted {
             executeSearch()
@@ -1012,6 +1028,22 @@ struct LibraryView: View {
         Double(searchEnergyText.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
+    private var searchThicknessToleranceValue: Double? {
+        Double(searchThicknessToleranceText.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private var searchOxygenToleranceValue: Double? {
+        Double(searchOxygenToleranceText.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private var searchTemperatureToleranceValue: Double? {
+        Double(searchTemperatureToleranceText.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private var searchEnergyToleranceValue: Double? {
+        Double(searchEnergyToleranceText.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
     private func clearSearchFilters() {
         searchDebounceTask?.cancel()
         searchDebounceTask = nil
@@ -1022,6 +1054,10 @@ struct LibraryView: View {
         searchOxygenText = ""
         searchTemperatureText = ""
         searchEnergyText = ""
+        searchThicknessToleranceText = ""
+        searchOxygenToleranceText = ""
+        searchTemperatureToleranceText = ""
+        searchEnergyToleranceText = ""
         searchMatchedResults = []
         searchHasExecuted = false
     }
@@ -1041,7 +1077,11 @@ struct LibraryView: View {
             searchThicknessText,
             searchOxygenText,
             searchTemperatureText,
-            searchEnergyText
+            searchEnergyText,
+            searchThicknessToleranceText,
+            searchOxygenToleranceText,
+            searchTemperatureToleranceText,
+            searchEnergyToleranceText
         ].joined(separator: "|")
     }
 
@@ -1081,7 +1121,11 @@ struct LibraryView: View {
             thickness: searchThicknessValue,
             oxygen: searchOxygenValue,
             temperature: searchTemperatureValue,
-            energy: searchEnergyValue
+            energy: searchEnergyValue,
+            thicknessTolerance: searchThicknessToleranceValue,
+            oxygenTolerance: searchOxygenToleranceValue,
+            temperatureTolerance: searchTemperatureToleranceValue,
+            energyTolerance: searchEnergyToleranceValue
         )
     }
 

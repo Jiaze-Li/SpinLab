@@ -124,6 +124,7 @@ Pre-merge architecture checklist (required):
 - Single-domain logic added in this change lives in its FeatureStore.
 - Cross-domain logic added in this change lives in `SpinLabAppState`.
 - New/changed behavior has tests in `Tests/SpinLabAppTests/` at matching version prefix.
+- `./scripts/build_desktop_app.sh debug` was executed and succeeded after all source changes.
 
 Anti-patterns (forbidden):
 - Adding new `library*` / `inbox*` / `workbench*` state fields directly on `SpinLabAppState` when a FeatureStore already exists.
@@ -369,13 +370,8 @@ Global shell layout policy:
 
 Build and version policy (required):
 - Every functional change must bump `Sources/SpinLabApp/App/AppVersion.swift` (`AppVersion.library`), unless the user explicitly instructs otherwise for that session.
-- After each version bump and feature change, rebuild and overwrite desktop app for QA using:
-  - `./scripts/build_desktop_app.sh debug`
-- Default output app path:
-  - `/Users/jack/Desktop/SpinLab.app`
+- `[HARD][must]` Every round of code changes must end with executing `./scripts/build_desktop_app.sh debug` to rebuild and overwrite `/Users/jack/Desktop/SpinLab.app`. This is a sign-off gate — the round is not complete until the build succeeds.
 - Do not skip desktop overwrite unless user explicitly asks not to.
-- Acceptance default:
-  - After a version iteration update, always overwrite `/Users/jack/Desktop/SpinLab.app` so user can validate directly from Desktop.
 
 ---
 

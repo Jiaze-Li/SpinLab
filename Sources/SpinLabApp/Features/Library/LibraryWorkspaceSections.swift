@@ -395,6 +395,10 @@ struct SearchWorkspaceSectionView: View {
     @Binding var oxygenText: String
     @Binding var temperatureText: String
     @Binding var energyText: String
+    @Binding var thicknessToleranceText: String
+    @Binding var oxygenToleranceText: String
+    @Binding var temperatureToleranceText: String
+    @Binding var energyToleranceText: String
 
     let level2HeaderFont: Font
     let level3HeaderFont: Font
@@ -457,10 +461,10 @@ struct SearchWorkspaceSectionView: View {
                     Text("Numeric Conditions")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    searchInputRow(label: "厚度", placeholder: "numeric", text: $thicknessText)
-                    searchInputRow(label: "氧压", placeholder: "numeric", text: $oxygenText)
-                    searchInputRow(label: "温度", placeholder: "numeric", text: $temperatureText)
-                    searchInputRow(label: "能量", placeholder: "numeric", text: $energyText)
+                    numericInputRow(label: "厚度", text: $thicknessText, toleranceText: $thicknessToleranceText)
+                    numericInputRow(label: "氧压", text: $oxygenText, toleranceText: $oxygenToleranceText)
+                    numericInputRow(label: "温度", text: $temperatureText, toleranceText: $temperatureToleranceText)
+                    numericInputRow(label: "能量", text: $energyText, toleranceText: $energyToleranceText)
                 }
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
@@ -546,9 +550,26 @@ struct SearchWorkspaceSectionView: View {
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .frame(width: 96, alignment: .leading)
+                .frame(width: 80, alignment: .leading)
             TextField(placeholder, text: text)
                 .textFieldStyle(.roundedBorder)
+        }
+    }
+
+    private func numericInputRow(label: String, text: Binding<String>, toleranceText: Binding<String>) -> some View {
+        HStack(spacing: 6) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 36, alignment: .leading)
+            TextField("value", text: text)
+                .textFieldStyle(.roundedBorder)
+            Text("±")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField("tol", text: toleranceText)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 52)
         }
     }
 }

@@ -124,6 +124,8 @@ final class WorkbenchFeatureStore {
     let aheWorkspace = AHEWorkspaceStore()
     /// 3w workspace state. Independent workflow — parsing, fitting, scaling, 6 plots.
     let threeOmegaWorkspace = ThreeOmegaWorkspaceStore()
+    /// In-memory vault for saved analysis packs (shared across workflows).
+    let analysisVault = AnalysisVault()
 
     @ObservationIgnored
     private var archivedRecordsProjectionTask: Task<Void, Never>?
@@ -243,6 +245,7 @@ final class WorkbenchFeatureStore {
         )
         self.searchQueryTexts = Self.restoreSearchQueryTexts()
         self.currentRoute = .registry(selectedID: initialWorkflowDefinitions.first?.id)
+        self.threeOmegaWorkspace.vault = analysisVault
     }
 
     deinit {
@@ -297,6 +300,7 @@ final class WorkbenchFeatureStore {
         threeOmegaMinGapFraction: Double? = nil,
         threeOmegaRTSidecarPath: String? = nil,
         threeOmegaFitRanges: [ThreeOmegaFitRange]? = nil,
+        threeOmegaPlotLegendPoints: [String: [Double]]? = nil,
         aheTitleTemplate: String? = nil
     ) {
         if let selectedArchivedRecordID,
@@ -315,6 +319,13 @@ final class WorkbenchFeatureStore {
         if let v = threeOmegaMinGapFraction { threeOmegaWorkspace.minGapFraction = v }
         if let p = threeOmegaRTSidecarPath { threeOmegaWorkspace.pendingRTSidecarPath = p }
         if let ranges = threeOmegaFitRanges, !ranges.isEmpty { threeOmegaWorkspace.fitRanges = ranges }
+        if let legendMap = threeOmegaPlotLegendPoints {
+            for (key, arr) in legendMap where arr.count == 2 {
+                if let tab = ThreeOmegaWorkbenchTab.allCases.first(where: { $0.stableKey == key }) {
+                    threeOmegaWorkspace.plotLegendPoints[tab] = CGPoint(x: arr[0], y: arr[1])
+                }
+            }
+        }
         if let t = aheTitleTemplate { aheWorkspace.titleTemplate = t }
     }
 
@@ -332,7 +343,22 @@ final class WorkbenchFeatureStore {
         snapshot.threeOmegaRTSidecarPath = threeOmegaWorkspace.selectedRTHit?.sidecarPath
             ?? threeOmegaWorkspace.pendingRTSidecarPath
         snapshot.threeOmegaFitRanges = threeOmegaWorkspace.fitRanges
+        if !threeOmegaWorkspace.plotLegendPoints.isEmpty {
+            var legendMap: [String: [Double]] = [:]
+            for (tab, pt) in threeOmegaWorkspace.plotLegendPoints {
+                legendMap[tab.stableKey] = [pt.x, pt.y]
+            }
+            snapshot.threeOmegaPlotLegendPoints = legendMap
+        }
         snapshot.aheTitleTemplate = aheWorkspace.titleTemplate
+    }
+
+    /// Bridge method: restores search state into WorkbenchFeatureStore when loading a pack.
+    func restoreThreeOmegaSearchState(results: [WorkflowMeasurementSearchHit], queryText: String) {
+        searchResults[.threeOmega] = results
+        setSearchQueryText(queryText, for: .threeOmega)
+        searchMessages[.threeOmega] = "Restored from analysis pack (\(results.count) hit(s))."
+        searchRunning[.threeOmega] = false
     }
 
     func selectedArchivedRecord() -> SpinLabDomain.ArchivedRecord? {
@@ -744,6 +770,7 @@ final class WorkbenchFeatureStore {
 
         aheWorkspace.lastLibraryRootPath = libraryRootPath
         threeOmegaWorkspace.lastLibraryRootPath = libraryRootPath
+        analysisVault.configurePersistence(libraryRootPath: libraryRootPath)
 
         workflowSearchTask?.cancel()
         searchRunning[wf] = true

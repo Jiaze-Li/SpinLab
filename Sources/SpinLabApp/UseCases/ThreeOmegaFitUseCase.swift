@@ -17,10 +17,6 @@ struct ThreeOmegaFitUseCase {
     /// Minimum points required in high-field region for fit.
     var minHighFieldPoints: Int = 3
 
-    /// Half-width of the H=0 window used for V3w window-average extraction (Oe).
-    /// Points with |H| ≤ windowHalfWidth on each branch are averaged.
-    var windowHalfWidth: Double = 3000
-
     func process(file: ThreeOmegaLVMFile, deviceOverride: String? = nil) -> ThreeOmegaFieldSweepResult {
         let H = file.col0   // Oe
         let iRms = file.iRms
@@ -47,12 +43,14 @@ struct ThreeOmegaFitUseCase {
         // Primary: window average — ascending branch minus descending branch near H=0.
         // Formula: V3w_AHE = mean(V3w | asc, |H|≤Hwin) − mean(V3w | desc, |H|≤Hwin)
         // Cross-check: high-field extrapolation (b⁺ − b⁻) / 2 on raw col5.
-        let v3Window = _windowV3w(H: H, V: file.col5, halfWidth: windowHalfWidth) ?? .nan
+        let v3Window = _windowV3w(H: H, V: file.col5) ?? .nan
         let v3Fit    = _fitAHEFromVoltage(H: H, V: file.col5)
 
-        // ── Step 6: RAHE and Hc from background-subtracted resistance ─────────
-        let rahe1 = _fitRAHE(H: H, R: r1)
-        let rahe3 = _fitRAHE(H: H, R: r3)
+        // ── Step 6: RAHE and Hc ──────────────────────────────────────────────
+        // RAHE(1ω): extracted directly from col9 (instrument R), not from derived col1/iRms.
+        let rahe1    = _fitRAHE(H: H, R: file.col9)
+        let rahe1WA  = _windowV3w(H: H, V: file.col9)
+        // RAHE(3ω): derived as V3w_AHE / iRms at use site — no separate extraction.
         let hc1 = _fitHc(H: H, R: r1)
         let hc3 = _fitHc(H: H, R: r3)
 
@@ -62,8 +60,9 @@ struct ThreeOmegaFitUseCase {
             hField: H,
             r1omega: r1,
             r3omega: r3,
+            iRms: iRms,
             rahe1omega: rahe1,
-            rahe3omega: rahe3,
+            rahe1omegaWA: rahe1WA,
             hc1omega: hc1,
             hc3omega: hc3,
             v3omegaWindow: v3Window,
@@ -117,12 +116,12 @@ struct ThreeOmegaFitUseCase {
 
     // MARK: - V3w_AHE extraction
 
-    // Primary: window average method.
+    // WA (Window Approximation) method.
     // Splits the scan into descending branch (before first zero crossing) and
-    // ascending branch (after second zero crossing), averages col5 within ±halfWidth Oe
-    // of H=0 on each branch, then returns ascending_avg − descending_avg.
-    // Returns nil if either branch has fewer than 3 points in the window.
-    private func _windowV3w(H: [Double], V: [Double], halfWidth: Double) -> Double? {
+    // ascending branch (after second zero crossing). On each branch, finds the
+    // single point closest to H=0 (smallest |H|). Returns (V_desc − V_asc) / 2,
+    // polarity-aligned with HFE's (b⁺ − b⁻) / 2.
+    private func _windowV3w(H: [Double], V: [Double]) -> Double? {
         guard H.count == V.count, H.count >= 4 else { return nil }
         let N = H.count
 
@@ -135,18 +134,22 @@ struct ThreeOmegaFitUseCase {
         let iDesc = crossings[0]   // first crossing  → end of descending branch
         let iAsc  = crossings[1]   // second crossing → start of ascending branch
 
-        var descVals: [Double] = []
-        var ascVals:  [Double] = []
-        for i in 0..<N {
-            if abs(H[i]) <= halfWidth {
-                if i <= iDesc + 1 { descVals.append(V[i]) }
-                if i >= iAsc      { ascVals.append(V[i]) }
-            }
+        // Descending branch: indices 0...iDesc+1, find closest to H=0
+        var bestDescIdx: Int?
+        var bestDescH = Double.greatestFiniteMagnitude
+        for i in 0...(iDesc + 1) {
+            if abs(H[i]) < bestDescH { bestDescH = abs(H[i]); bestDescIdx = i }
         }
-        guard descVals.count >= 3, ascVals.count >= 3 else { return nil }
-        let descAvg = descVals.reduce(0, +) / Double(descVals.count)
-        let ascAvg  = ascVals.reduce(0, +)  / Double(ascVals.count)
-        return ascAvg - descAvg
+
+        // Ascending branch: indices iAsc..<N, find closest to H=0
+        var bestAscIdx: Int?
+        var bestAscH = Double.greatestFiniteMagnitude
+        for i in iAsc..<N {
+            if abs(H[i]) < bestAscH { bestAscH = abs(H[i]); bestAscIdx = i }
+        }
+
+        guard let di = bestDescIdx, let ai = bestAscIdx else { return nil }
+        return (V[di] - V[ai]) / 2.0
     }
 
     // Cross-check: high-field linear extrapolation (b⁺ − b⁻) / 2.

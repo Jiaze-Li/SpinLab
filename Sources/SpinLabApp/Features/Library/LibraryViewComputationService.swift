@@ -9,6 +9,10 @@ struct LibrarySearchFilters {
     var oxygen: Double?
     var temperature: Double?
     var energy: Double?
+    var thicknessTolerance: Double?
+    var oxygenTolerance: Double?
+    var temperatureTolerance: Double?
+    var energyTolerance: Double?
 }
 
 struct LibraryViewComputationService {
@@ -156,22 +160,22 @@ struct LibraryViewComputationService {
         }
 
         if let thickness = filters.thickness,
-           !numericEquals(sample.numericTags["厚度"], thickness) {
+           !numericMatches(sample.numericTags["厚度"], expected: thickness, tolerance: filters.thicknessTolerance) {
             return false
         }
 
         if let oxygen = filters.oxygen,
-           !numericEquals(sample.numericTags["氧压"], oxygen) {
+           !numericMatches(sample.numericTags["氧压"], expected: oxygen, tolerance: filters.oxygenTolerance) {
             return false
         }
 
         if let temperature = filters.temperature,
-           !numericEquals(sample.numericTags["温度"], temperature) {
+           !numericMatches(sample.numericTags["温度"], expected: temperature, tolerance: filters.temperatureTolerance) {
             return false
         }
 
         if let energy = filters.energy,
-           !numericEquals(sample.numericTags["能量"], energy) {
+           !numericMatches(sample.numericTags["能量"], expected: energy, tolerance: filters.energyTolerance) {
             return false
         }
 
@@ -252,9 +256,10 @@ struct LibraryViewComputationService {
         return ceil((singleLine as NSString).size(withAttributes: attributes).width)
     }
 
-    private func numericEquals(_ source: Double?, _ expected: Double) -> Bool {
-        guard let source else {
-            return false
+    private func numericMatches(_ source: Double?, expected: Double, tolerance: Double?) -> Bool {
+        guard let source else { return false }
+        if let tol = tolerance, tol > 0 {
+            return abs(source - expected) <= tol
         }
         return abs(source - expected) < 1e-9
     }

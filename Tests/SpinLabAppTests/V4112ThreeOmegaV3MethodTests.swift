@@ -26,7 +26,8 @@ private func makeSweepWithFit(
         hField: [-100, 0, 100],
         r1omega: [-rxx, 0, rxx],
         r3omega: [0, 0, 0],
-        rahe1omega: nil, rahe3omega: nil,
+        iRms: 1e-4,
+        rahe1omega: nil, rahe1omegaWA: nil,
         hc1omega: nil, hc3omega: nil,
         v3omegaWindow: v3window,
         v3omegaFit: v3fit

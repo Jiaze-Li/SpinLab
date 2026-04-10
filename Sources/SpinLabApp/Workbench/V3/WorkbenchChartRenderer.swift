@@ -14,6 +14,8 @@ struct WorkbenchChartRenderer {
         var paddingBottom: CGFloat = 88   // space for x tick labels + field label
         var paddingLeft: CGFloat = 96     // space for y tick labels + field label
         var paddingRight: CGFloat = 30
+        /// Widest y-tick label in points — filled by resolvedOptions, used by layout for y-title placement.
+        var maxYTickLabelWidth: CGFloat = 0
     }
 
     enum RendererError: Error, LocalizedError {
@@ -70,16 +72,47 @@ struct WorkbenchChartRenderer {
         return buffer as Data
     }
 
+    // MARK: - Shared options resolution (pure function)
+
+    /// Measures y-tick label widths and adjusts paddingLeft + maxYTickLabelWidth.
+    /// Pure function: depends only on payload + base, no side effects.
+    /// Returns base unchanged when data is empty.
+    func resolvedOptions(payload: WorkbenchPlotPayload, base: Options) -> Options {
+        var opts = base
+        let allY = payload.series.flatMap(\.y)
+        guard !allY.isEmpty else { return opts }
+
+        let yRawMin = allY.min()!, yRawMax = allY.max()!
+        let yRawSpan = yRawMax == yRawMin ? 1.0 : yRawMax - yRawMin
+        let preYMin = yRawMin - yRawSpan * 0.05
+        let preYMax = yRawMax + yRawSpan * 0.05
+        let (preYTicks, preYStep) = niceTicks(min: preYMin, max: preYMax, targetCount: 5)
+        let black = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+        let maxYLabelW = preYTicks.map { tick -> CGFloat in
+            let label = formatTick(tick, step: preYStep)
+            let line = makeLine(text: label, size: 19, bold: false, color: black)
+            return CTLineGetBoundsWithOptions(line, []).width
+        }.max() ?? 0
+
+        opts.maxYTickLabelWidth = maxYLabelW
+        // labelGap(5) + maxLabel + gap(10) + rotated title height(~24) + margin(5)
+        let needed = maxYLabelW + 44
+        opts.paddingLeft = max(base.paddingLeft, needed)
+        return opts
+    }
+
     // MARK: - Canvas layout
 
     private func drawCanvas(in ctx: CGContext, payload: WorkbenchPlotPayload, options: Options) {
-        let w = CGFloat(options.width)
-        let h = CGFloat(options.height)
+        let opts = resolvedOptions(payload: payload, base: options)
+        let w = CGFloat(opts.width)
+        let h = CGFloat(opts.height)
+
         let plotRect = CGRect(
-            x: options.paddingLeft,
-            y: options.paddingBottom,
-            width: w - options.paddingLeft - options.paddingRight,
-            height: h - options.paddingTop - options.paddingBottom
+            x: opts.paddingLeft,
+            y: opts.paddingBottom,
+            width: w - opts.paddingLeft - opts.paddingRight,
+            height: h - opts.paddingTop - opts.paddingBottom
         )
 
         // White background
@@ -93,7 +126,7 @@ struct WorkbenchChartRenderer {
             legendNormalizedPoint = CGPoint(x: lx, y: ly)
         }
         let layout = WorkbenchPlotLayout.compute(
-            options: options, payload: payload, legendPoint: legendNormalizedPoint
+            options: opts, payload: payload, legendPoint: legendNormalizedPoint
         )
 
         // Title
@@ -211,7 +244,7 @@ struct WorkbenchChartRenderer {
         }
 
         // Tick marks + numeric labels on both axes
-        drawAxisTicks(ctx, plotRect: plotRect, options: options,
+        drawAxisTicks(ctx, plotRect: plotRect, options: opts,
                       xTicks: xTicks, xStep: xStep,
                       yTicks: yTicks, yStep: yStep,
                       xMin: xMin, xSpan: xSpan, yMin: yMin, ySpan: ySpan)

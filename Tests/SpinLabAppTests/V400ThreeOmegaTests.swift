@@ -219,7 +219,8 @@ struct V400ScalingUseCaseTests {
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 5.0, device: "0deg",
             hField: [-100, 0, 100], r1omega: [-1, 0, 1], r3omega: [0, 0, 0],
-            rahe1omega: 1.0, rahe3omega: nil, hc1omega: nil, hc3omega: nil,
+            iRms: 1e-4,
+            rahe1omega: 1.0, rahe1omegaWA: nil, hc1omega: nil, hc3omega: nil,
             v3omegaWindow: 2e-5
         )
         let rt = ThreeOmegaRTResult(device: "0deg", temperatureK: [5.0], rxx: [100.0])
@@ -374,7 +375,8 @@ struct V400WorkspaceStoreTests {
         #expect(store.activeTab == .fieldSweep1omega)
         #expect(store.plotR1omega == nil)
         #expect(store.plotR3omega == nil)
-        #expect(store.plotRAHEvsT == nil)
+        #expect(store.plotRAHE1omegaVsT == nil)
+        #expect(store.plotRAHE3omegaVsT == nil)
         #expect(store.plotHcvsT == nil)
         #expect(store.plotRT == nil)
         #expect(store.plotScaling == nil)
@@ -433,7 +435,8 @@ struct V400PlotRendererTests {
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 5.0, device: "0deg",
             hField: [-100, 0, 100], r1omega: [-1, 0, 1], r3omega: [0, 0, 0],
-            rahe1omega: nil, rahe3omega: nil, hc1omega: nil, hc3omega: nil,
+            iRms: 1e-4,
+            rahe1omega: nil, rahe1omegaWA: nil, hc1omega: nil, hc3omega: nil,
             v3omegaWindow: 2e-5
         )
         let (data, _) = renderer.renderR1omega(sweeps: [sweep], device: "0deg")

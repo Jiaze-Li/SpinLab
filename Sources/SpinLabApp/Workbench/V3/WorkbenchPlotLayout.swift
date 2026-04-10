@@ -94,8 +94,8 @@ struct WorkbenchPlotLayout: Sendable {
             height: h - options.paddingTop  - options.paddingBottom
         )
 
-        // Title — centered in top-padding band
-        let titleCenter  = CGPoint(x: w / 2, y: h - options.paddingTop * 0.45)
+        // Title — centered on plot area (not whole image)
+        let titleCenter  = CGPoint(x: plotRect.midX, y: h - options.paddingTop * 0.45)
         let titleHitRect = CGRect(
             x: options.paddingLeft, y: h - options.paddingTop,
             width: plotRect.width,  height: options.paddingTop * 0.9
@@ -108,11 +108,20 @@ struct WorkbenchPlotLayout: Sendable {
             width: plotRect.width,  height: 28
         )
 
-        // Y axis label (rotated 90°) — left-margin strip
-        let yLabelCenter  = CGPoint(x: options.paddingLeft * 0.38, y: h / 2)
+        // Y axis label (rotated 90°) — collision-based placement
+        // Place title to the left of tick labels, not proportional to paddingLeft.
+        let titleThickness: CGFloat = 24   // rotated font lineHeight for size 20
+        let labelGap: CGFloat = 5          // gap between tick labels and axis
+        let titleTickGap: CGFloat = 4      // gap between title and tick labels
+        let tickLeft = options.paddingLeft - labelGap - options.maxYTickLabelWidth
+        let yTitleX = max(titleThickness / 2 + 4,                           // clamp: at least 16pt from left edge
+                          min(tickLeft - titleTickGap - titleThickness / 2,  // collision boundary
+                              options.paddingLeft * 0.38))                   // never worse than old proportional
+        let yLabelCenter  = CGPoint(x: yTitleX, y: h / 2)
+        let hitWidth: CGFloat = 36  // fixed band around title center
         let yLabelHitRect = CGRect(
-            x: 0, y: plotRect.minY,
-            width:  options.paddingLeft * 0.50,
+            x: max(0, yTitleX - hitWidth / 2), y: plotRect.minY,
+            width:  hitWidth,
             height: plotRect.height
         )
 

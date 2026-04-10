@@ -33,6 +33,8 @@ private struct ThreeOmegaLeftColumn: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text("3w")
                         .font(.title2.bold())
+                    ThreeOmegaVaultButton()
+                        .environment(appState)
                     Spacer()
                 }
                 .padding(.top, 4)
@@ -129,6 +131,9 @@ private struct ThreeOmegaSearchSection: View {
                 }
                 .buttonStyle(.bordered)
 
+                ThreeOmegaLoadPackButton()
+                    .environment(appState)
+
                 if workbench.isSearchRunning(for: wf) || store.isAnalyzing {
                     ProgressView().controlSize(.small)
                 }
@@ -195,6 +200,51 @@ private struct ThreeOmegaPlotControlsPanel: View {
                         store.rerenderForStyleChange()
                     }
                     .padding(.top, 2)
+            }
+
+            // Row 3: RAHE method picker + Add Analysis (visible on RAHE tabs only)
+            if store.activeTab == .rahe1omegaVsT || store.activeTab == .rahe3omegaVsT {
+                HStack {
+                    Picker("AHE Method", selection: Binding<ThreeOmegaV3Method>(
+                        get: { store.activeRAHEMethod ?? .highField },
+                        set: { store.updateRAHEMethod($0) }
+                    )) {
+                        ForEach(ThreeOmegaV3Method.allCases) { method in
+                            Text(method.rawValue).tag(method)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: 220)
+                    Spacer()
+
+                    ThreeOmegaAddOverlayButton()
+                        .environment(appState)
+                }
+
+                // Active overlays (capsule chips)
+                if !store.overlayPackIDs.isEmpty {
+                    FlowLayout(spacing: 8) {
+                        ForEach(store.overlayPackIDs, id: \.self) { oid in
+                            if let snap = store.overlaySnapshots[oid] {
+                                HStack(spacing: 6) {
+                                    Text(snap.label)
+                                        .font(.subheadline.weight(.medium))
+                                        .lineLimit(1)
+                                    Button {
+                                        store.removeOverlay(id: oid)
+                                    } label: {
+                                        Image(systemName: "xmark")
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.secondary.opacity(0.12))
+                                .clipShape(Capsule())
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -397,38 +447,66 @@ private struct ThreeOmegaRightColumn: View {
                     Text("Result")
                         .font(.title2.bold())
                     Spacer()
-                    Button("Save to Library") {
-                        store.persistToLibrary {
-                            appState.library.loadWorkbenchResultsForCurrentSelection()
-                            appState.library.loadMeasurementDataForCurrentSelection()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        if store.matchingVaultPack != nil {
+                            Button("Update Analysis") {
+                                let queryText = appState.workbench.searchQueryText(for: .threeOmega)
+                                store.saveAnalysis(searchQueryText: queryText)
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(store.ingestionResult == nil)
+                        } else {
+                            Button("Save Analysis") {
+                                let queryText = appState.workbench.searchQueryText(for: .threeOmega)
+                                store.saveAnalysis(searchQueryText: queryText)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(store.ingestionResult == nil)
                         }
+
+                        Text(store.matchingVaultPack.map { "→ \($0.label)" } ?? " ")
+                            .font(.caption)
+                            .foregroundColor(store.matchingVaultPack != nil ? .accentColor : .clear)
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(store.ingestionResult == nil)
+
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Button("Save to Library") {
+                            store.persistToLibrary {
+                                appState.library.loadWorkbenchResultsForCurrentSelection()
+                                appState.library.loadMeasurementDataForCurrentSelection()
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(store.ingestionResult == nil)
+
+                        Text(" ")
+                            .font(.caption)
+                            .foregroundColor(.clear)
+                    }
                 }
 
-                WorkbenchStatusArea(
-                    searchMessage: nil,
-                    plotMessage: store.analysisMessage,
-                    loadMessage: nil
-                )
-
-                if let warnings = store.ingestionResult?.warnings, !warnings.isEmpty {
-                    VStack(alignment: .leading, spacing: 3) {
-                        ForEach(warnings, id: \.self) { w in
-                            Text("⚠ \(w)")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                        }
+                if let msg = store.analysisMessage, !msg.isEmpty {
+                    let warnCount = store.ingestionResult?.warnings.count ?? 0
+                    if warnCount > 0 {
+                        (Text(msg).foregroundStyle(.secondary)
+                         + Text(" (\(warnCount) warning(s))").foregroundStyle(.orange))
+                            .font(.footnote)
+                    } else {
+                        Text(msg)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
-                    .textSelection(.enabled)
                 }
+
 
                 WorkbenchPlotCanvas(
                     imageData: _activeImageData(store),
                     layout: store.plotLayouts[store.activeTab],
                     seriesLabelOverrides: store.plotSeriesLabelOverrides[store.activeTab] ?? [:],
-                    onLegendDrag: { pt in store.updateLegendPoint(pt) },
+                    onLegendDrag: { pt in
+                        store.updateLegendPoint(pt)
+                        appState.flushInteractionSnapshotNow()
+                    },
                     onEditTitle:  { title in store.updatePlotTitle(title) },
                     onEditXLabel: { label in store.updateXAxisLabel(label) },
                     onEditYLabel: { label in store.updateYAxisLabel(label) },
@@ -456,7 +534,8 @@ private struct ThreeOmegaRightColumn: View {
         switch store.activeTab {
         case .fieldSweep1omega: return store.plotR1omega
         case .fieldSweep3omega: return store.plotR3omega
-        case .raheVsT:          return store.plotRAHEvsT
+        case .rahe1omegaVsT:    return store.plotRAHE1omegaVsT
+        case .rahe3omegaVsT:    return store.plotRAHE3omegaVsT
         case .hcVsT:            return store.plotHcvsT
         case .rtCurve:          return store.plotRT
         case .scaling:          return store.plotScaling
@@ -659,5 +738,292 @@ private struct ThreeOmegaRTPopover: View {
         }
         .padding(8)
         .frame(width: 320)
+    }
+}
+
+// MARK: - Vault management button (title bar)
+
+private struct ThreeOmegaVaultButton: View {
+    @Environment(SpinLabAppState.self) private var appState
+    @State private var showPopover = false
+    @State private var editingPackID: UUID?
+    @State private var filterText = ""
+
+    var body: some View {
+        let vault = appState.workbench.analysisVault
+        let allPacks = vault.packs(forWorkflow: "3w")
+        let packs = filterText.isEmpty ? allPacks : allPacks.filter {
+            $0.label.localizedCaseInsensitiveContains(filterText)
+        }
+
+        Button("Analyses") {
+            showPopover.toggle()
+        }
+        .buttonStyle(.bordered)
+        .popover(isPresented: $showPopover, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Saved Analyses")
+                    .font(.body.bold())
+                    .foregroundStyle(.secondary)
+                    .onTapGesture { editingPackID = nil }
+
+                if allPacks.count > 3 {
+                    TextField("Filter…", text: $filterText)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.body)
+                }
+
+                if packs.isEmpty {
+                    Text(filterText.isEmpty ? "No saved analyses yet." : "No match.")
+                        .font(.body)
+                        .foregroundStyle(.tertiary)
+                } else {
+                    ScrollView(.vertical) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(packs) { pack in
+                                ThreeOmegaVaultRow(pack: pack, editingPackID: $editingPackID)
+                                    .environment(appState)
+                            }
+                        }
+                    }
+                    .frame(minHeight: 60, maxHeight: 300)
+                }
+            }
+            .padding(8)
+            .frame(width: 280)
+            .contentShape(Rectangle())
+            .onTapGesture { editingPackID = nil }
+            .onChange(of: showPopover) { _, isOpen in
+                if !isOpen { editingPackID = nil; filterText = "" }
+            }
+        }
+    }
+}
+
+private struct ThreeOmegaVaultRow: View {
+    @Environment(SpinLabAppState.self) private var appState
+    let pack: AnalysisPack
+    @Binding var editingPackID: UUID?
+    @State private var editingLabel: String = ""
+
+    private var isEditing: Bool { editingPackID == pack.id }
+
+    var body: some View {
+        let vault = appState.workbench.analysisVault
+        let store = appState.workbench.threeOmegaWorkspace
+        let isActive = store.activePackID == pack.id
+
+        HStack(spacing: 6) {
+            if isEditing {
+                TextField("Label", text: $editingLabel)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.body)
+                    .onSubmit { _commitRename(vault: vault) }
+                    .onExitCommand { _commitRename(vault: vault) }
+            } else {
+                Text(pack.label)
+                    .font(.body)
+                    .lineLimit(1)
+                    .foregroundStyle(isActive ? .primary : .secondary)
+            }
+
+            Spacer()
+
+            Image(systemName: "pencil")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .onTapGesture {
+                    editingLabel = pack.label
+                    editingPackID = pack.id
+                }
+
+            Image(systemName: "trash")
+                .font(.body)
+                .foregroundStyle(.red.opacity(0.7))
+                .onTapGesture {
+                    vault.remove(id: pack.id)
+                    if store.activePackID == pack.id {
+                        store.activePackID = nil
+                    }
+                }
+        }
+        .padding(.vertical, 2)
+        .padding(.horizontal, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(isActive ? Color.accentColor.opacity(0.1) : Color.clear)
+        )
+    }
+
+    private func _commitRename(vault: AnalysisVault) {
+        let trimmed = editingLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty, var updated = vault.get(id: pack.id) {
+            updated.label = trimmed
+            vault.update(updated)
+        }
+        editingPackID = nil
+    }
+}
+
+// MARK: - Load pack button (search section)
+
+private struct ThreeOmegaLoadPackButton: View {
+    @Environment(SpinLabAppState.self) private var appState
+    @State private var showPopover = false
+    @State private var showUnsavedAlert = false
+    @State private var pendingLoadID: UUID?
+    @State private var filterText = ""
+
+    var body: some View {
+        let vault = appState.workbench.analysisVault
+        let store = appState.workbench.threeOmegaWorkspace
+        let allPacks = vault.packs(forWorkflow: "3w")
+        let packs = filterText.isEmpty ? allPacks : allPacks.filter {
+            $0.label.localizedCaseInsensitiveContains(filterText)
+        }
+
+        Button("Load") {
+            showPopover.toggle()
+        }
+        .buttonStyle(.bordered)
+        .disabled(allPacks.isEmpty)
+        .popover(isPresented: $showPopover, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Load Analysis")
+                    .font(.body.bold())
+                    .foregroundStyle(.secondary)
+
+                if allPacks.count > 3 {
+                    TextField("Filter…", text: $filterText)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.body)
+                }
+
+                if packs.isEmpty {
+                    Text(filterText.isEmpty ? "No saved analyses." : "No match.")
+                        .font(.body)
+                        .foregroundStyle(.tertiary)
+                } else {
+                ScrollView(.vertical) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(packs) { pack in
+                            Button {
+                                if store.hasUnsavedAnalysis {
+                                    pendingLoadID = pack.id
+                                    showPopover = false
+                                    showUnsavedAlert = true
+                                } else {
+                                    _load(pack.id)
+                                    showPopover = false
+                                }
+                            } label: {
+                                HStack {
+                                    Text(pack.label)
+                                        .font(.body)
+                                        .lineLimit(1)
+                                    Spacer()
+                                    if store.activePackID == pack.id {
+                                        Image(systemName: "checkmark")
+                                            .font(.body)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.vertical, 2)
+                            .padding(.horizontal, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.accentColor.opacity(0.08))
+                            )
+                        }
+                    }
+                }
+                .frame(minHeight: 60, maxHeight: 300)
+                }
+            }
+            .padding(8)
+            .frame(width: 280)
+            .onChange(of: showPopover) { _, isOpen in
+                if !isOpen { filterText = "" }
+            }
+        }
+        .alert("Unsaved Analysis", isPresented: $showUnsavedAlert) {
+            Button("Discard & Load", role: .destructive) {
+                if let id = pendingLoadID {
+                    _load(id)
+                }
+                pendingLoadID = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingLoadID = nil
+            }
+        } message: {
+            Text("Current analysis has unsaved changes. Loading will replace it.")
+        }
+    }
+
+    private func _load(_ id: UUID) {
+        let store = appState.workbench.threeOmegaWorkspace
+        let workbench = appState.workbench
+        store.loadPack(id: id) { results, queryText in
+            workbench.restoreThreeOmegaSearchState(results: results, queryText: queryText)
+        }
+    }
+}
+
+// MARK: - Add overlay button (RAHE tabs)
+
+private struct ThreeOmegaAddOverlayButton: View {
+    @Environment(SpinLabAppState.self) private var appState
+    @State private var showPopover = false
+
+    var body: some View {
+        let vault = appState.workbench.analysisVault
+        let store = appState.workbench.threeOmegaWorkspace
+        let excludeIDs: Set<UUID> = Set(store.overlayPackIDs).union(store.activePackID.map { [$0] } ?? [])
+        let available = vault.packs(forWorkflow: "3w").filter { !excludeIDs.contains($0.id) }
+
+        Button("Add Analysis") {
+            showPopover.toggle()
+        }
+        .buttonStyle(.bordered)
+        .disabled(available.isEmpty)
+        .popover(isPresented: $showPopover, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Overlay Analysis")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+
+                ScrollView(.vertical) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(available) { pack in
+                            Button {
+                                store.addOverlay(id: pack.id)
+                                showPopover = false
+                            } label: {
+                                Text(pack.label)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.vertical, 2)
+                            .padding(.horizontal, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.accentColor.opacity(0.08))
+                            )
+                        }
+                    }
+                }
+                .frame(minHeight: 40, maxHeight: 200)
+            }
+            .padding(8)
+            .frame(width: 240)
+        }
     }
 }

@@ -200,11 +200,18 @@ struct V413ThreeOmegaFitUseCaseTests {
                 "rahe1omega \(rahe) should be close to \(amplitude)")
     }
 
-    @Test("rahe3omega is extracted for R³ω signal")
-    func rahe3omegaNonNil() {
+    @Test("rahe(3ω, HFE) derived from v3omegaFit / iRms")
+    func rahe3omegaHFEDerived() {
         let file = makeFieldSweepFile(rahe3: 0.1, hc3: 3000)
         let result = ThreeOmegaFitUseCase().process(file: file)
-        #expect(result.rahe3omega != nil)
+        #expect(result.rahe(harmonic: 3, method: .highField) != nil)
+    }
+
+    @Test("rahe1omegaWA is extracted via window average on col9")
+    func rahe1omegaWANonNil() {
+        let file = makeFieldSweepFile()
+        let result = ThreeOmegaFitUseCase().process(file: file)
+        #expect(result.rahe1omegaWA != nil)
     }
 
     // MARK: - Hc zero-crossing extraction
@@ -275,20 +282,30 @@ struct V413ThreeOmegaFitUseCaseTests {
 
     // MARK: - PlotRenderer Tab 3–5
 
-    @Test("renderRAHEvsT produces non-nil PNG for valid sweeps")
-    func renderRAHEvsTNonNil() {
+    @Test("renderRAHE1omegaVsT produces non-nil PNG for valid sweeps")
+    func renderRAHE1omegaVsTNonNil() {
         let sweeps = [100.0, 200.0, 300.0].map { t in
             ThreeOmegaFitUseCase().process(file: makeFieldSweepFile(temperatureK: t))
         }
         let renderer = ThreeOmegaPlotRenderer()
-        let (data, _) = renderer.renderRAHEvsT(sweeps: sweeps, device: "0deg")
+        let (data, _) = renderer.renderRAHE1omegaVsT(sweeps: sweeps, device: "0deg", method: .highField)
         #expect(data != nil)
     }
 
-    @Test("renderRAHEvsT returns nil for empty sweeps")
-    func renderRAHEvsTEmpty() {
+    @Test("renderRAHE3omegaVsT produces non-nil PNG for valid sweeps")
+    func renderRAHE3omegaVsTNonNil() {
+        let sweeps = [100.0, 200.0, 300.0].map { t in
+            ThreeOmegaFitUseCase().process(file: makeFieldSweepFile(temperatureK: t))
+        }
         let renderer = ThreeOmegaPlotRenderer()
-        let (data, _) = renderer.renderRAHEvsT(sweeps: [], device: "0deg")
+        let (data, _) = renderer.renderRAHE3omegaVsT(sweeps: sweeps, device: "0deg", method: .highField)
+        #expect(data != nil)
+    }
+
+    @Test("renderRAHE1omegaVsT returns nil for empty sweeps")
+    func renderRAHE1omegaVsTEmpty() {
+        let renderer = ThreeOmegaPlotRenderer()
+        let (data, _) = renderer.renderRAHE1omegaVsT(sweeps: [], device: "0deg", method: .highField)
         #expect(data == nil)
     }
 

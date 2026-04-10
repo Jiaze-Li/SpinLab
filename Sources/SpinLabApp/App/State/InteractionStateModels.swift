@@ -205,6 +205,10 @@ struct LibraryInteractionState: Codable, Equatable {
     var searchOxygenText: String = ""
     var searchTemperatureText: String = ""
     var searchEnergyText: String = ""
+    var searchThicknessToleranceText: String = ""
+    var searchOxygenToleranceText: String = ""
+    var searchTemperatureToleranceText: String = ""
+    var searchEnergyToleranceText: String = ""
     var searchHasExecuted: Bool = false
 
     enum CodingKeys: String, CodingKey {
@@ -222,6 +226,10 @@ struct LibraryInteractionState: Codable, Equatable {
         case searchOxygenText
         case searchTemperatureText
         case searchEnergyText
+        case searchThicknessToleranceText
+        case searchOxygenToleranceText
+        case searchTemperatureToleranceText
+        case searchEnergyToleranceText
         case searchHasExecuted
     }
 
@@ -240,6 +248,10 @@ struct LibraryInteractionState: Codable, Equatable {
         searchOxygenText: String = "",
         searchTemperatureText: String = "",
         searchEnergyText: String = "",
+        searchThicknessToleranceText: String = "",
+        searchOxygenToleranceText: String = "",
+        searchTemperatureToleranceText: String = "",
+        searchEnergyToleranceText: String = "",
         searchHasExecuted: Bool = false
     ) {
         self.selectedPrefix = selectedPrefix
@@ -256,6 +268,10 @@ struct LibraryInteractionState: Codable, Equatable {
         self.searchOxygenText = searchOxygenText
         self.searchTemperatureText = searchTemperatureText
         self.searchEnergyText = searchEnergyText
+        self.searchThicknessToleranceText = searchThicknessToleranceText
+        self.searchOxygenToleranceText = searchOxygenToleranceText
+        self.searchTemperatureToleranceText = searchTemperatureToleranceText
+        self.searchEnergyToleranceText = searchEnergyToleranceText
         self.searchHasExecuted = searchHasExecuted
     }
 
@@ -275,6 +291,10 @@ struct LibraryInteractionState: Codable, Equatable {
         searchOxygenText = try container.decodeIfPresent(String.self, forKey: .searchOxygenText) ?? ""
         searchTemperatureText = try container.decodeIfPresent(String.self, forKey: .searchTemperatureText) ?? ""
         searchEnergyText = try container.decodeIfPresent(String.self, forKey: .searchEnergyText) ?? ""
+        searchThicknessToleranceText = try container.decodeIfPresent(String.self, forKey: .searchThicknessToleranceText) ?? ""
+        searchOxygenToleranceText = try container.decodeIfPresent(String.self, forKey: .searchOxygenToleranceText) ?? ""
+        searchTemperatureToleranceText = try container.decodeIfPresent(String.self, forKey: .searchTemperatureToleranceText) ?? ""
+        searchEnergyToleranceText = try container.decodeIfPresent(String.self, forKey: .searchEnergyToleranceText) ?? ""
         searchHasExecuted = try container.decodeIfPresent(Bool.self, forKey: .searchHasExecuted) ?? false
     }
 
@@ -294,6 +314,10 @@ struct LibraryInteractionState: Codable, Equatable {
         try container.encode(searchOxygenText, forKey: .searchOxygenText)
         try container.encode(searchTemperatureText, forKey: .searchTemperatureText)
         try container.encode(searchEnergyText, forKey: .searchEnergyText)
+        try container.encode(searchThicknessToleranceText, forKey: .searchThicknessToleranceText)
+        try container.encode(searchOxygenToleranceText, forKey: .searchOxygenToleranceText)
+        try container.encode(searchTemperatureToleranceText, forKey: .searchTemperatureToleranceText)
+        try container.encode(searchEnergyToleranceText, forKey: .searchEnergyToleranceText)
         try container.encode(searchHasExecuted, forKey: .searchHasExecuted)
     }
 }
@@ -328,5 +352,7 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var threeOmegaMinGapFraction: Double?
     var threeOmegaRTSidecarPath: String?
     var threeOmegaFitRanges: [ThreeOmegaFitRange]?
+    /// Per-tab legend positions keyed by ThreeOmegaWorkbenchTab.stableKey.
+    var threeOmegaPlotLegendPoints: [String: [Double]]?
     var aheTitleTemplate: String?
 }

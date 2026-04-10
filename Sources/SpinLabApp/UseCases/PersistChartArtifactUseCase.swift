@@ -89,7 +89,8 @@ struct PersistChartArtifactUseCase {
             chartImagePath: imageRelPath,
             manifestPath: manifestRelPath,
             workflowID: payload.workflowID,
-            generatedAt: generatedAt
+            generatedAt: generatedAt,
+            tabKey: payload.semanticParams["tabKey"]
         )
 
         // Upsert reference into each sample's results_index.json.

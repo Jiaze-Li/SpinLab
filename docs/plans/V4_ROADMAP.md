@@ -1,7 +1,7 @@
 # SpinLab V4 总路线图
 
 状态：进行中
-更新：2026-04-07（4.1.4 完成，Scaling 完整流程验收通过）
+更新：2026-04-10（4.1 完成，AnalysisPack/Vault 系统上线，3ω workflow done）
 
 ---
 
@@ -17,7 +17,7 @@
 
 ```
 4.0  ✅  架构 & 脚手架（AMR/PHE 延续 + 3ω 全部文件就位，swift build 通过）
-4.1  ✅  3ω AHE workflow（4.1.0–4.1.11）
+4.1  ✅  3ω AHE workflow（4.1.0–4.1.17，done 2026-04-10）
 4.2  🔲  XY Rotation workflow
 4.3  🔲  RT workflow
 4.4  🔲  MR workflow
@@ -50,6 +50,12 @@
 4.1.9 ✅  搜索查询持久化
 4.1.10 ✅ 自适应 stack offset + minGap
 4.1.11 ✅ 持久化完善 + Measurement Data 显示重构
+4.1.12 ✅ V3 method selection 回归测试
+4.1.13 ✅ Library name conflict warning + filename-based import dedup
+4.1.14 ✅ Y 轴 title 动态 padding（长 tick label 不再重叠）
+4.1.15 ✅ fitRanges 纳入 scaling chart identity + tolerance-based numeric range search
+4.1.16 ✅ RAHE 提取（unified rahe() accessor）+ WA nearest-H=0 重构 + chart thumbnail trash icon
+4.1.17 ✅ AnalysisPack/Vault 系统 — 跨 workflow 分析存储、Save/Load/Overlay、render race guard
 ```
 
 ---
@@ -446,6 +452,87 @@ Workbench 参数必须来自 sidecar conditions（用户在 Import 时确认的�
 
 ---
 
+### 4.1.15 ✅ — fitRanges 纳入 Scaling chart identity + tolerance-based numeric search（已完成，2026-04-09）
+
+**改动：**
+- Scaling chart 的 `semanticParams` 新增 `fitRanges` 签名（hash），不同 fit 配置不再互相覆盖 library 中的图
+- Library 搜索新增 tolerance-based numeric range matching：如 `3w 5K` 会匹配 4.999K 的文件
+- Label alignment 修复
+
+---
+
+### 4.1.16 ✅ — RAHE 提取 + WA 重构 + Library UI 改进（已完成，2026-04-09）
+
+**改动：**
+- `ThreeOmegaFieldSweepResult` 新增 unified `rahe()` accessor，统一 1ω/3ω 的 RAHE 读取
+- WA 方法重构为 nearest-H=0（取距零场最近的点），替代旧的窗口平均
+- RAHE 1ω / 3ω tab 各自独立的 method picker（`rahe1omegaMethod` / `rahe3omegaMethod`）
+- Library chart thumbnail：移除标题叠加，改为 minimal trash icon
+- 版本号 → v4.1.16
+
+---
+
+### 4.1.17 ✅ — AnalysisPack/Vault 系统（已完成，2026-04-10）
+
+**目标：** 引入跨 workflow 的分析保存/加载/叠加系统。
+
+**1. AnalysisPack 领域模型** (`Domain/AnalysisPack.swift`)
+
+- Workflow-agnostic struct：`id`, `label`, `workflowID`, `createdAt`, `filePaths`, `sampleKeys`, `sourceFingerprint`
+- `config: Data` / `result: Data` — workflow-specific JSON blob（泛型编码/解码）
+- `sourceFingerprint` = sorted input files + RT path，用于判断同源分析
+
+**2. AnalysisVault** (`App/State/AnalysisVault.swift`)
+
+- `@MainActor @Observable final class`，owned by WorkbenchFeatureStore
+- 磁盘布局：`<libraryRoot>/_spinlab/analysis_packs/<workflowID>/<packID>.json`
+- CRUD + fingerprint 查询 + workflow 列表
+- Root 切换时先清空内存再加载（数据隔离）
+
+**3. ThreeOmegaPackContracts** (`Workbench/V3/ThreeOmegaPackContracts.swift`)
+
+- `ThreeOmegaPackConfig`：完整 session 快照（分析参数 + 显示设置 + 搜索状态）
+- `ThreeOmegaPackResult`：`ingestionResult` + `scalingResult?`
+
+**4. Save Analysis 逻辑**
+
+- `sourceFingerprint` 匹配已有 pack → update；不存在 → create（auto label = sample + device）
+- `matchingVaultPack` 计算属性驱动按钮状态（Save / Update）
+
+**5. Load Pack 逻辑**
+
+- 解码 config/result → 恢复全部状态（geometry, methods, display, search selection）
+- 通过 `restoreSearchState` closure 桥接回 WorkbenchFeatureStore
+- 清空 overlays → 重新渲染全部 tabs
+
+**6. Overlay 系统**
+
+- `addOverlay(id:)` → 从 vault 取 pack → 创建 `OverlaySnapshot`（label, sweeps, sourceFiles, sampleKeys）
+- OverlaySnapshot 与 vault 完全解耦，pack 删除不影响已有 overlay
+- `_renderRAHEWithOverlays()` 多组曲线合成渲染
+- `activeChartSampleKeys` 从 snapshot 取 sampleKeys（不依赖 vault）
+
+**7. UI 按钮设计**
+
+| 按钮 | 位置 | 功能 |
+|------|------|------|
+| `Analyses` | 左列标题栏 "3w" 右侧 | Popover 管理 saved packs（列表/重命名/删除/filter） |
+| `Load` | 搜索按钮行末尾 | Popover 选择 pack 加载，未保存分析有 alert 确认 |
+| `Save Analysis` / `Update Analysis` | 右列 "Result" 右侧 | 有匹配 pack → Update（bordered），无 → Save（prominent） |
+| `Add Analysis` | RAHE tab method picker 右侧 | Popover 选择叠加 pack，已叠加的显示为 capsule chip（可移除） |
+
+**8. 已修复问题（Codex adversarial review）**
+
+- Vault root 切换数据隔离：`configurePersistence` 切 root 前先 `packs = [:]`
+- Render 竞态：`_renderRevision` token 防止旧渲染覆盖新结果
+- Overlay attribution 解耦：`OverlaySnapshot.sampleKeys` 替代 `vault.get(id:)`
+
+**架构意图：** AnalysisPack 和 AnalysisVault 是跨 workflow 的设计。AHE 接入时只需定义 AHEPackConfig/AHEPackResult，复用同一 Vault。
+
+**Tests：** `V4117AnalysisPackVaultTests.swift`
+
+---
+
 ### 版本间依赖关系（4.1.x 内部）
 
 ```
@@ -454,10 +541,13 @@ Workbench 参数必须来自 sidecar conditions（用户在 Import 时确认的�
             └── 4.1.2 (真实曲线 Tabs 1–2)
                     └── 4.1.3 (方法决策 + Tabs 3–5)
                             └── 4.1.4 (Scaling Tab 6)
-4.1.5 (Import 集成) ← 可与 4.1.2 并行
-4.1.6 (多角度)      ← 依赖 4.1.4
-4.1.7 (验收)        ← 依赖全部
-4.1.8 (3ω 持久化)   ← 依赖 4.1.4
+4.1.5 (Import 集成)  ← 可与 4.1.2 并行
+4.1.6 (多角度)       ← 依赖 4.1.4
+4.1.7 (验收)         ← 依赖全部
+4.1.8 (3ω 持久化)    ← 依赖 4.1.4
+4.1.15 (chart identity) ← 依赖 4.1.8
+4.1.16 (RAHE 重构)   ← 依赖 4.1.3
+4.1.17 (Vault 系统)  ← 依赖 4.1.8 + 4.1.16
 ```
 
 ### 当前阻塞项 / 决策
