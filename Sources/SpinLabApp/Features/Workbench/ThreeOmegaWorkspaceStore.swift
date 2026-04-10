@@ -519,7 +519,7 @@ final class ThreeOmegaWorkspaceStore {
         case .scaling:
             let rangeSig = fitRanges
                 .sorted { ($0.tLo ?? 0) < ($1.tLo ?? 0) }
-                .map { "\(Int(($0.tLo ?? 0).rounded()))K-\(Int(($0.tHi ?? 9999).rounded()))K" }
+                .map { "\($0.tLo ?? 0)K-\($0.tHi ?? 9999)K" }
                 .joined(separator: ",")
             return makePayload(
                 title: resolveTitle("Scaling Law") + " (\(methodTag))",
@@ -743,6 +743,12 @@ final class ThreeOmegaWorkspaceStore {
     /// Loads a pack from the vault into the workbench.
     /// `restoreSearchState` is a bridge closure from WorkbenchFeatureStore.
     func loadPack(id: AnalysisPack.ID, restoreSearchState: (([WorkflowMeasurementSearchHit], String) -> Void)) {
+        // Cancel any in-flight analysis/scaling tasks to prevent stale overwrites
+        analysisTask?.cancel()
+        analysisTask = nil
+        scalingTask?.cancel()
+        scalingTask = nil
+
         guard let vault, let pack = vault.get(id: id) else {
             analysisMessage = "Pack not found."
             return
@@ -1090,6 +1096,9 @@ final class ThreeOmegaWorkspaceStore {
         let capturedSeriesOverrides1 = plotSeriesLabelOverrides[.rahe1omegaVsT] ?? [:]
         let capturedSeriesOverrides3 = plotSeriesLabelOverrides[.rahe3omegaVsT] ?? [:]
 
+        _renderRevision &+= 1
+        let revision = _renderRevision
+
         Task.detached(priority: .userInitiated) { [weak self, groups] in
             var r1 = ThreeOmegaPlotRenderer()
             r1.showGrid = capturedGrid
@@ -1116,7 +1125,7 @@ final class ThreeOmegaWorkspaceStore {
             let rahe3 = r3.renderRAHE3omegaVsTMulti(groups: groups, method: capturedRAHE3Method)
 
             await MainActor.run { [weak self] in
-                guard let self else { return }
+                guard let self, self._renderRevision == revision else { return }
                 self.plotRAHE1omegaVsT = rahe1.0
                 self.plotRAHE3omegaVsT = rahe3.0
                 if let l = rahe1.1 { self.plotLayouts[.rahe1omegaVsT] = l }
