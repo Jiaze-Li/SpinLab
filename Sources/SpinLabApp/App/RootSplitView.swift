@@ -9,10 +9,6 @@ struct RootSplitView: View {
     @State private var pendingDeleteDrawerPrefix: String?
     @State private var isPresentingDeleteDrawerConfirm = false
     @State private var sidebarMenuProvider = SpinLabSidebarMenuProvider()
-    @State private var hasMountedInboxDetail = false
-    @State private var hasMountedWorkbenchDetail = false
-    @State private var hasMountedLibraryDetail = false
-
     private let sidebarTopInset: CGFloat = 64
     private let standardDetailTopInset: CGFloat = 20
     private let inboxDetailTopInset: CGFloat = 14
@@ -59,14 +55,12 @@ struct RootSplitView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            markDetailMounted(for: appState.selectedArea)
             appState.loadExistingDrawers()
             restoreSidebarInteractionState()
             pruneExpandedSidebarStateForSelectedArea()
             persistSidebarInteractionState()
         }
-        .onChange(of: appState.selectedArea) { _, newArea in
-            markDetailMounted(for: newArea)
+        .onChange(of: appState.selectedArea) { _, _ in
             pruneExpandedSidebarStateForSelectedArea()
             persistSidebarInteractionState()
         }
@@ -102,72 +96,22 @@ struct RootSplitView: View {
         }
     }
 
+    @ViewBuilder
     private var detailLayers: some View {
-        ZStack {
-            if shouldRenderDetail(for: .inbox) {
-                detailLayer(
-                    area: .inbox,
-                    topInset: inboxDetailTopInset
-                ) {
-                    InboxView()
-                }
-            }
-
-            if shouldRenderDetail(for: .workbench) {
-                detailLayer(
-                    area: .workbench,
-                    topInset: standardDetailTopInset
-                ) {
-                    WorkbenchView()
-                }
-            }
-
-            if shouldRenderDetail(for: .library) {
-                detailLayer(
-                    area: .library,
-                    topInset: libraryDetailTopInset
-                ) {
-                    LibraryView()
-                }
-            }
-        }
-    }
-
-    private func shouldRenderDetail(for area: AppArea) -> Bool {
-        switch area {
+        switch appState.selectedArea {
         case .inbox:
-            return hasMountedInboxDetail || appState.selectedArea == .inbox
+            InboxView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .safeAreaPadding(.top, inboxDetailTopInset)
         case .workbench:
-            return hasMountedWorkbenchDetail || appState.selectedArea == .workbench
+            WorkbenchView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .safeAreaPadding(.top, standardDetailTopInset)
         case .library:
-            return hasMountedLibraryDetail || appState.selectedArea == .library
+            LibraryView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .safeAreaPadding(.top, libraryDetailTopInset)
         }
-    }
-
-    private func markDetailMounted(for area: AppArea) {
-        switch area {
-        case .inbox:
-            hasMountedInboxDetail = true
-        case .workbench:
-            hasMountedWorkbenchDetail = true
-        case .library:
-            hasMountedLibraryDetail = true
-        }
-    }
-
-    private func detailLayer<Content: View>(
-        area: AppArea,
-        topInset: CGFloat,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        let isVisible = appState.selectedArea == area
-        return content()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .safeAreaPadding(.top, topInset)
-            .frame(maxHeight: .infinity, alignment: .top)
-            .opacity(isVisible ? 1 : 0)
-            .allowsHitTesting(isVisible)
-            .accessibilityHidden(!isVisible)
     }
 
     private var selectedSidebarNodeIDs: Set<String> {

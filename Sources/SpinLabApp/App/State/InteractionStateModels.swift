@@ -210,6 +210,9 @@ struct LibraryInteractionState: Codable, Equatable {
     var searchTemperatureToleranceText: String = ""
     var searchEnergyToleranceText: String = ""
     var searchHasExecuted: Bool = false
+    var expandedWorkflowIDs: Set<String>?
+    var expandedSetIDs: Set<String>?
+    var expandedUncategorizedIDs: Set<String>?
 
     enum CodingKeys: String, CodingKey {
         case selectedPrefix
@@ -231,6 +234,9 @@ struct LibraryInteractionState: Codable, Equatable {
         case searchTemperatureToleranceText
         case searchEnergyToleranceText
         case searchHasExecuted
+        case expandedWorkflowIDs
+        case expandedSetIDs
+        case expandedUncategorizedIDs
     }
 
     init(
@@ -252,7 +258,10 @@ struct LibraryInteractionState: Codable, Equatable {
         searchOxygenToleranceText: String = "",
         searchTemperatureToleranceText: String = "",
         searchEnergyToleranceText: String = "",
-        searchHasExecuted: Bool = false
+        searchHasExecuted: Bool = false,
+        expandedWorkflowIDs: Set<String>? = nil,
+        expandedSetIDs: Set<String>? = nil,
+        expandedUncategorizedIDs: Set<String>? = nil
     ) {
         self.selectedPrefix = selectedPrefix
         self.selectedBatchId = selectedBatchId
@@ -273,6 +282,9 @@ struct LibraryInteractionState: Codable, Equatable {
         self.searchTemperatureToleranceText = searchTemperatureToleranceText
         self.searchEnergyToleranceText = searchEnergyToleranceText
         self.searchHasExecuted = searchHasExecuted
+        self.expandedWorkflowIDs = expandedWorkflowIDs
+        self.expandedSetIDs = expandedSetIDs
+        self.expandedUncategorizedIDs = expandedUncategorizedIDs
     }
 
     init(from decoder: Decoder) throws {
@@ -296,6 +308,9 @@ struct LibraryInteractionState: Codable, Equatable {
         searchTemperatureToleranceText = try container.decodeIfPresent(String.self, forKey: .searchTemperatureToleranceText) ?? ""
         searchEnergyToleranceText = try container.decodeIfPresent(String.self, forKey: .searchEnergyToleranceText) ?? ""
         searchHasExecuted = try container.decodeIfPresent(Bool.self, forKey: .searchHasExecuted) ?? false
+        expandedWorkflowIDs = try container.decodeIfPresent(Set<String>.self, forKey: .expandedWorkflowIDs)
+        expandedSetIDs = try container.decodeIfPresent(Set<String>.self, forKey: .expandedSetIDs)
+        expandedUncategorizedIDs = try container.decodeIfPresent(Set<String>.self, forKey: .expandedUncategorizedIDs)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -319,6 +334,9 @@ struct LibraryInteractionState: Codable, Equatable {
         try container.encode(searchTemperatureToleranceText, forKey: .searchTemperatureToleranceText)
         try container.encode(searchEnergyToleranceText, forKey: .searchEnergyToleranceText)
         try container.encode(searchHasExecuted, forKey: .searchHasExecuted)
+        try container.encodeIfPresent(expandedWorkflowIDs, forKey: .expandedWorkflowIDs)
+        try container.encodeIfPresent(expandedSetIDs, forKey: .expandedSetIDs)
+        try container.encodeIfPresent(expandedUncategorizedIDs, forKey: .expandedUncategorizedIDs)
     }
 }
 
@@ -327,6 +345,7 @@ struct InboxInteractionState: Codable, Equatable {
     var isPendingQueueExpanded: Bool = true
     var isRoutingReviewExpanded: Bool = true
     var isApplyExpanded: Bool = true
+    var fileFilter: String?
 }
 
 struct SpinLabInteractionSnapshot: Codable, Equatable {

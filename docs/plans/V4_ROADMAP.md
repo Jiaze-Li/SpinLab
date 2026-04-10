@@ -18,6 +18,7 @@
 ```
 4.0  ✅  架构 & 脚手架（AMR/PHE 延续 + 3ω 全部文件就位，swift build 通过）
 4.1  ✅  3ω AHE workflow（4.1.0–4.1.17，done 2026-04-10）
+     ✅  架构改进 & UI shell 统一化（4.1.18–4.1.19，done 2026-04-10）
 4.2  🔲  XY Rotation workflow
 4.3  🔲  RT workflow
 4.4  🔲  MR workflow
@@ -614,3 +615,84 @@ Workbench 参数必须来自 sidecar conditions（用户在 Import 时确认的�
 **当前状态：** 无代码。架构笔记（`V3_2_ITERATION_ADDENDUM_2026-04-03.md`）记录：只需新增 `IngestMRSelectionsUseCase`，现有 workbench plot pipeline 无需改动。
 
 工作范围待定。
+
+---
+
+## 架构改进 & UI Shell 统一化（v4.1.18–v4.1.19）
+
+### ✅ Related Charts Hover Popover（v4.1.18）
+
+**动机：** Workbench 中分析完成后，用户希望快速查看同一组源文件历史上画过的其他图。
+
+**改动：**
+- `LoadRelatedChartsUseCase`：读 results_index + manifest，按 canonical inputFiles 分组
+- `InputFilesCanonicalKey`：完整路径排序拼接，稳定 key
+- `WorkbenchResultReference.sortedByTabRank()`：统一排序规则，Library 和 Workbench 共用
+- `ThreeOmegaWorkspaceStore`：缓存 relatedChartsGrouped，analysis/persist/pack-load 后刷新
+- `WorkbenchPlotCanvas`：hover 1s 弹 popover，复用 `MeasurementPlotPreviewPanel`
+
+**测试：** `V4118RelatedChartsTests.swift` — canonical key 逻辑 + UseCase 边界
+
+### ✅ RootSplitView 条件渲染（v4.1.19）
+
+**动机：** ZStack + opacity(0) 隐藏非活跃面板，macOS NSTrackingArea 不受 allowsHitTesting 控制，导致隐藏 Library 面板的 hover popover 泄漏到 Workbench。
+
+**改动：**
+- `detailLayers` 从 ZStack + opacity 改为 `switch appState.selectedArea` 条件渲染
+- 删除 `hasMounted*` 惰性初始化机制
+- 补充状态持久化：`fileFilter`（Inbox）、`expandedWorkflows/Sets/Uncategorized`（Library，Binding 方案）
+
+**测试：** `V4119InteractionStatePersistenceTests.swift` — 旧快照兼容性 + round-trip
+
+### ✅ AppColumnShell 统一化（v4.1.19）
+
+**动机：** 三个 area 各自硬编码 HSplitView + frame(min/ideal/max)，列宽无持久化。
+
+**改动：**
+- 新建 `AppColumnShell`（`Sources/SpinLabApp/UI/AppColumnShell.swift`）
+- `ColumnDefaults` 集中定义三个 area 的列宽约束
+- `@AppStorage("splitView.{area}.leftWidth")` 持久化列宽
+- GeometryReader 追踪实际宽度，节流 + clamp 写入
+- Library / Inbox 直接使用，WorkflowWorkspaceShell 薄封装转发
+
+### ✅ HoverPopoverModifier 统一化（v4.1.19）
+
+**动机：** Library measurement hover popover 和 Workbench related charts popover 各自实现了一套 hover/dismiss/panel-tracking 逻辑，代码重复。
+
+**改动：**
+- 新建 `HoverPopoverModifier`（`Sources/SpinLabApp/UI/HoverPopoverModifier.swift`）
+- 统一 show delay（1s）、dismiss delay（500ms）、panel hover tracking、dialog guard
+- Library 和 Workbench 均通过 `.hoverPopover()` 调用
+- 清理 Library 的 `schedulePopover`/`cancelPopover` 私有方法
+
+### ✅ UI 微调（v4.1.19）
+
+- Library detail: Measurements Done 移到 Metadata 上面
+- Metadata 两列转换阈值从 400pt 降至 320pt
+
+---
+
+## Future / Wishlist
+
+以下功能已明确需求，待排期。
+
+### 🔲 Library detail section 拖拽排序
+
+**动机：** 用户希望自定义 Library 右侧 detail 区域的 section 顺序（Sample Primary、Numeric Tags、Measurement Data、Metadata、Measurements Done 等）。
+
+**方案草案：**
+- 定义 `LibraryDetailSection` 枚举，用数组控制渲染顺序
+- 用 `ForEach` + drag & drop 实现拖拽排序
+- 顺序持久化到 `InteractionSnapshot` 或 `@AppStorage`
+- 条件显示的 section（如 Pending Changes）需特殊处理
+- SwiftUI `onMove` 在 `ScrollView > VStack` 中不直接生效，需要 `List` 或自定义 drag handler
+
+**复杂点：**
+- 各 section 间的 Divider 需动态处理
+- 拖拽交互方式待定（长按拖拽 / 拖拽手柄）
+
+### 🔲 AppColumnShell sidebar 列宽持久化
+
+**动机：** NavigationSplitView 的 sidebar 列宽目前硬编码（min:180, ideal:220, max:260），API 不支持动态宽度绑定。
+
+**方案：** 待 macOS SDK 提供列宽绑定 API，或用 NSViewRepresentable 包装实现。

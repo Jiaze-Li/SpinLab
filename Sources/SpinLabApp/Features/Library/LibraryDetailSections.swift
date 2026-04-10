@@ -147,10 +147,7 @@ struct LibraryMeasurementsDoneSection: View {
     var onDeleteSet: ((_ setID: String) -> Void)? = nil
 
     @State private var isExpanded = true
-    @State private var hoverTask: Task<Void, Never>?
     @State private var hoveredMeasurementID: String?
-    @State private var isHoveringPreviewPanel = false
-    @State private var isPreviewDialogActive = false
     // Alert state for "New Set..." / "Rename Set..."
     @State private var newSetAlertShown = false
     @State private var newSetName = ""
@@ -163,9 +160,10 @@ struct LibraryMeasurementsDoneSection: View {
     @State private var pendingDeleteMeasurement: AppliedMeasurement? = nil
     @State private var isShowingDeleteMeasurementConfirm = false
     // Expansion state for dynamic DisclosureGroups (keyed by workflowID / setID)
-    @State private var expandedWorkflows: Set<String> = []
-    @State private var expandedSets: Set<String> = []
-    @State private var expandedUncategorized: Set<String> = []
+    // Owned by LibraryView, passed as Binding for persistence across area switches.
+    @Binding var expandedWorkflows: Set<String>
+    @Binding var expandedSets: Set<String>
+    @Binding var expandedUncategorized: Set<String>
 
     // MARK: - Grouping helpers
 
@@ -178,9 +176,10 @@ struct LibraryMeasurementsDoneSection: View {
             resolvedDisplayName(forWorkflow: lhs)
                 .localizedCaseInsensitiveCompare(resolvedDisplayName(forWorkflow: rhs)) == .orderedAscending
         }.map { wfID in
-            (workflowID: wfID,
-             displayName: resolvedDisplayName(forWorkflow: wfID),
-             measurements: sortByConditions(grouped[wfID] ?? []))
+            let condOrder = resolvedConditionOrder(forWorkflow: wfID)
+            return (workflowID: wfID,
+                    displayName: resolvedDisplayName(forWorkflow: wfID),
+                    measurements: sortByConditions(grouped[wfID] ?? [], conditionOrder: condOrder))
         }
     }
 
@@ -198,14 +197,30 @@ struct LibraryMeasurementsDoneSection: View {
         return wfID
     }
 
-    private func sortByConditions(_ items: [AppliedMeasurement]) -> [AppliedMeasurement] {
+    private func resolvedConditionOrder(forWorkflow wfID: String) -> [String] {
+        if let order = workflowConditionOrderByID[wfID] { return order }
+        if let order = workflowConditionOrderByID.first(where: {
+            $0.key.caseInsensitiveCompare(wfID) == .orderedSame
+        })?.value { return order }
+        return []
+    }
+
+    private func sortByConditions(_ items: [AppliedMeasurement], conditionOrder: [String]) -> [AppliedMeasurement] {
         items.sorted { lhs, rhs in
-            conditionSortKey(lhs).localizedStandardCompare(conditionSortKey(rhs)) == .orderedAscending
+            conditionSortKey(lhs, conditionOrder: conditionOrder)
+                .localizedStandardCompare(conditionSortKey(rhs, conditionOrder: conditionOrder)) == .orderedAscending
         }
     }
 
-    private func conditionSortKey(_ m: AppliedMeasurement) -> String {
-        m.conditions.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+    private func conditionSortKey(_ m: AppliedMeasurement, conditionOrder: [String]) -> String {
+        let orderSet = Set(conditionOrder)
+        let ordered = conditionOrder.compactMap { key in
+            m.conditions[key].map { (key, $0) }
+        }
+        let remaining = m.conditions
+            .filter { !orderSet.contains($0.key) }
+            .sorted { $0.key < $1.key }
+        return (ordered + remaining).map { "\($0.0)=\($0.1)" }.joined(separator: ",")
     }
 
     private func setsForWorkflow(_ workflowID: String) -> [MeasurementSet] {
@@ -223,15 +238,15 @@ struct LibraryMeasurementsDoneSection: View {
         return workflowMeasurements.filter { !allSetMembers.contains($0.sourceFileName) }
     }
 
-    private func measurementsInSet(_ set: MeasurementSet, from workflowMeasurements: [AppliedMeasurement]) -> [AppliedMeasurement] {
+    private func measurementsInSet(_ set: MeasurementSet, from workflowMeasurements: [AppliedMeasurement], workflowID: String) -> [AppliedMeasurement] {
         let memberSet = Set(set.memberFileNames)
         let matched = workflowMeasurements.filter { memberSet.contains($0.sourceFileName) }
-        return sortByConditions(matched)
+        return sortByConditions(matched, conditionOrder: resolvedConditionOrder(forWorkflow: workflowID))
     }
 
-    /// All chart references, used as fallback when no measurement rows exist.
-    private var allRefs: [WorkbenchResultReference] {
-        workbenchResults?.references ?? []
+    /// All chart references, sorted by tab rank → generatedAt → original index.
+    private var sortedAllRefs: [WorkbenchResultReference] {
+        WorkbenchResultReference.sortedByTabRank(workbenchResults?.references ?? [])
     }
 
     // MARK: - Body
@@ -239,13 +254,13 @@ struct LibraryMeasurementsDoneSection: View {
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             if measurements.isEmpty {
-                if allRefs.isEmpty {
+                if sortedAllRefs.isEmpty {
                     Text("No measurements applied yet")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
                     MeasurementPlotPreviewPanel(
-                        references: allRefs,
+                        references: sortedAllRefs,
                         libraryRootURL: libraryRootURL,
                         onDelete: onDeleteChart,
                         onHoverChanged: nil
@@ -267,10 +282,7 @@ struct LibraryMeasurementsDoneSection: View {
                 .onTapGesture { isExpanded.toggle() }
         }
         .onDisappear {
-            hoverTask?.cancel()
-            hoverTask = nil
             hoveredMeasurementID = nil
-            isHoveringPreviewPanel = false
         }
         .alert("New Measurement Set", isPresented: $newSetAlertShown) {
             TextField("Set name", text: $newSetName)
@@ -366,7 +378,7 @@ struct LibraryMeasurementsDoneSection: View {
 
     @ViewBuilder
     private func setSection(_ set: MeasurementSet, workflowMeasurements: [AppliedMeasurement], workflowID: String) -> some View {
-        let members = measurementsInSet(set, from: workflowMeasurements)
+        let members = measurementsInSet(set, from: workflowMeasurements, workflowID: workflowID)
         DisclosureGroup(isExpanded: toggleBinding(for: set.id, in: $expandedSets)) {
             if members.isEmpty {
                 Text("No measurements in this set")
@@ -414,20 +426,7 @@ struct LibraryMeasurementsDoneSection: View {
         let keys = plotIndex.entries[measurement.sourceFileName] ?? []
         let refsByKey = Dictionary(uniqueKeysWithValues: results.references.map { ($0.chartIdentityKey, $0) })
         let unsorted = keys.compactMap { refsByKey[$0] }
-
-        let rankMap = ThreeOmegaWorkbenchTab.stableKeyRank
-        let fallbackRank = rankMap.count
-        return unsorted.enumerated()
-            .sorted { a, b in
-                let rankA = a.element.tabKey.flatMap { rankMap[$0] } ?? fallbackRank
-                let rankB = b.element.tabKey.flatMap { rankMap[$0] } ?? fallbackRank
-                if rankA != rankB { return rankA < rankB }
-                if a.element.generatedAt != b.element.generatedAt {
-                    return a.element.generatedAt < b.element.generatedAt
-                }
-                return a.offset < b.offset
-            }
-            .map(\.element)
+        return WorkbenchResultReference.sortedByTabRank(unsorted)
     }
 
     @ViewBuilder
@@ -473,35 +472,19 @@ struct LibraryMeasurementsDoneSection: View {
         .contextMenu {
             measurementContextMenu(measurement, workflowID: workflowID, setID: setID)
         }
-        .onHover { isHovering in
-            if isHovering {
-                schedulePopover(for: measurement.id)
-            } else {
-                cancelPopover(for: measurement.id)
+        .hoverPopover(
+            arrowEdge: .leading,
+            isEnabled: !plotRefs(for: measurement).isEmpty,
+            onPresentedChanged: { presented in
+                hoveredMeasurementID = presented ? measurement.id : nil
             }
-        }
-        .popover(
-            isPresented: .init(
-                get: { hoveredMeasurementID == measurement.id },
-                set: { if !$0 { hoveredMeasurementID = nil } }
-            ),
-            arrowEdge: .leading
-        ) {
+        ) { onHoverChanged, onDialogActiveChanged in
             MeasurementPlotPreviewPanel(
                 references: plotRefs(for: measurement),
                 libraryRootURL: libraryRootURL,
                 onDelete: onDeleteChart,
-                onHoverChanged: { isHovering in
-                    isHoveringPreviewPanel = isHovering
-                    if isHovering {
-                        hoverTask?.cancel()
-                    } else {
-                        cancelPopover(for: measurement.id)
-                    }
-                },
-                onDialogActiveChanged: { active in
-                    isPreviewDialogActive = active
-                }
+                onHoverChanged: onHoverChanged,
+                onDialogActiveChanged: onDialogActiveChanged
             )
         }
     }
@@ -564,24 +547,7 @@ struct LibraryMeasurementsDoneSection: View {
         }
     }
 
-    private func schedulePopover(for measurementID: String) {
-        hoverTask?.cancel()
-        hoverTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 250_000_000)
-            guard !Task.isCancelled else { return }
-            hoveredMeasurementID = measurementID
-        }
-    }
-
-    private func cancelPopover(for measurementID: String) {
-        hoverTask?.cancel()
-        hoverTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            guard !Task.isCancelled else { return }
-            guard !isHoveringPreviewPanel, !isPreviewDialogActive else { return }
-            if hoveredMeasurementID == measurementID { hoveredMeasurementID = nil }
-        }
-    }
+    // Hover popover timing is now managed by HoverPopoverModifier.
 
     // MARK: - Disclosure helpers
 
@@ -889,7 +855,7 @@ struct MeasurementDataSectionView: View {
         return groups
     }
 
-    private var useTwoColumns: Bool { availableWidth >= 400 }
+    private var useTwoColumns: Bool { availableWidth >= 320 }
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {

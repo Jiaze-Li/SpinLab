@@ -28,6 +28,9 @@ struct LibraryView: View {
     @State private var searchDebounceTask: Task<Void, Never>?
     @State private var interactionPersistTask: Task<Void, Never>?
     @State private var previewDerivedData = PreviewDerivedData()
+    @State private var expandedWorkflows: Set<String> = []
+    @State private var expandedSets: Set<String> = []
+    @State private var expandedUncategorized: Set<String> = []
     @State private var viewModel = LibraryViewModel()
     private let computationService = LibraryViewComputationService()
     private let level1HeaderFont: Font = .title2.bold()
@@ -43,14 +46,10 @@ struct LibraryView: View {
     }
 
     var body: some View {
-        HSplitView {
+        AppColumnShell(columnKey: "library", defaults: .library) {
             librarySettingsColumn
-                .frame(minWidth: 420, idealWidth: 520, maxWidth: 680)
-                .layoutPriority(1)
-
+        } right: {
             libraryDetailColumn
-                .frame(minWidth: 320, idealWidth: 500, maxWidth: .infinity)
-                .layoutPriority(0)
         }
         .padding(.horizontal, 16)
         .padding(.top, 6)
@@ -389,6 +388,27 @@ struct LibraryView: View {
                             )
 
                             Divider()
+                            LibraryMeasurementsDoneSection(
+                                measurements: sample.appliedMeasurements,
+                                measurementSets: sample.measurementSets,
+                                workflowDisplayNameByID: workflowDisplayNameByID,
+                                workflowConditionOrderByID: workflowConditionOrderByID,
+                                onDelete: { m in appState.library.deleteAppliedMeasurement(m) },
+                                workbenchResults: appState.library.workbenchResults,
+                                measurementPlotIndex: appState.library.measurementPlotIndex,
+                                libraryRootURL: appState.library.librarySettings.rootPath.map { URL(fileURLWithPath: $0) },
+                                onDeleteChart: { ref in appState.library.deleteWorkbenchResult(ref) },
+                                onCreateSet: { name, wf, member in appState.library.createMeasurementSet(name: name, workflow: wf, initialMember: member) },
+                                onAddToSet: { setID, fileName in appState.library.addToMeasurementSet(setID: setID, fileName: fileName) },
+                                onRemoveFromSet: { setID, fileName in appState.library.removeFromMeasurementSet(setID: setID, fileName: fileName) },
+                                onRenameSet: { setID, newName in appState.library.renameMeasurementSet(setID: setID, newName: newName) },
+                                onDeleteSet: { setID in appState.library.deleteMeasurementSet(setID: setID) },
+                                expandedWorkflows: $expandedWorkflows,
+                                expandedSets: $expandedSets,
+                                expandedUncategorized: $expandedUncategorized
+                            )
+
+                            Divider()
                             DisclosureGroup(isExpanded: $isMetadataSectionExpanded) {
                                 if sample.orderedMetadata.isEmpty {
                                     Text("No metadata")
@@ -408,24 +428,6 @@ struct LibraryView: View {
                                     .contentShape(Rectangle())
                                     .onTapGesture { isMetadataSectionExpanded.toggle() }
                             }
-
-                            Divider()
-                            LibraryMeasurementsDoneSection(
-                                measurements: sample.appliedMeasurements,
-                                measurementSets: sample.measurementSets,
-                                workflowDisplayNameByID: workflowDisplayNameByID,
-                                workflowConditionOrderByID: workflowConditionOrderByID,
-                                onDelete: { m in appState.library.deleteAppliedMeasurement(m) },
-                                workbenchResults: appState.library.workbenchResults,
-                                measurementPlotIndex: appState.library.measurementPlotIndex,
-                                libraryRootURL: appState.library.librarySettings.rootPath.map { URL(fileURLWithPath: $0) },
-                                onDeleteChart: { ref in appState.library.deleteWorkbenchResult(ref) },
-                                onCreateSet: { name, wf, member in appState.library.createMeasurementSet(name: name, workflow: wf, initialMember: member) },
-                                onAddToSet: { setID, fileName in appState.library.addToMeasurementSet(setID: setID, fileName: fileName) },
-                                onRemoveFromSet: { setID, fileName in appState.library.removeFromMeasurementSet(setID: setID, fileName: fileName) },
-                                onRenameSet: { setID, newName in appState.library.renameMeasurementSet(setID: setID, newName: newName) },
-                                onDeleteSet: { setID in appState.library.deleteMeasurementSet(setID: setID) }
-                            )
                         }
                     } else {
                         ContentUnavailableView(
@@ -917,7 +919,10 @@ struct LibraryView: View {
             searchOxygenToleranceText: searchOxygenToleranceText,
             searchTemperatureToleranceText: searchTemperatureToleranceText,
             searchEnergyToleranceText: searchEnergyToleranceText,
-            searchHasExecuted: searchHasExecuted
+            searchHasExecuted: searchHasExecuted,
+            expandedWorkflowIDs: expandedWorkflows.isEmpty ? nil : expandedWorkflows,
+            expandedSetIDs: expandedSets.isEmpty ? nil : expandedSets,
+            expandedUncategorizedIDs: expandedUncategorized.isEmpty ? nil : expandedUncategorized
         )
     }
 
@@ -941,6 +946,10 @@ struct LibraryView: View {
         searchOxygenToleranceText = restored.searchOxygenToleranceText
         searchTemperatureToleranceText = restored.searchTemperatureToleranceText
         searchEnergyToleranceText = restored.searchEnergyToleranceText
+
+        expandedWorkflows = restored.expandedWorkflowIDs ?? []
+        expandedSets = restored.expandedSetIDs ?? []
+        expandedUncategorized = restored.expandedUncategorizedIDs ?? []
 
         if restored.searchHasExecuted {
             executeSearch()

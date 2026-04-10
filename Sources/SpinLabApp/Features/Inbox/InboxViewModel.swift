@@ -26,6 +26,7 @@ final class InboxViewModel {
         isPendingQueueExpanded = restored.isPendingQueueExpanded
         isRoutingReviewExpanded = restored.isRoutingReviewExpanded
         isApplyExpanded = restored.isApplyExpanded
+        fileFilter = restored.fileFilter.flatMap { FileFilter(rawValue: $0) } ?? .all
     }
 
     func persistInteractionState(to appState: SpinLabAppState) {
@@ -35,7 +36,8 @@ final class InboxViewModel {
                 isImportSourceExpanded: isImportSourceExpanded,
                 isPendingQueueExpanded: isPendingQueueExpanded,
                 isRoutingReviewExpanded: isRoutingReviewExpanded,
-                isApplyExpanded: isApplyExpanded
+                isApplyExpanded: isApplyExpanded,
+                fileFilter: fileFilter.rawValue
             )
         )
     }

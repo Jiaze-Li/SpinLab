@@ -512,7 +512,11 @@ private struct ThreeOmegaRightColumn: View {
                     onEditYLabel: { label in store.updateYAxisLabel(label) },
                     onEditLegendLabel: { idx, label in
                         store.updateSeriesLabel(index: idx, newLabel: label)
-                    }
+                    },
+                    relatedCharts: store.relatedCharts(for: store.activeTab),
+                    libraryRootURL: store.lastLibraryRootPath.isEmpty
+                        ? nil
+                        : URL(fileURLWithPath: store.lastLibraryRootPath)
                 )
 
                 // Scaling Law fit results (only on scaling tab)
