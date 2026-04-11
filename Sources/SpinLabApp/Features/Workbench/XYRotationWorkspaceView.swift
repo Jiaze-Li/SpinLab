@@ -33,6 +33,8 @@ private struct XYRotationLeftColumn: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text("XY Rotation")
                         .font(.title2.bold())
+                    XYRotationVaultButton()
+                        .environment(appState)
                     Spacer()
                 }
                 .padding(.top, 4)
@@ -116,6 +118,9 @@ private struct XYRotationSearchSection: View {
                     workbench.clearWorkflowMeasurementSearch(workflowID: wf)
                 }
                 .buttonStyle(.bordered)
+
+                XYRotationLoadPackButton()
+                    .environment(appState)
 
                 if workbench.isSearchRunning(for: wf) || store.isAnalyzing {
                     ProgressView().controlSize(.small)
@@ -219,6 +224,42 @@ private struct XYRotationRightColumn: View {
                     Text("Result")
                         .font(.title2.bold())
                     Spacer()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        if store.matchingVaultPack != nil {
+                            Button("Update Analysis") {
+                                let queryText = appState.workbench.searchQueryText(for: .xyRotation)
+                                store.saveAnalysis(searchQueryText: queryText)
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(store.ingestionResult == nil)
+                        } else {
+                            Button("Save Analysis") {
+                                let queryText = appState.workbench.searchQueryText(for: .xyRotation)
+                                store.saveAnalysis(searchQueryText: queryText)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(store.ingestionResult == nil)
+                        }
+
+                        Text(store.matchingVaultPack.map { "→ \($0.label)" } ?? " ")
+                            .font(.caption)
+                            .foregroundColor(store.matchingVaultPack != nil ? .accentColor : .clear)
+                    }
+
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Button("Save to Library") {
+                            store.persistToLibrary {
+                                appState.library.loadWorkbenchResultsForCurrentSelection()
+                                appState.library.loadMeasurementDataForCurrentSelection()
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(store.ingestionResult == nil)
+
+                        Text(" ")
+                            .font(.caption)
+                            .foregroundColor(.clear)
+                    }
                 }
 
                 WorkbenchStatusArea(
@@ -235,7 +276,11 @@ private struct XYRotationRightColumn: View {
                     onEditTitle: { title in store.updatePlotTitle(title) },
                     onEditXLabel: { label in store.updateXAxisLabel(label) },
                     onEditYLabel: { label in store.updateYAxisLabel(label) },
-                    onEditLegendLabel: { idx, label in store.updateSeriesLabel(index: idx, newLabel: label) }
+                    onEditLegendLabel: { idx, label in store.updateSeriesLabel(index: idx, newLabel: label) },
+                    relatedCharts: store.relatedCharts(for: store.activeTab),
+                    libraryRootURL: store.lastLibraryRootPath.isEmpty
+                        ? nil
+                        : URL(fileURLWithPath: store.lastLibraryRootPath)
                 )
 
                 WorkbenchTracePanel(trace: store.currentRunTrace)
@@ -288,6 +333,239 @@ private struct XYRotationPhiOffsetPanel: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+}
+
+// MARK: - Vault management button (title bar)
+
+private struct XYRotationVaultButton: View {
+    @Environment(SpinLabAppState.self) private var appState
+    @State private var showPopover = false
+    @State private var editingPackID: UUID?
+    @State private var filterText = ""
+
+    var body: some View {
+        let vault = appState.workbench.analysisVault
+        let allPacks = vault.packs(forWorkflow: "xy")
+        let packs = filterText.isEmpty ? allPacks : allPacks.filter {
+            $0.label.localizedCaseInsensitiveContains(filterText)
+        }
+
+        Button("Analyses") {
+            showPopover.toggle()
+        }
+        .buttonStyle(.bordered)
+        .popover(isPresented: $showPopover, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Saved Analyses")
+                    .font(.body.bold())
+                    .foregroundStyle(.secondary)
+                    .onTapGesture { editingPackID = nil }
+
+                if allPacks.count > 3 {
+                    TextField("Filter…", text: $filterText)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.body)
+                }
+
+                if packs.isEmpty {
+                    Text(filterText.isEmpty ? "No saved analyses yet." : "No match.")
+                        .font(.body)
+                        .foregroundStyle(.tertiary)
+                } else {
+                    ScrollView(.vertical) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(packs) { pack in
+                                XYRotationVaultRow(pack: pack, editingPackID: $editingPackID)
+                                    .environment(appState)
+                            }
+                        }
+                    }
+                    .frame(minHeight: 60, maxHeight: 300)
+                }
+            }
+            .padding(8)
+            .frame(width: 280)
+            .contentShape(Rectangle())
+            .onTapGesture { editingPackID = nil }
+            .onChange(of: showPopover) { _, isOpen in
+                if !isOpen { editingPackID = nil; filterText = "" }
+            }
+        }
+    }
+}
+
+private struct XYRotationVaultRow: View {
+    @Environment(SpinLabAppState.self) private var appState
+    let pack: AnalysisPack
+    @Binding var editingPackID: UUID?
+    @State private var editingLabel: String = ""
+
+    private var isEditing: Bool { editingPackID == pack.id }
+
+    var body: some View {
+        let vault = appState.workbench.analysisVault
+        let store = appState.workbench.xyRotationWorkspace
+        let isActive = store.activePackID == pack.id
+
+        HStack(spacing: 6) {
+            if isEditing {
+                TextField("Label", text: $editingLabel)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.body)
+                    .onSubmit { _commitRename(vault: vault) }
+                    .onExitCommand { _commitRename(vault: vault) }
+            } else {
+                Text(pack.label)
+                    .font(.body)
+                    .lineLimit(1)
+                    .foregroundStyle(isActive ? .primary : .secondary)
+            }
+
+            Spacer()
+
+            Image(systemName: "pencil")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .onTapGesture {
+                    editingLabel = pack.label
+                    editingPackID = pack.id
+                }
+
+            Image(systemName: "trash")
+                .font(.body)
+                .foregroundStyle(.red.opacity(0.7))
+                .onTapGesture {
+                    vault.remove(id: pack.id)
+                    if store.activePackID == pack.id {
+                        store.activePackID = nil
+                    }
+                }
+        }
+        .padding(.vertical, 2)
+        .padding(.horizontal, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(isActive ? Color.accentColor.opacity(0.1) : Color.clear)
+        )
+    }
+
+    private func _commitRename(vault: AnalysisVault) {
+        let trimmed = editingLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty, var updated = vault.get(id: pack.id) {
+            updated.label = trimmed
+            vault.update(updated)
+        }
+        editingPackID = nil
+    }
+}
+
+// MARK: - Load pack button (search section)
+
+private struct XYRotationLoadPackButton: View {
+    @Environment(SpinLabAppState.self) private var appState
+    @State private var showPopover = false
+    @State private var showUnsavedAlert = false
+    @State private var pendingLoadID: UUID?
+    @State private var filterText = ""
+
+    var body: some View {
+        let vault = appState.workbench.analysisVault
+        let store = appState.workbench.xyRotationWorkspace
+        let allPacks = vault.packs(forWorkflow: "xy")
+        let packs = filterText.isEmpty ? allPacks : allPacks.filter {
+            $0.label.localizedCaseInsensitiveContains(filterText)
+        }
+
+        Button("Load") {
+            showPopover.toggle()
+        }
+        .buttonStyle(.bordered)
+        .disabled(allPacks.isEmpty)
+        .popover(isPresented: $showPopover, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Load Analysis")
+                    .font(.body.bold())
+                    .foregroundStyle(.secondary)
+
+                if allPacks.count > 3 {
+                    TextField("Filter…", text: $filterText)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.body)
+                }
+
+                if packs.isEmpty {
+                    Text(filterText.isEmpty ? "No saved analyses." : "No match.")
+                        .font(.body)
+                        .foregroundStyle(.tertiary)
+                } else {
+                ScrollView(.vertical) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(packs) { pack in
+                            Button {
+                                if store.hasUnsavedAnalysis {
+                                    pendingLoadID = pack.id
+                                    showPopover = false
+                                    showUnsavedAlert = true
+                                } else {
+                                    _load(pack.id)
+                                    showPopover = false
+                                }
+                            } label: {
+                                HStack {
+                                    Text(pack.label)
+                                        .font(.body)
+                                        .lineLimit(1)
+                                    Spacer()
+                                    if store.activePackID == pack.id {
+                                        Image(systemName: "checkmark")
+                                            .font(.body)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.vertical, 2)
+                            .padding(.horizontal, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.accentColor.opacity(0.08))
+                            )
+                        }
+                    }
+                }
+                .frame(minHeight: 60, maxHeight: 300)
+                }
+            }
+            .padding(8)
+            .frame(width: 280)
+            .onChange(of: showPopover) { _, isOpen in
+                if !isOpen { filterText = "" }
+            }
+        }
+        .alert("Unsaved Analysis", isPresented: $showUnsavedAlert) {
+            Button("Discard & Load", role: .destructive) {
+                if let id = pendingLoadID {
+                    _load(id)
+                }
+                pendingLoadID = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingLoadID = nil
+            }
+        } message: {
+            Text("Current analysis has unsaved changes. Loading will replace it.")
+        }
+    }
+
+    private func _load(_ id: UUID) {
+        let store = appState.workbench.xyRotationWorkspace
+        let workbench = appState.workbench
+        store.loadPack(id: id) { results, queryText in
+            workbench.restoreXYRotationSearchState(results: results, queryText: queryText)
         }
     }
 }

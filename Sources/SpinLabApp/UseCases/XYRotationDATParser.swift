@@ -69,6 +69,10 @@ struct XYRotationDATParser {
         for row in parsed.rows {
             guard ai < row.count, ri < row.count else { continue }
             guard let angle = Double(row[ai]), let resistance = Double(row[ri]) else { continue }
+            // When Bridge 3 column exists, require parseable value to keep row aligned
+            if let xi = rxyIdx {
+                guard xi < row.count, Double(row[xi]) != nil else { continue }
+            }
             angleDeg.append(angle)
             rxx.append(resistance)
             if let xi = rxyIdx, xi < row.count, let v = Double(row[xi]) {

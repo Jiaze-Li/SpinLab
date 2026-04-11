@@ -155,8 +155,9 @@ struct V400FitUseCaseTests {
     func v3AtZeroField() {
         let file = makeSyntheticLVMFile()
         let result = fitter.process(file: file)
-        // col5 = −1e-5 (descending) / +1e-5 (ascending) → ascAvg − descAvg = 2e-5
-        #expect(abs(result.v3omegaWindow - 2e-5) < 1e-10)
+        // col5 = −1e-5 (descending) / +1e-5 (ascending)
+        // _windowV3w returns (V_desc − V_asc) / 2 = (−1e-5 − 1e-5) / 2 = −1e-5
+        #expect(abs(result.v3omegaWindow - (-1e-5)) < 1e-7)
     }
 
     @Test("R1omega and R3omega arrays have same length as hField")

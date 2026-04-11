@@ -374,4 +374,12 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     /// Per-tab legend positions keyed by ThreeOmegaWorkbenchTab.stableKey.
     var threeOmegaPlotLegendPoints: [String: [Double]]?
     var aheTitleTemplate: String?
+    // XY Rotation
+    var xyRotationPhiOffsets: [String: Double]?
+    var xyRotationActiveTab: String?
+    var xyRotationTitleTemplate: String?
+    var xyRotationStackOffset: Double?
+    var xyRotationCenterBaseline: Bool?
+    /// Per-tab legend positions keyed by XYRotationWorkbenchTab.rawValue.
+    var xyRotationPlotLegendPoints: [String: [Double]]?
 }

@@ -57,6 +57,7 @@ struct IngestXYRotationSelectionsUseCase {
                     continue
                 }
                 sweep.defaultPhiOffset = shiftOverride
+                sweep.measurementFilePath = hit.measurementFilePath
                 sweeps.append(sweep)
             } catch {
                 warnings.append("Parse failed for \(url.lastPathComponent): \(error.localizedDescription)")

@@ -120,4 +120,70 @@ struct V420XYRotationTests {
         let sweep = try XYRotationDATParser().parse(fileURL: url, temperatureOverride: 42.0)
         #expect(abs(sweep.temperatureK - 42.0) < 0.01)
     }
+
+    // MARK: - v4.2.4 Persistence contracts
+
+    @Test("PackConfig round-trips through Codable")
+    func packConfigCodable() throws {
+        let config = XYRotationPackConfig(
+            phiOffsetOverrides: ["sweep1": 45.0],
+            centerBaseline: true,
+            activeTab: XYRotationWorkbenchTab.rxxVsPhi.rawValue,
+            titleTemplate: "#tab #device",
+            stackOffsetMultiplier: 0.5,
+            minGapFraction: 0.15,
+            showPlotGrid: true,
+            plotTitleOverride: nil,
+            plotXLabelOverride: nil,
+            plotYLabelOverride: "Custom Y",
+            plotLegendPoints: [:],
+            plotSeriesLabelOverrides: [0: "80 K custom"],
+            cachedSearchResults: [],
+            selectedSearchResultIDs: ["id1"],
+            searchQueryText: "xy test"
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        let data = try encoder.encode(config)
+        let decoded = try JSONDecoder().decode(XYRotationPackConfig.self, from: data)
+        #expect(decoded == config)
+    }
+
+    @Test("PackResult round-trips through Codable")
+    func packResultCodable() throws {
+        let result = XYRotationPackResult(
+            ingestionResult: XYRotationIngestionResult(
+                sweeps: [],
+                device: "PPMS",
+                warnings: ["test warning"]
+            )
+        )
+        let data = try JSONEncoder().encode(result)
+        let decoded = try JSONDecoder().decode(XYRotationPackResult.self, from: data)
+        #expect(decoded == result)
+    }
+
+    @Test("AngleSweep measurementFilePath defaults to empty")
+    func sweepMeasurementFilePath() {
+        let sweep = XYRotationAngleSweep(
+            temperatureK: 80,
+            stem: "test",
+            sourceKind: .dat,
+            angleDeg: [0, 90],
+            resistanceXX: [100, 101],
+            defaultPhiOffset: 0
+        )
+        #expect(sweep.measurementFilePath.isEmpty)
+    }
+
+    @Test("InteractionSnapshot XY Rotation fields default to nil")
+    func snapshotXYRotationDefaults() {
+        let snapshot = SpinLabInteractionSnapshot()
+        #expect(snapshot.xyRotationPhiOffsets == nil)
+        #expect(snapshot.xyRotationActiveTab == nil)
+        #expect(snapshot.xyRotationTitleTemplate == nil)
+        #expect(snapshot.xyRotationStackOffset == nil)
+        #expect(snapshot.xyRotationCenterBaseline == nil)
+        #expect(snapshot.xyRotationPlotLegendPoints == nil)
+    }
 }

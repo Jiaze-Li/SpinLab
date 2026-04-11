@@ -137,13 +137,14 @@ struct V413ThreeOmegaFitUseCaseTests {
         #expect(!result.v3omegaWindow.isNaN)
     }
 
-    @Test("v3omegaWindow equals ascending − descending branch average near H=0")
+    @Test("v3omegaWindow equals (V_desc − V_asc) / 2 near H=0")
     func v3omegaWindowValue() {
         // Set rahe3=0 so col5 = pure bias (no R³ω step contribution in the window).
-        // Bias: desc = −2e-6, asc = +2e-6 → expected = ascAvg − descAvg = 4e-6 V
+        // Bias: desc = −2e-6, asc = +2e-6
+        // _windowV3w returns (V_desc − V_asc) / 2 = (−2e-6 − 2e-6) / 2 = −2e-6 V
         let file = makeFieldSweepFile(rahe3: 0, hc3: 1, v3wDescBias: -2e-6, v3wAscBias: 2e-6)
         let result = ThreeOmegaFitUseCase().process(file: file)
-        let expected = 4e-6
+        let expected = -2e-6
         #expect(abs(result.v3omegaWindow - expected) < 1e-7,
                 "v3omegaWindow \(result.v3omegaWindow) should be close to \(expected)")
     }

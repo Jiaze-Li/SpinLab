@@ -19,6 +19,7 @@ struct XYRotationAngleSweep: Codable, Hashable, Sendable, Identifiable {
     var resistanceXX: [Double]
     var resistanceXY: [Double]?
     var defaultPhiOffset: Double
+    var measurementFilePath: String = ""
 }
 
 /// Aggregated result from ingesting multiple XY Rotation files.

@@ -54,7 +54,7 @@ struct XYRotationPlotRenderer {
                 label: _tempLabel(sweep.temperatureK),
                 x: sweep.angleDeg.map { $0 + phiOffset },
                 y: yData.map { $0 + yOffset },
-                sourceRef: sweep.stem
+                sourceRef: sweep.measurementFilePath.isEmpty ? sweep.stem : sweep.measurementFilePath
             )
         }.reversed()
 
@@ -107,7 +107,7 @@ struct XYRotationPlotRenderer {
                 label: _tempLabel(sweep.temperatureK),
                 x: sweep.angleDeg.map { $0 + phiOffset },
                 y: yData.map { $0 + yOffset },
-                sourceRef: sweep.stem
+                sourceRef: sweep.measurementFilePath.isEmpty ? sweep.stem : sweep.measurementFilePath
             )
         }.reversed()
 
