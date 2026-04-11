@@ -149,16 +149,18 @@ private struct XYRotationPlotControlsPanel: View {
             numericDisplayCache: store.cachedSampleNumericDisplay,
             onChange: { store.rerenderForStyleChange() }
         ) {
-            Toggle("Center", isOn: $store.centerBaseline)
-                .toggleStyle(.checkbox)
-                .onChange(of: store.centerBaseline) { _, _ in
-                    store.rerenderForStyleChange()
-                }
-            Toggle("Detrend", isOn: $store.linearDetrend)
-                .toggleStyle(.checkbox)
-                .onChange(of: store.linearDetrend) { _, _ in
-                    store.rerenderForStyleChange()
-                }
+            HStack(spacing: 12) {
+                Toggle("Center", isOn: $store.centerBaseline)
+                    .toggleStyle(.checkbox)
+                    .onChange(of: store.centerBaseline) { _, _ in
+                        store.rerenderForStyleChange()
+                    }
+                Toggle("Detrend", isOn: $store.linearDetrend)
+                    .toggleStyle(.checkbox)
+                    .onChange(of: store.linearDetrend) { _, _ in
+                        store.rerenderForStyleChange()
+                    }
+            }
         }
     }
 }
