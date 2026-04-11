@@ -154,6 +154,11 @@ private struct XYRotationPlotControlsPanel: View {
                 .onChange(of: store.centerBaseline) { _, _ in
                     store.rerenderForStyleChange()
                 }
+            Toggle("Detrend", isOn: $store.linearDetrend)
+                .toggleStyle(.checkbox)
+                .onChange(of: store.linearDetrend) { _, _ in
+                    store.rerenderForStyleChange()
+                }
         }
     }
 }

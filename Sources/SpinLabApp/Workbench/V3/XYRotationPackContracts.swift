@@ -8,6 +8,7 @@ struct XYRotationPackConfig: Codable, Hashable, Sendable {
     // --- Analysis params ---
     var phiOffsetOverrides: [String: Double]
     var centerBaseline: Bool
+    var linearDetrend: Bool = false
 
     // --- Display settings ---
     var activeTab: String                          // XYRotationWorkbenchTab.rawValue

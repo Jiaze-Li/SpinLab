@@ -41,6 +41,7 @@ final class XYRotationWorkspaceStore {
     var stackOffsetMultiplier: Double = 0.0
     var minGapFraction: Double = 0.15
     var centerBaseline: Bool = false
+    var linearDetrend: Bool = false
     var titleTemplate: String = "#tab #device #sample"
     var phiOffsetOverrides: [String: Double] = [:]
 
@@ -101,6 +102,7 @@ final class XYRotationWorkspaceStore {
         r.stackOffsetMultiplier = stackOffsetMultiplier
         r.minGapFraction = minGapFraction
         r.centerBaseline = centerBaseline
+        r.linearDetrend = linearDetrend
         r.titleTemplate = titleTemplate
         r.titleTokens = _titleTokens
         r.titleOverride = plotTitleOverride ?? ""
@@ -451,6 +453,7 @@ final class XYRotationWorkspaceStore {
         // Restore analysis params
         phiOffsetOverrides = config.phiOffsetOverrides
         centerBaseline = config.centerBaseline
+        linearDetrend = config.linearDetrend
 
         // Restore display settings
         if let tab = XYRotationWorkbenchTab(rawValue: config.activeTab) {
@@ -516,6 +519,7 @@ final class XYRotationWorkspaceStore {
         return XYRotationPackConfig(
             phiOffsetOverrides: phiOffsetOverrides,
             centerBaseline: centerBaseline,
+            linearDetrend: linearDetrend,
             activeTab: activeTab.rawValue,
             titleTemplate: titleTemplate,
             stackOffsetMultiplier: stackOffsetMultiplier,

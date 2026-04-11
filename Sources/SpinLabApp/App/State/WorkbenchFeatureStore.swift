@@ -311,6 +311,7 @@ final class WorkbenchFeatureStore {
         xyRotationTitleTemplate: String? = nil,
         xyRotationStackOffset: Double? = nil,
         xyRotationCenterBaseline: Bool? = nil,
+        xyRotationLinearDetrend: Bool? = nil,
         xyRotationPlotLegendPoints: [String: [Double]]? = nil
     ) {
         if let selectedArchivedRecordID,
@@ -347,6 +348,7 @@ final class WorkbenchFeatureStore {
         if let t = xyRotationTitleTemplate { xyRotationWorkspace.titleTemplate = t }
         if let v = xyRotationStackOffset { xyRotationWorkspace.stackOffsetMultiplier = v }
         if let v = xyRotationCenterBaseline { xyRotationWorkspace.centerBaseline = v }
+        if let v = xyRotationLinearDetrend { xyRotationWorkspace.linearDetrend = v }
         if let legendMap = xyRotationPlotLegendPoints {
             for (key, arr) in legendMap where arr.count == 2 {
                 if let tab = XYRotationWorkbenchTab(rawValue: key) {
@@ -385,6 +387,7 @@ final class WorkbenchFeatureStore {
         snapshot.xyRotationTitleTemplate = xyRotationWorkspace.titleTemplate
         snapshot.xyRotationStackOffset = xyRotationWorkspace.stackOffsetMultiplier
         snapshot.xyRotationCenterBaseline = xyRotationWorkspace.centerBaseline
+        snapshot.xyRotationLinearDetrend = xyRotationWorkspace.linearDetrend
         if !xyRotationWorkspace.plotLegendPoints.isEmpty {
             var legendMap: [String: [Double]] = [:]
             for (tab, pt) in xyRotationWorkspace.plotLegendPoints {

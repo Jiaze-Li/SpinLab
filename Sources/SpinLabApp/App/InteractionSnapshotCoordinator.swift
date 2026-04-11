@@ -75,6 +75,7 @@ final class InteractionSnapshotCoordinator {
                 xyRotationTitleTemplate: snapshot.xyRotationTitleTemplate,
                 xyRotationStackOffset: snapshot.xyRotationStackOffset,
                 xyRotationCenterBaseline: snapshot.xyRotationCenterBaseline,
+                xyRotationLinearDetrend: snapshot.xyRotationLinearDetrend,
                 xyRotationPlotLegendPoints: snapshot.xyRotationPlotLegendPoints
             )
             snapshot.inboxWorkspaceByPendingID = inboxStore.pruneWorkspaceByValidPendingIDs(

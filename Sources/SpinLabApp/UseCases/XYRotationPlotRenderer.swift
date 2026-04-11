@@ -19,6 +19,7 @@ struct XYRotationPlotRenderer {
     var seriesLabelOverrides: [Int: String] = [:]
     var phiOffsetOverrides: [String: Double] = [:]
     var centerBaseline: Bool = false
+    var linearDetrend: Bool = false
 
     private let defaultOptions = WorkbenchChartRenderer.Options()
 
@@ -31,14 +32,26 @@ struct XYRotationPlotRenderer {
     ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?) {
         guard !sweeps.isEmpty else { return (nil, nil, nil) }
 
-        // Center: subtract per-curve mean to remove R₀(T) baseline
         let yArrays: [[Double]] = sweeps.map { sweep in
-            let raw = sweep.resistanceXX
-            if centerBaseline, !raw.isEmpty {
-                let mean = raw.reduce(0, +) / Double(raw.count)
-                return raw.map { $0 - mean }
+            var y = sweep.resistanceXX
+            // Detrend: subtract line connecting first→last to remove instrumental drift
+            if linearDetrend, y.count >= 2 {
+                let angles = sweep.angleDeg
+                let yFirst = y.first!, yLast = y.last!
+                let phiFirst = angles.first!, phiLast = angles.last!
+                let phiSpan = phiLast - phiFirst
+                if abs(phiSpan) > 1e-9 {
+                    y = zip(angles, y).map { phi, val in
+                        val - (yFirst + (yLast - yFirst) * (phi - phiFirst) / phiSpan)
+                    }
+                }
             }
-            return raw
+            // Center: subtract per-curve mean to remove R₀(T) baseline
+            if centerBaseline, !y.isEmpty {
+                let mean = y.reduce(0, +) / Double(y.count)
+                y = y.map { $0 - mean }
+            }
+            return y
         }
 
         let offsets = ThreeOmegaStackOffsetUseCase().execute(
@@ -85,14 +98,26 @@ struct XYRotationPlotRenderer {
         let rxySweeps = sweeps.filter { $0.resistanceXY != nil }
         guard !rxySweeps.isEmpty else { return (nil, nil, nil) }
 
-        // Center: subtract per-curve mean to remove R_AHE(T) baseline
         let yArrays: [[Double]] = rxySweeps.map { sweep in
-            let raw = sweep.resistanceXY!
-            if centerBaseline, !raw.isEmpty {
-                let mean = raw.reduce(0, +) / Double(raw.count)
-                return raw.map { $0 - mean }
+            var y = sweep.resistanceXY!
+            // Detrend: subtract line connecting first→last to remove instrumental drift
+            if linearDetrend, y.count >= 2 {
+                let angles = sweep.angleDeg
+                let yFirst = y.first!, yLast = y.last!
+                let phiFirst = angles.first!, phiLast = angles.last!
+                let phiSpan = phiLast - phiFirst
+                if abs(phiSpan) > 1e-9 {
+                    y = zip(angles, y).map { phi, val in
+                        val - (yFirst + (yLast - yFirst) * (phi - phiFirst) / phiSpan)
+                    }
+                }
             }
-            return raw
+            // Center: subtract per-curve mean to remove R_AHE(T) baseline
+            if centerBaseline, !y.isEmpty {
+                let mean = y.reduce(0, +) / Double(y.count)
+                y = y.map { $0 - mean }
+            }
+            return y
         }
 
         let offsets = ThreeOmegaStackOffsetUseCase().execute(

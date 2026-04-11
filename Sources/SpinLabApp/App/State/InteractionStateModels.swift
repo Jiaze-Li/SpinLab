@@ -380,6 +380,7 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var xyRotationTitleTemplate: String?
     var xyRotationStackOffset: Double?
     var xyRotationCenterBaseline: Bool?
+    var xyRotationLinearDetrend: Bool?
     /// Per-tab legend positions keyed by XYRotationWorkbenchTab.rawValue.
     var xyRotationPlotLegendPoints: [String: [Double]]?
 }
