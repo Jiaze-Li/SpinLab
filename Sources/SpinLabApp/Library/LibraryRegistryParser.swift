@@ -323,21 +323,12 @@ final class LibraryRegistryParser {
     }
 
     private static func formatDisplayValue(for key: String, value: String, number: Double) -> String {
-        let lower = value.lowercased()
+        // Key-specific checks first — column header semantics always win over cell text
         if key == "能量" {
             return "\(formatNumber(number)) mJ"
         }
         if key == "厚度" {
             return "\(formatNumber(number)) ps"
-        }
-        if lower.contains("kv") {
-            return "\(formatNumber(number)) kV"
-        }
-        if lower.contains("mt") {
-            return "\(formatNumber(number)) mT"
-        }
-        if lower.contains("mj") {
-            return "\(formatNumber(number)) mJ"
         }
         if key == "温度" {
             return "\(formatNumber(number)) °C"
@@ -347,6 +338,17 @@ final class LibraryRegistryParser {
         }
         if key == "电压" {
             return "\(formatNumber(number)) kV"
+        }
+        // Content-based fallbacks for keys without explicit unit mapping
+        let lower = value.lowercased()
+        if lower.contains("kv") {
+            return "\(formatNumber(number)) kV"
+        }
+        if lower.contains("mt") {
+            return "\(formatNumber(number)) mT"
+        }
+        if lower.contains("mj") {
+            return "\(formatNumber(number)) mJ"
         }
         return formatNumber(number)
     }

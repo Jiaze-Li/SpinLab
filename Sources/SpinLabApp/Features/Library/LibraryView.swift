@@ -68,17 +68,17 @@ struct LibraryView: View {
             appState.library.loadMeasurementDataForCurrentSelection()
             scheduleInteractionStatePersist(immediate: true)
         }
-        .onChange(of: viewModel.viewState.previewGroupsByPrefix) { _, _ in
+        .onChange(of: appState.library.libraryPreviewGroups) { _, _ in
             rebuildPreviewDerivedData()
             syncSelection()
             scheduleInteractionStatePersist()
         }
-        .onChange(of: viewModel.viewState.batchSyncStatusByID) { _, _ in
+        .onChange(of: appState.library.libraryBatchSyncStatusByID) { _, _ in
             rebuildPreviewDerivedData()
             syncSelection()
             scheduleInteractionStatePersist()
         }
-        .onChange(of: viewModel.viewState.existingGroupsByPrefix) { _, _ in
+        .onChange(of: appState.library.libraryExistingGroups) { _, _ in
             rebuildPreviewDerivedData()
             syncSelection()
             scheduleInteractionStatePersist()
@@ -88,7 +88,6 @@ struct LibraryView: View {
             scheduleInteractionStatePersist()
         }
         .onChange(of: selectedBatchId) { _, _ in
-            rebuildPreviewDerivedData()
             scheduleInteractionStatePersist()
         }
         .onChange(of: selectedSampleId) { _, _ in
@@ -188,17 +187,9 @@ struct LibraryView: View {
     private var librarySettingsSection: some View {
         LibrarySettingsSectionView(
             isExpanded: $isLibrarySettingsExpanded,
-            allowedPrefixesDraft: $allowedPrefixesDraft,
             level2HeaderFont: level2HeaderFont,
             level3HeaderFont: level3HeaderFont,
             viewState: viewState,
-            canReloadSampleRegistry: appState.canReloadSampleRegistry,
-            onLoadRegistry: {
-                presentSampleRegistryPanel()
-            },
-            onReloadRegistry: {
-                viewModel.reloadSampleRegistry()
-            },
             onChooseLibraryRoot: {
                 presentLibraryRootPanel()
             },
@@ -210,9 +201,6 @@ struct LibraryView: View {
             },
             onBackfillSidecars: {
                 viewModel.backfillLibraryMeasurementSidecars()
-            },
-            onSavePrefixes: { value in
-                viewModel.updateAllowedBatchPrefixes(from: value)
             },
             onChooseBackupPath: {
                 presentBackupPathPanel()
@@ -226,19 +214,31 @@ struct LibraryView: View {
     private var registryWorkspaceSection: some View {
         RegistryWorkspaceSectionView(
             isExpanded: $isRegistryWorkspaceExpanded,
+            allowedPrefixesDraft: $allowedPrefixesDraft,
             level2HeaderFont: level2HeaderFont,
             level3HeaderFont: level3HeaderFont,
             viewState: viewState,
+            canReloadSampleRegistry: appState.canReloadSampleRegistry,
             selectedPrefix: selectedPrefix,
             selectedBatchId: selectedBatchId,
             selectedSampleId: selectedSampleId,
             previewPrefixes: previewPrefixes,
             previewGroupsForSelectedPrefix: previewGroupsForSelectedPrefix,
             selectedBatchSamples: selectedBatchSamples,
+            onLoadRegistry: {
+                presentSampleRegistryPanel()
+            },
+            onReloadRegistry: {
+                viewModel.reloadSampleRegistry()
+            },
+            onSavePrefixes: { value in
+                viewModel.updateAllowedBatchPrefixes(from: value)
+            },
             onSelectPrefix: { newValue in
                 selectedPrefix = newValue
-                selectedBatchId = previewGroupsForSelectedPrefix.first?.batchId
-                selectedSampleId = previewGroupsForSelectedPrefix.first?.samples.first?.id
+                let groupsForNew = computeCombinedPreviewGroupsByPrefix()[newValue] ?? []
+                selectedBatchId = groupsForNew.first?.batchId
+                selectedSampleId = groupsForNew.first?.samples.first?.id
                 viewModel.selectBrowserSample()
             },
             onSelectBatch: { group in
@@ -804,7 +804,9 @@ struct LibraryView: View {
     }
 
     private var selectedBatchSamples: [LibrarySample] {
-        previewDerivedData.selectedBatchSamples
+        guard let bid = selectedBatchId else { return [] }
+        return previewDerivedData.previewGroupsForSelectedPrefix
+            .first(where: { $0.batchId == bid })?.samples ?? []
     }
 
     private var selectedSample: LibrarySample? {
@@ -969,6 +971,9 @@ struct LibraryView: View {
         syncBrowserSelection()
     }
 
+    // Validate browser selection against combined groups (preview + changed existing batches),
+    // which is the same data source that rebuildPreviewDerivedData() and the Pending Queue render from.
+    // If a future requirement needs strict "preview-only" validation, this should be split.
     private func syncBrowserSelection() {
         let output = LibrarySelectionSync.syncBrowserSelection(
             input: .init(
@@ -976,7 +981,7 @@ struct LibraryView: View {
                 selectedBatchId: selectedBatchId,
                 selectedSampleId: selectedSampleId
             ),
-            previewGroupsByPrefix: viewState.previewGroupsByPrefix
+            previewGroupsByPrefix: computeCombinedPreviewGroupsByPrefix()
         )
         selectedPrefix = output.selectedPrefix
         selectedBatchId = output.selectedBatchId
@@ -1178,13 +1183,11 @@ struct LibraryView: View {
     private func rebuildPreviewDerivedData() {
         let combined = computeCombinedPreviewGroupsByPrefix()
         let prefixes = computePreviewPrefixes(from: combined)
-        let effectivePrefix = selectedPrefix ?? prefixes.first
+        let effectivePrefix = (selectedPrefix.flatMap { combined.keys.contains($0) ? $0 : nil }) ?? prefixes.first
         let groupsForPrefix = combined[effectivePrefix ?? ""] ?? []
-        let samples = resolveSelectedBatchSamples(groups: groupsForPrefix, selectedBatchId: selectedBatchId)
         previewDerivedData = PreviewDerivedData(
             previewPrefixes: prefixes,
-            previewGroupsForSelectedPrefix: groupsForPrefix,
-            selectedBatchSamples: samples
+            previewGroupsForSelectedPrefix: groupsForPrefix
         )
     }
 
@@ -1220,21 +1223,11 @@ struct LibraryView: View {
         return ordered + remaining
     }
 
-    private func resolveSelectedBatchSamples(
-        groups: [LibraryPreviewBatchGroup],
-        selectedBatchId: String?
-    ) -> [LibrarySample] {
-        guard let selectedBatchId else {
-            return []
-        }
-        return groups.first(where: { $0.batchId == selectedBatchId })?.samples ?? []
-    }
 }
 
 private struct PreviewDerivedData {
     var previewPrefixes: [String] = []
     var previewGroupsForSelectedPrefix: [LibraryPreviewBatchGroup] = []
-    var selectedBatchSamples: [LibrarySample] = []
 }
 
 #if DEBUG

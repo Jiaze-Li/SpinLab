@@ -51,7 +51,21 @@ final class LibraryDiffEngine {
     }
 
     private func fieldChanges(old: LibrarySample, new: LibrarySample) -> [LibraryFieldChange] {
-        metadataFieldChanges(old: old.metadata, new: new.metadata)
+        var changes = metadataFieldChanges(old: old.metadata, new: new.metadata)
+        changes.append(contentsOf: numericFieldChanges(old: old.numericDisplay, new: new.numericDisplay))
+        return changes
+    }
+
+    private func numericFieldChanges(old: [String: String], new: [String: String]) -> [LibraryFieldChange] {
+        var changes: [LibraryFieldChange] = []
+        let keys = Set(old.keys).union(new.keys)
+        for key in keys.sorted() {
+            let oldValue = old[key]
+            let newValue = new[key]
+            guard oldValue != newValue else { continue }
+            changes.append(LibraryFieldChange(key: "numeric.\(key)", oldValue: oldValue, newValue: newValue, isNumeric: true))
+        }
+        return changes
     }
 
     private func batchFieldChanges(old: LibraryBatch, new: LibraryBatch) -> [LibraryFieldChange] {

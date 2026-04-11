@@ -2,20 +2,15 @@ import SwiftUI
 
 struct LibrarySettingsSectionView: View {
     @Binding var isExpanded: Bool
-    @Binding var allowedPrefixesDraft: String
 
     let level2HeaderFont: Font
     let level3HeaderFont: Font
     let viewState: LibraryViewState
-    let canReloadSampleRegistry: Bool
 
-    let onLoadRegistry: () -> Void
-    let onReloadRegistry: () -> Void
     let onChooseLibraryRoot: () -> Void
     let onVerifyRoot: () -> Void
     let onSyncFiles: () -> Void
     let onBackfillSidecars: () -> Void
-    let onSavePrefixes: (String) -> Void
     let onChooseBackupPath: () -> Void
     let onSyncBackup: () -> Void
 
@@ -37,44 +32,6 @@ struct LibrarySettingsSectionView: View {
             .buttonStyle(.plain)
 
             if isExpanded {
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 8) {
-                        MetadataValueRow(
-                            label: "Registry Path",
-                            value: viewState.registrySourcePath ?? "Not loaded",
-                            monospaced: true
-                        )
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                        HStack {
-                            Button("Load Registry") {
-                                onLoadRegistry()
-                            }
-                            Button("Reload Registry") {
-                                onReloadRegistry()
-                            }
-                            .disabled(!canReloadSampleRegistry)
-                            Spacer()
-                        }
-
-                        HStack {
-                            TextField("Allowed Prefixes (PN, PT, SL)", text: $allowedPrefixesDraft)
-                                .frame(width: 190)
-                                .textFieldStyle(.roundedBorder)
-                            Button("Save Prefixes") {
-                                onSavePrefixes(allowedPrefixesDraft)
-                            }
-                        }
-                        .onAppear {
-                            allowedPrefixesDraft = viewState.allowedBatchPrefixesText
-                        }
-                    }
-                } label: {
-                    Text("Registry")
-                        .font(level3HeaderFont)
-                }
-
                 GroupBox {
                     VStack(alignment: .leading, spacing: 8) {
                         MetadataValueRow(
@@ -160,10 +117,12 @@ struct LibrarySettingsSectionView: View {
 
 struct RegistryWorkspaceSectionView: View {
     @Binding var isExpanded: Bool
+    @Binding var allowedPrefixesDraft: String
 
     let level2HeaderFont: Font
     let level3HeaderFont: Font
     let viewState: LibraryViewState
+    let canReloadSampleRegistry: Bool
 
     let selectedPrefix: String?
     let selectedBatchId: String?
@@ -172,6 +131,9 @@ struct RegistryWorkspaceSectionView: View {
     let previewGroupsForSelectedPrefix: [LibraryPreviewBatchGroup]
     let selectedBatchSamples: [LibrarySample]
 
+    let onLoadRegistry: () -> Void
+    let onReloadRegistry: () -> Void
+    let onSavePrefixes: (String) -> Void
     let onSelectPrefix: (String) -> Void
     let onSelectBatch: (LibraryPreviewBatchGroup) -> Void
     let onSelectSample: (LibrarySample) -> Void
@@ -202,18 +164,38 @@ struct RegistryWorkspaceSectionView: View {
             if isExpanded {
                 GroupBox {
                     VStack(alignment: .leading, spacing: 8) {
+                        MetadataValueRow(
+                            label: "Registry Path",
+                            value: viewState.registrySourcePath ?? "Not loaded",
+                            monospaced: true
+                        )
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .fixedSize(horizontal: false, vertical: true)
+
                         HStack {
+                            Button("Load Registry") {
+                                onLoadRegistry()
+                            }
+                            Button("Reload Registry") {
+                                onReloadRegistry()
+                            }
+                            .disabled(!canReloadSampleRegistry)
                             Button("Sync Registry") {
                                 onSyncRegistry()
                             }
-                            Button("Apply All") {
-                                onApplyAll()
+                            Spacer()
+                        }
+
+                        HStack {
+                            TextField("Allowed Prefixes (PN, PT, SL)", text: $allowedPrefixesDraft)
+                                .frame(width: 190)
+                                .textFieldStyle(.roundedBorder)
+                            Button("Save Prefixes") {
+                                onSavePrefixes(allowedPrefixesDraft)
                             }
-                            .disabled((viewState.refreshReview?.totalChangesCount ?? 0) == 0)
-                            Button("Apply Selected") {
-                                onApplySelected()
-                            }
-                            .disabled((viewState.refreshReview?.totalChangesCount ?? 0) == 0 || selectedBatchId == nil)
+                        }
+                        .onAppear {
+                            allowedPrefixesDraft = viewState.allowedBatchPrefixesText
                         }
 
                         if let message = viewState.previewMessage {
@@ -222,10 +204,43 @@ struct RegistryWorkspaceSectionView: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        if let review = viewState.refreshReview {
-                            Text("Pending sync review: \(review.newSamples.count) new, \(review.changedSamples.count) changed, \(review.removedSamples.count) removed, \(review.changedBatches.count) batch-changed, \(review.removedBatches.count) batch-removed.")
+                        if let message = viewState.drawerMessage {
+                            Text(message)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                        }
+
+                        if let error = viewState.drawerError {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("Registry")
+                            .font(level3HeaderFont)
+                        if let syncStatus = viewState.syncStatusMessage {
+                            Text("(\(syncStatus))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if let review = viewState.refreshReview {
+                            HStack {
+                                Button("Apply All") {
+                                    onApplyAll()
+                                }
+                                .disabled(review.totalChangesCount == 0)
+                                Button("Apply Selected") {
+                                    onApplySelected()
+                                }
+                                .disabled(review.totalChangesCount == 0 || selectedBatchId == nil)
+                            }
                         }
 
                         if !viewState.previewWarnings.isEmpty {
@@ -242,33 +257,6 @@ struct RegistryWorkspaceSectionView: View {
                             }
                         }
 
-                        if let message = viewState.drawerMessage {
-                            Text(message)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if let error = viewState.drawerError {
-                            Text(error)
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                } label: {
-                    HStack(spacing: 6) {
-                        Text("Registry Sync")
-                            .font(level3HeaderFont)
-                        if let syncStatus = viewState.syncStatusMessage {
-                            Text("(\(syncStatus))")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 8) {
                         prefixPicker
                         Divider()
                         batchList
@@ -277,8 +265,15 @@ struct RegistryWorkspaceSectionView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 } label: {
-                    Text("Pending Queue")
-                        .font(level3HeaderFont)
+                    HStack(spacing: 6) {
+                        Text("Pending Queue")
+                            .font(level3HeaderFont)
+                        if let review = viewState.refreshReview {
+                            Text("(\(review.newSamples.count) new, \(review.changedSamples.count) changed, \(review.removedSamples.count) removed)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
         }
