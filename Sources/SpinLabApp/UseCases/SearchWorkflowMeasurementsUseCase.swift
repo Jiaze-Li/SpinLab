@@ -13,7 +13,10 @@ struct SearchWorkflowMeasurementsUseCase {
             throw AppError.notFound("Library root not found at \(libraryRootURL.path).")
         }
 
-        let queryTokens = tokenizeQuery(query.rawText)
+        let parsed = parseQuery(query.rawText)
+
+        // Load library index for numeric matching (graceful: empty map if missing)
+        let numericTagsBySampleKey = loadNumericTags(libraryRootURL: libraryRootURL)
 
         let sidecarURLs = collectSidecarURLs(libraryRootURL: libraryRootURL, fileManager: fileManager)
         let decoder = JSONDecoder()
@@ -31,7 +34,8 @@ struct SearchWorkflowMeasurementsUseCase {
             let data = try Data(contentsOf: sidecarURL, options: [.mappedIfSafe])
             let sidecar = try decoder.decode(SpinLabFileSidecar.self, from: data)
             let hit = buildHit(sidecar: sidecar, sidecarURL: sidecarURL, displayNameByID: displayNameByID)
-            if matches(hit: hit, queryTokens: queryTokens) {
+            let sampleNumericTags = numericTagsBySampleKey[hit.sampleKey] ?? [:]
+            if matches(hit: hit, textTokens: parsed.textTokens, numericTerms: parsed.numericTerms, sampleNumericTags: sampleNumericTags) {
                 hits.append(hit)
             }
         }
@@ -120,13 +124,34 @@ struct SearchWorkflowMeasurementsUseCase {
         return sidecarURL.deletingLastPathComponent().appending(path: baseName).path
     }
 
-    private func matches(hit: WorkflowMeasurementSearchHit, queryTokens: [String]) -> Bool {
-        guard !queryTokens.isEmpty else {
-            return true
-        }
+    private func matches(
+        hit: WorkflowMeasurementSearchHit,
+        textTokens: [String],
+        numericTerms: [(value: Double, field: String, fallbackToken: String)],
+        sampleNumericTags: [String: Double]
+    ) -> Bool {
+        if textTokens.isEmpty && numericTerms.isEmpty { return true }
 
         let searchableTokens = searchTokens(for: hit)
-        return queryTokens.allSatisfy { searchableTokens.contains($0) }
+
+        // Text tokens: all must match (existing logic)
+        let textOK = textTokens.allSatisfy { searchableTokens.contains($0) }
+        guard textOK else { return false }
+
+        // Numeric terms: each must match via tolerance OR fall back to text matching
+        for term in numericTerms {
+            let tol = NumericUnitMap.tolerance(for: term.value)
+            if let actual = sampleNumericTags[term.field] {
+                // Tag exists — numeric match is authoritative; skip fallback
+                if abs(actual - term.value) <= tol { continue }
+                return false
+            }
+            // Tag missing — fall back to text token
+            if searchableTokens.contains(term.fallbackToken) { continue }
+            return false
+        }
+
+        return true
     }
 
     private func searchTokens(for hit: WorkflowMeasurementSearchHit) -> Set<String> {
@@ -273,11 +298,44 @@ struct SearchWorkflowMeasurementsUseCase {
         return parts.joined(separator: "")
     }
 
-    private func tokenizeQuery(_ rawText: String) -> [String] {
-        rawText
-            .split(whereSeparator: \.isWhitespace)
-            .map { normalizeToken(String($0)) }
-            .filter { !$0.isEmpty }
+    private struct ParsedQuery {
+        var textTokens: [String]
+        var numericTerms: [(value: Double, field: String, fallbackToken: String)]
+    }
+
+    /// Parses raw query text into text tokens and numeric terms.
+    /// Numeric terms are extracted from raw tokens BEFORE normalizeToken (to preserve decimals).
+    private func parseQuery(_ rawText: String) -> ParsedQuery {
+        let rawTokens = rawText.split(whereSeparator: \.isWhitespace).map(String.init)
+        var textTokens: [String] = []
+        var numericTerms: [(value: Double, field: String, fallbackToken: String)] = []
+
+        for raw in rawTokens {
+            if let parsed = NumericUnitMap.parse(raw) {
+                numericTerms.append((value: parsed.value, field: parsed.field, fallbackToken: normalizeToken(raw)))
+            } else {
+                let normalized = normalizeToken(raw)
+                if !normalized.isEmpty {
+                    textTokens.append(normalized)
+                }
+            }
+        }
+        return ParsedQuery(textTokens: textTokens, numericTerms: numericTerms)
+    }
+
+    /// Loads library index and builds sampleKey → numericTags lookup.
+    /// Returns empty dict if index is unavailable (graceful degradation).
+    private func loadNumericTags(libraryRootURL: URL) -> [String: [String: Double]] {
+        let store = LibraryStore()
+        guard let index = store.loadIndex(from: libraryRootURL) else { return [:] }
+        var map: [String: [String: Double]] = [:]
+        map.reserveCapacity(index.samples.count)
+        for sample in index.samples {
+            if !sample.numericTags.isEmpty {
+                map[sample.id] = sample.numericTags
+            }
+        }
+        return map
     }
 
     private func appendSearchTokens(from value: String, to tokens: inout Set<String>) {

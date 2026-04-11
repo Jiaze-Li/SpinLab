@@ -173,11 +173,11 @@ private struct XYRotationResultsList: View {
         if results.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 if let msg = message, !msg.isEmpty {
-                    Text(msg)
+                    Text("\(msg)  Numeric tolerance: ±\(Int(NumericUnitMap.relativeTolerance * 100))%")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, 12)
-                        .padding(.top, 8)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
                 }
                 ContentUnavailableView(
                     "No Results",
@@ -191,13 +191,18 @@ private struct XYRotationResultsList: View {
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 8) {
                     if let msg = message, !msg.isEmpty {
-                        Text(msg)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(msg)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            Text("Numeric tolerance: ±\(Int(NumericUnitMap.relativeTolerance * 100))% (min ±\(NumericUnitMap.absoluteToleranceFloor, specifier: "%.0f"))")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
                     }
                     ForEach(results) { hit in
                         let isSelected = store.selectedSearchResultIDs.contains(hit.id)
-                        WorkflowHitRow(hit: hit, isSelected: isSelected) {
+                        WorkflowHitRow(hit: hit, isSelected: isSelected, numericDisplay: store.cachedSampleNumericDisplay[hit.sampleKey] ?? [:]) {
                             store.toggleSearchHitSelection(hit.id)
                         }
                     }

@@ -648,6 +648,7 @@ struct WorkbenchTitleTemplateField: View {
 struct WorkflowHitRow: View {
     let hit: WorkflowMeasurementSearchHit
     let isSelected: Bool
+    var numericDisplay: [String: String] = [:]
     let onTap: () -> Void
 
     var body: some View {
@@ -664,7 +665,7 @@ struct WorkflowHitRow: View {
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("Sample").font(.caption).foregroundStyle(.secondary)
-                    Text(hit.sampleBatchAndSubstrate)
+                    Text(sampleDisplayText)
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("Condition").font(.caption).foregroundStyle(.secondary)
@@ -695,5 +696,26 @@ struct WorkflowHitRow: View {
                 .stroke(isSelected ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
         )
         .onTapGesture(perform: onTap)
+    }
+
+    private var sampleDisplayText: String {
+        let base = hit.sampleBatchAndSubstrate
+        guard !numericDisplay.isEmpty else { return base }
+        let parts = NumericFieldOrder.preferred.compactMap { key -> String? in
+            guard let value = numericDisplay[key],
+                  !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            return value
+        }
+        // Append any keys not in preferred order
+        let preferredSet = Set(NumericFieldOrder.preferred)
+        let extra = numericDisplay.keys.sorted().compactMap { key -> String? in
+            guard !preferredSet.contains(key),
+                  let value = numericDisplay[key],
+                  !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            return value
+        }
+        let all = parts + extra
+        guard !all.isEmpty else { return base }
+        return "\(base) (\(all.joined(separator: ", ")))"
     }
 }

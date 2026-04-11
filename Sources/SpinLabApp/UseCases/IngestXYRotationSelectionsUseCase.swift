@@ -30,9 +30,9 @@ struct IngestXYRotationSelectionsUseCase {
             let tempOverride: Double? = hit.conditions["temperature"]
                 .flatMap { _parseTemperatureValue($0) }
 
-            // φ offset from sidecar condition "shift"
+            // φ offset from sidecar condition "shift" (value may contain suffix like "90shift")
             let shiftOverride: Double = hit.conditions["shift"]
-                .flatMap { Double($0.trimmingCharacters(in: .whitespaces)) } ?? 0
+                .flatMap { _parseLeadingNumber($0) } ?? 0
 
             // Device from sidecar condition
             if let d = hit.conditions["device"], !d.isEmpty {
@@ -92,5 +92,16 @@ struct IngestXYRotationSelectionsUseCase {
             .replacingOccurrences(of: "k", with: "")
             .trimmingCharacters(in: .whitespaces)
         return Double(trimmed)
+    }
+
+    /// Extracts the leading number from a string like "90shift" → 90.0, "-45.5shift" → -45.5.
+    private func _parseLeadingNumber(_ raw: String) -> Double? {
+        let trimmed = raw.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        let pattern = #"^(-?\d+(?:\.\d+)?)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
+              let range = Range(match.range(at: 1), in: trimmed) else { return nil }
+        return Double(trimmed[range])
     }
 }

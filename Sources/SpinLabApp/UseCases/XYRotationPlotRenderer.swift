@@ -50,10 +50,11 @@ struct XYRotationPlotRenderer {
         let series: [WorkbenchPlotSeries] = zip(zip(sweeps, yArrays), offsets).map { pair, yOffset in
             let (sweep, yData) = pair
             let phiOffset = phiOffsetOverrides[sweep.id] ?? sweep.defaultPhiOffset
+            let paired = _rebaseAndSort(angles: sweep.angleDeg, y: yData, offset: phiOffset, yShift: yOffset)
             return WorkbenchPlotSeries(
                 label: _tempLabel(sweep.temperatureK),
-                x: sweep.angleDeg.map { $0 + phiOffset },
-                y: yData.map { $0 + yOffset },
+                x: paired.x,
+                y: paired.y,
                 sourceRef: sweep.measurementFilePath.isEmpty ? sweep.stem : sweep.measurementFilePath
             )
         }.reversed()
@@ -103,10 +104,11 @@ struct XYRotationPlotRenderer {
         let series: [WorkbenchPlotSeries] = zip(zip(rxySweeps, yArrays), offsets).map { pair, yOffset in
             let (sweep, yData) = pair
             let phiOffset = phiOffsetOverrides[sweep.id] ?? sweep.defaultPhiOffset
+            let paired = _rebaseAndSort(angles: sweep.angleDeg, y: yData, offset: phiOffset, yShift: yOffset)
             return WorkbenchPlotSeries(
                 label: _tempLabel(sweep.temperatureK),
-                x: sweep.angleDeg.map { $0 + phiOffset },
-                y: yData.map { $0 + yOffset },
+                x: paired.x,
+                y: paired.y,
                 sourceRef: sweep.measurementFilePath.isEmpty ? sweep.stem : sweep.measurementFilePath
             )
         }.reversed()
@@ -160,6 +162,8 @@ struct XYRotationPlotRenderer {
     private func _stackedOptions(sweepCount: Int) -> WorkbenchChartRenderer.Options {
         var opts = defaultOptions
         opts.height = max(defaultOptions.height, defaultOptions.height + (sweepCount - 6) * 40)
+        opts.fixedXMin = 0
+        opts.fixedXMax = 360
         return opts
     }
 
@@ -174,5 +178,29 @@ struct XYRotationPlotRenderer {
         t.truncatingRemainder(dividingBy: 1) == 0
             ? "\(Int(t)) K"
             : String(format: "%.1f K", t)
+    }
+
+    /// Rebases angles by subtracting offset, wraps to [0, 360), applies yShift,
+    /// sorts by new angle, then adds periodic ghost points at both ends for splice smoothing.
+    private func _rebaseAndSort(angles: [Double], y: [Double], offset: Double, yShift: Double) -> (x: [Double], y: [Double]) {
+        guard angles.count == y.count, !angles.isEmpty else { return ([], []) }
+        var pairs = zip(angles, y).map { ang, yVal -> (x: Double, y: Double) in
+            var newAngle = (ang - offset).truncatingRemainder(dividingBy: 360)
+            if newAngle < 0 { newAngle += 360 }
+            return (x: newAngle, y: yVal + yShift)
+        }
+        pairs.sort { $0.x < $1.x }
+
+        // Periodic extension: mirror boundary points so the line is smooth at the splice.
+        // Only when data covers near-full cycle (>300° span).
+        let xSpan = (pairs.last?.x ?? 0) - (pairs.first?.x ?? 0)
+        if xSpan > 300 {
+            let k = min(3, pairs.count / 2)
+            let headMirror = pairs.suffix(k).map { (x: $0.x - 360, y: $0.y) }
+            let tailMirror = pairs.prefix(k).map { (x: $0.x + 360, y: $0.y) }
+            pairs = headMirror + pairs + tailMirror
+        }
+
+        return (x: pairs.map(\.x), y: pairs.map(\.y))
     }
 }
