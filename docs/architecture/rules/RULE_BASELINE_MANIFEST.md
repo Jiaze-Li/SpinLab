@@ -1,7 +1,7 @@
 # Rule Baseline Manifest
 
 Status: active  
-Last updated: 2026-04-04
+Last updated: 2026-04-12
 
 ## Purpose
 
@@ -21,7 +21,7 @@ Source resolution order is implemented in `RuleLoader.load()`:
 3. Built-in fallback rules
 
 Reference:
-- `Sources/SpinLabApp/Import/Rules/RuleLoader.swift` lines 34-54, 56-70
+- `Sources/SpinLabApp/Import/Rules/RuleLoader.swift` lines 34-71 (`load()`)
 
 Runtime config paths are centralized in:
 - `Sources/SpinLabApp/Import/Rules/RulesConfigPaths.swift` lines 27-49
@@ -44,7 +44,7 @@ Separated override application is implemented in `applySeparatedOverrides(...)`:
 - `measurement_tag_rules.json`: replaces measurement tag rules when valid and non-empty
 
 Reference:
-- `Sources/SpinLabApp/Import/Rules/RuleLoader.swift` lines 222-437
+- `Sources/SpinLabApp/Import/Rules/RuleLoader.swift` lines 257-465 (`applySeparatedOverrides()`)
 
 ## Composite Fingerprint Contract
 
@@ -53,7 +53,7 @@ Rule fingerprint is based on:
 - plus every existing separated override file path + bytes
 
 Reference:
-- `Sources/SpinLabApp/Import/Rules/RuleLoader.swift` lines 481-499
+- `Sources/SpinLabApp/Import/Rules/RuleLoader.swift` lines 508-540 (`compositeHash()`)
 
 Metadata exported by loader:
 - `version`
@@ -65,7 +65,7 @@ Metadata exported by loader:
 - `fingerprint`
 
 Reference:
-- `Sources/SpinLabApp/Import/Rules/RuleLoader.swift` lines 11-26, 169-176
+- `Sources/SpinLabApp/Import/Rules/RuleLoader.swift` lines 11-26 (`RuleMetadata`), 169-186 (metadata construction in `tryLoadRuleSet`)
 
 ## Non-Configurable Interpretation Logic (critical)
 

@@ -9,6 +9,27 @@ Items are ordered by impact, not urgency. See `TECH_DEBT_EXECUTION_LOG.md` for c
 
 ## High Impact
 
+### Library layer consolidation
+
+**Audit:** `docs/architecture/LIBRARY_ARCHITECTURE_AUDIT.md` (v4.2.5)
+
+**Problem:**
+Library feature has 12-layer call depth for a single action, 3 passthrough layers (ViewModel, Facade, CommandCoordinator), 3 overlapping mutation services, and a 1661-line FeatureStore mixing 5+ concerns.
+
+**Phases:**
+
+| Phase | Action | Effort |
+|-------|--------|--------|
+| P1 | Delete `LibraryCommandCoordinator` (pure passthrough); collapse `LibraryFacade` into AppState helpers | Small |
+| P2 | Merge `LibraryMutationOrchestrator` into `LibrarySyncService`; unify diff computation to one entry point | Small-Medium |
+| P3 | Extract from FeatureStore: workbench/measurement projections, log management, sample editing state | Medium |
+| P4 | Simplify ViewModel — View reads `appState.library` directly, remove viewState mapping layer | Medium |
+| P5 | Split LibraryView (1252 lines) into 4-5 focused components | Small |
+
+**Dependencies:** P1 first (removes indirection before restructuring internals). P2-P5 can be done independently.
+
+---
+
 ### Workflow ID alias hardcoding in SearchWorkflowMeasurementsUseCase
 
 **Code:**
