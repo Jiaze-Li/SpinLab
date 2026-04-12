@@ -16,6 +16,9 @@ struct WorkbenchChartRenderer {
         var paddingRight: CGFloat = 30
         /// Widest y-tick label in points — filled by resolvedOptions, used by layout for y-title placement.
         var maxYTickLabelWidth: CGFloat = 0
+        /// When set, locks the x-axis range instead of auto-fitting to data extents.
+        var fixedXMin: Double? = nil
+        var fixedXMax: Double? = nil
     }
 
     enum RendererError: Error, LocalizedError {
@@ -151,12 +154,13 @@ struct WorkbenchChartRenderer {
         }
 
         // Data extents with 5% x-padding and 8% y-padding so points/labels don't touch the axes
-        let xRaw = allX.min()!, xRawMax = allX.max()!
+        let xRaw = options.fixedXMin ?? allX.min()!
+        let xRawMax = options.fixedXMax ?? allX.max()!
         let yRaw = allY.min()!, yRawMax = allY.max()!
         let xRawSpan = xRawMax == xRaw ? 1.0 : xRawMax - xRaw
         let yRawSpan = yRawMax == yRaw ? 1.0 : yRawMax - yRaw
-        let xMin = xRaw    - xRawSpan * 0.05
-        let xMax = xRawMax + xRawSpan * 0.05
+        let xMin = options.fixedXMin != nil ? xRaw : xRaw - xRawSpan * 0.05
+        let xMax = options.fixedXMax != nil ? xRawMax : xRawMax + xRawSpan * 0.05
         let yMin = yRaw    - yRawSpan * 0.05
         let yMax = yRawMax + yRawSpan * 0.05
         let xSpan = xMax - xMin

@@ -376,6 +376,7 @@ Build and version policy (required):
 ---
 
 Communication/reporting policy (required):
+- `[HARD][must]` When confirming feature design or asking the user questions about behavior, use plain functional language (what the user sees, what happens when they click, what data appears where). Do NOT use code-level terms (class names, method signatures, protocol names, variable names) in design discussions. Separate "feature/UX discussion" from "code implementation discussion" — the user is a domain expert, not necessarily tracking internal architecture naming.
 - When reporting Git actions to the user (commit/push/PR), use plain human language first.
 - Avoid raw shorthand-only status lines like `pushed branch`, `PR created` without context.
 - Preferred style example:

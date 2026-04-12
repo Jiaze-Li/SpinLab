@@ -150,58 +150,20 @@ private struct ThreeOmegaPlotControlsPanel: View {
     var body: some View {
         @Bindable var store = appState.workbench.threeOmegaWorkspace
 
-        WorkbenchPlotControlsPanel {
-            // Row 1: Tab + Stack Offset + Min Gap
-            HStack(spacing: 8) {
-                Picker("Tab", selection: $store.activeTab) {
-                    ForEach(ThreeOmegaWorkbenchTab.allCases) { tab in
-                        Text(tab.rawValue).tag(tab)
-                    }
-                }
-                .labelsHidden()
-                .frame(maxWidth: 160)
-
-                Slider(value: $store.stackOffsetMultiplier, in: 0...1.6, step: 0.1)
-                    .onChange(of: store.stackOffsetMultiplier) { _, _ in
-                        store.rerenderFieldSweepTabs()
-                        appState.flushInteractionSnapshotNow()
-                    }
-                Text(String(format: "%.1f×", store.stackOffsetMultiplier))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 28, alignment: .trailing)
-
-                Text("Gap")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                TextField("0.15", value: $store.minGapFraction, format: .number)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 48)
-                    .font(.caption)
-                    .onSubmit {
-                        store.rerenderFieldSweepTabs()
-                        appState.flushInteractionSnapshotNow()
-                    }
+        WorkbenchStandardPlotControls(
+            activeTab: $store.activeTab,
+            tabLabel: { $0.rawValue },
+            stackOffset: $store.stackOffsetMultiplier,
+            stackRange: 0...1.6,
+            minGapFraction: $store.minGapFraction,
+            showGrid: $store.showPlotGrid,
+            titleTemplate: $store.titleTemplate,
+            numericDisplayCache: store.cachedSampleNumericDisplay,
+            onChange: {
+                store.rerenderForStyleChange()
+                appState.flushInteractionSnapshotNow()
             }
-
-            // Row 2: Title template + Grid
-            HStack(alignment: .top, spacing: 12) {
-                WorkbenchTitleTemplateField(
-                    titleTemplate: $store.titleTemplate,
-                    numericDisplayCache: store.cachedSampleNumericDisplay,
-                    onChange: {
-                        store.rerenderForStyleChange()
-                        appState.flushInteractionSnapshotNow()
-                    }
-                )
-                Toggle("Grid", isOn: $store.showPlotGrid)
-                    .toggleStyle(.checkbox)
-                    .onChange(of: store.showPlotGrid) { _, _ in
-                        store.rerenderForStyleChange()
-                    }
-                    .padding(.top, 2)
-            }
-
+        ) {
             // Row 3: RAHE method picker + Add Analysis (visible on RAHE tabs only)
             if store.activeTab == .rahe1omegaVsT || store.activeTab == .rahe3omegaVsT {
                 HStack {
@@ -396,11 +358,11 @@ private struct ThreeOmegaResultsList: View {
         if results.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 if let msg = message, !msg.isEmpty {
-                    Text(msg)
+                    Text("\(msg)  Numeric tolerance: ±\(Int(NumericUnitMap.relativeTolerance * 100))%")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, 12)
-                        .padding(.top, 8)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
                 }
                 ContentUnavailableView(
                     "No Results",
@@ -414,13 +376,18 @@ private struct ThreeOmegaResultsList: View {
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 8) {
                     if let msg = message, !msg.isEmpty {
-                        Text(msg)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(msg)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            Text("Numeric tolerance: ±\(Int(NumericUnitMap.relativeTolerance * 100))% (min ±\(NumericUnitMap.absoluteToleranceFloor, specifier: "%.0f"))")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
                     }
                     ForEach(results) { hit in
                         let isSelected = store.selectedSearchResultIDs.contains(hit.id)
-                        WorkflowHitRow(hit: hit, isSelected: isSelected) {
+                        WorkflowHitRow(hit: hit, isSelected: isSelected, numericDisplay: store.cachedSampleNumericDisplay[hit.sampleKey] ?? [:]) {
                             store.toggleSearchHitSelection(hit.id)
                         }
                     }

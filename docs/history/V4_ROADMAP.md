@@ -596,9 +596,22 @@ Workbench 参数必须来自 sidecar conditions（用户在 Import 时确认的�
 
 ## 4.2 🔲 — XY Rotation Workflow
 
-**当前状态：** 仅有 `WorkflowRegistryStore.seededDefaults()` 中的 entry（displayName: "XY Rotation"，condition fields: Temperature, Field(mT)），无代码实现。
+**当前状态：** 规划完成，待实施。详见 `V4_2_XY_ROTATION_ITERATION_PLAN_2026-04-07.md`。
 
-工作范围待定，进入 4.1.7 验收后规划。
+**物理：** 角度依赖电阻 R(φ)，多温度，Fourier 拟合提取 AMR/PHE 系数。
+**数据：** LVM + DAT 双格式（不同设备，同一物理量）。
+**特殊需求：** per-file φ offset（来自 sidecar `conditions["shift"]`）。
+
+```
+4.2.0 ✅  Scaffold — 编译通过，sidebar 显示
+4.2.1 ✅  Data Model + Dual Parsers + φ Offset
+4.2.2 ✅/🔲  Workspace UI done, IngestUseCase 移入 4.2.3
+4.2.3 🔲  Ingest + R(φ) Plot + Offset UI（可视化里程碑）
+4.2.4 🔲  Save to Library + Vault + InteractionSnapshot（持久化里程碑）
+4.2.5 🔲  Fourier Fit + Metric Persist
+4.2.6 🔲  AMR/PHE vs T Plots (Tabs 2-3) + stableKeyRank
+4.2.7 🔲  Fourier Spectrum Tab + Polish
+```
 
 ---
 

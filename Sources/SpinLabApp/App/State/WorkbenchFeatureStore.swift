@@ -17,13 +17,14 @@ enum WorkbenchRoute: Equatable {
 enum WorkbenchWorkflowID: String, CaseIterable, Hashable {
     case ahe
     case threeOmega = "3w"
-    // Future: case rt, case mr, case xy
+    case xyRotation = "xy"
 
     /// Default search prefix pre-filled into the search box.
     var searchPrefix: String {
         switch self {
         case .ahe:        return "ahe "
         case .threeOmega: return "3w "
+        case .xyRotation: return "xy "
         }
     }
 }
@@ -126,6 +127,8 @@ final class WorkbenchFeatureStore {
     let threeOmegaWorkspace = ThreeOmegaWorkspaceStore()
     /// In-memory vault for saved analysis packs (shared across workflows).
     let analysisVault = AnalysisVault()
+    /// XY Rotation workspace state. Angle-dependent resistance R(φ), dual parser (LVM + DAT).
+    let xyRotationWorkspace = XYRotationWorkspaceStore()
 
     @ObservationIgnored
     private var archivedRecordsProjectionTask: Task<Void, Never>?
@@ -246,6 +249,7 @@ final class WorkbenchFeatureStore {
         self.searchQueryTexts = Self.restoreSearchQueryTexts()
         self.currentRoute = .registry(selectedID: initialWorkflowDefinitions.first?.id)
         self.threeOmegaWorkspace.vault = analysisVault
+        self.xyRotationWorkspace.vault = analysisVault
     }
 
     deinit {
@@ -301,7 +305,14 @@ final class WorkbenchFeatureStore {
         threeOmegaRTSidecarPath: String? = nil,
         threeOmegaFitRanges: [ThreeOmegaFitRange]? = nil,
         threeOmegaPlotLegendPoints: [String: [Double]]? = nil,
-        aheTitleTemplate: String? = nil
+        aheTitleTemplate: String? = nil,
+        xyRotationPhiOffsets: [String: Double]? = nil,
+        xyRotationActiveTab: String? = nil,
+        xyRotationTitleTemplate: String? = nil,
+        xyRotationStackOffset: Double? = nil,
+        xyRotationCenterBaseline: Bool? = nil,
+        xyRotationLinearDetrend: Bool? = nil,
+        xyRotationPlotLegendPoints: [String: [Double]]? = nil
     ) {
         if let selectedArchivedRecordID,
            archivedRecords.contains(where: { $0.id == selectedArchivedRecordID }) {
@@ -327,6 +338,24 @@ final class WorkbenchFeatureStore {
             }
         }
         if let t = aheTitleTemplate { aheWorkspace.titleTemplate = t }
+        // XY Rotation
+        if let offsets = xyRotationPhiOffsets, !offsets.isEmpty {
+            xyRotationWorkspace.phiOffsetOverrides = offsets
+        }
+        if let tabRaw = xyRotationActiveTab, let tab = XYRotationWorkbenchTab(rawValue: tabRaw) {
+            xyRotationWorkspace.activeTab = tab
+        }
+        if let t = xyRotationTitleTemplate { xyRotationWorkspace.titleTemplate = t }
+        if let v = xyRotationStackOffset { xyRotationWorkspace.stackOffsetMultiplier = v }
+        if let v = xyRotationCenterBaseline { xyRotationWorkspace.centerBaseline = v }
+        if let v = xyRotationLinearDetrend { xyRotationWorkspace.linearDetrend = v }
+        if let legendMap = xyRotationPlotLegendPoints {
+            for (key, arr) in legendMap where arr.count == 2 {
+                if let tab = XYRotationWorkbenchTab(rawValue: key) {
+                    xyRotationWorkspace.plotLegendPoints[tab] = CGPoint(x: arr[0], y: arr[1])
+                }
+            }
+        }
     }
 
     func captureInteraction(into snapshot: inout SpinLabInteractionSnapshot) {
@@ -351,6 +380,21 @@ final class WorkbenchFeatureStore {
             snapshot.threeOmegaPlotLegendPoints = legendMap
         }
         snapshot.aheTitleTemplate = aheWorkspace.titleTemplate
+        // XY Rotation
+        snapshot.xyRotationPhiOffsets = xyRotationWorkspace.phiOffsetOverrides.isEmpty
+            ? nil : xyRotationWorkspace.phiOffsetOverrides
+        snapshot.xyRotationActiveTab = xyRotationWorkspace.activeTab.rawValue
+        snapshot.xyRotationTitleTemplate = xyRotationWorkspace.titleTemplate
+        snapshot.xyRotationStackOffset = xyRotationWorkspace.stackOffsetMultiplier
+        snapshot.xyRotationCenterBaseline = xyRotationWorkspace.centerBaseline
+        snapshot.xyRotationLinearDetrend = xyRotationWorkspace.linearDetrend
+        if !xyRotationWorkspace.plotLegendPoints.isEmpty {
+            var legendMap: [String: [Double]] = [:]
+            for (tab, pt) in xyRotationWorkspace.plotLegendPoints {
+                legendMap[tab.rawValue] = [pt.x, pt.y]
+            }
+            snapshot.xyRotationPlotLegendPoints = legendMap
+        }
     }
 
     /// Bridge method: restores search state into WorkbenchFeatureStore when loading a pack.
@@ -359,6 +403,13 @@ final class WorkbenchFeatureStore {
         setSearchQueryText(queryText, for: .threeOmega)
         searchMessages[.threeOmega] = "Restored from analysis pack (\(results.count) hit(s))."
         searchRunning[.threeOmega] = false
+    }
+
+    func restoreXYRotationSearchState(results: [WorkflowMeasurementSearchHit], queryText: String) {
+        searchResults[.xyRotation] = results
+        setSearchQueryText(queryText, for: .xyRotation)
+        searchMessages[.xyRotation] = "Restored from analysis pack (\(results.count) hit(s))."
+        searchRunning[.xyRotation] = false
     }
 
     func selectedArchivedRecord() -> SpinLabDomain.ArchivedRecord? {
@@ -819,6 +870,23 @@ final class WorkbenchFeatureStore {
                         }
                     }
                     threeOmegaWorkspace.cachedSampleNumericDisplay = displayCache
+                case .xyRotation:
+                    xyRotationWorkspace.cachedSearchResults = result
+                    xyRotationWorkspace.lastLibraryRootPath = libraryRootPath
+                    // Cache numericDisplay for XY Rotation title template
+                    let xyUniqueSampleKeys = Set(result.map { $0.sampleKey })
+                    var xyDisplayCache: [String: [String: String]] = [:]
+                    for sk in xyUniqueSampleKeys {
+                        do {
+                            let nd = try await dataActor.lookupSampleNumericDisplay(
+                                libraryRootPath: libraryRootPath, sampleKey: sk
+                            )
+                            if !nd.isEmpty { xyDisplayCache[sk] = nd }
+                        } catch {
+                            print("[SpinLab][Workbench] numericDisplay lookup failed for \(sk): \(error)")
+                        }
+                    }
+                    xyRotationWorkspace.cachedSampleNumericDisplay = xyDisplayCache
                 }
                 searchMessages[wf] = result.isEmpty
                     ? "No files matched query: \(query)"
@@ -908,6 +976,9 @@ final class WorkbenchFeatureStore {
         case .threeOmega:
             threeOmegaWorkspace.cachedSearchResults = []
             _clearThreeOmegaTitleContext()
+        case .xyRotation:
+            xyRotationWorkspace.cachedSearchResults = []
+            xyRotationWorkspace.cachedSampleNumericDisplay = [:]
         }
         searchMessages[wf] = nil
         searchRunning[wf] = false

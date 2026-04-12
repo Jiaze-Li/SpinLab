@@ -69,7 +69,14 @@ final class InteractionSnapshotCoordinator {
                 threeOmegaRTSidecarPath: snapshot.threeOmegaRTSidecarPath,
                 threeOmegaFitRanges: snapshot.threeOmegaFitRanges,
                 threeOmegaPlotLegendPoints: snapshot.threeOmegaPlotLegendPoints,
-                aheTitleTemplate: snapshot.aheTitleTemplate
+                aheTitleTemplate: snapshot.aheTitleTemplate,
+                xyRotationPhiOffsets: snapshot.xyRotationPhiOffsets,
+                xyRotationActiveTab: snapshot.xyRotationActiveTab,
+                xyRotationTitleTemplate: snapshot.xyRotationTitleTemplate,
+                xyRotationStackOffset: snapshot.xyRotationStackOffset,
+                xyRotationCenterBaseline: snapshot.xyRotationCenterBaseline,
+                xyRotationLinearDetrend: snapshot.xyRotationLinearDetrend,
+                xyRotationPlotLegendPoints: snapshot.xyRotationPlotLegendPoints
             )
             snapshot.inboxWorkspaceByPendingID = inboxStore.pruneWorkspaceByValidPendingIDs(
                 snapshot.inboxWorkspaceByPendingID

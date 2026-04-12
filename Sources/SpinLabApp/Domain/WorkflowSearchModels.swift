@@ -8,6 +8,53 @@ struct WorkflowSearchQuery: Codable, Hashable, Sendable {
     }
 }
 
+// MARK: - Numeric search support
+
+/// Preferred display order for numeric fields. Aligned with Library UI.
+enum NumericFieldOrder {
+    static let preferred: [String] = ["厚度", "氧压", "温度", "能量", "电压", "磁场", "电阻"]
+}
+
+/// Unit suffix → canonical numeric field name mapping for search query parsing.
+enum NumericUnitMap {
+    static let entries: [(suffix: String, field: String)] = [
+        ("mj", "能量"),
+        ("mt", "氧压"),
+        ("c", "温度"),
+        ("ps", "厚度"),
+        ("kv", "电压"),
+    ]
+
+    /// Attempts to parse a raw token like "60mj" into (value, fieldName).
+    /// Returns nil if the token doesn't match any known numeric+unit pattern.
+    static func parse(_ rawToken: String) -> (value: Double, field: String)? {
+        let trimmed = rawToken
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: .punctuationCharacters)
+            .lowercased()
+        guard !trimmed.isEmpty else { return nil }
+        for entry in entries {
+            if trimmed.hasSuffix(entry.suffix) {
+                let numPart = String(trimmed.dropLast(entry.suffix.count))
+                if let value = Double(numPart), value != 0 {
+                    return (value, entry.field)
+                }
+            }
+        }
+        return nil
+    }
+
+    /// Default relative tolerance (±6%).
+    static let relativeTolerance: Double = 0.06
+    /// Minimum absolute tolerance floor.
+    static let absoluteToleranceFloor: Double = 1.0
+
+    /// Computes tolerance for a given value: max(|value| × 6%, 1.0).
+    static func tolerance(for value: Double) -> Double {
+        max(abs(value) * relativeTolerance, absoluteToleranceFloor)
+    }
+}
+
 struct WorkflowMeasurementSearchHit: Identifiable, Codable, Hashable, Sendable {
     var sidecarPath: String
     var measurementFilePath: String
