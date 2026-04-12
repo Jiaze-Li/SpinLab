@@ -1,8 +1,8 @@
 # XY Rotation Workflow (v4.2) — Implementation Plan
 
-状态：进行中（4.2.0–4.2.1 完成，4.2.2 部分完成，下一步 4.2.3）
+状态：4.2.0–4.2.4 已完成（可视化 + 持久化）；4.2.5–4.2.7 Fourier 分析部分延后，未来再做
 创建：2026-04-07
-更新：2026-04-10（对齐 4.1.11–4.1.19 基础设施，审计 WFS 连线缺口，拆分原 4.2.3 为可视化+持久化两步，后续顺延）
+更新：2026-04-12（4.2.0–4.2.5 完成，Fourier 相关迭代 4.2.5–4.2.7 标记为 deferred）
 
 ---
 
@@ -115,9 +115,9 @@ struct XYRotationAngleSweep: Codable, Hashable, Sendable, Identifiable {
 
 ---
 
-### 4.2.2 ✅/🔲 — Ingestion UseCase + Search 集成 + Workspace UI
+### 4.2.2 ✅ — Ingestion UseCase + Search 集成 + Workspace UI
 
-> **状态：** UI shell 和 sidecar backfill 已完成。`IngestXYRotationSelectionsUseCase` 和 `runAnalysis()` 尚未实现（Analyze 按钮仍为 TODO stub）。剩余部分合并到 4.2.3 一起完成。
+> **状态：** 全部完成。UI shell 和 sidecar backfill 在本迭代完成；IngestUseCase 和 runAnalysis 接线在 4.2.3 中完成。
 
 **已完成：**
 - `XYRotationWorkspaceView` — 完整双栏 UI（search section、file list、Analyze 按钮 shell、status area、PlotControls、右列 Result shell）
@@ -136,7 +136,7 @@ struct XYRotationAngleSweep: Codable, Hashable, Sendable, Identifiable {
 
 ---
 
-### 4.2.3 🔲 — Ingest UseCase + R(φ) Plot + φ Offset UI（可视化里程碑）
+### 4.2.3 ✅ — Ingest UseCase + R(φ) Plot + φ Offset UI（可视化里程碑）
 
 > **承接 4.2.2 未完成项：** `IngestXYRotationSelectionsUseCase` + `runAnalysis()` + Analyze 按钮接线。
 >
@@ -235,7 +235,7 @@ struct XYRotationAngleSweep: Codable, Hashable, Sendable, Identifiable {
 
 ---
 
-### 4.2.4 🔲 — Save to Library + Vault + InteractionSnapshot（持久化里程碑）
+### 4.2.4 ✅ — Save to Library + Vault + InteractionSnapshot（持久化里程碑）
 
 > **对齐 4.1 基础设施：** 本迭代整合 4.1.11 的 `ActiveChartProviding` + `SaveActiveChartToLibraryUseCase`、4.1.17 的 AnalysisPack/Vault save/load、4.1.18 的 related charts popover、4.1.11/19 的 InteractionSnapshot 持久化。
 
@@ -307,7 +307,11 @@ struct XYRotationAngleSweep: Codable, Hashable, Sendable, Identifiable {
 
 ---
 
-### 4.2.5 🔲 — Fourier Fitting（AMR + PHE 提取）+ Metric Persistence
+### 4.2.5 ⏸️ DEFERRED — Fourier Fitting（AMR + PHE 提取）+ Metric Persistence
+
+> **延后原因：** Fourier 分解分析功能（4.2.5–4.2.7）暂不实现，未来有需要时再继续。当前 4.2.0–4.2.4 已完成 XY Rotation 的完整可视化和持久化流程。
+>
+> **注意：** 当前版本号 v4.2.5 包含的是 4.2.3/4.2.4 阶段的 bugfix 和文档整理，不包含下述 Fourier 功能。
 
 **新建：**
 
@@ -328,7 +332,7 @@ struct XYRotationAngleSweep: Codable, Hashable, Sendable, Identifiable {
 
 ---
 
-### 4.2.6 🔲 — AMR/PHE vs T Plots（Tabs 2-3）
+### 4.2.6 ⏸️ DEFERRED — AMR/PHE vs T Plots（Tabs 2-3）
 
 **修改：**
 - `XYRotationPlotRenderer` (+80 行) — `renderAMRvsT()`, `renderPHEvsT()`
@@ -338,7 +342,7 @@ struct XYRotationAngleSweep: Codable, Hashable, Sendable, Identifiable {
 
 ---
 
-### 4.2.7 🔲 — Fourier Spectrum Tab + Polish
+### 4.2.7 ⏸️ DEFERRED — Fourier Spectrum Tab + Polish
 
 **修改：**
 - `XYRotationPlotRenderer` (+60 行) — `renderFourierSpectrum()` 柱状图
@@ -352,12 +356,12 @@ struct XYRotationAngleSweep: Codable, Hashable, Sendable, Identifiable {
 ```
 4.2.0 ✅ Scaffold (compile, sidebar visible)
   └─ 4.2.1 ✅ Data models + dual parsers + offset mechanism
-       └─ 4.2.2 ✅/🔲 Workspace UI done, IngestUseCase 未完成 → 移入 4.2.3
-            └─ 4.2.3  Ingest + R(φ) plot + offset UI + 交互  ← 可视化里程碑
-                 └─ 4.2.4  Save to Library + Vault + InteractionSnapshot  ← 持久化里程碑
-                      └─ 4.2.5  Fourier fit + metric persist
-                           └─ 4.2.6  AMR/PHE vs T tabs + stableKeyRank
-                                └─ 4.2.7  Spectrum tab + polish
+       └─ 4.2.2 ✅ Workspace UI + sidecar backfill (IngestUseCase 移入 4.2.3 完成)
+            └─ 4.2.3 ✅ Ingest + R(φ) plot + offset UI + 交互  ← 可视化里程碑
+                 └─ 4.2.4 ✅ Save to Library + Vault + InteractionSnapshot  ← 持久化里程碑
+                      └─ 4.2.5 ⏸️ Fourier fit + metric persist  ← DEFERRED
+                           └─ 4.2.6 ⏸️ AMR/PHE vs T tabs + stableKeyRank  ← DEFERRED
+                                └─ 4.2.7 ⏸️ Spectrum tab + polish  ← DEFERRED
 ```
 
 ---
@@ -388,13 +392,13 @@ struct XYRotationAngleSweep: Codable, Hashable, Sendable, Identifiable {
 |------|--------|-------------|-----------|
 | 4.2.0 ✅ | 4 | ~180 | 编译通过，sidebar 显示 XY Rotation |
 | 4.2.1 ✅ | 2 | ~250 | 双 parser + offset 解析 |
-| 4.2.2 ✅/🔲 | 0 | ~200 | Workspace UI shell（IngestUseCase 移入 4.2.3）|
-| 4.2.3 | 2 | ~500 | Ingest UseCase + R(φ) 交互图 + offset UI + title template + WFS numericDisplay 连线 |
-| 4.2.4 | 1 | ~350 | Save to Library + Vault save/load + Related Charts + InteractionSnapshot + WFS vault/libraryRoot 连线 |
-| 4.2.5 | 1 | ~280 | Fourier fit AMR/PHE + metric persist + Vault result 扩展 |
-| 4.2.6 | 0 | ~170 | AMR/PHE vs T tabs + stableKeyRank |
-| 4.2.7 | 0 | ~200 | Spectrum tab + polish |
-| **合计** | **10** | **~2,130** | 4-tab XY Rotation workflow，完整接入 4.1 基础设施 |
+| 4.2.2 ✅ | 0 | ~200 | Workspace UI shell + sidecar backfill |
+| 4.2.3 ✅ | 2 | ~500 | Ingest UseCase + R(φ) 交互图 + offset UI + Center/Detrend + title template |
+| 4.2.4 ✅ | 1 | ~350 | Save to Library + Vault save/load + Related Charts + InteractionSnapshot |
+| 4.2.5 ⏸️ | 1 | ~280 | Fourier fit AMR/PHE + metric persist（**DEFERRED — 未来再做**） |
+| 4.2.6 ⏸️ | 0 | ~170 | AMR/PHE vs T tabs + stableKeyRank（**DEFERRED**） |
+| 4.2.7 ⏸️ | 0 | ~200 | Spectrum tab + polish（**DEFERRED**） |
+| **已完成** | **9** | **~1,480** | 2-tab XY Rotation workflow（Rxx/Rxy vs φ），完整可视化 + 持久化 |
 
 ---
 
