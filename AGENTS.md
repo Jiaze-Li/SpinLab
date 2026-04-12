@@ -415,7 +415,14 @@ Codex review gate (required):
   - Modifies CLAUDE.md rules or docs/ architecture specs
 - Exception: changes that are purely mechanical and contained (typo fixes, single-file edits within one module, documentation content updates with no new rules) do not require Codex review.
 
+Roadmap reference (required):
+- Active roadmap: `docs/V5_ROADMAP.md`.
+- When discovering a bug or tech debt during development, append it to the matching version segment as an unchecked item.
+- When unsure which segment, ask the user.
+- Do not reorder or reprioritize existing items unless the user instructs.
+
 Documentation directory structure:
+- `docs/V5_ROADMAP.md` — Active 5.x roadmap (version segments as collection bins).
 - `docs/philosophy.md` — Developer philosophy, habits, and collaboration preferences.
 - `docs/known_issues.md` — Intentional behaviors, documentation inconsistencies, deferred items.
 - `docs/features.md` — Feature invariants and test status for all areas (Inbox/Library/Workbench/Shared).
