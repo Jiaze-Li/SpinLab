@@ -40,7 +40,7 @@ If you encounter `"A"` or `"B"` as workflowID in sidecar files, persisted JSON, 
 Instruction priority policy (required):
 - User explicit instructions are always the highest-priority requirement for implementation behavior.
 - Do not introduce or apply self-defined rules unless the user explicitly requests them.
-- Do not modify docs (including UI/design rules) unless the user explicitly requests doc updates — exception: Knowledge accumulation closeout rule (see below) permits updating `docs/features/`, `docs/devlog/`, `docs/philosophy.md`, and `docs/known_issues.md` as part of the session closeout judgment tree after substantive code changes.
+- Do not modify docs (including UI/design rules) unless the user explicitly requests doc updates — exception: Knowledge accumulation closeout rule (see below) permits updating `docs/features.md`, `docs/philosophy.md`, `docs/known_issues.md`, `docs/history/`, and `docs/README.md` as part of the session closeout judgment tree after substantive code changes.
 
 ---
 
