@@ -1,5 +1,14 @@
 # Docs Index
 
+## Root-level (知识积累 & 路线图)
+
+| Document | Purpose | Status |
+|---|---|---|
+| `V5_ROADMAP.md` | Active 5.x roadmap — version segments as collection bins. | active |
+| `philosophy.md` | Developer philosophy, habits, collaboration preferences. | active |
+| `known_issues.md` | Intentional behaviors, documentation inconsistencies, deferred items. | active |
+| `features.md` | Feature invariants and test status for all areas (Inbox/Library/Workbench/Shared). | active |
+
 ## architecture (系统设计 & 模块技术参考)
 
 | Document | Purpose | Status |
@@ -12,7 +21,7 @@
 | `architecture/rules/RULE_SCHEMA_VERSIONING.md` | Rule schema version policy and migration strategy. | active |
 | `architecture/library/LIBRARY_ARCHITECTURE_AUDIT.md` | Library feature audit: layer map, redundancy analysis, consolidation plan. | active |
 
-## history (开发历史线 & 技术债务)
+## history (开发历史线 & 开发日志)
 
 | Document | Purpose | Status |
 |---|---|---|
@@ -23,6 +32,14 @@
 | `history/v2/` | V2 execution plan. | done |
 | `history/v3/` | V3 execution plans, acceptance checklists, iteration addendums. | done |
 | `history/v4/` | V4 iteration plans (3Omega/AHE, XY Rotation). | active |
+
+### Development Log (事件驱动开发日志)
+
+Entries added on version bumps, feature changes, or architecture adjustments.
+
+| Version | Event | File |
+|---------|-------|------|
+| v5.0.0 | Knowledge accumulation system setup | `history/v5.0.0_doc_system.md` |
 
 ## specs (产品/数据/UI 规则)
 
@@ -39,6 +56,7 @@
 
 ## Notes
 - Architecture docs: system design and per-module technical reference.
-- History docs: version plans, iteration records, tech debt tracking.
+- History docs: version plans, iteration records, event-driven development logs.
 - Specs: product rules, data contracts, UI standards.
+- Root-level docs: living knowledge accumulation (philosophy, invariants, known issues).
 - Legacy specs are kept under `specs/archive/`.

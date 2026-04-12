@@ -40,7 +40,7 @@ If you encounter `"A"` or `"B"` as workflowID in sidecar files, persisted JSON, 
 Instruction priority policy (required):
 - User explicit instructions are always the highest-priority requirement for implementation behavior.
 - Do not introduce or apply self-defined rules unless the user explicitly requests them.
-- Do not modify docs (including UI/design rules) unless the user explicitly requests doc updates.
+- Do not modify docs (including UI/design rules) unless the user explicitly requests doc updates — exception: Knowledge accumulation closeout rule (see below) permits updating `docs/features.md`, `docs/philosophy.md`, `docs/known_issues.md`, `docs/history/`, and `docs/README.md` as part of the session closeout judgment tree after substantive code changes.
 
 ---
 
@@ -381,3 +381,49 @@ Communication/reporting policy (required):
 - Avoid raw shorthand-only status lines like `pushed branch`, `PR created` without context.
 - Preferred style example:
   - "代码已经推到远端分支 `xxx`，并创建了 PR：`<url>`。"
+
+---
+
+Knowledge accumulation policy (required):
+
+Session startup rule:
+- `[HARD][must]` On entering the project, read `docs/philosophy.md` and `docs/features.md` to establish baseline context.
+- `[DIRECTION][should]` When the task involves architecture changes, also read relevant devlog entries from `docs/history/`.
+- `[DIRECTION][should]` Check `docs/known_issues.md` when modifying code in an area flagged there.
+
+Session closeout rule (event-driven — only when substantive changes occurred):
+- `[HARD][must]` After code changes, walk through this judgment tree:
+  1. Did user-visible feature behavior change or get added? → Update the relevant section in `docs/features.md`.
+  2. Was there a version bump or significant feature/architecture event? → Add a devlog entry in `docs/history/` and update the Development Log table in `docs/README.md`.
+  3. Did the user express a new development preference or design philosophy? → Update `docs/philosophy.md`.
+  4. Were known issues resolved or new ones discovered? → Update `docs/known_issues.md`.
+  5. Is there a cross-session-relevant user preference? → Write to memory system.
+- Skip steps that do not apply. Do not mechanically execute all steps every time.
+
+Change impact rule:
+- `[HARD][must]` Before modifying code, check `docs/features.md` for **invariants** listed under the affected workflow. If a proposed change would violate an invariant, stop and flag it to the user before proceeding.
+- `[DIRECTION][should]` After completing a code change, verify that no invariant in `docs/features.md` was broken by the change.
+
+Codex review gate (required):
+- `[HARD][must]` For non-trivial implementation plans and architecture changes, call Codex as co-designer and reviewer. Share the user's thinking, requirements, and the proposed solution. Let both AI models co-design and cross-check.
+- `[HARD][must]` Multiple rounds of adversarial review are permitted and encouraged when the plan is complex. Continue until both sides converge.
+- `[HARD][must]` Do not execute a plan that Codex has flagged with unresolved objections.
+- Trigger criteria: a change requires Codex review if it meets any of these conditions:
+  - Touches 2+ architectural modules or crosses layer boundaries
+  - Introduces a new pattern, protocol, or structural convention
+  - Changes persistence format or domain model shape
+  - Modifies CLAUDE.md rules or docs/ architecture specs
+- Exception: changes that are purely mechanical and contained (typo fixes, single-file edits within one module, documentation content updates with no new rules) do not require Codex review.
+
+Roadmap reference (required):
+- Active roadmap: `docs/V5_ROADMAP.md`.
+- When discovering a bug or tech debt during development, append it to the matching version segment as an unchecked item.
+- When unsure which segment, ask the user.
+- Do not reorder or reprioritize existing items unless the user instructs.
+
+Documentation directory structure:
+- `docs/V5_ROADMAP.md` — Active 5.x roadmap (version segments as collection bins).
+- `docs/philosophy.md` — Developer philosophy, habits, and collaboration preferences.
+- `docs/known_issues.md` — Intentional behaviors, documentation inconsistencies, deferred items.
+- `docs/features.md` — Feature invariants and test status for all areas (Inbox/Library/Workbench/Shared).
+- `docs/history/<version>_<event>.md` — Event-driven development log entries (indexed in `docs/README.md`).

@@ -46,7 +46,7 @@ This file supersedes legacy `UI_RULES.md` and is the active UI rule contract.
 - Implementation: label HStack must include `Spacer()` + `.frame(maxWidth: .infinity)` + `.contentShape(Rectangle())` to extend the tappable region across the full row width.
 
 ## Column layout (v4.1.19+)
-- All area views (Inbox / Workbench / Library) must use `AppColumnShell` for两列布局，不得直接写 HSplitView + 硬编码 frame。
+- All area views (Inbox / Workbench / Library) must use `AppColumnShell` for双栏布局（sidebar + content pane），不得直接写 HSplitView + 硬编码 frame。
 - 列宽约束集中定义在 `ColumnDefaults` 的静态属性中。
 - 左列宽度通过 `@AppStorage` 持久化，用户拖拽后关闭 app 重启恢复。
 - `WorkflowWorkspaceShell` 是 `AppColumnShell` 的薄封装，Workbench 子视图通过它接入。

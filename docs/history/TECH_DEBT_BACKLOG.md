@@ -11,7 +11,7 @@ Items are ordered by impact, not urgency. See `TECH_DEBT_EXECUTION_LOG.md` for c
 
 ### Library layer consolidation
 
-**Audit:** `docs/architecture/LIBRARY_ARCHITECTURE_AUDIT.md` (v4.2.5)
+**Audit:** `docs/architecture/library/LIBRARY_ARCHITECTURE_AUDIT.md` (v4.2.5)
 
 **Problem:**
 Library feature has 12-layer call depth for a single action, 3 passthrough layers (ViewModel, Facade, CommandCoordinator), 3 overlapping mutation services, and a 1661-line FeatureStore mixing 5+ concerns.
