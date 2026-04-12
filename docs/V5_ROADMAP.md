@@ -29,14 +29,28 @@
 
 ## 5.1.x — 跨区域技术债 + 基础设施
 
-### 5.1.0
-- [ ] 各大项开始前做 scope assessment（属性数量、调用点、迁移策略）
-- [ ] AppState 分解：Library 域行为迁移到 LibraryFeatureStore `[来源: TECH_DEBT_BACKLOG]`
-- [ ] Workflow ID 别名硬编码消除：SearchWorkflowMeasurementsUseCase if-else → 数据驱动 `[来源: TECH_DEBT_BACKLOG]`
-- [ ] 废弃 condition pattern 字段移除（temperaturePattern/currentPattern/fieldPattern） `[来源: TECH_DEBT_BACKLOG]`
-- [ ] 旧 CodingKeys 迁移码清理（PendingImportConfirmationDraft） `[来源: TECH_DEBT_BACKLOG]`
-- [ ] 错误处理体系统一审查
-- [ ] 测试基础设施：覆盖率基线、关键路径测试补全
+### 5.1.0 — Assessment + 低风险速清
+- [ ] AppState 分解 scope assessment：清点 Library 域属性/方法、依赖图、迁移边界和顺序
+- [ ] Workflow ID 别名硬编码消除：SearchWorkflowMeasurementsUseCase if-else → 数据驱动 `[来源: TECH_DEBT_BACKLOG]` `[~1h]`
+- [ ] try? audit 剩余项：LibraryStore createDirectory 和 read paths `[来源: TECH_DEBT_EXECUTION_LOG Round E]`
+- [ ] 废弃字段零使用确认（grep + 运行时验证，不删代码）：temperaturePattern/currentPattern/fieldPattern `[来源: TECH_DEBT_BACKLOG]`
+- [ ] 旧 CodingKeys 发布周期确认：PendingImportConfirmationDraft + RoutePlan.status decode path
+- [ ] 同步更新 TECH_DEBT_EXECUTION_LOG
+
+### 5.1.1 — AppState 分解（主体）
+- [ ] Library 域行为从 AppState 迁移到 LibraryFeatureStore `[来源: TECH_DEBT_BACKLOG]`
+- [ ] 按 assessment 分步执行，每步独立验证
+- [ ] 验收：CLAUDE.md temporary exceptions 的 Library 条目可缩减或移除
+
+### 5.1.2 — 废弃代码清理 + 错误处理
+- [ ] 废弃 condition pattern 字段移除（如 5.1.0 确认零使用） `[来源: TECH_DEBT_BACKLOG]`
+- [ ] 旧 CodingKeys 迁移码清理（如发布周期条件满足） `[来源: TECH_DEBT_BACKLOG]`
+- [ ] RoutePlan.status decode path 清理（同上条件）
+- [ ] 错误处理体系统一审查（在 AppState 分解完成后做更准确）
+
+### 5.1.3 — 测试基础设施
+- [ ] 覆盖率基线建立
+- [ ] 关键路径测试补全（优先补分解后的 FeatureStore 测试）
 
 ---
 
