@@ -30,6 +30,7 @@
 ## 5.1.x — 跨区域技术债 + 基础设施
 
 ### 5.1.0
+- [ ] 各大项开始前做 scope assessment（属性数量、调用点、迁移策略）
 - [ ] AppState 分解：Library 域行为迁移到 LibraryFeatureStore `[来源: TECH_DEBT_BACKLOG]`
 - [ ] Workflow ID 别名硬编码消除：SearchWorkflowMeasurementsUseCase if-else → 数据驱动 `[来源: TECH_DEBT_BACKLOG]`
 - [ ] 废弃 condition pattern 字段移除（temperaturePattern/currentPattern/fieldPattern） `[来源: TECH_DEBT_BACKLOG]`
@@ -82,4 +83,4 @@ _(未分配)_
 ## 5.7.x — Docs 专项
 
 ### 5.7.0
-_(待收集)_
+- [ ] CLAUDE.md 瘦身：把稳定规则下沉到 specs，CLAUDE.md 只保留高频约束
