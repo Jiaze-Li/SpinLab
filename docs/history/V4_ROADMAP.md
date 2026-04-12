@@ -19,7 +19,7 @@
 4.0  ✅  架构 & 脚手架（AMR/PHE 延续 + 3ω 全部文件就位，swift build 通过）
 4.1  ✅  3ω AHE workflow（4.1.0–4.1.17，done 2026-04-10）
      ✅  架构改进 & UI shell 统一化（4.1.18–4.1.19，done 2026-04-10）
-4.2  🔲  XY Rotation workflow
+4.2  ✅  XY Rotation workflow（4.2.0–4.2.4 done，可视化+持久化完成；Fourier 分析 4.2.5–4.2.7 deferred）
 4.3  🔲  RT workflow
 4.4  🔲  MR workflow
 ```
