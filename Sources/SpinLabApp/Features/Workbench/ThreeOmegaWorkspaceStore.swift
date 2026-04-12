@@ -794,6 +794,7 @@ final class ThreeOmegaWorkspaceStore {
         analysisTask = nil
         scalingTask?.cancel()
         scalingTask = nil
+        isAnalyzing = false
 
         guard let vault, let pack = vault.get(id: id) else {
             analysisMessage = "Pack not found."
@@ -873,6 +874,11 @@ final class ThreeOmegaWorkspaceStore {
         cachedInputFiles = pack.filePaths
         cachedSampleKeys = pack.sampleKeys
         cachedRTFilePath = config.rtFilePath
+
+        // Restore library root from vault so persistToLibrary works without a prior search
+        if lastLibraryRootPath.isEmpty, let root = vault.libraryRootPath {
+            lastLibraryRootPath = root
+        }
 
         // Set active pack
         activePackID = id

@@ -14,6 +14,9 @@ final class AnalysisVault {
     /// Root directory for pack files. Set via `configurePersistence(libraryRootPath:)`.
     @ObservationIgnored private var persistenceBaseURL: URL?
 
+    /// The library root path that was used to configure persistence, if any.
+    @ObservationIgnored private(set) var libraryRootPath: String?
+
     @ObservationIgnored private static let encoder: JSONEncoder = {
         let e = JSONEncoder()
         e.dateEncodingStrategy = .iso8601
@@ -35,6 +38,7 @@ final class AnalysisVault {
         let baseURL = URL(fileURLWithPath: libraryRootPath)
             .appendingPathComponent("_spinlab/analysis_packs", isDirectory: true)
         guard baseURL != persistenceBaseURL else { return }
+        self.libraryRootPath = libraryRootPath
         persistenceBaseURL = baseURL
         packs = [:]
         _loadAllFromDisk()

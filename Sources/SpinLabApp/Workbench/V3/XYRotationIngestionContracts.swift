@@ -10,7 +10,10 @@ enum XYRotationFileKind: String, Codable, Hashable, Sendable {
 
 /// One angle-sweep at a given temperature.
 struct XYRotationAngleSweep: Codable, Hashable, Sendable, Identifiable {
-    var id: String { "\(stem)_\(String(format: "%.1f", temperatureK))K" }
+    var id: String {
+        let pathHash = measurementFilePath.isEmpty ? stem : String(measurementFilePath.hashValue)
+        return "\(pathHash)_\(String(format: "%.1f", temperatureK))K"
+    }
 
     var temperatureK: Double
     var stem: String
