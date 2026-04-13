@@ -66,7 +66,19 @@
 ## 5.3.x — Workbench 逻辑/架构
 
 ### 5.3.0
-_(待收集)_
+_(预留)_
+
+### 5.3.1 — Plot Shell 能力扩展
+- [ ] 绘图模式扩展：支持多种渲染模式（连线、散点、点线等），用户可选择 fit 数据的绘图模式
+- [ ] 图表右键菜单 Copy PNG：analyze 出图后可右键复制图片到剪贴板
+- [ ] 图表字号可调：title、x/y axis title、x/y tick label、legend 的 font size 可通过右键或点击交互选择（当前硬编码）
+- [ ] Tick 密度可调：点击 tick 区域可选择 x/y 轴 tick 密度
+- [ ] 图表 title 取消加粗（当前硬编码 bold）
+- [ ] [XY Rotation] 可选辅助线：tickbox 控制在 x=180 处绘制灰色虚线
+- [ ] [Bug] x/y axis title 对齐修正：应居中于 tick 区域（画板），而非整个 plot 视图
+- [ ] [Bug] y axis title 缺少括号内容：stacked 模式下 y title 应显示完整标注（含括号内的 "stacked" 等信息）
+- [ ] [XY Rotation] 默认 y title 修改：Rxy tab → "Rxy (Ω)"，Rxx tab → "Rxx (Ω)"（当前 Rxy tab 显示为 "Rxy − R_AHE (Ω, stacked)"）
+- [ ] Legend 默认值动态化：legend 内容根据 input sample 动态生成，取代当前硬编码（具体规则待定）
 
 ---
 
