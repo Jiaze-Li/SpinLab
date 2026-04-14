@@ -46,7 +46,7 @@ private struct ThreeOmegaLeftColumn: View {
                     .environment(appState)
 
                 // Geometry panel 只在 Fig 5b tab 时显示
-                if appState.workbench.threeOmegaWorkspace.activeTab == .scaling {
+                if appState.workbench.threeOmegaWorkspace.tabs.activeTab == .scaling {
                     ThreeOmegaGeometryPanel()
                         .environment(appState)
                 }
@@ -151,21 +151,23 @@ private struct ThreeOmegaPlotControlsPanel: View {
         @Bindable var store = appState.workbench.threeOmegaWorkspace
 
         WorkbenchStandardPlotControls(
-            activeTab: $store.activeTab,
+            activeTab: $store.tabs.activeTab,
             tabLabel: { $0.rawValue },
             stackOffset: $store.stackOffsetMultiplier,
             stackRange: 0...1.6,
             minGapFraction: $store.minGapFraction,
-            showGrid: $store.showPlotGrid,
+            showGrid: $store.tabs.showPlotGrid,
             titleTemplate: $store.titleTemplate,
             numericDisplayCache: store.cachedSampleNumericDisplay,
+            seriesRenderMode: $store.tabs.seriesRenderMode,
+            chartStyleOverrides: $store.tabs.chartStyleOverrides,
             onChange: {
                 store.rerenderForStyleChange()
                 appState.flushInteractionSnapshotNow()
             }
         ) {
             // Row 3: RAHE method picker + Add Analysis (visible on RAHE tabs only)
-            if store.activeTab == .rahe1omegaVsT || store.activeTab == .rahe3omegaVsT {
+            if store.tabs.activeTab == .rahe1omegaVsT || store.tabs.activeTab == .rahe3omegaVsT {
                 HStack {
                     Picker("AHE Method", selection: Binding<ThreeOmegaV3Method>(
                         get: { store.activeRAHEMethod ?? .highField },
@@ -467,9 +469,9 @@ private struct ThreeOmegaRightColumn: View {
 
 
                 WorkbenchPlotCanvas(
-                    imageData: _activeImageData(store),
-                    layout: store.plotLayouts[store.activeTab],
-                    seriesLabelOverrides: store.plotSeriesLabelOverrides[store.activeTab] ?? [:],
+                    imageData: store.tabs.activeImageData,
+                    layout: store.tabs.activeLayout,
+                    seriesLabelOverrides: store.tabs.activeSeriesLabelOverrides,
                     onLegendDrag: { pt in
                         store.updateLegendPoint(pt)
                         appState.flushInteractionSnapshotNow()
@@ -480,14 +482,23 @@ private struct ThreeOmegaRightColumn: View {
                     onEditLegendLabel: { idx, label in
                         store.updateSeriesLabel(index: idx, newLabel: label)
                     },
-                    relatedCharts: store.relatedCharts(for: store.activeTab),
+                    onFontSizeChange: { key, size in
+                        store.tabs.chartStyleOverrides[key] = "\(Int(size))"
+                        store.rerenderForStyleChange()
+                    },
+                    onStyleOverrideChange: { key, value in
+                        store.tabs.chartStyleOverrides[key] = value
+                        store.rerenderForStyleChange()
+                    },
+                    chartStyleOverrides: store.tabs.chartStyleOverrides,
+                    relatedCharts: store.relatedCharts(for: store.tabs.activeTab),
                     libraryRootURL: store.lastLibraryRootPath.isEmpty
                         ? nil
                         : URL(fileURLWithPath: store.lastLibraryRootPath)
                 )
 
                 // Scaling Law fit results (only on scaling tab)
-                if store.activeTab == .scaling, let sr = store.scalingResult {
+                if store.tabs.activeTab == .scaling, let sr = store.scalingResult {
                     ThreeOmegaScalingResultPanel(result: sr)
                 }
 
@@ -501,17 +512,6 @@ private struct ThreeOmegaRightColumn: View {
         }
     }
 
-    private func _activeImageData(_ store: ThreeOmegaWorkspaceStore) -> Data? {
-        switch store.activeTab {
-        case .fieldSweep1omega: return store.plotR1omega
-        case .fieldSweep3omega: return store.plotR3omega
-        case .rahe1omegaVsT:    return store.plotRAHE1omegaVsT
-        case .rahe3omegaVsT:    return store.plotRAHE3omegaVsT
-        case .hcVsT:            return store.plotHcvsT
-        case .rtCurve:          return store.plotRT
-        case .scaling:          return store.plotScaling
-        }
-    }
 }
 
 // MARK: - Warning log panel

@@ -22,13 +22,9 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
     var minGapFraction: Double
     var showPlotGrid: Bool
     var plotLegendAnchor: String
-    var plotTitleOverride: String
 
-    // --- Per-tab settings (keyed by stableKey for Codable) ---
-    var plotLegendPoints: [String: CGPointCodable]
-    var plotSeriesLabelOverrides: [String: [Int: String]]
-    var plotXLabelOverrides: [String: String]
-    var plotYLabelOverrides: [String: String]
+    // --- Per-tab display states (keyed by stableKey for Codable) ---
+    var tabStates: [String: TabRenderState]
 
     // --- Search state ---
     var cachedSearchResults: [WorkflowMeasurementSearchHit]
@@ -38,19 +34,6 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
     var searchQueryText: String
 }
 
-/// CGPoint wrapper for Codable.
-struct CGPointCodable: Codable, Hashable, Sendable {
-    var x: Double
-    var y: Double
-
-    init(_ point: CGPoint) {
-        self.x = point.x
-        self.y = point.y
-    }
-
-    var cgPoint: CGPoint { CGPoint(x: x, y: y) }
-}
-
 // MARK: - ThreeOmegaPackResult
 
 /// The analysis output snapshot.
@@ -58,3 +41,5 @@ struct ThreeOmegaPackResult: Codable, Hashable, Sendable {
     var ingestionResult: ThreeOmegaIngestionResult
     var scalingResult: ThreeOmegaScalingResult?
 }
+
+extension ThreeOmegaPackConfig: SearchQueryTextInjectable {}

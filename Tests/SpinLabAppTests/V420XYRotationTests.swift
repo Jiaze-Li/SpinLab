@@ -133,11 +133,12 @@ struct V420XYRotationTests {
             stackOffsetMultiplier: 0.5,
             minGapFraction: 0.15,
             showPlotGrid: true,
-            plotTitleOverride: nil,
-            plotXLabelOverride: nil,
-            plotYLabelOverride: "Custom Y",
-            plotLegendPoints: [:],
-            plotSeriesLabelOverrides: [0: "80 K custom"],
+            tabStates: [
+                XYRotationWorkbenchTab.rxxVsPhi.rawValue: TabRenderState(
+                    yLabelOverride: "Custom Y",
+                    seriesLabelOverrides: [0: "80 K custom"]
+                )
+            ],
             cachedSearchResults: [],
             selectedSearchResultIDs: ["id1"],
             searchQueryText: "xy test"
