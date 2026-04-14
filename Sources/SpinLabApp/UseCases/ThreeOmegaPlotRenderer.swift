@@ -21,6 +21,8 @@ struct ThreeOmegaPlotRenderer {
     var xLabelOverride: String = ""
     var yLabelOverride: String = ""
     var seriesLabelOverrides: [Int: String] = [:]
+    var seriesRenderMode: SeriesRenderMode = .line
+    var chartStyleOverrides: [String: String] = [:]
 
     private let defaultOptions = WorkbenchChartRenderer.Options()
 
@@ -61,7 +63,7 @@ struct ThreeOmegaPlotRenderer {
                 y: sweep.r1omega.map { $0 + offset }
             )
         }.reversed() as [WorkbenchPlotSeries]
-        let yLabel = stackOffsetMultiplier > 0 ? "R(1ω) (Ω, stacked)" : "R(1ω) (Ω)"
+        let yLabel = "R(1ω) (Ω)"
         var payload = WorkbenchPlotPayload(
             workflowID: "3w",
             workflowDisplayName: "3w",
@@ -89,7 +91,7 @@ struct ThreeOmegaPlotRenderer {
                 y: sweep.r3omega.map { $0 + offset }
             )
         }.reversed() as [WorkbenchPlotSeries]
-        let yLabel = stackOffsetMultiplier > 0 ? "R(3ω) (Ω, stacked)" : "R(3ω) (Ω)"
+        let yLabel = "R(3ω) (Ω)"
         var payload = WorkbenchPlotPayload(
             workflowID: "3w",
             workflowDisplayName: "3w",
@@ -302,30 +304,25 @@ struct ThreeOmegaPlotRenderer {
         payload: inout WorkbenchPlotPayload,
         options: WorkbenchChartRenderer.Options? = nil
     ) -> (Data?, WorkbenchPlotLayout?) {
-        let baseOpts = options ?? defaultOptions
-        if showGrid { payload.styleParams["showGrid"] = "true" }
-        if !legendAnchor.isEmpty { payload.styleParams["legendAnchor"] = legendAnchor }
-        if let pt = legendPoint {
-            payload.styleParams["legendX"] = "\(pt.x)"
-            payload.styleParams["legendY"] = "\(pt.y)"
-        }
-        // Apply display-only overrides (mirrors AHEWorkspaceStore pattern)
-        if !titleOverride.isEmpty { payload.title = titleOverride }
-        if !xLabelOverride.isEmpty { payload.axisMapping.xField = xLabelOverride }
-        if !yLabelOverride.isEmpty { payload.axisMapping.yField = yLabelOverride }
-        // Resolve options (dynamic padding + maxYTickLabelWidth) — shared by layout and renderer.
-        let opts = WorkbenchChartRenderer().resolvedOptions(payload: payload, base: baseOpts)
-        // Compute layout BEFORE series label overrides so legendRow.originalLabel
-        // is the stable pre-override key used by plotSeriesLabelOverrides.
-        let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: legendPoint)
-        if !seriesLabelOverrides.isEmpty {
-            payload.series = payload.series.enumerated().map { i, s in
-                guard let custom = seriesLabelOverrides[i] else { return s }
-                var copy = s; copy.label = custom; return copy
-            }
-        }
-        let data = try? WorkbenchChartRenderer().renderPNG(payload: payload, options: opts)
-        return (data, layout)
+        var patch: [String: String] = [:]
+        if showGrid { patch["showGrid"] = "true" }
+        if !legendAnchor.isEmpty { patch["legendAnchor"] = legendAnchor }
+
+        let input = WorkbenchRenderPipeline.Input(
+            payload: payload,
+            baseOptions: options ?? defaultOptions,
+            legendPoint: legendPoint,
+            seriesRenderMode: seriesRenderMode,
+            chartStyleOverrides: chartStyleOverrides,
+            seriesLabelOverrides: seriesLabelOverrides,
+            titleOverride: titleOverride,
+            xLabelOverride: xLabelOverride,
+            yLabelOverride: yLabelOverride,
+            styleParamsPatch: patch
+        )
+        guard let output = try? WorkbenchRenderPipeline.render(input) else { return (nil, nil) }
+        payload = output.manifestPayload
+        return (output.imageData, output.layout)
     }
 
     /// Computes chart height for stacked waterfall plots.

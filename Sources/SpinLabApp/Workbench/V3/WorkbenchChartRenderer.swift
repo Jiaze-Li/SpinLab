@@ -49,7 +49,7 @@ struct WorkbenchChartRenderer {
 
     // MARK: - Public
 
-    func renderPNG(payload: WorkbenchPlotPayload, options: Options = .init()) throws -> Data {
+    func renderPNG(payload: WorkbenchPlotPayload, options: Options = .init(), style: WorkbenchChartStyle = .init()) throws -> Data {
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
         guard let ctx = CGContext(
@@ -62,7 +62,7 @@ struct WorkbenchChartRenderer {
             bitmapInfo: bitmapInfo.rawValue
         ) else { throw RendererError.contextCreationFailed }
 
-        drawCanvas(in: ctx, payload: payload, options: options)
+        drawCanvas(in: ctx, payload: payload, options: options, style: style)
 
         guard let cgImage = ctx.makeImage() else { throw RendererError.imageCreationFailed }
 
@@ -78,9 +78,9 @@ struct WorkbenchChartRenderer {
     // MARK: - Shared options resolution (pure function)
 
     /// Measures y-tick label widths and adjusts paddingLeft + maxYTickLabelWidth.
-    /// Pure function: depends only on payload + base, no side effects.
+    /// Pure function: depends only on payload + base + style, no side effects.
     /// Returns base unchanged when data is empty.
-    func resolvedOptions(payload: WorkbenchPlotPayload, base: Options) -> Options {
+    func resolvedOptions(payload: WorkbenchPlotPayload, base: Options, style: WorkbenchChartStyle = .init()) -> Options {
         var opts = base
         let allY = payload.series.flatMap(\.y)
         guard !allY.isEmpty else { return opts }
@@ -89,11 +89,11 @@ struct WorkbenchChartRenderer {
         let yRawSpan = yRawMax == yRawMin ? 1.0 : yRawMax - yRawMin
         let preYMin = yRawMin - yRawSpan * 0.05
         let preYMax = yRawMax + yRawSpan * 0.05
-        let (preYTicks, preYStep) = niceTicks(min: preYMin, max: preYMax, targetCount: 5)
+        let (preYTicks, preYStep) = niceTicks(min: preYMin, max: preYMax, targetCount: style.tickTargetY)
         let black = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
         let maxYLabelW = preYTicks.map { tick -> CGFloat in
             let label = formatTick(tick, step: preYStep)
-            let line = makeLine(text: label, size: 19, bold: false, color: black)
+            let line = makeLine(text: label, size: style.tickLabelFontSize, bold: false, color: black)
             return CTLineGetBoundsWithOptions(line, []).width
         }.max() ?? 0
 
@@ -106,8 +106,8 @@ struct WorkbenchChartRenderer {
 
     // MARK: - Canvas layout
 
-    private func drawCanvas(in ctx: CGContext, payload: WorkbenchPlotPayload, options: Options) {
-        let opts = resolvedOptions(payload: payload, base: options)
+    private func drawCanvas(in ctx: CGContext, payload: WorkbenchPlotPayload, options: Options, style: WorkbenchChartStyle) {
+        let opts = resolvedOptions(payload: payload, base: options, style: style)
         let w = CGFloat(opts.width)
         let h = CGFloat(opts.height)
 
@@ -129,14 +129,14 @@ struct WorkbenchChartRenderer {
             legendNormalizedPoint = CGPoint(x: lx, y: ly)
         }
         let layout = WorkbenchPlotLayout.compute(
-            options: opts, payload: payload, legendPoint: legendNormalizedPoint
+            options: opts, payload: payload, legendPoint: legendNormalizedPoint, style: style
         )
 
         // Title
         let title = payload.title.isEmpty ? payload.workflowDisplayName : payload.title
         drawCentered(ctx, text: title,
                      at: layout.titleCenter,
-                     size: 25, bold: true,
+                     size: style.titleFontSize, bold: style.titleBold,
                      color: CGColor(red: 0, green: 0, blue: 0, alpha: 1))
 
         let allX = payload.series.flatMap(\.x)
@@ -173,14 +173,29 @@ struct WorkbenchChartRenderer {
             )
         }
 
-        let (xTicks, xStep) = niceTicks(min: xMin, max: xMax, targetCount: 6)
-        let (yTicks, yStep) = niceTicks(min: yMin, max: yMax, targetCount: 5)
+        let (xTicks, xStep) = style.xTickStep.map { fixedTicks(min: xMin, max: xMax, step: $0) }
+            ?? niceTicks(min: xMin, max: xMax, targetCount: style.tickTargetX)
+        let (yTicks, yStep) = style.yTickStep.map { fixedTicks(min: yMin, max: yMax, step: $0) }
+            ?? niceTicks(min: yMin, max: yMax, targetCount: style.tickTargetY)
 
         // Grid lines aligned with ticks (opt-in via styleParams["showGrid"] = "true")
         if payload.styleParams["showGrid"] == "true" {
             drawGrid(ctx, plotRect: plotRect,
                      xTicks: xTicks, yTicks: yTicks,
                      xMin: xMin, xSpan: xSpan, yMin: yMin, ySpan: ySpan)
+        }
+
+        // Auxiliary vertical line (e.g. x=180 for XY Rotation)
+        if let auxXStr = payload.styleParams["auxVerticalX"], let auxX = Double(auxXStr),
+           auxX > xMin, auxX < xMax {
+            let screenX = plotRect.minX + CGFloat((auxX - xMin) / xSpan) * plotRect.width
+            ctx.setStrokeColor(CGColor(red: 0.6, green: 0.6, blue: 0.6, alpha: 1))
+            ctx.setLineWidth(1.0)
+            ctx.setLineDash(phase: 0, lengths: [5, 4])
+            ctx.move(to: CGPoint(x: screenX, y: plotRect.minY))
+            ctx.addLine(to: CGPoint(x: screenX, y: plotRect.maxY))
+            ctx.strokePath()
+            ctx.setLineDash(phase: 0, lengths: [])
         }
 
         // Axis box
@@ -197,7 +212,20 @@ struct WorkbenchChartRenderer {
         for (i, series) in payload.series.enumerated() {
             guard series.x.count == series.y.count, !series.x.isEmpty else { continue }
             let color = Self.seriesColors[i % Self.seriesColors.count]
-            if series.isScatter {
+            let drawDots = series.renderMode == .scatter || series.renderMode == .lineAndScatter
+            let drawLine = series.renderMode == .line    || series.renderMode == .lineAndScatter
+
+            if drawLine, series.x.count >= 2 {
+                ctx.setStrokeColor(color)
+                ctx.setLineWidth(CGFloat(series.lineWidth))
+                ctx.beginPath()
+                ctx.move(to: pt(series.x[0], series.y[0]))
+                for k in 1..<series.x.count {
+                    ctx.addLine(to: pt(series.x[k], series.y[k]))
+                }
+                ctx.strokePath()
+            }
+            if drawDots {
                 let r: CGFloat = 3.5
                 ctx.setFillColor(color)
                 for k in 0..<series.x.count {
@@ -208,16 +236,6 @@ struct WorkbenchChartRenderer {
                         pendingLabels.append((series.pointLabels[k], center, color))
                     }
                 }
-            } else {
-                guard series.x.count >= 2 else { continue }
-                ctx.setStrokeColor(color)
-                ctx.setLineWidth(CGFloat(series.lineWidth))
-                ctx.beginPath()
-                ctx.move(to: pt(series.x[0], series.y[0]))
-                for k in 1..<series.x.count {
-                    ctx.addLine(to: pt(series.x[k], series.y[k]))
-                }
-                ctx.strokePath()
             }
         }
         ctx.restoreGState()
@@ -248,7 +266,7 @@ struct WorkbenchChartRenderer {
         }
 
         // Tick marks + numeric labels on both axes
-        drawAxisTicks(ctx, plotRect: plotRect, options: opts,
+        drawAxisTicks(ctx, plotRect: plotRect, options: opts, style: style,
                       xTicks: xTicks, xStep: xStep,
                       yTicks: yTicks, yStep: yStep,
                       xMin: xMin, xSpan: xSpan, yMin: yMin, ySpan: ySpan)
@@ -256,15 +274,29 @@ struct WorkbenchChartRenderer {
         // Axis field name labels (markup: _X renders X as subscript)
         let axisColor = CGColor(red: 0.25, green: 0.25, blue: 0.25, alpha: 1)
         drawCenteredMarkup(ctx, text: payload.axisMapping.xField,
-                           at: layout.xLabelCenter, size: 20, color: axisColor)
+                           at: layout.xLabelCenter, size: style.axisTitleFontSize, color: axisColor)
         drawRotated90Markup(ctx, text: payload.axisMapping.yField,
-                            at: layout.yLabelCenter, size: 20, color: axisColor)
+                            at: layout.yLabelCenter, size: style.axisTitleFontSize, color: axisColor)
 
         // Legend — positions come from layout (same math, no duplication)
-        drawLegend(ctx, rows: layout.legendRows, series: payload.series)
+        drawLegend(ctx, rows: layout.legendRows, series: payload.series, style: style)
     }
 
     // MARK: - Tick computation
+
+    /// Returns evenly spaced ticks at a fixed step within [min, max].
+    private func fixedTicks(min: Double, max: Double, step: Double) -> (ticks: [Double], step: Double) {
+        guard max > min, step > 0 else { return ([min, max], max - min) }
+        let firstTick = ceil(min / step) * step
+        var ticks: [Double] = []
+        var tick = firstTick
+        let eps = step * 1e-9
+        while tick <= max + eps {
+            ticks.append(tick)
+            tick += step
+        }
+        return (ticks, step)
+    }
 
     /// Returns (ticks, step) where ticks are "nice" values within [min, max].
     private func niceTicks(min: Double, max: Double, targetCount: Int = 5) -> (ticks: [Double], step: Double) {
@@ -311,7 +343,7 @@ struct WorkbenchChartRenderer {
     // MARK: - Axis tick marks + numeric labels
 
     private func drawAxisTicks(
-        _ ctx: CGContext, plotRect: CGRect, options: Options,
+        _ ctx: CGContext, plotRect: CGRect, options: Options, style: WorkbenchChartStyle,
         xTicks: [Double], xStep: Double,
         yTicks: [Double], yStep: Double,
         xMin: Double, xSpan: Double,
@@ -321,7 +353,7 @@ struct WorkbenchChartRenderer {
         let labelGap: CGFloat = 5
         let tickColor = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
         let labelColor = CGColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1)
-        let labelSize: CGFloat = 19
+        let labelSize = style.tickLabelFontSize
 
         ctx.setStrokeColor(tickColor)
         ctx.setLineWidth(0.8)
@@ -383,15 +415,17 @@ struct WorkbenchChartRenderer {
     /// All position math lives in WorkbenchPlotLayout — no duplication here.
     private func drawLegend(_ ctx: CGContext,
                              rows: [WorkbenchPlotLayout.LegendRow],
-                             series: [WorkbenchPlotSeries]) {
+                             series: [WorkbenchPlotSeries],
+                             style: WorkbenchChartStyle) {
         guard !rows.isEmpty else { return }
         let labelColor = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
         let rowH   = WorkbenchPlotLayout.legendRowH
         let boxPad: CGFloat = 6
+        let fontSize = style.legendFontSize
 
         // Bounding box — use measured label widths so the box always encloses the text
         let measuredLabelWidths: [CGFloat] = series.map { s in
-            let line = makeLine(text: s.label, size: 18, bold: false, color: labelColor)
+            let line = makeLine(text: s.label, size: fontSize, bold: false, color: labelColor)
             return CTLineGetBoundsWithOptions(line, []).width
         }
         let minX = rows.map(\.cgOriginX).min()! - boxPad
@@ -409,21 +443,24 @@ struct WorkbenchChartRenderer {
 
         for (i, (row, s)) in zip(rows, series).enumerated() {
             let color = Self.seriesColors[i % Self.seriesColors.count]
-            if s.isScatter {
-                // Scatter legend: filled circle at midpoint of the line slot
+            let showDot  = s.renderMode == .scatter || s.renderMode == .lineAndScatter
+            let showLine = s.renderMode == .line    || s.renderMode == .lineAndScatter
+
+            if showLine {
+                ctx.setStrokeColor(color)
+                ctx.setLineWidth(CGFloat(s.lineWidth))
+                ctx.strokeLineSegments(between: [row.lineStart, row.lineEnd])
+            }
+            if showDot {
                 let mid = CGPoint(x: (row.lineStart.x + row.lineEnd.x) / 2,
                                   y: (row.lineStart.y + row.lineEnd.y) / 2)
                 let r: CGFloat = 4.0
                 ctx.setFillColor(color)
                 ctx.fillEllipse(in: CGRect(x: mid.x - r, y: mid.y - r,
                                            width: r * 2, height: r * 2))
-            } else {
-                ctx.setStrokeColor(color)
-                ctx.setLineWidth(CGFloat(s.lineWidth))
-                ctx.strokeLineSegments(between: [row.lineStart, row.lineEnd])
             }
             drawLeftAligned(ctx, text: s.label, leftEdge: row.labelAnchor,
-                            size: 18, bold: false, color: labelColor)
+                            size: fontSize, bold: false, color: labelColor)
         }
     }
 
