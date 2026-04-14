@@ -139,14 +139,16 @@ private struct XYRotationPlotControlsPanel: View {
         @Bindable var store = appState.workbench.xyRotationWorkspace
 
         WorkbenchStandardPlotControls(
-            activeTab: $store.activeTab,
+            activeTab: $store.tabs.activeTab,
             tabLabel: { $0.displayName },
             stackOffset: $store.stackOffsetMultiplier,
             stackRange: 0...1.6,
             minGapFraction: $store.minGapFraction,
-            showGrid: $store.showPlotGrid,
+            showGrid: $store.tabs.showPlotGrid,
             titleTemplate: $store.titleTemplate,
             numericDisplayCache: store.cachedSampleNumericDisplay,
+            seriesRenderMode: $store.tabs.seriesRenderMode,
+            chartStyleOverrides: $store.tabs.chartStyleOverrides,
             onChange: { store.rerenderForStyleChange() }
         ) {
             HStack(spacing: 12) {
@@ -158,6 +160,11 @@ private struct XYRotationPlotControlsPanel: View {
                 Toggle("Detrend", isOn: $store.linearDetrend)
                     .toggleStyle(.checkbox)
                     .onChange(of: store.linearDetrend) { _, _ in
+                        store.rerenderForStyleChange()
+                    }
+                Toggle("x=180", isOn: $store.showAuxiliaryLine180)
+                    .toggleStyle(.checkbox)
+                    .onChange(of: store.showAuxiliaryLine180) { _, _ in
                         store.rerenderForStyleChange()
                     }
             }
@@ -281,15 +288,24 @@ private struct XYRotationRightColumn: View {
                 )
 
                 WorkbenchPlotCanvas(
-                    imageData: store.activePlotImageData,
-                    layout: store.plotLayouts[store.activeTab],
-                    seriesLabelOverrides: store.plotSeriesLabelOverrides,
+                    imageData: store.tabs.activeImageData,
+                    layout: store.tabs.activeLayout,
+                    seriesLabelOverrides: store.tabs.activeSeriesLabelOverrides,
                     onLegendDrag: { pt in store.updateLegendPoint(pt) },
                     onEditTitle: { title in store.updatePlotTitle(title) },
                     onEditXLabel: { label in store.updateXAxisLabel(label) },
                     onEditYLabel: { label in store.updateYAxisLabel(label) },
                     onEditLegendLabel: { idx, label in store.updateSeriesLabel(index: idx, newLabel: label) },
-                    relatedCharts: store.relatedCharts(for: store.activeTab),
+                    onFontSizeChange: { key, size in
+                        store.tabs.chartStyleOverrides[key] = "\(Int(size))"
+                        store.rerenderForStyleChange()
+                    },
+                    onStyleOverrideChange: { key, value in
+                        store.tabs.chartStyleOverrides[key] = value
+                        store.rerenderForStyleChange()
+                    },
+                    chartStyleOverrides: store.tabs.chartStyleOverrides,
+                    relatedCharts: store.relatedCharts(for: store.tabs.activeTab),
                     libraryRootURL: store.lastLibraryRootPath.isEmpty
                         ? nil
                         : URL(fileURLWithPath: store.lastLibraryRootPath)

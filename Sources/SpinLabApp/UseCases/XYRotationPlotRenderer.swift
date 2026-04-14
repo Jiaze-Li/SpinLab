@@ -20,6 +20,9 @@ struct XYRotationPlotRenderer {
     var phiOffsetOverrides: [String: Double] = [:]
     var centerBaseline: Bool = false
     var linearDetrend: Bool = false
+    var showAuxiliaryLine180: Bool = false
+    var seriesRenderMode: SeriesRenderMode = .line
+    var chartStyleOverrides: [String: String] = [:]
 
     private let defaultOptions = WorkbenchChartRenderer.Options()
 
@@ -72,14 +75,14 @@ struct XYRotationPlotRenderer {
             )
         }.reversed()
 
-        var yLabel = centerBaseline ? "Rxx − R₀ (Ω" : "Rxx (Ω"
-        yLabel += stackOffsetMultiplier > 0 ? ", stacked)" : ")"
+        let yLabel = "Rxx (Ω)"
         var payload = WorkbenchPlotPayload(
             workflowID: "xy",
             workflowDisplayName: "XY Rotation",
             title: _defaultTitle("Rxx vs φ", device: device),
             axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: yLabel),
-            series: series
+            series: series,
+            styleParams: ["xTickStep": "60"]
         )
 
         let (data, layout) = _render(
@@ -138,14 +141,14 @@ struct XYRotationPlotRenderer {
             )
         }.reversed()
 
-        var yLabel = centerBaseline ? "Rxy − R_AHE (Ω" : "Rxy (Ω"
-        yLabel += stackOffsetMultiplier > 0 ? ", stacked)" : ")"
+        let yLabel = "Rxy (Ω)"
         var payload = WorkbenchPlotPayload(
             workflowID: "xy",
             workflowDisplayName: "XY Rotation",
             title: _defaultTitle("Rxy vs φ", device: device),
             axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: yLabel),
-            series: series
+            series: series,
+            styleParams: ["xTickStep": "60"]
         )
 
         let (data, layout) = _render(
@@ -157,31 +160,29 @@ struct XYRotationPlotRenderer {
 
     // MARK: - Private
 
-    private mutating func _render(
+    private func _render(
         payload: inout WorkbenchPlotPayload,
         options: WorkbenchChartRenderer.Options? = nil
     ) -> (Data?, WorkbenchPlotLayout?) {
-        let baseOpts = options ?? defaultOptions
-        if showGrid { payload.styleParams["showGrid"] = "true" }
-        if let pt = legendPoint {
-            payload.styleParams["legendX"] = "\(pt.x)"
-            payload.styleParams["legendY"] = "\(pt.y)"
-        }
-        if !titleOverride.isEmpty { payload.title = titleOverride }
-        if !xLabelOverride.isEmpty { payload.axisMapping.xField = xLabelOverride }
-        if !yLabelOverride.isEmpty { payload.axisMapping.yField = yLabelOverride }
+        var patch: [String: String] = [:]
+        if showGrid { patch["showGrid"] = "true" }
+        if showAuxiliaryLine180 { patch["auxVerticalX"] = "180" }
 
-        let opts = WorkbenchChartRenderer().resolvedOptions(payload: payload, base: baseOpts)
-        let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: legendPoint)
-
-        if !seriesLabelOverrides.isEmpty {
-            payload.series = payload.series.enumerated().map { i, s in
-                guard let custom = seriesLabelOverrides[i] else { return s }
-                var copy = s; copy.label = custom; return copy
-            }
-        }
-        let data = try? WorkbenchChartRenderer().renderPNG(payload: payload, options: opts)
-        return (data, layout)
+        let input = WorkbenchRenderPipeline.Input(
+            payload: payload,
+            baseOptions: options ?? defaultOptions,
+            legendPoint: legendPoint,
+            seriesRenderMode: seriesRenderMode,
+            chartStyleOverrides: chartStyleOverrides,
+            seriesLabelOverrides: seriesLabelOverrides,
+            titleOverride: titleOverride,
+            xLabelOverride: xLabelOverride,
+            yLabelOverride: yLabelOverride,
+            styleParamsPatch: patch
+        )
+        guard let output = try? WorkbenchRenderPipeline.render(input) else { return (nil, nil) }
+        payload = output.manifestPayload
+        return (output.imageData, output.layout)
     }
 
     private func _stackedOptions(sweepCount: Int) -> WorkbenchChartRenderer.Options {

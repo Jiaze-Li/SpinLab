@@ -5,12 +5,19 @@ struct WorkbenchAxisMapping: Codable, Hashable, Sendable {
     var yField: String
 }
 
-struct WorkbenchPlotSeries: Codable, Hashable, Sendable {
+/// How a series is rendered on the chart.
+enum SeriesRenderMode: String, Codable, Hashable, Sendable {
+    case line
+    case scatter
+    case lineAndScatter
+}
+
+struct WorkbenchPlotSeries: Hashable, Sendable {
     var label: String
     var x: [Double]
     var y: [Double]
     var sourceRef: String?
-    var isScatter: Bool
+    var renderMode: SeriesRenderMode
     var pointLabels: [String]   // per-point annotation text for scatter series (empty = none)
     var lineWidth: Double        // line width for line series; default 1.5
 
@@ -19,7 +26,7 @@ struct WorkbenchPlotSeries: Codable, Hashable, Sendable {
         x: [Double],
         y: [Double],
         sourceRef: String? = nil,
-        isScatter: Bool = false,
+        renderMode: SeriesRenderMode = .line,
         pointLabels: [String] = [],
         lineWidth: Double = 1.5
     ) {
@@ -27,9 +34,65 @@ struct WorkbenchPlotSeries: Codable, Hashable, Sendable {
         self.x = x
         self.y = y
         self.sourceRef = sourceRef
-        self.isScatter = isScatter
+        self.renderMode = renderMode
         self.pointLabels = pointLabels
         self.lineWidth = lineWidth
+    }
+
+    /// Convenience initializer preserving old `isScatter` call sites during migration.
+    init(
+        label: String,
+        x: [Double],
+        y: [Double],
+        sourceRef: String? = nil,
+        isScatter: Bool,
+        pointLabels: [String] = [],
+        lineWidth: Double = 1.5
+    ) {
+        self.init(
+            label: label, x: x, y: y, sourceRef: sourceRef,
+            renderMode: isScatter ? .scatter : .line,
+            pointLabels: pointLabels, lineWidth: lineWidth
+        )
+    }
+}
+
+// MARK: - Codable migration (isScatter → renderMode)
+
+extension WorkbenchPlotSeries: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case label, x, y, sourceRef, renderMode, pointLabels, lineWidth
+        case isScatter  // legacy key — read-only
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        label       = try c.decode(String.self, forKey: .label)
+        x           = try c.decode([Double].self, forKey: .x)
+        y           = try c.decode([Double].self, forKey: .y)
+        sourceRef   = try c.decodeIfPresent(String.self, forKey: .sourceRef)
+        pointLabels = try c.decodeIfPresent([String].self, forKey: .pointLabels) ?? []
+        lineWidth   = try c.decodeIfPresent(Double.self, forKey: .lineWidth) ?? 1.5
+        // Prefer renderMode; fall back to legacy isScatter
+        if let mode = try? c.decode(SeriesRenderMode.self, forKey: .renderMode) {
+            renderMode = mode
+        } else if let scatter = try? c.decode(Bool.self, forKey: .isScatter) {
+            renderMode = scatter ? .scatter : .line
+        } else {
+            renderMode = .line
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(label, forKey: .label)
+        try c.encode(x, forKey: .x)
+        try c.encode(y, forKey: .y)
+        try c.encodeIfPresent(sourceRef, forKey: .sourceRef)
+        try c.encode(renderMode, forKey: .renderMode)
+        try c.encode(pointLabels, forKey: .pointLabels)
+        try c.encode(lineWidth, forKey: .lineWidth)
+        // Do NOT encode isScatter — new format only
     }
 }
 

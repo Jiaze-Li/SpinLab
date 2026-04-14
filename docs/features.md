@@ -79,6 +79,13 @@ Behavior details: `specs/three_omega_physics.md`
 ### Plot Canvas (all workflows)
 - Plot canvas is a workflow-independent shell — legend, edit, interaction behaviors apply uniformly
 - Stack offset range default: 0...1.6 unless user specifies otherwise
+- Series render mode (line/scatter/line+scatter) selectable per workflow, applied uniformly to all series (v5.3.1)
+- Chart title is not bold (v5.3.1)
+- Axis titles (x/y) centered on plot drawing area, not full image (v5.3.1)
+- Font sizes (title, axis, tick, legend) and tick density (x/y) configurable via Chart Style disclosure panel (v5.3.1)
+- Right-click Copy PNG copies rendered chart to clipboard (v5.3.1)
+- Chart style settings stored in styleParams, parsed via WorkbenchChartStyle (v5.3.1)
+- Test: V531SeriesRenderModeTests — Codable migration, ChartStyle parsing, axis alignment
 
 ### 3-Omega AHE
 - Fit ranges are part of scaling chart semantic identity — different fit configs produce separate chart entries, not overwrites
@@ -90,6 +97,8 @@ Behavior details: `specs/three_omega_physics.md`
 
 ### XY Rotation
 - Tag normalization: XY_90shift → workflow=XY + angle_shift=+90deg
+- Default y-axis title: Rxx tab → "Rxx (Ω)", Rxy tab → "Rxy (Ω)" — stacked/center info not shown in title (v5.3.1)
+- Optional auxiliary line at x=180 (toggle in plot controls) (v5.3.1)
 - Test: unit tests on XY data parsing
 
 ### Extension System

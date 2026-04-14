@@ -250,6 +250,7 @@ final class WorkbenchFeatureStore {
         self.currentRoute = .registry(selectedID: initialWorkflowDefinitions.first?.id)
         self.threeOmegaWorkspace.vault = analysisVault
         self.xyRotationWorkspace.vault = analysisVault
+        self.aheWorkspace.vault = analysisVault
     }
 
     deinit {
@@ -312,7 +313,8 @@ final class WorkbenchFeatureStore {
         xyRotationStackOffset: Double? = nil,
         xyRotationCenterBaseline: Bool? = nil,
         xyRotationLinearDetrend: Bool? = nil,
-        xyRotationPlotLegendPoints: [String: [Double]]? = nil
+        xyRotationPlotLegendPoints: [String: [Double]]? = nil,
+        workbenchChartStyleOverrides: [String: String]? = nil
     ) {
         if let selectedArchivedRecordID,
            archivedRecords.contains(where: { $0.id == selectedArchivedRecordID }) {
@@ -333,7 +335,9 @@ final class WorkbenchFeatureStore {
         if let legendMap = threeOmegaPlotLegendPoints {
             for (key, arr) in legendMap where arr.count == 2 {
                 if let tab = ThreeOmegaWorkbenchTab.allCases.first(where: { $0.stableKey == key }) {
-                    threeOmegaWorkspace.plotLegendPoints[tab] = CGPoint(x: arr[0], y: arr[1])
+                    var state = threeOmegaWorkspace.tabs.state(for: tab)
+                    state.legendPoint = CGPointCodable(CGPoint(x: arr[0], y: arr[1]))
+                    threeOmegaWorkspace.tabs.tabStates[tab] = state
                 }
             }
         }
@@ -343,7 +347,7 @@ final class WorkbenchFeatureStore {
             xyRotationWorkspace.phiOffsetOverrides = offsets
         }
         if let tabRaw = xyRotationActiveTab, let tab = XYRotationWorkbenchTab(rawValue: tabRaw) {
-            xyRotationWorkspace.activeTab = tab
+            xyRotationWorkspace.tabs.activeTab = tab
         }
         if let t = xyRotationTitleTemplate { xyRotationWorkspace.titleTemplate = t }
         if let v = xyRotationStackOffset { xyRotationWorkspace.stackOffsetMultiplier = v }
@@ -352,9 +356,17 @@ final class WorkbenchFeatureStore {
         if let legendMap = xyRotationPlotLegendPoints {
             for (key, arr) in legendMap where arr.count == 2 {
                 if let tab = XYRotationWorkbenchTab(rawValue: key) {
-                    xyRotationWorkspace.plotLegendPoints[tab] = CGPoint(x: arr[0], y: arr[1])
+                    var state = xyRotationWorkspace.tabs.state(for: tab)
+                    state.legendPoint = CGPointCodable(CGPoint(x: arr[0], y: arr[1]))
+                    xyRotationWorkspace.tabs.tabStates[tab] = state
                 }
             }
+        }
+        // Chart style overrides (font sizes) — apply to all three workflows
+        if let overrides = workbenchChartStyleOverrides, !overrides.isEmpty {
+            threeOmegaWorkspace.tabs.chartStyleOverrides = overrides
+            xyRotationWorkspace.tabs.chartStyleOverrides = overrides
+            aheWorkspace.tabs.chartStyleOverrides = overrides
         }
     }
 
@@ -372,29 +384,41 @@ final class WorkbenchFeatureStore {
         snapshot.threeOmegaRTSidecarPath = threeOmegaWorkspace.selectedRTHit?.sidecarPath
             ?? threeOmegaWorkspace.pendingRTSidecarPath
         snapshot.threeOmegaFitRanges = threeOmegaWorkspace.fitRanges
-        if !threeOmegaWorkspace.plotLegendPoints.isEmpty {
+        if !threeOmegaWorkspace.tabs.tabStates.isEmpty {
             var legendMap: [String: [Double]] = [:]
-            for (tab, pt) in threeOmegaWorkspace.plotLegendPoints {
-                legendMap[tab.stableKey] = [pt.x, pt.y]
+            for (tab, state) in threeOmegaWorkspace.tabs.tabStates {
+                if let lp = state.legendPoint {
+                    legendMap[tab.stableKey] = [lp.x, lp.y]
+                }
             }
-            snapshot.threeOmegaPlotLegendPoints = legendMap
+            if !legendMap.isEmpty {
+                snapshot.threeOmegaPlotLegendPoints = legendMap
+            }
         }
         snapshot.aheTitleTemplate = aheWorkspace.titleTemplate
         // XY Rotation
         snapshot.xyRotationPhiOffsets = xyRotationWorkspace.phiOffsetOverrides.isEmpty
             ? nil : xyRotationWorkspace.phiOffsetOverrides
-        snapshot.xyRotationActiveTab = xyRotationWorkspace.activeTab.rawValue
+        snapshot.xyRotationActiveTab = xyRotationWorkspace.tabs.activeTab.rawValue
         snapshot.xyRotationTitleTemplate = xyRotationWorkspace.titleTemplate
         snapshot.xyRotationStackOffset = xyRotationWorkspace.stackOffsetMultiplier
         snapshot.xyRotationCenterBaseline = xyRotationWorkspace.centerBaseline
         snapshot.xyRotationLinearDetrend = xyRotationWorkspace.linearDetrend
-        if !xyRotationWorkspace.plotLegendPoints.isEmpty {
+        do {
             var legendMap: [String: [Double]] = [:]
-            for (tab, pt) in xyRotationWorkspace.plotLegendPoints {
-                legendMap[tab.rawValue] = [pt.x, pt.y]
+            for (tab, state) in xyRotationWorkspace.tabs.tabStates {
+                if let lp = state.legendPoint {
+                    legendMap[tab.rawValue] = [lp.x, lp.y]
+                }
             }
-            snapshot.xyRotationPlotLegendPoints = legendMap
+            if !legendMap.isEmpty { snapshot.xyRotationPlotLegendPoints = legendMap }
         }
+        // Chart style overrides — merge from all workflows (user may edit in any one)
+        var overrides: [String: String] = [:]
+        for (k, v) in threeOmegaWorkspace.tabs.chartStyleOverrides { overrides[k] = v }
+        for (k, v) in xyRotationWorkspace.tabs.chartStyleOverrides { overrides[k] = v }
+        for (k, v) in aheWorkspace.tabs.chartStyleOverrides { overrides[k] = v }
+        snapshot.workbenchChartStyleOverrides = overrides.isEmpty ? nil : overrides
     }
 
     /// Bridge method: restores search state into WorkbenchFeatureStore when loading a pack.
@@ -410,6 +434,13 @@ final class WorkbenchFeatureStore {
         setSearchQueryText(queryText, for: .xyRotation)
         searchMessages[.xyRotation] = "Restored from analysis pack (\(results.count) hit(s))."
         searchRunning[.xyRotation] = false
+    }
+
+    func restoreAHESearchState(results: [WorkflowMeasurementSearchHit], queryText: String) {
+        searchResults[.ahe] = results
+        setSearchQueryText(queryText, for: .ahe)
+        searchMessages[.ahe] = "Restored from analysis pack (\(results.count) hit(s))."
+        searchRunning[.ahe] = false
     }
 
     func selectedArchivedRecord() -> SpinLabDomain.ArchivedRecord? {

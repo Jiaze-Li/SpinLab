@@ -60,6 +60,12 @@ struct WorkbenchPlotLayout: Sendable {
 
     // MARK: - Layout properties
 
+    /// The plot drawing area in renderer pixel space (CG origin bottom-left).
+    /// Canvas uses this instead of recomputing from default Options.
+    let plotRect:       CGRect
+    /// The renderer image size in pixels.
+    let rendererSize:   CGSize
+
     let titleCenter:    CGPoint
     let titleHitRect:   CGRect
 
@@ -68,6 +74,11 @@ struct WorkbenchPlotLayout: Sendable {
 
     let yLabelCenter:   CGPoint
     let yLabelHitRect:  CGRect   // covers left-margin strip (rotated label visual footprint)
+
+    /// Hit rect for x-axis tick label area (bottom padding, between plot and x-axis title).
+    let xTickHitRect:   CGRect
+    /// Hit rect for y-axis tick label area (left padding, between y-axis title and plot).
+    let yTickHitRect:   CGRect
 
     let legendRows:     [LegendRow]
 
@@ -83,7 +94,8 @@ struct WorkbenchPlotLayout: Sendable {
     static func compute(
         options: WorkbenchChartRenderer.Options,
         payload: WorkbenchPlotPayload,
-        legendPoint: CGPoint?
+        legendPoint: CGPoint?,
+        style: WorkbenchChartStyle = .init()
     ) -> WorkbenchPlotLayout {
         let w = CGFloat(options.width)
         let h = CGFloat(options.height)
@@ -101,8 +113,8 @@ struct WorkbenchPlotLayout: Sendable {
             width: plotRect.width,  height: options.paddingTop * 0.9
         )
 
-        // X axis label — centered in bottom-padding band
-        let xLabelCenter  = CGPoint(x: w / 2, y: options.paddingBottom * 0.58)
+        // X axis label — centered on plot area (not whole image)
+        let xLabelCenter  = CGPoint(x: plotRect.midX, y: options.paddingBottom * 0.58)
         let xLabelHitRect = CGRect(
             x: options.paddingLeft, y: xLabelCenter.y - 14,
             width: plotRect.width,  height: 28
@@ -110,18 +122,32 @@ struct WorkbenchPlotLayout: Sendable {
 
         // Y axis label (rotated 90°) — collision-based placement
         // Place title to the left of tick labels, not proportional to paddingLeft.
-        let titleThickness: CGFloat = 24   // rotated font lineHeight for size 20
+        let titleThickness: CGFloat = style.axisTitleFontSize * 1.2   // rotated font lineHeight
         let labelGap: CGFloat = 5          // gap between tick labels and axis
         let titleTickGap: CGFloat = 4      // gap between title and tick labels
         let tickLeft = options.paddingLeft - labelGap - options.maxYTickLabelWidth
-        let yTitleX = max(titleThickness / 2 + 4,                           // clamp: at least 16pt from left edge
+        let yTitleX = max(titleThickness / 2 + 4,                           // clamp: at least half-title from left edge
                           min(tickLeft - titleTickGap - titleThickness / 2,  // collision boundary
                               options.paddingLeft * 0.38))                   // never worse than old proportional
-        let yLabelCenter  = CGPoint(x: yTitleX, y: h / 2)
+        let yLabelCenter  = CGPoint(x: yTitleX, y: plotRect.midY)
         let hitWidth: CGFloat = 36  // fixed band around title center
         let yLabelHitRect = CGRect(
             x: max(0, yTitleX - hitWidth / 2), y: plotRect.minY,
             width:  hitWidth,
+            height: plotRect.height
+        )
+
+        // Tick label hit rects — strip between axis edge and axis title
+        let xTickHitRect = CGRect(
+            x: plotRect.minX,
+            y: xLabelCenter.y + 14,    // above x-axis title
+            width: plotRect.width,
+            height: plotRect.minY - (xLabelCenter.y + 14)
+        )
+        let yTickHitRect = CGRect(
+            x: yTitleX + hitWidth / 2,  // right of y-axis title
+            y: plotRect.minY,
+            width: plotRect.minX - (yTitleX + hitWidth / 2),
             height: plotRect.height
         )
 
@@ -130,7 +156,8 @@ struct WorkbenchPlotLayout: Sendable {
             series:      payload.series,
             plotRect:    plotRect,
             legendPoint: legendPoint,
-            styleParams: payload.styleParams
+            styleParams: payload.styleParams,
+            legendFontSize: style.legendFontSize
         )
 
         let chartTitle = payload.title.isEmpty ? payload.workflowDisplayName : payload.title
@@ -138,12 +165,16 @@ struct WorkbenchPlotLayout: Sendable {
         let yAxisLabel = payload.axisMapping.yField
 
         return WorkbenchPlotLayout(
+            plotRect:      plotRect,
+            rendererSize:  CGSize(width: w, height: h),
             titleCenter:   titleCenter,
             titleHitRect:  titleHitRect,
             xLabelCenter:  xLabelCenter,
             xLabelHitRect: xLabelHitRect,
             yLabelCenter:  yLabelCenter,
             yLabelHitRect: yLabelHitRect,
+            xTickHitRect:  xTickHitRect,
+            yTickHitRect:  yTickHitRect,
             legendRows:    legendRows,
             chartTitle:    chartTitle,
             xAxisLabel:    xAxisLabel,
@@ -155,13 +186,14 @@ struct WorkbenchPlotLayout: Sendable {
         series:      [WorkbenchPlotSeries],
         plotRect:    CGRect,
         legendPoint: CGPoint?,
-        styleParams: [String: String]
+        styleParams: [String: String],
+        legendFontSize: CGFloat = 18
     ) -> [LegendRow] {
         series.enumerated().map { i, s in
             let cgRowY:      CGFloat
             let cgOriginX:   CGFloat
             let isLeftAligned: Bool
-            let measuredW = measureLabelWidth(s.label)
+            let measuredW = measureLabelWidth(s.label, fontSize: legendFontSize)
 
             if let np = legendPoint {
                 // Free-position mode — mirrors drawLegend free-position math exactly
@@ -199,8 +231,8 @@ struct WorkbenchPlotLayout: Sendable {
     }
 
     /// Measures label text width in renderer coordinates using the same font as drawLegend.
-    private static func measureLabelWidth(_ text: String) -> CGFloat {
-        let font = CTFontCreateWithName("ArialMT" as CFString, 18, nil)
+    private static func measureLabelWidth(_ text: String, fontSize: CGFloat = 18) -> CGFloat {
+        let font = CTFontCreateWithName("ArialMT" as CFString, fontSize, nil)
         let attrs: [CFString: Any] = [kCTFontAttributeName: font]
         let attrStr = CFAttributedStringCreate(kCFAllocatorDefault, text as CFString, attrs as CFDictionary)!
         let line = CTLineCreateWithAttributedString(attrStr)

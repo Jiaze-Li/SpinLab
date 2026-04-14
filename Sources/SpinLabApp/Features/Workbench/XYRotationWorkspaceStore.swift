@@ -20,38 +20,23 @@ final class XYRotationWorkspaceStore {
     private(set) var isAnalyzing: Bool = false
     var analysisMessage: String?
 
-    // MARK: - Rendered plot data
+    // MARK: - Multi-tab render state (shell capability)
 
-    private(set) var plotRxxVsPhi: Data?
-    private(set) var plotRxyVsPhi: Data?
-    private(set) var plotLayouts: [XYRotationWorkbenchTab: WorkbenchPlotLayout] = [:]
+    var tabs = TabRenderManager<XYRotationWorkbenchTab>(defaultTab: .rxxVsPhi)
+
+    // MARK: - Rendered plot (non-tab state)
+
     private(set) var currentRunTrace: WorkbenchRunTraceProjection?
 
-    var activePlotImageData: Data? {
-        switch activeTab {
-        case .rxxVsPhi: return plotRxxVsPhi
-        case .rxyVsPhi: return plotRxyVsPhi
-        }
-    }
+    // MARK: - Plot controls (workflow-specific)
 
-    // MARK: - Plot controls
-
-    var activeTab: XYRotationWorkbenchTab = .rxxVsPhi
-    var showPlotGrid: Bool = true
     var stackOffsetMultiplier: Double = 0.0
     var minGapFraction: Double = 0.15
     var centerBaseline: Bool = false
     var linearDetrend: Bool = false
+    var showAuxiliaryLine180: Bool = false
     var titleTemplate: String = "#tab #device #sample"
     var phiOffsetOverrides: [String: Double] = [:]
-
-    // MARK: - Display overrides (interactive editing)
-
-    var plotLegendPoints: [XYRotationWorkbenchTab: CGPoint] = [:]
-    var plotSeriesLabelOverrides: [Int: String] = [:]
-    var plotTitleOverride: String?
-    var plotXLabelOverride: String?
-    var plotYLabelOverride: String?
 
     // MARK: - Cached data for title template + persistence prep
 
@@ -68,8 +53,7 @@ final class XYRotationWorkspaceStore {
 
     private(set) var persistenceOutcome: PersistenceOutcome?
 
-    /// Cached manifest payloads per tab, built at render time with sourceRef populated.
-    @ObservationIgnored private(set) var cachedManifestPayloads: [XYRotationWorkbenchTab: WorkbenchPlotPayload] = [:]
+    // cachedManifestPayloads now managed by tabs (TabRenderManager)
 
     // MARK: - Related charts (hover popover)
 
@@ -96,19 +80,23 @@ final class XYRotationWorkspaceStore {
     /// Single source of truth for building a renderer from current store state.
     /// Called by both `runAnalysis` and `_rerenderActiveTab` to avoid parameter drift.
     private func _snapshotRenderer(forTab tab: XYRotationWorkbenchTab) -> XYRotationPlotRenderer {
+        let tabState = tabs.state(for: tab)
         var r = XYRotationPlotRenderer()
-        r.showGrid = showPlotGrid
-        r.legendPoint = plotLegendPoints[tab]
+        r.showGrid = tabs.showPlotGrid
+        r.legendPoint = tabState.legendPoint?.cgPoint
         r.stackOffsetMultiplier = stackOffsetMultiplier
         r.minGapFraction = minGapFraction
         r.centerBaseline = centerBaseline
         r.linearDetrend = linearDetrend
+        r.showAuxiliaryLine180 = showAuxiliaryLine180
+        r.seriesRenderMode = tabs.seriesRenderMode
+        r.chartStyleOverrides = tabs.chartStyleOverrides
         r.titleTemplate = titleTemplate
         r.titleTokens = _titleTokens
-        r.titleOverride = plotTitleOverride ?? ""
-        r.xLabelOverride = plotXLabelOverride ?? ""
-        r.yLabelOverride = plotYLabelOverride ?? ""
-        r.seriesLabelOverrides = plotSeriesLabelOverrides
+        r.titleOverride = tabState.titleOverride
+        r.xLabelOverride = tabState.xLabelOverride
+        r.yLabelOverride = tabState.yLabelOverride
+        r.seriesLabelOverrides = tabState.seriesLabelOverrides
         r.phiOffsetOverrides = phiOffsetOverrides
         return r
     }
@@ -139,7 +127,8 @@ final class XYRotationWorkspaceStore {
         analysisTask?.cancel()
         isAnalyzing = true
         analysisMessage = nil
-        clearPlot()
+        tabs.clearOutputs()
+        tabs.clearStates()
         _renderRevision &+= 1  // invalidate any in-flight rerenders
 
         analysisTask = Task { [weak self] in
@@ -162,14 +151,8 @@ final class XYRotationWorkspaceStore {
             guard let self, !Task.isCancelled else { return }
 
             self.ingestionResult = result
-            self.plotRxxVsPhi = rxxData
-            self.plotRxyVsPhi = rxyData
-            if let l = rxxLayout { self.plotLayouts[.rxxVsPhi] = l }
-            if let l = rxyLayout { self.plotLayouts[.rxyVsPhi] = l }
-
-            // Cache manifest payloads for Save to Library + related charts
-            if let p = rxxPayload { self.cachedManifestPayloads[.rxxVsPhi] = p }
-            if let p = rxyPayload { self.cachedManifestPayloads[.rxyVsPhi] = p }
+            self.tabs.setOutput(TabRenderOutput(imageData: rxxData, layout: rxxLayout, manifestPayload: rxxPayload), for: .rxxVsPhi)
+            self.tabs.setOutput(TabRenderOutput(imageData: rxyData, layout: rxyLayout, manifestPayload: rxyPayload), for: .rxyVsPhi)
 
             let sweepCount = result.sweeps.count
             var msg = "Analyzed \(sweepCount) angle-sweep file(s)."
@@ -200,7 +183,7 @@ final class XYRotationWorkspaceStore {
 
     private func _rerenderActiveTab() {
         guard let ingestion = ingestionResult else { return }
-        let tab = activeTab
+        let tab = tabs.activeTab
         let renderer = _snapshotRenderer(forTab: tab)
         let sweeps = ingestion.sweeps
         let device = ingestion.device
@@ -220,12 +203,7 @@ final class XYRotationWorkspaceStore {
 
             await MainActor.run { [weak self] in
                 guard let self, self._renderRevision == revision else { return }
-                switch tab {
-                case .rxxVsPhi: self.plotRxxVsPhi = data
-                case .rxyVsPhi: self.plotRxyVsPhi = data
-                }
-                if let l = layout { self.plotLayouts[tab] = l }
-                if let p = payload { self.cachedManifestPayloads[tab] = p }
+                self.tabs.setOutput(TabRenderOutput(imageData: data, layout: layout, manifestPayload: payload), for: tab)
             }
         }
     }
@@ -245,14 +223,7 @@ final class XYRotationWorkspaceStore {
     }
 
     func clearPlot() {
-        plotRxxVsPhi = nil
-        plotRxyVsPhi = nil
-        plotLayouts = [:]
-        plotSeriesLabelOverrides = [:]
-        plotTitleOverride = nil
-        plotXLabelOverride = nil
-        plotYLabelOverride = nil
-        plotLegendPoints = [:]
+        tabs.clearAll()
     }
 
     func clearAll() {
@@ -270,7 +241,6 @@ final class XYRotationWorkspaceStore {
         analysisTask = nil
         activePackID = nil
         persistenceOutcome = nil
-        cachedManifestPayloads = [:]
         relatedChartsTask?.cancel()
         relatedChartsTask = nil
         relatedChartsGrouped = [:]
@@ -304,7 +274,7 @@ final class XYRotationWorkspaceStore {
     }
 
     func relatedCharts(for tab: XYRotationWorkbenchTab) -> [WorkbenchResultReference] {
-        guard let payload = cachedManifestPayloads[tab] else { return [] }
+        guard let payload = tabs.output(for: tab).manifestPayload else { return [] }
         let inputFiles = payload.series.compactMap(\.sourceRef)
         guard !inputFiles.isEmpty else { return [] }
         let key = InputFilesCanonicalKey.make(from: inputFiles)
@@ -355,187 +325,19 @@ final class XYRotationWorkspaceStore {
         }
     }
 
-    // MARK: - Analysis Pack save / load
-
-    var matchingVaultPack: AnalysisPack? {
-        guard ingestionResult != nil, let vault else { return nil }
-        let fingerprint = AnalysisPack.makeFingerprint(inputFiles: cachedInputFiles, rtFilePath: nil)
-        return vault.pack(forWorkflow: "xy", fingerprint: fingerprint)
-            ?? activePackID.flatMap { vault.get(id: $0) }
-    }
-
-    var hasUnsavedAnalysis: Bool {
-        guard ingestionResult != nil else { return false }
-        guard let packID = activePackID, let vault, let pack = vault.get(id: packID) else {
-            return ingestionResult != nil
-        }
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = .sortedKeys
-        guard let currentConfig = try? encoder.encode(_buildPackConfig()),
-              let currentResult = try? encoder.encode(_buildPackResult()) else { return true }
-        var currentData = currentConfig
-        currentData.append(currentResult)
-        var storedData = pack.config
-        storedData.append(pack.result)
-        let currentHash = SHA256.hash(data: currentData)
-        let storedHash = SHA256.hash(data: storedData)
-        return currentHash != storedHash
-    }
-
-    func saveAnalysis(searchQueryText: String = "") {
-        guard let vault else {
-            analysisMessage = "Vault not available."
-            return
-        }
-        guard ingestionResult != nil else {
-            analysisMessage = "No analysis to save. Run analysis first."
-            return
-        }
-        var config = _buildPackConfig()
-        config.searchQueryText = searchQueryText
-        let result = _buildPackResult()
-        let fingerprint = AnalysisPack.makeFingerprint(inputFiles: cachedInputFiles, rtFilePath: nil)
-
-        let existingPack = vault.pack(forWorkflow: "xy", fingerprint: fingerprint)
-            ?? activePackID.flatMap { vault.get(id: $0) }
-
-        if let existing = existingPack {
-            do {
-                var pack = existing
-                let encoder = JSONEncoder()
-                encoder.outputFormatting = .sortedKeys
-                pack.config = try encoder.encode(config)
-                pack.result = try encoder.encode(result)
-                pack.filePaths = cachedInputFiles
-                pack.sampleKeys = cachedSampleKeys
-                pack.sourceFingerprint = fingerprint
-                vault.update(pack)
-                activePackID = pack.id
-                analysisMessage = "Updated: \(pack.label)"
-            } catch {
-                analysisMessage = "Save failed: \(error.localizedDescription)"
-            }
-        } else {
-            let label = _autoPackLabel()
-            do {
-                let pack = try AnalysisPack(
-                    label: label,
-                    workflowID: "xy",
-                    filePaths: cachedInputFiles,
-                    sampleKeys: cachedSampleKeys,
-                    sourceFingerprint: fingerprint,
-                    config: config,
-                    result: result
-                )
-                vault.add(pack)
-                activePackID = pack.id
-                analysisMessage = "Analysis saved: \(label)"
-            } catch {
-                analysisMessage = "Save failed: \(error.localizedDescription)"
-            }
-        }
-    }
-
-    func loadPack(id: AnalysisPack.ID, restoreSearchState: (([WorkflowMeasurementSearchHit], String) -> Void)) {
-        analysisTask?.cancel()
-        analysisTask = nil
-        isAnalyzing = false
-
-        guard let vault, let pack = vault.get(id: id) else {
-            analysisMessage = "Pack not found."
-            return
-        }
-        guard let config = try? pack.decodeConfig(XYRotationPackConfig.self),
-              let result = try? pack.decodeResult(XYRotationPackResult.self) else {
-            analysisMessage = "Failed to decode pack data."
-            return
-        }
-
-        // Restore analysis params
-        phiOffsetOverrides = config.phiOffsetOverrides
-        centerBaseline = config.centerBaseline
-        linearDetrend = config.linearDetrend
-
-        // Restore display settings
-        if let tab = XYRotationWorkbenchTab(rawValue: config.activeTab) {
-            activeTab = tab
-        }
-        titleTemplate = config.titleTemplate
-        stackOffsetMultiplier = config.stackOffsetMultiplier
-        minGapFraction = config.minGapFraction
-        showPlotGrid = config.showPlotGrid
-        plotTitleOverride = config.plotTitleOverride
-        plotXLabelOverride = config.plotXLabelOverride
-        plotYLabelOverride = config.plotYLabelOverride
-        plotSeriesLabelOverrides = config.plotSeriesLabelOverrides
-
-        // Restore per-tab legend points
-        plotLegendPoints = [:]
-        for (key, val) in config.plotLegendPoints {
-            if let tab = XYRotationWorkbenchTab(rawValue: key) {
-                plotLegendPoints[tab] = val.cgPoint
-            }
-        }
-
-        // Restore search selection state
-        cachedSearchResults = config.cachedSearchResults
-        selectedSearchResultIDs = Set(config.selectedSearchResultIDs)
-
-        // Restore results
-        ingestionResult = result.ingestionResult
-
-        // Build title tokens from restored search results
-        if let hit = config.cachedSearchResults.first {
-            var tokens: [String: String] = ["sample": hit.sampleBatchAndSubstrate]
-            let numericDisplay = cachedSampleNumericDisplay[hit.sampleKey] ?? [:]
-            for (k, v) in numericDisplay { tokens[k] = v }
-            _titleTokens = tokens
-        } else {
-            _titleTokens = [:]
-        }
-
-        // Restore cached persistence state from pack
-        cachedInputFiles = pack.filePaths
-        cachedSampleKeys = pack.sampleKeys
-
-        // Restore library root from vault so persistToLibrary works without a prior search
-        if lastLibraryRootPath.isEmpty, let root = vault.libraryRootPath {
-            lastLibraryRootPath = root
-        }
-
-        // Set active pack
-        activePackID = id
-
-        // Bridge: restore search results into WorkbenchFeatureStore
-        restoreSearchState(config.cachedSearchResults, config.searchQueryText)
-
-        // Re-render all tabs
-        _rerenderAllTabs()
-        refreshRelatedCharts()
-
-        analysisMessage = "Loaded: \(pack.label)"
-    }
-
     // MARK: - Pack helpers (private)
 
     private func _buildPackConfig() -> XYRotationPackConfig {
-        let legendPts: [String: CGPointCodable] = plotLegendPoints.reduce(into: [:]) { d, kv in
-            d[kv.key.rawValue] = CGPointCodable(kv.value)
-        }
         return XYRotationPackConfig(
             phiOffsetOverrides: phiOffsetOverrides,
             centerBaseline: centerBaseline,
             linearDetrend: linearDetrend,
-            activeTab: activeTab.rawValue,
+            activeTab: tabs.activeTab.rawValue,
             titleTemplate: titleTemplate,
             stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
-            showPlotGrid: showPlotGrid,
-            plotTitleOverride: plotTitleOverride,
-            plotXLabelOverride: plotXLabelOverride,
-            plotYLabelOverride: plotYLabelOverride,
-            plotLegendPoints: legendPts,
-            plotSeriesLabelOverrides: plotSeriesLabelOverrides,
+            showPlotGrid: tabs.showPlotGrid,
+            tabStates: tabs.snapshotStates(keyFor: { $0.rawValue }),
             cachedSearchResults: cachedSearchResults,
             selectedSearchResultIDs: Array(selectedSearchResultIDs),
             searchQueryText: ""   // filled by caller at WorkbenchFeatureStore level
@@ -577,12 +379,7 @@ final class XYRotationWorkspaceStore {
 
                 await MainActor.run { [weak self] in
                     guard let self, self._renderRevision == revision else { return }
-                    switch tab {
-                    case .rxxVsPhi: self.plotRxxVsPhi = data
-                    case .rxyVsPhi: self.plotRxyVsPhi = data
-                    }
-                    if let l = layout { self.plotLayouts[tab] = l }
-                    if let p = payload { self.cachedManifestPayloads[tab] = p }
+                    self.tabs.setOutput(TabRenderOutput(imageData: data, layout: layout, manifestPayload: payload), for: tab)
                 }
             }
         }
@@ -592,28 +389,41 @@ final class XYRotationWorkspaceStore {
 // MARK: - WorkbenchPlottingStore
 
 extension XYRotationWorkspaceStore: WorkbenchPlottingStore {
+    var showPlotGrid: Bool {
+        get { tabs.showPlotGrid }
+        set { tabs.showPlotGrid = newValue }
+    }
+    var seriesRenderMode: SeriesRenderMode {
+        get { tabs.seriesRenderMode }
+        set { tabs.seriesRenderMode = newValue }
+    }
+    var chartStyleOverrides: [String: String] {
+        get { tabs.chartStyleOverrides }
+        set { tabs.chartStyleOverrides = newValue }
+    }
+
     func updateLegendPoint(_ point: CGPoint) {
-        plotLegendPoints[activeTab] = point
+        tabs.updateLegendPoint(point)
         _rerenderActiveTab()
     }
 
     func updatePlotTitle(_ title: String) {
-        plotTitleOverride = title
+        tabs.updateTitleOverride(title)
         _rerenderActiveTab()
     }
 
     func updateXAxisLabel(_ label: String) {
-        plotXLabelOverride = label
+        tabs.updateXLabelOverride(label)
         _rerenderActiveTab()
     }
 
     func updateYAxisLabel(_ label: String) {
-        plotYLabelOverride = label
+        tabs.updateYLabelOverride(label)
         _rerenderActiveTab()
     }
 
     func updateSeriesLabel(index: Int, newLabel: String) {
-        plotSeriesLabelOverrides[index] = newLabel
+        tabs.updateSeriesLabel(index: index, newLabel: newLabel)
         _rerenderActiveTab()
     }
 }
@@ -622,21 +432,89 @@ extension XYRotationWorkspaceStore: WorkbenchPlottingStore {
 
 extension XYRotationWorkspaceStore: ActiveChartProviding {
 
-    var activeChartPNG: Data? {
-        switch activeTab {
-        case .rxxVsPhi: return plotRxxVsPhi
-        case .rxyVsPhi: return plotRxyVsPhi
-        }
-    }
+    var activeChartPNG: Data? { tabs.activeImageData }
 
-    var activeChartManifestPayload: WorkbenchPlotPayload? {
-        cachedManifestPayloads[activeTab]
-    }
+    var activeChartManifestPayload: WorkbenchPlotPayload? { tabs.activeManifestPayload }
 
     var activeChartSampleKeys: [String] { cachedSampleKeys }
 
     func buildActiveChartMetrics() -> [PendingMetricEntry] {
         // Deferred to 4.2.5 — Fourier fit will provide AMR/PHE metrics
         []
+    }
+}
+
+// MARK: - AnalysisPackProviding conformance
+
+extension XYRotationWorkspaceStore: AnalysisPackProviding {
+    typealias PackConfig = XYRotationPackConfig
+    typealias PackResult = XYRotationPackResult
+
+    var packWorkflowID: String { "xy" }
+    var packInputFiles: [String] { cachedInputFiles }
+    var packSampleKeys: [String] { cachedSampleKeys }
+    var hasAnalysisResult: Bool { ingestionResult != nil }
+
+    func buildPackConfig() -> XYRotationPackConfig { _buildPackConfig() }
+    func buildPackResult() -> XYRotationPackResult { _buildPackResult() }
+    func autoPackLabel() -> String { _autoPackLabel() }
+
+    func cancelInflightWork() {
+        analysisTask?.cancel(); analysisTask = nil
+        isAnalyzing = false
+    }
+
+    func restoreFromPack(config: XYRotationPackConfig, result: XYRotationPackResult,
+                         pack: AnalysisPack,
+                         restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void) {
+        // Restore analysis params
+        phiOffsetOverrides = config.phiOffsetOverrides
+        centerBaseline = config.centerBaseline
+        linearDetrend = config.linearDetrend
+
+        // Restore display settings
+        if let tab = XYRotationWorkbenchTab(rawValue: config.activeTab) {
+            tabs.activeTab = tab
+        }
+        titleTemplate = config.titleTemplate
+        stackOffsetMultiplier = config.stackOffsetMultiplier
+        minGapFraction = config.minGapFraction
+        tabs.showPlotGrid = config.showPlotGrid
+
+        // Restore per-tab states from pack
+        tabs.restoreStates(config.tabStates) { XYRotationWorkbenchTab(rawValue: $0) }
+
+        // Restore search selection state
+        cachedSearchResults = config.cachedSearchResults
+        selectedSearchResultIDs = Set(config.selectedSearchResultIDs)
+
+        // Restore results
+        ingestionResult = result.ingestionResult
+
+        // Build title tokens from restored search results
+        if let hit = config.cachedSearchResults.first {
+            var tokens: [String: String] = ["sample": hit.sampleBatchAndSubstrate]
+            let numericDisplay = cachedSampleNumericDisplay[hit.sampleKey] ?? [:]
+            for (k, v) in numericDisplay { tokens[k] = v }
+            _titleTokens = tokens
+        } else {
+            _titleTokens = [:]
+        }
+
+        // Restore cached persistence state from pack
+        cachedInputFiles = pack.filePaths
+        cachedSampleKeys = pack.sampleKeys
+
+        // Restore library root from vault so persistToLibrary works without a prior search
+        if lastLibraryRootPath.isEmpty, let root = vault?.libraryRootPath {
+            lastLibraryRootPath = root
+        }
+
+        // Bridge: restore search results into WorkbenchFeatureStore
+        restoreSearchState(config.cachedSearchResults, config.searchQueryText)
+
+        // Re-render all tabs
+        _rerenderAllTabs()
+        refreshRelatedCharts()
     }
 }

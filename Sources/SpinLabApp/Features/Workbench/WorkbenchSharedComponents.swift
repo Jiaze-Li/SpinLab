@@ -9,6 +9,10 @@ import AppKit
 protocol WorkbenchPlottingStore: AnyObject {
     /// 是否显示网格线。
     var showPlotGrid: Bool { get set }
+    /// 全局序列渲染模式覆盖。
+    var seriesRenderMode: SeriesRenderMode { get set }
+    /// Chart style overrides (font sizes, tick density).
+    var chartStyleOverrides: [String: String] { get set }
     /// 最近一次运行的 trace（nil = 尚未运行）。
     var currentRunTrace: WorkbenchRunTraceProjection? { get }
     /// 用户拖拽图例后回调，point 为 plot 归一化坐标（x,y ∈ [0,1]，Y-up）。
@@ -48,6 +52,12 @@ struct WorkbenchPlotCanvas: View {
     var onEditYLabel:      ((String) -> Void)?               = nil
     /// (seriesIndex, newLabel)
     var onEditLegendLabel: ((Int, String) -> Void)?          = nil
+    /// Font size change callback: (styleParamsKey, newSize). Triggers re-render.
+    var onFontSizeChange:  ((String, CGFloat) -> Void)?      = nil
+    /// Style override change callback: (styleParamsKey, stringValue). Triggers re-render.
+    var onStyleOverrideChange: ((String, String) -> Void)?   = nil
+    /// Current chart style overrides — used to show current font size / tick density in edit panel.
+    var chartStyleOverrides: [String: String] = [:]
 
     /// Related charts for hover popover (nil or empty = no popover).
     var relatedCharts: [WorkbenchResultReference]? = nil
@@ -84,6 +94,32 @@ struct WorkbenchPlotCanvas: View {
         case xLabel
         case yLabel
         case legend(seriesIndex: Int, originalLabel: String)
+        case xTickLabel
+        case yTickLabel
+    }
+
+    /// The styleParams key for the font size of the currently editing element.
+    private var editFontSizeKey: String? {
+        switch editingElement {
+        case .title:       return "titleFontSize"
+        case .xLabel:      return "axisTitleFontSize"
+        case .yLabel:      return "axisTitleFontSize"
+        case .legend:      return "legendFontSize"
+        case .xTickLabel:  return "tickLabelFontSize"
+        case .yTickLabel:  return "tickLabelFontSize"
+        case nil:          return nil
+        }
+    }
+
+    private static let fontSizeOptions: [CGFloat] = [12, 14, 16, 18, 19, 20, 22, 24, 25, 28, 32]
+
+    /// The styleParams key for tick density of the currently editing element (nil if not a tick element).
+    private var editTickDensityKey: String? {
+        switch editingElement {
+        case .xTickLabel: return "tickTargetX"
+        case .yTickLabel: return "tickTargetY"
+        default:          return nil
+        }
     }
 
     var body: some View {
@@ -157,6 +193,14 @@ struct WorkbenchPlotCanvas: View {
                 .onChange(of: imageData) { _, _ in
                     rendererPixelSize = Self.extractRendererPixelSize(from: nsImage) ?? Self.defaultRendererSize
                 }
+                .contextMenu {
+                    Button("Copy PNG") {
+                        guard let data = imageData else { return }
+                        let pb = NSPasteboard.general
+                        pb.clearContents()
+                        pb.setData(data, forType: .png)
+                    }
+                }
                 .hoverPopover(
                     showDelay: .seconds(1),
                     dismissDelay: .milliseconds(500),
@@ -219,19 +263,15 @@ struct WorkbenchPlotCanvas: View {
     /// Derived from legendRows[0] by reversing the renderer's free-position math.
     /// Falls back to (0.5, 0.5) when layout is unavailable.
     private func currentLegendOriginNorm() -> CGPoint {
-        guard let rows = layout?.legendRows, !rows.isEmpty else {
+        guard let layout, !layout.legendRows.isEmpty else {
             return CGPoint(x: 0.5, y: 0.5)
         }
-        let opts = WorkbenchChartRenderer.Options()
-        let plotMinX = opts.paddingLeft
-        let plotMinY = opts.paddingBottom   // CG Y-up: plot bottom edge
-        let plotW = rendererPixelSize.width  - opts.paddingLeft - opts.paddingRight
-        let plotH = rendererPixelSize.height - opts.paddingTop  - opts.paddingBottom
-        let row0 = rows[0]
-        let nx = (row0.cgOriginX - plotMinX) / plotW
+        let pr = layout.plotRect
+        let row0 = layout.legendRows[0]
+        let nx = (row0.cgOriginX - pr.minX) / pr.width
         // Reverse: originY = cgRowY + legendRowH * 0.4  (from computeLegendRows, i=0)
         let cgOriginY = row0.cgRowY + WorkbenchPlotLayout.legendRowH * 0.4
-        let ny = (cgOriginY - plotMinY) / plotH
+        let ny = (cgOriginY - pr.minY) / pr.height
         return CGPoint(x: min(max(nx, 0), 1), y: min(max(ny, 0), 1))
     }
 
@@ -249,32 +289,106 @@ struct WorkbenchPlotCanvas: View {
             case .xLabel:           return "X Label"
             case .yLabel:           return "Y Label"
             case .legend(_, let orig): return "Legend · \(orig)"
+            case .xTickLabel:       return "X Tick"
+            case .yTickLabel:       return "Y Tick"
             }
         }()
+        let hasTextField = (elem != .xTickLabel && elem != .yTickLabel)
         let pos = editPanelPosition()
         HStack(spacing: 6) {
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-            TextField("", text: $editText)
-                .textFieldStyle(.roundedBorder)
-                .frame(minWidth: 120, maxWidth: 220)
-                .onSubmit { commitEdit() }
-            Button("OK")     { commitEdit() }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
+            if hasTextField {
+                TextField("", text: $editText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(minWidth: 100, maxWidth: 180)
+                    .onSubmit { commitEdit() }
+            }
+            if let key = editFontSizeKey, onFontSizeChange != nil {
+                fontSizePicker(key: key)
+            }
+            if let densityKey = editTickDensityKey {
+                tickDensityStepper(key: densityKey)
+            }
+            if hasTextField {
+                Button("OK")     { commitEdit() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                if case .title = elem {
+                    Button("Default") {
+                        editText = ""
+                        commitEdit()
+                    }
+                    .controlSize(.small)
+                }
+            } else {
+                Button("OK") { editingElement = nil }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+            }
             Button("Cancel") { editingElement = nil }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .frame(width: Self.panelW)
+        .frame(minWidth: Self.panelW)
+        .fixedSize()
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
         .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
         .position(pos)
         .onExitCommand { editingElement = nil }
+    }
+
+    @ViewBuilder
+    private func fontSizePicker(key: String) -> some View {
+        let defaultSize: CGFloat = WorkbenchChartStyle()[keyPath: Self.fontSizeKeyPath(key)]
+        let current = chartStyleOverrides[key].flatMap { Double($0).map { CGFloat($0) } } ?? defaultSize
+        Picker("", selection: Binding<CGFloat>(
+            get: { current },
+            set: { newVal in
+                onFontSizeChange?(key, newVal)
+            }
+        )) {
+            ForEach(Self.fontSizeOptions, id: \.self) { s in
+                Text("\(Int(s))pt").tag(s)
+            }
+        }
+        .labelsHidden()
+        .frame(width: 72)
+    }
+
+    @ViewBuilder
+    private func tickDensityStepper(key: String) -> some View {
+        let fallback = key == "tickTargetX" ? 6 : 5
+        let current = chartStyleOverrides[key].flatMap { Int($0) } ?? fallback
+        HStack(spacing: 4) {
+            Text("Density").font(.caption2).foregroundStyle(.secondary).fixedSize()
+            Stepper(
+                value: Binding<Int>(
+                    get: { current },
+                    set: { newVal in
+                        onStyleOverrideChange?(key, "\(newVal)")
+                    }
+                ),
+                in: 2...20
+            ) {
+                Text("\(current)").font(.caption).frame(width: 20)
+            }
+            .frame(width: 90)
+        }
+    }
+
+    private static func fontSizeKeyPath(_ key: String) -> KeyPath<WorkbenchChartStyle, CGFloat> {
+        switch key {
+        case "titleFontSize":     return \.titleFontSize
+        case "axisTitleFontSize": return \.axisTitleFontSize
+        case "tickLabelFontSize": return \.tickLabelFontSize
+        case "legendFontSize":    return \.legendFontSize
+        default:                  return \.titleFontSize
+        }
     }
 
     /// Returns the `.position` (center point) for the edit panel, keeping it within the canvas.
@@ -336,6 +450,18 @@ struct WorkbenchPlotCanvas: View {
                 }
             }
         }
+        if onFontSizeChange != nil {
+            if toScreen(layout.xTickHitRect).contains(location) {
+                editTargetScreenRect = toScreen(layout.xTickHitRect)
+                editingElement = .xTickLabel
+                return
+            }
+            if toScreen(layout.yTickHitRect).contains(location) {
+                editTargetScreenRect = toScreen(layout.yTickHitRect)
+                editingElement = .yTickLabel
+                return
+            }
+        }
         // Tap outside any editable element — dismiss active editor
         if editingElement != nil { editingElement = nil }
     }
@@ -348,6 +474,7 @@ struct WorkbenchPlotCanvas: View {
         case .xLabel:             onEditXLabel?(text)
         case .yLabel:             onEditYLabel?(text)
         case .legend(let idx, _): onEditLegendLabel?(idx, text)
+        case .xTickLabel, .yTickLabel: break  // tick panels have no text to commit
         }
         editingElement = nil
         editText = ""
@@ -371,19 +498,28 @@ struct WorkbenchPlotCanvas: View {
 
     private func plotNormalized(location: CGPoint, fittedRect: CGRect) -> CGPoint? {
         guard !fittedRect.isEmpty else { return nil }
+        let rSize = layout?.rendererSize ?? rendererPixelSize
+        let pr = layout?.plotRect ?? {
+            let opts = WorkbenchChartRenderer.Options()
+            return CGRect(
+                x: opts.paddingLeft, y: opts.paddingBottom,
+                width: rSize.width - opts.paddingLeft - opts.paddingRight,
+                height: rSize.height - opts.paddingTop - opts.paddingBottom
+            )
+        }()
         // Clamp cursor to fittedRect before projecting so dragging outside the image
         // (or into any padding margin) stays responsive with no invisible air wall.
         let cx = min(max(location.x, fittedRect.minX), fittedRect.maxX)
         let cy = min(max(location.y, fittedRect.minY), fittedRect.maxY)
-        let px = (cx - fittedRect.minX) / fittedRect.width  * rendererPixelSize.width
-        let py = (cy - fittedRect.minY) / fittedRect.height * rendererPixelSize.height
-        let opts = WorkbenchChartRenderer.Options()
-        let plotW    = rendererPixelSize.width  - opts.paddingLeft - opts.paddingRight
-        let plotH    = rendererPixelSize.height - opts.paddingTop  - opts.paddingBottom
-        let plotMinX = opts.paddingLeft
-        let plotMinY = opts.paddingTop
-        let nx = (px - plotMinX) / plotW
-        let ny = 1.0 - (py - plotMinY) / plotH
+        let px = (cx - fittedRect.minX) / fittedRect.width  * rSize.width
+        let py = (cy - fittedRect.minY) / fittedRect.height * rSize.height
+        // CG layout: plotRect origin is bottom-left, but in PNG space Y is inverted.
+        // pr.minX = paddingLeft, pr.minY = paddingBottom (CG), but in PNG space
+        // the top of the plot is at paddingTop from the top of the image.
+        let plotMinX = pr.minX
+        let plotMinY = rSize.height - pr.maxY   // PNG-space top of plot area
+        let nx = (px - plotMinX) / pr.width
+        let ny = 1.0 - (py - plotMinY) / pr.height
         return CGPoint(x: min(max(nx, 0), 1), y: min(max(ny, 0), 1))
     }
 
@@ -392,18 +528,24 @@ struct WorkbenchPlotCanvas: View {
     /// This is the inverse of `plotNormalized`, ensuring the preview anchors exactly to the
     /// rendered legend origin rather than the raw drag location.
     private func legendScreenOrigin(normalized: CGPoint, fittedRect: CGRect) -> CGPoint {
-        let opts = WorkbenchChartRenderer.Options()
-        let plotW = rendererPixelSize.width  - opts.paddingLeft - opts.paddingRight
-        let plotH = rendererPixelSize.height - opts.paddingTop  - opts.paddingBottom
+        let rSize = layout?.rendererSize ?? rendererPixelSize
+        let pr = layout?.plotRect ?? {
+            let opts = WorkbenchChartRenderer.Options()
+            return CGRect(
+                x: opts.paddingLeft, y: opts.paddingBottom,
+                width: rSize.width - opts.paddingLeft - opts.paddingRight,
+                height: rSize.height - opts.paddingTop - opts.paddingBottom
+            )
+        }()
         // Renderer CG space (Y-up)
-        let cgOriginX = opts.paddingLeft   + normalized.x * plotW
-        let cgOriginY = opts.paddingBottom + normalized.y * plotH
+        let cgOriginX = pr.minX + normalized.x * pr.width
+        let cgOriginY = pr.minY + normalized.y * pr.height
         // PNG space (Y-down, same as screen)
         let pngX = cgOriginX
-        let pngY = rendererPixelSize.height - cgOriginY
+        let pngY = rSize.height - cgOriginY
         return CGPoint(
-            x: fittedRect.minX + pngX / rendererPixelSize.width  * fittedRect.width,
-            y: fittedRect.minY + pngY / rendererPixelSize.height * fittedRect.height
+            x: fittedRect.minX + pngX / rSize.width  * fittedRect.width,
+            y: fittedRect.minY + pngY / rSize.height * fittedRect.height
         )
     }
 
@@ -495,17 +637,35 @@ struct WorkbenchStatusArea: View {
 /// 通用 Plot Controls 容器。
 /// 提供统一的 GroupBox 标题、内部 VStack 间距和 padding。
 /// 所有 workflow 的 PlotControlsPanel 必须以此为容器，workflow 专属控件通过 ViewBuilder 注入。
+/// Shell 级控件（绘图模式、tick 密度）自动附加在底部。
+/// 字号通过点击图上元素调整，不在此面板。
 struct WorkbenchPlotControlsPanel<Content: View>: View {
+    @Binding var seriesRenderMode: SeriesRenderMode
+    @Binding var chartStyleOverrides: [String: String]
+    var onStyleChange: (() -> Void)? = nil
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         GroupBox("Plot Controls") {
             VStack(alignment: .leading, spacing: 8) {
                 content()
+                // Shell-level control: render mode
+                HStack(spacing: 8) {
+                    Text("Draw").font(.caption).foregroundStyle(.secondary)
+                    Picker("", selection: $seriesRenderMode) {
+                        Text("Line").tag(SeriesRenderMode.line)
+                        Text("Scatter").tag(SeriesRenderMode.scatter)
+                        Text("Line+Scatter").tag(SeriesRenderMode.lineAndScatter)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .onChange(of: seriesRenderMode) { _, _ in onStyleChange?() }
+                }
             }
             .padding(.vertical, 4)
         }
     }
+
 }
 
 // MARK: - WorkbenchStandardPlotControls
@@ -527,11 +687,17 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     @Binding var showGrid: Bool
     @Binding var titleTemplate: String
     let numericDisplayCache: [String: [String: String]]
+    @Binding var seriesRenderMode: SeriesRenderMode
+    @Binding var chartStyleOverrides: [String: String]
     var onChange: (() -> Void)? = nil
     @ViewBuilder var extraContent: () -> Extra
 
     var body: some View {
-        WorkbenchPlotControlsPanel {
+        WorkbenchPlotControlsPanel(
+            seriesRenderMode: $seriesRenderMode,
+            chartStyleOverrides: $chartStyleOverrides,
+            onStyleChange: onChange
+        ) {
             // Row 1: Tab + Stack + Gap
             HStack(spacing: 8) {
                 Picker("Tab", selection: $activeTab) {
@@ -589,6 +755,8 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         showGrid: Binding<Bool>,
         titleTemplate: Binding<String>,
         numericDisplayCache: [String: [String: String]],
+        seriesRenderMode: Binding<SeriesRenderMode>,
+        chartStyleOverrides: Binding<[String: String]>,
         onChange: (() -> Void)? = nil
     ) {
         self._activeTab = activeTab
@@ -599,6 +767,8 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         self._showGrid = showGrid
         self._titleTemplate = titleTemplate
         self.numericDisplayCache = numericDisplayCache
+        self._seriesRenderMode = seriesRenderMode
+        self._chartStyleOverrides = chartStyleOverrides
         self.onChange = onChange
         self.extraContent = { EmptyView() }
     }

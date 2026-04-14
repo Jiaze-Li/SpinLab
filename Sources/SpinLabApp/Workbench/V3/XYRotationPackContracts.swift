@@ -16,11 +16,9 @@ struct XYRotationPackConfig: Codable, Hashable, Sendable {
     var stackOffsetMultiplier: Double
     var minGapFraction: Double
     var showPlotGrid: Bool
-    var plotTitleOverride: String?
-    var plotXLabelOverride: String?
-    var plotYLabelOverride: String?
-    var plotLegendPoints: [String: CGPointCodable]  // tab.rawValue → point
-    var plotSeriesLabelOverrides: [Int: String]
+
+    // --- Per-tab render states (keyed by tab.rawValue) ---
+    var tabStates: [String: TabRenderState] = [:]
 
     // --- Search state ---
     var cachedSearchResults: [WorkflowMeasurementSearchHit]
@@ -34,3 +32,5 @@ struct XYRotationPackConfig: Codable, Hashable, Sendable {
 struct XYRotationPackResult: Codable, Hashable, Sendable {
     var ingestionResult: XYRotationIngestionResult
 }
+
+extension XYRotationPackConfig: SearchQueryTextInjectable {}

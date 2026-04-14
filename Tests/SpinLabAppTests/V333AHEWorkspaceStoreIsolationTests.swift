@@ -15,7 +15,7 @@ struct V333AHEWorkspaceStoreIsolationTests {
         let store = AHEWorkspaceStore()
 
         #expect(store.selectedSearchResultIDs.isEmpty)
-        #expect(store.currentPlotImageData == nil)
+        #expect(store.tabs.activeImageData == nil)
         #expect(store.isPlotRendering == false)
         #expect(store.plotMessage == nil)
         #expect(store.currentCandidateAxisFields.isEmpty)
@@ -24,14 +24,14 @@ struct V333AHEWorkspaceStoreIsolationTests {
         #expect(store.artifactLoadMessage == nil)
         #expect(store.plotAxisXOverride == "")
         #expect(store.plotAxisYOverride == "")
-        #expect(store.plotTitleOverride == "")
-        #expect(store.showPlotGrid == false)
-        #expect(store.plotLegendAnchor == "")
-        #expect(store.plotLegendPoint == nil)
-        #expect(store.plotSeriesLabelOverrides.isEmpty)
-        #expect(store.plotXLabelOverride == "")
-        #expect(store.plotYLabelOverride == "")
-        #expect(store.currentPlotLayout == nil)
+        #expect(store.tabs.activeState.titleOverride == "")
+        #expect(store.tabs.showPlotGrid == false)
+        #expect(store.tabs.legendAnchor == "")
+        #expect(store.tabs.activeState.legendPoint == nil)
+        #expect(store.tabs.activeSeriesLabelOverrides.isEmpty)
+        #expect(store.tabs.activeState.xLabelOverride == "")
+        #expect(store.tabs.activeState.yLabelOverride == "")
+        #expect(store.tabs.activeLayout == nil)
         #expect(store.lastLibraryRootPath == "")
         #expect(store.cachedSearchResults.isEmpty)
         #expect(store.lastExtractedMetrics.isEmpty)
@@ -62,31 +62,31 @@ struct V333AHEWorkspaceStoreIsolationTests {
         // Seed some state
         store.toggleSearchHitSelection("id-1")
         store.plotAxisXOverride = "Temperature (K)"
-        store.plotTitleOverride = "My Plot"
-        store.showPlotGrid = true
-        store.plotLegendAnchor = "top-left"
-        store.plotSeriesLabelOverrides = [0: "Custom A"]
-        store.plotXLabelOverride = "X"
-        store.plotYLabelOverride = "Y"
+        store.tabs.updateTitleOverride("My Plot")
+        store.tabs.showPlotGrid = true
+        store.tabs.legendAnchor = "top-left"
+        store.tabs.tabStates[.ahe, default: TabRenderState()].seriesLabelOverrides = [0: "Custom A"]
+        store.tabs.updateXLabelOverride("X")
+        store.tabs.updateYLabelOverride("Y")
 
         store.clearPlot()
 
         #expect(store.selectedSearchResultIDs.isEmpty)
-        #expect(store.currentPlotImageData == nil)
+        #expect(store.tabs.activeImageData == nil)
         #expect(store.isPlotRendering == false)
         #expect(store.plotMessage == nil)
         #expect(store.currentCandidateAxisFields.isEmpty)
         #expect(store.currentRunTrace == nil)
         #expect(store.plotAxisXOverride == "")
         #expect(store.plotAxisYOverride == "")
-        #expect(store.plotTitleOverride == "")
-        #expect(store.showPlotGrid == false)
-        #expect(store.plotLegendAnchor == "")
-        #expect(store.plotLegendPoint == nil)
-        #expect(store.plotSeriesLabelOverrides.isEmpty)
-        #expect(store.plotXLabelOverride == "")
-        #expect(store.plotYLabelOverride == "")
-        #expect(store.currentPlotLayout == nil)
+        #expect(store.tabs.activeState.titleOverride == "")
+        #expect(store.tabs.showPlotGrid == false)
+        #expect(store.tabs.legendAnchor == "")
+        #expect(store.tabs.activeState.legendPoint == nil)
+        #expect(store.tabs.activeSeriesLabelOverrides.isEmpty)
+        #expect(store.tabs.activeState.xLabelOverride == "")
+        #expect(store.tabs.activeState.yLabelOverride == "")
+        #expect(store.tabs.activeLayout == nil)
     }
 
     @MainActor

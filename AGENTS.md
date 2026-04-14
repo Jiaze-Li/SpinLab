@@ -404,16 +404,30 @@ Change impact rule:
 - `[HARD][must]` Before modifying code, check `docs/features.md` for **invariants** listed under the affected workflow. If a proposed change would violate an invariant, stop and flag it to the user before proceeding.
 - `[DIRECTION][should]` After completing a code change, verify that no invariant in `docs/features.md` was broken by the change.
 
-Codex review gate (required):
-- `[HARD][must]` For non-trivial implementation plans and architecture changes, call Codex as co-designer and reviewer. Share the user's thinking, requirements, and the proposed solution. Let both AI models co-design and cross-check.
-- `[HARD][must]` Multiple rounds of adversarial review are permitted and encouraged when the plan is complex. Continue until both sides converge.
-- `[HARD][must]` Do not execute a plan that Codex has flagged with unresolved objections.
-- Trigger criteria: a change requires Codex review if it meets any of these conditions:
+Codex cross-review protocol (required):
+- Full protocol documented in `docs/philosophy.md` § Cross-Review Protocol. Summary below.
+- Three phases: Design Review → Execution → Acceptance Review.
+
+Design review (方案交叉审核):
+- `[HARD][must]` For non-trivial plans and architecture changes, give Codex the user's original requirement (not a pre-formed solution) and let it independently produce a proposal. Claude also produces its own proposal. Compare, challenge, and merge until convergence. This avoids framing bias where the reviewer can only react to the proposer's mental model.
+- `[HARD][must]` Do not execute a plan that either side has flagged with unresolved objections. User has final say.
+- Trigger criteria: a change requires design review if it meets any of these conditions:
   - Touches 2+ architectural modules or crosses layer boundaries
   - Introduces a new pattern, protocol, or structural convention
   - Changes persistence format or domain model shape
   - Modifies CLAUDE.md rules or docs/ architecture specs
-- Exception: changes that are purely mechanical and contained (typo fixes, single-file edits within one module, documentation content updates with no new rules) do not require Codex review.
+- Exception: purely mechanical and contained changes (typo fixes, single-file edits within one module, documentation content updates with no new rules) skip design review.
+
+Execution (分工并行):
+- Claude and Codex may split work across modules and execute in parallel.
+- User gives execution instruction before any code changes.
+
+Acceptance review (交叉验收):
+- `[HARD][must]` The implementer does NOT review their own work. Claude's code → Codex reviews. Codex's code → Claude reviews.
+- `[HARD][must]` Review brief states only what files changed and the intent. Do NOT list verification questions or suggest what to check — this causes confirmation bias. The reviewer decides independently what to examine.
+- `[HARD][must]` Findings → implementer fixes → reviewer re-verifies. Loop until reviewer reports no new issues.
+- `[HARD][must]` A new round is required when: reviewer found issues and implementer fixed them; the fix itself introduced new code that was not yet reviewed; or new user feedback changes the scope.
+- Trigger: after each round of code changes, not after every small edit.
 
 Roadmap reference (required):
 - Active roadmap: `docs/V5_ROADMAP.md`.
