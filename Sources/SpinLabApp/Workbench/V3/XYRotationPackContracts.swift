@@ -18,7 +18,7 @@ struct XYRotationPackConfig: Codable, Hashable, Sendable {
     var showPlotGrid: Bool
 
     // --- Per-tab render states (keyed by tab.rawValue) ---
-    var tabStates: [String: TabRenderState]
+    var tabStates: [String: TabRenderState] = [:]
 
     // --- Search state ---
     var cachedSearchResults: [WorkflowMeasurementSearchHit]

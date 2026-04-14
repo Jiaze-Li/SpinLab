@@ -413,11 +413,12 @@ final class WorkbenchFeatureStore {
             }
             if !legendMap.isEmpty { snapshot.xyRotationPlotLegendPoints = legendMap }
         }
-        // Chart style overrides — snapshot whichever workflow has the most (they should be in sync)
-        let overrides = threeOmegaWorkspace.tabs.chartStyleOverrides
-        if !overrides.isEmpty {
-            snapshot.workbenchChartStyleOverrides = overrides
-        }
+        // Chart style overrides — merge from all workflows (user may edit in any one)
+        var overrides: [String: String] = [:]
+        for (k, v) in threeOmegaWorkspace.tabs.chartStyleOverrides { overrides[k] = v }
+        for (k, v) in xyRotationWorkspace.tabs.chartStyleOverrides { overrides[k] = v }
+        for (k, v) in aheWorkspace.tabs.chartStyleOverrides { overrides[k] = v }
+        snapshot.workbenchChartStyleOverrides = overrides.isEmpty ? nil : overrides
     }
 
     /// Bridge method: restores search state into WorkbenchFeatureStore when loading a pack.

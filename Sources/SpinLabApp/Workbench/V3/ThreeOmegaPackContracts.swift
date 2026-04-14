@@ -24,7 +24,7 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
     var plotLegendAnchor: String
 
     // --- Per-tab display states (keyed by stableKey for Codable) ---
-    var tabStates: [String: TabRenderState]
+    var tabStates: [String: TabRenderState] = [:]
 
     // --- Search state ---
     var cachedSearchResults: [WorkflowMeasurementSearchHit]
