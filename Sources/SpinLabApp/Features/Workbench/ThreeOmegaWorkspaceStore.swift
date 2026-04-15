@@ -132,13 +132,13 @@ final class ThreeOmegaWorkspaceStore {
 
     private(set) var ingestionResult: ThreeOmegaIngestionResult?
     private(set) var scalingResult: ThreeOmegaScalingResult?
-    private(set) var currentRunTrace: WorkbenchRunTraceProjection?
+    var currentRunTrace: WorkbenchRunTraceProjection?
     private(set) var isAnalyzing: Bool = false
     var analysisMessage: String?
 
     // MARK: - Warning log (persists across runs within the session)
 
-    private(set) var warningLog: [ThreeOmegaWarningEntry] = []
+    var warningLog: [WorkbenchWarningEntry] = []
 
     // MARK: - Multi-tab render state (shell capability)
 
@@ -317,12 +317,13 @@ final class ThreeOmegaWorkspaceStore {
         let capturedRAHE3MethodForPlots = rahe3omegaMethod
 
         let capturedRTHit = selectedRTHit
+        let capturedNumericDisplay: [String: [String: String]] = cachedSampleNumericDisplay
 
         analysisTask = Task { [weak self] in
             guard let self else { return }
             let (result, plots) = await Task.detached(priority: .userInitiated) { [selectedHits] in
                 let ingestUseCase = IngestThreeOmegaSelectionsUseCase()
-                let result = ingestUseCase.execute(hits: selectedHits, rtHit: capturedRTHit)
+                let result = ingestUseCase.execute(hits: selectedHits, rtHit: capturedRTHit, numericDisplayBySample: capturedNumericDisplay)
                 var renderer = ThreeOmegaPlotRenderer()
                 renderer.showGrid              = capturedGrid
                 renderer.seriesRenderMode      = capturedRenderMode
@@ -340,30 +341,21 @@ final class ThreeOmegaWorkspaceStore {
             self.ingestionResult = result
             self._applyPlots(plots)
 
+            // Pipeline warnings (legend resolver)
+            for w in plots.pipelineWarnings {
+                self.appendWarning(source: "Legend", message: w)
+            }
+
             let sweepCount = result.fieldSweeps.count
             let rtNote     = result.rtResult != nil ? ", RT curve loaded" : ""
             self.analysisMessage = "Analyzed \(sweepCount) field-sweep file(s)\(rtNote)."
 
             for w in result.warnings {
-                self.warningLog.append(ThreeOmegaWarningEntry(source: "Ingestion", message: w))
-                print("[SpinLab][3ω Ingestion] \(w)")
+                self.appendWarning(source: "Ingestion", message: w)
             }
 
-            self.currentRunTrace = WorkbenchRunTraceProjection(
-                runID: UUID().uuidString,
-                workflowID: "3w",
-                inputFiles: selectedHits.map { $0.measurementFilePath },
-                axisMapping: WorkbenchAxisMapping(xField: "H (Oe)", yField: "R (Ω)"),
-                semanticParams: [
-                    "device":       result.device.isEmpty ? "unknown" : result.device,
-                    "fieldSweeps":  "\(sweepCount)",
-                    "rtLoaded":     result.rtResult != nil ? "yes" : "no"
-                ],
-                outputImagePath: "",
-                manifestPath: "",
-                generatedAt: Date()
-            )
             self._snapshotAndCacheManifestPayloads()
+            self.commitRunTrace()
             self.isAnalyzing = false
             self.refreshRelatedCharts()
         }
@@ -426,7 +418,7 @@ final class ThreeOmegaWorkspaceStore {
             self._refreshManifestPayloads()
 
             for w in scalingRes.warnings {
-                self.warningLog.append(ThreeOmegaWarningEntry(source: "Scaling", message: w))
+                self.appendWarning(source: "Scaling", message: w)
                 print("[SpinLab][3ω Scaling] \(w)")
             }
 
@@ -675,31 +667,17 @@ final class ThreeOmegaWorkspaceStore {
 
     // MARK: - Clear
 
-    func clearAll() {
+    func clearPlot() {
         analysisTask?.cancel()
         scalingTask?.cancel()
-        selectedSearchResultIDs  = []
         ingestionResult          = nil
         scalingResult            = nil
         currentRunTrace          = nil
         isAnalyzing              = false
         analysisMessage          = nil
-        geometry                 = ThreeOmegaGeometry()
-        v3Method                 = .highField
-        fitRanges                = [ThreeOmegaFitRange()]
-        tabs.activeTab           = .fieldSweep1omega
-        tabs.showPlotGrid        = true
-        tabs.legendAnchor        = ""
         _titleTokens             = [:]
         tabs.clearAll()
-        rtQuery                  = ""
-        rtSearchResults          = []
-        rtSearchMessage          = nil
-        isRTSearching            = false
-        showRTPopover            = false
-        selectedRTHit            = nil
         warningLog               = []
-        cachedSampleNumericDisplay = [:]
         activePackID             = nil
         overlayPackIDs           = []
         overlaySnapshots         = [:]
@@ -710,6 +688,18 @@ final class ThreeOmegaWorkspaceStore {
         cachedConditionsBySampleKey = [:]
         cachedInputFiles         = []
         cachedRTFilePath         = nil
+    }
+
+    func clearResults() {
+        selectedSearchResultIDs  = []
+        cachedSearchResults      = []
+        cachedSampleNumericDisplay = [:]
+        rtQuery                  = ""
+        rtSearchResults          = []
+        rtSearchMessage          = nil
+        isRTSearching            = false
+        showRTPopover            = false
+        selectedRTHit            = nil
     }
 
     // MARK: - Private helpers
@@ -1013,21 +1003,6 @@ final class ThreeOmegaWorkspaceStore {
     }
 }
 
-// MARK: - Warning log entry
-
-struct ThreeOmegaWarningEntry: Identifiable, Sendable {
-    let id = UUID()
-    let timestamp: Date
-    let source: String   // "Ingestion" or "Scaling"
-    let message: String
-
-    init(source: String, message: String) {
-        self.timestamp = Date()
-        self.source = source
-        self.message = message
-    }
-}
-
 // MARK: - WorkbenchPlottingStore conformance
 
 extension ThreeOmegaWorkspaceStore: WorkbenchPlottingStore {
@@ -1241,4 +1216,42 @@ struct ThreeOmegaRenderedPlots: Sendable {
     var layoutRAHE3omegaVsT:   WorkbenchPlotLayout?
     var layoutHcVsT:           WorkbenchPlotLayout?
     var layoutRTCurve:         WorkbenchPlotLayout?
+    var pipelineWarnings:      [String] = []
+}
+
+// MARK: - WorkbenchWorkspaceProviding conformance
+
+extension ThreeOmegaWorkspaceStore: WorkbenchWorkspaceProviding {
+
+    func buildRunTrace() -> WorkbenchRunTraceProjection? {
+        guard let result = ingestionResult else { return nil }
+        let sweepCount = result.fieldSweeps.count
+        return WorkbenchRunTraceProjection(
+            runID: UUID().uuidString,
+            workflowID: "3w",
+            inputFiles: cachedInputFiles,
+            axisMapping: WorkbenchAxisMapping(xField: "H (Oe)", yField: "R (Ω)"),
+            semanticParams: [
+                "device":       result.device.isEmpty ? "unknown" : result.device,
+                "fieldSweeps":  "\(sweepCount)",
+                "rtLoaded":     result.rtResult != nil ? "yes" : "no"
+            ],
+            outputImagePath: "",
+            manifestPath: "",
+            generatedAt: Date()
+        )
+    }
+
+    var activeImageData: Data? { tabs.activeImageData }
+    var activeLayout: WorkbenchPlotLayout? { tabs.activeLayout }
+    var seriesLabelOverrides: [Int: String] { tabs.activeSeriesLabelOverrides }
+
+    var relatedCharts: [WorkbenchResultReference]? {
+        let charts = relatedCharts(for: tabs.activeTab)
+        return charts.isEmpty ? nil : charts
+    }
+
+    var libraryRootURL: URL? {
+        lastLibraryRootPath.isEmpty ? nil : URL(fileURLWithPath: lastLibraryRootPath)
+    }
 }

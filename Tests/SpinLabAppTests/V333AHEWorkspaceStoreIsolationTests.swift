@@ -20,8 +20,6 @@ struct V333AHEWorkspaceStoreIsolationTests {
         #expect(store.plotMessage == nil)
         #expect(store.currentCandidateAxisFields.isEmpty)
         #expect(store.currentRunTrace == nil)
-        #expect(store.isLoadingArtifact == false)
-        #expect(store.artifactLoadMessage == nil)
         #expect(store.plotAxisXOverride == "")
         #expect(store.plotAxisYOverride == "")
         #expect(store.tabs.activeState.titleOverride == "")

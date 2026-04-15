@@ -573,8 +573,8 @@ struct WorkbenchTracePanel: View {
     var labelWidth: CGFloat = 64
 
     var body: some View {
-        if let trace {
-            GroupBox("Last Run Trace") {
+        GroupBox("Last Run Trace") {
+            if let trace {
                 VStack(alignment: .leading, spacing: 6) {
                     traceRow(label: "Run ID",    value: trace.runID)
                     traceRow(label: "Workflow",  value: trace.workflowID)
@@ -585,6 +585,11 @@ struct WorkbenchTracePanel: View {
                     traceRow(label: "Generated", value: trace.generatedAt.formatted(.dateTime))
                 }
                 .padding(.vertical, 4)
+            } else {
+                Text("No trace yet — run analysis to generate.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .padding(.vertical, 4)
             }
         }
     }

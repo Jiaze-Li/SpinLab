@@ -400,7 +400,8 @@ struct V400WorkspaceStoreTests {
         let store = ThreeOmegaWorkspaceStore()
         store.toggleSearchHitSelection("id-1")
         store.geometry = ThreeOmegaGeometry(lxx: 26, lxy: 21, dNm: 30)
-        store.clearAll()
+        store.clearPlot()
+        store.clearResults()
         #expect(store.selectedSearchResultIDs.isEmpty)
         #expect(!store.geometry.isComplete)
         #expect(store.ingestionResult == nil)
@@ -432,7 +433,7 @@ struct V400PlotRendererTests {
 
     @Test("renderR1omega returns non-nil Data for valid sweeps")
     func renderR1omegaReturnsData() {
-        let renderer = ThreeOmegaPlotRenderer()
+        var renderer = ThreeOmegaPlotRenderer()
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 5.0, device: "0deg",
             hField: [-100, 0, 100], r1omega: [-1, 0, 1], r3omega: [0, 0, 0],
@@ -447,7 +448,7 @@ struct V400PlotRendererTests {
 
     @Test("renderScaling with no points returns nil")
     func renderScalingNoPoints() {
-        let renderer = ThreeOmegaPlotRenderer()
+        var renderer = ThreeOmegaPlotRenderer()
         let result = ThreeOmegaScalingResult(points: [], segments: [], warnings: [])
         let (data, _) = renderer.renderScaling(result: result)
         #expect(data == nil)

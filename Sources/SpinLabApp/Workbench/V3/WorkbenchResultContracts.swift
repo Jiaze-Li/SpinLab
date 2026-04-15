@@ -21,6 +21,11 @@ struct WorkbenchPlotSeries: Hashable, Sendable {
     var pointLabels: [String]   // per-point annotation text for scatter series (empty = none)
     var lineWidth: Double        // line width for line series; default 1.5
 
+    /// Sample/condition metadata carried from search hit through ingestion to plotting (v5.3.4).
+    /// Used by LegendDimensionResolver to auto-infer the distinguishing dimension.
+    /// Keys follow resolver chain keys: "temperature", "substrate", "energy", "pressure", "thickness".
+    var metadata: [String: String]
+
     init(
         label: String,
         x: [Double],
@@ -28,7 +33,8 @@ struct WorkbenchPlotSeries: Hashable, Sendable {
         sourceRef: String? = nil,
         renderMode: SeriesRenderMode = .line,
         pointLabels: [String] = [],
-        lineWidth: Double = 1.5
+        lineWidth: Double = 2.0,
+        metadata: [String: String] = [:]
     ) {
         self.label = label
         self.x = x
@@ -37,6 +43,7 @@ struct WorkbenchPlotSeries: Hashable, Sendable {
         self.renderMode = renderMode
         self.pointLabels = pointLabels
         self.lineWidth = lineWidth
+        self.metadata = metadata
     }
 
     /// Convenience initializer preserving old `isScatter` call sites during migration.
@@ -47,12 +54,14 @@ struct WorkbenchPlotSeries: Hashable, Sendable {
         sourceRef: String? = nil,
         isScatter: Bool,
         pointLabels: [String] = [],
-        lineWidth: Double = 1.5
+        lineWidth: Double = 2.0,
+        metadata: [String: String] = [:]
     ) {
         self.init(
             label: label, x: x, y: y, sourceRef: sourceRef,
             renderMode: isScatter ? .scatter : .line,
-            pointLabels: pointLabels, lineWidth: lineWidth
+            pointLabels: pointLabels, lineWidth: lineWidth,
+            metadata: metadata
         )
     }
 }
@@ -61,7 +70,7 @@ struct WorkbenchPlotSeries: Hashable, Sendable {
 
 extension WorkbenchPlotSeries: Codable {
     private enum CodingKeys: String, CodingKey {
-        case label, x, y, sourceRef, renderMode, pointLabels, lineWidth
+        case label, x, y, sourceRef, renderMode, pointLabels, lineWidth, metadata
         case isScatter  // legacy key — read-only
     }
 
@@ -73,6 +82,7 @@ extension WorkbenchPlotSeries: Codable {
         sourceRef   = try c.decodeIfPresent(String.self, forKey: .sourceRef)
         pointLabels = try c.decodeIfPresent([String].self, forKey: .pointLabels) ?? []
         lineWidth   = try c.decodeIfPresent(Double.self, forKey: .lineWidth) ?? 1.5
+        metadata    = try c.decodeIfPresent([String: String].self, forKey: .metadata) ?? [:]
         // Prefer renderMode; fall back to legacy isScatter
         if let mode = try? c.decode(SeriesRenderMode.self, forKey: .renderMode) {
             renderMode = mode
@@ -92,6 +102,7 @@ extension WorkbenchPlotSeries: Codable {
         try c.encode(renderMode, forKey: .renderMode)
         try c.encode(pointLabels, forKey: .pointLabels)
         try c.encode(lineWidth, forKey: .lineWidth)
+        if !metadata.isEmpty { try c.encode(metadata, forKey: .metadata) }
         // Do NOT encode isScatter — new format only
     }
 }
@@ -106,6 +117,14 @@ struct WorkbenchPlotPayload: Codable, Hashable, Sendable {
     var semanticParams: [String: String]
     var styleParams: [String: String]
 
+    /// The metadata dimension that distinguishes series in this chart (v5.3.4).
+    /// e.g. "Temperature (K)", "Substrate", "Energy". nil = not resolved or single series.
+    var legendDimension: String?
+
+    /// Whether series should be reverse-sorted so that the highest stacked curve
+    /// appears first in the legend (index 0 = legend top = visual top). Default true. (v5.3.4)
+    var reverseSeriesForLegend: Bool
+
     init(
         schemaVersion: Int = 1,
         workflowID: String,
@@ -114,7 +133,9 @@ struct WorkbenchPlotPayload: Codable, Hashable, Sendable {
         axisMapping: WorkbenchAxisMapping,
         series: [WorkbenchPlotSeries],
         semanticParams: [String: String] = [:],
-        styleParams: [String: String] = [:]
+        styleParams: [String: String] = [:],
+        legendDimension: String? = nil,
+        reverseSeriesForLegend: Bool = false
     ) {
         self.schemaVersion = schemaVersion
         self.workflowID = workflowID
@@ -124,6 +145,24 @@ struct WorkbenchPlotPayload: Codable, Hashable, Sendable {
         self.series = series
         self.semanticParams = semanticParams
         self.styleParams = styleParams
+        self.legendDimension = legendDimension
+        self.reverseSeriesForLegend = reverseSeriesForLegend
+    }
+
+    // Backward-compatible decode: legendDimension defaults nil, reverseSeriesForLegend defaults false
+    // (legacy payloads should preserve original order; only new payloads that explicitly opt in get reversal).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion          = try c.decode(Int.self, forKey: .schemaVersion)
+        workflowID             = try c.decode(String.self, forKey: .workflowID)
+        workflowDisplayName    = try c.decode(String.self, forKey: .workflowDisplayName)
+        title                  = try c.decode(String.self, forKey: .title)
+        axisMapping            = try c.decode(WorkbenchAxisMapping.self, forKey: .axisMapping)
+        series                 = try c.decode([WorkbenchPlotSeries].self, forKey: .series)
+        semanticParams         = try c.decode([String: String].self, forKey: .semanticParams)
+        styleParams            = try c.decode([String: String].self, forKey: .styleParams)
+        legendDimension        = try c.decodeIfPresent(String.self, forKey: .legendDimension)
+        reverseSeriesForLegend = try c.decodeIfPresent(Bool.self, forKey: .reverseSeriesForLegend) ?? false
     }
 }
 

@@ -20,19 +20,22 @@ struct AHEPlotSelectionItem: Codable, Hashable, Sendable {
     var channel: AHEChannel
     var conditions: [String: String]
     var workflowID: String
+    var sampleSubstrate: String
 
     init(
         sampleKey: String,
         sourceFilePath: String,
         channel: AHEChannel,
         conditions: [String: String] = [:],
-        workflowID: String = "AHE"
+        workflowID: String = "AHE",
+        sampleSubstrate: String = ""
     ) {
         self.sampleKey = sampleKey
         self.sourceFilePath = sourceFilePath
         self.channel = channel
         self.conditions = conditions
         self.workflowID = workflowID
+        self.sampleSubstrate = sampleSubstrate
     }
 }
 
@@ -40,6 +43,6 @@ struct AHEIngestionResult: Codable, Hashable, Sendable {
     var candidateAxisFields: [String]
     var defaultAxisMapping: WorkbenchAxisMapping
     var series: [WorkbenchPlotSeries]
-    var sourceFiles: [String]
+    var sourceFiles: [String]?
     var warnings: [String]
 }

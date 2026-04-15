@@ -47,11 +47,14 @@ enum WorkbenchRenderPipeline {
         /// Final payload after all overrides — axisMapping restored to original data columns
         /// (display overrides do not leak into manifest/persistence).
         let manifestPayload: WorkbenchPlotPayload
+        /// Warnings generated during the render pipeline (e.g. legend dimension ambiguity).
+        let warnings: [String]
     }
 
     /// Executes the full render pipeline. Throws on renderer failure.
     static func render(_ input: Input) throws -> Output {
         var payload = input.payload
+        var pipelineWarnings: [String] = []
 
         // 1. Preserve original data-column axis mapping for manifest
         let originalAxisMapping = payload.axisMapping
@@ -73,6 +76,42 @@ enum WorkbenchRenderPipeline {
         // 4. Apply render mode to all series
         payload.series = payload.series.map {
             var s = $0; s.renderMode = input.seriesRenderMode; return s
+        }
+
+        // 4b. Reverse series for legend-visual consistency (v5.3.4):
+        //     Stacked curves are built bottom-to-top (index 0 = lowest offset).
+        //     Reversing makes index 0 = highest offset = legend top = visual top.
+        if payload.reverseSeriesForLegend, payload.series.count > 1 {
+            payload.series.reverse()
+        }
+
+        // 4c. Auto-resolve legend dimension from series metadata (v5.3.4):
+        //     When legendDimension is not pre-set and series carry metadata,
+        //     run LegendDimensionResolver to infer the distinguishing dimension
+        //     and update series labels accordingly.
+        if payload.legendDimension == nil, payload.series.count > 1 {
+            let seriesMeta = payload.series.map(\.metadata)
+            let hasMetadata = seriesMeta.contains { !$0.isEmpty }
+            if hasMetadata {
+                let resolver = LegendDimensionResolver(chain: LegendDimensionResolver.defaultChain)
+                let result = resolver.resolve(seriesMetadata: seriesMeta)
+                switch result {
+                case .resolved(let dim, let values):
+                    payload.legendDimension = dim.displayName
+                    for i in payload.series.indices {
+                        if !values[i].isEmpty {
+                            payload.series[i].label = values[i]
+                        }
+                    }
+                case .ambiguous(let dims):
+                    let names = dims.map(\.displayName).joined(separator: " / ")
+                    payload.legendDimension = "⚠ " + names
+                    pipelineWarnings.append("Legend: multiple dimensions vary at the same priority (\(names)). Select legend manually.")
+                case .indeterminate:
+                    payload.legendDimension = "⚠ No distinguishing dimension"
+                    pipelineWarnings.append("Legend: no distinguishing dimension found across selected samples.")
+                }
+            }
         }
 
         // 5. Merge chart style overrides into styleParams
@@ -107,6 +146,11 @@ enum WorkbenchRenderPipeline {
         var manifestPayload = payload
         manifestPayload.axisMapping = originalAxisMapping
 
-        return Output(imageData: imageData, layout: layout, manifestPayload: manifestPayload)
+        // 12. Attach pipeline warnings to semanticParams for store extraction (v5.3.4).
+        if !pipelineWarnings.isEmpty {
+            manifestPayload.semanticParams["_pipelineWarnings"] = pipelineWarnings.joined(separator: ";;")
+        }
+
+        return Output(imageData: imageData, layout: layout, manifestPayload: manifestPayload, warnings: pipelineWarnings)
     }
 }

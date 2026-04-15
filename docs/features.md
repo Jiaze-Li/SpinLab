@@ -72,9 +72,18 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `specs/04_UI_RULES.md`
 
 Behavior details: `specs/three_omega_physics.md`
 
+### Shell Architecture (v5.3.4)
+- All workflow workspaces use `WorkflowWorkspaceShell` — a single generic two-column container that owns shared UI (search, action bar, results list, plot canvas, trace, warnings)
+- Workflow-specific content injected via 4 ViewBuilder slots: `searchExtra`, `plotControls`, `leftExtra`, `rightExtra`
+- Workspace stores conform to `WorkbenchWorkspaceProviding` protocol — unified contract for selection, analysis, trace, persistence
+- Shell-driven lifecycle: Search → Select → Analyze (sole trace commit point) → Save. Restore/rerender paths never commit trace.
+- Pack load restores `ingestionResult` from persisted `PackResult`, then rerenders without re-ingestion
+- Invariant: new workflows must use the shell, not standalone views
+
 ### Measurement Search
 - Workbench fields must use sidecar condition names, never invent new variable names
 - Search accepts old ("A"/"B") and new ("ahe"/"3w") IDs as query aliases; persisted data uses new IDs only
+- Search returns file list only; no auto-loading of artifacts or auto-analysis on search completion
 
 ### Plot Canvas (all workflows)
 - Plot canvas is a workflow-independent shell — legend, edit, interaction behaviors apply uniformly
@@ -85,7 +94,10 @@ Behavior details: `specs/three_omega_physics.md`
 - Font sizes (title, axis, tick, legend) and tick density (x/y) configurable via Chart Style disclosure panel (v5.3.1)
 - Right-click Copy PNG copies rendered chart to clipboard (v5.3.1)
 - Chart style settings stored in styleParams, parsed via WorkbenchChartStyle (v5.3.1)
+- Legend dimension auto-inference: data-driven priority chain resolves which metadata dimension distinguishes series (temperature > substrate = energy = pressure > thickness). Ambiguous or indeterminate cases produce warnings. (v5.3.4)
+- Legend-visual consistency: stacked charts guarantee legend top entry = visually highest curve. Controlled by reverseSeriesForLegend flag on payload, applied uniformly in render pipeline. (v5.3.4)
 - Test: V531SeriesRenderModeTests — Codable migration, ChartStyle parsing, axis alignment
+- Test: V534LegendDimensionResolverTests — resolver priority, tolerance, ambiguity, pipeline reversal, backward decode
 
 ### 3-Omega AHE
 - Fit ranges are part of scaling chart semantic identity — different fit configs produce separate chart entries, not overwrites

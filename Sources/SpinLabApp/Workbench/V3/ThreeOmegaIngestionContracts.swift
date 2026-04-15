@@ -63,6 +63,10 @@ struct ThreeOmegaFieldSweepResult: Codable, Hashable, Sendable, Identifiable {
     var temperatureK: Double
     var device: String
 
+    /// Sample metadata carried from search hit for legend resolution (v5.3.4).
+    /// Optional so legacy packs without this field decode safely.
+    var sampleMetadata: [String: String]?
+
     // Formula: R¹ω(H) = V¹ω_X(H) / I_rms   (Col[1] / I_rms)
     // Then centered: R¹ω_c(H) = R¹ω(H) - (max(R¹ω) + min(R¹ω)) / 2
     var hField: [Double]    // Oe

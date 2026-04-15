@@ -11,7 +11,8 @@ enum XYRotationFileKind: String, Codable, Hashable, Sendable {
 /// One angle-sweep at a given temperature.
 struct XYRotationAngleSweep: Codable, Hashable, Sendable, Identifiable {
     var id: String {
-        let pathHash = measurementFilePath.isEmpty ? stem : String(measurementFilePath.hashValue)
+        let path = measurementFilePath ?? ""
+        let pathHash = path.isEmpty ? stem : String(path.hashValue)
         return "\(pathHash)_\(String(format: "%.1f", temperatureK))K"
     }
 
@@ -22,7 +23,11 @@ struct XYRotationAngleSweep: Codable, Hashable, Sendable, Identifiable {
     var resistanceXX: [Double]
     var resistanceXY: [Double]?
     var defaultPhiOffset: Double
-    var measurementFilePath: String = ""
+    var measurementFilePath: String?
+
+    /// Sample metadata carried from search hit for legend resolution (v5.3.4).
+    /// Optional so legacy packs without this field decode safely.
+    var sampleMetadata: [String: String]?
 }
 
 /// Aggregated result from ingesting multiple XY Rotation files.
