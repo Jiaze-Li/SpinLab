@@ -58,11 +58,10 @@ struct V225RulesConfigContractTests {
     func legacyRuleSetWithoutConditionDefinitionsIsMigrated() {
         var legacy = FilenameRuleSet.fallback()
         legacy.conditionDefinitions = []
-        legacy.conditions.extraConditions = [:]
+        legacy.conditions.extraConditions = [
+            ConditionFieldCatalog.temperatureID: "^-?\\d+(?:\\.\\d+)?(?:K)$"
+        ]
         legacy.conditions.tokenMapRules = [:]
-        legacy.conditions.temperaturePattern = "^-?\\d+(?:\\.\\d+)?(?:K)$"
-        legacy.conditions.currentPattern = ""
-        legacy.conditions.fieldPattern = ""
         legacy.deviceRules = [
             .init(
                 match: .init(scope: .tokens, type: .equals, value: "wafer", values: nil),

@@ -48,61 +48,47 @@ struct FilenameRuleSet: Decodable {
     }
 
     struct ConditionRules: Decodable {
-        // Deprecated: canonical rule data lives in extraConditions["temperature"] / ["current"] / ["field"].
-        // These fields are kept for JSON decode compatibility and are written as empty strings on save.
-        // Remove once all stored rule files have been migrated (i.e. no user file predates v2.4).
-        var temperaturePattern: String
-        var currentPattern: String
-        var fieldPattern: String
         var extraConditions: [String: String]
         var tokenMapRules: [String: [MapRule]]
         var displayLabels: [String: String]
 
         init(
-            temperaturePattern: String,
-            currentPattern: String,
-            fieldPattern: String,
             extraConditions: [String: String] = [:],
             tokenMapRules: [String: [MapRule]] = [:],
             displayLabels: [String: String] = [:]
         ) {
-            self.temperaturePattern = temperaturePattern
-            self.currentPattern = currentPattern
-            self.fieldPattern = fieldPattern
             self.extraConditions = extraConditions
             self.tokenMapRules = tokenMapRules
             self.displayLabels = displayLabels
         }
 
         private enum CodingKeys: String, CodingKey {
-            case temperaturePattern
-            case currentPattern
-            case fieldPattern
-            case extraConditions
-            case tokenMapRules
-            case displayLabels
+            case temperaturePattern, currentPattern, fieldPattern
+            case extraConditions, tokenMapRules, displayLabels
         }
 
         init(from decoder: any Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            temperaturePattern = try container.decode(String.self, forKey: .temperaturePattern)
-            currentPattern = try container.decode(String.self, forKey: .currentPattern)
-            fieldPattern = try container.decode(String.self, forKey: .fieldPattern)
-            extraConditions = try container.decodeIfPresent([String: String].self, forKey: .extraConditions) ?? [:]
+            var extra = try container.decodeIfPresent([String: String].self, forKey: .extraConditions) ?? [:]
+            // Migrate legacy fields on decode: if a deprecated field has a non-empty value
+            // and extraConditions doesn't already have it, copy it over.
+            for (legacyKey, catalogID) in [
+                (CodingKeys.temperaturePattern, ConditionFieldCatalog.temperatureID),
+                (CodingKeys.currentPattern, ConditionFieldCatalog.currentID),
+                (CodingKeys.fieldPattern, ConditionFieldCatalog.fieldID)
+            ] {
+                if let legacy = try container.decodeIfPresent(String.self, forKey: legacyKey),
+                   !legacy.isEmpty, extra[catalogID] == nil {
+                    extra[catalogID] = legacy
+                }
+            }
+            extraConditions = extra
             tokenMapRules = try container.decodeIfPresent([String: [MapRule]].self, forKey: .tokenMapRules) ?? [:]
             displayLabels = try container.decodeIfPresent([String: String].self, forKey: .displayLabels) ?? [:]
         }
 
         func patternMap() -> [String: String] {
-            var patterns: [String: String] = [
-                ConditionFieldCatalog.temperatureID: temperaturePattern,
-                ConditionFieldCatalog.currentID: currentPattern,
-                ConditionFieldCatalog.fieldID: fieldPattern
-            ]
-            for (key, value) in extraConditions {
-                patterns[key] = value
-            }
-            return patterns
+            extraConditions
         }
     }
 
@@ -214,8 +200,7 @@ struct FilenameRuleSet: Decodable {
     var substrateTagRules: [MapRule]
     var channel: ChannelRules
     // Deprecated: device rules now live in conditions.tokenMapRules["device"] via conditionDefinitions.
-    // This field is decoded for migration and written as [] on save. Remove alongside temperaturePattern
-    // cleanup once all stored rule files have been migrated to v2.4+.
+    // This field is decoded for migration and written as [] on save.
     var deviceRules: [MapRule]
     var rotationHintRules: [MapRule]
     var conditions: ConditionRules
@@ -753,9 +738,6 @@ struct FilenameRuleSet: Decodable {
             deviceRules: [],
             rotationHintRules: [],
             conditions: ConditionRules(
-                temperaturePattern: "",
-                currentPattern: "",
-                fieldPattern: "",
                 extraConditions: [
                     ConditionFieldCatalog.temperatureID: "",
                     ConditionFieldCatalog.currentID: "",

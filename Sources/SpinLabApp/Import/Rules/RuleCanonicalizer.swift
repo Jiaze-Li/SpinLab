@@ -44,19 +44,6 @@ struct RuleCanonicalizer {
                ruleSet.conditions.tokenMapRules[ConditionFieldCatalog.deviceID] == nil {
                 ruleSet.conditions.tokenMapRules[ConditionFieldCatalog.deviceID] = ruleSet.deviceRules
             }
-            if !ruleSet.conditions.temperaturePattern.isEmpty,
-               ruleSet.conditions.extraConditions[ConditionFieldCatalog.temperatureID] == nil {
-                ruleSet.conditions.extraConditions[ConditionFieldCatalog.temperatureID] = ruleSet.conditions.temperaturePattern
-            }
-            if !ruleSet.conditions.currentPattern.isEmpty,
-               ruleSet.conditions.extraConditions[ConditionFieldCatalog.currentID] == nil {
-                ruleSet.conditions.extraConditions[ConditionFieldCatalog.currentID] = ruleSet.conditions.currentPattern
-            }
-            if !ruleSet.conditions.fieldPattern.isEmpty,
-               ruleSet.conditions.extraConditions[ConditionFieldCatalog.fieldID] == nil {
-                ruleSet.conditions.extraConditions[ConditionFieldCatalog.fieldID] = ruleSet.conditions.fieldPattern
-            }
-
             ruleSet.conditionDefinitions = synthesized
             warnings.append("\(sourceLabel) has no conditionDefinitions; synthesized canonical definitions for compatibility.")
             return warnings
@@ -75,17 +62,6 @@ struct RuleCanonicalizer {
 
             switch definition.kind {
             case .unitSuffix:
-                if binding == "conditions.temperaturePattern",
-                   ruleSet.conditions.extraConditions[id] == nil {
-                    ruleSet.conditions.extraConditions[id] = ruleSet.conditions.temperaturePattern
-                } else if binding == "conditions.currentPattern",
-                          ruleSet.conditions.extraConditions[id] == nil {
-                    ruleSet.conditions.extraConditions[id] = ruleSet.conditions.currentPattern
-                } else if binding == "conditions.fieldPattern",
-                          ruleSet.conditions.extraConditions[id] == nil {
-                    ruleSet.conditions.extraConditions[id] = ruleSet.conditions.fieldPattern
-                }
-
                 let canonical = canonicalBinding(for: id, kind: .unitSuffix)
                 if binding != canonical {
                     updated.binding = canonical

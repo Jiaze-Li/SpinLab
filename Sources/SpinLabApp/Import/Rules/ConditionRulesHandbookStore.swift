@@ -312,12 +312,7 @@ final class ConditionRulesHandbookStore {
 
     @discardableResult
     func migrateUserRuleFileToCanonicalIfNeeded() -> Bool {
-        do {
-            try ensureUserFileExists()
-        } catch {
-            logger.warning(.import, "Rules migration skipped because user rule file could not be prepared", metadata: [
-                "reason": error.localizedDescription
-            ])
+        guard fileManager.fileExists(atPath: userFileURL.path) else {
             return false
         }
 
@@ -1001,11 +996,12 @@ final class ConditionRulesHandbookStore {
             conditions["tokenMapRules"] = filteredTokenMapRules
         }
 
-        // Keep legacy fields for decode compatibility, but rules are canonicalized
-        // to conditionDefinitions + conditions.extraConditions/tokenMapRules.
-        conditions["temperaturePattern"] = ""
-        conditions["currentPattern"] = ""
-        conditions["fieldPattern"] = ""
+        // Legacy fields (temperaturePattern, currentPattern, fieldPattern) removed in v5.2.0.
+        // Migration from old JSON is handled by ConditionRules.init(from:) and
+        // RuleCanonicalizer.migrateUserRuleJSONToCanonical.
+        conditions.removeValue(forKey: "temperaturePattern")
+        conditions.removeValue(forKey: "currentPattern")
+        conditions.removeValue(forKey: "fieldPattern")
         if hasInbox {
             inbox["deviceRules"] = []
         } else {
@@ -1045,11 +1041,18 @@ final class ConditionRulesHandbookStore {
     // MARK: Export
 
     func export(to destinationURL: URL) throws {
-        try ensureUserFileExists()
+        let sourceURL: URL
+        if fileManager.fileExists(atPath: userFileURL.path) {
+            sourceURL = userFileURL
+        } else if let bundleURL = findBundleRuleFileURL() {
+            sourceURL = bundleURL
+        } else {
+            throw HandbookError.bundleFileNotFound
+        }
         if fileManager.fileExists(atPath: destinationURL.path) {
             try fileManager.removeItem(at: destinationURL)
         }
-        try fileManager.copyItem(at: userFileURL, to: destinationURL)
+        try fileManager.copyItem(at: sourceURL, to: destinationURL)
     }
 
     // MARK: Private
@@ -1210,10 +1213,10 @@ final class ConditionRulesHandbookStore {
         let canonicalBinding: String
         switch definition.kind {
         case .unitSuffix:
-            if normalizedBinding == "conditions.temperaturePattern"
+            if normalizedBinding.hasPrefix("conditions.extraConditions.")
+                || normalizedBinding == "conditions.temperaturePattern"
                 || normalizedBinding == "conditions.currentPattern"
-                || normalizedBinding == "conditions.fieldPattern"
-                || normalizedBinding.hasPrefix("conditions.extraConditions.") {
+                || normalizedBinding == "conditions.fieldPattern" {
                 canonicalBinding = "conditions.extraConditions.\(normalizedRuleID)"
             } else {
                 canonicalBinding = normalizedBinding
