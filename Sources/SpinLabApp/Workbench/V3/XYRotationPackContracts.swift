@@ -17,13 +17,43 @@ struct XYRotationPackConfig: Codable, Hashable, Sendable {
     var minGapFraction: Double
     var showPlotGrid: Bool
 
-    // --- Per-tab render states (keyed by tab.rawValue) ---
+    // --- Per-tab render states (v5.3.3+, keyed by tab.rawValue) ---
     var tabStates: [String: TabRenderState] = [:]
 
-    // --- Search state ---
+    // --- Search state (v5.3.4+) ---
     var cachedSearchResults: [WorkflowMeasurementSearchHit]
     var selectedSearchResultIDs: [String]
     var searchQueryText: String
+
+    init(phiOffsetOverrides: [String: Double], centerBaseline: Bool, linearDetrend: Bool = false,
+         activeTab: String, titleTemplate: String, stackOffsetMultiplier: Double, minGapFraction: Double,
+         showPlotGrid: Bool, tabStates: [String: TabRenderState] = [:],
+         cachedSearchResults: [WorkflowMeasurementSearchHit] = [], selectedSearchResultIDs: [String] = [],
+         searchQueryText: String = "") {
+        self.phiOffsetOverrides = phiOffsetOverrides; self.centerBaseline = centerBaseline
+        self.linearDetrend = linearDetrend; self.activeTab = activeTab
+        self.titleTemplate = titleTemplate; self.stackOffsetMultiplier = stackOffsetMultiplier
+        self.minGapFraction = minGapFraction; self.showPlotGrid = showPlotGrid
+        self.tabStates = tabStates; self.cachedSearchResults = cachedSearchResults
+        self.selectedSearchResultIDs = selectedSearchResultIDs; self.searchQueryText = searchQueryText
+    }
+
+    // Backward-compatible decode: fields added after initial release default safely.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        phiOffsetOverrides      = try c.decode([String: Double].self, forKey: .phiOffsetOverrides)
+        centerBaseline          = try c.decode(Bool.self, forKey: .centerBaseline)
+        linearDetrend           = try c.decodeIfPresent(Bool.self, forKey: .linearDetrend) ?? false
+        activeTab               = try c.decode(String.self, forKey: .activeTab)
+        titleTemplate           = try c.decodeIfPresent(String.self, forKey: .titleTemplate) ?? ""
+        stackOffsetMultiplier   = try c.decodeIfPresent(Double.self, forKey: .stackOffsetMultiplier) ?? 0.0
+        minGapFraction          = try c.decodeIfPresent(Double.self, forKey: .minGapFraction) ?? 0.15
+        showPlotGrid            = try c.decodeIfPresent(Bool.self, forKey: .showPlotGrid) ?? true
+        tabStates               = try c.decodeIfPresent([String: TabRenderState].self, forKey: .tabStates) ?? [:]
+        cachedSearchResults     = try c.decodeIfPresent([WorkflowMeasurementSearchHit].self, forKey: .cachedSearchResults) ?? []
+        selectedSearchResultIDs = try c.decodeIfPresent([String].self, forKey: .selectedSearchResultIDs) ?? []
+        searchQueryText         = try c.decodeIfPresent(String.self, forKey: .searchQueryText) ?? ""
+    }
 }
 
 // MARK: - XYRotationPackResult

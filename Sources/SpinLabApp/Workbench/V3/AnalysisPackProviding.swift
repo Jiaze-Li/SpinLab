@@ -169,9 +169,14 @@ extension AnalysisPackProviding {
             analysisMessage = "Pack not found."
             return
         }
-        guard let config = try? pack.decodeConfig(PackConfig.self),
-              let result = try? pack.decodeResult(PackResult.self) else {
-            analysisMessage = "Failed to decode pack data."
+        let config: PackConfig
+        let result: PackResult
+        do {
+            config = try pack.decodeConfig(PackConfig.self)
+            result = try pack.decodeResult(PackResult.self)
+        } catch {
+            analysisMessage = "Failed to decode pack data: \(error.localizedDescription)"
+            print("[SpinLab][Pack] Decode failed for \(id): \(error)")
             return
         }
         restoreFromPack(config: config, result: result, pack: pack,

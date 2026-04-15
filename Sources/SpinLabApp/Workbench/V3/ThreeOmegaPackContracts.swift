@@ -23,15 +23,58 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
     var showPlotGrid: Bool
     var plotLegendAnchor: String
 
-    // --- Per-tab display states (keyed by stableKey for Codable) ---
+    // --- Per-tab display states (v5.3.3+, keyed by stableKey for Codable) ---
     var tabStates: [String: TabRenderState] = [:]
 
-    // --- Search state ---
+    // --- Search state (v5.3.4+) ---
     var cachedSearchResults: [WorkflowMeasurementSearchHit]
     var selectedSearchResultIDs: [String]
     var selectedRTHit: WorkflowMeasurementSearchHit?
     var rtQuery: String
     var searchQueryText: String
+
+    init(device: String, geometry: ThreeOmegaGeometry, fitRanges: [ThreeOmegaFitRange],
+         v3Method: String, rahe1Method: String, rahe3Method: String, rtFilePath: String?,
+         sampleBatchAndSubstrate: String, activeTab: String, titleTemplate: String,
+         stackOffsetMultiplier: Double, minGapFraction: Double, showPlotGrid: Bool,
+         plotLegendAnchor: String, tabStates: [String: TabRenderState] = [:],
+         cachedSearchResults: [WorkflowMeasurementSearchHit] = [], selectedSearchResultIDs: [String] = [],
+         selectedRTHit: WorkflowMeasurementSearchHit? = nil, rtQuery: String = "", searchQueryText: String = "") {
+        self.device = device; self.geometry = geometry; self.fitRanges = fitRanges
+        self.v3Method = v3Method; self.rahe1Method = rahe1Method; self.rahe3Method = rahe3Method
+        self.rtFilePath = rtFilePath; self.sampleBatchAndSubstrate = sampleBatchAndSubstrate
+        self.activeTab = activeTab; self.titleTemplate = titleTemplate
+        self.stackOffsetMultiplier = stackOffsetMultiplier; self.minGapFraction = minGapFraction
+        self.showPlotGrid = showPlotGrid; self.plotLegendAnchor = plotLegendAnchor
+        self.tabStates = tabStates; self.cachedSearchResults = cachedSearchResults
+        self.selectedSearchResultIDs = selectedSearchResultIDs; self.selectedRTHit = selectedRTHit
+        self.rtQuery = rtQuery; self.searchQueryText = searchQueryText
+    }
+
+    // Backward-compatible decode: fields added after initial release default safely.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        device                  = try c.decode(String.self, forKey: .device)
+        geometry                = try c.decode(ThreeOmegaGeometry.self, forKey: .geometry)
+        fitRanges               = try c.decode([ThreeOmegaFitRange].self, forKey: .fitRanges)
+        v3Method                = try c.decode(String.self, forKey: .v3Method)
+        rahe1Method             = try c.decodeIfPresent(String.self, forKey: .rahe1Method) ?? v3Method
+        rahe3Method             = try c.decodeIfPresent(String.self, forKey: .rahe3Method) ?? v3Method
+        rtFilePath              = try c.decodeIfPresent(String.self, forKey: .rtFilePath)
+        sampleBatchAndSubstrate = try c.decode(String.self, forKey: .sampleBatchAndSubstrate)
+        activeTab               = try c.decode(String.self, forKey: .activeTab)
+        titleTemplate           = try c.decodeIfPresent(String.self, forKey: .titleTemplate) ?? ""
+        stackOffsetMultiplier   = try c.decode(Double.self, forKey: .stackOffsetMultiplier)
+        minGapFraction          = try c.decodeIfPresent(Double.self, forKey: .minGapFraction) ?? 0.15
+        showPlotGrid            = try c.decode(Bool.self, forKey: .showPlotGrid)
+        plotLegendAnchor        = try c.decodeIfPresent(String.self, forKey: .plotLegendAnchor) ?? ""
+        tabStates               = try c.decodeIfPresent([String: TabRenderState].self, forKey: .tabStates) ?? [:]
+        cachedSearchResults     = try c.decodeIfPresent([WorkflowMeasurementSearchHit].self, forKey: .cachedSearchResults) ?? []
+        selectedSearchResultIDs = try c.decodeIfPresent([String].self, forKey: .selectedSearchResultIDs) ?? []
+        selectedRTHit           = try c.decodeIfPresent(WorkflowMeasurementSearchHit.self, forKey: .selectedRTHit)
+        rtQuery                 = try c.decodeIfPresent(String.self, forKey: .rtQuery) ?? ""
+        searchQueryText         = try c.decodeIfPresent(String.self, forKey: .searchQueryText) ?? ""
+    }
 }
 
 // MARK: - ThreeOmegaPackResult

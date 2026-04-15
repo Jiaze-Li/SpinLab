@@ -283,10 +283,12 @@ struct WorkflowWorkspaceShell<
                 (Text(msg).foregroundStyle(.secondary)
                  + Text(" (\(warningCount) warning(s))").foregroundStyle(.orange))
                     .font(.footnote)
+                    .textSelection(.enabled)
             } else {
                 Text(msg)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
             }
         }
     }
