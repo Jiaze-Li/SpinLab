@@ -47,7 +47,7 @@
 
 ### 5.1.3 — 测试基础设施
 - [x] 覆盖率基线建立：506 tests, 1.98% line coverage (4.17% logic-only). Workbench render pipeline well-covered; App/State layer at 0%.
-- [ ] 关键路径测试补全（优先补分解后的 FeatureStore facade 方法，需 fixture 基础设施）
+- [x] 关键路径测试补全（优先补分解后的 FeatureStore facade 方法，需 fixture 基础设施）
 
 ---
 
