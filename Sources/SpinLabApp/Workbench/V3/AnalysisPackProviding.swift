@@ -187,8 +187,8 @@ extension AnalysisPackProviding {
         }
         restoreFromPack(config: config, result: result, pack: pack,
                         restoreSearchState: restoreSearchState)
+        // Re-assign after restore — some workflows clear activePackID inside runAnalysis.
         activePackID = id
-        // Re-analyze from restored inputs — regenerates trace, warnings, and render output.
-        runAnalysis()
+        analysisMessage = "Loaded: \(pack.label)"
     }
 }
