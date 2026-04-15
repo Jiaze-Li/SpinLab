@@ -72,9 +72,18 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `specs/04_UI_RULES.md`
 
 Behavior details: `specs/three_omega_physics.md`
 
+### Shell Architecture (v5.3.4)
+- All workflow workspaces use `WorkflowWorkspaceShell` — a single generic two-column container that owns shared UI (search, action bar, results list, plot canvas, trace, warnings)
+- Workflow-specific content injected via 4 ViewBuilder slots: `searchExtra`, `plotControls`, `leftExtra`, `rightExtra`
+- Workspace stores conform to `WorkbenchWorkspaceProviding` protocol — unified contract for selection, analysis, trace, persistence
+- Shell-driven lifecycle: Search → Select → Analyze (sole trace commit point) → Save. Restore/rerender paths never commit trace.
+- Pack load restores `ingestionResult` from persisted `PackResult`, then rerenders without re-ingestion
+- Invariant: new workflows must use the shell, not standalone views
+
 ### Measurement Search
 - Workbench fields must use sidecar condition names, never invent new variable names
 - Search accepts old ("A"/"B") and new ("ahe"/"3w") IDs as query aliases; persisted data uses new IDs only
+- Search returns file list only; no auto-loading of artifacts or auto-analysis on search completion
 
 ### Plot Canvas (all workflows)
 - Plot canvas is a workflow-independent shell — legend, edit, interaction behaviors apply uniformly

@@ -76,6 +76,11 @@ Where does new code go? (required):
 | External I/O (filesystem/persistence) | Repository/Store layer |
 | Filename parsing/matching/routing rules | `Sources/SpinLabApp/Import/` pipeline layers |
 | Pure UI interaction state (expand/collapse/filter text) | `FeatureViewModel` |
+| New workflow workspace store | `Sources/SpinLabApp/Features/Workbench/<Name>WorkspaceStore.swift` conforming `WorkbenchWorkspaceProviding` |
+| New workflow workspace view | `Sources/SpinLabApp/Features/Workbench/<Name>WorkspaceView.swift` wrapping `WorkflowWorkspaceShell` |
+| New workflow ingestion UseCase | `Sources/SpinLabApp/UseCases/Ingest<Name>SelectionsUseCase.swift` |
+| New workflow pack contracts | `Sources/SpinLabApp/Workbench/V3/<Name>PackContracts.swift` (`PackConfig` + `PackResult`) |
+| New workflow ingestion contracts | `Sources/SpinLabApp/Workbench/V3/<Name>IngestionContracts.swift` |
 
 Architecture decision boundary (required):
 - If logic touches exactly one feature state domain, it `must` go to that FeatureStore.
@@ -116,6 +121,57 @@ Canonical implementations (reference):
   - `Sources/SpinLabApp/App/State/InboxFeatureStore.swift`
 - Integration test scaffold:
   - `Tests/SpinLabAppTests/V223AppEnvironmentIntegrationTests.swift`
+- Workbench Shell + WorkspaceStore pattern (v5.3.4):
+  - Shell: `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceShell.swift`
+  - Protocol: `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift` (`WorkbenchWorkspaceProviding`)
+  - Store: `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift` (most complete reference)
+  - View: `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift` (shell slot usage reference)
+  - Pack contracts: `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift`
+
+---
+
+Workbench Shell architecture (required, v5.3.4+):
+
+All workflow workspaces share a single generic shell (`WorkflowWorkspaceShell`) that owns the full two-column layout. Workflow-specific content is injected via ViewBuilder slots.
+
+Shell layout (fixed for all workflows):
+- Left column: title bar → search section → plot controls slot → left extra slot → results list
+- Right column: result header (save/update) → status area → plot canvas → right extra slot → trace panel → warning panel
+
+Shell-driven behavior (uniform across all workflows):
+- Search: shell renders search bar + action bar; `WorkbenchFeatureStore.runWorkflowMeasurementSearch()` executes search
+- Analyze: shell renders Analyze button → calls `store.runAnalysis()` → store ingests + renders + calls `commitRunTrace()`
+- Clear: shell renders Clear / Clear Plot buttons → calls `store.clearResults()` / `store.clearPlot()`
+- Trace: `commitRunTrace()` is called only inside `runAnalysis()`, never on restore/rerender paths
+- Save: shell renders Save to Library button → calls `store.persistToLibrary()`
+- Pack load: shell renders Load Pack popover → calls `store.restoreFromPack()`; restore path uses `_rerenderActiveTab()` / `_rerenderAllTabs()`, not `runAnalysis()`
+
+WorkspaceStore contract (`WorkbenchWorkspaceProviding`):
+- Inherits: `WorkbenchPlottingStore`, `AnalysisPackProviding`, `ActiveChartProviding`
+- Must implement: selection (cachedSearchResults, selectedSearchResultIDs, selectAll/deselectAll/toggle), execution (runAnalysis, isAnalyzing), rerender (rerenderForStyleChange), clear (clearResults, clearPlot), trace (buildRunTrace), persistence (persistToLibrary)
+- Default implementations provided: `appendWarning()`, `commitRunTrace()`
+
+Adding a new workflow checklist:
+1. Register workflow ID in `WorkbenchWorkflowID` enum
+2. Create `<Name>IngestionContracts.swift` — domain result struct (Codable, Hashable, Sendable)
+3. Create `Ingest<Name>SelectionsUseCase.swift` — stateless ingestion from search hits to result
+4. Create `<Name>PackContracts.swift` — `PackConfig` (UI state snapshot) + `PackResult` (must include ingestionResult)
+5. Create `<Name>WorkspaceStore.swift` — `@MainActor @Observable final class` conforming `WorkbenchWorkspaceProviding`
+6. Create `<Name>WorkspaceView.swift` — thin view wrapping `WorkflowWorkspaceShell` with slot content
+7. Register store in `WorkbenchFeatureStore` and view in `WorkflowWorkspaceRegistry`
+8. Add search case in `WorkbenchFeatureStore.runWorkflowMeasurementSearch()`
+
+`[HARD][must]` New workflows must use the shell. Do not build standalone two-column views.
+`[HARD][must]` `runAnalysis()` is the sole entry point for trace commit. Restore and rerender paths must not commit trace.
+`[HARD][must]` `PackResult` must include `ingestionResult` so that restore can rerender without re-ingestion.
+
+ViewBuilder slots reference:
+| Slot | Purpose | Example |
+|---|---|---|
+| `searchExtra` | Additional search fields (e.g. RT file picker) | `ThreeOmegaRTSearchField` / `EmptyView` |
+| `plotControls` | Tab picker, stack offset, grid toggle, style panel | `WorkbenchStandardPlotControls` or custom |
+| `leftExtra` | Left column bottom panels (geometry, overrides) | `ThreeOmegaGeometryPanel` / `EmptyView` |
+| `rightExtra` | Right column extra panels (scaling results) | `ThreeOmegaScalingResultPanel` / `EmptyView` |
 
 ---
 
