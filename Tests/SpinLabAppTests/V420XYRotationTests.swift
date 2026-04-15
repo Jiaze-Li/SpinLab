@@ -174,7 +174,7 @@ struct V420XYRotationTests {
             resistanceXX: [100, 101],
             defaultPhiOffset: 0
         )
-        #expect(sweep.measurementFilePath.isEmpty)
+        #expect(sweep.measurementFilePath?.isEmpty != false)
     }
 
     @Test("InteractionSnapshot XY Rotation fields default to nil")

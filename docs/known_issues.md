@@ -18,5 +18,5 @@ For tech debt details, see `history/TECH_DEBT_BACKLOG.md`.
 ## Deliberately Deferred
 
 - Deprecated condition pattern fields: waiting for zero-usage telemetry.
-- Legacy CodingKeys in `PendingImportConfirmationDraft`: waiting for one release cycle past v2.4.
+- ~~Legacy CodingKeys in `PendingImportConfirmationDraft`~~: removed in v5.1.0 (release cycle condition met).
 - `condition_aliases.json` scope: only one mapping, needs evaluation.

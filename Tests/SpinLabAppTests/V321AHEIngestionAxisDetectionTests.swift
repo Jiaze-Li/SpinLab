@@ -110,7 +110,7 @@ struct V321AHEIngestionAxisDetectionTests {
         )
 
         #expect(result.series.count == 2)
-        #expect(result.sourceFiles.count == 2)
+        #expect(result.sourceFiles?.count == 2)
     }
 
     // MARK: - Same file, different channels

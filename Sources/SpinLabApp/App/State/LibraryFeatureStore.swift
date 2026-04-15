@@ -73,10 +73,18 @@ final class LibraryFeatureStore {
         var summaryMessage: String
     }
 
-    var librarySelectedPrefix: String?
-    var librarySelectedBatchId: String?
-    var librarySelectedSampleId: String?
-    var libraryActiveSelectionSource: LibrarySelectionSource = .browser
+    var librarySelectedPrefix: String? {
+        didSet { onPersistInteractionSnapshot?() }
+    }
+    var librarySelectedBatchId: String? {
+        didSet { onPersistInteractionSnapshot?() }
+    }
+    var librarySelectedSampleId: String? {
+        didSet { onPersistInteractionSnapshot?() }
+    }
+    var libraryActiveSelectionSource: LibrarySelectionSource = .browser {
+        didSet { onPersistInteractionSnapshot?() }
+    }
 
     var librarySettings: LibrarySettings
     var libraryRootVerificationPath: String?
@@ -152,6 +160,30 @@ final class LibraryFeatureStore {
     @ObservationIgnored
     private var measurementSetsPersistTask: Task<Void, Never>?
 
+    // MARK: - Facade dependencies (injected via configureFacade)
+    @ObservationIgnored
+    private var mutationService: LibraryMutationService?
+    @ObservationIgnored
+    private var orchestrator: LibraryMutationOrchestrator?
+    @ObservationIgnored
+    private var saveEditsUseCase: SaveLibrarySampleEditsUseCase?
+    @ObservationIgnored
+    private var facadeLogger: AppLogger?
+    @ObservationIgnored
+    private var resolveRegistrySourceURL: (() -> URL?)?
+    @ObservationIgnored
+    private var onApplyExistingIndex: ((LibraryIndex) -> Void)?
+    @ObservationIgnored
+    private var onRefreshActionablePreviewGroups: ((LibraryDiff?, LibraryIndex?) -> Void)?
+    @ObservationIgnored
+    private var onCommitLibraryMutation: ((URL, LibraryIndex?) -> Void)?
+    @ObservationIgnored
+    private var onLoadExistingDrawers: (() -> Void)?
+    @ObservationIgnored
+    private var onPresentError: ((AppError, String) -> Void)?
+    @ObservationIgnored
+    private var onPersistInteractionSnapshot: (() -> Void)?
+
     private struct AppliedMeasurementsCacheEntry {
         var snapshot: LibraryStore.SidecarSnapshot
         var measurements: [AppliedMeasurement]
@@ -170,6 +202,169 @@ final class LibraryFeatureStore {
         self.libraryDiffEngine = libraryDiffEngine
         self.librarySampleEditService = librarySampleEditService
         self.librarySettings = librarySettingsStore.load()
+    }
+
+    func configureFacade(
+        mutationService: LibraryMutationService,
+        orchestrator: LibraryMutationOrchestrator,
+        saveEditsUseCase: SaveLibrarySampleEditsUseCase,
+        appLogger: AppLogger,
+        resolveRegistrySourceURL: @escaping () -> URL?,
+        applyExistingIndex: @escaping (LibraryIndex) -> Void,
+        refreshActionablePreviewGroups: @escaping (LibraryDiff?, LibraryIndex?) -> Void,
+        commitLibraryMutation: @escaping (URL, LibraryIndex?) -> Void,
+        loadExistingDrawers: @escaping () -> Void,
+        presentError: @escaping (AppError, String) -> Void,
+        persistInteractionSnapshot: @escaping () -> Void
+    ) {
+        self.mutationService = mutationService
+        self.orchestrator = orchestrator
+        self.saveEditsUseCase = saveEditsUseCase
+        self.facadeLogger = appLogger
+        self.resolveRegistrySourceURL = resolveRegistrySourceURL
+        self.onApplyExistingIndex = applyExistingIndex
+        self.onRefreshActionablePreviewGroups = refreshActionablePreviewGroups
+        self.onCommitLibraryMutation = commitLibraryMutation
+        self.onLoadExistingDrawers = loadExistingDrawers
+        self.onPresentError = presentError
+        self.onPersistInteractionSnapshot = persistInteractionSnapshot
+    }
+
+    // MARK: - Facade API (formerly LibraryFacade + LibraryCommandCoordinator)
+    // These methods are the public interface for coordinated Library operations.
+    // They wrap the detailed methods (which take explicit dependencies) with the
+    // injected facade dependencies and cross-store callbacks.
+    // Requires: configureFacade(...) must be called before any facade method is invoked.
+
+    private var isFacadeConfigured: Bool {
+        mutationService != nil
+    }
+
+    private func assertFacadeConfigured(_ method: String = #function) {
+        assert(isFacadeConfigured, "\(method) called before configureFacade()")
+    }
+
+    func syncLibraryFromFiles() {
+        assertFacadeConfigured()
+        guard let outcome = syncLibraryFromFilesForCurrentRoot() else { return }
+        onApplyExistingIndex?(outcome.syncedIndex)
+        onRefreshActionablePreviewGroups?(nil, nil)
+        libraryRootVerificationMessage = outcome.summaryMessage
+        libraryRootVerificationPath = outcome.rootPath
+    }
+
+    func backfillLibraryMeasurementSidecars() {
+        assertFacadeConfigured()
+        guard let outcome = backfillSidecarsForCurrentRoot() else { return }
+        libraryRootVerificationMessage = outcome.summaryMessage
+        libraryRootVerificationPath = outcome.rootPath
+    }
+
+    func deleteExistingDrawer(batchId: String) {
+        assertFacadeConfigured()
+        guard let mutationService else { return }
+        if let context = deleteExistingDrawer(mutationService: mutationService, batchId: batchId) {
+            onCommitLibraryMutation?(context.rootURL, context.previewIndex)
+        }
+    }
+
+    func loadLibraryGlobalManualLogs() {
+        assertFacadeConfigured()
+        guard let resolveRegistrySourceURL else { return }
+        switch loadLibraryGlobalManualLogs(resolveRegistrySourceURL: resolveRegistrySourceURL) {
+        case .success:
+            break
+        case let .failure(error):
+            onPresentError?(error, "Log Load Failed")
+        }
+    }
+
+    func markLibraryGlobalManualLogStatus(rowIndex: Int, status: LibraryManualLogStatus) {
+        assertFacadeConfigured()
+        guard let resolveRegistrySourceURL else { return }
+        switch markLibraryGlobalManualLogStatus(rowIndex: rowIndex, status: status, resolveRegistrySourceURL: resolveRegistrySourceURL) {
+        case .success:
+            break
+        case let .failure(error):
+            onPresentError?(error, "Status Update Failed")
+        }
+    }
+
+    func loadLibraryMetadataSyncLogs() {
+        assertFacadeConfigured()
+        guard let resolveRegistrySourceURL else { return }
+        switch loadLibraryMetadataSyncLogs(resolveRegistrySourceURL: resolveRegistrySourceURL) {
+        case .success:
+            break
+        case let .failure(error):
+            onPresentError?(error, "Log Load Failed")
+        }
+    }
+
+    func saveLibrarySampleEdits() {
+        assertFacadeConfigured()
+        guard let saveEditsUseCase, let resolveRegistrySourceURL else { return }
+        let outcome = saveLibrarySampleEdits(useCase: saveEditsUseCase, resolveRegistrySourceURL: resolveRegistrySourceURL)
+        switch outcome {
+        case let .success(rootURLForCommit, nonFatalError, message):
+            if let rootURL = rootURLForCommit {
+                onCommitLibraryMutation?(rootURL, libraryPreview?.index)
+            }
+            if let nonFatalError {
+                onPresentError?(nonFatalError, "Sync Warning")
+                facadeLogger?.warning(.library, "Library sample edit saved with sync warning", metadata: [
+                    "reason": nonFatalError.localizedDescription
+                ])
+            }
+            facadeLogger?.info(.library, "Library sample edits saved", metadata: [
+                "message": message
+            ])
+        case let .failure(error):
+            onPresentError?(error, "Save Failed")
+            facadeLogger?.error(.library, "Library sample edit failed", metadata: [
+                "reason": error.localizedDescription
+            ])
+        }
+    }
+
+    func prepareLibrarySyncReview(precomputedDiff: LibraryDiff? = nil) {
+        assertFacadeConfigured()
+        guard let mutationService, let orchestrator else { return }
+        if let refreshState = prepareLibrarySyncReview(mutationService: mutationService, orchestrator: orchestrator, precomputedDiff: precomputedDiff) {
+            onRefreshActionablePreviewGroups?(refreshState.diff, refreshState.baselineIndex)
+        }
+    }
+
+    func refreshLibraryIncremental() {
+        assertFacadeConfigured()
+        guard let mutationService, let orchestrator else { return }
+        if let context = refreshLibraryIncremental(mutationService: mutationService, orchestrator: orchestrator) {
+            onCommitLibraryMutation?(context.rootURL, context.previewIndex)
+        }
+    }
+
+    func confirmLibraryNumericRefreshChanges() {
+        assertFacadeConfigured()
+        guard let mutationService else { return }
+        if confirmLibraryNumericRefreshChanges(mutationService: mutationService) {
+            onLoadExistingDrawers?()
+        }
+    }
+
+    func createDrawersFromPreview() {
+        assertFacadeConfigured()
+        guard let mutationService else { return }
+        if let context = createDrawersFromPreview(mutationService: mutationService) {
+            onCommitLibraryMutation?(context.rootURL, context.previewIndex)
+        }
+    }
+
+    func createDrawersForSelection(batchId: String?, sampleId: String?) {
+        assertFacadeConfigured()
+        guard let mutationService else { return }
+        if let context = createDrawersForSelection(mutationService: mutationService, batchId: batchId, sampleId: sampleId) {
+            onCommitLibraryMutation?(context.rootURL, context.previewIndex)
+        }
     }
 
     func incrementLibrarySelectionVersion() {
@@ -1154,8 +1349,11 @@ final class LibraryFeatureStore {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        guard let encoded = try? encoder.encode(store) else {
-            fputs("[SpinLab] deleteMetricRecord: encode failed for \(sampleKey)\n", stderr)
+        let encoded: Data
+        do {
+            encoded = try encoder.encode(store)
+        } catch {
+            fputs("[SpinLab] deleteMetricRecord: encode failed for \(sampleKey): \(error)\n", stderr)
             return false
         }
 
@@ -1241,8 +1439,11 @@ final class LibraryFeatureStore {
             // Reference found: build the write entry. Any failure here must abort the whole operation.
             index.references.removeAll { $0.chartIdentityKey == ref.chartIdentityKey }
             index.updatedAt = now
-            guard let data = try? encoder.encode(index) else {
-                fputs("[SpinLab] deleteWorkbenchResult: encode failed for \(sk)\n", stderr)
+            let data: Data
+            do {
+                data = try encoder.encode(index)
+            } catch {
+                fputs("[SpinLab] deleteWorkbenchResult: encode failed for \(sk): \(error)\n", stderr)
                 preparationFailed = true
                 break
             }
@@ -1262,8 +1463,11 @@ final class LibraryFeatureStore {
                     .filter { !$0.value.isEmpty }
                 if changed {
                     plotIndex.updatedAt = now
-                    guard let plotData = try? encoder.encode(plotIndex) else {
-                        fputs("[SpinLab] deleteWorkbenchResult: plot index encode failed for \(sk)\n", stderr)
+                    let plotData: Data
+                    do {
+                        plotData = try encoder.encode(plotIndex)
+                    } catch {
+                        fputs("[SpinLab] deleteWorkbenchResult: plot index encode failed for \(sk): \(error)\n", stderr)
                         preparationFailed = true
                         break
                     }
@@ -1277,7 +1481,12 @@ final class LibraryFeatureStore {
         guard !preparationFailed else { return false }
 
         // 3. Atomically commit all index updates. Abort if the commit fails.
-        guard (try? writer.commit(indexWrites)) != nil else { return false }
+        do {
+            try writer.commit(indexWrites)
+        } catch {
+            fputs("[SpinLab] deleteWorkbenchResult: atomic commit failed: \(error)\n", stderr)
+            return false
+        }
 
         // 4. Delete the chart files only after all indexes are consistent.
         for relPath in [ref.chartImagePath, ref.manifestPath] {

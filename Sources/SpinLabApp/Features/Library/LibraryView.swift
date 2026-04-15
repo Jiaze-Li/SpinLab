@@ -153,18 +153,18 @@ struct LibraryView: View {
     }
 
     private var selectedPrefix: String? {
-        get { appState.librarySelectedPrefix }
-        nonmutating set { appState.librarySelectedPrefix = newValue }
+        get { appState.library.librarySelectedPrefix }
+        nonmutating set { appState.library.librarySelectedPrefix = newValue }
     }
 
     private var selectedBatchId: String? {
-        get { appState.librarySelectedBatchId }
-        nonmutating set { appState.librarySelectedBatchId = newValue }
+        get { appState.library.librarySelectedBatchId }
+        nonmutating set { appState.library.librarySelectedBatchId = newValue }
     }
 
     private var selectedSampleId: String? {
-        get { appState.librarySelectedSampleId }
-        nonmutating set { appState.librarySelectedSampleId = newValue }
+        get { appState.library.librarySelectedSampleId }
+        nonmutating set { appState.library.librarySelectedSampleId = newValue }
     }
 
     private var libraryColumnHeader: some View {

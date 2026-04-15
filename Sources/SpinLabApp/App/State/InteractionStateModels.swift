@@ -78,10 +78,6 @@ extension PendingImportConfirmationDraft: Codable {
         case workflowID
         case conditionValues
         case selectedExistingProjectName, newProjectName
-        // Legacy keys — read-only migration path from v2.3 and earlier snapshots.
-        // Safe to remove once no active user has an interaction snapshot predating v2.4
-        // (i.e. after one full release cycle where v2.4 has been the minimum supported version).
-        case workflowTag, deviceName, temperature
     }
 
     init(from decoder: Decoder) throws {
@@ -91,17 +87,8 @@ extension PendingImportConfirmationDraft: Codable {
         measurementName = try c.decodeIfPresent(String.self, forKey: .measurementName) ?? ""
         selectedExistingProjectName = try c.decodeIfPresent(String.self, forKey: .selectedExistingProjectName) ?? Self.noProjectOption
         newProjectName = try c.decodeIfPresent(String.self, forKey: .newProjectName) ?? ""
-        workflowID = try c.decodeIfPresent(String.self, forKey: .workflowID)
-            ?? c.decodeIfPresent(String.self, forKey: .workflowTag)
-            ?? ""
-        if let stored = try c.decodeIfPresent([String: String].self, forKey: .conditionValues) {
-            conditionValues = stored
-        } else {
-            var migrated: [String: String] = [:]
-            if let t = try c.decodeIfPresent(String.self, forKey: .temperature), !t.isEmpty { migrated["temperature"] = t }
-            if let d = try c.decodeIfPresent(String.self, forKey: .deviceName), !d.isEmpty { migrated["device"] = d }
-            conditionValues = migrated
-        }
+        workflowID = try c.decodeIfPresent(String.self, forKey: .workflowID) ?? ""
+        conditionValues = try c.decodeIfPresent([String: String].self, forKey: .conditionValues) ?? [:]
     }
 
     func encode(to encoder: Encoder) throws {
