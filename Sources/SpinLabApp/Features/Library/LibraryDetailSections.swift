@@ -897,13 +897,13 @@ struct MeasurementDataSectionView: View {
 
             if useTwoColumns && card.columns.count >= 2 {
                 // Side-by-side: same method, different ranges
-                let pairs = stride(from: 0, to: card.columns.count, by: 2).map { i in
-                    (card.columns[i], i + 1 < card.columns.count ? card.columns[i + 1] : nil)
-                }
-                ForEach(Array(pairs.enumerated()), id: \.offset) { _, pair in
+                let pairIndices: [Int] = Array(stride(from: 0, to: card.columns.count, by: 2))
+                ForEach(pairIndices, id: \.self) { i in
+                    let first: RangeColumn = card.columns[i]
+                    let second: RangeColumn? = i + 1 < card.columns.count ? card.columns[i + 1] : nil
                     HStack(alignment: .top, spacing: 8) {
-                        rangeColumnView(pair.0)
-                        if let second = pair.1 {
+                        rangeColumnView(first)
+                        if let second {
                             rangeColumnView(second)
                         }
                     }
