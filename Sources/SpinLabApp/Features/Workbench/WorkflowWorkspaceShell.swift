@@ -162,7 +162,7 @@ struct WorkflowWorkspaceShell<
                 VStack(alignment: .leading, spacing: 6) {
                     if let msg = message, !msg.isEmpty {
                         Text("\(msg)  Numeric tolerance: ±\(Int(NumericUnitMap.relativeTolerance * 100))%")
-                            .font(.footnote)
+                            .font(.callout)
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 12)
                             .padding(.top, 8)
@@ -181,10 +181,10 @@ struct WorkflowWorkspaceShell<
                         if let msg = message, !msg.isEmpty {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(msg)
-                                    .font(.footnote)
+                                    .font(.callout)
                                     .foregroundStyle(.secondary)
                                 Text("Numeric tolerance: ±\(Int(NumericUnitMap.relativeTolerance * 100))% (min ±\(NumericUnitMap.absoluteToleranceFloor, specifier: "%.0f"))")
-                                    .font(.caption2)
+                                    .font(.caption)
                                     .foregroundStyle(.tertiary)
                             }
                         }
@@ -282,11 +282,11 @@ struct WorkflowWorkspaceShell<
             if warningCount > 0 {
                 (Text(msg).foregroundStyle(.secondary)
                  + Text(" (\(warningCount) warning(s))").foregroundStyle(.orange))
-                    .font(.footnote)
+                    .font(.callout)
                     .textSelection(.enabled)
             } else {
                 Text(msg)
-                    .font(.footnote)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
             }
@@ -359,7 +359,7 @@ private struct WorkbenchVaultButton<Store: WorkbenchWorkspaceProviding>: View {
 
                 if packs.isEmpty {
                     Text(filterText.isEmpty ? "No saved analyses yet." : "No match.")
-                        .font(.caption)
+                        .font(.callout)
                         .foregroundStyle(.tertiary)
                 } else {
                     ScrollView(.vertical) {
@@ -405,17 +405,17 @@ private struct WorkbenchVaultRow<Store: WorkbenchWorkspaceProviding>: View {
             if isActive {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(Color.accentColor)
-                    .font(.caption)
+                    .font(.callout)
             }
 
             if isEditing {
                 TextField("Label", text: $editingLabel)
                     .textFieldStyle(.roundedBorder)
-                    .font(.caption)
+                    .font(.callout)
                     .onSubmit { _commitRename(vault: vault) }
             } else {
                 Text(pack.label)
-                    .font(.caption)
+                    .font(.callout)
                     .lineLimit(1)
             }
 
@@ -426,7 +426,7 @@ private struct WorkbenchVaultRow<Store: WorkbenchWorkspaceProviding>: View {
                     Image(systemName: "pencil")
                 }
                 .buttonStyle(.borderless)
-                .font(.caption2)
+                .font(.caption)
 
                 Button {
                     vault.remove(id: pack.id)
@@ -437,7 +437,7 @@ private struct WorkbenchVaultRow<Store: WorkbenchWorkspaceProviding>: View {
                     Image(systemName: "trash")
                 }
                 .buttonStyle(.borderless)
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.red)
             }
         }

@@ -43,6 +43,6 @@ struct AHEIngestionResult: Codable, Hashable, Sendable {
     var candidateAxisFields: [String]
     var defaultAxisMapping: WorkbenchAxisMapping
     var series: [WorkbenchPlotSeries]
-    var sourceFiles: [String]
+    var sourceFiles: [String]?
     var warnings: [String]
 }

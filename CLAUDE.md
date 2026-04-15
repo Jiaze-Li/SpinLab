@@ -332,6 +332,7 @@ View layer policy (required):
 - Views must not contain sorting, filtering, or normalization logic.
   - UI-only ordering belongs in ViewModel. Domain-affecting logic belongs in UseCase/Service.
 - Services and UseCases must have no SwiftUI import.
+- `[HARD][must]` Font minimum readability rule: all text intended for user reading (status messages, list items, labels, panel content) must use `.callout` or larger. `.caption` is acceptable only for supplementary metadata (timestamps, tolerances, icon badges). `.caption2` is reserved for non-essential decorative hints only. Do not use `.footnote` for content the user needs to read.
 
 ---
 

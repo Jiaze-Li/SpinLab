@@ -175,7 +175,7 @@ extension AnalysisPackProviding {
             config = try pack.decodeConfig(PackConfig.self)
             result = try pack.decodeResult(PackResult.self)
         } catch {
-            analysisMessage = "Failed to decode pack data: \(error.localizedDescription)"
+            analysisMessage = "Failed to decode pack data: \(error)"
             print("[SpinLab][Pack] Decode failed for \(id): \(error)")
             return
         }

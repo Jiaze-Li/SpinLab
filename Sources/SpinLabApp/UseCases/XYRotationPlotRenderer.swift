@@ -74,8 +74,8 @@ struct XYRotationPlotRenderer {
                 label: _tempLabel(sweep.temperatureK),
                 x: paired.x,
                 y: paired.y,
-                sourceRef: sweep.measurementFilePath.isEmpty ? sweep.stem : sweep.measurementFilePath,
-                metadata: sweep.sampleMetadata
+                sourceRef: (sweep.measurementFilePath ?? "").isEmpty ? sweep.stem : (sweep.measurementFilePath ?? ""),
+                metadata: sweep.sampleMetadata ?? [:]
             )
         }
 
@@ -142,8 +142,8 @@ struct XYRotationPlotRenderer {
                 label: _tempLabel(sweep.temperatureK),
                 x: paired.x,
                 y: paired.y,
-                sourceRef: sweep.measurementFilePath.isEmpty ? sweep.stem : sweep.measurementFilePath,
-                metadata: sweep.sampleMetadata
+                sourceRef: (sweep.measurementFilePath ?? "").isEmpty ? sweep.stem : (sweep.measurementFilePath ?? ""),
+                metadata: sweep.sampleMetadata ?? [:]
             )
         }
 

@@ -66,7 +66,7 @@ struct ThreeOmegaPlotRenderer {
                 label: _tempLabel(sweep.temperatureK),
                 x: sweep.hField.map { $0 / 10000 },
                 y: sweep.r1omega.map { $0 + offset },
-                metadata: sweep.sampleMetadata
+                metadata: sweep.sampleMetadata ?? [:]
             )
         }
         let yLabel = "R(1ω) (Ω)"
@@ -95,7 +95,7 @@ struct ThreeOmegaPlotRenderer {
                 label: _tempLabel(sweep.temperatureK),
                 x: sweep.hField.map { $0 / 10000 },
                 y: sweep.r3omega.map { $0 + offset },
-                metadata: sweep.sampleMetadata
+                metadata: sweep.sampleMetadata ?? [:]
             )
         }
         let yLabel = "R(3ω) (Ω)"
