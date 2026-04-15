@@ -44,11 +44,11 @@ Instruction priority policy (required):
 
 ---
 
-Engineering quality and execution gate (required):
+Engineering quality (required):
 - `[HARD][must]` All implementations must follow first-principles reasoning. Do not add redundant, decorative, or non-functional code.
 - `[HARD][must]` Prefer long-term maintainability over short-term convenience. Reject approaches that are fast now but increase future complexity/cost.
 - `[HARD][must]` Sign-off criteria are structural quality + maintainability + testability, not just feature-level correctness.
-- `[HARD][must]` Do not start any code modification, file edit, or behavior-changing command until the user gives an explicit execution instruction (for example: "执行", "开始执行", "apply now").
+- Execution gate and collaboration model: inherited from global `~/.claude/CLAUDE.md`.
 - `[HARD][must]` Do not rename, remap, or reformat any user-defined display name, workflow ID, condition field name, or configuration value unless the user explicitly requests that specific rename. "Cleanup" or "normalization" of user-chosen names is forbidden. 迁移或兼容性转换（如旧 ID 到新 ID）也必须获得用户明确指令后才可执行。
 
 ---
@@ -376,8 +376,8 @@ Build and version policy (required):
 ---
 
 Communication/reporting policy (required):
-- `[HARD][must]` When confirming feature design or asking the user questions about behavior, use plain functional language (what the user sees, what happens when they click, what data appears where). Do NOT use code-level terms (class names, method signatures, protocol names, variable names) in design discussions. Separate "feature/UX discussion" from "code implementation discussion" — the user is a domain expert, not necessarily tracking internal architecture naming.
-- When reporting Git actions to the user (commit/push/PR), use plain human language first.
+- Inherits global rules (role definition, functional language, no technical decisions to user).
+- SpinLab-specific: when reporting Git actions, use plain human language first.
 - Avoid raw shorthand-only status lines like `pushed branch`, `PR created` without context.
 - Preferred style example:
   - "代码已经推到远端分支 `xxx`，并创建了 PR：`<url>`。"
@@ -404,30 +404,14 @@ Change impact rule:
 - `[HARD][must]` Before modifying code, check `docs/features.md` for **invariants** listed under the affected workflow. If a proposed change would violate an invariant, stop and flag it to the user before proceeding.
 - `[DIRECTION][should]` After completing a code change, verify that no invariant in `docs/features.md` was broken by the change.
 
-Codex cross-review protocol (required):
-- Full protocol documented in `docs/philosophy.md` § Cross-Review Protocol. Summary below.
-- Three phases: Design Review → Execution → Acceptance Review.
-
-Design review (方案交叉审核):
-- `[HARD][must]` For non-trivial plans and architecture changes, give Codex the user's original requirement (not a pre-formed solution) and let it independently produce a proposal. Claude also produces its own proposal. Compare, challenge, and merge until convergence. This avoids framing bias where the reviewer can only react to the proposer's mental model.
-- `[HARD][must]` Do not execute a plan that either side has flagged with unresolved objections. User has final say.
-- Trigger criteria: a change requires design review if it meets any of these conditions:
+Cross-review protocol — SpinLab specifics (required):
+- Full protocol inherited from global `~/.claude/CLAUDE.md`. SpinLab-specific additions below.
+- Design review trigger criteria for this project:
   - Touches 2+ architectural modules or crosses layer boundaries
   - Introduces a new pattern, protocol, or structural convention
   - Changes persistence format or domain model shape
   - Modifies CLAUDE.md rules or docs/ architecture specs
 - Exception: purely mechanical and contained changes (typo fixes, single-file edits within one module, documentation content updates with no new rules) skip design review.
-
-Execution (分工并行):
-- Claude and Codex may split work across modules and execute in parallel.
-- User gives execution instruction before any code changes.
-
-Acceptance review (交叉验收):
-- `[HARD][must]` The implementer does NOT review their own work. Claude's code → Codex reviews. Codex's code → Claude reviews.
-- `[HARD][must]` Review brief states only what files changed and the intent. Do NOT list verification questions or suggest what to check — this causes confirmation bias. The reviewer decides independently what to examine.
-- `[HARD][must]` Findings → implementer fixes → reviewer re-verifies. Loop until reviewer reports no new issues.
-- `[HARD][must]` A new round is required when: reviewer found issues and implementer fixed them; the fix itself introduced new code that was not yet reviewed; or new user feedback changes the scope.
-- Trigger: after each round of code changes, not after every small edit.
 
 Roadmap reference (required):
 - Active roadmap: `docs/V5_ROADMAP.md`.
