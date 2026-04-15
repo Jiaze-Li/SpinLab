@@ -7,6 +7,9 @@ import Foundation
 
 struct XYRotationPlotRenderer {
 
+    /// Pipeline warnings collected during rendering (legend resolver, etc.).
+    private(set) var collectedWarnings: [String] = []
+
     var showGrid: Bool = true
     var legendPoint: CGPoint? = nil
     var stackOffsetMultiplier: Double = 0.0
@@ -71,9 +74,10 @@ struct XYRotationPlotRenderer {
                 label: _tempLabel(sweep.temperatureK),
                 x: paired.x,
                 y: paired.y,
-                sourceRef: sweep.measurementFilePath.isEmpty ? sweep.stem : sweep.measurementFilePath
+                sourceRef: sweep.measurementFilePath.isEmpty ? sweep.stem : sweep.measurementFilePath,
+                metadata: sweep.sampleMetadata
             )
-        }.reversed()
+        }
 
         let yLabel = "Rxx (Ω)"
         var payload = WorkbenchPlotPayload(
@@ -82,7 +86,8 @@ struct XYRotationPlotRenderer {
             title: _defaultTitle("Rxx vs φ", device: device),
             axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: yLabel),
             series: series,
-            styleParams: ["xTickStep": "60"]
+            styleParams: ["xTickStep": "60"],
+            reverseSeriesForLegend: true
         )
 
         let (data, layout) = _render(
@@ -137,9 +142,10 @@ struct XYRotationPlotRenderer {
                 label: _tempLabel(sweep.temperatureK),
                 x: paired.x,
                 y: paired.y,
-                sourceRef: sweep.measurementFilePath.isEmpty ? sweep.stem : sweep.measurementFilePath
+                sourceRef: sweep.measurementFilePath.isEmpty ? sweep.stem : sweep.measurementFilePath,
+                metadata: sweep.sampleMetadata
             )
-        }.reversed()
+        }
 
         let yLabel = "Rxy (Ω)"
         var payload = WorkbenchPlotPayload(
@@ -148,7 +154,8 @@ struct XYRotationPlotRenderer {
             title: _defaultTitle("Rxy vs φ", device: device),
             axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: yLabel),
             series: series,
-            styleParams: ["xTickStep": "60"]
+            styleParams: ["xTickStep": "60"],
+            reverseSeriesForLegend: true
         )
 
         let (data, layout) = _render(
@@ -160,7 +167,7 @@ struct XYRotationPlotRenderer {
 
     // MARK: - Private
 
-    private func _render(
+    private mutating func _render(
         payload: inout WorkbenchPlotPayload,
         options: WorkbenchChartRenderer.Options? = nil
     ) -> (Data?, WorkbenchPlotLayout?) {
@@ -181,6 +188,7 @@ struct XYRotationPlotRenderer {
             styleParamsPatch: patch
         )
         guard let output = try? WorkbenchRenderPipeline.render(input) else { return (nil, nil) }
+        collectedWarnings.append(contentsOf: output.warnings)
         payload = output.manifestPayload
         return (output.imageData, output.layout)
     }

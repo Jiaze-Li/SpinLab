@@ -21,6 +21,7 @@ struct IngestThreeOmegaSelectionsUseCase {
     func execute(
         hits: [WorkflowMeasurementSearchHit],
         rtHit: WorkflowMeasurementSearchHit? = nil,
+        numericDisplayBySample: [String: [String: String]] = [:],
         parseFile: ((URL) throws -> ThreeOmegaLVMFile)? = nil
     ) -> ThreeOmegaIngestionResult {
         guard !hits.isEmpty else {
@@ -63,7 +64,11 @@ struct IngestThreeOmegaSelectionsUseCase {
                 switch file.fileKind {
                 case .fieldSweep:
                     if device.isEmpty { device = resolvedDevice }
-                    let result = fitter.process(file: file, deviceOverride: resolvedDevice)
+                    var result = fitter.process(file: file, deviceOverride: resolvedDevice)
+                    result.sampleMetadata = Self._buildSampleMetadata(
+                        from: hit,
+                        numericDisplay: numericDisplayBySample[hit.sampleKey] ?? [:]
+                    )
                     fieldSweeps.append(result)
                     iRmsValues[file.temperatureK] = file.iRms
                     if !hitDevice.isEmpty { deviceValues.append(hitDevice) }
@@ -162,5 +167,54 @@ struct IngestThreeOmegaSelectionsUseCase {
             ? String(trimmed.dropLast())
             : trimmed
         return Double(digits.trimmingCharacters(in: .whitespaces))
+    }
+
+    /// Builds resolver-compatible metadata from a search hit.
+    /// Substrate includes processing tokens (b, o, HF, etc.) + material + orientation
+    /// so that samples with the same material but different treatments are distinguished.
+    ///
+    /// - Parameter numericDisplay: Optional per-sample numeric display values from library index
+    ///   (keys like "厚度", "温度", "氧压", "能量"). Mapped to resolver keys.
+    static func _buildSampleMetadata(
+        from hit: WorkflowMeasurementSearchHit,
+        numericDisplay: [String: String] = [:]
+    ) -> [String: String] {
+        var meta: [String: String] = [:]
+
+        // Condition-level: test temperature, device
+        if let t = hit.conditions["temperature"] { meta["temperature"] = t }
+        if let d = hit.conditions["device"], !d.isEmpty { meta["device"] = d }
+
+        // SampleKey-level: substrate (processing tokens + material + orientation)
+        if let descriptor = SampleSemanticDescriptor.fromSampleKey(hit.sampleKey) {
+            let treatment = descriptor.processingTokens.sorted().joined(separator: "+")
+            let material = descriptor.material ?? ""
+            let orientation = descriptor.orientation ?? ""
+            let parts = [treatment, material, orientation]
+                .filter { !$0.isEmpty }
+            meta["substrate"] = parts.joined(separator: " ")
+        } else if !hit.sampleSubstrate.isEmpty {
+            meta["substrate"] = hit.sampleSubstrate
+        }
+
+        // NumericTags-level: energy, pressure, growth temperature, thickness
+        // Keys in numericDisplay are Chinese column headers from registry XLSX.
+        for (chineseKey, value) in numericDisplay {
+            let lower = chineseKey.lowercased()
+            if lower.contains("能量") || lower.contains("energy") {
+                meta["energy"] = value
+            } else if lower.contains("氧压") || lower.contains("pressure") {
+                meta["pressure"] = value
+            } else if lower.contains("厚度") || lower.contains("thickness") {
+                meta["thickness"] = value
+            } else if lower.contains("温度") || lower.contains("temperature") {
+                // Growth temperature from registry — distinct from test temperature
+                meta["growthTemperature"] = value
+            }
+        }
+
+        meta["sampleKey"] = hit.sampleKey
+        meta["batchID"] = hit.batchID
+        return meta
     }
 }

@@ -7,7 +7,7 @@ import Foundation
 
 struct IngestXYRotationSelectionsUseCase {
 
-    func execute(hits: [WorkflowMeasurementSearchHit]) -> XYRotationIngestionResult {
+    func execute(hits: [WorkflowMeasurementSearchHit], numericDisplayBySample: [String: [String: String]] = [:]) -> XYRotationIngestionResult {
         guard !hits.isEmpty else {
             return XYRotationIngestionResult(warnings: ["No files selected."])
         }
@@ -58,6 +58,10 @@ struct IngestXYRotationSelectionsUseCase {
                 }
                 sweep.defaultPhiOffset = shiftOverride
                 sweep.measurementFilePath = hit.measurementFilePath
+                sweep.sampleMetadata = IngestThreeOmegaSelectionsUseCase._buildSampleMetadata(
+                    from: hit,
+                    numericDisplay: numericDisplayBySample[hit.sampleKey] ?? [:]
+                )
                 sweeps.append(sweep)
             } catch {
                 warnings.append("Parse failed for \(url.lastPathComponent): \(error.localizedDescription)")

@@ -6,6 +6,7 @@ struct IngestAHESelectionsUseCase {
         selections: [AHEPlotSelectionItem],
         xColumnOverride: String? = nil,
         yColumnOverride: String? = nil,
+        numericDisplayBySample: [String: [String: String]] = [:],
         parseFile: (URL) throws -> PPMSParsedFile = { url in try AHEDataParser().parse(fileURL: url) }
     ) throws -> AHEIngestionResult {
         guard !selections.isEmpty else {
@@ -98,11 +99,35 @@ struct IngestAHESelectionsUseCase {
                 "\(selection.sampleKey) | \(selection.channel.rawValue) | \($0)"
             } ?? "\(selection.sampleKey) | \(selection.channel.rawValue)"
 
+            // Build metadata using the same logic as 3ω/XY for resolver compatibility.
+            var meta: [String: String] = [:]
+            if let t = selection.conditions["temperature"] { meta["temperature"] = t }
+            if let d = selection.conditions["device"], !d.isEmpty { meta["device"] = d }
+            if let descriptor = SampleSemanticDescriptor.fromSampleKey(selection.sampleKey) {
+                let treatment = descriptor.processingTokens.sorted().joined(separator: "+")
+                let material = descriptor.material ?? ""
+                let orientation = descriptor.orientation ?? ""
+                let parts = [treatment, material, orientation].filter { !$0.isEmpty }
+                meta["substrate"] = parts.joined(separator: " ")
+            } else if !selection.sampleSubstrate.isEmpty {
+                meta["substrate"] = selection.sampleSubstrate
+            }
+            let nd = numericDisplayBySample[selection.sampleKey] ?? [:]
+            for (chineseKey, value) in nd {
+                let lower = chineseKey.lowercased()
+                if lower.contains("能量") || lower.contains("energy") { meta["energy"] = value }
+                else if lower.contains("氧压") || lower.contains("pressure") { meta["pressure"] = value }
+                else if lower.contains("厚度") || lower.contains("thickness") { meta["thickness"] = value }
+                else if lower.contains("温度") || lower.contains("temperature") { meta["growthTemperature"] = value }
+            }
+            meta["sampleKey"] = selection.sampleKey
+
             series.append(WorkbenchPlotSeries(
                 label: label,
                 x: xs,
                 y: ys,
-                sourceRef: selection.sourceFilePath
+                sourceRef: selection.sourceFilePath,
+                metadata: meta
             ))
         }
 

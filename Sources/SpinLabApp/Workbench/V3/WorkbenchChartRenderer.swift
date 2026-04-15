@@ -448,7 +448,7 @@ struct WorkbenchChartRenderer {
 
             if showLine {
                 ctx.setStrokeColor(color)
-                ctx.setLineWidth(CGFloat(s.lineWidth))
+                ctx.setLineWidth(max(CGFloat(s.lineWidth), 3.0))
                 ctx.strokeLineSegments(between: [row.lineStart, row.lineEnd])
             }
             if showDot {
