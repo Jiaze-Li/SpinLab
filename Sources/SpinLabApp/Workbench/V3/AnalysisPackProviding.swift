@@ -58,6 +58,12 @@ protocol AnalysisPackProviding: AnyObject {
     func restoreFromPack(config: PackConfig, result: PackResult, pack: AnalysisPack,
                          restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void)
 
+    // MARK: - Warnings
+
+    // MARK: - Re-analysis after load
+
+    func runAnalysis()
+
     // MARK: - Pre-load teardown (workflow-specific)
 
     /// Cancel in-flight tasks before loading a pack. Default does nothing.
@@ -181,6 +187,7 @@ extension AnalysisPackProviding {
         }
         restoreFromPack(config: config, result: result, pack: pack,
                         restoreSearchState: restoreSearchState)
+        // Re-assign after restore — some workflows clear activePackID inside runAnalysis.
         activePackID = id
         analysisMessage = "Loaded: \(pack.label)"
     }
