@@ -149,7 +149,8 @@ struct WorkbenchPlotPayload: Codable, Hashable, Sendable {
         self.reverseSeriesForLegend = reverseSeriesForLegend
     }
 
-    // Backward-compatible decode: legendDimension defaults nil, reverseSeriesForLegend defaults true.
+    // Backward-compatible decode: legendDimension defaults nil, reverseSeriesForLegend defaults false
+    // (legacy payloads should preserve original order; only new payloads that explicitly opt in get reversal).
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion          = try c.decode(Int.self, forKey: .schemaVersion)
@@ -161,7 +162,7 @@ struct WorkbenchPlotPayload: Codable, Hashable, Sendable {
         semanticParams         = try c.decode([String: String].self, forKey: .semanticParams)
         styleParams            = try c.decode([String: String].self, forKey: .styleParams)
         legendDimension        = try c.decodeIfPresent(String.self, forKey: .legendDimension)
-        reverseSeriesForLegend = try c.decodeIfPresent(Bool.self, forKey: .reverseSeriesForLegend) ?? true
+        reverseSeriesForLegend = try c.decodeIfPresent(Bool.self, forKey: .reverseSeriesForLegend) ?? false
     }
 }
 

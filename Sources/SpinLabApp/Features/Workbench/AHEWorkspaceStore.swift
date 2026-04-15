@@ -568,7 +568,7 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
     }
 
     func buildPackResult() -> AHEPackResult {
-        AHEPackResult(ingestionResult: ingestionResult ?? AHEIngestionResult(candidateAxisFields: [], defaultAxisMapping: .init(xField: "", yField: ""), series: [], sourceFiles: [], warnings: []))
+        AHEPackResult(ingestionResult: ingestionResult)
     }
 
     func autoPackLabel() -> String {

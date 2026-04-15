@@ -254,7 +254,7 @@ struct V534PayloadPipelineTests {
         let data = json.data(using: .utf8)!
         let payload = try JSONDecoder().decode(WorkbenchPlotPayload.self, from: data)
         #expect(payload.legendDimension == nil)
-        #expect(payload.reverseSeriesForLegend == true) // backward compat default
+        #expect(payload.reverseSeriesForLegend == false) // legacy payloads preserve original order
     }
 
     @Test("reverseSeriesForLegend: false preserves original series order")

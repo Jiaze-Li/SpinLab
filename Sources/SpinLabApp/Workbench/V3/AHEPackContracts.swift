@@ -28,5 +28,15 @@ extension AHEPackConfig: SearchQueryTextInjectable {}
 
 /// The analysis output snapshot.
 struct AHEPackResult: Codable, Hashable, Sendable {
-    var ingestionResult: AHEIngestionResult
+    var ingestionResult: AHEIngestionResult?
+
+    // Backward-compatible decode: legacy packs had only `placeholder: Bool`.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        ingestionResult = try c.decodeIfPresent(AHEIngestionResult.self, forKey: .ingestionResult)
+    }
+
+    init(ingestionResult: AHEIngestionResult?) {
+        self.ingestionResult = ingestionResult
+    }
 }
