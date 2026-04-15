@@ -95,7 +95,14 @@ _(预留)_
 - [x] [Bug] x/y axis title 对齐修正：应居中于 tick 区域（画板），而非整个 plot 视图
 - [x] [Bug] y axis title 缺少括号内容：XY y title 固定为 Rxx (Ω) / Rxy (Ω)，stacked/center 信息不再放在 y title
 - [x] [XY Rotation] 默认 y title 修改：Rxy tab → "Rxy (Ω)"，Rxx tab → "Rxx (Ω)"
-- [ ] Legend 默认值动态化：legend 内容根据 input sample 动态生成，取代当前硬编码（具体规则待定）— 推迟
+- [x] Legend 默认值动态化：legend 内容根据 input sample 动态生成，取代当前硬编码 → 移至 5.3.4
+
+### 5.3.4 — Legend 维度自动推断 + 视觉一致性
+- [x] LegendDimensionResolver：数据驱动优先级链（temperature > substrate=energy=pressure > thickness），支持数值容差、自定义 chain
+- [x] WorkbenchPlotPayload 扩展：legendDimension + reverseSeriesForLegend 字段（Codable 向后兼容）
+- [x] Pipeline 统一 series 反转：stacked tab opt-in，非 stacked 不受影响
+- [x] 删除 ThreeOmegaPlotRenderer / XYRotationPlotRenderer 分散的 .reversed()
+- [x] 测试：16 cases 覆盖 resolver + pipeline + backward decode
 
 ---
 

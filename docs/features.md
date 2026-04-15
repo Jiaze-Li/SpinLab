@@ -85,7 +85,10 @@ Behavior details: `specs/three_omega_physics.md`
 - Font sizes (title, axis, tick, legend) and tick density (x/y) configurable via Chart Style disclosure panel (v5.3.1)
 - Right-click Copy PNG copies rendered chart to clipboard (v5.3.1)
 - Chart style settings stored in styleParams, parsed via WorkbenchChartStyle (v5.3.1)
+- Legend dimension auto-inference: data-driven priority chain resolves which metadata dimension distinguishes series (temperature > substrate = energy = pressure > thickness). Ambiguous or indeterminate cases produce warnings. (v5.3.4)
+- Legend-visual consistency: stacked charts guarantee legend top entry = visually highest curve. Controlled by reverseSeriesForLegend flag on payload, applied uniformly in render pipeline. (v5.3.4)
 - Test: V531SeriesRenderModeTests — Codable migration, ChartStyle parsing, axis alignment
+- Test: V534LegendDimensionResolverTests — resolver priority, tolerance, ambiguity, pipeline reversal, backward decode
 
 ### 3-Omega AHE
 - Fit ranges are part of scaling chart semantic identity — different fit configs produce separate chart entries, not overwrites

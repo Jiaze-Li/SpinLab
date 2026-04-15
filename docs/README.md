@@ -43,6 +43,7 @@ Entries added on version bumps, feature changes, or architecture adjustments.
 | v5.3.1 | Plot Shell capability expansion | `history/v5.3.1_plot_shell.md` |
 | v5.3.2 | Plot Render Pipeline unification | `history/v5.3.2_render_pipeline.md` |
 | v5.3.3 | Multi-Tab Render State Manager | `history/v5.3.3_multi_tab_render_manager.md` |
+| v5.3.4 | Legend Dimension Auto-Inference + Visual Consistency | `history/v534_legend_dimension_resolver.md` |
 
 ## specs (产品/数据/UI 规则)
 
