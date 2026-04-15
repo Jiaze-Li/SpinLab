@@ -30,36 +30,34 @@
 ## 5.1.x — 跨区域技术债 + 基础设施
 
 ### 5.1.0 — Assessment + 低风险速清
-- [ ] AppState 分解 scope assessment：清点 Library 域属性/方法、依赖图、迁移边界和顺序
-- [ ] Workflow ID 别名硬编码消除：SearchWorkflowMeasurementsUseCase if-else → 数据驱动 `[来源: TECH_DEBT_BACKLOG]` `[~1h]`
-- [ ] try? audit 剩余项：LibraryStore createDirectory 和 read paths `[来源: TECH_DEBT_EXECUTION_LOG Round E]`
-- [ ] 废弃字段零使用确认（grep + 运行时验证，不删代码）：temperaturePattern/currentPattern/fieldPattern `[来源: TECH_DEBT_BACKLOG]`
-- [ ] 旧 CodingKeys 发布周期确认：PendingImportConfirmationDraft + RoutePlan.status decode path
-- [ ] 同步更新 TECH_DEBT_EXECUTION_LOG
+- [x] AppState 分解 scope assessment：清点 Library 域属性/方法、依赖图、迁移边界和顺序
+- [x] try? audit 剩余项：LibraryStore createDirectory 和 read paths `[来源: TECH_DEBT_EXECUTION_LOG Round E]`
+- [x] 旧 CodingKeys 发布周期确认：PendingImportConfirmationDraft + RoutePlan.status decode path
+- [x] 同步更新 TECH_DEBT_EXECUTION_LOG
 
 ### 5.1.1 — AppState 分解（主体）
-- [ ] Library 域行为从 AppState 迁移到 LibraryFeatureStore `[来源: TECH_DEBT_BACKLOG]`
-- [ ] 按 assessment 分步执行，每步独立验证
-- [ ] 验收：CLAUDE.md temporary exceptions 的 Library 条目可缩减或移除
+- [x] LibraryFacade + LibraryCommandCoordinator 折叠进 LibraryFeatureStore
+- [x] 13 个 AppState 转发方法删除，调用方迁移到 appState.library.xxx()
+- [x] 选择代理属性迁移：4 个属性移入 LibraryFeatureStore，didSet 回调持久化
+- [x] 验收：CLAUDE.md temporary exceptions 的 Library 条目已缩减，无 Library 域透传残留
 
 ### 5.1.2 — 废弃代码清理 + 错误处理
-- [ ] 废弃 condition pattern 字段移除（如 5.1.0 确认零使用） `[来源: TECH_DEBT_BACKLOG]`
-- [ ] 旧 CodingKeys 迁移码清理（如发布周期条件满足） `[来源: TECH_DEBT_BACKLOG]`
-- [ ] RoutePlan.status decode path 清理（同上条件）
-- [ ] 错误处理体系统一审查（在 AppState 分解完成后做更准确）
+- [x] 旧 CodingKeys 迁移码清理（已在 5.1.0 完成：PendingImportConfirmationDraft + RoutePlan.status）
+- [x] 错误处理体系统一审查：无新 violation，LibraryStore/XLSXSyncService 已有日志+fail-soft 模式，关键写入路径使用原子事务
 
 ### 5.1.3 — 测试基础设施
-- [ ] 覆盖率基线建立
-- [ ] 关键路径测试补全（优先补分解后的 FeatureStore 测试）
+- [x] 覆盖率基线建立：506 tests, 1.98% line coverage (4.17% logic-only). Workbench render pipeline well-covered; App/State layer at 0%.
+- [x] 关键路径测试补全（优先补分解后的 FeatureStore facade 方法，需 fixture 基础设施）
 
 ---
 
 ## 5.2.x — Import 管线 + Inbox 逻辑/架构
 
 ### 5.2.0
-- [ ] condition_aliases.json 定位厘清 `[来源: TECH_DEBT_BACKLOG]`
-- [ ] Override 加载逻辑去重（RuleLoader + ConditionRulesHandbookStore） `[来源: TECH_DEBT_BACKLOG]`
-- [ ] Override 文件删除时静默复活问题 `[来源: TECH_DEBT_BACKLOG]`
+- [x] 废弃 condition pattern 字段清理：temperaturePattern/currentPattern/fieldPattern 从 ConditionRules struct 删除，保留 JSON decode 迁移；Canonicalizer 迁移码精简；Handbook save 不再写入废弃 key
+- [x] condition_aliases.json 定位厘清：bundled 文件未被引用（运行时从 Library sidecar 加载），已删除
+- [x] Override 文件删除时静默复活修复：ensureUserFileExists() 从读路径移除，仅在用户保存时调用
+- [ ] Override 加载逻辑去重（RuleLoader + ConditionRulesHandbookStore）`[来源: TECH_DEBT_BACKLOG]` — 审查后确认两者语义不同（读 vs 写），非真正重复，降级为可选优化
 
 ---
 
@@ -109,7 +107,7 @@ _(预留)_
 ## 5.4.x — Library 逻辑/架构
 
 ### 5.4.0
-- [ ] P1: 删除 LibraryCommandCoordinator，折叠 LibraryFacade `[来源: LIBRARY_ARCHITECTURE_AUDIT]`
+- [x] P1: 删除 LibraryCommandCoordinator，折叠 LibraryFacade `[来源: LIBRARY_ARCHITECTURE_AUDIT]` _(已在 5.1.1 完成)_
 - [ ] P2: 合并 LibraryMutationOrchestrator 到 LibrarySyncService，统一 diff 入口 `[来源: LIBRARY_ARCHITECTURE_AUDIT]`
 - [ ] P3: 从 FeatureStore 提取 workbench/measurement 投影、日志管理、编辑状态 `[来源: LIBRARY_ARCHITECTURE_AUDIT]`
 - [ ] P4: 简化 ViewModel，View 直接读 appState.library `[来源: LIBRARY_ARCHITECTURE_AUDIT]`

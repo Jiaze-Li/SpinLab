@@ -74,10 +74,10 @@ final class LibraryViewModel {
                 appState.validateLibraryCacheOnAppear()
             },
             syncLibraryFromFiles: {
-                appState.syncLibraryFromFiles()
+                appState.library.syncLibraryFromFiles()
             },
             backfillLibraryMeasurementSidecars: {
-                appState.backfillLibraryMeasurementSidecars()
+                appState.library.backfillLibraryMeasurementSidecars()
             },
             updateAllowedBatchPrefixes: { value in
                 appState.library.updateAllowedBatchPrefixes(from: value)
@@ -102,22 +102,22 @@ final class LibraryViewModel {
                 appState.selectedArea = .library
             },
             loadLibraryGlobalManualLogs: {
-                appState.loadLibraryGlobalManualLogs()
+                appState.library.loadLibraryGlobalManualLogs()
             },
             loadLibraryMetadataSyncLogs: {
-                appState.loadLibraryMetadataSyncLogs()
+                appState.library.loadLibraryMetadataSyncLogs()
             },
             cancelEditingSelectedLibrarySample: {
                 appState.library.cancelEditingSelectedLibrarySample()
             },
             saveLibrarySampleEdits: {
-                appState.saveLibrarySampleEdits()
+                appState.library.saveLibrarySampleEdits()
             },
             beginEditingSelectedLibrarySample: {
                 appState.library.beginEditingSelectedDrawerSampleIfNeeded()
             },
             markLibraryGlobalManualLogStatus: { rowIndex, status in
-                appState.markLibraryGlobalManualLogStatus(rowIndex: rowIndex, status: status)
+                appState.library.markLibraryGlobalManualLogStatus(rowIndex: rowIndex, status: status)
             },
             updateLibraryRoot: { url in
                 appState.updateLibraryRoot(to: url)

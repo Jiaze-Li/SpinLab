@@ -169,3 +169,40 @@ Deferred (conditions not yet met per backlog):
 
 Validation:
 - 279/279 tests passed after all changes.
+
+## 2026-04-15 Round F (v5.1.0)
+
+Scope:
+- Low-risk tech debt cleanup: try? audit fixes and legacy CodingKeys removal.
+
+Completed:
+- **`try?` write-path audit fix** (`LibraryFeatureStore.swift`): 4 instances of `try?` on encode/commit paths in `deleteMetricRecord` and `deleteWorkbenchResultOnDisk` replaced with explicit `do-catch`. Fail-closed return-false behavior preserved; error details now logged to stderr.
+- **Legacy CodingKeys removed from `PendingImportConfirmationDraft`** (`InteractionStateModels.swift`): removed `workflowTag`, `deviceName`, `temperature` migration keys and v2.3-era fallback decode logic. Release cycle condition met (current v5.3.6 >> required v2.4+).
+- **Legacy CodingKeys removed from `RoutePlan`** (`Models.swift`): removed `status` fallback key and custom `init(from:)`/`encode(to:)`. Compiler-synthesized Codable now handles all encode/decode. No in-repo fixtures or callers depend on old `status` key.
+
+Deferred:
+- `temperaturePattern`/`currentPattern`/`fieldPattern` cleanup — moved to 5.2.0 (Import pipeline scope).
+- `SpinLabAppState` decomposition — assessment complete, execution in 5.1.1.
+
+Validation:
+- Build succeeded (debug). Codex cross-review: accept-with-nits (no functional issues).
+
+## 2026-04-15 Round G (v5.1.1)
+
+Scope:
+- AppState decomposition: fold LibraryFacade and LibraryCommandCoordinator into LibraryFeatureStore, remove AppState passthroughs.
+
+Completed:
+- **LibraryFacade folded into LibraryFeatureStore**: 13 facade methods inlined into FeatureStore with injected dependencies via `configureFacade(...)`. Cross-store callbacks (applyExistingIndex, commitLibraryMutation, etc.) injected by AppState at init time.
+- **LibraryCommandCoordinator folded**: coordinator's role (binding mutationService + orchestrator to FeatureStore methods) absorbed into FeatureStore facade methods.
+- **13 AppState passthrough methods deleted**: syncLibraryFromFiles, backfillLibraryMeasurementSidecars, deleteExistingDrawer, loadLibraryGlobalManualLogs, markLibraryGlobalManualLogStatus, loadLibraryMetadataSyncLogs, saveLibrarySampleEdits, prepareLibrarySyncReview, refreshLibraryIncremental, confirmLibraryNumericRefreshChanges, createDrawersFromPreview, createDrawersForSelection, cancelPendingLibrarySelectionChange, librarySampleChangeLog.
+- **Callers migrated**: LibraryViewModel (6 closures), RootSplitView (1 call), AppState internal callers (4 call sites) updated to `appState.library.xxx()` or `libraryFeatureStore.xxx()`.
+- **Deleted files**: LibraryFacade.swift, LibraryCommandCoordinator.swift.
+- **Debug assertions**: `assertFacadeConfigured()` added to all 13 facade methods to catch misconfiguration.
+
+Remaining:
+- 4 selection proxy properties (librarySelectedPrefix, librarySelectedBatchId, librarySelectedSampleId, libraryActiveSelectionSource) still on AppState due to persistence side-effects.
+- 8 cross-store coordination methods remain on AppState (their proper location).
+
+Validation:
+- Build succeeded (debug). Codex cross-review: pass with notes (assertions verified, architecture rationale accepted).

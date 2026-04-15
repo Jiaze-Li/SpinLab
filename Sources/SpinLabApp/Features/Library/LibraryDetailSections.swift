@@ -897,13 +897,13 @@ struct MeasurementDataSectionView: View {
 
             if useTwoColumns && card.columns.count >= 2 {
                 // Side-by-side: same method, different ranges
-                let pairs = stride(from: 0, to: card.columns.count, by: 2).map { i in
-                    (card.columns[i], i + 1 < card.columns.count ? card.columns[i + 1] : nil)
-                }
-                ForEach(Array(pairs.enumerated()), id: \.offset) { _, pair in
+                let pairIndices: [Int] = Array(stride(from: 0, to: card.columns.count, by: 2))
+                ForEach(pairIndices, id: \.self) { i in
+                    let first: RangeColumn = card.columns[i]
+                    let second: RangeColumn? = i + 1 < card.columns.count ? card.columns[i + 1] : nil
                     HStack(alignment: .top, spacing: 8) {
-                        rangeColumnView(pair.0)
-                        if let second = pair.1 {
+                        rangeColumnView(first)
+                        if let second {
                             rangeColumnView(second)
                         }
                     }
@@ -917,29 +917,31 @@ struct MeasurementDataSectionView: View {
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 6).fill(.quaternary.opacity(0.5)))
-        .contextMenu {
-            Button("Copy All") {
-                let text = card.columns.map { col in
-                    let header = col.range.isEmpty ? "" : "\(col.range)\n"
-                    let body = col.entries.map { e in
-                        let name = e.metric == "r_squared" ? "r²" : e.metric
-                        return "  \(name) = \(e.value)"
-                    }.joined(separator: "\n")
-                    return header + body
-                }.joined(separator: "\n\n")
-                let full = card.method.isEmpty ? text : "\(card.method)\n\(text)"
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(full, forType: .string)
-            }
-            if onDeleteMetric != nil {
-                Divider()
-                // Delete entire range group (e.g. "Delete HFE (5K–80K)")
-                ForEach(card.columns) { col in
-                    let label = [card.method, col.range].filter { !$0.isEmpty }.joined(separator: " ")
-                    Button("Delete \(label.isEmpty ? "all" : label)", role: .destructive) {
-                        for entry in col.entries {
-                            onDeleteMetric?(entry.identityKey)
-                        }
+        .contextMenu { methodCardContextMenu(card) }
+    }
+
+    @ViewBuilder
+    private func methodCardContextMenu(_ card: MethodCard) -> some View {
+        Button("Copy All") {
+            let text = card.columns.map { col in
+                let header = col.range.isEmpty ? "" : "\(col.range)\n"
+                let body = col.entries.map { e in
+                    let name = e.metric == "r_squared" ? "r²" : e.metric
+                    return "  \(name) = \(e.value)"
+                }.joined(separator: "\n")
+                return header + body
+            }.joined(separator: "\n\n")
+            let full = card.method.isEmpty ? text : "\(card.method)\n\(text)"
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(full, forType: .string)
+        }
+        if onDeleteMetric != nil {
+            Divider()
+            ForEach(card.columns) { col in
+                let label = [card.method, col.range].filter { !$0.isEmpty }.joined(separator: " ")
+                Button("Delete \(label.isEmpty ? "all" : label)", role: .destructive) {
+                    for entry in col.entries {
+                        onDeleteMetric?(entry.identityKey)
                     }
                 }
             }

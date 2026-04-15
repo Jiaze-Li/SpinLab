@@ -123,49 +123,6 @@ extension SpinLabDomain {
         var channelResolutions: [RouteChannelResolution] = []
         var unresolvedChannels: [String] = []
         var conflicts: [String] = []
-
-        enum CodingKeys: String, CodingKey {
-            case planningStatus
-            case status
-            case targets
-            case channelResolutions
-            case unresolvedChannels
-            case conflicts
-        }
-
-        init(
-            planningStatus: RouteStatus = .reviewRequired,
-            targets: [RouteTarget] = [],
-            channelResolutions: [RouteChannelResolution] = [],
-            unresolvedChannels: [String] = [],
-            conflicts: [String] = []
-        ) {
-            self.planningStatus = planningStatus
-            self.targets = targets
-            self.channelResolutions = channelResolutions
-            self.unresolvedChannels = unresolvedChannels
-            self.conflicts = conflicts
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            planningStatus = try container.decodeIfPresent(RouteStatus.self, forKey: .planningStatus)
-                ?? container.decodeIfPresent(RouteStatus.self, forKey: .status)
-                ?? .reviewRequired
-            targets = try container.decodeIfPresent([RouteTarget].self, forKey: .targets) ?? []
-            channelResolutions = try container.decodeIfPresent([RouteChannelResolution].self, forKey: .channelResolutions) ?? []
-            unresolvedChannels = try container.decodeIfPresent([String].self, forKey: .unresolvedChannels) ?? []
-            conflicts = try container.decodeIfPresent([String].self, forKey: .conflicts) ?? []
-        }
-
-        func encode(to encoder: Encoder) throws {
-            var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode(planningStatus, forKey: .planningStatus)
-            try container.encode(targets, forKey: .targets)
-            try container.encode(channelResolutions, forKey: .channelResolutions)
-            try container.encode(unresolvedChannels, forKey: .unresolvedChannels)
-            try container.encode(conflicts, forKey: .conflicts)
-        }
     }
 
     struct RoutingScopeEvaluation: Codable, Hashable, Identifiable {

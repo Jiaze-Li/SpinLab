@@ -71,7 +71,7 @@ struct RootSplitView: View {
         ) {
             Button("Delete Drawer", role: .destructive) {
                 if let batchID = pendingDeleteDrawerBatchID {
-                    appState.deleteExistingDrawer(batchId: batchID)
+                    appState.library.deleteExistingDrawer(batchId: batchID)
                 }
                 pendingDeleteDrawerBatchID = nil
                 pendingDeleteDrawerPrefix = nil

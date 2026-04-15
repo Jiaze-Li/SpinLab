@@ -197,11 +197,10 @@ Temporary exceptions during migration (required):
   - `[HARD][must]` Any change touching a temporary exception must either reduce it or keep it flat with explicit rationale.
   - `[DIRECTION][should]` Prefer deleting compatibility surfaces over adding new ones.
 
-Current temporary exceptions (as of v2.2.1):
-- `SpinLabAppState` still contains part of Library-domain behavior during ongoing AppShell migration.
-  - Constraint: new single-domain Library logic should go to `LibraryFeatureStore`, not AppState.
-- Some root-level compatibility properties remain for interaction snapshot and route continuity.
-  - Constraint: do not add new root passthroughs; migrate call sites to namespaced store access first, then remove compatibility properties.
+Current temporary exceptions (as of v5.1.1):
+- `SpinLabAppState` retains cross-store coordination methods (loadExistingDrawers, applyExistingIndex, commitLibraryMutation, etc.) that bridge Library ↔ Inbox.
+  - Constraint: these are legitimate AppState responsibilities per architecture rules. Not migration debt.
+- No Library-domain passthrough properties or methods remain on AppState. Selection state and facade methods fully owned by LibraryFeatureStore.
 
 Exit criteria:
 - `SpinLabAppState` only keeps:

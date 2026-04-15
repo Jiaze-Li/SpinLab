@@ -307,9 +307,6 @@
       }
     ],
     "conditions": {
-      "temperaturePattern": "",
-      "currentPattern": "",
-      "fieldPattern": "",
       "extraConditions": {
         "temperature": "^-?\\d+(?:\\.\\d+)?(?:K|k|C|c|°C|°c)$",
         "current": "^-?\\d+(?:\\.\\d+)?(?:uA|µA|mA|A)$",

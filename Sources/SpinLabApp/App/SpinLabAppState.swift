@@ -144,34 +144,6 @@ final class SpinLabAppState {
             persistInteractionSnapshotIfReady()
         }
     }
-    var librarySelectedPrefix: String? {
-        get { libraryFeatureStore.librarySelectedPrefix }
-        set {
-            libraryFeatureStore.librarySelectedPrefix = newValue
-            persistInteractionSnapshotIfReady()
-        }
-    }
-    var librarySelectedBatchId: String? {
-        get { libraryFeatureStore.librarySelectedBatchId }
-        set {
-            libraryFeatureStore.librarySelectedBatchId = newValue
-            persistInteractionSnapshotIfReady()
-        }
-    }
-    var librarySelectedSampleId: String? {
-        get { libraryFeatureStore.librarySelectedSampleId }
-        set {
-            libraryFeatureStore.librarySelectedSampleId = newValue
-            persistInteractionSnapshotIfReady()
-        }
-    }
-    var libraryActiveSelectionSource: LibrarySelectionSource {
-        get { libraryFeatureStore.libraryActiveSelectionSource }
-        set {
-            libraryFeatureStore.libraryActiveSelectionSource = newValue
-            persistInteractionSnapshotIfReady()
-        }
-    }
     var activeAlert: AppAlertState?
     private(set) var appStateRevision: Int = 0
     var applyProgressState: ApplyProgressState = .init()
@@ -292,37 +264,6 @@ final class SpinLabAppState {
     private let libraryPreviewComputationService = LibraryPreviewComputationService()
     private let libraryMutationOrchestrator = LibraryMutationOrchestrator()
     private let libraryMutationService = LibraryMutationService()
-    @ObservationIgnored
-    private lazy var libraryCommandCoordinator = LibraryCommandCoordinator(
-        featureStore: libraryFeatureStore,
-        mutationService: libraryMutationService,
-        orchestrator: libraryMutationOrchestrator
-    )
-    @ObservationIgnored
-    private lazy var libraryFacade = LibraryFacade(
-        featureStore: libraryFeatureStore,
-        commandCoordinator: libraryCommandCoordinator,
-        saveLibrarySampleEditsUseCase: saveLibrarySampleEditsUseCase,
-        appLogger: appLogger,
-        resolveRegistrySourceURL: { [weak self] in
-            self?.resolveRegistrySourceURL()
-        },
-        applyExistingIndex: { [weak self] index in
-            self?.applyExistingIndex(index)
-        },
-        refreshActionablePreviewGroups: { [weak self] diff, baseline in
-            self?.refreshActionablePreviewGroups(precomputedDiff: diff, baselineIndex: baseline)
-        },
-        commitLibraryMutation: { [weak self] rootURL, previewIndex in
-            self?.commitLibraryMutation(rootURL: rootURL, previewIndex: previewIndex)
-        },
-        loadExistingDrawers: { [weak self] in
-            self?.loadExistingDrawers()
-        },
-        presentError: { [weak self] error, title in
-            self?.present(error: error, title: title)
-        }
-    )
     private let coordinator = AppCoordinator()
     private let applyCoordinator = ApplyCoordinator()
     private let inboxArchiveApplyService = InboxArchiveApplyService()
@@ -409,6 +350,34 @@ final class SpinLabAppState {
         if !self.sampleRegistry.isLoaded, let currentRegistryURL = environment.managedStorage.currentSampleRegistryFileURL() {
             self.sampleRegistry = XLSXPrefixSampleRegistryIndex.fromFileURL(currentRegistryURL, previewRowCount: 10)
         }
+
+        libraryFeatureStore.configureFacade(
+            mutationService: libraryMutationService,
+            orchestrator: libraryMutationOrchestrator,
+            saveEditsUseCase: saveLibrarySampleEditsUseCase,
+            appLogger: appLogger,
+            resolveRegistrySourceURL: { [weak self] in
+                self?.resolveRegistrySourceURL()
+            },
+            applyExistingIndex: { [weak self] index in
+                self?.applyExistingIndex(index)
+            },
+            refreshActionablePreviewGroups: { [weak self] diff, baseline in
+                self?.refreshActionablePreviewGroups(precomputedDiff: diff, baselineIndex: baseline)
+            },
+            commitLibraryMutation: { [weak self] rootURL, previewIndex in
+                self?.commitLibraryMutation(rootURL: rootURL, previewIndex: previewIndex)
+            },
+            loadExistingDrawers: { [weak self] in
+                self?.loadExistingDrawers()
+            },
+            presentError: { [weak self] error, title in
+                self?.present(error: error, title: title)
+            },
+            persistInteractionSnapshot: { [weak self] in
+                self?.persistInteractionSnapshotIfReady()
+            }
+        )
 
         load()
         if let rootPath = libraryFeatureStore.librarySettings.rootPath, !rootPath.isEmpty {
@@ -854,7 +823,7 @@ final class SpinLabAppState {
             resolvedRegistryPath: resolvedPath,
             dataActor: dataActor,
             prepareLibrarySyncReview: { [weak self] in
-                self?.prepareLibrarySyncReview()
+                self?.libraryFeatureStore.prepareLibrarySyncReview()
             },
             refreshActionablePreviewGroups: { [weak self] in
                 self?.refreshActionablePreviewGroups()
@@ -884,7 +853,7 @@ final class SpinLabAppState {
             appLogger.info(.function, "Apply all requested", metadata: [
                 "changes": "\(totalChanges)"
             ])
-            refreshLibraryIncremental()
+            libraryFeatureStore.refreshLibraryIncremental()
         }
     }
 
@@ -913,9 +882,9 @@ final class SpinLabAppState {
             libraryFeatureStore.libraryExistingGroups = [:]
             inboxFeatureStore.clearDrawerMatchCandidates()
             libraryFeatureStore.libraryExistingMessage = "No Library Root selected."
-            librarySelectedPrefix = nil
-            librarySelectedBatchId = nil
-            librarySelectedSampleId = nil
+            libraryFeatureStore.librarySelectedPrefix = nil
+            libraryFeatureStore.librarySelectedBatchId = nil
+            libraryFeatureStore.librarySelectedSampleId = nil
             refreshPendingDrawerMatches()
             return
         }
@@ -939,15 +908,7 @@ final class SpinLabAppState {
         guard libraryFeatureStore.libraryStore.needsIndexRefresh(rootURL: rootURL) else {
             return
         }
-        syncLibraryFromFiles()
-    }
-
-    func syncLibraryFromFiles() {
-        libraryFacade.syncLibraryFromFiles()
-    }
-
-    func backfillLibraryMeasurementSidecars() {
-        libraryFacade.backfillLibraryMeasurementSidecars()
+        libraryFeatureStore.syncLibraryFromFiles()
     }
 
     func selectExistingDrawer(prefix: String, batchId: String, sampleId: String?) {
@@ -964,7 +925,7 @@ final class SpinLabAppState {
         guard libraryFeatureStore.hasPendingSelectionChange() else {
             return
         }
-        saveLibrarySampleEdits()
+        libraryFeatureStore.saveLibrarySampleEdits()
         guard libraryFeatureStore.librarySampleEditError == nil else {
             return
         }
@@ -981,10 +942,6 @@ final class SpinLabAppState {
         if let outcome = libraryFeatureStore.applyPendingSelectionChangeIfNeeded() {
             handleLibrarySelectionChangeOutcome(outcome)
         }
-    }
-
-    func cancelPendingLibrarySelectionChange() {
-        libraryFeatureStore.cancelPendingSelectionChange()
     }
 
     private func handleLibrarySelectionChangeOutcome(_ outcome: LibraryFeatureStore.SelectionChangeOutcome) {
@@ -1005,50 +962,6 @@ final class SpinLabAppState {
                 "sampleId": sampleId ?? "-"
             ])
         }
-    }
-
-    func deleteExistingDrawer(batchId: String) {
-        libraryFacade.deleteExistingDrawer(batchId: batchId)
-    }
-
-    func librarySampleChangeLog(for sample: LibrarySample) -> [LibrarySampleChangeLogEntry] {
-        libraryFeatureStore.sampleChangeLog(for: sample)
-    }
-
-    func loadLibraryGlobalManualLogs() {
-        libraryFacade.loadLibraryGlobalManualLogs()
-    }
-
-    func markLibraryGlobalManualLogStatus(rowIndex: Int, status: LibraryManualLogStatus) {
-        libraryFacade.markLibraryGlobalManualLogStatus(rowIndex: rowIndex, status: status)
-    }
-
-    func loadLibraryMetadataSyncLogs() {
-        libraryFacade.loadLibraryMetadataSyncLogs()
-    }
-
-    func saveLibrarySampleEdits() {
-        libraryFacade.saveLibrarySampleEdits()
-    }
-
-    func prepareLibrarySyncReview(precomputedDiff: LibraryDiff? = nil) {
-        libraryFacade.prepareLibrarySyncReview(precomputedDiff: precomputedDiff)
-    }
-
-    func refreshLibraryIncremental() {
-        libraryFacade.refreshLibraryIncremental()
-    }
-
-    func confirmLibraryNumericRefreshChanges() {
-        libraryFacade.confirmLibraryNumericRefreshChanges()
-    }
-
-    func createDrawersFromPreview() {
-        libraryFacade.createDrawersFromPreview()
-    }
-
-    func createDrawersForSelection(batchId: String?, sampleId: String?) {
-        libraryFacade.createDrawersForSelection(batchId: batchId, sampleId: sampleId)
     }
 
     func updateLibraryRoot(to url: URL) {
@@ -1329,14 +1242,14 @@ final class SpinLabAppState {
                 "appliedCount": "\(appliedIDs.count)",
                 "skippedCount": "\(skippedIDs.count)"
             ])
-            if !appliedIDs.isEmpty { syncLibraryFromFiles() }
+            if !appliedIDs.isEmpty { libraryFeatureStore.syncLibraryFromFiles() }
         case let .partialSuccess(appliedIDs, skippedIDs, failedIDs):
             appLogger.warning(.import, "Apply partially completed", metadata: [
                 "appliedCount": "\(appliedIDs.count)",
                 "skippedCount": "\(skippedIDs.count)",
                 "failedCount": "\(failedIDs.count)"
             ])
-            if !appliedIDs.isEmpty { syncLibraryFromFiles() }
+            if !appliedIDs.isEmpty { libraryFeatureStore.syncLibraryFromFiles() }
             present(
                 error: .state("Applied \(appliedIDs.count), skipped \(skippedIDs.count) existing, failed \(failedIDs.count)."),
                 title: "Apply Partially Completed"
@@ -1459,9 +1372,9 @@ final class SpinLabAppState {
             libraryFeatureStore.libraryExistingGroups = [:]
             inboxFeatureStore.clearDrawerMatchCandidates()
             libraryFeatureStore.libraryExistingMessage = "No existing drawers found."
-            librarySelectedPrefix = nil
-            librarySelectedBatchId = nil
-            librarySelectedSampleId = nil
+            libraryFeatureStore.librarySelectedPrefix = nil
+            libraryFeatureStore.librarySelectedBatchId = nil
+            libraryFeatureStore.librarySelectedSampleId = nil
             libraryFeatureStore.librarySampleEditDraft = nil
             libraryState.sampleEditBaseSample = nil
             libraryState.sampleEditOriginalDraft = nil
