@@ -68,7 +68,6 @@ struct WorkflowWorkspaceShell<
         HStack(alignment: .firstTextBaseline) {
             Text(appState.workbench.selectedWorkflowDefinition?.displayName ?? "Workflow")
                 .font(.title2.bold())
-            WorkbenchVaultButton(workflowID: workflowID.rawValue, store: store)
             Spacer()
         }
         .padding(.top, 4)
@@ -325,67 +324,7 @@ struct WorkflowWorkspaceShell<
     }
 }
 
-// MARK: - Unified Vault button (title bar)
-
-private struct WorkbenchVaultButton<Store: WorkbenchWorkspaceProviding>: View {
-    @Environment(SpinLabAppState.self) private var appState
-    let workflowID: String
-    let store: Store
-    @State private var showPopover = false
-    @State private var editingPackID: UUID?
-    @State private var filterText = ""
-
-    var body: some View {
-        let vault = appState.workbench.analysisVault
-        let allPacks = vault.packs(forWorkflow: workflowID)
-        let packs = filterText.isEmpty ? allPacks : allPacks.filter {
-            $0.label.localizedCaseInsensitiveContains(filterText)
-        }
-
-        Button { showPopover.toggle() } label: {
-            Image(systemName: "archivebox")
-        }
-        .buttonStyle(.borderless)
-        .popover(isPresented: $showPopover, arrowEdge: .bottom) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Saved Analyses")
-                    .font(.body.bold())
-                    .foregroundStyle(.secondary)
-
-                if allPacks.count > 3 {
-                    TextField("Filter…", text: $filterText)
-                        .textFieldStyle(.roundedBorder)
-                }
-
-                if packs.isEmpty {
-                    Text(filterText.isEmpty ? "No saved analyses yet." : "No match.")
-                        .font(.callout)
-                        .foregroundStyle(.tertiary)
-                } else {
-                    ScrollView(.vertical) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            ForEach(packs) { pack in
-                                WorkbenchVaultRow(
-                                    pack: pack,
-                                    editingPackID: $editingPackID,
-                                    workflowID: workflowID,
-                                    store: store
-                                )
-                            }
-                        }
-                    }
-                    .frame(maxHeight: 200)
-                }
-            }
-            .padding(12)
-            .frame(width: 260)
-            .onTapGesture { editingPackID = nil }
-        }
-        .onChange(of: showPopover) { _, isOpen in
-            if !isOpen { editingPackID = nil; filterText = "" }
-        }
-    }
-}
+// MARK: - Vault row (shared by Load popover)
 
 private struct WorkbenchVaultRow<Store: WorkbenchWorkspaceProviding>: View {
     @Environment(SpinLabAppState.self) private var appState
@@ -393,6 +332,7 @@ private struct WorkbenchVaultRow<Store: WorkbenchWorkspaceProviding>: View {
     @Binding var editingPackID: UUID?
     let workflowID: String
     let store: Store
+    var onLoad: ((AnalysisPack.ID) -> Void)? = nil
 
     @State private var editingLabel = ""
     private var isEditing: Bool { editingPackID == pack.id }
@@ -405,17 +345,17 @@ private struct WorkbenchVaultRow<Store: WorkbenchWorkspaceProviding>: View {
             if isActive {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(Color.accentColor)
-                    .font(.callout)
+                    .font(.body)
             }
 
             if isEditing {
                 TextField("Label", text: $editingLabel)
                     .textFieldStyle(.roundedBorder)
-                    .font(.callout)
+                    .font(.body)
                     .onSubmit { _commitRename(vault: vault) }
             } else {
                 Text(pack.label)
-                    .font(.callout)
+                    .font(.body)
                     .lineLimit(1)
             }
 
@@ -426,7 +366,7 @@ private struct WorkbenchVaultRow<Store: WorkbenchWorkspaceProviding>: View {
                     Image(systemName: "pencil")
                 }
                 .buttonStyle(.borderless)
-                .font(.caption)
+                .font(.callout)
 
                 Button {
                     vault.remove(id: pack.id)
@@ -437,13 +377,18 @@ private struct WorkbenchVaultRow<Store: WorkbenchWorkspaceProviding>: View {
                     Image(systemName: "trash")
                 }
                 .buttonStyle(.borderless)
-                .font(.caption)
+                .font(.callout)
                 .foregroundStyle(.red)
             }
         }
-        .padding(.vertical, 2)
-        .padding(.horizontal, 4)
+        .padding(.vertical, 4)
+        .padding(.horizontal, 6)
         .background(isActive ? Color.accentColor.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 4))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard !isEditing else { return }
+            onLoad?(pack.id)
+        }
     }
 
     private func _commitRename(vault: AnalysisVault) {
@@ -465,6 +410,7 @@ private struct WorkbenchLoadPackPopover<Store: WorkbenchWorkspaceProviding>: Vie
     @State private var showPopover = false
     @State private var showUnsavedAlert = false
     @State private var pendingLoadID: UUID?
+    @State private var editingPackID: UUID?
     @State private var filterText = ""
 
     var body: some View {
@@ -481,7 +427,7 @@ private struct WorkbenchLoadPackPopover<Store: WorkbenchWorkspaceProviding>: Vie
         .disabled(allPacks.isEmpty)
         .popover(isPresented: $showPopover, arrowEdge: .bottom) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Load Analysis")
+                Text("Saved Analyses")
                     .font(.body.bold())
                     .foregroundStyle(.secondary)
 
@@ -492,45 +438,37 @@ private struct WorkbenchLoadPackPopover<Store: WorkbenchWorkspaceProviding>: Vie
 
                 if packs.isEmpty {
                     Text(filterText.isEmpty ? "No saved analyses." : "No match.")
-                        .font(.caption)
+                        .font(.callout)
                         .foregroundStyle(.tertiary)
                 } else {
                     ScrollView(.vertical) {
                         VStack(alignment: .leading, spacing: 4) {
                             ForEach(packs) { pack in
-                                Button {
-                                    if store.hasUnsavedAnalysis {
-                                        pendingLoadID = pack.id
-                                        showPopover = false
-                                        showUnsavedAlert = true
-                                    } else {
-                                        _load(pack.id)
-                                        showPopover = false
-                                    }
-                                } label: {
-                                    HStack {
-                                        Text(pack.label)
-                                            .font(.caption)
-                                            .lineLimit(1)
-                                        Spacer()
-                                        if store.activePackID == pack.id {
-                                            Image(systemName: "checkmark")
-                                                .font(.caption2)
-                                                .foregroundStyle(Color.accentColor)
+                                WorkbenchVaultRow(
+                                    pack: pack,
+                                    editingPackID: $editingPackID,
+                                    workflowID: workflowID,
+                                    store: store,
+                                    onLoad: { id in
+                                        if store.hasUnsavedAnalysis {
+                                            pendingLoadID = id
+                                            showPopover = false
+                                            showUnsavedAlert = true
+                                        } else {
+                                            _load(id)
+                                            showPopover = false
                                         }
                                     }
-                                }
-                                .buttonStyle(.plain)
-                                .padding(.vertical, 2)
-                                .padding(.horizontal, 4)
+                                )
                             }
                         }
                     }
-                    .frame(maxHeight: 200)
+                    .frame(maxHeight: 240)
                 }
             }
             .padding(12)
-            .frame(width: 260)
+            .frame(width: 300)
+            .onTapGesture { editingPackID = nil }
         }
         .alert("Unsaved Analysis", isPresented: $showUnsavedAlert) {
             Button("Discard & Load", role: .destructive) {
@@ -546,7 +484,7 @@ private struct WorkbenchLoadPackPopover<Store: WorkbenchWorkspaceProviding>: Vie
             Text("Current analysis has unsaved changes. Loading will replace it.")
         }
         .onChange(of: showPopover) { _, isOpen in
-            if !isOpen { filterText = "" }
+            if !isOpen { editingPackID = nil; filterText = "" }
         }
     }
 
