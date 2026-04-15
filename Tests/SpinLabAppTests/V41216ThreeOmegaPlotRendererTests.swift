@@ -42,7 +42,7 @@ private func makePoints(sigma2xxValues: [Double]) -> [ThreeOmegaScalingPoint] {
 @Suite("V41216 ThreeOmegaPlotRenderer — scaling segment rendering")
 struct V41216PlotRendererScalingTests {
 
-    let renderer = ThreeOmegaPlotRenderer()
+    private func makeRenderer() -> ThreeOmegaPlotRenderer { ThreeOmegaPlotRenderer() }
 
     // MARK: fit line extension
 
@@ -56,7 +56,7 @@ struct V41216PlotRendererScalingTests {
             points: points,
             segments: [seg]
         )
-        let (data, _) = renderer.renderScaling(result: result)
+        var renderer = makeRenderer(); let (data, _) = renderer.renderScaling(result: result)
         // Rendering must succeed (non-nil data)
         #expect(data != nil)
     }
@@ -71,7 +71,7 @@ struct V41216PlotRendererScalingTests {
             points: points,
             segments: [seg]
         )
-        let (data, _) = renderer.renderScaling(result: result)
+        var renderer = makeRenderer(); let (data, _) = renderer.renderScaling(result: result)
         #expect(data != nil)
     }
 
@@ -87,7 +87,7 @@ struct V41216PlotRendererScalingTests {
         let result = ThreeOmegaScalingResult(points: points, segments: [seg])
         #expect(result.isSingleFullRange())
         // Rendering should succeed
-        let (data, _) = renderer.renderScaling(result: result)
+        var renderer = makeRenderer(); let (data, _) = renderer.renderScaling(result: result)
         #expect(data != nil)
     }
 
@@ -101,7 +101,7 @@ struct V41216PlotRendererScalingTests {
         let points = makePoints(sigma2xxValues: xLo + xHi)
         let result = ThreeOmegaScalingResult(points: points, segments: [segLo, segHi])
         #expect(!result.isSingleFullRange())
-        let (data, _) = renderer.renderScaling(result: result)
+        var renderer = makeRenderer(); let (data, _) = renderer.renderScaling(result: result)
         #expect(data != nil)
     }
 
@@ -112,7 +112,7 @@ struct V41216PlotRendererScalingTests {
         let xSI: [Double] = [1e11, 2e11, 3e11]
         let points = makePoints(sigma2xxValues: xSI)
         let result = ThreeOmegaScalingResult(points: points, segments: [])
-        let (data, _) = renderer.renderScaling(result: result)
+        var renderer = makeRenderer(); let (data, _) = renderer.renderScaling(result: result)
         #expect(data != nil)
     }
 }
