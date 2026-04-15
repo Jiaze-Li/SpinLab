@@ -26,7 +26,11 @@ final class XYRotationWorkspaceStore {
 
     // MARK: - Rendered plot (non-tab state)
 
-    private(set) var currentRunTrace: WorkbenchRunTraceProjection?
+    var currentRunTrace: WorkbenchRunTraceProjection?
+
+    // MARK: - Warning log
+
+    var warningLog: [WorkbenchWarningEntry] = []
 
     // MARK: - Plot controls (workflow-specific)
 
@@ -131,10 +135,12 @@ final class XYRotationWorkspaceStore {
         tabs.clearStates()
         _renderRevision &+= 1  // invalidate any in-flight rerenders
 
+        let capturedNumericDisplay = cachedSampleNumericDisplay
+
         analysisTask = Task { [weak self] in
             let rendered = await Task.detached(priority: .userInitiated) {
-                () -> (XYRotationIngestionResult, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?) in
-                let result = IngestXYRotationSelectionsUseCase().execute(hits: selectedHits)
+                () -> (XYRotationIngestionResult, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) in
+                let result = IngestXYRotationSelectionsUseCase().execute(hits: selectedHits, numericDisplayBySample: capturedNumericDisplay)
 
                 var rxx = rxxRenderer
                 let (rxxData, rxxLayout, rxxPayload) = rxx.renderRxxVsPhi(
@@ -144,10 +150,12 @@ final class XYRotationWorkspaceStore {
                 let (rxyData, rxyLayout, rxyPayload) = rxy.renderRxyVsPhi(
                     sweeps: result.sweeps, device: result.device
                 )
-                return (result, rxxData, rxxLayout, rxxPayload, rxyData, rxyLayout, rxyPayload)
+                // Deduplicate pipeline warnings from both tabs
+                let pipelineWarnings = Array(Set(rxx.collectedWarnings + rxy.collectedWarnings))
+                return (result, rxxData, rxxLayout, rxxPayload, rxyData, rxyLayout, rxyPayload, pipelineWarnings)
             }.value
 
-            let (result, rxxData, rxxLayout, rxxPayload, rxyData, rxyLayout, rxyPayload) = rendered
+            let (result, rxxData, rxxLayout, rxxPayload, rxyData, rxyLayout, rxyPayload, pipelineWarnings) = rendered
             guard let self, !Task.isCancelled else { return }
 
             self.ingestionResult = result
@@ -155,15 +163,21 @@ final class XYRotationWorkspaceStore {
             self.tabs.setOutput(TabRenderOutput(imageData: rxyData, layout: rxyLayout, manifestPayload: rxyPayload), for: .rxyVsPhi)
 
             let sweepCount = result.sweeps.count
-            var msg = "Analyzed \(sweepCount) angle-sweep file(s)."
-            if !result.warnings.isEmpty {
-                msg += " Warnings: " + result.warnings.joined(separator: "; ")
+            self.analysisMessage = "Analyzed \(sweepCount) angle-sweep file(s)."
+
+            for w in result.warnings {
+                self.appendWarning(source: "Ingestion", message: w)
             }
-            self.analysisMessage = msg
+
+            for w in pipelineWarnings {
+                self.appendWarning(source: "Legend", message: w)
+            }
 
             // Snapshot for persistence
             self.cachedInputFiles = selectedHits.map(\.measurementFilePath)
             self.cachedSampleKeys = Array(Set(selectedHits.map(\.sampleKey))).sorted()
+
+            self.commitRunTrace()
 
             self.isAnalyzing = false
             self.refreshRelatedCharts()
@@ -218,33 +232,41 @@ final class XYRotationWorkspaceStore {
         }
     }
 
+    var isAllSelected: Bool {
+        !cachedSearchResults.isEmpty && selectedSearchResultIDs.count == cachedSearchResults.count
+    }
+
     func selectAll() {
         selectedSearchResultIDs = Set(cachedSearchResults.map(\.id))
     }
 
-    func clearPlot() {
-        tabs.clearAll()
+    func deselectAll() {
+        selectedSearchResultIDs = []
     }
 
-    func clearAll() {
-        selectedSearchResultIDs = []
+    func clearPlot() {
+        analysisTask?.cancel()
+        analysisTask = nil
+        ingestionResult = nil
         currentRunTrace = nil
         isAnalyzing = false
         analysisMessage = nil
-        ingestionResult = nil
-        cachedSampleNumericDisplay = [:]
-        cachedInputFiles = []
-        cachedSampleKeys = []
         _titleTokens = [:]
-        phiOffsetOverrides = [:]
-        analysisTask?.cancel()
-        analysisTask = nil
+        warningLog = []
         activePackID = nil
         persistenceOutcome = nil
         relatedChartsTask?.cancel()
         relatedChartsTask = nil
         relatedChartsGrouped = [:]
-        clearPlot()
+        cachedSampleKeys = []
+        cachedInputFiles = []
+        tabs.clearAll()
+    }
+
+    func clearResults() {
+        selectedSearchResultIDs = []
+        cachedSearchResults = []
+        cachedSampleNumericDisplay = [:]
     }
 
     // MARK: - Related charts
@@ -516,5 +538,37 @@ extension XYRotationWorkspaceStore: AnalysisPackProviding {
         // Re-render all tabs
         _rerenderAllTabs()
         refreshRelatedCharts()
+    }
+}
+
+// MARK: - WorkbenchWorkspaceProviding conformance
+
+extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
+
+    func buildRunTrace() -> WorkbenchRunTraceProjection? {
+        guard !cachedInputFiles.isEmpty else { return nil }
+        return WorkbenchRunTraceProjection(
+            runID: UUID().uuidString,
+            workflowID: "xy",
+            inputFiles: cachedInputFiles,
+            axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: "R (Ω)"),
+            semanticParams: ["sweeps": "\(ingestionResult?.sweeps.count ?? 0)"],
+            outputImagePath: "",
+            manifestPath: "",
+            generatedAt: Date()
+        )
+    }
+
+    var activeImageData: Data? { tabs.activeImageData }
+    var activeLayout: WorkbenchPlotLayout? { tabs.activeLayout }
+    var seriesLabelOverrides: [Int: String] { tabs.activeSeriesLabelOverrides }
+
+    var relatedCharts: [WorkbenchResultReference]? {
+        let charts = relatedCharts(for: tabs.activeTab)
+        return charts.isEmpty ? nil : charts
+    }
+
+    var libraryRootURL: URL? {
+        lastLibraryRootPath.isEmpty ? nil : URL(fileURLWithPath: lastLibraryRootPath)
     }
 }

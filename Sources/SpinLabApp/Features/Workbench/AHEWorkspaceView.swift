@@ -1,221 +1,88 @@
 import SwiftUI
 import AppKit
 
-/// AHE 工作流 workspace view。
-/// 列结构直接照抄 LibraryView 的两列框架：
-///   左列 → librarySettingsColumn 骨架
-///   右列 → libraryDetailColumn 骨架
+/// AHE workflow workspace — shell-based layout.
 struct AHEWorkspaceView: View, WorkflowWorkspaceProvider {
     @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
-        WorkflowWorkspaceShell {
-            aheLeftColumn
-        } rightColumn: {
-            aheRightColumn
-        }
-    }
+        let ahe = appState.workbench.aheWorkspace
 
-    // MARK: - 左列
-
-    private var aheLeftColumn: some View {
-        VStack(alignment: .leading, spacing: 0) {
-
-            // ── 固定控制区（始终可见）────────────────────────────────
-            VStack(alignment: .leading, spacing: 10) {
-
-                HStack(alignment: .firstTextBaseline) {
-                    Text(appState.workbench.selectedWorkflowDefinition?.displayName ?? "Workflow")
-                        .font(.title2.bold())
-                    AHEVaultButton()
-                        .environment(appState)
-                    Spacer()
-                }
-                .padding(.top, 4)
-
-                AHESearchSection()
-                    .environment(appState)
-
+        WorkflowWorkspaceShell(
+            workflowID: .ahe,
+            store: ahe,
+            workbench: appState.workbench,
+            searchExtra: { EmptyView() },
+            plotControls: {
                 AHEPlotControlsPanel()
                     .environment(appState)
-            }
-            .padding(.horizontal, 12)
-            .padding(.bottom, 8)
-
-            Divider()
-
-            // ── 可滚动结果列表 ──────────────────────────────────────
-            AHEResultsList()
-                .environment(appState)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
-
-    // MARK: - 右列（镜像 libraryDetailColumn）
-
-    private var aheRightColumn: some View {
-        ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 12) {
-
-                // 列标题（镜像 sampleDetailHeader）
-                HStack {
-                    Text("Result")
-                        .font(.title2.bold())
-                    Spacer()
-
-                    VStack(alignment: .trailing, spacing: 2) {
-                        if appState.workbench.aheWorkspace.matchingVaultPack != nil {
-                            Button("Update Analysis") {
-                                let queryText = appState.workbench.searchQueryText(for: .ahe)
-                                appState.workbench.aheWorkspace.saveAnalysis(searchQueryText: queryText)
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(appState.workbench.aheWorkspace.tabs.activeImageData == nil)
-                        } else {
-                            Button("Save Analysis") {
-                                let queryText = appState.workbench.searchQueryText(for: .ahe)
-                                appState.workbench.aheWorkspace.saveAnalysis(searchQueryText: queryText)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(appState.workbench.aheWorkspace.tabs.activeImageData == nil)
-                        }
-
-                        Text(appState.workbench.aheWorkspace.matchingVaultPack.map { "→ \($0.label)" } ?? " ")
-                            .font(.caption)
-                            .foregroundColor(appState.workbench.aheWorkspace.matchingVaultPack != nil ? .accentColor : .clear)
-                    }
-
-                    Button("Save to Library") {
-                        appState.workbench.aheWorkspace.persistToLibrary {
-                            appState.library.loadWorkbenchResultsForCurrentSelection()
-                            appState.library.loadMeasurementDataForCurrentSelection()
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(appState.workbench.aheWorkspace.tabs.activeImageData == nil)
-                }
-
-                // 内容区
-                WorkbenchStatusArea(
-                    searchMessage: nil,
-                    plotMessage: appState.workbench.aheWorkspace.plotMessage,
-                    loadMessage: nil
-                )
-
-                WorkbenchPlotCanvas(
-                    imageData: appState.workbench.aheWorkspace.tabs.activeImageData,
-                    layout: appState.workbench.aheWorkspace.tabs.activeLayout,
-                    seriesLabelOverrides: appState.workbench.aheWorkspace.tabs.activeSeriesLabelOverrides,
-                    onLegendDrag: { pt in
-                        appState.workbench.aheWorkspace.updateLegendPoint(pt)
-                        appState.flushInteractionSnapshotNow()
-                    },
-                    onEditTitle: { title in appState.workbench.aheWorkspace.updatePlotTitle(title) },
-                    onEditXLabel: { label in appState.workbench.aheWorkspace.updateXAxisLabel(label) },
-                    onEditYLabel: { label in appState.workbench.aheWorkspace.updateYAxisLabel(label) },
-                    onEditLegendLabel: { idx, label in
-                        appState.workbench.aheWorkspace.updateSeriesLabel(index: idx, newLabel: label)
-                    },
-                    onFontSizeChange: { key, size in
-                        appState.workbench.aheWorkspace.tabs.chartStyleOverrides[key] = "\(Int(size))"
-                        appState.workbench.aheWorkspace.renderAHEPlot()
-                    },
-                    onStyleOverrideChange: { key, value in
-                        appState.workbench.aheWorkspace.tabs.chartStyleOverrides[key] = value
-                        appState.workbench.aheWorkspace.renderAHEPlot()
-                    },
-                    chartStyleOverrides: appState.workbench.aheWorkspace.tabs.chartStyleOverrides
-                )
-
-                WorkbenchTracePanel(trace: appState.workbench.aheWorkspace.currentRunTrace)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
-            .padding(.top, 4)
-        }
+            },
+            leftExtra: {
+                AHEMetricOverridePanel()
+                    .environment(appState)
+                AHERAHEOverridePanel()
+                    .environment(appState)
+            },
+            rightExtra: { EmptyView() }
+        )
     }
 }
 
-// MARK: - 左列：搜索 + 操作区
+// MARK: - AHE Plot Controls Panel (axis pickers + title + grid)
 
-private struct AHESearchSection: View {
+private struct AHEPlotControlsPanel: View {
     @Environment(SpinLabAppState.self) private var appState
 
-    private let wf: WorkbenchWorkflowID = .ahe
-
     var body: some View {
-        @Bindable var workbench = appState.workbench
-        let ahe = appState.workbench.aheWorkspace
-        let libraryRoot = appState.library.librarySettings.rootPath
+        @Bindable var ahe = appState.workbench.aheWorkspace
+        let candidates = ahe.currentCandidateAxisFields.isEmpty
+            ? ["Magnetic Field (Oe)", "Magnetic Field (T)", "Temperature (K)",
+               "R_H (\u{03A9})", "Bridge 1 Resistance (Ohms)", "Bridge 2 Resistance (Ohms)", "Bridge 3 Resistance (Ohms)"]
+            : ahe.currentCandidateAxisFields
 
-        let queryBinding = Binding<String>(
-            get: { workbench.searchQueryText(for: wf) },
-            set: { workbench.setSearchQueryText($0, for: wf) }
-        )
-
-        VStack(alignment: .leading, spacing: 8) {
-            TextField("ahe PN31, ahe 80K …", text: queryBinding)
-                .textFieldStyle(.roundedBorder)
-                .onSubmit {
-                    workbench.runWorkflowMeasurementSearch(workflowID: wf, libraryRootPath: libraryRoot)
-                }
-
-            HStack(spacing: 4) {
-                Text("Library Root:")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(libraryRoot ?? "Not configured — set in Library settings")
-                    .font(.caption)
-                    .foregroundStyle(libraryRoot == nil ? .red : .secondary)
-                    .textSelection(.enabled)
-            }
-
+        WorkbenchPlotControlsPanel(
+            seriesRenderMode: $ahe.seriesRenderMode,
+            chartStyleOverrides: $ahe.chartStyleOverrides,
+            onStyleChange: { ahe.rerenderForStyleChange() }
+        ) {
             HStack(spacing: 8) {
-                Button("Search") {
-                    workbench.runWorkflowMeasurementSearch(workflowID: wf, libraryRootPath: libraryRoot)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("X Axis").font(.caption).foregroundStyle(.secondary)
+                    Picker("X Axis", selection: $ahe.plotAxisXOverride) {
+                        Text("Default").tag("")
+                        ForEach(candidates, id: \.self) { Text($0).tag($0) }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(workbench.isSearchRunning(for: wf) || libraryRoot == nil)
-
-                Button("Clear") {
-                    workbench.clearWorkflowMeasurementSearch(workflowID: wf)
-                }
-                .buttonStyle(.bordered)
-
-                Button("Plot") {
-                    ahe.renderAHEPlot()
-                }
-                .buttonStyle(.bordered)
-                .disabled(ahe.selectedSearchResultIDs.isEmpty || ahe.isPlotRendering)
-
-                Button("Clear Plot") {
-                    ahe.clearPlot()
-                }
-                .buttonStyle(.bordered)
-                .disabled(ahe.tabs.activeImageData == nil && !ahe.isPlotRendering)
-
-                AHELoadPackButton()
-                    .environment(appState)
-
-                if workbench.isSearchRunning(for: wf) || ahe.isPlotRendering {
-                    ProgressView().controlSize(.small)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Y Axis").font(.caption).foregroundStyle(.secondary)
+                    Picker("Y Axis", selection: $ahe.plotAxisYOverride) {
+                        Text("Default").tag("")
+                        ForEach(candidates, id: \.self) { Text($0).tag($0) }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity)
                 }
             }
-
-            AHEMetricOverridePanel()
-                .environment(appState)
-
-            AHERAHEOverridePanel()
-                .environment(appState)
+            HStack(alignment: .top, spacing: 12) {
+                WorkbenchTitleTemplateField(
+                    titleTemplate: $ahe.titleTemplate,
+                    numericDisplayCache: ahe.cachedSampleNumericDisplay,
+                    onChange: {
+                        appState.flushInteractionSnapshotNow()
+                    }
+                )
+                Toggle("Grid", isOn: $ahe.showPlotGrid)
+                    .toggleStyle(.checkbox)
+                    .padding(.top, 2)
+            }
         }
     }
 }
 
-// MARK: - Pre-persist Metric Override Panel
+// MARK: - Pre-persist Metric Override Panel (Hc)
 
-/// Lets the user enter an optional manual correction for the extracted Hc value
-/// before clicking "Plot" (which triggers persist). If left empty, no override is applied.
-/// Multi-sample mode: shows per-sample auto-detected values read-only; override is disabled.
 private struct AHEMetricOverridePanel: View {
     @Environment(SpinLabAppState.self) private var appState
     @State private var valueText: String = ""
@@ -231,7 +98,6 @@ private struct AHEMetricOverridePanel: View {
 
         VStack(alignment: .leading, spacing: 6) {
             if isMultiSample {
-                // Multi-sample: read-only per-sample display
                 Text("Hc (auto-detected per sample)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -244,7 +110,6 @@ private struct AHEMetricOverridePanel: View {
                     .font(.caption2)
                     .foregroundStyle(.orange)
             } else {
-                // Single-sample: editable override
                 HStack(spacing: 8) {
                     Text("Hc Override (optional)")
                         .font(.caption)
@@ -315,9 +180,6 @@ private struct AHEMetricOverridePanel: View {
 
 // MARK: - Pre-persist R_AHE Override Panel
 
-/// Lets the user enter an optional manual correction for the extracted R_AHE value
-/// before clicking "Plot". Mirrors `AHEMetricOverridePanel` for the R_AHE metric.
-/// Multi-sample mode: shows per-sample auto-detected values read-only; override is disabled.
 private struct AHERAHEOverridePanel: View {
     @Environment(SpinLabAppState.self) private var appState
     @State private var valueText: String = ""
@@ -412,346 +274,3 @@ private struct AHERAHEOverridePanel: View {
         }
     }
 }
-
-// MARK: - 左列：可滚动结果列表
-
-private struct AHEResultsList: View {
-    @Environment(SpinLabAppState.self) private var appState
-    private let wf: WorkbenchWorkflowID = .ahe
-
-    var body: some View {
-        let workbench = appState.workbench
-        let ahe = appState.workbench.aheWorkspace
-        let results = workbench.searchResultsList(for: wf)
-        let message = workbench.searchMessage(for: wf)
-
-        if results.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                if let msg = message, !msg.isEmpty {
-                    Text("\(msg)  Numeric tolerance: ±\(Int(NumericUnitMap.relativeTolerance * 100))%")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.top, 8)
-                }
-                ContentUnavailableView(
-                    "No Results",
-                    systemImage: "magnifyingglass",
-                    description: Text("Run a search to find measurements.")
-                )
-                .frame(maxWidth: .infinity)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        } else {
-            ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: 8) {
-                    if let msg = message, !msg.isEmpty {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(msg)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                            Text("Numeric tolerance: ±\(Int(NumericUnitMap.relativeTolerance * 100))% (min ±\(NumericUnitMap.absoluteToleranceFloor, specifier: "%.0f"))")
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                    ForEach(results) { hit in
-                        let isSelected = ahe.selectedSearchResultIDs.contains(hit.id)
-                        WorkflowHitRow(hit: hit, isSelected: isSelected, numericDisplay: ahe.cachedSampleNumericDisplay[hit.sampleKey] ?? [:]) {
-                            ahe.toggleSearchHitSelection(hit.id)
-                        }
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-            }
-        }
-    }
-}
-
-// MARK: - 图表参数面板
-
-private struct AHEPlotControlsPanel: View {
-    @Environment(SpinLabAppState.self) private var appState
-
-    var body: some View {
-        @Bindable var ahe = appState.workbench.aheWorkspace
-        let candidates = ahe.currentCandidateAxisFields.isEmpty
-            ? ["Magnetic Field (Oe)", "Magnetic Field (T)", "Temperature (K)",
-               "R_H (\u{03A9})", "Bridge 1 Resistance (Ohms)", "Bridge 2 Resistance (Ohms)", "Bridge 3 Resistance (Ohms)"]
-            : ahe.currentCandidateAxisFields
-
-        WorkbenchPlotControlsPanel(
-            seriesRenderMode: $ahe.seriesRenderMode,
-            chartStyleOverrides: $ahe.chartStyleOverrides,
-            onStyleChange: { ahe.renderAHEPlot() }
-        ) {
-            HStack(spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("X Axis").font(.caption).foregroundStyle(.secondary)
-                    Picker("X Axis", selection: $ahe.plotAxisXOverride) {
-                        Text("Default").tag("")
-                        ForEach(candidates, id: \.self) { Text($0).tag($0) }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Y Axis").font(.caption).foregroundStyle(.secondary)
-                    Picker("Y Axis", selection: $ahe.plotAxisYOverride) {
-                        Text("Default").tag("")
-                        ForEach(candidates, id: \.self) { Text($0).tag($0) }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity)
-                }
-            }
-            HStack(alignment: .top, spacing: 12) {
-                WorkbenchTitleTemplateField(
-                    titleTemplate: $ahe.titleTemplate,
-                    numericDisplayCache: ahe.cachedSampleNumericDisplay,
-                    onChange: {
-                        appState.flushInteractionSnapshotNow()
-                    }
-                )
-                Toggle("Grid", isOn: $ahe.showPlotGrid)
-                    .toggleStyle(.checkbox)
-                    .padding(.top, 2)
-            }
-        }
-    }
-}
-
-// MARK: - Vault management button (title bar)
-
-private struct AHEVaultButton: View {
-    @Environment(SpinLabAppState.self) private var appState
-    @State private var showPopover = false
-    @State private var editingPackID: UUID?
-    @State private var filterText = ""
-
-    var body: some View {
-        let vault = appState.workbench.analysisVault
-        let allPacks = vault.packs(forWorkflow: "ahe")
-        let packs = filterText.isEmpty ? allPacks : allPacks.filter {
-            $0.label.localizedCaseInsensitiveContains(filterText)
-        }
-
-        Button("Analyses") {
-            showPopover.toggle()
-        }
-        .buttonStyle(.bordered)
-        .popover(isPresented: $showPopover, arrowEdge: .bottom) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Saved Analyses")
-                    .font(.body.bold())
-                    .foregroundStyle(.secondary)
-                    .onTapGesture { editingPackID = nil }
-
-                if allPacks.count > 3 {
-                    TextField("Filter…", text: $filterText)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.body)
-                }
-
-                if packs.isEmpty {
-                    Text(filterText.isEmpty ? "No saved analyses yet." : "No match.")
-                        .font(.body)
-                        .foregroundStyle(.tertiary)
-                } else {
-                    ScrollView(.vertical) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            ForEach(packs) { pack in
-                                AHEVaultRow(pack: pack, editingPackID: $editingPackID)
-                                    .environment(appState)
-                            }
-                        }
-                    }
-                    .frame(minHeight: 60, maxHeight: 300)
-                }
-            }
-            .padding(8)
-            .frame(width: 280)
-            .contentShape(Rectangle())
-            .onTapGesture { editingPackID = nil }
-            .onChange(of: showPopover) { _, isOpen in
-                if !isOpen { editingPackID = nil; filterText = "" }
-            }
-        }
-    }
-}
-
-private struct AHEVaultRow: View {
-    @Environment(SpinLabAppState.self) private var appState
-    let pack: AnalysisPack
-    @Binding var editingPackID: UUID?
-    @State private var editingLabel: String = ""
-
-    private var isEditing: Bool { editingPackID == pack.id }
-
-    var body: some View {
-        let vault = appState.workbench.analysisVault
-        let store = appState.workbench.aheWorkspace
-        let isActive = store.activePackID == pack.id
-
-        HStack(spacing: 6) {
-            if isEditing {
-                TextField("Label", text: $editingLabel)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.body)
-                    .onSubmit { _commitRename(vault: vault) }
-                    .onExitCommand { _commitRename(vault: vault) }
-            } else {
-                Text(pack.label)
-                    .font(.body)
-                    .lineLimit(1)
-                    .foregroundStyle(isActive ? .primary : .secondary)
-            }
-
-            Spacer()
-
-            Image(systemName: "pencil")
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .onTapGesture {
-                    editingLabel = pack.label
-                    editingPackID = pack.id
-                }
-
-            Image(systemName: "trash")
-                .font(.body)
-                .foregroundStyle(.red.opacity(0.7))
-                .onTapGesture {
-                    vault.remove(id: pack.id)
-                    if store.activePackID == pack.id {
-                        store.activePackID = nil
-                    }
-                }
-        }
-        .padding(.vertical, 2)
-        .padding(.horizontal, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 4)
-                .fill(isActive ? Color.accentColor.opacity(0.1) : Color.clear)
-        )
-    }
-
-    private func _commitRename(vault: AnalysisVault) {
-        let trimmed = editingLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty, var updated = vault.get(id: pack.id) {
-            updated.label = trimmed
-            vault.update(updated)
-        }
-        editingPackID = nil
-    }
-}
-
-// MARK: - Load pack button (search section)
-
-private struct AHELoadPackButton: View {
-    @Environment(SpinLabAppState.self) private var appState
-    @State private var showPopover = false
-    @State private var showUnsavedAlert = false
-    @State private var pendingLoadID: UUID?
-    @State private var filterText = ""
-
-    var body: some View {
-        let vault = appState.workbench.analysisVault
-        let store = appState.workbench.aheWorkspace
-        let allPacks = vault.packs(forWorkflow: "ahe")
-        let packs = filterText.isEmpty ? allPacks : allPacks.filter {
-            $0.label.localizedCaseInsensitiveContains(filterText)
-        }
-
-        Button("Load") {
-            showPopover.toggle()
-        }
-        .buttonStyle(.bordered)
-        .disabled(allPacks.isEmpty)
-        .popover(isPresented: $showPopover, arrowEdge: .bottom) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Load Analysis")
-                    .font(.body.bold())
-                    .foregroundStyle(.secondary)
-
-                if allPacks.count > 3 {
-                    TextField("Filter…", text: $filterText)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.body)
-                }
-
-                if packs.isEmpty {
-                    Text(filterText.isEmpty ? "No saved analyses." : "No match.")
-                        .font(.body)
-                        .foregroundStyle(.tertiary)
-                } else {
-                ScrollView(.vertical) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(packs) { pack in
-                            Button {
-                                if store.hasUnsavedAnalysis {
-                                    pendingLoadID = pack.id
-                                    showPopover = false
-                                    showUnsavedAlert = true
-                                } else {
-                                    _load(pack.id)
-                                    showPopover = false
-                                }
-                            } label: {
-                                HStack {
-                                    Text(pack.label)
-                                        .font(.body)
-                                        .lineLimit(1)
-                                    Spacer()
-                                    if store.activePackID == pack.id {
-                                        Image(systemName: "checkmark")
-                                            .font(.body)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.vertical, 2)
-                            .padding(.horizontal, 4)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.accentColor.opacity(0.08))
-                            )
-                        }
-                    }
-                }
-                .frame(minHeight: 60, maxHeight: 300)
-                }
-            }
-            .padding(8)
-            .frame(width: 280)
-            .onChange(of: showPopover) { _, isOpen in
-                if !isOpen { filterText = "" }
-            }
-        }
-        .alert("Unsaved Analysis", isPresented: $showUnsavedAlert) {
-            Button("Discard & Load", role: .destructive) {
-                if let id = pendingLoadID {
-                    _load(id)
-                }
-                pendingLoadID = nil
-            }
-            Button("Cancel", role: .cancel) {
-                pendingLoadID = nil
-            }
-        } message: {
-            Text("Current analysis has unsaved changes. Loading will replace it.")
-        }
-    }
-
-    private func _load(_ id: UUID) {
-        let store = appState.workbench.aheWorkspace
-        let workbench = appState.workbench
-        store.loadPack(id: id) { results, queryText in
-            workbench.restoreAHESearchState(results: results, queryText: queryText)
-        }
-    }
-}
-
