@@ -73,8 +73,9 @@ enum WorkbenchRenderPipeline {
         if !input.xLabelOverride.isEmpty { payload.axisMapping.xField = input.xLabelOverride }
         if !input.yLabelOverride.isEmpty { payload.axisMapping.yField = input.yLabelOverride }
 
-        // 4. Apply render mode to all series
+        // 4. Apply render mode to unlocked series (locked series keep their own mode)
         payload.series = payload.series.map {
+            guard !$0.renderModeLocked else { return $0 }
             var s = $0; s.renderMode = input.seriesRenderMode; return s
         }
 

@@ -21,6 +21,10 @@ struct WorkbenchPlotSeries: Hashable, Sendable {
     var pointLabels: [String]   // per-point annotation text for scatter series (empty = none)
     var lineWidth: Double        // line width for line series; default 1.5
 
+    /// When true, the render pipeline will not override this series' renderMode
+    /// with the global style picker selection. Used for fit lines that must stay as lines.
+    var renderModeLocked: Bool
+
     /// Sample/condition metadata carried from search hit through ingestion to plotting (v5.3.4).
     /// Used by LegendDimensionResolver to auto-infer the distinguishing dimension.
     /// Keys follow resolver chain keys: "temperature", "substrate", "energy", "pressure", "thickness".
@@ -32,6 +36,7 @@ struct WorkbenchPlotSeries: Hashable, Sendable {
         y: [Double],
         sourceRef: String? = nil,
         renderMode: SeriesRenderMode = .line,
+        renderModeLocked: Bool = false,
         pointLabels: [String] = [],
         lineWidth: Double = 2.0,
         metadata: [String: String] = [:]
@@ -41,6 +46,7 @@ struct WorkbenchPlotSeries: Hashable, Sendable {
         self.y = y
         self.sourceRef = sourceRef
         self.renderMode = renderMode
+        self.renderModeLocked = renderModeLocked
         self.pointLabels = pointLabels
         self.lineWidth = lineWidth
         self.metadata = metadata
@@ -60,6 +66,7 @@ struct WorkbenchPlotSeries: Hashable, Sendable {
         self.init(
             label: label, x: x, y: y, sourceRef: sourceRef,
             renderMode: isScatter ? .scatter : .line,
+            renderModeLocked: false,
             pointLabels: pointLabels, lineWidth: lineWidth,
             metadata: metadata
         )
@@ -70,7 +77,7 @@ struct WorkbenchPlotSeries: Hashable, Sendable {
 
 extension WorkbenchPlotSeries: Codable {
     private enum CodingKeys: String, CodingKey {
-        case label, x, y, sourceRef, renderMode, pointLabels, lineWidth, metadata
+        case label, x, y, sourceRef, renderMode, renderModeLocked, pointLabels, lineWidth, metadata
         case isScatter  // legacy key — read-only
     }
 
@@ -82,6 +89,7 @@ extension WorkbenchPlotSeries: Codable {
         sourceRef   = try c.decodeIfPresent(String.self, forKey: .sourceRef)
         pointLabels = try c.decodeIfPresent([String].self, forKey: .pointLabels) ?? []
         lineWidth   = try c.decodeIfPresent(Double.self, forKey: .lineWidth) ?? 1.5
+        renderModeLocked = try c.decodeIfPresent(Bool.self, forKey: .renderModeLocked) ?? false
         metadata    = try c.decodeIfPresent([String: String].self, forKey: .metadata) ?? [:]
         // Prefer renderMode; fall back to legacy isScatter
         if let mode = try? c.decode(SeriesRenderMode.self, forKey: .renderMode) {
@@ -100,6 +108,7 @@ extension WorkbenchPlotSeries: Codable {
         try c.encode(y, forKey: .y)
         try c.encodeIfPresent(sourceRef, forKey: .sourceRef)
         try c.encode(renderMode, forKey: .renderMode)
+        if renderModeLocked { try c.encode(true, forKey: .renderModeLocked) }
         try c.encode(pointLabels, forKey: .pointLabels)
         try c.encode(lineWidth, forKey: .lineWidth)
         if !metadata.isEmpty { try c.encode(metadata, forKey: .metadata) }

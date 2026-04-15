@@ -278,6 +278,7 @@ struct ThreeOmegaPlotRenderer {
                 label: label,
                 x: [x0, x1],
                 y: fitY,
+                renderModeLocked: true,
                 lineWidth: 2.5
             ))
         }
