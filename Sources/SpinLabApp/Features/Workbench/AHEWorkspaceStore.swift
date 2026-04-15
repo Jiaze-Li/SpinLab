@@ -610,8 +610,12 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
         // Bridge search results
         restoreSearchState(config.cachedSearchResults, config.searchQueryText)
 
-        // Re-render from cached ingestion (no full re-analysis)
-        _rerenderActiveTab()
+        // Re-render from cached ingestion, or full re-analysis for legacy packs
+        if ingestionResult != nil {
+            _rerenderActiveTab()
+        } else {
+            runAnalysis()
+        }
     }
 }
 
