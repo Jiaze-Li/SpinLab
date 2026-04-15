@@ -28,7 +28,5 @@ extension AHEPackConfig: SearchQueryTextInjectable {}
 
 /// The analysis output snapshot.
 struct AHEPackResult: Codable, Hashable, Sendable {
-    // AHE currently has no persistent analysis result beyond what's re-rendered.
-    // This struct exists for protocol conformance and future expansion (e.g. Hc/RAHE values).
-    var placeholder: Bool = true
+    var ingestionResult: AHEIngestionResult
 }

@@ -20,7 +20,7 @@ final class AHEWorkspaceStore {
     private(set) var isPlotRendering: Bool = false
     var plotMessage: String?
     private(set) var currentCandidateAxisFields: [String] = []
-    private(set) var currentRunTrace: WorkbenchRunTraceProjection?
+    var currentRunTrace: WorkbenchRunTraceProjection?
 
     // MARK: - Persistence outcome
 
@@ -54,10 +54,42 @@ final class AHEWorkspaceStore {
     /// Convenience: R_AHE from the first (or only) extracted metric, for single-sample UI binding.
     var lastExtractedRAHE: Double? { lastExtractedMetrics.values.first?.rAHE }
 
-    // MARK: - Artifact loading
+    // MARK: - Warning log
 
-    private(set) var isLoadingArtifact: Bool = false
-    var artifactLoadMessage: String?
+    var warningLog: [WorkbenchWarningEntry] = []
+
+    // MARK: - Ingestion cache (for style-only re-render)
+
+    private(set) var ingestionResult: AHEIngestionResult?
+
+    // MARK: - Related charts (hover popover)
+
+    private(set) var relatedChartsGrouped: [String: [WorkbenchResultReference]] = [:]
+    @ObservationIgnored private var relatedChartsTask: Task<Void, Never>?
+
+    func refreshRelatedCharts() {
+        relatedChartsTask?.cancel()
+        relatedChartsTask = nil
+
+        let keys = lastRenderedSampleKeys
+        let rootPath = lastLibraryRootPath
+        guard !keys.isEmpty, !rootPath.isEmpty else {
+            relatedChartsGrouped = [:]
+            return
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        guard FileManager.default.fileExists(atPath: rootPath) else {
+            relatedChartsGrouped = [:]
+            return
+        }
+        relatedChartsTask = Task { [weak self] in
+            let result = await Task.detached(priority: .utility) {
+                LoadRelatedChartsUseCase().execute(sampleKeys: keys, libraryRootURL: rootURL)
+            }.value
+            guard !Task.isCancelled, let self else { return }
+            self.relatedChartsGrouped = result
+        }
+    }
 
     // MARK: - Multi-tab render state (shell capability)
 
@@ -77,7 +109,6 @@ final class AHEWorkspaceStore {
     // MARK: - Context set by WorkbenchFeatureStore after search
 
     /// Updated by WorkbenchFeatureStore when search results change.
-    /// Used by renderAHEPlot to build selections without coupling back to WFS.
     var cachedSearchResults: [WorkflowMeasurementSearchHit] = []
     /// Updated by WorkbenchFeatureStore when a search runs. Required for artifact I/O.
     var lastLibraryRootPath: String = ""
@@ -102,15 +133,24 @@ final class AHEWorkspaceStore {
 
     @ObservationIgnored
     var plotTask: Task<Void, Never>?
-    @ObservationIgnored
-    private var artifactLoadTask: Task<Void, Never>?
-
     deinit {
         plotTask?.cancel()
-        artifactLoadTask?.cancel()
+        relatedChartsTask?.cancel()
     }
 
     // MARK: - Selection
+
+    var isAllSelected: Bool {
+        !cachedSearchResults.isEmpty && selectedSearchResultIDs.count == cachedSearchResults.count
+    }
+
+    func selectAll() {
+        selectedSearchResultIDs = Set(cachedSearchResults.map(\.id))
+    }
+
+    func deselectAll() {
+        selectedSearchResultIDs = []
+    }
 
     func toggleSearchHitSelection(_ id: String) {
         if selectedSearchResultIDs.contains(id) {
@@ -122,96 +162,48 @@ final class AHEWorkspaceStore {
 
     // MARK: - Plot
 
-    func renderAHEPlot() {
-        let selections = buildAHESelections()
-        guard !selections.isEmpty else {
-            plotMessage = "Select at least one AHE measurement to plot."
-            return
-        }
-        // Capture overrides and context before leaving MainActor
+    // MARK: - Rerender (style-only, from cached ingestion)
+
+    private func _rerenderActiveTab() {
+        guard let ingestion = ingestionResult else { return }
+
         let xOverride = plotAxisXOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         let yOverride = plotAxisYOverride.trimmingCharacters(in: .whitespacesAndNewlines)
-        let capturedTemplate = titleTemplate
-        // Build title tokens from representative hit
-        let capturedTitleTokens: [String: String] = {
-            let sortedHits = selections.sorted(by: { $0.sampleKey < $1.sampleKey })
-            guard let hit = sortedHits.first,
-                  let searchHit = cachedSearchResults.first(where: { $0.sampleKey == hit.sampleKey }) else { return [:] }
-            var tokens: [String: String] = ["sample": searchHit.sampleBatchAndSubstrate]
-            let numericDisplay = cachedSampleNumericDisplay[searchHit.sampleKey] ?? [:]
-            for (k, v) in numericDisplay { tokens[k] = v }
-            return tokens
-        }()
-        // Capture per-tab state + shared settings from TabRenderManager
-        let capturedTabState = tabs.activeState
-        let capturedPipelineInput: (WorkbenchPlotPayload) -> WorkbenchRenderPipeline.Input = { [tabs] payload in
-            tabs.buildPipelineInput(payload: payload)
-        }
-
-        // Snapshot sampleKeys and conditions at render time (not at save time)
-        let snapshotSampleKeys: [String] = {
-            var seen = Set<String>()
-            return selections.compactMap { seen.insert($0.sampleKey).inserted ? $0.sampleKey : nil }
-        }()
-        let snapshotConditions: [String: [String: String]] = {
-            var map: [String: [String: String]] = [:]
-            for sel in selections where map[sel.sampleKey] == nil {
-                map[sel.sampleKey] = sel.conditions
+        let tabState = tabs.activeState
+        let resolvedTitle: String = {
+            if !tabState.titleOverride.isEmpty { return tabState.titleOverride }
+            let hit = cachedSearchResults.first(where: { lastRenderedSampleKeys.contains($0.sampleKey) })
+            var tokens: [String: String] = ["sample": hit?.sampleBatchAndSubstrate ?? ""]
+            if let key = hit?.sampleKey {
+                let nd = cachedSampleNumericDisplay[key] ?? [:]
+                for (k, v) in nd { tokens[k] = v }
             }
-            return map
+            tokens["tab"] = "AHE"
+            return WorkbenchTitleResolver.resolve(template: titleTemplate, tokens: tokens)
         }()
+        let xField = xOverride.isEmpty ? ingestion.defaultAxisMapping.xField : xOverride
+        let yField = yOverride.isEmpty ? ingestion.defaultAxisMapping.yField : yOverride
+        let payload = BuildAHEPlotPayloadUseCase().execute(
+            ingestion: ingestion,
+            title: resolvedTitle,
+            axisMappingOverride: WorkbenchAxisMapping(xField: xField, yField: yField),
+            styleParams: [:]
+        )
+        let input = tabs.buildPipelineInput(payload: payload)
 
         plotTask?.cancel()
-        isPlotRendering = true
-        plotMessage = nil
-        tabs.clearOutputs()
-        currentRunTrace = nil
-        persistenceOutcome = nil
-
-        let seriesCount = selections.count
         plotTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let (pipelineOutput, candidates, extractedMetrics) = try await Task.detached(priority: .userInitiated) {
-                    let ingestion = try IngestAHESelectionsUseCase().execute(
-                        selections: selections,
-                        xColumnOverride: xOverride.isEmpty ? nil : xOverride,
-                        yColumnOverride: yOverride.isEmpty ? nil : yOverride
-                    )
-                    let extractedMetrics = try AHEWorkspaceStore.extractAHEMetricsPerSeries(from: ingestion.series).get()
-                    let resolvedTitle: String = {
-                        if !capturedTabState.titleOverride.isEmpty { return capturedTabState.titleOverride }
-                        var tokens = capturedTitleTokens
-                        tokens["tab"] = "AHE"
-                        return WorkbenchTitleResolver.resolve(template: capturedTemplate, tokens: tokens)
-                    }()
-                    let xField = xOverride.isEmpty ? ingestion.defaultAxisMapping.xField : xOverride
-                    let yField = yOverride.isEmpty ? ingestion.defaultAxisMapping.yField : yOverride
-                    let payload = BuildAHEPlotPayloadUseCase().execute(
-                        ingestion: ingestion,
-                        title: resolvedTitle,
-                        axisMappingOverride: WorkbenchAxisMapping(xField: xField, yField: yField),
-                        styleParams: [:]
-                    )
-                    let input = capturedPipelineInput(payload)
-                    let output = try WorkbenchRenderPipeline.render(input)
-                    return (output, ingestion.candidateAxisFields, extractedMetrics)
+                let output = try await Task.detached(priority: .userInitiated) {
+                    try WorkbenchRenderPipeline.render(input)
                 }.value
                 guard !Task.isCancelled else { return }
-                self.tabs.applyPipelineOutput(pipelineOutput, for: .ahe)
-                self.currentCandidateAxisFields = candidates
-                self.lastExtractedMetrics = extractedMetrics
-                self.lastRenderedSampleKeys = snapshotSampleKeys
-                self.lastRenderedConditionsBySampleKey = snapshotConditions
-                self.cachedInputFiles = selections.map(\.sourceFilePath)
-                self.isPlotRendering = false
-                self.plotMessage = "Rendered \(seriesCount) series."
+                self.tabs.applyPipelineOutput(output, for: .ahe)
             } catch is CancellationError {
-                self.isPlotRendering = false
+                // cancelled — no-op
             } catch {
-                self.tabs.clearOutputs()
-                self.isPlotRendering = false
-                self.plotMessage = "Plot failed: \(error.localizedDescription)"
+                self.plotMessage = "Re-render failed: \(error.localizedDescription)"
             }
         }
     }
@@ -221,47 +213,28 @@ final class AHEWorkspaceStore {
         plotTask = nil
         tabs.clearAll()
         currentRunTrace = nil
+        warningLog = []
+        ingestionResult = nil
         persistenceOutcome = nil
         pendingMetricOverride = nil
         pendingRAHEOverride = nil
         lastExtractedMetrics = [:]
         isPlotRendering = false
         plotMessage = nil
-        selectedSearchResultIDs = []
         currentCandidateAxisFields = []
         plotAxisXOverride = ""
         plotAxisYOverride = ""
         cachedInputFiles = []
         activePackID = nil
+        relatedChartsTask?.cancel()
+        relatedChartsTask = nil
+        relatedChartsGrouped = [:]
     }
 
-    func loadPersistedArtifact(sampleKey: String) {
-        guard !lastLibraryRootPath.isEmpty else { return }
-        let libraryRootPath = lastLibraryRootPath
-
-        artifactLoadTask?.cancel()
-        isLoadingArtifact = true
-        artifactLoadMessage = nil
-
-        artifactLoadTask = Task { [weak self] in
-            guard let self else { return }
-            let artifact = await Task.detached(priority: .userInitiated) {
-                let resolver = LibraryPathResolver(libraryRootURL: URL(filePath: libraryRootPath))
-                return LoadLatestChartArtifactUseCase(pathResolver: resolver).execute(sampleKey: sampleKey)
-            }.value
-            guard !Task.isCancelled else { return }
-            if let artifact {
-                self.tabs.setOutput(TabRenderOutput(imageData: artifact.imageData, layout: nil, manifestPayload: nil), for: .ahe)
-                self.currentRunTrace = BuildRunTraceProjectionUseCase().execute(
-                    manifest: artifact.manifest,
-                    manifestPath: artifact.manifestPath
-                )
-                self.artifactLoadMessage = "Loaded saved chart for \(sampleKey)."
-            } else {
-                self.artifactLoadMessage = nil
-            }
-            self.isLoadingArtifact = false
-        }
+    func clearResults() {
+        selectedSearchResultIDs = []
+        cachedSearchResults = []
+        cachedSampleNumericDisplay = [:]
     }
 
     // MARK: - Save to Library
@@ -314,27 +287,27 @@ final class AHEWorkspaceStore {
 
     func updateSeriesLabel(index: Int, newLabel: String) {
         tabs.updateSeriesLabel(index: index, newLabel: newLabel)
-        renderAHEPlot()
+        _rerenderActiveTab()
     }
 
     func updateLegendPoint(_ point: CGPoint) {
         tabs.updateLegendPoint(point)
-        renderAHEPlot()
+        _rerenderActiveTab()
     }
 
     func updatePlotTitle(_ title: String) {
         tabs.updateTitleOverride(title)
-        renderAHEPlot()
+        _rerenderActiveTab()
     }
 
     func updateXAxisLabel(_ label: String) {
         tabs.updateXLabelOverride(label)
-        renderAHEPlot()
+        _rerenderActiveTab()
     }
 
     func updateYAxisLabel(_ label: String) {
         tabs.updateYLabelOverride(label)
-        renderAHEPlot()
+        _rerenderActiveTab()
     }
 
     // MARK: - Private helpers
@@ -356,7 +329,8 @@ final class AHEWorkspaceStore {
                     sourceFilePath: hit.measurementFilePath,
                     channel: ch,
                     conditions: hit.conditions,
-                    workflowID: hit.workflowID
+                    workflowID: hit.workflowID,
+                    sampleSubstrate: hit.sampleSubstrate
                 ))
             }
         }
@@ -594,7 +568,7 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
     }
 
     func buildPackResult() -> AHEPackResult {
-        AHEPackResult()
+        AHEPackResult(ingestionResult: ingestionResult ?? AHEIngestionResult(candidateAxisFields: [], defaultAxisMapping: .init(xField: "", yField: ""), series: [], sourceFiles: [], warnings: []))
     }
 
     func autoPackLabel() -> String {
@@ -621,6 +595,9 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
         cachedSearchResults = config.cachedSearchResults
         selectedSearchResultIDs = Set(config.selectedSearchResultIDs)
 
+        // Restore results
+        ingestionResult = result.ingestionResult
+
         // Restore cached persistence state
         cachedInputFiles = pack.filePaths
         lastRenderedSampleKeys = pack.sampleKeys
@@ -633,7 +610,150 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
         // Bridge search results
         restoreSearchState(config.cachedSearchResults, config.searchQueryText)
 
-        // Re-render
-        renderAHEPlot()
+        // Re-render from cached ingestion (no full re-analysis)
+        _rerenderActiveTab()
+    }
+}
+
+// MARK: - WorkbenchWorkspaceProviding conformance
+
+extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
+
+    var isAnalyzing: Bool { isPlotRendering }
+
+    func runAnalysis() {
+        let selections = buildAHESelections()
+        guard !selections.isEmpty else {
+            plotMessage = "Select at least one AHE measurement to plot."
+            return
+        }
+        // Capture overrides and context before leaving MainActor
+        let xOverride = plotAxisXOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+        let yOverride = plotAxisYOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+        let capturedTemplate = titleTemplate
+        let capturedTitleTokens: [String: String] = {
+            let sortedHits = selections.sorted(by: { $0.sampleKey < $1.sampleKey })
+            guard let hit = sortedHits.first,
+                  let searchHit = cachedSearchResults.first(where: { $0.sampleKey == hit.sampleKey }) else { return [:] }
+            var tokens: [String: String] = ["sample": searchHit.sampleBatchAndSubstrate]
+            let numericDisplay = cachedSampleNumericDisplay[searchHit.sampleKey] ?? [:]
+            for (k, v) in numericDisplay { tokens[k] = v }
+            return tokens
+        }()
+        let capturedTabState = tabs.activeState
+        let capturedPipelineInput: (WorkbenchPlotPayload) -> WorkbenchRenderPipeline.Input = { [tabs] payload in
+            tabs.buildPipelineInput(payload: payload)
+        }
+
+        let snapshotSampleKeys: [String] = {
+            var seen = Set<String>()
+            return selections.compactMap { seen.insert($0.sampleKey).inserted ? $0.sampleKey : nil }
+        }()
+        let snapshotConditions: [String: [String: String]] = {
+            var map: [String: [String: String]] = [:]
+            for sel in selections where map[sel.sampleKey] == nil {
+                map[sel.sampleKey] = sel.conditions
+            }
+            return map
+        }()
+
+        let capturedNumericDisplay = cachedSampleNumericDisplay
+
+        plotTask?.cancel()
+        isPlotRendering = true
+        plotMessage = nil
+        tabs.clearOutputs()
+        currentRunTrace = nil
+        persistenceOutcome = nil
+
+        let seriesCount = selections.count
+        plotTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let (ingestion, pipelineOutput, extractedMetrics) = try await Task.detached(priority: .userInitiated) {
+                    let ingestion = try IngestAHESelectionsUseCase().execute(
+                        selections: selections,
+                        xColumnOverride: xOverride.isEmpty ? nil : xOverride,
+                        yColumnOverride: yOverride.isEmpty ? nil : yOverride,
+                        numericDisplayBySample: capturedNumericDisplay
+                    )
+                    let extractedMetrics = try AHEWorkspaceStore.extractAHEMetricsPerSeries(from: ingestion.series).get()
+                    let resolvedTitle: String = {
+                        if !capturedTabState.titleOverride.isEmpty { return capturedTabState.titleOverride }
+                        var tokens = capturedTitleTokens
+                        tokens["tab"] = "AHE"
+                        return WorkbenchTitleResolver.resolve(template: capturedTemplate, tokens: tokens)
+                    }()
+                    let xField = xOverride.isEmpty ? ingestion.defaultAxisMapping.xField : xOverride
+                    let yField = yOverride.isEmpty ? ingestion.defaultAxisMapping.yField : yOverride
+                    let payload = BuildAHEPlotPayloadUseCase().execute(
+                        ingestion: ingestion,
+                        title: resolvedTitle,
+                        axisMappingOverride: WorkbenchAxisMapping(xField: xField, yField: yField),
+                        styleParams: [:]
+                    )
+                    let input = capturedPipelineInput(payload)
+                    let output = try WorkbenchRenderPipeline.render(input)
+                    return (ingestion, output, extractedMetrics)
+                }.value
+                guard !Task.isCancelled else { return }
+                self.ingestionResult = ingestion
+                self.tabs.applyPipelineOutput(pipelineOutput, for: .ahe)
+                for w in pipelineOutput.warnings {
+                    self.appendWarning(source: "Legend", message: w)
+                }
+                for w in ingestion.warnings {
+                    self.appendWarning(source: "Ingestion", message: w)
+                }
+                self.currentCandidateAxisFields = ingestion.candidateAxisFields
+                self.lastExtractedMetrics = extractedMetrics
+                self.lastRenderedSampleKeys = snapshotSampleKeys
+                self.lastRenderedConditionsBySampleKey = snapshotConditions
+                self.cachedInputFiles = selections.map(\.sourceFilePath)
+                self.commitRunTrace()
+                self.isPlotRendering = false
+                self.plotMessage = "Rendered \(seriesCount) series."
+                self.refreshRelatedCharts()
+            } catch is CancellationError {
+                self.isPlotRendering = false
+            } catch {
+                self.tabs.clearOutputs()
+                self.isPlotRendering = false
+                self.plotMessage = "Plot failed: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func rerenderForStyleChange() { _rerenderActiveTab() }
+
+    func buildRunTrace() -> WorkbenchRunTraceProjection? {
+        guard !cachedInputFiles.isEmpty else { return nil }
+        let xField = plotAxisXOverride.isEmpty ? "Magnetic Field" : plotAxisXOverride
+        let yField = plotAxisYOverride.isEmpty ? "R_H" : plotAxisYOverride
+        return WorkbenchRunTraceProjection(
+            runID: UUID().uuidString,
+            workflowID: "ahe",
+            inputFiles: cachedInputFiles,
+            axisMapping: WorkbenchAxisMapping(xField: xField, yField: yField),
+            semanticParams: ["series": "\(lastRenderedSampleKeys.count)"],
+            outputImagePath: "",
+            manifestPath: "",
+            generatedAt: Date()
+        )
+    }
+
+    var activeImageData: Data? { tabs.activeImageData }
+    var activeLayout: WorkbenchPlotLayout? { tabs.activeLayout }
+    var seriesLabelOverrides: [Int: String] { tabs.activeSeriesLabelOverrides }
+    var relatedCharts: [WorkbenchResultReference]? {
+        guard let payload = tabs.activeManifestPayload else { return nil }
+        let inputFiles = payload.series.compactMap(\.sourceRef)
+        guard !inputFiles.isEmpty else { return nil }
+        let key = InputFilesCanonicalKey.make(from: inputFiles)
+        let charts = relatedChartsGrouped[key] ?? []
+        return charts.isEmpty ? nil : charts
+    }
+    var libraryRootURL: URL? {
+        lastLibraryRootPath.isEmpty ? nil : URL(fileURLWithPath: lastLibraryRootPath)
     }
 }

@@ -421,26 +421,12 @@ final class WorkbenchFeatureStore {
         snapshot.workbenchChartStyleOverrides = overrides.isEmpty ? nil : overrides
     }
 
-    /// Bridge method: restores search state into WorkbenchFeatureStore when loading a pack.
-    func restoreThreeOmegaSearchState(results: [WorkflowMeasurementSearchHit], queryText: String) {
-        searchResults[.threeOmega] = results
-        setSearchQueryText(queryText, for: .threeOmega)
-        searchMessages[.threeOmega] = "Restored from analysis pack (\(results.count) hit(s))."
-        searchRunning[.threeOmega] = false
-    }
-
-    func restoreXYRotationSearchState(results: [WorkflowMeasurementSearchHit], queryText: String) {
-        searchResults[.xyRotation] = results
-        setSearchQueryText(queryText, for: .xyRotation)
-        searchMessages[.xyRotation] = "Restored from analysis pack (\(results.count) hit(s))."
-        searchRunning[.xyRotation] = false
-    }
-
-    func restoreAHESearchState(results: [WorkflowMeasurementSearchHit], queryText: String) {
-        searchResults[.ahe] = results
-        setSearchQueryText(queryText, for: .ahe)
-        searchMessages[.ahe] = "Restored from analysis pack (\(results.count) hit(s))."
-        searchRunning[.ahe] = false
+    /// Restores search state for any workflow (used by shell's Load Pack popover).
+    func restoreSearchState(results: [WorkflowMeasurementSearchHit], queryText: String, for wf: WorkbenchWorkflowID) {
+        searchResults[wf] = results
+        setSearchQueryText(queryText, for: wf)
+        searchMessages[wf] = "Restored from analysis pack (\(results.count) hit(s))."
+        searchRunning[wf] = false
     }
 
     func selectedArchivedRecord() -> SpinLabDomain.ArchivedRecord? {
@@ -923,9 +909,6 @@ final class WorkbenchFeatureStore {
                     ? "No files matched query: \(query)"
                     : "Found \(result.count) file(s)."
                 searchRunning[wf] = false
-                if wf == .ahe, let firstSampleKey = result.first?.sampleKey {
-                    aheWorkspace.loadPersistedArtifact(sampleKey: firstSampleKey)
-                }
                 if wf == .threeOmega, let rtPath = threeOmegaWorkspace.pendingRTSidecarPath {
                     // Restore RT selection in background (avoid main-thread I/O)
                     let hit = await Task.detached {
