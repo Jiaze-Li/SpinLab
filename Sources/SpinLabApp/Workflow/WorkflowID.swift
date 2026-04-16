@@ -41,19 +41,18 @@ enum WorkflowID: String, CaseIterable, Hashable, Sendable {
     func matchesDisplayNameContains(_ displayName: String) -> Bool {
         let normalizedDisplayName = Self.normalize(displayName)
         guard !normalizedDisplayName.isEmpty else { return false }
-        let normalizedRawValue = Self.normalize(rawValue)
 
-        let containsAliases: [String] = aliases.compactMap { alias -> String? in
+        return aliases.contains { alias in
             let normalizedAlias = Self.normalize(alias)
-            guard !normalizedAlias.isEmpty else { return nil }
-            guard normalizedAlias == normalizedRawValue || normalizedAlias.contains(where: { $0.isNumber }) else {
-                return nil
+            guard !normalizedAlias.isEmpty else { return false }
+            // Short aliases without digits (e.g. "rt") require exact match
+            // to avoid false positives like "transport" matching RT.
+            // Aliases with digits (e.g. "3w", "3omega") are safe for substring match.
+            if normalizedAlias.contains(where: { $0.isNumber }) {
+                return normalizedDisplayName.contains(normalizedAlias)
+            } else {
+                return normalizedDisplayName == normalizedAlias
             }
-            return normalizedAlias
-        }
-
-        return containsAliases.contains { normalizedAlias in
-            normalizedDisplayName.contains(normalizedAlias)
         }
     }
 
