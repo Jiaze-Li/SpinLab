@@ -53,7 +53,7 @@ struct V333AHEWorkspaceStoreIsolationTests {
     }
 
     @MainActor
-    @Test("clearPlot resets all plot state and clears selection")
+    @Test("clearPlot resets plot state; selection and manager-level settings preserved")
     func clearPlotResetsState() {
         let store = AHEWorkspaceStore()
 
@@ -69,7 +69,7 @@ struct V333AHEWorkspaceStoreIsolationTests {
 
         store.clearPlot()
 
-        #expect(store.selectedSearchResultIDs.isEmpty)
+        // clearPlot resets per-tab render state and plot artifacts
         #expect(store.tabs.activeImageData == nil)
         #expect(store.isPlotRendering == false)
         #expect(store.plotMessage == nil)
@@ -78,13 +78,17 @@ struct V333AHEWorkspaceStoreIsolationTests {
         #expect(store.plotAxisXOverride == "")
         #expect(store.plotAxisYOverride == "")
         #expect(store.tabs.activeState.titleOverride == "")
-        #expect(store.tabs.showPlotGrid == false)
-        #expect(store.tabs.legendAnchor == "")
         #expect(store.tabs.activeState.legendPoint == nil)
         #expect(store.tabs.activeSeriesLabelOverrides.isEmpty)
         #expect(store.tabs.activeState.xLabelOverride == "")
         #expect(store.tabs.activeState.yLabelOverride == "")
         #expect(store.tabs.activeLayout == nil)
+
+        // selection is NOT cleared by clearPlot (clearResults handles that)
+        #expect(!store.selectedSearchResultIDs.isEmpty)
+        // manager-level settings (grid, legendAnchor) persist across clear
+        #expect(store.tabs.showPlotGrid == true)
+        #expect(store.tabs.legendAnchor == "top-left")
     }
 
     @MainActor

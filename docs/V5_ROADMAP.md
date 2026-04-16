@@ -49,6 +49,12 @@
 - [x] 覆盖率基线建立：506 tests, 1.98% line coverage (4.17% logic-only). Workbench render pipeline well-covered; App/State layer at 0%.
 - [x] 关键路径测试补全（优先补分解后的 FeatureStore facade 方法，需 fixture 基础设施）
 
+### 5.1.4 — Workflow alias 数据驱动 + FeatureStore 测试补全
+- [ ] Workflow ID alias 硬编码清理：SearchWorkflowMeasurementsUseCase if-else 链改为枚举 aliases computed property，统一 canonical 逻辑 `[来源: TECH_DEBT_BACKLOG]`
+- [ ] RegistryFeatureStore 关键路径测试：注册/注销 workflow、状态恢复（当前零直接覆盖）
+- [ ] InboxFeatureStore 关键路径测试：文件导入分发、重复检测/冲突处理
+- [ ] 文档状态同步：TECH_DEBT_BACKLOG 完成度与 roadmap 对齐
+
 ---
 
 ## 5.2.x — Import 管线 + Inbox 逻辑/架构
