@@ -67,7 +67,7 @@ struct WorkflowWorkspaceShell<
     private var titleBar: some View {
         HStack(alignment: .firstTextBaseline) {
             Text(appState.workbench.selectedWorkflowDefinition?.displayName ?? "Workflow")
-                .font(.title2.bold())
+                .font(AppFontScale.sectionTitle)
             Spacer()
         }
         .padding(.top, 4)
@@ -229,7 +229,7 @@ struct WorkflowWorkspaceShell<
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Result")
-                    .font(.title2.bold())
+                    .font(AppFontScale.sectionTitle)
                 Spacer()
 
                 Button("Clear Plot") {
@@ -367,6 +367,7 @@ private struct WorkbenchVaultRow<Store: WorkbenchWorkspaceProviding>: View {
                 }
                 .buttonStyle(.borderless)
                 .font(.callout)
+                .accessibilityLabel("Rename pack")
 
                 Button {
                     vault.remove(id: pack.id)
@@ -379,6 +380,7 @@ private struct WorkbenchVaultRow<Store: WorkbenchWorkspaceProviding>: View {
                 .buttonStyle(.borderless)
                 .font(.callout)
                 .foregroundStyle(.red)
+                .accessibilityLabel("Delete pack")
             }
         }
         .padding(.vertical, 4)

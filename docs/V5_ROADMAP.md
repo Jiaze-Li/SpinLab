@@ -117,8 +117,32 @@ _(预留)_
 
 ## 5.5.x — 全区域 UI 统一优化
 
-### 5.5.0
-_(待收集)_
+### 5.5.0 — 跨区域一致性 + 设计基础设施
+- [x] 字体可读性违规修复：9 处 `.footnote` 用于用户需读内容（Inbox 5 处、Library 1 处、Workbench 3 处），提升至 `.callout`+；3ω 缩放结果 alpha/beta/R² 从 `.caption` 提升
+- [x] 折叠区块点击热区修复：Inbox/Library 的折叠箭头改为整行可点（对齐 features.md Disclosure Sections 规则）
+- [x] 提取统一折叠区块组件：替代三区域各自的手动 chevron+HStack 实现
+- [x] 统一字体梯度：提取 app 级字体常量，替代三区域各自内联/局部定义的标题字号
+- [x] 统一间距常量：建立 AppSpacing 七级梯度，关键结构位置已替换，规则已记录
+- [x] 按钮风格上下文统一：审查确认三区域已一致，四级规则（prominent/bordered/borderless/plain）已记录
+
+### 5.5.1 — 大文件拆分
+- [x] InboxView（~1250行）拆分：1237→64行 + 5 个独立文件
+- [x] LibraryDetailSections（~990行）拆分：删除原文件，拆为 5 个聚焦组件
+- [x] RulesHandbookView（~1072行）拆分：1072→764行 + 4 个独立文件
+- [x] WorkbenchSharedComponents（~940行）拆分：897→10行（索引注释）+ 8 个独立文件
+
+### 5.5.2 — 共享组件补全
+- [x] Flow/Wrap 布局去重：FlowLayout 合并到 UI/FlowLayout.swift，删除 WorkflowRegistryView 中的重复实现
+- [x] 纯图标按钮补 accessibilityLabel：13 处跨 7 个文件
+- [x] 状态指示颜色冗余：审查确认现有实现已有文字/图标冗余，无需额外改动
+- [x] MetadataViews 审查：MetadataValueRow 已被 22 处采用，无明显重复需合并
+- [ ] 行/列表选中态统一：Inbox 用 List、Library/Workbench 用自定义卡片，选中态视觉和信息密度对齐（留待 UX 需求驱动）
+
+### 5.5.3 — 文档补齐 + CLAUDE.md 瘦身
+- [x] 创建 specs/04_UI_RULES.md：字体/间距/按钮/折叠/无障碍视觉规则
+- [x] 创建 specs/06_PROJECT_ARCHITECTURE.md：代码放置、模块架构、管线、检查清单
+- [x] CLAUDE.md 瘦身：SpinLab 专有内容下沉到 specs，CLAUDE.md 保留通用工程方法论，可跨项目复用
+
 
 ---
 
@@ -131,4 +155,4 @@ _(未分配)_
 ## 5.7.x — Docs 专项
 
 ### 5.7.0
-- [ ] CLAUDE.md 瘦身：把稳定规则下沉到 specs，CLAUDE.md 只保留高频约束
+- [x] CLAUDE.md 瘦身：已在 5.5.3 完成 — SpinLab 专有内容下沉到 specs/04 + specs/06，CLAUDE.md 保留通用方法论

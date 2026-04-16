@@ -93,6 +93,7 @@ private struct ThreeOmegaPlotControlsPanel: View {
                                         Image(systemName: "xmark")
                                     }
                                     .buttonStyle(.plain)
+                                    .accessibilityLabel("Remove overlay")
                                 }
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 6)
@@ -175,6 +176,7 @@ private struct ThreeOmegaGeometryPanel: View {
                         Image(systemName: "plus.circle.fill")
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Add fit range")
                 }
 
                 ForEach($store.fitRanges) { $range in
@@ -191,6 +193,7 @@ private struct ThreeOmegaGeometryPanel: View {
                                 .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Remove fit range")
                         .disabled(store.fitRanges.count <= 1)
                     }
                 }
@@ -253,27 +256,27 @@ private struct ThreeOmegaScalingResultPanel: View {
                     Text(String(format: "R² = %.4f", seg.rSquared))
                         .font(.system(.body, design: .monospaced))
                     Text("\(result.points.count) data point(s)")
-                        .font(.caption)
+                        .font(.callout)
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(Array(result.segments.enumerated()), id: \.element.id) { idx, seg in
                         if idx > 0 { Divider() }
                         VStack(alignment: .leading, spacing: 2) {
                             Text("\(Int(seg.tLo.rounded())) K – \(Int(seg.tHi.rounded())) K  (n=\(seg.pointCount))")
-                                .font(.caption.bold())
+                                .font(.callout.bold())
                                 .foregroundStyle(.secondary)
                             Text(String(format: "β (Q_xxz) = %.4e Ω·μm³·V⁻²", seg.beta * 1e20))
-                                .font(.system(.caption, design: .monospaced))
+                                .font(.system(.callout, design: .monospaced))
                             Text(String(format: "α (skew) = %.4e Ω·μm³·cm²·V⁻²·S⁻²", seg.alpha * 1e31))
-                                .font(.system(.caption, design: .monospaced))
+                                .font(.system(.callout, design: .monospaced))
                             Text(String(format: "R² = %.4f", seg.rSquared))
-                                .font(.system(.caption, design: .monospaced))
+                                .font(.system(.callout, design: .monospaced))
                         }
                     }
                 }
                 ForEach(result.warnings, id: \.self) { w in
                     Text("⚠ \(w)")
-                        .font(.caption)
+                        .font(.callout)
                         .foregroundStyle(.orange)
                 }
             }
@@ -314,6 +317,7 @@ private struct ThreeOmegaRTSearchField: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                .accessibilityLabel("Search RT files")
                 .disabled(store.rtQuery.trimmingCharacters(in: .whitespaces).isEmpty || store.isRTSearching || libraryRoot == nil)
             }
 

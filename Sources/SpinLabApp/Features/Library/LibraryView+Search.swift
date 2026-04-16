@@ -15,8 +15,6 @@ extension LibraryView {
             oxygenToleranceText: $searchOxygenToleranceText,
             temperatureToleranceText: $searchTemperatureToleranceText,
             energyToleranceText: $searchEnergyToleranceText,
-            level2HeaderFont: level2HeaderFont,
-            level3HeaderFont: level3HeaderFont,
             searchHasExecuted: searchHasExecuted,
             searchMatchedResults: searchMatchedResults,
             onSearch: {
@@ -36,8 +34,6 @@ extension LibraryView {
 
     var existingDrawerSampleSection: some View {
         LibraryExistingDrawerSampleSectionView(
-            level2HeaderFont: level2HeaderFont,
-            level3HeaderFont: level3HeaderFont,
             selectedPrefix: lib.librarySelectedPrefix,
             selectedBatchId: lib.librarySelectedBatchId,
             selectedSampleId: lib.librarySelectedSampleId,

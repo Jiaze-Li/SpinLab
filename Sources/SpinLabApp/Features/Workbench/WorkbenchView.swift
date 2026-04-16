@@ -15,7 +15,7 @@ struct WorkbenchView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .firstTextBaseline) {
                         Text("Workbench")
-                            .font(.title2.bold())
+                            .font(AppFontScale.sectionTitle)
                         Spacer()
                         Button("Rules Handbook") {
                             openWindow(id: "rules-handbook")

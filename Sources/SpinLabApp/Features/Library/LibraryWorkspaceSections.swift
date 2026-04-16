@@ -3,8 +3,6 @@ import SwiftUI
 struct LibrarySettingsSectionView: View {
     @Binding var isExpanded: Bool
 
-    let level2HeaderFont: Font
-    let level3HeaderFont: Font
     let library: LibraryFeatureStore
 
     let onChooseLibraryRoot: () -> Void
@@ -15,25 +13,12 @@ struct LibrarySettingsSectionView: View {
     let onSyncBackup: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Button {
-                isExpanded.toggle()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 20, height: 20)
-                    Text("Library Settings")
-                        .font(level2HeaderFont)
-                    Spacer()
-                }
-            }
-            .buttonStyle(.plain)
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            CollapsibleSectionHeader(title: "Library Settings", isExpanded: $isExpanded)
 
             if isExpanded {
                 GroupBox {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: AppSpacing.md) {
                         MetadataValueRow(
                             label: "Library Root",
                             value: library.librarySettings.rootPath ?? "Not set",
@@ -72,7 +57,7 @@ struct LibrarySettingsSectionView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 } label: {
                     Text("Library Root")
-                        .font(level3HeaderFont)
+                        .font(AppFontScale.groupHeader)
                 }
 
                 GroupBox {
@@ -108,7 +93,7 @@ struct LibrarySettingsSectionView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 } label: {
                     Text("Backup")
-                        .font(level3HeaderFont)
+                        .font(AppFontScale.groupHeader)
                 }
             }
         }
@@ -119,8 +104,6 @@ struct RegistryWorkspaceSectionView: View {
     @Binding var isExpanded: Bool
     @Binding var allowedPrefixesDraft: String
 
-    let level2HeaderFont: Font
-    let level3HeaderFont: Font
     let library: LibraryFeatureStore
     let canReloadSampleRegistry: Bool
 
@@ -145,25 +128,12 @@ struct RegistryWorkspaceSectionView: View {
     let syncStatusColor: (LibrarySyncBatchStatus) -> Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Button {
-                isExpanded.toggle()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 20, height: 20)
-                    Text("Registry Operations")
-                        .font(level2HeaderFont)
-                    Spacer()
-                }
-            }
-            .buttonStyle(.plain)
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            CollapsibleSectionHeader(title: "Registry Operations", isExpanded: $isExpanded)
 
             if isExpanded {
                 GroupBox {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: AppSpacing.md) {
                         MetadataValueRow(
                             label: "Registry Path",
                             value: library.librarySettings.registrySourcePath ?? "Not loaded",
@@ -219,7 +189,7 @@ struct RegistryWorkspaceSectionView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Text("Registry")
-                            .font(level3HeaderFont)
+                            .font(AppFontScale.groupHeader)
                         if let syncStatus = library.librarySyncStatusMessage {
                             Text("(\(syncStatus))")
                                 .font(.caption)
@@ -267,7 +237,7 @@ struct RegistryWorkspaceSectionView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Text("Pending Queue")
-                            .font(level3HeaderFont)
+                            .font(AppFontScale.groupHeader)
                         if let review = library.libraryRefreshReview {
                             Text("(\(review.newSamples.count) new, \(review.changedSamples.count) changed, \(review.removedSamples.count) removed)")
                                 .font(.caption)
@@ -395,8 +365,6 @@ struct SearchWorkspaceSectionView: View {
     @Binding var temperatureToleranceText: String
     @Binding var energyToleranceText: String
 
-    let level2HeaderFont: Font
-    let level3HeaderFont: Font
     let searchHasExecuted: Bool
     let searchMatchedResults: [SearchResultItem]
     let onSearch: () -> Void
@@ -405,35 +373,22 @@ struct SearchWorkspaceSectionView: View {
     let isSelectedResult: (SearchResultItem) -> Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Button {
-                isExpanded.toggle()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 20, height: 20)
-                    Text("Search")
-                        .font(level2HeaderFont)
-                    Spacer()
-                }
-            }
-            .buttonStyle(.plain)
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            CollapsibleSectionHeader(title: "Search", isExpanded: $isExpanded)
 
             if isExpanded {
                 GroupBox {
                     searchOperationBox
                 } label: {
                     Text("Search Conditions")
-                        .font(level3HeaderFont)
+                        .font(AppFontScale.groupHeader)
                 }
 
                 GroupBox {
                     searchResultBox
                 } label: {
                     Text("Search Result")
-                        .font(level3HeaderFont)
+                        .font(AppFontScale.groupHeader)
                 }
             }
         }
