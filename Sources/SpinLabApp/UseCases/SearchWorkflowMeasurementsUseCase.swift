@@ -184,31 +184,30 @@ struct SearchWorkflowMeasurementsUseCase {
     }
 
     private func workflowAliases(canonicalID: String, workflowID: String, workflowDisplayName: String) -> [String] {
-        switch canonicalID {
-        case "ahe":
-            return ["ahe", "a", normalizeToken(workflowID), normalizeToken(workflowDisplayName)]
-        case "rt":
-            return ["rt", normalizeToken(workflowID), normalizeToken(workflowDisplayName)]
-        case "3w":
-            return ["3w", "3omega", normalizeToken(workflowID), normalizeToken(workflowDisplayName)]
-        default:
-            return [normalizeToken(workflowID), normalizeToken(workflowDisplayName), canonicalID]
+        let normalizedWorkflowID = normalizeToken(workflowID)
+        let normalizedDisplayName = normalizeToken(workflowDisplayName)
+
+        guard let knownWorkflowID = WorkflowID.from(alias: canonicalID) else {
+            return [normalizedWorkflowID, normalizedDisplayName, canonicalID]
         }
+
+        return knownWorkflowID.searchAliases + [normalizedWorkflowID, normalizedDisplayName]
     }
 
     private func canonicalWorkflowID(from workflowID: String, displayName: String) -> String {
         let normalizedID = normalizeToken(workflowID)
         let normalizedDisplayName = normalizeToken(displayName)
 
-        if ["a", "ahe", "anomaloushall"].contains(normalizedID) || normalizedDisplayName.contains("ahe") {
-            return "ahe"
+        if let knownWorkflowID = WorkflowID.from(alias: normalizedID) {
+            return knownWorkflowID.rawValue
         }
-        if ["rt"].contains(normalizedID) || normalizedDisplayName == "rt" {
-            return "rt"
+        if let knownWorkflowID = WorkflowID.from(alias: normalizedDisplayName) {
+            return knownWorkflowID.rawValue
         }
-        if ["3w", "3omega"].contains(normalizedID) || normalizedDisplayName.contains("3w") || normalizedDisplayName.contains("3omega") {
-            return "3w"
+        if let knownWorkflowID = WorkflowID.allCases.first(where: { $0.matchesDisplayNameContains(normalizedDisplayName) }) {
+            return knownWorkflowID.rawValue
         }
+
         return normalizedID.isEmpty ? normalizedDisplayName : normalizedID
     }
 

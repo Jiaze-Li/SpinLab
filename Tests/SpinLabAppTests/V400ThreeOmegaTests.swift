@@ -395,7 +395,7 @@ struct V400WorkspaceStoreTests {
     }
 
     @MainActor
-    @Test("clearAll resets all state including geometry")
+    @Test("clearAll resets analysis and selection but preserves geometry")
     func clearAllResetsState() {
         let store = ThreeOmegaWorkspaceStore()
         store.toggleSearchHitSelection("id-1")
@@ -403,7 +403,7 @@ struct V400WorkspaceStoreTests {
         store.clearPlot()
         store.clearResults()
         #expect(store.selectedSearchResultIDs.isEmpty)
-        #expect(!store.geometry.isComplete)
+        #expect(store.geometry.isComplete)  // geometry is user input, preserved across clear
         #expect(store.ingestionResult == nil)
     }
 

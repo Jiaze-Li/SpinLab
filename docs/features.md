@@ -23,7 +23,7 @@ Behavior details: `specs/05_INBOX_DEPOSIT_UI_SPEC.md`, `specs/01_PRODUCT_RULES.m
 - File-level sample info can fill missing channel sample, but channel-to-channel cross-completion is forbidden
 - Route unresolved metadata alone does not force Review Required when final drawer mapping is unique and valid
 - Save-gated mapping (no live remap on keystroke) is deliberate
-- Apply: currently disabled. Target contract in `01_PRODUCT_RULES.md` (per-file, atomic rollback)
+- Apply: implemented. Per-file atomic archive with rollback, sidecar generation, and audit logging. Supports single-file and Apply All scopes (Apply All skips review-required items)
 - Test: drawer matching unit tests; draft persistence integration tests
 
 ### Registry

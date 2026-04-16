@@ -40,10 +40,6 @@ struct RuleCanonicalizer {
                 appendSynthesizedDefinition(id: key, kind: .tokenMap)
             }
 
-            if !ruleSet.deviceRules.isEmpty,
-               ruleSet.conditions.tokenMapRules[ConditionFieldCatalog.deviceID] == nil {
-                ruleSet.conditions.tokenMapRules[ConditionFieldCatalog.deviceID] = ruleSet.deviceRules
-            }
             ruleSet.conditionDefinitions = synthesized
             warnings.append("\(sourceLabel) has no conditionDefinitions; synthesized canonical definitions for compatibility.")
             return warnings
@@ -68,10 +64,6 @@ struct RuleCanonicalizer {
                     changed = true
                 }
             case .tokenMap:
-                if (binding == "deviceRules" || binding == "inbox.deviceRules"),
-                   ruleSet.conditions.tokenMapRules[id] == nil {
-                    ruleSet.conditions.tokenMapRules[id] = ruleSet.deviceRules
-                }
                 let canonical = canonicalBinding(for: id, kind: .tokenMap)
                 if binding != canonical {
                     updated.binding = canonical
@@ -98,38 +90,6 @@ struct RuleCanonicalizer {
 
         var extraConditions = (conditions["extraConditions"] as? [String: String]) ?? [:]
         var tokenMapRules = (conditions["tokenMapRules"] as? [String: Any]) ?? [:]
-
-        func migrateLegacyPattern(_ legacyKey: String, ruleID: String) {
-            let legacy = (conditions[legacyKey] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if extraConditions[ruleID] == nil, !legacy.isEmpty {
-                extraConditions[ruleID] = legacy
-                changed = true
-            }
-            if (conditions[legacyKey] as? String) != "" {
-                conditions[legacyKey] = ""
-                changed = true
-            }
-        }
-
-        migrateLegacyPattern("temperaturePattern", ruleID: ConditionFieldCatalog.temperatureID)
-        migrateLegacyPattern("currentPattern", ruleID: ConditionFieldCatalog.currentID)
-        migrateLegacyPattern("fieldPattern", ruleID: ConditionFieldCatalog.fieldID)
-
-        let legacyDeviceRules = (hasInbox ? inbox["deviceRules"] : json["deviceRules"]) as? [Any] ?? []
-        if tokenMapRules[ConditionFieldCatalog.deviceID] == nil, !legacyDeviceRules.isEmpty {
-            tokenMapRules[ConditionFieldCatalog.deviceID] = legacyDeviceRules
-            changed = true
-        }
-        if hasInbox {
-            if let deviceRules = inbox["deviceRules"] as? [Any], !deviceRules.isEmpty {
-                inbox["deviceRules"] = []
-                changed = true
-            }
-        } else if let deviceRules = json["deviceRules"] as? [Any], !deviceRules.isEmpty {
-            json["deviceRules"] = []
-            changed = true
-        }
 
         let conditionDefinitions = (hasInbox ? inbox["conditionDefinitions"] : json["conditionDefinitions"]) as? [[String: Any]] ?? []
         if conditionDefinitions.isEmpty {

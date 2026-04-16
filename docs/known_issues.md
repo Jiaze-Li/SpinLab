@@ -17,6 +17,6 @@ For tech debt details, see `history/TECH_DEBT_BACKLOG.md`.
 
 ## Deliberately Deferred
 
-- Deprecated condition pattern fields: waiting for zero-usage telemetry.
+- ~~Deprecated condition pattern fields~~: removed in v5.1.4 (confirmed zero usage).
 - ~~Legacy CodingKeys in `PendingImportConfirmationDraft`~~: removed in v5.1.0 (release cycle condition met).
-- `condition_aliases.json` scope: only one mapping, needs evaluation.
+- ~~`condition_aliases.json` scope~~: removed in v5.2.0 (bundled file unused).
