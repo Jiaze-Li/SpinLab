@@ -258,205 +258,83 @@ struct RuleLoader {
         var warnings: [String] = []
         var loadedOverrideFiles: [String] = []
 
+        // --- sample_id_rules.json ---
         if let sampleIDURL = resolveOverrideURL(filename: "sample_id_rules.json") {
-            do {
-                let data = try Data(contentsOf: sampleIDURL)
-                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let patterns = json["patterns"] as? [String] {
-                    let normalized = patterns
-                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                        .filter { !$0.isEmpty }
-                    if !normalized.isEmpty {
-                        ruleSet.sampleId = .init(patterns: normalized)
-                        loadedOverrideFiles.append(sampleIDURL.lastPathComponent)
-                    } else {
-                        warnings.append("sample_id_rules.json contains no valid patterns; keeping existing sampleId rules.")
-                    }
-                } else {
-                    warnings.append("sample_id_rules.json is invalid; ignoring sample-id override.")
-                }
-            } catch {
-                warnings.append("sample_id_rules.json read failed: \(error.localizedDescription)")
+            if let patterns = SeparatedOverrideReader.readSampleIDPatterns(from: sampleIDURL) {
+                ruleSet.sampleId = .init(patterns: patterns)
+                loadedOverrideFiles.append(sampleIDURL.lastPathComponent)
+            } else {
+                warnings.append("sample_id_rules.json contains no valid patterns or is unreadable; keeping existing sampleId rules.")
             }
         }
 
+        // --- workflow_match_rules.json ---
         if let workflowURL = resolveOverrideURL(filename: "workflow_match_rules.json") {
-            do {
-                let data = try Data(contentsOf: workflowURL)
-                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let rules = json["rules"] as? [[String: Any]] {
-                    let parsed: [FilenameRuleSet.MapRule] = rules.compactMap { rule in
-                        guard let scopeRaw = rule["scope"] as? String,
-                              let typeRaw = rule["type"] as? String,
-                              let workflowID = rule["workflowID"] as? String,
-                              let scope = FilenameRuleSet.MatchScope(rawValue: scopeRaw),
-                              let type = FilenameRuleSet.MatchType(rawValue: typeRaw) else {
-                            return nil
-                        }
-                        let values = ((rule["matchValues"] as? [String]) ?? [])
-                            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                            .filter { !$0.isEmpty }
-                        guard !values.isEmpty else { return nil }
-
-                        let match: FilenameRuleSet.MatchSpec
-                        switch type {
-                        case .equalsAny, .containsAny, .equalsOrContainsAny:
-                            match = .init(scope: scope, type: type, value: nil, values: values)
-                        default:
-                            match = .init(scope: scope, type: type, value: values.first, values: nil)
-                        }
-                        let normalizedWorkflowID = workflowID.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !normalizedWorkflowID.isEmpty else { return nil }
-                        return .init(
-                            match: match,
-                            value: normalizedWorkflowID
-                        )
-                    }
-                    if parsed.isEmpty {
-                        warnings.append("workflow_match_rules.json contains no valid rules; keeping existing workflow rules.")
-                    } else {
-                        ruleSet.measurementNameRules = parsed
-                        loadedOverrideFiles.append(workflowURL.lastPathComponent)
-                    }
+            if let entries = SeparatedOverrideReader.readWorkflowMatchRules(from: workflowURL) {
+                let parsed = entries.map { $0.asMapRule() }
+                if parsed.isEmpty {
+                    warnings.append("workflow_match_rules.json contains no valid rules; keeping existing workflow rules.")
                 } else {
-                    warnings.append("workflow_match_rules.json is invalid; ignoring workflow override.")
+                    ruleSet.measurementNameRules = parsed
+                    loadedOverrideFiles.append(workflowURL.lastPathComponent)
                 }
-            } catch {
-                warnings.append("workflow_match_rules.json read failed: \(error.localizedDescription)")
+            } else {
+                warnings.append("workflow_match_rules.json is invalid or unreadable; ignoring workflow override.")
             }
         }
 
+        // --- conditions_rules.json ---
         if let conditionsURL = resolveOverrideURL(filename: "conditions_rules.json") {
-            do {
-                let data = try Data(contentsOf: conditionsURL)
-                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    let hasExtraConditions = json["extraConditions"] as? [String: Any] != nil
-                    let hasTokenMapRules = json["tokenMapRules"] as? [String: Any] != nil
-                    if !hasExtraConditions && !hasTokenMapRules {
-                        warnings.append("conditions_rules.json contains no supported keys; keeping existing condition rules.")
-                    }
-
-                    if let extraConditions = json["extraConditions"] as? [String: Any] {
-                        for (rawKey, value) in extraConditions {
-                            let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
-                            guard !key.isEmpty else { continue }
-                            if value is NSNull {
-                                ruleSet.conditions.extraConditions.removeValue(forKey: key)
-                                continue
-                            }
-                            guard let pattern = value as? String else { continue }
-                            let normalizedPattern = pattern.trimmingCharacters(in: .whitespacesAndNewlines)
-                            guard !normalizedPattern.isEmpty else { continue }
-                            ruleSet.conditions.extraConditions[key] = normalizedPattern
-                        }
-                    }
-
-                    if let tokenMapRules = json["tokenMapRules"] as? [String: Any] {
-                        for (rawKey, rawRules) in tokenMapRules {
-                            let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
-                            guard !key.isEmpty else { continue }
-                            guard let mapped = rawRules as? [[String: Any]] else { continue }
-
-                            let parsedRules: [FilenameRuleSet.MapRule] = mapped.compactMap { rawRule in
-                                guard let matchTypeRaw = rawRule["matchType"] as? String,
-                                      let matchType = TokenMatchType(rawValue: matchTypeRaw),
-                                      let pattern = (rawRule["pattern"] as? String)?
-                                        .trimmingCharacters(in: .whitespacesAndNewlines),
-                                      !pattern.isEmpty else {
-                                    return nil
-                                }
-                                let value = (rawRule["value"] as? String)?
-                                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                                    .nilIfEmpty ?? "$MATCH"
-
-                                let matchSpec: FilenameRuleSet.MatchSpec
-                                switch matchType {
-                                case .equals:
-                                    matchSpec = .init(scope: .tokens, type: .equals, value: pattern, values: nil)
-                                case .regex:
-                                    matchSpec = .init(
-                                        scope: .tokens,
-                                        type: .regex,
-                                        value: RulePatternCodec.regexPattern(from: pattern),
-                                        values: nil
-                                    )
-                                }
-                                return .init(match: matchSpec, value: value)
-                            }
-
-                            // Merge semantics: key provided by override always wins.
-                            // Empty array means explicit clear.
-                            ruleSet.conditions.tokenMapRules[key] = parsedRules
-                        }
-                    }
-                    if hasExtraConditions || hasTokenMapRules {
-                        loadedOverrideFiles.append(conditionsURL.lastPathComponent)
-                    }
-                } else {
-                    warnings.append("conditions_rules.json is invalid; ignoring conditions override.")
+            if let patch = SeparatedOverrideReader.readConditions(from: conditionsURL) {
+                // Apply extra conditions: set values and remove deleted keys.
+                for (key, pattern) in patch.extraConditions {
+                    ruleSet.conditions.extraConditions[key] = pattern
                 }
-            } catch {
-                warnings.append("conditions_rules.json read failed: \(error.localizedDescription)")
+                for key in patch.deletedExtraConditionKeys {
+                    ruleSet.conditions.extraConditions.removeValue(forKey: key)
+                }
+                // Apply token map rules: each key from override replaces existing.
+                for (key, mappings) in patch.tokenMapRules {
+                    ruleSet.conditions.tokenMapRules[key] = mappings.map { $0.asMapRule() }
+                }
+                loadedOverrideFiles.append(conditionsURL.lastPathComponent)
+            } else {
+                warnings.append("conditions_rules.json contains no supported keys or is unreadable; keeping existing condition rules.")
             }
         }
 
+        // --- substrate_rules.json ---
         if let substrateURL = resolveOverrideURL(filename: "substrate_rules.json") {
-            do {
-                let data = try Data(contentsOf: substrateURL)
-                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    let hasTagRules = json["substrateTagRules"] != nil
-                    let hasSharedSubstrate = json["sharedSubstrate"] != nil
-                    if !hasTagRules && !hasSharedSubstrate {
-                        warnings.append("substrate_rules.json contains no supported keys; keeping existing substrate rules.")
+            if let patch = SeparatedOverrideReader.readSubstrateRules(from: substrateURL) {
+                if let tagRules = patch.substrateTagRules {
+                    let converted = tagRules.map { $0.asMapRule() }
+                    if converted.isEmpty {
+                        warnings.append("substrate_rules.json substrateTagRules is empty; keeping existing substrateTagRules.")
+                    } else {
+                        ruleSet.substrateTagRules = converted
                     }
-
-                    if let rawTagRules = json["substrateTagRules"] {
-                        let fragmentData = try JSONSerialization.data(withJSONObject: rawTagRules)
-                        let decoded = try JSONDecoder().decode([FilenameRuleSet.MapRule].self, from: fragmentData)
-                        if decoded.isEmpty {
-                            warnings.append("substrate_rules.json substrateTagRules is empty; keeping existing substrateTagRules.")
-                        } else {
-                            ruleSet.substrateTagRules = decoded
-                        }
-                    }
-
-                    if let rawSharedSubstrate = json["sharedSubstrate"] {
-                        let fragmentData = try JSONSerialization.data(withJSONObject: rawSharedSubstrate)
-                        let decoded = try JSONDecoder().decode(FilenameRuleSet.SharedSubstrateRules.self, from: fragmentData)
-                        ruleSet.sharedSubstrate = decoded
-                    }
-                    if hasTagRules || hasSharedSubstrate {
-                        loadedOverrideFiles.append(substrateURL.lastPathComponent)
-                    }
-                } else {
-                    warnings.append("substrate_rules.json is invalid; ignoring substrate override.")
                 }
-            } catch {
-                warnings.append("substrate_rules.json read failed: \(error.localizedDescription)")
+                if let shared = patch.sharedSubstrate {
+                    ruleSet.sharedSubstrate = shared
+                }
+                loadedOverrideFiles.append(substrateURL.lastPathComponent)
+            } else {
+                warnings.append("substrate_rules.json contains no supported keys or is unreadable; keeping existing substrate rules.")
             }
         }
 
+        // --- measurement_tag_rules.json ---
         if let measurementTagURL = resolveOverrideURL(filename: "measurement_tag_rules.json") {
-            do {
-                let data = try Data(contentsOf: measurementTagURL)
-                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    if let rawRules = json["rules"] {
-                        let fragmentData = try JSONSerialization.data(withJSONObject: rawRules)
-                        let decoded = try JSONDecoder().decode([FilenameRuleSet.MapRule].self, from: fragmentData)
-                        if decoded.isEmpty {
-                            warnings.append("measurement_tag_rules.json contains empty rules; keeping existing measurementTagRules.")
-                        } else {
-                            ruleSet.measurementTagRules = decoded
-                            loadedOverrideFiles.append(measurementTagURL.lastPathComponent)
-                        }
-                    } else {
-                        warnings.append("measurement_tag_rules.json has no rules key; keeping existing measurementTagRules.")
-                    }
+            if let entries = SeparatedOverrideReader.readMeasurementTagRules(from: measurementTagURL) {
+                let converted = entries.map { $0.asMapRule() }
+                if converted.isEmpty {
+                    warnings.append("measurement_tag_rules.json contains empty rules; keeping existing measurementTagRules.")
                 } else {
-                    warnings.append("measurement_tag_rules.json is invalid; ignoring measurement-tag override.")
+                    ruleSet.measurementTagRules = converted
+                    loadedOverrideFiles.append(measurementTagURL.lastPathComponent)
                 }
-            } catch {
-                warnings.append("measurement_tag_rules.json read failed: \(error.localizedDescription)")
+            } else {
+                warnings.append("measurement_tag_rules.json is invalid or unreadable; keeping existing measurementTagRules.")
             }
         }
 
@@ -566,11 +444,5 @@ struct RuleLoader {
             seen.insert(standardized)
             return true
         }
-    }
-}
-
-private extension String {
-    var nilIfEmpty: String? {
-        isEmpty ? nil : self
     }
 }

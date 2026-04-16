@@ -207,7 +207,7 @@ final class ConditionRulesHandbookStore {
         let actor: String
     }
 
-    private struct SharedSubstratePayload: Codable {
+    struct SharedSubstratePayload: Codable {
         var tokenSeparators: String
         var originStandaloneTokens: [String]
         var originContainsTokens: [String]
@@ -451,59 +451,7 @@ final class ConditionRulesHandbookStore {
     }
 
     func loadSeparatedConditions() -> SeparatedConditionsPatch? {
-        guard fileManager.fileExists(atPath: conditionsRulesFileURL.path) else {
-            return nil
-        }
-        guard let data = try? Data(contentsOf: conditionsRulesFileURL),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-
-        var setValues: [String: String] = [:]
-        var deletedKeys: Set<String> = []
-        if let extraConditions = json["extraConditions"] as? [String: Any] {
-            for (rawKey, rawValue) in extraConditions {
-                let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !key.isEmpty else { continue }
-                if rawValue is NSNull {
-                    deletedKeys.insert(key)
-                    continue
-                }
-                guard let value = rawValue as? String else { continue }
-                let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !normalized.isEmpty else { continue }
-                setValues[key] = normalized
-            }
-        }
-
-        var tokenMaps: [String: [TokenMapping]] = [:]
-        if let tokenMapRules = json["tokenMapRules"] as? [String: Any] {
-            for (rawKey, rawRules) in tokenMapRules {
-                let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !key.isEmpty,
-                      let rawList = rawRules as? [[String: Any]] else { continue }
-                let mappings: [TokenMapping] = rawList.compactMap { raw in
-                    guard let typeRaw = raw["matchType"] as? String,
-                          let matchType = TokenMatchType(rawValue: typeRaw),
-                          let pattern = (raw["pattern"] as? String)?
-                            .trimmingCharacters(in: .whitespacesAndNewlines),
-                          !pattern.isEmpty else {
-                        return nil
-                    }
-                    let value = (raw["value"] as? String)?
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                        .nilIfEmpty ?? "$MATCH"
-                    return TokenMapping(matchType: matchType, pattern: pattern, value: value)
-                }
-                tokenMaps[key] = mappings
-            }
-        }
-
-        return SeparatedConditionsPatch(
-            extraConditions: setValues,
-            deletedExtraConditionKeys: deletedKeys,
-            tokenMapRules: tokenMaps
-        )
+        SeparatedOverrideReader.readConditions(from: conditionsRulesFileURL)
     }
 
     func saveConditions(_ patch: SeparatedConditionsPatch, approvalToken: RuleWriteToken) throws {
@@ -581,34 +529,7 @@ final class ConditionRulesHandbookStore {
     }
 
     func loadSeparatedSubstrateRules() -> SeparatedSubstratePatch? {
-        guard fileManager.fileExists(atPath: substrateRulesFileURL.path) else {
-            return nil
-        }
-        guard let data = try? Data(contentsOf: substrateRulesFileURL),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-
-        var parsedTagRules: [MatchRuleEntry]?
-        if let rawRules = json["substrateTagRules"] as? [[String: Any]] {
-            parsedTagRules = rawRules.compactMap { decodeMapRuleEntry($0) }
-        }
-
-        var parsedSharedSubstrate: FilenameRuleSet.SharedSubstrateRules?
-        if let rawShared = json["sharedSubstrate"] {
-            if let fragmentData = try? JSONSerialization.data(withJSONObject: rawShared),
-               let payload = try? JSONDecoder().decode(SharedSubstratePayload.self, from: fragmentData) {
-                parsedSharedSubstrate = payload.asRuleSetValue
-            }
-        }
-
-        guard parsedTagRules != nil || parsedSharedSubstrate != nil else {
-            return nil
-        }
-        return SeparatedSubstratePatch(
-            substrateTagRules: parsedTagRules,
-            sharedSubstrate: parsedSharedSubstrate
-        )
+        SeparatedOverrideReader.readSubstrateRules(from: substrateRulesFileURL)
     }
 
     func saveSubstrateRules(_ patch: SeparatedSubstratePatch, approvalToken: RuleWriteToken) throws {
@@ -654,15 +575,7 @@ final class ConditionRulesHandbookStore {
     }
 
     func loadSeparatedMeasurementTagRules() -> [MatchRuleEntry]? {
-        guard fileManager.fileExists(atPath: measurementTagRulesFileURL.path) else {
-            return nil
-        }
-        guard let data = try? Data(contentsOf: measurementTagRulesFileURL),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let rules = json["rules"] as? [[String: Any]] else {
-            return nil
-        }
-        return rules.compactMap { decodeMapRuleEntry($0) }
+        SeparatedOverrideReader.readMeasurementTagRules(from: measurementTagRulesFileURL)
     }
 
     func saveMeasurementTagRules(_ entries: [MatchRuleEntry], approvalToken: RuleWriteToken) throws {
@@ -1489,60 +1402,14 @@ final class ConditionRulesHandbookStore {
     }
 
     private func loadSeparatedWorkflowMatchRules() -> [WorkflowMatchRuleEntry]? {
-        guard fileManager.fileExists(atPath: workflowMatchRulesFileURL.path) else {
-            return nil
-        }
-        guard let data = try? Data(contentsOf: workflowMatchRulesFileURL),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let rules = json["rules"] as? [[String: Any]] else {
-            return nil
-        }
-
-        return rules.compactMap { decodeWorkflowMatchRule($0) }
+        SeparatedOverrideReader.readWorkflowMatchRules(from: workflowMatchRulesFileURL)
     }
 
     private func loadSeparatedSampleIDPatterns() -> [String]? {
-        guard fileManager.fileExists(atPath: sampleIDRulesFileURL.path) else {
-            return nil
-        }
-        guard let data = try? Data(contentsOf: sampleIDRulesFileURL),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let patterns = json["patterns"] as? [String] else {
-            return nil
-        }
-        let normalized = patterns
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        return normalized.isEmpty ? nil : normalized
+        SeparatedOverrideReader.readSampleIDPatterns(from: sampleIDRulesFileURL)
     }
 
-    private func decodeMapRuleEntry(_ raw: [String: Any]) -> MatchRuleEntry? {
-        guard let rawMatch = raw["match"] as? [String: Any],
-              let scopeRaw = rawMatch["scope"] as? String,
-              let typeRaw = rawMatch["type"] as? String,
-              let scope = FilenameRuleSet.MatchScope(rawValue: scopeRaw),
-              let type = FilenameRuleSet.MatchType(rawValue: typeRaw) else {
-            return nil
-        }
-
-        let values = ((rawMatch["values"] as? [String]) ?? [])
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        let single = (rawMatch["value"] as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let matchValues = values.isEmpty ? (single.map { [$0] } ?? []) : values
-        guard !matchValues.isEmpty else { return nil }
-
-        let value = (raw["value"] as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nilIfEmpty ?? "$MATCH"
-        return MatchRuleEntry(
-            scope: scope,
-            type: type,
-            matchValues: matchValues,
-            value: value
-        )
-    }
+    // decodeMapRuleEntry moved to SeparatedOverrideReader.decodeMapRuleEntry
 
     private func normalizedMapRuleEntries(
         _ entries: [MatchRuleEntry],
@@ -1617,31 +1484,7 @@ final class ConditionRulesHandbookStore {
         }
     }
 
-    private func decodeWorkflowMatchRule(_ raw: [String: Any]) -> WorkflowMatchRuleEntry? {
-        guard let workflowID = (raw["workflowID"] as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-              !workflowID.isEmpty,
-              let scopeRaw = raw["scope"] as? String,
-              let typeRaw = raw["type"] as? String,
-              let scope = FilenameRuleSet.MatchScope(rawValue: scopeRaw),
-              let type = FilenameRuleSet.MatchType(rawValue: typeRaw) else {
-            return nil
-        }
-
-        let values = ((raw["matchValues"] as? [String]) ?? [])
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        guard !values.isEmpty else {
-            return nil
-        }
-
-        return WorkflowMatchRuleEntry(
-            scope: scope,
-            type: type,
-            matchValues: values,
-            workflowID: workflowID
-        )
-    }
+    // decodeWorkflowMatchRule moved to SeparatedOverrideReader.decodeWorkflowMatchRule
 
     private func serializedWorkflowMatchRules(_ entries: [WorkflowMatchRuleEntry]) -> [[String: Any]] {
         entries.map { entry in
@@ -1697,11 +1540,5 @@ final class ConditionRulesHandbookStore {
                 return "Rule write rejected: \(message)"
             }
         }
-    }
-}
-
-private extension String {
-    var nilIfEmpty: String? {
-        isEmpty ? nil : self
     }
 }

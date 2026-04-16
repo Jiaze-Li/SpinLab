@@ -106,7 +106,7 @@ struct DeleteWorkbenchResultHappyPath {
         try f.writeChartFile(relativePath: refA.chartImagePath)
         try f.writeChartFile(relativePath: refA.manifestPath)
 
-        let success = LibraryFeatureStore.deleteWorkbenchResultOnDisk(refA, rootURL: f.rootURL)
+        let success = LibraryDiskCleanupService.deleteWorkbenchResultOnDisk(refA, rootURL: f.rootURL)
 
         #expect(success)
         // results_index should retain refB but not refA
@@ -133,7 +133,7 @@ struct DeleteWorkbenchResultHappyPath {
         try f.writeChartFile(relativePath: refA.chartImagePath)
         try f.writeChartFile(relativePath: refA.manifestPath)
 
-        let success = LibraryFeatureStore.deleteWorkbenchResultOnDisk(refA, rootURL: f.rootURL)
+        let success = LibraryDiskCleanupService.deleteWorkbenchResultOnDisk(refA, rootURL: f.rootURL)
         #expect(success)
 
         let plotIdx = f.loadPlotIndex(sampleKey: "S1")
@@ -155,7 +155,7 @@ struct DeleteWorkbenchResultHappyPath {
         try f.writeChartFile(relativePath: refA.manifestPath)
         // No plot index file created
 
-        let success = LibraryFeatureStore.deleteWorkbenchResultOnDisk(refA, rootURL: f.rootURL)
+        let success = LibraryDiskCleanupService.deleteWorkbenchResultOnDisk(refA, rootURL: f.rootURL)
         #expect(success)
         #expect(!f.fileExists(relativePath: refA.chartImagePath))
     }
@@ -176,7 +176,7 @@ struct DeleteWorkbenchResultFailClosed {
         try f.writeChartFile(relativePath: refA.chartImagePath)
         try f.writeChartFile(relativePath: refA.manifestPath)
 
-        let success = LibraryFeatureStore.deleteWorkbenchResultOnDisk(refA, rootURL: f.rootURL)
+        let success = LibraryDiskCleanupService.deleteWorkbenchResultOnDisk(refA, rootURL: f.rootURL)
 
         #expect(!success)
         // Chart files must NOT be deleted — fail-closed
@@ -196,7 +196,7 @@ struct DeleteWorkbenchResultFailClosed {
         try f.writeCorruptResultsIndex(sampleKey: "S2")
         try f.writeChartFile(relativePath: refA.chartImagePath)
 
-        let success = LibraryFeatureStore.deleteWorkbenchResultOnDisk(refA, rootURL: f.rootURL)
+        let success = LibraryDiskCleanupService.deleteWorkbenchResultOnDisk(refA, rootURL: f.rootURL)
 
         #expect(!success)
         // Even S1's index should be unchanged — atomic abort
@@ -229,7 +229,7 @@ struct DeleteWorkbenchResultMultiSample {
         try f.writeChartFile(relativePath: refA.chartImagePath)
         try f.writeChartFile(relativePath: refA.manifestPath)
 
-        let success = LibraryFeatureStore.deleteWorkbenchResultOnDisk(refA, rootURL: f.rootURL)
+        let success = LibraryDiskCleanupService.deleteWorkbenchResultOnDisk(refA, rootURL: f.rootURL)
         #expect(success)
 
         // S1: results_index empty, plot_index entry dropped

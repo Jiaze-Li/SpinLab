@@ -5,7 +5,7 @@ struct LibrarySettingsSectionView: View {
 
     let level2HeaderFont: Font
     let level3HeaderFont: Font
-    let viewState: LibraryViewState
+    let library: LibraryFeatureStore
 
     let onChooseLibraryRoot: () -> Void
     let onVerifyRoot: () -> Void
@@ -36,7 +36,7 @@ struct LibrarySettingsSectionView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         MetadataValueRow(
                             label: "Library Root",
-                            value: viewState.libraryRootPath ?? "Not set",
+                            value: library.librarySettings.rootPath ?? "Not set",
                             monospaced: true
                         )
                         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -52,20 +52,20 @@ struct LibrarySettingsSectionView: View {
                             Button("Sync Files") {
                                 onSyncFiles()
                             }
-                            .disabled(viewState.libraryRootPath == nil)
+                            .disabled(library.librarySettings.rootPath == nil)
                             Button("Backfill Sidecars") {
                                 onBackfillSidecars()
                             }
-                            .disabled(viewState.libraryRootPath == nil)
+                            .disabled(library.librarySettings.rootPath == nil)
                         }
 
-                        if let message = viewState.rootVerificationMessage {
+                        if let message = library.libraryRootVerificationMessage {
                             Text(message)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
 
-                        if let path = viewState.rootVerificationPath {
+                        if let path = library.libraryRootVerificationPath {
                             MetadataValueRow(label: "Verified Path", value: path, monospaced: true)
                         }
                     }
@@ -79,7 +79,7 @@ struct LibrarySettingsSectionView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         MetadataValueRow(
                             label: "Backup Path",
-                            value: viewState.backupPath ?? "Not set",
+                            value: library.librarySettings.backupPath ?? "Not set",
                             monospaced: true
                         )
                         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -92,14 +92,14 @@ struct LibrarySettingsSectionView: View {
                             Button("Sync Backup") {
                                 onSyncBackup()
                             }
-                            .disabled(viewState.libraryRootPath == nil || viewState.backupPath == nil)
+                            .disabled(library.librarySettings.rootPath == nil || library.librarySettings.backupPath == nil)
                         }
 
-                        if let error = viewState.backupError {
+                        if let error = library.libraryBackupError {
                             Text(error)
                                 .font(.caption)
                                 .foregroundStyle(.red)
-                        } else if let message = viewState.backupMessage {
+                        } else if let message = library.libraryBackupMessage {
                             Text(message)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -121,7 +121,7 @@ struct RegistryWorkspaceSectionView: View {
 
     let level2HeaderFont: Font
     let level3HeaderFont: Font
-    let viewState: LibraryViewState
+    let library: LibraryFeatureStore
     let canReloadSampleRegistry: Bool
 
     let selectedPrefix: String?
@@ -166,7 +166,7 @@ struct RegistryWorkspaceSectionView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         MetadataValueRow(
                             label: "Registry Path",
-                            value: viewState.registrySourcePath ?? "Not loaded",
+                            value: library.librarySettings.registrySourcePath ?? "Not loaded",
                             monospaced: true
                         )
                         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -195,22 +195,22 @@ struct RegistryWorkspaceSectionView: View {
                             }
                         }
                         .onAppear {
-                            allowedPrefixesDraft = viewState.allowedBatchPrefixesText
+                            allowedPrefixesDraft = library.librarySettings.allowedBatchPrefixes.joined(separator: ", ")
                         }
 
-                        if let message = viewState.previewMessage {
+                        if let message = library.libraryPreviewMessage {
                             Text(message)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
 
-                        if let message = viewState.drawerMessage {
+                        if let message = library.libraryDrawerMessage {
                             Text(message)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
 
-                        if let error = viewState.drawerError {
+                        if let error = library.libraryDrawerError {
                             Text(error)
                                 .font(.caption)
                                 .foregroundStyle(.red)
@@ -220,7 +220,7 @@ struct RegistryWorkspaceSectionView: View {
                     HStack(spacing: 6) {
                         Text("Registry")
                             .font(level3HeaderFont)
-                        if let syncStatus = viewState.syncStatusMessage {
+                        if let syncStatus = library.librarySyncStatusMessage {
                             Text("(\(syncStatus))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -230,7 +230,7 @@ struct RegistryWorkspaceSectionView: View {
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 8) {
-                        if let review = viewState.refreshReview {
+                        if let review = library.libraryRefreshReview {
                             HStack {
                                 Button("Apply All") {
                                     onApplyAll()
@@ -243,9 +243,9 @@ struct RegistryWorkspaceSectionView: View {
                             }
                         }
 
-                        if !viewState.previewWarnings.isEmpty {
+                        if !library.libraryPreviewWarnings.isEmpty {
                             VStack(alignment: .leading, spacing: 6) {
-                                ForEach(viewState.previewWarnings) { warning in
+                                ForEach(library.libraryPreviewWarnings) { warning in
                                     HStack(alignment: .top, spacing: 8) {
                                         Circle()
                                             .fill(warning.severity == .error ? Color.red : Color.orange)
@@ -268,7 +268,7 @@ struct RegistryWorkspaceSectionView: View {
                     HStack(spacing: 6) {
                         Text("Pending Queue")
                             .font(level3HeaderFont)
-                        if let review = viewState.refreshReview {
+                        if let review = library.libraryRefreshReview {
                             Text("(\(review.newSamples.count) new, \(review.changedSamples.count) changed, \(review.removedSamples.count) removed)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -332,7 +332,7 @@ struct RegistryWorkspaceSectionView: View {
                             BatchPreviewRow(
                                 group: group,
                                 isSelected: selectedBatchId == group.batchId,
-                                status: viewState.batchSyncStatusByID[group.batchId],
+                                status: library.libraryBatchSyncStatusByID[group.batchId],
                                 syncStatusSymbol: syncStatusSymbol,
                                 syncStatusColor: syncStatusColor
                             )

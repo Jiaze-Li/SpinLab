@@ -21,7 +21,7 @@ Library feature has 12-layer call depth for a single action, 3 passthrough layer
 | Phase | Action | Effort |
 |-------|--------|--------|
 | P1 | Delete `LibraryCommandCoordinator` (pure passthrough); collapse `LibraryFacade` into AppState helpers | Small |
-| P2 | Merge `LibraryMutationOrchestrator` into `LibrarySyncService`; unify diff computation to one entry point | Small-Medium |
+| P2 | ~~Merge `LibraryMutationOrchestrator` into `LibrarySyncService`; unify diff computation to one entry point~~ ✅ Done (v5.4.0) | Small-Medium |
 | P3 | Extract from FeatureStore: workbench/measurement projections, log management, sample editing state | Medium |
 | P4 | Simplify ViewModel — View reads `appState.library` directly, remove viewState mapping layer | Medium |
 | P5 | Split LibraryView (1252 lines) into 4-5 focused components | Small |
