@@ -22,7 +22,10 @@ struct FlowLayout: Layout {
             rowHeight = max(rowHeight, size.height)
         }
         y += rowHeight
-        return CGSize(width: maxWidth, height: y)
+        // When proposal.width is nil (unconstrained measurement), return the actual
+        // content width instead of .infinity to avoid broken wrapping in ScrollView/VStack.
+        let resultWidth = maxWidth.isFinite ? maxWidth : max(x - spacing, 0)
+        return CGSize(width: resultWidth, height: y)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
