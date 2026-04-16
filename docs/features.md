@@ -135,9 +135,32 @@ Behavior details: `specs/04_UI_RULES.md`
 - Must use `.hoverPopover()` modifier, never custom hover/dismiss implementations
 - Parameters standardized: showDelay 1s, dismissDelay 500ms
 
-### Disclosure Sections
-- Full-width hit area on header row, not just chevron
+### Button Style Convention (v5.5.0+)
+- `.borderedProminent`: primary / commit actions (Analyze, Save, Apply, Confirm)
+- `.bordered`: secondary actions (Clear, Revert, Export, Done, navigation-style actions)
+- `.borderless`: inline actions within lists or compact panels (toggle, delete, field-level edit)
+- `.plain`: icon-only buttons with no visible chrome (chevron sort, close, minimal toggle)
+- Default (no explicit style): acceptable for secondary actions in macOS context (equivalent to `.bordered`)
+- Destructive actions use `.bordered` with `.foregroundStyle(.red)`, not `.borderedProminent`
+
+### Spacing Scale (v5.5.0+)
+- All new layout spacing must use `AppSpacing` constants (defined in `UI/AppSpacing.swift`), never bare numeric literals
+- Seven-level scale: `xxs`(2) → `xs`(4) → `sm`(6) → `md`(8) → `lg`(12) → `xl`(16) → `xxl`(24)
+- Legacy values outside the scale (3, 10, 14, 20) should be migrated to the nearest scale value when surrounding code is next modified
+- Adding a new spacing level requires updating `AppSpacing` first; ad-hoc one-off values are forbidden in new code
+
+### Font Scale (v5.5.0+)
+- All structural heading fonts must use `AppFontScale` constants (defined in `UI/AppFontScale.swift`), never inline font literals
+- Three-level hierarchy: `sectionTitle` (.title2.bold) → `sectionHeader` (.title3.semibold) → `groupHeader` (.headline)
+- Adding a new level requires updating `AppFontScale` first, then using the new constant
+- Body/content fonts (.callout, .body, .caption) remain contextual and are not part of the heading scale
+- Font minimum readability rule still applies: user-readable content must use `.callout` or larger; `.caption` only for supplementary metadata
+
+### Disclosure Sections (v5.5.0+)
+- All collapsible section headers must use `CollapsibleSectionHeader` component (defined in `UI/CollapsibleSectionHeader.swift`)
+- Full-width hit area on header row, not just chevron (enforced by component's `.contentShape(Rectangle())`)
 - Collapsed visual state must match persisted state
+- Do not create new manual chevron+HStack implementations
 
 ### Interaction Persistence
 - ViewModel syncs with AppState via explicit restoreInteractionState() / persistInteractionState() only

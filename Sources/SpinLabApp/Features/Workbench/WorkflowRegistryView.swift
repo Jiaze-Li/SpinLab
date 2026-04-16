@@ -14,20 +14,7 @@ struct WorkflowRegistryView: View {
                     .foregroundStyle(.red)
             }
 
-            Button {
-                isConfigurationExpanded.toggle()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: isConfigurationExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 20, height: 20)
-                    Text("Workflow Configuration")
-                        .font(.title3.weight(.semibold))
-                    Spacer()
-                }
-            }
-            .buttonStyle(.plain)
+            CollapsibleSectionHeader(title: "Workflow Configuration", isExpanded: $isConfigurationExpanded)
 
             if isConfigurationExpanded {
                 HStack(alignment: .top, spacing: 16) {
@@ -183,6 +170,7 @@ private struct WorkflowDefinitionEditor: View {
                                     Image(systemName: "trash")
                                 }
                                 .buttonStyle(.borderless)
+                                .accessibilityLabel("Delete rule")
                             }
                         }
                     }
@@ -338,51 +326,3 @@ private struct ConditionChip: View {
     }
 }
 
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 8
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let maxWidth = proposal.width ?? .infinity
-        var currentX: CGFloat = 0
-        var currentY: CGFloat = 0
-        var lineHeight: CGFloat = 0
-
-        for view in subviews {
-            let size = view.sizeThatFits(.unspecified)
-            if currentX + size.width > maxWidth, currentX > 0 {
-                currentX = 0
-                currentY += lineHeight + spacing
-                lineHeight = 0
-            }
-            lineHeight = max(lineHeight, size.height)
-            currentX += size.width + spacing
-        }
-
-        return CGSize(
-            width: proposal.width ?? currentX,
-            height: currentY + lineHeight
-        )
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var currentX = bounds.minX
-        var currentY = bounds.minY
-        var lineHeight: CGFloat = 0
-
-        for view in subviews {
-            let size = view.sizeThatFits(.unspecified)
-            if currentX + size.width > bounds.maxX, currentX > bounds.minX {
-                currentX = bounds.minX
-                currentY += lineHeight + spacing
-                lineHeight = 0
-            }
-
-            view.place(
-                at: CGPoint(x: currentX, y: currentY),
-                proposal: ProposedViewSize(width: size.width, height: size.height)
-            )
-            currentX += size.width + spacing
-            lineHeight = max(lineHeight, size.height)
-        }
-    }
-}

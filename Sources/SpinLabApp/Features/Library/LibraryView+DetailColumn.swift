@@ -398,7 +398,7 @@ extension LibraryView {
     }
 
     var sampleDetailSectionTitleFont: Font {
-        .title3.weight(.semibold)
+        AppFontScale.sectionHeader
     }
 
     @ViewBuilder

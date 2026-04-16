@@ -31,9 +31,6 @@ struct LibraryView: View {
     @State var expandedUncategorized: Set<String> = []
     @State var viewModel = LibraryViewModel()
     let computationService = LibraryViewComputationService()
-    let level1HeaderFont: Font = .title2.bold()
-    let level2HeaderFont: Font = .title3.weight(.semibold)
-    let level3HeaderFont: Font = .headline
     var workflowDisplayNameByID: [String: String] {
         Dictionary(uniqueKeysWithValues: appState.workflowDefinitions.map { ($0.id, $0.displayName) })
     }
@@ -168,7 +165,7 @@ struct LibraryView: View {
     var libraryColumnHeader: some View {
         HStack(alignment: .firstTextBaseline) {
             Text("Library")
-                .font(level1HeaderFont)
+                .font(AppFontScale.sectionTitle)
             Button("Export Audit") {
                 presentAuditTrailExportPanel()
             }
@@ -185,8 +182,6 @@ struct LibraryView: View {
     var librarySettingsSection: some View {
         LibrarySettingsSectionView(
             isExpanded: $isLibrarySettingsExpanded,
-            level2HeaderFont: level2HeaderFont,
-            level3HeaderFont: level3HeaderFont,
             library: lib,
             onChooseLibraryRoot: {
                 presentLibraryRootPanel()
@@ -213,8 +208,6 @@ struct LibraryView: View {
         RegistryWorkspaceSectionView(
             isExpanded: $isRegistryWorkspaceExpanded,
             allowedPrefixesDraft: $allowedPrefixesDraft,
-            level2HeaderFont: level2HeaderFont,
-            level3HeaderFont: level3HeaderFont,
             library: lib,
             canReloadSampleRegistry: appState.canReloadSampleRegistry,
             selectedPrefix: selectedPrefix,
