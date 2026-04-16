@@ -128,43 +128,15 @@ var deviceName: String?  { conditionValues[ConditionFieldCatalog.deviceID] }
 
 ## Low Impact / Housekeeping
 
-### Remove deprecated fields from ConditionRules and FilenameRuleSet
-
-**Code:**
-- `Sources/SpinLabApp/Import/Rules/FilenameRuleSet.swift`
-  - `ConditionRules.temperaturePattern / currentPattern / fieldPattern`
-  - `FilenameRuleSet.deviceRules`
-
-**Condition to remove:** All user rule files have been migrated to v2.4+ format (i.e., contain
-`conditionDefinitions` and `conditions.extraConditions`). The migration guard in
-`RuleLoader.normalizeConditionDefinitionBindings()` can be checked: once no "synthesized canonical
-definitions" warning is ever emitted in production, the fields and their migration branches are safe
-to delete.
-
-**Steps:**
-1. Add a telemetry counter or log line tracking how often the synthesis path is hit in production.
-2. After one release cycle with zero hits, delete the three pattern fields from `ConditionRules`,
-   the `deviceRules` field from `FilenameRuleSet`, and the corresponding decode/migration branches
-   in `RuleLoader`.
-3. Remove the `Deprecated` comments added in v2.4.
-
-**Effort:** Low (straightforward deletion once the condition is met)
+### ~~Remove deprecated fields from ConditionRules and FilenameRuleSet~~ ✅ Done (v5.1.4)
+Removed `temperaturePattern`/`currentPattern`/`fieldPattern` from ConditionRules CodingKeys and decode migration,
+`deviceRules` from FilenameRuleSet/InboxRules/config, and legacy migration code from RuleCanonicalizer and
+ConditionRulesHandbookStore.
 
 ---
 
-### Remove legacy CodingKeys from PendingImportConfirmationDraft
-
-**Code:** `Sources/SpinLabApp/App/State/InteractionStateModels.swift`
-- `CodingKeys.workflowTag`, `.deviceName`, `.temperature`
-- The corresponding `init(from:)` migration branches
-
-**Condition to remove:** No active user has an interaction snapshot written by a version predating
-v2.4 (i.e., after one full release cycle where v2.4 is the minimum supported version and old
-snapshots have been naturally overwritten).
-
-**Steps:** Delete the three legacy cases from `CodingKeys` and the `else` branch in `init(from:)`.
-
-**Effort:** Trivial
+### ~~Remove legacy CodingKeys from PendingImportConfirmationDraft~~ ✅ Done (v5.1.0)
+Legacy `workflowTag`/`deviceName`/`temperature` CodingKeys and migration branches already removed.
 
 ---
 

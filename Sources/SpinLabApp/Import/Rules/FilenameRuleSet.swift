@@ -63,28 +63,7 @@ struct FilenameRuleSet: Decodable {
         }
 
         private enum CodingKeys: String, CodingKey {
-            case temperaturePattern, currentPattern, fieldPattern
             case extraConditions, tokenMapRules, displayLabels
-        }
-
-        init(from decoder: any Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            var extra = try container.decodeIfPresent([String: String].self, forKey: .extraConditions) ?? [:]
-            // Migrate legacy fields on decode: if a deprecated field has a non-empty value
-            // and extraConditions doesn't already have it, copy it over.
-            for (legacyKey, catalogID) in [
-                (CodingKeys.temperaturePattern, ConditionFieldCatalog.temperatureID),
-                (CodingKeys.currentPattern, ConditionFieldCatalog.currentID),
-                (CodingKeys.fieldPattern, ConditionFieldCatalog.fieldID)
-            ] {
-                if let legacy = try container.decodeIfPresent(String.self, forKey: legacyKey),
-                   !legacy.isEmpty, extra[catalogID] == nil {
-                    extra[catalogID] = legacy
-                }
-            }
-            extraConditions = extra
-            tokenMapRules = try container.decodeIfPresent([String: [MapRule]].self, forKey: .tokenMapRules) ?? [:]
-            displayLabels = try container.decodeIfPresent([String: String].self, forKey: .displayLabels) ?? [:]
         }
 
         func patternMap() -> [String: String] {
@@ -135,7 +114,6 @@ struct FilenameRuleSet: Decodable {
         var measurementNameRules: [MapRule]
         var measurementTagRules: [MapRule]
         var channel: ChannelRules
-        var deviceRules: [MapRule]
         var rotationHintRules: [MapRule]
         var conditions: ConditionRules
         var conditionDefinitions: [ConditionDefinition]?
@@ -199,9 +177,6 @@ struct FilenameRuleSet: Decodable {
     var measurementTagRules: [MapRule]
     var substrateTagRules: [MapRule]
     var channel: ChannelRules
-    // Deprecated: device rules now live in conditions.tokenMapRules["device"] via conditionDefinitions.
-    // This field is decoded for migration and written as [] on save.
-    var deviceRules: [MapRule]
     var rotationHintRules: [MapRule]
     var conditions: ConditionRules
     var conditionDefinitions: [ConditionDefinition]
@@ -222,7 +197,6 @@ struct FilenameRuleSet: Decodable {
         case measurementTagRules
         case substrateTagRules
         case channel
-        case deviceRules
         case rotationHintRules
         case conditions
         case conditionDefinitions
@@ -243,7 +217,6 @@ struct FilenameRuleSet: Decodable {
         measurementTagRules: [MapRule],
         substrateTagRules: [MapRule],
         channel: ChannelRules,
-        deviceRules: [MapRule],
         rotationHintRules: [MapRule],
         conditions: ConditionRules,
         conditionDefinitions: [ConditionDefinition] = [],
@@ -260,7 +233,6 @@ struct FilenameRuleSet: Decodable {
         self.measurementTagRules = measurementTagRules
         self.substrateTagRules = substrateTagRules
         self.channel = channel
-        self.deviceRules = deviceRules
         self.rotationHintRules = rotationHintRules
         self.conditions = conditions
         self.conditionDefinitions = conditionDefinitions
@@ -293,7 +265,6 @@ struct FilenameRuleSet: Decodable {
             measurementNameRules = inbox.measurementNameRules
             measurementTagRules = inbox.measurementTagRules
             channel = inbox.channel
-            deviceRules = inbox.deviceRules
             rotationHintRules = inbox.rotationHintRules
             conditions = inbox.conditions
             conditionDefinitions = inbox.conditionDefinitions ?? []
@@ -303,7 +274,6 @@ struct FilenameRuleSet: Decodable {
             measurementNameRules = try container.decode([MapRule].self, forKey: .measurementNameRules)
             measurementTagRules = try container.decode([MapRule].self, forKey: .measurementTagRules)
             channel = try container.decode(ChannelRules.self, forKey: .channel)
-            deviceRules = try container.decode([MapRule].self, forKey: .deviceRules)
             rotationHintRules = try container.decode([MapRule].self, forKey: .rotationHintRules)
             conditions = try container.decode(ConditionRules.self, forKey: .conditions)
             conditionDefinitions = try container.decodeIfPresent([ConditionDefinition].self, forKey: .conditionDefinitions) ?? []
@@ -735,7 +705,6 @@ struct FilenameRuleSet: Decodable {
             measurementTagRules: [],
             substrateTagRules: [],
             channel: ChannelRules(aliases: [:]),
-            deviceRules: [],
             rotationHintRules: [],
             conditions: ConditionRules(
                 extraConditions: [

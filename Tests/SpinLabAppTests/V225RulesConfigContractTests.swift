@@ -54,46 +54,47 @@ struct V225RulesConfigContractTests {
         #expect(SampleSemanticDescriptor.normalizedProcessingTokenForRules("B") == expected)
     }
 
-    @Test("legacy rule set without conditionDefinitions is migrated correctly")
-    func legacyRuleSetWithoutConditionDefinitionsIsMigrated() {
-        var legacy = FilenameRuleSet.fallback()
-        legacy.conditionDefinitions = []
-        legacy.conditions.extraConditions = [
+    @Test("rule set without conditionDefinitions synthesizes definitions from conditions")
+    func ruleSetWithoutConditionDefinitionsIsMigrated() {
+        var ruleSet = FilenameRuleSet.fallback()
+        ruleSet.conditionDefinitions = []
+        ruleSet.conditions.extraConditions = [
             ConditionFieldCatalog.temperatureID: "^-?\\d+(?:\\.\\d+)?(?:K)$"
         ]
-        legacy.conditions.tokenMapRules = [:]
-        legacy.deviceRules = [
-            .init(
-                match: .init(scope: .tokens, type: .equals, value: "wafer", values: nil),
-                value: "wafer"
-            )
+        ruleSet.conditions.tokenMapRules = [
+            ConditionFieldCatalog.deviceID: [
+                .init(
+                    match: .init(scope: .tokens, type: .equals, value: "wafer", values: nil),
+                    value: "wafer"
+                )
+            ]
         ]
 
         let warnings = RuleLoader.normalizeConditionDefinitionBindings(
-            ruleSet: &legacy,
+            ruleSet: &ruleSet,
             sourceLabel: "Test"
         )
 
         #expect(!warnings.isEmpty)
         #expect(
-            legacy.conditionDefinitions.contains {
+            ruleSet.conditionDefinitions.contains {
                 $0.id == "temperature"
                     && $0.kind == .unitSuffix
                     && $0.binding == "conditions.extraConditions.temperature"
             }
         )
         #expect(
-            legacy.conditionDefinitions.contains {
+            ruleSet.conditionDefinitions.contains {
                 $0.id == "device"
                     && $0.kind == .tokenMap
                     && $0.binding == "conditions.tokenMapRules.device"
             }
         )
-        #expect(legacy.conditions.extraConditions["temperature"] == "^-?\\d+(?:\\.\\d+)?(?:K)$")
-        #expect(legacy.conditions.tokenMapRules["device"]?.count == 1)
+        #expect(ruleSet.conditions.extraConditions["temperature"] == "^-?\\d+(?:\\.\\d+)?(?:K)$")
+        #expect(ruleSet.conditions.tokenMapRules["device"]?.count == 1)
 
-        legacy.loadWarnings = legacy.compile()
-        let parser = FilenameRuleParser(ruleSet: legacy)
+        ruleSet.loadWarnings = ruleSet.compile()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
         let parsed = parser.parse(from: URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_25K_wafer.dat"))
         #expect(parsed.temperature == "25K")
         #expect(parsed.deviceName == "wafer")
@@ -261,33 +262,33 @@ struct V225RulesConfigContractTests {
         #expect(store.userFileURL == paths.ruleURL)
     }
 
-    @Test("legacy user handbook file migrates to canonical condition schema")
-    func legacyUserRulesMigrateToCanonicalConditionSchema() throws {
+    @Test("user handbook file without conditionDefinitions gets canonical definitions added")
+    func userRulesWithoutDefinitionsGetCanonicalDefinitions() throws {
         let store = ConditionRulesHandbookStore()
         let userFileURL = store.userFileURL
 
         try withFileBackups([userFileURL]) {
-            let legacyDocument: [String: Any] = [
+            let document: [String: Any] = [
                 "version": 1,
                 "conditions": [
-                    "temperaturePattern": "^\\d+K$",
-                    "currentPattern": "",
-                    "fieldPattern": "",
-                    "extraConditions": [:],
-                    "tokenMapRules": [:]
-                ],
-                "deviceRules": [
-                    [
-                        "match": [
-                            "scope": "tokens",
-                            "type": "equals",
-                            "value": "wafer"
-                        ],
-                        "value": "wafer"
+                    "extraConditions": [
+                        "temperature": "^\\d+K$"
+                    ],
+                    "tokenMapRules": [
+                        "device": [
+                            [
+                                "match": [
+                                    "scope": "tokens",
+                                    "type": "equals",
+                                    "value": "wafer"
+                                ],
+                                "value": "wafer"
+                            ]
+                        ]
                     ]
                 ]
             ]
-            try writeJSON(legacyDocument, to: userFileURL)
+            try writeJSON(document, to: userFileURL)
 
             let migrated = store.migrateUserRuleFileToCanonicalIfNeeded()
             #expect(migrated)
@@ -300,12 +301,10 @@ struct V225RulesConfigContractTests {
             let conditions = try #require(migratedJSON["conditions"] as? [String: Any])
             let extraConditions = try #require(conditions["extraConditions"] as? [String: String])
             let tokenMapRules = try #require(conditions["tokenMapRules"] as? [String: Any])
-            let deviceRules = (migratedJSON["deviceRules"] as? [Any]) ?? []
 
             #expect(conditionDefinitions.contains(where: { ($0["id"] as? String) == "temperature" }))
             #expect(extraConditions["temperature"] == "^\\d+K$")
             #expect(tokenMapRules["device"] != nil)
-            #expect(deviceRules.isEmpty)
         }
     }
 

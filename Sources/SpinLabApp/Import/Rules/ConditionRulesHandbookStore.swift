@@ -909,18 +909,6 @@ final class ConditionRulesHandbookStore {
             conditions["tokenMapRules"] = filteredTokenMapRules
         }
 
-        // Legacy fields (temperaturePattern, currentPattern, fieldPattern) removed in v5.2.0.
-        // Migration from old JSON is handled by ConditionRules.init(from:) and
-        // RuleCanonicalizer.migrateUserRuleJSONToCanonical.
-        conditions.removeValue(forKey: "temperaturePattern")
-        conditions.removeValue(forKey: "currentPattern")
-        conditions.removeValue(forKey: "fieldPattern")
-        if hasInbox {
-            inbox["deviceRules"] = []
-        } else {
-            json["deviceRules"] = []
-        }
-
         let serializedDefinitions = serializeConditionDefinitions(finalDefinitions)
         if hasInbox {
             inbox["conditionDefinitions"] = serializedDefinitions
@@ -1126,18 +1114,13 @@ final class ConditionRulesHandbookStore {
         let canonicalBinding: String
         switch definition.kind {
         case .unitSuffix:
-            if normalizedBinding.hasPrefix("conditions.extraConditions.")
-                || normalizedBinding == "conditions.temperaturePattern"
-                || normalizedBinding == "conditions.currentPattern"
-                || normalizedBinding == "conditions.fieldPattern" {
+            if normalizedBinding.hasPrefix("conditions.extraConditions.") {
                 canonicalBinding = "conditions.extraConditions.\(normalizedRuleID)"
             } else {
                 canonicalBinding = normalizedBinding
             }
         case .tokenMap:
-            if normalizedBinding == "deviceRules"
-                || normalizedBinding == "inbox.deviceRules"
-                || normalizedBinding.hasPrefix("conditions.tokenMapRules.") {
+            if normalizedBinding.hasPrefix("conditions.tokenMapRules.") {
                 canonicalBinding = "conditions.tokenMapRules.\(normalizedRuleID)"
             } else {
                 canonicalBinding = normalizedBinding
