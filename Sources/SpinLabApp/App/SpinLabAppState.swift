@@ -262,7 +262,6 @@ final class SpinLabAppState {
         }
     )
     private let libraryPreviewComputationService = LibraryPreviewComputationService()
-    private let libraryMutationOrchestrator = LibraryMutationOrchestrator()
     private let libraryMutationService = LibraryMutationService()
     private let coordinator = AppCoordinator()
     private let applyCoordinator = ApplyCoordinator()
@@ -353,7 +352,6 @@ final class SpinLabAppState {
 
         libraryFeatureStore.configureFacade(
             mutationService: libraryMutationService,
-            orchestrator: libraryMutationOrchestrator,
             saveEditsUseCase: saveLibrarySampleEditsUseCase,
             appLogger: appLogger,
             resolveRegistrySourceURL: { [weak self] in
@@ -1411,13 +1409,11 @@ final class SpinLabAppState {
             libraryFeatureStore.libraryPreviewMessage = "No preview loaded."
             return
         }
-        let state = libraryMutationOrchestrator.buildActionablePreviewState(
+        let state = librarySyncService.buildActionablePreviewState(
             preview: preview,
             precomputedDiff: precomputedDiff,
             baselineIndex: baselineIndex,
             rootPath: libraryFeatureStore.librarySettings.rootPath,
-            libraryStore: libraryFeatureStore.libraryStore,
-            libraryDiffEngine: libraryFeatureStore.libraryDiffEngine,
             previewComputationService: libraryPreviewComputationService
         )
         libraryFeatureStore.libraryPreviewGroups = state.groups
@@ -1435,10 +1431,7 @@ final class SpinLabAppState {
             previewIndex: previewIndex,
             precomputedDiff: precomputedDiff,
             precomputedReview: precomputedReview,
-            libraryStore: libraryFeatureStore.libraryStore,
-            libraryDiffEngine: libraryFeatureStore.libraryDiffEngine,
-            librarySyncService: librarySyncService,
-            orchestrator: libraryMutationOrchestrator
+            librarySyncService: librarySyncService
         )
         applyExistingIndex(outcome.syncedIndex)
 

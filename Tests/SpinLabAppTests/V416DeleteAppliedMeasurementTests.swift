@@ -182,7 +182,7 @@ struct DeleteAppliedMeasurementHappyPath {
         let dataFilePath = sidecarPath.replacingOccurrences(of: ".spinlab.json", with: "")
         let m = makeMeasurement(sidecarPath: sidecarPath)
 
-        let success = LibraryFeatureStore.deleteAppliedMeasurementOnDisk(m, rootURL: f.rootURL)
+        let success = LibraryDiskCleanupService.deleteAppliedMeasurementOnDisk(m, rootURL: f.rootURL)
 
         #expect(success)
         #expect(!f.fileExists(absolutePath: sidecarPath))
@@ -205,7 +205,7 @@ struct DeleteAppliedMeasurementHappyPath {
         try f.writeChartFile(relativePath: refB.manifestPath)
 
         let m = makeMeasurement(sidecarPath: sidecarPath)
-        let success = LibraryFeatureStore.deleteAppliedMeasurementOnDisk(m, rootURL: f.rootURL)
+        let success = LibraryDiskCleanupService.deleteAppliedMeasurementOnDisk(m, rootURL: f.rootURL)
 
         #expect(success)
         // chart-A (linked to run1.dat) should be deleted
@@ -232,7 +232,7 @@ struct DeleteAppliedMeasurementHappyPath {
         try f.writeMeasurementSets(sampleKey: "S1", sets: [set1, set2])
 
         let m = makeMeasurement(sidecarPath: sidecarPath)
-        let success = LibraryFeatureStore.deleteAppliedMeasurementOnDisk(m, rootURL: f.rootURL)
+        let success = LibraryDiskCleanupService.deleteAppliedMeasurementOnDisk(m, rootURL: f.rootURL)
 
         #expect(success)
         let remaining = f.loadMeasurementSets(sampleKey: "S1")
@@ -259,7 +259,7 @@ struct DeleteAppliedMeasurementNonFatal {
         try FileManager.default.removeItem(atPath: dataFilePath)
 
         let m = makeMeasurement(sidecarPath: sidecarPath)
-        let success = LibraryFeatureStore.deleteAppliedMeasurementOnDisk(m, rootURL: f.rootURL)
+        let success = LibraryDiskCleanupService.deleteAppliedMeasurementOnDisk(m, rootURL: f.rootURL)
 
         #expect(success)
         #expect(!f.fileExists(absolutePath: sidecarPath))
@@ -275,7 +275,7 @@ struct DeleteAppliedMeasurementNonFatal {
         try FileManager.default.removeItem(atPath: sidecarPath)
 
         let m = makeMeasurement(sidecarPath: sidecarPath)
-        let success = LibraryFeatureStore.deleteAppliedMeasurementOnDisk(m, rootURL: f.rootURL)
+        let success = LibraryDiskCleanupService.deleteAppliedMeasurementOnDisk(m, rootURL: f.rootURL)
 
         #expect(success)
         // Data file should still be deleted
@@ -292,7 +292,7 @@ struct DeleteAppliedMeasurementNonFatal {
         // No root-level _spinlab/ at all
 
         let m = makeMeasurement(sidecarPath: sidecarPath)
-        let success = LibraryFeatureStore.deleteAppliedMeasurementOnDisk(m, rootURL: f.rootURL)
+        let success = LibraryDiskCleanupService.deleteAppliedMeasurementOnDisk(m, rootURL: f.rootURL)
 
         #expect(success)
         #expect(!f.fileExists(absolutePath: sidecarPath))
@@ -314,7 +314,7 @@ struct DeleteAppliedMeasurementFailClosed {
         try f.writeCorruptResultsIndex(sampleKey: "S1")
 
         let m = makeMeasurement(sidecarPath: sidecarPath)
-        let success = LibraryFeatureStore.deleteAppliedMeasurementOnDisk(m, rootURL: f.rootURL)
+        let success = LibraryDiskCleanupService.deleteAppliedMeasurementOnDisk(m, rootURL: f.rootURL)
 
         #expect(!success)
         // Sidecar and data file must NOT be deleted
@@ -332,7 +332,7 @@ struct DeleteAppliedMeasurementFailClosed {
         try f.writeCorruptPlotIndex(sampleKey: "S1")
 
         let m = makeMeasurement(sidecarPath: sidecarPath)
-        let success = LibraryFeatureStore.deleteAppliedMeasurementOnDisk(m, rootURL: f.rootURL)
+        let success = LibraryDiskCleanupService.deleteAppliedMeasurementOnDisk(m, rootURL: f.rootURL)
 
         #expect(!success)
         #expect(f.fileExists(absolutePath: sidecarPath))
@@ -369,7 +369,7 @@ struct DeleteAppliedMeasurementIsolation {
 
         // Delete S1's measurement only
         let m = makeMeasurement(sidecarPath: sidecarPathS1)
-        let success = LibraryFeatureStore.deleteAppliedMeasurementOnDisk(m, rootURL: f.rootURL)
+        let success = LibraryDiskCleanupService.deleteAppliedMeasurementOnDisk(m, rootURL: f.rootURL)
 
         #expect(success)
         // S1: sidecar, data, chart all gone

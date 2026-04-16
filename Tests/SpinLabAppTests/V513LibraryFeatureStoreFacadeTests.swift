@@ -350,7 +350,7 @@ struct LibraryFeatureStoreFacadeCallbackTests {
         var callCount = 0
         store.configureFacade(
             mutationService: LibraryMutationService(),
-            orchestrator: LibraryMutationOrchestrator(),
+
             saveEditsUseCase: SaveLibrarySampleEditsUseCase(),
             appLogger: AppLogger.shared,
             resolveRegistrySourceURL: { nil },
@@ -381,7 +381,7 @@ struct LibraryFeatureStoreFacadeCallbackTests {
         var presentedErrors: [(AppError, String)] = []
         store.configureFacade(
             mutationService: LibraryMutationService(),
-            orchestrator: LibraryMutationOrchestrator(),
+
             saveEditsUseCase: SaveLibrarySampleEditsUseCase(),
             appLogger: AppLogger.shared,
             resolveRegistrySourceURL: { nil },
@@ -403,7 +403,7 @@ struct LibraryFeatureStoreFacadeCallbackTests {
         var presentedErrors: [(AppError, String)] = []
         store.configureFacade(
             mutationService: LibraryMutationService(),
-            orchestrator: LibraryMutationOrchestrator(),
+
             saveEditsUseCase: SaveLibrarySampleEditsUseCase(),
             appLogger: AppLogger.shared,
             resolveRegistrySourceURL: { nil },
@@ -425,7 +425,7 @@ struct LibraryFeatureStoreFacadeCallbackTests {
         var commitCalled = false
         store.configureFacade(
             mutationService: LibraryMutationService(),
-            orchestrator: LibraryMutationOrchestrator(),
+
             saveEditsUseCase: SaveLibrarySampleEditsUseCase(),
             appLogger: AppLogger.shared,
             resolveRegistrySourceURL: { nil },
@@ -447,7 +447,7 @@ struct LibraryFeatureStoreFacadeCallbackTests {
         store.libraryDrawerError = "previous error"
         store.configureFacade(
             mutationService: LibraryMutationService(),
-            orchestrator: LibraryMutationOrchestrator(),
+
             saveEditsUseCase: SaveLibrarySampleEditsUseCase(),
             appLogger: AppLogger.shared,
             resolveRegistrySourceURL: { nil },
@@ -472,7 +472,7 @@ struct LibraryFeatureStoreFacadeCallbackTests {
 
         store.configureFacade(
             mutationService: LibraryMutationService(),
-            orchestrator: LibraryMutationOrchestrator(),
+
             saveEditsUseCase: SaveLibrarySampleEditsUseCase(),
             appLogger: AppLogger.shared,
             resolveRegistrySourceURL: { nil },

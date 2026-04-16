@@ -1,45 +1,43 @@
-import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct LibraryView: View {
-    @Environment(SpinLabAppState.self) private var appState
-    @State private var allowedPrefixesDraft: String = ""
-    @State private var isLibrarySettingsExpanded = true
-    @State private var isRegistryWorkspaceExpanded = true
-    @State private var isSearchWorkspaceExpanded = true
-    @State private var isMetadataSectionExpanded = true
-    @State private var isShowingSampleChangeLog = false
-    @State private var isShowingGlobalManualLog = false
-    @State private var isShowingMetadataSyncLog = false
-    @State private var searchBatchIdText: String = ""
-    @State private var searchSubstrateText: String = ""
-    @State private var searchKeywordText: String = ""
-    @State private var searchThicknessText: String = ""
-    @State private var searchOxygenText: String = ""
-    @State private var searchTemperatureText: String = ""
-    @State private var searchEnergyText: String = ""
-    @State private var searchThicknessToleranceText: String = ""
-    @State private var searchOxygenToleranceText: String = ""
-    @State private var searchTemperatureToleranceText: String = ""
-    @State private var searchEnergyToleranceText: String = ""
-    @State private var searchMatchedResults: [SearchResultItem] = []
-    @State private var searchHasExecuted = false
-    @State private var searchDebounceTask: Task<Void, Never>?
-    @State private var interactionPersistTask: Task<Void, Never>?
-    @State private var previewDerivedData = PreviewDerivedData()
-    @State private var expandedWorkflows: Set<String> = []
-    @State private var expandedSets: Set<String> = []
-    @State private var expandedUncategorized: Set<String> = []
-    @State private var viewModel = LibraryViewModel()
-    private let computationService = LibraryViewComputationService()
-    private let level1HeaderFont: Font = .title2.bold()
-    private let level2HeaderFont: Font = .title3.weight(.semibold)
-    private let level3HeaderFont: Font = .headline
-    private var workflowDisplayNameByID: [String: String] {
+    @Environment(SpinLabAppState.self) var appState
+    @State var allowedPrefixesDraft: String = ""
+    @State var isLibrarySettingsExpanded = true
+    @State var isRegistryWorkspaceExpanded = true
+    @State var isSearchWorkspaceExpanded = true
+    @State var isMetadataSectionExpanded = true
+    @State var isShowingSampleChangeLog = false
+    @State var isShowingGlobalManualLog = false
+    @State var isShowingMetadataSyncLog = false
+    @State var searchBatchIdText: String = ""
+    @State var searchSubstrateText: String = ""
+    @State var searchKeywordText: String = ""
+    @State var searchThicknessText: String = ""
+    @State var searchOxygenText: String = ""
+    @State var searchTemperatureText: String = ""
+    @State var searchEnergyText: String = ""
+    @State var searchThicknessToleranceText: String = ""
+    @State var searchOxygenToleranceText: String = ""
+    @State var searchTemperatureToleranceText: String = ""
+    @State var searchEnergyToleranceText: String = ""
+    @State var searchMatchedResults: [SearchResultItem] = []
+    @State var searchHasExecuted = false
+    @State var searchDebounceTask: Task<Void, Never>?
+    @State var interactionPersistTask: Task<Void, Never>?
+    @State var previewDerivedData = PreviewDerivedData()
+    @State var expandedWorkflows: Set<String> = []
+    @State var expandedSets: Set<String> = []
+    @State var expandedUncategorized: Set<String> = []
+    @State var viewModel = LibraryViewModel()
+    let computationService = LibraryViewComputationService()
+    let level1HeaderFont: Font = .title2.bold()
+    let level2HeaderFont: Font = .title3.weight(.semibold)
+    let level3HeaderFont: Font = .headline
+    var workflowDisplayNameByID: [String: String] {
         Dictionary(uniqueKeysWithValues: appState.workflowDefinitions.map { ($0.id, $0.displayName) })
     }
-    private var workflowConditionOrderByID: [String: [String]] {
+    var workflowConditionOrderByID: [String: [String]] {
         Dictionary(uniqueKeysWithValues: appState.workflowDefinitions.map { definition in
             (definition.id, definition.conditionFields.map(\.definitionID))
         })
@@ -110,28 +108,28 @@ struct LibraryView: View {
         }
         .modifier(LibraryDialogsModifier(
             pendingSelectionChangeDialogBinding: pendingSelectionChangeDialogBinding,
-            pendingPrompt: viewModel.viewState.pendingSelectionChangePrompt,
+            pendingPrompt: appState.library.libraryPendingSelectionChangePrompt,
             onSaveAndSwitch: { viewModel.saveAndContinuePendingSelectionChange() },
             onDiscardAndSwitch: { viewModel.discardAndContinuePendingSelectionChange() },
-            onCancelSwitch: { viewModel.cancelPendingSelectionChange() },
+            onCancelSwitch: { appState.library.cancelPendingSelectionChange() },
             isShowingSampleChangeLog: $isShowingSampleChangeLog,
             selectedSample: selectedSample,
             changeLogEntries: selectedSample.map { appState.library.sampleChangeLog(for: $0) } ?? [],
             isShowingGlobalManualLog: $isShowingGlobalManualLog,
-            globalManualLogs: viewModel.viewState.globalManualLogs,
-            globalManualLogError: viewModel.viewState.globalManualLogError,
-            globalManualLogMessage: viewModel.viewState.globalManualLogMessage,
-            onRefreshGlobalManualLog: { viewModel.loadLibraryGlobalManualLogs() },
-            onMarkStatus: { viewModel.markLibraryGlobalManualLogStatus(rowIndex: $0, status: $1) },
+            globalManualLogs: appState.library.libraryGlobalManualLogs,
+            globalManualLogError: appState.library.libraryGlobalManualLogError,
+            globalManualLogMessage: appState.library.libraryGlobalManualLogMessage,
+            onRefreshGlobalManualLog: { appState.library.loadLibraryGlobalManualLogs() },
+            onMarkStatus: { appState.library.markLibraryGlobalManualLogStatus(rowIndex: $0, status: $1) },
             isShowingMetadataSyncLog: $isShowingMetadataSyncLog,
-            metadataSyncEntries: viewModel.viewState.metadataSyncLogs,
-            metadataSyncLogError: viewModel.viewState.metadataSyncLogError,
-            metadataSyncLogMessage: viewModel.viewState.metadataSyncLogMessage,
-            onRefreshMetadataSyncLog: { viewModel.loadLibraryMetadataSyncLogs() }
+            metadataSyncEntries: appState.library.libraryMetadataSyncLogs,
+            metadataSyncLogError: appState.library.libraryMetadataSyncLogError,
+            metadataSyncLogMessage: appState.library.libraryMetadataSyncLogMessage,
+            onRefreshMetadataSyncLog: { appState.library.loadLibraryMetadataSyncLogs() }
         ))
     }
 
-    private var librarySettingsColumn: some View {
+    var librarySettingsColumn: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 10) {
                 libraryColumnHeader
@@ -148,26 +146,26 @@ struct LibraryView: View {
         .animation(nil, value: selectedSampleId)
     }
 
-    private var viewState: LibraryViewState {
-        viewModel.viewState
+    var lib: LibraryFeatureStore {
+        appState.library
     }
 
-    private var selectedPrefix: String? {
+    var selectedPrefix: String? {
         get { appState.library.librarySelectedPrefix }
         nonmutating set { appState.library.librarySelectedPrefix = newValue }
     }
 
-    private var selectedBatchId: String? {
+    var selectedBatchId: String? {
         get { appState.library.librarySelectedBatchId }
         nonmutating set { appState.library.librarySelectedBatchId = newValue }
     }
 
-    private var selectedSampleId: String? {
+    var selectedSampleId: String? {
         get { appState.library.librarySelectedSampleId }
         nonmutating set { appState.library.librarySelectedSampleId = newValue }
     }
 
-    private var libraryColumnHeader: some View {
+    var libraryColumnHeader: some View {
         HStack(alignment: .firstTextBaseline) {
             Text("Library")
                 .font(level1HeaderFont)
@@ -184,23 +182,23 @@ struct LibraryView: View {
         .padding(.top, 4)
     }
 
-    private var librarySettingsSection: some View {
+    var librarySettingsSection: some View {
         LibrarySettingsSectionView(
             isExpanded: $isLibrarySettingsExpanded,
             level2HeaderFont: level2HeaderFont,
             level3HeaderFont: level3HeaderFont,
-            viewState: viewState,
+            library: lib,
             onChooseLibraryRoot: {
                 presentLibraryRootPanel()
             },
             onVerifyRoot: {
-                viewModel.verifyLibraryRoot()
+                appState.library.verifyLibraryRoot()
             },
             onSyncFiles: {
-                viewModel.syncLibraryFromFiles()
+                appState.library.syncLibraryFromFiles()
             },
             onBackfillSidecars: {
-                viewModel.backfillLibraryMeasurementSidecars()
+                appState.library.backfillLibraryMeasurementSidecars()
             },
             onChooseBackupPath: {
                 presentBackupPathPanel()
@@ -217,7 +215,7 @@ struct LibraryView: View {
             allowedPrefixesDraft: $allowedPrefixesDraft,
             level2HeaderFont: level2HeaderFont,
             level3HeaderFont: level3HeaderFont,
-            viewState: viewState,
+            library: lib,
             canReloadSampleRegistry: appState.canReloadSampleRegistry,
             selectedPrefix: selectedPrefix,
             selectedBatchId: selectedBatchId,
@@ -232,7 +230,7 @@ struct LibraryView: View {
                 viewModel.reloadSampleRegistry()
             },
             onSavePrefixes: { value in
-                viewModel.updateAllowedBatchPrefixes(from: value)
+                appState.library.updateAllowedBatchPrefixes(from: value)
             },
             onSelectPrefix: { newValue in
                 selectedPrefix = newValue
@@ -268,964 +266,10 @@ struct LibraryView: View {
         )
     }
 
-    private var searchWorkspaceSection: some View {
-        SearchWorkspaceSectionView(
-            isExpanded: $isSearchWorkspaceExpanded,
-            batchIdText: $searchBatchIdText,
-            substrateText: $searchSubstrateText,
-            keywordText: $searchKeywordText,
-            thicknessText: $searchThicknessText,
-            oxygenText: $searchOxygenText,
-            temperatureText: $searchTemperatureText,
-            energyText: $searchEnergyText,
-            thicknessToleranceText: $searchThicknessToleranceText,
-            oxygenToleranceText: $searchOxygenToleranceText,
-            temperatureToleranceText: $searchTemperatureToleranceText,
-            energyToleranceText: $searchEnergyToleranceText,
-            level2HeaderFont: level2HeaderFont,
-            level3HeaderFont: level3HeaderFont,
-            searchHasExecuted: searchHasExecuted,
-            searchMatchedResults: searchMatchedResults,
-            onSearch: {
-                executeSearch()
-            },
-            onClear: {
-                clearSearchFilters()
-            },
-            onSelectResult: { result in
-                selectSearchResultSample(result)
-            },
-            isSelectedResult: { result in
-                isSelectedSearchResult(result)
-            }
-        )
-    }
-
-    private var existingDrawerSampleSection: some View {
-        LibraryExistingDrawerSampleSectionView(
-            level2HeaderFont: level2HeaderFont,
-            level3HeaderFont: level3HeaderFont,
-            selectedPrefix: viewState.selectedPrefix,
-            selectedBatchId: viewState.selectedBatchId,
-            selectedSampleId: viewState.selectedSampleId,
-            selectedExistingBatchSamples: selectedExistingBatchSamples
-        ) { sample in
-            guard let prefix = viewState.selectedPrefix,
-                  let batchId = viewState.selectedBatchId else {
-                return
-            }
-            viewModel.selectExistingDrawer(prefix: prefix, batchId: batchId, sampleId: sample.id)
-        }
-    }
-
-    private var libraryDetailColumn: some View {
-        GeometryReader { proxy in
-            let detailWidth = proxy.size.width
-            let detailHeight = proxy.size.height
-            let sectionWidth = max(detailWidth - 24, 0)
-            let sectionSpacing = adaptiveDetailSectionSpacing(for: detailHeight)
-            ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: sectionSpacing) {
-                    sampleDetailHeader
-
-                    if let sample = selectedSample {
-                        if isEditingSelectedSample, let draft = viewState.sampleEditDraft {
-                            let sections = makeDetailSections(for: sample)
-                            let globalFirstColumnWidth = alignedFirstColumnWidth(
-                                fields: sections.allFields,
-                                availableWidth: sectionWidth
-                            )
-                            samplePrimarySection(
-                                for: sample,
-                                draft: draft,
-                                availableWidth: sectionWidth,
-                                sharedFirstColumnWidth: globalFirstColumnWidth
-                            )
-                            Divider()
-                            editNumericSection(draft: draft)
-                            Divider()
-                            editMetadataSection(draft: draft, availableWidth: sectionWidth)
-                        } else {
-                            let sections = makeDetailSections(for: sample)
-                            let globalFirstColumnWidth = alignedFirstColumnWidth(
-                                fields: sections.allFields,
-                                availableWidth: sectionWidth
-                            )
-
-                            samplePrimarySection(
-                                for: sample,
-                                draft: nil,
-                                availableWidth: sectionWidth,
-                                sharedFirstColumnWidth: globalFirstColumnWidth
-                            )
-
-                            if !selectedChangeHighlights(for: sample).isEmpty {
-                                Divider()
-                                Text("Pending Changes")
-                                    .font(.headline)
-                                pendingChangesSection(for: sample)
-                            }
-
-                            if !sections.numericFields.isEmpty {
-                                Divider()
-                                Text("Numeric Tags")
-                                    .font(sampleDetailSectionTitleFont)
-                                detailSection(
-                                    fields: sections.numericFields,
-                                    availableWidth: sectionWidth,
-                                    sharedFirstColumnWidth: globalFirstColumnWidth
-                                )
-                            }
-
-                            Divider()
-                            MeasurementDataSectionView(
-                                measurementData: appState.library.measurementData,
-                                conditionAliasBook: appState.library.conditionAliasBook,
-                                availableWidth: sectionWidth,
-                                onDeleteMetric: { identityKey in
-                                    appState.library.deleteMetricRecord(identityKey: identityKey)
-                                }
-                            )
-
-                            Divider()
-                            LibraryMeasurementsDoneSection(
-                                measurements: sample.appliedMeasurements,
-                                measurementSets: sample.measurementSets,
-                                workflowDisplayNameByID: workflowDisplayNameByID,
-                                workflowConditionOrderByID: workflowConditionOrderByID,
-                                onDelete: { m in appState.library.deleteAppliedMeasurement(m) },
-                                workbenchResults: appState.library.workbenchResults,
-                                measurementPlotIndex: appState.library.measurementPlotIndex,
-                                libraryRootURL: appState.library.librarySettings.rootPath.map { URL(fileURLWithPath: $0) },
-                                onDeleteChart: { ref in appState.library.deleteWorkbenchResult(ref) },
-                                onCreateSet: { name, wf, member in appState.library.createMeasurementSet(name: name, workflow: wf, initialMember: member) },
-                                onAddToSet: { setID, fileName in appState.library.addToMeasurementSet(setID: setID, fileName: fileName) },
-                                onRemoveFromSet: { setID, fileName in appState.library.removeFromMeasurementSet(setID: setID, fileName: fileName) },
-                                onRenameSet: { setID, newName in appState.library.renameMeasurementSet(setID: setID, newName: newName) },
-                                onDeleteSet: { setID in appState.library.deleteMeasurementSet(setID: setID) },
-                                expandedWorkflows: $expandedWorkflows,
-                                expandedSets: $expandedSets,
-                                expandedUncategorized: $expandedUncategorized
-                            )
-
-                            Divider()
-                            DisclosureGroup(isExpanded: $isMetadataSectionExpanded) {
-                                if sample.orderedMetadata.isEmpty {
-                                    Text("No metadata")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                } else {
-                                    detailSection(
-                                        fields: sections.metadataFields,
-                                        availableWidth: sectionWidth,
-                                        sharedFirstColumnWidth: globalFirstColumnWidth
-                                    )
-                                }
-                            } label: {
-                                Text("Metadata")
-                                    .font(sampleDetailSectionTitleFont)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .contentShape(Rectangle())
-                                    .onTapGesture { isMetadataSectionExpanded.toggle() }
-                            }
-                        }
-                    } else {
-                        ContentUnavailableView(
-                            "No Sample Selected",
-                            systemImage: "tray",
-                            description: Text("Select a prefix, batch, and sample to view metadata.")
-                        )
-                    }
-                }
-                .frame(minHeight: max(detailHeight - 8, 0), alignment: .topLeading)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-                .padding(.horizontal, 12)
-            }
-        }
-        .onChange(of: appState.workbench.aheWorkspace.persistCount) { _, _ in
-            appState.library.loadWorkbenchResultsForCurrentSelection()
-            appState.library.loadMeasurementDataForCurrentSelection()
-        }
-    }
-
-    @ViewBuilder
-    private func samplePrimarySection(
-        for sample: LibrarySample,
-        draft: LibrarySampleEditDraft?,
-        availableWidth: CGFloat,
-        sharedFirstColumnWidth: CGFloat?
-    ) -> some View {
-        if let firstWidth = sharedFirstColumnWidth {
-            HStack(alignment: .top, spacing: 12) {
-                samplePrimaryLeftColumn(for: sample)
-                    .frame(width: firstWidth, alignment: .topLeading)
-                    .fixedSize(horizontal: false, vertical: true)
-                samplePrimaryRightColumn(for: sample, draft: draft)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        } else {
-            VStack(alignment: .leading, spacing: 10) {
-                samplePrimaryLeftColumn(for: sample)
-                samplePrimaryRightColumn(for: sample, draft: draft)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func samplePrimaryLeftColumn(for sample: LibrarySample) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            MetadataValueRow(label: "Sample", value: sample.displayName)
-            MetadataValueRow(label: "Sample Key", value: sample.id, monospaced: true)
-            MetadataValueRow(label: "Substrate", value: sample.substrateDisplay)
-        }
-    }
-
-    @ViewBuilder
-    private func samplePrimaryRightColumn(for sample: LibrarySample, draft: LibrarySampleEditDraft?) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            MetadataValueRow(label: "Batch", value: sample.batchId)
-            HStack {
-                Button("修改日志") {
-                    isShowingSampleChangeLog = true
-                }
-                .buttonStyle(.bordered)
-                Spacer()
-            }
-
-            if draft != nil {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Substrate Tags")
-                        .font(.callout.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    TextField("comma-separated substrate tags", text: substrateTagsBinding, axis: .vertical)
-                        .textFieldStyle(.roundedBorder)
-                        .lineLimit(2...5)
-                }
-            } else if !sample.substrateTags.isEmpty {
-                MetadataValueRow(label: "Substrate Tags", value: sample.substrateTags.joined(separator: ", "))
-            } else {
-                MetadataValueRow(label: "Substrate Tags", value: "None")
-            }
-        }
-    }
-
-    private var sampleDetailHeader: some View {
-        LibrarySampleDetailHeaderView(
-            isEditingSelectedSample: isEditingSelectedSample,
-            sampleEditIsDirty: viewState.sampleEditIsDirty,
-            sampleEditIsSaving: viewState.sampleEditIsSaving,
-            canEditSelectedLibrarySample: viewState.canEditSelectedLibrarySample,
-            sampleEditError: viewState.sampleEditError,
-            sampleEditMessage: viewState.sampleEditMessage,
-            onLoadGlobalManualLogs: {
-                viewModel.loadLibraryGlobalManualLogs()
-                isShowingGlobalManualLog = true
-            },
-            onLoadMetadataSyncLogs: {
-                viewModel.loadLibraryMetadataSyncLogs()
-                isShowingMetadataSyncLog = true
-            },
-            onCancelEdit: {
-                viewModel.cancelEditingSelectedLibrarySample()
-            },
-            onSaveEdit: {
-                viewModel.saveLibrarySampleEdits()
-            },
-            onBeginEdit: {
-                viewModel.beginEditingSelectedLibrarySample()
-            }
-        )
-    }
-
-    private var isEditingSelectedSample: Bool {
-        guard let sample = selectedSample,
-              let draft = viewState.sampleEditDraft else {
-            return false
-        }
-        return draft.sampleId == sample.id
-    }
-
-    @ViewBuilder
-    private func editNumericSection(draft: LibrarySampleEditDraft) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Numeric Tags")
-                .font(.headline)
-            if draft.numericValues.isEmpty {
-                Text("No numeric tags")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(draft.numericValues) { entry in
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text(entry.key)
-                            .font(.callout.weight(.semibold))
-                            .frame(width: 120, alignment: .leading)
-                        TextField(entry.key, text: numericValueBinding(for: entry.key))
-                            .textFieldStyle(.roundedBorder)
-                        if !entry.unit.isEmpty {
-                            Text(entry.unit)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func editMetadataSection(draft: LibrarySampleEditDraft, availableWidth: CGFloat) -> some View {
-        let fields: [DetailField] = draft.metadataValues.map { entry in
-            DetailField(label: entry.key, value: entry.value, fullWidth: computationService.isLongField(entry.value))
-        }
-        let rows = computationService.groupedFields(fields)
-        let firstColumnWidth = computationService.sectionFirstColumnWidth(rows: rows, availableWidth: availableWidth)
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Metadata")
-                .font(.headline)
-            if draft.metadataValues.isEmpty {
-                Text("No metadata")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(Array(rows.indices), id: \.self) { rowIndex in
-                    let row = rows[rowIndex]
-                    if row.count == 1 {
-                        editMetadataFieldRow(row[0], fillWidth: true)
-                    } else if let firstColumnWidth {
-                        HStack(alignment: .top, spacing: 12) {
-                            editMetadataFieldRow(row[0], fixedWidth: firstColumnWidth, fillWidth: false)
-                            editMetadataFieldRow(row[1], fillWidth: true)
-                        }
-                    } else {
-                        VStack(alignment: .leading, spacing: 8) {
-                            editMetadataFieldRow(row[0], fillWidth: true)
-                            editMetadataFieldRow(row[1], fillWidth: true)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func editMetadataFieldRow(_ field: DetailField, fixedWidth: CGFloat? = nil, fillWidth: Bool) -> some View {
-        let row = VStack(alignment: .leading, spacing: 4) {
-            Text(field.label)
-                .font(.callout.weight(.semibold))
-                .foregroundStyle(.secondary)
-            TextField(field.label, text: metadataValueBinding(for: field.label), axis: .vertical)
-                .textFieldStyle(.roundedBorder)
-        }
-        if let fixedWidth {
-            row
-                .frame(width: fixedWidth, alignment: .topLeading)
-                .fixedSize(horizontal: false, vertical: true)
-        } else if fillWidth {
-            row
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-                .fixedSize(horizontal: false, vertical: true)
-        } else {
-            row
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private var substrateTagsBinding: Binding<String> {
-        Binding(
-            get: { viewState.sampleEditDraft?.substrateTagsText ?? "" },
-            set: { appState.library.updateLibrarySampleEditSubstrateTags($0) }
-        )
-    }
-
-    private func numericValueBinding(for key: String) -> Binding<String> {
-        Binding(
-            get: {
-                viewState.sampleEditDraft?
-                    .numericValues
-                    .first(where: { $0.key == key })?
-                    .value ?? ""
-            },
-            set: { appState.library.updateLibrarySampleEditNumericValue(key: key, value: $0) }
-        )
-    }
-
-    private func metadataValueBinding(for key: String) -> Binding<String> {
-        Binding(
-            get: {
-                viewState.sampleEditDraft?
-                    .metadataValues
-                    .first(where: { $0.key == key })?
-                    .value ?? ""
-            },
-            set: { appState.library.updateLibrarySampleEditMetadataValue(key: key, value: $0) }
-        )
-    }
-
-    private var pendingSelectionChangeDialogBinding: Binding<Bool> {
-        Binding(
-            get: { appState.library.hasPendingSelectionChange() },
-            set: { isPresented in
-                if !isPresented {
-                    viewModel.cancelPendingSelectionChange()
-                }
-            }
-        )
-    }
-
-    @ViewBuilder
-    private func detailSection(
-        fields: [DetailField],
-        availableWidth: CGFloat,
-        sharedFirstColumnWidth: CGFloat?
-    ) -> some View {
-        let rows = computationService.groupedFields(fields)
-        let sectionFirstColumnWidth = sharedFirstColumnWidth ?? computationService.sectionFirstColumnWidth(rows: rows, availableWidth: availableWidth)
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(rows, id: \.self) { row in
-                if row.count == 1 {
-                    detailFieldRow(row[0], fillWidth: true)
-                } else if let firstWidth = sectionFirstColumnWidth {
-                    HStack(alignment: .top, spacing: 12) {
-                        detailFieldRow(row[0], fixedWidth: firstWidth, fillWidth: false)
-                        detailFieldRow(row[1], fillWidth: true)
-                    }
-                } else {
-                    VStack(alignment: .leading, spacing: 8) {
-                        detailFieldRow(row[0], fillWidth: true)
-                        detailFieldRow(row[1], fillWidth: true)
-                    }
-                }
-            }
-        }
-    }
-
-    private func alignedFirstColumnWidth(fields: [DetailField], availableWidth: CGFloat) -> CGFloat? {
-        computationService.alignedFirstColumnWidth(fields: fields, availableWidth: availableWidth)
-    }
-
-    @ViewBuilder
-    private func detailFieldRow(_ field: DetailField, fixedWidth: CGFloat? = nil, fillWidth: Bool) -> some View {
-        let row = MetadataValueRow(label: field.label, value: field.value, monospaced: field.monospaced)
-        if let fixedWidth {
-            row
-                .frame(width: fixedWidth, alignment: .topLeading)
-                .fixedSize(horizontal: false, vertical: true)
-        } else if fillWidth {
-            row
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-                .fixedSize(horizontal: false, vertical: true)
-        } else {
-            row
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private func adaptiveDetailSectionSpacing(for height: CGFloat) -> CGFloat {
-        computationService.adaptiveDetailSectionSpacing(for: height)
-    }
-
-    private var sampleDetailSectionTitleFont: Font {
-        .title3.weight(.semibold)
-    }
-
-    @ViewBuilder
-    private func pendingChangesSection(for sample: LibrarySample) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(selectedChangeHighlights(for: sample)) { change in
-                HStack(alignment: .top, spacing: 8) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.yellow.opacity(0.9))
-                        .frame(width: 3)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(change.key)
-                            .font(.caption.weight(.semibold))
-                        Text(change.description)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.yellow.opacity(0.16))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(Color.yellow.opacity(0.45), lineWidth: 0.8)
-                )
-            }
-        }
-    }
-
-    private func selectedChangeHighlights(for sample: LibrarySample) -> [ChangeHighlight] {
-        computationService.selectedChangeHighlights(
-            for: sample,
-            sampleSyncChangesByID: viewState.sampleSyncChangesByID,
-            batchSyncChangesByID: viewState.batchSyncChangesByID
-        )
-    }
-
-    private func syncStatusSymbol(for status: LibrarySyncBatchStatus) -> String {
-        switch status {
-        case .added:
-            return "plus.circle.fill"
-        case .changed:
-            return "circle.fill"
-        case .removed:
-            return "minus.circle.fill"
-        case .unchanged:
-            return "circle"
-        }
-    }
-
-    private func syncStatusColor(for status: LibrarySyncBatchStatus) -> Color {
-        switch status {
-        case .added:
-            return .green
-        case .changed:
-            return .yellow
-        case .removed:
-            return .red
-        case .unchanged:
-            return .secondary
-        }
-    }
-
-    private var previewPrefixes: [String] {
-        previewDerivedData.previewPrefixes
-    }
-
-    private var previewGroupsForSelectedPrefix: [LibraryPreviewBatchGroup] {
-        previewDerivedData.previewGroupsForSelectedPrefix
-    }
-
-    private var selectedBatchSamples: [LibrarySample] {
-        guard let bid = selectedBatchId else { return [] }
-        return previewDerivedData.previewGroupsForSelectedPrefix
-            .first(where: { $0.batchId == bid })?.samples ?? []
-    }
-
-    private var selectedSample: LibrarySample? {
-        resolveSelectedSample(from: selectionEntry)
-    }
-
-    private var selectedExistingSample: LibrarySample? {
-        guard let prefix = viewState.selectedPrefix,
-              let batchId = viewState.selectedBatchId,
-              let sampleId = viewState.selectedSampleId else {
-            return nil
-        }
-        let groups = viewState.existingGroupsByPrefix[prefix] ?? []
-        let samples = groups.first(where: { $0.batchId == batchId })?.samples ?? []
-        return samples.first(where: { $0.id == sampleId })
-    }
-
-    private var selectedExistingBatchSamples: [LibrarySample] {
-        guard let prefix = viewState.selectedPrefix,
-              let batchId = viewState.selectedBatchId else {
-            return []
-        }
-        let groups = viewState.existingGroupsByPrefix[prefix] ?? []
-        return groups.first(where: { $0.batchId == batchId })?.samples ?? []
-    }
-
-    private func presentLibraryRootPanel() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.title = "Choose Library Root"
-        panel.message = "Select a folder for the SpinLab library store."
-        if panel.runModal() == .OK, let url = panel.url {
-            viewModel.updateLibraryRoot(to: url)
-        }
-    }
-
-    private func presentBackupPathPanel() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.title = "Choose Backup Path"
-        panel.message = "Select a folder for Library backup sync."
-        if panel.runModal() == .OK, let url = panel.url {
-            viewModel.updateLibraryBackupPath(to: url)
-        }
-    }
-
-    private func presentSampleRegistryPanel() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        if let xlsxType = UTType(filenameExtension: "xlsx") {
-            panel.allowedContentTypes = [xlsxType]
-        }
-        panel.title = "Load Sample Registry"
-        panel.message = "Choose an XLSX registry file."
-
-        if panel.runModal() == .OK, let url = panel.url {
-            viewModel.loadSampleRegistry(from: url)
-        }
-    }
-
-    private func presentAuditTrailExportPanel() {
-        let panel = NSSavePanel()
-        panel.title = "Export Audit Trail"
-        panel.prompt = "Export"
-        panel.canCreateDirectories = true
-        panel.nameFieldStringValue = "spinlab_audit_trail.json"
-        panel.allowedContentTypes = [.json]
-        if panel.runModal() != .OK {
-            return
-        }
-        guard let destinationURL = panel.url else {
-            return
-        }
-
-        do {
-            let summary = try appState.exportAuditTrail(to: destinationURL)
-            appState.presentAlert(
-                title: "Audit Trail Exported",
-                message: "Saved \(summary.entryCount) log entries to \(destinationURL.path)."
-            )
-        } catch {
-            appState.presentAlert(
-                title: "Export Failed",
-                message: error.localizedDescription
-            )
-        }
-    }
-
-    private var interactionStateSnapshot: LibraryInteractionState {
-        LibraryInteractionState(
-            selectedPrefix: selectedPrefix,
-            selectedBatchId: selectedBatchId,
-            selectedSampleId: selectedSampleId,
-            isLibrarySettingsExpanded: isLibrarySettingsExpanded,
-            isRegistryWorkspaceExpanded: isRegistryWorkspaceExpanded,
-            isSearchWorkspaceExpanded: isSearchWorkspaceExpanded,
-            isMetadataSectionExpanded: isMetadataSectionExpanded,
-            searchBatchIdText: searchBatchIdText,
-            searchSubstrateText: searchSubstrateText,
-            searchKeywordText: searchKeywordText,
-            searchThicknessText: searchThicknessText,
-            searchOxygenText: searchOxygenText,
-            searchTemperatureText: searchTemperatureText,
-            searchEnergyText: searchEnergyText,
-            searchThicknessToleranceText: searchThicknessToleranceText,
-            searchOxygenToleranceText: searchOxygenToleranceText,
-            searchTemperatureToleranceText: searchTemperatureToleranceText,
-            searchEnergyToleranceText: searchEnergyToleranceText,
-            searchHasExecuted: searchHasExecuted,
-            expandedWorkflowIDs: expandedWorkflows.isEmpty ? nil : expandedWorkflows,
-            expandedSetIDs: expandedSets.isEmpty ? nil : expandedSets,
-            expandedUncategorizedIDs: expandedUncategorized.isEmpty ? nil : expandedUncategorized
-        )
-    }
-
-    private func applyRestoredInteractionState() {
-        let restored = viewState.restoredInteractionState
-        selectedPrefix = restored.selectedPrefix
-        selectedBatchId = restored.selectedBatchId
-        selectedSampleId = restored.selectedSampleId
-        isLibrarySettingsExpanded = restored.isLibrarySettingsExpanded
-        isRegistryWorkspaceExpanded = restored.isRegistryWorkspaceExpanded
-        isSearchWorkspaceExpanded = restored.isSearchWorkspaceExpanded
-        isMetadataSectionExpanded = restored.isMetadataSectionExpanded
-        searchBatchIdText = restored.searchBatchIdText
-        searchSubstrateText = restored.searchSubstrateText
-        searchKeywordText = restored.searchKeywordText
-        searchThicknessText = restored.searchThicknessText
-        searchOxygenText = restored.searchOxygenText
-        searchTemperatureText = restored.searchTemperatureText
-        searchEnergyText = restored.searchEnergyText
-        searchThicknessToleranceText = restored.searchThicknessToleranceText
-        searchOxygenToleranceText = restored.searchOxygenToleranceText
-        searchTemperatureToleranceText = restored.searchTemperatureToleranceText
-        searchEnergyToleranceText = restored.searchEnergyToleranceText
-
-        expandedWorkflows = restored.expandedWorkflowIDs ?? []
-        expandedSets = restored.expandedSetIDs ?? []
-        expandedUncategorized = restored.expandedUncategorizedIDs ?? []
-
-        if restored.searchHasExecuted {
-            executeSearch()
-        } else {
-            searchMatchedResults = []
-            searchHasExecuted = false
-        }
-    }
-
-    private func syncSelection() {
-        // When the active source is .drawer, validate against existing groups
-        // (not preview-derived data) so that unchanged batches stay selected.
-        if viewState.activeSelectionSource == .drawer {
-            syncDrawerSelection()
-            return
-        }
-        syncBrowserSelection()
-    }
-
-    // Validate browser selection against combined groups (preview + changed existing batches),
-    // which is the same data source that rebuildPreviewDerivedData() and the Pending Queue render from.
-    // If a future requirement needs strict "preview-only" validation, this should be split.
-    private func syncBrowserSelection() {
-        let output = LibrarySelectionSync.syncBrowserSelection(
-            input: .init(
-                selectedPrefix: selectedPrefix,
-                selectedBatchId: selectedBatchId,
-                selectedSampleId: selectedSampleId
-            ),
-            previewGroupsByPrefix: computeCombinedPreviewGroupsByPrefix()
-        )
-        selectedPrefix = output.selectedPrefix
-        selectedBatchId = output.selectedBatchId
-        selectedSampleId = output.selectedSampleId
-    }
-
-    private func syncDrawerSelection() {
-        let output = LibrarySelectionSync.syncDrawerSelection(
-            input: .init(
-                selectedPrefix: selectedPrefix,
-                selectedBatchId: selectedBatchId,
-                selectedSampleId: selectedSampleId
-            ),
-            existingGroupsByPrefix: viewState.existingGroupsByPrefix
-        )
-        selectedPrefix = output.selectedPrefix
-        selectedBatchId = output.selectedBatchId
-        selectedSampleId = output.selectedSampleId
-    }
-
-    private var allExistingDrawerSamples: [SearchResultItem] {
-        let groups = viewState.existingGroupsByPrefix
-        return groups
-            .flatMap { prefix, batchGroups in
-                batchGroups.flatMap { group in
-                    group.samples.map { sample in
-                        SearchResultItem(prefix: prefix, sample: sample)
-                    }
-                }
-            }
-            .sorted {
-                if $0.prefix != $1.prefix {
-                    return $0.prefix < $1.prefix
-                }
-                if LibrarySort.compareBatch($0.sample.batchId, $1.sample.batchId) {
-                    return true
-                }
-                if LibrarySort.compareBatch($1.sample.batchId, $0.sample.batchId) {
-                    return false
-                }
-                return $0.sample.substrateDisplay < $1.sample.substrateDisplay
-            }
-    }
-
-    private var searchThicknessValue: Double? {
-        Double(searchThicknessText.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    private var searchOxygenValue: Double? {
-        Double(searchOxygenText.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    private var searchTemperatureValue: Double? {
-        Double(searchTemperatureText.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    private var searchEnergyValue: Double? {
-        Double(searchEnergyText.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    private var searchThicknessToleranceValue: Double? {
-        Double(searchThicknessToleranceText.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    private var searchOxygenToleranceValue: Double? {
-        Double(searchOxygenToleranceText.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    private var searchTemperatureToleranceValue: Double? {
-        Double(searchTemperatureToleranceText.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    private var searchEnergyToleranceValue: Double? {
-        Double(searchEnergyToleranceText.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    private func clearSearchFilters() {
-        searchDebounceTask?.cancel()
-        searchDebounceTask = nil
-        searchBatchIdText = ""
-        searchSubstrateText = ""
-        searchKeywordText = ""
-        searchThicknessText = ""
-        searchOxygenText = ""
-        searchTemperatureText = ""
-        searchEnergyText = ""
-        searchThicknessToleranceText = ""
-        searchOxygenToleranceText = ""
-        searchTemperatureToleranceText = ""
-        searchEnergyToleranceText = ""
-        searchMatchedResults = []
-        searchHasExecuted = false
-    }
-
-    private func executeSearch() {
-        searchMatchedResults = allExistingDrawerSamples.filter { result in
-            computationService.matchesSearch(sample: result.sample, filters: searchFilters)
-        }
-        searchHasExecuted = true
-    }
-
-    private var searchFingerprint: String {
-        [
-            searchBatchIdText,
-            searchSubstrateText,
-            searchKeywordText,
-            searchThicknessText,
-            searchOxygenText,
-            searchTemperatureText,
-            searchEnergyText,
-            searchThicknessToleranceText,
-            searchOxygenToleranceText,
-            searchTemperatureToleranceText,
-            searchEnergyToleranceText
-        ].joined(separator: "|")
-    }
-
-    private func scheduleDebouncedSearchIfNeeded() {
-        guard searchHasExecuted else {
-            return
-        }
-
-        searchDebounceTask?.cancel()
-        searchDebounceTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 250_000_000)
-            guard !Task.isCancelled else {
-                return
-            }
-            executeSearch()
-        }
-    }
-
-    private func scheduleInteractionStatePersist(immediate: Bool = false) {
-        interactionPersistTask?.cancel()
-        interactionPersistTask = Task { @MainActor in
-            if !immediate {
-                try? await Task.sleep(nanoseconds: 160_000_000)
-                guard !Task.isCancelled else {
-                    return
-                }
-            }
-            viewModel.persistInteractionState(interactionStateSnapshot)
-        }
-    }
-
-    private var searchFilters: LibrarySearchFilters {
-        LibrarySearchFilters(
-            batchText: searchBatchIdText,
-            substrateText: searchSubstrateText,
-            keywordText: searchKeywordText,
-            thickness: searchThicknessValue,
-            oxygen: searchOxygenValue,
-            temperature: searchTemperatureValue,
-            energy: searchEnergyValue,
-            thicknessTolerance: searchThicknessToleranceValue,
-            oxygenTolerance: searchOxygenToleranceValue,
-            temperatureTolerance: searchTemperatureToleranceValue,
-            energyTolerance: searchEnergyToleranceValue
-        )
-    }
-
-    private func selectSearchResultSample(_ result: SearchResultItem) {
-        viewModel.selectExistingDrawer(prefix: result.prefix, batchId: result.sample.batchId, sampleId: result.sample.id)
-    }
-
-    private func isSelectedSearchResult(_ result: SearchResultItem) -> Bool {
-        viewState.activeSelectionSource == .drawer
-            && viewState.selectedPrefix == result.prefix
-            && viewState.selectedBatchId == result.sample.batchId
-            && viewState.selectedSampleId == result.sample.id
-    }
-
-    private var selectionEntry: SelectionEntry {
-        SelectionEntry(
-            source: viewState.activeSelectionSource,
-            browserSampleId: selectedSampleId,
-            drawerPrefix: viewState.selectedPrefix,
-            drawerBatchId: viewState.selectedBatchId,
-            drawerSampleId: viewState.selectedSampleId
-        )
-    }
-
-    private func resolveSelectedSample(from entry: SelectionEntry) -> LibrarySample? {
-        switch entry.source {
-        case .browser:
-            guard let sampleId = entry.browserSampleId else {
-                return nil
-            }
-            return selectedBatchSamples.first(where: { $0.id == sampleId })
-        case .drawer:
-            return selectedExistingSample
-        }
-    }
-
-    private func makeDetailSections(for sample: LibrarySample) -> SampleDetailSections {
-        computationService.makeDetailSections(for: sample)
-    }
-
-    private func rebuildPreviewDerivedData() {
-        let combined = computeCombinedPreviewGroupsByPrefix()
-        let prefixes = computePreviewPrefixes(from: combined)
-        let effectivePrefix = (selectedPrefix.flatMap { combined.keys.contains($0) ? $0 : nil }) ?? prefixes.first
-        let groupsForPrefix = combined[effectivePrefix ?? ""] ?? []
-        previewDerivedData = PreviewDerivedData(
-            previewPrefixes: prefixes,
-            previewGroupsForSelectedPrefix: groupsForPrefix
-        )
-    }
-
-    private func computeCombinedPreviewGroupsByPrefix() -> [String: [LibraryPreviewBatchGroup]] {
-        var groups = viewState.previewGroupsByPrefix
-        for (batchID, status) in viewState.batchSyncStatusByID where status != .unchanged {
-            let prefix = LibrarySort.batchSortKey(batchID).prefix
-            let alreadyExists = groups[prefix]?.contains(where: { $0.batchId == batchID }) == true
-            if alreadyExists {
-                continue
-            }
-            let existingSamples = viewState.existingGroupsByPrefix[prefix]?
-                .first(where: { $0.batchId == batchID })?
-                .samples ?? []
-            groups[prefix, default: []].append(
-                LibraryPreviewBatchGroup(batchId: batchID, samples: existingSamples)
-            )
-        }
-        for prefix in groups.keys {
-            groups[prefix] = groups[prefix]?.sorted { LibrarySort.compareBatch($0.batchId, $1.batchId) }
-        }
-        return groups
-    }
-
-    private func computePreviewPrefixes(from groups: [String: [LibraryPreviewBatchGroup]]) -> [String] {
-        let configured = viewState.allowedBatchPrefixes
-        let available = Array(groups.keys).sorted()
-        if configured.isEmpty {
-            return available
-        }
-        let ordered = configured.filter { available.contains($0) }
-        let remaining = available.filter { !ordered.contains($0) }
-        return ordered + remaining
-    }
 
 }
 
-private struct PreviewDerivedData {
+struct PreviewDerivedData {
     var previewPrefixes: [String] = []
     var previewGroupsForSelectedPrefix: [LibraryPreviewBatchGroup] = []
 }

@@ -44,18 +44,14 @@ enum LibraryConfirmNumericRefreshOutcome {
 
 struct LibraryMutationService {
     func refreshIncremental(
-        libraryStore: LibraryStore,
         librarySyncService: LibrarySyncService,
-        orchestrator: LibraryMutationOrchestrator,
         preview: LibraryPreview?,
         rootPath: String?,
         settings: LibrarySettings
     ) -> LibraryRefreshIncrementalMutationOutcome {
-        let planResult = orchestrator.planIncrementalRefresh(
+        let planResult = librarySyncService.planIncrementalRefresh(
             preview: preview,
-            rootPath: rootPath,
-            libraryStore: libraryStore,
-            librarySyncService: librarySyncService
+            rootPath: rootPath
         )
         let plan: RefreshLibraryIncrementalPlan
         switch planResult {
@@ -232,19 +228,14 @@ struct LibraryMutationService {
         previewIndex: LibraryIndex?,
         precomputedDiff: LibraryDiff?,
         precomputedReview: LibraryRefreshReview?,
-        libraryStore: LibraryStore,
-        libraryDiffEngine: LibraryDiffEngine,
-        librarySyncService: LibrarySyncService,
-        orchestrator: LibraryMutationOrchestrator
+        librarySyncService: LibrarySyncService
     ) -> LibraryCommitMutationOutcome {
-        let syncedIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
-        let plan = orchestrator.makeCommitPlan(
+        let syncedIndex = librarySyncService.syncIndexFromFilesystem(rootURL: rootURL)
+        let plan = librarySyncService.makeCommitPlan(
             syncedIndex: syncedIndex,
             previewIndex: previewIndex,
             precomputedDiff: precomputedDiff,
-            precomputedReview: precomputedReview,
-            libraryDiffEngine: libraryDiffEngine,
-            librarySyncService: librarySyncService
+            precomputedReview: precomputedReview
         )
         return LibraryCommitMutationOutcome(syncedIndex: syncedIndex, plan: plan)
     }
@@ -253,18 +244,12 @@ struct LibraryMutationService {
         preview: LibraryPreview?,
         rootPath: String?,
         precomputedDiff: LibraryDiff?,
-        libraryStore: LibraryStore,
-        libraryDiffEngine: LibraryDiffEngine,
-        librarySyncService: LibrarySyncService,
-        orchestrator: LibraryMutationOrchestrator
+        librarySyncService: LibrarySyncService
     ) -> LibraryPrepareSyncReviewMutationOutcome {
-        let result = orchestrator.prepareLibrarySyncReview(
+        let result = librarySyncService.prepareLibrarySyncReview(
             preview: preview,
             rootPath: rootPath,
-            precomputedDiff: precomputedDiff,
-            libraryStore: libraryStore,
-            libraryDiffEngine: libraryDiffEngine,
-            librarySyncService: librarySyncService
+            precomputedDiff: precomputedDiff
         )
         switch result {
         case let .failure(message):

@@ -298,7 +298,7 @@ struct V350ConcurrentWriteConsistencyTests {
             appliedAt: Date(),
             sourceFileName: "test.dat"
         )
-        let success = LibraryFeatureStore.deleteAppliedMeasurementOnDisk(measurement, rootURL: rootDir)
+        let success = LibraryDiskCleanupService.deleteAppliedMeasurementOnDisk(measurement, rootURL: rootDir)
 
         #expect(success)
         #expect(!FileManager.default.fileExists(atPath: sidecarPath),

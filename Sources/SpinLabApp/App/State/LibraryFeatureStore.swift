@@ -124,24 +124,24 @@ final class LibraryFeatureStore {
     /// Most recent `WorkbenchResultsIndex` for the currently selected Library sample.
     /// Nil when no sample is selected, the library root is not set, or no results file exists.
     /// Updated each time the Library sample selection changes.
-    private(set) var workbenchResults: WorkbenchResultsIndex? = nil
+    var workbenchResults: WorkbenchResultsIndex? = nil
 
     // MARK: - Measurement Plot Index (v4.1.2.17)
 
     /// Reverse index mapping source measurement filename → chart identity keys.
     /// Stale keys (not present in `workbenchResults.references`) are filtered out in memory.
     /// Nil when no sample is selected, the root is not set, or no index file exists.
-    private(set) var measurementPlotIndex: MeasurementPlotIndex? = nil
+    var measurementPlotIndex: MeasurementPlotIndex? = nil
 
     // MARK: - Measurement Data projection (V3.4.3)
 
     /// Latest `WorkbenchMeasurementDataStore` for the currently selected Library sample.
     /// Nil when no sample is selected, root is not set, or no measurement data file exists.
-    private(set) var measurementData: WorkbenchMeasurementDataStore? = nil
+    var measurementData: WorkbenchMeasurementDataStore? = nil
 
     /// Condition alias book loaded from `_spinlab/condition_aliases.json` at the library root.
     /// Nil when the file is absent or fails to load (best-effort, non-fatal per Adj-5).
-    private(set) var conditionAliasBook: ConditionAliasBook? = nil
+    var conditionAliasBook: ConditionAliasBook? = nil
 
     @ObservationIgnored
     let librarySettingsStore: LibrarySettingsStore
@@ -156,15 +156,13 @@ final class LibraryFeatureStore {
     @ObservationIgnored
     lazy var librarySyncService = LibrarySyncService(libraryStore: libraryStore, libraryDiffEngine: libraryDiffEngine)
     @ObservationIgnored
-    private var appliedMeasurementsCacheBySampleID: [String: AppliedMeasurementsCacheEntry] = [:]
+    var appliedMeasurementsCacheBySampleID: [String: AppliedMeasurementsCacheEntry] = [:]
     @ObservationIgnored
-    private var measurementSetsPersistTask: Task<Void, Never>?
+    var measurementSetsPersistTask: Task<Void, Never>?
 
     // MARK: - Facade dependencies (injected via configureFacade)
     @ObservationIgnored
     private var mutationService: LibraryMutationService?
-    @ObservationIgnored
-    private var orchestrator: LibraryMutationOrchestrator?
     @ObservationIgnored
     private var saveEditsUseCase: SaveLibrarySampleEditsUseCase?
     @ObservationIgnored
@@ -184,7 +182,7 @@ final class LibraryFeatureStore {
     @ObservationIgnored
     private var onPersistInteractionSnapshot: (() -> Void)?
 
-    private struct AppliedMeasurementsCacheEntry {
+    struct AppliedMeasurementsCacheEntry {
         var snapshot: LibraryStore.SidecarSnapshot
         var measurements: [AppliedMeasurement]
     }
@@ -206,7 +204,6 @@ final class LibraryFeatureStore {
 
     func configureFacade(
         mutationService: LibraryMutationService,
-        orchestrator: LibraryMutationOrchestrator,
         saveEditsUseCase: SaveLibrarySampleEditsUseCase,
         appLogger: AppLogger,
         resolveRegistrySourceURL: @escaping () -> URL?,
@@ -218,7 +215,6 @@ final class LibraryFeatureStore {
         persistInteractionSnapshot: @escaping () -> Void
     ) {
         self.mutationService = mutationService
-        self.orchestrator = orchestrator
         self.saveEditsUseCase = saveEditsUseCase
         self.facadeLogger = appLogger
         self.resolveRegistrySourceURL = resolveRegistrySourceURL
@@ -329,16 +325,16 @@ final class LibraryFeatureStore {
 
     func prepareLibrarySyncReview(precomputedDiff: LibraryDiff? = nil) {
         assertFacadeConfigured()
-        guard let mutationService, let orchestrator else { return }
-        if let refreshState = prepareLibrarySyncReview(mutationService: mutationService, orchestrator: orchestrator, precomputedDiff: precomputedDiff) {
+        guard let mutationService else { return }
+        if let refreshState = prepareLibrarySyncReview(mutationService: mutationService, precomputedDiff: precomputedDiff) {
             onRefreshActionablePreviewGroups?(refreshState.diff, refreshState.baselineIndex)
         }
     }
 
     func refreshLibraryIncremental() {
         assertFacadeConfigured()
-        guard let mutationService, let orchestrator else { return }
-        if let context = refreshLibraryIncremental(mutationService: mutationService, orchestrator: orchestrator) {
+        guard let mutationService else { return }
+        if let context = refreshLibraryIncremental(mutationService: mutationService) {
             onCommitLibraryMutation?(context.rootURL, context.previewIndex)
         }
     }
@@ -414,7 +410,6 @@ final class LibraryFeatureStore {
 
     func prepareLibrarySyncReview(
         mutationService: LibraryMutationService,
-        orchestrator: LibraryMutationOrchestrator,
         precomputedDiff: LibraryDiff? = nil
     ) -> (diff: LibraryDiff, baselineIndex: LibraryIndex)? {
         libraryDrawerError = nil
@@ -424,10 +419,7 @@ final class LibraryFeatureStore {
             preview: libraryPreview,
             rootPath: librarySettings.rootPath,
             precomputedDiff: precomputedDiff,
-            libraryStore: libraryStore,
-            libraryDiffEngine: libraryDiffEngine,
-            librarySyncService: librarySyncService,
-            orchestrator: orchestrator
+            librarySyncService: librarySyncService
         )
 
         switch result {
@@ -443,16 +435,13 @@ final class LibraryFeatureStore {
     }
 
     func refreshLibraryIncremental(
-        mutationService: LibraryMutationService,
-        orchestrator: LibraryMutationOrchestrator
+        mutationService: LibraryMutationService
     ) -> MutationCommitContext? {
         libraryDrawerError = nil
         libraryDrawerMessage = nil
 
         switch mutationService.refreshIncremental(
-            libraryStore: libraryStore,
             librarySyncService: librarySyncService,
-            orchestrator: orchestrator,
             preview: libraryPreview,
             rootPath: librarySettings.rootPath,
             settings: librarySettings
@@ -757,159 +746,7 @@ final class LibraryFeatureStore {
         }
     }
 
-    func saveLibrarySampleEdits(
-        useCase: SaveLibrarySampleEditsUseCase,
-        resolveRegistrySourceURL: () -> URL?
-    ) -> SaveLibrarySampleEditsOutcome {
-        librarySampleEditError = nil
-        librarySampleEditMessage = nil
-        librarySampleEditIsSaving = true
-        defer { librarySampleEditIsSaving = false }
-
-        let result = useCase.execute(
-            input: SaveLibrarySampleEditsUseCase.Input(
-                rootPath: librarySettings.rootPath,
-                draft: librarySampleEditDraft,
-                baseSample: libraryState.sampleEditBaseSample
-            ),
-            snapshotIndexFromFilesystem: { [libraryStore] rootURL in
-                libraryStore.snapshotIndexFromFilesystem(rootURL: rootURL)
-            },
-            applyDraft: { [librarySampleEditService] draft, current in
-                try librarySampleEditService.apply(draft: draft, to: current)
-            },
-            updateSample: { [libraryStore] updated, rootURL in
-                libraryStore.updateSample(updated, rootURL: rootURL, changeSource: "manual_edit")
-            },
-            resolveRegistrySourceURL: resolveRegistrySourceURL,
-            syncRegistrySource: { [libraryStore] current, updated, registrySourceURL in
-                try libraryStore.syncRegistrySourceForEditedSample(
-                    oldSample: current,
-                    updatedSample: updated,
-                    registrySourceURL: registrySourceURL
-                )
-            }
-        )
-
-        switch result {
-        case let .success(output):
-            if output.clearDraft {
-                librarySampleEditDraft = nil
-                libraryState.sampleEditBaseSample = nil
-                libraryState.sampleEditOriginalDraft = nil
-            }
-            if let nonFatalError = output.nonFatalError {
-                librarySampleEditError = nonFatalError.localizedDescription
-            }
-
-            let message = makeLibrarySampleEditMessage(
-                syncSummary: output.syncSummary,
-                syncIssue: output.syncIssue,
-                nonFatalError: output.nonFatalError
-            )
-            librarySampleEditMessage = message
-            return .success(
-                rootURLForCommit: output.rootURLForCommit,
-                nonFatalError: output.nonFatalError,
-                message: message
-            )
-        case let .failure(error):
-            librarySampleEditError = error.localizedDescription
-            return .failure(error)
-        }
-    }
-
-    private func makeLibrarySampleEditMessage(
-        syncSummary: LibraryRegistrySourceSyncResult?,
-        syncIssue: SaveLibrarySampleEditsUseCase.RegistrySyncIssue?,
-        nonFatalError: AppError?
-    ) -> String {
-        if let syncSummary {
-            return """
-            已保存样品编辑。
-            Metadata 写回 XLSX：成功 \(syncSummary.metadataWrittenCount) 项，失败 \(syncSummary.metadataFailedCount) 项。
-            Numeric 日志新增：\(syncSummary.manualLoggedCount) 项（\(syncSummary.manualLogSheetName)）。
-            Metadata 日志表：\(syncSummary.metadataLogSheetName)。
-            """
-        }
-
-        switch syncIssue {
-        case .sourceMissing:
-            return """
-            已保存样品编辑。
-            XLSX 同步警告：未找到 registry source。
-            """
-        case .syncFailed:
-            return """
-            已保存样品编辑。
-            XLSX 同步警告：\(nonFatalError?.localizedDescription ?? "未知错误")
-            """
-        case .none:
-            return "已保存样品编辑。"
-        }
-    }
-
-    func beginEditingSelectedLibrarySample(selectedSample: LibrarySample?) {
-        librarySampleEditError = nil
-        librarySampleEditMessage = nil
-
-        guard let selectedSample else {
-            librarySampleEditError = "Select an existing drawer sample to edit."
-            return
-        }
-
-        libraryState.sampleEditBaseSample = selectedSample
-        let draft = librarySampleEditService.makeDraft(from: selectedSample)
-        librarySampleEditDraft = draft
-        libraryState.sampleEditOriginalDraft = draft
-    }
-
-    func beginEditingSelectedDrawerSampleIfNeeded() {
-        let selectedSample = libraryActiveSelectionSource == .drawer ? selectedExistingDrawerSample() : nil
-        beginEditingSelectedLibrarySample(selectedSample: selectedSample)
-    }
-
-    func cancelEditingSelectedLibrarySample(message: String = "Edit canceled.") {
-        librarySampleEditDraft = nil
-        libraryState.sampleEditBaseSample = nil
-        libraryState.sampleEditOriginalDraft = nil
-        librarySampleEditError = nil
-        librarySampleEditMessage = message
-    }
-
-    func discardEditingSelectedLibrarySample() {
-        librarySampleEditDraft = nil
-        libraryState.sampleEditBaseSample = nil
-        libraryState.sampleEditOriginalDraft = nil
-        librarySampleEditError = nil
-        librarySampleEditMessage = "Edit discarded."
-    }
-
-    func updateLibrarySampleEditSubstrateTags(_ value: String) {
-        guard var draft = librarySampleEditDraft else {
-            return
-        }
-        draft.substrateTagsText = value
-        librarySampleEditDraft = draft
-    }
-
-    func updateLibrarySampleEditNumericValue(key: String, value: String) {
-        guard var draft = librarySampleEditDraft,
-              let index = draft.numericValues.firstIndex(where: { $0.key == key }) else {
-            return
-        }
-        draft.numericValues[index].value = value
-        librarySampleEditDraft = draft
-    }
-
-    func updateLibrarySampleEditMetadataValue(key: String, value: String) {
-        guard var draft = librarySampleEditDraft,
-              let index = draft.metadataValues.firstIndex(where: { $0.key == key }) else {
-            return
-        }
-        draft.metadataValues[index].value = value
-        librarySampleEditDraft = draft
-    }
+    // Sample edit methods moved to LibraryFeatureStore+SampleEdit.swift
 
     func selectedExistingDrawerSample() -> LibrarySample? {
         guard let prefix = librarySelectedPrefix,
@@ -1043,123 +880,7 @@ final class LibraryFeatureStore {
         libraryExistingGroups[prefix] = groups
     }
 
-    private func updateSampleMeasurementSets(
-        prefix: String,
-        batchId: String,
-        sampleId: String,
-        sets: [MeasurementSet]
-    ) {
-        guard var groups = libraryExistingGroups[prefix],
-              let groupIndex = groups.firstIndex(where: { $0.batchId == batchId }) else {
-            return
-        }
-        var group = groups[groupIndex]
-        guard let sampleIndex = group.samples.firstIndex(where: { $0.id == sampleId }) else {
-            return
-        }
-        var sample = group.samples[sampleIndex]
-        sample.measurementSets = sets
-        group.samples[sampleIndex] = sample
-        groups[groupIndex] = group
-        libraryExistingGroups[prefix] = groups
-    }
-
-    // MARK: - Measurement Set CRUD
-
-    func createMeasurementSet(name: String, workflow: String, initialMember: String?) {
-        guard let sample = selectedExistingDrawerSample(),
-              let rootPath = librarySettings.rootPath,
-              let prefix = librarySelectedPrefix,
-              let batchId = librarySelectedBatchId else { return }
-
-        var sets = sample.measurementSets
-        var members: [String] = []
-        if let member = initialMember { members.append(member) }
-        let newSet = MeasurementSet(
-            id: UUID().uuidString,
-            name: name,
-            workflow: workflow,
-            memberFileNames: members,
-            createdAt: Date()
-        )
-        sets.append(newSet)
-        persistAndUpdateSets(sets, sample: sample, rootPath: rootPath, prefix: prefix, batchId: batchId)
-    }
-
-    func addToMeasurementSet(setID: String, fileName: String) {
-        guard let sample = selectedExistingDrawerSample(),
-              let rootPath = librarySettings.rootPath,
-              let prefix = librarySelectedPrefix,
-              let batchId = librarySelectedBatchId else { return }
-
-        var sets = sample.measurementSets
-        guard let idx = sets.firstIndex(where: { $0.id == setID }) else { return }
-        if !sets[idx].memberFileNames.contains(fileName) {
-            sets[idx].memberFileNames.append(fileName)
-        }
-        persistAndUpdateSets(sets, sample: sample, rootPath: rootPath, prefix: prefix, batchId: batchId)
-    }
-
-    func removeFromMeasurementSet(setID: String, fileName: String) {
-        guard let sample = selectedExistingDrawerSample(),
-              let rootPath = librarySettings.rootPath,
-              let prefix = librarySelectedPrefix,
-              let batchId = librarySelectedBatchId else { return }
-
-        var sets = sample.measurementSets
-        guard let idx = sets.firstIndex(where: { $0.id == setID }) else { return }
-        sets[idx].memberFileNames.removeAll { $0 == fileName }
-        persistAndUpdateSets(sets, sample: sample, rootPath: rootPath, prefix: prefix, batchId: batchId)
-    }
-
-    func renameMeasurementSet(setID: String, newName: String) {
-        guard let sample = selectedExistingDrawerSample(),
-              let rootPath = librarySettings.rootPath,
-              let prefix = librarySelectedPrefix,
-              let batchId = librarySelectedBatchId else { return }
-
-        var sets = sample.measurementSets
-        guard let idx = sets.firstIndex(where: { $0.id == setID }) else { return }
-        sets[idx].name = newName
-        persistAndUpdateSets(sets, sample: sample, rootPath: rootPath, prefix: prefix, batchId: batchId)
-    }
-
-    func deleteMeasurementSet(setID: String) {
-        guard let sample = selectedExistingDrawerSample(),
-              let rootPath = librarySettings.rootPath,
-              let prefix = librarySelectedPrefix,
-              let batchId = librarySelectedBatchId else { return }
-
-        var sets = sample.measurementSets
-        sets.removeAll { $0.id == setID }
-        persistAndUpdateSets(sets, sample: sample, rootPath: rootPath, prefix: prefix, batchId: batchId)
-    }
-
-    private func persistAndUpdateSets(
-        _ sets: [MeasurementSet],
-        sample: LibrarySample,
-        rootPath: String,
-        prefix: String,
-        batchId: String
-    ) {
-        let rootURL = URL(fileURLWithPath: rootPath)
-        // Serialize writes: cancel any in-flight persist before starting a new one
-        // to prevent an older snapshot from overwriting a newer one.
-        measurementSetsPersistTask?.cancel()
-        measurementSetsPersistTask = Task.detached { [libraryStore] in
-            do {
-                try libraryStore.saveMeasurementSets(sets, for: sample, rootURL: rootURL)
-            } catch {
-                fputs("[SpinLab] persistAndUpdateSets: save failed for \(sample.id): \(error)\n", stderr)
-            }
-        }
-        updateSampleMeasurementSets(
-            prefix: prefix,
-            batchId: batchId,
-            sampleId: sample.id,
-            sets: sets
-        )
-    }
+    // Measurement Set CRUD + helpers moved to LibraryFeatureStore+Projection.swift
 
     private func performSelectionChange(_ requested: LibraryPendingSelectionChange) -> SelectionChangeOutcome {
         guard !deferSelectionChangeIfNeeded(requested) else {
@@ -1227,472 +948,8 @@ final class LibraryFeatureStore {
         }
     }
 
-    // MARK: - Workbench Results load (V3.4.2)
-
-    /// Loads the `WorkbenchResultsIndex` for the currently selected sample.
-    /// Called automatically from selection changes; idempotent when called manually.
-    func loadWorkbenchResultsForCurrentSelection() {
-        guard let sampleKey = librarySelectedSampleId,
-              let rootPath = librarySettings.rootPath else {
-            workbenchResults = nil
-            return
-        }
-        let resolver = LibraryPathResolver(libraryRootURL: URL(fileURLWithPath: rootPath))
-        workbenchResults = LoadWorkbenchResultsUseCase(pathResolver: resolver).execute(sampleKey: sampleKey)
-        // Refresh measurement plot index after results are loaded so dirty-key filtering is current.
-        loadMeasurementPlotIndexForCurrentSelection()
-    }
-
-    // MARK: - Measurement Plot Index load (v4.1.2.17)
-
-    /// Loads `MeasurementPlotIndex` and filters out stale chart identity keys
-    /// (those absent from the current `workbenchResults.references`).
-    /// Must be called after `loadWorkbenchResultsForCurrentSelection()` to ensure valid filtering.
-    func loadMeasurementPlotIndexForCurrentSelection() {
-        guard let sampleKey = librarySelectedSampleId,
-              let rootPath = librarySettings.rootPath else {
-            measurementPlotIndex = nil
-            return
-        }
-        let resolver = LibraryPathResolver(libraryRootURL: URL(fileURLWithPath: rootPath))
-        let raw: MeasurementPlotIndex?
-        if let loaded = LoadMeasurementPlotIndexUseCase(pathResolver: resolver).execute(sampleKey: sampleKey) {
-            raw = loaded
-        } else if let results = workbenchResults, !results.references.isEmpty {
-            // Index missing but old charts exist — backfill once from manifests.
-            raw = BackfillMeasurementPlotIndexUseCase(pathResolver: resolver)
-                .execute(sampleKey: sampleKey, results: results)
-        } else {
-            raw = nil
-        }
-        guard let raw else {
-            measurementPlotIndex = nil
-            return
-        }
-        // Filter out chartIdentityKeys that no longer exist in results_index.json.
-        let validKeys = Set(workbenchResults?.references.map(\.chartIdentityKey) ?? [])
-        var clean = raw
-        clean.entries = raw.entries
-            .mapValues { $0.filter { validKeys.contains($0) } }
-            .filter { !$0.value.isEmpty }
-        measurementPlotIndex = clean
-    }
-
-    // MARK: - Measurement Data load (V3.4.3)
-
-    /// Loads the `WorkbenchMeasurementDataStore` and `ConditionAliasBook` for the current selection.
-    /// Called automatically from selection changes; idempotent when called manually.
-    func loadMeasurementDataForCurrentSelection() {
-        guard let sampleKey = librarySelectedSampleId,
-              let rootPath = librarySettings.rootPath else {
-            measurementData = nil
-            conditionAliasBook = nil
-            return
-        }
-        let rootURL = URL(fileURLWithPath: rootPath)
-        let resolver = LibraryPathResolver(libraryRootURL: rootURL)
-        measurementData = LoadMeasurementDataUseCase(pathResolver: resolver).execute(sampleKey: sampleKey)
-        // Alias config is library-level; nil on any failure is non-fatal (Adj-5).
-        let aliasConfigURL = rootURL.appending(path: "_spinlab/condition_aliases.json")
-        conditionAliasBook = try? ConditionAliasConfigLoader().load(from: aliasConfigURL)
-    }
-
-    // MARK: - Metric record deletion (V4.1.11)
-
-    /// Deletes a single metric record from measurement_data.json by identity key.
-    /// Removes the record from `records` and `latestIndex`, then writes back atomically.
-    func deleteMetricRecord(identityKey: String) {
-        guard let sampleKey = librarySelectedSampleId,
-              let rootPath = librarySettings.rootPath else { return }
-        let rootURL = URL(fileURLWithPath: rootPath)
-
-        guard Self.deleteMetricRecordOnDisk(identityKey: identityKey, sampleKey: sampleKey, rootURL: rootURL) else {
-            librarySampleEditError = "Failed to delete metric record."
-            return
-        }
-
-        loadMeasurementDataForCurrentSelection()
-    }
-
-    @discardableResult
-    nonisolated static func deleteMetricRecordOnDisk(
-        identityKey: String,
-        sampleKey: String,
-        rootURL: URL
-    ) -> Bool {
-        let resolver = LibraryPathResolver(libraryRootURL: rootURL)
-        let relPath = "samples/\(sampleKey)/_spinlab/measurement_data.json"
-
-        guard let absURL = try? resolver.absoluteURL(for: relPath),
-              let data = try? Data(contentsOf: absURL) else {
-            return false
-        }
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        guard var store = try? decoder.decode(WorkbenchMeasurementDataStore.self, from: data) else {
-            fputs("[SpinLab] deleteMetricRecord: measurement_data.json unreadable for \(sampleKey), aborting\n", stderr)
-            return false
-        }
-
-        // Find the recordID referenced by this identity key
-        guard let pointer = store.latestIndex[identityKey] else {
-            fputs("[SpinLab] deleteMetricRecord: identity key not found in latestIndex\n", stderr)
-            return false
-        }
-
-        // Remove from records and latestIndex
-        store.records.removeAll { $0.recordID == pointer.recordID }
-        store.latestIndex.removeValue(forKey: identityKey)
-
-        // Write back atomically
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        let encoded: Data
-        do {
-            encoded = try encoder.encode(store)
-        } catch {
-            fputs("[SpinLab] deleteMetricRecord: encode failed for \(sampleKey): \(error)\n", stderr)
-            return false
-        }
-
-        let writer = AtomicFileWriter()
-        do {
-            try writer.commit([AtomicWriteEntry(destinationURL: absURL, data: encoded)])
-        } catch {
-            fputs("[SpinLab] deleteMetricRecord: write failed: \(error)\n", stderr)
-            return false
-        }
-
-        return true
-    }
-
-    // MARK: - Workbench Results deletion (V3.4.3)
-
-    /// Removes `ref` from every sample's `results_index.json`, then deletes the chart files.
-    ///
-    /// Algorithm (fail-closed, index-first):
-    /// 1. Enumerate ALL `results_index.json` files directly from the filesystem under `samples/*/`
-    ///    — does not depend on LibraryIndex being loadable, so a corrupt or missing library index
-    ///    cannot cause partial cleanup.
-    /// 2. For each index that contains this identity key, prepare an atomic write entry.
-    ///    If ANY write entry cannot be prepared (path resolution or encode failure), abort entirely.
-    /// 3. Atomically commit all index rewrites. Abort if the commit throws.
-    /// 4. Only after all indexes are consistent, delete the PNG and manifest (best-effort).
-    func deleteWorkbenchResult(_ ref: WorkbenchResultReference) {
-        guard let rootPath = librarySettings.rootPath else { return }
-        let rootURL = URL(fileURLWithPath: rootPath)
-
-        guard Self.deleteWorkbenchResultOnDisk(ref, rootURL: rootURL) else { return }
-
-        // Refresh the in-memory projection (both indexes).
-        loadWorkbenchResultsForCurrentSelection()
-        loadMeasurementPlotIndexForCurrentSelection()
-    }
-
-    /// Pure filesystem operation: removes `ref` from all `results_index.json` and
-    /// `measurement_plot_index.json` files, then deletes chart files.
-    /// Returns `true` on success, `false` if aborted (fail-closed).
-    @discardableResult
-    nonisolated static func deleteWorkbenchResultOnDisk(
-        _ ref: WorkbenchResultReference,
-        rootURL: URL
-    ) -> Bool {
-        let resolver = LibraryPathResolver(libraryRootURL: rootURL)
-        let writer = AtomicFileWriter()
-
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-
-        // 1. Enumerate all results_index.json files directly from the filesystem.
-        let samplesURL = rootURL.appending(path: "samples")
-        let sampleDirs = (try? FileManager.default.contentsOfDirectory(
-            at: samplesURL,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: .skipsHiddenFiles
-        )) ?? []
-
-        // 2. For every index that references this identity key, build an updated write entry.
-        let now = Date()
-        var indexWrites: [AtomicWriteEntry] = []
-        var preparationFailed = false
-
-        for sampleDir in sampleDirs {
-            let indexURL = sampleDir.appending(path: "_spinlab/results_index.json")
-            guard FileManager.default.fileExists(atPath: indexURL.path) else { continue }
-            let sk = sampleDir.lastPathComponent
-
-            // Fail-closed: if the file exists but cannot be decoded, abort entirely.
-            // A corrupt index may still reference this chart; deleting the chart files
-            // without cleaning the reference would leave a dangling pointer.
-            guard var index = LoadWorkbenchResultsUseCase(pathResolver: resolver).execute(sampleKey: sk) else {
-                fputs("[SpinLab] deleteWorkbenchResult: results_index unreadable for \(sk), aborting\n", stderr)
-                preparationFailed = true
-                break
-            }
-            guard index.references.contains(where: { $0.chartIdentityKey == ref.chartIdentityKey }) else {
-                continue  // This sample does not reference the chart — nothing to do
-            }
-
-            // Reference found: build the write entry. Any failure here must abort the whole operation.
-            index.references.removeAll { $0.chartIdentityKey == ref.chartIdentityKey }
-            index.updatedAt = now
-            let data: Data
-            do {
-                data = try encoder.encode(index)
-            } catch {
-                fputs("[SpinLab] deleteWorkbenchResult: encode failed for \(sk): \(error)\n", stderr)
-                preparationFailed = true
-                break
-            }
-            indexWrites.append(AtomicWriteEntry(destinationURL: indexURL, data: data))
-
-            // Also clean measurement_plot_index.json for this sample (P1: disk-level cleanup).
-            let plotIndexURL = sampleDir.appending(path: "_spinlab/measurement_plot_index.json")
-            if var plotIndex = LoadMeasurementPlotIndexUseCase(pathResolver: resolver).execute(sampleKey: sk) {
-                let keyToRemove = ref.chartIdentityKey
-                var changed = false
-                plotIndex.entries = plotIndex.entries
-                    .mapValues { keys in
-                        let filtered = keys.filter { $0 != keyToRemove }
-                        if filtered.count != keys.count { changed = true }
-                        return filtered
-                    }
-                    .filter { !$0.value.isEmpty }
-                if changed {
-                    plotIndex.updatedAt = now
-                    let plotData: Data
-                    do {
-                        plotData = try encoder.encode(plotIndex)
-                    } catch {
-                        fputs("[SpinLab] deleteWorkbenchResult: plot index encode failed for \(sk): \(error)\n", stderr)
-                        preparationFailed = true
-                        break
-                    }
-                    indexWrites.append(AtomicWriteEntry(destinationURL: plotIndexURL, data: plotData))
-                }
-            }
-            // measurement_plot_index.json missing → nothing to clean (not an error).
-        }
-
-        // Abort if any write entry could not be prepared — do not touch files.
-        guard !preparationFailed else { return false }
-
-        // 3. Atomically commit all index updates. Abort if the commit fails.
-        do {
-            try writer.commit(indexWrites)
-        } catch {
-            fputs("[SpinLab] deleteWorkbenchResult: atomic commit failed: \(error)\n", stderr)
-            return false
-        }
-
-        // 4. Delete the chart files only after all indexes are consistent.
-        for relPath in [ref.chartImagePath, ref.manifestPath] {
-            if let url = try? resolver.absoluteURL(for: relPath) {
-                try? FileManager.default.removeItem(at: url)
-            }
-        }
-        return true
-    }
-
-    // MARK: - Applied Measurement delete (V4.1.6)
-
-    /// Cascade-deletes an applied measurement: associated charts, sidecar, data file,
-    /// and measurement set membership. Refreshes all in-memory projections afterward.
-    func deleteAppliedMeasurement(_ measurement: AppliedMeasurement) {
-        guard !measurement.id.isEmpty else { return }
-        guard let rootPath = librarySettings.rootPath else { return }
-        let rootURL = URL(fileURLWithPath: rootPath)
-
-        guard Self.deleteAppliedMeasurementOnDisk(measurement, rootURL: rootURL) else {
-            librarySampleEditError = "Failed to delete measurement (index may be corrupt)."
-            return
-        }
-
-        // Invalidate the cache so the next refresh re-scans from disk.
-        if let sample = selectedExistingDrawerSample() {
-            appliedMeasurementsCacheBySampleID.removeValue(forKey: sample.id)
-        }
-        refreshSelectedDrawerAppliedMeasurementsIfNeeded()
-        // Internally also refreshes measurement plot index (line 1038).
-        loadWorkbenchResultsForCurrentSelection()
-    }
-
-    /// Pure filesystem operation: cascade-deletes an applied measurement's charts,
-    /// sidecar, data file, and measurement set membership.
-    ///
-    /// Fail-closed: if any index file exists but cannot be decoded, returns `false`
-    /// without deleting any files. Missing sidecar or data file is non-fatal.
-    @discardableResult
-    nonisolated static func deleteAppliedMeasurementOnDisk(
-        _ measurement: AppliedMeasurement,
-        rootURL: URL
-    ) -> Bool {
-        let sidecarURL = URL(fileURLWithPath: measurement.id).standardizedFileURL
-        let sidecarPath = sidecarURL.path
-        let rootPath = rootURL.standardizedFileURL.path
-        let fm = FileManager.default
-
-        // Guard: sidecar must be inside library root.
-        guard sidecarPath.hasPrefix(rootPath + "/") else {
-            fputs("[SpinLab] deleteAppliedMeasurement: sidecar outside library root\n", stderr)
-            return false
-        }
-
-        // Dual condition: (1) path is in a /measurements/ subtree,
-        //                 (2) derived sample dir contains a measurements/ subdirectory.
-        guard let measurementsRange = sidecarPath.range(of: "/measurements/") else {
-            fputs("[SpinLab] deleteAppliedMeasurement: sidecar not in measurements/ subtree\n", stderr)
-            return false
-        }
-        let batchSampleDirPath = String(sidecarPath[..<measurementsRange.lowerBound])
-        let batchSampleDirURL = URL(fileURLWithPath: batchSampleDirPath)
-
-        guard fm.fileExists(atPath: batchSampleDirURL.appending(path: "measurements").path) else {
-            fputs("[SpinLab] deleteAppliedMeasurement: derived sample dir missing measurements/\n", stderr)
-            return false
-        }
-
-        let sampleKey = batchSampleDirURL.lastPathComponent
-        let resolver = LibraryPathResolver(libraryRootURL: rootURL)
-        let sourceFileName = measurement.sourceFileName
-
-        // --- Step 1: Cascade-delete associated charts (scoped to this sample) ---
-
-        let plotIndexRelPath = "samples/\(sampleKey)/_spinlab/measurement_plot_index.json"
-        if let plotIndexAbsURL = try? resolver.absoluteURL(for: plotIndexRelPath),
-           fm.fileExists(atPath: plotIndexAbsURL.path) {
-            // File exists — must be decodable or fail-closed.
-            guard let plotIndex = LoadMeasurementPlotIndexUseCase(pathResolver: resolver)
-                .execute(sampleKey: sampleKey) else {
-                fputs("[SpinLab] deleteAppliedMeasurement: measurement_plot_index corrupt for \(sampleKey), aborting\n", stderr)
-                return false
-            }
-
-            if let chartKeys = plotIndex.entries[sourceFileName], !chartKeys.isEmpty {
-                let resultsIndexRelPath = "samples/\(sampleKey)/_spinlab/results_index.json"
-                if let resultsIndexAbsURL = try? resolver.absoluteURL(for: resultsIndexRelPath),
-                   fm.fileExists(atPath: resultsIndexAbsURL.path) {
-                    // File exists — must be decodable or fail-closed.
-                    guard let resultsIndex = LoadWorkbenchResultsUseCase(pathResolver: resolver)
-                        .execute(sampleKey: sampleKey) else {
-                        fputs("[SpinLab] deleteAppliedMeasurement: results_index corrupt for \(sampleKey), aborting\n", stderr)
-                        return false
-                    }
-
-                    for chartKey in chartKeys {
-                        if let ref = resultsIndex.references.first(where: { $0.chartIdentityKey == chartKey }) {
-                            guard deleteWorkbenchResultOnDisk(ref, rootURL: rootURL) else {
-                                fputs("[SpinLab] deleteAppliedMeasurement: chart cascade failed for \(chartKey), aborting\n", stderr)
-                                return false
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        // measurement_plot_index absent → no charts to cascade (not an error).
-
-        // --- Step 2: Delete sidecar (missing = non-fatal, delete failure = fatal) ---
-
-        if fm.fileExists(atPath: sidecarPath) {
-            do {
-                try fm.removeItem(atPath: sidecarPath)
-            } catch {
-                fputs("[SpinLab] deleteAppliedMeasurement: failed to delete sidecar: \(error)\n", stderr)
-                return false
-            }
-        } else {
-            fputs("[SpinLab] deleteAppliedMeasurement: sidecar already absent\n", stderr)
-        }
-
-        // --- Step 3: Delete data file (missing = non-fatal, delete failure = fatal) ---
-
-        let sidecarFileName = sidecarURL.lastPathComponent
-        let sidecarSuffix = ".spinlab.json"
-        if sidecarFileName.hasSuffix(sidecarSuffix) {
-            let dataFileName = String(sidecarFileName.dropLast(sidecarSuffix.count))
-            let dataFileURL = sidecarURL.deletingLastPathComponent().appending(path: dataFileName)
-            if fm.fileExists(atPath: dataFileURL.path) {
-                do {
-                    try fm.removeItem(at: dataFileURL)
-                } catch {
-                    fputs("[SpinLab] deleteAppliedMeasurement: failed to delete data file: \(error)\n", stderr)
-                    return false
-                }
-            } else {
-                fputs("[SpinLab] deleteAppliedMeasurement: data file already absent\n", stderr)
-            }
-        }
-
-        // --- Step 4: Remove from measurement sets (scoped to matching workflow) ---
-
-        let setsFileURL = batchSampleDirURL.appending(path: "measurement_sets.json")
-        if fm.fileExists(atPath: setsFileURL.path),
-           let setsData = try? Data(contentsOf: setsFileURL) {
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            if var sets = try? decoder.decode([MeasurementSet].self, from: setsData) {
-                var changed = false
-                for i in sets.indices {
-                    guard sets[i].workflow == measurement.workflow else { continue }
-                    if sets[i].memberFileNames.contains(sourceFileName) {
-                        sets[i].memberFileNames.removeAll { $0 == sourceFileName }
-                        changed = true
-                    }
-                }
-                let beforeCount = sets.count
-                sets.removeAll { $0.memberFileNames.isEmpty }
-                if sets.count != beforeCount { changed = true }
-
-                if changed {
-                    let encoder = JSONEncoder()
-                    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                    encoder.dateEncodingStrategy = .iso8601
-                    do {
-                        if sets.isEmpty {
-                            try fm.removeItem(at: setsFileURL)
-                        } else {
-                            let data = try encoder.encode(sets)
-                            try data.write(to: setsFileURL, options: .atomic)
-                        }
-                    } catch {
-                        fputs("[SpinLab] deleteAppliedMeasurement: failed to update measurement_sets.json: \(error)\n", stderr)
-                        return false
-                    }
-                }
-            }
-        }
-
-        return true
-    }
-
-    func reconcileLibrarySampleEditingSelection() {
-        guard let draft = librarySampleEditDraft else {
-            return
-        }
-
-        guard libraryActiveSelectionSource == .drawer,
-              let selectedSample = selectedExistingDrawerSample() else {
-            librarySampleEditDraft = nil
-            libraryState.sampleEditBaseSample = nil
-            libraryState.sampleEditOriginalDraft = nil
-            librarySampleEditError = nil
-            librarySampleEditMessage = "Edit canceled after leaving existing drawer selection."
-            return
-        }
-
-        guard selectedSample.id == draft.sampleId else {
-            librarySampleEditDraft = nil
-            libraryState.sampleEditBaseSample = nil
-            libraryState.sampleEditOriginalDraft = nil
-            librarySampleEditError = nil
-            librarySampleEditMessage = "Edit canceled after sample selection changed."
-            return
-        }
-    }
+    // Methods moved to LibraryFeatureStore+Projection.swift, +Logs.swift, +SampleEdit.swift
+    // Static disk operations moved to LibraryDiskCleanupService.swift
 
     func sampleChangeLog(for sample: LibrarySample) -> [LibrarySampleChangeLogEntry] {
         guard let rootPath = librarySettings.rootPath else {
@@ -1701,93 +958,7 @@ final class LibraryFeatureStore {
         return libraryStore.sampleChangeLog(for: sample, rootURL: URL(fileURLWithPath: rootPath))
     }
 
-    func loadLibraryGlobalManualLogs(resolveRegistrySourceURL: () -> URL?) -> LoadLibraryLogOutcome {
-        libraryGlobalManualLogError = nil
-        libraryGlobalManualLogMessage = nil
-
-        guard let registrySourceURL = resolveRegistrySourceURL() else {
-            let error = AppError.notFound("No registry source found. Load registry from Library first.")
-            libraryGlobalManualLogError = error.localizedDescription
-            libraryGlobalManualLogs = []
-            return .failure(error)
-        }
-
-        do {
-            let entries = try libraryStore.loadRegistryManualUpdateLogEntries(registrySourceURL: registrySourceURL)
-            libraryGlobalManualLogs = entries
-            let message = "Loaded \(entries.count) global log entries."
-            libraryGlobalManualLogMessage = message
-            return .success(count: entries.count, message: message)
-        } catch {
-            let appError = AppError.from(error, fallback: "Failed to load global manual logs.")
-            libraryGlobalManualLogError = appError.localizedDescription
-            libraryGlobalManualLogs = []
-            return .failure(appError)
-        }
-    }
-
-    func loadLibraryMetadataSyncLogs(resolveRegistrySourceURL: () -> URL?) -> LoadLibraryLogOutcome {
-        libraryMetadataSyncLogError = nil
-        libraryMetadataSyncLogMessage = nil
-
-        guard let registrySourceURL = resolveRegistrySourceURL() else {
-            let error = AppError.notFound("No registry source found. Load registry from Library first.")
-            libraryMetadataSyncLogError = error.localizedDescription
-            libraryMetadataSyncLogs = []
-            return .failure(error)
-        }
-
-        do {
-            let entries = try libraryStore.loadRegistryMetadataSyncLogEntries(registrySourceURL: registrySourceURL)
-            libraryMetadataSyncLogs = entries
-            let message = "Loaded \(entries.count) metadata log entries."
-            libraryMetadataSyncLogMessage = message
-            return .success(count: entries.count, message: message)
-        } catch {
-            let appError = AppError.from(error, fallback: "Failed to load metadata sync logs.")
-            libraryMetadataSyncLogError = appError.localizedDescription
-            libraryMetadataSyncLogs = []
-            return .failure(appError)
-        }
-    }
-
-    func markLibraryGlobalManualLogStatus(
-        rowIndex: Int,
-        status: LibraryManualLogStatus,
-        statusChangedBy: String = "user",
-        resolveRegistrySourceURL: () -> URL?
-    ) -> MarkLibraryLogStatusOutcome {
-        libraryGlobalManualLogError = nil
-        libraryGlobalManualLogMessage = nil
-
-        guard let registrySourceURL = resolveRegistrySourceURL() else {
-            let error = AppError.notFound("No registry source found. Load registry from Library first.")
-            libraryGlobalManualLogError = error.localizedDescription
-            return .failure(error)
-        }
-
-        do {
-            try libraryStore.updateRegistryManualUpdateLogStatus(
-                registrySourceURL: registrySourceURL,
-                rowIndex: rowIndex,
-                status: status,
-                statusChangedBy: statusChangedBy
-            )
-        } catch {
-            let appError = AppError.from(error, fallback: "Failed to update manual log status.")
-            libraryGlobalManualLogError = appError.localizedDescription
-            return .failure(appError)
-        }
-
-        switch loadLibraryGlobalManualLogs(resolveRegistrySourceURL: resolveRegistrySourceURL) {
-        case .success:
-            let message = "Updated status for log row \(rowIndex) to \(status.rawValue)."
-            libraryGlobalManualLogMessage = message
-            return .success(message: message)
-        case let .failure(error):
-            return .failure(error)
-        }
-    }
+    // Log methods moved to LibraryFeatureStore+Logs.swift
 
     func updateLibraryRoot(to url: URL) {
         librarySettings.rootPath = url.path

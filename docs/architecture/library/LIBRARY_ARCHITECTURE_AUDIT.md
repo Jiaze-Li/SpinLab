@@ -2,6 +2,8 @@
 
 Audited 2026-04-12. Covers the Library feature's data flow layers, state management, and service decomposition.
 
+> **Post-audit progress (v5.4.0):** P1 completed in v5.1.1 (LibraryFacade + LibraryCommandCoordinator removed). P2 completed in v5.4.0 (LibraryMutationOrchestrator merged into LibrarySyncService). The layer map below reflects the pre-cleanup state.
+
 ---
 
 ## Current Layer Map
