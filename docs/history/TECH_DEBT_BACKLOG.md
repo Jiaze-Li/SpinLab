@@ -30,7 +30,7 @@ Library feature has 12-layer call depth for a single action, 3 passthrough layer
 
 ---
 
-### Workflow ID alias hardcoding in SearchWorkflowMeasurementsUseCase
+### ~~Workflow ID alias hardcoding in SearchWorkflowMeasurementsUseCase~~ ✅ Done (v5.1.4)
 
 **Code:**
 - `Sources/SpinLabApp/UseCases/SearchWorkflowMeasurementsUseCase.swift` — `canonicalWorkflowID(from:displayName:)` (line 168) and `workflowAliases(canonicalID:workflowID:workflowDisplayName:)` (line 155)
