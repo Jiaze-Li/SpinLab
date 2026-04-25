@@ -39,7 +39,12 @@ struct RuleLoader {
             "source": "ApplicationSupport",
             "path": appSupportURL.path
         ])
-        if let loaded = tryLoadRuleSet(from: appSupportURL, sourceLabel: "ApplicationSupport", warnings: &warnings) {
+        if let loaded = tryLoadRuleSet(
+            from: appSupportURL,
+            sourceLabel: "ApplicationSupport",
+            appendsMissingToWarnings: true,
+            warnings: &warnings
+        ) {
             return loaded
         }
 
@@ -48,7 +53,12 @@ struct RuleLoader {
                 "source": "Bundle",
                 "path": bundleURL.path
             ])
-            if let loaded = tryLoadRuleSet(from: bundleURL, sourceLabel: "Bundle", warnings: &warnings) {
+            if let loaded = tryLoadRuleSet(
+                from: bundleURL,
+                sourceLabel: "Bundle",
+                appendsMissingToWarnings: false,
+                warnings: &warnings
+            ) {
                 return loaded
             }
         }
@@ -135,9 +145,21 @@ struct RuleLoader {
         return changed
     }
 
-    private func tryLoadRuleSet(from url: URL, sourceLabel: String, warnings: inout [String]) -> LoadResult? {
+    private func tryLoadRuleSet(
+        from url: URL,
+        sourceLabel: String,
+        appendsMissingToWarnings: Bool,
+        warnings: inout [String]
+    ) -> LoadResult? {
         guard FileManager.default.fileExists(atPath: url.path) else {
-            warnings.append("\(sourceLabel) file missing at \(url.path)")
+            if appendsMissingToWarnings {
+                warnings.append("\(sourceLabel) file missing at \(url.path)")
+            } else {
+                logger.info(.import, "Bundle candidate not present", metadata: [
+                    "source": sourceLabel,
+                    "path": url.path
+                ])
+            }
             return nil
         }
 

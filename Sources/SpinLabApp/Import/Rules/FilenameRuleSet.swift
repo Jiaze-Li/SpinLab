@@ -66,6 +66,13 @@ struct FilenameRuleSet: Decodable {
             case extraConditions, tokenMapRules, displayLabels
         }
 
+        init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            extraConditions = try container.decodeIfPresent([String: String].self, forKey: .extraConditions) ?? [:]
+            tokenMapRules = try container.decodeIfPresent([String: [MapRule]].self, forKey: .tokenMapRules) ?? [:]
+            displayLabels = try container.decodeIfPresent([String: String].self, forKey: .displayLabels) ?? [:]
+        }
+
         func patternMap() -> [String: String] {
             extraConditions
         }
