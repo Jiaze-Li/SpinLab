@@ -134,7 +134,6 @@ final class SpinLabAppState {
     var registry: RegistryFeatureStore { registryFeatureStore }
     var library: LibraryFeatureStore { libraryFeatureStore }
     var workbench: WorkbenchFeatureStore { workbenchFeatureStore }
-    var conditionRulesHandbook: ConditionRulesHandbookStore { conditionRulesHandbookStore }
     var workflowDefinitions: [WorkflowDefinition] = []
 
     var selectedPendingImportID: UUID? {
@@ -162,7 +161,6 @@ final class SpinLabAppState {
     private var registryFeatureStore: RegistryFeatureStore
     private let libraryFeatureStore: LibraryFeatureStore
     private let workbenchFeatureStore: WorkbenchFeatureStore
-    private let conditionRulesHandbookStore: ConditionRulesHandbookStore
     private let appLogger = AppLogger.shared
     private let interactionSnapshotCoordinator: InteractionSnapshotCoordinator
     private var hasRestoredInteractionSnapshot = false
@@ -330,13 +328,11 @@ final class SpinLabAppState {
         )
         self.registryFeatureStore = RegistryFeatureStore()
         self.libraryFeatureStore = LibraryFeatureStore()
-        self.conditionRulesHandbookStore = environment.conditionRulesHandbookStore
         self.workbenchFeatureStore = WorkbenchFeatureStore(
             libraryRepository: self.libraryRepository,
             dataActor: environment.dataActor,
             workflowRegistryStore: environment.workflowRegistryStore,
-            workflowIDAllocator: environment.workflowIDAllocator,
-            conditionRulesHandbookStore: self.conditionRulesHandbookStore
+            workflowIDAllocator: environment.workflowIDAllocator
         )
         let interactionMemory = InteractionMemoryStore(persistence: environment.persistence)
         self.interactionSnapshotCoordinator = InteractionSnapshotCoordinator(interactionMemory: interactionMemory)

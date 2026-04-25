@@ -10,7 +10,6 @@ struct AppEnvironment {
     var dataActor: any SpinLabDataActing
     var workflowRegistryStore: WorkflowRegistryStore = WorkflowRegistryStore()
     var workflowIDAllocator: any WorkflowIDAllocating = DefaultWorkflowIDAllocator()
-    var conditionRulesHandbookStore: ConditionRulesHandbookStore = ConditionRulesHandbookStore()
 
     static func live(previewRowCount: Int = 10) -> AppEnvironment {
         AppEnvironment(

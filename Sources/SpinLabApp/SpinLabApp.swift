@@ -25,14 +25,6 @@ struct SpinLabApp: App {
                 }
         }
         .windowStyle(.titleBar)
-
-        Window("Rules Handbook", id: "rules-handbook") {
-            RulesHandbookView(store: appState.conditionRulesHandbook)
-                .environment(appState)
-                .frame(minWidth: 560, minHeight: 540)
-        }
-        .windowResizability(.contentMinSize)
-        .defaultSize(width: 820, height: 720)
     }
 
     private static func workflowSelection(from rawValue: String?) -> SpinLabDomain.WorkflowKind {

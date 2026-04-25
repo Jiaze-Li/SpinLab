@@ -111,92 +111,6 @@ private struct WorkflowDefinitionEditor: View {
 
                 Divider()
 
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Match Rules")
-                        .font(.headline)
-                    Text("Global parser rules for this workflow. Inbox matches files against these rules.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    if workbench.selectedWorkflowMatchRules.isEmpty {
-                        Text("No match rules for this workflow.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(workbench.selectedWorkflowMatchRules) { rule in
-                            HStack(alignment: .center, spacing: 8) {
-                                Picker(
-                                    "Scope",
-                                    selection: Binding(
-                                        get: { rule.scope },
-                                        set: { workbench.updateMatchRuleScope(rule.id, scope: $0) }
-                                    )
-                                ) {
-                                    Text("tokens").tag(FilenameRuleSet.MatchScope.tokens)
-                                    Text("joined").tag(FilenameRuleSet.MatchScope.joined)
-                                }
-                                .labelsHidden()
-                                .frame(width: 90)
-
-                                Picker(
-                                    "Type",
-                                    selection: Binding(
-                                        get: { rule.type },
-                                        set: { workbench.updateMatchRuleType(rule.id, type: $0) }
-                                    )
-                                ) {
-                                    ForEach(matchTypeOptions(for: rule.type), id: \.self) { option in
-                                        Text(matchTypeLabel(option))
-                                            .tag(option)
-                                    }
-                                }
-                                .labelsHidden()
-                                .frame(width: 170)
-
-                                TextField(
-                                    "match tokens (comma-separated for *Any)",
-                                    text: Binding(
-                                        get: { workbench.matchRuleValuesCSV(rule.id) },
-                                        set: { workbench.updateMatchRuleValuesCSV(rule.id, csv: $0) }
-                                    )
-                                )
-                                .textFieldStyle(.roundedBorder)
-                                .onSubmit {
-                                    workbench.commitMatchRuleValuesCSV(rule.id)
-                                }
-
-                                Button(role: .destructive) {
-                                    workbench.removeMatchRule(rule.id)
-                                } label: {
-                                    Image(systemName: "trash")
-                                }
-                                .buttonStyle(.borderless)
-                                .accessibilityLabel("Delete rule")
-                            }
-                        }
-                    }
-
-                    Button {
-                        workbench.addMatchRuleToSelectedWorkflow()
-                    } label: {
-                        Label("Add Match Rule", systemImage: "plus.circle")
-                    }
-                    .buttonStyle(.bordered)
-
-                    HStack(spacing: 8) {
-                        Button("Discard") {
-                            workbench.discardWorkflowMatchRulesEdits()
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(!workbench.hasUnsavedWorkflowMatchRules)
-
-                        Button("Confirm Save") {
-                            workbench.confirmWorkflowMatchRulesSave()
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!workbench.hasUnsavedWorkflowMatchRules)
-                    }
-                }
-
                 Divider()
 
                 VStack(alignment: .leading, spacing: 10) {
@@ -265,31 +179,6 @@ private struct WorkflowDefinitionEditor: View {
             set: { update($0) }
         )
     }
-
-    private func matchTypeOptions(for current: FilenameRuleSet.MatchType) -> [FilenameRuleSet.MatchType] {
-        let preferred: [FilenameRuleSet.MatchType] = [.equals, .contains, .regex]
-        if preferred.contains(current) {
-            return preferred
-        }
-        return preferred + [current]
-    }
-
-    private func matchTypeLabel(_ type: FilenameRuleSet.MatchType) -> String {
-        switch type {
-        case .equals:
-            return "equals"
-        case .contains:
-            return "contains"
-        case .regex:
-            return "regex"
-        case .equalsAny:
-            return "equalsAny (legacy)"
-        case .containsAny:
-            return "containsAny (legacy)"
-        case .equalsOrContainsAny:
-            return "equalsOrContainsAny (legacy)"
-        }
-    }
 }
 
 private struct ConditionChip: View {
@@ -325,4 +214,3 @@ private struct ConditionChip: View {
         .clipShape(Capsule())
     }
 }
-
