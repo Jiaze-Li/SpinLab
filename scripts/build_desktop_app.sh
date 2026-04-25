@@ -47,6 +47,12 @@ mkdir -p "${APP_BUNDLE_PATH}/Contents/MacOS"
 cp "${BIN_PATH}" "${APP_BUNDLE_PATH}/Contents/MacOS/${APP_NAME}"
 chmod +x "${APP_BUNDLE_PATH}/Contents/MacOS/${APP_NAME}"
 
+BIN_DIR="$(dirname "${BIN_PATH}")"
+for bundle in "${BIN_DIR}"/*.bundle; do
+  [[ -e "${bundle}" ]] || continue
+  cp -R "${bundle}" "${APP_BUNDLE_PATH}/Contents/MacOS/"
+done
+
 cat > "${APP_BUNDLE_PATH}/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
