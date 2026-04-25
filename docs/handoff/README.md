@@ -36,4 +36,5 @@
 
 | 日期 | Handoff | 完成会话 | 验收摘要 |
 |---|---|---|---|
+| 2026-04-26 | [2026-04-26-5.1.5-s2-rules-panel.md](archive/2026-04-26-5.1.5-s2-rules-panel.md) | 2026-04-26 | C0 494ab17；C1 3fb92ac；C2+C3+C5 a8cf29a；C4 e583534；6 分区 NavigationSplitView + 4 编辑分区 + Inbox 入口 + MatchRuleEditor/RegexField；swift build clean |
 | 2026-04-25 | [2026-04-25-5.1.5-s1-rules-unification.md](archive/2026-04-25-5.1.5-s1-rules-unification.md) | 2026-04-25 | C1 63c891a→5b10d0f；旧规则 UI 三处删除 + 7 文件 schema 落地 + 一次性迁移器 + sync 脚本删除；swift build clean |

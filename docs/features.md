@@ -1,7 +1,7 @@
 # Feature Invariants & Test Status
 
 Status: active
-Last updated: v5.0.0
+Last updated: v5.1.5
 
 This file records business invariants that are not obvious from code alone.
 For full behavior details, see the linked specs.
@@ -169,3 +169,26 @@ Behavior details: `specs/04_UI_RULES.md`
 ### Audit Logging
 - Both edit-confirm and archive-apply actions logged
 - Append-only, never modified retroactively
+
+---
+
+## Rules Panel (v5.1.5+)
+
+Entry point: "Rules" button in Inbox Operations header row (opens separate Window via `openWindow(id: "spin-rules")`).
+
+### Save Semantics
+- Every section has Save + Discard buttons at both top and bottom of the scroll area
+- Saving writes atomically to runtime config dir; triggers `RuleLoader.shared.reloadCached()` + routing re-parse
+- Hash precondition check on save: if the file was modified externally since panel opened, save fails with `externalConflict` — user must choose Reload or Override
+- Closing the window with unsaved edits triggers a three-option alert: Discard Changes / Cancel / Save All
+
+### Section Structure
+- 6 sections: Filename Parse, Sample ID, Workflow Match, Substrate, Measurement Tags, Workflow ID Policy
+- 4 editable sections (Filename Parse, Sample ID, Workflow Match, Substrate)
+- 2 read-only placeholder sections (Measurement Tags, Workflow ID Policy) — editing available in Session 3
+
+### Validation
+- Sample ID: each pattern validated as NSRegularExpression; invalid compile = Save disabled
+- Workflow Match: cross-rule token conflicts detected at save time
+- Filename Parse: conditionDefinition ids must be unique; binding auto-derived from kind + id
+- Substrate: regex field in orientationPattern validated inline
