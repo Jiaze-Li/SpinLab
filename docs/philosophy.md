@@ -15,6 +15,7 @@ It helps AI assistants understand *how Jack thinks* so they can collaborate more
 - Minimal clicks. If a workflow step can be eliminated without losing safety, eliminate it.
 - No silent behavior. If the system makes a decision, the user must be able to see why.
 - Parsed metadata is always a suggestion. User confirmation is the only authority.
+- **What you see is what the app is set to.** Every rule — including rarely-changed ones — must be visible and editable in the UI. No silent configuration outside the UI. (Established v5.1.5.)
 
 ## Data Philosophy
 
