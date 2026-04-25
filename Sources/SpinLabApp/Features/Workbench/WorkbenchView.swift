@@ -2,7 +2,6 @@ import SwiftUI
 
 struct WorkbenchView: View {
     @Environment(SpinLabAppState.self) private var appState
-    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         @Bindable var workbench = appState.workbench
@@ -17,10 +16,6 @@ struct WorkbenchView: View {
                         Text("Workbench")
                             .font(AppFontScale.sectionTitle)
                         Spacer()
-                        Button("Rules Handbook") {
-                            openWindow(id: "rules-handbook")
-                        }
-                        .buttonStyle(.borderedProminent)
                     }
                     Picker("Section", selection: $workbench.selectedSection) {
                         ForEach(WorkbenchSection.allCases) { section in
