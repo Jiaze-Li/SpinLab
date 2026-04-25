@@ -3,6 +3,7 @@ import SwiftUI
 
 struct InboxOperationPanel: View {
     @Environment(SpinLabAppState.self) private var appState
+    @Environment(\.openWindow) private var openWindow
     @Binding var isImportSourceExpanded: Bool
     @Binding var isPendingQueueExpanded: Bool
     @Binding var isRoutingReviewExpanded: Bool
@@ -31,6 +32,11 @@ struct InboxOperationPanel: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Inbox Operations")
                         .font(AppFontScale.sectionTitle)
+                    Button("Rules") { openWindow(id: "spin-rules") }
+                        .font(AppFontScale.sectionTitle)
+                        .fontWeight(.regular)
+                        .tint(.accentColor)
+                        .buttonStyle(.borderless)
                     Spacer()
                     Text(AppVersion.current)
                         .font(.caption.monospaced())

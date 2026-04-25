@@ -26,6 +26,11 @@ struct SpinLabApp: App {
                 }
         }
         .windowStyle(.titleBar)
+
+        Window("Rules", id: "spin-rules") {
+            RulesPanelView()
+                .environment(appState)
+        }
     }
 
     private static func workflowSelection(from rawValue: String?) -> SpinLabDomain.WorkflowKind {
