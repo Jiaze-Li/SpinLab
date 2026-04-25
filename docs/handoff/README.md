@@ -30,7 +30,7 @@
 
 | 日期 | Handoff | 一句话目标 |
 |---|---|---|
-| _（暂无）_ | | |
+| 2026-04-26 | [2026-04-26-s1-fixture-fallout-test-fixture-rename.md](2026-04-26-s1-fixture-fallout-test-fixture-rename.md) | 清理 s1 schema 大改的 fallout：4 个测试文件硬编码旧 JSON 路径 + V210/V212/V221/V223 共 39 个运行时断言失败 |
 
 ## 已归档
 
