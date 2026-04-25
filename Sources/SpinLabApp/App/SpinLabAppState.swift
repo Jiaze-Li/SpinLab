@@ -134,6 +134,7 @@ final class SpinLabAppState {
     var registry: RegistryFeatureStore { registryFeatureStore }
     var library: LibraryFeatureStore { libraryFeatureStore }
     var workbench: WorkbenchFeatureStore { workbenchFeatureStore }
+    var rulesPanel: RulesManagementStore { rulesPanelStore }
     var workflowDefinitions: [WorkflowDefinition] = []
 
     var selectedPendingImportID: UUID? {
@@ -167,6 +168,13 @@ final class SpinLabAppState {
     private var lastLibraryCacheValidationRootPath: String?
     private var lastLibraryCacheValidationAt: Date?
     private let dataActor: any SpinLabDataActing
+    @ObservationIgnored
+    private lazy var rulesPanelStore = RulesManagementStore(
+        onRulesSaved: { [weak self] in
+            self?.refreshRoutingRuleMetadata(forceReload: true)
+            self?.recomputeAllPendingParsedHints()
+        }
+    )
     private let registryLifecycleService = RegistryLifecycleService()
     @ObservationIgnored
     private var contentFingerprintCache: [String: String] = [:]
