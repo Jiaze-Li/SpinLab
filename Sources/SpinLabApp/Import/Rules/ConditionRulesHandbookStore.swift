@@ -1481,27 +1481,18 @@ final class ConditionRulesHandbookStore {
     }
 
     private func findBundleRuleFileURL() -> URL? {
-        if let url = Bundle.main.url(
-            forResource: "filename_rules", withExtension: "json", subdirectory: "config"
-        ) { return url }
-
-        if let resources = Bundle.main.resourceURL {
-            let c1 = resources.appendingPathComponent("config/filename_rules.json")
-            if fileManager.fileExists(atPath: c1.path) { return c1 }
-            let c2 = resources.appendingPathComponent("SpinLab_SpinLabApp.bundle/filename_rules.json")
-            if fileManager.fileExists(atPath: c2.path) { return c2 }
+        // SwiftPM `.process("config")` flattens files into the module's resource
+        // bundle root, so look up via `Bundle.module` without a `subdirectory:`.
+        if let url = Bundle.module.url(forResource: "filename_rules", withExtension: "json"),
+           fileManager.fileExists(atPath: url.path) {
+            return url
         }
-
-        let bundleRoot = Bundle.main.bundleURL
-        let c3 = bundleRoot.appendingPathComponent("Contents/Resources/config/filename_rules.json")
-        if fileManager.fileExists(atPath: c3.path) { return c3 }
-        let c4 = bundleRoot.appendingPathComponent("Contents/Resources/SpinLab_SpinLabApp.bundle/filename_rules.json")
-        if fileManager.fileExists(atPath: c4.path) { return c4 }
-
+        // Dev fallback: `swift test` invoked from the project root.
         let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
-        let c5 = cwd.appendingPathComponent("Sources/SpinLabApp/config/filename_rules.json")
-        if fileManager.fileExists(atPath: c5.path) { return c5 }
-
+        let devFallback = cwd.appendingPathComponent("Sources/SpinLabApp/config/filename_rules.json")
+        if fileManager.fileExists(atPath: devFallback.path) {
+            return devFallback
+        }
         return nil
     }
 

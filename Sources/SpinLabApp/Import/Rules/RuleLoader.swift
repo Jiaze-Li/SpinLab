@@ -239,16 +239,14 @@ struct RuleLoader {
     }
 
     private func bundleOverrideCandidateURLs(filename: String) -> [URL] {
+        // SwiftPM `.process("config")` flattens files into the module's resource
+        // bundle root, so look up via `Bundle.module` without a `subdirectory:`.
+        let resourceName = filename.replacingOccurrences(of: ".json", with: "")
         var candidates: [URL] = []
-        if let direct = Bundle.main.url(forResource: filename.replacingOccurrences(of: ".json", with: ""), withExtension: "json", subdirectory: "config") {
+        if let direct = Bundle.module.url(forResource: resourceName, withExtension: "json") {
             candidates.append(direct)
         }
-        if let resources = Bundle.main.resourceURL {
-            candidates.append(resources.appendingPathComponent("config/\(filename)"))
-        }
-        let bundleRoot = Bundle.main.bundleURL
-        candidates.append(bundleRoot.appendingPathComponent("Contents/Resources/config/\(filename)"))
-        // SwiftPM test fallback
+        // Dev fallback: `swift test` invoked from the project root.
         let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
         candidates.append(cwd.appendingPathComponent("Sources/SpinLabApp/config/\(filename)"))
         return candidates
@@ -411,27 +409,13 @@ struct RuleLoader {
     }
 
     private func bundleRuleCandidateURLs() -> [URL] {
+        // SwiftPM `.process("config")` flattens files into the module's resource
+        // bundle root, so look up via `Bundle.module` without a `subdirectory:`.
         var candidates: [URL] = []
-
-        if let direct = Bundle.main.url(forResource: "filename_rules", withExtension: "json", subdirectory: "config") {
+        if let direct = Bundle.module.url(forResource: "filename_rules", withExtension: "json") {
             candidates.append(direct)
         }
-
-        if let resources = Bundle.main.resourceURL {
-            candidates.append(resources.appendingPathComponent("config/filename_rules.json"))
-            candidates.append(resources.appendingPathComponent("SpinLab_SpinLabApp.bundle/filename_rules.json"))
-        }
-
-        let bundleRoot = Bundle.main.bundleURL
-        candidates.append(bundleRoot.appendingPathComponent("Contents/Resources/config/filename_rules.json"))
-        candidates.append(bundleRoot.appendingPathComponent("Contents/Resources/SpinLab_SpinLabApp.bundle/filename_rules.json"))
-        candidates.append(bundleRoot.appendingPathComponent("SpinLab_SpinLabApp.bundle/filename_rules.json"))
-
-        if let executableDir = Bundle.main.executableURL?.deletingLastPathComponent() {
-            candidates.append(executableDir.appendingPathComponent("SpinLab_SpinLabApp.bundle/filename_rules.json"))
-        }
-
-        // SwiftPM test fallback: running from project root where rules live in source tree.
+        // Dev fallback: `swift test` invoked from the project root.
         let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
         candidates.append(cwd.appendingPathComponent("Sources/SpinLabApp/config/filename_rules.json"))
 
