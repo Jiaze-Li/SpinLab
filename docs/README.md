@@ -1,30 +1,19 @@
 # Docs Index
 
-## 三类文档分工（权威，跨项目可参考）
+> **任务流水线文档职责**（流水线 5 阶段映射 + ROADMAP 三态 + 反模式 + 互相引用方向）= 单一真相在 `~/.claude/docs/workflow.md §3.e`。本文件只列**项目侧具体落点**，不复刻规则。
 
-| 文档 | 回答的问题 | 内容形态 | 不该有什么 |
-|---|---|---|---|
-| `V5_ROADMAP.md` | **要做什么 / 在哪个版本段 / 做没做** | 版本段索引 + 一句话条目 + `[x]/[ ]` 状态 | ❌ 设计细节 ❌ 实现说明 ❌ 用户可见结果描述 ❌ 决策动机 |
-| `history/vX.Y.Z_*.md` | **做了什么 / 为什么这么做** | 完成事件流水 + 决策记录 + 验收 | ❌ 计划态 ❌ 进度跟踪（那是 ROADMAP 的事） |
-| `handoff/<file>.md` | **跨会话接手怎么照做** | 完整执行包：方案 / 约束 / 不可动文件 / 启动指令 | ❌ 长期保存（消费完即归档）❌ 非跨会话任务（同会话连贯做完不需要 handoff） |
+## 项目侧落点
 
-### 互相引用方向（单向，不互灌内容）
+| 全局角色 | 项目实例 |
+|---|---|
+| ROADMAP | `V5_ROADMAP.md`（5.x 版本段；单条三态 `[ ]` / `[~]` / `[x]`） |
+| handoff 待消费 | `handoff/<YYYY-MM-DD-topic>.md` |
+| handoff 已归档 | `handoff/archive/<YYYY-MM-DD-topic>.md` |
+| history（设计思路 + 实施摘要） | `history/v<版本号>_<topic>.md` |
+| Tech Debt Inbox（未拍板 raw 捕获池） | `history/TECH_DEBT_BACKLOG.md` — Jack 拍板后剪到 ROADMAP 对应版本段 |
+| 双 AI 对抗草稿 | `tmp/<ai>-plan-<topic>.md`（仅对抗期；详见 `handoff/README.md`） |
 
-- ROADMAP 条目 **不指向** handoff/history，只承担索引职责
-- history 条目 **指向** handoff（"完整方案见 docs/handoff/archive/..."）
-- handoff 内部 **可指向** history（"决策上下文：见 history/vX.Y.Z_*.md"）
-
-### 反模式（禁止）
-
-- 把 handoff 的设计抄进 ROADMAP → ROADMAP 会膨胀成第二份设计文档
-- 把 history 的"为什么"塞进 ROADMAP → 同上
-- 任务完成后保留 handoff 在「待消费」段 → 必须归档，否则索引失真
-- 同会话能做完的任务也写 handoff → handoff 是跨会话工具，不是设计模板
-
-### 配套位置
-
-- Tech Debt Inbox（未分版本段的 raw 捕获池）→ `history/TECH_DEBT_BACKLOG.md`，Jack 拍板后剪到 ROADMAP 对应版本段
-- Handoff 三态生命周期 + tmp 清理约定 → `handoff/README.md`
+详细 handoff 索引（待消费 / 已归档）+ 项目示例的执行分工表 → `handoff/README.md`
 
 ---
 

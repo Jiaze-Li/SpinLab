@@ -212,13 +212,12 @@ Do not implement out of order. Skip steps when that layer has no change.
 ### Session Closeout (event-driven)
 - `[HARD][must]` After code changes, walk through:
   1. User-visible behavior changed? → Update `docs/features.md`.
-  2. Version bump or architecture event? → Add `docs/history/vX.Y.Z_*.md` entry（**做了什么 / 为什么这么做**）+ 更新 `docs/README.md`索引；同时把 `docs/V5_ROADMAP.md` 对应条目仅改 `[ ] → [x]`（**绝不**把 history 内容回灌到 ROADMAP）。
-  3. New development preference? → Update `docs/philosophy.md`.
-  4. Known issues resolved or discovered? → Update `docs/known_issues.md`.
-  5. Cross-session user preference? → Write to memory system.
-  6. 接手并完成了某份 handoff？→ `git mv docs/handoff/<file>` 到 `docs/handoff/archive/`，把 `docs/handoff/README.md` 索引那行从「待消费」剪到「已归档」。
+  2. New development preference? → Update `docs/philosophy.md`.
+  3. Known issues resolved or discovered? → Update `docs/known_issues.md`.
+  4. Cross-session user preference? → Write to memory system.
+  5. 接手并完成了某份 handoff？→ 按 `~/.claude/docs/workflow.md §9.c` 4 步归档动作执行（handoff 搬迁 + 索引更新 + 设计思路 ROADMAP→history 迁移 + ROADMAP 改一句话+`[x]`）。
 - Skip steps that don't apply.
-- `[HARD][must]` 三类文档分工不可越界：ROADMAP = 一句话 + 状态；history = 做了什么 + 为什么；handoff = 跨会话执行包。详见 `docs/README.md` 顶部「三类文档分工」表，反模式禁止。
+- `[HARD][must]` **任务流水线文档职责不可越界**：每份文档只装一种内容。详见 `docs/README.md` 顶部「任务流水线文档职责」表 + 反模式段。设计思路一辈子只活一处（ROADMAP 在做时 / history 做完后），不重复、不互灌。
 
 ### Change Impact
 - `[HARD][must]` Before modifying code, check `docs/features.md` invariants. If a change would violate one, flag it before proceeding.
@@ -227,9 +226,10 @@ Do not implement out of order. Skip steps when that layer has no change.
 
 ## Roadmap Reference
 
-- Active roadmap: `docs/V5_ROADMAP.md` — 仅"要做什么 / 在哪段 / 做没做"。设计与动机不在这里。
+- Active roadmap: `docs/V5_ROADMAP.md`. ROADMAP 三态、互相引用方向、反模式 → 见 `~/.claude/docs/workflow.md §3.e`。
 - Discovered bugs/debt: 先进 `docs/history/TECH_DEBT_BACKLOG.md` Inbox；Jack 拍板归入版本段时再剪到 ROADMAP（避免双账本）。
 - Do not reorder/reprioritize unless user instructs.
+- 一次规划只针对**一条需求**，不批量处理 ROADMAP 多条。
 
 ---
 
