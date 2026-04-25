@@ -78,21 +78,13 @@ struct RulesPanelView: View {
     private func detailView(for section: RulesPanelSection) -> some View {
         switch section {
         case .filenameParse:
-            GenericEditablePlaceholderSection(
-                title: section.displayName,
-                message: "Filename Parse editor is being integrated.",
-                store: store
-            )
+            FilenameParseRulesSection()
         case .sampleID:
             SampleIDRulesSection(store: store)
         case .workflowMatch:
             WorkflowMatchRulesSection(store: store)
         case .substrate:
-            GenericEditablePlaceholderSection(
-                title: section.displayName,
-                message: "Substrate editor is being integrated.",
-                store: store
-            )
+            SubstrateRulesSection()
         case .measurementTag:
             MeasurementTagRulesSection(store: store)
         case .workflowIDPolicy:
@@ -134,30 +126,6 @@ struct RulesPanelView: View {
     private func closePendingWindow() {
         pendingCloseWindow?.close()
         pendingCloseWindow = nil
-    }
-}
-
-private struct GenericEditablePlaceholderSection: View {
-    let title: String
-    let message: String
-    let store: RulesManagementStore
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.lg) {
-            saveButton
-            Text(title)
-                .font(AppFontScale.sectionHeader)
-            Text(message)
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 0)
-            saveButton
-        }
-    }
-
-    private var saveButton: some View {
-        Button("Save") {
-            _ = store.saveCurrent()
-        }
     }
 }
 
