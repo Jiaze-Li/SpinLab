@@ -1,7 +1,6 @@
 {
-  "patterns" : [
-    "^(PN|PT|SL)\\d+$",
-    "^S\\d+$"
-  ],
-  "version" : 1
+  "version": 1,
+  "patterns": [
+    "^(PN|PT|SL)\\d+$"
+  ]
 }

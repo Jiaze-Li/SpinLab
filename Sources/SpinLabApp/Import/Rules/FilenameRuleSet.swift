@@ -95,13 +95,6 @@ struct FilenameRuleSet: Decodable {
         var ignoredFileExtensions: [String]
     }
 
-    struct SharedRules: Decodable {
-        var tokenization: Tokenization
-        var sampleId: SampleIdRules
-        var substrateTagRules: [MapRule]
-        var substrate: SharedSubstrateRules?
-    }
-
     struct SharedSubstrateRules: Decodable {
         var tokenSeparators: String
         var originStandaloneTokens: [String]
@@ -113,22 +106,6 @@ struct FilenameRuleSet: Decodable {
         var orientationTokens: [String]?
         var orientationAliases: [String: String]?
         var orientationPattern: String
-    }
-
-    struct InboxRules: Decodable {
-        var sources: [Source]
-        var batch: BatchRules
-        var measurementNameRules: [MapRule]
-        var measurementTagRules: [MapRule]
-        var channel: ChannelRules
-        var rotationHintRules: [MapRule]
-        var conditions: ConditionRules
-        var conditionDefinitions: [ConditionDefinition]?
-    }
-
-    struct LibraryRules: Decodable {
-        var registry: RegistryRules?
-        var importRules: ImportRules?
     }
 
     enum MatchScope: String, Decodable {
@@ -209,9 +186,6 @@ struct FilenameRuleSet: Decodable {
         case conditionDefinitions
         case registry
         case importRules
-        case shared
-        case inbox
-        case library
     }
 
     init(
@@ -253,47 +227,20 @@ struct FilenameRuleSet: Decodable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         version = try container.decode(Int.self, forKey: .version)
-
-        if let shared = try container.decodeIfPresent(SharedRules.self, forKey: .shared) {
-            tokenization = shared.tokenization
-            sampleId = shared.sampleId
-            substrateTagRules = shared.substrateTagRules
-            sharedSubstrate = shared.substrate
-        } else {
-            tokenization = try container.decode(Tokenization.self, forKey: .tokenization)
-            sampleId = try container.decode(SampleIdRules.self, forKey: .sampleId)
-            substrateTagRules = try container.decode([MapRule].self, forKey: .substrateTagRules)
-            sharedSubstrate = nil
-        }
-
-        if let inbox = try container.decodeIfPresent(InboxRules.self, forKey: .inbox) {
-            sources = inbox.sources
-            batch = inbox.batch
-            measurementNameRules = inbox.measurementNameRules
-            measurementTagRules = inbox.measurementTagRules
-            channel = inbox.channel
-            rotationHintRules = inbox.rotationHintRules
-            conditions = inbox.conditions
-            conditionDefinitions = inbox.conditionDefinitions ?? []
-        } else {
-            sources = try container.decode([Source].self, forKey: .sources)
-            batch = try container.decode(BatchRules.self, forKey: .batch)
-            measurementNameRules = try container.decode([MapRule].self, forKey: .measurementNameRules)
-            measurementTagRules = try container.decode([MapRule].self, forKey: .measurementTagRules)
-            channel = try container.decode(ChannelRules.self, forKey: .channel)
-            rotationHintRules = try container.decode([MapRule].self, forKey: .rotationHintRules)
-            conditions = try container.decode(ConditionRules.self, forKey: .conditions)
-            conditionDefinitions = try container.decodeIfPresent([ConditionDefinition].self, forKey: .conditionDefinitions) ?? []
-        }
-
-        if let library = try container.decodeIfPresent(LibraryRules.self, forKey: .library) {
-            registry = library.registry
-            importRules = library.importRules
-        } else {
-            registry = try container.decodeIfPresent(RegistryRules.self, forKey: .registry)
-            importRules = try container.decodeIfPresent(ImportRules.self, forKey: .importRules)
-        }
-
+        tokenization = try container.decode(Tokenization.self, forKey: .tokenization)
+        sources = try container.decode([Source].self, forKey: .sources)
+        sampleId = try container.decodeIfPresent(SampleIdRules.self, forKey: .sampleId) ?? SampleIdRules(patterns: [])
+        batch = try container.decode(BatchRules.self, forKey: .batch)
+        measurementNameRules = try container.decodeIfPresent([MapRule].self, forKey: .measurementNameRules) ?? []
+        measurementTagRules = try container.decodeIfPresent([MapRule].self, forKey: .measurementTagRules) ?? []
+        substrateTagRules = try container.decodeIfPresent([MapRule].self, forKey: .substrateTagRules) ?? []
+        channel = try container.decode(ChannelRules.self, forKey: .channel)
+        rotationHintRules = try container.decodeIfPresent([MapRule].self, forKey: .rotationHintRules) ?? []
+        conditions = try container.decodeIfPresent(ConditionRules.self, forKey: .conditions) ?? ConditionRules()
+        conditionDefinitions = try container.decodeIfPresent([ConditionDefinition].self, forKey: .conditionDefinitions) ?? []
+        registry = try container.decodeIfPresent(RegistryRules.self, forKey: .registry)
+        importRules = try container.decodeIfPresent(ImportRules.self, forKey: .importRules)
+        sharedSubstrate = nil
         compiled = CompiledRules()
         loadWarnings = []
     }

@@ -1751,7 +1751,6 @@ final class SpinLabAppState {
             "routingRulePath": inboxFeatureStore.routingRuleSourcePath,
             "routingRuleFingerprint": inboxFeatureStore.routingRuleFingerprint,
             "routingRuleHashPrefix": inboxFeatureStore.routingRuleHashPrefix,
-            "routingRuleLoadedOverrideFiles": inboxFeatureStore.routingRuleLoadedOverrideFiles.joined(separator: ","),
             "pendingImportCount": "\(inboxFeatureStore.pendingImports.count)",
             "archivedRecordCount": "\(workbenchFeatureStore.archivedRecords.count)",
             "selectedArea": selectedArea.rawValue

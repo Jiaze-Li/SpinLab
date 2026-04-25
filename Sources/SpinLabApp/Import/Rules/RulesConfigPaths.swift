@@ -24,28 +24,48 @@ struct RulesConfigPaths {
             .appendingPathComponent("config", isDirectory: true)
     }
 
-    var ruleURL: URL {
-        configDirectoryURL.appendingPathComponent("filename_rules.json")
-    }
-
-    var workflowMatchRulesURL: URL {
-        configDirectoryURL.appendingPathComponent("workflow_match_rules.json")
+    var filenameParsRulesURL: URL {
+        configDirectoryURL.appendingPathComponent("filename_parse_rules.json")
     }
 
     var sampleIDRulesURL: URL {
         configDirectoryURL.appendingPathComponent("sample_id_rules.json")
     }
 
-    var conditionsRulesURL: URL {
-        configDirectoryURL.appendingPathComponent("conditions_rules.json")
+    var workflowMatchRulesURL: URL {
+        configDirectoryURL.appendingPathComponent("workflow_match_rules.json")
     }
 
-    var substrateRulesURL: URL {
-        configDirectoryURL.appendingPathComponent("substrate_rules.json")
+    var substrateNormalizationRulesURL: URL {
+        configDirectoryURL.appendingPathComponent("substrate_normalization_rules.json")
     }
 
     var measurementTagRulesURL: URL {
         configDirectoryURL.appendingPathComponent("measurement_tag_rules.json")
+    }
+
+    var workflowIDPolicyURL: URL {
+        configDirectoryURL.appendingPathComponent("workflow_id_policy.json")
+    }
+
+    var libraryImportRulesURL: URL {
+        configDirectoryURL.appendingPathComponent("library_import_rules.json")
+    }
+
+    var migrationStateURL: URL {
+        configDirectoryURL.appendingPathComponent("migration_state.json")
+    }
+
+    var allSchemaFileURLs: [URL] {
+        [
+            filenameParsRulesURL,
+            sampleIDRulesURL,
+            workflowMatchRulesURL,
+            substrateNormalizationRulesURL,
+            measurementTagRulesURL,
+            workflowIDPolicyURL,
+            libraryImportRulesURL
+        ]
     }
 
     static func isRunningTests() -> Bool {

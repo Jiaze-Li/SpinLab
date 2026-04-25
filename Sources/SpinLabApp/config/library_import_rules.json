@@ -1,0 +1,129 @@
+{
+  "version": 1,
+  "registry": {
+    "sampleHeaderAliases": [
+      "sampleid",
+      "sample",
+      "sample id",
+      "sample_no",
+      "编号",
+      "样品编号",
+      "样品id"
+    ],
+    "excludedSheetNames": [
+      "实验大纲"
+    ],
+    "sampleCellSeparators": "/／,，;；|",
+    "batchHeaderAliases": [
+      "编号",
+      "Batch",
+      "BatchID",
+      "Batch Id"
+    ],
+    "substrateHeaderAliases": [
+      "substrate",
+      "Substrate",
+      "衬底"
+    ],
+    "numericKeyAliases": {
+      "厚度": [
+        "预打",
+        "生长次数"
+      ],
+      "温度": [
+        "温度",
+        "temperature"
+      ],
+      "氧压": [
+        "氧压",
+        "pressure"
+      ],
+      "能量": [
+        "能量",
+        "energy"
+      ],
+      "电压": [
+        "电压",
+        "kv"
+      ],
+      "磁场": [
+        "磁场",
+        "field"
+      ],
+      "电阻": [
+        "电阻",
+        "current"
+      ]
+    },
+    "substrateMaterialTokens": [
+      "STO",
+      "NGO",
+      "MAO",
+      "MGO",
+      "AL2O3",
+      "SI",
+      "POLY-SIO2 ON SI",
+      "POLY-SIO2"
+    ],
+    "substrateProcessingKeywords": {
+      "HF": [
+        "HF"
+      ],
+      "b": [
+        "B",
+        "BAKE",
+        "BAKED"
+      ],
+      "o": [
+        "ORIGINAL",
+        "ORIGIN",
+        " O "
+      ]
+    },
+    "metadataLookupAliases": {
+      "batch": [
+        "Batch",
+        "BatchID",
+        "Batch Name",
+        "编号"
+      ],
+      "sample": [
+        "Sample",
+        "SampleID",
+        "Sample Name",
+        "样品"
+      ],
+      "measurement": [
+        "Measurement",
+        "MeasurementName",
+        "Measurement Name"
+      ],
+      "device": [
+        "Device",
+        "DeviceName",
+        "Device Name"
+      ],
+      "temperature": [
+        "Temperature",
+        "Temp",
+        "T"
+      ],
+      "project": [
+        "Project",
+        "ProjectName",
+        "Project Name"
+      ]
+    }
+  },
+  "import": {
+    "supportedFileExtensions": [
+      "csv",
+      "txt",
+      "dat",
+      "lvm"
+    ],
+    "ignoredFileExtensions": [
+      "gph"
+    ]
+  }
+}

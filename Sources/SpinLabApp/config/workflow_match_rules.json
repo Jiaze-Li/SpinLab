@@ -1,45 +1,45 @@
 {
-  "rules" : [
+  "version": 1,
+  "rules": [
     {
-      "matchValues" : [
+      "workflowID": "MR",
+      "scope": "tokens",
+      "type": "equals",
+      "matchValues": [
         "MR"
-      ],
-      "scope" : "tokens",
-      "type" : "equals",
-      "workflowID" : "MR"
+      ]
     },
     {
-      "matchValues" : [
+      "workflowID": "ahe",
+      "scope": "tokens",
+      "type": "equals",
+      "matchValues": [
         "AHE"
-      ],
-      "scope" : "tokens",
-      "type" : "equals",
-      "workflowID" : "ahe"
+      ]
     },
     {
-      "matchValues" : [
+      "workflowID": "3w",
+      "scope": "tokens",
+      "type": "equals",
+      "matchValues": [
         "3w"
-      ],
-      "scope" : "tokens",
-      "type" : "equals",
-      "workflowID" : "3w"
+      ]
     },
     {
-      "matchValues" : [
+      "workflowID": "RT",
+      "scope": "tokens",
+      "type": "equals",
+      "matchValues": [
         "rt"
-      ],
-      "scope" : "tokens",
-      "type" : "equals",
-      "workflowID" : "RT"
+      ]
     },
     {
-      "matchValues" : [
+      "workflowID": "XY",
+      "scope": "tokens",
+      "type": "equals",
+      "matchValues": [
         "xy"
-      ],
-      "scope" : "tokens",
-      "type" : "equals",
-      "workflowID" : "XY"
+      ]
     }
-  ],
-  "version" : 1
+  ]
 }

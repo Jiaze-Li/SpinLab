@@ -159,6 +159,14 @@
         "value" : "MgO"
       },
       "value" : "MgO"
+    },
+    {
+      "match" : {
+        "scope" : "tokens",
+        "type" : "equals",
+        "value" : "b"
+      },
+      "value" : "b"
     }
   ],
   "version" : 1
