@@ -30,10 +30,10 @@
 
 | 日期 | Handoff | 一句话目标 |
 |---|---|---|
-| 2026-04-25 | [2026-04-25-5.1.5-s1-rules-unification.md](2026-04-25-5.1.5-s1-rules-unification.md) | 5.1.5 会话 1：拆 3 处旧规则 UI + 7 文件新 schema 落地 + 一次性迁移 |
+| _（暂无）_ | | |
 
 ## 已归档
 
-| 日期 | Handoff | 完成会话 |
-|---|---|---|
-| _（暂无）_ | | |
+| 日期 | Handoff | 完成会话 | 验收摘要 |
+|---|---|---|---|
+| 2026-04-25 | [2026-04-25-5.1.5-s1-rules-unification.md](archive/2026-04-25-5.1.5-s1-rules-unification.md) | 2026-04-25 | C1 63c891a→5b10d0f；旧规则 UI 三处删除 + 7 文件 schema 落地 + 一次性迁移器 + sync 脚本删除；swift build clean |
