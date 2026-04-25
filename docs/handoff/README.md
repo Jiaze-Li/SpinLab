@@ -28,7 +28,7 @@
 
 | 日期 | Handoff | 一句话目标 |
 |---|---|---|
-| 2026-04-25 | [`2026-04-25-rules-architecture-cleanup.md`](./2026-04-25-rules-architecture-cleanup.md) | 规则管理架构清理（v5.1.5）：6 类规则统一为单文件 + UI 全可见 + bundle/runtime 字节对齐 |
+| _（暂无）_ | | |
 
 ## 已归档
 
