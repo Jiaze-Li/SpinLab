@@ -37,7 +37,7 @@ struct V224RegistrySubstrateRuleBookTests {
     private func makeRules() -> RegistrySubstrateRuleBook {
         let testsDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         let projectRoot = testsDir.deletingLastPathComponent().deletingLastPathComponent()
-        let ruleURL = projectRoot.appendingPathComponent("Sources/SpinLabApp/config/filename_rules.json")
+        let ruleURL = projectRoot.appendingPathComponent("Sources/SpinLabApp/config/filename_parse_rules.json")
         let data = try! Data(contentsOf: ruleURL)
         var ruleSet = try! JSONDecoder().decode(FilenameRuleSet.self, from: data)
         ruleSet.loadWarnings = ruleSet.compile()
