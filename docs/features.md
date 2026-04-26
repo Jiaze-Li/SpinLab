@@ -120,6 +120,34 @@ Behavior details: `specs/three_omega_physics.md`
 
 ---
 
+## Rules Panel (v5.1.5)
+
+Architecture details: `docs/history/v515_s5_rules_panel_rewrite.md`
+
+### 5-Section Structure
+- Sections: Import Filters / Filename Tokenization / Sample Identification / Workflow / Measuring Condition
+- Each section maps 1:1 to a JSON config file under `RulesConfigPaths`
+- `RulesPanelSection.allCases` order is the canonical Save All iteration order — never use Set iteration
+
+### Save Behavior
+- Save button writes only the active section; Save All iterates allCases filtered by dirtySections
+- Hash precondition: file hash captured at open-time; mismatch on save → externalConflict (never silent overwrite)
+- After save: RuleLoader cache updated → onRulesSaved callback fires → persistence hook fires (in that order)
+- R1 invariant: rules changes are live in RuleLoader.shared *before* onRulesSaved fires — no restart required
+
+### Cross-Section Validation
+- Workflow conditionFieldIDs are validated against dirty measuringConditionDraft (if dirty), else disk
+- This means Save All works correctly even when workflow saves before measuringCondition
+
+### availableConditionFieldIDs
+- Derived from measuringConditionDraft.conditionDefinitions; refreshed on load and every updateMeasuringCondition call
+- WorkflowSection reads this to populate conditionFieldIDs multi-select UI
+
+### Test Coverage
+- 36 tests across 5 suites: store lifecycle, per-field validation, cross-section contract, R1 gate, SharedSubstrate
+
+---
+
 ## Shared
 
 Behavior details: `specs/04_UI_RULES.md`

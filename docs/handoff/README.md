@@ -28,14 +28,13 @@
 
 ## 待消费
 
-| 日期 | Handoff | 主题 | 验收口径 |
-|---|---|---|---|
-| 2026-04-26 | [2026-04-26-5.1.5-s5-rules-panel-rewrite.md](2026-04-26-5.1.5-s5-rules-panel-rewrite.md) | 5.1.5 s5 规则面板按新 5 本子重写 + R1 立即生效 | 规则窗口换 5 新 section + R1 硬门禁（保存 condition def 后 Workbench picker 立刻含新值）+ Save All 顺序契约 + 旧 5 section 文件删除 grep 0 命中 + swift build clean |
+（空）
 
 ## 已归档
 
 | 日期 | Handoff | 完成会话 | 验收摘要 |
 |---|---|---|---|
+| 2026-04-26 | [2026-04-26-5.1.5-s5-rules-panel-rewrite.md](2026-04-26-5.1.5-s5-rules-panel-rewrite.md) | 2026-04-26 s5 | RulesManagementStore 重写 + 5 新 section + WorkflowMatchRuleEditor + 36 tests；R1 硬门禁满足；旧 5 section 文件全删；commit ea09161；swift build clean |
 | 2026-04-26 | [2026-04-26-5.1.5-s3-rules-redesign.md](archive/2026-04-26-5.1.5-s3-rules-redesign.md) | 2026-04-26 s4 | C1 8df3ee7 5本子schema+RulesConfigPaths；C2 a9ebf19 RuleLoader 5文件装配；C3 f527d17 RulesMigration v2→v3；C4a/C4b 362025b WorkflowIDAllocator退役+parentID strip；C5 1a62ed8 rotationHintRules硬编码迁移；C6 747b7e4 旧bundle文件删除+V210 fixture更新；D7 displayLabels有消费方保留；swift build clean + V210/V515 全绿 |
 | 2026-04-26 | [2026-04-26-s1-fixture-fallout-test-fixture-rename.md](archive/2026-04-26-s1-fixture-fallout-test-fixture-rename.md) | 2026-04-26 B | C1 80959a1 路径改名；C2 a6edeca V515 隔离；C3 2ee4d6c V210+RuleLoader 完整修复；C4 10c7d47 V223 bundle 隔离+120s 超时；swift test 全绿（V214/V224/V225/V240 按计划隔离） |
 | 2026-04-26 | [2026-04-26-5.1.5-s2-rules-panel.md](archive/2026-04-26-5.1.5-s2-rules-panel.md) | 2026-04-26 | C0 494ab17；C1 3fb92ac；C2+C3+C5 a8cf29a；C4 e583534；6 分区 NavigationSplitView + 4 编辑分区 + Inbox 入口 + MatchRuleEditor/RegexField；swift build clean |
