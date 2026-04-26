@@ -62,6 +62,53 @@ struct RepositoryPointer: Sendable {
         return RepositoryPointer(repositoryConfigDir: configDir, repoRoot: repoRoot)
     }
 
+    // MARK: - Load from runtime config directory (with auto-write on first cold start)
+
+    /// Loads pointer from `<runtimeConfigDir>/.repo_pointer.json`.
+    /// If the file is absent and a dev-build repo can be detected heuristically, writes the pointer first.
+    static func load(runtimeConfigDir: URL, fileManager: FileManager = .default) -> RepositoryPointer? {
+        let pointerURL = runtimeConfigDir.appendingPathComponent(pointerFileName)
+        if fileManager.fileExists(atPath: pointerURL.path) {
+            return load(from: pointerURL, fileManager: fileManager)
+        }
+        // No pointer file: skip auto-write in test environments
+        guard !RulesConfigPaths.isRunningTests() else { return nil }
+        // Try auto-write for developer builds
+        guard let repoConfigDir = detectDeveloperRepoConfigDir(from: Bundle.main.bundleURL) else {
+            AppLogger.shared.info(.system, "repo pointer: absent and no dev repo detected, skipping mirror")
+            return nil
+        }
+        // repo_root = parent of Sources/SpinLabApp/config (go up 3 levels)
+        let repoRoot = repoConfigDir
+            .deletingLastPathComponent()  // Sources/SpinLabApp
+            .deletingLastPathComponent()  // Sources
+            .deletingLastPathComponent()  // repo root
+        do {
+            try write(to: pointerURL, repositoryConfigDir: repoConfigDir, repoRoot: repoRoot)
+            AppLogger.shared.info(.system, "repo pointer: auto-written for developer build")
+        } catch {
+            AppLogger.shared.warning(.system, "repo pointer: auto-write failed, skipping mirror",
+                                     metadata: ["reason": error.localizedDescription])
+            return nil
+        }
+        return load(from: pointerURL, fileManager: fileManager)
+    }
+
+    /// Walks up from `startURL` looking for a dir that contains both `Sources/SpinLabApp/config` and `.git`.
+    static func detectDeveloperRepoConfigDir(from startURL: URL) -> URL? {
+        var candidate = startURL.standardizedFileURL
+        for _ in 0..<12 {
+            candidate = candidate.deletingLastPathComponent()
+            let configDir = candidate.appendingPathComponent("Sources/SpinLabApp/config")
+            let gitDir = candidate.appendingPathComponent(".git")
+            if FileManager.default.fileExists(atPath: configDir.path) &&
+               FileManager.default.fileExists(atPath: gitDir.path) {
+                return configDir.standardizedFileURL.resolvingSymlinksInPath()
+            }
+        }
+        return nil
+    }
+
     // MARK: - Write (auto-write on first cold start; s6b calls this)
 
     static func write(to url: URL, repositoryConfigDir: URL, repoRoot: URL) throws {

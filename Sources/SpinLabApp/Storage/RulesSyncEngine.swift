@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 // MARK: - Outcomes
@@ -73,15 +74,110 @@ struct RulesSyncEngine {
         return .mirrored
     }
 
-    // MARK: - Startup reverse sync (s6b implements the body)
+    // MARK: - Startup reverse sync
 
     func reverseSyncOnStartup(runtimePaths: RulesConfigPaths) -> StartupOutcome {
-        guard pointer != nil else {
+        guard let pointer else {
             logger.info(.system, "sync engine: no repo pointer, skipping reverse sync")
             return .skipped
         }
-        // s6b implements full reverse sync logic
+
+        let fileMappings: [(runtimeURL: URL, filename: String, kind: SchemaKind)] = [
+            (runtimePaths.importFiltersURL, "import_filters.json", .importFilters),
+            (runtimePaths.filenameTokenizationURL, "filename_tokenization.json", .filenameTokenization),
+            (runtimePaths.sampleIdentificationURL, "sample_identification.json", .sampleIdentification),
+            (runtimePaths.workflowURL, "workflow.json", .workflow),
+            (runtimePaths.measuringConditionURL, "measuring_condition.json", .measuringCondition)
+        ]
+
+        var degradedFiles: Set<String> = []
+
+        for mapping in fileMappings {
+            let mirrorURL = pointer.repositoryConfigDir.appendingPathComponent(mapping.filename)
+
+            guard let mirrorData = try? Data(contentsOf: mirrorURL) else {
+                logger.error(.system, "sync engine: cannot read mirror file",
+                             metadata: ["errorTaxonomy": "read_failed", "file": mapping.filename])
+                degradedFiles.insert(mapping.filename)
+                continue
+            }
+
+            // H5: decode check before accepting mirror as authority
+            guard mapping.kind.canDecode(mirrorData) else {
+                logger.error(.system, "sync engine: mirror schema decode failed",
+                             metadata: ["errorTaxonomy": "decode_failed", "file": mapping.filename])
+                degradedFiles.insert(mapping.filename)
+                continue
+            }
+
+            let mirrorHash = sha256Hex(of: mirrorData)
+            let runtimeData = try? Data(contentsOf: mapping.runtimeURL)
+            if let runtimeData, sha256Hex(of: runtimeData) == mirrorHash {
+                continue  // already consistent
+            }
+
+            // Backup existing runtime before overwriting
+            backupFile(at: mapping.runtimeURL, logLevel: .warning)
+
+            do {
+                try atomicWriter.write(mirrorData, to: mapping.runtimeURL)
+                logger.info(.system, "sync engine: reverse sync updated \(mapping.filename) from repository mirror")
+            } catch {
+                logger.error(.system, "sync engine: runtime write failed during reverse sync",
+                             metadata: ["errorTaxonomy": "write_failed", "file": mapping.filename,
+                                        "reason": error.localizedDescription])
+                degradedFiles.insert(mapping.filename)
+            }
+        }
+
+        // Full validation via RuleLoader (C1/C5/Fix-5)
+        let loadResult = RuleLoader.shared.load()
+        let isFallback = loadResult.metadata.sourceLabel == "Fallback"
+        let hasWarnings = !loadResult.warnings.isEmpty
+
+        if !degradedFiles.isEmpty || isFallback || hasWarnings {
+            let reason: String
+            if isFallback {
+                reason = "RuleLoader fell back to builtin"
+            } else if hasWarnings {
+                reason = loadResult.warnings.first ?? "validation warnings"
+            } else {
+                reason = "sync write errors"
+            }
+            logger.error(.system, "sync engine: startup degraded after reverse sync",
+                         metadata: ["failedFiles": degradedFiles.sorted().joined(separator: ","),
+                                    "reason": reason])
+            return .degraded(failedFiles: degradedFiles, reason: reason)
+        }
+
         return .healthy
+    }
+
+    // MARK: - Private: schema decode check
+
+    private enum SchemaKind {
+        case importFilters, filenameTokenization, sampleIdentification, workflow, measuringCondition
+
+        func canDecode(_ data: Data) -> Bool {
+            let decoder = JSONDecoder()
+            switch self {
+            case .importFilters:
+                return (try? decoder.decode(ImportFiltersFileDraft.self, from: data)) != nil
+            case .filenameTokenization:
+                return (try? decoder.decode(FilenameTokenizationFileDraft.self, from: data)) != nil
+            case .sampleIdentification:
+                return (try? decoder.decode(SampleIdentificationFileDraft.self, from: data)) != nil
+            case .workflow:
+                return (try? decoder.decode(WorkflowFileDraft.self, from: data)) != nil
+            case .measuringCondition:
+                return (try? decoder.decode(MeasuringConditionFileDraft.self, from: data)) != nil
+            }
+        }
+    }
+
+    private func sha256Hex(of data: Data) -> String {
+        let digest = SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
     }
 
     // MARK: - Private helpers

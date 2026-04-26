@@ -6,15 +6,22 @@ struct RulesPanelView: View {
 
     @State private var isPresentingCloseAlert = false
     @State private var pendingCloseWindow: NSWindow?
+    @State private var isDegradedBannerDismissed = false
 
     private var store: RulesManagementStore { appState.rulesPanel }
 
     var body: some View {
         NavigationSplitView {
-            List(selection: sectionSelection) {
-                ForEach(RulesPanelSection.allCases) { section in
-                    sidebarRow(for: section)
-                        .tag(section)
+            VStack(spacing: 0) {
+                if !isDegradedBannerDismissed,
+                   case .degraded(_, let reason) = store.syncStartupOutcome {
+                    degradedBanner(reason: reason)
+                }
+                List(selection: sectionSelection) {
+                    ForEach(RulesPanelSection.allCases) { section in
+                        sidebarRow(for: section)
+                            .tag(section)
+                    }
                 }
             }
             .navigationTitle("Rules")
@@ -70,8 +77,37 @@ struct RulesPanelView: View {
                     .fill(Color.accentColor)
                     .frame(width: 7, height: 7)
             }
+            if store.mirrorWarningSectionLabel == section.rawValue {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .imageScale(.small)
+                    .help(store.mirrorWarningReason ?? "Mirror sync warning")
+            }
             Spacer(minLength: 0)
         }
+    }
+
+    @ViewBuilder
+    private func degradedBanner(reason: String) -> some View {
+        HStack(spacing: AppSpacing.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            Text("Rules sync error — some files may not have loaded correctly.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+            Button {
+                isDegradedBannerDismissed = true
+            } label: {
+                Image(systemName: "xmark")
+                    .imageScale(.small)
+            }
+            .buttonStyle(.plain)
+            .help(reason)
+        }
+        .padding(.horizontal, AppSpacing.md)
+        .padding(.vertical, AppSpacing.xs)
+        .background(Color.orange.opacity(0.12))
     }
 
     @ViewBuilder

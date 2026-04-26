@@ -160,6 +160,10 @@ final class RulesManagementStore {
     @ObservationIgnored private var openTimeHashes: [RulesPanelSection: String] = [:]
     @ObservationIgnored private let onRulesSaved: () -> Void
 
+    private(set) var syncStartupOutcome: StartupOutcome = .skipped
+    private(set) var mirrorWarningSectionLabel: String?
+    private(set) var mirrorWarningReason: String?
+
     private let paths = RulesConfigPaths()
     private let atomicWriter = AtomicFileWriter()
     @ObservationIgnored private var syncEngine: RulesSyncEngine?
@@ -171,9 +175,14 @@ final class RulesManagementStore {
     }()
     private static let jsonDecoder = JSONDecoder()
 
-    init(onRulesSaved: @escaping () -> Void = {}, syncEngine: RulesSyncEngine? = nil) {
+    init(
+        onRulesSaved: @escaping () -> Void = {},
+        syncEngine: RulesSyncEngine? = nil,
+        syncStartupOutcome: StartupOutcome = .skipped
+    ) {
         self.onRulesSaved = onRulesSaved
         self.syncEngine = syncEngine
+        self.syncStartupOutcome = syncStartupOutcome
     }
 
     // MARK: - Lifecycle
@@ -543,8 +552,12 @@ final class RulesManagementStore {
         dirtySections.remove(section)
         switch dualWriteOutcome {
         case .runtimeOnly, .mirrored:
+            mirrorWarningSectionLabel = nil
+            mirrorWarningReason = nil
             return .saved
         case .mirrorFailedRuntimeOk(let reason):
+            mirrorWarningSectionLabel = section.rawValue
+            mirrorWarningReason = reason
             return .savedWithMirrorWarning(reason: reason)
         }
     }

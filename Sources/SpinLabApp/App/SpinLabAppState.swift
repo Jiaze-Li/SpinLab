@@ -168,15 +168,21 @@ final class SpinLabAppState {
     private var lastLibraryCacheValidationRootPath: String?
     private var lastLibraryCacheValidationAt: Date?
     private let dataActor: any SpinLabDataActing
+    @ObservationIgnored private var rulesSyncEngine: RulesSyncEngine?
+    @ObservationIgnored private var rulesSyncStartupOutcome: StartupOutcome = .skipped
     @ObservationIgnored
-    private lazy var rulesPanelStore = RulesManagementStore(
-        onRulesSaved: { [weak self] in
-            self?.refreshRoutingRuleMetadata(forceReload: true)
-            self?.recomputeAllPendingParsedHints()
-            // R1: refresh Workbench conditionDefinitionOptions so picker reflects new rules immediately
-            self?.workbenchFeatureStore.reloadWorkflowDefinitionsAfterRulesChange()
-        }
-    )
+    private lazy var rulesPanelStore: RulesManagementStore = {
+        RulesManagementStore(
+            onRulesSaved: { [weak self] in
+                self?.refreshRoutingRuleMetadata(forceReload: true)
+                self?.recomputeAllPendingParsedHints()
+                // R1: refresh Workbench conditionDefinitionOptions so picker reflects new rules immediately
+                self?.workbenchFeatureStore.reloadWorkflowDefinitionsAfterRulesChange()
+            },
+            syncEngine: self.rulesSyncEngine,
+            syncStartupOutcome: self.rulesSyncStartupOutcome
+        )
+    }()
     private let registryLifecycleService = RegistryLifecycleService()
     @ObservationIgnored
     private var contentFingerprintCache: [String: String] = [:]
@@ -381,6 +387,14 @@ final class SpinLabAppState {
                 self?.persistInteractionSnapshotIfReady()
             }
         )
+
+        // §5.4 startup sequence: pointer → engine → reverseSync → reloadCached → stores
+        let runtimeConfigPaths = RulesConfigPaths()
+        let syncPointer = RepositoryPointer.load(runtimeConfigDir: runtimeConfigPaths.configDirectoryURL)
+        let engine = RulesSyncEngine(pointer: syncPointer)
+        self.rulesSyncEngine = engine
+        self.rulesSyncStartupOutcome = engine.reverseSyncOnStartup(runtimePaths: runtimeConfigPaths)
+        _ = RuleLoader.shared.reloadCached()
 
         load()
         if let rootPath = libraryFeatureStore.librarySettings.rootPath, !rootPath.isEmpty {
