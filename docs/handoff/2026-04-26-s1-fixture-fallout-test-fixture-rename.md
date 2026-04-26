@@ -98,3 +98,45 @@ Error Domain=NSCocoaErrorDomain Code=260 "The file 'filename_rules.json' couldn'
 ```
 读 docs/handoff/2026-04-26-s1-fixture-fallout-test-fixture-rename.md，按其中【修复顺序】1→4 推进。每步独立 commit。每跑 swift test 一次确认数字朝着 0 走，不要堆改动。第 2/3 步遇到不确定的期望值停下问 Jack，不要凭直觉猜。
 ```
+
+---
+
+## 2026-04-26 会话 A 进度（部分完成，未归档）
+
+### 已完成
+
+**Commit 1: 路径改名（80959a1）**
+- V210/V214/V224/V225 四处 `loadBundledRuleSetForTests()` 把 `filename_rules.json` 改名为 `filename_parse_rules.json`
+- 效果：V210 24 → 20 issues（注意：原 handoff 预测的"全是 file-not-found"不准——4 个真路径错；其余 20 个是更深层的内容断言失败）
+
+**Commit 2: V515 测试隔离（a6edeca）**
+- 这一步其实**不在原 handoff 范围内**，是诊断 V221/V212/V213 失败时新发现的污染源
+- 根因：`V515RulesManagementStoreTests` 直接写 `RulesConfigPaths().configDirectoryURL`（进程级共享配置目录），seed 的桩数据 `treatmentKeywords: {}` / `materialTokens: ["Si"]` / `orientationTokens: ["100"]` 漏到 V210/V212/V213/V221/V223
+- 修复：suite 标 `.serialized`；新增 `acquireIsolation()` / `releaseIsolation()` helper；每个 `@Test` 顶部加 `let iso = try acquireIsolation(); defer { releaseIsolation(iso) }`；备份失败硬 fail 不吞错；恢复失败 `Issue.record`；用 stale-backup 扫描应对 crash 残留；`reloadCached()` 强制刷新静态缓存
+- 效果：V212/V213/V221（共 19 issues）全部回绿
+
+**对抗评审痕迹**：V515 修复方案过 Codex CLI 评审（task_type=review），裁决 adopt-with-fixes，5 条 must-fix 全部并入实施。
+- Brief：`tmp/2026-04-26-v515-isolation-review-brief.md`
+- 评审产出：`tmp/2026-04-26-v515-isolation-review-out.md`
+
+### 未完成（留给下一次会话）
+
+| 测试套 | 残留 issue | 单独跑也复现？ | 怀疑根因 |
+|---|---|---|---|
+| V210 Import And Parse | 20 | 是 | `loadBundledRuleSetForTests()` 只读 `filename_parse_rules.json` 一个文件，但 s1 把规则拆成 7 个 JSON。helper 没跟着升级，导致 sample_id / workflow_match / substrate_normalization 等都缺，解析器自然认不出 workflowID / sampleKey / temperature / conflict warning 等字段。**需要把 helper 改成走 7 文件加载链路**（最稳是直接走 `RuleLoader` 的 bundle 路径）。 |
+| V223 AppEnvironment Integration | 3 | 是 | `appState.inbox.pendingImports.count → 0` 期望 1，整个 import 链路没把文件落进 inbox。可能跟 V210 同源（fixture 残缺导致 RuleLoader 读不到完整规则 → 解析失败 → import 全 fallback 0 条），也可能是别的 integration 问题。**先修 V210 helper 再看 V223 是否自动好**。 |
+
+### 残留的 tmp/ 文件
+
+- `tmp/2026-04-26-v515-isolation-review-brief.md`（已用）
+- `tmp/2026-04-26-v515-isolation-review-out.md`（已用，见上方对抗评审痕迹）
+- `tmp/2026-04-26-v515-isolation-review-out.md-stdout.log`（Codex stdout，事后审计用）
+- `tmp/2026-04-26-v515-isolation-review-out.md.baseline`（派发前 git status 快照，已对账无 diff）
+
+下一次会话开始时按 README 的「tmp/ 残留 session protocol」清理：这 4 个文件 V515 议题已收敛，可整组 `rm`。
+
+### 下一次会话启动指令
+
+```
+读 docs/handoff/2026-04-26-s1-fixture-fallout-test-fixture-rename.md，跳到「2026-04-26 会话 A 进度」段。已完成的不要重做。从「未完成」表的 V210 开始：把 loadBundledRuleSetForTests() 改成走 RuleLoader bundle 加载链路，加载完整 7 文件 schema。修完跑全量测试看 V210 + V223 是否一起回绿。任何不确定的期望值先停下问 Jack。
+```
