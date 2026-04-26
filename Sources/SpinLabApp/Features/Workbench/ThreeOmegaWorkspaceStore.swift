@@ -1293,7 +1293,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
             if let hit = lookupHit, !lookupLibraryRoot.isEmpty {
                 let rootURL = URL(fileURLWithPath: lookupLibraryRoot, isDirectory: true)
                 if let nd = LibraryStore().loadIndex(from: rootURL)?
-                    .samples.first(where: { $0.id == hit.sampleKey })?.numericDisplay,
+                    .sample(matchingDiskKey: hit.sampleKey)?.numericDisplay,
                    !nd.isEmpty {
                     tokens = ["sample": hit.sampleBatchAndSubstrate]
                     for (k, v) in nd { tokens[k] = v }

@@ -80,6 +80,24 @@ struct LibraryIndex: Codable, Hashable, Sendable {
     }
 }
 
+extension LibraryIndex {
+    /// Looks up a sample by its key, tolerating the disk-side path sanitization
+    /// that replaces `/` and `\` in batch IDs with `-` (mirrors
+    /// `LibraryStore.sanitizedPathComponent`). Search hits derived from sidecar
+    /// paths carry the sanitized key, while the index stores the original.
+    func sample(matchingDiskKey diskKey: String) -> LibrarySample? {
+        if let exact = samples.first(where: { $0.id == diskKey }) {
+            return exact
+        }
+        return samples.first(where: { sample in
+            let sanitized = sample.id
+                .replacingOccurrences(of: "/", with: "-")
+                .replacingOccurrences(of: "\\", with: "-")
+            return sanitized == diskKey
+        })
+    }
+}
+
 struct LibraryBatch: Identifiable, Codable, Hashable, Sendable {
     var id: String
     var displayName: String

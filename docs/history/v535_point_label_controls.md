@@ -37,3 +37,18 @@ Three independent features implemented across C1 (Claude), C2 (Codex), C3 (Claud
 - `V535TabRenderStatePackTests` — Codable roundtrip, missing-field backward compat
 - `V535ScopeGateTests` — payload-capability gate, hit-target count
 - `V535CopyPNGScaleMenuTests` — scale array alignment, output pixel width = baseWidth × scale, 2x determinism
+- `V535SampleKeyLookupTests` — slash/hyphen tolerant sample-key resolution
+
+## Followup fix — sample key disk/index mismatch
+
+Samples whose batch ID contains `/` (e.g. `PN13/S487||STO|111`) had their
+title tokens (`#氧压`, `#能量`, etc.) silently drop on Workbench search and
+Pack reload. Cause: `LibraryStore.sanitizedPathComponent` rewrites `/` and
+`\` to `-` when laying out batch/sample folders on disk, while the index
+file preserves the original. Sidecar parsing produces the disk-form key,
+so `index.samples.first(where: { $0.id == sampleKey })` missed.
+
+Fix: introduced `LibraryIndex.sample(matchingDiskKey:)` — exact match
+first, then a sanitized-id fallback that mirrors the on-disk transform.
+Both lookup sites (`SpinLabDataActor.lookupSampleNumericDisplay` and the
+Pack-restore inline lookup in `ThreeOmegaWorkspaceStore`) call it.
