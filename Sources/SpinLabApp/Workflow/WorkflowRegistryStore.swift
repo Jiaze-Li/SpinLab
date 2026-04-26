@@ -98,7 +98,6 @@ final class WorkflowRegistryStore {
             WorkflowDefinition(
                 id: "XY",
                 displayName: "XY Rotation",
-                parentID: nil,
                 conditionFields: [
                     WorkflowConditionField(definitionID: ConditionFieldCatalog.temperatureID),
                     WorkflowConditionField(definitionID: ConditionFieldCatalog.fieldID)
@@ -107,7 +106,6 @@ final class WorkflowRegistryStore {
             WorkflowDefinition(
                 id: "RT",
                 displayName: "RT",
-                parentID: nil,
                 conditionFields: [
                     WorkflowConditionField(definitionID: ConditionFieldCatalog.currentID)
                 ]
@@ -121,7 +119,6 @@ final class WorkflowRegistryStore {
                 WorkflowDefinition(
                     id: definition.id.trimmingCharacters(in: .whitespacesAndNewlines),
                     displayName: definition.displayName.trimmingCharacters(in: .whitespacesAndNewlines),
-                    parentID: normalizeOptional(definition.parentID),
                     conditionFields: definition.conditionFields.map {
                         WorkflowConditionField(
                             definitionID: $0.definitionID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -131,11 +128,5 @@ final class WorkflowRegistryStore {
             }
             .filter { !$0.id.isEmpty }
             .sorted { $0.id.localizedCaseInsensitiveCompare($1.id) == .orderedAscending }
-    }
-
-    private func normalizeOptional(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 }

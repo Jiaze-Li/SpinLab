@@ -140,12 +140,6 @@ struct MeasurementTagSummary {
     var previewValues: [String]
 }
 
-struct WorkflowIDPolicySummary {
-    var version: Int
-    var preferredAlphabet: String?
-    var fallbackPrefix: String?
-}
-
 // MARK: - Store
 
 @MainActor @Observable
@@ -159,7 +153,6 @@ final class RulesManagementStore {
     private(set) var workflowMatchDraft: WorkflowMatchRulesFileDraft?
     private(set) var substrateDraft: SubstrateNormalizationRulesFileDraft?
     private(set) var measurementTagSummary: MeasurementTagSummary?
-    private(set) var workflowIDPolicySummary: WorkflowIDPolicySummary?
     private(set) var availableWorkflowIDs: [String] = []
 
     @ObservationIgnored var persistenceHook: RulesPersistenceHook?
@@ -225,7 +218,7 @@ final class RulesManagementStore {
         case .sampleID:         return saveSampleID()
         case .workflowMatch:    return saveWorkflowMatch()
         case .substrate:        return saveSubstrate()
-        case .measurementTag, .workflowIDPolicy:
+        case .measurementTag:
             return .validationFailed([])
         }
     }
@@ -248,7 +241,7 @@ final class RulesManagementStore {
         case .sampleID:         return saveSampleID()
         case .workflowMatch:    return saveWorkflowMatch()
         case .substrate:        return saveSubstrate()
-        case .measurementTag, .workflowIDPolicy: return .validationFailed([])
+        case .measurementTag: return .validationFailed([])
         }
     }
 
@@ -272,8 +265,6 @@ final class RulesManagementStore {
             substrateDraft = loadAndCacheHash(url: paths.substrateNormalizationRulesURL, section: section)
         case .measurementTag:
             measurementTagSummary = loadMeasurementTagSummary()
-        case .workflowIDPolicy:
-            workflowIDPolicySummary = loadWorkflowIDPolicySummary()
         }
     }
 
@@ -300,22 +291,6 @@ final class RulesManagementStore {
             version: file.version,
             ruleCount: file.rules.count,
             previewValues: file.rules.prefix(5).map(\.value)
-        )
-    }
-
-    private func loadWorkflowIDPolicySummary() -> WorkflowIDPolicySummary? {
-        struct File: Decodable {
-            let version: Int
-            let preferredAlphabet: String?
-            let fallbackPrefix: String?
-        }
-        guard let data = try? Data(contentsOf: paths.workflowIDPolicyURL),
-              let file = try? Self.jsonDecoder.decode(File.self, from: data) else { return nil }
-        openTimeHashes[.workflowIDPolicy] = sha256Hex(of: data)
-        return WorkflowIDPolicySummary(
-            version: file.version,
-            preferredAlphabet: file.preferredAlphabet,
-            fallbackPrefix: file.fallbackPrefix
         )
     }
 

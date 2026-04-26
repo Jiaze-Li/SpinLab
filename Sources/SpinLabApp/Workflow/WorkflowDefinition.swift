@@ -3,19 +3,26 @@ import Foundation
 struct WorkflowDefinition: Codable, Identifiable, Hashable, Sendable {
     var id: String
     var displayName: String
-    var parentID: String?
     var conditionFields: [WorkflowConditionField]
 
     init(
         id: String,
         displayName: String,
-        parentID: String?,
         conditionFields: [WorkflowConditionField]
     ) {
         self.id = id
         self.displayName = displayName
-        self.parentID = parentID
         self.conditionFields = conditionFields
+    }
+
+    // migration-only: temporary compatibility for remaining call sites.
+    init(
+        id: String,
+        displayName: String,
+        parentID _: String?,
+        conditionFields: [WorkflowConditionField]
+    ) {
+        self.init(id: id, displayName: displayName, conditionFields: conditionFields)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -29,8 +36,21 @@ struct WorkflowDefinition: Codable, Identifiable, Hashable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         displayName = try container.decode(String.self, forKey: .displayName)
-        parentID = try container.decodeIfPresent(String.self, forKey: .parentID)
+        _ = try container.decodeIfPresent(String.self, forKey: .parentID) // migration-only: drop after s6
         conditionFields = try container.decode([WorkflowConditionField].self, forKey: .conditionFields)
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(displayName, forKey: .displayName)
+        try container.encode(conditionFields, forKey: .conditionFields)
+    }
+
+    // migration-only: temporary compatibility for remaining call sites.
+    var parentID: String? {
+        get { nil }
+        set { _ = newValue }
     }
 }
 

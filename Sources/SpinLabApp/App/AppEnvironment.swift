@@ -9,7 +9,6 @@ struct AppEnvironment {
     var ruleRuntime: any RuleRuntimeCapability
     var dataActor: any SpinLabDataActing
     var workflowRegistryStore: WorkflowRegistryStore = WorkflowRegistryStore()
-    var workflowIDAllocator: any WorkflowIDAllocating = DefaultWorkflowIDAllocator()
 
     static func live(previewRowCount: Int = 10) -> AppEnvironment {
         AppEnvironment(
@@ -20,8 +19,7 @@ struct AppEnvironment {
             routingCapabilities: .live,
             ruleRuntime: DefaultRuleRuntimeCapability(),
             dataActor: SpinLabDataActor(),
-            workflowRegistryStore: WorkflowRegistryStore(),
-            workflowIDAllocator: DefaultWorkflowIDAllocator()
+            workflowRegistryStore: WorkflowRegistryStore()
         )
     }
 }

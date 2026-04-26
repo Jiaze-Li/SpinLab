@@ -87,8 +87,6 @@ struct RulesPanelView: View {
             SubstrateRulesSection()
         case .measurementTag:
             MeasurementTagRulesSection(store: store)
-        case .workflowIDPolicy:
-            WorkflowIDPolicySection(store: store)
         }
     }
 

@@ -301,8 +301,6 @@ final class WorkbenchFeatureStore {
     @ObservationIgnored
     private let workflowRegistryStore: WorkflowRegistryStore
     @ObservationIgnored
-    private let workflowIDAllocator: any WorkflowIDAllocating
-    @ObservationIgnored
     var onDefinitionsChanged: (([WorkflowDefinition]) -> Void)?
 
     var selectedSection: WorkbenchSection = .workflows
@@ -321,8 +319,7 @@ final class WorkbenchFeatureStore {
     init(
         libraryRepository: LibraryRepository,
         dataActor: any SpinLabDataActing = SpinLabDataActor(),
-        workflowRegistryStore: WorkflowRegistryStore,
-        workflowIDAllocator: any WorkflowIDAllocating = DefaultWorkflowIDAllocator()
+        workflowRegistryStore: WorkflowRegistryStore
     ) {
         let initialArchivedRecords = libraryRepository.archivedRecords
         let initialProjectCatalog = libraryRepository.projects
@@ -341,7 +338,6 @@ final class WorkbenchFeatureStore {
         self.libraryRepository = libraryRepository
         self.dataActor = dataActor
         self.workflowRegistryStore = workflowRegistryStore
-        self.workflowIDAllocator = workflowIDAllocator
         self.archivedRecords = initialArchivedRecords
         self.projectCatalog = initialProjectCatalog
         self.selectedArchivedRecordID = initialArchivedRecords.first?.id
@@ -545,12 +541,12 @@ final class WorkbenchFeatureStore {
     }
 
     func addWorkflow() {
-        let newID = workflowIDAllocator.nextID(existingIDs: workflowDefinitions.map(\.id))
+        // s5: replace with user-input ID sheet
+        let newID = String(UUID().uuidString.prefix(6)).uppercased()
         let defaultConditionID = conditionDefinitionOptions.first?.id ?? "temperature"
         let definition = WorkflowDefinition(
             id: newID,
             displayName: "New Workflow",
-            parentID: nil,
             conditionFields: [
                 WorkflowConditionField(
                     definitionID: defaultConditionID
