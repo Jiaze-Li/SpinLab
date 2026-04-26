@@ -182,10 +182,9 @@ Entry point: "Rules" button in Inbox Operations header row (opens separate Windo
 - Hash precondition check on save: if the file was modified externally since panel opened, save fails with `externalConflict` — user must choose Reload or Override
 - Closing the window with unsaved edits triggers a three-option alert: Discard Changes / Cancel / Save All
 
-### Section Structure
-- 6 sections: Filename Parse, Sample ID, Workflow Match, Substrate, Measurement Tags, Workflow ID Policy
-- 4 editable sections (Filename Parse, Sample ID, Workflow Match, Substrate)
-- 2 read-only placeholder sections (Measurement Tags, Workflow ID Policy) — editing available in Session 3
+### Section Structure (s4+ schema)
+- 5 sections: Import Filters, Filename Tokenization, Sample Identification, Workflow, Measuring Condition
+- UI rewrite pending (s5) — current panel still loads from legacy v2 paths until s5 ships
 
 ### Validation
 - Sample ID: each pattern validated as NSRegularExpression; invalid compile = Save disabled

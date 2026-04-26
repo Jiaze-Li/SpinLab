@@ -139,8 +139,8 @@ R1 —— 工作流 ID 策略相关规则保存后立刻生效，App 内不存�
 |---|---|---|
 | s1 ✅ 已归档 | schema 落地 + 旧 UI 删除 | — |
 | s2 ✅ 已归档 | 统一面板骨架 + 4 类已有规则编辑 | — |
-| s3 ✅ 设计稿落地 | 盘点 + 5 本子分类设计稿 + 退役调用点全清单 + 新 schema 草案。handoff: [2026-04-26-5.1.5-s3-rules-redesign.md](handoff/2026-04-26-5.1.5-s3-rules-redesign.md) | 4–6 h（实际） |
-| **s4（重新规划）** | 按新 5 本子写新 schema 文件 + 一次性迁移老 7 文件内容 + 删老文件 + 退役自动 ID 分配相关代码 + 父 workflow 字段清理（含向后兼容解码）+ 启动验证。**s4 内部分两阶段同会话内门禁**：阶段 A 数据层迁移 + 加载链切换（可编译可加载可回滚），阶段 B 退役清理 + 死代码删除（无残留引用 + 启动验证通过）。验收必须包含 runtime 旧 JSON 文件清理（不光删源码） | 8–12 h |
+| s3 ✅ 已归档 | 盘点 + 5 本子分类设计稿 + 退役调用点全清单 + 新 schema 草案 | — |
+| s4 ✅ 已归档 | 5本子schema落地 + RuleLoader/RulesMigration重写 + WorkflowIDAllocator/parentID/rotationHintRules退役 + 旧bundle文件删除 + V210 fixture更新；swift build clean + 测试全绿 | — |
 | **s5（重新规划）** | 5 个 section UI 重写 + close-alert / save / discard / 外部冲突集成 + R1 acceptance gate（保存立即生效）路径 + 测试补全 | 12–16 h |
 | **s6（原 s4 自动同步引擎顺延）** | 自动同步引擎（bundle / runtime 双写 + 内容指纹反向同步）+ 完整测试 + 实机走一遍（启动 / 保存 / pull 后覆盖 / 回滚 / 指针文件缺失等场景） | 8–12 h |
 | **s7（s3 收敛后新增）** | 6 项 schema 二次重塑 + 兼容代码彻底删（详见下表）。s4 已落数据迁移、s5 已落 UI、s6 已落自动同步，本会话清掉 s3 决策时为保 s4 风险最小而推后的所有项；本版本段收尾会话 | 12–20 h |

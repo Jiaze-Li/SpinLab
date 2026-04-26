@@ -17,7 +17,7 @@ For tech debt details, see `history/TECH_DEBT_BACKLOG.md`.
 
 ## Transition Notes
 
-- **v5.1.5 first-launch migration**: On first run after upgrade, `RulesMigration.runIfNeeded()` converts the old monolithic `filename_rules.json` to 7 canonical schema files. Runtime config dir may still show the old file until app launches. Migration is one-shot and idempotent (guarded by `migration_state.json` sentinel). If migration fails, app falls back to bundle defaults.
+- **v5.1.5 first-launch migration**: On first run after upgrade, `RulesMigration.runIfNeeded()` converts old v1/v2 schema files to the new 5-book v3 schema (import_filters / filename_tokenization / sample_identification / workflow / measuring_condition). Migration is one-shot and idempotent (guarded by `migration_state.json`). On failure, writes `migration_failed.json` to block retry and preserves `.backup-<ts>` copies; app falls back to bundle defaults for that session.
 
 ## Deliberately Deferred
 
