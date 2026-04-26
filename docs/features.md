@@ -148,6 +148,34 @@ Architecture details: `docs/history/v515_s5_rules_panel_rewrite.md`
 
 ---
 
+## Rules Auto-Sync Engine (v5.1.5 s6)
+
+Architecture details: `docs/history/v515_s6_auto_sync_engine.md`
+
+### Dual-Write on Save
+- Every rule section save writes runtime first, then mirrors to `repositoryConfigDir` from `.repo_pointer.json`
+- Mirror failure is non-fatal: save succeeds, yellow triangle appears on the affected sidebar section
+- Mirror write creates parent directories if absent; backs up old mirror content before overwriting
+- `DualWriteOutcome`: `.runtimeOnly` / `.mirrored` / `.mirrorFailedRuntimeOk(reason:)`
+
+### Reverse Sync on Startup
+- On App launch, compares SHA-256 hashes of each of the 5 rule files between mirror and runtime
+- If mirror differs: decode-check first (H5 guard — rejects corrupt or mismatched schema), then backup runtime and write mirror content
+- Returns `.healthy` (no diff or all synced) / `.skipped` (no pointer) / `.degraded(failedFiles:reason:)` (one or more files couldn't sync)
+- Degraded state shows a dismissable orange banner in the Rules Panel sidebar; reloadCached is called after sync
+
+### Repository Pointer
+- `.repo_pointer.json` in runtime config dir; version==1, `repository_config_dir` + `repo_root` fields required
+- Identity checks: `repo_root` must exist as a directory containing `.git`; `repository_config_dir` must be under `repo_root`
+- Auto-write on first cold dev start: walks up 12 levels from Bundle looking for `Sources/SpinLabApp/config` + `.git`
+- Auto-write is skipped in test environments (`RulesConfigPaths.isRunningTests()`)
+
+### Test Coverage
+- 20 engine tests: dual-write, mirror failure stubs, backup behavior, pointer parsing edge cases
+- 12 startup tests: consistent state, cold start, runtime diff, absent mirror file, H5 decode reject, identity check fail, corrupt JSON
+
+---
+
 ## Shared
 
 Behavior details: `specs/04_UI_RULES.md`

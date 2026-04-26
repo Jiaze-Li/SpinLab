@@ -57,7 +57,7 @@
 
 ### 5.1.5 — 规则管理统一 + 自动同步基础设施 [~]
 
-**状态**：`[~]` 进行中。s1 + s2 已完成，**s3–s6 范围在 2026-04-26 重新规划**（详见下文"二次规划"）。原 4 会话拆分（s3 = 测量标签 + 工作流 ID 策略两分区 / s4 = 自动同步引擎）已作废。
+**状态**：`[~]` 进行中。s1–s6 已完成，**s7（6 项 schema 二次重塑）剩余**。
 
 **动机**：4·25 事故暴露规则架构散落多文件、bundle 与 runtime schema 不一致、半成品迁移路径并存（如代码层齐全但永远不会真存在的 `conditions_rules.json` 分文件）。同一份概念多处存放、隐式"分文件赢"约定、bundle 与 runtime 没有自动同步——任何一处改动都可能让另一处静默漂移。需要从根上修。
 
@@ -142,7 +142,7 @@ R1 —— 工作流 ID 策略相关规则保存后立刻生效，App 内不存�
 | s3 ✅ 已归档 | 盘点 + 5 本子分类设计稿 + 退役调用点全清单 + 新 schema 草案 | — |
 | s4 ✅ 已归档 | 5本子schema落地 + RuleLoader/RulesMigration重写 + WorkflowIDAllocator/parentID/rotationHintRules退役 + 旧bundle文件删除 + V210 fixture更新；swift build clean + 测试全绿。[实施摘要](../history/v515_s4_schema_migration.md) | — |
 | s5 ✅ 已归档 | 5 个 section UI 重写 + close-alert / save / discard / 外部冲突集成 + R1 acceptance gate（保存立即生效）路径 + 测试补全（36 tests）；swift build clean；commit ea09161。[实施摘要](../history/v515_s5_rules_panel_rewrite.md) | — |
-| **s6（原 s4 自动同步引擎顺延）** | 自动同步引擎（bundle / runtime 双写 + 内容指纹反向同步）+ 完整测试 + 实机走一遍（启动 / 保存 / pull 后覆盖 / 回滚 / 指针文件缺失等场景） | 8–12 h |
+| s6 ✅ 已归档 | 自动同步引擎：RepositoryPointer（含 .git 身份校验）+ RulesSyncEngine（dual-write + reverseSyncOnStartup）+ degraded banner + mirror 警告图标 + 32 tests（20 engine + 12 startup）；swift build clean；68/68 V515 tests green；commits 99514e2 + 4a586fe。[实施摘要](../history/v515_s6_auto_sync_engine.md) | — |
 | **s7（s3 收敛后新增）** | 6 项 schema 二次重塑 + 兼容代码彻底删（详见下表）。s4 已落数据迁移、s5 已落 UI、s6 已落自动同步，本会话清掉 s3 决策时为保 s4 风险最小而推后的所有项；本版本段收尾会话 | 12–20 h |
 
 总计约 **44–66 h** 跨 5 会话。s5 / s7 工作量最大，单会话撑不下时按本子或按 6 项分别拆 s5a/b 与 s7a/b。
