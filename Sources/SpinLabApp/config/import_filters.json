@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "import": {
+    "supportedFileExtensions": ["csv", "txt", "dat", "lvm"],
+    "ignoredFileExtensions": ["gph"]
+  }
+}

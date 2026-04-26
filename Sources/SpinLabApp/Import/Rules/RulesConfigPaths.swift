@@ -24,6 +24,30 @@ struct RulesConfigPaths {
             .appendingPathComponent("config", isDirectory: true)
     }
 
+    // MARK: - New 5-book schema (v3)
+
+    var importFiltersURL: URL {
+        configDirectoryURL.appendingPathComponent("import_filters.json")
+    }
+
+    var filenameTokenizationURL: URL {
+        configDirectoryURL.appendingPathComponent("filename_tokenization.json")
+    }
+
+    var sampleIdentificationURL: URL {
+        configDirectoryURL.appendingPathComponent("sample_identification.json")
+    }
+
+    var workflowURL: URL {
+        configDirectoryURL.appendingPathComponent("workflow.json")
+    }
+
+    var measuringConditionURL: URL {
+        configDirectoryURL.appendingPathComponent("measuring_condition.json")
+    }
+
+    // MARK: - Legacy paths (v1/v2 — used by RulesMigration and old RulesPanel UI)
+
     var filenameParsRulesURL: URL {
         configDirectoryURL.appendingPathComponent("filename_parse_rules.json")
     }
@@ -44,10 +68,6 @@ struct RulesConfigPaths {
         configDirectoryURL.appendingPathComponent("measurement_tag_rules.json")
     }
 
-    var workflowIDPolicyURL: URL {
-        configDirectoryURL.appendingPathComponent("workflow_id_policy.json")
-    }
-
     var libraryImportRulesURL: URL {
         configDirectoryURL.appendingPathComponent("library_import_rules.json")
     }
@@ -58,13 +78,11 @@ struct RulesConfigPaths {
 
     var allSchemaFileURLs: [URL] {
         [
-            filenameParsRulesURL,
-            sampleIDRulesURL,
-            workflowMatchRulesURL,
-            substrateNormalizationRulesURL,
-            measurementTagRulesURL,
-            workflowIDPolicyURL,
-            libraryImportRulesURL
+            importFiltersURL,
+            filenameTokenizationURL,
+            sampleIdentificationURL,
+            workflowURL,
+            measuringConditionURL
         ]
     }
 
