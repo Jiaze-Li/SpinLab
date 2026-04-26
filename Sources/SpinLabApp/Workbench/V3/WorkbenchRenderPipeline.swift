@@ -39,6 +39,8 @@ enum WorkbenchRenderPipeline {
         var hiddenPointLabelsBySeries: [Int: Set<Int>] = [:]
         /// Additional styleParams patches (showGrid, legendAnchor, auxVerticalX, etc.).
         var styleParamsPatch: [String: String] = [:]
+        /// Pixel density override for export at a non-default scale (nil = use baseOptions.pixelScale).
+        var pixelScaleOverride: CGFloat? = nil
     }
 
     struct Output: Sendable {
@@ -127,7 +129,9 @@ enum WorkbenchRenderPipeline {
 
         // 7. Resolve renderer options (dynamic padding based on y-tick label widths)
         let renderer = WorkbenchChartRenderer()
-        let opts = renderer.resolvedOptions(payload: payload, base: input.baseOptions, style: chartStyle)
+        var effectiveBase = input.baseOptions
+        if let scale = input.pixelScaleOverride { effectiveBase.pixelScale = scale }
+        let opts = renderer.resolvedOptions(payload: payload, base: effectiveBase, style: chartStyle)
 
         // 8. Compute layout BEFORE series label overrides (legendRow.originalLabel must be stable)
         let layout = WorkbenchPlotLayout.compute(

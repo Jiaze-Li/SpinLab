@@ -1052,6 +1052,28 @@ extension ThreeOmegaWorkspaceStore: WorkbenchPlottingStore {
         tabs.togglePointLabelVisibility(seriesIndex: seriesIndex, pointIndex: pointIndex)
         rerenderForStyleChange()
     }
+
+    func renderPNGAtScale(_ scale: CGFloat) -> Data? {
+        if scale == 2.0, let cached = activeImageData { return cached }
+        guard let payload = activeChartManifestPayload else { return nil }
+        let tab = tabs.activeTab
+        let tabState = tabs.state(for: tab)
+        var patch: [String: String] = [:]
+        if tabs.showPlotGrid { patch["showGrid"] = "true" }
+        if !tabs.legendAnchor.isEmpty { patch["legendAnchor"] = tabs.legendAnchor }
+        var input = WorkbenchRenderPipeline.Input(payload: payload)
+        input.pixelScaleOverride = scale
+        input.legendPoint = tabState.legendPoint?.cgPoint
+        input.seriesRenderMode = tabs.seriesRenderMode
+        input.chartStyleOverrides = tabs.chartStyleOverrides
+        input.seriesLabelOverrides = tabState.seriesLabelOverrides
+        input.titleOverride = tabState.titleOverride
+        input.xLabelOverride = tabState.xLabelOverride
+        input.yLabelOverride = tabState.yLabelOverride
+        input.hiddenPointLabelsBySeries = tabs.hiddenPointLabelSet(for: tab)
+        input.styleParamsPatch = patch
+        return try? WorkbenchRenderPipeline.render(input).imageData
+    }
 }
 
 // MARK: - ActiveChartProviding conformance

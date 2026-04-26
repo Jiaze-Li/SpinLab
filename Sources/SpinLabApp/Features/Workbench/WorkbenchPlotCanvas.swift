@@ -30,6 +30,8 @@ struct WorkbenchPlotCanvas: View {
     var onFontSizeChange:  ((String, CGFloat) -> Void)?      = nil
     /// Point-dot toggle callback: (seriesIndex, pointIndex).
     var onTogglePointLabelVisibility: ((Int, Int) -> Void)?  = nil
+    /// Copy PNG at a given pixel scale; returns PNG data or nil if unavailable.
+    var onCopyPNG: ((CGFloat) -> Data?)? = nil
     /// Style override change callback: (styleParamsKey, stringValue). Triggers re-render.
     var onStyleOverrideChange: ((String, String) -> Void)?   = nil
     /// Current chart style overrides — used to show current font size / tick density in edit panel.
@@ -64,6 +66,7 @@ struct WorkbenchPlotCanvas: View {
     // Related charts hover popover state is managed by HoverPopoverModifier.
 
     private static let defaultRendererSize = CGSize(width: 800, height: 600)
+    static let copyPNGScales: [CGFloat] = [1, 2, 3]
 
     private enum EditTarget: Equatable {
         case title
@@ -174,11 +177,15 @@ struct WorkbenchPlotCanvas: View {
                     rendererPixelSize = Self.extractRendererPixelSize(from: nsImage) ?? Self.defaultRendererSize
                 }
                 .contextMenu {
-                    Button("Copy PNG") {
-                        guard let data = imageData else { return }
-                        let pb = NSPasteboard.general
-                        pb.clearContents()
-                        pb.setData(data, forType: .png)
+                    Menu("Copy PNG") {
+                        ForEach(Self.copyPNGScales, id: \.self) { s in
+                            Button("\(Int(s))x") {
+                                guard let d = onCopyPNG?(s) else { return }
+                                let pb = NSPasteboard.general
+                                pb.clearContents()
+                                pb.setData(d, forType: .png)
+                            }
+                        }
                     }
                 }
                 .hoverPopover(

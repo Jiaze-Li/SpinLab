@@ -316,6 +316,7 @@ struct WorkflowWorkspaceShell<
             onTogglePointLabelVisibility: { s, p in
                 store.togglePointLabelVisibility(seriesIndex: s, pointIndex: p)
             },
+            onCopyPNG: { scale in store.renderPNGAtScale(scale) },
             onStyleOverrideChange: { key, value in
                 store.chartStyleOverrides[key] = value
                 store.rerenderForStyleChange()
