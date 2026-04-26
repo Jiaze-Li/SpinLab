@@ -20,7 +20,9 @@ struct FilenameRuleSet: Decodable {
         var id: String
         var label: String?
         var kind: ConditionDefinitionKind
-        var binding: String
+        var binding: String? = nil
+        var unitPattern: String?
+        var tokenMap: [MapRule]?
     }
 
     struct Tokenization: Decodable {
@@ -108,6 +110,40 @@ struct FilenameRuleSet: Decodable {
         var orientationPattern: String
     }
 
+    struct MaterialDefinition: Decodable {
+        var id: String
+        var tokens: [String]
+        var aliases: [String]
+        var displayName: String
+    }
+
+    struct TreatmentDefinition: Decodable {
+        var id: String
+        var displayName: String
+        var keywords: [String]
+        var standaloneTokens: [String]
+        var containsTokens: [String]
+    }
+
+    struct OrientationConfig: Decodable {
+        struct Row: Decodable {
+            var id: String
+            var tokens: [String]
+            var aliases: [String]
+        }
+
+        var pattern: String
+        var rows: [Row]
+    }
+
+    struct SubstrateConfig: Decodable {
+        var tokenSeparators: String
+        var substrateTagRules: [MapRule]
+        var materials: [MaterialDefinition]
+        var treatments: [TreatmentDefinition]
+        var orientations: OrientationConfig
+    }
+
     enum MatchScope: String, Decodable {
         case tokens
         case joined
@@ -149,6 +185,9 @@ struct FilenameRuleSet: Decodable {
         var channelAliases: [String: String] = [:]
         var conditionUnitSuffixRegexes: [String: NSRegularExpression] = [:]
         var conditionTokenMapRules: [String: [CompiledMapRule]] = [:]
+        var materialByToken: [String: MaterialDefinition] = [:]
+        var treatmentByKeyword: [String: TreatmentDefinition] = [:]
+        var orientationCanonical: [String: String] = [:]
     }
 
     var version: Int
@@ -165,6 +204,7 @@ struct FilenameRuleSet: Decodable {
     var registry: RegistryRules?
     var importRules: ImportRules?
     var sharedSubstrate: SharedSubstrateRules?
+    var substrateConfig: SubstrateConfig?
 
     var compiled: CompiledRules = CompiledRules()
     var loadWarnings: [String] = []
@@ -183,6 +223,7 @@ struct FilenameRuleSet: Decodable {
         case conditionDefinitions
         case registry
         case importRules
+        case substrateConfig
     }
 
     init(
@@ -199,7 +240,8 @@ struct FilenameRuleSet: Decodable {
         conditionDefinitions: [ConditionDefinition] = [],
         registry: RegistryRules?,
         importRules: ImportRules?,
-        sharedSubstrate: SharedSubstrateRules?
+        sharedSubstrate: SharedSubstrateRules?,
+        substrateConfig: SubstrateConfig?
     ) {
         self.version = version
         self.tokenization = tokenization
@@ -215,6 +257,7 @@ struct FilenameRuleSet: Decodable {
         self.registry = registry
         self.importRules = importRules
         self.sharedSubstrate = sharedSubstrate
+        self.substrateConfig = substrateConfig
         compiled = CompiledRules()
         loadWarnings = []
     }
@@ -234,6 +277,7 @@ struct FilenameRuleSet: Decodable {
         conditionDefinitions = try container.decodeIfPresent([ConditionDefinition].self, forKey: .conditionDefinitions) ?? []
         registry = try container.decodeIfPresent(RegistryRules.self, forKey: .registry)
         importRules = try container.decodeIfPresent(ImportRules.self, forKey: .importRules)
+        substrateConfig = try container.decodeIfPresent(SubstrateConfig.self, forKey: .substrateConfig)
         sharedSubstrate = nil
         compiled = CompiledRules()
         loadWarnings = []
@@ -254,6 +298,7 @@ struct FilenameRuleSet: Decodable {
         compiled.measurementTagRules = compileMapRules(measurementTagRules, warnings: &warnings, label: "measurementTagRules")
         compiled.substrateTagRules = compileMapRules(substrateTagRules, warnings: &warnings, label: "substrateTagRules")
         compileConditionDefinitions(warnings: &warnings)
+        compileSubstrateConfigNeedles()
 
         compiled.channelAliases = channel.aliases.reduce(into: [:]) { partial, entry in
             partial[entry.key.lowercased()] = entry.value
@@ -409,40 +454,86 @@ struct FilenameRuleSet: Decodable {
         for definition in conditionDefinitions {
             let id = definition.id.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !id.isEmpty else { continue }
-            let binding = definition.binding.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !binding.isEmpty else { continue }
 
             switch definition.kind {
             case .unitSuffix:
-                guard let pattern = unitSuffixPattern(for: binding), !pattern.isEmpty else { continue }
-                if let compiledRegex = compileRegex(pattern, warnings: &warnings, label: binding) {
+                let inlinePattern = definition.unitPattern?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let pattern: String? = {
+                    if let inlinePattern, !inlinePattern.isEmpty {
+                        return inlinePattern
+                    }
+                    guard let binding = definition.binding?.trimmingCharacters(in: .whitespacesAndNewlines),
+                          !binding.isEmpty,
+                          binding.hasPrefix("conditions.extraConditions.") else {
+                        return nil
+                    }
+                    let key = String(binding.dropFirst("conditions.extraConditions.".count))
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !key.isEmpty else { return nil }
+                    return conditions.extraConditions[key]
+                }()
+                guard let pattern, !pattern.isEmpty else { continue }
+                if let compiledRegex = compileRegex(pattern, warnings: &warnings, label: id) {
                     compiled.conditionUnitSuffixRegexes[id] = compiledRegex
                 }
             case .tokenMap:
-                guard let rawRules = tokenMapRules(for: binding) else { continue }
-                compiled.conditionTokenMapRules[id] = compileMapRules(rawRules, warnings: &warnings, label: binding)
+                let rawRules: [MapRule]? = {
+                    if let inlineRules = definition.tokenMap {
+                        return inlineRules
+                    }
+                    guard let binding = definition.binding?.trimmingCharacters(in: .whitespacesAndNewlines),
+                          !binding.isEmpty,
+                          binding.hasPrefix("conditions.tokenMapRules.") else {
+                        return nil
+                    }
+                    let key = String(binding.dropFirst("conditions.tokenMapRules.".count))
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !key.isEmpty else { return nil }
+                    return conditions.tokenMapRules[key] ?? []
+                }()
+                guard let rawRules else { continue }
+                compiled.conditionTokenMapRules[id] = compileMapRules(rawRules, warnings: &warnings, label: id)
             }
         }
     }
 
-    private func unitSuffixPattern(for binding: String) -> String? {
-        guard binding.hasPrefix("conditions.extraConditions.") else {
-            return nil
-        }
-        let key = String(binding.dropFirst("conditions.extraConditions.".count))
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty else { return nil }
-        return conditions.extraConditions[key]
-    }
+    private mutating func compileSubstrateConfigNeedles() {
+        compiled.materialByToken = [:]
+        compiled.treatmentByKeyword = [:]
+        compiled.orientationCanonical = [:]
 
-    private func tokenMapRules(for binding: String) -> [MapRule]? {
-        guard binding.hasPrefix("conditions.tokenMapRules.") else {
-            return nil
+        guard let substrateConfig else { return }
+
+        for material in substrateConfig.materials {
+            for token in material.tokens {
+                let key = token.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+                guard !key.isEmpty else { continue }
+                compiled.materialByToken[key] = material
+            }
+            for alias in material.aliases {
+                let key = alias.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+                guard !key.isEmpty else { continue }
+                compiled.materialByToken[key] = material
+            }
         }
-        let key = String(binding.dropFirst("conditions.tokenMapRules.".count))
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty else { return nil }
-        return conditions.tokenMapRules[key] ?? []
+
+        for treatment in substrateConfig.treatments {
+            for keyword in treatment.keywords {
+                let key = keyword.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                guard !key.isEmpty else { continue }
+                compiled.treatmentByKeyword[key] = treatment
+            }
+        }
+
+        for row in substrateConfig.orientations.rows {
+            let canonicalID = row.id.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !canonicalID.isEmpty else { continue }
+            for alias in row.aliases {
+                let key = alias.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+                guard !key.isEmpty else { continue }
+                compiled.orientationCanonical[key] = canonicalID
+            }
+        }
     }
 
     private func normalizeSampleIDToken(_ token: String) -> String? {
@@ -664,25 +755,33 @@ struct FilenameRuleSet: Decodable {
                     id: ConditionFieldCatalog.temperatureID,
                     label: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.temperatureID],
                     kind: .unitSuffix,
-                    binding: "conditions.extraConditions.\(ConditionFieldCatalog.temperatureID)"
+                    binding: "conditions.extraConditions.\(ConditionFieldCatalog.temperatureID)",
+                    unitPattern: "",
+                    tokenMap: nil
                 ),
                 ConditionDefinition(
                     id: ConditionFieldCatalog.currentID,
                     label: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.currentID],
                     kind: .unitSuffix,
-                    binding: "conditions.extraConditions.\(ConditionFieldCatalog.currentID)"
+                    binding: "conditions.extraConditions.\(ConditionFieldCatalog.currentID)",
+                    unitPattern: "",
+                    tokenMap: nil
                 ),
                 ConditionDefinition(
                     id: ConditionFieldCatalog.fieldID,
                     label: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.fieldID],
                     kind: .unitSuffix,
-                    binding: "conditions.extraConditions.\(ConditionFieldCatalog.fieldID)"
+                    binding: "conditions.extraConditions.\(ConditionFieldCatalog.fieldID)",
+                    unitPattern: "",
+                    tokenMap: nil
                 ),
                 ConditionDefinition(
                     id: ConditionFieldCatalog.deviceID,
                     label: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.deviceID],
                     kind: .tokenMap,
-                    binding: "conditions.tokenMapRules.\(ConditionFieldCatalog.deviceID)"
+                    binding: "conditions.tokenMapRules.\(ConditionFieldCatalog.deviceID)",
+                    unitPattern: nil,
+                    tokenMap: []
                 )
             ],
             registry: RegistryRules(
@@ -744,6 +843,56 @@ struct FilenameRuleSet: Decodable {
                     "100": "001"
                 ],
                 orientationPattern: "\\d{3}"
+            ),
+            substrateConfig: SubstrateConfig(
+                tokenSeparators: "_- ()",
+                substrateTagRules: [],
+                materials: [
+                    MaterialDefinition(id: "STO", tokens: ["STO"], aliases: [], displayName: "STO"),
+                    MaterialDefinition(id: "NGO", tokens: ["NGO"], aliases: [], displayName: "NGO"),
+                    MaterialDefinition(id: "MAO", tokens: ["MAO"], aliases: [], displayName: "MAO"),
+                    MaterialDefinition(id: "MGO", tokens: ["MGO"], aliases: [], displayName: "MgO"),
+                    MaterialDefinition(id: "AL2O3", tokens: ["AL2O3"], aliases: [], displayName: "Al2O3"),
+                    MaterialDefinition(id: "SI", tokens: ["SI"], aliases: ["ONSI"], displayName: "Si"),
+                    MaterialDefinition(
+                        id: "POLY-SIO2",
+                        tokens: ["POLY-SIO2", "POLY-SIO2 ON SI"],
+                        aliases: [],
+                        displayName: "poly-SiO2 on Si"
+                    )
+                ],
+                treatments: [
+                    TreatmentDefinition(
+                        id: "HF",
+                        displayName: "HF",
+                        keywords: ["hf"],
+                        standaloneTokens: [],
+                        containsTokens: []
+                    ),
+                    TreatmentDefinition(
+                        id: "b",
+                        displayName: "baked",
+                        keywords: ["b", "bake", "baked"],
+                        standaloneTokens: [],
+                        containsTokens: []
+                    ),
+                    TreatmentDefinition(
+                        id: "o",
+                        displayName: "o",
+                        keywords: ["o", "origin", "original"],
+                        standaloneTokens: ["o"],
+                        containsTokens: ["origin", "original"]
+                    )
+                ],
+                orientations: OrientationConfig(
+                    pattern: "\\d{3}",
+                    rows: [
+                        OrientationConfig.Row(id: "001", tokens: ["001"], aliases: ["100"]),
+                        OrientationConfig.Row(id: "111", tokens: ["111"], aliases: []),
+                        OrientationConfig.Row(id: "110", tokens: ["110"], aliases: []),
+                        OrientationConfig.Row(id: "0001", tokens: ["0001"], aliases: [])
+                    ]
+                )
             )
         )
     }

@@ -217,11 +217,12 @@ struct RuleLoader {
             measurementTagRules: workflowFile.measurementTagRules,
             substrateTagRules: sampleIdentFile.substrateTagRules,
             channel: tokenizationFile.channel,
-            conditions: conditionFile.conditions,
+            conditions: conditionFile.conditions ?? FilenameRuleSet.ConditionRules(),
             conditionDefinitions: conditionFile.conditionDefinitions,
             registry: nil,
             importRules: importFiltersFile.importRules,
-            sharedSubstrate: sampleIdentFile.sharedSubstrate
+            sharedSubstrate: sampleIdentFile.sharedSubstrate,
+            substrateConfig: sampleIdentFile.substrateConfig
         )
 
         // library_import_rules.json: registry only (optional)
@@ -259,11 +260,12 @@ struct RuleLoader {
             measurementTagRules: workflowFile.measurementTagRules,
             substrateTagRules: sampleIdentFile.substrateTagRules,
             channel: tokenizationFile.channel,
-            conditions: conditionFile.conditions,
+            conditions: conditionFile.conditions ?? FilenameRuleSet.ConditionRules(),
             conditionDefinitions: conditionFile.conditionDefinitions,
             registry: nil,
             importRules: importFiltersFile.importRules,
-            sharedSubstrate: sampleIdentFile.sharedSubstrate
+            sharedSubstrate: sampleIdentFile.sharedSubstrate,
+            substrateConfig: sampleIdentFile.substrateConfig
         )
 
         // library_import_rules.json: registry only (optional)
@@ -387,10 +389,30 @@ private struct SampleIdentificationFile: Decodable {
 
     var substrateTagRules: [FilenameRuleSet.MapRule] { substrate.substrateTagRules }
     var sharedSubstrate: FilenameRuleSet.SharedSubstrateRules? { substrate.shared }
+    var substrateConfig: FilenameRuleSet.SubstrateConfig? { substrate.substrateConfig }
 
     struct SubstrateSection: Decodable {
         let substrateTagRules: [FilenameRuleSet.MapRule]
         let shared: FilenameRuleSet.SharedSubstrateRules?
+        let substrateConfig: FilenameRuleSet.SubstrateConfig?
+
+        private enum CodingKeys: String, CodingKey {
+            case substrateTagRules
+            case shared
+            case materials
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            substrateTagRules = try container.decodeIfPresent([FilenameRuleSet.MapRule].self, forKey: .substrateTagRules) ?? []
+            if container.contains(.materials) {
+                substrateConfig = try FilenameRuleSet.SubstrateConfig(from: decoder)
+                shared = nil
+            } else {
+                substrateConfig = nil
+                shared = try container.decodeIfPresent(FilenameRuleSet.SharedSubstrateRules.self, forKey: .shared)
+            }
+        }
     }
 }
 
@@ -414,7 +436,7 @@ private struct WorkflowFile: Decodable {
 private struct MeasuringConditionFile: Decodable {
     let version: Int
     let batch: FilenameRuleSet.BatchRules
-    let conditions: FilenameRuleSet.ConditionRules
+    let conditions: FilenameRuleSet.ConditionRules?
     let conditionDefinitions: [FilenameRuleSet.ConditionDefinition]
 }
 

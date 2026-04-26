@@ -1,32 +1,48 @@
 {
-  "version": 1,
+  "version": 2,
   "batch": {
     "preferSampleId": true,
     "fallbackPatterns": ["^(B|Batch)\\d+$"]
   },
-  "conditions": {
-    "extraConditions": {
-      "current": "^-?\\d+(?:\\.\\d+)?(?:mA|A|uA)$",
-      "device": "^-?\\d+(?:\\.\\d+)?(?:deg)$",
-      "field": "^-?\\d+(?:\\.\\d+)?(?:T|mT|Oe)$",
-      "shift": "^-?\\d+(?:\\.\\d+)?(?:shift)$",
-      "temperature": "^-?\\d+(?:\\.\\d+)?(?:K|k|C)$"
-    },
-    "tokenMapRules": {
-      "device": [
+  "conditionDefinitions": [
+    {
+      "id": "device",
+      "label": "Device",
+      "kind": "token_map",
+      "tokenMap": [
         {
-          "match": { "scope": "tokens", "type": "equals", "value": "wafer" },
+          "match": {
+            "scope": "tokens",
+            "type": "equals",
+            "value": "wafer"
+          },
           "value": "wafer"
         }
       ]
     },
-    "displayLabels": {}
-  },
-  "conditionDefinitions": [
-    { "id": "device", "label": "Device", "kind": "token_map", "binding": "conditions.tokenMapRules.device" },
-    { "id": "temperature", "label": "Temperature", "kind": "unit_suffix", "binding": "conditions.extraConditions.temperature" },
-    { "id": "current", "label": "Current", "kind": "unit_suffix", "binding": "conditions.extraConditions.current" },
-    { "id": "field", "label": "Field", "kind": "unit_suffix", "binding": "conditions.extraConditions.field" },
-    { "id": "shift", "label": "Shift", "kind": "unit_suffix", "binding": "conditions.extraConditions.shift" }
+    {
+      "id": "temperature",
+      "label": "Temperature",
+      "kind": "unit_suffix",
+      "unitPattern": "^-?\\d+(?:\\.\\d+)?(?:K|k|C)$"
+    },
+    {
+      "id": "current",
+      "label": "Current",
+      "kind": "unit_suffix",
+      "unitPattern": "^-?\\d+(?:\\.\\d+)?(?:mA|A|uA)$"
+    },
+    {
+      "id": "field",
+      "label": "Field",
+      "kind": "unit_suffix",
+      "unitPattern": "^-?\\d+(?:\\.\\d+)?(?:T|mT|Oe)$"
+    },
+    {
+      "id": "shift",
+      "label": "Shift",
+      "kind": "unit_suffix",
+      "unitPattern": "^-?\\d+(?:\\.\\d+)?(?:shift)$"
+    }
   ]
 }

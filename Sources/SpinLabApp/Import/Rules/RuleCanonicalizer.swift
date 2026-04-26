@@ -21,7 +21,9 @@ struct RuleCanonicalizer {
                         id: id,
                         label: ConditionFieldCatalog.defaultLabel(for: id),
                         kind: kind,
-                        binding: canonicalBinding(for: id, kind: kind)
+                        binding: kind == .unitSuffix
+                            ? "conditions.extraConditions.\(id)"
+                            : "conditions.tokenMapRules.\(id)"
                     )
                 )
             }
@@ -44,40 +46,6 @@ struct RuleCanonicalizer {
             warnings.append("\(sourceLabel) has no conditionDefinitions; synthesized canonical definitions for compatibility.")
             return warnings
         }
-
-        var changed = false
-        var normalized: [FilenameRuleSet.ConditionDefinition] = []
-
-        for definition in ruleSet.conditionDefinitions {
-            let id = definition.id.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !id.isEmpty else {
-                continue
-            }
-            var updated = definition
-            let binding = definition.binding.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            switch definition.kind {
-            case .unitSuffix:
-                let canonical = canonicalBinding(for: id, kind: .unitSuffix)
-                if binding != canonical {
-                    updated.binding = canonical
-                    changed = true
-                }
-            case .tokenMap:
-                let canonical = canonicalBinding(for: id, kind: .tokenMap)
-                if binding != canonical {
-                    updated.binding = canonical
-                    changed = true
-                }
-            }
-
-            normalized.append(updated)
-        }
-
-        if changed {
-            warnings.append("\(sourceLabel) conditionDefinitions bindings were normalized to canonical paths.")
-        }
-        ruleSet.conditionDefinitions = normalized
         return warnings
     }
 
@@ -88,8 +56,8 @@ struct RuleCanonicalizer {
         var conditions = (hasInbox ? inbox["conditions"] : json["conditions"]) as? [String: Any] ?? [:]
         var changed = false
 
-        var extraConditions = (conditions["extraConditions"] as? [String: String]) ?? [:]
-        var tokenMapRules = (conditions["tokenMapRules"] as? [String: Any]) ?? [:]
+        let extraConditions = (conditions["extraConditions"] as? [String: String]) ?? [:]
+        let tokenMapRules = (conditions["tokenMapRules"] as? [String: Any]) ?? [:]
 
         let conditionDefinitions = (hasInbox ? inbox["conditionDefinitions"] : json["conditionDefinitions"]) as? [[String: Any]] ?? []
         if conditionDefinitions.isEmpty {
@@ -109,20 +77,14 @@ struct RuleCanonicalizer {
             let label = ((raw["label"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .nonEmpty) ?? ConditionFieldCatalog.defaultLabel(for: id)
-            let canonicalBinding = kindRaw == "unit_suffix"
-                ? canonicalBinding(for: id, kind: .unitSuffix)
-                : canonicalBinding(for: id, kind: .tokenMap)
-
-            if (raw["binding"] as? String) != canonicalBinding
-                || (raw["label"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty == nil {
+            if (raw["label"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty == nil {
                 changed = true
             }
 
             return [
                 "id": id,
                 "label": label,
-                "kind": kindRaw,
-                "binding": canonicalBinding
+                "kind": kindRaw
             ]
         }
 
@@ -145,10 +107,7 @@ struct RuleCanonicalizer {
             canonicalDefinitions.append([
                 "id": normalizedID,
                 "label": ConditionFieldCatalog.defaultLabel(for: normalizedID),
-                "kind": kind.rawValue,
-                "binding": kind == .unitSuffix
-                    ? canonicalBinding(for: normalizedID, kind: .unitSuffix)
-                    : canonicalBinding(for: normalizedID, kind: .tokenMap)
+                "kind": kind.rawValue
             ])
             changed = true
         }
@@ -177,18 +136,6 @@ struct RuleCanonicalizer {
         }
 
         return UserRuleMigrationResult(json: json, changed: changed)
-    }
-
-    private static func canonicalBinding(
-        for id: String,
-        kind: FilenameRuleSet.ConditionDefinitionKind
-    ) -> String {
-        switch kind {
-        case .unitSuffix:
-            return "conditions.extraConditions.\(id)"
-        case .tokenMap:
-            return "conditions.tokenMapRules.\(id)"
-        }
     }
 }
 
