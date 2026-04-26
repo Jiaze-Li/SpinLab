@@ -77,6 +77,27 @@ struct RuleLoader {
         return loaded
     }
 
+    func loadFromBundleOnly() -> LoadResult {
+        var warnings: [String] = []
+        if let result = tryLoadFromBundle(warnings: &warnings) {
+            return result
+        }
+        warnings.append("Bundle rules not available; using built-in fallback.")
+        var fallback = FilenameRuleSet.fallback()
+        fallback.loadWarnings = warnings
+        return LoadResult(
+            ruleSet: fallback,
+            warnings: warnings,
+            metadata: RuleMetadata(
+                version: fallback.version,
+                sourceLabel: "Fallback",
+                sourcePath: "builtin:fallback",
+                contentHash: hashHex(for: Data("fallback".utf8)),
+                loadedAt: Date()
+            )
+        )
+    }
+
     // MARK: - Cache
 
     private static func withCacheLock<T>(_ action: () -> T) -> T {

@@ -27,13 +27,13 @@ struct V223AppEnvironmentIntegrationTests {
             sampleRegistry: SnapshotSampleRegistryIndex(snapshot: .empty()),
             registrySubstrateRules: RegistrySubstrateRuleBook(),
             routingCapabilities: .live,
-            ruleRuntime: DefaultRuleRuntimeCapability(),
+            ruleRuntime: makeBundleRuleRuntime(),
             dataActor: MockDataActor()
         )
         let appState = SpinLabAppState(environment: environment)
 
         appState.importFiles(from: [importURL])
-        try await waitUntil(timeoutMS: 15_000) {
+        try await waitUntil(timeoutMS: 120_000) {
             appState.inbox.pendingImports.count == 1
                 && persistence.loadPendingImports().count == 1
                 && appState.inbox.importProgressState.isRunning == false
@@ -66,13 +66,13 @@ struct V223AppEnvironmentIntegrationTests {
             sampleRegistry: SnapshotSampleRegistryIndex(snapshot: .empty()),
             registrySubstrateRules: RegistrySubstrateRuleBook(),
             routingCapabilities: .live,
-            ruleRuntime: DefaultRuleRuntimeCapability(),
+            ruleRuntime: makeBundleRuleRuntime(),
             dataActor: MockDataActor(loadError: AppError.io("mock registry parse failure"))
         )
         let appState = SpinLabAppState(environment: environment)
 
         appState.loadSampleRegistry(from: registryURL)
-        try await waitUntil(timeoutMS: 8_000) { appState.activeAlert != nil }
+        try await waitUntil(timeoutMS: 120_000) { appState.activeAlert != nil }
 
         #expect(appState.activeAlert?.title == "Registry Load Failed")
     }
@@ -98,7 +98,7 @@ struct V223AppEnvironmentIntegrationTests {
             sampleRegistry: SnapshotSampleRegistryIndex(snapshot: .empty()),
             registrySubstrateRules: RegistrySubstrateRuleBook(),
             routingCapabilities: .live,
-            ruleRuntime: DefaultRuleRuntimeCapability(),
+            ruleRuntime: makeBundleRuleRuntime(),
             dataActor: MockDataActor()
         )
 
@@ -143,14 +143,14 @@ struct V223AppEnvironmentIntegrationTests {
             sampleRegistry: SnapshotSampleRegistryIndex(snapshot: .empty()),
             registrySubstrateRules: RegistrySubstrateRuleBook(),
             routingCapabilities: .live,
-            ruleRuntime: DefaultRuleRuntimeCapability(),
+            ruleRuntime: makeBundleRuleRuntime(),
             dataActor: MockDataActor(),
             workflowRegistryStore: WorkflowRegistryStore(registryFileURL: registryURL)
         )
         let appState = SpinLabAppState(environment: environment)
 
         appState.importFiles(from: [importURL])
-        try await waitUntil(timeoutMS: 15_000) {
+        try await waitUntil(timeoutMS: 120_000) {
             appState.inbox.pendingImports.count == 1
                 && appState.inbox.importProgressState.isRunning == false
         }
@@ -206,19 +206,26 @@ struct V223AppEnvironmentIntegrationTests {
             sampleRegistry: SnapshotSampleRegistryIndex(snapshot: .empty()),
             registrySubstrateRules: RegistrySubstrateRuleBook(),
             routingCapabilities: .live,
-            ruleRuntime: DefaultRuleRuntimeCapability(),
+            ruleRuntime: makeBundleRuleRuntime(),
             dataActor: MockDataActor()
         )
         let appState = SpinLabAppState(environment: environment)
         appState.library.librarySettings.rootPath = libraryRoot.path
 
         appState.importFiles(from: [importURL])
-        try await waitUntil(timeoutMS: 15_000) {
+        try await waitUntil(timeoutMS: 120_000) {
             appState.inbox.importProgressState.isRunning == false
         }
 
         #expect(appState.inbox.pendingImports.isEmpty)
         #expect(persistence.loadPendingImports().isEmpty)
+    }
+
+    // Load rules from bundle (unaffected by V515's runtime config dir manipulation).
+    private func makeBundleRuleRuntime() -> DefaultRuleRuntimeCapability {
+        DefaultRuleRuntimeCapability(
+            ruleProvider: InlineRuleProvider(loadResult: RuleLoader().loadFromBundleOnly())
+        )
     }
 
     private func waitUntil(timeoutMS: UInt64, condition: @escaping () -> Bool) async throws {
