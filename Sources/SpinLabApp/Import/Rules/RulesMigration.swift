@@ -2,7 +2,7 @@ import Foundation
 import CryptoKit
 
 struct RulesMigration {
-    static let targetSchemaVersion = 2
+    static let targetSchemaVersion = 3
 
     static func runIfNeeded() {
         let paths = RulesConfigPaths()
@@ -19,11 +19,17 @@ struct RulesMigration {
     // MARK: - Completion check
 
     private static func isMigrationComplete(paths: RulesConfigPaths) -> Bool {
+        let migrationFailedURL = paths.configDirectoryURL.appendingPathComponent("migration_failed.json")
+        if FileManager.default.fileExists(atPath: migrationFailedURL.path) {
+            return true
+        }
+
         guard let stateData = try? Data(contentsOf: paths.migrationStateURL),
               let state = try? JSONDecoder().decode(RulesMigrationState.self, from: stateData),
-              state.rules_schema_version == targetSchemaVersion else {
+              state.rules_schema_version >= targetSchemaVersion else {
             return false
         }
+
         let fm = FileManager.default
         return paths.allSchemaFileURLs.allSatisfy { fm.fileExists(atPath: $0.path) }
     }
@@ -42,16 +48,19 @@ struct RulesMigration {
         let ts = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
         var sourceHashes: [String: String] = [:]
 
-        // Backup any existing config files before overwriting
         let oldFilenames = [
             "filename_rules.json",
+            "substrate_rules.json",
+            "conditions_rules.json",
+            "filename_parse_rules.json",
             "sample_id_rules.json",
             "workflow_match_rules.json",
-            "substrate_rules.json",
+            "substrate_normalization_rules.json",
             "measurement_tag_rules.json",
             "workflow_id_policy.json",
-            "conditions_rules.json"
+            "library_import_rules.json"
         ]
+
         for name in oldFilenames {
             let url = configDir.appendingPathComponent(name)
             if fm.fileExists(atPath: url.path) {
@@ -63,29 +72,38 @@ struct RulesMigration {
             }
         }
 
-        // Assemble new 7-file content from old sources
         let assembled = try assembleNewSchema(paths: paths)
 
-        // Write all 7 new files to tmp, decode-verify each
         let targetFiles: [(URL, Data)] = [
-            (paths.filenameParsRulesURL, assembled.filenameParse),
-            (paths.sampleIDRulesURL, assembled.sampleID),
-            (paths.workflowMatchRulesURL, assembled.workflowMatch),
-            (paths.substrateNormalizationRulesURL, assembled.substrateNorm),
-            (paths.measurementTagRulesURL, assembled.measurementTag),
-            (paths.workflowIDPolicyURL, assembled.workflowIDPolicy),
-            (paths.libraryImportRulesURL, assembled.libraryImport)
+            (paths.importFiltersURL, assembled.importFilters),
+            (paths.filenameTokenizationURL, assembled.filenameTokenization),
+            (paths.sampleIdentificationURL, assembled.sampleIdentification),
+            (paths.workflowURL, assembled.workflow),
+            (paths.measuringConditionURL, assembled.measuringCondition)
         ]
 
         var tmpURLs: [(URL, URL)] = []
+        let migrationFailedURL = configDir.appendingPathComponent("migration_failed.json")
+
         for (destURL, data) in targetFiles {
             let tmpURL = tmpDir.appendingPathComponent(destURL.lastPathComponent)
             try data.write(to: tmpURL)
-            try verifyDecodable(at: tmpURL, name: destURL.lastPathComponent)
+            do {
+                try verifyDecodable(at: tmpURL, name: destURL.lastPathComponent)
+            } catch {
+                let failedInfo: [String: String] = [
+                    "reason": error.localizedDescription,
+                    "failedAt": ISO8601DateFormatter().string(from: Date())
+                ]
+                if let failedData = try? JSONSerialization.data(withJSONObject: failedInfo, options: .prettyPrinted) {
+                    try? failedData.write(to: migrationFailedURL)
+                }
+                try? fm.removeItem(at: tmpDir)
+                throw error
+            }
             tmpURLs.append((tmpURL, destURL))
         }
 
-        // Atomic rename all files from tmp to final locations
         for (tmpURL, destURL) in tmpURLs {
             if fm.fileExists(atPath: destURL.path) {
                 try fm.removeItem(at: destURL)
@@ -93,7 +111,6 @@ struct RulesMigration {
             try fm.moveItem(at: tmpURL, to: destURL)
         }
 
-        // Write migration state sentinel
         let state = RulesMigrationState(
             rules_schema_version: targetSchemaVersion,
             migratedAt: ISO8601DateFormatter().string(from: Date()),
@@ -102,12 +119,20 @@ struct RulesMigration {
         let stateData = try JSONEncoder().encode(state)
         try stateData.write(to: paths.migrationStateURL)
 
-        // Delete old files that have been superseded
+        stripParentIDFromRegistry(configDir: configDir)
+
         let obsoleteFilenames = [
+            "filename_parse_rules.json",
+            "sample_id_rules.json",
+            "workflow_match_rules.json",
+            "substrate_normalization_rules.json",
+            "measurement_tag_rules.json",
+            "workflow_id_policy.json",
             "filename_rules.json",
             "substrate_rules.json",
             "conditions_rules.json"
         ]
+
         for name in obsoleteFilenames {
             let url = configDir.appendingPathComponent(name)
             if fm.fileExists(atPath: url.path) {
@@ -115,99 +140,110 @@ struct RulesMigration {
             }
         }
 
-        // Clean up tmp dir
         try? fm.removeItem(at: tmpDir)
 
         AppLogger.shared.info(.import, "Rules migration complete", metadata: [
             "schemaVersion": "\(targetSchemaVersion)",
             "sourceFiles": sourceHashes.keys.sorted().joined(separator: ", ")
         ])
-
-        verifySharedSubstrateFields(paths: paths)
     }
 
     // MARK: - Schema assembly
 
     private struct AssembledSchema {
-        let filenameParse: Data
-        let sampleID: Data
-        let workflowMatch: Data
-        let substrateNorm: Data
-        let measurementTag: Data
-        let workflowIDPolicy: Data
-        let libraryImport: Data
+        let importFilters: Data
+        let filenameTokenization: Data
+        let sampleIdentification: Data
+        let workflow: Data
+        let measuringCondition: Data
     }
 
     private static func assembleNewSchema(paths: RulesConfigPaths) throws -> AssembledSchema {
         let bundleFiles = BundleFileLocator()
 
-        // filename_parse_rules: always use bundle (canonical source)
-        let filenameParse = try bundleFiles.data(for: "filename_parse_rules")
-            ?? { throw MigrationError.bundleFileMissing("filename_parse_rules.json") }()
+        let importFilters = try requireBundle(bundleFiles, name: "import_filters")
+        let filenameTokenization = try requireBundle(bundleFiles, name: "filename_tokenization")
+        let sampleIdentification = try requireBundle(bundleFiles, name: "sample_identification")
+        let rawWorkflow = try requireBundle(bundleFiles, name: "workflow")
+        let measuringCondition = try requireBundle(bundleFiles, name: "measuring_condition")
 
-        // sample_id_rules: runtime > bundle
-        let sampleID = runtimeOrBundle(
-            runtime: paths.sampleIDRulesURL,
-            bundleProvider: { try? bundleFiles.data(for: "sample_id_rules") }
-        ) ?? defaultSampleIDData()
-
-        // workflow_match_rules: runtime > bundle
-        let workflowMatch = runtimeOrBundle(
-            runtime: paths.workflowMatchRulesURL,
-            bundleProvider: { try? bundleFiles.data(for: "workflow_match_rules") }
-        ) ?? defaultWorkflowMatchData()
-
-        // substrate_normalization_rules: runtime substrate_rules.json > bundle
-        let substrateNorm: Data
-        let runtimeSubstrate = paths.configDirectoryURL.appendingPathComponent("substrate_rules.json")
-        if FileManager.default.fileExists(atPath: runtimeSubstrate.path),
-           let data = try? Data(contentsOf: runtimeSubstrate),
-           isSubstrateRulesNewFormat(data) {
-            substrateNorm = data
-        } else {
-            substrateNorm = try bundleFiles.data(for: "substrate_normalization_rules")
-                ?? { throw MigrationError.bundleFileMissing("substrate_normalization_rules.json") }()
-        }
-
-        // measurement_tag_rules: runtime > bundle
-        let measurementTag = runtimeOrBundle(
-            runtime: paths.measurementTagRulesURL,
-            bundleProvider: { try? bundleFiles.data(for: "measurement_tag_rules") }
-        ) ?? defaultMeasurementTagData()
-
-        // workflow_id_policy: runtime > bundle
-        let workflowIDPolicy = runtimeOrBundle(
-            runtime: paths.workflowIDPolicyURL,
-            bundleProvider: { try? bundleFiles.data(for: "workflow_id_policy") }
-        ) ?? defaultWorkflowIDPolicyData()
-
-        // library_import_rules: always from bundle (new file, no runtime precedent)
-        let libraryImport = try bundleFiles.data(for: "library_import_rules")
-            ?? { throw MigrationError.bundleFileMissing("library_import_rules.json") }()
+        let workflow = enrichedWorkflowData(rawWorkflow, configDir: paths.configDirectoryURL)
 
         return AssembledSchema(
-            filenameParse: filenameParse,
-            sampleID: sampleID,
-            workflowMatch: workflowMatch,
-            substrateNorm: substrateNorm,
-            measurementTag: measurementTag,
-            workflowIDPolicy: workflowIDPolicy,
-            libraryImport: libraryImport
+            importFilters: importFilters,
+            filenameTokenization: filenameTokenization,
+            sampleIdentification: sampleIdentification,
+            workflow: workflow,
+            measuringCondition: measuringCondition
         )
     }
 
-    private static func runtimeOrBundle(runtime: URL, bundleProvider: () -> Data?) -> Data? {
-        if FileManager.default.fileExists(atPath: runtime.path),
-           let data = try? Data(contentsOf: runtime) {
-            return data
+    private static func requireBundle(_ locator: BundleFileLocator, name: String) throws -> Data {
+        guard let data = try? locator.data(for: name) else {
+            throw MigrationError.bundleFileMissing("\(name).json")
         }
-        return bundleProvider()
+        return data
     }
 
-    // Checks if a substrate_rules.json has the new sharedSubstrate top-level format
-    private static func isSubstrateRulesNewFormat(_ data: Data) -> Bool {
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
-        return json["sharedSubstrate"] != nil
+    private static func enrichedWorkflowData(_ rawWorkflowData: Data, configDir: URL) -> Data {
+        let registryURL = configDir
+            .deletingLastPathComponent()
+            .appendingPathComponent("workflow_registry.json")
+
+        guard FileManager.default.fileExists(atPath: registryURL.path),
+              let registryData = try? Data(contentsOf: registryURL),
+              let registryEntries = try? JSONSerialization.jsonObject(with: registryData) as? [[String: Any]] else {
+            return rawWorkflowData
+        }
+
+        var conditionFieldIDsByID: [String: [String]] = [:]
+        for entry in registryEntries {
+            guard let id = entry["id"] as? String,
+                  let fields = entry["conditionFields"] as? [[String: Any]] else {
+                continue
+            }
+            conditionFieldIDsByID[id] = fields.compactMap { $0["definitionID"] as? String }
+        }
+
+        guard var workflowJSON = try? JSONSerialization.jsonObject(with: rawWorkflowData) as? [String: Any],
+              var workflows = workflowJSON["workflows"] as? [[String: Any]] else {
+            return rawWorkflowData
+        }
+
+        for i in workflows.indices {
+            guard let id = workflows[i]["id"] as? String,
+                  let fieldIDs = conditionFieldIDsByID[id] else {
+                continue
+            }
+            workflows[i]["conditionFieldIDs"] = fieldIDs
+        }
+
+        workflowJSON["workflows"] = workflows
+        guard let enriched = try? JSONSerialization.data(withJSONObject: workflowJSON, options: .prettyPrinted) else {
+            return rawWorkflowData
+        }
+        return enriched
+    }
+
+    private static func stripParentIDFromRegistry(configDir: URL) {
+        let registryURL = configDir
+            .deletingLastPathComponent()
+            .appendingPathComponent("workflow_registry.json")
+
+        guard FileManager.default.fileExists(atPath: registryURL.path),
+              let data = try? Data(contentsOf: registryURL),
+              var entries = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return
+        }
+
+        for index in entries.indices {
+            entries[index].removeValue(forKey: "parentID")
+        }
+
+        guard let stripped = try? JSONSerialization.data(withJSONObject: entries, options: .prettyPrinted) else {
+            return
+        }
+        try? stripped.write(to: registryURL)
     }
 
     // MARK: - Verify
@@ -218,46 +254,6 @@ struct RulesMigration {
               json["version"] != nil else {
             throw MigrationError.verificationFailed(name, "missing version field or invalid JSON")
         }
-    }
-
-    private static func verifySharedSubstrateFields(paths: RulesConfigPaths) {
-        guard let data = try? Data(contentsOf: paths.substrateNormalizationRulesURL),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let shared = json["sharedSubstrate"] as? [String: Any] else {
-            AppLogger.shared.error(.import, "sharedSubstrate verification: file missing or invalid", metadata: [:])
-            return
-        }
-        let required = ["tokenSeparators", "originStandaloneTokens", "originContainsTokens",
-                        "treatmentKeywords", "materialTokens", "materialAliases",
-                        "materialDisplayNames", "orientationTokens", "orientationAliases", "orientationPattern"]
-        for field in required {
-            if shared[field] == nil {
-                AppLogger.shared.error(.import, "sharedSubstrate verification: missing field", metadata: ["field": field])
-            }
-        }
-        AppLogger.shared.info(.import, "sharedSubstrate verification: all 10 subfields present", metadata: [:])
-    }
-
-    // MARK: - Defaults (fallback if bundle file missing — should never happen in production)
-
-    private static func defaultSampleIDData() -> Data {
-        let json = #"{"version":1,"patterns":["^(PN|PT|SL)\\d+$"]}"#
-        return Data(json.utf8)
-    }
-
-    private static func defaultWorkflowMatchData() -> Data {
-        let json = #"{"version":1,"rules":[]}"#
-        return Data(json.utf8)
-    }
-
-    private static func defaultMeasurementTagData() -> Data {
-        let json = #"{"version":1,"rules":[]}"#
-        return Data(json.utf8)
-    }
-
-    private static func defaultWorkflowIDPolicyData() -> Data {
-        let json = #"{"version":1,"preferredAlphabet":"ABCDEFGHIJKLMNOPQRSTUVWXYZ","fallbackPrefix":"WF"}"#
-        return Data(json.utf8)
     }
 
     // MARK: - Helpers
@@ -273,10 +269,11 @@ struct RulesMigration {
 
         var errorDescription: String? {
             switch self {
-            case .bundleFileMissing(let name): return "Bundle file missing: \(name)"
-            case .verificationFailed(let name, let reason): return "Verification failed for \(name): \(reason)"
+            case .bundleFileMissing(let name):
+                return "Bundle file missing: \(name)"
+            case .verificationFailed(let name, let reason):
+                return "Verification failed for \(name): \(reason)"
             }
         }
     }
 }
-
