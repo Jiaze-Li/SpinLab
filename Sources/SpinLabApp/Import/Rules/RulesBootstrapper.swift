@@ -1,7 +1,191 @@
 import Foundation
+import CryptoKit
 
 struct RulesBootstrapper {
+    static func migrateRuntimeRulesToV2IfNeeded() {
+        let paths = RulesConfigPaths()
+        let fm = FileManager.default
+        let decoder = JSONDecoder()
+        let stateURL = paths.configDirectoryURL.appendingPathComponent(".migration_state.json")
+        let failedURL = paths.configDirectoryURL.appendingPathComponent(".migration_failed.json")
+
+        do {
+            try fm.createDirectory(at: paths.configDirectoryURL, withIntermediateDirectories: true)
+        } catch {
+            AppLogger.shared.error(.import, "RulesBootstrapper migration skipped: cannot create config directory", metadata: [
+                "reason": error.localizedDescription
+            ])
+            return
+        }
+
+        do {
+            if fm.fileExists(atPath: stateURL.path) {
+                let stateData = try Data(contentsOf: stateURL)
+                let stateObj = try JSONSerialization.jsonObject(with: stateData)
+                if let state = stateObj as? [String: Any],
+                   let version = state["rules_schema_version"] as? Int,
+                   version >= 2 {
+                    AppLogger.shared.info(.import, "RulesBootstrapper migration skipped: already migrated", metadata: [
+                        "rules_schema_version": String(version)
+                    ])
+                    return
+                }
+            }
+        } catch {
+            AppLogger.shared.warning(.import, "RulesBootstrapper migration state unreadable; continuing (\(error.localizedDescription))")
+        }
+
+        let measuringURL = paths.measuringConditionURL
+        let sampleURL = paths.sampleIdentificationURL
+
+        guard fm.fileExists(atPath: measuringURL.path), fm.fileExists(atPath: sampleURL.path) else {
+            AppLogger.shared.info(.import, "RulesBootstrapper migration skipped: runtime files incomplete", metadata: [
+                "measuring_condition_exists": fm.fileExists(atPath: measuringURL.path) ? "true" : "false",
+                "sample_identification_exists": fm.fileExists(atPath: sampleURL.path) ? "true" : "false"
+            ])
+            return
+        }
+
+        let sourceMeasuringData: Data
+        let sourceSampleData: Data
+        let sourceMeasuringJSON: [String: Any]
+        let sourceSampleJSON: [String: Any]
+        do {
+            sourceMeasuringData = try Data(contentsOf: measuringURL)
+            sourceSampleData = try Data(contentsOf: sampleURL)
+
+            let measuringObj = try JSONSerialization.jsonObject(with: sourceMeasuringData)
+            let sampleObj = try JSONSerialization.jsonObject(with: sourceSampleData)
+            guard let measuringDict = measuringObj as? [String: Any],
+                  let sampleDict = sampleObj as? [String: Any] else {
+                AppLogger.shared.error(.import, "RulesBootstrapper migration skipped: root JSON is not object", metadata: [:])
+                return
+            }
+            sourceMeasuringJSON = measuringDict
+            sourceSampleJSON = sampleDict
+        } catch {
+            AppLogger.shared.error(.import, "RulesBootstrapper migration skipped: failed to read runtime json", metadata: [
+                "reason": error.localizedDescription
+            ])
+            return
+        }
+
+        let measuringVersion = (sourceMeasuringJSON["version"] as? Int) ?? 0
+        let sampleVersion = (sourceSampleJSON["version"] as? Int) ?? 0
+        if measuringVersion >= 2, sampleVersion >= 2 {
+            let sourceHash = [
+                "measuring_condition.json": sha256Hex(sourceMeasuringData),
+                "sample_identification.json": sha256Hex(sourceSampleData)
+            ]
+            writeMigrationState(
+                to: stateURL,
+                sourceSHA: sourceHash,
+                targetSHA: sourceHash,
+                warnings: []
+            )
+            return
+        }
+
+        let timestamp = migrationTimestamp()
+        let tmpDir = paths.configDirectoryURL.appendingPathComponent(".migration-tmp-\(timestamp)", isDirectory: true)
+        let backupDir = paths.configDirectoryURL.appendingPathComponent(".backup-\(timestamp)", isDirectory: true)
+
+        var warnings: [String] = []
+        let migratedMeasuringJSON: [String: Any]
+        let migratedSampleJSON: [String: Any]
+        do {
+            migratedMeasuringJSON = try migrateMeasuringConditionIfNeeded(json: sourceMeasuringJSON, warnings: &warnings)
+            migratedSampleJSON = try migrateSampleIdentificationIfNeeded(json: sourceSampleJSON, warnings: &warnings)
+        } catch {
+            AppLogger.shared.error(.import, "RulesBootstrapper migration skipped: transform failed", metadata: [
+                "reason": error.localizedDescription
+            ])
+            return
+        }
+
+        let migratedMeasuringData: Data
+        let migratedSampleData: Data
+        do {
+            migratedMeasuringData = try JSONSerialization.data(withJSONObject: migratedMeasuringJSON, options: [.prettyPrinted, .sortedKeys])
+            migratedSampleData = try JSONSerialization.data(withJSONObject: migratedSampleJSON, options: [.prettyPrinted, .sortedKeys])
+        } catch {
+            AppLogger.shared.error(.import, "RulesBootstrapper migration skipped: failed to encode migrated json", metadata: [
+                "reason": error.localizedDescription
+            ])
+            return
+        }
+
+        do {
+            try fm.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+            try migratedMeasuringData.write(to: tmpDir.appendingPathComponent("measuring_condition.json"), options: .atomic)
+            try migratedSampleData.write(to: tmpDir.appendingPathComponent("sample_identification.json"), options: .atomic)
+        } catch {
+            AppLogger.shared.error(.import, "RulesBootstrapper migration skipped: failed to write tmp files", metadata: [
+                "reason": error.localizedDescription
+            ])
+            return
+        }
+
+        do {
+            _ = try decoder.decode(MigrationMeasuringConditionFile.self, from: migratedMeasuringData)
+            _ = try decoder.decode(MigrationSampleIdentificationFile.self, from: migratedSampleData)
+        } catch {
+            writeMigrationFailed(
+                to: failedURL,
+                reason: "verify decode failed: \(error.localizedDescription)",
+                warnings: warnings
+            )
+            cleanupTmpDirectory(tmpDir, fileManager: fm)
+            return
+        }
+
+        do {
+            try fm.createDirectory(at: backupDir, withIntermediateDirectories: true)
+            try sourceMeasuringData.write(to: backupDir.appendingPathComponent("measuring_condition.json"), options: .atomic)
+            try sourceSampleData.write(to: backupDir.appendingPathComponent("sample_identification.json"), options: .atomic)
+        } catch {
+            AppLogger.shared.error(.import, "RulesBootstrapper migration skipped: failed to write backup files", metadata: [
+                "reason": error.localizedDescription
+            ])
+            cleanupTmpDirectory(tmpDir, fileManager: fm)
+            return
+        }
+
+        do {
+            try migratedMeasuringData.write(to: measuringURL, options: .atomic)
+            try migratedSampleData.write(to: sampleURL, options: .atomic)
+        } catch {
+            AppLogger.shared.error(.import, "RulesBootstrapper migration failed: atomic replace failed", metadata: [
+                "reason": error.localizedDescription
+            ])
+            cleanupTmpDirectory(tmpDir, fileManager: fm)
+            return
+        }
+
+        writeMigrationState(
+            to: stateURL,
+            sourceSHA: [
+                "measuring_condition.json": sha256Hex(sourceMeasuringData),
+                "sample_identification.json": sha256Hex(sourceSampleData)
+            ],
+            targetSHA: [
+                "measuring_condition.json": sha256Hex(migratedMeasuringData),
+                "sample_identification.json": sha256Hex(migratedSampleData)
+            ],
+            warnings: warnings
+        )
+
+        do {
+            if fm.fileExists(atPath: tmpDir.path) {
+                try fm.removeItem(at: tmpDir)
+            }
+        } catch {
+            AppLogger.shared.warning(.import, "RulesBootstrapper migration tmp cleanup failed (\(error.localizedDescription))")
+        }
+    }
+
     static func seedMissingRuntimeFilesFromBundleIfNeeded() {
+        migrateRuntimeRulesToV2IfNeeded()
         let paths = RulesConfigPaths()
         let fm = FileManager.default
         let locator = BundleFileLocator()
@@ -16,7 +200,14 @@ struct RulesBootstrapper {
 
         for (url, name) in files {
             guard !fm.fileExists(atPath: url.path) else { continue }
-            guard let data = try? locator.data(for: name) else {
+            let data: Data?
+            do {
+                data = try locator.data(for: name)
+            } catch {
+                AppLogger.shared.warning(.import, "RulesBootstrapper: bundle file read failed — \(name).json (\(error.localizedDescription))")
+                continue
+            }
+            guard let data else {
                 AppLogger.shared.warning(.import, "RulesBootstrapper: bundle file missing — \(name).json")
                 continue
             }
@@ -30,4 +221,296 @@ struct RulesBootstrapper {
             }
         }
     }
+
+    private static func migrateMeasuringConditionIfNeeded(json: [String: Any], warnings: inout [String]) throws -> [String: Any] {
+        let isV1 = (json["conditions"] as? [String: Any]) != nil
+        guard isV1 else { return json }
+
+        let batch = (json["batch"] as? [String: Any]) ?? [:]
+        let conditions = (json["conditions"] as? [String: Any]) ?? [:]
+        let extraConditions = (conditions["extraConditions"] as? [String: String]) ?? [:]
+        let tokenMapRules = (conditions["tokenMapRules"] as? [String: [[String: Any]]]) ?? [:]
+        let definitions = (json["conditionDefinitions"] as? [[String: Any]]) ?? []
+
+        var migratedDefinitions: [[String: Any]] = []
+        for definition in definitions {
+            guard let id = definition["id"] as? String,
+                  let kind = definition["kind"] as? String else {
+                warnings.append("measuring_condition: conditionDefinitions entry missing id/kind, skipped")
+                continue
+            }
+
+            var migrated: [String: Any] = [
+                "id": id,
+                "kind": kind
+            ]
+            if let label = definition["label"] as? String {
+                migrated["label"] = label
+            }
+
+            let binding = definition["binding"] as? String
+            switch kind {
+            case "unit_suffix":
+                let bindingKey = bindingKeyFrom(binding, prefix: "conditions.extraConditions.")
+                if let binding,
+                   binding.hasPrefix("conditions.tokenMapRules.") {
+                    warnings.append("measuring_condition: kind/binding mismatch for \(id), kind unit_suffix takes precedence")
+                }
+                let key = bindingKey ?? id
+                if let pattern = extraConditions[key] {
+                    migrated["unitPattern"] = pattern
+                } else {
+                    warnings.append("measuring_condition: missing unitPattern for \(id)")
+                }
+            case "token_map":
+                let bindingKey = bindingKeyFrom(binding, prefix: "conditions.tokenMapRules.")
+                if let binding,
+                   binding.hasPrefix("conditions.extraConditions.") {
+                    warnings.append("measuring_condition: kind/binding mismatch for \(id), kind token_map takes precedence")
+                }
+                let key = bindingKey ?? id
+                if let rules = tokenMapRules[key] {
+                    migrated["tokenMap"] = rules
+                } else {
+                    warnings.append("measuring_condition: missing tokenMap for \(id)")
+                    migrated["tokenMap"] = []
+                }
+            default:
+                warnings.append("measuring_condition: unsupported kind \(kind) for \(id), skipped")
+                continue
+            }
+
+            migratedDefinitions.append(migrated)
+        }
+
+        return [
+            "version": 2,
+            "batch": batch,
+            "conditionDefinitions": migratedDefinitions
+        ]
+    }
+
+    private static func migrateSampleIdentificationIfNeeded(json: [String: Any], warnings: inout [String]) throws -> [String: Any] {
+        guard let substrate = json["substrate"] as? [String: Any] else {
+            throw NSError(domain: "RulesBootstrapper", code: 1, userInfo: [NSLocalizedDescriptionKey: "sample_identification missing substrate"])
+        }
+        let hasShared = substrate["shared"] != nil
+        let isV1 = hasShared
+        guard isV1 else { return json }
+
+        guard let shared = substrate["shared"] as? [String: Any] else {
+            throw NSError(domain: "RulesBootstrapper", code: 2, userInfo: [NSLocalizedDescriptionKey: "sample_identification v1 missing substrate.shared"])
+        }
+
+        let sampleId = (json["sampleId"] as? [String: Any]) ?? [:]
+        let substrateTagRules = (substrate["substrateTagRules"] as? [[String: Any]]) ?? []
+        let tokenSeparators = (shared["tokenSeparators"] as? String) ?? ""
+        let materialTokens = stringArray(shared["materialTokens"])
+        let materialAliases = stringDictionary(shared["materialAliases"])
+        let materialDisplayNames = stringDictionary(shared["materialDisplayNames"])
+        let treatmentKeywords = stringArrayDictionary(shared["treatmentKeywords"])
+        let originStandaloneTokens = stringArray(shared["originStandaloneTokens"])
+        let originContainsTokens = stringArray(shared["originContainsTokens"])
+        let orientationTokens = stringArray(shared["orientationTokens"])
+        let orientationAliases = stringDictionary(shared["orientationAliases"])
+        let orientationPattern = (shared["orientationPattern"] as? String) ?? ""
+
+        var materialRowsByID: [String: (tokens: [String], aliases: [String], displayName: String)] = [:]
+        var materialOrder: [String] = []
+        for token in materialTokens {
+            if materialRowsByID[token] == nil {
+                materialOrder.append(token)
+            }
+            materialRowsByID[token] = (
+                tokens: [token],
+                aliases: [],
+                displayName: materialDisplayNames[token] ?? token
+            )
+        }
+        for (alias, canonicalID) in materialAliases {
+            if materialRowsByID[canonicalID] == nil {
+                materialRowsByID[canonicalID] = (
+                    tokens: [canonicalID],
+                    aliases: [],
+                    displayName: materialDisplayNames[canonicalID] ?? canonicalID
+                )
+                materialOrder.append(canonicalID)
+            }
+            if materialRowsByID[canonicalID]?.aliases.contains(alias) == false {
+                materialRowsByID[canonicalID]?.aliases.append(alias)
+            }
+        }
+        let materials: [[String: Any]] = materialOrder.compactMap { id in
+            guard let row = materialRowsByID[id] else { return nil }
+            return [
+                "id": id,
+                "tokens": row.tokens,
+                "aliases": row.aliases.sorted(),
+                "displayName": row.displayName
+            ]
+        }
+
+        var treatments: [[String: Any]] = []
+        for id in treatmentKeywords.keys.sorted() {
+            let keywords = treatmentKeywords[id] ?? []
+            let standalone = id == "o" ? originStandaloneTokens : []
+            let contains = id == "o" ? originContainsTokens : []
+            treatments.append([
+                "id": id,
+                "displayName": id,
+                "keywords": keywords,
+                "standaloneTokens": standalone,
+                "containsTokens": contains
+            ])
+        }
+
+        var orientationRowsByID: [String: (tokens: [String], aliases: [String])] = [:]
+        var orientationOrder: [String] = []
+        for token in orientationTokens {
+            if orientationRowsByID[token] == nil {
+                orientationOrder.append(token)
+            }
+            orientationRowsByID[token] = (tokens: [token], aliases: [])
+        }
+        for (alias, canonicalID) in orientationAliases {
+            if orientationRowsByID[canonicalID] == nil {
+                orientationRowsByID[canonicalID] = (tokens: [canonicalID], aliases: [])
+                orientationOrder.append(canonicalID)
+            }
+            if orientationRowsByID[canonicalID]?.aliases.contains(alias) == false {
+                orientationRowsByID[canonicalID]?.aliases.append(alias)
+            }
+        }
+        let orientationRows: [[String: Any]] = orientationOrder.compactMap { id in
+            guard let row = orientationRowsByID[id] else { return nil }
+            return [
+                "id": id,
+                "tokens": row.tokens,
+                "aliases": row.aliases.sorted()
+            ]
+        }
+        if orientationRows.isEmpty {
+            warnings.append("sample_identification: orientation rows empty after migration")
+        }
+
+        return [
+            "version": 2,
+            "sampleId": sampleId,
+            "substrate": [
+                "tokenSeparators": tokenSeparators,
+                "substrateTagRules": substrateTagRules,
+                "materials": materials,
+                "treatments": treatments,
+                "orientations": [
+                    "pattern": orientationPattern,
+                    "rows": orientationRows
+                ]
+            ]
+        ]
+    }
+
+    private static func bindingKeyFrom(_ binding: String?, prefix: String) -> String? {
+        guard let binding else { return nil }
+        guard binding.hasPrefix(prefix) else { return nil }
+        return String(binding.dropFirst(prefix.count))
+    }
+
+    private static func stringArray(_ any: Any?) -> [String] {
+        guard let values = any as? [String] else { return [] }
+        return values
+    }
+
+    private static func stringDictionary(_ any: Any?) -> [String: String] {
+        guard let values = any as? [String: String] else { return [:] }
+        return values
+    }
+
+    private static func stringArrayDictionary(_ any: Any?) -> [String: [String]] {
+        guard let values = any as? [String: [String]] else { return [:] }
+        return values
+    }
+
+    private static func writeMigrationState(
+        to url: URL,
+        sourceSHA: [String: String],
+        targetSHA: [String: String],
+        warnings: [String]
+    ) {
+        let body: [String: Any] = [
+            "rules_schema_version": 2,
+            "migrated_at": migrationDateString(),
+            "source_sha256": sourceSHA,
+            "target_sha256": targetSHA,
+            "warnings": warnings
+        ]
+        do {
+            let data = try JSONSerialization.data(withJSONObject: body, options: [.prettyPrinted, .sortedKeys])
+            try data.write(to: url, options: .atomic)
+        } catch {
+            AppLogger.shared.warning(.import, "RulesBootstrapper: failed to write migration_state (\(error.localizedDescription))")
+        }
+    }
+
+    private static func writeMigrationFailed(to url: URL, reason: String, warnings: [String]) {
+        let body: [String: Any] = [
+            "failed_at": migrationDateString(),
+            "reason": reason,
+            "warnings": warnings
+        ]
+        do {
+            let data = try JSONSerialization.data(withJSONObject: body, options: [.prettyPrinted, .sortedKeys])
+            try data.write(to: url, options: .atomic)
+            AppLogger.shared.error(.import, "RulesBootstrapper migration verify failed", metadata: [
+                "reason": reason
+            ])
+        } catch {
+            AppLogger.shared.error(.import, "RulesBootstrapper migration verify failed; cannot persist failure file", metadata: [
+                "reason": error.localizedDescription
+            ])
+        }
+    }
+
+    private static func migrationTimestamp() -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .iso8601)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return formatter.string(from: Date())
+    }
+
+    private static func migrationDateString() -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .iso8601)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssXXXXX"
+        return formatter.string(from: Date())
+    }
+
+    private static func sha256Hex(_ data: Data) -> String {
+        let digest = SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func cleanupTmpDirectory(_ tmpDir: URL, fileManager: FileManager) {
+        guard fileManager.fileExists(atPath: tmpDir.path) else { return }
+        do {
+            try fileManager.removeItem(at: tmpDir)
+        } catch {
+            AppLogger.shared.warning(.import, "RulesBootstrapper migration tmp cleanup failed (\(error.localizedDescription))")
+        }
+    }
+}
+
+private struct MigrationMeasuringConditionFile: Decodable {
+    let version: Int
+    let batch: FilenameRuleSet.BatchRules
+    let conditionDefinitions: [FilenameRuleSet.ConditionDefinition]
+}
+
+private struct MigrationSampleIdentificationFile: Decodable {
+    let version: Int
+    let sampleId: FilenameRuleSet.SampleIdRules
+    let substrate: FilenameRuleSet.SubstrateConfig
 }
