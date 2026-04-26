@@ -139,12 +139,27 @@ R1 —— 工作流 ID 策略相关规则保存后立刻生效，App 内不存�
 |---|---|---|
 | s1 ✅ 已归档 | schema 落地 + 旧 UI 删除 | — |
 | s2 ✅ 已归档 | 统一面板骨架 + 4 类已有规则编辑 | — |
-| **s3（重新规划）** | 盘点 + 5 本子分类设计稿 + 退役调用点全清单 + 新 schema 草案。**纯设计稿，不写代码** | 4–6 h |
+| s3 ✅ 设计稿落地 | 盘点 + 5 本子分类设计稿 + 退役调用点全清单 + 新 schema 草案。handoff: [2026-04-26-5.1.5-s3-rules-redesign.md](handoff/2026-04-26-5.1.5-s3-rules-redesign.md) | 4–6 h（实际） |
 | **s4（重新规划）** | 按新 5 本子写新 schema 文件 + 一次性迁移老 7 文件内容 + 删老文件 + 退役自动 ID 分配相关代码 + 父 workflow 字段清理（含向后兼容解码）+ 启动验证。**s4 内部分两阶段同会话内门禁**：阶段 A 数据层迁移 + 加载链切换（可编译可加载可回滚），阶段 B 退役清理 + 死代码删除（无残留引用 + 启动验证通过）。验收必须包含 runtime 旧 JSON 文件清理（不光删源码） | 8–12 h |
 | **s5（重新规划）** | 5 个 section UI 重写 + close-alert / save / discard / 外部冲突集成 + R1 acceptance gate（保存立即生效）路径 + 测试补全 | 12–16 h |
 | **s6（原 s4 自动同步引擎顺延）** | 自动同步引擎（bundle / runtime 双写 + 内容指纹反向同步）+ 完整测试 + 实机走一遍（启动 / 保存 / pull 后覆盖 / 回滚 / 指针文件缺失等场景） | 8–12 h |
 
 总计约 **32–46 h** 跨 4 会话。s5 工作量最大，单会话撑不下时再拆 s5a / s5b（按本子拆）。
+
+##### 补充任务（s3 收敛后识别，5.1.5 范围内必须解决，待 Jack 拍板编入 sN 或新增 s7+）
+
+s3 双盲对抗 Round 2 决策（详见 handoff `2026-04-26-5.1.5-s3-rules-redesign.md`）为保 s4 风险最小，把以下 6 项明确推后到 s4 之后做。这些不是延后到未来版本段，**仍属 5.1.5 任务范围**，本版本段不收尾前必须完成。
+
+| # | 任务 | code pointer | 估时 | 备注 |
+|---|---|---|---|---|
+| s+1 | Condition definitions schema — 删 binding + 每条 inline 自己的 unitPattern / tokenMapRules + 退役 RuleCanonicalizer.normalizeConditionDefinitionBindings | `config/measuring_condition.json` + `Import/Rules/RuleCanonicalizer.swift` + 消费侧 | Medium（schema 微迁移 + 下游扇出回归）| s3 D2 推后 |
+| s+2 | workflow.json 与 workflow_registry.json 合并为单一权威文件 | `config/workflow.json`（s4 落）+ `~/Library/Application Support/SpinLab/workflow_registry.json` + `Workflow/WorkflowRegistryStore.swift` | Medium-High（含完整调用图闭包扫描 + 回滚脚本 + 幂等重跑硬门禁） | s3 D3 推后 |
+| s+3 | parentID decode 兼容彻底删除（CodingKeys + init(from:) 显式吞行） | `Workflow/WorkflowDefinition.swift` | Low（3 行删 + 测试更新） | s3 D4 三段式第 3 段；前提：s4 迁移已普及 |
+| s+4 | RulesMigration 模块内旧 7 文件 decoder 删除 | `Import/Rules/RulesMigration.swift` (assembleNewSchema 旧文件读取段) | Low（机械清理） | s3 D8 推后；前提：确认无 v2 历史用户 |
+| s+5 | Substrate 数据层 row-oriented 重组 — `materials[]` + `treatments[]` 数组 | `config/sample_identification.json` + 消费侧 substrate 解析链 + 迁移代码 | Medium | s3 D12 推后；本期 5.1.5 不收尾前必须做 |
+| s+6 | 字段命名一致性整理（rename / 拍平按统一规则推一遍） | 5 本子 schema 全部 | Low-Medium（视范围） | s3 D1 推后；本期 5.1.5 不收尾前必须做 |
+
+**编排建议**（待 Jack 拍板）：s+3/s+4 可附带 s6 收尾做（小动作）；s+1/s+5/s+6 适合开新 s7（schema 二次重塑）；s+2 因扇出大建议独立 s8。
 
 ##### s3 设计稿必须包含的盘点清单（让 s4 不漏点）
 

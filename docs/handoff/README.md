@@ -28,7 +28,9 @@
 
 ## 待消费
 
-（无）
+| 日期 | Handoff | 主题 | 验收口径 |
+|---|---|---|---|
+| 2026-04-26 | [2026-04-26-5.1.5-s3-rules-redesign.md](2026-04-26-5.1.5-s3-rules-redesign.md) | 5 本子规则架构设计稿 | s4 实施：5 新 schema + 7 旧文件迁移 + WorkflowIDAllocator/parentID/rotationHintRules 退役 + 启动验证最小集（含 D5/D11/D13 5 验收口径）|
 
 ## 已归档
 
