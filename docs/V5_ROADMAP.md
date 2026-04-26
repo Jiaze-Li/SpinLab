@@ -57,43 +57,111 @@
 
 ### 5.1.5 — 规则管理统一 + 自动同步基础设施 [~]
 
-**状态**：`[~]` 已规划进行中（4 个会话拆分，工作量 16–20 h）
+**状态**：`[~]` 进行中。s1 + s2 已完成，**s3–s6 范围在 2026-04-26 重新规划**（详见下文"二次规划"）。原 4 会话拆分（s3 = 测量标签 + 工作流 ID 策略两分区 / s4 = 自动同步引擎）已作废。
 
 **动机**：4·25 事故暴露规则架构散落多文件、bundle 与 runtime schema 不一致、半成品迁移路径并存（如代码层齐全但永远不会真存在的 `conditions_rules.json` 分文件）。同一份概念多处存放、隐式"分文件赢"约定、bundle 与 runtime 没有自动同步——任何一处改动都可能让另一处静默漂移。需要从根上修。
 
 **顶层原则**（已上升为 App 顶层规则，待写入 `docs/philosophy.md`）：
 > "你看见的，就是 App 设置的。" 所有规则——包括平时几乎不改的——都必须在 UI 里看得见、改得动。
 
-**拍板方案**：
+---
 
-1. **后台架构**：一类规则一个文件，没有"主文件 + 分文件"叠加。当前 6 类规则 → 改完后 6 个文件，每份在仓库 `Sources/SpinLabApp/config/` 和 runtime `~/Library/Application Support/SpinLab/config/` 各放一份，**两边字节级一样**。6 类清单：
-   - 文件名解析规则（含 conditions / 单位 / token map）
-   - 样品 ID 识别规则
-   - 工作流匹配规则
-   - 衬底名归一化规则
-   - 测量标签规则（识别 AMR/PHE/Rxx/Rxy 等测量种类）
-   - 工作流 ID 生成策略（`preferredAlphabet` / `fallbackPrefix`，目前 2 个参数）
+#### 二次规划（2026-04-26，s3–s6 重做）
 
-2. **UI 架构**：单一"规则管理"面板，6 个分区/Tab 对应上述 6 类。入口在 Inbox 中间列「Inbox Operations」标题旁的**文字按钮**（不做全局菜单入口）。删现有 3 处分散入口：Workbench 顶部的独立 "Rules Handbook" 窗口 / WorkflowRegistryView 里的 "Match Rules" 区段 / InboxExplicitRulesSheet 弹窗。全部 6 类规则的编辑能力在新统一面板里**重新实现**，不要在烂地基上改良。其中 4 类已有 UI 实现可作功能参考（不是代码移植），2 类（测量标签 / 工作流 ID 策略）需要从零设计 UI。
+s2 完成后回顾发现：原 6 类清单（按 schema 文件机械切分）与产品语义不符 —— 同一概念跨多文件、不同概念混入同一文件，UI 上按"文件"展示无法对应用户心智模型。重新按**产品流程**切分，由 Jack + Claude 对抗讨论 + Codex 独立 review（adopt-with-fixes）收敛得到下面这套方案。
 
-3. **自动同步机制**：UI 一按保存 → 写本地 → 自动写仓库镜像，全程 App 自完成，用户不点任何"同步"按钮。反向同步（仓库版本新于本地，例如另一台电脑 pull 回来）：用**内容指纹（哈希）**判断，**不用文件 mtime**（git 不保留 mtime，会误判）。所有写入路径 atomic，写入前自动备份**最新一份副本**（覆盖前一份，不累积带时间戳的历史副本——只用于"刚保存出错"的回退兜底，不做 legacy 归档）。仓库目录指针机制：runtime 侧一个指针文件（一行 UTF-8 写仓库 config 目录绝对路径），找不到/为空就跳过镜像写入，不报错。
+##### 拍板要点
 
-4. **迁移策略**：一次性迁完，**不留中间状态**。6 类规则的目标 schema 由本期**重新拍板设计**，不背任何旧格式包袱——迁移代码只负责读取旧文件内容、按新结构转写一次落盘，旧 schema 用完即抛，不保留任何兼容路径或并行加载逻辑。迁移前自动创建 `.backup-<ts>` 副本，迁移成功才删原文件。旧文件的 decoder 仅在首次启动迁移时使用，迁移完成后从代码中删除。
+**A. 后台架构升级为 5 类规则文件（非 6 / 非 7）**
 
-**否决方案及理由**（不要后续 agent 推翻）：
-- ❌ 手动同步按钮 —— Jack 原话："我不想我按一下同步，我要自动同步。"
-- ❌ 把不常改的规则（如工作流 ID 策略只 2 个参数、几年改一次）排除在 UI 外 —— 违反"看见即设置"原则；Jack 原话："这个 app 的最高规则就是我看见的就是 app 设置的。"
-- ❌ 多入口并存或快捷跳转 —— 后台一处管理 → UI 也一处。Jack 原则："如果规则在后台是一处管理，那 UI 也做一个入口。"
-- ❌ 在现有 UI 上改良叠新机制 —— Jack 原话："现在有的清理掉，全部重新做，不要在烂地里改良，好好做一个清楚结构的。"
-- ❌ 入口放全局菜单 —— Jack 明确选择放 Inbox，不要改成 SpinLab 顶部菜单
-- ❌ 用 mtime 判反向同步 —— git 不保留 mtime，会误判
+按 inbox 数据流顺序排列，每类一文件，仓库 `Sources/SpinLabApp/config/` 与 runtime `~/Library/Application Support/SpinLab/config/` 各放一份字节级一致。
+
+| # | 本子（面板侧栏顺序） | 内容（来源 → 新本子映射） |
+|---|---|---|
+| 1 | **Import Filters** | 哪些文件后缀算数据。来源：`library_import_rules.json` 的 `import.supportedFileExtensions` + `import.ignoredFileExtensions` |
+| 2 | **Filename Tokenization** | 文件名怎么切片标记。来源：`filename_parse_rules.json` 的 `tokenization` + `sources` + `channel.aliases` |
+| 3 | **Sample Identification** | 从文件名识别 sample 的全套规则。来源：`sample_id_rules.json` 全部 + `substrate_normalization_rules.json` 全部（衬底材料 / 处理 / 晶向 / 别名 / 显示名都同段，每行衬底材料后带"显示成 X"字段） |
+| 4 | **Workflow** | 每个 workflow 一行同时展示：ID（机器读，固定不改）+ title（用户看，可改）+ 怎么从文件名识别 + 需要哪些 condition + 触发哪些子标签。来源：`workflow_registry.json`（去 `parentID`）+ `workflow_match_rules.json` + `filename_parse_rules.json.measurementNameRules` + `measurement_tag_rules.json`（**子标签数据模型保持全局清单**，不分片到 workflow 内） |
+| 5 | **Measuring Condition** | condition 数值识别规则。来源：`filename_parse_rules.json` 的 `conditions.*` + `conditionDefinitions` + `batch` 段 |
+
+**B. 退役项**（一次性清理）
+
+- `workflow_id_policy.json` 整文件 + `Workflow/WorkflowIDAllocator.swift`（含 `WorkflowIDPolicy` / `DefaultWorkflowIDAllocator` / `WorkflowIDPolicyLoader`）整文件 —— 未来新增 workflow 时 UI 提供"输入 ID"框，用户手动一次性给定，机器侧不再自动分配。复制现有 workflow 后微调是新增 workflow 的标准方式
+- `WorkflowDefinition.parentID` 字段 + 现有 XY workflow 的 `parentID="Rotation"`（**带向后兼容解码**：旧数据含该字段仍可解码不崩，新写出文件不含；防 Jack 已有 runtime 数据首启炸）
+- `filename_parse_rules.json.rotationHintRules`（90shift → "+90deg for I parallel B" 那条文案）—— 归显示层硬编码，不再作为可编辑规则。Codex review 裁决理由：当前只一条稳定映射，本质是注释文案不是业务策略，留在 schema 会污染"解析规则"与"显示文案"边界
+
+**C. 推迟到 Library 专项做的项**（**过渡期受控例外**，必须在 Library 专项时一并退役 fallback）
+
+`library_import_rules.json` 的 `registry` 段全部不进本期 5 本子面板，包括：`sampleHeaderAliases` / `batchHeaderAliases` / `substrateHeaderAliases` / `excludedSheetNames` / `sampleCellSeparators` / `numericKeyAliases` / `substrateMaterialTokens` / `substrateProcessingKeywords` / `metadataLookupAliases`。这些消费方都在 Library / Registry 解析路径，与 inbox 测试文件读取无关。
+
+衬底材料清单当前在 `substrate_normalization_rules.json` 与 `library_import_rules.json` 各有一份字面相同的副本，本期保留两份不合并；Library 专项时合并。
+
+`Extensions/ExtensionPoints.swift` 的 `RegistryMetadataAliasBook.fallbackAliases` 是代码内默认值（用户 UI 暂不可见），是顶层原则"看见即唯一规则"的**已知例外**。Library 专项验收必须包含"删除 fallback + 别名表上面板"。
+
+**D. UI 架构（与原方案保持）**
+
+单一"规则管理"面板，5 个分区对应上述 5 本子。入口在 Inbox 中间列「Inbox Operations」标题旁的文字按钮（不做全局菜单入口）。s2 已搭的左侧分区列表 + 右侧详情面板的窗口框架沿用，6 分区结构改为 5 分区。
+
+s2 已实现的 4 类编辑 UI 代码（`FilenameParseRulesSection` / `SampleIDRulesSection` / `WorkflowMatchRulesSection` / `SubstrateRulesSection`）作废重做 —— 但 UI 模式（主从布局 / 列表内嵌 / 保存校验 / 外部冲突 / hash precondition / atomic 写）的套路 s5 重写时直接复用，不是从零开始。
+
+**E. 自动同步机制（与原方案保持）**
+
+UI 一按保存 → 写本地 → 自动写仓库镜像。反向同步用内容指纹（哈希），不用 mtime。原子写 + 单份回退副本（覆盖前一份，不累积时间戳历史）。仓库目录指针机制：runtime 侧一个指针文件，找不到 / 为空就跳过镜像写入不报错。
+
+**F. 迁移策略（与原方案保持）**
+
+一次性迁完不留中间状态。新 schema 由本期重新拍板，不背旧格式包袱。迁移代码只负责读旧 → 按新结构转写一次落盘，旧 schema 用完即抛，不保留兼容路径或并行加载逻辑。迁移前自动创建 `.backup-<ts>` 副本，迁移成功才删原文件。旧文件 decoder 仅在首启迁移时用，迁移完成后从代码删除。
+
+**G. 关键 acceptance gate（s5 实施时必满足）**
+
+R1 —— 工作流 ID 策略相关规则保存后立刻生效，App 内不存在"已加载副本 vs 磁盘"两个版本（不接受"保存了但要重启 App 才生效"）。s5 起手前必须排查所有持有该策略的活跃组件路径，决定刷新机制（重读 / 注入新策略 / invalidate cache）。
+
+##### 否决方案及理由（不要后续 agent 推翻）
+
+- ❌ 把 5 本子拆回 6 / 7 本子 —— Workflow Matching + Workflow Condition 合并成一本 Workflow，让"匹配规则 + condition 需求 + 子标签"在每个 workflow 一行内同时摊开操作连贯
+- ❌ 恢复父 workflow 概念 —— Jack 原话："未来就一个一个维护，如果有相似的就直接 copy 工作流程然后微调"
+- ❌ 保留 workflow_id_policy 自动分配 —— Jack 原话："这个要求一次确定之后未来不改了，不要变动不然机器会误解，title 可以反复改给用户看的"
+- ❌ Library 侧规则（registry 段）放进本期 5 本子 —— Jack 拍板分两期，本期 inbox 侧，Library 专项一次性做完 + 合并衬底重叠 + 退役 fallback
+- ❌ rotationHintRules 留作可编辑规则 —— Codex review 裁决归显示层硬编码
+- ❌ 子标签 schema 改成每 workflow 自带清单 —— UI 上挂在 workflow 下展示是组织方式；数据模型保持全局表，避免 5.1.5 内做 schema 大重构
+- ❌ 手动同步按钮 —— Jack 原话："我不想我按一下同步，我要自动同步"
+- ❌ 把不常改的规则排除在 UI 外 —— 违反"看见即设置"原则
+- ❌ 多入口并存或快捷跳转 —— 后台一处管理 → UI 也一处
+- ❌ 在现有 UI 上改良叠新机制 —— Jack 原话："现在有的清理掉，全部重新做，不要在烂地里改良"
+- ❌ 入口放全局菜单 —— 明确放 Inbox
+- ❌ 用 mtime 判反向同步 —— git 不保留 mtime 会误判
 - ❌ 分两阶段迁移（主文件 schema 升级 + 分文件合并各自一次）—— 避免半成品中间态
+- ❌ 任务编号继续 4 会话 —— 重新规划为 s3 / s4 / s5 / s6 共 4 会话，主题与原规划完全不同
 
-**拆分顺序（4 个会话）**：
-- [x] **会话 1**：拆掉现有 3 处规则 UI + 删后端冗余分文件 / 半成品代码 / `scripts/sync_runtime_rules_to_bundle.sh` + 7 文件新 schema 落地 + 一次性迁移器 + 3 个未提交 bundle 改动同步。规则 UI 暂不可用（下一会话补）。`100e4cd`
-- [x] **会话 2**：新统一面板骨架（Inbox 入口 + 6 分区路由）+ 接 4 类已有规则的编辑能力。`494ab17`→`e583534`
-- [ ] **会话 3**：从零建"测量标签" + "工作流 ID 策略"两个分区的 UI。
-- [ ] **会话 4**：自动同步引擎（双写 + 内容指纹反向同步）+ 完整测试 + 实机走一遍（启动 / 保存 / pull 后覆盖 / 回滚 / 指针文件缺失等场景）。
+##### 任务拆分（s3–s6，**2026-04-26 重新规划**）
+
+| 会话 | 主题 | 工作量 |
+|---|---|---|
+| s1 ✅ 已归档 | schema 落地 + 旧 UI 删除 | — |
+| s2 ✅ 已归档 | 统一面板骨架 + 4 类已有规则编辑 | — |
+| **s3（重新规划）** | 盘点 + 5 本子分类设计稿 + 退役调用点全清单 + 新 schema 草案。**纯设计稿，不写代码** | 4–6 h |
+| **s4（重新规划）** | 按新 5 本子写新 schema 文件 + 一次性迁移老 7 文件内容 + 删老文件 + 退役自动 ID 分配相关代码 + 父 workflow 字段清理（含向后兼容解码）+ 启动验证。**s4 内部分两阶段同会话内门禁**：阶段 A 数据层迁移 + 加载链切换（可编译可加载可回滚），阶段 B 退役清理 + 死代码删除（无残留引用 + 启动验证通过）。验收必须包含 runtime 旧 JSON 文件清理（不光删源码） | 8–12 h |
+| **s5（重新规划）** | 5 个 section UI 重写 + close-alert / save / discard / 外部冲突集成 + R1 acceptance gate（保存立即生效）路径 + 测试补全 | 12–16 h |
+| **s6（原 s4 自动同步引擎顺延）** | 自动同步引擎（bundle / runtime 双写 + 内容指纹反向同步）+ 完整测试 + 实机走一遍（启动 / 保存 / pull 后覆盖 / 回滚 / 指针文件缺失等场景） | 8–12 h |
+
+总计约 **32–46 h** 跨 4 会话。s5 工作量最大，单会话撑不下时再拆 s5a / s5b（按本子拆）。
+
+##### s3 设计稿必须包含的盘点清单（让 s4 不漏点）
+
+s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干净。Codex review 已查证以下消费侧：
+
+- 规则加载 / 路径：`Sources/SpinLabApp/Import/Rules/RulesConfigPaths.swift`（含 `workflowIDPolicyURL` + `allSchemaFileURLs`）/ `Sources/SpinLabApp/Import/Rules/RuleLoader.swift`（7 文件装配 + composite hash）/ `Sources/SpinLabApp/Import/Rules/RulesMigration.swift`（`oldFilenames` / `targetFiles` / `defaultWorkflowIDPolicyData`）
+- 规则数据结构：`Sources/SpinLabApp/Import/Rules/FilenameRuleSet.swift`
+- 规则面板与 store：`Sources/SpinLabApp/Features/RulesPanel/RulesPanelSection.swift`（含 `.workflowIDPolicy` case）/ `RulesPanelView.swift`（含 `WorkflowIDPolicySection` 渲染）/ `RulesManagementStore.swift`（含 `WorkflowIDPolicySummary` 读取逻辑）/ `Sections/FilenameParseRulesSection.swift` / `Sections/WorkflowIDPolicySection.swift`
+- workflow 注册：`Sources/SpinLabApp/Workflow/WorkflowDefinition.swift`（`parentID` 字段 + Codable keys + decode 路径）/ `WorkflowRegistryStore.swift`（seeded defaults `parentID: nil` + `normalizeOptional(definition.parentID)`）/ `WorkflowIDAllocator.swift`（整文件退役）
+- Library 延期项消费侧（**防误删**，本期不动）：`Sources/SpinLabApp/Library/LibraryRegistryParser.swift` / `Sources/SpinLabApp/Registry/RegistryLookupRuleBook.swift` / `Sources/SpinLabApp/Registry/RegistrySheetFilter.swift` / `Sources/SpinLabApp/Extensions/ExtensionPoints.swift`
+
+##### s4 启动验证最小集（收尾门禁）
+
+- 规则加载：runtime 无旧 7 文件时能正常加载新 5 schema
+- 规则窗口：仅出现新 5 本子，无旧 section 残留
+- 历史 runtime：含 `parentID` 的旧 registry 能迁移并新写出无该字段
+- import 解析：sample / workflow / conditions 仍可产出草稿
 
 ### 5.1.6 — Codex 派发提速基建（设计方案）
 
