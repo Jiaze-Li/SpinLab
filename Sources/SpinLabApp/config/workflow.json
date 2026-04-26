@@ -5,7 +5,7 @@
       "id": "MR",
       "displayName": "MR",
       "matchRules": [
-        { "scope": "tokens", "type": "equals", "matchValues": ["MR"] }
+        { "scope": "tokens", "type": "equals", "value": "MR" }
       ],
       "conditionFieldIDs": ["temperature", "field"]
     },
@@ -13,7 +13,7 @@
       "id": "ahe",
       "displayName": "AHE",
       "matchRules": [
-        { "scope": "tokens", "type": "equals", "matchValues": ["AHE"] }
+        { "scope": "tokens", "type": "equals", "value": "AHE" }
       ],
       "conditionFieldIDs": ["temperature", "field"]
     },
@@ -21,7 +21,7 @@
       "id": "3w",
       "displayName": "3ω",
       "matchRules": [
-        { "scope": "tokens", "type": "equals", "matchValues": ["3w"] }
+        { "scope": "tokens", "type": "equals", "value": "3w" }
       ],
       "conditionFieldIDs": []
     },
@@ -29,7 +29,7 @@
       "id": "RT",
       "displayName": "RT",
       "matchRules": [
-        { "scope": "tokens", "type": "equals", "matchValues": ["rt"] }
+        { "scope": "tokens", "type": "equals", "value": "rt" }
       ],
       "conditionFieldIDs": ["current"]
     },
@@ -37,7 +37,7 @@
       "id": "XY",
       "displayName": "XY Rotation",
       "matchRules": [
-        { "scope": "tokens", "type": "equals", "matchValues": ["xy"] }
+        { "scope": "tokens", "type": "equals", "value": "xy" }
       ],
       "conditionFieldIDs": ["temperature", "field"]
     }
