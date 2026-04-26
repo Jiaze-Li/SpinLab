@@ -260,7 +260,7 @@ struct FilenameTokenizationSection: View {
 
     private func handleOutcome(_ outcome: RulesPanelSaveOutcome) {
         switch outcome {
-        case .saved:
+        case .saved, .savedWithMirrorWarning:
             saveErrors = []
         case .validationFailed(let errors):
             saveErrors = errors

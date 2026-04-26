@@ -106,7 +106,7 @@ struct RulesPanelView: View {
             store.selectSection(section)
             let outcome = store.saveCurrent()
             switch outcome {
-            case .saved:
+            case .saved, .savedWithMirrorWarning:
                 continue
             case .validationFailed, .externalConflict, .ioError:
                 pendingCloseWindow = nil

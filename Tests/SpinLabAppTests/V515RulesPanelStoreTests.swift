@@ -186,7 +186,7 @@ struct V515RulesPanelStoreTests {
 
         var hookOrder: [String] = []
         let store = RulesManagementStore(onRulesSaved: {})
-        store.persistenceHook = RulesPersistenceHook(didPersist: { sectionID, _, _, _ in
+        store.persistenceHook = RulesPersistenceHook(didPersist: { sectionID, _, _, _, _ in
             hookOrder.append(sectionID)
         })
         store.present()
@@ -217,10 +217,10 @@ struct V515RulesPanelStoreTests {
         defer { releaseIsolation(iso) }
         let paths = try seedAll()
 
-        var hookCalls: [(String, URL, Int, String)] = []
+        var hookCalls: [(String, URL, Int, String, DualWriteOutcome)] = []
         let store = RulesManagementStore()
-        store.persistenceHook = RulesPersistenceHook(didPersist: { s, u, v, c in
-            hookCalls.append((s, u, v, c))
+        store.persistenceHook = RulesPersistenceHook(didPersist: { s, u, v, c, o in
+            hookCalls.append((s, u, v, c, o))
         })
         store.present()
 

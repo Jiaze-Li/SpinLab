@@ -118,7 +118,7 @@ struct V515RulesPanelCrossSectionTests {
         let store = try setupStore(conditionIDs: ["temperature"])
 
         var hookOrder: [String] = []
-        store.persistenceHook = RulesPersistenceHook(didPersist: { sectionID, _, _, _ in
+        store.persistenceHook = RulesPersistenceHook(didPersist: { sectionID, _, _, _, _ in
             hookOrder.append(sectionID)
         })
 

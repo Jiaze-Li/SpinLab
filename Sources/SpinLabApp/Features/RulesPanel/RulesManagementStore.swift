@@ -12,6 +12,7 @@ struct RulesPanelFieldError: Identifiable {
 
 enum RulesPanelSaveOutcome {
     case saved
+    case savedWithMirrorWarning(reason: String)
     case validationFailed([RulesPanelFieldError])
     case externalConflict(externalChecksum: String)
     case ioError(Error)
@@ -161,6 +162,7 @@ final class RulesManagementStore {
 
     private let paths = RulesConfigPaths()
     private let atomicWriter = AtomicFileWriter()
+    @ObservationIgnored private var syncEngine: RulesSyncEngine?
 
     private static let jsonEncoder: JSONEncoder = {
         let enc = JSONEncoder()
@@ -169,8 +171,9 @@ final class RulesManagementStore {
     }()
     private static let jsonDecoder = JSONDecoder()
 
-    init(onRulesSaved: @escaping () -> Void = {}) {
+    init(onRulesSaved: @escaping () -> Void = {}, syncEngine: RulesSyncEngine? = nil) {
         self.onRulesSaved = onRulesSaved
+        self.syncEngine = syncEngine
     }
 
     // MARK: - Lifecycle
@@ -516,8 +519,14 @@ final class RulesManagementStore {
             }
         }
 
+        let dualWriteOutcome: DualWriteOutcome
         do {
-            try atomicWriter.write(data, to: url)
+            if let syncEngine {
+                dualWriteOutcome = try syncEngine.dualWrite(runtimeURL: url, data: data, sectionLabel: section.rawValue)
+            } else {
+                try atomicWriter.write(data, to: url)
+                dualWriteOutcome = .runtimeOnly
+            }
         } catch {
             return .ioError(error)
         }
@@ -529,10 +538,15 @@ final class RulesManagementStore {
         onRulesSaved()
 
         let version = (value as? any _VersionedSchema)?.version ?? 0
-        persistenceHook?.didPersist?(section.rawValue, url, version, newHash)
+        persistenceHook?.didPersist?(section.rawValue, url, version, newHash, dualWriteOutcome)
 
         dirtySections.remove(section)
-        return .saved
+        switch dualWriteOutcome {
+        case .runtimeOnly, .mirrored:
+            return .saved
+        case .mirrorFailedRuntimeOk(let reason):
+            return .savedWithMirrorWarning(reason: reason)
+        }
     }
 
     // MARK: - Helpers
