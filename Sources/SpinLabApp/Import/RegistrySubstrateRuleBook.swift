@@ -37,13 +37,25 @@ struct RegistrySubstrateRuleBook: RegistrySubstrateRuleProviding {
     }
 
     init(ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared) {
-        let substrate = ruleProvider.sharedSubstrateRules()
-        tokenSeparators = CharacterSet(charactersIn: substrate.tokenSeparators)
-        originStandaloneTokens = Set(substrate.originStandaloneTokens.map { $0.lowercased() })
-        originContainsTokens = substrate.originContainsTokens.map { $0.lowercased() }
-        treatmentKeywords = substrate.treatmentKeywords.mapValues { $0.map { token in token.lowercased() } }
-        materialTokens = Set(substrate.materialTokens.map { $0.lowercased() })
-        orientationPattern = substrate.orientationPattern
+        if let config = ruleProvider.substrateConfig() {
+            tokenSeparators = CharacterSet(charactersIn: config.tokenSeparators)
+            let originTreatment = config.treatments.first(where: { $0.id == "o" })
+            originStandaloneTokens = Set((originTreatment?.standaloneTokens ?? []).map { $0.lowercased() })
+            originContainsTokens = (originTreatment?.containsTokens ?? []).map { $0.lowercased() }
+            treatmentKeywords = Dictionary(uniqueKeysWithValues: config.treatments.map { t in
+                (t.id, t.keywords.map { $0.lowercased() })
+            })
+            materialTokens = Set(config.materials.flatMap { $0.tokens }.map { $0.lowercased() })
+            orientationPattern = config.orientations.pattern
+        } else {
+            let substrate = ruleProvider.sharedSubstrateRules()
+            tokenSeparators = CharacterSet(charactersIn: substrate.tokenSeparators)
+            originStandaloneTokens = Set(substrate.originStandaloneTokens.map { $0.lowercased() })
+            originContainsTokens = substrate.originContainsTokens.map { $0.lowercased() }
+            treatmentKeywords = substrate.treatmentKeywords.mapValues { $0.map { $0.lowercased() } }
+            materialTokens = Set(substrate.materialTokens.map { $0.lowercased() })
+            orientationPattern = substrate.orientationPattern
+        }
     }
 
     init(ruleLoadResult: RuleLoader.LoadResult) {

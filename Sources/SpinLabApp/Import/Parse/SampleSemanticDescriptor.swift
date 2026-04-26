@@ -106,25 +106,32 @@ struct SampleSemanticDescriptor: Hashable {
     }
 
     private static func normalizedProcessingToken(_ token: String?) -> String? {
-        guard let token else {
-            return nil
-        }
+        guard let token else { return nil }
         let normalizedInput = token.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !normalizedInput.isEmpty else {
+        guard !normalizedInput.isEmpty else { return nil }
+
+        if let config = ruleProvider.substrateConfig() {
+            for treatment in config.treatments {
+                let keywords = treatment.keywords.map { $0.lowercased() }
+                if keywords.contains(where: { keyword in
+                    keyword.count <= 1
+                        ? normalizedInput == keyword
+                        : normalizedInput == keyword || normalizedInput.contains(keyword)
+                }) {
+                    return treatment.id
+                }
+            }
             return nil
         }
 
         let treatmentKeywords = ruleProvider.sharedSubstrateRules().treatmentKeywords
-            .mapValues { keywords in keywords.map { $0.lowercased() } }
+            .mapValues { $0.map { $0.lowercased() } }
         for canonical in treatmentKeywords.keys.sorted() {
-            guard let keywords = treatmentKeywords[canonical] else {
-                continue
-            }
+            guard let keywords = treatmentKeywords[canonical] else { continue }
             if keywords.contains(where: { keyword in
-                if keyword.count <= 1 {
-                    return normalizedInput == keyword
-                }
-                return normalizedInput == keyword || normalizedInput.contains(keyword)
+                keyword.count <= 1
+                    ? normalizedInput == keyword
+                    : normalizedInput == keyword || normalizedInput.contains(keyword)
             }) {
                 return canonical
             }
