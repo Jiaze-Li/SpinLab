@@ -135,8 +135,8 @@ struct V210ImportAndParseTests {
         #expect(ch1?.tags.isEmpty == true)
 
         let ch2 = parsed.channelHints.first(where: { $0.channel == "ch2" })
-        #expect(ch2?.sampleID == "PN36 HF STO111 STO")
-        #expect(ch2?.tags == ["HF", "STO111", "STO"])
+        #expect(ch2?.sampleID == "PN36 HF STO 111")
+        #expect(ch2?.tags == ["HF", "STO 111"])
 
         let ch3 = parsed.channelHints.first(where: { $0.channel == "ch3" })
         #expect(ch3?.sampleID == "PN37")
@@ -445,10 +445,62 @@ struct V210ImportAndParseTests {
 
     private func loadBundledRuleSetForTests() throws -> FilenameRuleSet {
         let testsDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        let projectRoot = testsDir.deletingLastPathComponent().deletingLastPathComponent()
-        let ruleURL = projectRoot.appendingPathComponent("Sources/SpinLabApp/config/filename_parse_rules.json")
-        let data = try Data(contentsOf: ruleURL)
-        var ruleSet = try JSONDecoder().decode(FilenameRuleSet.self, from: data)
+        let configDir = testsDir.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/SpinLabApp/config", isDirectory: true)
+
+        let parseData = try Data(contentsOf: configDir.appendingPathComponent("filename_parse_rules.json"))
+        var ruleSet = try JSONDecoder().decode(FilenameRuleSet.self, from: parseData)
+
+        struct SampleIDFile: Decodable { let patterns: [String] }
+        struct SubstrateFile: Decodable {
+            let substrateTagRules: [FilenameRuleSet.MapRule]
+            let sharedSubstrate: FilenameRuleSet.SharedSubstrateRules?
+        }
+        struct MeasurementTagFile: Decodable { let rules: [FilenameRuleSet.MapRule] }
+        struct WorkflowMatchFile: Decodable {
+            let rules: [Rule]
+            struct Rule: Decodable {
+                let workflowID: String
+                let scope: String
+                let type: String
+                let matchValues: [String]
+            }
+        }
+
+        if let data = try? Data(contentsOf: configDir.appendingPathComponent("sample_id_rules.json")),
+           let file = try? JSONDecoder().decode(SampleIDFile.self, from: data) {
+            ruleSet.sampleId = FilenameRuleSet.SampleIdRules(patterns: file.patterns)
+        }
+        if let data = try? Data(contentsOf: configDir.appendingPathComponent("substrate_normalization_rules.json")),
+           let file = try? JSONDecoder().decode(SubstrateFile.self, from: data) {
+            ruleSet.substrateTagRules = file.substrateTagRules
+            ruleSet.sharedSubstrate = file.sharedSubstrate
+        }
+        if let data = try? Data(contentsOf: configDir.appendingPathComponent("measurement_tag_rules.json")),
+           let file = try? JSONDecoder().decode(MeasurementTagFile.self, from: data) {
+            ruleSet.measurementTagRules = file.rules
+        }
+        if let data = try? Data(contentsOf: configDir.appendingPathComponent("library_import_rules.json")),
+           let file = try? JSONDecoder().decode(LibraryImportRulesFile.self, from: data) {
+            ruleSet.registry = file.registry
+            ruleSet.importRules = file.importRules
+        }
+        if let data = try? Data(contentsOf: configDir.appendingPathComponent("workflow_match_rules.json")),
+           let file = try? JSONDecoder().decode(WorkflowMatchFile.self, from: data) {
+            ruleSet.measurementNameRules += file.rules.compactMap { rule in
+                guard !rule.workflowID.isEmpty, !rule.matchValues.isEmpty,
+                      let scope = FilenameRuleSet.MatchScope(rawValue: rule.scope),
+                      let matchType = FilenameRuleSet.MatchType(rawValue: rule.type) else { return nil }
+                let spec = FilenameRuleSet.MatchSpec(
+                    scope: scope,
+                    type: matchType,
+                    value: rule.matchValues.count == 1 ? rule.matchValues[0] : nil,
+                    values: rule.matchValues.count > 1 ? rule.matchValues : nil
+                )
+                return FilenameRuleSet.MapRule(match: spec, value: rule.workflowID)
+            }
+        }
+
         ruleSet.loadWarnings = ruleSet.compile()
         return ruleSet
     }

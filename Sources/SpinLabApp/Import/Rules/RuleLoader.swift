@@ -215,6 +215,13 @@ struct RuleLoader {
             warnings.append("\(label) library_import_rules.json missing or invalid; library rules empty")
         }
 
+        // workflow_match_rules.json
+        if FileManager.default.fileExists(atPath: paths.workflowMatchRulesURL.path),
+           let data = try? Data(contentsOf: paths.workflowMatchRulesURL),
+           let file = try? JSONDecoder().decode(WorkflowMatchRulesFile.self, from: data) {
+            ruleSet.measurementNameRules += file.rules.compactMap { mapRuleFromWorkflowMatch($0) }
+        }
+
         let schemaWarnings = migrateRuleSetSchemaIfNeeded(ruleSet: &ruleSet, sourceLabel: label)
         warnings.append(contentsOf: schemaWarnings)
         return ruleSet
@@ -243,6 +250,11 @@ struct RuleLoader {
            let file = try? JSONDecoder().decode(LibraryImportRulesFile.self, from: data) {
             ruleSet.registry = file.registry
             ruleSet.importRules = file.importRules
+        }
+
+        if let data = try? locator.data(for: "workflow_match_rules"),
+           let file = try? JSONDecoder().decode(WorkflowMatchRulesFile.self, from: data) {
+            ruleSet.measurementNameRules += file.rules.compactMap { mapRuleFromWorkflowMatch($0) }
         }
 
         let schemaWarnings = migrateRuleSetSchemaIfNeeded(ruleSet: &ruleSet, sourceLabel: "Bundle")
@@ -283,6 +295,21 @@ struct RuleLoader {
             ruleSet: &ruleSet,
             sourceLabel: sourceLabel
         )
+    }
+
+    // MARK: - WorkflowMatch conversion
+
+    private func mapRuleFromWorkflowMatch(_ rule: WorkflowMatchRulesFile.Rule) -> FilenameRuleSet.MapRule? {
+        guard !rule.workflowID.isEmpty, !rule.matchValues.isEmpty else { return nil }
+        guard let scope = FilenameRuleSet.MatchScope(rawValue: rule.scope),
+              let matchType = FilenameRuleSet.MatchType(rawValue: rule.type) else { return nil }
+        let spec = FilenameRuleSet.MatchSpec(
+            scope: scope,
+            type: matchType,
+            value: rule.matchValues.count == 1 ? rule.matchValues[0] : nil,
+            values: rule.matchValues.count > 1 ? rule.matchValues : nil
+        )
+        return FilenameRuleSet.MapRule(match: spec, value: rule.workflowID)
     }
 
     // MARK: - Hash
@@ -338,6 +365,18 @@ struct LibraryImportRulesFile: Decodable {
     struct ImportSection: Decodable {
         let supportedFileExtensions: [String]
         let ignoredFileExtensions: [String]
+    }
+}
+
+private struct WorkflowMatchRulesFile: Decodable {
+    let version: Int
+    let rules: [Rule]
+
+    struct Rule: Decodable {
+        let workflowID: String
+        let scope: String
+        let type: String
+        let matchValues: [String]
     }
 }
 

@@ -41,7 +41,7 @@
       "device": "^-?\\d+(?:\\.\\d+)?(?:deg)$",
       "field": "^-?\\d+(?:\\.\\d+)?(?:T|mT|Oe)$",
       "shift": "^-?\\d+(?:\\.\\d+)?(?:shift)$",
-      "temperature": "^-?\\d+(?:\\.\\d+)?(?:K|k)$"
+      "temperature": "^-?\\d+(?:\\.\\d+)?(?:K|k|C)$"
     },
     "tokenMapRules": {
       "device": [
