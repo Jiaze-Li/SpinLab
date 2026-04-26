@@ -8,6 +8,9 @@ struct SampleIdentificationSection: View {
     @State private var showConflictAlert = false
     @State private var pendingConflictChecksum = ""
     @State private var expandedSubstrateTagRuleIndex: Int? = nil
+    @State private var expandedMaterialIndex: Int? = nil
+    @State private var expandedTreatmentIndex: Int? = nil
+    @State private var expandedOrientationIndex: Int? = nil
 
     private var store: RulesManagementStore { appState.rulesPanel }
 
@@ -75,7 +78,7 @@ struct SampleIdentificationSection: View {
             VStack(alignment: .leading, spacing: AppSpacing.xl) {
                 sampleIdPatternsGroup(d)
                 substrateTagRulesGroup(d)
-                sharedSubstrateGroup(d)
+                substrateRowsGroup(d)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(AppSpacing.xl)
@@ -155,11 +158,7 @@ struct SampleIdentificationSection: View {
                     let isExpanded = expandedSubstrateTagRuleIndex == ruleIdx
                     VStack(alignment: .leading, spacing: AppSpacing.xs) {
                         Button {
-                            if isExpanded {
-                                expandedSubstrateTagRuleIndex = nil
-                            } else {
-                                expandedSubstrateTagRuleIndex = ruleIdx
-                            }
+                            expandedSubstrateTagRuleIndex = isExpanded ? nil : ruleIdx
                         } label: {
                             HStack(spacing: AppSpacing.md) {
                                 VStack(alignment: .leading, spacing: AppSpacing.xxs) {
@@ -202,178 +201,77 @@ struct SampleIdentificationSection: View {
         }
     }
 
+    // MARK: - Row-oriented substrate editors
+
     @ViewBuilder
-    private func sharedSubstrateGroup(_ d: SampleIdentificationFileDraft) -> some View {
-        GroupBox("Shared Substrate") {
-            VStack(alignment: .leading, spacing: AppSpacing.md) {
-                if let shared = d.substrate.shared {
-                    sharedSubstrateEditor(shared: shared, d: d)
-                } else {
-                    Text("No shared substrate config")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Button("Add Shared Config") {
-                        var updated = d
-                        updated.substrate.shared = .init(
-                            tokenSeparators: "_",
-                            originStandaloneTokens: [],
-                            originContainsTokens: [],
-                            treatmentKeywords: [:],
-                            materialTokens: [],
-                            materialAliases: nil,
-                            materialDisplayNames: nil,
-                            orientationTokens: nil,
-                            orientationAliases: nil,
-                            orientationPattern: ""
-                        )
-                        apply(updated)
-                    }
-                    .buttonStyle(.bordered)
+    private func substrateRowsGroup(_ d: SampleIdentificationFileDraft) -> some View {
+        GroupBox("Substrate Configuration") {
+            VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                LabeledContent("Token Separators") {
+                    TextField("e.g. _- ()", text: Binding(
+                        get: { d.substrate.tokenSeparators },
+                        set: { v in var u = d; u.substrate.tokenSeparators = v; apply(u) }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 180)
+                    .font(.body.monospaced())
                 }
+                Divider()
+                materialsEditor(d)
+                Divider()
+                treatmentsEditor(d)
+                Divider()
+                orientationsEditor(d)
             }
         }
     }
 
-    @ViewBuilder
-    private func sharedSubstrateEditor(
-        shared: SampleIdentificationFileDraft.SubstrateConfig.SharedSubstrate,
-        d: SampleIdentificationFileDraft
-    ) -> some View {
-        LabeledContent("Token Separators") {
-            TextField(
-                "e.g. _-",
-                text: Binding(
-                    get: { shared.tokenSeparators },
-                    set: { newValue in
-                        var updated = d
-                        updated.substrate.shared?.tokenSeparators = newValue
-                        apply(updated)
-                    }
-                )
-            )
-            .textFieldStyle(.roundedBorder)
-            .frame(maxWidth: 180)
-            .font(.body.monospaced())
-        }
-
-        stringListEditor(
-            title: "Material Tokens",
-            subtitle: "Canonical substrate token set",
-            items: shared.materialTokens,
-            onChange: { values in
-                var updated = d
-                updated.substrate.shared?.materialTokens = values
-                apply(updated)
-            }
-        )
-
-        keyValueEditor(
-            title: "Material Aliases",
-            subtitle: "alias → canonical token",
-            items: shared.materialAliases ?? [:],
-            onChange: { values in
-                var updated = d
-                updated.substrate.shared?.materialAliases = values.isEmpty ? nil : values
-                apply(updated)
-            }
-        )
-
-        keyValueEditor(
-            title: "Material Display Names",
-            subtitle: "token → display name",
-            items: shared.materialDisplayNames ?? [:],
-            onChange: { values in
-                var updated = d
-                updated.substrate.shared?.materialDisplayNames = values.isEmpty ? nil : values
-                apply(updated)
-            }
-        )
-
-        orientationTokensEditor(shared: shared, d: d)
-
-        keyValueEditor(
-            title: "Orientation Aliases",
-            subtitle: "alias → canonical orientation token",
-            items: shared.orientationAliases ?? [:],
-            onChange: { values in
-                var updated = d
-                updated.substrate.shared?.orientationAliases = values.isEmpty ? nil : values
-                apply(updated)
-            }
-        )
-
-        LabeledContent("Orientation Pattern") {
-            RegexField(
-                title: "orientation regex",
-                text: Binding(
-                    get: { shared.orientationPattern },
-                    set: { newValue in
-                        var updated = d
-                        updated.substrate.shared?.orientationPattern = newValue
-                        apply(updated)
-                    }
-                )
-            )
-        }
-    }
+    // MARK: - Materials editor
 
     @ViewBuilder
-    private func orientationTokensEditor(
-        shared: SampleIdentificationFileDraft.SubstrateConfig.SharedSubstrate,
-        d: SampleIdentificationFileDraft
-    ) -> some View {
-        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+    private func materialsEditor(_ d: SampleIdentificationFileDraft) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
             HStack {
-                Text("Orientation Tokens")
-                    .font(AppFontScale.groupHeader)
+                Text("Materials").font(AppFontScale.groupHeader)
                 Spacer()
                 Button("Add") {
-                    var updated = d
-                    let values = updated.substrate.shared?.orientationTokens ?? []
-                    updated.substrate.shared?.orientationTokens = values + [""]
-                    apply(updated)
+                    var u = d
+                    u.substrate.materials.append(.init(id: "NEW", tokens: [], aliases: [], displayName: ""))
+                    apply(u)
+                    expandedMaterialIndex = u.substrate.materials.count - 1
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
             }
-
-            let values = shared.orientationTokens ?? []
-            if values.isEmpty {
-                Text("None")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(values.indices, id: \.self) { idx in
-                    HStack(spacing: AppSpacing.sm) {
-                        TextField(
-                            "token",
-                            text: Binding(
-                                get: { shared.orientationTokens?[idx] ?? "" },
-                                set: { newValue in
-                                    var updated = d
-                                    var current = updated.substrate.shared?.orientationTokens ?? []
-                                    guard current.indices.contains(idx) else { return }
-                                    current[idx] = newValue
-                                    updated.substrate.shared?.orientationTokens = current
-                                    apply(updated)
-                                }
-                            )
-                        )
-                        .textFieldStyle(.roundedBorder)
-                        .font(.body.monospaced())
-
-                        Button(role: .destructive) {
-                            var updated = d
-                            var current = updated.substrate.shared?.orientationTokens ?? []
-                            guard current.indices.contains(idx) else { return }
-                            current.remove(at: idx)
-                            updated.substrate.shared?.orientationTokens = current.isEmpty ? nil : current
-                            apply(updated)
-                        } label: {
-                            Image(systemName: "minus.circle")
+            ForEach(d.substrate.materials.indices, id: \.self) { idx in
+                let mat = d.substrate.materials[idx]
+                let isExpanded = expandedMaterialIndex == idx
+                VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                    Button { expandedMaterialIndex = isExpanded ? nil : idx } label: {
+                        HStack(spacing: AppSpacing.md) {
+                            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                                Text(mat.id).font(.callout.weight(.semibold).monospaced())
+                                Text(mat.displayName.isEmpty ? "—" : mat.displayName)
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button(role: .destructive) {
+                                var u = d; u.substrate.materials.remove(at: idx); apply(u)
+                                if expandedMaterialIndex == idx { expandedMaterialIndex = nil }
+                            } label: { Image(systemName: "minus.circle") }
+                            .buttonStyle(.borderless)
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                .font(.caption).foregroundStyle(.secondary)
                         }
-                        .buttonStyle(.borderless)
-                        .accessibilityLabel("Remove token")
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
+                    if isExpanded {
+                        materialRowDetail(idx: idx, d: d)
+                            .padding(AppSpacing.md)
+                            .background(Color(nsColor: .controlBackgroundColor))
+                            .cornerRadius(AppSpacing.md)
                     }
                 }
             }
@@ -381,122 +279,237 @@ struct SampleIdentificationSection: View {
     }
 
     @ViewBuilder
-    private func stringListEditor(
+    private func materialRowDetail(idx: Int, d: SampleIdentificationFileDraft) -> some View {
+        let mat = d.substrate.materials[idx]
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            LabeledContent("ID") {
+                TextField("material id", text: Binding(
+                    get: { mat.id },
+                    set: { v in var u = d; u.substrate.materials[idx].id = v; apply(u) }
+                ))
+                .textFieldStyle(.roundedBorder)
+                .font(.body.monospaced())
+            }
+            LabeledContent("Display Name") {
+                TextField("display name", text: Binding(
+                    get: { mat.displayName },
+                    set: { v in var u = d; u.substrate.materials[idx].displayName = v; apply(u) }
+                ))
+                .textFieldStyle(.roundedBorder)
+            }
+            stringListField(
+                title: "Tokens",
+                items: mat.tokens,
+                onChange: { v in var u = d; u.substrate.materials[idx].tokens = v; apply(u) }
+            )
+            stringListField(
+                title: "Aliases",
+                items: mat.aliases,
+                onChange: { v in var u = d; u.substrate.materials[idx].aliases = v; apply(u) }
+            )
+        }
+    }
+
+    // MARK: - Treatments editor
+
+    @ViewBuilder
+    private func treatmentsEditor(_ d: SampleIdentificationFileDraft) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            HStack {
+                Text("Treatments").font(AppFontScale.groupHeader)
+                Spacer()
+                Button("Add") {
+                    var u = d
+                    u.substrate.treatments.append(.init(id: "new", displayName: "", keywords: [], standaloneTokens: [], containsTokens: []))
+                    apply(u)
+                    expandedTreatmentIndex = u.substrate.treatments.count - 1
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            ForEach(d.substrate.treatments.indices, id: \.self) { idx in
+                let t = d.substrate.treatments[idx]
+                let isExpanded = expandedTreatmentIndex == idx
+                VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                    Button { expandedTreatmentIndex = isExpanded ? nil : idx } label: {
+                        HStack(spacing: AppSpacing.md) {
+                            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                                Text(t.id).font(.callout.weight(.semibold).monospaced())
+                                Text(t.displayName.isEmpty ? "—" : t.displayName)
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button(role: .destructive) {
+                                var u = d; u.substrate.treatments.remove(at: idx); apply(u)
+                                if expandedTreatmentIndex == idx { expandedTreatmentIndex = nil }
+                            } label: { Image(systemName: "minus.circle") }
+                            .buttonStyle(.borderless)
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
+                    if isExpanded {
+                        treatmentRowDetail(idx: idx, d: d)
+                            .padding(AppSpacing.md)
+                            .background(Color(nsColor: .controlBackgroundColor))
+                            .cornerRadius(AppSpacing.md)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func treatmentRowDetail(idx: Int, d: SampleIdentificationFileDraft) -> some View {
+        let t = d.substrate.treatments[idx]
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            LabeledContent("ID") {
+                TextField("treatment id", text: Binding(
+                    get: { t.id },
+                    set: { v in var u = d; u.substrate.treatments[idx].id = v; apply(u) }
+                ))
+                .textFieldStyle(.roundedBorder)
+                .font(.body.monospaced())
+            }
+            LabeledContent("Display Name") {
+                TextField("display name", text: Binding(
+                    get: { t.displayName },
+                    set: { v in var u = d; u.substrate.treatments[idx].displayName = v; apply(u) }
+                ))
+                .textFieldStyle(.roundedBorder)
+            }
+            stringListField(
+                title: "Keywords",
+                items: t.keywords,
+                onChange: { v in var u = d; u.substrate.treatments[idx].keywords = v; apply(u) }
+            )
+            stringListField(
+                title: "Standalone Tokens",
+                items: t.standaloneTokens,
+                onChange: { v in var u = d; u.substrate.treatments[idx].standaloneTokens = v; apply(u) }
+            )
+            stringListField(
+                title: "Contains Tokens",
+                items: t.containsTokens,
+                onChange: { v in var u = d; u.substrate.treatments[idx].containsTokens = v; apply(u) }
+            )
+        }
+    }
+
+    // MARK: - Orientations editor
+
+    @ViewBuilder
+    private func orientationsEditor(_ d: SampleIdentificationFileDraft) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            Text("Orientations").font(AppFontScale.groupHeader)
+            LabeledContent("Pattern") {
+                RegexField(title: "orientation regex", text: Binding(
+                    get: { d.substrate.orientations.pattern },
+                    set: { v in var u = d; u.substrate.orientations.pattern = v; apply(u) }
+                ))
+            }
+            HStack {
+                Text("Rows").font(.subheadline).foregroundStyle(.secondary)
+                Spacer()
+                Button("Add") {
+                    var u = d
+                    u.substrate.orientations.rows.append(.init(id: "000", tokens: [], aliases: []))
+                    apply(u)
+                    expandedOrientationIndex = u.substrate.orientations.rows.count - 1
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            ForEach(d.substrate.orientations.rows.indices, id: \.self) { idx in
+                let row = d.substrate.orientations.rows[idx]
+                let isExpanded = expandedOrientationIndex == idx
+                VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                    Button { expandedOrientationIndex = isExpanded ? nil : idx } label: {
+                        HStack(spacing: AppSpacing.md) {
+                            Text(row.id).font(.callout.weight(.semibold).monospaced())
+                            Spacer()
+                            Button(role: .destructive) {
+                                var u = d; u.substrate.orientations.rows.remove(at: idx); apply(u)
+                                if expandedOrientationIndex == idx { expandedOrientationIndex = nil }
+                            } label: { Image(systemName: "minus.circle") }
+                            .buttonStyle(.borderless)
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
+                    if isExpanded {
+                        orientationRowDetail(idx: idx, d: d)
+                            .padding(AppSpacing.md)
+                            .background(Color(nsColor: .controlBackgroundColor))
+                            .cornerRadius(AppSpacing.md)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func orientationRowDetail(idx: Int, d: SampleIdentificationFileDraft) -> some View {
+        let row = d.substrate.orientations.rows[idx]
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            LabeledContent("ID") {
+                TextField("orientation id", text: Binding(
+                    get: { row.id },
+                    set: { v in var u = d; u.substrate.orientations.rows[idx].id = v; apply(u) }
+                ))
+                .textFieldStyle(.roundedBorder)
+                .font(.body.monospaced())
+            }
+            stringListField(
+                title: "Tokens",
+                items: row.tokens,
+                onChange: { v in var u = d; u.substrate.orientations.rows[idx].tokens = v; apply(u) }
+            )
+            stringListField(
+                title: "Aliases",
+                items: row.aliases,
+                onChange: { v in var u = d; u.substrate.orientations.rows[idx].aliases = v; apply(u) }
+            )
+        }
+    }
+
+    // MARK: - Shared helpers
+
+    @ViewBuilder
+    private func stringListField(
         title: String,
-        subtitle: String,
         items: [String],
         onChange: @escaping ([String]) -> Void
     ) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.xs) {
             HStack {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(title)
-                        .font(AppFontScale.groupHeader)
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Text(title).font(AppFontScale.groupHeader)
                 Spacer()
                 Button("Add") {
-                    var updated = items
-                    updated.append("")
-                    onChange(updated)
+                    onChange(items + [""])
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
             }
-
             ForEach(items.indices, id: \.self) { idx in
                 HStack(spacing: AppSpacing.sm) {
-                    TextField(
-                        "value",
-                        text: Binding(
-                            get: { items[idx] },
-                            set: { newValue in
-                                var updated = items
-                                updated[idx] = newValue
-                                onChange(updated)
-                            }
-                        )
-                    )
+                    TextField("value", text: Binding(
+                        get: { items[idx] },
+                        set: { v in var updated = items; updated[idx] = v; onChange(updated) }
+                    ))
                     .textFieldStyle(.roundedBorder)
                     .font(.body.monospaced())
-
                     Button(role: .destructive) {
-                        var updated = items
-                        updated.remove(at: idx)
-                        onChange(updated)
-                    } label: {
-                        Image(systemName: "minus.circle")
-                    }
+                        var updated = items; updated.remove(at: idx); onChange(updated)
+                    } label: { Image(systemName: "minus.circle") }
                     .buttonStyle(.borderless)
-                    .accessibilityLabel("Remove row")
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func keyValueEditor(
-        title: String,
-        subtitle: String,
-        items: [String: String],
-        onChange: @escaping ([String: String]) -> Void
-    ) -> some View {
-        VStack(alignment: .leading, spacing: AppSpacing.xs) {
-            HStack {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(title)
-                        .font(AppFontScale.groupHeader)
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button("Add Row") {
-                    var updated = items
-                    var key = "new_key"
-                    var n = 2
-                    while updated.keys.contains(key) {
-                        key = "new_key_\(n)"
-                        n += 1
-                    }
-                    updated[key] = ""
-                    onChange(updated)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-
-            ForEach(items.keys.sorted(), id: \.self) { key in
-                HStack(spacing: AppSpacing.sm) {
-                    Text(key)
-                        .font(.body.monospaced())
-                        .frame(minWidth: 120, alignment: .leading)
-                    Text("→")
-                        .foregroundStyle(.secondary)
-                    TextField(
-                        "value",
-                        text: Binding(
-                            get: { items[key] ?? "" },
-                            set: { newValue in
-                                var updated = items
-                                updated[key] = newValue
-                                onChange(updated)
-                            }
-                        )
-                    )
-                    .textFieldStyle(.roundedBorder)
-
-                    Button(role: .destructive) {
-                        var updated = items
-                        updated.removeValue(forKey: key)
-                        onChange(updated)
-                    } label: {
-                        Image(systemName: "minus.circle")
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Remove row")
+                    .accessibilityLabel("Remove")
                 }
             }
         }

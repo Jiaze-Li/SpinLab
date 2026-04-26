@@ -10,7 +10,6 @@ struct MeasuringConditionSection: View {
     @State private var selectedConditionID: String? = nil
     @State private var showDeleteConfirm = false
     @State private var pendingDeleteID: String? = nil
-    @State private var expandedTokenMapKey: String? = nil
     @State private var expandedTokenMapRuleIndices: [String: Int] = [:]
 
     private var store: RulesManagementStore { appState.rulesPanel }
@@ -228,7 +227,17 @@ struct MeasuringConditionSection: View {
                     set: { newKind in
                         var u = d
                         u.conditionDefinitions[idx].kind = newKind
-                        u.conditionDefinitions[idx].binding = canonicalBinding(kind: newKind, id: def.id)
+                        if newKind == "unit_suffix" {
+                            u.conditionDefinitions[idx].tokenMap = nil
+                            if u.conditionDefinitions[idx].unitPattern == nil {
+                                u.conditionDefinitions[idx].unitPattern = ""
+                            }
+                        } else {
+                            u.conditionDefinitions[idx].unitPattern = nil
+                            if u.conditionDefinitions[idx].tokenMap == nil {
+                                u.conditionDefinitions[idx].tokenMap = []
+                            }
+                        }
                         apply(u)
                     }
                 )) {
@@ -241,7 +250,7 @@ struct MeasuringConditionSection: View {
             }
 
             if def.kind == "unit_suffix" {
-                unitSuffixEditor(id: def.id, d: d, idx: idx)
+                unitSuffixEditor(idx: idx, d: d)
             } else {
                 tokenMapEditor(id: def.id, d: d, idx: idx)
             }
@@ -249,13 +258,13 @@ struct MeasuringConditionSection: View {
     }
 
     @ViewBuilder
-    private func unitSuffixEditor(id: String, d: MeasuringConditionFileDraft, idx: Int) -> some View {
+    private func unitSuffixEditor(idx: Int, d: MeasuringConditionFileDraft) -> some View {
         LabeledContent("Regex Pattern") {
             RegexField(title: "unit_suffix regex", text: Binding(
-                get: { d.conditions.extraConditions[id] ?? "" },
+                get: { d.conditionDefinitions[idx].unitPattern ?? "" },
                 set: { v in
                     var u = d
-                    u.conditions.extraConditions[id] = v
+                    u.conditionDefinitions[idx].unitPattern = v
                     apply(u)
                 }
             ))
@@ -264,16 +273,16 @@ struct MeasuringConditionSection: View {
 
     @ViewBuilder
     private func tokenMapEditor(id: String, d: MeasuringConditionFileDraft, idx: Int) -> some View {
-        let rules = d.conditions.tokenMapRules[id] ?? []
+        let rules = d.conditionDefinitions[idx].tokenMap ?? []
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             HStack {
                 Text("Match Rules").font(AppFontScale.groupHeader)
                 Spacer()
                 Button("Add Rule") {
                     var u = d
-                    var updated = u.conditions.tokenMapRules[id] ?? []
+                    var updated = u.conditionDefinitions[idx].tokenMap ?? []
                     updated.append(MapRule(match: .init(scope: "tokens", type: "equalsOrContainsAny", value: nil, values: []), value: ""))
-                    u.conditions.tokenMapRules[id] = updated
+                    u.conditionDefinitions[idx].tokenMap = updated
                     apply(u)
                     expandedTokenMapRuleIndices[id] = updated.count - 1
                 }
@@ -299,9 +308,9 @@ struct MeasuringConditionSection: View {
                             Spacer()
                             Button(role: .destructive) {
                                 var u = d
-                                var updated = u.conditions.tokenMapRules[id] ?? []
+                                var updated = u.conditionDefinitions[idx].tokenMap ?? []
                                 updated.remove(at: ruleIdx)
-                                u.conditions.tokenMapRules[id] = updated
+                                u.conditionDefinitions[idx].tokenMap = updated
                                 apply(u)
                                 expandedTokenMapRuleIndices.removeValue(forKey: id)
                             } label: { Image(systemName: "minus.circle") }
@@ -314,7 +323,7 @@ struct MeasuringConditionSection: View {
                     .buttonStyle(.plain)
 
                     if isRuleSelected {
-                        MatchRuleEditor(rule: tokenMapRuleBinding(id: id, ruleIdx: ruleIdx, d: d))
+                        MatchRuleEditor(rule: tokenMapRuleBinding(id: id, idx: idx, ruleIdx: ruleIdx))
                             .padding(AppSpacing.md)
                             .background(Color(nsColor: .windowBackgroundColor))
                             .cornerRadius(AppSpacing.sm)
@@ -339,8 +348,6 @@ struct MeasuringConditionSection: View {
     private func performDelete() {
         guard let id = pendingDeleteID, var d = draft else { return }
         d.conditionDefinitions.removeAll { $0.id == id }
-        d.conditions.extraConditions.removeValue(forKey: id)
-        d.conditions.tokenMapRules.removeValue(forKey: id)
         apply(d)
         if selectedConditionID == id { selectedConditionID = nil }
         expandedTokenMapRuleIndices.removeValue(forKey: id)
@@ -380,32 +387,25 @@ struct MeasuringConditionSection: View {
             id: newID,
             label: nil,
             kind: "unit_suffix",
-            binding: canonicalBinding(kind: "unit_suffix", id: newID)
+            unitPattern: "",
+            tokenMap: nil
         ))
-        u.conditions.extraConditions[newID] = ""
         apply(u)
         selectedConditionID = newID
-    }
-
-    private func canonicalBinding(kind: String, id: String) -> String {
-        switch kind {
-        case "unit_suffix": return "conditions.extraConditions.\(id)"
-        case "token_map":   return "conditions.tokenMapRules.\(id)"
-        default:            return ""
-        }
     }
 
     // MARK: - Bindings
 
     private func tokenMapRuleBinding(
         id: String,
-        ruleIdx: Int,
-        d: MeasuringConditionFileDraft
+        idx: Int,
+        ruleIdx: Int
     ) -> Binding<MapRule> {
         Binding(
             get: {
                 guard let d = self.draft,
-                      let rules = d.conditions.tokenMapRules[id],
+                      d.conditionDefinitions.indices.contains(idx),
+                      let rules = d.conditionDefinitions[idx].tokenMap,
                       rules.indices.contains(ruleIdx) else {
                     return MapRule(match: .init(scope: "tokens", type: "equals", value: nil, values: nil), value: "")
                 }
@@ -413,10 +413,11 @@ struct MeasuringConditionSection: View {
             },
             set: { newValue in
                 guard var d = self.draft,
-                      var rules = d.conditions.tokenMapRules[id],
+                      d.conditionDefinitions.indices.contains(idx),
+                      var rules = d.conditionDefinitions[idx].tokenMap,
                       rules.indices.contains(ruleIdx) else { return }
                 rules[ruleIdx] = newValue
-                d.conditions.tokenMapRules[id] = rules
+                d.conditionDefinitions[idx].tokenMap = rules
                 self.apply(d)
             }
         )
