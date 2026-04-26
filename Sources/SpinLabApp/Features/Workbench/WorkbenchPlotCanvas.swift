@@ -180,7 +180,8 @@ struct WorkbenchPlotCanvas: View {
                     Menu("Copy PNG") {
                         ForEach(Self.copyPNGScales, id: \.self) { s in
                             Button("\(Int(s))x") {
-                                guard let d = onCopyPNG?(s) else { return }
+                                let scaled = onCopyPNG?(s)
+                                guard let d = scaled ?? imageData else { return }
                                 let pb = NSPasteboard.general
                                 pb.clearContents()
                                 pb.setData(d, forType: .png)

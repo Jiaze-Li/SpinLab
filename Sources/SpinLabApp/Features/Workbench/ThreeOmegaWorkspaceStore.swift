@@ -1186,9 +1186,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
         tabs.restoreStates(config.tabStates) { key in
             ThreeOmegaWorkbenchTab.allCases.first { $0.stableKey == key }
         }
-        if !config.chartStyleOverrides.isEmpty {
-            tabs.chartStyleOverrides = config.chartStyleOverrides
-        }
+        tabs.chartStyleOverrides = config.chartStyleOverrides
 
         // Restore search selection state
         cachedSearchResults = config.cachedSearchResults
