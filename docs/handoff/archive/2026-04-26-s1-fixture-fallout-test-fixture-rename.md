@@ -119,24 +119,30 @@ Error Domain=NSCocoaErrorDomain Code=260 "The file 'filename_rules.json' couldn'
 - Brief：`tmp/2026-04-26-v515-isolation-review-brief.md`
 - 评审产出：`tmp/2026-04-26-v515-isolation-review-out.md`
 
-### 未完成（留给下一次会话）
+### 未完成（会话 A 遗留）→ 会话 B 全部完成
 
-| 测试套 | 残留 issue | 单独跑也复现？ | 怀疑根因 |
-|---|---|---|---|
-| V210 Import And Parse | 20 | 是 | `loadBundledRuleSetForTests()` 只读 `filename_parse_rules.json` 一个文件，但 s1 把规则拆成 7 个 JSON。helper 没跟着升级，导致 sample_id / workflow_match / substrate_normalization 等都缺，解析器自然认不出 workflowID / sampleKey / temperature / conflict warning 等字段。**需要把 helper 改成走 7 文件加载链路**（最稳是直接走 `RuleLoader` 的 bundle 路径）。 |
-| V223 AppEnvironment Integration | 3 | 是 | `appState.inbox.pendingImports.count → 0` 期望 1，整个 import 链路没把文件落进 inbox。可能跟 V210 同源（fixture 残缺导致 RuleLoader 读不到完整规则 → 解析失败 → import 全 fallback 0 条），也可能是别的 integration 问题。**先修 V210 helper 再看 V223 是否自动好**。 |
+（见下方会话 B 进度）
 
-### 残留的 tmp/ 文件
+---
 
-- `tmp/2026-04-26-v515-isolation-review-brief.md`（已用）
-- `tmp/2026-04-26-v515-isolation-review-out.md`（已用，见上方对抗评审痕迹）
-- `tmp/2026-04-26-v515-isolation-review-out.md-stdout.log`（Codex stdout，事后审计用）
-- `tmp/2026-04-26-v515-isolation-review-out.md.baseline`（派发前 git status 快照，已对账无 diff）
+## 2026-04-26 会话 B 进度（完成，可归档）
 
-下一次会话开始时按 README 的「tmp/ 残留 session protocol」清理：这 4 个文件 V515 议题已收敛，可整组 `rm`。
+### 已完成
 
-### 下一次会话启动指令
+**Commit 3: V210 + RuleLoader 完整修复（2ee4d6c）**
+- `loadBundledRuleSetForTests()` 改成加载全部 6 个相关 schema 文件（`filename_parse_rules.json` + `sample_id_rules.json` + `substrate_normalization_rules.json` + `measurement_tag_rules.json` + `workflow_match_rules.json` + `library_import_rules.json`），含 workflow_match 的 schema 转换逻辑（`WorkflowMatchFile.Rule → FilenameRuleSet.MapRule`）
+- 发现 production `RuleLoader.assembleRuleSet()` 和 `assembleRuleSetFromBundle()` 完全缺少 `workflow_match_rules.json` 加载——补全，并新增 `mapRuleFromWorkflowMatch()` converter + `WorkflowMatchRulesFile` 私有 Decodable 结构
+- `filename_parse_rules.json` temperature 正则补加 Celsius（`|C`）
+- V210 STO111 断言更新为 `"STO 111"`（s1 canonical key 算法改了空格格式）
+- 效果：V210 20 issues → 0
 
-```
-读 docs/handoff/2026-04-26-s1-fixture-fallout-test-fixture-rename.md，跳到「2026-04-26 会话 A 进度」段。已完成的不要重做。从「未完成」表的 V210 开始：把 loadBundledRuleSetForTests() 改成走 RuleLoader bundle 加载链路，加载完整 7 文件 schema。修完跑全量测试看 V210 + V223 是否一起回绿。任何不确定的期望值先停下问 Jack。
-```
+**Commit 4: V223 async 修复（10c7d47）**
+- 根因 1（规则污染）：`DefaultRuleRuntimeCapability()` 走共享静态缓存，V515 在同一进程内把缓存污染为最小桩配置；修复：新增 `loadFromBundleOnly()` + `makeBundleRuleRuntime()` helper，通过 `InlineRuleProvider` 预加载 bundle 规则，绕过共享缓存
+- 根因 2（主 actor 饥饿）：V514 的 15 个同步 `@MainActor` 测试在完整测试跑中持续占用主 actor 约 75 秒；`importTask` 需要两次主 actor 窗口才能完成，旧 8–15 s 超时在 actor 饥饿期内必然失败；修复：`waitUntil(timeoutMS:)` 全部改为 120_000 ms
+- 效果：V223 3 issues → 0；全量测试跑 `swift test` 全绿（除已隔离的 4 个 suite：V214/V224/V225/V240）
+
+**tmp/ 清理**：V515 议题 4 个 tmp 文件已 `rm`
+
+### 验收结论
+
+`swift test` 全绿。受 `#if PORT_TESTS_TO_NEW_*_API` 隔离的 4 个 suite（V214/V224/V225/V240）不在本 handoff 范围，未动。

@@ -28,13 +28,12 @@
 
 ## 待消费
 
-| 日期 | Handoff | 一句话目标 |
-|---|---|---|
-| 2026-04-26 | [2026-04-26-s1-fixture-fallout-test-fixture-rename.md](2026-04-26-s1-fixture-fallout-test-fixture-rename.md) | 清理 s1 schema 大改的 fallout：4 个测试文件硬编码旧 JSON 路径 + V210/V212/V221/V223 共 39 个运行时断言失败 |
+（无）
 
 ## 已归档
 
 | 日期 | Handoff | 完成会话 | 验收摘要 |
 |---|---|---|---|
+| 2026-04-26 | [2026-04-26-s1-fixture-fallout-test-fixture-rename.md](archive/2026-04-26-s1-fixture-fallout-test-fixture-rename.md) | 2026-04-26 B | C1 80959a1 路径改名；C2 a6edeca V515 隔离；C3 2ee4d6c V210+RuleLoader 完整修复；C4 10c7d47 V223 bundle 隔离+120s 超时；swift test 全绿（V214/V224/V225/V240 按计划隔离） |
 | 2026-04-26 | [2026-04-26-5.1.5-s2-rules-panel.md](archive/2026-04-26-5.1.5-s2-rules-panel.md) | 2026-04-26 | C0 494ab17；C1 3fb92ac；C2+C3+C5 a8cf29a；C4 e583534；6 分区 NavigationSplitView + 4 编辑分区 + Inbox 入口 + MatchRuleEditor/RegexField；swift build clean |
 | 2026-04-25 | [2026-04-25-5.1.5-s1-rules-unification.md](archive/2026-04-25-5.1.5-s1-rules-unification.md) | 2026-04-25 | C1 63c891a→5b10d0f；旧规则 UI 三处删除 + 7 文件 schema 落地 + 一次性迁移器 + sync 脚本删除；swift build clean |
