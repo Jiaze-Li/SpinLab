@@ -58,6 +58,12 @@ struct WorkbenchPlotLayout: Sendable {
         }
     }
 
+    struct PointHitTarget: Sendable {
+        let seriesIndex: Int
+        let pointIndex:  Int
+        let hitRect:     CGRect
+    }
+
     // MARK: - Layout properties
 
     /// The plot drawing area in renderer pixel space (CG origin bottom-left).
@@ -81,6 +87,8 @@ struct WorkbenchPlotLayout: Sendable {
     let yTickHitRect:   CGRect
 
     let legendRows:     [LegendRow]
+    let pointDotHitTargets:   [PointHitTarget]
+    let pointLabelHitTargets: [PointHitTarget]
 
     /// The rendered chart title (after title override and workflow-name fallback).
     let chartTitle:  String
@@ -160,6 +168,58 @@ struct WorkbenchPlotLayout: Sendable {
             legendFontSize: style.legendFontSize
         )
 
+        // Point dot + label hit targets (for series that carry point labels)
+        var pointDotHitTargets:   [WorkbenchPlotLayout.PointHitTarget] = []
+        var pointLabelHitTargets: [WorkbenchPlotLayout.PointHitTarget] = []
+        let allXForHit = payload.series.flatMap(\.x)
+        let allYForHit = payload.series.flatMap(\.y)
+        if !allXForHit.isEmpty, payload.series.contains(where: { !$0.pointLabels.isEmpty }) {
+            let xRawH = options.fixedXMin ?? allXForHit.min()!
+            let xRawMaxH = options.fixedXMax ?? allXForHit.max()!
+            let yRawH = allYForHit.min()!, yRawMaxH = allYForHit.max()!
+            let xRawSpanH = xRawMaxH == xRawH ? 1.0 : xRawMaxH - xRawH
+            let yRawSpanH = yRawMaxH == yRawH ? 1.0 : yRawMaxH - yRawH
+            let xMinH = options.fixedXMin != nil ? xRawH : xRawH - xRawSpanH * 0.05
+            let xMaxH = options.fixedXMax != nil ? xRawMaxH : xRawMaxH + xRawSpanH * 0.05
+            let yMinH = yRawH - yRawSpanH * 0.05
+            let yMaxH = yRawMaxH + yRawSpanH * 0.05
+            let xSpanH = xMaxH - xMinH
+            let ySpanH = yMaxH - yMinH
+            for (si, series) in payload.series.enumerated() {
+                guard !series.pointLabels.isEmpty,
+                      series.x.count == series.y.count else { continue }
+                let dotR: CGFloat = 7.0
+                let labelW: CGFloat = 50
+                let labelH: CGFloat = 20
+                let gap: CGFloat = 4
+                let dotRDraw: CGFloat = 3.5
+                for k in 0..<series.x.count {
+                    let cx = plotRect.minX + CGFloat((series.x[k] - xMinH) / xSpanH) * plotRect.width
+                    let cy = plotRect.minY + CGFloat((series.y[k] - yMinH) / ySpanH) * plotRect.height
+                    pointDotHitTargets.append(PointHitTarget(
+                        seriesIndex: si,
+                        pointIndex: k,
+                        hitRect: CGRect(x: cx - dotR, y: cy - dotR, width: dotR * 2, height: dotR * 2)
+                    ))
+                    let nearRight = cx + dotRDraw + gap + labelW > plotRect.maxX
+                    let nearTop   = cy + labelH * 0.5 > plotRect.maxY
+                    let labelRect: CGRect
+                    if nearRight {
+                        labelRect = CGRect(x: cx - dotRDraw - gap - labelW, y: cy - labelH / 2, width: labelW, height: labelH)
+                    } else if nearTop {
+                        labelRect = CGRect(x: cx - labelW / 2, y: cy - dotRDraw - gap - labelH, width: labelW, height: labelH)
+                    } else {
+                        labelRect = CGRect(x: cx + dotRDraw + gap, y: cy - labelH / 2, width: labelW, height: labelH)
+                    }
+                    pointLabelHitTargets.append(PointHitTarget(
+                        seriesIndex: si,
+                        pointIndex: k,
+                        hitRect: labelRect
+                    ))
+                }
+            }
+        }
+
         let chartTitle = payload.title.isEmpty ? payload.workflowDisplayName : payload.title
         let xAxisLabel = payload.axisMapping.xField
         let yAxisLabel = payload.axisMapping.yField
@@ -176,6 +236,8 @@ struct WorkbenchPlotLayout: Sendable {
             xTickHitRect:  xTickHitRect,
             yTickHitRect:  yTickHitRect,
             legendRows:    legendRows,
+            pointDotHitTargets: pointDotHitTargets,
+            pointLabelHitTargets: pointLabelHitTargets,
             chartTitle:    chartTitle,
             xAxisLabel:    xAxisLabel,
             yAxisLabel:    yAxisLabel

@@ -313,6 +313,9 @@ struct WorkflowWorkspaceShell<
                 store.chartStyleOverrides[key] = "\(Int(size))"
                 store.rerenderForStyleChange()
             },
+            onTogglePointLabelVisibility: { s, p in
+                store.togglePointLabelVisibility(seriesIndex: s, pointIndex: p)
+            },
             onStyleOverrideChange: { key, value in
                 store.chartStyleOverrides[key] = value
                 store.rerenderForStyleChange()

@@ -734,6 +734,7 @@ final class ThreeOmegaWorkspaceStore {
         let capturedStyleOverrides = tabs.chartStyleOverrides
         let capturedAnchor = tabs.legendAnchor
         let capturedLegend = tabState.legendPoint?.cgPoint
+        let capturedHiddenLabels = tabs.hiddenPointLabelSet(for: tab)
         let capturedMultiplier = stackOffsetMultiplier
         let capturedMinGap     = minGapFraction
         let titleOverride  = tabState.titleOverride
@@ -760,6 +761,7 @@ final class ThreeOmegaWorkspaceStore {
             r.chartStyleOverrides   = capturedStyleOverrides
             r.legendAnchor          = capturedAnchor
             r.legendPoint           = capturedLegend
+            r.hiddenPointLabelsBySeries = capturedHiddenLabels
             r.stackOffsetMultiplier = capturedMultiplier
             r.minGapFraction        = capturedMinGap
             r.titleOverride         = titleOverride
@@ -1044,6 +1046,11 @@ extension ThreeOmegaWorkspaceStore: WorkbenchPlottingStore {
     func updateSeriesLabel(index: Int, newLabel: String) {
         tabs.updateSeriesLabel(index: index, newLabel: newLabel)
         _rerenderActiveTab()
+    }
+
+    func togglePointLabelVisibility(seriesIndex: Int, pointIndex: Int) {
+        tabs.togglePointLabelVisibility(seriesIndex: seriesIndex, pointIndex: pointIndex)
+        rerenderForStyleChange()
     }
 }
 

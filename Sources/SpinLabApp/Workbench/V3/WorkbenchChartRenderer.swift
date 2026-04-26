@@ -19,6 +19,8 @@ struct WorkbenchChartRenderer {
         /// When set, locks the x-axis range instead of auto-fitting to data extents.
         var fixedXMin: Double? = nil
         var fixedXMax: Double? = nil
+        /// Per-series hidden point-label indices, used when collecting pending labels.
+        var hiddenPointLabelsBySeries: [Int: Set<Int>] = [:]
         /// Pixel-density multiplier. Logical drawing stays in width×height; output PNG is width·scale × height·scale.
         var pixelScale: CGFloat = 2.0
     }
@@ -239,7 +241,10 @@ struct WorkbenchChartRenderer {
                     ctx.fillEllipse(in: CGRect(x: center.x - r, y: center.y - r,
                                                width: r * 2, height: r * 2))
                     if k < series.pointLabels.count {
-                        pendingLabels.append((series.pointLabels[k], center, color))
+                        let hidden = options.hiddenPointLabelsBySeries[i]
+                        if hidden?.contains(k) != true {
+                            pendingLabels.append((series.pointLabels[k], center, color))
+                        }
                     }
                 }
             }

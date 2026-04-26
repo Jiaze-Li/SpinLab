@@ -28,6 +28,8 @@ struct WorkbenchPlotCanvas: View {
     var onEditLegendLabel: ((Int, String) -> Void)?          = nil
     /// Font size change callback: (styleParamsKey, newSize). Triggers re-render.
     var onFontSizeChange:  ((String, CGFloat) -> Void)?      = nil
+    /// Point-dot toggle callback: (seriesIndex, pointIndex).
+    var onTogglePointLabelVisibility: ((Int, Int) -> Void)?  = nil
     /// Style override change callback: (styleParamsKey, stringValue). Triggers re-render.
     var onStyleOverrideChange: ((String, String) -> Void)?   = nil
     /// Current chart style overrides — used to show current font size / tick density in edit panel.
@@ -71,6 +73,7 @@ struct WorkbenchPlotCanvas: View {
         case xTickLabel
         case yTickLabel
         case pointLabel(seriesIndex: Int, pointIndex: Int)
+        case pointDot(seriesIndex: Int, pointIndex: Int)
     }
 
     /// The styleParams key for the font size of the currently editing element.
@@ -83,6 +86,7 @@ struct WorkbenchPlotCanvas: View {
         case .xTickLabel:         return "tickLabelFontSize"
         case .yTickLabel:         return "tickLabelFontSize"
         case .pointLabel:         return "pointLabelFontSize"
+        case .pointDot:           return nil
         case nil:                 return nil
         }
     }
@@ -268,11 +272,12 @@ struct WorkbenchPlotCanvas: View {
             case .xTickLabel:       return "X Tick"
             case .yTickLabel:       return "Y Tick"
             case .pointLabel:       return "Point Label"
+            case .pointDot:         return ""
             }
         }()
         let hasTextField: Bool = {
             switch elem {
-            case .xTickLabel, .yTickLabel, .pointLabel: return false
+            case .xTickLabel, .yTickLabel, .pointLabel, .pointDot: return false
             default: return true
             }
         }()
@@ -433,6 +438,25 @@ struct WorkbenchPlotCanvas: View {
                 }
             }
         }
+        // Point dot hit-test -> toggle visibility (higher priority than tick-label regions)
+        if onTogglePointLabelVisibility != nil, !layout.pointDotHitTargets.isEmpty {
+            for target in layout.pointDotHitTargets {
+                if toScreen(target.hitRect).contains(location) {
+                    onTogglePointLabelVisibility?(target.seriesIndex, target.pointIndex)
+                    return
+                }
+            }
+        }
+        // Point label hit-test -> open point-label font-size editor
+        if onFontSizeChange != nil, !layout.pointLabelHitTargets.isEmpty {
+            for target in layout.pointLabelHitTargets {
+                if toScreen(target.hitRect).contains(location) {
+                    editTargetScreenRect = toScreen(target.hitRect)
+                    editingElement = .pointLabel(seriesIndex: target.seriesIndex, pointIndex: target.pointIndex)
+                    return
+                }
+            }
+        }
         if onFontSizeChange != nil {
             if toScreen(layout.xTickHitRect).contains(location) {
                 editTargetScreenRect = toScreen(layout.xTickHitRect)
@@ -457,7 +481,7 @@ struct WorkbenchPlotCanvas: View {
         case .xLabel:             onEditXLabel?(text)
         case .yLabel:             onEditYLabel?(text)
         case .legend(let idx, _): onEditLegendLabel?(idx, text)
-        case .xTickLabel, .yTickLabel, .pointLabel: break
+        case .xTickLabel, .yTickLabel, .pointLabel, .pointDot: break
         }
         editingElement = nil
         editText = ""

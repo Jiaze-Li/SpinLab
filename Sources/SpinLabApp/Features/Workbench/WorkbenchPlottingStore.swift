@@ -24,4 +24,10 @@ protocol WorkbenchPlottingStore: AnyObject {
     func updateYAxisLabel(_ label: String)
     /// 用户重命名图例标签后回调。
     func updateSeriesLabel(index: Int, newLabel: String)
+    /// 用户点击点位圆点后切换 point label 显隐。
+    func togglePointLabelVisibility(seriesIndex: Int, pointIndex: Int)
+}
+
+extension WorkbenchPlottingStore {
+    func togglePointLabelVisibility(seriesIndex: Int, pointIndex: Int) {}
 }

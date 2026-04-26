@@ -35,6 +35,8 @@ enum WorkbenchRenderPipeline {
         var xLabelOverride: String = ""
         /// Override y-axis display label. Empty = use payload axisMapping.yField.
         var yLabelOverride: String = ""
+        /// Per-series hidden point-label indices for render-time label suppression.
+        var hiddenPointLabelsBySeries: [Int: Set<Int>] = [:]
         /// Additional styleParams patches (showGrid, legendAnchor, auxVerticalX, etc.).
         var styleParamsPatch: [String: String] = [:]
     }
@@ -141,7 +143,9 @@ enum WorkbenchRenderPipeline {
         }
 
         // 10. Render PNG
-        let imageData = try renderer.renderPNG(payload: payload, options: opts, style: chartStyle)
+        var optsWithHidden = opts
+        optsWithHidden.hiddenPointLabelsBySeries = input.hiddenPointLabelsBySeries
+        let imageData = try renderer.renderPNG(payload: payload, options: optsWithHidden, style: chartStyle)
 
         // 11. Build manifest payload with original data-column axis mapping
         var manifestPayload = payload
