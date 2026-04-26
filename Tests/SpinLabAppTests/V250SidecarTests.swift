@@ -39,7 +39,7 @@ struct V250SidecarTests {
                 WorkflowDefinition(
                     id: "XY",
                     displayName: "XY Rotation",
-                    parentID: nil,
+                    
                     conditionFields: [
                         WorkflowConditionField(definitionID: "temperature"),
                         WorkflowConditionField(definitionID: "field")
@@ -124,7 +124,7 @@ struct V250SidecarTests {
                 WorkflowDefinition(
                     id: "AHE",
                     displayName: "AHE",
-                    parentID: nil,
+                    
                     conditionFields: [
                         WorkflowConditionField(definitionID: "temperature"),
                         WorkflowConditionField(definitionID: "field"),
@@ -173,7 +173,7 @@ struct V250SidecarTests {
                 WorkflowDefinition(
                     id: "RT",
                     displayName: "RT",
-                    parentID: nil,
+                    
                     conditionFields: [WorkflowConditionField(definitionID: "current")]
                 )
             ]
@@ -219,7 +219,7 @@ struct V250SidecarTests {
                     WorkflowDefinition(
                         id: "RT",
                         displayName: "RT",
-                        parentID: nil,
+                        
                         conditionFields: [WorkflowConditionField(definitionID: "current")]
                     )
                 ]
@@ -265,7 +265,7 @@ struct V250SidecarTests {
                 WorkflowDefinition(
                     id: "XY",
                     displayName: "XY Rotation",
-                    parentID: nil,
+                    
                     conditionFields: [
                         WorkflowConditionField(definitionID: "temperature"),
                         WorkflowConditionField(definitionID: "field")

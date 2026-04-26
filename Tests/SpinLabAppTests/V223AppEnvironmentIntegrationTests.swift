@@ -109,7 +109,7 @@ struct V223AppEnvironmentIntegrationTests {
         #expect(appState.interactionValue(\.lastSeenRoutingRuleFingerprint) == appState.inbox.routingRuleFingerprint)
     }
 
-    @Test("workflow parser value is resolved to workflow id by case-insensitive id match")
+    @Test("workflow parser value is resolved to workflow id by case-insensitive token match")
     func workflowValueNormalizesToWorkflowID() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("spinlab-env-workflow-normalize-\(UUID().uuidString)", isDirectory: true)
@@ -118,18 +118,6 @@ struct V223AppEnvironmentIntegrationTests {
 
         let importURL = root.appendingPathComponent("PN20_AHE_1mA.dat")
         try Data("test".utf8).write(to: importURL)
-
-        let registryURL = root.appendingPathComponent("workflow_registry.json")
-        let registry = [
-            WorkflowDefinition(
-                id: "AHE",
-                displayName: "AHE Measurement",
-                parentID: nil,
-                conditionFields: [WorkflowConditionField(definitionID: "temperature")]
-            )
-        ]
-        let encodedRegistry = try JSONEncoder().encode(registry)
-        try encodedRegistry.write(to: registryURL, options: .atomic)
 
         let persistence = LocalPersistenceStub(
             pendingImports: [],
@@ -144,8 +132,7 @@ struct V223AppEnvironmentIntegrationTests {
             registrySubstrateRules: RegistrySubstrateRuleBook(),
             routingCapabilities: .live,
             ruleRuntime: makeBundleRuleRuntime(),
-            dataActor: MockDataActor(),
-            workflowRegistryStore: WorkflowRegistryStore(registryFileURL: registryURL)
+            dataActor: MockDataActor()
         )
         let appState = SpinLabAppState(environment: environment)
 
@@ -160,7 +147,7 @@ struct V223AppEnvironmentIntegrationTests {
             return
         }
         let draft = appState.pendingDisplayDraft(for: pending)
-        #expect(draft.workflowID == "AHE")
+        #expect(draft.workflowID == "ahe")
     }
 
     @Test("library sidecar original path is excluded from inbox import")
