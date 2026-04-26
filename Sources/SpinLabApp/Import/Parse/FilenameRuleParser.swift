@@ -3,6 +3,14 @@ import Foundation
 struct FilenameRuleParser {
     let ruleSet: FilenameRuleSet
 
+    private static let rotationHintMap: [String: String] = [
+        "90shift": "+90deg for I parallel B"
+    ]
+
+    private static func hardcodedRotationHint(from tokens: [String]) -> String? {
+        tokens.compactMap { rotationHintMap[$0.lowercased()] }.first
+    }
+
     private enum SampleKeySource: String {
         case file = "file"
         case folder = "folder"
@@ -123,7 +131,7 @@ struct FilenameRuleParser {
             measurementTags: measurementTags,
             substrateTags: substrateTags,
             conditionValues: conditionEvaluation.values,
-            rotationHint: ruleSet.rotationHint(from: fullContextTokens),
+            rotationHint: Self.hardcodedRotationHint(from: fullContextTokens),
             warnings: warnings
         )
     }

@@ -146,7 +146,6 @@ struct FilenameRuleSet: Decodable {
         var measurementNameRules: [CompiledMapRule] = []
         var measurementTagRules: [CompiledMapRule] = []
         var substrateTagRules: [CompiledMapRule] = []
-        var rotationHintRules: [CompiledMapRule] = []
         var channelAliases: [String: String] = [:]
         var conditionUnitSuffixRegexes: [String: NSRegularExpression] = [:]
         var conditionTokenMapRules: [String: [CompiledMapRule]] = [:]
@@ -161,7 +160,6 @@ struct FilenameRuleSet: Decodable {
     var measurementTagRules: [MapRule]
     var substrateTagRules: [MapRule]
     var channel: ChannelRules
-    var rotationHintRules: [MapRule]
     var conditions: ConditionRules
     var conditionDefinitions: [ConditionDefinition]
     var registry: RegistryRules?
@@ -181,7 +179,6 @@ struct FilenameRuleSet: Decodable {
         case measurementTagRules
         case substrateTagRules
         case channel
-        case rotationHintRules
         case conditions
         case conditionDefinitions
         case registry
@@ -198,7 +195,6 @@ struct FilenameRuleSet: Decodable {
         measurementTagRules: [MapRule],
         substrateTagRules: [MapRule],
         channel: ChannelRules,
-        rotationHintRules: [MapRule],
         conditions: ConditionRules,
         conditionDefinitions: [ConditionDefinition] = [],
         registry: RegistryRules?,
@@ -214,7 +210,6 @@ struct FilenameRuleSet: Decodable {
         self.measurementTagRules = measurementTagRules
         self.substrateTagRules = substrateTagRules
         self.channel = channel
-        self.rotationHintRules = rotationHintRules
         self.conditions = conditions
         self.conditionDefinitions = conditionDefinitions
         self.registry = registry
@@ -235,7 +230,6 @@ struct FilenameRuleSet: Decodable {
         measurementTagRules = try container.decodeIfPresent([MapRule].self, forKey: .measurementTagRules) ?? []
         substrateTagRules = try container.decodeIfPresent([MapRule].self, forKey: .substrateTagRules) ?? []
         channel = try container.decode(ChannelRules.self, forKey: .channel)
-        rotationHintRules = try container.decodeIfPresent([MapRule].self, forKey: .rotationHintRules) ?? []
         conditions = try container.decodeIfPresent(ConditionRules.self, forKey: .conditions) ?? ConditionRules()
         conditionDefinitions = try container.decodeIfPresent([ConditionDefinition].self, forKey: .conditionDefinitions) ?? []
         registry = try container.decodeIfPresent(RegistryRules.self, forKey: .registry)
@@ -259,7 +253,6 @@ struct FilenameRuleSet: Decodable {
         compiled.measurementNameRules = compileMapRules(measurementNameRules, warnings: &warnings, label: "measurementNameRules")
         compiled.measurementTagRules = compileMapRules(measurementTagRules, warnings: &warnings, label: "measurementTagRules")
         compiled.substrateTagRules = compileMapRules(substrateTagRules, warnings: &warnings, label: "substrateTagRules")
-        compiled.rotationHintRules = compileMapRules(rotationHintRules, warnings: &warnings, label: "rotationHintRules")
         compileConditionDefinitions(warnings: &warnings)
 
         compiled.channelAliases = channel.aliases.reduce(into: [:]) { partial, entry in
@@ -314,10 +307,6 @@ struct FilenameRuleSet: Decodable {
             tokens: tokens,
             joined: nil
         )
-    }
-
-    func rotationHint(from tokens: [String]) -> String? {
-        firstMatchValue(from: compiled.rotationHintRules, tokens: tokens, joined: nil)
     }
 
     func temperature(from tokens: [String]) -> String? {
@@ -659,7 +648,6 @@ struct FilenameRuleSet: Decodable {
             measurementTagRules: [],
             substrateTagRules: [],
             channel: ChannelRules(aliases: [:]),
-            rotationHintRules: [],
             conditions: ConditionRules(
                 extraConditions: [
                     ConditionFieldCatalog.temperatureID: "",
