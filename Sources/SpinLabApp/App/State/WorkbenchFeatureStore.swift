@@ -321,7 +321,7 @@ final class WorkbenchFeatureStore {
     init(
         libraryRepository: LibraryRepository,
         dataActor: any SpinLabDataActing = SpinLabDataActor(),
-        workflowRegistryStore: WorkflowRegistryStore,
+        workflowRegistryStore: WorkflowRegistryStore = WorkflowRegistryStore(),
         workflowDefinitionStore: WorkflowDefinitionStore = WorkflowDefinitionStore()
     ) {
         let initialArchivedRecords = libraryRepository.archivedRecords

@@ -347,7 +347,6 @@ final class SpinLabAppState {
         self.workbenchFeatureStore = WorkbenchFeatureStore(
             libraryRepository: self.libraryRepository,
             dataActor: environment.dataActor,
-            workflowRegistryStore: environment.workflowRegistryStore,
             workflowDefinitionStore: environment.workflowDefinitionStore
         )
         let interactionMemory = InteractionMemoryStore(persistence: environment.persistence)

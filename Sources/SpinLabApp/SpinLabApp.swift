@@ -7,6 +7,7 @@ struct SpinLabApp: App {
 
     init() {
         RulesMigration.runIfNeeded()
+        WorkflowRegistryRetirementService().runIfNeeded()
         let registry = WorkflowRegistry.shared
         let workflow = Self.workflowSelection(from: ProcessInfo.processInfo.environment["SPINLAB_WORKFLOW"])
         let bundle = registry.bundle(for: workflow) ?? registry.defaultBundle()
