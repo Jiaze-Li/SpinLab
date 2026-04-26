@@ -301,6 +301,8 @@ final class WorkbenchFeatureStore {
     @ObservationIgnored
     private let workflowRegistryStore: WorkflowRegistryStore
     @ObservationIgnored
+    private let workflowDefinitionStore: WorkflowDefinitionStore
+    @ObservationIgnored
     var onDefinitionsChanged: (([WorkflowDefinition]) -> Void)?
 
     var selectedSection: WorkbenchSection = .workflows
@@ -319,11 +321,12 @@ final class WorkbenchFeatureStore {
     init(
         libraryRepository: LibraryRepository,
         dataActor: any SpinLabDataActing = SpinLabDataActor(),
-        workflowRegistryStore: WorkflowRegistryStore
+        workflowRegistryStore: WorkflowRegistryStore,
+        workflowDefinitionStore: WorkflowDefinitionStore = WorkflowDefinitionStore()
     ) {
         let initialArchivedRecords = libraryRepository.archivedRecords
         let initialProjectCatalog = libraryRepository.projects
-        let initialWorkflowDefinitions = workflowRegistryStore.load()
+        let initialWorkflowDefinitions = workflowDefinitionStore.load()
         let initialRuleSet = RuleLoader.shared.loadCached().ruleSet
         let initialConditionOptions: [ConditionDefinitionOption] = initialRuleSet.conditionDefinitions.compactMap { def in
             let id = def.id.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -338,6 +341,7 @@ final class WorkbenchFeatureStore {
         self.libraryRepository = libraryRepository
         self.dataActor = dataActor
         self.workflowRegistryStore = workflowRegistryStore
+        self.workflowDefinitionStore = workflowDefinitionStore
         self.archivedRecords = initialArchivedRecords
         self.projectCatalog = initialProjectCatalog
         self.selectedArchivedRecordID = initialArchivedRecords.first?.id
@@ -1059,7 +1063,7 @@ final class WorkbenchFeatureStore {
                 : (ConditionFieldCatalog.labelMap(from: ruleSet)[id] ?? ConditionFieldCatalog.defaultLabel(for: id))
             return ConditionDefinitionOption(id: id, label: resolvedLabel)
         }
-        workflowDefinitions = workflowRegistryStore.load()
+        workflowDefinitions = workflowDefinitionStore.load()
         if let selectedID,
            workflowDefinitions.contains(where: { $0.id.caseInsensitiveCompare(selectedID) == .orderedSame }) {
             let resolvedID = workflowDefinitions.first(where: {
