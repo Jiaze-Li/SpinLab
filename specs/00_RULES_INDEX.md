@@ -5,12 +5,12 @@ Status: active
 This file is the entry point for all active implementation rules.
 
 ## Rule priority
-1. `docs/specs/01_PRODUCT_RULES.md`
-2. `docs/specs/02_DATA_RULES.md`
-3. `docs/specs/03_PARSER_ROUTING_RULES.md`
-4. `docs/specs/04_UI_RULES.md`
-5. `docs/specs/05_INBOX_DEPOSIT_UI_SPEC.md`
-6. `docs/specs/APP_DESIGN_PRINCIPLES.md`
+1. `specs/01_PRODUCT_RULES.md`
+2. `specs/02_DATA_RULES.md`
+3. `specs/03_PARSER_ROUTING_RULES.md`
+4. `specs/04_UI_RULES.md`
+5. `specs/05_INBOX_DEPOSIT_UI_SPEC.md`
+6. `specs/APP_DESIGN_PRINCIPLES.md`
 
 If two rules conflict, the higher-priority file above wins.
 
@@ -23,4 +23,4 @@ If two rules conflict, the higher-priority file above wins.
 - `APP_DESIGN_PRINCIPLES.md`: long-term philosophy and architectural direction.
 
 ## Archived specs
-Historical docs are moved under `docs/specs/archive/` and are reference-only.
+Historical docs are moved under `specs/archive/` and are reference-only.

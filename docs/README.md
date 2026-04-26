@@ -44,25 +44,28 @@ Entries added on version bumps, feature changes, or architecture adjustments.
 | v5.3.2 | Plot Render Pipeline unification | `history/v5.3.2_render_pipeline.md` |
 | v5.3.3 | Multi-Tab Render State Manager | `history/v5.3.3_multi_tab_render_manager.md` |
 | v5.3.4 | Legend Dimension Auto-Inference + Visual Consistency | `history/v534_legend_dimension_resolver.md` |
+| v5.3.5 | Point Label Font Size + Visibility Toggle + Copy PNG Scale Menu | `history/v535_point_label_controls.md` |
 | v5.5.0 | Cross-Area UI Unification | `history/v550_ui_unification.md` |
 
 ## specs (产品/数据/UI 规则)
 
+All specs have been consolidated under the project-root `specs/` directory.
+
 | Document | Purpose | Status |
 |---|---|---|
-| `specs/00_RULES_INDEX.md` | Rules entry point and priority order. | active |
-| `specs/01_PRODUCT_RULES.md` | Product behavior contract and safety boundaries. | active |
-| `specs/02_DATA_RULES.md` | Domain model, metadata ownership, normalization rules. | active |
-| `specs/03_PARSER_ROUTING_RULES.md` | Inbox parse/routing rules and conflict behavior. | active |
-| `specs/04_UI_RULES.md` | UI visual & interaction rules (fonts, spacing, buttons, disclosure, accessibility). | active |
-| `specs/05_INBOX_DEPOSIT_UI_SPEC.md` | Inbox deposit UI flow, button semantics, drawer-mapping contract. | active |
-| `specs/06_PROJECT_ARCHITECTURE.md` | Project-specific architecture: code placement, module contracts, checklists. | active |
-| `specs/APP_DESIGN_PRINCIPLES.md` | Long-term architecture and product philosophy. | active |
-| `specs/three_omega_physics.md` | 3-Omega measurement physics reference. | reference |
+| `../specs/00_RULES_INDEX.md` | Rules entry point and priority order. | active |
+| `../specs/01_PRODUCT_RULES.md` | Product behavior contract and safety boundaries. | active |
+| `../specs/02_DATA_RULES.md` | Domain model, metadata ownership, normalization rules. | active |
+| `../specs/03_PARSER_ROUTING_RULES.md` | Inbox parse/routing rules and conflict behavior. | active |
+| `../specs/04_UI_RULES.md` | UI visual & interaction rules (fonts, spacing, buttons, disclosure, accessibility). | active |
+| `../specs/05_INBOX_DEPOSIT_UI_SPEC.md` | Inbox deposit UI flow, button semantics, drawer-mapping contract. | active |
+| `../specs/06_PROJECT_ARCHITECTURE.md` | Project-specific architecture: code placement, module contracts, checklists. | active |
+| `../specs/APP_DESIGN_PRINCIPLES.md` | Long-term architecture and product philosophy. | active |
+| `../specs/three_omega_physics.md` | 3-Omega measurement physics reference. | reference |
 
 ## Notes
 - Architecture docs: system design and per-module technical reference.
 - History docs: version plans, iteration records, event-driven development logs.
-- Specs: product rules, data contracts, UI standards.
+- Specs: product rules, data contracts, UI standards — all under project-root `specs/`.
 - Root-level docs: living knowledge accumulation (philosophy, invariants, known issues).
 - Legacy specs are kept under `specs/archive/`.

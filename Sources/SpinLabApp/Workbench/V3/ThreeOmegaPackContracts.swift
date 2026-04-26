@@ -25,6 +25,8 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
 
     // --- Per-tab display states (v5.3.3+, keyed by stableKey for Codable) ---
     var tabStates: [String: TabRenderState] = [:]
+    // --- Shared chart style overrides (v5.3.5+, e.g. font sizes) ---
+    var chartStyleOverrides: [String: String] = [:]
 
     // --- Search state (v5.3.4+) ---
     var cachedSearchResults: [WorkflowMeasurementSearchHit]
@@ -38,6 +40,7 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
          sampleBatchAndSubstrate: String, activeTab: String, titleTemplate: String,
          stackOffsetMultiplier: Double, minGapFraction: Double, showPlotGrid: Bool,
          plotLegendAnchor: String, tabStates: [String: TabRenderState] = [:],
+         chartStyleOverrides: [String: String] = [:],
          cachedSearchResults: [WorkflowMeasurementSearchHit] = [], selectedSearchResultIDs: [String] = [],
          selectedRTHit: WorkflowMeasurementSearchHit? = nil, rtQuery: String = "", searchQueryText: String = "") {
         self.device = device; self.geometry = geometry; self.fitRanges = fitRanges
@@ -46,7 +49,8 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
         self.activeTab = activeTab; self.titleTemplate = titleTemplate
         self.stackOffsetMultiplier = stackOffsetMultiplier; self.minGapFraction = minGapFraction
         self.showPlotGrid = showPlotGrid; self.plotLegendAnchor = plotLegendAnchor
-        self.tabStates = tabStates; self.cachedSearchResults = cachedSearchResults
+        self.tabStates = tabStates; self.chartStyleOverrides = chartStyleOverrides
+        self.cachedSearchResults = cachedSearchResults
         self.selectedSearchResultIDs = selectedSearchResultIDs; self.selectedRTHit = selectedRTHit
         self.rtQuery = rtQuery; self.searchQueryText = searchQueryText
     }
@@ -69,6 +73,7 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
         showPlotGrid            = try c.decode(Bool.self, forKey: .showPlotGrid)
         plotLegendAnchor        = try c.decodeIfPresent(String.self, forKey: .plotLegendAnchor) ?? ""
         tabStates               = try c.decodeIfPresent([String: TabRenderState].self, forKey: .tabStates) ?? [:]
+        chartStyleOverrides     = try c.decodeIfPresent([String: String].self, forKey: .chartStyleOverrides) ?? [:]
         cachedSearchResults     = try c.decodeIfPresent([WorkflowMeasurementSearchHit].self, forKey: .cachedSearchResults) ?? []
         selectedSearchResultIDs = try c.decodeIfPresent([String].self, forKey: .selectedSearchResultIDs) ?? []
         selectedRTHit           = try c.decodeIfPresent(WorkflowMeasurementSearchHit.self, forKey: .selectedRTHit)

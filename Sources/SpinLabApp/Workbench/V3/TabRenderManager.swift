@@ -30,6 +30,42 @@ struct TabRenderState: Codable, Hashable, Sendable {
     var xLabelOverride: String = ""
     var yLabelOverride: String = ""
     var seriesLabelOverrides: [Int: String] = [:]
+    var hiddenPointLabelIndicesBySeries: [Int: [Int]] = [:]
+
+    init(
+        legendPoint: CGPointCodable? = nil,
+        titleOverride: String = "",
+        xLabelOverride: String = "",
+        yLabelOverride: String = "",
+        seriesLabelOverrides: [Int: String] = [:],
+        hiddenPointLabelIndicesBySeries: [Int: [Int]] = [:]
+    ) {
+        self.legendPoint = legendPoint
+        self.titleOverride = titleOverride
+        self.xLabelOverride = xLabelOverride
+        self.yLabelOverride = yLabelOverride
+        self.seriesLabelOverrides = seriesLabelOverrides
+        self.hiddenPointLabelIndicesBySeries = hiddenPointLabelIndicesBySeries
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case legendPoint
+        case titleOverride
+        case xLabelOverride
+        case yLabelOverride
+        case seriesLabelOverrides
+        case hiddenPointLabelIndicesBySeries
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        legendPoint = try c.decodeIfPresent(CGPointCodable.self, forKey: .legendPoint)
+        titleOverride = try c.decodeIfPresent(String.self, forKey: .titleOverride) ?? ""
+        xLabelOverride = try c.decodeIfPresent(String.self, forKey: .xLabelOverride) ?? ""
+        yLabelOverride = try c.decodeIfPresent(String.self, forKey: .yLabelOverride) ?? ""
+        seriesLabelOverrides = try c.decodeIfPresent([Int: String].self, forKey: .seriesLabelOverrides) ?? [:]
+        hiddenPointLabelIndicesBySeries = try c.decodeIfPresent([Int: [Int]].self, forKey: .hiddenPointLabelIndicesBySeries) ?? [:]
+    }
 }
 
 // MARK: - TabRenderOutput
@@ -169,6 +205,25 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         }
     }
 
+    // Toggle a point label's visibility for the active tab.
+    func togglePointLabelVisibility(seriesIndex: Int, pointIndex: Int) {
+        var hidden = tabStates[activeTab, default: TabRenderState()].hiddenPointLabelIndicesBySeries
+        var indices = Set(hidden[seriesIndex] ?? [])
+        if indices.contains(pointIndex) {
+            indices.remove(pointIndex)
+        } else {
+            indices.insert(pointIndex)
+        }
+        hidden[seriesIndex] = indices.isEmpty ? nil : indices.sorted()
+        tabStates[activeTab, default: TabRenderState()].hiddenPointLabelIndicesBySeries = hidden
+    }
+
+    // Returns the hidden-point-label set for a given tab (runtime format for O(1) lookup).
+    func hiddenPointLabelSet(for tab: Tab) -> [Int: Set<Int>] {
+        let indices = (tabStates[tab] ?? TabRenderState()).hiddenPointLabelIndicesBySeries
+        return indices.mapValues { Set($0) }
+    }
+
     // MARK: - Render output management
 
     func setOutput(_ output: TabRenderOutput, for tab: Tab) {
@@ -214,6 +269,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             titleOverride: s.titleOverride,
             xLabelOverride: s.xLabelOverride,
             yLabelOverride: s.yLabelOverride,
+            hiddenPointLabelsBySeries: hiddenPointLabelSet(for: targetTab),
             styleParamsPatch: patch
         )
     }

@@ -308,6 +308,28 @@ struct V225RulesConfigContractTests {
         }
     }
 
+    @Test("ConditionRules decodes when displayLabels key is missing")
+    func conditionRulesDecodesWithMissingDisplayLabels() throws {
+        let json = """
+        {
+          "extraConditions": {"temperature": "^-?\\\\d+(?:\\\\.\\\\d+)?(?:K)$"},
+          "tokenMapRules": {}
+        }
+        """.data(using: .utf8)!
+        let conditions = try JSONDecoder().decode(FilenameRuleSet.ConditionRules.self, from: json)
+        #expect(conditions.displayLabels.isEmpty)
+        #expect(conditions.extraConditions["temperature"] != nil)
+    }
+
+    @Test("ConditionRules decodes when all optional keys are absent")
+    func conditionRulesDecodesWithAllKeysAbsent() throws {
+        let json = "{}".data(using: .utf8)!
+        let conditions = try JSONDecoder().decode(FilenameRuleSet.ConditionRules.self, from: json)
+        #expect(conditions.extraConditions.isEmpty)
+        #expect(conditions.tokenMapRules.isEmpty)
+        #expect(conditions.displayLabels.isEmpty)
+    }
+
     private func loadRuleSet() throws -> FilenameRuleSet {
         let testsDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         let projectRoot = testsDir.deletingLastPathComponent().deletingLastPathComponent()

@@ -154,39 +154,59 @@ final class InboxFeatureStore {
     ) {
         importTask?.cancel()
 
-        // Phase 1 (sync): scan + fingerprint → get filtered file list and total count.
-        let managedFiles = managedStorage.importMeasurementFiles(
+        // Phase 1 (sync): fast scan (path/file-name dedupe only) and initialize progress immediately.
+        let scannedURLs = managedStorage.scanMeasurementSourceFiles(
             from: urls,
             allowedFileExtensions: importPipeline.supportedFileExtensions,
             ignoredFileExtensions: importPipeline.ignoredFileExtensions,
             excludedOriginalFilePaths: excludedOriginalFilePaths,
-            excludedContentFingerprints: excludedContentFingerprints,
             excludedFileNames: excludedFileNames
         )
-        guard !managedFiles.isEmpty else {
+        guard !scannedURLs.isEmpty else {
             return
         }
 
         importProgressState = ImportProgressState(
             isRunning: true,
-            totalCount: managedFiles.count,
+            totalCount: scannedURLs.count,
             processedCount: 0,
-            currentFileName: managedFiles[0].fileName,
+            currentFileName: scannedURLs[0].lastPathComponent,
             failedCount: 0
         )
 
-        // Phase 2 (async): parse one file at a time, yielding between each so the UI can update.
+        // Phase 2 (async): fingerprint on detached utility task, then parse one file at a time.
         importTask = Task { @MainActor [weak self] in
             defer { self?.importProgressState = .init() }
 
             var accumulated: [SpinLabDomain.PendingImport] = []
-            accumulated.reserveCapacity(managedFiles.count)
+            accumulated.reserveCapacity(scannedURLs.count)
+            var seenContentFingerprints = Set(excludedContentFingerprints.map { $0.lowercased() })
 
-            for file in managedFiles {
+            for url in scannedURLs {
                 guard !Task.isCancelled, let self else { return }
-                self.importProgressState.currentFileName = file.fileName
                 await Task.yield()
                 guard !Task.isCancelled else { return }
+                self.importProgressState.currentFileName = url.lastPathComponent
+
+                let fingerprint = await Task.detached(priority: .utility) {
+                    managedStorage.contentFingerprint(for: url)
+                }.value
+                guard !Task.isCancelled else { return }
+
+                if let fingerprint {
+                    let normalizedFingerprint = fingerprint.lowercased()
+                    let inserted = seenContentFingerprints.insert(normalizedFingerprint).inserted
+                    if !inserted {
+                        self.importProgressState.processedCount += 1
+                        continue
+                    }
+                }
+
+                let file = ImportedMeasurementFile(
+                    fileName: url.lastPathComponent,
+                    sourceFileURL: url,
+                    originalFileURL: url
+                )
 
                 let parsed = importPipeline.importFiles([file])
                 if parsed.isEmpty {

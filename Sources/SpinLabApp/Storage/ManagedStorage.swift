@@ -61,17 +61,19 @@ final class SpinLabManagedStorage {
         excludedContentFingerprints: Set<String> = [],
         excludedFileNames: Set<String> = []
     ) -> [ImportedMeasurementFile] {
-        let sourceFiles = expandMeasurementSourceFiles(
+        let scannedSourceFiles = scanMeasurementSourceFiles(
             from: urls,
             allowedFileExtensions: allowedFileExtensions,
-            ignoredFileExtensions: ignoredFileExtensions
+            ignoredFileExtensions: ignoredFileExtensions,
+            excludedOriginalFilePaths: excludedOriginalFilePaths,
+            excludedFileNames: excludedFileNames
         )
         var duplicateGuard = DuplicateGuard(
             excludedOriginalPaths: excludedOriginalFilePaths,
             excludedContentFingerprints: excludedContentFingerprints,
             excludedFileNames: excludedFileNames
         )
-        return sourceFiles.compactMap { sourceURL in
+        return scannedSourceFiles.compactMap { sourceURL in
             let originalPath = sourceURL.path
             let fingerprint = contentFingerprint(for: sourceURL)
             guard duplicateGuard.accepts(originalPath: originalPath, contentFingerprint: fingerprint) else {
@@ -82,6 +84,27 @@ final class SpinLabManagedStorage {
                 sourceFileURL: sourceURL,
                 originalFileURL: sourceURL
             )
+        }
+    }
+
+    func scanMeasurementSourceFiles(
+        from urls: [URL],
+        allowedFileExtensions: Set<String>,
+        ignoredFileExtensions: Set<String> = [],
+        excludedOriginalFilePaths: Set<String> = [],
+        excludedFileNames: Set<String> = []
+    ) -> [URL] {
+        let sourceFiles = expandMeasurementSourceFiles(
+            from: urls,
+            allowedFileExtensions: allowedFileExtensions,
+            ignoredFileExtensions: ignoredFileExtensions
+        )
+        var duplicateGuard = DuplicateGuard(
+            excludedOriginalPaths: excludedOriginalFilePaths,
+            excludedFileNames: excludedFileNames
+        )
+        return sourceFiles.filter { sourceURL in
+            duplicateGuard.accepts(originalPath: sourceURL.path, contentFingerprint: nil)
         }
     }
 
@@ -223,7 +246,7 @@ final class SpinLabManagedStorage {
         URL(fileURLWithPath: path).standardizedFileURL.path
     }
 
-    private func contentFingerprint(for url: URL) -> String? {
+    func contentFingerprint(for url: URL) -> String? {
         guard let data = try? Data(contentsOf: url, options: [.mappedIfSafe]) else {
             return nil
         }
