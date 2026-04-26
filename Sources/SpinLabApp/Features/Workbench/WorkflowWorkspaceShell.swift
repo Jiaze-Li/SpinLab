@@ -215,7 +215,7 @@ struct WorkflowWorkspaceShell<
                 plotCanvas
                 rightExtra
                 WorkbenchTracePanel(trace: store.currentRunTrace)
-                WorkbenchWarningPanel(entries: store.warningLog)
+                WorkbenchWarningPanel(entries: store.warningLog.entries)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)

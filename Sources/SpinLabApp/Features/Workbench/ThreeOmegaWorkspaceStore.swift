@@ -138,7 +138,7 @@ final class ThreeOmegaWorkspaceStore {
 
     // MARK: - Warning log (persists across runs within the session)
 
-    var warningLog: [WorkbenchWarningEntry] = []
+    var warningLog: WorkbenchWarningLog = WorkbenchWarningLog()
 
     // MARK: - Multi-tab render state (shell capability)
 
@@ -677,7 +677,7 @@ final class ThreeOmegaWorkspaceStore {
         analysisMessage          = nil
         _titleTokens             = [:]
         tabs.clearAll()
-        warningLog               = []
+        warningLog.clear()
         activePackID             = nil
         overlayPackIDs           = []
         overlaySnapshots         = [:]
