@@ -176,6 +176,32 @@ Architecture details: `docs/history/v515_s6_auto_sync_engine.md`
 
 ---
 
+## Rules Startup Bootstrap & Registry Retirement (v5.1.5 s7)
+
+### Bootstrapper
+- `RulesBootstrapper.seedMissingRuntimeFilesFromBundleIfNeeded()` runs on every App launch
+- Per-file atomic seed: only missing files are written; existing files are never touched
+- Replaces `RulesMigration` (full migration pipeline retired)
+
+### Workflow Registry Retirement
+- `WorkflowRegistryRetirementService.runIfNeeded()` runs once on first launch after upgrade
+- Detects outer `workflow_registry.json` (legacy location, one level above `config/`); if absent → no-op
+- Merge logic: same ID → update `displayName` + `conditionFieldIDs`, preserve `matchRules`; registry-only ID → append with empty `matchRules`
+- Failure safe: decode errors back up registry and leave `workflow.json` unchanged
+- After merge the outer registry is retired (deleted)
+
+### Workbench Workflow List (read-only)
+- `WorkbenchFeatureStore` reads workflow definitions from `config/workflow.json` via `WorkflowDefinitionStore`
+- All CRUD methods for workflows removed; workflow definitions are managed exclusively via the Rules Panel
+- `WorkflowRegistryView` is now a read-only list+summary with a jump-to-rules-panel button
+
+### Test Coverage
+- 3 bootstrapper tests: seed all, seed partial, idempotent
+- 4 retirement tests: same-ID merge, registry-only append, decode-failure backup, second-startup no-op
+- 4 workbench read-only tests: load from JSON, route to workflow, empty file no crash, CRUD absence guard
+
+---
+
 ## Shared
 
 Behavior details: `specs/04_UI_RULES.md`

@@ -28,12 +28,15 @@
 
 ## 待消费
 
-（空）
+| 日期 | Handoff | 状态 |
+|---|---|---|
+| — | — | — |
 
 ## 已归档
 
 | 日期 | Handoff | 完成会话 | 验收摘要 |
 |---|---|---|---|
+| 2026-04-26 | [2026-04-26-5.1.5-s7-rules-tail-cleanup.md](2026-04-26-5.1.5-s7-rules-tail-cleanup.md) | 2026-04-26 s7 | WorkflowDefinitionStore + WorkflowRegistryRetirementService（外层 registry 合并）+ parentID 删除 + RulesBootstrapper 替换 RulesMigration + WorkflowRegistryView 只读重写；5 commits 08c7f8a–f7939c4；11 new tests；79/79 V515 green |
 | 2026-04-26 | [2026-04-26-5.1.5-s6-auto-sync-engine.md](2026-04-26-5.1.5-s6-auto-sync-engine.md) | 2026-04-26 s6 | RepositoryPointer（.git 身份校验）+ RulesSyncEngine（dual-write + reverseSyncOnStartup + H5 decode guard）+ degraded banner + mirror 警告图标 + 32 tests（20+12）；68/68 V515 green；commits 99514e2 + 4a586fe |
 | 2026-04-26 | [2026-04-26-5.1.5-s5-rules-panel-rewrite.md](2026-04-26-5.1.5-s5-rules-panel-rewrite.md) | 2026-04-26 s5 | RulesManagementStore 重写 + 5 新 section + WorkflowMatchRuleEditor + 36 tests；R1 硬门禁满足；旧 5 section 文件全删；commit ea09161；swift build clean |
 | 2026-04-26 | [2026-04-26-5.1.5-s3-rules-redesign.md](archive/2026-04-26-5.1.5-s3-rules-redesign.md) | 2026-04-26 s4 | C1 8df3ee7 5本子schema+RulesConfigPaths；C2 a9ebf19 RuleLoader 5文件装配；C3 f527d17 RulesMigration v2→v3；C4a/C4b 362025b WorkflowIDAllocator退役+parentID strip；C5 1a62ed8 rotationHintRules硬编码迁移；C6 747b7e4 旧bundle文件删除+V210 fixture更新；D7 displayLabels有消费方保留；swift build clean + V210/V515 全绿 |
