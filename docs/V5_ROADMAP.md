@@ -108,6 +108,12 @@ _(预留)_
 - [x] 删除 ThreeOmegaPlotRenderer / XYRotationPlotRenderer 分散的 .reversed()
 - [x] 测试：16 cases 覆盖 resolver + pipeline + backward decode
 
+### 5.3.5 — 数据点标签可调（字号 + 显隐）
+- [ ] 全图点标签字号统一可调：点击图里任一点标签弹出已有 title/legend 那套字号选项面板（复用 `WorkbenchPlotCanvas` 的 editFontSizeKey + onFontSizeChange 通道，新增一个 key）；改动同步影响所有图的点标签
+- [ ] 点击数据点切换该点的标签显隐：复用现有 hit-test 机制扩展数据点命中；记录用结果中的位置 index，不绑温度（保持通用，未来其他场景也能用）
+- [ ] 持久化复用现有 Update Analysis：把"隐藏的点列表 + 标签字号"塞进现有 ThreeOmega Scaling pack 配置字段，Load Analysis 时按既有重画路径恢复，不新增存储入口
+- [ ] 触发范围：先 3ω Scaling Law（当前唯一使用点标签的 tab），其他 workflow 后续接入零成本
+
 ---
 
 ## 5.4.x — Library 逻辑/架构
