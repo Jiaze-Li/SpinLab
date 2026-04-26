@@ -14,7 +14,7 @@
           "match": {
             "scope": "tokens",
             "type": "equals",
-            "value": "wafer"
+            "matchValues": ["wafer"]
           },
           "value": "wafer"
         }

@@ -10,19 +10,12 @@ struct WorkflowMatchRuleEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             Picker("Scope", selection: $spec.scope) {
-                ForEach(scopeOptions, id: \.self) { option in
-                    Text(option).tag(option)
-                }
+                ForEach(scopeOptions, id: \.self) { Text($0).tag($0) }
             }
-
             Picker("Type", selection: $spec.type) {
-                ForEach(typeOptions, id: \.self) { option in
-                    Text(option).tag(option)
-                }
+                ForEach(typeOptions, id: \.self) { Text($0).tag($0) }
             }
-            .onChange(of: spec.type) { _, newType in
-                normalizeValueStorage(for: newType)
-            }
+            .onChange(of: spec.type) { _, newType in normalizeValueStorage(for: newType) }
 
             if multiValueTypes.contains(spec.type) {
                 valuesEditor
@@ -37,42 +30,32 @@ struct WorkflowMatchRuleEditor: View {
     private var valuesEditor: some View {
         VStack(alignment: .leading, spacing: AppSpacing.xs) {
             HStack {
-                Text("Match Values")
-                    .font(AppFontScale.groupHeader)
+                Text("Match Values").font(AppFontScale.groupHeader)
                 Spacer()
                 Button("Add") {
-                    var values = spec.values ?? []
-                    values.append("")
-                    spec.values = values
-                    spec.value = nil
+                    spec.matchValues.append("")
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
             }
 
-            ForEach((spec.values ?? []).indices, id: \.self) { index in
+            ForEach(spec.matchValues.indices, id: \.self) { index in
                 HStack(spacing: AppSpacing.sm) {
                     TextField(
                         "value",
                         text: Binding(
-                            get: { (spec.values ?? [])[safe: index] ?? "" },
+                            get: { spec.matchValues.indices.contains(index) ? spec.matchValues[index] : "" },
                             set: { newValue in
-                                var values = spec.values ?? []
-                                guard values.indices.contains(index) else { return }
-                                values[index] = newValue
-                                spec.values = values
-                                spec.value = nil
+                                guard spec.matchValues.indices.contains(index) else { return }
+                                spec.matchValues[index] = newValue
                             }
                         )
                     )
                     .textFieldStyle(.roundedBorder)
 
                     Button(role: .destructive) {
-                        var values = spec.values ?? []
-                        guard values.indices.contains(index) else { return }
-                        values.remove(at: index)
-                        spec.values = values
-                        spec.value = nil
+                        guard spec.matchValues.indices.contains(index) else { return }
+                        spec.matchValues.remove(at: index)
                     } label: {
                         Image(systemName: "minus.circle")
                     }
@@ -85,34 +68,21 @@ struct WorkflowMatchRuleEditor: View {
 
     private var bindingForSingleValue: Binding<String> {
         Binding(
-            get: { spec.value ?? "" },
+            get: { spec.matchValues.first ?? "" },
             set: { newValue in
-                spec.value = newValue
-                spec.values = nil
+                spec.matchValues = newValue.isEmpty ? [] : [newValue]
             }
         )
     }
 
     private func normalizeValueStorage(for type: String) {
         if multiValueTypes.contains(type) {
-            let seed = spec.value.flatMap { $0.isEmpty ? nil : $0 }
-            if spec.values == nil {
-                spec.values = seed.map { [$0] } ?? []
+            if spec.matchValues.isEmpty || spec.matchValues == [""] {
+                spec.matchValues = [""]
             }
-            spec.value = nil
         } else {
-            if let values = spec.values, !values.isEmpty {
-                spec.value = values[0]
-            } else if spec.value == nil {
-                spec.value = ""
-            }
-            spec.values = nil
+            let first = spec.matchValues.first ?? ""
+            spec.matchValues = first.isEmpty ? [] : [first]
         }
-    }
-}
-
-private extension Array {
-    subscript(safe index: Index) -> Element? {
-        indices.contains(index) ? self[index] : nil
     }
 }

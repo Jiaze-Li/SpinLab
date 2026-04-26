@@ -87,8 +87,6 @@ struct FilenameRuleSet: Decodable {
         var batchHeaderAliases: [String]
         var substrateHeaderAliases: [String]
         var numericKeyAliases: [String: [String]]
-        var substrateMaterialTokens: [String]
-        var substrateProcessingKeywords: [String: [String]]
         var metadataLookupAliases: [String: [String]]
     }
 
@@ -161,8 +159,32 @@ struct FilenameRuleSet: Decodable {
     struct MatchSpec: Decodable {
         var scope: MatchScope
         var type: MatchType
-        var value: String?
-        var values: [String]?
+        var matchValues: [String]
+
+        enum CodingKeys: String, CodingKey {
+            case scope, type, matchValues, value, values
+        }
+
+        init(scope: MatchScope, type: MatchType, matchValues: [String]) {
+            self.scope = scope
+            self.type = type
+            self.matchValues = matchValues
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            scope = try container.decode(MatchScope.self, forKey: .scope)
+            type = try container.decode(MatchType.self, forKey: .type)
+            if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
+                matchValues = mv
+            } else if let vs = try container.decodeIfPresent([String].self, forKey: .values) {
+                matchValues = vs
+            } else if let v = try container.decodeIfPresent(String.self, forKey: .value) {
+                matchValues = [v]
+            } else {
+                matchValues = []
+            }
+        }
     }
 
     struct MapRule: Decodable {
@@ -440,7 +462,7 @@ struct FilenameRuleSet: Decodable {
     private func compileMapRules(_ rules: [MapRule], warnings: inout [String], label: String) -> [CompiledMapRule] {
         rules.map { rule in
             var compiledRule = CompiledMapRule(match: rule.match, regex: nil, value: rule.value)
-            if rule.match.type == .regex, let pattern = rule.match.value {
+            if rule.match.type == .regex, let pattern = rule.match.matchValues.first {
                 compiledRule.regex = compileRegex(pattern, warnings: &warnings, label: label)
             }
             return compiledRule
@@ -600,25 +622,19 @@ struct FilenameRuleSet: Decodable {
 
     private func stringMatches(text: String, rule: CompiledMapRule) -> Bool {
         let haystack = text.lowercased()
-        let values = rule.match.values?.map { $0.lowercased() }
-        let value = rule.match.value?.lowercased()
+        let matchValues = rule.match.matchValues.map { $0.lowercased() }
 
         switch rule.match.type {
         case .equals:
-            guard let value else { return false }
-            return haystack == value
+            return matchValues.first.map { haystack == $0 } ?? false
         case .equalsAny:
-            guard let values else { return false }
-            return values.contains(haystack)
+            return matchValues.contains(haystack)
         case .contains:
-            guard let value else { return false }
-            return haystack.contains(value)
+            return matchValues.first.map { haystack.contains($0) } ?? false
         case .containsAny:
-            guard let values else { return false }
-            return values.contains(where: { haystack.contains($0) })
+            return matchValues.contains(where: { haystack.contains($0) })
         case .equalsOrContainsAny:
-            guard let values else { return false }
-            return values.contains(haystack) || values.contains(where: { haystack.contains($0) })
+            return matchValues.contains(haystack) || matchValues.contains(where: { haystack.contains($0) })
         case .regex:
             guard let regex = rule.regex else { return false }
             return regexMatch(regex: regex, text: text)
@@ -798,12 +814,6 @@ struct FilenameRuleSet: Decodable {
                     "电压": ["电压", "kv"],
                     "磁场": ["磁场", "field"],
                     "电阻": ["电阻", "current"]
-                ],
-                substrateMaterialTokens: ["STO", "NGO", "MAO", "MGO", "AL2O3", "SI", "POLY-SIO2 ON SI", "POLY-SIO2"],
-                substrateProcessingKeywords: [
-                    "HF": ["HF"],
-                    "b": ["B", "BAKE", "BAKED"],
-                    "o": ["ORIGINAL", "ORIGIN", " O "]
                 ],
                 metadataLookupAliases: [
                     "batch": ["Batch", "BatchID", "Batch Name", "编号"],

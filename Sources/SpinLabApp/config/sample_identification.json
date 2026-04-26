@@ -12,7 +12,7 @@
         "match": {
           "scope": "tokens",
           "type": "equalsOrContainsAny",
-          "values": [
+          "matchValues": [
             "HF"
           ]
         },
@@ -22,7 +22,7 @@
         "match": {
           "scope": "tokens",
           "type": "equalsOrContainsAny",
-          "values": [
+          "matchValues": [
             "BAKE",
             "BAKED"
           ]
@@ -33,7 +33,7 @@
         "match": {
           "scope": "tokens",
           "type": "equalsOrContainsAny",
-          "values": [
+          "matchValues": [
             "ORIGIN",
             "ORIGINAL"
           ]
@@ -44,7 +44,7 @@
         "match": {
           "scope": "tokens",
           "type": "equals",
-          "value": "STO111"
+          "matchValues": ["STO111"]
         },
         "value": "STO 111"
       },
@@ -52,7 +52,7 @@
         "match": {
           "scope": "tokens",
           "type": "equals",
-          "value": "STO001"
+          "matchValues": ["STO001"]
         },
         "value": "STO 001"
       },
@@ -60,7 +60,7 @@
         "match": {
           "scope": "tokens",
           "type": "equals",
-          "value": "STO"
+          "matchValues": ["STO"]
         },
         "value": "STO"
       },
@@ -68,7 +68,7 @@
         "match": {
           "scope": "tokens",
           "type": "equals",
-          "value": "NGO"
+          "matchValues": ["NGO"]
         },
         "value": "NGO"
       },
@@ -76,7 +76,7 @@
         "match": {
           "scope": "tokens",
           "type": "equals",
-          "value": "111"
+          "matchValues": ["111"]
         },
         "value": "111"
       },
@@ -84,7 +84,7 @@
         "match": {
           "scope": "tokens",
           "type": "equals",
-          "value": "001"
+          "matchValues": ["001"]
         },
         "value": "001"
       },
@@ -92,7 +92,7 @@
         "match": {
           "scope": "tokens",
           "type": "equals",
-          "value": "o"
+          "matchValues": ["o"]
         },
         "value": "o"
       },
@@ -100,7 +100,7 @@
         "match": {
           "scope": "tokens",
           "type": "equals",
-          "value": "O"
+          "matchValues": ["O"]
         },
         "value": "o"
       },
@@ -108,7 +108,7 @@
         "match": {
           "scope": "tokens",
           "type": "equals",
-          "value": "MgO"
+          "matchValues": ["MgO"]
         },
         "value": "MgO"
       },
@@ -116,7 +116,7 @@
         "match": {
           "scope": "tokens",
           "type": "equals",
-          "value": "b"
+          "matchValues": ["b"]
         },
         "value": "b"
       }

@@ -27,8 +27,39 @@ struct MapRule: Codable, Hashable {
     struct MatchSpec: Codable, Hashable {
         var scope: String
         var type: String
-        var value: String?
-        var values: [String]?
+        var matchValues: [String]
+
+        enum CodingKeys: String, CodingKey {
+            case scope, type, matchValues, value, values
+        }
+
+        init(scope: String, type: String, matchValues: [String]) {
+            self.scope = scope
+            self.type = type
+            self.matchValues = matchValues
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            scope = try container.decode(String.self, forKey: .scope)
+            type = try container.decode(String.self, forKey: .type)
+            if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
+                matchValues = mv
+            } else if let vs = try container.decodeIfPresent([String].self, forKey: .values) {
+                matchValues = vs
+            } else if let v = try container.decodeIfPresent(String.self, forKey: .value) {
+                matchValues = [v]
+            } else {
+                matchValues = []
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(scope, forKey: .scope)
+            try container.encode(type, forKey: .type)
+            try container.encode(matchValues, forKey: .matchValues)
+        }
     }
 }
 
@@ -122,8 +153,39 @@ struct WorkflowFileDraft: Codable {
     struct WorkflowMatchSpec: Codable, Hashable {
         var scope: String
         var type: String
-        var value: String?
-        var values: [String]?
+        var matchValues: [String]
+
+        enum CodingKeys: String, CodingKey {
+            case scope, type, matchValues, value, values
+        }
+
+        init(scope: String, type: String, matchValues: [String]) {
+            self.scope = scope
+            self.type = type
+            self.matchValues = matchValues
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            scope = try container.decode(String.self, forKey: .scope)
+            type = try container.decode(String.self, forKey: .type)
+            if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
+                matchValues = mv
+            } else if let vs = try container.decodeIfPresent([String].self, forKey: .values) {
+                matchValues = vs
+            } else if let v = try container.decodeIfPresent(String.self, forKey: .value) {
+                matchValues = [v]
+            } else {
+                matchValues = []
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(scope, forKey: .scope)
+            try container.encode(type, forKey: .type)
+            try container.encode(matchValues, forKey: .matchValues)
+        }
     }
 }
 
@@ -401,8 +463,7 @@ final class RulesManagementStore {
         }
 
         for rule in draft.substrate.substrateTagRules where rule.match.type == "regex" {
-            if let p = rule.match.value { validateRegex(p, field: "substrate.substrateTagRules", errors: &errors) }
-            rule.match.values?.forEach { validateRegex($0, field: "substrate.substrateTagRules", errors: &errors) }
+            rule.match.matchValues.forEach { validateRegex($0, field: "substrate.substrateTagRules", errors: &errors) }
         }
 
         if !errors.isEmpty { return .validationFailed(errors) }
@@ -435,8 +496,7 @@ final class RulesManagementStore {
                                     message: "Workflow '\(w.id)' must have at least one match rule"))
             }
             for spec in w.matchRules where spec.type == "regex" {
-                if let p = spec.value { validateRegex(p, field: "workflows[\(w.id)].matchRules", errors: &errors) }
-                spec.values?.forEach { validateRegex($0, field: "workflows[\(w.id)].matchRules", errors: &errors) }
+                spec.matchValues.forEach { validateRegex($0, field: "workflows[\(w.id)].matchRules", errors: &errors) }
             }
         }
 
@@ -457,8 +517,7 @@ final class RulesManagementStore {
         }
 
         for rule in draft.measurementTagRules where rule.match.type == "regex" {
-            if let p = rule.match.value { validateRegex(p, field: "measurementTagRules", errors: &errors) }
-            rule.match.values?.forEach { validateRegex($0, field: "measurementTagRules", errors: &errors) }
+            rule.match.matchValues.forEach { validateRegex($0, field: "measurementTagRules", errors: &errors) }
         }
 
         if !errors.isEmpty { return .validationFailed(errors) }
@@ -503,10 +562,7 @@ final class RulesManagementStore {
                                         message: "token_map requires tokenMap"))
                 }
                 for rule in def.tokenMap ?? [] where rule.match.type == "regex" {
-                    if let p = rule.match.value {
-                        validateRegex(p, field: "conditionDefinitions[\(def.id)].tokenMap", errors: &errors)
-                    }
-                    rule.match.values?.forEach {
+                    rule.match.matchValues.forEach {
                         validateRegex($0, field: "conditionDefinitions[\(def.id)].tokenMap", errors: &errors)
                     }
                 }

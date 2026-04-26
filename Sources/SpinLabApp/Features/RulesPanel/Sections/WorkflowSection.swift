@@ -223,7 +223,7 @@ struct WorkflowSection: View {
                 Button("Add Rule") {
                     var updated = d
                     updated.workflows[idx].matchRules.append(
-                        .init(scope: "tokens", type: "equalsOrContainsAny", value: nil, values: [])
+                        .init(scope: "tokens", type: "equalsOrContainsAny", matchValues: [])
                     )
                     apply(updated)
                     expandedWorkflowRuleIndexByID[workflowID] = updated.workflows[idx].matchRules.count - 1
@@ -332,7 +332,7 @@ struct WorkflowSection: View {
                         var updated = d
                         updated.measurementTagRules.append(
                             MapRule(
-                                match: .init(scope: "tokens", type: "equalsOrContainsAny", value: nil, values: []),
+                                match: .init(scope: "tokens", type: "equalsOrContainsAny", matchValues: []),
                                 value: ""
                             )
                         )
@@ -396,13 +396,7 @@ struct WorkflowSection: View {
     }
 
     private func ruleHeadline(_ rule: WorkflowFileDraft.WorkflowMatchSpec) -> String {
-        if let value = rule.value, !value.isEmpty {
-            return value
-        }
-        if let values = rule.values, !values.isEmpty {
-            return values.joined(separator: ", ")
-        }
-        return "(empty)"
+        rule.matchValues.isEmpty ? "(empty)" : rule.matchValues.joined(separator: ", ")
     }
 
     private func addWorkflow(to d: WorkflowFileDraft) {
@@ -458,7 +452,7 @@ struct WorkflowSection: View {
                 guard let d = draft,
                       d.workflows.indices.contains(workflowIdx),
                       d.workflows[workflowIdx].matchRules.indices.contains(ruleIdx) else {
-                    return .init(scope: "tokens", type: "equals", value: nil, values: nil)
+                    return .init(scope: "tokens", type: "equals", matchValues: [])
                 }
                 return d.workflows[workflowIdx].matchRules[ruleIdx]
             },
@@ -477,7 +471,7 @@ struct WorkflowSection: View {
             get: {
                 guard let d = draft,
                       d.measurementTagRules.indices.contains(idx) else {
-                    return MapRule(match: .init(scope: "tokens", type: "equals", value: nil, values: nil), value: "")
+                    return MapRule(match: .init(scope: "tokens", type: "equals", matchValues: []), value: "")
                 }
                 return d.measurementTagRules[idx]
             },

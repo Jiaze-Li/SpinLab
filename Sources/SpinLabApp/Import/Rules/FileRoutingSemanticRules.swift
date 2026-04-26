@@ -120,8 +120,7 @@ struct FileRoutingSemanticRules {
     }
 
     private static func probesForMatch(_ match: FilenameRuleSet.MatchSpec) -> [String] {
-        let rawValues = (match.values ?? []) + [match.value].compactMap { $0 }
-        return rawValues.map(normalizeToken)
+        match.matchValues.map(normalizeToken)
     }
 
     private static func normalizeToken(_ token: String) -> String {

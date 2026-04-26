@@ -143,7 +143,7 @@ struct SampleIdentificationSection: View {
                         var updated = d
                         updated.substrate.substrateTagRules.append(
                             MapRule(
-                                match: .init(scope: "tokens", type: "equalsOrContainsAny", value: nil, values: []),
+                                match: .init(scope: "tokens", type: "equalsOrContainsAny", matchValues: []),
                                 value: ""
                             )
                         )
@@ -520,7 +520,7 @@ struct SampleIdentificationSection: View {
             get: {
                 guard let d = draft,
                       d.substrate.substrateTagRules.indices.contains(ruleIdx) else {
-                    return MapRule(match: .init(scope: "tokens", type: "equals", value: nil, values: nil), value: "")
+                    return MapRule(match: .init(scope: "tokens", type: "equals", matchValues: []), value: "")
                 }
                 return d.substrate.substrateTagRules[ruleIdx]
             },

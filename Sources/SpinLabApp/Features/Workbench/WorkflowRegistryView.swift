@@ -121,11 +121,11 @@ struct WorkflowRegistryView: View {
     private func matchRuleSummary(_ rule: WorkflowFileDraft.WorkflowMatchSpec) -> String {
         let scopePart = rule.scope
         let typePart = rule.type
-        if let value = rule.value, !value.isEmpty {
-            return "\(scopePart) \(typePart) \"\(value)\""
+        if rule.matchValues.count == 1 {
+            return "\(scopePart) \(typePart) \"\(rule.matchValues[0])\""
         }
-        if let values = rule.values, !values.isEmpty {
-            return "\(scopePart) \(typePart) [\(values.joined(separator: ", "))]"
+        if !rule.matchValues.isEmpty {
+            return "\(scopePart) \(typePart) [\(rule.matchValues.joined(separator: ", "))]"
         }
         return "\(scopePart) \(typePart)"
     }

@@ -10,19 +10,13 @@ struct MatchRuleEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             Picker("Scope", selection: $rule.match.scope) {
-                ForEach(scopeOptions, id: \.self) { value in
-                    Text(value).tag(value)
-                }
+                ForEach(scopeOptions, id: \.self) { Text($0).tag($0) }
             }
 
             Picker("Type", selection: $rule.match.type) {
-                ForEach(typeOptions, id: \.self) { value in
-                    Text(value).tag(value)
-                }
+                ForEach(typeOptions, id: \.self) { Text($0).tag($0) }
             }
-            .onChange(of: rule.match.type) { _, newType in
-                normalizeValueStorage(for: newType)
-            }
+            .onChange(of: rule.match.type) { _, newType in normalizeValueStorage(for: newType) }
 
             if multiValueTypes.contains(rule.match.type) {
                 valuesEditor
@@ -38,19 +32,16 @@ struct MatchRuleEditor: View {
 
     private var bindingForSingleValue: Binding<String> {
         Binding(
-            get: { rule.match.value ?? "" },
+            get: { rule.match.matchValues.first ?? "" },
             set: { newValue in
-                rule.match.value = newValue
-                if !newValue.isEmpty {
-                    rule.match.values = nil
-                }
+                rule.match.matchValues = newValue.isEmpty ? [] : [newValue]
             }
         )
     }
 
     private var valuesEditor: some View {
         VStack(alignment: .leading, spacing: AppSpacing.xs) {
-            ForEach(Array((rule.match.values ?? []).enumerated()), id: \.offset) { index, _ in
+            ForEach(Array(rule.match.matchValues.enumerated()), id: \.offset) { index, _ in
                 HStack(spacing: AppSpacing.sm) {
                     TextField("Value", text: bindingForListValue(at: index))
                         .textFieldStyle(.roundedBorder)
@@ -59,10 +50,7 @@ struct MatchRuleEditor: View {
                 }
             }
             Button("Add Value") {
-                var values = rule.match.values ?? []
-                values.append("")
-                rule.match.values = values
-                rule.match.value = nil
+                rule.match.matchValues.append("")
             }
             .buttonStyle(.bordered)
         }
@@ -71,41 +59,29 @@ struct MatchRuleEditor: View {
     private func bindingForListValue(at index: Int) -> Binding<String> {
         Binding(
             get: {
-                let values = rule.match.values ?? []
-                guard values.indices.contains(index) else { return "" }
-                return values[index]
+                guard rule.match.matchValues.indices.contains(index) else { return "" }
+                return rule.match.matchValues[index]
             },
             set: { newValue in
-                var values = rule.match.values ?? []
-                guard values.indices.contains(index) else { return }
-                values[index] = newValue
-                rule.match.values = values
-                if !newValue.isEmpty {
-                    rule.match.value = nil
-                }
+                guard rule.match.matchValues.indices.contains(index) else { return }
+                rule.match.matchValues[index] = newValue
             }
         )
     }
 
     private func removeValue(at index: Int) {
-        guard var values = rule.match.values, values.indices.contains(index) else { return }
-        values.remove(at: index)
-        rule.match.values = values
+        guard rule.match.matchValues.indices.contains(index) else { return }
+        rule.match.matchValues.remove(at: index)
     }
 
     private func normalizeValueStorage(for type: String) {
         if multiValueTypes.contains(type) {
-            if rule.match.values == nil {
-                let fromSingle = rule.match.value.map { [$0] } ?? []
-                rule.match.values = fromSingle
+            if rule.match.matchValues.isEmpty || rule.match.matchValues == [""] {
+                rule.match.matchValues = [""]
             }
-            rule.match.value = nil
         } else {
-            if rule.match.value == nil {
-                let fromList = (rule.match.values ?? []).first ?? ""
-                rule.match.value = fromList
-            }
-            rule.match.values = nil
+            let first = rule.match.matchValues.first ?? ""
+            rule.match.matchValues = first.isEmpty ? [] : [first]
         }
     }
 }

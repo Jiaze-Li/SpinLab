@@ -281,7 +281,7 @@ struct MeasuringConditionSection: View {
                 Button("Add Rule") {
                     var u = d
                     var updated = u.conditionDefinitions[idx].tokenMap ?? []
-                    updated.append(MapRule(match: .init(scope: "tokens", type: "equalsOrContainsAny", value: nil, values: []), value: ""))
+                    updated.append(MapRule(match: .init(scope: "tokens", type: "equalsOrContainsAny", matchValues: []), value: ""))
                     u.conditionDefinitions[idx].tokenMap = updated
                     apply(u)
                     expandedTokenMapRuleIndices[id] = updated.count - 1
@@ -407,7 +407,7 @@ struct MeasuringConditionSection: View {
                       d.conditionDefinitions.indices.contains(idx),
                       let rules = d.conditionDefinitions[idx].tokenMap,
                       rules.indices.contains(ruleIdx) else {
-                    return MapRule(match: .init(scope: "tokens", type: "equals", value: nil, values: nil), value: "")
+                    return MapRule(match: .init(scope: "tokens", type: "equals", matchValues: []), value: "")
                 }
                 return rules[ruleIdx]
             },
