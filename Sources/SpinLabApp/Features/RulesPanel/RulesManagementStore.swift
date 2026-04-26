@@ -76,20 +76,32 @@ struct SampleIdentificationFileDraft: Codable {
         var patterns: [String]
     }
     struct SubstrateConfig: Codable {
+        var tokenSeparators: String
         var substrateTagRules: [MapRule]
-        var shared: SharedSubstrate?
-
-        struct SharedSubstrate: Codable {
-            var tokenSeparators: String
-            var originStandaloneTokens: [String]
-            var originContainsTokens: [String]
-            var treatmentKeywords: [String: [String]]
-            var materialTokens: [String]
-            var materialAliases: [String: String]?
-            var materialDisplayNames: [String: String]?
-            var orientationTokens: [String]?
-            var orientationAliases: [String: String]?
-            var orientationPattern: String
+        var materials: [MaterialDefinition]
+        var treatments: [TreatmentDefinition]
+        var orientations: OrientationConfig
+    }
+    struct MaterialDefinition: Codable, Identifiable {
+        var id: String
+        var tokens: [String]
+        var aliases: [String]
+        var displayName: String
+    }
+    struct TreatmentDefinition: Codable, Identifiable {
+        var id: String
+        var displayName: String
+        var keywords: [String]
+        var standaloneTokens: [String]
+        var containsTokens: [String]
+    }
+    struct OrientationConfig: Codable {
+        var pattern: String
+        var rows: [Row]
+        struct Row: Codable, Identifiable {
+            var id: String
+            var tokens: [String]
+            var aliases: [String]
         }
     }
 }
@@ -119,23 +131,18 @@ struct WorkflowFileDraft: Codable {
 struct MeasuringConditionFileDraft: Codable {
     var version: Int
     var batch: Batch
-    var conditions: Conditions
     var conditionDefinitions: [ConditionDefinition]
 
     struct Batch: Codable {
         var preferSampleId: Bool
         var fallbackPatterns: [String]
     }
-    struct Conditions: Codable {
-        var extraConditions: [String: String]
-        var tokenMapRules: [String: [MapRule]]
-        var displayLabels: [String: String]
-    }
     struct ConditionDefinition: Codable, Identifiable {
         var id: String
         var label: String?
         var kind: String
-        var binding: String
+        var unitPattern: String?
+        var tokenMap: [MapRule]?
     }
 }
 
@@ -362,24 +369,35 @@ final class RulesManagementStore {
             validateRegex(pattern, field: "sampleId.patterns", errors: &errors)
         }
 
-        if let shared = draft.substrate.shared {
-            let materialSet = Set(shared.materialTokens)
-            for (alias, target) in shared.materialAliases ?? [:] where !materialSet.contains(target) {
-                errors.append(.init(field: "substrate.shared.materialAliases[\(alias)]",
-                                    message: "'\(target)' not in materialTokens"))
+        var seenMaterialIDs: Set<String> = []
+        for m in draft.substrate.materials {
+            if m.id.isEmpty {
+                errors.append(.init(field: "substrate.materials", message: "Material ID must not be empty"))
             }
-            let orientationSet = Set(shared.orientationTokens ?? [])
-            for (alias, target) in shared.orientationAliases ?? [:] where !orientationSet.contains(target) {
-                errors.append(.init(field: "substrate.shared.orientationAliases[\(alias)]",
-                                    message: "'\(target)' not in orientationTokens"))
+            if !seenMaterialIDs.insert(m.id).inserted {
+                errors.append(.init(field: "substrate.materials[\(m.id)]", message: "Duplicate material ID '\(m.id)'"))
             }
-            if let displayNames = shared.materialDisplayNames {
-                for key in displayNames.keys where !materialSet.contains(key) {
-                    errors.append(.init(field: "substrate.shared.materialDisplayNames[\(key)]",
-                                        message: "'\(key)' not in materialTokens — will not take effect"))
-                }
+        }
+
+        var seenTreatmentIDs: Set<String> = []
+        for t in draft.substrate.treatments {
+            if t.id.isEmpty {
+                errors.append(.init(field: "substrate.treatments", message: "Treatment ID must not be empty"))
             }
-            validateRegex(shared.orientationPattern, field: "substrate.shared.orientationPattern", errors: &errors)
+            if !seenTreatmentIDs.insert(t.id).inserted {
+                errors.append(.init(field: "substrate.treatments[\(t.id)]", message: "Duplicate treatment ID '\(t.id)'"))
+            }
+        }
+
+        validateRegex(draft.substrate.orientations.pattern, field: "substrate.orientations.pattern", errors: &errors)
+        var seenOrientationIDs: Set<String> = []
+        for row in draft.substrate.orientations.rows {
+            if row.id.isEmpty {
+                errors.append(.init(field: "substrate.orientations.rows", message: "Orientation row ID must not be empty"))
+            }
+            if !seenOrientationIDs.insert(row.id).inserted {
+                errors.append(.init(field: "substrate.orientations.rows[\(row.id)]", message: "Duplicate orientation ID '\(row.id)'"))
+            }
         }
 
         for rule in draft.substrate.substrateTagRules where rule.match.type == "regex" {
@@ -464,25 +482,33 @@ final class RulesManagementStore {
                 continue
             }
             if def.kind == "unit_suffix" {
-                if let pattern = draft.conditions.extraConditions[def.id] {
-                    validateRegex(pattern, field: "conditions.extraConditions[\(def.id)]", errors: &errors)
-                } else {
+                if def.tokenMap != nil {
                     errors.append(.init(field: "conditionDefinitions[\(def.id)]",
-                                        message: "unit_suffix kind requires entry in conditions.extraConditions"))
+                                        message: "unit_suffix must not have tokenMap"))
+                }
+                let pattern = def.unitPattern ?? ""
+                if pattern.isEmpty {
+                    errors.append(.init(field: "conditionDefinitions[\(def.id)]",
+                                        message: "unit_suffix requires a non-empty unitPattern"))
+                } else {
+                    validateRegex(pattern, field: "conditionDefinitions[\(def.id)].unitPattern", errors: &errors)
                 }
             } else {
-                if let rules = draft.conditions.tokenMapRules[def.id] {
-                    for rule in rules where rule.match.type == "regex" {
-                        if let p = rule.match.value {
-                            validateRegex(p, field: "conditions.tokenMapRules[\(def.id)]", errors: &errors)
-                        }
-                        rule.match.values?.forEach {
-                            validateRegex($0, field: "conditions.tokenMapRules[\(def.id)]", errors: &errors)
-                        }
-                    }
-                } else {
+                if def.unitPattern != nil {
                     errors.append(.init(field: "conditionDefinitions[\(def.id)]",
-                                        message: "token_map kind requires entry in conditions.tokenMapRules"))
+                                        message: "token_map must not have unitPattern"))
+                }
+                if def.tokenMap == nil {
+                    errors.append(.init(field: "conditionDefinitions[\(def.id)]",
+                                        message: "token_map requires tokenMap"))
+                }
+                for rule in def.tokenMap ?? [] where rule.match.type == "regex" {
+                    if let p = rule.match.value {
+                        validateRegex(p, field: "conditionDefinitions[\(def.id)].tokenMap", errors: &errors)
+                    }
+                    rule.match.values?.forEach {
+                        validateRegex($0, field: "conditionDefinitions[\(def.id)].tokenMap", errors: &errors)
+                    }
                 }
             }
         }
