@@ -218,8 +218,10 @@ struct WorkbenchPlotCanvas: View {
         if let pt = dragPreviewPt {
             let fitted = fittedRect(in: canvasSize)
             if fitted.width > 0 && fitted.height > 0 {
-                let scaleX  = fitted.width  / rendererPixelSize.width
-                let scaleY  = fitted.height / rendererPixelSize.height
+                // Legend geometry is authored in layout's logical CG space, not image pixels.
+                let rSize = layout?.rendererSize ?? rendererPixelSize
+                let scaleX  = fitted.width  / rSize.width
+                let scaleY  = fitted.height / rSize.height
                 let boxPad: CGFloat = 6
                 let rowCount = CGFloat(layout?.legendRows.count ?? 1)
                 // Use the CoreText-measured max label width so the preview box matches the
@@ -408,8 +410,11 @@ struct WorkbenchPlotCanvas: View {
     private func handleTap(at location: CGPoint) {
         guard let layout else { return }
         let fitted = fittedRect(in: canvasSize)
-        let rW = rendererPixelSize.width
-        let rH = rendererPixelSize.height
+        // Hit rects are produced in layout's logical CG space (options.width × options.height).
+        // The on-screen image is rendered at pixelScale (default 2x), so its pixel size differs.
+        // Use layout.rendererSize for the screen mapping; rendererPixelSize is image-pixel space.
+        let rW = layout.rendererSize.width
+        let rH = layout.rendererSize.height
 
         func toScreen(_ cr: CGRect) -> CGRect {
             WorkbenchPlotLayout.cgToScreen(cr, fittedIn: fitted,
