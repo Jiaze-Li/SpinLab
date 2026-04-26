@@ -46,34 +46,8 @@ struct RulesConfigPaths {
         configDirectoryURL.appendingPathComponent("measuring_condition.json")
     }
 
-    // MARK: - Legacy paths (v1/v2 — used by RulesMigration and old RulesPanel UI)
-
-    var filenameParsRulesURL: URL {
-        configDirectoryURL.appendingPathComponent("filename_parse_rules.json")
-    }
-
-    var sampleIDRulesURL: URL {
-        configDirectoryURL.appendingPathComponent("sample_id_rules.json")
-    }
-
-    var workflowMatchRulesURL: URL {
-        configDirectoryURL.appendingPathComponent("workflow_match_rules.json")
-    }
-
-    var substrateNormalizationRulesURL: URL {
-        configDirectoryURL.appendingPathComponent("substrate_normalization_rules.json")
-    }
-
-    var measurementTagRulesURL: URL {
-        configDirectoryURL.appendingPathComponent("measurement_tag_rules.json")
-    }
-
     var libraryImportRulesURL: URL {
         configDirectoryURL.appendingPathComponent("library_import_rules.json")
-    }
-
-    var migrationStateURL: URL {
-        configDirectoryURL.appendingPathComponent("migration_state.json")
     }
 
     var allSchemaFileURLs: [URL] {
