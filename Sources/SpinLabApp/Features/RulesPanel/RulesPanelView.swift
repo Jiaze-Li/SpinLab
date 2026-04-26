@@ -77,23 +77,22 @@ struct RulesPanelView: View {
     @ViewBuilder
     private func detailView(for section: RulesPanelSection) -> some View {
         switch section {
-        case .filenameParse:
-            FilenameParseRulesSection()
-        case .sampleID:
-            SampleIDRulesSection(store: store)
-        case .workflowMatch:
-            WorkflowMatchRulesSection(store: store)
-        case .substrate:
-            SubstrateRulesSection()
-        case .measurementTag:
-            MeasurementTagRulesSection(store: store)
+        case .importFilters:
+            ImportFiltersSection()
+        case .filenameTokenization:
+            FilenameTokenizationSection()
+        case .sampleIdentification:
+            SampleIdentificationSection()
+        case .workflow:
+            WorkflowSection()
+        case .measuringCondition:
+            MeasuringConditionSection()
         }
     }
 
     private func discardAllDirtySections() {
         let previous = store.currentSection
-        let sections = store.dirtySections
-        for section in sections {
+        for section in RulesPanelSection.allCases where store.dirtySections.contains(section) {
             store.selectSection(section)
             store.discardCurrent()
         }
@@ -102,21 +101,18 @@ struct RulesPanelView: View {
 
     private func saveAllDirtySectionsAndCloseIfSuccessful() {
         let previous = store.currentSection
-        let sections = store.dirtySections
-
-        for section in sections {
+        // Fixed order per allCases (not Set order) so cross-section deps are deterministic
+        for section in RulesPanelSection.allCases where store.dirtySections.contains(section) {
             store.selectSection(section)
             let outcome = store.saveCurrent()
             switch outcome {
             case .saved:
                 continue
             case .validationFailed, .externalConflict, .ioError:
-                store.selectSection(section)
                 pendingCloseWindow = nil
                 return
             }
         }
-
         store.selectSection(previous)
         closePendingWindow()
     }

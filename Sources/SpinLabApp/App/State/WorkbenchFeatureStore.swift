@@ -1036,6 +1036,18 @@ final class WorkbenchFeatureStore {
         return trimmed.isEmpty ? nil : trimmed
     }
 
+    // Called by SpinLabAppState.onRulesSaved to refresh conditionDefinitionOptions after rules save
+    func reloadWorkflowDefinitionsAfterRulesChange() {
+        reloadWorkflowDefinitions(selectedID: currentSelectedWorkflowID)
+    }
+
+    private var currentSelectedWorkflowID: String? {
+        switch currentRoute {
+        case .registry(let id): return id
+        case .workflow(let id): return id
+        }
+    }
+
     private func reloadWorkflowDefinitions(selectedID: String?) {
         let ruleSet = RuleLoader.shared.loadCached().ruleSet
         conditionDefinitionOptions = ruleSet.conditionDefinitions.compactMap { def in

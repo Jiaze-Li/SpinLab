@@ -30,6 +30,7 @@
 
 | 日期 | Handoff | 主题 | 验收口径 |
 |---|---|---|---|
+| 2026-04-26 | [2026-04-26-5.1.5-s5-rules-panel-rewrite.md](2026-04-26-5.1.5-s5-rules-panel-rewrite.md) | 5.1.5 s5 规则面板按新 5 本子重写 + R1 立即生效 | 规则窗口换 5 新 section + R1 硬门禁（保存 condition def 后 Workbench picker 立刻含新值）+ Save All 顺序契约 + 旧 5 section 文件删除 grep 0 命中 + swift build clean |
 
 ## 已归档
 

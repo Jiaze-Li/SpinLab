@@ -141,7 +141,7 @@ R1 —— 工作流 ID 策略相关规则保存后立刻生效，App 内不存�
 | s2 ✅ 已归档 | 统一面板骨架 + 4 类已有规则编辑 | — |
 | s3 ✅ 已归档 | 盘点 + 5 本子分类设计稿 + 退役调用点全清单 + 新 schema 草案 | — |
 | s4 ✅ 已归档 | 5本子schema落地 + RuleLoader/RulesMigration重写 + WorkflowIDAllocator/parentID/rotationHintRules退役 + 旧bundle文件删除 + V210 fixture更新；swift build clean + 测试全绿。[实施摘要](../history/v515_s4_schema_migration.md) | — |
-| **s5（重新规划）** | 5 个 section UI 重写 + close-alert / save / discard / 外部冲突集成 + R1 acceptance gate（保存立即生效）路径 + 测试补全 | 12–16 h |
+| **s5（重新规划）** | 5 个 section UI 重写 + close-alert / save / discard / 外部冲突集成 + R1 acceptance gate（保存立即生效）路径 + 测试补全 — **实施方案已落 handoff 待消费**（`docs/handoff/2026-04-26-5.1.5-s5-rules-panel-rewrite.md`，对抗收敛 adopt-with-fixes）| 12–16 h |
 | **s6（原 s4 自动同步引擎顺延）** | 自动同步引擎（bundle / runtime 双写 + 内容指纹反向同步）+ 完整测试 + 实机走一遍（启动 / 保存 / pull 后覆盖 / 回滚 / 指针文件缺失等场景） | 8–12 h |
 | **s7（s3 收敛后新增）** | 6 项 schema 二次重塑 + 兼容代码彻底删（详见下表）。s4 已落数据迁移、s5 已落 UI、s6 已落自动同步，本会话清掉 s3 决策时为保 s4 风险最小而推后的所有项；本版本段收尾会话 | 12–20 h |
 

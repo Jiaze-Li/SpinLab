@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct MatchRuleEditor: View {
-    @Binding var rule: FilenameParseRulesFileDraft.MapRule
+    @Binding var rule: MapRule
 
     private let scopeOptions = ["tokens", "joined"]
     private let typeOptions = ["equals", "equalsAny", "contains", "containsAny", "equalsOrContainsAny", "regex"]

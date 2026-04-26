@@ -173,6 +173,8 @@ final class SpinLabAppState {
         onRulesSaved: { [weak self] in
             self?.refreshRoutingRuleMetadata(forceReload: true)
             self?.recomputeAllPendingParsedHints()
+            // R1: refresh Workbench conditionDefinitionOptions so picker reflects new rules immediately
+            self?.workbenchFeatureStore.reloadWorkflowDefinitionsAfterRulesChange()
         }
     )
     private let registryLifecycleService = RegistryLifecycleService()
