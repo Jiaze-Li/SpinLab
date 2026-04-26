@@ -299,8 +299,6 @@ final class WorkbenchFeatureStore {
     @ObservationIgnored
     private let dataActor: any SpinLabDataActing
     @ObservationIgnored
-    private let workflowRegistryStore: WorkflowRegistryStore
-    @ObservationIgnored
     private let workflowDefinitionStore: WorkflowDefinitionStore
     @ObservationIgnored
     var onDefinitionsChanged: (([WorkflowDefinition]) -> Void)?
@@ -308,7 +306,6 @@ final class WorkbenchFeatureStore {
     var selectedSection: WorkbenchSection = .workflows
     var currentRoute: WorkbenchRoute
     var workflowDefinitions: [WorkflowDefinition]
-    var workflowRegistryMessage: String?
     private(set) var conditionDefinitionOptions: [ConditionDefinitionOption]
 
     var selectedWorkflowID: String? {
@@ -321,7 +318,6 @@ final class WorkbenchFeatureStore {
     init(
         libraryRepository: LibraryRepository,
         dataActor: any SpinLabDataActing = SpinLabDataActor(),
-        workflowRegistryStore: WorkflowRegistryStore = WorkflowRegistryStore(),
         workflowDefinitionStore: WorkflowDefinitionStore = WorkflowDefinitionStore()
     ) {
         let initialArchivedRecords = libraryRepository.archivedRecords
@@ -340,7 +336,6 @@ final class WorkbenchFeatureStore {
 
         self.libraryRepository = libraryRepository
         self.dataActor = dataActor
-        self.workflowRegistryStore = workflowRegistryStore
         self.workflowDefinitionStore = workflowDefinitionStore
         self.archivedRecords = initialArchivedRecords
         self.projectCatalog = initialProjectCatalog
@@ -544,78 +539,6 @@ final class WorkbenchFeatureStore {
         return workflowDefinitions.first { $0.id.caseInsensitiveCompare(selectedWorkflowID) == .orderedSame }
     }
 
-    func addWorkflow() {
-        // s5: replace with user-input ID sheet
-        let newID = String(UUID().uuidString.prefix(6)).uppercased()
-        let defaultConditionID = conditionDefinitionOptions.first?.id ?? "temperature"
-        let definition = WorkflowDefinition(
-            id: newID,
-            displayName: "New Workflow",
-            conditionFields: [
-                WorkflowConditionField(
-                    definitionID: defaultConditionID
-                )
-            ]
-        )
-        do {
-            try workflowRegistryStore.add(definition)
-            reloadWorkflowDefinitions(selectedID: definition.id)
-            workflowRegistryMessage = nil
-        } catch {
-            workflowRegistryMessage = "Workflow could not be saved: \(error.localizedDescription)"
-        }
-    }
-
-    func removeSelectedWorkflow() {
-        guard let selectedWorkflowID else {
-            return
-        }
-        if workflowDefinitions.count <= 1 {
-            workflowRegistryMessage = "At least one workflow is required."
-            return
-        }
-        do {
-            try workflowRegistryStore.remove(id: selectedWorkflowID)
-            reloadWorkflowDefinitions(selectedID: nil)
-        } catch {
-            workflowRegistryMessage = "Workflow could not be saved: \(error.localizedDescription)"
-        }
-    }
-
-    func updateSelectedWorkflow(
-        id: String,
-        displayName: String,
-        parentID: String?
-    ) {
-        guard var definition = selectedWorkflowDefinition else {
-            return
-        }
-        let normalizedID = id.trimmingCharacters(in: .whitespacesAndNewlines)
-        if normalizedID.isEmpty {
-            workflowRegistryMessage = "Workflow ID cannot be empty."
-            return
-        }
-        if workflowDefinitions.contains(where: {
-            $0.id.caseInsensitiveCompare(definition.id) != .orderedSame &&
-            $0.id.caseInsensitiveCompare(normalizedID) == .orderedSame
-        }) {
-            workflowRegistryMessage = "Workflow ID must be unique."
-            return
-        }
-
-        let normalizedDisplayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        definition.id = normalizedID
-        definition.displayName = normalizedDisplayName.isEmpty ? normalizedID : normalizedDisplayName
-        definition.parentID = normalizeOptional(parentID)
-        do {
-            try workflowRegistryStore.update(definition)
-            reloadWorkflowDefinitions(selectedID: definition.id)
-            workflowRegistryMessage = nil
-        } catch {
-            workflowRegistryMessage = "Workflow could not be saved: \(error.localizedDescription)"
-        }
-    }
-
     func selectWorkflow(_ id: String?) {
         guard let id else {
             currentRoute = .registry(selectedID: workflowDefinitions.first?.id)
@@ -623,134 +546,6 @@ final class WorkbenchFeatureStore {
         }
         let resolvedID = workflowDefinitions.contains(where: { $0.id == id }) ? id : (workflowDefinitions.first?.id ?? id)
         currentRoute = .workflow(id: resolvedID)
-    }
-
-    func addConditionFieldToSelectedWorkflow() {
-        guard var definition = selectedWorkflowDefinition else {
-            return
-        }
-        let existingIDs = Set(definition.conditionFields.map(\.definitionID))
-        guard let nextDefinitionID = conditionDefinitionOptions.first(where: { !existingIDs.contains($0.id) })?.id else {
-            workflowRegistryMessage = "All available condition labels are already selected."
-            return
-        }
-        definition.conditionFields.append(
-            WorkflowConditionField(
-                definitionID: nextDefinitionID
-            )
-        )
-        do {
-            try workflowRegistryStore.update(definition)
-            reloadWorkflowDefinitions(selectedID: definition.id)
-            workflowRegistryMessage = nil
-        } catch {
-            workflowRegistryMessage = "Workflow could not be saved: \(error.localizedDescription)"
-        }
-    }
-
-    func addConditionFieldToSelectedWorkflow(definitionID: String) {
-        guard var definition = selectedWorkflowDefinition else {
-            return
-        }
-        let normalizedDefinitionID = definitionID.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedDefinitionID.isEmpty else {
-            workflowRegistryMessage = "Condition label cannot be empty."
-            return
-        }
-        guard conditionDefinitionOptions.contains(where: { $0.id == normalizedDefinitionID }) else {
-            workflowRegistryMessage = "Unsupported condition label."
-            return
-        }
-        guard !definition.conditionFields.contains(where: {
-            $0.definitionID.caseInsensitiveCompare(normalizedDefinitionID) == .orderedSame
-        }) else {
-            workflowRegistryMessage = "Condition labels must be unique within a workflow."
-            return
-        }
-
-        definition.conditionFields.append(WorkflowConditionField(definitionID: normalizedDefinitionID))
-        do {
-            try workflowRegistryStore.update(definition)
-            reloadWorkflowDefinitions(selectedID: definition.id)
-            workflowRegistryMessage = nil
-        } catch {
-            workflowRegistryMessage = "Workflow could not be saved: \(error.localizedDescription)"
-        }
-    }
-
-    func removeConditionFieldFromSelectedWorkflow(at index: Int) {
-        guard var definition = selectedWorkflowDefinition,
-              definition.conditionFields.indices.contains(index) else {
-            return
-        }
-        if definition.conditionFields.count <= 1 {
-            workflowRegistryMessage = "At least one condition field is required."
-            return
-        }
-        definition.conditionFields.remove(at: index)
-        do {
-            try workflowRegistryStore.update(definition)
-            reloadWorkflowDefinitions(selectedID: definition.id)
-            workflowRegistryMessage = nil
-        } catch {
-            workflowRegistryMessage = "Workflow could not be saved: \(error.localizedDescription)"
-        }
-    }
-
-    func moveConditionFieldOnSelectedWorkflow(from sourceIndex: Int, to destinationIndex: Int) {
-        guard var definition = selectedWorkflowDefinition else {
-            return
-        }
-        guard definition.conditionFields.indices.contains(sourceIndex),
-              definition.conditionFields.indices.contains(destinationIndex),
-              sourceIndex != destinationIndex else {
-            return
-        }
-
-        let moved = definition.conditionFields.remove(at: sourceIndex)
-        definition.conditionFields.insert(moved, at: destinationIndex)
-        do {
-            try workflowRegistryStore.update(definition)
-            reloadWorkflowDefinitions(selectedID: definition.id)
-            workflowRegistryMessage = nil
-        } catch {
-            workflowRegistryMessage = "Workflow could not be saved: \(error.localizedDescription)"
-        }
-    }
-
-    func updateConditionFieldOnSelectedWorkflow(
-        at index: Int,
-        definitionID: String
-    ) {
-        guard var definition = selectedWorkflowDefinition,
-              definition.conditionFields.indices.contains(index) else {
-            return
-        }
-        let normalizedDefinitionID = definitionID.trimmingCharacters(in: .whitespacesAndNewlines)
-        if normalizedDefinitionID.isEmpty {
-            workflowRegistryMessage = "Condition label cannot be empty."
-            return
-        }
-        if !conditionDefinitionOptions.contains(where: { $0.id == normalizedDefinitionID }) {
-            workflowRegistryMessage = "Unsupported condition label."
-            return
-        }
-        if definition.conditionFields.enumerated().contains(where: { currentIndex, field in
-            currentIndex != index && field.definitionID.caseInsensitiveCompare(normalizedDefinitionID) == .orderedSame
-        }) {
-            workflowRegistryMessage = "Condition labels must be unique within a workflow."
-            return
-        }
-        definition.conditionFields[index] = WorkflowConditionField(
-            definitionID: normalizedDefinitionID
-        )
-        do {
-            try workflowRegistryStore.update(definition)
-            reloadWorkflowDefinitions(selectedID: definition.id)
-            workflowRegistryMessage = nil
-        } catch {
-            workflowRegistryMessage = "Workflow could not be saved: \(error.localizedDescription)"
-        }
     }
 
     func canonicalProject(named name: String) -> SpinLabDomain.Project? {
@@ -1032,13 +827,6 @@ final class WorkbenchFeatureStore {
         lhs.caseInsensitiveCompare(rhs) == .orderedSame
     }
 
-    private func normalizeOptional(_ value: String?) -> String? {
-        guard let value else {
-            return nil
-        }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
 
     // Called by SpinLabAppState.onRulesSaved to refresh conditionDefinitionOptions after rules save
     func reloadWorkflowDefinitionsAfterRulesChange() {

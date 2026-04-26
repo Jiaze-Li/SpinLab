@@ -22,8 +22,7 @@ struct V331AHEWorkspaceViewExtractionTests {
         // would be bypassed and this path would be dead code.
         let persistence = LocalPersistenceStub(archivedRecords: [], projects: [])
         let wfs = WorkbenchFeatureStore(
-            libraryRepository: LibraryRepository(persistence: persistence),
-            workflowRegistryStore: WorkflowRegistryStore()
+            libraryRepository: LibraryRepository(persistence: persistence)
         )
         wfs.aheWorkspace.toggleSearchHitSelection("probe")
         #expect(wfs.aheWorkspace.selectedSearchResultIDs == ["probe"])

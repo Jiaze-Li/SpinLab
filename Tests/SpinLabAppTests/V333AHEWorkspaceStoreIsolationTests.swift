@@ -98,8 +98,7 @@ struct V333AHEWorkspaceStoreIsolationTests {
         let persistence = LocalPersistenceStub(archivedRecords: [], projects: [])
         let repository = LibraryRepository(persistence: persistence)
         let store = WorkbenchFeatureStore(
-            libraryRepository: repository,
-            workflowRegistryStore: WorkflowRegistryStore()
+            libraryRepository: repository
         )
         let _: AHEWorkspaceStore = store.aheWorkspace
     }
