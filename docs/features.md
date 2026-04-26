@@ -79,6 +79,7 @@ Behavior details: `specs/three_omega_physics.md`
 - Shell-driven lifecycle: Search → Select → Analyze (sole trace commit point) → Save. Restore/rerender paths never commit trace.
 - Pack load restores `ingestionResult` from persisted `PackResult`, then rerenders without re-ingestion
 - Invariant: new workflows must use the shell, not standalone views
+- Warning panel uses a shell-level `WorkbenchWarningLog` container that coalesces identical (source, message) pairs. Reruns of analyze / load / scaling never stack duplicate entries. New workflows inherit the rule via `WorkbenchWorkspaceProviding`. (v5.3.5)
 
 ### Measurement Search
 - Workbench fields must use sidecar condition names, never invent new variable names
