@@ -12,6 +12,7 @@ struct WorkbenchChartStyle: Codable, Hashable, Sendable {
     var legendFontSize: CGFloat = 18
     var tickTargetX: Int = 6
     var tickTargetY: Int = 5
+    var pointLabelFontSize: CGFloat = 20
     /// Fixed x-axis tick step (nil = auto from niceTicks).
     var xTickStep: Double? = nil
     /// Fixed y-axis tick step (nil = auto from niceTicks).
@@ -27,6 +28,7 @@ struct WorkbenchChartStyle: Codable, Hashable, Sendable {
         if let v = styleParams["axisTitleFontSize"], let n = Double(v) { s.axisTitleFontSize = CGFloat(n) }
         if let v = styleParams["tickLabelFontSize"], let n = Double(v) { s.tickLabelFontSize = CGFloat(n) }
         if let v = styleParams["legendFontSize"], let n = Double(v) { s.legendFontSize = CGFloat(n) }
+        if let v = styleParams["pointLabelFontSize"], let n = Double(v) { s.pointLabelFontSize = CGFloat(n) }
         if let v = styleParams["tickTargetX"], let n = Int(v) { s.tickTargetX = n }
         if let v = styleParams["tickTargetY"], let n = Int(v) { s.tickTargetY = n }
         if let v = styleParams["xTickStep"], let n = Double(v), n > 0 { s.xTickStep = n }

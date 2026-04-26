@@ -70,6 +70,7 @@ struct WorkbenchPlotCanvas: View {
         case legend(seriesIndex: Int, originalLabel: String)
         case xTickLabel
         case yTickLabel
+        case pointLabel(seriesIndex: Int, pointIndex: Int)
     }
 
     /// The styleParams key for the font size of the currently editing element.
@@ -79,9 +80,10 @@ struct WorkbenchPlotCanvas: View {
         case .xLabel:      return "axisTitleFontSize"
         case .yLabel:      return "axisTitleFontSize"
         case .legend:      return "legendFontSize"
-        case .xTickLabel:  return "tickLabelFontSize"
-        case .yTickLabel:  return "tickLabelFontSize"
-        case nil:          return nil
+        case .xTickLabel:         return "tickLabelFontSize"
+        case .yTickLabel:         return "tickLabelFontSize"
+        case .pointLabel:         return "pointLabelFontSize"
+        case nil:                 return nil
         }
     }
 
@@ -265,9 +267,15 @@ struct WorkbenchPlotCanvas: View {
             case .legend(_, let orig): return "Legend · \(orig)"
             case .xTickLabel:       return "X Tick"
             case .yTickLabel:       return "Y Tick"
+            case .pointLabel:       return "Point Label"
             }
         }()
-        let hasTextField = (elem != .xTickLabel && elem != .yTickLabel)
+        let hasTextField: Bool = {
+            switch elem {
+            case .xTickLabel, .yTickLabel, .pointLabel: return false
+            default: return true
+            }
+        }()
         let pos = editPanelPosition()
         HStack(spacing: 6) {
             Text(label)
@@ -360,8 +368,9 @@ struct WorkbenchPlotCanvas: View {
         case "titleFontSize":     return \.titleFontSize
         case "axisTitleFontSize": return \.axisTitleFontSize
         case "tickLabelFontSize": return \.tickLabelFontSize
-        case "legendFontSize":    return \.legendFontSize
-        default:                  return \.titleFontSize
+        case "legendFontSize":        return \.legendFontSize
+        case "pointLabelFontSize":    return \.pointLabelFontSize
+        default:                      return \.titleFontSize
         }
     }
 
@@ -448,7 +457,7 @@ struct WorkbenchPlotCanvas: View {
         case .xLabel:             onEditXLabel?(text)
         case .yLabel:             onEditYLabel?(text)
         case .legend(let idx, _): onEditLegendLabel?(idx, text)
-        case .xTickLabel, .yTickLabel: break  // tick panels have no text to commit
+        case .xTickLabel, .yTickLabel, .pointLabel: break
         }
         editingElement = nil
         editText = ""

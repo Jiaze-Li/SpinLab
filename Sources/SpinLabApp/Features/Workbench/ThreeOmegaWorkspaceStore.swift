@@ -819,6 +819,7 @@ final class ThreeOmegaWorkspaceStore {
             showPlotGrid: tabs.showPlotGrid,
             plotLegendAnchor: tabs.legendAnchor,
             tabStates: tabs.snapshotStates(keyFor: { $0.stableKey }),
+            chartStyleOverrides: tabs.chartStyleOverrides,
             cachedSearchResults: cachedSearchResults,
             selectedSearchResultIDs: Array(selectedSearchResultIDs),
             selectedRTHit: selectedRTHit,
@@ -1155,6 +1156,9 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
         // Restore per-tab states
         tabs.restoreStates(config.tabStates) { key in
             ThreeOmegaWorkbenchTab.allCases.first { $0.stableKey == key }
+        }
+        if !config.chartStyleOverrides.isEmpty {
+            tabs.chartStyleOverrides = config.chartStyleOverrides
         }
 
         // Restore search selection state

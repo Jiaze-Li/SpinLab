@@ -247,7 +247,7 @@ struct WorkbenchChartRenderer {
         ctx.restoreGState()
 
         // Draw point labels outside clip — smart positioning to avoid edge cutoff
-        let labelFont: CGFloat = 20
+        let labelFont = style.pointLabelFontSize
         let r: CGFloat = 3.5
         let gap: CGFloat = 4
         let approxLabelW: CGFloat = 50
