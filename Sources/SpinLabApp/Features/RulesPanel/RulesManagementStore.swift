@@ -41,7 +41,10 @@ struct MapRule: Codable, Hashable {
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            scope = try container.decodeIfPresent(String.self, forKey: .scope) ?? ""
+            // Legacy files may omit scope. Default to "tokens" (a valid MatchScope in
+            // FilenameRuleSet); defaulting to "" would round-trip through encode and
+            // break the runtime loader on next read.
+            scope = try container.decodeIfPresent(String.self, forKey: .scope) ?? "tokens"
             type = try container.decode(String.self, forKey: .type)
             if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
                 matchValues = mv
@@ -154,7 +157,10 @@ struct WorkflowFileDraft: Codable {
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            scope = try container.decodeIfPresent(String.self, forKey: .scope) ?? ""
+            // Legacy files may omit scope. Default to "tokens" (a valid MatchScope in
+            // FilenameRuleSet); defaulting to "" would round-trip through encode and
+            // break the runtime loader on next read.
+            scope = try container.decodeIfPresent(String.self, forKey: .scope) ?? "tokens"
             type = try container.decode(String.self, forKey: .type)
             if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
                 matchValues = mv

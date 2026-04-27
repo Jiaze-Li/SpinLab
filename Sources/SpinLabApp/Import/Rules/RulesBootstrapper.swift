@@ -589,7 +589,14 @@ struct RulesBootstrapper {
             let keywords = entry["keywords"] as? [String] ?? []
             for value in keywords where !value.isEmpty {
                 let key = value.lowercased()
-                if seenContains.insert(key).inserted {
+                // Single-character legacy keywords migrate to `equals` to preserve token-level
+                // semantics; `contains` on a single char would misclassify any token sharing
+                // that letter as this treatment.
+                if value.count == 1 {
+                    if seenEquals.insert(key).inserted {
+                        matches.append(["type": "equals", "value": value])
+                    }
+                } else if seenContains.insert(key).inserted {
                     matches.append(["type": "contains", "value": value])
                 }
             }
