@@ -49,7 +49,7 @@ final class RegistryFacade {
         )
         let sourceFileName = URL(fileURLWithPath: loadResult.metadata.sourcePath).lastPathComponent
         appLogger.info(.import, "Routing rule metadata updated", metadata: [
-            "version": "\(loadResult.metadata.version)",
+            "version": "\(loadResult.metadata.schemaVersion)",
             "source": loadResult.metadata.sourceLabel,
             "sourceFileName": sourceFileName,
             "fingerprint": loadResult.metadata.fingerprint,

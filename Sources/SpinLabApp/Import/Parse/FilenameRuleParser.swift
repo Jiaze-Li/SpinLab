@@ -118,6 +118,32 @@ struct FilenameRuleParser {
                 + defaultSampleResolution.warnings
                 + conflictWarnings(fileSampleIDs: fileSampleIDs, folderSampleIDs: folderSampleIDs)
         )
+        var hintSources: [String: String] = [:]
+
+        let fileSampleIDsWithSources = ruleSet.sampleIDsWithSources(from: fileScopeTokens)
+        for (idx, item) in fileSampleIDsWithSources.enumerated() {
+            if idx == 0 {
+                hintSources["sampleID"] = item.ruleRef
+            }
+            hintSources["sampleID#\(idx)"] = item.ruleRef
+        }
+
+        let fileConditionWithSources = ruleSet.conditionEvaluationWithSources(from: fileTokens)
+        for (id, sourced) in fileConditionWithSources.sourcedValues {
+            hintSources["condition.\(id)"] = sourced.ruleRef
+        }
+
+        let fileSubstrateWithSources = ruleSet.substrateTagsWithSources(from: fileScopeTokens)
+        if !fileSubstrateWithSources.isEmpty {
+            for (idx, item) in fileSubstrateWithSources.enumerated() {
+                hintSources["substrateTags[\(idx)]"] = item.ruleRef
+            }
+        }
+
+        if let measurementWithSource = ruleSet.measurementNameWithSource(from: fileScopeTokens, joined: fileJoined) {
+            hintSources["workflowID"] = measurementWithSource.ruleRef
+            hintSources["measurementName"] = measurementWithSource.ruleRef
+        }
 
         return SpinLabDomain.ParsedFilenameHints(
             batchName: fileSampleIDs.first,
@@ -132,7 +158,8 @@ struct FilenameRuleParser {
             substrateTags: substrateTags,
             conditionValues: conditionEvaluation.values,
             rotationHint: Self.hardcodedRotationHint(from: fullContextTokens),
-            warnings: warnings
+            warnings: warnings,
+            hintSources: hintSources
         )
     }
 

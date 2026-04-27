@@ -246,6 +246,8 @@ extension SpinLabDomain {
         var conditionValues: [String: String] = [:]
         var rotationHint: String?
         var warnings: [String] = []
+        /// key → ruleRef string; consumed only by the sidecar write path (s3 §2.5). Not serialized.
+        var hintSources: [String: String] = [:]
 
         // Named accessors for built-in condition fields (callsite convenience).
         var temperature: String? { conditionValues[ConditionFieldCatalog.temperatureID] }
@@ -267,7 +269,8 @@ extension SpinLabDomain {
             growthTemperature: String? = nil,
             conditionValues: [String: String] = [:],
             rotationHint: String? = nil,
-            warnings: [String] = []
+            warnings: [String] = [],
+            hintSources: [String: String] = [:]
         ) {
             self.batchName = batchName
             self.sampleName = sampleName
@@ -283,6 +286,7 @@ extension SpinLabDomain {
             self.conditionValues = conditionValues
             self.rotationHint = rotationHint
             self.warnings = warnings
+            self.hintSources = hintSources
         }
 
         private enum CodingKeys: String, CodingKey {

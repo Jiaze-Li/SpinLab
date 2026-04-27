@@ -50,6 +50,11 @@ struct RulesConfigPaths {
         configDirectoryURL.appendingPathComponent("library_import_rules.json")
     }
 
+    /// NOT included in allSchemaFileURLs; must not enter compositeHash (§1.4 [HARD]).
+    var ruleSetStateURL: URL {
+        configDirectoryURL.appendingPathComponent("rule_set_state.json")
+    }
+
     var allSchemaFileURLs: [URL] {
         [
             importFiltersURL,
