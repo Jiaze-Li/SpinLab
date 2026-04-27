@@ -207,16 +207,6 @@ struct SampleIdentificationSection: View {
     private func substrateRowsGroup(_ d: SampleIdentificationFileDraft) -> some View {
         GroupBox("Substrate Configuration") {
             VStack(alignment: .leading, spacing: AppSpacing.lg) {
-                LabeledContent("Token Separators") {
-                    TextField("e.g. _- ()", text: Binding(
-                        get: { d.substrate.tokenSeparators },
-                        set: { v in var u = d; u.substrate.tokenSeparators = v; apply(u) }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 180)
-                    .font(.body.monospaced())
-                }
-                Divider()
                 materialsEditor(d)
                 Divider()
                 treatmentsEditor(d)

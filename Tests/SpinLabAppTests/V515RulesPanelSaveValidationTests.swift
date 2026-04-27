@@ -44,7 +44,7 @@ struct V515RulesPanelSaveValidationTests {
         """.data(using: .utf8)!.write(to: paths.filenameTokenizationURL)
 
         try """
-        {"version":2,"sampleId":{"patterns":["^[A-Z]+$"]},"substrate":{"tokenSeparators":"_","substrateTagRules":[],"materials":[{"id":"STO","tokens":["STO"],"aliases":[],"displayName":"STO"}],"treatments":[],"orientations":{"pattern":"\\\\d{3}","rows":[{"id":"111","tokens":["111"],"aliases":[]}]}}}
+        {"version":3,"sampleId":{"patterns":["^[A-Z]+$"]},"substrate":{"substrateTagRules":[],"materials":[{"id":"STO","tokens":["STO"],"aliases":[],"displayName":"STO"}],"treatments":[],"orientations":{"pattern":"\\\\d{3}","rows":[{"id":"111","tokens":["111"],"aliases":[]}]}}}
         """.data(using: .utf8)!.write(to: paths.sampleIdentificationURL)
 
         try """

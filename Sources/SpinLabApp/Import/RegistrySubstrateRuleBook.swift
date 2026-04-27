@@ -37,8 +37,8 @@ struct RegistrySubstrateRuleBook: RegistrySubstrateRuleProviding {
     }
 
     init(ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared) {
+        tokenSeparators = CharacterSet(charactersIn: ruleProvider.ruleSet().tokenization.separators)
         if let config = ruleProvider.substrateConfig() {
-            tokenSeparators = CharacterSet(charactersIn: config.tokenSeparators)
             let originTreatment = config.treatments.first(where: { $0.id == "o" })
             originStandaloneTokens = Set((originTreatment?.standaloneTokens ?? []).map { $0.lowercased() })
             originContainsTokens = (originTreatment?.containsTokens ?? []).map { $0.lowercased() }
@@ -49,7 +49,6 @@ struct RegistrySubstrateRuleBook: RegistrySubstrateRuleProviding {
             orientationPattern = config.orientations.pattern
         } else {
             let substrate = ruleProvider.sharedSubstrateRules()
-            tokenSeparators = CharacterSet(charactersIn: substrate.tokenSeparators)
             originStandaloneTokens = Set(substrate.originStandaloneTokens.map { $0.lowercased() })
             originContainsTokens = substrate.originContainsTokens.map { $0.lowercased() }
             treatmentKeywords = substrate.treatmentKeywords.mapValues { $0.map { $0.lowercased() } }

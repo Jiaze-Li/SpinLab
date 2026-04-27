@@ -135,7 +135,6 @@ struct FilenameRuleSet: Decodable {
     }
 
     struct SubstrateConfig: Decodable {
-        var tokenSeparators: String
         var substrateTagRules: [MapRule]
         var materials: [MaterialDefinition]
         var treatments: [TreatmentDefinition]
@@ -855,7 +854,6 @@ struct FilenameRuleSet: Decodable {
                 orientationPattern: "\\d{3}"
             ),
             substrateConfig: SubstrateConfig(
-                tokenSeparators: "_- ()",
                 substrateTagRules: [],
                 materials: [
                     MaterialDefinition(id: "STO", tokens: ["STO"], aliases: [], displayName: "STO"),

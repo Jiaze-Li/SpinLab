@@ -2,7 +2,7 @@ import Foundation
 import CryptoKit
 
 struct RulesBootstrapper {
-    static func migrateRuntimeRulesToV2IfNeeded() {
+    static func migrateRuntimeRulesIfNeeded() {
         let paths = RulesConfigPaths()
         let fm = FileManager.default
         let decoder = JSONDecoder()
@@ -24,7 +24,7 @@ struct RulesBootstrapper {
                 let stateObj = try JSONSerialization.jsonObject(with: stateData)
                 if let state = stateObj as? [String: Any],
                    let version = state["rules_schema_version"] as? Int,
-                   version >= 2 {
+                   version >= 3 {
                     AppLogger.shared.info(.import, "RulesBootstrapper migration skipped: already migrated", metadata: [
                         "rules_schema_version": String(version)
                     ])
@@ -37,6 +37,7 @@ struct RulesBootstrapper {
 
         let measuringURL = paths.measuringConditionURL
         let sampleURL = paths.sampleIdentificationURL
+        let tokenizationURL = paths.filenameTokenizationURL
 
         guard fm.fileExists(atPath: measuringURL.path), fm.fileExists(atPath: sampleURL.path) else {
             AppLogger.shared.info(.import, "RulesBootstrapper migration skipped: runtime files incomplete", metadata: [
@@ -50,6 +51,7 @@ struct RulesBootstrapper {
         let sourceSampleData: Data
         let sourceMeasuringJSON: [String: Any]
         let sourceSampleJSON: [String: Any]
+        let tokenizationJSON: [String: Any]?
         do {
             sourceMeasuringData = try Data(contentsOf: measuringURL)
             sourceSampleData = try Data(contentsOf: sampleURL)
@@ -63,6 +65,13 @@ struct RulesBootstrapper {
             }
             sourceMeasuringJSON = measuringDict
             sourceSampleJSON = sampleDict
+
+            if fm.fileExists(atPath: tokenizationURL.path) {
+                let tokenData = try Data(contentsOf: tokenizationURL)
+                tokenizationJSON = try JSONSerialization.jsonObject(with: tokenData) as? [String: Any]
+            } else {
+                tokenizationJSON = nil
+            }
         } catch {
             AppLogger.shared.error(.import, "RulesBootstrapper migration skipped: failed to read runtime json", metadata: [
                 "reason": error.localizedDescription
@@ -72,7 +81,7 @@ struct RulesBootstrapper {
 
         let measuringVersion = (sourceMeasuringJSON["version"] as? Int) ?? 0
         let sampleVersion = (sourceSampleJSON["version"] as? Int) ?? 0
-        if measuringVersion >= 2, sampleVersion >= 2 {
+        if measuringVersion >= 2, sampleVersion >= 3 {
             let sourceHash = [
                 "measuring_condition.json": sha256Hex(sourceMeasuringData),
                 "sample_identification.json": sha256Hex(sourceSampleData)
@@ -95,7 +104,12 @@ struct RulesBootstrapper {
         let migratedSampleJSON: [String: Any]
         do {
             migratedMeasuringJSON = try migrateMeasuringConditionIfNeeded(json: sourceMeasuringJSON, warnings: &warnings)
-            migratedSampleJSON = try migrateSampleIdentificationIfNeeded(json: sourceSampleJSON, warnings: &warnings)
+            let v2SampleJSON = try migrateSampleIdentificationIfNeeded(json: sourceSampleJSON, warnings: &warnings)
+            migratedSampleJSON = try migrateSampleIdentificationV2ToV3IfNeeded(
+                json: v2SampleJSON,
+                tokenizationJSON: tokenizationJSON,
+                warnings: &warnings
+            )
         } catch {
             AppLogger.shared.error(.import, "RulesBootstrapper migration skipped: transform failed", metadata: [
                 "reason": error.localizedDescription
@@ -185,7 +199,7 @@ struct RulesBootstrapper {
     }
 
     static func seedMissingRuntimeFilesFromBundleIfNeeded() {
-        migrateRuntimeRulesToV2IfNeeded()
+        migrateRuntimeRulesIfNeeded()
         let paths = RulesConfigPaths()
         let fm = FileManager.default
         let locator = BundleFileLocator()
@@ -409,6 +423,46 @@ struct RulesBootstrapper {
         ]
     }
 
+    private static func migrateSampleIdentificationV2ToV3IfNeeded(
+        json: [String: Any],
+        tokenizationJSON: [String: Any]?,
+        warnings: inout [String]
+    ) throws -> [String: Any] {
+        let version = (json["version"] as? Int) ?? 0
+        guard version < 3 else { return json }
+
+        var migrated = json
+        migrated["version"] = 3
+
+        guard var substrate = migrated["substrate"] as? [String: Any] else {
+            return migrated
+        }
+
+        if let substrateSeparators = substrate["tokenSeparators"] as? String {
+            let tokenizationSeparators: String?
+            if let tokenizationJSON,
+               let tokenization = tokenizationJSON["tokenization"] as? [String: Any] {
+                tokenizationSeparators = tokenization["separators"] as? String
+            } else {
+                tokenizationSeparators = nil
+            }
+
+            if let tokenizationSeparators, tokenizationSeparators != substrateSeparators {
+                warnings.append(
+                    "sample_identification: substrate.tokenSeparators=\"\(substrateSeparators)\" differs from filename_tokenization.separators=\"\(tokenizationSeparators)\"; substrate detection will follow filename_tokenization after migration"
+                )
+            } else if tokenizationSeparators == nil {
+                warnings.append(
+                    "sample_identification: substrate.tokenSeparators=\"\(substrateSeparators)\" dropped; filename_tokenization not found, substrate detection will use loaded tokenization at runtime"
+                )
+            }
+        }
+
+        substrate.removeValue(forKey: "tokenSeparators")
+        migrated["substrate"] = substrate
+        return migrated
+    }
+
     private static func bindingKeyFrom(_ binding: String?, prefix: String) -> String? {
         guard let binding else { return nil }
         guard binding.hasPrefix(prefix) else { return nil }
@@ -437,7 +491,7 @@ struct RulesBootstrapper {
         warnings: [String]
     ) {
         let body: [String: Any] = [
-            "rules_schema_version": 2,
+            "rules_schema_version": 3,
             "migrated_at": migrationDateString(),
             "source_sha256": sourceSHA,
             "target_sha256": targetSHA,

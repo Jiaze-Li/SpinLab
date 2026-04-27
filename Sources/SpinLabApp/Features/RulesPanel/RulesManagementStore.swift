@@ -107,7 +107,6 @@ struct SampleIdentificationFileDraft: Codable {
         var patterns: [String]
     }
     struct SubstrateConfig: Codable {
-        var tokenSeparators: String
         var substrateTagRules: [MapRule]
         var materials: [MaterialDefinition]
         var treatments: [TreatmentDefinition]

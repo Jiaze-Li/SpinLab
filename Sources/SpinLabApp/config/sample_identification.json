@@ -1,12 +1,11 @@
 {
-  "version": 2,
+  "version": 3,
   "sampleId": {
     "patterns": [
       "^(PN|PT|SL)\\d+$"
     ]
   },
   "substrate": {
-    "tokenSeparators": "_- ()",
     "substrateTagRules": [
       {
         "match": {
