@@ -101,14 +101,6 @@ struct SeparatedConditionsPatch: Equatable {
     var tokenMapRules: [String: [TokenMapping]]
 }
 
-struct MatchRuleEntry: Identifiable, Equatable {
-    var id: UUID = UUID()
-    var scope: FilenameRuleSet.MatchScope
-    var type: FilenameRuleSet.MatchType
-    var matchValues: [String]
-    var value: String
-}
-
 struct RulePatternCodec {
     static let canonicalPrefix = #"^-?\d+(?:\.\d+)?(?:"#
     static let canonicalSuffix = #")$"#
