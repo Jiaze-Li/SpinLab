@@ -6,7 +6,6 @@ protocol SpinLabRuleProviding {
     func ruleSet() -> FilenameRuleSet
     func registryRules() -> FilenameRuleSet.RegistryRules
     func importRules() -> FilenameRuleSet.ImportRules
-    func sharedSubstrateRules() -> FilenameRuleSet.SharedSubstrateRules
     func substrateConfig() -> FilenameRuleSet.SubstrateConfig?
 }
 
@@ -41,10 +40,6 @@ struct SpinLabRuleProvider: SpinLabRuleProviding {
         ruleSet().importRules ?? fallback.importRules!
     }
 
-    func sharedSubstrateRules() -> FilenameRuleSet.SharedSubstrateRules {
-        ruleSet().sharedSubstrate ?? fallback.sharedSubstrate!
-    }
-
     func substrateConfig() -> FilenameRuleSet.SubstrateConfig? {
         ruleSet().substrateConfig ?? fallback.substrateConfig
     }
@@ -75,10 +70,6 @@ struct InlineRuleProvider: SpinLabRuleProviding {
 
     func importRules() -> FilenameRuleSet.ImportRules {
         cachedLoadResult.ruleSet.importRules ?? FilenameRuleSet.fallback().importRules!
-    }
-
-    func sharedSubstrateRules() -> FilenameRuleSet.SharedSubstrateRules {
-        cachedLoadResult.ruleSet.sharedSubstrate ?? FilenameRuleSet.fallback().sharedSubstrate!
     }
 
     func substrateConfig() -> FilenameRuleSet.SubstrateConfig? {

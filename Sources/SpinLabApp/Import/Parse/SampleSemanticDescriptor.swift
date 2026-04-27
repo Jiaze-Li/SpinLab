@@ -121,21 +121,6 @@ struct SampleSemanticDescriptor: Hashable {
             }
             return nil
         }
-
-        // Legacy v1/v2 sharedSubstrate path
-        let normalizedInput = trimmed.lowercased()
-        let treatmentKeywords = ruleProvider.sharedSubstrateRules().treatmentKeywords
-            .mapValues { $0.map { $0.lowercased() } }
-        for canonical in treatmentKeywords.keys.sorted() {
-            guard let keywords = treatmentKeywords[canonical] else { continue }
-            if keywords.contains(where: { keyword in
-                keyword.count <= 1
-                    ? normalizedInput == keyword
-                    : normalizedInput == keyword || normalizedInput.contains(keyword)
-            }) {
-                return canonical
-            }
-        }
         return nil
     }
 

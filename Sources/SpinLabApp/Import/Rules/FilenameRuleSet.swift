@@ -107,19 +107,6 @@ struct FilenameRuleSet: Decodable {
         var ignoredFileExtensions: [String]
     }
 
-    struct SharedSubstrateRules: Decodable {
-        var tokenSeparators: String
-        var originStandaloneTokens: [String]
-        var originContainsTokens: [String]
-        var treatmentKeywords: [String: [String]]
-        var materialTokens: [String]
-        var materialAliases: [String: String]?
-        var materialDisplayNames: [String: String]?
-        var orientationTokens: [String]?
-        var orientationAliases: [String: String]?
-        var orientationPattern: String
-    }
-
     // MARK: - v4 Substrate types
 
     struct SubstrateEntry: Decodable {
@@ -231,7 +218,6 @@ struct FilenameRuleSet: Decodable {
     var conditionDefinitions: [ConditionDefinition]
     var registry: RegistryRules?
     var importRules: ImportRules?
-    var sharedSubstrate: SharedSubstrateRules?
     var substrateConfig: SubstrateConfig?
 
     var compiled: CompiledRules = CompiledRules()
@@ -264,7 +250,6 @@ struct FilenameRuleSet: Decodable {
         conditionDefinitions: [ConditionDefinition] = [],
         registry: RegistryRules?,
         importRules: ImportRules?,
-        sharedSubstrate: SharedSubstrateRules?,
         substrateConfig: SubstrateConfig?
     ) {
         self.version = version
@@ -278,7 +263,6 @@ struct FilenameRuleSet: Decodable {
         self.conditionDefinitions = conditionDefinitions
         self.registry = registry
         self.importRules = importRules
-        self.sharedSubstrate = sharedSubstrate
         self.substrateConfig = substrateConfig
         compiled = CompiledRules()
         loadWarnings = []
@@ -298,7 +282,6 @@ struct FilenameRuleSet: Decodable {
         registry = try container.decodeIfPresent(RegistryRules.self, forKey: .registry)
         importRules = try container.decodeIfPresent(ImportRules.self, forKey: .importRules)
         substrateConfig = try container.decodeIfPresent(SubstrateConfig.self, forKey: .substrateConfig)
-        sharedSubstrate = nil
         compiled = CompiledRules()
         loadWarnings = []
     }
@@ -862,32 +845,6 @@ struct FilenameRuleSet: Decodable {
             importRules: ImportRules(
                 supportedFileExtensions: ["csv", "txt", "dat", "lvm"],
                 ignoredFileExtensions: ["gph"]
-            ),
-            sharedSubstrate: SharedSubstrateRules(
-                tokenSeparators: "_- ()",
-                originStandaloneTokens: ["o"],
-                originContainsTokens: ["origin", "original"],
-                treatmentKeywords: [
-                    "HF": ["hf"],
-                    "b": ["b", "bake", "baked"],
-                    "o": ["o", "origin", "original"]
-                ],
-                materialTokens: ["STO", "NGO", "MAO", "MGO", "AL2O3", "SI", "POLY-SIO2 ON SI", "POLY-SIO2"],
-                materialAliases: [
-                    "ONSI": "SI"
-                ],
-                materialDisplayNames: [
-                    "POLY-SIO2 ON SI": "poly-SiO2 on Si",
-                    "POLY-SIO2": "poly-SiO2 on Si",
-                    "MGO": "MgO",
-                    "AL2O3": "Al2O3",
-                    "SI": "Si"
-                ],
-                orientationTokens: ["111", "110", "001", "100", "0001"],
-                orientationAliases: [
-                    "100": "001"
-                ],
-                orientationPattern: "\\d{3}"
             ),
             substrateConfig: SubstrateConfig(
                 materials: [

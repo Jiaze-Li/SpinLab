@@ -219,7 +219,6 @@ struct RuleLoader {
             conditionDefinitions: conditionFile.conditionDefinitions,
             registry: nil,
             importRules: importFiltersFile.importRules,
-            sharedSubstrate: sampleIdentFile.sharedSubstrate,
             substrateConfig: sampleIdentFile.substrateConfig
         )
 
@@ -260,7 +259,6 @@ struct RuleLoader {
             conditionDefinitions: conditionFile.conditionDefinitions,
             registry: nil,
             importRules: importFiltersFile.importRules,
-            sharedSubstrate: sampleIdentFile.sharedSubstrate,
             substrateConfig: sampleIdentFile.substrateConfig
         )
 
@@ -381,11 +379,10 @@ private struct FilenameTokenizationFile: Decodable {
 private struct SampleIdentificationFile: Decodable {
     let version: Int
     let sampleId: FilenameRuleSet.SampleIdRules
-    let sharedSubstrate: FilenameRuleSet.SharedSubstrateRules?
     let substrateConfig: FilenameRuleSet.SubstrateConfig?
 
     private enum TopKeys: String, CodingKey { case version, sampleId, substrate }
-    private enum SubstrateKeys: String, CodingKey { case shared, materials }
+    private enum SubstrateKeys: String, CodingKey { case materials }
 
     // v3 material/treatment/orientation intermediate types for inline conversion
     private struct V3Material: Decodable {
@@ -423,16 +420,12 @@ private struct SampleIdentificationFile: Decodable {
 
         if version >= 4 {
             // v4: materials/treatments/orientations as SubstrateEntry[]
-            sharedSubstrate = nil
             substrateConfig = try FilenameRuleSet.SubstrateConfig(from: top.superDecoder(forKey: .substrate))
         } else if sub.contains(.materials) {
             // v3: structured substrate — convert inline to v4
-            sharedSubstrate = nil
             let v3 = try V3SubstrateSection(from: top.superDecoder(forKey: .substrate))
             substrateConfig = Self.convertV3ToV4(v3)
         } else {
-            // v1/v2: shared substrate section
-            sharedSubstrate = try sub.decodeIfPresent(FilenameRuleSet.SharedSubstrateRules.self, forKey: .shared)
             substrateConfig = nil
         }
     }

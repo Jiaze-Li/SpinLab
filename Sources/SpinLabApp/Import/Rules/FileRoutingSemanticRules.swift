@@ -48,39 +48,6 @@ struct FileRoutingSemanticRules {
                     }
                 }
             }
-        } else {
-            let substrate = ruleProvider.sharedSubstrateRules()
-            for canonical in substrate.treatmentKeywords.keys.sorted() {
-                guard let keywords = substrate.treatmentKeywords[canonical] else { continue }
-                for keyword in keywords {
-                    let normalized = normalizeToken(keyword)
-                    guard !normalized.isEmpty else { continue }
-                    rules.treatmentNeedles[normalized] = canonical
-                }
-            }
-            for material in substrate.materialTokens {
-                let normalized = normalizeToken(material)
-                guard !normalized.isEmpty else { continue }
-                rules.materialNeedles[normalized] = material.uppercased()
-            }
-            for (alias, canonical) in (substrate.materialAliases ?? [:]) {
-                let normalized = normalizeToken(alias)
-                guard !normalized.isEmpty else { continue }
-                rules.materialNeedles[normalized] = canonical.uppercased()
-            }
-            for token in (substrate.orientationTokens ?? []) {
-                let normalized = normalizeToken(token)
-                guard !normalized.isEmpty else { continue }
-                rules.orientationNeedles.insert(normalized)
-            }
-            for (alias, canonical) in (substrate.orientationAliases ?? [:]) {
-                let normalizedAlias = normalizeToken(alias)
-                let normalizedCanonical = normalizeToken(canonical)
-                guard !normalizedAlias.isEmpty, !normalizedCanonical.isEmpty else { continue }
-                rules.orientationNeedles.insert(normalizedAlias)
-                rules.orientationNeedles.insert(normalizedCanonical)
-                rules.orientationAliases[normalizedAlias] = normalizedCanonical
-            }
         }
 
         return rules
