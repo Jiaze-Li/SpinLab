@@ -55,9 +55,9 @@
 - [x] InboxFeatureStore 关键路径测试：初始化/选择、导入分发、apply 移除、workspace 裁剪、选择自动调整（15 cases）
 - [x] 文档状态同步：TECH_DEBT_BACKLOG 完成度与 roadmap 对齐
 
-### 5.1.5 — 规则管理统一 + 自动同步基础设施 [x]
+### 5.1.5 — 规则管理统一 + 自动同步基础设施
 
-**状态**：`[x]` 已完成。s1–s11 全部归档。s11（三个匹配本子 UI + 字段命名统一 + SectionPersistenceStrategy + RulesSectionShell + UnifiedMatchRuleEditor）2026-04-27 执行完毕，122 V515 tests green；3 commits（5eb5e2b + 1adc6b4 + 2b70e24）。
+**状态**：`[~]` 已规划进行中（s1–s11 已归档；2026-04-27 追加 s12——三本匹配深层统一：数据扁平化 + 操作集收敛到 4 项 + 单壳化）。s11 完成"UI 风格统一 + 字段命名"层；s12 在此之上做"匹配数据模型扁平化 + 操作集收敛 + 模板化 regex 自动生成"，把 batch prefix 与 unit suffix 也并入同一壳。s12 完成才整体验收 5.1.5。
 
 **动机**：4·25 事故暴露规则架构散落多文件、bundle 与 runtime schema 不一致、半成品迁移路径并存（如代码层齐全但永远不会真存在的 `conditions_rules.json` 分文件）。同一份概念多处存放、隐式"分文件赢"约定、bundle 与 runtime 没有自动同步——任何一处改动都可能让另一处静默漂移。需要从根上修。
 
@@ -218,6 +218,61 @@ s3 双盲对抗 Round 2 决策（详见 handoff `2026-04-26-5.1.5-s3-rules-redes
 - ❌ 为每个本子各自定制匹配编辑器 —— 用户原话明确"matching 能做一套就做一套"
 
 **来源**：2026-04-27 与 Jack 对齐。从"5 个本子各自 UI 不一致"展开为"三个匹配本统一 UI + 字段命名 + 引擎共用确认"专项。
+
+##### s12 任务清单（2026-04-27 追加，三本匹配深层统一：数据扁平化 + 操作集 4 项 + 单壳）
+
+**动机**：s11 完成了"UI 风格统一 + 字段命名"，但匹配数据模型仍是双层："一条规则 = 一个操作 + 一组数值"，操作集 6 种（equals / equalsAny / contains / containsAny / equalsOrContainsAny / regex），且 batch prefix 与 unit suffix 各自独立 UI（chip 列表 + 内部各自套不同 regex 模板）。Jack 在 2026-04-27 反馈：希望"匹配做成一个样子"——每行 = 左操作 + 右单值，所有匹配场景走同一个 shell。讨论收敛后确认：现存 workflow.json 无任何 regex 规则在用，starts-with（batch prefix 模板）+ unit-suffix（unit 模板）两个新操作能完整覆盖现有用例，可直接砍掉 regex 操作。Any 系列是语法糖，可拆成多行同操作表达。
+
+**顶层原则**（沿用 5.1.5 顶层"看见即设置"+ s11"matching 走同一逻辑"，进一步收紧为）：
+> 所有匹配场景共用一个 shell：每行 = 一个操作 + 一个单值。操作集封闭枚举，不开 regex 后门。
+
+**拍板要点**：
+
+1. **匹配数据扁平化**。原 `[{type, matchValues: [String]}]` 改为 `[{type, value: String}]`。一条规则 = 一行 = 一个操作 + 一个单值。多个值→多行同操作。
+2. **操作集封闭为 4 种**：
+   - `equals` — 完全相等
+   - `contains` — 包含子串
+   - `starts-with` — 输片段，系统自动套 `^<片段>\d+$`（原 batch prefix 用法）
+   - `unit-suffix` — 输单位片段，系统自动套 `^-?\d+(?:\.\d+)?(?:<片段>)$`（原 unit 用法）
+3. **统一壳替换 5 处调用**：Sample ID 三组（Materials / Treatments / Orientations）用 equals/contains；Workflows matchRules 用 equals/contains；Measurement Tag match 用 equals/contains；Measuring Condition token_map 用 equals/contains；Sample ID batch prefixes 用 starts-with；Measuring Condition unit_suffix 用 unit-suffix。所有标题统一叫 **Matches**。
+4. **配置迁移一次性**：
+   - `equalsAny` / `containsAny` → 拆成多行 `equals` / `contains`
+   - `equalsOrContainsAny [A,B]` → 4 行（equals A、equals B、contains A、contains B）
+   - 旧 `batchPrefixes: ["SL"]` → `[{type: "starts-with", value: "SL"}]`
+   - 旧 `unitPattern` 反解片段 → `[{type: "unit-suffix", value: "mA"}, ...]`
+   - 启动时 v4→v5 自动迁移 + 原子写回 + `.backup` 副本，迁移后旧解码路径删除
+5. **regex 操作砍除**。基于现存 workflow.json 实测无 regex 规则在用。未来若出现 regex 需求，独立专项重开入口；本期不留 regex 后门
+6. **匹配引擎改写**。原 `MapRule.match.matchValues` + `compiledMapRule` 求值逻辑替换为按 4 操作各自实现的 matcher（equals/contains 字面比对；starts-with / unit-suffix 内部即时拼 regex 走 NSRegularExpression）。AG6（s11 的引擎零改动）在 s12 不再适用——本期允许动引擎，但行为对等
+7. **UI 单壳**：替换 s11 的 `UnifiedMatchRuleEditor`，新壳每行布局 `[操作 Picker(4选)] [单值 TextField] [删除]`，无嵌套展开层
+
+**任务拆分**：
+
+| 会话 | 主题 | 工作量 |
+|---|---|---|
+| s12-design | 设计稿对抗：4 操作集合 schema + 数据扁平化迁移路径（v4→v5）+ 引擎改写（matcher per type）+ 单壳组件接口 + 5 处调用替换清单 → handoff | 设计会话 |
+| s12-exec | 执行：domain model 改 + bootstrapper v4→v5 迁移 + matcher 引擎改写 + 单壳替换 5 处调用 + UI 文案统一为 Matches + 测试同步更新 | 中（10–14 h）|
+
+**关键 acceptance gate**（s12-exec 验收时必满足）：
+
+- **AG1** 五处匹配区视觉与交互完全一致：每行 = 操作选择器（4 选）+ 单值输入框 + 删除按钮；无嵌套展开
+- **AG2** 操作选择器只有 equals / contains / starts-with / unit-suffix 四项；regex 不在选项内
+- **AG3** v4→v5 迁移：含旧 `equalsAny / containsAny / equalsOrContainsAny / regex / matchValues` / 旧 `batchPrefixes` / 旧 `unitPattern` 的 runtime 文件能解码并迁出（atomic + backup + 幂等）；迁移后旧解码路径从代码删除
+- **AG4** 匹配引擎对现存所有规则的求值结果与 5.1.5 s11 完全一致（regression test）
+- **AG5** 标题统一为 Matches；旧 "Match Rules" / "Match Values" / "Token Map" 字样从 UI 全清
+- **AG6** Sample ID 的 batch prefixes 与 Measuring Condition 的 unit_suffix 走同一壳实例化，仅传入预设的操作类型限制
+
+**否决方案及理由**（不要后续 agent 推翻）：
+
+- ❌ 保留 6 操作 / 保留 Any 系列 —— Jack 拍板"做成一个样子"，Any 是语法糖可多行表达
+- ❌ 保留 regex 作为第 5 操作 —— 现存配置无用例；保留 = 为不存在的需求加复杂度
+- ❌ 暴露 regex 输入框给用户写正则 —— 违反"看见即设置"+ 对非技术用户不友好
+- ❌ batch prefix / unit suffix 保留独立 UI —— Jack 明确"匹配做成一个样子"，独立 UI 违反单壳原则
+- ❌ 数据保留双层结构、仅 UI 扁平化 —— 操作器跨行共享导致改一行影响多行，交互混乱
+- ❌ 匹配引擎保持 s11 不动、仅 UI 拍平 —— 不可能：数据形状变了引擎必须跟改
+- ❌ v4→v5 双 schema 并存兼容 —— 一次性迁完，不留中间态（与 5.1.5 F 项迁移策略一致）
+- ❌ 引入 "starts-with" 之外的扩展操作（ends-with / regex-fragment / multi-segment）—— 本期只覆盖现有用例，不为假想需求开操作集
+
+**来源**：2026-04-27 与 Jack 对齐。从 s11 完成后 Jack 发现"匹配数据形状不一致 + batch prefix / unit suffix 仍各自独立 UI"展开为本期专项。讨论历经多轮收敛：(1) 砍 Any 系列 → (2) 加 starts-with / unit-suffix 替代 batch prefix / unit suffix 独立 UI → (3) 确认现存无 regex 用例 → 砍 regex → (4) 收敛为 4 操作单壳。
 
 ##### s3 设计稿必须包含的盘点清单（让 s4 不漏点）
 
