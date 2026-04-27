@@ -30,7 +30,7 @@ final class XYRotationWorkspaceStore {
 
     // MARK: - Warning log
 
-    var warningLog: [WorkbenchWarningEntry] = []
+    var warningLog: WorkbenchWarningLog = WorkbenchWarningLog()
 
     // MARK: - Plot controls (workflow-specific)
 
@@ -252,7 +252,7 @@ final class XYRotationWorkspaceStore {
         isAnalyzing = false
         analysisMessage = nil
         _titleTokens = [:]
-        warningLog = []
+        warningLog.clear()
         activePackID = nil
         persistenceOutcome = nil
         relatedChartsTask?.cancel()

@@ -56,6 +56,6 @@ actor SpinLabDataActor: SpinLabDataActing {
         let rootURL = URL(fileURLWithPath: libraryRootPath, isDirectory: true)
         let store = LibraryStore()
         guard let index = store.loadIndex(from: rootURL) else { return [:] }
-        return index.samples.first(where: { $0.id == sampleKey })?.numericDisplay ?? [:]
+        return index.sample(matchingDiskKey: sampleKey)?.numericDisplay ?? [:]
     }
 }

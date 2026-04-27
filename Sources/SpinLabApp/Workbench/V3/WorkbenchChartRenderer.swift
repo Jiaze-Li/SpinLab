@@ -19,6 +19,10 @@ struct WorkbenchChartRenderer {
         /// When set, locks the x-axis range instead of auto-fitting to data extents.
         var fixedXMin: Double? = nil
         var fixedXMax: Double? = nil
+        /// Per-series hidden point-label indices, used when collecting pending labels.
+        var hiddenPointLabelsBySeries: [Int: Set<Int>] = [:]
+        /// Pixel-density multiplier. Logical drawing stays in width×height; output PNG is width·scale × height·scale.
+        var pixelScale: CGFloat = 2.0
     }
 
     enum RendererError: Error, LocalizedError {
@@ -52,16 +56,20 @@ struct WorkbenchChartRenderer {
     func renderPNG(payload: WorkbenchPlotPayload, options: Options = .init(), style: WorkbenchChartStyle = .init()) throws -> Data {
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+        let scale = max(options.pixelScale, 1)
+        let pixelW = Int((CGFloat(options.width) * scale).rounded())
+        let pixelH = Int((CGFloat(options.height) * scale).rounded())
         guard let ctx = CGContext(
             data: nil,
-            width: options.width,
-            height: options.height,
+            width: pixelW,
+            height: pixelH,
             bitsPerComponent: 8,
             bytesPerRow: 0,
             space: colorSpace,
             bitmapInfo: bitmapInfo.rawValue
         ) else { throw RendererError.contextCreationFailed }
 
+        ctx.scaleBy(x: scale, y: scale)
         drawCanvas(in: ctx, payload: payload, options: options, style: style)
 
         guard let cgImage = ctx.makeImage() else { throw RendererError.imageCreationFailed }
@@ -233,7 +241,10 @@ struct WorkbenchChartRenderer {
                     ctx.fillEllipse(in: CGRect(x: center.x - r, y: center.y - r,
                                                width: r * 2, height: r * 2))
                     if k < series.pointLabels.count {
-                        pendingLabels.append((series.pointLabels[k], center, color))
+                        let hidden = options.hiddenPointLabelsBySeries[i]
+                        if hidden?.contains(k) != true {
+                            pendingLabels.append((series.pointLabels[k], center, color))
+                        }
                     }
                 }
             }
@@ -241,27 +252,28 @@ struct WorkbenchChartRenderer {
         ctx.restoreGState()
 
         // Draw point labels outside clip — smart positioning to avoid edge cutoff
-        let labelFont: CGFloat = 16
+        let labelFont = style.pointLabelFontSize
         let r: CGFloat = 3.5
         let gap: CGFloat = 4
-        let approxLabelW: CGFloat = 36   // rough width of "300 K" at size 13
-        let approxLabelH: CGFloat = 14
-        for (text, center, color) in pendingLabels {
+        let approxLabelW: CGFloat = 50
+        let approxLabelH: CGFloat = 20
+        let labelColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+        for (text, center, _) in pendingLabels {
             // Flip to left when too close to right edge; flip to below when too close to top
             let nearRight = center.x + r + gap + approxLabelW > plotRect.maxX
             let nearTop   = center.y + approxLabelH * 0.5 > plotRect.maxY
             if nearRight {
                 let labelPt = CGPoint(x: center.x - r - gap, y: center.y)
                 drawRightAligned(ctx, text: text, rightEdge: labelPt,
-                                 size: labelFont, bold: false, color: color)
+                                 size: labelFont, bold: false, color: labelColor)
             } else if nearTop {
                 let labelPt = CGPoint(x: center.x, y: center.y - r - gap - approxLabelH)
                 drawCentered(ctx, text: text, at: labelPt,
-                             size: labelFont, bold: false, color: color)
+                             size: labelFont, bold: false, color: labelColor)
             } else {
                 let labelPt = CGPoint(x: center.x + r + gap, y: center.y)
                 drawLeftAligned(ctx, text: text, leftEdge: labelPt,
-                                size: labelFont, bold: false, color: color)
+                                size: labelFont, bold: false, color: labelColor)
             }
         }
 

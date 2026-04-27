@@ -79,6 +79,7 @@ Behavior details: `specs/three_omega_physics.md`
 - Shell-driven lifecycle: Search → Select → Analyze (sole trace commit point) → Save. Restore/rerender paths never commit trace.
 - Pack load restores `ingestionResult` from persisted `PackResult`, then rerenders without re-ingestion
 - Invariant: new workflows must use the shell, not standalone views
+- Warning panel uses a shell-level `WorkbenchWarningLog` container that coalesces identical (source, message) pairs. Reruns of analyze / load / scaling never stack duplicate entries. New workflows inherit the rule via `WorkbenchWorkspaceProviding`. (v5.3.5)
 
 ### Measurement Search
 - Workbench fields must use sidecar condition names, never invent new variable names
@@ -92,12 +93,15 @@ Behavior details: `specs/three_omega_physics.md`
 - Chart title is not bold (v5.3.1)
 - Axis titles (x/y) centered on plot drawing area, not full image (v5.3.1)
 - Font sizes (title, axis, tick, legend) and tick density (x/y) configurable via Chart Style disclosure panel (v5.3.1)
-- Right-click Copy PNG copies rendered chart to clipboard (v5.3.1)
+- Right-click → Copy PNG submenu: 1x / 2x / 3x scale options. 2x reuses cached imageData (fast path); 1x/3x re-render via pipeline. (v5.3.5)
 - Chart style settings stored in styleParams, parsed via WorkbenchChartStyle (v5.3.1)
+- Point labels (scatter series): font size configurable via tap on label; tap on dot toggles label visibility per-point, persists across Pack save/load. (v5.3.5)
 - Legend dimension auto-inference: data-driven priority chain resolves which metadata dimension distinguishes series (temperature > substrate = energy = pressure > thickness). Ambiguous or indeterminate cases produce warnings. (v5.3.4)
 - Legend-visual consistency: stacked charts guarantee legend top entry = visually highest curve. Controlled by reverseSeriesForLegend flag on payload, applied uniformly in render pipeline. (v5.3.4)
 - Test: V531SeriesRenderModeTests — Codable migration, ChartStyle parsing, axis alignment
 - Test: V534LegendDimensionResolverTests — resolver priority, tolerance, ambiguity, pipeline reversal, backward decode
+- Test: V535PointLabelVisibilityTests, V535TabRenderStatePackTests, V535ScopeGateTests — point label toggle logic, Pack Codable, payload-capability gate
+- Test: V535CopyPNGScaleMenuTests — scale array alignment, output pixel dimensions, 2x determinism
 
 ### 3-Omega AHE
 - Fit ranges are part of scaling chart semantic identity — different fit configs produce separate chart entries, not overwrites

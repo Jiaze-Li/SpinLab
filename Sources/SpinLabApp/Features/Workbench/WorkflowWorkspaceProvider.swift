@@ -77,7 +77,7 @@ protocol WorkbenchWorkspaceProviding: WorkbenchPlottingStore, AnalysisPackProvid
 
     // MARK: Warning
 
-    var warningLog: [WorkbenchWarningEntry] { get set }
+    var warningLog: WorkbenchWarningLog { get set }
 
     // MARK: Trace (writable — overrides WorkbenchPlottingStore's get-only)
 
@@ -108,8 +108,10 @@ protocol WorkbenchWorkspaceProviding: WorkbenchPlottingStore, AnalysisPackProvid
 
 extension WorkbenchWorkspaceProviding {
     /// Append a warning to the log. Unified entry point for all workflows.
+    /// Same source+message pairs are coalesced inside `WorkbenchWarningLog`,
+    /// so reruns of analyze/load/scaling don't stack identical entries.
     func appendWarning(source: String, message: String) {
-        warningLog.append(WorkbenchWarningEntry(source: source, message: message))
+        warningLog.append(source: source, message: message)
     }
 
     /// Generate and commit the run trace from current state.
@@ -132,5 +134,28 @@ struct WorkbenchWarningEntry: Identifiable, Sendable {
         self.timestamp = Date()
         self.source = source
         self.message = message
+    }
+}
+
+// MARK: - WorkbenchWarningLog
+
+/// Shell-level container for workflow warnings. Enforces a single rule for
+/// every workflow: identical source+message pairs are coalesced, so reruns
+/// of analyze / load / scaling never stack duplicates. Stores can only
+/// mutate the log through `append(...)` and `clear()` — direct array
+/// manipulation is impossible by construction.
+struct WorkbenchWarningLog: Sendable {
+    private(set) var entries: [WorkbenchWarningEntry] = []
+
+    var isEmpty: Bool { entries.isEmpty }
+    var count: Int { entries.count }
+
+    mutating func append(source: String, message: String) {
+        guard !entries.contains(where: { $0.source == source && $0.message == message }) else { return }
+        entries.append(WorkbenchWarningEntry(source: source, message: message))
+    }
+
+    mutating func clear() {
+        entries.removeAll()
     }
 }

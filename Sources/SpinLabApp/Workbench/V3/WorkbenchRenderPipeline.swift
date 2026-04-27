@@ -35,8 +35,12 @@ enum WorkbenchRenderPipeline {
         var xLabelOverride: String = ""
         /// Override y-axis display label. Empty = use payload axisMapping.yField.
         var yLabelOverride: String = ""
+        /// Per-series hidden point-label indices for render-time label suppression.
+        var hiddenPointLabelsBySeries: [Int: Set<Int>] = [:]
         /// Additional styleParams patches (showGrid, legendAnchor, auxVerticalX, etc.).
         var styleParamsPatch: [String: String] = [:]
+        /// Pixel density override for export at a non-default scale (nil = use baseOptions.pixelScale).
+        var pixelScaleOverride: CGFloat? = nil
     }
 
     struct Output: Sendable {
@@ -125,7 +129,9 @@ enum WorkbenchRenderPipeline {
 
         // 7. Resolve renderer options (dynamic padding based on y-tick label widths)
         let renderer = WorkbenchChartRenderer()
-        let opts = renderer.resolvedOptions(payload: payload, base: input.baseOptions, style: chartStyle)
+        var effectiveBase = input.baseOptions
+        if let scale = input.pixelScaleOverride { effectiveBase.pixelScale = scale }
+        let opts = renderer.resolvedOptions(payload: payload, base: effectiveBase, style: chartStyle)
 
         // 8. Compute layout BEFORE series label overrides (legendRow.originalLabel must be stable)
         let layout = WorkbenchPlotLayout.compute(
@@ -141,7 +147,9 @@ enum WorkbenchRenderPipeline {
         }
 
         // 10. Render PNG
-        let imageData = try renderer.renderPNG(payload: payload, options: opts, style: chartStyle)
+        var optsWithHidden = opts
+        optsWithHidden.hiddenPointLabelsBySeries = input.hiddenPointLabelsBySeries
+        let imageData = try renderer.renderPNG(payload: payload, options: optsWithHidden, style: chartStyle)
 
         // 11. Build manifest payload with original data-column axis mapping
         var manifestPayload = payload

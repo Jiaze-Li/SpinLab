@@ -28,6 +28,10 @@ struct WorkbenchPlotCanvas: View {
     var onEditLegendLabel: ((Int, String) -> Void)?          = nil
     /// Font size change callback: (styleParamsKey, newSize). Triggers re-render.
     var onFontSizeChange:  ((String, CGFloat) -> Void)?      = nil
+    /// Point-dot toggle callback: (seriesIndex, pointIndex).
+    var onTogglePointLabelVisibility: ((Int, Int) -> Void)?  = nil
+    /// Copy PNG at a given pixel scale; returns PNG data or nil if unavailable.
+    var onCopyPNG: ((CGFloat) -> Data?)? = nil
     /// Style override change callback: (styleParamsKey, stringValue). Triggers re-render.
     var onStyleOverrideChange: ((String, String) -> Void)?   = nil
     /// Current chart style overrides — used to show current font size / tick density in edit panel.
@@ -62,6 +66,7 @@ struct WorkbenchPlotCanvas: View {
     // Related charts hover popover state is managed by HoverPopoverModifier.
 
     private static let defaultRendererSize = CGSize(width: 800, height: 600)
+    static let copyPNGScales: [CGFloat] = [1, 2, 3]
 
     private enum EditTarget: Equatable {
         case title
@@ -70,6 +75,8 @@ struct WorkbenchPlotCanvas: View {
         case legend(seriesIndex: Int, originalLabel: String)
         case xTickLabel
         case yTickLabel
+        case pointLabel(seriesIndex: Int, pointIndex: Int)
+        case pointDot(seriesIndex: Int, pointIndex: Int)
     }
 
     /// The styleParams key for the font size of the currently editing element.
@@ -79,9 +86,11 @@ struct WorkbenchPlotCanvas: View {
         case .xLabel:      return "axisTitleFontSize"
         case .yLabel:      return "axisTitleFontSize"
         case .legend:      return "legendFontSize"
-        case .xTickLabel:  return "tickLabelFontSize"
-        case .yTickLabel:  return "tickLabelFontSize"
-        case nil:          return nil
+        case .xTickLabel:         return "tickLabelFontSize"
+        case .yTickLabel:         return "tickLabelFontSize"
+        case .pointLabel:         return "pointLabelFontSize"
+        case .pointDot:           return nil
+        case nil:                 return nil
         }
     }
 
@@ -168,11 +177,16 @@ struct WorkbenchPlotCanvas: View {
                     rendererPixelSize = Self.extractRendererPixelSize(from: nsImage) ?? Self.defaultRendererSize
                 }
                 .contextMenu {
-                    Button("Copy PNG") {
-                        guard let data = imageData else { return }
-                        let pb = NSPasteboard.general
-                        pb.clearContents()
-                        pb.setData(data, forType: .png)
+                    Menu("Copy PNG") {
+                        ForEach(Self.copyPNGScales, id: \.self) { s in
+                            Button("\(Int(s))x") {
+                                let scaled = onCopyPNG?(s)
+                                guard let d = scaled ?? imageData else { return }
+                                let pb = NSPasteboard.general
+                                pb.clearContents()
+                                pb.setData(d, forType: .png)
+                            }
+                        }
                     }
                 }
                 .hoverPopover(
@@ -205,8 +219,10 @@ struct WorkbenchPlotCanvas: View {
         if let pt = dragPreviewPt {
             let fitted = fittedRect(in: canvasSize)
             if fitted.width > 0 && fitted.height > 0 {
-                let scaleX  = fitted.width  / rendererPixelSize.width
-                let scaleY  = fitted.height / rendererPixelSize.height
+                // Legend geometry is authored in layout's logical CG space, not image pixels.
+                let rSize = layout?.rendererSize ?? rendererPixelSize
+                let scaleX  = fitted.width  / rSize.width
+                let scaleY  = fitted.height / rSize.height
                 let boxPad: CGFloat = 6
                 let rowCount = CGFloat(layout?.legendRows.count ?? 1)
                 // Use the CoreText-measured max label width so the preview box matches the
@@ -265,9 +281,16 @@ struct WorkbenchPlotCanvas: View {
             case .legend(_, let orig): return "Legend · \(orig)"
             case .xTickLabel:       return "X Tick"
             case .yTickLabel:       return "Y Tick"
+            case .pointLabel:       return "Point Label"
+            case .pointDot:         return ""
             }
         }()
-        let hasTextField = (elem != .xTickLabel && elem != .yTickLabel)
+        let hasTextField: Bool = {
+            switch elem {
+            case .xTickLabel, .yTickLabel, .pointLabel, .pointDot: return false
+            default: return true
+            }
+        }()
         let pos = editPanelPosition()
         HStack(spacing: 6) {
             Text(label)
@@ -360,8 +383,9 @@ struct WorkbenchPlotCanvas: View {
         case "titleFontSize":     return \.titleFontSize
         case "axisTitleFontSize": return \.axisTitleFontSize
         case "tickLabelFontSize": return \.tickLabelFontSize
-        case "legendFontSize":    return \.legendFontSize
-        default:                  return \.titleFontSize
+        case "legendFontSize":        return \.legendFontSize
+        case "pointLabelFontSize":    return \.pointLabelFontSize
+        default:                      return \.titleFontSize
         }
     }
 
@@ -387,8 +411,11 @@ struct WorkbenchPlotCanvas: View {
     private func handleTap(at location: CGPoint) {
         guard let layout else { return }
         let fitted = fittedRect(in: canvasSize)
-        let rW = rendererPixelSize.width
-        let rH = rendererPixelSize.height
+        // Hit rects are produced in layout's logical CG space (options.width × options.height).
+        // The on-screen image is rendered at pixelScale (default 2x), so its pixel size differs.
+        // Use layout.rendererSize for the screen mapping; rendererPixelSize is image-pixel space.
+        let rW = layout.rendererSize.width
+        let rH = layout.rendererSize.height
 
         func toScreen(_ cr: CGRect) -> CGRect {
             WorkbenchPlotLayout.cgToScreen(cr, fittedIn: fitted,
@@ -424,6 +451,25 @@ struct WorkbenchPlotCanvas: View {
                 }
             }
         }
+        // Point dot hit-test -> toggle visibility (higher priority than tick-label regions)
+        if onTogglePointLabelVisibility != nil, !layout.pointDotHitTargets.isEmpty {
+            for target in layout.pointDotHitTargets {
+                if toScreen(target.hitRect).contains(location) {
+                    onTogglePointLabelVisibility?(target.seriesIndex, target.pointIndex)
+                    return
+                }
+            }
+        }
+        // Point label hit-test -> open point-label font-size editor
+        if onFontSizeChange != nil, !layout.pointLabelHitTargets.isEmpty {
+            for target in layout.pointLabelHitTargets {
+                if toScreen(target.hitRect).contains(location) {
+                    editTargetScreenRect = toScreen(target.hitRect)
+                    editingElement = .pointLabel(seriesIndex: target.seriesIndex, pointIndex: target.pointIndex)
+                    return
+                }
+            }
+        }
         if onFontSizeChange != nil {
             if toScreen(layout.xTickHitRect).contains(location) {
                 editTargetScreenRect = toScreen(layout.xTickHitRect)
@@ -448,7 +494,7 @@ struct WorkbenchPlotCanvas: View {
         case .xLabel:             onEditXLabel?(text)
         case .yLabel:             onEditYLabel?(text)
         case .legend(let idx, _): onEditLegendLabel?(idx, text)
-        case .xTickLabel, .yTickLabel: break  // tick panels have no text to commit
+        case .xTickLabel, .yTickLabel, .pointLabel, .pointDot: break
         }
         editingElement = nil
         editText = ""

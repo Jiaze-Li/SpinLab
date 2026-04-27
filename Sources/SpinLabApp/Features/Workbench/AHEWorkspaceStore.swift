@@ -56,7 +56,7 @@ final class AHEWorkspaceStore {
 
     // MARK: - Warning log
 
-    var warningLog: [WorkbenchWarningEntry] = []
+    var warningLog: WorkbenchWarningLog = WorkbenchWarningLog()
 
     // MARK: - Ingestion cache (for style-only re-render)
 
@@ -213,7 +213,7 @@ final class AHEWorkspaceStore {
         plotTask = nil
         tabs.clearAll()
         currentRunTrace = nil
-        warningLog = []
+        warningLog.clear()
         ingestionResult = nil
         persistenceOutcome = nil
         pendingMetricOverride = nil

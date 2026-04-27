@@ -215,7 +215,7 @@ struct WorkflowWorkspaceShell<
                 plotCanvas
                 rightExtra
                 WorkbenchTracePanel(trace: store.currentRunTrace)
-                WorkbenchWarningPanel(entries: store.warningLog)
+                WorkbenchWarningPanel(entries: store.warningLog.entries)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
@@ -313,6 +313,10 @@ struct WorkflowWorkspaceShell<
                 store.chartStyleOverrides[key] = "\(Int(size))"
                 store.rerenderForStyleChange()
             },
+            onTogglePointLabelVisibility: { s, p in
+                store.togglePointLabelVisibility(seriesIndex: s, pointIndex: p)
+            },
+            onCopyPNG: { scale in store.renderPNGAtScale(scale) },
             onStyleOverrideChange: { key, value in
                 store.chartStyleOverrides[key] = value
                 store.rerenderForStyleChange()

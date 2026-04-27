@@ -138,7 +138,7 @@ final class ThreeOmegaWorkspaceStore {
 
     // MARK: - Warning log (persists across runs within the session)
 
-    var warningLog: [WorkbenchWarningEntry] = []
+    var warningLog: WorkbenchWarningLog = WorkbenchWarningLog()
 
     // MARK: - Multi-tab render state (shell capability)
 
@@ -677,7 +677,7 @@ final class ThreeOmegaWorkspaceStore {
         analysisMessage          = nil
         _titleTokens             = [:]
         tabs.clearAll()
-        warningLog               = []
+        warningLog.clear()
         activePackID             = nil
         overlayPackIDs           = []
         overlaySnapshots         = [:]
@@ -734,6 +734,7 @@ final class ThreeOmegaWorkspaceStore {
         let capturedStyleOverrides = tabs.chartStyleOverrides
         let capturedAnchor = tabs.legendAnchor
         let capturedLegend = tabState.legendPoint?.cgPoint
+        let capturedHiddenLabels = tabs.hiddenPointLabelSet(for: tab)
         let capturedMultiplier = stackOffsetMultiplier
         let capturedMinGap     = minGapFraction
         let titleOverride  = tabState.titleOverride
@@ -760,6 +761,7 @@ final class ThreeOmegaWorkspaceStore {
             r.chartStyleOverrides   = capturedStyleOverrides
             r.legendAnchor          = capturedAnchor
             r.legendPoint           = capturedLegend
+            r.hiddenPointLabelsBySeries = capturedHiddenLabels
             r.stackOffsetMultiplier = capturedMultiplier
             r.minGapFraction        = capturedMinGap
             r.titleOverride         = titleOverride
@@ -819,6 +821,7 @@ final class ThreeOmegaWorkspaceStore {
             showPlotGrid: tabs.showPlotGrid,
             plotLegendAnchor: tabs.legendAnchor,
             tabStates: tabs.snapshotStates(keyFor: { $0.stableKey }),
+            chartStyleOverrides: tabs.chartStyleOverrides,
             cachedSearchResults: cachedSearchResults,
             selectedSearchResultIDs: Array(selectedSearchResultIDs),
             selectedRTHit: selectedRTHit,
@@ -1044,6 +1047,33 @@ extension ThreeOmegaWorkspaceStore: WorkbenchPlottingStore {
         tabs.updateSeriesLabel(index: index, newLabel: newLabel)
         _rerenderActiveTab()
     }
+
+    func togglePointLabelVisibility(seriesIndex: Int, pointIndex: Int) {
+        tabs.togglePointLabelVisibility(seriesIndex: seriesIndex, pointIndex: pointIndex)
+        rerenderForStyleChange()
+    }
+
+    func renderPNGAtScale(_ scale: CGFloat) -> Data? {
+        if scale == 2.0, let cached = activeImageData { return cached }
+        guard let payload = activeChartManifestPayload else { return nil }
+        let tab = tabs.activeTab
+        let tabState = tabs.state(for: tab)
+        var patch: [String: String] = [:]
+        if tabs.showPlotGrid { patch["showGrid"] = "true" }
+        if !tabs.legendAnchor.isEmpty { patch["legendAnchor"] = tabs.legendAnchor }
+        var input = WorkbenchRenderPipeline.Input(payload: payload)
+        input.pixelScaleOverride = scale
+        input.legendPoint = tabState.legendPoint?.cgPoint
+        input.seriesRenderMode = tabs.seriesRenderMode
+        input.chartStyleOverrides = tabs.chartStyleOverrides
+        input.seriesLabelOverrides = tabState.seriesLabelOverrides
+        input.titleOverride = tabState.titleOverride
+        input.xLabelOverride = tabState.xLabelOverride
+        input.yLabelOverride = tabState.yLabelOverride
+        input.hiddenPointLabelsBySeries = tabs.hiddenPointLabelSet(for: tab)
+        input.styleParamsPatch = patch
+        return try? WorkbenchRenderPipeline.render(input).imageData
+    }
 }
 
 // MARK: - ActiveChartProviding conformance
@@ -1156,6 +1186,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
         tabs.restoreStates(config.tabStates) { key in
             ThreeOmegaWorkbenchTab.allCases.first { $0.stableKey == key }
         }
+        tabs.chartStyleOverrides = config.chartStyleOverrides
 
         // Restore search selection state
         cachedSearchResults = config.cachedSearchResults
@@ -1192,10 +1223,128 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
         // Bridge: restore search results into WorkbenchFeatureStore
         restoreSearchState(config.cachedSearchResults, config.searchQueryText)
 
-        // Re-render all tabs
-        _rerenderAllTabs()
+        // Re-render all tabs respecting restored per-tab state and refreshing library tokens.
+        // _rerenderAllTabs() does not apply per-tab overrides (titleOverride, legendPoint, etc.),
+        // so we use _rerenderAllTabsFromRestoredState() in the Pack load path instead.
+        _rerenderAllTabsFromRestoredState()
         _snapshotAndCacheManifestPayloads()
         refreshRelatedCharts()
+    }
+
+    /// Re-renders all tabs using the current per-tab TabRenderState overrides.
+    /// Also refreshes numeric display tokens from the library index so that
+    /// title tokens like #氧压 / #能量 resolve correctly after Pack load.
+    /// Used exclusively in the Pack restore path.
+    private func _rerenderAllTabsFromRestoredState() {
+        guard let ingestion = ingestionResult else { return }
+
+        _renderRevision &+= 1
+        let revision = _renderRevision
+
+        let capturedGrid          = tabs.showPlotGrid
+        let capturedRenderMode    = tabs.seriesRenderMode
+        let capturedStyleOverrides = tabs.chartStyleOverrides
+        let capturedAnchor        = tabs.legendAnchor
+        let capturedMultiplier    = stackOffsetMultiplier
+        let capturedMinGap        = minGapFraction
+        let capturedTemplate      = titleTemplate
+        let capturedRAHE1Method   = rahe1omegaMethod
+        let capturedRAHE3Method   = rahe3omegaMethod
+        let capturedScaling       = scalingResult
+        let capturedGeometry      = geometry
+        let capturedV3Method      = v3Method
+        let capturedDevice        = ingestion.device
+
+        struct PerTabSnap: Sendable {
+            let titleOverride: String
+            let xLabelOverride: String
+            let yLabelOverride: String
+            let seriesLabelOverrides: [Int: String]
+            let legendPoint: CGPoint?
+            let hiddenPointLabelsBySeries: [Int: Set<Int>]
+        }
+        let tabSnaps: [ThreeOmegaWorkbenchTab: PerTabSnap] = Dictionary(
+            uniqueKeysWithValues: ThreeOmegaWorkbenchTab.allCases.map { tab in
+                let s = tabs.state(for: tab)
+                return (tab, PerTabSnap(
+                    titleOverride: s.titleOverride,
+                    xLabelOverride: s.xLabelOverride,
+                    yLabelOverride: s.yLabelOverride,
+                    seriesLabelOverrides: s.seriesLabelOverrides,
+                    legendPoint: s.legendPoint?.cgPoint,
+                    hiddenPointLabelsBySeries: tabs.hiddenPointLabelSet(for: tab)
+                ))
+            }
+        )
+
+        let lookupHit         = cachedSearchResults.first
+        let lookupLibraryRoot = lastLibraryRootPath
+        let fallbackTokens    = _titleTokens
+
+        Task.detached(priority: .userInitiated) { [weak self] in
+            guard let self else { return }
+
+            // Refresh numeric display tokens from library index.
+            // cachedSampleNumericDisplay may be empty after Pack load (no search was run),
+            // so we reload directly from disk here.
+            var tokens = fallbackTokens
+            if let hit = lookupHit, !lookupLibraryRoot.isEmpty {
+                let rootURL = URL(fileURLWithPath: lookupLibraryRoot, isDirectory: true)
+                if let nd = LibraryStore().loadIndex(from: rootURL)?
+                    .sample(matchingDiskKey: hit.sampleKey)?.numericDisplay,
+                   !nd.isEmpty {
+                    tokens = ["sample": hit.sampleBatchAndSubstrate]
+                    for (k, v) in nd { tokens[k] = v }
+                }
+            }
+
+            func makeRenderer(for tab: ThreeOmegaWorkbenchTab) -> ThreeOmegaPlotRenderer {
+                let s = tabSnaps[tab]!
+                var r = ThreeOmegaPlotRenderer()
+                r.showGrid                   = capturedGrid
+                r.seriesRenderMode           = capturedRenderMode
+                r.chartStyleOverrides        = capturedStyleOverrides
+                r.legendAnchor               = capturedAnchor
+                r.legendPoint                = s.legendPoint
+                r.hiddenPointLabelsBySeries  = s.hiddenPointLabelsBySeries
+                r.stackOffsetMultiplier      = capturedMultiplier
+                r.minGapFraction             = capturedMinGap
+                r.titleTemplate              = capturedTemplate
+                r.titleTokens               = tokens
+                r.titleOverride              = s.titleOverride
+                r.xLabelOverride             = s.xLabelOverride
+                r.yLabelOverride             = s.yLabelOverride
+                r.seriesLabelOverrides       = s.seriesLabelOverrides
+                return r
+            }
+
+            var plots = ThreeOmegaRenderedPlots()
+            var r1 = makeRenderer(for: .fieldSweep1omega)
+            (plots.r1omega, plots.layoutR1omega) = r1.renderR1omega(sweeps: ingestion.fieldSweeps, device: capturedDevice)
+            var r3 = makeRenderer(for: .fieldSweep3omega)
+            (plots.r3omega, plots.layoutR3omega) = r3.renderR3omega(sweeps: ingestion.fieldSweeps, device: capturedDevice)
+            var rahe1 = makeRenderer(for: .rahe1omegaVsT)
+            (plots.rahe1omegaVsT, plots.layoutRAHE1omegaVsT) = rahe1.renderRAHE1omegaVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE1Method)
+            var rahe3 = makeRenderer(for: .rahe3omegaVsT)
+            (plots.rahe3omegaVsT, plots.layoutRAHE3omegaVsT) = rahe3.renderRAHE3omegaVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE3Method)
+            var hc = makeRenderer(for: .hcVsT)
+            (plots.hcVsT, plots.layoutHcVsT) = hc.renderHcVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice)
+            if let rt = ingestion.rtResult {
+                var rtR = makeRenderer(for: .rtCurve)
+                (plots.rtCurve, plots.layoutRTCurve) = rtR.renderRT(rt: rt)
+            }
+            if let sr = capturedScaling, capturedGeometry.isComplete {
+                let method = capturedV3Method == .highField ? "(HFE)" : "(WA)"
+                var scR = makeRenderer(for: .scaling)
+                (plots.scaling, _) = scR.renderScaling(result: sr, device: capturedDevice, method: method)
+            }
+
+            await MainActor.run { [weak self] in
+                guard let self, self._renderRevision == revision else { return }
+                self._titleTokens = tokens
+                self._applyPlots(plots)
+            }
+        }
     }
 }
 
