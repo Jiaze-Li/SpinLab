@@ -86,7 +86,7 @@ struct V515RulesSyncStartupTests {
     {"version":1,"tokenization":{"separators":"_","caseFold":"preserve"},"sources":["file"],"channel":{"aliases":{}}}
     """.utf8)
     private let validSampleIdentification = Data("""
-    {"version":3,"sampleId":{"patterns":[]},"substrate":{"substrateTagRules":[],"materials":[],"treatments":[],"orientations":{"pattern":"\\\\d{3}","rows":[]}}}
+    {"version":4,"sampleId":{"batchPrefixes":[]},"substrate":{"materials":[],"treatments":[],"orientations":[]}}
     """.utf8)
     private let validWorkflow = Data("""
     {"version":1,"workflows":[],"measurementTagRules":[]}

@@ -541,7 +541,7 @@ struct V515RulesSyncEngineTests {
         {"version":1,"tokenization":{"separators":"_","caseFold":"preserve"},"sources":["file"],"channel":{"aliases":{}}}
         """.utf8).write(to: paths.filenameTokenizationURL)
         try Data("""
-        {"version":1,"sampleId":{"patterns":[]},"substrate":{"substrateTagRules":[]}}
+        {"version":4,"sampleId":{"batchPrefixes":[]},"substrate":{"materials":[],"treatments":[],"orientations":[]}}
         """.utf8).write(to: paths.sampleIdentificationURL)
         try Data("""
         {"version":1,"workflows":[],"measurementTagRules":[]}

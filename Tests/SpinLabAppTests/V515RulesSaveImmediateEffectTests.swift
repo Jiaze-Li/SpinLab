@@ -49,7 +49,7 @@ struct V515RulesSaveImmediateEffectTests {
         """.data(using: .utf8)!.write(to: paths.filenameTokenizationURL)
 
         try """
-        {"version":3,"sampleId":{"patterns":["^[A-Z]{2}\\\\d+$"]},"substrate":{"substrateTagRules":[],"materials":[],"treatments":[],"orientations":{"pattern":"\\\\d{3}","rows":[]}}}
+        {"version":4,"sampleId":{"batchPrefixes":["PN"]},"substrate":{"materials":[],"treatments":[],"orientations":[]}}
         """.data(using: .utf8)!.write(to: paths.sampleIdentificationURL)
 
         try """
@@ -74,15 +74,15 @@ struct V515RulesSaveImmediateEffectTests {
 
         var r1Fired = false
         let store = RulesManagementStore(onRulesSaved: {
-            let patterns = RuleLoader.shared.loadCached().ruleSet.sampleId.patterns
-            if patterns.contains(where: { $0.contains("NEWPATTERN") }) {
+            let prefixes = RuleLoader.shared.loadCached().ruleSet.sampleId.batchPrefixes
+            if prefixes.contains("NEWPATTERN") {
                 r1Fired = true
             }
         })
         store.present()
 
         var draft = try #require(store.sampleIdentificationDraft)
-        draft.sampleId.patterns = ["^NEWPATTERN\\d+$"]
+        draft.sampleId.batchPrefixes = ["NEWPATTERN"]
         store.updateSampleIdentification(draft)
         store.selectSection(.sampleIdentification)
 

@@ -44,7 +44,7 @@ struct V515RulesPanelCrossSectionTests {
         """.data(using: .utf8)!.write(to: paths.filenameTokenizationURL)
 
         try """
-        {"version":3,"sampleId":{"patterns":[]},"substrate":{"substrateTagRules":[],"materials":[],"treatments":[],"orientations":{"pattern":"\\\\d{3}","rows":[]}}}
+        {"version":4,"sampleId":{"batchPrefixes":[]},"substrate":{"materials":[],"treatments":[],"orientations":[]}}
         """.data(using: .utf8)!.write(to: paths.sampleIdentificationURL)
 
         // workflow references first conditionID

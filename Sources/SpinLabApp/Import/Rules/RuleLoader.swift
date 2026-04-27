@@ -3,7 +3,7 @@ import CryptoKit
 
 struct RuleLoader {
     static let shared = RuleLoader()
-    static let currentSchemaVersion = 3
+    static let currentSchemaVersion = 4
     private static var cached: LoadResult?
     private static let cacheLock = NSLock()
     private let logger = AppLogger.shared
@@ -146,7 +146,7 @@ struct RuleLoader {
             )
             logger.info(.import, "Rules loaded", metadata: [
                 "source": label,
-                "sampleIdPatternCount": "\(ruleSet.sampleId.patterns.count)",
+                "sampleIdPrefixCount": "\(ruleSet.sampleId.batchPrefixes.count + ruleSet.sampleId.patterns.count)",
                 "ruleVersion": "\(ruleSet.version)",
                 "fingerprint": metadata.fingerprint
             ])
@@ -176,7 +176,7 @@ struct RuleLoader {
                 loadedAt: Date()
             )
             logger.info(.import, "Rules loaded from bundle", metadata: [
-                "sampleIdPatternCount": "\(ruleSet.sampleId.patterns.count)",
+                "sampleIdPrefixCount": "\(ruleSet.sampleId.batchPrefixes.count + ruleSet.sampleId.patterns.count)",
                 "ruleVersion": "\(ruleSet.version)"
             ])
             return LoadResult(ruleSet: ruleSet, warnings: warnings, metadata: metadata)
@@ -208,13 +208,12 @@ struct RuleLoader {
         let conditionFile = try loadAndDecode(MeasuringConditionFile.self, from: paths.measuringConditionURL, label: label)
 
         var ruleSet = FilenameRuleSet(
-            version: 3,
+            version: sampleIdentFile.version,
             tokenization: tokenizationFile.tokenization,
             sources: tokenizationFile.sources,
             sampleId: sampleIdentFile.sampleId,
             measurementNameRules: workflowFile.measurementNameRules,
             measurementTagRules: workflowFile.measurementTagRules,
-            substrateTagRules: sampleIdentFile.substrateTagRules,
             channel: tokenizationFile.channel,
             conditions: conditionFile.conditions ?? FilenameRuleSet.ConditionRules(),
             conditionDefinitions: conditionFile.conditionDefinitions,
@@ -250,13 +249,12 @@ struct RuleLoader {
         let conditionFile = try decodeBundleFile(MeasuringConditionFile.self, from: conditionData, name: "measuring_condition.json")
 
         var ruleSet = FilenameRuleSet(
-            version: 3,
+            version: sampleIdentFile.version,
             tokenization: tokenizationFile.tokenization,
             sources: tokenizationFile.sources,
             sampleId: sampleIdentFile.sampleId,
             measurementNameRules: workflowFile.measurementNameRules,
             measurementTagRules: workflowFile.measurementTagRules,
-            substrateTagRules: sampleIdentFile.substrateTagRules,
             channel: tokenizationFile.channel,
             conditions: conditionFile.conditions ?? FilenameRuleSet.ConditionRules(),
             conditionDefinitions: conditionFile.conditionDefinitions,
@@ -383,34 +381,102 @@ private struct FilenameTokenizationFile: Decodable {
 private struct SampleIdentificationFile: Decodable {
     let version: Int
     let sampleId: FilenameRuleSet.SampleIdRules
-    let substrate: SubstrateSection
+    let sharedSubstrate: FilenameRuleSet.SharedSubstrateRules?
+    let substrateConfig: FilenameRuleSet.SubstrateConfig?
 
-    var substrateTagRules: [FilenameRuleSet.MapRule] { substrate.substrateTagRules }
-    var sharedSubstrate: FilenameRuleSet.SharedSubstrateRules? { substrate.shared }
-    var substrateConfig: FilenameRuleSet.SubstrateConfig? { substrate.substrateConfig }
+    private enum TopKeys: String, CodingKey { case version, sampleId, substrate }
+    private enum SubstrateKeys: String, CodingKey { case shared, materials }
 
-    struct SubstrateSection: Decodable {
-        let substrateTagRules: [FilenameRuleSet.MapRule]
-        let shared: FilenameRuleSet.SharedSubstrateRules?
-        let substrateConfig: FilenameRuleSet.SubstrateConfig?
-
-        private enum CodingKeys: String, CodingKey {
-            case substrateTagRules
-            case shared
-            case materials
+    // v3 material/treatment/orientation intermediate types for inline conversion
+    private struct V3Material: Decodable {
+        var id: String
+        var tokens: [String]
+        var aliases: [String]
+        var displayName: String
+    }
+    private struct V3Treatment: Decodable {
+        var id: String
+        var displayName: String
+        var keywords: [String]
+        var standaloneTokens: [String]
+        var containsTokens: [String]
+    }
+    private struct V3OrientationConfig: Decodable {
+        struct Row: Decodable {
+            var id: String
+            var tokens: [String]
+            var aliases: [String]
         }
+        var rows: [Row]
+    }
+    private struct V3SubstrateSection: Decodable {
+        var materials: [V3Material]
+        var treatments: [V3Treatment]
+        var orientations: V3OrientationConfig
+    }
 
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            substrateTagRules = try container.decodeIfPresent([FilenameRuleSet.MapRule].self, forKey: .substrateTagRules) ?? []
-            if container.contains(.materials) {
-                substrateConfig = try FilenameRuleSet.SubstrateConfig(from: decoder)
-                shared = nil
-            } else {
-                substrateConfig = nil
-                shared = try container.decodeIfPresent(FilenameRuleSet.SharedSubstrateRules.self, forKey: .shared)
+    init(from decoder: Decoder) throws {
+        let top = try decoder.container(keyedBy: TopKeys.self)
+        version = try top.decode(Int.self, forKey: .version)
+        sampleId = try top.decodeIfPresent(FilenameRuleSet.SampleIdRules.self, forKey: .sampleId) ?? .init()
+        let sub = try top.nestedContainer(keyedBy: SubstrateKeys.self, forKey: .substrate)
+
+        if version >= 4 {
+            // v4: materials/treatments/orientations as SubstrateEntry[]
+            sharedSubstrate = nil
+            substrateConfig = try FilenameRuleSet.SubstrateConfig(from: top.superDecoder(forKey: .substrate))
+        } else if sub.contains(.materials) {
+            // v3: structured substrate — convert inline to v4
+            sharedSubstrate = nil
+            let v3 = try V3SubstrateSection(from: top.superDecoder(forKey: .substrate))
+            substrateConfig = Self.convertV3ToV4(v3)
+        } else {
+            // v1/v2: shared substrate section
+            sharedSubstrate = try sub.decodeIfPresent(FilenameRuleSet.SharedSubstrateRules.self, forKey: .shared)
+            substrateConfig = nil
+        }
+    }
+
+    private static func convertV3ToV4(_ v3: V3SubstrateSection) -> FilenameRuleSet.SubstrateConfig {
+        let materials: [FilenameRuleSet.SubstrateEntry] = v3.materials.map { m in
+            var matches: [FilenameRuleSet.SubstrateEntry.Match] = []
+            for token in m.tokens where token.uppercased() != m.displayName.uppercased() {
+                matches.append(.init(type: .equals, value: token))
             }
+            for alias in m.aliases {
+                matches.append(.init(type: .equals, value: alias))
+            }
+            return FilenameRuleSet.SubstrateEntry(displayName: m.displayName, matches: matches)
         }
+        let treatments: [FilenameRuleSet.SubstrateEntry] = v3.treatments.map { t in
+            var matches: [FilenameRuleSet.SubstrateEntry.Match] = []
+            for token in t.standaloneTokens {
+                matches.append(.init(type: .equals, value: token))
+            }
+            for token in t.containsTokens {
+                matches.append(.init(type: .contains, value: token))
+            }
+            for kw in t.keywords
+            where !t.standaloneTokens.contains(kw) && !t.containsTokens.contains(kw) {
+                matches.append(.init(type: .contains, value: kw))
+            }
+            return FilenameRuleSet.SubstrateEntry(displayName: t.displayName, matches: matches)
+        }
+        let orientations: [FilenameRuleSet.SubstrateEntry] = v3.orientations.rows.map { row in
+            var matches: [FilenameRuleSet.SubstrateEntry.Match] = []
+            for token in row.tokens where token != row.id {
+                matches.append(.init(type: .equals, value: token))
+            }
+            for alias in row.aliases {
+                matches.append(.init(type: .equals, value: alias))
+            }
+            return FilenameRuleSet.SubstrateEntry(displayName: row.id, matches: matches)
+        }
+        return FilenameRuleSet.SubstrateConfig(
+            materials: materials,
+            treatments: treatments,
+            orientations: orientations
+        )
     }
 }
 

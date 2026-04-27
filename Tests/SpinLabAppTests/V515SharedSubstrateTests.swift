@@ -44,7 +44,7 @@ struct V515SharedSubstrateTests {
         """.data(using: .utf8)!.write(to: paths.filenameTokenizationURL)
 
         try """
-        {"version":3,"sampleId":{"patterns":[]},"substrate":{"substrateTagRules":[],"materials":[{"id":"STO","tokens":["STO"],"aliases":[],"displayName":"STO"}],"treatments":[],"orientations":{"pattern":"\\\\d{3}","rows":[{"id":"001","tokens":["001"],"aliases":[]}]}}}
+        {"version":4,"sampleId":{"batchPrefixes":[]},"substrate":{"materials":[{"displayName":"STO","matches":[{"type":"equals","value":"STO"}]}],"treatments":[],"orientations":[{"displayName":"001","matches":[{"type":"equals","value":"001"}]}]}}
         """.data(using: .utf8)!.write(to: paths.sampleIdentificationURL)
 
         try """
@@ -63,16 +63,14 @@ struct V515SharedSubstrateTests {
 
     // MARK: - Tests
 
-    @Test("duplicate material ID fails validation")
-    func duplicateMaterialIDFails() throws {
+    @Test("duplicate material display name fails validation")
+    func duplicateMaterialDisplayNameFails() throws {
         let (dir, backup) = try acquireIsolation()
         defer { releaseIsolation(dir: dir, backup: backup) }
         let store = try makeStore()
 
         var draft = try #require(store.sampleIdentificationDraft)
-        let extra = SampleIdentificationFileDraft.MaterialDefinition(
-            id: "STO", tokens: ["STRONTIUM"], aliases: [], displayName: "STO duplicate"
-        )
+        let extra = SampleIdentificationFileDraft.SubstrateEntry(displayName: "STO", matches: [])
         draft.substrate.materials.append(extra)
         store.updateSampleIdentification(draft)
         store.selectSection(.sampleIdentification)
@@ -83,17 +81,15 @@ struct V515SharedSubstrateTests {
         #expect(errors.contains(where: { $0.message.contains("Duplicate") && $0.message.contains("STO") }))
     }
 
-    @Test("duplicate orientation row ID fails validation")
-    func duplicateOrientationRowIDFails() throws {
+    @Test("duplicate orientation display name fails validation")
+    func duplicateOrientationDisplayNameFails() throws {
         let (dir, backup) = try acquireIsolation()
         defer { releaseIsolation(dir: dir, backup: backup) }
         let store = try makeStore()
 
         var draft = try #require(store.sampleIdentificationDraft)
-        let extra = SampleIdentificationFileDraft.OrientationConfig.Row(
-            id: "001", tokens: ["001"], aliases: []
-        )
-        draft.substrate.orientations.rows.append(extra)
+        let extra = SampleIdentificationFileDraft.SubstrateEntry(displayName: "001", matches: [])
+        draft.substrate.orientations.append(extra)
         store.updateSampleIdentification(draft)
         store.selectSection(.sampleIdentification)
 
@@ -110,8 +106,9 @@ struct V515SharedSubstrateTests {
         let store = try makeStore()
 
         var draft = try #require(store.sampleIdentificationDraft)
-        let newMaterial = SampleIdentificationFileDraft.MaterialDefinition(
-            id: "NGO", tokens: ["NGO"], aliases: ["NdGaO3"], displayName: "NGO"
+        let newMaterial = SampleIdentificationFileDraft.SubstrateEntry(
+            displayName: "NGO",
+            matches: [.init(type: "equals", value: "NGO")]
         )
         draft.substrate.materials.append(newMaterial)
         store.updateSampleIdentification(draft)
@@ -120,22 +117,5 @@ struct V515SharedSubstrateTests {
         guard case .saved = store.saveCurrent() else {
             Issue.record("Expected .saved for valid substrate config"); return
         }
-    }
-
-    @Test("invalid orientation pattern regex fails validation")
-    func invalidOrientationPatternFails() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let store = try makeStore()
-
-        var draft = try #require(store.sampleIdentificationDraft)
-        draft.substrate.orientations.pattern = "([bad"
-        store.updateSampleIdentification(draft)
-        store.selectSection(.sampleIdentification)
-
-        guard case .validationFailed(let errors) = store.saveCurrent() else {
-            Issue.record("Expected validationFailed"); return
-        }
-        #expect(errors.contains(where: { $0.field.contains("orientations.pattern") }))
     }
 }

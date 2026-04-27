@@ -104,35 +104,23 @@ struct SampleIdentificationFileDraft: Codable {
     var substrate: SubstrateConfig
 
     struct SampleIdConfig: Codable {
-        var patterns: [String]
+        var batchPrefixes: [String]
     }
-    struct SubstrateConfig: Codable {
-        var substrateTagRules: [MapRule]
-        var materials: [MaterialDefinition]
-        var treatments: [TreatmentDefinition]
-        var orientations: OrientationConfig
-    }
-    struct MaterialDefinition: Codable, Identifiable {
-        var id: String
-        var tokens: [String]
-        var aliases: [String]
-        var displayName: String
-    }
-    struct TreatmentDefinition: Codable, Identifiable {
-        var id: String
-        var displayName: String
-        var keywords: [String]
-        var standaloneTokens: [String]
-        var containsTokens: [String]
-    }
-    struct OrientationConfig: Codable {
-        var pattern: String
-        var rows: [Row]
-        struct Row: Codable, Identifiable {
-            var id: String
-            var tokens: [String]
-            var aliases: [String]
+
+    struct SubstrateEntry: Codable, Identifiable {
+        struct Match: Codable {
+            var type: String
+            var value: String
         }
+        var displayName: String
+        var matches: [Match]
+        var id: String { displayName }
+    }
+
+    struct SubstrateConfig: Codable {
+        var materials: [SubstrateEntry]
+        var treatments: [SubstrateEntry]
+        var orientations: [SubstrateEntry]
     }
 }
 
@@ -421,43 +409,34 @@ final class RulesManagementStore {
         }
         var errors: [RulesPanelFieldError] = []
 
-        for pattern in draft.sampleId.patterns {
-            validateRegex(pattern, field: "sampleId.patterns", errors: &errors)
-        }
-
-        var seenMaterialIDs: Set<String> = []
+        var seenMaterialNames: Set<String> = []
         for m in draft.substrate.materials {
-            if m.id.isEmpty {
-                errors.append(.init(field: "substrate.materials", message: "Material ID must not be empty"))
+            if m.displayName.isEmpty {
+                errors.append(.init(field: "substrate.materials", message: "Material displayName must not be empty"))
             }
-            if !seenMaterialIDs.insert(m.id).inserted {
-                errors.append(.init(field: "substrate.materials[\(m.id)]", message: "Duplicate material ID '\(m.id)'"))
+            if !seenMaterialNames.insert(m.displayName).inserted {
+                errors.append(.init(field: "substrate.materials[\(m.displayName)]", message: "Duplicate material '\(m.displayName)'"))
             }
         }
 
-        var seenTreatmentIDs: Set<String> = []
+        var seenTreatmentNames: Set<String> = []
         for t in draft.substrate.treatments {
-            if t.id.isEmpty {
-                errors.append(.init(field: "substrate.treatments", message: "Treatment ID must not be empty"))
+            if t.displayName.isEmpty {
+                errors.append(.init(field: "substrate.treatments", message: "Treatment displayName must not be empty"))
             }
-            if !seenTreatmentIDs.insert(t.id).inserted {
-                errors.append(.init(field: "substrate.treatments[\(t.id)]", message: "Duplicate treatment ID '\(t.id)'"))
-            }
-        }
-
-        validateRegex(draft.substrate.orientations.pattern, field: "substrate.orientations.pattern", errors: &errors)
-        var seenOrientationIDs: Set<String> = []
-        for row in draft.substrate.orientations.rows {
-            if row.id.isEmpty {
-                errors.append(.init(field: "substrate.orientations.rows", message: "Orientation row ID must not be empty"))
-            }
-            if !seenOrientationIDs.insert(row.id).inserted {
-                errors.append(.init(field: "substrate.orientations.rows[\(row.id)]", message: "Duplicate orientation ID '\(row.id)'"))
+            if !seenTreatmentNames.insert(t.displayName).inserted {
+                errors.append(.init(field: "substrate.treatments[\(t.displayName)]", message: "Duplicate treatment '\(t.displayName)'"))
             }
         }
 
-        for rule in draft.substrate.substrateTagRules where rule.match.type == "regex" {
-            rule.match.matchValues.forEach { validateRegex($0, field: "substrate.substrateTagRules", errors: &errors) }
+        var seenOrientationNames: Set<String> = []
+        for o in draft.substrate.orientations {
+            if o.displayName.isEmpty {
+                errors.append(.init(field: "substrate.orientations", message: "Orientation displayName must not be empty"))
+            }
+            if !seenOrientationNames.insert(o.displayName).inserted {
+                errors.append(.init(field: "substrate.orientations[\(o.displayName)]", message: "Duplicate orientation '\(o.displayName)'"))
+            }
         }
 
         if !errors.isEmpty { return .validationFailed(errors) }
