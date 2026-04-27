@@ -107,34 +107,19 @@ struct SampleSemanticDescriptor: Hashable {
 
     private static func normalizedProcessingToken(_ token: String?) -> String? {
         guard let token else { return nil }
-        let normalizedInput = token.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !normalizedInput.isEmpty else { return nil }
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
 
-        if let config = ruleProvider.substrateConfig() {
-            for treatment in config.treatments {
-                let keywords = treatment.keywords.map { $0.lowercased() }
-                if keywords.contains(where: { keyword in
-                    keyword.count <= 1
-                        ? normalizedInput == keyword
-                        : normalizedInput == keyword || normalizedInput.contains(keyword)
-                }) {
-                    return treatment.id
+        let compiled = ruleProvider.ruleSet().compiled
+        if !compiled.substrateTreatmentEntries.isEmpty {
+            let normalized = FilenameRuleSet.normalizeForSubstrate(trimmed)
+            for entry in compiled.substrateTreatmentEntries {
+                if entry.equalsKeysNormalized.contains(normalized)
+                    || entry.containsNeedlesNormalized.contains(where: { normalized.contains($0) }) {
+                    return entry.displayName
                 }
             }
             return nil
-        }
-
-        let treatmentKeywords = ruleProvider.sharedSubstrateRules().treatmentKeywords
-            .mapValues { $0.map { $0.lowercased() } }
-        for canonical in treatmentKeywords.keys.sorted() {
-            guard let keywords = treatmentKeywords[canonical] else { continue }
-            if keywords.contains(where: { keyword in
-                keyword.count <= 1
-                    ? normalizedInput == keyword
-                    : normalizedInput == keyword || normalizedInput.contains(keyword)
-            }) {
-                return canonical
-            }
         }
         return nil
     }

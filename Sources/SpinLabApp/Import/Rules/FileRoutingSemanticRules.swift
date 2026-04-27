@@ -15,112 +15,42 @@ struct FileRoutingSemanticRules {
 
     static func load(ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared) -> FileRoutingSemanticRules {
         var rules = FileRoutingSemanticRules.default
-        let ruleSet = ruleProvider.ruleSet()
 
         if let config = ruleProvider.substrateConfig() {
             for treatment in config.treatments {
-                for keyword in treatment.keywords {
-                    let normalized = normalizeToken(keyword)
+                let canonical = normalizeToken(treatment.displayName)
+                if !canonical.isEmpty { rules.treatmentNeedles[canonical] = treatment.displayName }
+                for match in treatment.matches {
+                    let normalized = normalizeToken(match.value)
                     guard !normalized.isEmpty else { continue }
-                    rules.treatmentNeedles[normalized] = treatment.id
+                    rules.treatmentNeedles[normalized] = treatment.displayName
                 }
             }
             for material in config.materials {
-                for token in material.tokens {
-                    let normalized = normalizeToken(token)
+                let canonical = normalizeToken(material.displayName)
+                if !canonical.isEmpty { rules.materialNeedles[canonical] = material.displayName }
+                for match in material.matches {
+                    let normalized = normalizeToken(match.value)
                     guard !normalized.isEmpty else { continue }
-                    rules.materialNeedles[normalized] = material.id.uppercased()
-                }
-                for alias in material.aliases {
-                    let normalized = normalizeToken(alias)
-                    guard !normalized.isEmpty else { continue }
-                    rules.materialNeedles[normalized] = material.id.uppercased()
+                    rules.materialNeedles[normalized] = material.displayName
                 }
             }
-            for row in config.orientations.rows {
-                for token in row.tokens {
-                    let normalized = normalizeToken(token)
+            for orientation in config.orientations {
+                let canonical = normalizeToken(orientation.displayName)
+                guard !canonical.isEmpty else { continue }
+                rules.orientationNeedles.insert(canonical)
+                for match in orientation.matches {
+                    let normalized = normalizeToken(match.value)
                     guard !normalized.isEmpty else { continue }
                     rules.orientationNeedles.insert(normalized)
-                }
-                for alias in row.aliases {
-                    let normalizedAlias = normalizeToken(alias)
-                    let normalizedCanonical = normalizeToken(row.id)
-                    guard !normalizedAlias.isEmpty, !normalizedCanonical.isEmpty else { continue }
-                    rules.orientationNeedles.insert(normalizedAlias)
-                    rules.orientationNeedles.insert(normalizedCanonical)
-                    rules.orientationAliases[normalizedAlias] = normalizedCanonical
-                }
-            }
-        } else {
-            let substrate = ruleProvider.sharedSubstrateRules()
-            for canonical in substrate.treatmentKeywords.keys.sorted() {
-                guard let keywords = substrate.treatmentKeywords[canonical] else { continue }
-                for keyword in keywords {
-                    let normalized = normalizeToken(keyword)
-                    guard !normalized.isEmpty else { continue }
-                    rules.treatmentNeedles[normalized] = canonical
-                }
-            }
-            for material in substrate.materialTokens {
-                let normalized = normalizeToken(material)
-                guard !normalized.isEmpty else { continue }
-                rules.materialNeedles[normalized] = material.uppercased()
-            }
-            for (alias, canonical) in (substrate.materialAliases ?? [:]) {
-                let normalized = normalizeToken(alias)
-                guard !normalized.isEmpty else { continue }
-                rules.materialNeedles[normalized] = canonical.uppercased()
-            }
-            for token in (substrate.orientationTokens ?? []) {
-                let normalized = normalizeToken(token)
-                guard !normalized.isEmpty else { continue }
-                rules.orientationNeedles.insert(normalized)
-            }
-            for (alias, canonical) in (substrate.orientationAliases ?? [:]) {
-                let normalizedAlias = normalizeToken(alias)
-                let normalizedCanonical = normalizeToken(canonical)
-                guard !normalizedAlias.isEmpty, !normalizedCanonical.isEmpty else { continue }
-                rules.orientationNeedles.insert(normalizedAlias)
-                rules.orientationNeedles.insert(normalizedCanonical)
-                rules.orientationAliases[normalizedAlias] = normalizedCanonical
-            }
-        }
-
-        for entry in ruleSet.substrateTagRules {
-            let normalizedValue = normalizeToken(entry.value)
-            guard !normalizedValue.isEmpty else {
-                continue
-            }
-            let probes = probesForMatch(entry.match)
-            if let treatment = SampleSemanticDescriptor.normalizedProcessingTokenForRules(entry.value) {
-                for probe in probes where !probe.isEmpty {
-                    rules.treatmentNeedles[probe] = treatment
-                }
-                continue
-            }
-
-            if let material = canonicalMaterial(from: normalizedValue, materialNeedles: rules.materialNeedles) {
-                for probe in probes where !probe.isEmpty {
-                    rules.materialNeedles[probe] = material
-                }
-            }
-
-            if isOrientationToken(normalizedValue, orientationNeedles: rules.orientationNeedles) {
-                rules.orientationNeedles.insert(normalizedValue)
-                for probe in probes where !probe.isEmpty {
-                    if isOrientationToken(probe, orientationNeedles: rules.orientationNeedles) {
-                        rules.orientationNeedles.insert(probe)
+                    if normalized != canonical {
+                        rules.orientationAliases[normalized] = canonical
                     }
                 }
             }
         }
 
         return rules
-    }
-
-    private static func probesForMatch(_ match: FilenameRuleSet.MatchSpec) -> [String] {
-        match.matchValues.map(normalizeToken)
     }
 
     private static func normalizeToken(_ token: String) -> String {
@@ -134,16 +64,4 @@ struct FileRoutingSemanticRules {
             .replacingOccurrences(of: "）", with: "")
     }
 
-    private static func canonicalMaterial(from normalized: String, materialNeedles: [String: String]) -> String? {
-        for (needle, canonical) in materialNeedles.sorted(by: { $0.key.count > $1.key.count }) {
-            if normalized.contains(needle) {
-                return canonical
-            }
-        }
-        return nil
-    }
-
-    private static func isOrientationToken(_ normalized: String, orientationNeedles: Set<String>) -> Bool {
-        orientationNeedles.contains(normalized)
-    }
 }

@@ -137,6 +137,9 @@ struct WorkbenchPlotCanvas: View {
                         .onChanged { value in
                             guard onLegendDrag != nil else { return }
                             let fitted = fittedRect(in: canvasSize)
+                            // Only treat this drag as a legend move if it started on the legend.
+                            // startLocation is constant for the gesture, so this guard is stable.
+                            guard isLocationOnLegend(value.startLocation, fittedRect: fitted) else { return }
                             // plotNormalized always returns a value (clamps to fitted+plot boundary).
                             guard let cursorNorm = plotNormalized(location: value.location, fittedRect: fitted) else { return }
                             // Capture grab offset once using startLocation (not first-frame location)
@@ -247,6 +250,24 @@ struct WorkbenchPlotCanvas: View {
                     .position(x: topLeftX + boxW / 2, y: topLeftY + boxH / 2)
             }
         }
+    }
+
+    /// Whether a screen-space location falls inside the visible legend block.
+    /// Used to gate the legend drag so dragging elsewhere on the canvas doesn't move the legend.
+    private func isLocationOnLegend(_ location: CGPoint, fittedRect: CGRect) -> Bool {
+        guard let layout, !layout.legendRows.isEmpty,
+              fittedRect.width > 0, fittedRect.height > 0 else { return false }
+        var union = layout.legendRows[0].hitRect
+        for row in layout.legendRows.dropFirst() {
+            union = union.union(row.hitRect)
+        }
+        let screen = WorkbenchPlotLayout.cgToScreen(
+            union,
+            fittedIn: fittedRect,
+            rendererWidth:  layout.rendererSize.width,
+            rendererHeight: layout.rendererSize.height
+        )
+        return screen.contains(location)
     }
 
     /// Returns the current legend origin as a normalized plot point (x,y ∈ [0,1], Y-up).

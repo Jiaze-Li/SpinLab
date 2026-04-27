@@ -6,6 +6,17 @@ struct FilenameRuleSet: Decodable {
         var warnings: [String]
     }
 
+    struct SourcedConditionValue {
+        var value: String
+        var ruleRef: String
+    }
+
+    struct ExtraConditionEvaluationWithSources {
+        var sourcedValues: [String: SourcedConditionValue]
+        var warnings: [String]
+        var values: [String: String] { sourcedValues.mapValues(\.value) }
+    }
+
     private enum UnitValueNormalizationMode {
         case trimNoise
         case halfStep
@@ -37,12 +48,24 @@ struct FilenameRuleSet: Decodable {
     }
 
     struct SampleIdRules: Decodable {
+        var batchPrefixes: [String]
         var patterns: [String]
-    }
 
-    struct BatchRules: Decodable {
-        var preferSampleId: Bool
-        var fallbackPatterns: [String]
+        init(batchPrefixes: [String] = [], patterns: [String] = []) {
+            self.batchPrefixes = batchPrefixes
+            self.patterns = patterns
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case batchPrefixes
+            case patterns
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            batchPrefixes = try container.decodeIfPresent([String].self, forKey: .batchPrefixes) ?? []
+            patterns = try container.decodeIfPresent([String].self, forKey: .patterns) ?? []
+        }
     }
 
     struct ChannelRules: Decodable {
@@ -95,52 +118,36 @@ struct FilenameRuleSet: Decodable {
         var ignoredFileExtensions: [String]
     }
 
-    struct SharedSubstrateRules: Decodable {
-        var tokenSeparators: String
-        var originStandaloneTokens: [String]
-        var originContainsTokens: [String]
-        var treatmentKeywords: [String: [String]]
-        var materialTokens: [String]
-        var materialAliases: [String: String]?
-        var materialDisplayNames: [String: String]?
-        var orientationTokens: [String]?
-        var orientationAliases: [String: String]?
-        var orientationPattern: String
-    }
+    // MARK: - v4 Substrate types
 
-    struct MaterialDefinition: Decodable {
-        var id: String
-        var tokens: [String]
-        var aliases: [String]
-        var displayName: String
-    }
-
-    struct TreatmentDefinition: Decodable {
-        var id: String
-        var displayName: String
-        var keywords: [String]
-        var standaloneTokens: [String]
-        var containsTokens: [String]
-    }
-
-    struct OrientationConfig: Decodable {
-        struct Row: Decodable {
-            var id: String
-            var tokens: [String]
-            var aliases: [String]
+    struct SubstrateEntry: Decodable {
+        struct Match: Decodable {
+            enum MatchType: String, Decodable {
+                case equals
+                case contains
+            }
+            var type: MatchType
+            var value: String
         }
-
-        var pattern: String
-        var rows: [Row]
+        var displayName: String
+        var matches: [Match]
     }
 
     struct SubstrateConfig: Decodable {
-        var tokenSeparators: String
-        var substrateTagRules: [MapRule]
-        var materials: [MaterialDefinition]
-        var treatments: [TreatmentDefinition]
-        var orientations: OrientationConfig
+        var materials: [SubstrateEntry]
+        var treatments: [SubstrateEntry]
+        var orientations: [SubstrateEntry]
     }
+
+    // MARK: - Compiled substrate entry (v4)
+
+    struct CompiledSubstrateEntry {
+        var displayName: String
+        var equalsKeysNormalized: Set<String>
+        var containsNeedlesNormalized: [String]
+    }
+
+    // MARK: - Measurement / condition rule types (unchanged)
 
     enum MatchScope: String, Decodable {
         case tokens
@@ -200,32 +207,28 @@ struct FilenameRuleSet: Decodable {
 
     struct CompiledRules {
         var sampleIdRegexes: [NSRegularExpression] = []
-        var batchRegexes: [NSRegularExpression] = []
         var measurementNameRules: [CompiledMapRule] = []
         var measurementTagRules: [CompiledMapRule] = []
-        var substrateTagRules: [CompiledMapRule] = []
         var channelAliases: [String: String] = [:]
         var conditionUnitSuffixRegexes: [String: NSRegularExpression] = [:]
         var conditionTokenMapRules: [String: [CompiledMapRule]] = [:]
-        var materialByToken: [String: MaterialDefinition] = [:]
-        var treatmentByKeyword: [String: TreatmentDefinition] = [:]
-        var orientationCanonical: [String: String] = [:]
+        var substrateMaterialEntries: [CompiledSubstrateEntry] = []
+        var substrateTreatmentEntries: [CompiledSubstrateEntry] = []
+        var substrateOrientationEntries: [CompiledSubstrateEntry] = []
+        var originTreatmentDisplayNames: Set<String> = []
     }
 
     var version: Int
     var tokenization: Tokenization
     var sources: [Source]
     var sampleId: SampleIdRules
-    var batch: BatchRules
     var measurementNameRules: [MapRule]
     var measurementTagRules: [MapRule]
-    var substrateTagRules: [MapRule]
     var channel: ChannelRules
     var conditions: ConditionRules
     var conditionDefinitions: [ConditionDefinition]
     var registry: RegistryRules?
     var importRules: ImportRules?
-    var sharedSubstrate: SharedSubstrateRules?
     var substrateConfig: SubstrateConfig?
 
     var compiled: CompiledRules = CompiledRules()
@@ -236,10 +239,8 @@ struct FilenameRuleSet: Decodable {
         case tokenization
         case sources
         case sampleId
-        case batch
         case measurementNameRules
         case measurementTagRules
-        case substrateTagRules
         case channel
         case conditions
         case conditionDefinitions
@@ -253,32 +254,26 @@ struct FilenameRuleSet: Decodable {
         tokenization: Tokenization,
         sources: [Source],
         sampleId: SampleIdRules,
-        batch: BatchRules,
         measurementNameRules: [MapRule],
         measurementTagRules: [MapRule],
-        substrateTagRules: [MapRule],
         channel: ChannelRules,
         conditions: ConditionRules,
         conditionDefinitions: [ConditionDefinition] = [],
         registry: RegistryRules?,
         importRules: ImportRules?,
-        sharedSubstrate: SharedSubstrateRules?,
         substrateConfig: SubstrateConfig?
     ) {
         self.version = version
         self.tokenization = tokenization
         self.sources = sources
         self.sampleId = sampleId
-        self.batch = batch
         self.measurementNameRules = measurementNameRules
         self.measurementTagRules = measurementTagRules
-        self.substrateTagRules = substrateTagRules
         self.channel = channel
         self.conditions = conditions
         self.conditionDefinitions = conditionDefinitions
         self.registry = registry
         self.importRules = importRules
-        self.sharedSubstrate = sharedSubstrate
         self.substrateConfig = substrateConfig
         compiled = CompiledRules()
         loadWarnings = []
@@ -289,18 +284,15 @@ struct FilenameRuleSet: Decodable {
         version = try container.decode(Int.self, forKey: .version)
         tokenization = try container.decode(Tokenization.self, forKey: .tokenization)
         sources = try container.decode([Source].self, forKey: .sources)
-        sampleId = try container.decodeIfPresent(SampleIdRules.self, forKey: .sampleId) ?? SampleIdRules(patterns: [])
-        batch = try container.decode(BatchRules.self, forKey: .batch)
+        sampleId = try container.decodeIfPresent(SampleIdRules.self, forKey: .sampleId) ?? SampleIdRules()
         measurementNameRules = try container.decodeIfPresent([MapRule].self, forKey: .measurementNameRules) ?? []
         measurementTagRules = try container.decodeIfPresent([MapRule].self, forKey: .measurementTagRules) ?? []
-        substrateTagRules = try container.decodeIfPresent([MapRule].self, forKey: .substrateTagRules) ?? []
         channel = try container.decode(ChannelRules.self, forKey: .channel)
         conditions = try container.decodeIfPresent(ConditionRules.self, forKey: .conditions) ?? ConditionRules()
         conditionDefinitions = try container.decodeIfPresent([ConditionDefinition].self, forKey: .conditionDefinitions) ?? []
         registry = try container.decodeIfPresent(RegistryRules.self, forKey: .registry)
         importRules = try container.decodeIfPresent(ImportRules.self, forKey: .importRules)
         substrateConfig = try container.decodeIfPresent(SubstrateConfig.self, forKey: .substrateConfig)
-        sharedSubstrate = nil
         compiled = CompiledRules()
         loadWarnings = []
     }
@@ -308,17 +300,9 @@ struct FilenameRuleSet: Decodable {
     mutating func compile() -> [String] {
         var warnings: [String] = []
 
-        compiled.sampleIdRegexes = sampleId.patterns.compactMap { pattern in
-            compileRegex(pattern, warnings: &warnings, label: "sampleId")
-        }
-
-        compiled.batchRegexes = batch.fallbackPatterns.compactMap { pattern in
-            compileRegex(pattern, warnings: &warnings, label: "batch")
-        }
-
+        compiled.sampleIdRegexes = compileSampleIdRegexes(warnings: &warnings)
         compiled.measurementNameRules = compileMapRules(measurementNameRules, warnings: &warnings, label: "measurementNameRules")
         compiled.measurementTagRules = compileMapRules(measurementTagRules, warnings: &warnings, label: "measurementTagRules")
-        compiled.substrateTagRules = compileMapRules(substrateTagRules, warnings: &warnings, label: "substrateTagRules")
         compileConditionDefinitions(warnings: &warnings)
         compileSubstrateConfigNeedles()
 
@@ -342,30 +326,77 @@ struct FilenameRuleSet: Decodable {
         }
     }
 
-    func batchName(from tokens: [String]) -> String? {
-        if batch.preferSampleId, let sampleId = sampleIDs(from: tokens).first {
-            return sampleId
-        }
-
-        for token in tokens {
-            if compiled.batchRegexes.contains(where: { regexMatch(regex: $0, text: token) }) {
-                return token
+    func sampleIDsWithSources(from tokens: [String]) -> [(value: String, ruleRef: String)] {
+        var seen: Set<String> = []
+        return tokens.compactMap { token in
+            guard let result = normalizeSampleIDTokenWithSource(token) else {
+                return nil
             }
+            guard seen.insert(result.value).inserted else {
+                return nil
+            }
+            return result
         }
-
-        return nil
     }
 
     func measurementName(from tokens: [String], joined: String) -> String? {
         firstMatchValue(from: compiled.measurementNameRules, tokens: tokens, joined: joined)
     }
 
+    func measurementNameWithSource(from tokens: [String], joined: String) -> (value: String, ruleRef: String)? {
+        guard let result = firstMatchValueWithIndex(from: compiled.measurementNameRules, tokens: tokens, joined: joined) else {
+            return nil
+        }
+        return (result.value, RuleRef.measurementNameRule(index: result.ruleIndex))
+    }
+
     func measurementTags(from tokens: [String]) -> [String] {
         collectMatchValues(from: compiled.measurementTagRules, tokens: tokens, joined: nil)
     }
 
+    func measurementTagsWithSources(from tokens: [String]) -> [(value: String, ruleRef: String)] {
+        var result: [(value: String, ruleRef: String)] = []
+        for (idx, rule) in compiled.measurementTagRules.enumerated() {
+            if matches(rule: rule, tokens: tokens, joined: nil) {
+                result.append((rule.value, RuleRef.measurementTagRule(index: idx)))
+            }
+        }
+        return result
+    }
+
     func substrateTags(from tokens: [String]) -> [String] {
-        collectMatchValues(from: compiled.substrateTagRules, tokens: tokens, joined: nil)
+        let normalizedTokens = tokens.map(Self.normalizeForSubstrate)
+        var result: [String] = []
+        for entry in compiled.substrateMaterialEntries
+            + compiled.substrateTreatmentEntries
+            + compiled.substrateOrientationEntries
+        {
+            if anyTokenHits(entry, normalizedTokens: normalizedTokens) {
+                result.append(entry.displayName)
+            }
+        }
+        return result
+    }
+
+    func substrateTagsWithSources(from tokens: [String]) -> [(value: String, ruleRef: String)] {
+        let normalizedTokens = tokens.map(Self.normalizeForSubstrate)
+        var result: [(value: String, ruleRef: String)] = []
+        for (idx, entry) in compiled.substrateMaterialEntries.enumerated() {
+            if anyTokenHits(entry, normalizedTokens: normalizedTokens) {
+                result.append((entry.displayName, RuleRef.substrateMaterial(index: idx)))
+            }
+        }
+        for (idx, entry) in compiled.substrateTreatmentEntries.enumerated() {
+            if anyTokenHits(entry, normalizedTokens: normalizedTokens) {
+                result.append((entry.displayName, RuleRef.substrateTreatment(index: idx)))
+            }
+        }
+        for (idx, entry) in compiled.substrateOrientationEntries.enumerated() {
+            if anyTokenHits(entry, normalizedTokens: normalizedTokens) {
+                result.append((entry.displayName, RuleRef.substrateOrientation(index: idx)))
+            }
+        }
+        return result
     }
 
     func deviceName(from tokens: [String]) -> String? {
@@ -433,6 +464,42 @@ struct FilenameRuleSet: Decodable {
         return ExtraConditionEvaluation(values: values, warnings: warnings)
     }
 
+    func conditionEvaluationWithSources(from tokens: [String]) -> ExtraConditionEvaluationWithSources {
+        let allRuleIDs = Set(compiled.conditionUnitSuffixRegexes.keys)
+            .union(compiled.conditionTokenMapRules.keys)
+            .sorted()
+        var sourcedValues: [String: SourcedConditionValue] = [:]
+        var warnings: [String] = []
+
+        for ruleID in allRuleIDs {
+            let definitionIndex = conditionDefinitions.firstIndex(where: { $0.id == ruleID }) ?? 0
+            let regexMatchValue = compiled.conditionUnitSuffixRegexes[ruleID]
+                .flatMap { firstRegexMatch(in: tokens, regex: $0, ruleID: ruleID) }
+            let tokenMapResult = compiled.conditionTokenMapRules[ruleID]
+                .flatMap { firstMatchValueWithIndex(from: $0, tokens: tokens, joined: nil) }
+
+            if let tokenMapResult {
+                sourcedValues[ruleID] = SourcedConditionValue(
+                    value: tokenMapResult.value,
+                    ruleRef: RuleRef.conditionTokenMap(id: ruleID, ruleIndex: tokenMapResult.ruleIndex)
+                )
+                if regexMatchValue != nil {
+                    warnings.append("Condition '\(ruleID)' matched both token-map and unit-suffix; token-map result applied.")
+                }
+                continue
+            }
+
+            if let regexMatchValue {
+                sourcedValues[ruleID] = SourcedConditionValue(
+                    value: regexMatchValue,
+                    ruleRef: RuleRef.conditionUnitSuffix(id: ruleID, definitionIndex: definitionIndex)
+                )
+            }
+        }
+
+        return ExtraConditionEvaluationWithSources(sourcedValues: sourcedValues, warnings: warnings)
+    }
+
     func extraConditionEvaluation(from tokens: [String]) -> ExtraConditionEvaluation {
         let evaluated = conditionEvaluation(from: tokens)
         var filtered = evaluated.values
@@ -445,6 +512,47 @@ struct FilenameRuleSet: Decodable {
 
     func normalizeChannel(_ token: String) -> String? {
         compiled.channelAliases[token.lowercased()]
+    }
+
+    func normalizeChannelWithSource(_ token: String) -> (value: String, ruleRef: String)? {
+        let key = token.lowercased()
+        guard let value = compiled.channelAliases[key] else {
+            return nil
+        }
+        return (value, RuleRef.channelAlias(normalizedKey: key))
+    }
+
+    // MARK: - Normalization (shared for substrate matching and FileRoutingSemanticRules)
+
+    static func normalizeForSubstrate(_ token: String) -> String {
+        token.uppercased()
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: "_", with: "")
+            .replacingOccurrences(of: "-", with: "")
+            .replacingOccurrences(of: "(", with: "")
+            .replacingOccurrences(of: ")", with: "")
+            .replacingOccurrences(of: "（", with: "")
+            .replacingOccurrences(of: "）", with: "")
+    }
+
+    // MARK: - Private compile helpers
+
+    private func compileSampleIdRegexes(warnings: inout [String]) -> [NSRegularExpression] {
+        if !sampleId.batchPrefixes.isEmpty {
+            return sampleId.batchPrefixes.compactMap { prefix in
+                let trimmed = prefix.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty,
+                      trimmed.range(of: #"^[A-Za-z0-9_-]+$"#, options: .regularExpression) != nil else {
+                    warnings.append("Invalid batchPrefix '\(prefix)'; skipped")
+                    return nil
+                }
+                let pattern = "^\(NSRegularExpression.escapedPattern(for: trimmed))\\d+$"
+                return compileRegex(pattern, warnings: &warnings, label: "sampleId.batchPrefixes")
+            }
+        }
+        return sampleId.patterns.compactMap { pattern in
+            compileRegex(pattern, warnings: &warnings, label: "sampleId")
+        }
     }
 
     private func compileRegex(_ pattern: String, warnings: inout [String], label: String) -> NSRegularExpression? {
@@ -520,42 +628,60 @@ struct FilenameRuleSet: Decodable {
     }
 
     private mutating func compileSubstrateConfigNeedles() {
-        compiled.materialByToken = [:]
-        compiled.treatmentByKeyword = [:]
-        compiled.orientationCanonical = [:]
+        compiled.substrateMaterialEntries = []
+        compiled.substrateTreatmentEntries = []
+        compiled.substrateOrientationEntries = []
+        compiled.originTreatmentDisplayNames = []
 
         guard let substrateConfig else { return }
 
-        for material in substrateConfig.materials {
-            for token in material.tokens {
-                let key = token.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-                guard !key.isEmpty else { continue }
-                compiled.materialByToken[key] = material
+        compiled.substrateMaterialEntries = substrateConfig.materials.map(compileSubstrateEntry)
+        compiled.substrateTreatmentEntries = substrateConfig.treatments.map(compileSubstrateEntry)
+        compiled.substrateOrientationEntries = substrateConfig.orientations.map(compileSubstrateEntry)
+
+        // Detect origin treatment: displayName or any match value normalizes to "O"
+        for entry in substrateConfig.treatments {
+            let isOrigin = Self.normalizeForSubstrate(entry.displayName) == "O"
+                || entry.matches.contains { Self.normalizeForSubstrate($0.value) == "O" }
+            if isOrigin {
+                compiled.originTreatmentDisplayNames.insert(entry.displayName)
             }
-            for alias in material.aliases {
-                let key = alias.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-                guard !key.isEmpty else { continue }
-                compiled.materialByToken[key] = material
+        }
+    }
+
+    private func compileSubstrateEntry(_ entry: SubstrateEntry) -> CompiledSubstrateEntry {
+        var equalsKeys: Set<String> = []
+        var containsNeedles: [String] = []
+
+        let normalizedDisplayName = Self.normalizeForSubstrate(entry.displayName)
+        if !normalizedDisplayName.isEmpty {
+            equalsKeys.insert(normalizedDisplayName)
+        }
+
+        for match in entry.matches {
+            let normalized = Self.normalizeForSubstrate(match.value)
+            guard !normalized.isEmpty else { continue }
+            switch match.type {
+            case .equals:
+                equalsKeys.insert(normalized)
+            case .contains:
+                containsNeedles.append(normalized)
             }
         }
 
-        for treatment in substrateConfig.treatments {
-            for keyword in treatment.keywords {
-                let key = keyword.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                guard !key.isEmpty else { continue }
-                compiled.treatmentByKeyword[key] = treatment
-            }
-        }
+        return CompiledSubstrateEntry(
+            displayName: entry.displayName,
+            equalsKeysNormalized: equalsKeys,
+            containsNeedlesNormalized: containsNeedles
+        )
+    }
 
-        for row in substrateConfig.orientations.rows {
-            let canonicalID = row.id.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !canonicalID.isEmpty else { continue }
-            for alias in row.aliases {
-                let key = alias.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-                guard !key.isEmpty else { continue }
-                compiled.orientationCanonical[key] = canonicalID
-            }
+    private func anyTokenHits(_ entry: CompiledSubstrateEntry, normalizedTokens: [String]) -> Bool {
+        for token in normalizedTokens {
+            if entry.equalsKeysNormalized.contains(token) { return true }
+            if entry.containsNeedlesNormalized.contains(where: { token.contains($0) }) { return true }
         }
+        return false
     }
 
     private func normalizeSampleIDToken(_ token: String) -> String? {
@@ -563,6 +689,20 @@ struct FilenameRuleSet: Decodable {
         for regex in compiled.sampleIdRegexes {
             if regexMatch(regex: regex, text: uppercased) {
                 return uppercased
+            }
+        }
+        return nil
+    }
+
+    private func normalizeSampleIDTokenWithSource(_ token: String) -> (value: String, ruleRef: String)? {
+        let uppercased = token.uppercased()
+        let usesBatchPrefixes = !sampleId.batchPrefixes.isEmpty
+        for (idx, regex) in compiled.sampleIdRegexes.enumerated() {
+            if regexMatch(regex: regex, text: uppercased) {
+                let ref = usesBatchPrefixes
+                    ? RuleRef.sampleIdBatchPrefix(index: idx)
+                    : RuleRef.sampleIdPattern(index: idx)
+                return (uppercased, ref)
             }
         }
         return nil
@@ -585,6 +725,33 @@ struct FilenameRuleSet: Decodable {
                         return joined
                     }
                     return rule.value
+                }
+            }
+        }
+        return nil
+    }
+
+    private func firstMatchValueWithIndex(
+        from rules: [CompiledMapRule],
+        tokens: [String],
+        joined: String?
+    ) -> (value: String, ruleIndex: Int)? {
+        for (idx, rule) in rules.enumerated() {
+            switch rule.match.scope {
+            case .tokens:
+                for token in tokens where tokenMatches(token: token, rule: rule) {
+                    if rule.value == "$MATCH" {
+                        return (token, idx)
+                    }
+                    return (rule.value, idx)
+                }
+            case .joined:
+                guard let joined else { continue }
+                if stringMatches(text: joined, rule: rule) {
+                    if rule.value == "$MATCH" {
+                        return (joined, idx)
+                    }
+                    return (rule.value, idx)
                 }
             }
         }
@@ -749,11 +916,9 @@ struct FilenameRuleSet: Decodable {
             version: 1,
             tokenization: Tokenization(separators: "_- ()", caseFold: "preserve"),
             sources: [.file, .parent, .grandparent],
-            sampleId: SampleIdRules(patterns: []),
-            batch: BatchRules(preferSampleId: true, fallbackPatterns: []),
+            sampleId: SampleIdRules(batchPrefixes: ["PN", "PT", "SL"], patterns: []),
             measurementNameRules: [],
             measurementTagRules: [],
-            substrateTagRules: [],
             channel: ChannelRules(aliases: [:]),
             conditions: ConditionRules(
                 extraConditions: [
@@ -828,81 +993,55 @@ struct FilenameRuleSet: Decodable {
                 supportedFileExtensions: ["csv", "txt", "dat", "lvm"],
                 ignoredFileExtensions: ["gph"]
             ),
-            sharedSubstrate: SharedSubstrateRules(
-                tokenSeparators: "_- ()",
-                originStandaloneTokens: ["o"],
-                originContainsTokens: ["origin", "original"],
-                treatmentKeywords: [
-                    "HF": ["hf"],
-                    "b": ["b", "bake", "baked"],
-                    "o": ["o", "origin", "original"]
-                ],
-                materialTokens: ["STO", "NGO", "MAO", "MGO", "AL2O3", "SI", "POLY-SIO2 ON SI", "POLY-SIO2"],
-                materialAliases: [
-                    "ONSI": "SI"
-                ],
-                materialDisplayNames: [
-                    "POLY-SIO2 ON SI": "poly-SiO2 on Si",
-                    "POLY-SIO2": "poly-SiO2 on Si",
-                    "MGO": "MgO",
-                    "AL2O3": "Al2O3",
-                    "SI": "Si"
-                ],
-                orientationTokens: ["111", "110", "001", "100", "0001"],
-                orientationAliases: [
-                    "100": "001"
-                ],
-                orientationPattern: "\\d{3}"
-            ),
             substrateConfig: SubstrateConfig(
-                tokenSeparators: "_- ()",
-                substrateTagRules: [],
                 materials: [
-                    MaterialDefinition(id: "STO", tokens: ["STO"], aliases: [], displayName: "STO"),
-                    MaterialDefinition(id: "NGO", tokens: ["NGO"], aliases: [], displayName: "NGO"),
-                    MaterialDefinition(id: "MAO", tokens: ["MAO"], aliases: [], displayName: "MAO"),
-                    MaterialDefinition(id: "MGO", tokens: ["MGO"], aliases: [], displayName: "MgO"),
-                    MaterialDefinition(id: "AL2O3", tokens: ["AL2O3"], aliases: [], displayName: "Al2O3"),
-                    MaterialDefinition(id: "SI", tokens: ["SI"], aliases: ["ONSI"], displayName: "Si"),
-                    MaterialDefinition(
-                        id: "POLY-SIO2",
-                        tokens: ["POLY-SIO2", "POLY-SIO2 ON SI"],
-                        aliases: [],
-                        displayName: "poly-SiO2 on Si"
-                    )
+                    SubstrateEntry(displayName: "STO", matches: [
+                        SubstrateEntry.Match(type: .contains, value: "STO111"),
+                        SubstrateEntry.Match(type: .contains, value: "STO001")
+                    ]),
+                    SubstrateEntry(displayName: "NGO", matches: []),
+                    SubstrateEntry(displayName: "MAO", matches: []),
+                    SubstrateEntry(displayName: "MgO", matches: [
+                        SubstrateEntry.Match(type: .equals, value: "MGO")
+                    ]),
+                    SubstrateEntry(displayName: "Al2O3", matches: [
+                        SubstrateEntry.Match(type: .equals, value: "AL2O3")
+                    ]),
+                    SubstrateEntry(displayName: "Si", matches: [
+                        SubstrateEntry.Match(type: .equals, value: "SI"),
+                        SubstrateEntry.Match(type: .equals, value: "ONSI")
+                    ]),
+                    SubstrateEntry(displayName: "poly-SiO2 on Si", matches: [
+                        SubstrateEntry.Match(type: .equals, value: "POLY-SIO2"),
+                        SubstrateEntry.Match(type: .equals, value: "POLY-SIO2 ON SI")
+                    ])
                 ],
                 treatments: [
-                    TreatmentDefinition(
-                        id: "HF",
-                        displayName: "HF",
-                        keywords: ["hf"],
-                        standaloneTokens: [],
-                        containsTokens: []
-                    ),
-                    TreatmentDefinition(
-                        id: "b",
-                        displayName: "baked",
-                        keywords: ["b", "bake", "baked"],
-                        standaloneTokens: [],
-                        containsTokens: []
-                    ),
-                    TreatmentDefinition(
-                        id: "o",
-                        displayName: "o",
-                        keywords: ["o", "origin", "original"],
-                        standaloneTokens: ["o"],
-                        containsTokens: ["origin", "original"]
-                    )
+                    SubstrateEntry(displayName: "HF", matches: [
+                        SubstrateEntry.Match(type: .contains, value: "hf")
+                    ]),
+                    SubstrateEntry(displayName: "baked", matches: [
+                        SubstrateEntry.Match(type: .contains, value: "bake")
+                    ]),
+                    SubstrateEntry(displayName: "b", matches: [
+                        SubstrateEntry.Match(type: .equals, value: "b")
+                    ]),
+                    SubstrateEntry(displayName: "o", matches: [
+                        SubstrateEntry.Match(type: .contains, value: "origin"),
+                        SubstrateEntry.Match(type: .contains, value: "original")
+                    ])
                 ],
-                orientations: OrientationConfig(
-                    pattern: "\\d{3}",
-                    rows: [
-                        OrientationConfig.Row(id: "001", tokens: ["001"], aliases: ["100"]),
-                        OrientationConfig.Row(id: "111", tokens: ["111"], aliases: []),
-                        OrientationConfig.Row(id: "110", tokens: ["110"], aliases: []),
-                        OrientationConfig.Row(id: "0001", tokens: ["0001"], aliases: [])
-                    ]
-                )
+                orientations: [
+                    SubstrateEntry(displayName: "001", matches: [
+                        SubstrateEntry.Match(type: .equals, value: "100"),
+                        SubstrateEntry.Match(type: .contains, value: "STO001")
+                    ]),
+                    SubstrateEntry(displayName: "111", matches: [
+                        SubstrateEntry.Match(type: .contains, value: "STO111")
+                    ]),
+                    SubstrateEntry(displayName: "110", matches: []),
+                    SubstrateEntry(displayName: "0001", matches: [])
+                ]
             )
         )
     }

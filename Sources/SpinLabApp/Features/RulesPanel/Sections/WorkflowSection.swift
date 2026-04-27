@@ -15,6 +15,10 @@ struct WorkflowSection: View {
     @State private var pendingDeleteWorkflowID: String? = nil
     @State private var showDeleteWorkflowConfirm = false
 
+    @State private var showAddWorkflowSheet = false
+    @State private var newWorkflowIDInput: String = ""
+    @State private var addWorkflowError: String? = nil
+
     private var store: RulesManagementStore { appState.rulesPanel }
 
     var body: some View {
@@ -61,9 +65,7 @@ struct WorkflowSection: View {
     private func saveBar() -> some View {
         HStack(spacing: AppSpacing.md) {
             if !saveErrors.isEmpty {
-                Text("\(saveErrors.count) validation error\(saveErrors.count == 1 ? "" : "s")")
-                    .font(.callout)
-                    .foregroundStyle(.red)
+                SaveErrorsBadge(errors: saveErrors)
             }
             Spacer()
             if let d = draft {
@@ -88,6 +90,7 @@ struct WorkflowSection: View {
             VStack(alignment: .leading, spacing: AppSpacing.xl) {
                 workflowsGroup(d)
                 measurementTagRulesGroup(d)
+                    .errorHighlight(saveErrors.hasGroup("measurementTagRules"))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(AppSpacing.xl)
@@ -104,17 +107,84 @@ struct WorkflowSection: View {
                 }
 
                 Button("+ Add Workflow") {
-                    addWorkflow(to: d)
+                    newWorkflowIDInput = ""
+                    addWorkflowError = nil
+                    showAddWorkflowSheet = true
                 }
                 .buttonStyle(.bordered)
             }
         }
+        .sheet(isPresented: $showAddWorkflowSheet) {
+            addWorkflowSheet(d: d)
+        }
+    }
+
+    @ViewBuilder
+    private func addWorkflowSheet(d: WorkflowFileDraft) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            Text("New Workflow")
+                .font(AppFontScale.sectionHeader)
+            Text("Enter a unique ID. This cannot be changed after creation.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            TextField("workflow id", text: $newWorkflowIDInput)
+                .textFieldStyle(.roundedBorder)
+                .font(.body.monospaced())
+                .onSubmit { confirmAddWorkflow(d: d) }
+
+            if let err = addWorkflowError {
+                Text(err)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancel") {
+                    showAddWorkflowSheet = false
+                }
+                .keyboardShortcut(.cancelAction)
+                Button("Create") {
+                    confirmAddWorkflow(d: d)
+                }
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(AppSpacing.xl)
+        .frame(minWidth: 360)
+    }
+
+    private func confirmAddWorkflow(d: WorkflowFileDraft) {
+        let trimmed = newWorkflowIDInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            addWorkflowError = "ID cannot be empty."
+            return
+        }
+        if d.workflows.contains(where: { $0.id == trimmed }) {
+            addWorkflowError = "ID already exists."
+            return
+        }
+        var updated = d
+        updated.workflows.append(
+            .init(
+                id: trimmed,
+                displayName: "",
+                matchRules: [],
+                conditionFieldIDs: []
+            )
+        )
+        apply(updated)
+        expandedWorkflowID = trimmed
+        showAddWorkflowSheet = false
     }
 
     @ViewBuilder
     private func workflowRow(d: WorkflowFileDraft, idx: Int) -> some View {
         let entry = d.workflows[idx]
         let isExpanded = expandedWorkflowID == entry.id
+        let rowHasError = saveErrors.hasRow(group: "workflows", key: entry.id)
 
         VStack(alignment: .leading, spacing: 0) {
             Button {
@@ -128,6 +198,7 @@ struct WorkflowSection: View {
                     VStack(alignment: .leading, spacing: AppSpacing.xxs) {
                         Text(entry.id)
                             .font(.callout.weight(.semibold).monospaced())
+                            .foregroundStyle(rowHasError ? Color.red : .primary)
                         if !entry.displayName.isEmpty {
                             Text(entry.displayName)
                                 .font(.caption)
@@ -151,10 +222,12 @@ struct WorkflowSection: View {
                 }
                 .contentShape(Rectangle())
                 .padding(.vertical, AppSpacing.xs)
+                .padding(.horizontal, AppSpacing.xs)
             }
             .buttonStyle(.plain)
             .background(isExpanded ? Color.accentColor.opacity(0.08) : .clear)
             .cornerRadius(AppSpacing.xs)
+            .errorHighlight(rowHasError, cornerRadius: AppSpacing.xs)
 
             if isExpanded {
                 workflowDetail(d: d, idx: idx)
@@ -171,23 +244,10 @@ struct WorkflowSection: View {
 
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             LabeledContent("ID") {
-                TextField(
-                    "workflow id",
-                    text: Binding(
-                        get: { entry.id },
-                        set: { newValue in
-                            var updated = d
-                            let oldID = updated.workflows[idx].id
-                            updated.workflows[idx].id = newValue
-                            apply(updated)
-                            if expandedWorkflowID == oldID {
-                                expandedWorkflowID = newValue
-                            }
-                        }
-                    )
-                )
-                .textFieldStyle(.roundedBorder)
-                .font(.body.monospaced())
+                Text(entry.id)
+                    .font(.body.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
             }
 
             LabeledContent("Display Name") {
@@ -246,9 +306,9 @@ struct WorkflowSection: View {
                         HStack(spacing: AppSpacing.md) {
                             VStack(alignment: .leading, spacing: AppSpacing.xxs) {
                                 Text(ruleHeadline(entry.matchRules[ruleIdx]))
-                                    .font(.callout.weight(.semibold))
+                                    .font(.subheadline.weight(.medium))
                                 Text("\(entry.matchRules[ruleIdx].scope) · \(entry.matchRules[ruleIdx].type)")
-                                    .font(.caption)
+                                    .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
@@ -294,27 +354,35 @@ struct WorkflowSection: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(store.availableConditionFieldIDs, id: \.self) { conditionID in
-                    Toggle(
-                        conditionID,
-                        isOn: Binding(
-                            get: { entry.conditionFieldIDs.contains(conditionID) },
-                            set: { isOn in
-                                var updated = d
-                                var ids = updated.workflows[idx].conditionFieldIDs
-                                if isOn {
-                                    if !ids.contains(conditionID) {
-                                        ids.append(conditionID)
+                LazyVGrid(
+                    columns: [
+                        GridItem(.adaptive(minimum: 200), spacing: AppSpacing.sm, alignment: .leading)
+                    ],
+                    alignment: .leading,
+                    spacing: AppSpacing.xxs
+                ) {
+                    ForEach(store.availableConditionFieldIDs, id: \.self) { conditionID in
+                        Toggle(
+                            conditionID,
+                            isOn: Binding(
+                                get: { entry.conditionFieldIDs.contains(conditionID) },
+                                set: { isOn in
+                                    var updated = d
+                                    var ids = updated.workflows[idx].conditionFieldIDs
+                                    if isOn {
+                                        if !ids.contains(conditionID) {
+                                            ids.append(conditionID)
+                                        }
+                                    } else {
+                                        ids.removeAll { $0 == conditionID }
                                     }
-                                } else {
-                                    ids.removeAll { $0 == conditionID }
+                                    updated.workflows[idx].conditionFieldIDs = ids
+                                    apply(updated)
                                 }
-                                updated.workflows[idx].conditionFieldIDs = ids
-                                apply(updated)
-                            }
+                            )
                         )
-                    )
-                    .toggleStyle(.checkbox)
+                        .toggleStyle(.checkbox)
+                    }
                 }
             }
         }
@@ -397,28 +465,6 @@ struct WorkflowSection: View {
 
     private func ruleHeadline(_ rule: WorkflowFileDraft.WorkflowMatchSpec) -> String {
         rule.matchValues.isEmpty ? "(empty)" : rule.matchValues.joined(separator: ", ")
-    }
-
-    private func addWorkflow(to d: WorkflowFileDraft) {
-        var newID = "workflow"
-        let existing = Set(d.workflows.map(\.id))
-        var n = 2
-        while existing.contains(newID) {
-            newID = "workflow_\(n)"
-            n += 1
-        }
-
-        var updated = d
-        updated.workflows.append(
-            .init(
-                id: newID,
-                displayName: "",
-                matchRules: [],
-                conditionFieldIDs: []
-            )
-        )
-        apply(updated)
-        expandedWorkflowID = newID
     }
 
     private func requestDeleteWorkflow(id: String) {

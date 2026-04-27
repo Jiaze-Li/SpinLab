@@ -87,7 +87,7 @@ struct SearchWorkflowMeasurementsUseCase {
             batchID: pathInfo.batchID,
             sampleKey: pathInfo.sampleKey,
             sampleSubstrate: pathInfo.sampleSubstrate,
-            conditions: sidecar.conditions,
+            conditions: sidecar.effectiveConditions,
             channels: sidecar.channels,
             appliedAt: sidecar.appliedAt
         )

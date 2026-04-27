@@ -118,9 +118,68 @@ struct FilenameRuleParser {
                 + defaultSampleResolution.warnings
                 + conflictWarnings(fileSampleIDs: fileSampleIDs, folderSampleIDs: folderSampleIDs)
         )
+        var hintSources: [String: String] = [:]
+
+        let fileSampleIDsWithSources = ruleSet.sampleIDsWithSources(from: fileScopeTokens)
+        for (idx, item) in fileSampleIDsWithSources.enumerated() {
+            if idx == 0 {
+                hintSources["sampleID"] = item.ruleRef
+            }
+            hintSources["sampleID#\(idx)"] = item.ruleRef
+        }
+
+        let fileConditionWithSources = ruleSet.conditionEvaluationWithSources(from: fileTokens)
+        for (id, sourced) in fileConditionWithSources.sourcedValues {
+            hintSources["condition.\(id)"] = sourced.ruleRef
+        }
+        // Folder-derived conditions: fill keys absent from file scope
+        let folderConditionWithSources = ruleSet.conditionEvaluationWithSources(from: folderContextTokens)
+        for (id, sourced) in folderConditionWithSources.sourcedValues where hintSources["condition.\(id)"] == nil {
+            hintSources["condition.\(id)"] = sourced.ruleRef
+        }
+
+        let fileSubstrateWithSources = ruleSet.substrateTagsWithSources(from: fileScopeTokens)
+        if !fileSubstrateWithSources.isEmpty {
+            for (idx, item) in fileSubstrateWithSources.enumerated() {
+                hintSources["substrateTags[\(idx)]"] = item.ruleRef
+            }
+        } else {
+            // preferredTags returns folder tags when file has none
+            let folderSubstrateWithSources = ruleSet.substrateTagsWithSources(from: folderContextTokens)
+            for (idx, item) in folderSubstrateWithSources.enumerated() {
+                hintSources["substrateTags[\(idx)]"] = item.ruleRef
+            }
+        }
+
+        // Folder-derived sampleIDs: add sources for indices beyond file scope
+        if hintSources["sampleID"] == nil {
+            var seen: Set<String> = []
+            let folderSIDsWithSrc = (ruleSet.sampleIDsWithSources(from: parentTokens)
+                + ruleSet.sampleIDsWithSources(from: grandparentTokens))
+                .filter { seen.insert($0.value).inserted }
+            for (idx, item) in folderSIDsWithSrc.enumerated() {
+                if idx == 0 { hintSources["sampleID"] = item.ruleRef }
+                hintSources["sampleID#\(idx)"] = item.ruleRef
+            }
+        } else {
+            let fileSampleIDSet = Set(fileSampleIDs)
+            var seen: Set<String> = []
+            let folderAdditions = (ruleSet.sampleIDsWithSources(from: parentTokens)
+                + ruleSet.sampleIDsWithSources(from: grandparentTokens))
+                .filter { seen.insert($0.value).inserted && !fileSampleIDSet.contains($0.value) }
+            let offset = fileSampleIDsWithSources.count
+            for (i, item) in folderAdditions.enumerated() {
+                hintSources["sampleID#\(offset + i)"] = item.ruleRef
+            }
+        }
+
+        if let measurementWithSource = ruleSet.measurementNameWithSource(from: fileScopeTokens, joined: fileJoined) {
+            hintSources["workflowID"] = measurementWithSource.ruleRef
+            hintSources["measurementName"] = measurementWithSource.ruleRef
+        }
 
         return SpinLabDomain.ParsedFilenameHints(
-            batchName: ruleSet.batchName(from: fileScopeTokens),
+            batchName: fileSampleIDs.first,
             sampleName: defaultSampleName(defaultSampleKey: defaultSampleKey, substrateTags: substrateTags),
             defaultSampleKey: defaultSampleKey,
             folderDerivedSampleKeys: folderSampleIDs,
@@ -132,7 +191,8 @@ struct FilenameRuleParser {
             substrateTags: substrateTags,
             conditionValues: conditionEvaluation.values,
             rotationHint: Self.hardcodedRotationHint(from: fullContextTokens),
-            warnings: warnings
+            warnings: warnings,
+            hintSources: hintSources
         )
     }
 

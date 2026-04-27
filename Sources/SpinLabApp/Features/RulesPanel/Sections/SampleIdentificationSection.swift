@@ -7,7 +7,6 @@ struct SampleIdentificationSection: View {
     @State private var saveErrors: [RulesPanelFieldError] = []
     @State private var showConflictAlert = false
     @State private var pendingConflictChecksum = ""
-    @State private var expandedSubstrateTagRuleIndex: Int? = nil
     @State private var expandedMaterialIndex: Int? = nil
     @State private var expandedTreatmentIndex: Int? = nil
     @State private var expandedOrientationIndex: Int? = nil
@@ -51,9 +50,7 @@ struct SampleIdentificationSection: View {
     private func saveBar() -> some View {
         HStack(spacing: AppSpacing.md) {
             if !saveErrors.isEmpty {
-                Text("\(saveErrors.count) validation error\(saveErrors.count == 1 ? "" : "s")")
-                    .font(.callout)
-                    .foregroundStyle(.red)
+                SaveErrorsBadge(errors: saveErrors)
             }
             Spacer()
             if let d = draft {
@@ -76,406 +73,225 @@ struct SampleIdentificationSection: View {
     private func scrollContent(_ d: SampleIdentificationFileDraft) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                sampleIdPatternsGroup(d)
-                substrateTagRulesGroup(d)
-                substrateRowsGroup(d)
+                batchPrefixesGroup(d)
+                substrateConfigGroup(d)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(AppSpacing.xl)
         }
     }
 
-    @ViewBuilder
-    private func sampleIdPatternsGroup(_ d: SampleIdentificationFileDraft) -> some View {
-        GroupBox("Sample ID Patterns") {
-            VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                HStack {
-                    Text("Regex Patterns")
-                        .font(AppFontScale.groupHeader)
-                    Spacer()
-                    Button("Add") {
-                        var updated = d
-                        updated.sampleId.patterns.append("")
-                        apply(updated)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
+    // MARK: - Batch Prefixes
 
-                ForEach(d.sampleId.patterns.indices, id: \.self) { idx in
-                    HStack(alignment: .top, spacing: AppSpacing.sm) {
-                        RegexField(
-                            title: "sample id regex",
-                            text: Binding(
-                                get: { d.sampleId.patterns[idx] },
-                                set: { newValue in
-                                    var updated = d
-                                    updated.sampleId.patterns[idx] = newValue
-                                    apply(updated)
-                                }
-                            )
-                        )
-                        Button(role: .destructive) {
-                            var updated = d
-                            updated.sampleId.patterns.remove(at: idx)
-                            apply(updated)
-                        } label: {
-                            Image(systemName: "minus.circle")
-                        }
-                        .buttonStyle(.borderless)
-                        .accessibilityLabel("Remove pattern")
-                        .padding(.top, AppSpacing.xs)
-                    }
-                }
-            }
+    @ViewBuilder
+    private func batchPrefixesGroup(_ d: SampleIdentificationFileDraft) -> some View {
+        GroupBox("Batch ID Prefixes") {
+            stringListField(
+                title: "Prefixes",
+                items: d.sampleId.batchPrefixes,
+                onChange: { v in var u = d; u.sampleId.batchPrefixes = v; apply(u) }
+            )
         }
     }
 
-    @ViewBuilder
-    private func substrateTagRulesGroup(_ d: SampleIdentificationFileDraft) -> some View {
-        GroupBox("Substrate Tag Rules") {
-            VStack(alignment: .leading, spacing: AppSpacing.md) {
-                HStack {
-                    Text("Map Rules")
-                        .font(AppFontScale.groupHeader)
-                    Spacer()
-                    Button("Add Rule") {
-                        var updated = d
-                        updated.substrate.substrateTagRules.append(
-                            MapRule(
-                                match: .init(scope: "tokens", type: "equalsOrContainsAny", matchValues: []),
-                                value: ""
-                            )
-                        )
-                        apply(updated)
-                        expandedSubstrateTagRuleIndex = updated.substrate.substrateTagRules.count - 1
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-
-                ForEach(d.substrate.substrateTagRules.indices, id: \.self) { ruleIdx in
-                    let isExpanded = expandedSubstrateTagRuleIndex == ruleIdx
-                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                        Button {
-                            expandedSubstrateTagRuleIndex = isExpanded ? nil : ruleIdx
-                        } label: {
-                            HStack(spacing: AppSpacing.md) {
-                                VStack(alignment: .leading, spacing: AppSpacing.xxs) {
-                                    Text("→ \(d.substrate.substrateTagRules[ruleIdx].value)")
-                                        .font(.callout.weight(.semibold))
-                                    Text("\(d.substrate.substrateTagRules[ruleIdx].match.scope) · \(d.substrate.substrateTagRules[ruleIdx].match.type)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                Button(role: .destructive) {
-                                    var updated = d
-                                    updated.substrate.substrateTagRules.remove(at: ruleIdx)
-                                    apply(updated)
-                                    if expandedSubstrateTagRuleIndex == ruleIdx {
-                                        expandedSubstrateTagRuleIndex = nil
-                                    }
-                                } label: {
-                                    Image(systemName: "minus.circle")
-                                }
-                                .buttonStyle(.borderless)
-                                .accessibilityLabel("Remove rule")
-                                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-
-                        if isExpanded {
-                            MatchRuleEditor(rule: substrateTagRuleBinding(ruleIdx: ruleIdx))
-                                .padding(AppSpacing.md)
-                                .background(Color(nsColor: .windowBackgroundColor))
-                                .cornerRadius(AppSpacing.sm)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - Row-oriented substrate editors
+    // MARK: - Substrate Configuration
 
     @ViewBuilder
-    private func substrateRowsGroup(_ d: SampleIdentificationFileDraft) -> some View {
+    private func substrateConfigGroup(_ d: SampleIdentificationFileDraft) -> some View {
         GroupBox("Substrate Configuration") {
             VStack(alignment: .leading, spacing: AppSpacing.lg) {
-                LabeledContent("Token Separators") {
-                    TextField("e.g. _- ()", text: Binding(
-                        get: { d.substrate.tokenSeparators },
-                        set: { v in var u = d; u.substrate.tokenSeparators = v; apply(u) }
+                substrateEntriesEditor(
+                    title: "Materials",
+                    groupKey: "substrate.materials",
+                    entries: d.substrate.materials,
+                    expandedIndex: $expandedMaterialIndex,
+                    onAdd: {
+                        var u = d
+                        u.substrate.materials.append(.init(displayName: "", matches: []))
+                        apply(u)
+                        expandedMaterialIndex = u.substrate.materials.count - 1
+                    },
+                    onRemove: { idx in
+                        var u = d; u.substrate.materials.remove(at: idx); apply(u)
+                        if expandedMaterialIndex == idx { expandedMaterialIndex = nil }
+                    }
+                ) { idx in
+                    entryDetail(idx: idx, entries: d.substrate.materials) { v in
+                        var u = d; u.substrate.materials = v; apply(u)
+                    }
+                }
+                Divider()
+                substrateEntriesEditor(
+                    title: "Treatments",
+                    groupKey: "substrate.treatments",
+                    entries: d.substrate.treatments,
+                    expandedIndex: $expandedTreatmentIndex,
+                    onAdd: {
+                        var u = d
+                        u.substrate.treatments.append(.init(displayName: "", matches: []))
+                        apply(u)
+                        expandedTreatmentIndex = u.substrate.treatments.count - 1
+                    },
+                    onRemove: { idx in
+                        var u = d; u.substrate.treatments.remove(at: idx); apply(u)
+                        if expandedTreatmentIndex == idx { expandedTreatmentIndex = nil }
+                    }
+                ) { idx in
+                    entryDetail(idx: idx, entries: d.substrate.treatments) { v in
+                        var u = d; u.substrate.treatments = v; apply(u)
+                    }
+                }
+                Divider()
+                substrateEntriesEditor(
+                    title: "Orientations",
+                    groupKey: "substrate.orientations",
+                    entries: d.substrate.orientations,
+                    expandedIndex: $expandedOrientationIndex,
+                    onAdd: {
+                        var u = d
+                        u.substrate.orientations.append(.init(displayName: "", matches: []))
+                        apply(u)
+                        expandedOrientationIndex = u.substrate.orientations.count - 1
+                    },
+                    onRemove: { idx in
+                        var u = d; u.substrate.orientations.remove(at: idx); apply(u)
+                        if expandedOrientationIndex == idx { expandedOrientationIndex = nil }
+                    }
+                ) { idx in
+                    entryDetail(idx: idx, entries: d.substrate.orientations) { v in
+                        var u = d; u.substrate.orientations = v; apply(u)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func substrateEntriesEditor<Detail: View>(
+        title: String,
+        groupKey: String,
+        entries: [SampleIdentificationFileDraft.SubstrateEntry],
+        expandedIndex: Binding<Int?>,
+        onAdd: @escaping () -> Void,
+        onRemove: @escaping (Int) -> Void,
+        @ViewBuilder detail: @escaping (Int) -> Detail
+    ) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            HStack {
+                Text(title).font(AppFontScale.groupHeader)
+                if saveErrors.hasGroup(groupKey) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+                Spacer()
+                Button("Add") { onAdd() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
+            ForEach(entries.indices, id: \.self) { idx in
+                let entry = entries[idx]
+                let isExpanded = expandedIndex.wrappedValue == idx
+                let rowHasError = saveErrors.hasRow(group: groupKey, key: entry.displayName)
+                VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                    Button { expandedIndex.wrappedValue = isExpanded ? nil : idx } label: {
+                        HStack(spacing: AppSpacing.md) {
+                            Text(entry.displayName.isEmpty ? "—" : entry.displayName)
+                                .font(.callout.weight(.semibold).monospaced())
+                                .foregroundStyle(rowHasError ? Color.red : .primary)
+                            Text("\(entry.matches.count) match\(entry.matches.count == 1 ? "" : "es")")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button(role: .destructive) { onRemove(idx) } label: {
+                                Image(systemName: "minus.circle")
+                            }
+                            .buttonStyle(.borderless)
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, AppSpacing.xs)
+                    .padding(.vertical, 2)
+                    .errorHighlight(rowHasError, cornerRadius: 6)
+
+                    if isExpanded {
+                        detail(idx)
+                            .padding(AppSpacing.md)
+                            .background(Color(nsColor: .controlBackgroundColor))
+                            .cornerRadius(AppSpacing.md)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func entryDetail(
+        idx: Int,
+        entries: [SampleIdentificationFileDraft.SubstrateEntry],
+        onChange: @escaping ([SampleIdentificationFileDraft.SubstrateEntry]) -> Void
+    ) -> some View {
+        let entry = entries[idx]
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            LabeledContent("Display Name") {
+                TextField("display name", text: Binding(
+                    get: { entry.displayName },
+                    set: { v in var updated = entries; updated[idx].displayName = v; onChange(updated) }
+                ))
+                .textFieldStyle(.roundedBorder)
+                .font(.body.monospaced())
+            }
+            matchesEditor(entryIdx: idx, entries: entries, onChange: onChange)
+        }
+    }
+
+    @ViewBuilder
+    private func matchesEditor(
+        entryIdx: Int,
+        entries: [SampleIdentificationFileDraft.SubstrateEntry],
+        onChange: @escaping ([SampleIdentificationFileDraft.SubstrateEntry]) -> Void
+    ) -> some View {
+        let matches = entries[entryIdx].matches
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            HStack {
+                Text("Matches").font(.subheadline)
+                Spacer()
+                Button("Add") {
+                    var updated = entries
+                    updated[entryIdx].matches.append(.init(type: "equals", value: ""))
+                    onChange(updated)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            ForEach(matches.indices, id: \.self) { mIdx in
+                HStack(spacing: AppSpacing.sm) {
+                    Picker("", selection: Binding(
+                        get: { matches[mIdx].type },
+                        set: { v in var updated = entries; updated[entryIdx].matches[mIdx].type = v; onChange(updated) }
+                    )) {
+                        Text("equals").tag("equals")
+                        Text("contains").tag("contains")
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                    TextField("value", text: Binding(
+                        get: { matches[mIdx].value },
+                        set: { v in var updated = entries; updated[entryIdx].matches[mIdx].value = v; onChange(updated) }
                     ))
                     .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 180)
                     .font(.body.monospaced())
-                }
-                Divider()
-                materialsEditor(d)
-                Divider()
-                treatmentsEditor(d)
-                Divider()
-                orientationsEditor(d)
-            }
-        }
-    }
-
-    // MARK: - Materials editor
-
-    @ViewBuilder
-    private func materialsEditor(_ d: SampleIdentificationFileDraft) -> some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            HStack {
-                Text("Materials").font(AppFontScale.groupHeader)
-                Spacer()
-                Button("Add") {
-                    var u = d
-                    u.substrate.materials.append(.init(id: "NEW", tokens: [], aliases: [], displayName: ""))
-                    apply(u)
-                    expandedMaterialIndex = u.substrate.materials.count - 1
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-            ForEach(d.substrate.materials.indices, id: \.self) { idx in
-                let mat = d.substrate.materials[idx]
-                let isExpanded = expandedMaterialIndex == idx
-                VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                    Button { expandedMaterialIndex = isExpanded ? nil : idx } label: {
-                        HStack(spacing: AppSpacing.md) {
-                            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
-                                Text(mat.id).font(.callout.weight(.semibold).monospaced())
-                                Text(mat.displayName.isEmpty ? "—" : mat.displayName)
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Button(role: .destructive) {
-                                var u = d; u.substrate.materials.remove(at: idx); apply(u)
-                                if expandedMaterialIndex == idx { expandedMaterialIndex = nil }
-                            } label: { Image(systemName: "minus.circle") }
-                            .buttonStyle(.borderless)
-                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-
-                    if isExpanded {
-                        materialRowDetail(idx: idx, d: d)
-                            .padding(AppSpacing.md)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .cornerRadius(AppSpacing.md)
-                    }
+                    Button(role: .destructive) {
+                        var updated = entries
+                        updated[entryIdx].matches.remove(at: mIdx)
+                        onChange(updated)
+                    } label: { Image(systemName: "minus.circle") }
+                    .buttonStyle(.borderless)
                 }
             }
-        }
-    }
-
-    @ViewBuilder
-    private func materialRowDetail(idx: Int, d: SampleIdentificationFileDraft) -> some View {
-        let mat = d.substrate.materials[idx]
-        VStack(alignment: .leading, spacing: AppSpacing.md) {
-            LabeledContent("ID") {
-                TextField("material id", text: Binding(
-                    get: { mat.id },
-                    set: { v in var u = d; u.substrate.materials[idx].id = v; apply(u) }
-                ))
-                .textFieldStyle(.roundedBorder)
-                .font(.body.monospaced())
-            }
-            LabeledContent("Display Name") {
-                TextField("display name", text: Binding(
-                    get: { mat.displayName },
-                    set: { v in var u = d; u.substrate.materials[idx].displayName = v; apply(u) }
-                ))
-                .textFieldStyle(.roundedBorder)
-            }
-            stringListField(
-                title: "Tokens",
-                items: mat.tokens,
-                onChange: { v in var u = d; u.substrate.materials[idx].tokens = v; apply(u) }
-            )
-            stringListField(
-                title: "Aliases",
-                items: mat.aliases,
-                onChange: { v in var u = d; u.substrate.materials[idx].aliases = v; apply(u) }
-            )
-        }
-    }
-
-    // MARK: - Treatments editor
-
-    @ViewBuilder
-    private func treatmentsEditor(_ d: SampleIdentificationFileDraft) -> some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            HStack {
-                Text("Treatments").font(AppFontScale.groupHeader)
-                Spacer()
-                Button("Add") {
-                    var u = d
-                    u.substrate.treatments.append(.init(id: "new", displayName: "", keywords: [], standaloneTokens: [], containsTokens: []))
-                    apply(u)
-                    expandedTreatmentIndex = u.substrate.treatments.count - 1
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-            ForEach(d.substrate.treatments.indices, id: \.self) { idx in
-                let t = d.substrate.treatments[idx]
-                let isExpanded = expandedTreatmentIndex == idx
-                VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                    Button { expandedTreatmentIndex = isExpanded ? nil : idx } label: {
-                        HStack(spacing: AppSpacing.md) {
-                            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
-                                Text(t.id).font(.callout.weight(.semibold).monospaced())
-                                Text(t.displayName.isEmpty ? "—" : t.displayName)
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Button(role: .destructive) {
-                                var u = d; u.substrate.treatments.remove(at: idx); apply(u)
-                                if expandedTreatmentIndex == idx { expandedTreatmentIndex = nil }
-                            } label: { Image(systemName: "minus.circle") }
-                            .buttonStyle(.borderless)
-                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-
-                    if isExpanded {
-                        treatmentRowDetail(idx: idx, d: d)
-                            .padding(AppSpacing.md)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .cornerRadius(AppSpacing.md)
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func treatmentRowDetail(idx: Int, d: SampleIdentificationFileDraft) -> some View {
-        let t = d.substrate.treatments[idx]
-        VStack(alignment: .leading, spacing: AppSpacing.md) {
-            LabeledContent("ID") {
-                TextField("treatment id", text: Binding(
-                    get: { t.id },
-                    set: { v in var u = d; u.substrate.treatments[idx].id = v; apply(u) }
-                ))
-                .textFieldStyle(.roundedBorder)
-                .font(.body.monospaced())
-            }
-            LabeledContent("Display Name") {
-                TextField("display name", text: Binding(
-                    get: { t.displayName },
-                    set: { v in var u = d; u.substrate.treatments[idx].displayName = v; apply(u) }
-                ))
-                .textFieldStyle(.roundedBorder)
-            }
-            stringListField(
-                title: "Keywords",
-                items: t.keywords,
-                onChange: { v in var u = d; u.substrate.treatments[idx].keywords = v; apply(u) }
-            )
-            stringListField(
-                title: "Standalone Tokens",
-                items: t.standaloneTokens,
-                onChange: { v in var u = d; u.substrate.treatments[idx].standaloneTokens = v; apply(u) }
-            )
-            stringListField(
-                title: "Contains Tokens",
-                items: t.containsTokens,
-                onChange: { v in var u = d; u.substrate.treatments[idx].containsTokens = v; apply(u) }
-            )
-        }
-    }
-
-    // MARK: - Orientations editor
-
-    @ViewBuilder
-    private func orientationsEditor(_ d: SampleIdentificationFileDraft) -> some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            Text("Orientations").font(AppFontScale.groupHeader)
-            LabeledContent("Pattern") {
-                RegexField(title: "orientation regex", text: Binding(
-                    get: { d.substrate.orientations.pattern },
-                    set: { v in var u = d; u.substrate.orientations.pattern = v; apply(u) }
-                ))
-            }
-            HStack {
-                Text("Rows").font(.subheadline).foregroundStyle(.secondary)
-                Spacer()
-                Button("Add") {
-                    var u = d
-                    u.substrate.orientations.rows.append(.init(id: "000", tokens: [], aliases: []))
-                    apply(u)
-                    expandedOrientationIndex = u.substrate.orientations.rows.count - 1
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-            ForEach(d.substrate.orientations.rows.indices, id: \.self) { idx in
-                let row = d.substrate.orientations.rows[idx]
-                let isExpanded = expandedOrientationIndex == idx
-                VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                    Button { expandedOrientationIndex = isExpanded ? nil : idx } label: {
-                        HStack(spacing: AppSpacing.md) {
-                            Text(row.id).font(.callout.weight(.semibold).monospaced())
-                            Spacer()
-                            Button(role: .destructive) {
-                                var u = d; u.substrate.orientations.rows.remove(at: idx); apply(u)
-                                if expandedOrientationIndex == idx { expandedOrientationIndex = nil }
-                            } label: { Image(systemName: "minus.circle") }
-                            .buttonStyle(.borderless)
-                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-
-                    if isExpanded {
-                        orientationRowDetail(idx: idx, d: d)
-                            .padding(AppSpacing.md)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .cornerRadius(AppSpacing.md)
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func orientationRowDetail(idx: Int, d: SampleIdentificationFileDraft) -> some View {
-        let row = d.substrate.orientations.rows[idx]
-        VStack(alignment: .leading, spacing: AppSpacing.md) {
-            LabeledContent("ID") {
-                TextField("orientation id", text: Binding(
-                    get: { row.id },
-                    set: { v in var u = d; u.substrate.orientations.rows[idx].id = v; apply(u) }
-                ))
-                .textFieldStyle(.roundedBorder)
-                .font(.body.monospaced())
-            }
-            stringListField(
-                title: "Tokens",
-                items: row.tokens,
-                onChange: { v in var u = d; u.substrate.orientations.rows[idx].tokens = v; apply(u) }
-            )
-            stringListField(
-                title: "Aliases",
-                items: row.aliases,
-                onChange: { v in var u = d; u.substrate.orientations.rows[idx].aliases = v; apply(u) }
-            )
         }
     }
 
@@ -491,11 +307,9 @@ struct SampleIdentificationSection: View {
             HStack {
                 Text(title).font(AppFontScale.groupHeader)
                 Spacer()
-                Button("Add") {
-                    onChange(items + [""])
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                Button("Add") { onChange(items + [""]) }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
             }
             ForEach(items.indices, id: \.self) { idx in
                 HStack(spacing: AppSpacing.sm) {
@@ -513,24 +327,6 @@ struct SampleIdentificationSection: View {
                 }
             }
         }
-    }
-
-    private func substrateTagRuleBinding(ruleIdx: Int) -> Binding<MapRule> {
-        Binding(
-            get: {
-                guard let d = draft,
-                      d.substrate.substrateTagRules.indices.contains(ruleIdx) else {
-                    return MapRule(match: .init(scope: "tokens", type: "equals", matchValues: []), value: "")
-                }
-                return d.substrate.substrateTagRules[ruleIdx]
-            },
-            set: { newValue in
-                guard var d = draft,
-                      d.substrate.substrateTagRules.indices.contains(ruleIdx) else { return }
-                d.substrate.substrateTagRules[ruleIdx] = newValue
-                apply(d)
-            }
-        )
     }
 
     private func apply(_ updated: SampleIdentificationFileDraft) {

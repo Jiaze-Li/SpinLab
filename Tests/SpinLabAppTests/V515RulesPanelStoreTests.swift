@@ -79,7 +79,7 @@ struct V515RulesPanelStoreTests {
 
     private func seedSampleIdentification(at url: URL) throws {
         try """
-        {"version":2,"sampleId":{"patterns":["^[A-Z]{2}\\\\d+$"]},"substrate":{"tokenSeparators":"_- ()","substrateTagRules":[],"materials":[{"id":"STO","tokens":["STO"],"aliases":[],"displayName":"STO"}],"treatments":[],"orientations":{"pattern":"\\\\d{3}","rows":[{"id":"111","tokens":["111"],"aliases":[]}]}}}
+        {"version":4,"sampleId":{"batchPrefixes":["PN","PT"]},"substrate":{"materials":[{"displayName":"STO","matches":[{"type":"equals","value":"STO"}]}],"treatments":[],"orientations":[{"displayName":"111","matches":[{"type":"equals","value":"111"}]}]}}
         """.data(using: .utf8)!.write(to: url)
     }
 
@@ -91,7 +91,7 @@ struct V515RulesPanelStoreTests {
 
     private func seedMeasuringCondition(at url: URL) throws {
         try """
-        {"version":2,"batch":{"preferSampleId":true,"fallbackPatterns":[]},"conditionDefinitions":[{"id":"temperature","label":"Temperature","kind":"unit_suffix","unitPattern":"^-?\\\\d+(?:\\\\.\\\\d+)?(?:K)$"}]}
+        {"version":2,"conditionDefinitions":[{"id":"temperature","label":"Temperature","kind":"unit_suffix","unitPattern":"^-?\\\\d+(?:\\\\.\\\\d+)?(?:K)$"}]}
         """.data(using: .utf8)!.write(to: url)
     }
 

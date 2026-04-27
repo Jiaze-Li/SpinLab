@@ -3,20 +3,20 @@ import CryptoKit
 
 struct RuleLoader {
     static let shared = RuleLoader()
-    static let currentSchemaVersion = 3
+    static let currentSchemaVersion = 4
     private static var cached: LoadResult?
     private static let cacheLock = NSLock()
     private let logger = AppLogger.shared
 
     struct RuleMetadata {
-        var version: Int
+        var schemaVersion: Int
         var sourceLabel: String
         var sourcePath: String
         var contentHash: String
         var loadedAt: Date
 
         var fingerprint: String {
-            "v\(version):\(contentHash)"
+            "v\(schemaVersion):\(contentHash)"
         }
 
         var contentHashPrefix8: String {
@@ -28,19 +28,37 @@ struct RuleLoader {
         var ruleSet: FilenameRuleSet
         var warnings: [String]
         var metadata: RuleMetadata
+        var ruleSetVersion: Int
+
+        var ruleSetFingerprint: String { metadata.fingerprint }
+
+        init(
+            ruleSet: FilenameRuleSet,
+            warnings: [String],
+            metadata: RuleMetadata,
+            ruleSetVersion: Int = 1
+        ) {
+            self.ruleSet = ruleSet
+            self.warnings = warnings
+            self.metadata = metadata
+            self.ruleSetVersion = ruleSetVersion
+        }
     }
 
     func load() -> LoadResult {
         var warnings: [String] = []
         let paths = RulesConfigPaths()
+        let ruleSetVersion = readRuleSetVersion(from: paths.ruleSetStateURL)
 
         // Try loading all 5 schema files from runtime first, fall back to bundle
-        if let result = tryLoadFromDirectory(paths.configDirectoryURL, label: "Runtime", warnings: &warnings) {
+        if var result = tryLoadFromDirectory(paths.configDirectoryURL, label: "Runtime", warnings: &warnings) {
+            result.ruleSetVersion = ruleSetVersion
             return result
         }
 
         // Bundle fallback
-        if let result = tryLoadFromBundle(warnings: &warnings) {
+        if var result = tryLoadFromBundle(warnings: &warnings) {
+            result.ruleSetVersion = ruleSetVersion
             return result
         }
 
@@ -52,12 +70,13 @@ struct RuleLoader {
             ruleSet: fallback,
             warnings: warnings,
             metadata: RuleMetadata(
-                version: fallback.version,
+                schemaVersion: fallback.version,
                 sourceLabel: "Fallback",
                 sourcePath: "builtin:fallback",
                 contentHash: hashHex(for: Data("fallback".utf8)),
                 loadedAt: Date()
-            )
+            ),
+            ruleSetVersion: ruleSetVersion
         )
     }
 
@@ -79,7 +98,9 @@ struct RuleLoader {
 
     func loadFromBundleOnly() -> LoadResult {
         var warnings: [String] = []
-        if let result = tryLoadFromBundle(warnings: &warnings) {
+        let ruleSetVersion = readRuleSetVersion(from: RulesConfigPaths().ruleSetStateURL)
+        if var result = tryLoadFromBundle(warnings: &warnings) {
+            result.ruleSetVersion = ruleSetVersion
             return result
         }
         warnings.append("Bundle rules not available; using built-in fallback.")
@@ -89,12 +110,13 @@ struct RuleLoader {
             ruleSet: fallback,
             warnings: warnings,
             metadata: RuleMetadata(
-                version: fallback.version,
+                schemaVersion: fallback.version,
                 sourceLabel: "Fallback",
                 sourcePath: "builtin:fallback",
                 contentHash: hashHex(for: Data("fallback".utf8)),
                 loadedAt: Date()
-            )
+            ),
+            ruleSetVersion: ruleSetVersion
         )
     }
 
@@ -138,7 +160,7 @@ struct RuleLoader {
             ruleSet.loadWarnings = warnings
             let hash = compositeHash(paths: paths)
             let metadata = RuleMetadata(
-                version: ruleSet.version,
+                schemaVersion: ruleSet.version,
                 sourceLabel: label,
                 sourcePath: paths.importFiltersURL.path,
                 contentHash: hash,
@@ -146,7 +168,7 @@ struct RuleLoader {
             )
             logger.info(.import, "Rules loaded", metadata: [
                 "source": label,
-                "sampleIdPatternCount": "\(ruleSet.sampleId.patterns.count)",
+                "sampleIdPrefixCount": "\(ruleSet.sampleId.batchPrefixes.count + ruleSet.sampleId.patterns.count)",
                 "ruleVersion": "\(ruleSet.version)",
                 "fingerprint": metadata.fingerprint
             ])
@@ -169,14 +191,14 @@ struct RuleLoader {
             ruleSet.loadWarnings = warnings
             let hash = bundleCompositeHash(locator: locator)
             let metadata = RuleMetadata(
-                version: ruleSet.version,
+                schemaVersion: ruleSet.version,
                 sourceLabel: "Bundle",
                 sourcePath: "bundle:import_filters.json",
                 contentHash: hash,
                 loadedAt: Date()
             )
             logger.info(.import, "Rules loaded from bundle", metadata: [
-                "sampleIdPatternCount": "\(ruleSet.sampleId.patterns.count)",
+                "sampleIdPrefixCount": "\(ruleSet.sampleId.batchPrefixes.count + ruleSet.sampleId.patterns.count)",
                 "ruleVersion": "\(ruleSet.version)"
             ])
             return LoadResult(ruleSet: ruleSet, warnings: warnings, metadata: metadata)
@@ -208,20 +230,17 @@ struct RuleLoader {
         let conditionFile = try loadAndDecode(MeasuringConditionFile.self, from: paths.measuringConditionURL, label: label)
 
         var ruleSet = FilenameRuleSet(
-            version: 3,
+            version: sampleIdentFile.version,
             tokenization: tokenizationFile.tokenization,
             sources: tokenizationFile.sources,
             sampleId: sampleIdentFile.sampleId,
-            batch: conditionFile.batch,
             measurementNameRules: workflowFile.measurementNameRules,
             measurementTagRules: workflowFile.measurementTagRules,
-            substrateTagRules: sampleIdentFile.substrateTagRules,
             channel: tokenizationFile.channel,
             conditions: conditionFile.conditions ?? FilenameRuleSet.ConditionRules(),
             conditionDefinitions: conditionFile.conditionDefinitions,
             registry: nil,
             importRules: importFiltersFile.importRules,
-            sharedSubstrate: sampleIdentFile.sharedSubstrate,
             substrateConfig: sampleIdentFile.substrateConfig
         )
 
@@ -251,20 +270,17 @@ struct RuleLoader {
         let conditionFile = try decodeBundleFile(MeasuringConditionFile.self, from: conditionData, name: "measuring_condition.json")
 
         var ruleSet = FilenameRuleSet(
-            version: 3,
+            version: sampleIdentFile.version,
             tokenization: tokenizationFile.tokenization,
             sources: tokenizationFile.sources,
             sampleId: sampleIdentFile.sampleId,
-            batch: conditionFile.batch,
             measurementNameRules: workflowFile.measurementNameRules,
             measurementTagRules: workflowFile.measurementTagRules,
-            substrateTagRules: sampleIdentFile.substrateTagRules,
             channel: tokenizationFile.channel,
             conditions: conditionFile.conditions ?? FilenameRuleSet.ConditionRules(),
             conditionDefinitions: conditionFile.conditionDefinitions,
             registry: nil,
             importRules: importFiltersFile.importRules,
-            sharedSubstrate: sampleIdentFile.sharedSubstrate,
             substrateConfig: sampleIdentFile.substrateConfig
         )
 
@@ -354,6 +370,60 @@ struct RuleLoader {
         let digest = SHA256.hash(data: data)
         return digest.map { String(format: "%02x", $0) }.joined()
     }
+
+    // MARK: - RuleSetState IO (§1.4)
+
+    private struct RuleSetState: Codable {
+        var version: Int = 1
+        var ruleSetVersion: Int
+        var updatedAt: Date
+    }
+
+    private func readRuleSetState(from url: URL) -> RuleSetState {
+        guard let data = try? Data(contentsOf: url) else {
+            return RuleSetState(ruleSetVersion: 1, updatedAt: Date())
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let state = try? decoder.decode(RuleSetState.self, from: data) else {
+            return RuleSetState(ruleSetVersion: 1, updatedAt: Date())
+        }
+        return state
+    }
+
+    private func readRuleSetVersion(from url: URL) -> Int {
+        readRuleSetState(from: url).ruleSetVersion
+    }
+
+    /// Increments ruleSetVersion by 1 and atomically persists to rule_set_state.json.
+    /// Call after a successful Rules Panel save (single section or Save All).
+    @discardableResult
+    func bumpRuleSetVersion() -> Result<Int, Error> {
+        let url = RulesConfigPaths().ruleSetStateURL
+        var state = readRuleSetState(from: url)
+        state.ruleSetVersion += 1
+        state.updatedAt = Date()
+        do {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(state)
+            try? FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try data.write(to: url, options: .atomic)
+        } catch {
+            logger.error(.import, "rule_set_state.json write failed",
+                         metadata: ["error": error.localizedDescription])
+            return .failure(error)
+        }
+        let newVersion = state.ruleSetVersion
+        Self.withCacheLock { Self.cached?.ruleSetVersion = newVersion }
+        logger.info(.import, "ruleSetVersion bumped",
+                    metadata: ["version": "\(newVersion)"])
+        return .success(newVersion)
+    }
 }
 
 // MARK: - Per-file Decodable types
@@ -385,34 +455,97 @@ private struct FilenameTokenizationFile: Decodable {
 private struct SampleIdentificationFile: Decodable {
     let version: Int
     let sampleId: FilenameRuleSet.SampleIdRules
-    let substrate: SubstrateSection
+    let substrateConfig: FilenameRuleSet.SubstrateConfig?
 
-    var substrateTagRules: [FilenameRuleSet.MapRule] { substrate.substrateTagRules }
-    var sharedSubstrate: FilenameRuleSet.SharedSubstrateRules? { substrate.shared }
-    var substrateConfig: FilenameRuleSet.SubstrateConfig? { substrate.substrateConfig }
+    private enum TopKeys: String, CodingKey { case version, sampleId, substrate }
+    private enum SubstrateKeys: String, CodingKey { case materials }
 
-    struct SubstrateSection: Decodable {
-        let substrateTagRules: [FilenameRuleSet.MapRule]
-        let shared: FilenameRuleSet.SharedSubstrateRules?
-        let substrateConfig: FilenameRuleSet.SubstrateConfig?
-
-        private enum CodingKeys: String, CodingKey {
-            case substrateTagRules
-            case shared
-            case materials
+    // v3 material/treatment/orientation intermediate types for inline conversion
+    private struct V3Material: Decodable {
+        var id: String
+        var tokens: [String]
+        var aliases: [String]
+        var displayName: String
+    }
+    private struct V3Treatment: Decodable {
+        var id: String
+        var displayName: String
+        var keywords: [String]
+        var standaloneTokens: [String]
+        var containsTokens: [String]
+    }
+    private struct V3OrientationConfig: Decodable {
+        struct Row: Decodable {
+            var id: String
+            var tokens: [String]
+            var aliases: [String]
         }
+        var rows: [Row]
+    }
+    private struct V3SubstrateSection: Decodable {
+        var materials: [V3Material]
+        var treatments: [V3Treatment]
+        var orientations: V3OrientationConfig
+    }
 
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            substrateTagRules = try container.decodeIfPresent([FilenameRuleSet.MapRule].self, forKey: .substrateTagRules) ?? []
-            if container.contains(.materials) {
-                substrateConfig = try FilenameRuleSet.SubstrateConfig(from: decoder)
-                shared = nil
-            } else {
-                substrateConfig = nil
-                shared = try container.decodeIfPresent(FilenameRuleSet.SharedSubstrateRules.self, forKey: .shared)
+    init(from decoder: Decoder) throws {
+        let top = try decoder.container(keyedBy: TopKeys.self)
+        version = try top.decode(Int.self, forKey: .version)
+        sampleId = try top.decodeIfPresent(FilenameRuleSet.SampleIdRules.self, forKey: .sampleId) ?? .init()
+        let sub = try top.nestedContainer(keyedBy: SubstrateKeys.self, forKey: .substrate)
+
+        if version >= 4 {
+            // v4: materials/treatments/orientations as SubstrateEntry[]
+            substrateConfig = try FilenameRuleSet.SubstrateConfig(from: top.superDecoder(forKey: .substrate))
+        } else if sub.contains(.materials) {
+            // v3: structured substrate — convert inline to v4
+            let v3 = try V3SubstrateSection(from: top.superDecoder(forKey: .substrate))
+            substrateConfig = Self.convertV3ToV4(v3)
+        } else {
+            substrateConfig = nil
+        }
+    }
+
+    private static func convertV3ToV4(_ v3: V3SubstrateSection) -> FilenameRuleSet.SubstrateConfig {
+        let materials: [FilenameRuleSet.SubstrateEntry] = v3.materials.map { m in
+            var matches: [FilenameRuleSet.SubstrateEntry.Match] = []
+            for token in m.tokens where token.uppercased() != m.displayName.uppercased() {
+                matches.append(.init(type: .equals, value: token))
             }
+            for alias in m.aliases {
+                matches.append(.init(type: .equals, value: alias))
+            }
+            return FilenameRuleSet.SubstrateEntry(displayName: m.displayName, matches: matches)
         }
+        let treatments: [FilenameRuleSet.SubstrateEntry] = v3.treatments.map { t in
+            var matches: [FilenameRuleSet.SubstrateEntry.Match] = []
+            for token in t.standaloneTokens {
+                matches.append(.init(type: .equals, value: token))
+            }
+            for token in t.containsTokens {
+                matches.append(.init(type: .contains, value: token))
+            }
+            for kw in t.keywords
+            where !t.standaloneTokens.contains(kw) && !t.containsTokens.contains(kw) {
+                matches.append(.init(type: .contains, value: kw))
+            }
+            return FilenameRuleSet.SubstrateEntry(displayName: t.displayName, matches: matches)
+        }
+        let orientations: [FilenameRuleSet.SubstrateEntry] = v3.orientations.rows.map { row in
+            var matches: [FilenameRuleSet.SubstrateEntry.Match] = []
+            for token in row.tokens where token != row.id {
+                matches.append(.init(type: .equals, value: token))
+            }
+            for alias in row.aliases {
+                matches.append(.init(type: .equals, value: alias))
+            }
+            return FilenameRuleSet.SubstrateEntry(displayName: row.id, matches: matches)
+        }
+        return FilenameRuleSet.SubstrateConfig(
+            materials: materials,
+            treatments: treatments,
+            orientations: orientations
+        )
     }
 }
 
@@ -435,7 +568,6 @@ private struct WorkflowFile: Decodable {
 
 private struct MeasuringConditionFile: Decodable {
     let version: Int
-    let batch: FilenameRuleSet.BatchRules
     let conditions: FilenameRuleSet.ConditionRules?
     let conditionDefinitions: [FilenameRuleSet.ConditionDefinition]
 }

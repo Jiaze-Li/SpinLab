@@ -73,7 +73,7 @@ struct V214RegistryRuleBookTests {
             ruleSet: ruleSet,
             warnings: ruleSet.loadWarnings,
             metadata: RuleLoader.RuleMetadata(
-                version: ruleSet.version,
+                schemaVersion: ruleSet.version,
                 sourceLabel: "TestBundle",
                 sourcePath: ruleURL.path,
                 contentHash: "test",

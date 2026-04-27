@@ -44,7 +44,7 @@ struct V515RulesPanelSaveValidationTests {
         """.data(using: .utf8)!.write(to: paths.filenameTokenizationURL)
 
         try """
-        {"version":2,"sampleId":{"patterns":["^[A-Z]+$"]},"substrate":{"tokenSeparators":"_","substrateTagRules":[],"materials":[{"id":"STO","tokens":["STO"],"aliases":[],"displayName":"STO"}],"treatments":[],"orientations":{"pattern":"\\\\d{3}","rows":[{"id":"111","tokens":["111"],"aliases":[]}]}}}
+        {"version":4,"sampleId":{"batchPrefixes":["PN"]},"substrate":{"materials":[{"displayName":"STO","matches":[{"type":"equals","value":"STO"}]}],"treatments":[],"orientations":[{"displayName":"111","matches":[{"type":"equals","value":"111"}]}]}}
         """.data(using: .utf8)!.write(to: paths.sampleIdentificationURL)
 
         try """
@@ -52,7 +52,7 @@ struct V515RulesPanelSaveValidationTests {
         """.data(using: .utf8)!.write(to: paths.workflowURL)
 
         try """
-        {"version":2,"batch":{"preferSampleId":true,"fallbackPatterns":[]},"conditionDefinitions":[{"id":"temperature","label":"Temperature","kind":"unit_suffix","unitPattern":"^\\\\d+K$"}]}
+        {"version":2,"conditionDefinitions":[{"id":"temperature","label":"Temperature","kind":"unit_suffix","unitPattern":"^\\\\d+K$"}]}
         """.data(using: .utf8)!.write(to: paths.measuringConditionURL)
 
         let store = RulesManagementStore()
@@ -185,36 +185,32 @@ struct V515RulesPanelSaveValidationTests {
 
     // MARK: - Sample Identification
 
-    @Test("sampleIdentification: invalid regex in patterns fails")
-    func sampleIDInvalidRegex() throws {
+    @Test("sampleIdentification: empty material display name fails")
+    func sampleIDEmptyMaterialDisplayName() throws {
         let (dir, backup) = try acquireIsolation()
         defer { releaseIsolation(dir: dir, backup: backup) }
         let (store, _) = try makeStore()
 
         var draft = try #require(store.sampleIdentificationDraft)
-        draft.sampleId.patterns = ["[unclosed"]
+        draft.substrate.materials.append(.init(displayName: "", matches: []))
         store.updateSampleIdentification(draft)
         store.selectSection(.sampleIdentification)
 
         guard case .validationFailed(let errors) = store.saveCurrent() else {
             Issue.record("Expected validationFailed"); return
         }
-        #expect(errors.contains(where: { $0.field.contains("patterns") }))
+        #expect(errors.contains(where: { $0.message.contains("displayName") && $0.message.contains("empty") }))
     }
 
-    @Test("sampleIdentification: duplicate treatment ID fails")
-    func sampleIDDuplicateTreatmentID() throws {
+    @Test("sampleIdentification: duplicate treatment display name fails")
+    func sampleIDDuplicateTreatmentDisplayName() throws {
         let (dir, backup) = try acquireIsolation()
         defer { releaseIsolation(dir: dir, backup: backup) }
         let (store, _) = try makeStore()
 
         var draft = try #require(store.sampleIdentificationDraft)
-        let t1 = SampleIdentificationFileDraft.TreatmentDefinition(
-            id: "HF", displayName: "HF", keywords: ["HF"], standaloneTokens: [], containsTokens: []
-        )
-        let t2 = SampleIdentificationFileDraft.TreatmentDefinition(
-            id: "HF", displayName: "HF2", keywords: ["HF2"], standaloneTokens: [], containsTokens: []
-        )
+        let t1 = SampleIdentificationFileDraft.SubstrateEntry(displayName: "HF", matches: [])
+        let t2 = SampleIdentificationFileDraft.SubstrateEntry(displayName: "HF", matches: [])
         draft.substrate.treatments = [t1, t2]
         store.updateSampleIdentification(draft)
         store.selectSection(.sampleIdentification)

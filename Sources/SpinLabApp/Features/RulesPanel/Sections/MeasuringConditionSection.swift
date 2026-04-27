@@ -56,9 +56,7 @@ struct MeasuringConditionSection: View {
     private func saveBar() -> some View {
         HStack(spacing: AppSpacing.md) {
             if !saveErrors.isEmpty {
-                Text("\(saveErrors.count) validation error\(saveErrors.count == 1 ? "" : "s")")
-                    .font(.callout)
-                    .foregroundStyle(.red)
+                SaveErrorsBadge(errors: saveErrors)
             }
             Spacer()
             if let d = draft {
@@ -83,53 +81,10 @@ struct MeasuringConditionSection: View {
     private func scrollContent(_ d: MeasuringConditionFileDraft) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                batchGroup(d)
                 conditionDefinitionsGroup(d)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(AppSpacing.xl)
-        }
-    }
-
-    // MARK: - Batch
-
-    @ViewBuilder
-    private func batchGroup(_ d: MeasuringConditionFileDraft) -> some View {
-        GroupBox("Batch Identification") {
-            VStack(alignment: .leading, spacing: AppSpacing.lg) {
-                Toggle("Prefer Sample ID", isOn: Binding(
-                    get: { d.batch.preferSampleId },
-                    set: { v in var u = d; u.batch.preferSampleId = v; apply(u) }
-                ))
-                Divider()
-                VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                    HStack {
-                        Text("Fallback Patterns").font(AppFontScale.groupHeader)
-                        Spacer()
-                        Button("Add") {
-                            var u = d; u.batch.fallbackPatterns.append(""); apply(u)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    }
-                    ForEach(d.batch.fallbackPatterns.indices, id: \.self) { idx in
-                        HStack(alignment: .top, spacing: AppSpacing.sm) {
-                            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
-                                RegexField(title: "regex pattern", text: Binding(
-                                    get: { d.batch.fallbackPatterns[idx] },
-                                    set: { v in var u = d; u.batch.fallbackPatterns[idx] = v; apply(u) }
-                                ))
-                            }
-                            Button(role: .destructive) {
-                                var u = d; u.batch.fallbackPatterns.remove(at: idx); apply(u)
-                            } label: { Image(systemName: "minus.circle") }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel("Remove pattern")
-                            .padding(.top, AppSpacing.xs)
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -152,6 +107,7 @@ struct MeasuringConditionSection: View {
                 }
             }
         }
+        .errorHighlight(saveErrors.hasGroup("conditionDefinitions"))
     }
 
     @ViewBuilder
@@ -161,13 +117,16 @@ struct MeasuringConditionSection: View {
         idx: Int
     ) -> some View {
         let isSelected = selectedConditionID == def.id
+        let rowHasError = saveErrors.hasRow(group: "conditionDefinitions", key: def.id)
         VStack(alignment: .leading, spacing: 0) {
             Button(action: {
                 selectedConditionID = isSelected ? nil : def.id
             }) {
                 HStack(spacing: AppSpacing.md) {
                     VStack(alignment: .leading, spacing: AppSpacing.xxs) {
-                        Text(def.id).font(.callout.weight(.semibold).monospaced())
+                        Text(def.id)
+                            .font(.callout.weight(.semibold).monospaced())
+                            .foregroundStyle(rowHasError ? Color.red : .primary)
                         HStack(spacing: AppSpacing.xs) {
                             Text(def.kind).font(.caption).foregroundStyle(.secondary)
                             if let label = def.label, !label.isEmpty {
@@ -186,10 +145,12 @@ struct MeasuringConditionSection: View {
                 }
                 .contentShape(Rectangle())
                 .padding(.vertical, AppSpacing.xs)
+                .padding(.horizontal, AppSpacing.xs)
             }
             .buttonStyle(.plain)
             .background(isSelected ? Color.accentColor.opacity(0.08) : .clear)
             .cornerRadius(AppSpacing.xs)
+            .errorHighlight(rowHasError, cornerRadius: AppSpacing.xs)
 
             if isSelected {
                 conditionDetail(idx: idx, d: d)

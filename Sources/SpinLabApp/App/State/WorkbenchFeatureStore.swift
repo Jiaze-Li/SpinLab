@@ -101,49 +101,6 @@ struct SeparatedConditionsPatch: Equatable {
     var tokenMapRules: [String: [TokenMapping]]
 }
 
-struct MatchRuleEntry: Identifiable, Equatable {
-    var id: UUID = UUID()
-    var scope: FilenameRuleSet.MatchScope
-    var type: FilenameRuleSet.MatchType
-    var matchValues: [String]
-    var value: String
-}
-
-struct SeparatedSubstratePatch {
-    var substrateTagRules: [MatchRuleEntry]?
-    var sharedSubstrate: FilenameRuleSet.SharedSubstrateRules?
-}
-
-enum ConditionRulesHandbookStore {
-    struct SharedSubstratePayload: Codable {
-        var tokenSeparators: String
-        var originStandaloneTokens: [String]
-        var originContainsTokens: [String]
-        var treatmentKeywords: [String: [String]]
-        var materialTokens: [String]
-        var materialAliases: [String: String]?
-        var materialDisplayNames: [String: String]?
-        var orientationTokens: [String]?
-        var orientationAliases: [String: String]?
-        var orientationPattern: String
-
-        var asRuleSetValue: FilenameRuleSet.SharedSubstrateRules {
-            .init(
-                tokenSeparators: tokenSeparators,
-                originStandaloneTokens: originStandaloneTokens,
-                originContainsTokens: originContainsTokens,
-                treatmentKeywords: treatmentKeywords,
-                materialTokens: materialTokens,
-                materialAliases: materialAliases,
-                materialDisplayNames: materialDisplayNames,
-                orientationTokens: orientationTokens,
-                orientationAliases: orientationAliases,
-                orientationPattern: orientationPattern
-            )
-        }
-    }
-}
-
 struct RulePatternCodec {
     static let canonicalPrefix = #"^-?\d+(?:\.\d+)?(?:"#
     static let canonicalSuffix = #")$"#

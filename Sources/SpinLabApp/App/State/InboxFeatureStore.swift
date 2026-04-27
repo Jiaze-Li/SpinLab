@@ -366,7 +366,7 @@ final class InboxFeatureStore {
     @discardableResult
     func refreshRoutingRuleMetadata(forceReload: Bool) -> RuleLoader.LoadResult {
         let loadResult = inboxRoutingState.refreshRoutingRuleMetadata(forceReload: forceReload)
-        routingRuleVersion = loadResult.metadata.version
+        routingRuleVersion = loadResult.metadata.schemaVersion
         routingRuleSourceLabel = loadResult.metadata.sourceLabel
         routingRuleSourcePath = loadResult.metadata.sourcePath
         routingRuleFingerprint = loadResult.metadata.fingerprint

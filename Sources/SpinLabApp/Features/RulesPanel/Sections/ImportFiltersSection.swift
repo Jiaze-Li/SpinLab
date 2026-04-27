@@ -46,9 +46,7 @@ struct ImportFiltersSection: View {
     private func saveBar() -> some View {
         HStack(spacing: AppSpacing.md) {
             if !saveErrors.isEmpty {
-                Text("\(saveErrors.count) validation error\(saveErrors.count == 1 ? "" : "s")")
-                    .font(.callout)
-                    .foregroundStyle(.red)
+                SaveErrorsBadge(errors: saveErrors)
             }
             Spacer()
             if let d = draft {
@@ -79,12 +77,14 @@ struct ImportFiltersSection: View {
                     items: d.config.supportedFileExtensions,
                     onChange: { v in var u = d; u.config.supportedFileExtensions = v; apply(u) }
                 )
+                .errorHighlight(saveErrors.hasGroup("extensions"))
                 extensionListEditor(
                     title: "Ignored Extensions",
                     subtitle: "Files with these extensions will be skipped",
                     items: d.config.ignoredFileExtensions,
                     onChange: { v in var u = d; u.config.ignoredFileExtensions = v; apply(u) }
                 )
+                .errorHighlight(saveErrors.hasGroup("extensions"))
                 extensionErrorList()
             }
             .frame(maxWidth: .infinity, alignment: .leading)

@@ -44,7 +44,7 @@ struct V515RulesPanelCrossSectionTests {
         """.data(using: .utf8)!.write(to: paths.filenameTokenizationURL)
 
         try """
-        {"version":2,"sampleId":{"patterns":[]},"substrate":{"tokenSeparators":"_","substrateTagRules":[],"materials":[],"treatments":[],"orientations":{"pattern":"\\\\d{3}","rows":[]}}}
+        {"version":4,"sampleId":{"batchPrefixes":[]},"substrate":{"materials":[],"treatments":[],"orientations":[]}}
         """.data(using: .utf8)!.write(to: paths.sampleIdentificationURL)
 
         // workflow references first conditionID
@@ -58,7 +58,7 @@ struct V515RulesPanelCrossSectionTests {
             "{\"id\":\"\(id)\",\"label\":\"\(id)\",\"kind\":\"unit_suffix\",\"unitPattern\":\"^\\\\d+$\"}"
         }.joined(separator: ",")
         try """
-        {"version":2,"batch":{"preferSampleId":true,"fallbackPatterns":[]},"conditionDefinitions":[\(defs)]}
+        {"version":2,"conditionDefinitions":[\(defs)]}
         """.data(using: .utf8)!.write(to: paths.measuringConditionURL)
 
         let store = RulesManagementStore()

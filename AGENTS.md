@@ -214,7 +214,7 @@ Do not implement out of order. Skip steps when that layer has no change.
   2. New development preference? → Update `docs/philosophy.md`.
   3. Cross-session user preference? → Write to memory system.
   4. 接手并完成了某份 handoff？→ 按 `~/.claude/docs/workflow.md §9.c` 4 步归档动作执行（handoff 搬迁 + 索引更新 + 设计思路 ROADMAP→history 迁移 + ROADMAP 改一句话+`[x]`）。
-  5. 是否动了流水线状态（出 handoff / 第一次 commit / 归档完成）？→ 同步翻 `docs/TASK_BOARD.md` 状态或删行；归档时同步在 `docs/history/INDEX.md` 加一行。详见 `~/.claude/docs/workflow.md §9.f` 触发表。
+  5. 是否动了流水线状态（出 handoff / 第一次 commit / 归档完成）？→ 同步翻 `docs/TASK_BOARD.md` 状态或删行；归档时同步在 `docs/history/INDEX.md` 加一行。详见 `docs/TASK_BOARD.md` 末尾「维护规则」段。
 - Skip steps that don't apply.
 - `[HARD][must]` **任务流水线文档职责不可越界**：每份文档只装一种内容。详见 `docs/README.md` 顶部「任务流水线文档职责」表 + 反模式段。设计思路一辈子只活一处（ROADMAP 在做时 / history 做完后），不重复、不互灌。
 

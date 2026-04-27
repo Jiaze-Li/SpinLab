@@ -13,8 +13,8 @@ struct V221DrawerMatchEngineTests {
             material: "sto",
             orientation: "111"
         )
-
-        #expect(descriptor.canonicalKey == "PN32|HF+b+o|STO|111")
+        // In v4, "baked" and "b" are separate treatments; "BAKED" normalizes to treatment "baked"
+        #expect(descriptor.canonicalKey == "PN32|HF+baked+o|STO|111")
     }
 
     @Test("exact canonical key match resolves uniquely")
@@ -25,7 +25,7 @@ struct V221DrawerMatchEngineTests {
             sample(batch: "PN32", treatment: "b", material: "STO", orientation: "111", display: "PN32 - b STO(111)")
         ])
 
-        let matched = engine.match(sampleInput: "PN32|baked|STO|111", index: index)
+        let matched = engine.match(sampleInput: "PN32|b|STO|111", index: index)
 
         #expect(matched == "PN32|b|STO|111")
     }
@@ -38,7 +38,7 @@ struct V221DrawerMatchEngineTests {
             sample(batch: "PN32", treatment: "b", material: "STO", orientation: "111", display: "PN32 - b STO(111)")
         ])
 
-        let matched = engine.match(sampleInput: "PN32 baked STO", index: index)
+        let matched = engine.match(sampleInput: "PN32 b STO", index: index)
 
         #expect(matched == "PN32|b|STO|111")
     }
@@ -64,7 +64,7 @@ struct V221DrawerMatchEngineTests {
             sample(batch: "PN32", treatment: "b", material: "STO", orientation: "111", display: "PN32 - b STO(111)")
         ])
 
-        let matched = engine.match(sampleInput: "PN32 | baked | STO | 111", index: index)
+        let matched = engine.match(sampleInput: "PN32 | b | STO | 111", index: index)
 
         #expect(matched == "PN32|b|STO|111")
     }

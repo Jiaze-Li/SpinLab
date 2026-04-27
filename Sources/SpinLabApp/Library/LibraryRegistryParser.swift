@@ -17,7 +17,7 @@ final class LibraryRegistryParser {
     init(ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared) {
         let registryRules = ruleProvider.registryRules()
         guard let config = ruleProvider.substrateConfig() else {
-            AppLogger.shared.error(.import, "LibraryRegistryParser: substrateConfig unavailable — v2 schema required")
+            AppLogger.shared.error(.import, "LibraryRegistryParser: substrateConfig unavailable — v4 schema required")
             substrateParser = LibrarySubstrateParser(
                 materialTokens: [],
                 processingKeywords: [:],
@@ -33,23 +33,27 @@ final class LibraryRegistryParser {
         }
         substrateParser = LibrarySubstrateParser(
             materialTokens: config.materials.flatMap { m in
-                ([m.id] + m.tokens).map { $0.uppercased() }
+                let equalsValues = m.matches.filter { $0.type == .equals }.map { $0.value }
+                return ([m.displayName] + equalsValues).map { $0.uppercased() }
             },
             processingKeywords: Dictionary(uniqueKeysWithValues: config.treatments.map { t in
-                (t.id, t.keywords.map { $0.uppercased() })
+                (t.displayName, t.matches.map { $0.value.uppercased() })
             }),
-            orientationTokens: config.orientations.rows.flatMap { row in
-                (row.tokens + row.aliases).map { $0.uppercased() }
+            orientationTokens: config.orientations.flatMap { o in
+                let equalsValues = o.matches.filter { $0.type == .equals }.map { $0.value }
+                return ([o.displayName] + equalsValues).map { $0.uppercased() }
             },
-            orientationAliases: config.orientations.rows.reduce(into: [:]) { partial, row in
-                for alias in row.aliases {
-                    partial[alias.uppercased()] = row.id.uppercased()
+            orientationAliases: config.orientations.reduce(into: [:]) { partial, o in
+                let canonical = o.displayName.uppercased()
+                for match in o.matches where match.type == .equals {
+                    let alias = match.value.uppercased()
+                    if alias != canonical { partial[alias] = canonical }
                 }
             },
             materialDisplayNames: config.materials.reduce(into: [:]) { partial, m in
-                partial[m.id.uppercased()] = m.displayName
-                for token in m.tokens {
-                    partial[token.uppercased()] = m.displayName
+                partial[m.displayName.uppercased()] = m.displayName
+                for match in m.matches where match.type == .equals {
+                    partial[match.value.uppercased()] = m.displayName
                 }
             }
         )

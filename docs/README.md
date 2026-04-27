@@ -6,7 +6,7 @@
 
 | 全局角色 | 项目实例 |
 |---|---|
-| 跨版本任务总览 | `TASK_BOARD.md`（进行中 / 待拍板；状态机见 `~/.claude/docs/workflow.md §9.f`） |
+| 全局任务总览 | `TASK_BOARD.md`（进行中 / 待拍板；维护规则在文件末尾「维护规则」段） |
 | ROADMAP | `V5_ROADMAP.md`（5.x 版本段；单条三态 `[ ]` / `[~]` / `[x]`） |
 | handoff 待消费 | `handoff/<YYYY-MM-DD-topic>.md` |
 | handoff 已归档 | `handoff/archive/<YYYY-MM-DD-topic>.md` |

@@ -1,9 +1,5 @@
 {
   "version": 2,
-  "batch": {
-    "preferSampleId": true,
-    "fallbackPatterns": ["^(B|Batch)\\d+$"]
-  },
   "conditionDefinitions": [
     {
       "id": "device",
