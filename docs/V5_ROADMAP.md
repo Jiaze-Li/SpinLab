@@ -146,7 +146,7 @@ R1 —— 工作流 ID 策略相关规则保存后立刻生效，App 内不存�
 | s7 ✅ 已归档 | 任务 2/3/4 落地：WorkflowDefinitionStore（读 config/workflow.json）+ WorkflowRegistryRetirementService（外层 registry 合并）+ parentID 兼容码删除 + RulesBootstrapper 替换 RulesMigration + WorkflowRegistryView 只读重写；5 commit（08c7f8a–f7939c4）+ 11 tests（79/79 V515 green）。[实施摘要](../history/v515_s7_rules_tail_cleanup.md) | — |
 | s8 ✅ 已归档 | 设计稿 + handoff：condition definitions inline + substrate row-oriented + MatchSpec.matchValues 命名统一；双盲对抗收敛，handoff 写 archive/2026-04-26-5.1.5-s8-schema-second-pass.md | — |
 | s9 ✅ 已归档 | 按 s8 handoff 执行：ConditionDefinition inline + SubstrateConfig row-oriented + MatchSpec.matchValues 全仓统一 + RulesBootstrapper v1→v2 迁移（atomic + state + backup + 幂等）；7 commits；84/84 V515 green + 27/27 V210 green。[实施摘要](../history/v515_s9_schema_second_pass.md) | — |
-| s10 [~] 进行中 | Sample Identification 面板二次简化：(1) Token Separators 字段删除（commit a0695a1，2026-04-27）；(2) 删除 Substrate Tag Rules + 三表字段精简 + UI 重写 + Sample ID 退正则用 prefix 列表（需求确认完成，待 Codex 实施方案对抗） | TBD |
+| s10 [~] 进行中 | Sample Identification 面板二次简化：(1) Token Separators 字段删除（commit a0695a1，2026-04-27）；(2) 删除 Substrate Tag Rules + 三表字段精简 + UI 重写 + Sample ID 退正则用 prefix 列表（双盲对抗已收敛，handoff `2026-04-27-5.1.5-s10-substrate-redesign.md` 待消费） | TBD |
 
 总计约 **44–66 h** 跨 7 对话（s1–s9，s8 是设计对话不计工作量）。s5 / s9 是工作量最大的执行会话。s10 在 s9 落地后追加，工作量待 Codex 评审后估。
 
