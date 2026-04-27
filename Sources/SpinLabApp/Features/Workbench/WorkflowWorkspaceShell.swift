@@ -323,7 +323,12 @@ struct WorkflowWorkspaceShell<
             },
             chartStyleOverrides: store.chartStyleOverrides,
             relatedCharts: store.relatedCharts,
-            libraryRootURL: store.libraryRootURL
+            libraryRootURL: store.libraryRootURL,
+            seriesReorderable: store.canReorderSeries,
+            currentSeriesOrder: store.activeSeriesOrder,
+            seriesPayload: store.activeChartManifestPayload,
+            onSeriesOrderCommit: { order in store.updateSeriesOrder(order) },
+            onResetSeriesOrder: { store.resetSeriesOrder() }
         )
     }
 }

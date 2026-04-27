@@ -34,13 +34,15 @@ struct ThreeOmegaPlotRenderer {
 
     mutating func renderAllTabs(
         result: ThreeOmegaIngestionResult,
+        seriesOrder1omega: [String]? = nil,
+        seriesOrder3omega: [String]? = nil,
         rahe1Method: ThreeOmegaV3Method = .highField,
         rahe3Method: ThreeOmegaV3Method = .highField
     ) -> ThreeOmegaRenderedPlots {
         collectedWarnings = []
         var plots = ThreeOmegaRenderedPlots()
-        (plots.r1omega,  plots.layoutR1omega)  = renderR1omega(sweeps: result.fieldSweeps, device: result.device, seriesOrder: nil)
-        (plots.r3omega,  plots.layoutR3omega)  = renderR3omega(sweeps: result.fieldSweeps, device: result.device, seriesOrder: nil)
+        (plots.r1omega,  plots.layoutR1omega)  = renderR1omega(sweeps: result.fieldSweeps, device: result.device, seriesOrder: seriesOrder1omega)
+        (plots.r3omega,  plots.layoutR3omega)  = renderR3omega(sweeps: result.fieldSweeps, device: result.device, seriesOrder: seriesOrder3omega)
         (plots.rahe1omegaVsT, plots.layoutRAHE1omegaVsT) = renderRAHE1omegaVsT(sweeps: result.fieldSweeps, device: result.device, method: rahe1Method)
         (plots.rahe3omegaVsT, plots.layoutRAHE3omegaVsT) = renderRAHE3omegaVsT(sweeps: result.fieldSweeps, device: result.device, method: rahe3Method)
         (plots.hcVsT,    plots.layoutHcVsT)    = renderHcVsT(sweeps: result.fieldSweeps, device: result.device)

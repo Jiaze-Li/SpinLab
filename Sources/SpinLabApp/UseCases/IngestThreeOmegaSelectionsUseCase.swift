@@ -65,6 +65,7 @@ struct IngestThreeOmegaSelectionsUseCase {
                 case .fieldSweep:
                     if device.isEmpty { device = resolvedDevice }
                     var result = fitter.process(file: file, deviceOverride: resolvedDevice)
+                    result.sampleID = "\(hit.sampleKey)#\(Int(result.temperatureK))"
                     result.sampleMetadata = Self._buildSampleMetadata(
                         from: hit,
                         numericDisplay: numericDisplayBySample[hit.sampleKey] ?? [:]

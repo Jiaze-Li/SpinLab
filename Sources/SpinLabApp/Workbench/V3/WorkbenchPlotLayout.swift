@@ -323,3 +323,91 @@ struct WorkbenchPlotLayout: Sendable {
         )
     }
 }
+
+// MARK: - Series hit-test
+
+extension WorkbenchPlotLayout {
+
+    /// Finds the series closest to `location` within `radius` screen points.
+    /// Uses axis extents derived from the payload data (matches renderer behavior for charts
+    /// without fixedXMin/fixedXMax, i.e. all 3ω stacked charts).
+    /// Returns the sampleID of the nearest hit series and its mid-polyline screen y.
+    func hitTestSeries(
+        location: CGPoint,
+        fittedRect: CGRect,
+        payload: WorkbenchPlotPayload,
+        radius: CGFloat = 8
+    ) -> (sampleID: String, screenY: CGFloat)? {
+        let series = payload.series
+        guard !series.isEmpty else { return nil }
+
+        let allX = series.flatMap(\.x)
+        let allY = series.flatMap(\.y)
+        guard !allX.isEmpty else { return nil }
+
+        let xRaw = allX.min()!, xRawMax = allX.max()!
+        let yRaw = allY.min()!, yRawMax = allY.max()!
+        let xRawSpan = xRawMax == xRaw ? 1.0 : xRawMax - xRaw
+        let yRawSpan = yRawMax == yRaw ? 1.0 : yRawMax - yRaw
+        let xMin = xRaw - xRawSpan * 0.05
+        let xMax = xRawMax + xRawSpan * 0.05
+        let yMin = yRaw - yRawSpan * 0.05
+        let yMax = yRawMax + yRawSpan * 0.05
+        let xSpan = xMax - xMin
+        let ySpan = yMax - yMin
+        guard xSpan > 0, ySpan > 0 else { return nil }
+
+        let scaleX = fittedRect.width  / rendererSize.width
+        let scaleY = fittedRect.height / rendererSize.height
+
+        func dataToScreen(_ x: Double, _ y: Double) -> CGPoint {
+            let cgX = plotRect.minX + CGFloat((x - xMin) / xSpan) * plotRect.width
+            let cgY = plotRect.minY + CGFloat((y - yMin) / ySpan) * plotRect.height
+            return CGPoint(
+                x: fittedRect.minX + cgX * scaleX,
+                y: fittedRect.minY + (rendererSize.height - cgY) * scaleY
+            )
+        }
+
+        var best: (sampleID: String, screenY: CGFloat, dist: CGFloat)?
+
+        for s in series {
+            guard let sid = s.sampleID else { continue }
+            guard s.x.count == s.y.count, !s.x.isEmpty else { continue }
+
+            let pts = zip(s.x, s.y).map { dataToScreen($0, $1) }
+
+            var minDist: CGFloat = .infinity
+            if pts.count == 1 {
+                minDist = Self._dist(location, pts[0])
+            } else {
+                for i in 0..<pts.count - 1 {
+                    let d = Self._distToSegment(location, pts[i], pts[i + 1])
+                    if d < minDist { minDist = d }
+                }
+            }
+
+            guard minDist <= radius else { continue }
+
+            let midScreenY = pts[pts.count / 2].y
+            if best == nil || minDist < best!.dist ||
+               (abs(minDist - best!.dist) < 0.5 && abs(location.y - midScreenY) < abs(location.y - best!.screenY)) {
+                best = (sid, midScreenY, minDist)
+            }
+        }
+
+        return best.map { ($0.sampleID, $0.screenY) }
+    }
+
+    private static func _dist(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
+        hypot(a.x - b.x, a.y - b.y)
+    }
+
+    private static func _distToSegment(_ p: CGPoint, _ a: CGPoint, _ b: CGPoint) -> CGFloat {
+        let dx = b.x - a.x, dy = b.y - a.y
+        let lenSq = dx * dx + dy * dy
+        if lenSq == 0 { return _dist(p, a) }
+        let t = max(0, min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq))
+        return _dist(p, CGPoint(x: a.x + t * dx, y: a.y + t * dy))
+    }
+}

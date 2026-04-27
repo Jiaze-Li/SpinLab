@@ -3,6 +3,10 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
+private extension CGRect {
+    var center: CGPoint { CGPoint(x: midX, y: midY) }
+}
+
 @Suite("V5.3.6 Curve Drag Order")
 struct V536CurveDragOrderTests {
 
@@ -285,7 +289,76 @@ struct V536CurveDragOrderTests {
         #expect(manager.tabStates["tab1"] == nil)
     }
 
+    // MARK: - Test case 7: Canvas hit-test
+
+    @Test("hitTestSeries returns the nearest series within radius")
+    func hitTestSeriesFindsNearestSeries() {
+        // Two horizontal series at y=0 and y=1 in data space
+        let seriesLow  = WorkbenchPlotSeries(label: "Low",  x: [0, 1], y: [0.0, 0.0], sampleID: "low")
+        let seriesHigh = WorkbenchPlotSeries(label: "High", x: [0, 1], y: [1.0, 1.0], sampleID: "high")
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test", workflowDisplayName: "test", title: "",
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [seriesLow, seriesHigh],
+            reverseSeriesForLegend: false,
+            seriesReorderable: true
+        )
+        let opts = WorkbenchChartRenderer.Options()
+        let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: nil)
+        // Use 1:1 pixel-to-screen mapping for simplicity
+        let fittedRect = CGRect(x: 0, y: 0, width: CGFloat(opts.width), height: CGFloat(opts.height))
+
+        // Data extents with 5% margin: yMin=-0.05, yMax=1.05, ySpan=1.1
+        // CG y for y=0: plotRect.minY + (0.05/1.1)*plotRect.height
+        let yMin = -0.05, ySpan = 1.1
+        let lowCGY = layout.plotRect.minY + CGFloat((0.0 - yMin) / ySpan) * layout.plotRect.height
+        // Screen y = (rendererH - cgY) * scaleY + fittedRect.minY (Y-flipped)
+        let lowScreenY = fittedRect.minY + (CGFloat(opts.height) - lowCGY) * (fittedRect.height / CGFloat(opts.height))
+        // Use midX of fitted rect as x (horizontal series spans full width)
+        let hitLocation = CGPoint(x: fittedRect.midX, y: lowScreenY)
+
+        let hit = layout.hitTestSeries(location: hitLocation, fittedRect: fittedRect, payload: payload, radius: 8)
+        #expect(hit?.sampleID == "low", "Should hit 'low' series at computed screen position")
+    }
+
+    @Test("hitTestSeries returns nil outside 8pt radius")
+    func hitTestSeriesMissesOutsideRadius() {
+        let series = WorkbenchPlotSeries(label: "A", x: [0, 1], y: [0.5, 0.5], sampleID: "A")
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test", workflowDisplayName: "test", title: "",
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [series], reverseSeriesForLegend: false, seriesReorderable: true
+        )
+        let opts = WorkbenchChartRenderer.Options()
+        let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: nil)
+        let fittedRect = CGRect(x: 0, y: 0, width: CGFloat(opts.width), height: CGFloat(opts.height))
+
+        // Location far from any series (outside plot area)
+        let farPoint = CGPoint(x: -100, y: -100)
+        let hit = layout.hitTestSeries(location: farPoint, fittedRect: fittedRect, payload: payload, radius: 8)
+        #expect(hit == nil, "Should miss when location is far from all series")
+    }
+
+    @Test("hitTestSeries skips series without sampleID")
+    func hitTestSeriesSkipsNilSampleID() {
+        let seriesNoID = WorkbenchPlotSeries(label: "NoID", x: [0, 1], y: [0.5, 0.5])  // no sampleID
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test", workflowDisplayName: "test", title: "",
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [seriesNoID], reverseSeriesForLegend: false, seriesReorderable: true
+        )
+        let opts = WorkbenchChartRenderer.Options()
+        let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: nil)
+        let fittedRect = CGRect(x: 0, y: 0, width: CGFloat(opts.width), height: CGFloat(opts.height))
+        let hit = layout.hitTestSeries(location: fittedRect.center, fittedRect: fittedRect, payload: payload, radius: 50)
+        #expect(hit == nil, "Series without sampleID must be skipped")
+    }
+
     // MARK: - Helpers
+
+    private func alignSeriesOrder(old: [String]?, defaultIDs: [String]) -> [String]? {
+        ThreeOmegaWorkspaceStore.alignSeriesOrder(old: old, defaultIDs: defaultIDs)
+    }
 
     private func makeSweep(
         sampleID: String,

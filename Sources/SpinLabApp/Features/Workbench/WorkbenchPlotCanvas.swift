@@ -42,6 +42,16 @@ struct WorkbenchPlotCanvas: View {
     /// Library root for loading chart thumbnails.
     var libraryRootURL: URL? = nil
 
+    // MARK: Series reordering (opt-in)
+    var seriesReorderable: Bool = false
+    var currentSeriesOrder: [String]? = nil
+    /// Manifest payload for the active chart; required for series hit-testing.
+    var seriesPayload: WorkbenchPlotPayload? = nil
+    /// Called with bottom-to-top sampleID array when user commits a drag reorder.
+    var onSeriesOrderCommit: (([String]) -> Void)? = nil
+    /// Called when user selects "Reset Curve Order" from context menu.
+    var onResetSeriesOrder: (() -> Void)? = nil
+
     // TODO(用户设计): 调整最小高度、背景样式、空状态文字
     var minHeight: CGFloat = 360
 
@@ -54,6 +64,15 @@ struct WorkbenchPlotCanvas: View {
     /// Last valid adjusted normalized point during an active drag.
     /// Used by onEnded as fallback when cursor lands in padding area (plotNormalized → nil).
     @State private var lastValidDragNorm: CGPoint? = nil
+
+    // Series drag state
+    private enum DragMode: Equatable {
+        case none
+        case legend
+        case series(sampleID: String)
+    }
+    @State private var dragMode: DragMode = .none
+    @State private var seriesGuideYScreen: CGFloat? = nil
     /// Which chart element is currently being edited.
     @State private var editingElement: EditTarget? = nil
     /// Live text for the active edit field.
@@ -117,6 +136,7 @@ struct WorkbenchPlotCanvas: View {
                     }
                 )
                 .overlay { legendDragPreview }
+                .overlay { seriesDragGuidePreview }
                 .overlay {
                     if let elem = editingElement {
                         editPanel(for: elem)
@@ -135,42 +155,84 @@ struct WorkbenchPlotCanvas: View {
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 4)
                         .onChanged { value in
-                            guard onLegendDrag != nil else { return }
                             let fitted = fittedRect(in: canvasSize)
-                            // Only treat this drag as a legend move if it started on the legend.
-                            // startLocation is constant for the gesture, so this guard is stable.
-                            guard isLocationOnLegend(value.startLocation, fittedRect: fitted) else { return }
-                            // plotNormalized always returns a value (clamps to fitted+plot boundary).
-                            guard let cursorNorm = plotNormalized(location: value.location, fittedRect: fitted) else { return }
-                            // Capture grab offset once using startLocation (not first-frame location)
-                            // to avoid the minimumDistance:4 threshold causing a positional jump.
-                            if dragGrabOffsetNorm == nil {
-                                let startNorm = plotNormalized(location: value.startLocation, fittedRect: fitted) ?? cursorNorm
-                                let origin = currentLegendOriginNorm()
-                                dragGrabOffsetNorm = CGSize(
-                                    width:  startNorm.x - origin.x,
-                                    height: startNorm.y - origin.y
-                                )
+
+                            // ── First frame: determine drag mode ─────────────────────────
+                            if dragMode == .none {
+                                if seriesReorderable {
+                                    if _isInLegendArea(value.startLocation, fittedRect: fitted) {
+                                        guard onLegendDrag != nil else { return }
+                                        dragMode = .legend
+                                    } else if let l = layout, let p = seriesPayload {
+                                        let plotSR = WorkbenchPlotLayout.cgToScreen(
+                                            l.plotRect, fittedIn: fitted,
+                                            rendererWidth: l.rendererSize.width,
+                                            rendererHeight: l.rendererSize.height
+                                        )
+                                        if plotSR.contains(value.startLocation) {
+                                            let allHaveSampleID = p.series.allSatisfy { $0.sampleID != nil }
+                                            if allHaveSampleID,
+                                               let hit = l.hitTestSeries(location: value.startLocation, fittedRect: fitted, payload: p) {
+                                                dragMode = .series(sampleID: hit.sampleID)
+                                            }
+                                        }
+                                        if case .none = dragMode { return }
+                                    } else { return }
+                                } else {
+                                    guard onLegendDrag != nil else { return }
+                                    dragMode = .legend
+                                }
                             }
-                            let grab = dragGrabOffsetNorm ?? .zero
-                            // Legend origin follows cursor minus the grab offset.
-                            // cursorNorm is already clamped to [0,1] so adjusted is too.
-                            let adjusted = CGPoint(
-                                x: min(max(cursorNorm.x - grab.width,  0), 1),
-                                y: min(max(cursorNorm.y - grab.height, 0), 1)
-                            )
-                            lastValidDragNorm = adjusted
-                            dragPreviewPt = legendScreenOrigin(normalized: adjusted, fittedRect: fitted)
+
+                            // ── Ongoing drag ─────────────────────────────────────────────
+                            switch dragMode {
+                            case .none:
+                                return
+                            case .legend:
+                                guard let cursorNorm = plotNormalized(location: value.location, fittedRect: fitted) else { return }
+                                if dragGrabOffsetNorm == nil {
+                                    let startNorm = plotNormalized(location: value.startLocation, fittedRect: fitted) ?? cursorNorm
+                                    let origin = currentLegendOriginNorm()
+                                    dragGrabOffsetNorm = CGSize(
+                                        width:  startNorm.x - origin.x,
+                                        height: startNorm.y - origin.y
+                                    )
+                                }
+                                let grab = dragGrabOffsetNorm ?? .zero
+                                let adjusted = CGPoint(
+                                    x: min(max(cursorNorm.x - grab.width,  0), 1),
+                                    y: min(max(cursorNorm.y - grab.height, 0), 1)
+                                )
+                                lastValidDragNorm = adjusted
+                                dragPreviewPt = legendScreenOrigin(normalized: adjusted, fittedRect: fitted)
+                            case .series:
+                                seriesGuideYScreen = value.location.y
+                            }
                         }
-                        .onEnded { value in
-                            let last = lastValidDragNorm
-                            dragPreviewPt      = nil
-                            dragGrabOffsetNorm = nil
-                            lastValidDragNorm  = nil
-                            guard let callback = onLegendDrag, let finalNorm = last else { return }
-                            // finalNorm is already clamped to [0,1] from onChanged.
-                            // It matches exactly the last preview position, so landing = preview.
-                            callback(finalNorm)
+                        .onEnded { _ in
+                            switch dragMode {
+                            case .none:
+                                break
+                            case .legend:
+                                let last = lastValidDragNorm
+                                dragPreviewPt      = nil
+                                dragGrabOffsetNorm = nil
+                                lastValidDragNorm  = nil
+                                if let callback = onLegendDrag, let finalNorm = last {
+                                    callback(finalNorm)
+                                }
+                            case .series(let sampleID):
+                                if let p = seriesPayload, let l = layout, let guideY = seriesGuideYScreen {
+                                    let fitted = fittedRect(in: canvasSize)
+                                    let newOrder = _computeNewSeriesOrder(
+                                        draggedSampleID: sampleID, guideYScreen: guideY,
+                                        payload: p, layout: l, fittedRect: fitted
+                                    )
+                                    onSeriesOrderCommit?(newOrder)
+                                }
+                                seriesGuideYScreen = nil
+                            }
+                            dragMode = .none
                         }
                 )
                 .onAppear {
@@ -191,12 +253,17 @@ struct WorkbenchPlotCanvas: View {
                             }
                         }
                     }
+                    if onResetSeriesOrder != nil {
+                        Divider()
+                        Button("Reset Curve Order") { onResetSeriesOrder?() }
+                            .disabled(!seriesReorderable || currentSeriesOrder == nil)
+                    }
                 }
                 .hoverPopover(
                     showDelay: .seconds(1),
                     dismissDelay: .milliseconds(500),
                     arrowEdge: .trailing,
-                    isEnabled: relatedCharts?.isEmpty == false
+                    isEnabled: relatedCharts?.isEmpty == false && dragMode == .none
                 ) { onHoverChanged, onDialogActiveChanged in
                     MeasurementPlotPreviewPanel(
                         references: relatedCharts ?? [],
@@ -252,22 +319,79 @@ struct WorkbenchPlotCanvas: View {
         }
     }
 
-    /// Whether a screen-space location falls inside the visible legend block.
-    /// Used to gate the legend drag so dragging elsewhere on the canvas doesn't move the legend.
-    private func isLocationOnLegend(_ location: CGPoint, fittedRect: CGRect) -> Bool {
-        guard let layout, !layout.legendRows.isEmpty,
-              fittedRect.width > 0, fittedRect.height > 0 else { return false }
-        var union = layout.legendRows[0].hitRect
-        for row in layout.legendRows.dropFirst() {
-            union = union.union(row.hitRect)
+    // MARK: - Series drag guide
+
+    @ViewBuilder
+    private var seriesDragGuidePreview: some View {
+        if case .series = dragMode, let yScreen = seriesGuideYScreen, let l = layout {
+            let fitted = fittedRect(in: canvasSize)
+            if fitted.width > 0 {
+                let scaleX = fitted.width / l.rendererSize.width
+                let plotMinX = fitted.minX + l.plotRect.minX * scaleX
+                let plotMaxX = fitted.minX + l.plotRect.maxX * scaleX
+                Path { p in
+                    p.move(to: CGPoint(x: plotMinX, y: yScreen))
+                    p.addLine(to: CGPoint(x: plotMaxX, y: yScreen))
+                }
+                .stroke(
+                    Color.accentColor.opacity(0.85),
+                    style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])
+                )
+            }
         }
-        let screen = WorkbenchPlotLayout.cgToScreen(
-            union,
-            fittedIn: fittedRect,
-            rendererWidth:  layout.rendererSize.width,
-            rendererHeight: layout.rendererSize.height
-        )
-        return screen.contains(location)
+    }
+
+    private func _isInLegendArea(_ location: CGPoint, fittedRect: CGRect) -> Bool {
+        guard let l = layout else { return false }
+        for row in l.legendRows {
+            let screenRect = WorkbenchPlotLayout.cgToScreen(
+                row.hitRect, fittedIn: fittedRect,
+                rendererWidth: l.rendererSize.width, rendererHeight: l.rendererSize.height
+            )
+            if screenRect.contains(location) { return true }
+        }
+        return false
+    }
+
+    private func _computeNewSeriesOrder(
+        draggedSampleID: String,
+        guideYScreen: CGFloat,
+        payload: WorkbenchPlotPayload,
+        layout: WorkbenchPlotLayout,
+        fittedRect: CGRect
+    ) -> [String] {
+        let series = payload.series
+        let allX = series.flatMap(\.x)
+        let allY = series.flatMap(\.y)
+        guard !allX.isEmpty else { return series.compactMap(\.sampleID) }
+
+        let xRaw = allX.min()!, xRawMax = allX.max()!
+        let yRaw = allY.min()!, yRawMax = allY.max()!
+        let yRawSpan = yRawMax == yRaw ? 1.0 : yRawMax - yRaw
+        let yMin = yRaw - yRawSpan * 0.05
+        let yMax = yRawMax + yRawSpan * 0.05
+        let ySpan = yMax - yMin
+        guard ySpan > 0 else { return series.compactMap(\.sampleID) }
+        _ = xRaw; _ = xRawMax   // suppress unused warnings
+
+        let scaleY = fittedRect.height / layout.rendererSize.height
+
+        func cgToScreenY(_ y: Double) -> CGFloat {
+            let cgY = layout.plotRect.minY + CGFloat((y - yMin) / ySpan) * layout.plotRect.height
+            return fittedRect.minY + (layout.rendererSize.height - cgY) * scaleY
+        }
+
+        var pairs: [(id: String, screenY: CGFloat)] = []
+        for s in series {
+            guard let id = s.sampleID, !s.y.isEmpty else { continue }
+            let y: CGFloat = id == draggedSampleID
+                ? guideYScreen
+                : cgToScreenY(s.y[s.y.count / 2])
+            pairs.append((id, y))
+        }
+
+        // Screen y ascending = top → bottom; seriesOrder is bottom → top, so reverse.
+        return pairs.sorted { $0.screenY < $1.screenY }.reversed().map(\.id)
     }
 
     /// Returns the current legend origin as a normalized plot point (x,y ∈ [0,1], Y-up).
