@@ -97,6 +97,13 @@ struct WorkbenchPlotLayout: Sendable {
     /// The rendered Y-axis label text (after display-label override).
     let yAxisLabel:  String
 
+    /// Actual axis range used by the renderer (mirrors WorkbenchChartRenderer logic).
+    /// Hit-test coordinate math must use these values, not re-derive from raw data.
+    let axisXMin: Double
+    let axisXMax: Double
+    let axisYMin: Double
+    let axisYMax: Double
+
     // MARK: - Factory
 
     static func compute(
@@ -168,23 +175,36 @@ struct WorkbenchPlotLayout: Sendable {
             legendFontSize: style.legendFontSize
         )
 
-        // Point dot + label hit targets (for series that carry point labels)
-        var pointDotHitTargets:   [WorkbenchPlotLayout.PointHitTarget] = []
-        var pointLabelHitTargets: [WorkbenchPlotLayout.PointHitTarget] = []
+        // Axis range — mirrors WorkbenchChartRenderer axis computation exactly.
+        // Computed unconditionally so hitTestSeries can use it.
         let allXForHit = payload.series.flatMap(\.x)
         let allYForHit = payload.series.flatMap(\.y)
-        if !allXForHit.isEmpty, payload.series.contains(where: { !$0.pointLabels.isEmpty }) {
+        let axisXMin: Double
+        let axisXMax: Double
+        let axisYMin: Double
+        let axisYMax: Double
+        if allXForHit.isEmpty {
+            axisXMin = 0; axisXMax = 1; axisYMin = 0; axisYMax = 1
+        } else {
             let xRawH = options.fixedXMin ?? allXForHit.min()!
             let xRawMaxH = options.fixedXMax ?? allXForHit.max()!
             let yRawH = allYForHit.min()!, yRawMaxH = allYForHit.max()!
             let xRawSpanH = xRawMaxH == xRawH ? 1.0 : xRawMaxH - xRawH
             let yRawSpanH = yRawMaxH == yRawH ? 1.0 : yRawMaxH - yRawH
-            let xMinH = options.fixedXMin != nil ? xRawH : xRawH - xRawSpanH * 0.05
-            let xMaxH = options.fixedXMax != nil ? xRawMaxH : xRawMaxH + xRawSpanH * 0.05
-            let yMinH = yRawH - yRawSpanH * 0.05
-            let yMaxH = yRawMaxH + yRawSpanH * 0.05
-            let xSpanH = xMaxH - xMinH
-            let ySpanH = yMaxH - yMinH
+            axisXMin = options.fixedXMin != nil ? xRawH    : xRawH    - xRawSpanH * 0.05
+            axisXMax = options.fixedXMax != nil ? xRawMaxH : xRawMaxH + xRawSpanH * 0.05
+            axisYMin = yRawH    - yRawSpanH * 0.05
+            axisYMax = yRawMaxH + yRawSpanH * 0.05
+        }
+        let axisXSpan = axisXMax - axisXMin
+        let axisYSpan = axisYMax - axisYMin
+
+        // Point dot + label hit targets (for series that carry point labels)
+        var pointDotHitTargets:   [WorkbenchPlotLayout.PointHitTarget] = []
+        var pointLabelHitTargets: [WorkbenchPlotLayout.PointHitTarget] = []
+        if !allXForHit.isEmpty, payload.series.contains(where: { !$0.pointLabels.isEmpty }) {
+            let xSpanH = axisXSpan, ySpanH = axisYSpan
+            let xMinH = axisXMin,   yMinH = axisYMin
             for (si, series) in payload.series.enumerated() {
                 guard !series.pointLabels.isEmpty,
                       series.x.count == series.y.count else { continue }
@@ -240,7 +260,11 @@ struct WorkbenchPlotLayout: Sendable {
             pointLabelHitTargets: pointLabelHitTargets,
             chartTitle:    chartTitle,
             xAxisLabel:    xAxisLabel,
-            yAxisLabel:    yAxisLabel
+            yAxisLabel:    yAxisLabel,
+            axisXMin:      axisXMin,
+            axisXMax:      axisXMax,
+            axisYMin:      axisYMin,
+            axisYMax:      axisYMax
         )
     }
 
@@ -340,19 +364,10 @@ extension WorkbenchPlotLayout {
     ) -> (sampleID: String, screenY: CGFloat)? {
         let series = payload.series
         guard !series.isEmpty else { return nil }
+        guard !series.flatMap(\.x).isEmpty else { return nil }
 
-        let allX = series.flatMap(\.x)
-        let allY = series.flatMap(\.y)
-        guard !allX.isEmpty else { return nil }
-
-        let xRaw = allX.min()!, xRawMax = allX.max()!
-        let yRaw = allY.min()!, yRawMax = allY.max()!
-        let xRawSpan = xRawMax == xRaw ? 1.0 : xRawMax - xRaw
-        let yRawSpan = yRawMax == yRaw ? 1.0 : yRawMax - yRaw
-        let xMin = xRaw - xRawSpan * 0.05
-        let xMax = xRawMax + xRawSpan * 0.05
-        let yMin = yRaw - yRawSpan * 0.05
-        let yMax = yRawMax + yRawSpan * 0.05
+        let xMin = axisXMin, xMax = axisXMax
+        let yMin = axisYMin, yMax = axisYMax
         let xSpan = xMax - xMin
         let ySpan = yMax - yMin
         guard xSpan > 0, ySpan > 0 else { return nil }
