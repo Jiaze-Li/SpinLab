@@ -15,7 +15,7 @@
 |---|---|---|---|
 | 5.1.5 | 规则管理统一 + 自动同步基础设施 (s1-s9 已完成；s10 重开：Sample Identification 面板二次简化) | 验收中 (2026-04-27) | [s10(2) handoff](handoff/archive/2026-04-27-5.1.5-s10-substrate-redesign.md) |
 | 5.1.6 | Codex 派发提速基建（杠杆 A/B/C + 重构方案设计） | 需求提出 | [V5_ROADMAP §5.1.6](V5_ROADMAP.md) |
-| 5.1.7 | 规则产物可演化层（rule provenance + sidecar v2 双层 + Recompute） | 需求提出 | [V5_ROADMAP §5.1.7](V5_ROADMAP.md) |
+| 5.1.7 | 规则产物可演化层（rule provenance + sidecar v2 双层 + Recompute） | 方案完成 (s1) | [s1 handoff](handoff/2026-04-27-5.1.7-s1-design.md) |
 
 ## 待拍板
 
