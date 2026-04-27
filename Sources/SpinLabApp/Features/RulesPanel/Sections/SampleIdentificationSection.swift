@@ -50,9 +50,7 @@ struct SampleIdentificationSection: View {
     private func saveBar() -> some View {
         HStack(spacing: AppSpacing.md) {
             if !saveErrors.isEmpty {
-                Text("\(saveErrors.count) validation error\(saveErrors.count == 1 ? "" : "s")")
-                    .font(.callout)
-                    .foregroundStyle(.red)
+                SaveErrorsBadge(errors: saveErrors)
             }
             Spacer()
             if let d = draft {
@@ -104,6 +102,7 @@ struct SampleIdentificationSection: View {
             VStack(alignment: .leading, spacing: AppSpacing.lg) {
                 substrateEntriesEditor(
                     title: "Materials",
+                    groupKey: "substrate.materials",
                     entries: d.substrate.materials,
                     expandedIndex: $expandedMaterialIndex,
                     onAdd: {
@@ -124,6 +123,7 @@ struct SampleIdentificationSection: View {
                 Divider()
                 substrateEntriesEditor(
                     title: "Treatments",
+                    groupKey: "substrate.treatments",
                     entries: d.substrate.treatments,
                     expandedIndex: $expandedTreatmentIndex,
                     onAdd: {
@@ -144,6 +144,7 @@ struct SampleIdentificationSection: View {
                 Divider()
                 substrateEntriesEditor(
                     title: "Orientations",
+                    groupKey: "substrate.orientations",
                     entries: d.substrate.orientations,
                     expandedIndex: $expandedOrientationIndex,
                     onAdd: {
@@ -168,6 +169,7 @@ struct SampleIdentificationSection: View {
     @ViewBuilder
     private func substrateEntriesEditor<Detail: View>(
         title: String,
+        groupKey: String,
         entries: [SampleIdentificationFileDraft.SubstrateEntry],
         expandedIndex: Binding<Int?>,
         onAdd: @escaping () -> Void,
@@ -177,6 +179,11 @@ struct SampleIdentificationSection: View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             HStack {
                 Text(title).font(AppFontScale.groupHeader)
+                if saveErrors.hasGroup(groupKey) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
                 Spacer()
                 Button("Add") { onAdd() }
                     .buttonStyle(.bordered)
@@ -185,11 +192,13 @@ struct SampleIdentificationSection: View {
             ForEach(entries.indices, id: \.self) { idx in
                 let entry = entries[idx]
                 let isExpanded = expandedIndex.wrappedValue == idx
+                let rowHasError = saveErrors.hasRow(group: groupKey, key: entry.displayName)
                 VStack(alignment: .leading, spacing: AppSpacing.xs) {
                     Button { expandedIndex.wrappedValue = isExpanded ? nil : idx } label: {
                         HStack(spacing: AppSpacing.md) {
                             Text(entry.displayName.isEmpty ? "—" : entry.displayName)
                                 .font(.callout.weight(.semibold).monospaced())
+                                .foregroundStyle(rowHasError ? Color.red : .primary)
                             Text("\(entry.matches.count) match\(entry.matches.count == 1 ? "" : "es")")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -204,6 +213,9 @@ struct SampleIdentificationSection: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .padding(.horizontal, AppSpacing.xs)
+                    .padding(.vertical, 2)
+                    .errorHighlight(rowHasError, cornerRadius: 6)
 
                     if isExpanded {
                         detail(idx)

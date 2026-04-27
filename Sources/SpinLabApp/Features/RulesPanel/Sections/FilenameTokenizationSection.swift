@@ -47,9 +47,7 @@ struct FilenameTokenizationSection: View {
     private func saveBar() -> some View {
         HStack(spacing: AppSpacing.md) {
             if !saveErrors.isEmpty {
-                Text("\(saveErrors.count) validation error\(saveErrors.count == 1 ? "" : "s")")
-                    .font(.callout)
-                    .foregroundStyle(.red)
+                SaveErrorsBadge(errors: saveErrors)
             }
             Spacer()
             if let d = draft {
@@ -75,8 +73,11 @@ struct FilenameTokenizationSection: View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.xl) {
                 tokenizationGroup(d)
+                    .errorHighlight(saveErrors.hasGroup("tokenization.separators"))
                 sourcesGroup(d)
+                    .errorHighlight(saveErrors.hasGroup("sources"))
                 channelGroup(d)
+                    .errorHighlight(saveErrors.hasGroup("channel.aliases"))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(AppSpacing.xl)

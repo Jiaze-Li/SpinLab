@@ -65,9 +65,7 @@ struct WorkflowSection: View {
     private func saveBar() -> some View {
         HStack(spacing: AppSpacing.md) {
             if !saveErrors.isEmpty {
-                Text("\(saveErrors.count) validation error\(saveErrors.count == 1 ? "" : "s")")
-                    .font(.callout)
-                    .foregroundStyle(.red)
+                SaveErrorsBadge(errors: saveErrors)
             }
             Spacer()
             if let d = draft {
@@ -92,6 +90,7 @@ struct WorkflowSection: View {
             VStack(alignment: .leading, spacing: AppSpacing.xl) {
                 workflowsGroup(d)
                 measurementTagRulesGroup(d)
+                    .errorHighlight(saveErrors.hasGroup("measurementTagRules"))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(AppSpacing.xl)
@@ -185,6 +184,7 @@ struct WorkflowSection: View {
     private func workflowRow(d: WorkflowFileDraft, idx: Int) -> some View {
         let entry = d.workflows[idx]
         let isExpanded = expandedWorkflowID == entry.id
+        let rowHasError = saveErrors.hasRow(group: "workflows", key: entry.id)
 
         VStack(alignment: .leading, spacing: 0) {
             Button {
@@ -198,6 +198,7 @@ struct WorkflowSection: View {
                     VStack(alignment: .leading, spacing: AppSpacing.xxs) {
                         Text(entry.id)
                             .font(.callout.weight(.semibold).monospaced())
+                            .foregroundStyle(rowHasError ? Color.red : .primary)
                         if !entry.displayName.isEmpty {
                             Text(entry.displayName)
                                 .font(.caption)
@@ -221,10 +222,12 @@ struct WorkflowSection: View {
                 }
                 .contentShape(Rectangle())
                 .padding(.vertical, AppSpacing.xs)
+                .padding(.horizontal, AppSpacing.xs)
             }
             .buttonStyle(.plain)
             .background(isExpanded ? Color.accentColor.opacity(0.08) : .clear)
             .cornerRadius(AppSpacing.xs)
+            .errorHighlight(rowHasError, cornerRadius: AppSpacing.xs)
 
             if isExpanded {
                 workflowDetail(d: d, idx: idx)

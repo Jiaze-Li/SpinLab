@@ -56,9 +56,7 @@ struct MeasuringConditionSection: View {
     private func saveBar() -> some View {
         HStack(spacing: AppSpacing.md) {
             if !saveErrors.isEmpty {
-                Text("\(saveErrors.count) validation error\(saveErrors.count == 1 ? "" : "s")")
-                    .font(.callout)
-                    .foregroundStyle(.red)
+                SaveErrorsBadge(errors: saveErrors)
             }
             Spacer()
             if let d = draft {
@@ -109,6 +107,7 @@ struct MeasuringConditionSection: View {
                 }
             }
         }
+        .errorHighlight(saveErrors.hasGroup("conditionDefinitions"))
     }
 
     @ViewBuilder
@@ -118,13 +117,16 @@ struct MeasuringConditionSection: View {
         idx: Int
     ) -> some View {
         let isSelected = selectedConditionID == def.id
+        let rowHasError = saveErrors.hasRow(group: "conditionDefinitions", key: def.id)
         VStack(alignment: .leading, spacing: 0) {
             Button(action: {
                 selectedConditionID = isSelected ? nil : def.id
             }) {
                 HStack(spacing: AppSpacing.md) {
                     VStack(alignment: .leading, spacing: AppSpacing.xxs) {
-                        Text(def.id).font(.callout.weight(.semibold).monospaced())
+                        Text(def.id)
+                            .font(.callout.weight(.semibold).monospaced())
+                            .foregroundStyle(rowHasError ? Color.red : .primary)
                         HStack(spacing: AppSpacing.xs) {
                             Text(def.kind).font(.caption).foregroundStyle(.secondary)
                             if let label = def.label, !label.isEmpty {
@@ -143,10 +145,12 @@ struct MeasuringConditionSection: View {
                 }
                 .contentShape(Rectangle())
                 .padding(.vertical, AppSpacing.xs)
+                .padding(.horizontal, AppSpacing.xs)
             }
             .buttonStyle(.plain)
             .background(isSelected ? Color.accentColor.opacity(0.08) : .clear)
             .cornerRadius(AppSpacing.xs)
+            .errorHighlight(rowHasError, cornerRadius: AppSpacing.xs)
 
             if isSelected {
                 conditionDetail(idx: idx, d: d)
