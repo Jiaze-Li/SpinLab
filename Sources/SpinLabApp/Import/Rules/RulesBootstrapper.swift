@@ -24,7 +24,7 @@ struct RulesBootstrapper {
                 let stateObj = try JSONSerialization.jsonObject(with: stateData)
                 if let state = stateObj as? [String: Any],
                    let version = state["rules_schema_version"] as? Int,
-                   version >= 5 {
+                   version >= 6 {
                     AppLogger.shared.info(.import, "RulesBootstrapper migration skipped: already migrated", metadata: [
                         "rules_schema_version": String(version)
                     ])
@@ -94,7 +94,7 @@ struct RulesBootstrapper {
         let measuringVersion = (sourceMeasuringJSON["version"] as? Int) ?? 0
         let sampleVersion = (sourceSampleJSON["version"] as? Int) ?? 0
         let workflowVersion = (sourceWorkflowJSON?["version"] as? Int) ?? (sourceWorkflowJSON != nil ? 0 : Int.max)
-        if measuringVersion >= 3, sampleVersion >= 4, workflowVersion >= 2 {
+        if measuringVersion >= 4, sampleVersion >= 5, workflowVersion >= 3 {
             var sourceHash: [String: String] = [
                 "measuring_condition.json": sha256Hex(sourceMeasuringData),
                 "sample_identification.json": sha256Hex(sourceSampleData)
@@ -121,19 +121,25 @@ struct RulesBootstrapper {
         let migratedWorkflowJSON: [String: Any]?
         do {
             let v2MeasuringJSON = try migrateMeasuringConditionIfNeeded(json: sourceMeasuringJSON, warnings: &warnings)
-            migratedMeasuringJSON = try migrateMeasuringConditionV2ToV3IfNeeded(json: v2MeasuringJSON, warnings: &warnings)
+            let v3MeasuringJSON = try migrateMeasuringConditionV2ToV3IfNeeded(json: v2MeasuringJSON, warnings: &warnings)
+            migratedMeasuringJSON = try migrateMeasuringConditionV3ToV4IfNeeded(json: v3MeasuringJSON, warnings: &warnings)
             let v2SampleJSON = try migrateSampleIdentificationIfNeeded(json: sourceSampleJSON, warnings: &warnings)
             let v3SampleJSON = try migrateSampleIdentificationV2ToV3IfNeeded(
                 json: v2SampleJSON,
                 tokenizationJSON: tokenizationJSON,
                 warnings: &warnings
             )
-            migratedSampleJSON = try migrateSampleIdentificationV3ToV4IfNeeded(
+            let v4SampleJSON = try migrateSampleIdentificationV3ToV4IfNeeded(
                 json: v3SampleJSON,
                 warnings: &warnings
             )
+            migratedSampleJSON = try migrateSampleIdentificationV4ToV5IfNeeded(
+                json: v4SampleJSON,
+                warnings: &warnings
+            )
             if let wfJSON = sourceWorkflowJSON {
-                migratedWorkflowJSON = try migrateWorkflowV1ToV2IfNeeded(json: wfJSON, warnings: &warnings)
+                let v2WorkflowJSON = try migrateWorkflowV1ToV2IfNeeded(json: wfJSON, warnings: &warnings)
+                migratedWorkflowJSON = try migrateWorkflowV2ToV3IfNeeded(json: v2WorkflowJSON, warnings: &warnings)
             } else {
                 migratedWorkflowJSON = nil
             }
@@ -192,8 +198,8 @@ struct RulesBootstrapper {
             return
         }
 
-        let shouldWriteBackup = measuringVersion < 3 || sampleVersion < 3
-            || (sourceWorkflowData != nil && workflowVersion < 2)
+        let shouldWriteBackup = measuringVersion < 4 || sampleVersion < 5
+            || (sourceWorkflowData != nil && workflowVersion < 3)
         if shouldWriteBackup {
             do {
                 try fm.createDirectory(at: backupDir, withIntermediateDirectories: true)
@@ -788,6 +794,207 @@ struct RulesBootstrapper {
         return migrated
     }
 
+    // MARK: - s12 migrations
+
+    private static func migrateMeasuringConditionV3ToV4IfNeeded(json: [String: Any], warnings: inout [String]) throws -> [String: Any] {
+        let version = (json["version"] as? Int) ?? 0
+        guard version < 4 else { return json }
+
+        let definitions = (json["conditionDefinitions"] as? [[String: Any]]) ?? []
+        var migratedDefinitions: [[String: Any]] = []
+        for def in definitions {
+            guard let id = def["id"] as? String,
+                  let kind = def["kind"] as? String else {
+                warnings.append("measuring_condition: conditionDefinitions entry missing id/kind, skipped")
+                continue
+            }
+            var migrated: [String: Any] = ["id": id, "kind": kind]
+            if let displayName = def["displayName"] as? String {
+                migrated["displayName"] = displayName
+            }
+            switch kind {
+            case "unit_suffix":
+                let rawPattern = (def["unitPattern"] as? String) ?? ""
+                if let units = parseUnitPatternAlternation(rawPattern) {
+                    let matches: [[String: String]] = units.map { ["type": "unit-suffix", "value": $0] }
+                    migrated["matches"] = matches
+                } else {
+                    warnings.append("measuring_condition: conditionDefinitions[\(id)].unitPattern could not be converted to unit-suffix rows and was discarded: '\(rawPattern)'")
+                    migrated["matches"] = [[String: String]]()
+                }
+            case "token_map":
+                let legacyRules = (def["tokenMap"] as? [[String: Any]]) ?? []
+                var expandedRules: [[String: Any]] = []
+                for (ruleIdx, rule) in legacyRules.enumerated() {
+                    guard let matchSpec = rule["match"] as? [String: Any] else { continue }
+                    let outputValue = (rule["value"] as? String) ?? ""
+                    let label = "measuring_condition: conditionDefinitions[\(id)].tokenMap[\(ruleIdx)]"
+                    let expanded = expandLegacyMatchSpec(matchSpec, label: label, warnings: &warnings)
+                    for newSpec in expanded {
+                        expandedRules.append(["match": newSpec, "value": outputValue])
+                    }
+                }
+                migrated["matches"] = expandedRules
+            default:
+                throw NSError(domain: "RulesBootstrapper", code: 10,
+                    userInfo: [NSLocalizedDescriptionKey: "measuring_condition: unsupported kind '\(kind)' for id '\(id)'"])
+            }
+            migratedDefinitions.append(migrated)
+        }
+        return ["version": 4, "conditionDefinitions": migratedDefinitions]
+    }
+
+    private static func migrateSampleIdentificationV4ToV5IfNeeded(json: [String: Any], warnings: inout [String]) throws -> [String: Any] {
+        let version = (json["version"] as? Int) ?? 0
+        guard version < 5 else { return json }
+
+        var migrated = json
+        migrated["version"] = 5
+
+        let sampleId = (json["sampleId"] as? [String: Any]) ?? [:]
+        let batchPrefixes = (sampleId["batchPrefixes"] as? [String]) ?? []
+        let validPrefixPattern = try NSRegularExpression(pattern: #"^[A-Za-z0-9_-]+$"#)
+        var matches: [[String: String]] = []
+        for prefix in batchPrefixes {
+            let trimmed = prefix.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let range = NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)
+            guard validPrefixPattern.firstMatch(in: trimmed, options: [], range: range) != nil else {
+                warnings.append("sample_identification: batch prefix '\(trimmed)' is invalid and was skipped")
+                continue
+            }
+            matches.append(["type": "starts-with", "value": trimmed])
+        }
+
+        var newSampleId: [String: Any] = [:]
+        for (key, value) in sampleId where key != "batchPrefixes" && key != "patterns" {
+            newSampleId[key] = value
+        }
+        newSampleId["matches"] = matches
+        migrated["sampleId"] = newSampleId
+
+        return migrated
+    }
+
+    private static func migrateWorkflowV2ToV3IfNeeded(json: [String: Any], warnings: inout [String]) throws -> [String: Any] {
+        let version = (json["version"] as? Int) ?? 0
+        guard version < 3 else { return json }
+
+        let rawWorkflows = (json["workflows"] as? [[String: Any]]) ?? []
+        var migratedWorkflows: [[String: Any]] = []
+        for wf in rawWorkflows {
+            var w = wf
+            let wfID = (wf["id"] as? String) ?? "?"
+            if let legacyRules = wf["matchRules"] as? [[String: Any]] {
+                var expandedRules: [[String: Any]] = []
+                for (ruleIdx, rule) in legacyRules.enumerated() {
+                    let label = "workflow: workflows[\(wfID)].matchRules[\(ruleIdx)]"
+                    if let scopeStr = rule["scope"] as? String, scopeStr == "joined" {
+                        warnings.append("\(label) legacy scope 'joined' was removed; rule is now token-scoped")
+                    }
+                    expandedRules.append(contentsOf: expandLegacyMatchSpec(rule, label: label, warnings: &warnings))
+                }
+                w["matchRules"] = expandedRules
+            }
+            migratedWorkflows.append(w)
+        }
+
+        let rawTagRules = (json["measurementTagRules"] as? [[String: Any]]) ?? []
+        var migratedTagRules: [[String: Any]] = []
+        for (ruleIdx, rule) in rawTagRules.enumerated() {
+            guard let matchSpec = rule["match"] as? [String: Any] else { continue }
+            let outputValue = (rule["value"] as? String) ?? ""
+            let label = "workflow: measurementTagRules[\(ruleIdx)].match"
+            if let scopeStr = matchSpec["scope"] as? String, scopeStr == "joined" {
+                warnings.append("\(label) legacy scope 'joined' was removed; rule is now token-scoped")
+            }
+            let expanded = expandLegacyMatchSpec(matchSpec, label: label, warnings: &warnings)
+            for newSpec in expanded {
+                migratedTagRules.append(["match": newSpec, "value": outputValue])
+            }
+        }
+
+        var migrated = json
+        migrated["version"] = 3
+        migrated["workflows"] = migratedWorkflows
+        migrated["measurementTagRules"] = migratedTagRules
+        return migrated
+    }
+
+    // MARK: - Shared migration helpers
+
+    private static func expandLegacyMatchSpec(_ spec: [String: Any], label: String, warnings: inout [String]) -> [[String: String]] {
+        guard let typeStr = spec["type"] as? String else { return [] }
+
+        let rawValues: [String]
+        if let mv = spec["matchValues"] as? [String] {
+            rawValues = mv
+        } else if let vs = spec["values"] as? [String] {
+            rawValues = vs
+        } else if let v = spec["value"] as? String {
+            rawValues = [v]
+        } else {
+            rawValues = []
+        }
+
+        let values = rawValues
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if values.isEmpty {
+            warnings.append("\(label): rule with empty matchValues dropped")
+            return []
+        }
+
+        switch typeStr {
+        case "equals":
+            if values.count > 1 {
+                warnings.append("\(label): type=equals with multiple matchValues treated as equalsAny")
+            }
+            return values.map { ["type": "equals", "value": $0] }
+        case "contains":
+            if values.count > 1 {
+                warnings.append("\(label): type=contains with multiple matchValues treated as containsAny")
+            }
+            return values.map { ["type": "contains", "value": $0] }
+        case "equalsAny":
+            return values.map { ["type": "equals", "value": $0] }
+        case "containsAny":
+            return values.map { ["type": "contains", "value": $0] }
+        case "equalsOrContainsAny":
+            return values.map { ["type": "equals", "value": $0] }
+                 + values.map { ["type": "contains", "value": $0] }
+        case "regex":
+            let pattern = values.first ?? ""
+            warnings.append("\(label): regex rule was removed during s12 migration: '\(pattern)'")
+            return []
+        default:
+            warnings.append("\(label): unknown rule type '\(typeStr)' dropped")
+            return []
+        }
+    }
+
+    private static func parseUnitPatternAlternation(_ pattern: String) -> [String]? {
+        let prefix = "^-?\\d+(?:\\.\\d+)?(?:"
+        let suffix = ")$"
+        guard pattern.hasPrefix(prefix), pattern.hasSuffix(suffix) else { return nil }
+        let inner = String(pattern.dropFirst(prefix.count).dropLast(suffix.count))
+        let candidates = inner.components(separatedBy: "|")
+        let metaChars: Set<Character> = ["\\", "(", ")", "[", "]", "{", "}", "*", "+", "?", ".", "^", "$", "|"]
+        for candidate in candidates {
+            if candidate.isEmpty { return nil }
+            if candidate.contains(where: { metaChars.contains($0) }) { return nil }
+        }
+        var seen = Set<String>()
+        var result: [String] = []
+        for candidate in candidates {
+            if seen.insert(candidate).inserted {
+                result.append(candidate)
+            }
+        }
+        return result
+    }
+
     private static func writeMigrationState(
         to url: URL,
         sourceSHA: [String: String],
@@ -795,7 +1002,7 @@ struct RulesBootstrapper {
         warnings: [String]
     ) {
         let body: [String: Any] = [
-            "rules_schema_version": 5,
+            "rules_schema_version": 6,
             "migrated_at": migrationDateString(),
             "source_sha256": sourceSHA,
             "target_sha256": targetSHA,
@@ -875,7 +1082,7 @@ private struct MigrationWorkflowFile: Decodable {
         let conditionFieldIDs: [String]
         struct MatchSpec: Decodable {
             let type: String
-            let matchValues: [String]
+            let value: String
         }
     }
     let workflows: [WorkflowEntry]

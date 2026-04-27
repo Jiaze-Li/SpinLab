@@ -135,8 +135,8 @@ struct V210ImportAndParseTests {
         #expect(ch1?.tags.isEmpty == true)
 
         let ch2 = parsed.channelHints.first(where: { $0.channel == "ch2" })
-        #expect(ch2?.sampleID == "PN36 HF STO 111")
-        #expect(ch2?.tags == ["HF", "STO 111"])
+        #expect(ch2?.sampleID == "PN36 STO HF 111")
+        #expect(ch2?.tags == ["STO", "HF", "111"])
 
         let ch3 = parsed.channelHints.first(where: { $0.channel == "ch3" })
         #expect(ch3?.sampleID == "PN37")
@@ -347,10 +347,9 @@ struct V210ImportAndParseTests {
                 id: "device",
                 displayName: "Device",
                 kind: .unitSuffix,
-                binding: "conditions.extraConditions.device"
+                matches: .unitSuffix([.init(type: .unitSuffix, value: "deg")])
             )
         )
-        ruleSet.conditions.extraConditions["device"] = "^-?\\d+(?:\\.\\d+)?(?:deg)$"
         ruleSet.loadWarnings = ruleSet.compile()
         let parser = FilenameRuleParser(ruleSet: ruleSet)
         let fileURL = URL(fileURLWithPath: "/tmp/PN69/RT_run/run_0deg_1mA.dat")
@@ -368,10 +367,9 @@ struct V210ImportAndParseTests {
                 id: "abc",
                 displayName: "ABC",
                 kind: .unitSuffix,
-                binding: "conditions.extraConditions.abc"
+                matches: .unitSuffix([.init(type: .unitSuffix, value: "abc")])
             )
         )
-        ruleSet.conditions.extraConditions["abc"] = "^-?\\d+(?:\\.\\d+)?(?:abc)$"
         ruleSet.loadWarnings = ruleSet.compile()
         let parser = FilenameRuleParser(ruleSet: ruleSet)
         let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_12abc_1mA.dat")
@@ -389,15 +387,9 @@ struct V210ImportAndParseTests {
                 id: "wafer_type",
                 displayName: "Wafer Type",
                 kind: .tokenMap,
-                binding: "conditions.tokenMapRules.wafer_type"
+                matches: .tokenMap([.init(match: .init(type: .equals, value: "wafer"), value: "wafer")])
             )
         )
-        ruleSet.conditions.tokenMapRules["wafer_type"] = [
-            .init(
-                match: .init(scope: .tokens, type: .equals, matchValues: ["wafer"]),
-                value: "wafer"
-            )
-        ]
         ruleSet.loadWarnings = ruleSet.compile()
         let parser = FilenameRuleParser(ruleSet: ruleSet)
         let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_wafer_1mA.dat")
@@ -415,7 +407,7 @@ struct V210ImportAndParseTests {
                 id: "mode",
                 displayName: "Mode",
                 kind: .unitSuffix,
-                binding: "conditions.extraConditions.mode"
+                matches: .unitSuffix([.init(type: .unitSuffix, value: "k")])
             )
         )
         ruleSet.conditionDefinitions.append(
@@ -423,16 +415,9 @@ struct V210ImportAndParseTests {
                 id: "mode",
                 displayName: "Mode",
                 kind: .tokenMap,
-                binding: "conditions.tokenMapRules.mode"
+                matches: .tokenMap([.init(match: .init(type: .equals, value: "1k"), value: "mode-token")])
             )
         )
-        ruleSet.conditions.extraConditions["mode"] = "^-?\\d+(?:\\.\\d+)?(?:k)$"
-        ruleSet.conditions.tokenMapRules["mode"] = [
-            .init(
-                match: .init(scope: .tokens, type: .equals, matchValues: ["1k"]),
-                value: "mode-token"
-            )
-        ]
         ruleSet.loadWarnings = ruleSet.compile()
         let parser = FilenameRuleParser(ruleSet: ruleSet)
         let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_1k_1mA.dat")
@@ -455,17 +440,17 @@ struct V210ImportAndParseTests {
 
     // MARK: - s11 decode compat tests
 
-    @Test("MatchSpec without scope field decodes as tokens and evaluates correctly")
+    @Test("MatchSpec {type,value} decodes and evaluates correctly")
     func matchSpecWithoutScopeDecodesAsTokens() throws {
         let json = """
         {
-          "version": 2,
+          "version": 5,
           "tokenization": {"separators": "_- ()", "caseFold": "preserve"},
           "sources": ["file"],
-          "sampleId": {"batchPrefixes": []},
+          "sampleId": {"matches": []},
           "measurementNameRules": [],
           "measurementTagRules": [
-            {"match": {"type": "equals", "matchValues": ["AMR"]}, "value": "AMR"}
+            {"match": {"type": "equals", "value": "AMR"}, "value": "AMR"}
           ],
           "channel": {"aliases": {}},
           "conditionDefinitions": [],
@@ -477,7 +462,7 @@ struct V210ImportAndParseTests {
         _ = ruleSet.compile()
 
         let tags = ruleSet.measurementTags(from: ["AMR", "other"])
-        #expect(tags == ["AMR"], "scope-free matchSpec must evaluate against tokens and return AMR")
+        #expect(tags == ["AMR"])
     }
 
     @Test("ConditionDefinition with displayName field decodes and labelMap is correct")

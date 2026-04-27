@@ -25,8 +25,10 @@ struct MapRule: Codable, Hashable {
     var value: String
 
     struct MatchSpec: Codable, Hashable {
+        // scope retained for view compat; always "tokens" in s12+ schemas
         var scope: String
         var type: String
+        // matchValues retained for view compat; maps to/from new single-value "value" field
         var matchValues: [String]
 
         enum CodingKeys: String, CodingKey {
@@ -41,14 +43,15 @@ struct MapRule: Codable, Hashable {
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            scope = (try container.decodeIfPresent(String.self, forKey: .scope)) ?? "tokens"
+            scope = "tokens"
             type = try container.decode(String.self, forKey: .type)
-            if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
+            // s12+ format: single "value"; pre-s12 format: "matchValues" array
+            if let v = try container.decodeIfPresent(String.self, forKey: .value) {
+                matchValues = [v]
+            } else if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
                 matchValues = mv
             } else if let vs = try container.decodeIfPresent([String].self, forKey: .values) {
                 matchValues = vs
-            } else if let v = try container.decodeIfPresent(String.self, forKey: .value) {
-                matchValues = [v]
             } else {
                 matchValues = []
             }
@@ -57,7 +60,7 @@ struct MapRule: Codable, Hashable {
         func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encode(type, forKey: .type)
-            try container.encode(matchValues, forKey: .matchValues)
+            try container.encode(matchValues.first ?? "", forKey: .value)
         }
     }
 }
@@ -103,7 +106,31 @@ struct SampleIdentificationFileDraft: Codable {
     var substrate: SubstrateConfig
 
     struct SampleIdConfig: Codable {
+        // batchPrefixes retained for view compat; Codable bridges to s12+ "matches" schema
         var batchPrefixes: [String]
+
+        private enum CodingKeys: String, CodingKey { case batchPrefixes, matches }
+
+        init(batchPrefixes: [String]) { self.batchPrefixes = batchPrefixes }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            struct Entry: Decodable { let type: String?; let value: String? }
+            if let entries = try c.decodeIfPresent([Entry].self, forKey: .matches) {
+                batchPrefixes = entries
+                    .filter { $0.type == "starts-with" }
+                    .compactMap(\.value)
+                    .filter { !$0.isEmpty }
+            } else {
+                batchPrefixes = try c.decodeIfPresent([String].self, forKey: .batchPrefixes) ?? []
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            let matches = batchPrefixes.map { ["type": "starts-with", "value": $0] }
+            try c.encode(matches, forKey: .matches)
+        }
     }
 
     struct SubstrateEntry: Codable, Identifiable {
@@ -137,6 +164,7 @@ struct WorkflowFileDraft: Codable {
     }
 
     struct WorkflowMatchSpec: Codable, Hashable {
+        // scope/matchValues retained for view compat; updated Codable bridges to s12+ {type, value} schema
         var scope: String
         var type: String
         var matchValues: [String]
@@ -153,14 +181,14 @@ struct WorkflowFileDraft: Codable {
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            scope = (try container.decodeIfPresent(String.self, forKey: .scope)) ?? "tokens"
+            scope = "tokens"
             type = try container.decode(String.self, forKey: .type)
-            if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
+            if let v = try container.decodeIfPresent(String.self, forKey: .value) {
+                matchValues = [v]
+            } else if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
                 matchValues = mv
             } else if let vs = try container.decodeIfPresent([String].self, forKey: .values) {
                 matchValues = vs
-            } else if let v = try container.decodeIfPresent(String.self, forKey: .value) {
-                matchValues = [v]
             } else {
                 matchValues = []
             }
@@ -169,7 +197,7 @@ struct WorkflowFileDraft: Codable {
         func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encode(type, forKey: .type)
-            try container.encode(matchValues, forKey: .matchValues)
+            try container.encode(matchValues.first ?? "", forKey: .value)
         }
     }
 }
@@ -190,27 +218,62 @@ struct MeasuringConditionFileDraft: Codable {
 
 extension MeasuringConditionFileDraft.ConditionDefinition: Codable {
     private enum CodingKeys: String, CodingKey {
-        case id, kind, unitPattern, tokenMap, label, displayName
+        case id, kind, unitPattern, tokenMap, label, displayName, matches
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
         kind = try c.decode(String.self, forKey: .kind)
-        unitPattern = try c.decodeIfPresent(String.self, forKey: .unitPattern)
-        tokenMap = try c.decodeIfPresent([MapRule].self, forKey: .tokenMap)
         displayName = try c.decodeIfPresent(String.self, forKey: .displayName)
             ?? c.decodeIfPresent(String.self, forKey: .label)
+
+        if kind == "unit_suffix" {
+            // s12+ format: matches: [{type: "unit-suffix", value: "K"}, ...]
+            struct UnitEntry: Decodable { let type: String?; let value: String? }
+            if let entries = try c.decodeIfPresent([UnitEntry].self, forKey: .matches) {
+                let units = entries.filter { $0.type == "unit-suffix" }.compactMap(\.value).filter { !$0.isEmpty }
+                unitPattern = units.isEmpty ? nil : unitPatternFromUnits(units)
+            } else {
+                unitPattern = try c.decodeIfPresent(String.self, forKey: .unitPattern)
+            }
+            tokenMap = nil
+        } else {
+            // token_map — s12+ format: matches: [MapRule]; pre-s12 format: tokenMap: [MapRule]
+            tokenMap = try c.decodeIfPresent([MapRule].self, forKey: .matches)
+                ?? c.decodeIfPresent([MapRule].self, forKey: .tokenMap)
+            unitPattern = nil
+        }
     }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(id, forKey: .id)
         try c.encode(kind, forKey: .kind)
-        try c.encodeIfPresent(unitPattern, forKey: .unitPattern)
-        try c.encodeIfPresent(tokenMap, forKey: .tokenMap)
         try c.encodeIfPresent(displayName, forKey: .displayName)
+        if kind == "unit_suffix" {
+            let units = unitsFromUnitPattern(unitPattern)
+            let entries = units.map { ["type": "unit-suffix", "value": $0] }
+            try c.encode(entries, forKey: .matches)
+        } else {
+            try c.encode(tokenMap ?? [], forKey: .matches)
+        }
     }
+}
+
+// MARK: - Unit pattern helpers (bridging unitPattern string ↔ unit-suffix MatchSpec values)
+
+private func unitPatternFromUnits(_ units: [String]) -> String {
+    "^-?\\d+(?:\\.\\d+)?(?:\(units.joined(separator: "|")))$"
+}
+
+private func unitsFromUnitPattern(_ pattern: String?) -> [String] {
+    guard let pattern else { return [] }
+    let prefix = "^-?\\d+(?:\\.\\d+)?(?:"
+    let suffix = ")$"
+    guard pattern.hasPrefix(prefix), pattern.hasSuffix(suffix) else { return [] }
+    let inner = String(pattern.dropFirst(prefix.count).dropLast(suffix.count))
+    return inner.isEmpty ? [] : inner.components(separatedBy: "|")
 }
 
 // MARK: - Store

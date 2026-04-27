@@ -21,11 +21,7 @@ struct RuleCanonicalizer {
                         id: id,
                         displayName: ConditionFieldCatalog.defaultLabel(for: id),
                         kind: kind,
-                        binding: kind == .unitSuffix
-                            ? "conditions.extraConditions.\(id)"
-                            : "conditions.tokenMapRules.\(id)",
-                        unitPattern: nil,
-                        tokenMap: nil
+                        matches: kind == .unitSuffix ? .unitSuffix([]) : .tokenMap([])
                     )
                 )
             }

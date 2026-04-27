@@ -1,43 +1,87 @@
 {
-  "version": 3,
-  "conditionDefinitions": [
-    {
-      "id": "device",
-      "displayName": "Device",
-      "kind": "token_map",
-      "tokenMap": [
+    "version": 4,
+    "conditionDefinitions": [
         {
-          "match": {
-            "type": "equals",
-            "matchValues": ["wafer"]
-          },
-          "value": "wafer"
+            "id": "device",
+            "displayName": "Device",
+            "kind": "token_map",
+            "matches": [
+                {
+                    "match": {
+                        "type": "equals",
+                        "value": "wafer"
+                    },
+                    "value": "wafer"
+                }
+            ]
+        },
+        {
+            "id": "temperature",
+            "displayName": "Temperature",
+            "kind": "unit_suffix",
+            "matches": [
+                {
+                    "type": "unit-suffix",
+                    "value": "K"
+                },
+                {
+                    "type": "unit-suffix",
+                    "value": "k"
+                },
+                {
+                    "type": "unit-suffix",
+                    "value": "C"
+                }
+            ]
+        },
+        {
+            "id": "current",
+            "displayName": "Current",
+            "kind": "unit_suffix",
+            "matches": [
+                {
+                    "type": "unit-suffix",
+                    "value": "mA"
+                },
+                {
+                    "type": "unit-suffix",
+                    "value": "A"
+                },
+                {
+                    "type": "unit-suffix",
+                    "value": "uA"
+                }
+            ]
+        },
+        {
+            "id": "field",
+            "displayName": "Field",
+            "kind": "unit_suffix",
+            "matches": [
+                {
+                    "type": "unit-suffix",
+                    "value": "T"
+                },
+                {
+                    "type": "unit-suffix",
+                    "value": "mT"
+                },
+                {
+                    "type": "unit-suffix",
+                    "value": "Oe"
+                }
+            ]
+        },
+        {
+            "id": "shift",
+            "displayName": "Shift",
+            "kind": "unit_suffix",
+            "matches": [
+                {
+                    "type": "unit-suffix",
+                    "value": "shift"
+                }
+            ]
         }
-      ]
-    },
-    {
-      "id": "temperature",
-      "displayName": "Temperature",
-      "kind": "unit_suffix",
-      "unitPattern": "^-?\\d+(?:\\.\\d+)?(?:K|k|C)$"
-    },
-    {
-      "id": "current",
-      "displayName": "Current",
-      "kind": "unit_suffix",
-      "unitPattern": "^-?\\d+(?:\\.\\d+)?(?:mA|A|uA)$"
-    },
-    {
-      "id": "field",
-      "displayName": "Field",
-      "kind": "unit_suffix",
-      "unitPattern": "^-?\\d+(?:\\.\\d+)?(?:T|mT|Oe)$"
-    },
-    {
-      "id": "shift",
-      "displayName": "Shift",
-      "kind": "unit_suffix",
-      "unitPattern": "^-?\\d+(?:\\.\\d+)?(?:shift)$"
-    }
-  ]
+    ]
 }

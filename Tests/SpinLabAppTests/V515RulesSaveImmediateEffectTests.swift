@@ -74,8 +74,8 @@ struct V515RulesSaveImmediateEffectTests {
 
         var r1Fired = false
         let store = RulesManagementStore(onRulesSaved: {
-            let prefixes = RuleLoader.shared.loadCached().ruleSet.sampleId.batchPrefixes
-            if prefixes.contains("NEWPATTERN") {
+            let matches = RuleLoader.shared.loadCached().ruleSet.sampleId.matches
+            if matches.contains(where: { $0.value == "NEWPATTERN" }) {
                 r1Fired = true
             }
         })

@@ -11,6 +11,36 @@ struct FilenameRuleSet: Decodable {
         case halfStep
     }
 
+    // MARK: - Operation enum (4-op closed set)
+
+    enum Operation: String, Codable, Hashable, Sendable, CaseIterable {
+        case equals
+        case contains
+        case startsWith = "starts-with"
+        case unitSuffix = "unit-suffix"
+    }
+
+    // MARK: - Flat MatchSpec (type + single value)
+
+    struct MatchSpec: Codable, Hashable, Sendable {
+        var type: Operation
+        var value: String
+    }
+
+    // MARK: - MapRule (match + output value)
+
+    struct MapRule: Codable, Hashable, Sendable {
+        var match: MatchSpec
+        var value: String
+    }
+
+    // MARK: - ConditionMatches (kind-discriminated)
+
+    enum ConditionMatches: Sendable {
+        case unitSuffix([MatchSpec])
+        case tokenMap([MapRule])
+    }
+
     enum ConditionDefinitionKind: String, Decodable {
         case unitSuffix = "unit_suffix"
         case tokenMap = "token_map"
@@ -20,36 +50,37 @@ struct FilenameRuleSet: Decodable {
         var id: String
         var displayName: String?
         var kind: ConditionDefinitionKind
-        var binding: String? = nil
-        var unitPattern: String?
-        var tokenMap: [MapRule]?
+        var matches: ConditionMatches
 
         @available(*, deprecated, renamed: "displayName")
         var label: String? { displayName }
 
         private enum CodingKeys: String, CodingKey {
-            case id, kind, binding, unitPattern, tokenMap, displayName, label
+            case id, kind, displayName, label, matches
         }
 
-        init(id: String, displayName: String?, kind: ConditionDefinitionKind,
-             binding: String? = nil, unitPattern: String? = nil, tokenMap: [MapRule]? = nil) {
+        init(id: String, displayName: String?, kind: ConditionDefinitionKind, matches: ConditionMatches) {
             self.id = id
             self.displayName = displayName
             self.kind = kind
-            self.binding = binding
-            self.unitPattern = unitPattern
-            self.tokenMap = tokenMap
+            self.matches = matches
         }
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             id = try c.decode(String.self, forKey: .id)
             kind = try c.decode(ConditionDefinitionKind.self, forKey: .kind)
-            binding = try c.decodeIfPresent(String.self, forKey: .binding)
-            unitPattern = try c.decodeIfPresent(String.self, forKey: .unitPattern)
-            tokenMap = try c.decodeIfPresent([MapRule].self, forKey: .tokenMap)
             displayName = try c.decodeIfPresent(String.self, forKey: .displayName)
                 ?? c.decodeIfPresent(String.self, forKey: .label)
+
+            switch kind {
+            case .unitSuffix:
+                let specs = try c.decodeIfPresent([MatchSpec].self, forKey: .matches) ?? []
+                matches = .unitSuffix(specs)
+            case .tokenMap:
+                let rules = try c.decodeIfPresent([MapRule].self, forKey: .matches) ?? []
+                matches = .tokenMap(rules)
+            }
         }
     }
 
@@ -65,23 +96,19 @@ struct FilenameRuleSet: Decodable {
     }
 
     struct SampleIdRules: Decodable {
-        var batchPrefixes: [String]
-        var patterns: [String]
+        var matches: [MatchSpec]
 
-        init(batchPrefixes: [String] = [], patterns: [String] = []) {
-            self.batchPrefixes = batchPrefixes
-            self.patterns = patterns
+        init(matches: [MatchSpec] = []) {
+            self.matches = matches
         }
 
         private enum CodingKeys: String, CodingKey {
-            case batchPrefixes
-            case patterns
+            case matches
         }
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            batchPrefixes = try container.decodeIfPresent([String].self, forKey: .batchPrefixes) ?? []
-            patterns = try container.decodeIfPresent([String].self, forKey: .patterns) ?? []
+            matches = try container.decodeIfPresent([MatchSpec].self, forKey: .matches) ?? []
         }
     }
 
@@ -135,19 +162,11 @@ struct FilenameRuleSet: Decodable {
         var ignoredFileExtensions: [String]
     }
 
-    // MARK: - v4 Substrate types
+    // MARK: - Substrate types (v4+: SubstrateEntry uses shared MatchSpec)
 
     struct SubstrateEntry: Decodable {
-        struct Match: Decodable {
-            enum MatchType: String, Decodable {
-                case equals
-                case contains
-            }
-            var type: MatchType
-            var value: String
-        }
         var displayName: String
-        var matches: [Match]
+        var matches: [MatchSpec]
     }
 
     struct SubstrateConfig: Decodable {
@@ -156,7 +175,7 @@ struct FilenameRuleSet: Decodable {
         var orientations: [SubstrateEntry]
     }
 
-    // MARK: - Compiled substrate entry (v4)
+    // MARK: - Compiled substrate entry
 
     struct CompiledSubstrateEntry {
         var displayName: String
@@ -164,7 +183,7 @@ struct FilenameRuleSet: Decodable {
         var containsNeedlesNormalized: [String]
     }
 
-    // MARK: - Measurement / condition rule types (unchanged)
+    // MARK: - Legacy match types (retained for Commit 4 cleanup; not used in production paths)
 
     enum MatchScope: String, Decodable {
         case tokens
@@ -180,45 +199,10 @@ struct FilenameRuleSet: Decodable {
         case regex
     }
 
-    struct MatchSpec: Decodable {
-        var scope: MatchScope
-        var type: MatchType
-        var matchValues: [String]
-
-        enum CodingKeys: String, CodingKey {
-            case scope, type, matchValues, value, values
-        }
-
-        init(scope: MatchScope, type: MatchType, matchValues: [String]) {
-            self.scope = scope
-            self.type = type
-            self.matchValues = matchValues
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            scope = try container.decodeIfPresent(MatchScope.self, forKey: .scope) ?? .tokens
-            type = try container.decode(MatchType.self, forKey: .type)
-            if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
-                matchValues = mv
-            } else if let vs = try container.decodeIfPresent([String].self, forKey: .values) {
-                matchValues = vs
-            } else if let v = try container.decodeIfPresent(String.self, forKey: .value) {
-                matchValues = [v]
-            } else {
-                matchValues = []
-            }
-        }
-    }
-
-    struct MapRule: Decodable {
-        var match: MatchSpec
-        var value: String
-    }
+    // MARK: - Compiled rule types
 
     struct CompiledMapRule {
         var match: MatchSpec
-        var regex: NSRegularExpression?
         var value: String
     }
 
@@ -344,11 +328,11 @@ struct FilenameRuleSet: Decodable {
     }
 
     func measurementName(from tokens: [String], joined: String) -> String? {
-        firstMatchValue(from: compiled.measurementNameRules, tokens: tokens, joined: joined)
+        firstMatchValue(from: compiled.measurementNameRules, tokens: tokens)
     }
 
     func measurementTags(from tokens: [String]) -> [String] {
-        collectMatchValues(from: compiled.measurementTagRules, tokens: tokens, joined: nil)
+        collectMatchValues(from: compiled.measurementTagRules, tokens: tokens)
     }
 
     func substrateTags(from tokens: [String]) -> [String] {
@@ -368,8 +352,7 @@ struct FilenameRuleSet: Decodable {
     func deviceName(from tokens: [String]) -> String? {
         firstMatchValue(
             from: compiled.conditionTokenMapRules[ConditionFieldCatalog.deviceID] ?? [],
-            tokens: tokens,
-            joined: nil
+            tokens: tokens
         )
     }
 
@@ -412,7 +395,7 @@ struct FilenameRuleSet: Decodable {
             let regexMatch = compiled.conditionUnitSuffixRegexes[ruleID]
                 .flatMap { firstRegexMatch(in: tokens, regex: $0, ruleID: ruleID) }
             let tokenMapMatch = compiled.conditionTokenMapRules[ruleID]
-                .flatMap { firstMatchValue(from: $0, tokens: tokens, joined: nil) }
+                .flatMap { firstMatchValue(from: $0, tokens: tokens) }
 
             if let tokenMapMatch {
                 values[ruleID] = tokenMapMatch
@@ -460,20 +443,19 @@ struct FilenameRuleSet: Decodable {
     // MARK: - Private compile helpers
 
     private func compileSampleIdRegexes(warnings: inout [String]) -> [NSRegularExpression] {
-        if !sampleId.batchPrefixes.isEmpty {
-            return sampleId.batchPrefixes.compactMap { prefix in
-                let trimmed = prefix.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty,
-                      trimmed.range(of: #"^[A-Za-z0-9_-]+$"#, options: .regularExpression) != nil else {
-                    warnings.append("Invalid batchPrefix '\(prefix)'; skipped")
-                    return nil
-                }
-                let pattern = "^\(NSRegularExpression.escapedPattern(for: trimmed))\\d+$"
-                return compileRegex(pattern, warnings: &warnings, label: "sampleId.batchPrefixes")
+        sampleId.matches.compactMap { spec in
+            guard spec.type == .startsWith else {
+                warnings.append("sampleId: op '\(spec.type.rawValue)' is not valid for batch ID; rule skipped")
+                return nil
             }
-        }
-        return sampleId.patterns.compactMap { pattern in
-            compileRegex(pattern, warnings: &warnings, label: "sampleId")
+            let trimmed = spec.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty,
+                  trimmed.range(of: #"^[A-Za-z0-9_-]+$"#, options: .regularExpression) != nil else {
+                warnings.append("Invalid starts-with value '\(spec.value)'; skipped")
+                return nil
+            }
+            let pattern = "^\(NSRegularExpression.escapedPattern(for: trimmed))\\d+$"
+            return compileRegex(pattern, warnings: &warnings, label: "sampleId")
         }
     }
 
@@ -490,12 +472,13 @@ struct FilenameRuleSet: Decodable {
     }
 
     private func compileMapRules(_ rules: [MapRule], warnings: inout [String], label: String) -> [CompiledMapRule] {
-        rules.map { rule in
-            var compiledRule = CompiledMapRule(match: rule.match, regex: nil, value: rule.value)
-            if rule.match.type == .regex, let pattern = rule.match.matchValues.first {
-                compiledRule.regex = compileRegex(pattern, warnings: &warnings, label: label)
+        rules.compactMap { rule in
+            let trimmed = rule.match.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                warnings.append("\(label): rule with empty value; rule never matches")
+                return nil
             }
-            return compiledRule
+            return CompiledMapRule(match: rule.match, value: rule.value)
         }
     }
 
@@ -507,44 +490,22 @@ struct FilenameRuleSet: Decodable {
             let id = definition.id.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !id.isEmpty else { continue }
 
-            switch definition.kind {
-            case .unitSuffix:
-                let inlinePattern = definition.unitPattern?.trimmingCharacters(in: .whitespacesAndNewlines)
-                let pattern: String? = {
-                    if let inlinePattern, !inlinePattern.isEmpty {
-                        return inlinePattern
-                    }
-                    guard let binding = definition.binding?.trimmingCharacters(in: .whitespacesAndNewlines),
-                          !binding.isEmpty,
-                          binding.hasPrefix("conditions.extraConditions.") else {
-                        return nil
-                    }
-                    let key = String(binding.dropFirst("conditions.extraConditions.".count))
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !key.isEmpty else { return nil }
-                    return conditions.extraConditions[key]
-                }()
-                guard let pattern, !pattern.isEmpty else { continue }
+            switch definition.matches {
+            case .unitSuffix(let specs):
+                let units = specs.compactMap { s -> String? in
+                    let v = s.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    return v.isEmpty ? nil : v
+                }
+                guard !units.isEmpty else { continue }
+                let alternation = units
+                    .map { NSRegularExpression.escapedPattern(for: $0) }
+                    .joined(separator: "|")
+                let pattern = "^-?\\d+(?:\\.\\d+)?(?:\(alternation))$"
                 if let compiledRegex = compileRegex(pattern, warnings: &warnings, label: id) {
                     compiled.conditionUnitSuffixRegexes[id] = compiledRegex
                 }
-            case .tokenMap:
-                let rawRules: [MapRule]? = {
-                    if let inlineRules = definition.tokenMap {
-                        return inlineRules
-                    }
-                    guard let binding = definition.binding?.trimmingCharacters(in: .whitespacesAndNewlines),
-                          !binding.isEmpty,
-                          binding.hasPrefix("conditions.tokenMapRules.") else {
-                        return nil
-                    }
-                    let key = String(binding.dropFirst("conditions.tokenMapRules.".count))
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !key.isEmpty else { return nil }
-                    return conditions.tokenMapRules[key] ?? []
-                }()
-                guard let rawRules else { continue }
-                compiled.conditionTokenMapRules[id] = compileMapRules(rawRules, warnings: &warnings, label: id)
+            case .tokenMap(let rules):
+                compiled.conditionTokenMapRules[id] = compileMapRules(rules, warnings: &warnings, label: id)
             }
         }
     }
@@ -588,6 +549,8 @@ struct FilenameRuleSet: Decodable {
                 equalsKeys.insert(normalized)
             case .contains:
                 containsNeedles.append(normalized)
+            default:
+                break
             }
         }
 
@@ -616,52 +579,23 @@ struct FilenameRuleSet: Decodable {
         return nil
     }
 
-    private func firstMatchValue(from rules: [CompiledMapRule], tokens: [String], joined: String?) -> String? {
+    private func firstMatchValue(from rules: [CompiledMapRule], tokens: [String]) -> String? {
         for rule in rules {
-            switch rule.match.scope {
-            case .tokens:
-                for token in tokens where tokenMatches(token: token, rule: rule) {
-                    if rule.value == "$MATCH" {
-                        return token
-                    }
-                    return rule.value
-                }
-            case .joined:
-                guard let joined else { continue }
-                if stringMatches(text: joined, rule: rule) {
-                    if rule.value == "$MATCH" {
-                        return joined
-                    }
-                    return rule.value
-                }
+            for token in tokens where tokenMatches(token: token, rule: rule) {
+                return rule.value == "$MATCH" ? token : rule.value
             }
         }
         return nil
     }
 
-    private func collectMatchValues(from rules: [CompiledMapRule], tokens: [String], joined: String?) -> [String] {
+    private func collectMatchValues(from rules: [CompiledMapRule], tokens: [String]) -> [String] {
         var collected: [String] = []
         for rule in rules {
-            if matches(rule: rule, tokens: tokens, joined: joined) {
-                // Tag collection intentionally appends literal rule values only.
-                // "$MATCH" token substitution is supported in firstMatchValue paths,
-                // but is not expanded for multi-value tag collection.
+            if tokens.contains(where: { tokenMatches(token: $0, rule: rule) }) {
                 collected.append(rule.value)
             }
         }
         return collected
-    }
-
-    private func matches(rule: CompiledMapRule, tokens: [String], joined: String?) -> Bool {
-        switch rule.match.scope {
-        case .tokens:
-            return tokens.contains(where: { tokenMatches(token: $0, rule: rule) })
-        case .joined:
-            guard let joined else {
-                return false
-            }
-            return stringMatches(text: joined, rule: rule)
-        }
     }
 
     private func tokenMatches(token: String, rule: CompiledMapRule) -> Bool {
@@ -670,22 +604,24 @@ struct FilenameRuleSet: Decodable {
 
     private func stringMatches(text: String, rule: CompiledMapRule) -> Bool {
         let haystack = text.lowercased()
-        let matchValues = rule.match.matchValues.map { $0.lowercased() }
+        let value = rule.match.value.lowercased()
+        guard !value.isEmpty else { return false }
 
         switch rule.match.type {
         case .equals:
-            return matchValues.first.map { haystack == $0 } ?? false
-        case .equalsAny:
-            return matchValues.contains(haystack)
+            return haystack == value
         case .contains:
-            return matchValues.first.map { haystack.contains($0) } ?? false
-        case .containsAny:
-            return matchValues.contains(where: { haystack.contains($0) })
-        case .equalsOrContainsAny:
-            return matchValues.contains(haystack) || matchValues.contains(where: { haystack.contains($0) })
-        case .regex:
-            guard let regex = rule.regex else { return false }
-            return regexMatch(regex: regex, text: text)
+            return haystack.contains(value)
+        case .startsWith:
+            // Compile 2 will add CompiledMatchSpec with regex; naive impl for now
+            let rest = haystack.dropFirst(value.count)
+            return haystack.hasPrefix(value) && !rest.isEmpty && rest.allSatisfy(\.isNumber)
+        case .unitSuffix:
+            // Compile 2 will add CompiledMatchSpec with regex; naive impl for now
+            guard haystack.hasSuffix(value) else { return false }
+            let prefix = haystack.dropLast(value.count)
+            guard !prefix.isEmpty else { return false }
+            return prefix.allSatisfy { $0.isNumber || $0 == "." || $0 == "-" }
         }
     }
 
@@ -797,7 +733,11 @@ struct FilenameRuleSet: Decodable {
             version: 1,
             tokenization: Tokenization(separators: "_- ()", caseFold: "preserve"),
             sources: [.file, .parent, .grandparent],
-            sampleId: SampleIdRules(batchPrefixes: ["PN", "PT", "SL"], patterns: []),
+            sampleId: SampleIdRules(matches: [
+                MatchSpec(type: .startsWith, value: "PN"),
+                MatchSpec(type: .startsWith, value: "PT"),
+                MatchSpec(type: .startsWith, value: "SL")
+            ]),
             measurementNameRules: [],
             measurementTagRules: [],
             channel: ChannelRules(aliases: [:]),
@@ -817,33 +757,25 @@ struct FilenameRuleSet: Decodable {
                     id: ConditionFieldCatalog.temperatureID,
                     displayName: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.temperatureID],
                     kind: .unitSuffix,
-                    binding: "conditions.extraConditions.\(ConditionFieldCatalog.temperatureID)",
-                    unitPattern: "",
-                    tokenMap: nil
+                    matches: .unitSuffix([])
                 ),
                 ConditionDefinition(
                     id: ConditionFieldCatalog.currentID,
                     displayName: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.currentID],
                     kind: .unitSuffix,
-                    binding: "conditions.extraConditions.\(ConditionFieldCatalog.currentID)",
-                    unitPattern: "",
-                    tokenMap: nil
+                    matches: .unitSuffix([])
                 ),
                 ConditionDefinition(
                     id: ConditionFieldCatalog.fieldID,
                     displayName: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.fieldID],
                     kind: .unitSuffix,
-                    binding: "conditions.extraConditions.\(ConditionFieldCatalog.fieldID)",
-                    unitPattern: "",
-                    tokenMap: nil
+                    matches: .unitSuffix([])
                 ),
                 ConditionDefinition(
                     id: ConditionFieldCatalog.deviceID,
                     displayName: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.deviceID],
                     kind: .tokenMap,
-                    binding: "conditions.tokenMapRules.\(ConditionFieldCatalog.deviceID)",
-                    unitPattern: nil,
-                    tokenMap: []
+                    matches: .tokenMap([])
                 )
             ],
             registry: RegistryRules(
@@ -877,48 +809,48 @@ struct FilenameRuleSet: Decodable {
             substrateConfig: SubstrateConfig(
                 materials: [
                     SubstrateEntry(displayName: "STO", matches: [
-                        SubstrateEntry.Match(type: .contains, value: "STO111"),
-                        SubstrateEntry.Match(type: .contains, value: "STO001")
+                        MatchSpec(type: .contains, value: "STO111"),
+                        MatchSpec(type: .contains, value: "STO001")
                     ]),
                     SubstrateEntry(displayName: "NGO", matches: []),
                     SubstrateEntry(displayName: "MAO", matches: []),
                     SubstrateEntry(displayName: "MgO", matches: [
-                        SubstrateEntry.Match(type: .equals, value: "MGO")
+                        MatchSpec(type: .equals, value: "MGO")
                     ]),
                     SubstrateEntry(displayName: "Al2O3", matches: [
-                        SubstrateEntry.Match(type: .equals, value: "AL2O3")
+                        MatchSpec(type: .equals, value: "AL2O3")
                     ]),
                     SubstrateEntry(displayName: "Si", matches: [
-                        SubstrateEntry.Match(type: .equals, value: "SI"),
-                        SubstrateEntry.Match(type: .equals, value: "ONSI")
+                        MatchSpec(type: .equals, value: "SI"),
+                        MatchSpec(type: .equals, value: "ONSI")
                     ]),
                     SubstrateEntry(displayName: "poly-SiO2 on Si", matches: [
-                        SubstrateEntry.Match(type: .equals, value: "POLY-SIO2"),
-                        SubstrateEntry.Match(type: .equals, value: "POLY-SIO2 ON SI")
+                        MatchSpec(type: .equals, value: "POLY-SIO2"),
+                        MatchSpec(type: .equals, value: "POLY-SIO2 ON SI")
                     ])
                 ],
                 treatments: [
                     SubstrateEntry(displayName: "HF", matches: [
-                        SubstrateEntry.Match(type: .contains, value: "hf")
+                        MatchSpec(type: .contains, value: "hf")
                     ]),
                     SubstrateEntry(displayName: "baked", matches: [
-                        SubstrateEntry.Match(type: .contains, value: "bake")
+                        MatchSpec(type: .contains, value: "bake")
                     ]),
                     SubstrateEntry(displayName: "b", matches: [
-                        SubstrateEntry.Match(type: .equals, value: "b")
+                        MatchSpec(type: .equals, value: "b")
                     ]),
                     SubstrateEntry(displayName: "o", matches: [
-                        SubstrateEntry.Match(type: .contains, value: "origin"),
-                        SubstrateEntry.Match(type: .contains, value: "original")
+                        MatchSpec(type: .contains, value: "origin"),
+                        MatchSpec(type: .contains, value: "original")
                     ])
                 ],
                 orientations: [
                     SubstrateEntry(displayName: "001", matches: [
-                        SubstrateEntry.Match(type: .equals, value: "100"),
-                        SubstrateEntry.Match(type: .contains, value: "STO001")
+                        MatchSpec(type: .equals, value: "100"),
+                        MatchSpec(type: .contains, value: "STO001")
                     ]),
                     SubstrateEntry(displayName: "111", matches: [
-                        SubstrateEntry.Match(type: .contains, value: "STO111")
+                        MatchSpec(type: .contains, value: "STO111")
                     ]),
                     SubstrateEntry(displayName: "110", matches: []),
                     SubstrateEntry(displayName: "0001", matches: [])

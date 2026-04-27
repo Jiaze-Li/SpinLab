@@ -144,11 +144,11 @@ struct V515SubstrateV4MigrationTests {
         let (dir, backup) = try acquireIsolation()
         defer { releaseIsolation(dir: dir, backup: backup) }
         let v4JSON = """
-        {"version":4,"sampleId":{"batchPrefixes":["PN"]},"substrate":{"materials":[{"displayName":"STO","matches":[{"type":"equals","value":"STO"}]}],"treatments":[],"orientations":[]}}
+        {"version":4,"sampleId":{"matches":[{"type":"starts-with","value":"PN"}]},"substrate":{"materials":[{"displayName":"STO","matches":[{"type":"equals","value":"STO"}]}],"treatments":[],"orientations":[]}}
         """
         let result = try writeConfig(sampleIdentJSON: v4JSON)
         let materialNames = result.ruleSet.compiled.substrateMaterialEntries.map(\.displayName)
         #expect(materialNames.contains("STO"))
-        #expect(result.ruleSet.sampleId.batchPrefixes == ["PN"])
+        #expect(result.ruleSet.sampleId.matches.contains(where: { $0.value == "PN" }))
     }
 }
