@@ -8,6 +8,7 @@ struct MeasuringConditionSection: View {
     @State private var showDeleteConfirm = false
     @State private var pendingDeleteID: String? = nil
     @State private var expandedTokenMapRuleIndices: [String: Int] = [:]
+    @State private var newUnitInputByConditionID: [String: String] = [:]
 
     private var store: RulesManagementStore { appState.rulesPanel }
 
@@ -130,12 +131,6 @@ struct MeasuringConditionSection: View {
                 ))
                 .textFieldStyle(.roundedBorder)
             }
-            LabeledContent("ID") {
-                Text(def.id)
-                    .font(.body.monospaced())
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-            }
             LabeledContent("Kind") {
                 Picker("", selection: Binding(
                     get: { def.kind },
@@ -174,16 +169,68 @@ struct MeasuringConditionSection: View {
 
     @ViewBuilder
     private func unitSuffixEditor(idx: Int, d: MeasuringConditionFileDraft) -> some View {
-        LabeledContent("Regex Pattern") {
-            RegexField(title: "unit_suffix regex", text: Binding(
-                get: { d.conditionDefinitions[idx].unitPattern ?? "" },
-                set: { v in
-                    var u = d
-                    u.conditionDefinitions[idx].unitPattern = v
-                    apply(u)
+        let def = d.conditionDefinitions[idx]
+        let units = UnitSuffixPattern.parse(def.unitPattern ?? "") ?? []
+        LabeledContent("Unit Suffixes") {
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                if !units.isEmpty {
+                    HStack(spacing: AppSpacing.xs) {
+                        ForEach(units, id: \.self) { unit in
+                            HStack(spacing: AppSpacing.xxs) {
+                                Text(unit)
+                                    .font(.callout.monospaced())
+                                Button {
+                                    removeUnit(unit, condIdx: idx, d: d)
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .font(.caption2)
+                                }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("Remove \(unit)")
+                            }
+                            .padding(.horizontal, AppSpacing.sm)
+                            .padding(.vertical, AppSpacing.xxs)
+                            .background(Color.accentColor.opacity(0.1))
+                            .cornerRadius(AppSpacing.xs)
+                        }
+                    }
                 }
-            ))
+                HStack(spacing: AppSpacing.xs) {
+                    TextField("e.g. mA", text: Binding(
+                        get: { newUnitInputByConditionID[def.id] ?? "" },
+                        set: { newUnitInputByConditionID[def.id] = $0 }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 120)
+                    .onSubmit { commitNewUnit(condIdx: idx, d: d) }
+                    Button("Add") { commitNewUnit(condIdx: idx, d: d) }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled((newUnitInputByConditionID[def.id] ?? "").trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
         }
+    }
+
+    private func removeUnit(_ unit: String, condIdx: Int, d: MeasuringConditionFileDraft) {
+        var current = UnitSuffixPattern.parse(d.conditionDefinitions[condIdx].unitPattern ?? "") ?? []
+        if let i = current.firstIndex(of: unit) { current.remove(at: i) }
+        var u = d
+        u.conditionDefinitions[condIdx].unitPattern = current.isEmpty ? "" : UnitSuffixPattern.compile(current)
+        apply(u)
+    }
+
+    private func commitNewUnit(condIdx: Int, d: MeasuringConditionFileDraft) {
+        let condID = d.conditionDefinitions[condIdx].id
+        let raw = (newUnitInputByConditionID[condID] ?? "").trimmingCharacters(in: .whitespaces)
+        guard !raw.isEmpty else { return }
+        var current = UnitSuffixPattern.parse(d.conditionDefinitions[condIdx].unitPattern ?? "") ?? []
+        guard !current.contains(raw) else { return }
+        current.append(raw)
+        var u = d
+        u.conditionDefinitions[condIdx].unitPattern = UnitSuffixPattern.compile(current)
+        apply(u)
+        newUnitInputByConditionID[condID] = ""
     }
 
     @ViewBuilder
@@ -362,5 +409,22 @@ struct MeasuringConditionSection: View {
 
     private func syncFromStore() {
         if let current = store.measuringConditionDraft { draft = current }
+    }
+}
+
+// MARK: - Unit suffix pattern codec
+
+private enum UnitSuffixPattern {
+    private static let knownPrefix = #"^-?\d+(?:\.\d+)?(?:"#
+    private static let knownSuffix = ")$"
+
+    static func parse(_ pattern: String) -> [String]? {
+        guard pattern.hasPrefix(knownPrefix), pattern.hasSuffix(knownSuffix) else { return nil }
+        let inner = String(pattern.dropFirst(knownPrefix.count).dropLast(knownSuffix.count))
+        return inner.isEmpty ? [] : inner.components(separatedBy: "|")
+    }
+
+    static func compile(_ units: [String]) -> String {
+        "\(knownPrefix)\(units.joined(separator: "|"))\(knownSuffix)"
     }
 }
