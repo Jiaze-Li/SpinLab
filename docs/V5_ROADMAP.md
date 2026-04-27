@@ -449,6 +449,12 @@ _(预留)_
 - [ ] 持久化：Save Analysis / Load Analysis / Pack restore 必须保存并恢复 `seriesOrder`；重新 Analyze 时先按已有 series identity 对齐旧顺序，新增曲线按 workflow 默认顺序补入，消失曲线剔除
 - [ ] 适用范围：先接入已有 stacked curve 图，机制必须保留为 shell 能力，后续 workflow 接入只需暴露稳定 series identity 与 opt-in 能力
 
+### 5.3.7 — 编辑过的图标信息按曲线身份存
+- [ ] 现状：用户改过的 legend 名字、隐藏过的数据点标签，内部按"第几条曲线 / 第几个点"记位置；v5.3.6 加了曲线拖拽重排后这个位置会变，靠每次重排重映射保正确性
+- [ ] 目标：把这两类用户编辑改成按"哪条曲线 / 哪个点"记身份，重排后无需重映射
+- [ ] 影响面：曲线编辑回调签名 + 多个使用方需同步，独立任务一次性还掉，未来动 series 顺序的能力零追加成本
+- [ ] 兼容性：旧 AnalysisPack 加载零行为变化，迁移在加载时一次性翻新
+
 ---
 
 ## 5.4.x — Library 逻辑/架构
