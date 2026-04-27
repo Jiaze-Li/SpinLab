@@ -146,7 +146,7 @@ struct V515RulesSaveImmediateEffectTests {
 
         // Add "field" condition
         var draft = try #require(store.measuringConditionDraft)
-        draft.conditionDefinitions.append(.init(id: "field", label: "Field", kind: "unit_suffix",
+        draft.conditionDefinitions.append(.init(id: "field", displayName: "Field", kind: "unit_suffix",
                                                 unitPattern: "^\\d+T$", tokenMap: nil))
         store.updateMeasuringCondition(draft)
         store.selectSection(.measuringCondition)
@@ -174,7 +174,7 @@ struct V515RulesSaveImmediateEffectTests {
         #expect(before == ["temperature"])
 
         var draft = try #require(store.measuringConditionDraft)
-        draft.conditionDefinitions.append(.init(id: "current", label: "Current", kind: "unit_suffix",
+        draft.conditionDefinitions.append(.init(id: "current", displayName: "Current", kind: "unit_suffix",
                                                 unitPattern: "^\\d+mA$", tokenMap: nil))
         store.updateMeasuringCondition(draft)
         store.selectSection(.measuringCondition)

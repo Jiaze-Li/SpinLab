@@ -285,7 +285,7 @@ struct V515RulesPanelSaveValidationTests {
         let (store, _) = try makeStore()
 
         var draft = try #require(store.measuringConditionDraft)
-        draft.conditionDefinitions.append(.init(id: "temperature", label: nil, kind: "unit_suffix",
+        draft.conditionDefinitions.append(.init(id: "temperature", displayName: nil, kind: "unit_suffix",
                                                 unitPattern: "^\\d+K$", tokenMap: nil))
         store.updateMeasuringCondition(draft)
         store.selectSection(.measuringCondition)
@@ -320,7 +320,7 @@ struct V515RulesPanelSaveValidationTests {
         let (store, _) = try makeStore()
 
         var draft = try #require(store.measuringConditionDraft)
-        draft.conditionDefinitions.append(.init(id: "field", label: nil, kind: "unit_suffix",
+        draft.conditionDefinitions.append(.init(id: "field", displayName: nil, kind: "unit_suffix",
                                                 unitPattern: "", tokenMap: nil))
         // Empty unitPattern for "field" — unit_suffix requires a non-empty pattern
         store.updateMeasuringCondition(draft)
@@ -339,7 +339,7 @@ struct V515RulesPanelSaveValidationTests {
         let (store, _) = try makeStore()
 
         var draft = try #require(store.measuringConditionDraft)
-        draft.conditionDefinitions.append(.init(id: "field", label: "Field", kind: "unit_suffix",
+        draft.conditionDefinitions.append(.init(id: "field", displayName: "Field", kind: "unit_suffix",
                                                 unitPattern: "^-?\\d+T$", tokenMap: nil))
         store.updateMeasuringCondition(draft)
         store.selectSection(.measuringCondition)

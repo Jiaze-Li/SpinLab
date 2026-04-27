@@ -127,7 +127,7 @@ struct V515RulesPanelStoreTests {
         #expect(initial.contains("temperature"))
 
         var draft = try #require(store.measuringConditionDraft)
-        draft.conditionDefinitions.append(.init(id: "field", label: "Field", kind: "unit_suffix",
+        draft.conditionDefinitions.append(.init(id: "field", displayName: "Field", kind: "unit_suffix",
                                                 unitPattern: "^-?\\d+T$", tokenMap: nil))
         store.updateMeasuringCondition(draft)
 

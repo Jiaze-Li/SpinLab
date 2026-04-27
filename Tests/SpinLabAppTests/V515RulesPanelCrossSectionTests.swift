@@ -76,7 +76,7 @@ struct V515RulesPanelCrossSectionTests {
 
         // Add a new condition only in the draft (not yet saved to disk)
         var mcDraft = try #require(store.measuringConditionDraft)
-        mcDraft.conditionDefinitions.append(.init(id: "field", label: "Field", kind: "unit_suffix",
+        mcDraft.conditionDefinitions.append(.init(id: "field", displayName: "Field", kind: "unit_suffix",
                                                   unitPattern: "^\\d+T$", tokenMap: nil))
         store.updateMeasuringCondition(mcDraft)
 
@@ -148,7 +148,7 @@ struct V515RulesPanelCrossSectionTests {
 
         // The disk has only "temperature". Add "device" to the dirty draft only.
         var mcDraft = try #require(store.measuringConditionDraft)
-        mcDraft.conditionDefinitions.append(.init(id: "device", label: "Device", kind: "unit_suffix",
+        mcDraft.conditionDefinitions.append(.init(id: "device", displayName: "Device", kind: "unit_suffix",
                                                   unitPattern: "^wafer$", tokenMap: nil))
         store.updateMeasuringCondition(mcDraft)
 
