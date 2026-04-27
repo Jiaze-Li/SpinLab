@@ -114,8 +114,8 @@ struct V515WorkflowRegistryRetirementTests {
         #expect(!FileManager.default.fileExists(atPath: ctx.outerRegistryURL.path))
     }
 
-    @Test("registry-only ID: appended with empty matchRules")
-    func registryOnlyIDAppendedWithEmptyMatchRules() throws {
+    @Test("registry-only ID: skipped to avoid creating entries that fail save validation")
+    func registryOnlyIDSkipped() throws {
         let ctx = try acquireIsolation()
         defer { releaseIsolation(ctx) }
 
@@ -132,13 +132,13 @@ struct V515WorkflowRegistryRetirementTests {
         WorkflowRegistryRetirementService(paths: ctx.paths).runIfNeeded()
 
         let merged = try JSONDecoder().decode(WorkflowFileDraft.self, from: Data(contentsOf: ctx.paths.workflowURL))
-        let newEntry = try #require(merged.workflows.first { $0.id == "NewWorkflow" })
 
-        #expect(newEntry.displayName == "New")
-        #expect(newEntry.conditionFieldIDs == ["current"])
-        #expect(newEntry.matchRules.isEmpty)
+        // Registry-only ID is NOT appended (would have empty matchRules and fail save validation)
+        #expect(!merged.workflows.contains { $0.id == "NewWorkflow" })
         // Existing XY preserved
         #expect(merged.workflows.contains { $0.id == "XY" })
+        // Outer registry still retired (backed up + removed)
+        #expect(!FileManager.default.fileExists(atPath: ctx.outerRegistryURL.path))
     }
 
     @Test("registry decode failure: outer registry backed up, workflow.json unchanged")

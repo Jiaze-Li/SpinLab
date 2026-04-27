@@ -63,6 +63,7 @@ struct WorkflowRegistryRetirementService {
             return
         }
 
+        var skippedRegistryOnlyIDs: [String] = []
         for entry in registryEntries {
             let entryConditionFieldIDs = entry.conditionFields.map(\.definitionID)
             if let idx = draft.workflows.firstIndex(where: {
@@ -72,14 +73,18 @@ struct WorkflowRegistryRetirementService {
                 draft.workflows[idx].displayName = entry.displayName
                 draft.workflows[idx].conditionFieldIDs = entryConditionFieldIDs
             } else {
-                // Registry-only ID: append with empty matchRules to avoid routing side effects
-                draft.workflows.append(WorkflowFileDraft.WorkflowEntry(
-                    id: entry.id,
-                    displayName: entry.displayName,
-                    matchRules: [],
-                    conditionFieldIDs: entryConditionFieldIDs
-                ))
+                // Registry-only ID with no routing rules in workflow.json: skip.
+                // Appending with empty matchRules would create an entry that fails
+                // RulesManagementStore save validation (matchRules must be non-empty),
+                // blocking the user from saving the Workflow section after upgrade.
+                skippedRegistryOnlyIDs.append(entry.id)
             }
+        }
+
+        if !skippedRegistryOnlyIDs.isEmpty {
+            AppLogger.shared.info(.import, "WorkflowRegistry retirement: skipped registry-only IDs (no matching workflow.json routing rules)", metadata: [
+                "skippedIDs": skippedRegistryOnlyIDs.joined(separator: ",")
+            ])
         }
 
         let mergedData = try encoder.encode(draft)
