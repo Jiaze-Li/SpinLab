@@ -87,7 +87,7 @@ struct SampleIdentificationSection: View {
 
     @ViewBuilder
     private func sampleIdPatternsGroup(_ d: SampleIdentificationFileDraft) -> some View {
-        GroupBox("Sample ID Patterns") {
+        GroupBox("Batch ID Patterns") {
             VStack(alignment: .leading, spacing: AppSpacing.sm) {
                 HStack {
                     Text("Regex Patterns")

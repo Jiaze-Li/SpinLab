@@ -52,7 +52,7 @@ struct V515RulesPanelSaveValidationTests {
         """.data(using: .utf8)!.write(to: paths.workflowURL)
 
         try """
-        {"version":2,"batch":{"preferSampleId":true,"fallbackPatterns":[]},"conditionDefinitions":[{"id":"temperature","label":"Temperature","kind":"unit_suffix","unitPattern":"^\\\\d+K$"}]}
+        {"version":2,"conditionDefinitions":[{"id":"temperature","label":"Temperature","kind":"unit_suffix","unitPattern":"^\\\\d+K$"}]}
         """.data(using: .utf8)!.write(to: paths.measuringConditionURL)
 
         let store = RulesManagementStore()

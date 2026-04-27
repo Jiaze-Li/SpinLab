@@ -212,7 +212,6 @@ struct RuleLoader {
             tokenization: tokenizationFile.tokenization,
             sources: tokenizationFile.sources,
             sampleId: sampleIdentFile.sampleId,
-            batch: conditionFile.batch,
             measurementNameRules: workflowFile.measurementNameRules,
             measurementTagRules: workflowFile.measurementTagRules,
             substrateTagRules: sampleIdentFile.substrateTagRules,
@@ -255,7 +254,6 @@ struct RuleLoader {
             tokenization: tokenizationFile.tokenization,
             sources: tokenizationFile.sources,
             sampleId: sampleIdentFile.sampleId,
-            batch: conditionFile.batch,
             measurementNameRules: workflowFile.measurementNameRules,
             measurementTagRules: workflowFile.measurementTagRules,
             substrateTagRules: sampleIdentFile.substrateTagRules,
@@ -435,7 +433,6 @@ private struct WorkflowFile: Decodable {
 
 private struct MeasuringConditionFile: Decodable {
     let version: Int
-    let batch: FilenameRuleSet.BatchRules
     let conditions: FilenameRuleSet.ConditionRules?
     let conditionDefinitions: [FilenameRuleSet.ConditionDefinition]
 }

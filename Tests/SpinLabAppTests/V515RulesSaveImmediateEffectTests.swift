@@ -58,7 +58,7 @@ struct V515RulesSaveImmediateEffectTests {
 
         // Only "temperature" defined initially
         try """
-        {"version":2,"batch":{"preferSampleId":true,"fallbackPatterns":[]},"conditionDefinitions":[{"id":"temperature","label":"Temperature","kind":"unit_suffix","unitPattern":"^\\\\d+K$"}]}
+        {"version":2,"conditionDefinitions":[{"id":"temperature","label":"Temperature","kind":"unit_suffix","unitPattern":"^\\\\d+K$"}]}
         """.data(using: .utf8)!.write(to: paths.measuringConditionURL)
 
         return paths

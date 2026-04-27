@@ -120,7 +120,7 @@ struct FilenameRuleParser {
         )
 
         return SpinLabDomain.ParsedFilenameHints(
-            batchName: ruleSet.batchName(from: fileScopeTokens),
+            batchName: fileSampleIDs.first,
             sampleName: defaultSampleName(defaultSampleKey: defaultSampleKey, substrateTags: substrateTags),
             defaultSampleKey: defaultSampleKey,
             folderDerivedSampleKeys: folderSampleIDs,

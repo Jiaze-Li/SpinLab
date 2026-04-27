@@ -191,13 +191,8 @@ struct WorkflowFileDraft: Codable {
 // measuring_condition.json
 struct MeasuringConditionFileDraft: Codable {
     var version: Int
-    var batch: Batch
     var conditionDefinitions: [ConditionDefinition]
 
-    struct Batch: Codable {
-        var preferSampleId: Bool
-        var fallbackPatterns: [String]
-    }
     struct ConditionDefinition: Codable, Identifiable {
         var id: String
         var label: String?
@@ -566,10 +561,6 @@ final class RulesManagementStore {
                     }
                 }
             }
-        }
-
-        for pattern in draft.batch.fallbackPatterns {
-            validateRegex(pattern, field: "batch.fallbackPatterns", errors: &errors)
         }
 
         if !errors.isEmpty { return .validationFailed(errors) }

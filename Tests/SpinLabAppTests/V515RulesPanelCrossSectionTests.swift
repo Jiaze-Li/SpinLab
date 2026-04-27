@@ -58,7 +58,7 @@ struct V515RulesPanelCrossSectionTests {
             "{\"id\":\"\(id)\",\"label\":\"\(id)\",\"kind\":\"unit_suffix\",\"unitPattern\":\"^\\\\d+$\"}"
         }.joined(separator: ",")
         try """
-        {"version":2,"batch":{"preferSampleId":true,"fallbackPatterns":[]},"conditionDefinitions":[\(defs)]}
+        {"version":2,"conditionDefinitions":[\(defs)]}
         """.data(using: .utf8)!.write(to: paths.measuringConditionURL)
 
         let store = RulesManagementStore()

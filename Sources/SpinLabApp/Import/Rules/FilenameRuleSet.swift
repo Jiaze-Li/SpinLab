@@ -40,11 +40,6 @@ struct FilenameRuleSet: Decodable {
         var patterns: [String]
     }
 
-    struct BatchRules: Decodable {
-        var preferSampleId: Bool
-        var fallbackPatterns: [String]
-    }
-
     struct ChannelRules: Decodable {
         var aliases: [String: String]
     }
@@ -199,7 +194,6 @@ struct FilenameRuleSet: Decodable {
 
     struct CompiledRules {
         var sampleIdRegexes: [NSRegularExpression] = []
-        var batchRegexes: [NSRegularExpression] = []
         var measurementNameRules: [CompiledMapRule] = []
         var measurementTagRules: [CompiledMapRule] = []
         var substrateTagRules: [CompiledMapRule] = []
@@ -215,7 +209,6 @@ struct FilenameRuleSet: Decodable {
     var tokenization: Tokenization
     var sources: [Source]
     var sampleId: SampleIdRules
-    var batch: BatchRules
     var measurementNameRules: [MapRule]
     var measurementTagRules: [MapRule]
     var substrateTagRules: [MapRule]
@@ -235,7 +228,6 @@ struct FilenameRuleSet: Decodable {
         case tokenization
         case sources
         case sampleId
-        case batch
         case measurementNameRules
         case measurementTagRules
         case substrateTagRules
@@ -252,7 +244,6 @@ struct FilenameRuleSet: Decodable {
         tokenization: Tokenization,
         sources: [Source],
         sampleId: SampleIdRules,
-        batch: BatchRules,
         measurementNameRules: [MapRule],
         measurementTagRules: [MapRule],
         substrateTagRules: [MapRule],
@@ -268,7 +259,6 @@ struct FilenameRuleSet: Decodable {
         self.tokenization = tokenization
         self.sources = sources
         self.sampleId = sampleId
-        self.batch = batch
         self.measurementNameRules = measurementNameRules
         self.measurementTagRules = measurementTagRules
         self.substrateTagRules = substrateTagRules
@@ -289,7 +279,6 @@ struct FilenameRuleSet: Decodable {
         tokenization = try container.decode(Tokenization.self, forKey: .tokenization)
         sources = try container.decode([Source].self, forKey: .sources)
         sampleId = try container.decodeIfPresent(SampleIdRules.self, forKey: .sampleId) ?? SampleIdRules(patterns: [])
-        batch = try container.decode(BatchRules.self, forKey: .batch)
         measurementNameRules = try container.decodeIfPresent([MapRule].self, forKey: .measurementNameRules) ?? []
         measurementTagRules = try container.decodeIfPresent([MapRule].self, forKey: .measurementTagRules) ?? []
         substrateTagRules = try container.decodeIfPresent([MapRule].self, forKey: .substrateTagRules) ?? []
@@ -309,10 +298,6 @@ struct FilenameRuleSet: Decodable {
 
         compiled.sampleIdRegexes = sampleId.patterns.compactMap { pattern in
             compileRegex(pattern, warnings: &warnings, label: "sampleId")
-        }
-
-        compiled.batchRegexes = batch.fallbackPatterns.compactMap { pattern in
-            compileRegex(pattern, warnings: &warnings, label: "batch")
         }
 
         compiled.measurementNameRules = compileMapRules(measurementNameRules, warnings: &warnings, label: "measurementNameRules")
@@ -339,20 +324,6 @@ struct FilenameRuleSet: Decodable {
             }
             return normalized
         }
-    }
-
-    func batchName(from tokens: [String]) -> String? {
-        if batch.preferSampleId, let sampleId = sampleIDs(from: tokens).first {
-            return sampleId
-        }
-
-        for token in tokens {
-            if compiled.batchRegexes.contains(where: { regexMatch(regex: $0, text: token) }) {
-                return token
-            }
-        }
-
-        return nil
     }
 
     func measurementName(from tokens: [String], joined: String) -> String? {
@@ -749,7 +720,6 @@ struct FilenameRuleSet: Decodable {
             tokenization: Tokenization(separators: "_- ()", caseFold: "preserve"),
             sources: [.file, .parent, .grandparent],
             sampleId: SampleIdRules(patterns: []),
-            batch: BatchRules(preferSampleId: true, fallbackPatterns: []),
             measurementNameRules: [],
             measurementTagRules: [],
             substrateTagRules: [],

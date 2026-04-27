@@ -240,7 +240,6 @@ struct RulesBootstrapper {
         let isV1 = (json["conditions"] as? [String: Any]) != nil
         guard isV1 else { return json }
 
-        let batch = (json["batch"] as? [String: Any]) ?? [:]
         let conditions = (json["conditions"] as? [String: Any]) ?? [:]
         let extraConditions = (conditions["extraConditions"] as? [String: String]) ?? [:]
         let tokenMapRules = (conditions["tokenMapRules"] as? [String: [[String: Any]]]) ?? [:]
@@ -299,7 +298,6 @@ struct RulesBootstrapper {
 
         return [
             "version": 2,
-            "batch": batch,
             "conditionDefinitions": migratedDefinitions
         ]
     }
@@ -559,7 +557,6 @@ struct RulesBootstrapper {
 
 private struct MigrationMeasuringConditionFile: Decodable {
     let version: Int
-    let batch: FilenameRuleSet.BatchRules
     let conditionDefinitions: [FilenameRuleSet.ConditionDefinition]
 }
 

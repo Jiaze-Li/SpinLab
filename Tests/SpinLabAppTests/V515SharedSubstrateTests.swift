@@ -53,7 +53,7 @@ struct V515SharedSubstrateTests {
 
         let defs = conditionIDs.map { "{\"id\":\"\($0)\",\"label\":\"\($0)\",\"kind\":\"unit_suffix\",\"unitPattern\":\"^\\\\d+$\"}" }.joined(separator: ",")
         try """
-        {"version":2,"batch":{"preferSampleId":true,"fallbackPatterns":[]},"conditionDefinitions":[\(defs)]}
+        {"version":2,"conditionDefinitions":[\(defs)]}
         """.data(using: .utf8)!.write(to: paths.measuringConditionURL)
 
         let store = RulesManagementStore()

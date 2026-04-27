@@ -83,53 +83,10 @@ struct MeasuringConditionSection: View {
     private func scrollContent(_ d: MeasuringConditionFileDraft) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                batchGroup(d)
                 conditionDefinitionsGroup(d)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(AppSpacing.xl)
-        }
-    }
-
-    // MARK: - Batch
-
-    @ViewBuilder
-    private func batchGroup(_ d: MeasuringConditionFileDraft) -> some View {
-        GroupBox("Batch Identification") {
-            VStack(alignment: .leading, spacing: AppSpacing.lg) {
-                Toggle("Prefer Sample ID", isOn: Binding(
-                    get: { d.batch.preferSampleId },
-                    set: { v in var u = d; u.batch.preferSampleId = v; apply(u) }
-                ))
-                Divider()
-                VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                    HStack {
-                        Text("Fallback Patterns").font(AppFontScale.groupHeader)
-                        Spacer()
-                        Button("Add") {
-                            var u = d; u.batch.fallbackPatterns.append(""); apply(u)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    }
-                    ForEach(d.batch.fallbackPatterns.indices, id: \.self) { idx in
-                        HStack(alignment: .top, spacing: AppSpacing.sm) {
-                            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
-                                RegexField(title: "regex pattern", text: Binding(
-                                    get: { d.batch.fallbackPatterns[idx] },
-                                    set: { v in var u = d; u.batch.fallbackPatterns[idx] = v; apply(u) }
-                                ))
-                            }
-                            Button(role: .destructive) {
-                                var u = d; u.batch.fallbackPatterns.remove(at: idx); apply(u)
-                            } label: { Image(systemName: "minus.circle") }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel("Remove pattern")
-                            .padding(.top, AppSpacing.xs)
-                        }
-                    }
-                }
-            }
         }
     }
 
