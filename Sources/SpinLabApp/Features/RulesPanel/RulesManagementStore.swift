@@ -41,7 +41,7 @@ struct MapRule: Codable, Hashable {
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            scope = try container.decode(String.self, forKey: .scope)
+            scope = try container.decodeIfPresent(String.self, forKey: .scope) ?? ""
             type = try container.decode(String.self, forKey: .type)
             if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
                 matchValues = mv
@@ -154,7 +154,7 @@ struct WorkflowFileDraft: Codable {
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            scope = try container.decode(String.self, forKey: .scope)
+            scope = try container.decodeIfPresent(String.self, forKey: .scope) ?? ""
             type = try container.decode(String.self, forKey: .type)
             if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
                 matchValues = mv
