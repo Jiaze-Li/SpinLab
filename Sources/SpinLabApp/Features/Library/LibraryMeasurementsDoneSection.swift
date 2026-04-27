@@ -17,6 +17,7 @@ struct LibraryMeasurementsDoneSection: View {
     var onRemoveFromSet: ((_ setID: String, _ fileName: String) -> Void)? = nil
     var onRenameSet: ((_ setID: String, _ newName: String) -> Void)? = nil
     var onDeleteSet: ((_ setID: String) -> Void)? = nil
+    var onShowConditionDetail: ((AppliedMeasurement) -> Void)? = nil
 
     @State private var isExpanded = true
     @State private var hoveredMeasurementID: String?
@@ -381,6 +382,12 @@ struct LibraryMeasurementsDoneSection: View {
             Divider()
             Button("Remove from Set") {
                 onRemoveFromSet?(setID, measurement.sourceFileName)
+            }
+        }
+        if onShowConditionDetail != nil {
+            Divider()
+            Button("Edit Conditions\u{2026}") {
+                onShowConditionDetail?(measurement)
             }
         }
         if onDelete != nil {

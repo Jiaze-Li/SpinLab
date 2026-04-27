@@ -10,6 +10,7 @@ struct LibraryView: View {
     @State var isShowingSampleChangeLog = false
     @State var isShowingGlobalManualLog = false
     @State var isShowingMetadataSyncLog = false
+    @State var conditionDetailMeasurement: AppliedMeasurement? = nil
     @State var searchBatchIdText: String = ""
     @State var searchSubstrateText: String = ""
     @State var searchKeywordText: String = ""
@@ -62,6 +63,7 @@ struct LibraryView: View {
             appState.library.loadWorkbenchResultsForCurrentSelection()
             appState.library.loadMeasurementDataForCurrentSelection()
             scheduleInteractionStatePersist(immediate: true)
+            appState.library.refreshRecomputeStaleCount()
         }
         .onChange(of: appState.library.libraryPreviewGroups) { _, _ in
             rebuildPreviewDerivedData()
@@ -124,6 +126,24 @@ struct LibraryView: View {
             metadataSyncLogMessage: appState.library.libraryMetadataSyncLogMessage,
             onRefreshMetadataSyncLog: { appState.library.loadLibraryMetadataSyncLogs() }
         ))
+        .sheet(isPresented: Binding(
+            get: { appState.library.isShowingRecomputePreview },
+            set: { appState.library.isShowingRecomputePreview = $0 }
+        )) {
+            RecomputePreviewPanel(library: appState.library)
+        }
+        .sheet(item: $conditionDetailMeasurement) { measurement in
+            MeasurementConditionDetailView(
+                measurement: measurement,
+                onSaveOverride: { id, value in
+                    appState.library.saveConditionOverride(measurement: measurement, conditionId: id, value: value)
+                },
+                onRemoveOverride: { id in
+                    appState.library.removeConditionOverride(measurement: measurement, conditionId: id)
+                },
+                onDismiss: { conditionDetailMeasurement = nil }
+            )
+        }
     }
 
     var librarySettingsColumn: some View {
