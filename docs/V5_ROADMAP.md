@@ -55,9 +55,9 @@
 - [x] InboxFeatureStore 关键路径测试：初始化/选择、导入分发、apply 移除、workspace 裁剪、选择自动调整（15 cases）
 - [x] 文档状态同步：TECH_DEBT_BACKLOG 完成度与 roadmap 对齐
 
-### 5.1.5 — 规则管理统一 + 自动同步基础设施 [~]
+### 5.1.5 — 规则管理统一 + 自动同步基础设施 [x]
 
-**状态**：`[~]` 进行中。s1–s10 已完成；2026-04-27 追加 s11（三个匹配本子 UI + 字段命名统一 + Store 流程骨架抽 + Shell 容器抽），s11-design 实施方案已收敛（[handoff](../handoff/2026-04-27-s11-design.md)），s11-exec 待执行。
+**状态**：`[x]` 已完成。s1–s11 全部归档。s11（三个匹配本子 UI + 字段命名统一 + SectionPersistenceStrategy + RulesSectionShell + UnifiedMatchRuleEditor）2026-04-27 执行完毕，122 V515 tests green；3 commits（5eb5e2b + 1adc6b4 + 2b70e24）。
 
 **动机**：4·25 事故暴露规则架构散落多文件、bundle 与 runtime schema 不一致、半成品迁移路径并存（如代码层齐全但永远不会真存在的 `conditions_rules.json` 分文件）。同一份概念多处存放、隐式"分文件赢"约定、bundle 与 runtime 没有自动同步——任何一处改动都可能让另一处静默漂移。需要从根上修。
 
@@ -147,7 +147,7 @@ R1 —— 工作流 ID 策略相关规则保存后立刻生效，App 内不存�
 | s8 ✅ 已归档 | 设计稿 + handoff：condition definitions inline + substrate row-oriented + MatchSpec.matchValues 命名统一；双盲对抗收敛，handoff 写 archive/2026-04-26-5.1.5-s8-schema-second-pass.md | — |
 | s9 ✅ 已归档 | 按 s8 handoff 执行：ConditionDefinition inline + SubstrateConfig row-oriented + MatchSpec.matchValues 全仓统一 + RulesBootstrapper v1→v2 迁移（atomic + state + backup + 幂等）；7 commits；84/84 V515 green + 27/27 V210 green。[实施摘要](../history/v515_s9_schema_second_pass.md) | — |
 | s10 [x] 已归档 | v4 substrate schema 全量落地：SubstrateEntry 统一三表 + batchPrefixes + UI 重写 + v3→v4 bootstrapper 迁移；117 V515 + 18 V221 全绿。[设计思路](../history/v515_s10_substrate_redesign.md) | 02abdfe + 2523f20 |
-| s11 [~] 方案完成 | 三个匹配本子（Sample Identification / Workflow / Measuring Condition）UI + 字段命名 + Store 流程骨架抽 + Shell 容器抽：条目头 id、展开 displayName、scope 全删（含求值算法零改动 + 解码层最小兼容性扩展）、label→displayName 闭环（含 ConditionFieldCatalog 链路）；分 exec.A（schema decode compat + migration）+ exec.B（strategy + shell + 统一编辑器 + alias 清理）两段独立 commit | [handoff/2026-04-27-s11-design.md](../handoff/2026-04-27-s11-design.md) |
+| s11 [x] 已归档 | 三个匹配本子（Sample Identification / Workflow / Measuring Condition）UI + 字段命名 + Store 流程骨架抽 + Shell 容器抽：条目头 id、展开 displayName、scope 全删（含求值算法零改动 + 解码层最小兼容性扩展）、label→displayName 闭环（含 ConditionFieldCatalog 链路）；分 exec.A（schema decode compat + migration）+ exec.B（strategy + shell + 统一编辑器 + alias 清理）两段独立 commit；122 V515 全绿。 | [handoff/archive/2026-04-27-s11-design.md](../handoff/archive/2026-04-27-s11-design.md) |
 
 总计约 **44–66 h** 跨 7 对话（s1–s9，s8 是设计对话不计工作量）。s5 / s9 是工作量最大的执行会话。s10 追加，2 commits 落地。
 
