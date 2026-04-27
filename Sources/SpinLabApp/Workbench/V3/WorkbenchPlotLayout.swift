@@ -356,11 +356,12 @@ extension WorkbenchPlotLayout {
     /// Uses axis extents derived from the payload data (matches renderer behavior for charts
     /// without fixedXMin/fixedXMax, i.e. all 3ω stacked charts).
     /// Returns the sampleID of the nearest hit series and its mid-polyline screen y.
+    /// radius: nil = always return nearest series in the plot area (no distance limit).
     func hitTestSeries(
         location: CGPoint,
         fittedRect: CGRect,
         payload: WorkbenchPlotPayload,
-        radius: CGFloat = 8
+        radius: CGFloat? = nil
     ) -> (sampleID: String, screenY: CGFloat)? {
         let series = payload.series
         guard !series.isEmpty else { return nil }
@@ -402,7 +403,7 @@ extension WorkbenchPlotLayout {
                 }
             }
 
-            guard minDist <= radius else { continue }
+            if let r = radius, minDist > r { continue }
 
             let midScreenY = pts[pts.count / 2].y
             if best == nil || minDist < best!.dist ||
