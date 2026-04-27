@@ -618,7 +618,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
 | R5 | contextMenu 不能按落点区分 | 接受现状，"Reset Curve Order" 全画布显示，置灰条件覆盖非 stacked |
 | R6 | reorderable payload 部分 series 缺 sampleID | canvas 禁用曲线拖（warning 一条），不允许部分可拖部分不可 |
 | U1 | 曲线视觉 y 取 polyline 中点 y 还是 plotRect.midX 处的 y | 默认 polyline 中点 y；实施时若用户感知偏离，改为 midX y。两套都低成本 |
-| U2 | seriesOrder 含 id 但 payload 不含 | pipeline step 4a 静默丢弃 + warning 一条 |
+| U2 | seriesOrder 含 payload 中不存在的 id | 检测时被 filter 忽略，不产生 warning（非错序，只是 id 集合差异）|
 
 ## 15. 实施顺序建议
 
