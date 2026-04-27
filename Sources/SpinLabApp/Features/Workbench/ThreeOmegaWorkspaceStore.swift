@@ -780,7 +780,16 @@ final class ThreeOmegaWorkspaceStore {
             r.titleOverride         = titleOverride
             r.xLabelOverride        = xLabelOverride
             r.yLabelOverride        = yLabelOverride
-            r.seriesLabelOverrides  = toIndexedOverrides(capturedLabelOverrides, series: fakeSeries)
+            // R1omega and R3omega use reverseSeriesForLegend: true; the pipeline reverses before step 9,
+            // so label indices must be mapped against the post-reversal order.
+            let labelMapSeries: [WorkbenchPlotSeries]
+            switch tab {
+            case .fieldSweep1omega, .fieldSweep3omega:
+                labelMapSeries = Array(fakeSeries.reversed())
+            default:
+                labelMapSeries = fakeSeries
+            }
+            r.seriesLabelOverrides  = toIndexedOverrides(capturedLabelOverrides, series: labelMapSeries)
             r.titleTemplate         = capturedTemplate
             r.titleTokens           = capturedTokens
 

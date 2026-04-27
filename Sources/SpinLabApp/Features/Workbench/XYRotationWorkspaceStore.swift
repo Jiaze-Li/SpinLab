@@ -100,7 +100,21 @@ final class XYRotationWorkspaceStore {
         r.titleOverride = tabState.titleOverride
         r.xLabelOverride = tabState.xLabelOverride
         r.yLabelOverride = tabState.yLabelOverride
-        r.seriesLabelOverrides = toIndexedOverrides(tabState.seriesLabelOverrides, series: [])
+        // Both XY Rotation tabs use reverseSeriesForLegend: true, so label indices must be mapped
+        // against the post-reversal sweep order (matching what the pipeline sees at step 9).
+        let labelMapSeries: [WorkbenchPlotSeries]
+        if let ingestion = ingestionResult {
+            let baseForTab: [XYRotationAngleSweep]
+            switch tab {
+            case .rxxVsPhi: baseForTab = ingestion.sweeps
+            case .rxyVsPhi: baseForTab = ingestion.sweeps.filter { $0.resistanceXY != nil }
+            }
+            let ordered = XYRotationWorkspaceStore._applySeriesOrder(tabState.seriesOrder, to: baseForTab)
+            labelMapSeries = Array(ordered.reversed()).map { WorkbenchPlotSeries(label: "", x: [], y: [], sampleID: $0.id) }
+        } else {
+            labelMapSeries = []
+        }
+        r.seriesLabelOverrides = toIndexedOverrides(tabState.seriesLabelOverrides, series: labelMapSeries)
         r.phiOffsetOverrides = phiOffsetOverrides
         return r
     }
