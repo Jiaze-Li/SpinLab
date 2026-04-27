@@ -57,7 +57,7 @@
 
 ### 5.1.5 — 规则管理统一 + 自动同步基础设施 [~]
 
-**状态**：`[~]` 进行中。s1–s9 已完成；2026-04-27 追加 s10（Sample Identification 面板二次简化），处于需求确认完成 / 实施方案待对抗阶段。
+**状态**：`[~]` 进行中。s1–s10 已完成；2026-04-27 追加 s11（三个匹配本子 UI + 字段命名统一 + Store 流程骨架抽 + Shell 容器抽），s11-design 实施方案已收敛（[handoff](../handoff/2026-04-27-s11-design.md)），s11-exec 待执行。
 
 **动机**：4·25 事故暴露规则架构散落多文件、bundle 与 runtime schema 不一致、半成品迁移路径并存（如代码层齐全但永远不会真存在的 `conditions_rules.json` 分文件）。同一份概念多处存放、隐式"分文件赢"约定、bundle 与 runtime 没有自动同步——任何一处改动都可能让另一处静默漂移。需要从根上修。
 
@@ -147,6 +147,7 @@ R1 —— 工作流 ID 策略相关规则保存后立刻生效，App 内不存�
 | s8 ✅ 已归档 | 设计稿 + handoff：condition definitions inline + substrate row-oriented + MatchSpec.matchValues 命名统一；双盲对抗收敛，handoff 写 archive/2026-04-26-5.1.5-s8-schema-second-pass.md | — |
 | s9 ✅ 已归档 | 按 s8 handoff 执行：ConditionDefinition inline + SubstrateConfig row-oriented + MatchSpec.matchValues 全仓统一 + RulesBootstrapper v1→v2 迁移（atomic + state + backup + 幂等）；7 commits；84/84 V515 green + 27/27 V210 green。[实施摘要](../history/v515_s9_schema_second_pass.md) | — |
 | s10 [x] 已归档 | v4 substrate schema 全量落地：SubstrateEntry 统一三表 + batchPrefixes + UI 重写 + v3→v4 bootstrapper 迁移；117 V515 + 18 V221 全绿。[设计思路](../history/v515_s10_substrate_redesign.md) | 02abdfe + 2523f20 |
+| s11 [~] 方案完成 | 三个匹配本子（Sample Identification / Workflow / Measuring Condition）UI + 字段命名 + Store 流程骨架抽 + Shell 容器抽：条目头 id、展开 displayName、scope 全删（含求值算法零改动 + 解码层最小兼容性扩展）、label→displayName 闭环（含 ConditionFieldCatalog 链路）；分 exec.A（schema decode compat + migration）+ exec.B（strategy + shell + 统一编辑器 + alias 清理）两段独立 commit | [handoff/2026-04-27-s11-design.md](../handoff/2026-04-27-s11-design.md) |
 
 总计约 **44–66 h** 跨 7 对话（s1–s9，s8 是设计对话不计工作量）。s5 / s9 是工作量最大的执行会话。s10 追加，2 commits 落地。
 
@@ -169,6 +170,54 @@ s3 双盲对抗 Round 2 决策（详见 handoff `2026-04-26-5.1.5-s3-rules-redes
 | s9-1 | Condition definitions schema — 删 binding + 每条 inline 自己的 unitPattern / tokenMapRules + 退役 RuleCanonicalizer.normalizeConditionDefinitionBindings | `config/measuring_condition.json` + `Import/Rules/RuleCanonicalizer.swift` + 消费侧 | Medium | s3 D2 |
 | s9-5 | Substrate 数据层 row-oriented 重组 — `materials[]` + `treatments[]` 数组 | `config/sample_identification.json` + 消费侧 substrate 解析链 + 迁移代码 | Medium | s3 D12 |
 | s9-6 | 字段命名一致性整理（rename / 拍平按统一规则推一遍）| 5 本子 schema 全部 | Low-Medium | s3 D1 |
+
+##### s11 任务清单（2026-04-27 追加，三个匹配本子 UI + 字段命名统一）
+
+**动机**：5 个规则本子虽然管理层已坐到同一面板下（s5 已完成 RulesPanelView + RulesManagementStore 统一），但展开后每个 section 各长一套表单：条目头有的用 id 有的不用、字段叫 label 还是 display name 不统一、Workflow 里的 measurement tag rules 多出一个 scope 字段（Sample Identification 已删）、匹配规则编辑器 UI 在三本之间样式不一致。Jack 在 2026-04-27 反馈："matching 最好走同一个逻辑不要每个本子自己一套，独有的功能不如 regex 可以再加，但是 matching 能做一套就做一套，还有显示逻辑，可以把 id 作为条目的 head"。
+
+**范围**（仅三个匹配本子 + Workflow 内的 measurement tag rules 区块）：
+
+- Sample Identification
+- Workflow（含 measurement tag rules 子区块）
+- Measuring Condition
+
+不动 Import Filters 和 Filename Tokenization —— 它们不是"按规则识别文件"的匹配本（一个决定哪些文件进来，一个决定文件名怎么切词），是匹配的上游。
+
+**拍板要点**：
+
+1. **条目头统一 = id**。三个本子展开列表里，每行折叠状态显示 id，展开后第一行才是 display name。Measuring Condition 当前用 label 作为头需要改成 id。
+2. **字段命名收敛为 display name**。Measuring Condition 的 label 字段重命名为 displayName（schema 同步迁移，含向后解码兼容首启）；Workflow 与 Sample Identification 已是 displayName，保持。
+3. **scope 字段全删**。Workflow 的 measurement tag rules 当前还有 scope（tokens / joined），Sample Identification 已经在 s10 删掉。本期把 Workflow 这边也删掉，匹配统一走 token-scoped（与 s10 substrate 行为一致）。
+4. **匹配规则编辑器 UI 统一**。三个本子展开后的"match 区"用同一个 SwiftUI 组件渲染（不是新写一个共享组件，是把现有 MatchRuleEditor 推全），每条规则形态一致：type（equals / contains / regex / 等）+ 值。各本子独有的字段（Workflow 的 conditionFieldIDs、Measuring Condition 的 unitPattern / tokenMapRules / kind）作为额外区块挂在共享匹配区**之外**，不混进匹配区。
+5. **匹配引擎不动**。三个本子底层求值已是同一套（FilenameRuleSet 的 MapRule / CompiledMapRule + stringMatches/tokenMatches），本期只动展示与字段命名层，引擎零改动。
+6. **regex 等独有匹配能力保留**。Measuring Condition 有 regex pattern，是真正"独有的功能"，作为 type 选项的一种保留在共享编辑器里（不是单独 UI）。
+
+**任务拆分**：
+
+| 会话 | 主题 | 工作量 |
+|---|---|---|
+| s11-design | 设计稿对抗：三本子当前 UI 形态盘点 + 共享匹配编辑器接口 + label→displayName 迁移路径 + scope 删除影响面 → handoff | 设计会话 |
+| s11-exec | 执行：Measuring Condition schema 迁移 (label→displayName) + Workflow measurement tag rules 删 scope + 三本 UI 推全共享编辑器 + 列表头改 id；测试同步更新 | 中（10–14 h） |
+
+**关键 acceptance gate**（s11-exec 验收时必满足）：
+
+- **AG1** 三个本子的列表头都显示 id；展开后第一行是 display name，第二行起是匹配区。
+- **AG2** Measuring Condition 持久化字段统一为 displayName；含旧 label 字段的 runtime 文件能解码并迁出（atomic + backup）。
+- **AG3** Workflow 的 measurement tag rules 不再有 scope 字段；旧 scope 字段在解码时静默丢弃，新写出文件不含。
+- **AG4** 三本的匹配规则区块视觉与交互一致（同一个组件实例化），独有字段（conditionFieldIDs / unitPattern / tokenMapRules / kind）位于匹配区之外。
+- **AG5** Measuring Condition 的 regex pattern 作为 type 下拉选项之一存在，不是独立 UI。
+- **AG6** 匹配引擎零改动 —— 求值结果与 s10 完全一致，回归测试全绿。
+
+**否决方案及理由**（不要后续 agent 推翻）：
+
+- ❌ 五本子全统一 UI —— Import Filters / Filename Tokenization 不是匹配本，强行套同一个壳会让上游规则被错误归类
+- ❌ 把 Workflow 的 measurement tag rules 抽到独立第六本子 —— 它的"匹中→贴标签"语义就是为某个 workflow 服务的，独立出来反而失去上下文
+- ❌ 把匹配引擎再抽象一层（输入→规则→产物的更上层框架） —— 引擎已统一，再抽是为不存在的需求加层
+- ❌ label / displayName 双名并存兼容 —— 当前全仓只有 Measuring Condition 一处用 label，一次性迁完不留双名
+- ❌ scope 保留作为可选字段 —— Sample Identification 已在 s10 删掉证明用不上；保留只会让"看见即设置"原则破例
+- ❌ 为每个本子各自定制匹配编辑器 —— 用户原话明确"matching 能做一套就做一套"
+
+**来源**：2026-04-27 与 Jack 对齐。从"5 个本子各自 UI 不一致"展开为"三个匹配本统一 UI + 字段命名 + 引擎共用确认"专项。
 
 ##### s3 设计稿必须包含的盘点清单（让 s4 不漏点）
 
@@ -285,7 +334,7 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 ```
 ruleSnapshot:                  ← 规则填的，可重算
   ruleSetVersion: 3              ← 用户视角的语义版本（递增整数；UI 保存时自动 +1）
-  ruleSetFingerprint: r7a3f9c2   ← 机器判断"是否过期"用的内容哈希(来自 RuleLoader 联合 SHA)
+  ruleSetFingerprint: r7a3f9c2   ← 机器判断"是否过期"用的内容哈希（来自 RuleLoader 联合 SHA）
   appliedAt: <ISO 时间戳>
   fields:
     sampleID:      { value, source: "rule:sampleId.batchPrefixes#3" }
