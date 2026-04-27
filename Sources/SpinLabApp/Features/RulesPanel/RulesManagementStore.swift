@@ -595,6 +595,7 @@ final class RulesManagementStore {
         openTimeHashes[section] = newHash
 
         _ = RuleLoader.shared.reloadCached()
+        _ = RuleLoader.shared.bumpRuleSetVersion()
         onRulesSaved()
 
         let version = (value as? any _VersionedSchema)?.version ?? 0
