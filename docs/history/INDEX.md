@@ -17,7 +17,7 @@
 | 2026-04-26 | s1-fixture-fallout | 测试 fixture 改名收尾：路径改名 + V515 隔离 + V210/V223/V214/V224/V225/V240 完整修复；swift test 全绿 | — | [archive/2026-04-26-s1-fixture-fallout-test-fixture-rename.md](../handoff/archive/2026-04-26-s1-fixture-fallout-test-fixture-rename.md) | 80959a1 + a6edeca + 2ee4d6c + 10c7d47 |
 | 2026-04-25 | 5.1.5-s1 | 规则统一：旧规则 UI 三处删除 + 7 文件 schema 落地 + 一次性迁移器 + sync 脚本删除；swift build clean | — | [archive/2026-04-25-5.1.5-s1-rules-unification.md](../handoff/archive/2026-04-25-5.1.5-s1-rules-unification.md) | 63c891a→5b10d0f |
 | — | 5.5.0 | Cross-Area UI Unification（字体可读性 / 折叠区块 / 字体梯度 / 间距常量 / 按钮风格 6 项）| [v550_ui_unification.md](v550_ui_unification.md) | — | — |
-| — | 5.3.5 | Point Label Font Size + Visibility Toggle + Copy PNG Scale Menu | [v535_point_label_controls.md](v535_point_label_controls.md) | — | — |
+| 2026-04-26 | 5.3.5 | Point Label Font Size + Visibility Toggle + Copy PNG Scale Menu | [v535_point_label_controls.md](v535_point_label_controls.md) | [archive/2026-04-26-5.3.5-point-label-controls.md](../handoff/archive/2026-04-26-5.3.5-point-label-controls.md) | — |
 | — | 5.3.4 | Legend Dimension Auto-Inference + Visual Consistency（resolver + payload + 16 tests）| [v534_legend_dimension_resolver.md](v534_legend_dimension_resolver.md) | — | — |
 | — | 5.3.3 | Multi-Tab Render State Manager（TabRenderState + TabRenderOutput + 3ω/XY/AHE 三 store 状态重组）| [v5.3.3_multi_tab_render_manager.md](v5.3.3_multi_tab_render_manager.md) | — | — |
 | — | 5.3.2 | Plot Render Pipeline unification（WorkbenchRenderPipeline 三 workflow 共用）| [v5.3.2_render_pipeline.md](v5.3.2_render_pipeline.md) | — | — |
