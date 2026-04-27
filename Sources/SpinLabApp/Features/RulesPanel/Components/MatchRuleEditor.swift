@@ -18,15 +18,33 @@ struct MatchRuleEditor: View {
             }
             .onChange(of: rule.match.type) { _, newType in normalizeValueStorage(for: newType) }
 
-            if multiValueTypes.contains(rule.match.type) {
-                valuesEditor
-            } else {
-                TextField("Match Value", text: bindingForSingleValue)
-                    .textFieldStyle(.roundedBorder)
-            }
+            HStack(alignment: .center, spacing: AppSpacing.md) {
+                VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                    Text("Read from file")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if multiValueTypes.contains(rule.match.type) {
+                        valuesEditor
+                    } else {
+                        TextField("value to match", text: bindingForSingleValue)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            TextField("Mapped Value", text: $rule.value)
-                .textFieldStyle(.roundedBorder)
+                Image(systemName: "arrow.right")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+
+                VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                    Text("Mapped to token")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("token", text: $rule.value)
+                        .textFieldStyle(.roundedBorder)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 

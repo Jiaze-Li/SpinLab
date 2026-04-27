@@ -30,7 +30,9 @@ struct WorkflowMatchRuleEditor: View {
     private var valuesEditor: some View {
         VStack(alignment: .leading, spacing: AppSpacing.xs) {
             HStack {
-                Text("Match Values").font(AppFontScale.groupHeader)
+                Text("Match Values")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
                 Spacer()
                 Button("Add") {
                     spec.matchValues.append("")
