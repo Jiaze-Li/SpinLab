@@ -13,7 +13,7 @@
 
 | 版本 | 一句话 | 状态 | 指针 |
 |---|---|---|---|
-| 5.1.5 | 规则管理统一 + 自动同步基础设施 (s1-s10 已完成；s11 追加：三个匹配本子 UI + 字段命名统一) | 方案完成 (s11-design) | [handoff/2026-04-27-s11-design.md](handoff/2026-04-27-s11-design.md) |
+| 5.1.5 | 规则管理统一 + 自动同步基础设施 (s1-s10 已完成；s11 追加：三个匹配本子 UI + 字段命名统一) | 方案执行中 (s11-exec) | [handoff/2026-04-27-s11-design.md](handoff/2026-04-27-s11-design.md) |
 | 5.1.6 | Codex 派发提速基建（杠杆 A/B/C + 重构方案设计） | 需求提出 | [V5_ROADMAP §5.1.6](V5_ROADMAP.md) |
 | 5.1.7 | 规则产物可演化层（rule provenance + sidecar v2 双层 + Recompute） | 需求提出 | [V5_ROADMAP §5.1.7](V5_ROADMAP.md) |
 | 5.3.6 | Plot Shell 曲线拖拽排序（shell 级 opt-in 能力，legend 跟随视觉顺序） | 需求提出 | [V5_ROADMAP §5.3.6](V5_ROADMAP.md) |
