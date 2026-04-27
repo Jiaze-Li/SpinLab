@@ -641,11 +641,11 @@ final class LibraryFeatureStore {
             return nil
         }
         let rootURL = URL(fileURLWithPath: rootPath)
-        let result = libraryStore.backfillMissingMeasurementSidecars(rootURL: rootURL)
+        let result = libraryStore.recomputeAllMeasurementSidecars(rootURL: rootURL)
         appliedMeasurementsCacheBySampleID.removeAll()
         refreshSelectedDrawerAppliedMeasurementsIfNeeded()
         let summary = """
-        Sidecar backfill complete: scanned \(result.scannedSampleCount) samples, \
+        Sidecar recompute complete: scanned \(result.scannedSampleCount) samples, \
         \(result.scannedMeasurementFileCount) measurement files; created \(result.createdSidecarCount), \
         updated \(result.updatedSidecarCount), \
         skipped \(result.skippedExistingSidecarCount), failed \(result.failedSidecarCount).

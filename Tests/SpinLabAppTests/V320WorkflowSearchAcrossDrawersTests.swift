@@ -293,13 +293,19 @@ private struct WorkflowSearchFixture {
         try Data("x,y\n1,2\n".utf8).write(to: measurementURL)
 
         let sidecarURL = measurementDirectory.appending(path: "\(measurementFileName).spinlab.json")
+        let conditionFields = conditions.mapValues { v in SourcedValue(value: v, source: "test:fixture") }
         let sidecar = SpinLabFileSidecar(
             workflow: workflowID,
             workflowDisplayName: workflowDisplayName,
-            conditions: conditions,
             channels: channels,
             sourceFilePath: measurementURL.path,
-            appliedAt: Date(timeIntervalSince1970: 1_712_146_400)
+            appliedAt: Date(timeIntervalSince1970: 1_712_146_400),
+            ruleSnapshot: SidecarRuleSnapshot(
+                ruleSetVersion: 0,
+                ruleSetFingerprint: "test:fixture",
+                appliedAt: Date(timeIntervalSince1970: 1_712_146_400),
+                fields: SidecarRuleFields(sampleID: nil, conditions: conditionFields, substrateTags: [])
+            )
         )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

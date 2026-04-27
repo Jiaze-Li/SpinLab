@@ -50,7 +50,7 @@ struct V250SidecarTests {
 
         let sidecar = try fixture.decodeSidecar(sampleID: "PN80", category: "XY", fileName: pending.fileName)
         #expect(sidecar.workflow == "XY")
-        #expect(sidecar.conditions == ["temperature": "80K", "field": "8T"])
+        #expect(sidecar.effectiveConditions == ["temperature": "80K", "field": "8T"])
         #expect(sidecar.channels == ["XRD"])
     }
 
@@ -90,7 +90,7 @@ struct V250SidecarTests {
 
         let sidecar = try fixture.decodeSidecar(sampleID: "PN81", category: "UnknownWF", fileName: pending.fileName)
         #expect(sidecar.workflow == "UnknownWF")
-        #expect(sidecar.conditions == ["temperature": "300K", "current": "1mA", "device": "Device-A"])
+        #expect(sidecar.effectiveConditions == ["temperature": "300K", "current": "1mA", "device": "Device-A"])
     }
 
     @Test("known workflow with empty draft conditions keeps sidecar conditions empty")
@@ -136,7 +136,7 @@ struct V250SidecarTests {
 
         let sidecar = try fixture.decodeSidecar(sampleID: "PN86", category: "AHE", fileName: pending.fileName)
         #expect(sidecar.workflow == "AHE")
-        #expect(sidecar.conditions.isEmpty)
+        #expect(sidecar.effectiveConditions.isEmpty)
     }
 
     @Test("fan-out writes one sidecar per destination drawer")
@@ -275,9 +275,9 @@ struct V250SidecarTests {
         )
 
         let sidecar = try fixture.decodeSidecar(sampleID: "PN85", category: "XY", fileName: pending.fileName)
-        #expect(sidecar.version == 1)
+        #expect(sidecar.version == 2)
         #expect(sidecar.workflow == "XY")
-        #expect(sidecar.conditions == ["temperature": "100K", "field": "5T"])
+        #expect(sidecar.effectiveConditions == ["temperature": "100K", "field": "5T"])
         #expect(sidecar.sourceFilePath == pending.sourceFilePath)
         let appliedAtDelta = abs(sidecar.appliedAt.timeIntervalSinceNow)
         #expect(appliedAtDelta <= 5)

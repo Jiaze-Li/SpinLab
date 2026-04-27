@@ -14,7 +14,7 @@ struct V260MeasurementsDisplayTests {
             sampleID: "PN90",
             workflowFolder: "XY",
             fileName: "pn90_xy.dat",
-            sidecar: SpinLabFileSidecar(
+            sidecar: Fixture.makeSidecar(
                 workflow: "XY",
                 workflowDisplayName: "XY Rotation",
                 conditions: ["temperature": "80K", "field": "8T"],
@@ -59,7 +59,7 @@ struct V260MeasurementsDisplayTests {
             sampleID: "PN92",
             workflowFolder: "RT/ch1",
             fileName: "pn92_old.dat",
-            sidecar: SpinLabFileSidecar(
+            sidecar: Fixture.makeSidecar(
                 workflow: "RT",
                 workflowDisplayName: "RT",
                 conditions: ["current": "1mA"],
@@ -72,7 +72,7 @@ struct V260MeasurementsDisplayTests {
             sampleID: "PN92",
             workflowFolder: "RT/ch2",
             fileName: "pn92_new.dat",
-            sidecar: SpinLabFileSidecar(
+            sidecar: Fixture.makeSidecar(
                 workflow: "RT",
                 workflowDisplayName: "RT",
                 conditions: ["current": "2mA"],
@@ -102,7 +102,7 @@ struct V260MeasurementsDisplayTests {
             sampleID: "PN93",
             workflowFolder: "AMR",
             fileName: "pn93_valid.dat",
-            sidecar: SpinLabFileSidecar(
+            sidecar: Fixture.makeSidecar(
                 workflow: "AMR",
                 workflowDisplayName: "AMR",
                 conditions: ["temperature": "300K"],
@@ -144,7 +144,7 @@ struct V260MeasurementsDisplayTests {
             sampleID: "PN95",
             workflowFolder: "RT",
             fileName: "pn95_rt.dat",
-            sidecar: SpinLabFileSidecar(
+            sidecar: Fixture.makeSidecar(
                 workflow: "RT",
                 workflowDisplayName: "RT",
                 conditions: ["current": "1mA"],
@@ -172,7 +172,7 @@ struct V260MeasurementsDisplayTests {
         )
 
         let rootURL = fixture.libraryRootURL
-        let result = fixture.libraryStore.backfillMissingMeasurementSidecars(rootURL: rootURL)
+        let result = fixture.libraryStore.recomputeAllMeasurementSidecars(rootURL: rootURL)
         #expect(result.createdSidecarCount == 1)
         #expect(result.failedSidecarCount == 0)
 
@@ -287,6 +287,30 @@ private struct Fixture {
 
     func cleanup() {
         try? FileManager.default.removeItem(at: rootURL)
+    }
+
+    static func makeSidecar(
+        workflow: String,
+        workflowDisplayName: String,
+        conditions: [String: String],
+        channels: [String],
+        sourceFilePath: String,
+        appliedAt: Date
+    ) -> SpinLabFileSidecar {
+        let conditionFields = conditions.mapValues { v in SourcedValue(value: v, source: "test:fixture") }
+        return SpinLabFileSidecar(
+            workflow: workflow,
+            workflowDisplayName: workflowDisplayName,
+            channels: channels,
+            sourceFilePath: sourceFilePath,
+            appliedAt: appliedAt,
+            ruleSnapshot: SidecarRuleSnapshot(
+                ruleSetVersion: 0,
+                ruleSetFingerprint: "test:fixture",
+                appliedAt: appliedAt,
+                fields: SidecarRuleFields(sampleID: nil, conditions: conditionFields, substrateTags: [])
+            )
+        )
     }
 
     func writeSidecar(

@@ -379,7 +379,7 @@ final class LibraryStore {
         try data.write(to: fileURL, options: .atomic)
     }
 
-    func backfillMissingMeasurementSidecars(rootURL: URL) -> BackfillSidecarsResult {
+    func recomputeAllMeasurementSidecars(rootURL: URL) -> BackfillSidecarsResult {
         ensureRoot(at: rootURL)
         let batchDirectories = discoverBatchDirectories(rootURL: rootURL)
         var scannedSampleCount = 0
@@ -392,6 +392,7 @@ final class LibraryStore {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
+        let loadResult = SpinLabRuleProvider.shared.loadResult()
 
         for batchDirectory in batchDirectories {
             let batchJSONURL = batchDirectory.appending(path: "batch.json")
@@ -402,9 +403,10 @@ final class LibraryStore {
             for sample in decodeSamples(from: batchDirectory) {
                 scannedSampleCount += 1
                 let sampleDirectory = sampleDirectoryURL(rootURL, batchID: batch.id, sampleKey: sample.id)
-                let result = backfillSidecars(
+                let result = recomputeSidecars(
                     in: sampleDirectory,
-                    encoder: encoder
+                    encoder: encoder,
+                    loadResult: loadResult
                 )
                 scannedMeasurementFileCount += result.scannedMeasurementFileCount
                 createdSidecarCount += result.createdSidecarCount
@@ -422,6 +424,11 @@ final class LibraryStore {
             skippedExistingSidecarCount: skippedExistingSidecarCount,
             failedSidecarCount: failedSidecarCount
         )
+    }
+
+    @available(*, deprecated, renamed: "recomputeAllMeasurementSidecars")
+    func backfillMissingMeasurementSidecars(rootURL: URL) -> BackfillSidecarsResult {
+        recomputeAllMeasurementSidecars(rootURL: rootURL)
     }
 
     func syncBackup(from rootURL: URL, to backupURL: URL) -> Bool {
@@ -927,7 +934,7 @@ final class LibraryStore {
                     id: url.path,
                     workflow: sidecar.workflow,
                     workflowDisplayName: displayName,
-                    conditions: sidecar.conditions,
+                    conditions: sidecar.effectiveConditions,
                     appliedAt: sidecar.appliedAt,
                     sourceFileName: sourceFileName
                 )
@@ -945,7 +952,11 @@ final class LibraryStore {
         var failedSidecarCount: Int = 0
     }
 
-    private func backfillSidecars(in sampleDirectory: URL, encoder: JSONEncoder) -> SidecarBackfillStats {
+    private func recomputeSidecars(
+        in sampleDirectory: URL,
+        encoder: JSONEncoder,
+        loadResult: RuleLoader.LoadResult
+    ) -> SidecarBackfillStats {
         let measurementsURL = sampleDirectory.appending(path: "measurements", directoryHint: .isDirectory)
         guard fileManager.fileExists(atPath: measurementsURL.path),
               let enumerator = fileManager.enumerator(
@@ -956,7 +967,7 @@ final class LibraryStore {
             return SidecarBackfillStats()
         }
 
-        let ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared
+        let parser = FilenameRuleParser(ruleSet: loadResult.ruleSet)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
 
@@ -968,60 +979,61 @@ final class LibraryStore {
 
             stats.scannedMeasurementFileCount += 1
 
-            // Re-parse conditions from the measurement filename using current rules.
-            let parser = FilenameRuleParser(ruleSet: ruleProvider.ruleSet())
             let hints = parser.parse(from: url)
-            let parsedConditions = ConditionFieldCatalog.conditionValues(from: hints)
+            let snapshot = SidecarCompositionUseCase.buildRuleSnapshot(
+                hints: hints,
+                ruleSetFingerprint: loadResult.ruleSetFingerprint,
+                ruleSetVersion: loadResult.ruleSetVersion,
+                evaluatedAt: .now
+            )
 
             let sidecarURL = url.deletingPathExtension().appendingPathExtension(url.pathExtension + ".spinlab.json")
 
             if fileManager.fileExists(atPath: sidecarURL.path) {
-                // Existing sidecar: merge newly parsed conditions into missing keys only.
                 guard let existingData = try? Data(contentsOf: sidecarURL),
-                      var existing = try? decoder.decode(SpinLabFileSidecar.self, from: existingData) else {
+                      let existing = try? decoder.decode(SpinLabFileSidecar.self, from: existingData) else {
                     stats.skippedExistingSidecarCount += 1
                     continue
                 }
 
-                var changed = false
-                for (key, value) in parsedConditions {
-                    let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !trimmedValue.isEmpty else { continue }
-                    if existing.conditions[key, default: ""].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        existing.conditions[key] = trimmedValue
-                        changed = true
-                    }
-                }
-
-                if changed {
-                    do {
-                        let data = try encoder.encode(existing)
-                        try data.write(to: sidecarURL, options: .atomic)
-                        stats.updatedSidecarCount += 1
-                        mutated = true
-                    } catch {
-                        stats.failedSidecarCount += 1
-                        logger.warning(.library, "Failed to update sidecar conditions", metadata: [
-                            "sidecarPath": sidecarURL.path,
-                            "reason": error.localizedDescription
-                        ])
-                    }
-                } else {
-                    stats.skippedExistingSidecarCount += 1
+                let updated = SidecarCompositionUseCase.composeSidecarV2(
+                    base: SidecarCompositionBase(
+                        workflow: existing.workflow,
+                        workflowDisplayName: existing.workflowDisplayName,
+                        channels: existing.channels,
+                        sourceFilePath: existing.sourceFilePath,
+                        existingSidecar: existing
+                    ),
+                    snapshot: snapshot,
+                    preserveUserOverrides: true,
+                    now: .now
+                )
+                do {
+                    let data = try encoder.encode(updated)
+                    try data.write(to: sidecarURL, options: .atomic)
+                    stats.updatedSidecarCount += 1
+                    mutated = true
+                } catch {
+                    stats.failedSidecarCount += 1
+                    logger.warning(.library, "Failed to recompute sidecar", metadata: [
+                        "sidecarPath": sidecarURL.path,
+                        "reason": error.localizedDescription
+                    ])
                 }
             } else {
-                // New sidecar: create with parsed conditions.
                 let workflow = inferredWorkflow(forMeasurementFile: url, measurementsRoot: measurementsURL)
-                let appliedAt = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .now
-                let sidecar = SpinLabFileSidecar(
-                    workflow: workflow,
-                    workflowDisplayName: workflow,
-                    conditions: parsedConditions,
-                    channels: [],
-                    sourceFilePath: url.path,
-                    appliedAt: appliedAt
+                let sidecar = SidecarCompositionUseCase.composeSidecarV2(
+                    base: SidecarCompositionBase(
+                        workflow: workflow,
+                        workflowDisplayName: workflow,
+                        channels: [],
+                        sourceFilePath: url.path,
+                        existingSidecar: nil
+                    ),
+                    snapshot: snapshot,
+                    preserveUserOverrides: false,
+                    now: .now
                 )
-
                 do {
                     let data = try encoder.encode(sidecar)
                     try data.write(to: sidecarURL, options: .atomic)
@@ -1029,7 +1041,7 @@ final class LibraryStore {
                     mutated = true
                 } catch {
                     stats.failedSidecarCount += 1
-                    logger.warning(.library, "Failed to backfill sidecar", metadata: [
+                    logger.warning(.library, "Failed to create sidecar", metadata: [
                         "measurementPath": url.path,
                         "sidecarPath": sidecarURL.path,
                         "reason": error.localizedDescription

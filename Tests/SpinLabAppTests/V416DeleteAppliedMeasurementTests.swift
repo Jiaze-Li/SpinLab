@@ -48,10 +48,15 @@ private struct FixtureMeasurementDelete {
         let sidecar = SpinLabFileSidecar(
             workflow: workflow,
             workflowDisplayName: workflow,
-            conditions: [:],
             channels: [],
             sourceFilePath: "/original/\(fileName)",
-            appliedAt: Date()
+            appliedAt: Date(),
+            ruleSnapshot: SidecarRuleSnapshot(
+                ruleSetVersion: 0,
+                ruleSetFingerprint: "test:fixture",
+                appliedAt: Date(),
+                fields: SidecarRuleFields(sampleID: nil, conditions: [:], substrateTags: [])
+            )
         )
         let data = try Self.encoder.encode(sidecar)
         try data.write(to: sidecarURL)

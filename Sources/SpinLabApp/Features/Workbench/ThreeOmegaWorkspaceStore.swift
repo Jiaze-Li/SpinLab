@@ -84,7 +84,7 @@ final class ThreeOmegaWorkspaceStore {
             batchID: "",
             sampleKey: "",
             sampleSubstrate: "",
-            conditions: sidecar.conditions,
+            conditions: sidecar.effectiveConditions,
             channels: sidecar.channels,
             appliedAt: sidecar.appliedAt
         )
