@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "tokenization": {
+    "separators": "_- ()",
+    "caseFold": "preserve"
+  },
+  "sources": ["file", "parent", "grandparent"],
+  "channel": {
+    "aliases": {
+      "c1": "ch1",
+      "c2": "ch2",
+      "c3": "ch3",
+      "ch1": "ch1",
+      "ch2": "ch2",
+      "ch3": "ch3"
+    }
+  }
+}

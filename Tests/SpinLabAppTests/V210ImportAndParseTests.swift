@@ -135,8 +135,8 @@ struct V210ImportAndParseTests {
         #expect(ch1?.tags.isEmpty == true)
 
         let ch2 = parsed.channelHints.first(where: { $0.channel == "ch2" })
-        #expect(ch2?.sampleID == "PN36 HF STO111 STO")
-        #expect(ch2?.tags == ["HF", "STO111", "STO"])
+        #expect(ch2?.sampleID == "PN36 HF STO 111")
+        #expect(ch2?.tags == ["HF", "STO 111"])
 
         let ch3 = parsed.channelHints.first(where: { $0.channel == "ch3" })
         #expect(ch3?.sampleID == "PN37")
@@ -394,7 +394,7 @@ struct V210ImportAndParseTests {
         )
         ruleSet.conditions.tokenMapRules["wafer_type"] = [
             .init(
-                match: .init(scope: .tokens, type: .equals, value: "wafer", values: nil),
+                match: .init(scope: .tokens, type: .equals, matchValues: ["wafer"]),
                 value: "wafer"
             )
         ]
@@ -429,7 +429,7 @@ struct V210ImportAndParseTests {
         ruleSet.conditions.extraConditions["mode"] = "^-?\\d+(?:\\.\\d+)?(?:k)$"
         ruleSet.conditions.tokenMapRules["mode"] = [
             .init(
-                match: .init(scope: .tokens, type: .equals, value: "1k", values: nil),
+                match: .init(scope: .tokens, type: .equals, matchValues: ["1k"]),
                 value: "mode-token"
             )
         ]
@@ -444,12 +444,12 @@ struct V210ImportAndParseTests {
     }
 
     private func loadBundledRuleSetForTests() throws -> FilenameRuleSet {
-        let testsDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        let projectRoot = testsDir.deletingLastPathComponent().deletingLastPathComponent()
-        let ruleURL = projectRoot.appendingPathComponent("Sources/SpinLabApp/config/filename_rules.json")
-        let data = try Data(contentsOf: ruleURL)
-        var ruleSet = try JSONDecoder().decode(FilenameRuleSet.self, from: data)
-        ruleSet.loadWarnings = ruleSet.compile()
-        return ruleSet
+        let result = RuleLoader.shared.loadFromBundleOnly()
+        guard result.metadata.sourceLabel != "Fallback" else {
+            throw NSError(domain: "V210Tests", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "Bundle rules unavailable: \(result.warnings.joined(separator: "; "))"
+            ])
+        }
+        return result.ruleSet
     }
 }

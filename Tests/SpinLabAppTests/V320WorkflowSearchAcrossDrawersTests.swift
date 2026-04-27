@@ -5,10 +5,10 @@ import Testing
 @Suite("V3.2.0 Workflow Search Across Drawers")
 struct V320WorkflowSearchAcrossDrawersTests {
     private static let testDefinitions: [WorkflowDefinition] = [
-        WorkflowDefinition(id: "ahe", displayName: "AHE", parentID: nil, conditionFields: []),
-        WorkflowDefinition(id: "3w", displayName: "3 Omega", parentID: nil, conditionFields: []),
-        WorkflowDefinition(id: "RT", displayName: "RT", parentID: nil, conditionFields: []),
-        WorkflowDefinition(id: "XY", displayName: "XY Rotation", parentID: nil, conditionFields: []),
+        WorkflowDefinition(id: "ahe", displayName: "AHE",  conditionFields: []),
+        WorkflowDefinition(id: "3w", displayName: "3 Omega",  conditionFields: []),
+        WorkflowDefinition(id: "RT", displayName: "RT",  conditionFields: []),
+        WorkflowDefinition(id: "XY", displayName: "XY Rotation",  conditionFields: []),
     ]
 
     @Test("query AHE returns sidecars stored under workflow folder ahe")

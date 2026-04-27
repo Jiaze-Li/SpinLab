@@ -1,0 +1,48 @@
+{
+  "version": 2,
+  "batch": {
+    "preferSampleId": true,
+    "fallbackPatterns": ["^(B|Batch)\\d+$"]
+  },
+  "conditionDefinitions": [
+    {
+      "id": "device",
+      "label": "Device",
+      "kind": "token_map",
+      "tokenMap": [
+        {
+          "match": {
+            "scope": "tokens",
+            "type": "equals",
+            "matchValues": ["wafer"]
+          },
+          "value": "wafer"
+        }
+      ]
+    },
+    {
+      "id": "temperature",
+      "label": "Temperature",
+      "kind": "unit_suffix",
+      "unitPattern": "^-?\\d+(?:\\.\\d+)?(?:K|k|C)$"
+    },
+    {
+      "id": "current",
+      "label": "Current",
+      "kind": "unit_suffix",
+      "unitPattern": "^-?\\d+(?:\\.\\d+)?(?:mA|A|uA)$"
+    },
+    {
+      "id": "field",
+      "label": "Field",
+      "kind": "unit_suffix",
+      "unitPattern": "^-?\\d+(?:\\.\\d+)?(?:T|mT|Oe)$"
+    },
+    {
+      "id": "shift",
+      "label": "Shift",
+      "kind": "unit_suffix",
+      "unitPattern": "^-?\\d+(?:\\.\\d+)?(?:shift)$"
+    }
+  ]
+}

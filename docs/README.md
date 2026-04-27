@@ -1,12 +1,28 @@
 # Docs Index
 
+> **任务流水线文档职责**（流水线 5 阶段映射 + ROADMAP 三态 + 反模式 + 互相引用方向）= 单一真相在 `~/.claude/docs/workflow.md §3.e`。本文件只列**项目侧具体落点**，不复刻规则。
+
+## 项目侧落点
+
+| 全局角色 | 项目实例 |
+|---|---|
+| ROADMAP | `V5_ROADMAP.md`（5.x 版本段；单条三态 `[ ]` / `[~]` / `[x]`） |
+| handoff 待消费 | `handoff/<YYYY-MM-DD-topic>.md` |
+| handoff 已归档 | `handoff/archive/<YYYY-MM-DD-topic>.md` |
+| history（设计思路 + 实施摘要） | `history/v<版本号>_<topic>.md` |
+| Tech Debt Inbox（未拍板 raw 捕获池） | `history/TECH_DEBT_BACKLOG.md` — Jack 拍板后剪到 ROADMAP 对应版本段 |
+| 双 AI 对抗草稿 | `tmp/<ai>-plan-<topic>.md`（仅对抗期；详见 `handoff/README.md`） |
+
+详细 handoff 索引（待消费 / 已归档）+ 项目示例的执行分工表 → `handoff/README.md`
+
+---
+
 ## Root-level (知识积累 & 路线图)
 
 | Document | Purpose | Status |
 |---|---|---|
 | `V5_ROADMAP.md` | Active 5.x roadmap — version segments as collection bins. | active |
 | `philosophy.md` | Developer philosophy, habits, collaboration preferences. | active |
-| `known_issues.md` | Intentional behaviors, documentation inconsistencies, deferred items. | active |
 | `features.md` | Feature invariants and test status for all areas (Inbox/Library/Workbench/Shared). | active |
 
 ## architecture (系统设计 & 模块技术参考)
@@ -26,8 +42,9 @@
 | Document | Purpose | Status |
 |---|---|---|
 | `history/V4_ROADMAP.md` | V4 roadmap and current development direction. | active |
-| `history/TECH_DEBT_BACKLOG.md` | Pending technical improvements, ordered by impact. | active |
-| `history/TECH_DEBT_EXECUTION_LOG.md` | Completed technical debt reduction rounds. | active |
+| `history/TECH_DEBT_BACKLOG.md` | Tech Debt Inbox — raw 捕获池，Jack 拍板后归入 V5_ROADMAP 版本段并从此处删除。 | active |
+| `history/TECH_DEBT_EXECUTION_LOG.md` | Round A–G 历史记录。已 sunset，新完成事件进 `history/vX.Y.Z_*.md`。 | sunset |
+| `handoff/README.md` | Handoff 三态生命周期（草稿 / 待消费 / 已归档）+ tmp 清理约定 + 索引。 | active |
 | `history/v1/` | V1 execution plan. | done |
 | `history/v2/` | V2 execution plan. | done |
 | `history/v3/` | V3 execution plans, acceptance checklists, iteration addendums. | done |

@@ -1,6 +1,8 @@
 # Technical Debt Execution Log
 
-Status: active
+**Status: sunset 2026-04-25** — 新完成事件统一进 `history/vX.Y.Z_*.md` 版本日志（沿用 v5.3.x / v5.5.0 的模式）。本文件作为历史记录保留，不再追加 Round。Round A–G 是 v5.0 之前的滚动事件流，可作为早期演化参考。
+
+---
 
 ## 2026-03-27 Round A
 

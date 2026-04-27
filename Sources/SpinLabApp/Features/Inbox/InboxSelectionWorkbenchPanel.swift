@@ -17,7 +17,6 @@ struct InboxSelectionWorkbenchPanel: View {
     )
     @State private var routingDraft = PendingRoutingDraft(defaultSampleKey: "", channelSampleKeyOverrides: [:])
     @State private var localRoutingRefreshTick: Int = 0
-    @State private var isPresentingExplicitRules = false
     @State private var isPresentingTagsMissingConfirm = false
     private var routingSnapshot: SpinLabDomain.PendingRoutingSnapshot {
         _ = localRoutingRefreshTick
@@ -174,11 +173,6 @@ struct InboxSelectionWorkbenchPanel: View {
                 HStack {
                     Text("Deposit Mapping")
                     Spacer()
-                    Button("Explicit Rules") {
-                        isPresentingExplicitRules = true
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
                 }
             }
 
@@ -260,10 +254,6 @@ struct InboxSelectionWorkbenchPanel: View {
         }
         .onChange(of: routingDraft) { _, _ in
             persistDraftState()
-        }
-        .sheet(isPresented: $isPresentingExplicitRules) {
-            InboxExplicitRulesSheet()
-                .environment(appState)
         }
         .confirmationDialog(
             "Tags Missing",

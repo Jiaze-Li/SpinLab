@@ -1,0 +1,21 @@
+import Foundation
+
+enum RulesPanelSection: String, CaseIterable, Identifiable {
+    case importFilters
+    case filenameTokenization
+    case sampleIdentification
+    case workflow
+    case measuringCondition
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .importFilters:        return "Import Filters"
+        case .filenameTokenization: return "Filename Tokenization"
+        case .sampleIdentification: return "Sample Identification"
+        case .workflow:             return "Workflow"
+        case .measuringCondition:   return "Measuring Condition"
+        }
+    }
+}

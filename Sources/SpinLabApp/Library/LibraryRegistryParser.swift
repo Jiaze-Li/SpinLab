@@ -16,16 +16,41 @@ final class LibraryRegistryParser {
 
     init(ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared) {
         let registryRules = ruleProvider.registryRules()
-        let sharedSubstrateRules = ruleProvider.sharedSubstrateRules()
+        guard let config = ruleProvider.substrateConfig() else {
+            AppLogger.shared.error(.import, "LibraryRegistryParser: substrateConfig unavailable — v2 schema required")
+            substrateParser = LibrarySubstrateParser(
+                materialTokens: [],
+                processingKeywords: [:],
+                orientationTokens: [],
+                orientationAliases: [:],
+                materialDisplayNames: [:]
+            )
+            excludedSheetNames = Set(registryRules.excludedSheetNames)
+            batchHeaderAliases = Set(registryRules.batchHeaderAliases)
+            substrateHeaderAliases = Set(registryRules.substrateHeaderAliases)
+            numericKeyAliases = registryRules.numericKeyAliases
+            return
+        }
         substrateParser = LibrarySubstrateParser(
-            materialTokens: registryRules.substrateMaterialTokens,
-            processingKeywords: registryRules.substrateProcessingKeywords,
-            orientationTokens: (sharedSubstrateRules.orientationTokens ?? []).map { $0.uppercased() },
-            orientationAliases: (sharedSubstrateRules.orientationAliases ?? [:]).reduce(into: [:]) { partial, entry in
-                partial[entry.key.uppercased()] = entry.value.uppercased()
+            materialTokens: config.materials.flatMap { m in
+                ([m.id] + m.tokens).map { $0.uppercased() }
             },
-            materialDisplayNames: (sharedSubstrateRules.materialDisplayNames ?? [:]).reduce(into: [:]) { partial, entry in
-                partial[entry.key.uppercased()] = entry.value
+            processingKeywords: Dictionary(uniqueKeysWithValues: config.treatments.map { t in
+                (t.id, t.keywords.map { $0.uppercased() })
+            }),
+            orientationTokens: config.orientations.rows.flatMap { row in
+                (row.tokens + row.aliases).map { $0.uppercased() }
+            },
+            orientationAliases: config.orientations.rows.reduce(into: [:]) { partial, row in
+                for alias in row.aliases {
+                    partial[alias.uppercased()] = row.id.uppercased()
+                }
+            },
+            materialDisplayNames: config.materials.reduce(into: [:]) { partial, m in
+                partial[m.id.uppercased()] = m.displayName
+                for token in m.tokens {
+                    partial[token.uppercased()] = m.displayName
+                }
             }
         )
         excludedSheetNames = Set(registryRules.excludedSheetNames)

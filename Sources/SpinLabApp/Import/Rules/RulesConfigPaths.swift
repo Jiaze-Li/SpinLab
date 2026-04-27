@@ -24,28 +24,40 @@ struct RulesConfigPaths {
             .appendingPathComponent("config", isDirectory: true)
     }
 
-    var ruleURL: URL {
-        configDirectoryURL.appendingPathComponent("filename_rules.json")
+    // MARK: - New 5-book schema (v3)
+
+    var importFiltersURL: URL {
+        configDirectoryURL.appendingPathComponent("import_filters.json")
     }
 
-    var workflowMatchRulesURL: URL {
-        configDirectoryURL.appendingPathComponent("workflow_match_rules.json")
+    var filenameTokenizationURL: URL {
+        configDirectoryURL.appendingPathComponent("filename_tokenization.json")
     }
 
-    var sampleIDRulesURL: URL {
-        configDirectoryURL.appendingPathComponent("sample_id_rules.json")
+    var sampleIdentificationURL: URL {
+        configDirectoryURL.appendingPathComponent("sample_identification.json")
     }
 
-    var conditionsRulesURL: URL {
-        configDirectoryURL.appendingPathComponent("conditions_rules.json")
+    var workflowURL: URL {
+        configDirectoryURL.appendingPathComponent("workflow.json")
     }
 
-    var substrateRulesURL: URL {
-        configDirectoryURL.appendingPathComponent("substrate_rules.json")
+    var measuringConditionURL: URL {
+        configDirectoryURL.appendingPathComponent("measuring_condition.json")
     }
 
-    var measurementTagRulesURL: URL {
-        configDirectoryURL.appendingPathComponent("measurement_tag_rules.json")
+    var libraryImportRulesURL: URL {
+        configDirectoryURL.appendingPathComponent("library_import_rules.json")
+    }
+
+    var allSchemaFileURLs: [URL] {
+        [
+            importFiltersURL,
+            filenameTokenizationURL,
+            sampleIdentificationURL,
+            workflowURL,
+            measuringConditionURL
+        ]
     }
 
     static func isRunningTests() -> Bool {

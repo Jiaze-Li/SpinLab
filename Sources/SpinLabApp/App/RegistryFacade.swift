@@ -48,15 +48,12 @@ final class RegistryFacade {
             forceReload: forceReload
         )
         let sourceFileName = URL(fileURLWithPath: loadResult.metadata.sourcePath).lastPathComponent
-        let overrideFiles = loadResult.metadata.loadedOverrideFiles
         appLogger.info(.import, "Routing rule metadata updated", metadata: [
             "version": "\(loadResult.metadata.version)",
             "source": loadResult.metadata.sourceLabel,
             "sourceFileName": sourceFileName,
             "fingerprint": loadResult.metadata.fingerprint,
-            "hashPrefix": loadResult.metadata.contentHashPrefix8,
-            "overrideCount": "\(overrideFiles.count)",
-            "overrideFiles": overrideFiles.joined(separator: ",")
+            "hashPrefix": loadResult.metadata.contentHashPrefix8
         ])
     }
 

@@ -21,8 +21,7 @@ struct V332WorkflowWorkspaceDispatchTests {
         // Behavioural invariant: if WFS stopped routing through aheWorkspace this would fail.
         let persistence = LocalPersistenceStub(archivedRecords: [], projects: [])
         let wfs = WorkbenchFeatureStore(
-            libraryRepository: LibraryRepository(persistence: persistence),
-            workflowRegistryStore: WorkflowRegistryStore()
+            libraryRepository: LibraryRepository(persistence: persistence)
         )
         wfs.aheWorkspace.cachedSearchResults = [
             WorkflowMeasurementSearchHit(

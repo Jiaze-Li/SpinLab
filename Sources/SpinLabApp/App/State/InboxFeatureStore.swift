@@ -19,7 +19,6 @@ final class InboxFeatureStore {
     private(set) var routingRuleSourcePath: String = "unknown"
     private(set) var routingRuleFingerprint: String = "unknown"
     private(set) var routingRuleHashPrefix: String = "unknown"
-    private(set) var routingRuleLoadedOverrideFiles: [String] = []
     private(set) var routingSnapshotRevision: Int = 0
     var importProgressState: ImportProgressState = .init()
 
@@ -372,7 +371,6 @@ final class InboxFeatureStore {
         routingRuleSourcePath = loadResult.metadata.sourcePath
         routingRuleFingerprint = loadResult.metadata.fingerprint
         routingRuleHashPrefix = loadResult.metadata.contentHashPrefix8
-        routingRuleLoadedOverrideFiles = loadResult.metadata.loadedOverrideFiles
         return loadResult
     }
 

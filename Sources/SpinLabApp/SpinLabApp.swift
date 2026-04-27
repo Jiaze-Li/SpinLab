@@ -6,6 +6,8 @@ struct SpinLabApp: App {
     @State private var appState: SpinLabAppState
 
     init() {
+        RulesBootstrapper.seedMissingRuntimeFilesFromBundleIfNeeded()
+        WorkflowRegistryRetirementService().runIfNeeded()
         let registry = WorkflowRegistry.shared
         let workflow = Self.workflowSelection(from: ProcessInfo.processInfo.environment["SPINLAB_WORKFLOW"])
         let bundle = registry.bundle(for: workflow) ?? registry.defaultBundle()
@@ -26,13 +28,10 @@ struct SpinLabApp: App {
         }
         .windowStyle(.titleBar)
 
-        Window("Rules Handbook", id: "rules-handbook") {
-            RulesHandbookView(store: appState.conditionRulesHandbook)
+        Window("Rules", id: "spin-rules") {
+            RulesPanelView()
                 .environment(appState)
-                .frame(minWidth: 560, minHeight: 540)
         }
-        .windowResizability(.contentMinSize)
-        .defaultSize(width: 820, height: 720)
     }
 
     private static func workflowSelection(from rawValue: String?) -> SpinLabDomain.WorkflowKind {

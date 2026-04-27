@@ -39,9 +39,9 @@ struct ConditionFieldCatalog {
 
     static func labelMap(from ruleSet: FilenameRuleSet) -> [String: String] {
         var labels = builtInConditionLabels
-        for (key, value) in ruleSet.conditions.displayLabels {
-            let normalizedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
-            let normalizedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        for definition in ruleSet.conditionDefinitions {
+            let normalizedKey = definition.id.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedValue = definition.label?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !normalizedKey.isEmpty, !normalizedValue.isEmpty else { continue }
             labels[normalizedKey] = normalizedValue
         }

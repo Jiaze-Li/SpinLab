@@ -3,7 +3,7 @@ import CryptoKit
 
 struct RuleLoader {
     static let shared = RuleLoader()
-    static let currentSchemaVersion = 1
+    static let currentSchemaVersion = 3
     private static var cached: LoadResult?
     private static let cacheLock = NSLock()
     private let logger = AppLogger.shared
@@ -13,7 +13,6 @@ struct RuleLoader {
         var sourceLabel: String
         var sourcePath: String
         var contentHash: String
-        var loadedOverrideFiles: [String]
         var loadedAt: Date
 
         var fingerprint: String {
@@ -33,51 +32,33 @@ struct RuleLoader {
 
     func load() -> LoadResult {
         var warnings: [String] = []
+        let paths = RulesConfigPaths()
 
-        let appSupportURL = rulesConfigPaths().ruleURL
-        logger.info(.import, "Rule source probe", metadata: [
-            "source": "ApplicationSupport",
-            "path": appSupportURL.path
-        ])
-        if let loaded = tryLoadRuleSet(
-            from: appSupportURL,
-            sourceLabel: "ApplicationSupport",
-            appendsMissingToWarnings: true,
-            warnings: &warnings
-        ) {
-            return loaded
+        // Try loading all 5 schema files from runtime first, fall back to bundle
+        if let result = tryLoadFromDirectory(paths.configDirectoryURL, label: "Runtime", warnings: &warnings) {
+            return result
         }
 
-        for bundleURL in bundleRuleCandidateURLs() {
-            logger.info(.import, "Rule source probe", metadata: [
-                "source": "Bundle",
-                "path": bundleURL.path
-            ])
-            if let loaded = tryLoadRuleSet(
-                from: bundleURL,
-                sourceLabel: "Bundle",
-                appendsMissingToWarnings: false,
-                warnings: &warnings
-            ) {
-                return loaded
-            }
+        // Bundle fallback
+        if let result = tryLoadFromBundle(warnings: &warnings) {
+            return result
         }
 
-        warnings.append("Filename rules could not be loaded from Application Support or bundle candidates.")
-        logger.error(.import, "Rule loading failed", metadata: [
-            "reasons": warnings.joined(separator: " | ")
-        ])
+        warnings.append("Rules could not be loaded from runtime or bundle; using built-in fallback.")
+        logger.error(.import, "Rule loading failed", metadata: ["reasons": warnings.joined(separator: " | ")])
         var fallback = FilenameRuleSet.fallback()
         fallback.loadWarnings = warnings
-        let fallbackMetadata = RuleMetadata(
-            version: fallback.version,
-            sourceLabel: "Fallback",
-            sourcePath: "builtin:fallback",
-            contentHash: hashHex(for: Data("fallback".utf8)),
-            loadedOverrideFiles: [],
-            loadedAt: Date()
+        return LoadResult(
+            ruleSet: fallback,
+            warnings: warnings,
+            metadata: RuleMetadata(
+                version: fallback.version,
+                sourceLabel: "Fallback",
+                sourcePath: "builtin:fallback",
+                contentHash: hashHex(for: Data("fallback".utf8)),
+                loadedAt: Date()
+            )
         )
-        return LoadResult(ruleSet: fallback, warnings: warnings, metadata: fallbackMetadata)
     }
 
     func loadCached() -> LoadResult {
@@ -86,19 +67,38 @@ struct RuleLoader {
             return cached
         }
         let reloaded = load()
-        Self.withCacheLock {
-            Self.cached = reloaded
-        }
+        Self.withCacheLock { Self.cached = reloaded }
         return reloaded
     }
 
     func reloadCached() -> LoadResult {
         let loaded = load()
-        Self.withCacheLock {
-            Self.cached = loaded
-        }
+        Self.withCacheLock { Self.cached = loaded }
         return loaded
     }
+
+    func loadFromBundleOnly() -> LoadResult {
+        var warnings: [String] = []
+        if let result = tryLoadFromBundle(warnings: &warnings) {
+            return result
+        }
+        warnings.append("Bundle rules not available; using built-in fallback.")
+        var fallback = FilenameRuleSet.fallback()
+        fallback.loadWarnings = warnings
+        return LoadResult(
+            ruleSet: fallback,
+            warnings: warnings,
+            metadata: RuleMetadata(
+                version: fallback.version,
+                sourceLabel: "Fallback",
+                sourcePath: "builtin:fallback",
+                contentHash: hashHex(for: Data("fallback".utf8)),
+                loadedAt: Date()
+            )
+        )
+    }
+
+    // MARK: - Cache
 
     private static func withCacheLock<T>(_ action: () -> T) -> T {
         cacheLock.lock()
@@ -108,259 +108,204 @@ struct RuleLoader {
 
     private func shouldReloadCached(_ cached: LoadResult) -> Bool {
         let path = cached.metadata.sourcePath
-        if path.hasPrefix("builtin:") {
-            return false
-        }
+        guard !path.hasPrefix("builtin:") else { return false }
 
-        guard FileManager.default.fileExists(atPath: path) else {
-            logger.info(.import, "Rule cache invalidated because source file disappeared", metadata: [
-                "path": path,
-                "cachedFingerprint": cached.metadata.fingerprint
-            ])
-            return true
-        }
-
-        let url = URL(fileURLWithPath: path)
-        let data: Data
-        do {
-            data = try Data(contentsOf: url)
-        } catch {
-            logger.info(.import, "Rule cache invalidated because source file cannot be read", metadata: [
-                "path": path,
-                "cachedFingerprint": cached.metadata.fingerprint,
-                "reason": error.localizedDescription
-            ])
-            return true
-        }
-
-        let latestHash = compositeHash(primaryData: data, primaryURL: url)
-        let changed = latestHash != cached.metadata.contentHash
+        let paths = RulesConfigPaths()
+        let hashes = compositeHash(paths: paths)
+        let changed = hashes != cached.metadata.contentHash
         if changed {
-            logger.info(.import, "Rule cache invalidated because source hash changed", metadata: [
-                "path": path,
-                "cachedFingerprint": cached.metadata.fingerprint,
-                "latestHash": latestHash
+            logger.info(.import, "Rule cache invalidated (schema file changed)", metadata: [
+                "cachedFingerprint": cached.metadata.fingerprint
             ])
         }
         return changed
     }
 
-    private func tryLoadRuleSet(
-        from url: URL,
-        sourceLabel: String,
-        appendsMissingToWarnings: Bool,
-        warnings: inout [String]
-    ) -> LoadResult? {
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            if appendsMissingToWarnings {
-                warnings.append("\(sourceLabel) file missing at \(url.path)")
-            } else {
-                logger.info(.import, "Bundle candidate not present", metadata: [
-                    "source": sourceLabel,
-                    "path": url.path
-                ])
-            }
-            return nil
-        }
+    // MARK: - Loading
 
-        let data: Data
-        do {
-            data = try Data(contentsOf: url)
-        } catch {
-            let reason = error.localizedDescription
-            warnings.append("\(sourceLabel) read failed at \(url.path): \(reason)")
-            logger.error(.import, "Rule source read failed", metadata: [
-                "source": sourceLabel,
-                "path": url.path,
-                "reason": reason
-            ])
+    private func tryLoadFromDirectory(_ dir: URL, label: String, warnings: inout [String]) -> LoadResult? {
+        let paths = RulesConfigPaths()
+        guard FileManager.default.fileExists(atPath: paths.importFiltersURL.path) else {
             return nil
         }
 
         do {
-            var ruleSet = try decodeRuleSet(from: data, source: "\(sourceLabel):\(url.path)")
-            let schemaWarnings = migrateRuleSetSchemaIfNeeded(ruleSet: &ruleSet, sourceLabel: sourceLabel)
-            warnings.append(contentsOf: schemaWarnings)
-            let overrideResult = applySeparatedOverrides(ruleSet: &ruleSet)
-            warnings.append(contentsOf: overrideResult.warnings)
+            var ruleSet = try assembleRuleSet(from: paths, label: label, warnings: &warnings)
             let compileWarnings = ruleSet.compile()
             if !compileWarnings.isEmpty {
-                warnings.append(contentsOf: compileWarnings.map { "\(sourceLabel) compile warning: \($0)" })
+                warnings.append(contentsOf: compileWarnings.map { "\(label) compile warning: \($0)" })
             }
             ruleSet.loadWarnings = warnings
+            let hash = compositeHash(paths: paths)
             let metadata = RuleMetadata(
                 version: ruleSet.version,
-                sourceLabel: sourceLabel,
-                sourcePath: url.path,
-                contentHash: compositeHash(primaryData: data, primaryURL: url),
-                loadedOverrideFiles: overrideResult.loadedOverrideFiles,
+                sourceLabel: label,
+                sourcePath: paths.importFiltersURL.path,
+                contentHash: hash,
                 loadedAt: Date()
             )
-            logger.info(.import, "Rule source loaded", metadata: [
-                "source": sourceLabel,
-                "path": url.path,
+            logger.info(.import, "Rules loaded", metadata: [
+                "source": label,
                 "sampleIdPatternCount": "\(ruleSet.sampleId.patterns.count)",
                 "ruleVersion": "\(ruleSet.version)",
-                "ruleFingerprint": metadata.fingerprint,
-                "ruleHashPrefix": metadata.contentHashPrefix8,
-                "loadedOverrideFiles": metadata.loadedOverrideFiles.joined(separator: ",")
+                "fingerprint": metadata.fingerprint
             ])
             return LoadResult(ruleSet: ruleSet, warnings: warnings, metadata: metadata)
         } catch {
-            let reason = error.localizedDescription
-            warnings.append("\(sourceLabel) decode failed at \(url.path): \(reason)")
-            logger.error(.import, "Rule source decode failed", metadata: [
-                "source": sourceLabel,
-                "path": url.path,
-                "reason": reason
-            ])
+            warnings.append("\(label) rule assembly failed: \(error.localizedDescription)")
+            logger.error(.import, "Rule assembly failed", metadata: ["source": label, "reason": error.localizedDescription])
             return nil
         }
     }
 
-    private func hashHex(for data: Data) -> String {
-        let digest = SHA256.hash(data: data)
-        return digest.map { String(format: "%02x", $0) }.joined()
-    }
-
-    private func decodeRuleSet(from data: Data, source: String) throws -> FilenameRuleSet {
-        let decoder = JSONDecoder()
+    private func tryLoadFromBundle(warnings: inout [String]) -> LoadResult? {
+        let locator = BundleFileLocator()
         do {
-            return try decoder.decode(FilenameRuleSet.self, from: data)
-        } catch {
-            throw NSError(
-                domain: "RuleLoader",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to decode rules from \(source): \(error.localizedDescription)"]
+            var ruleSet = try assembleRuleSetFromBundle(locator: locator, warnings: &warnings)
+            let compileWarnings = ruleSet.compile()
+            if !compileWarnings.isEmpty {
+                warnings.append(contentsOf: compileWarnings.map { "Bundle compile warning: \($0)" })
+            }
+            ruleSet.loadWarnings = warnings
+            let hash = bundleCompositeHash(locator: locator)
+            let metadata = RuleMetadata(
+                version: ruleSet.version,
+                sourceLabel: "Bundle",
+                sourcePath: "bundle:import_filters.json",
+                contentHash: hash,
+                loadedAt: Date()
             )
+            logger.info(.import, "Rules loaded from bundle", metadata: [
+                "sampleIdPatternCount": "\(ruleSet.sampleId.patterns.count)",
+                "ruleVersion": "\(ruleSet.version)"
+            ])
+            return LoadResult(ruleSet: ruleSet, warnings: warnings, metadata: metadata)
+        } catch {
+            warnings.append("Bundle rule assembly failed: \(error.localizedDescription)")
+            return nil
         }
     }
 
-    private struct OverrideApplyResult {
-        var warnings: [String]
-        var loadedOverrideFiles: [String]
+    // MARK: - Assembly
+
+    private func assembleRuleSet(from paths: RulesConfigPaths, label: String, warnings: inout [String]) throws -> FilenameRuleSet {
+        // D11: fail-fast — any missing file throws immediately
+        let requiredFiles: [(URL, String)] = [
+            (paths.importFiltersURL, "import_filters.json"),
+            (paths.filenameTokenizationURL, "filename_tokenization.json"),
+            (paths.sampleIdentificationURL, "sample_identification.json"),
+            (paths.workflowURL, "workflow.json"),
+            (paths.measuringConditionURL, "measuring_condition.json"),
+        ]
+        for (url, name) in requiredFiles where !FileManager.default.fileExists(atPath: url.path) {
+            throw NSError(domain: "RuleLoader", code: 2, userInfo: [NSLocalizedDescriptionKey: "\(label) \(name) missing at \(url.path)"])
+        }
+
+        let importFiltersFile = try loadAndDecode(ImportFiltersFile.self, from: paths.importFiltersURL, label: label)
+        let tokenizationFile = try loadAndDecode(FilenameTokenizationFile.self, from: paths.filenameTokenizationURL, label: label)
+        let sampleIdentFile = try loadAndDecode(SampleIdentificationFile.self, from: paths.sampleIdentificationURL, label: label)
+        let workflowFile = try loadAndDecode(WorkflowFile.self, from: paths.workflowURL, label: label)
+        let conditionFile = try loadAndDecode(MeasuringConditionFile.self, from: paths.measuringConditionURL, label: label)
+
+        var ruleSet = FilenameRuleSet(
+            version: 3,
+            tokenization: tokenizationFile.tokenization,
+            sources: tokenizationFile.sources,
+            sampleId: sampleIdentFile.sampleId,
+            batch: conditionFile.batch,
+            measurementNameRules: workflowFile.measurementNameRules,
+            measurementTagRules: workflowFile.measurementTagRules,
+            substrateTagRules: sampleIdentFile.substrateTagRules,
+            channel: tokenizationFile.channel,
+            conditions: conditionFile.conditions ?? FilenameRuleSet.ConditionRules(),
+            conditionDefinitions: conditionFile.conditionDefinitions,
+            registry: nil,
+            importRules: importFiltersFile.importRules,
+            sharedSubstrate: sampleIdentFile.sharedSubstrate,
+            substrateConfig: sampleIdentFile.substrateConfig
+        )
+
+        // library_import_rules.json: registry only (optional)
+        if FileManager.default.fileExists(atPath: paths.libraryImportRulesURL.path),
+           let data = try? Data(contentsOf: paths.libraryImportRulesURL),
+           let file = try? JSONDecoder().decode(LibraryImportRulesFile.self, from: data) {
+            ruleSet.registry = file.registry
+        }
+
+        let schemaWarnings = migrateRuleSetSchemaIfNeeded(ruleSet: &ruleSet, sourceLabel: label)
+        warnings.append(contentsOf: schemaWarnings)
+        return ruleSet
     }
 
-    /// Resolves the override file URL: prefers Application Support, falls back to bundle.
-    /// In test environments (without explicit opt-in), only bundle is checked.
-    private func resolveOverrideURL(filename: String) -> URL? {
-        let isTest = RulesConfigPaths.isRunningTests() && !shouldEnableSeparatedOverridesDuringTests()
-        if !isTest {
-            let runtimeURL = rulesConfigPaths().configDirectoryURL.appendingPathComponent(filename)
-            if FileManager.default.fileExists(atPath: runtimeURL.path) {
-                return runtimeURL
-            }
+    private func assembleRuleSetFromBundle(locator: BundleFileLocator, warnings: inout [String]) throws -> FilenameRuleSet {
+        let importFiltersData = try requireBundleData(locator: locator, name: "import_filters")
+        let tokenizationData = try requireBundleData(locator: locator, name: "filename_tokenization")
+        let sampleIdentData = try requireBundleData(locator: locator, name: "sample_identification")
+        let workflowData = try requireBundleData(locator: locator, name: "workflow")
+        let conditionData = try requireBundleData(locator: locator, name: "measuring_condition")
+
+        let importFiltersFile = try decodeBundleFile(ImportFiltersFile.self, from: importFiltersData, name: "import_filters.json")
+        let tokenizationFile = try decodeBundleFile(FilenameTokenizationFile.self, from: tokenizationData, name: "filename_tokenization.json")
+        let sampleIdentFile = try decodeBundleFile(SampleIdentificationFile.self, from: sampleIdentData, name: "sample_identification.json")
+        let workflowFile = try decodeBundleFile(WorkflowFile.self, from: workflowData, name: "workflow.json")
+        let conditionFile = try decodeBundleFile(MeasuringConditionFile.self, from: conditionData, name: "measuring_condition.json")
+
+        var ruleSet = FilenameRuleSet(
+            version: 3,
+            tokenization: tokenizationFile.tokenization,
+            sources: tokenizationFile.sources,
+            sampleId: sampleIdentFile.sampleId,
+            batch: conditionFile.batch,
+            measurementNameRules: workflowFile.measurementNameRules,
+            measurementTagRules: workflowFile.measurementTagRules,
+            substrateTagRules: sampleIdentFile.substrateTagRules,
+            channel: tokenizationFile.channel,
+            conditions: conditionFile.conditions ?? FilenameRuleSet.ConditionRules(),
+            conditionDefinitions: conditionFile.conditionDefinitions,
+            registry: nil,
+            importRules: importFiltersFile.importRules,
+            sharedSubstrate: sampleIdentFile.sharedSubstrate,
+            substrateConfig: sampleIdentFile.substrateConfig
+        )
+
+        // library_import_rules.json: registry only (optional)
+        if let data = try? locator.data(for: "library_import_rules"),
+           let file = try? JSONDecoder().decode(LibraryImportRulesFile.self, from: data) {
+            ruleSet.registry = file.registry
         }
-        // Bundle fallback: check all candidate bundle config directories.
-        for candidate in bundleOverrideCandidateURLs(filename: filename) {
-            if FileManager.default.fileExists(atPath: candidate.path) {
-                return candidate
-            }
-        }
-        return nil
+
+        let schemaWarnings = migrateRuleSetSchemaIfNeeded(ruleSet: &ruleSet, sourceLabel: "Bundle")
+        warnings.append(contentsOf: schemaWarnings)
+        return ruleSet
     }
 
-    private func bundleOverrideCandidateURLs(filename: String) -> [URL] {
-        // SwiftPM `.process("config")` flattens files into the module's resource
-        // bundle root, so look up via `Bundle.module` without a `subdirectory:`.
-        let resourceName = filename.replacingOccurrences(of: ".json", with: "")
-        var candidates: [URL] = []
-        if let direct = Bundle.module.url(forResource: resourceName, withExtension: "json") {
-            candidates.append(direct)
+    // MARK: - Decode helpers
+
+    private func loadAndDecode<T: Decodable>(_ type: T.Type, from url: URL, label: String) throws -> T {
+        do {
+            let data = try Data(contentsOf: url)
+            return try JSONDecoder().decode(type, from: data)
+        } catch {
+            throw NSError(domain: "RuleLoader", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to decode \(url.lastPathComponent) from \(label): \(error.localizedDescription)"])
         }
-        // Dev fallback: `swift test` invoked from the project root.
-        let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
-        candidates.append(cwd.appendingPathComponent("Sources/SpinLabApp/config/\(filename)"))
-        return candidates
     }
 
-    private func applySeparatedOverrides(ruleSet: inout FilenameRuleSet) -> OverrideApplyResult {
-        var warnings: [String] = []
-        var loadedOverrideFiles: [String] = []
-
-        // --- sample_id_rules.json ---
-        if let sampleIDURL = resolveOverrideURL(filename: "sample_id_rules.json") {
-            if let patterns = SeparatedOverrideReader.readSampleIDPatterns(from: sampleIDURL) {
-                ruleSet.sampleId = .init(patterns: patterns)
-                loadedOverrideFiles.append(sampleIDURL.lastPathComponent)
-            } else {
-                warnings.append("sample_id_rules.json contains no valid patterns or is unreadable; keeping existing sampleId rules.")
-            }
+    private func requireBundleData(locator: BundleFileLocator, name: String) throws -> Data {
+        guard let data = try? locator.data(for: name) else {
+            throw NSError(domain: "RuleLoader", code: 2, userInfo: [NSLocalizedDescriptionKey: "Bundle \(name).json missing"])
         }
-
-        // --- workflow_match_rules.json ---
-        if let workflowURL = resolveOverrideURL(filename: "workflow_match_rules.json") {
-            if let entries = SeparatedOverrideReader.readWorkflowMatchRules(from: workflowURL) {
-                let parsed = entries.map { $0.asMapRule() }
-                if parsed.isEmpty {
-                    warnings.append("workflow_match_rules.json contains no valid rules; keeping existing workflow rules.")
-                } else {
-                    ruleSet.measurementNameRules = parsed
-                    loadedOverrideFiles.append(workflowURL.lastPathComponent)
-                }
-            } else {
-                warnings.append("workflow_match_rules.json is invalid or unreadable; ignoring workflow override.")
-            }
-        }
-
-        // --- conditions_rules.json ---
-        if let conditionsURL = resolveOverrideURL(filename: "conditions_rules.json") {
-            if let patch = SeparatedOverrideReader.readConditions(from: conditionsURL) {
-                // Apply extra conditions: set values and remove deleted keys.
-                for (key, pattern) in patch.extraConditions {
-                    ruleSet.conditions.extraConditions[key] = pattern
-                }
-                for key in patch.deletedExtraConditionKeys {
-                    ruleSet.conditions.extraConditions.removeValue(forKey: key)
-                }
-                // Apply token map rules: each key from override replaces existing.
-                for (key, mappings) in patch.tokenMapRules {
-                    ruleSet.conditions.tokenMapRules[key] = mappings.map { $0.asMapRule() }
-                }
-                loadedOverrideFiles.append(conditionsURL.lastPathComponent)
-            } else {
-                warnings.append("conditions_rules.json contains no supported keys or is unreadable; keeping existing condition rules.")
-            }
-        }
-
-        // --- substrate_rules.json ---
-        if let substrateURL = resolveOverrideURL(filename: "substrate_rules.json") {
-            if let patch = SeparatedOverrideReader.readSubstrateRules(from: substrateURL) {
-                if let tagRules = patch.substrateTagRules {
-                    let converted = tagRules.map { $0.asMapRule() }
-                    if converted.isEmpty {
-                        warnings.append("substrate_rules.json substrateTagRules is empty; keeping existing substrateTagRules.")
-                    } else {
-                        ruleSet.substrateTagRules = converted
-                    }
-                }
-                if let shared = patch.sharedSubstrate {
-                    ruleSet.sharedSubstrate = shared
-                }
-                loadedOverrideFiles.append(substrateURL.lastPathComponent)
-            } else {
-                warnings.append("substrate_rules.json contains no supported keys or is unreadable; keeping existing substrate rules.")
-            }
-        }
-
-        // --- measurement_tag_rules.json ---
-        if let measurementTagURL = resolveOverrideURL(filename: "measurement_tag_rules.json") {
-            if let entries = SeparatedOverrideReader.readMeasurementTagRules(from: measurementTagURL) {
-                let converted = entries.map { $0.asMapRule() }
-                if converted.isEmpty {
-                    warnings.append("measurement_tag_rules.json contains empty rules; keeping existing measurementTagRules.")
-                } else {
-                    ruleSet.measurementTagRules = converted
-                    loadedOverrideFiles.append(measurementTagURL.lastPathComponent)
-                }
-            } else {
-                warnings.append("measurement_tag_rules.json is invalid or unreadable; keeping existing measurementTagRules.")
-            }
-        }
-
-        loadedOverrideFiles = Array(Set(loadedOverrideFiles)).sorted()
-        return OverrideApplyResult(warnings: warnings, loadedOverrideFiles: loadedOverrideFiles)
+        return data
     }
+
+    private func decodeBundleFile<T: Decodable>(_ type: T.Type, from data: Data, name: String) throws -> T {
+        do {
+            return try JSONDecoder().decode(type, from: data)
+        } catch {
+            throw NSError(domain: "RuleLoader", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to decode bundle \(name): \(error.localizedDescription)"])
+        }
+    }
+
+    // MARK: - Schema migration
 
     private func migrateRuleSetSchemaIfNeeded(
         ruleSet: inout FilenameRuleSet,
@@ -368,24 +313,6 @@ struct RuleLoader {
     ) -> [String] {
         var warnings: [String] = []
         warnings.append(contentsOf: Self.normalizeConditionDefinitionBindings(ruleSet: &ruleSet, sourceLabel: sourceLabel))
-
-        if ruleSet.version == Self.currentSchemaVersion {
-            return warnings
-        }
-
-        if ruleSet.version < Self.currentSchemaVersion {
-            warnings.append(
-                "\(sourceLabel) schema v\(ruleSet.version) is older than supported v\(Self.currentSchemaVersion); applying compatibility migration."
-            )
-            // Keep decoded values; only normalize the schema marker so metadata/reporting
-            // reflects the runtime schema interpretation.
-            ruleSet.version = Self.currentSchemaVersion
-            return warnings
-        }
-
-        warnings.append(
-            "\(sourceLabel) schema v\(ruleSet.version) is newer than supported v\(Self.currentSchemaVersion); loading in compatibility mode."
-        )
         return warnings
     }
 
@@ -399,56 +326,151 @@ struct RuleLoader {
         )
     }
 
-    private func rulesConfigPaths() -> RulesConfigPaths {
-        RulesConfigPaths(fileManager: .default)
-    }
+    // MARK: - Hash
 
-    private func compositeHash(primaryData: Data, primaryURL: URL) -> String {
-        var parts: [Data] = [primaryData]
-        let paths = rulesConfigPaths()
-        for url in [
-            paths.sampleIDRulesURL,
-            paths.workflowMatchRulesURL,
-            paths.conditionsRulesURL,
-            paths.substrateRulesURL,
-            paths.measurementTagRulesURL
-        ] {
+    private func compositeHash(paths: RulesConfigPaths) -> String {
+        var parts: [Data] = []
+        for url in paths.allSchemaFileURLs {
             guard FileManager.default.fileExists(atPath: url.path),
-                  let data = try? Data(contentsOf: url) else {
-                continue
-            }
-            parts.append(Data(url.path.utf8))
+                  let data = try? Data(contentsOf: url) else { continue }
+            parts.append(Data(url.lastPathComponent.utf8))
             parts.append(data)
         }
         return hashHex(for: parts.reduce(into: Data(), { $0.append($1) }))
     }
 
-    private func shouldEnableSeparatedOverridesDuringTests() -> Bool {
-        let value = ProcessInfo.processInfo.environment["SPINLAB_ENABLE_SEPARATED_OVERRIDES_IN_TESTS"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        return value == "1" || value == "true" || value == "yes"
+    private func bundleCompositeHash(locator: BundleFileLocator) -> String {
+        let names = ["import_filters", "filename_tokenization", "sample_identification", "workflow", "measuring_condition"]
+        var combined = Data()
+        for name in names {
+            guard let data = try? locator.data(for: name) else { continue }
+            combined.append(Data(name.utf8))
+            combined.append(data)
+        }
+        return hashHex(for: combined)
     }
 
-    private func bundleRuleCandidateURLs() -> [URL] {
-        // SwiftPM `.process("config")` flattens files into the module's resource
-        // bundle root, so look up via `Bundle.module` without a `subdirectory:`.
-        var candidates: [URL] = []
-        if let direct = Bundle.module.url(forResource: "filename_rules", withExtension: "json") {
-            candidates.append(direct)
-        }
-        // Dev fallback: `swift test` invoked from the project root.
-        let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
-        candidates.append(cwd.appendingPathComponent("Sources/SpinLabApp/config/filename_rules.json"))
+    private func hashHex(for data: Data) -> String {
+        let digest = SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+}
 
-        var seen: Set<String> = []
-        return candidates.filter { url in
-            let standardized = url.standardizedFileURL.path
-            guard !seen.contains(standardized) else {
-                return false
-            }
-            seen.insert(standardized)
-            return true
+// MARK: - Per-file Decodable types
+
+private struct ImportFiltersFile: Decodable {
+    let version: Int
+    let `import`: ImportSection
+
+    var importRules: FilenameRuleSet.ImportRules {
+        FilenameRuleSet.ImportRules(
+            supportedFileExtensions: `import`.supportedFileExtensions,
+            ignoredFileExtensions: `import`.ignoredFileExtensions
+        )
+    }
+
+    struct ImportSection: Decodable {
+        let supportedFileExtensions: [String]
+        let ignoredFileExtensions: [String]
+    }
+}
+
+private struct FilenameTokenizationFile: Decodable {
+    let version: Int
+    let tokenization: FilenameRuleSet.Tokenization
+    let sources: [FilenameRuleSet.Source]
+    let channel: FilenameRuleSet.ChannelRules
+}
+
+private struct SampleIdentificationFile: Decodable {
+    let version: Int
+    let sampleId: FilenameRuleSet.SampleIdRules
+    let substrate: SubstrateSection
+
+    var substrateTagRules: [FilenameRuleSet.MapRule] { substrate.substrateTagRules }
+    var sharedSubstrate: FilenameRuleSet.SharedSubstrateRules? { substrate.shared }
+    var substrateConfig: FilenameRuleSet.SubstrateConfig? { substrate.substrateConfig }
+
+    struct SubstrateSection: Decodable {
+        let substrateTagRules: [FilenameRuleSet.MapRule]
+        let shared: FilenameRuleSet.SharedSubstrateRules?
+        let substrateConfig: FilenameRuleSet.SubstrateConfig?
+
+        private enum CodingKeys: String, CodingKey {
+            case substrateTagRules
+            case shared
+            case materials
         }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            substrateTagRules = try container.decodeIfPresent([FilenameRuleSet.MapRule].self, forKey: .substrateTagRules) ?? []
+            if container.contains(.materials) {
+                substrateConfig = try FilenameRuleSet.SubstrateConfig(from: decoder)
+                shared = nil
+            } else {
+                substrateConfig = nil
+                shared = try container.decodeIfPresent(FilenameRuleSet.SharedSubstrateRules.self, forKey: .shared)
+            }
+        }
+    }
+}
+
+private struct WorkflowFile: Decodable {
+    let version: Int
+    let workflows: [WorkflowEntry]
+    let measurementTagRules: [FilenameRuleSet.MapRule]
+
+    var measurementNameRules: [FilenameRuleSet.MapRule] {
+        workflows.flatMap { wf in
+            wf.matchRules.map { spec in FilenameRuleSet.MapRule(match: spec, value: wf.id) }
+        }
+    }
+
+    struct WorkflowEntry: Decodable {
+        let id: String
+        let matchRules: [FilenameRuleSet.MatchSpec]
+    }
+}
+
+private struct MeasuringConditionFile: Decodable {
+    let version: Int
+    let batch: FilenameRuleSet.BatchRules
+    let conditions: FilenameRuleSet.ConditionRules?
+    let conditionDefinitions: [FilenameRuleSet.ConditionDefinition]
+}
+
+struct LibraryImportRulesFile: Decodable {
+    let version: Int
+    let registry: FilenameRuleSet.RegistryRules?
+    let `import`: ImportSection?
+
+    var importRules: FilenameRuleSet.ImportRules? {
+        guard let imp = `import` else { return nil }
+        return FilenameRuleSet.ImportRules(
+            supportedFileExtensions: imp.supportedFileExtensions,
+            ignoredFileExtensions: imp.ignoredFileExtensions
+        )
+    }
+
+    struct ImportSection: Decodable {
+        let supportedFileExtensions: [String]
+        let ignoredFileExtensions: [String]
+    }
+}
+
+// MARK: - Bundle locator
+
+struct BundleFileLocator {
+    func data(for resourceName: String) throws -> Data? {
+        if let url = Bundle.module.url(forResource: resourceName, withExtension: "json") {
+            return try Data(contentsOf: url)
+        }
+        let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+        let devURL = cwd.appendingPathComponent("Sources/SpinLabApp/config/\(resourceName).json")
+        if FileManager.default.fileExists(atPath: devURL.path) {
+            return try Data(contentsOf: devURL)
+        }
+        return nil
     }
 }

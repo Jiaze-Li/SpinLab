@@ -16,54 +16,75 @@ struct FileRoutingSemanticRules {
     static func load(ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared) -> FileRoutingSemanticRules {
         var rules = FileRoutingSemanticRules.default
         let ruleSet = ruleProvider.ruleSet()
-        let substrate = ruleProvider.sharedSubstrateRules()
 
-        for canonical in substrate.treatmentKeywords.keys.sorted() {
-            guard let keywords = substrate.treatmentKeywords[canonical] else {
-                continue
-            }
-            for keyword in keywords {
-                let normalizedKeyword = normalizeToken(keyword)
-                guard !normalizedKeyword.isEmpty else {
-                    continue
+        if let config = ruleProvider.substrateConfig() {
+            for treatment in config.treatments {
+                for keyword in treatment.keywords {
+                    let normalized = normalizeToken(keyword)
+                    guard !normalized.isEmpty else { continue }
+                    rules.treatmentNeedles[normalized] = treatment.id
                 }
-                rules.treatmentNeedles[normalizedKeyword] = canonical
             }
-        }
-
-        for material in substrate.materialTokens {
-            let normalizedMaterial = normalizeToken(material)
-            guard !normalizedMaterial.isEmpty else {
-                continue
+            for material in config.materials {
+                for token in material.tokens {
+                    let normalized = normalizeToken(token)
+                    guard !normalized.isEmpty else { continue }
+                    rules.materialNeedles[normalized] = material.id.uppercased()
+                }
+                for alias in material.aliases {
+                    let normalized = normalizeToken(alias)
+                    guard !normalized.isEmpty else { continue }
+                    rules.materialNeedles[normalized] = material.id.uppercased()
+                }
             }
-            rules.materialNeedles[normalizedMaterial] = material.uppercased()
-        }
-
-        for (alias, canonical) in (substrate.materialAliases ?? [:]) {
-            let normalizedAlias = normalizeToken(alias)
-            guard !normalizedAlias.isEmpty else {
-                continue
+            for row in config.orientations.rows {
+                for token in row.tokens {
+                    let normalized = normalizeToken(token)
+                    guard !normalized.isEmpty else { continue }
+                    rules.orientationNeedles.insert(normalized)
+                }
+                for alias in row.aliases {
+                    let normalizedAlias = normalizeToken(alias)
+                    let normalizedCanonical = normalizeToken(row.id)
+                    guard !normalizedAlias.isEmpty, !normalizedCanonical.isEmpty else { continue }
+                    rules.orientationNeedles.insert(normalizedAlias)
+                    rules.orientationNeedles.insert(normalizedCanonical)
+                    rules.orientationAliases[normalizedAlias] = normalizedCanonical
+                }
             }
-            rules.materialNeedles[normalizedAlias] = canonical.uppercased()
-        }
-
-        for token in (substrate.orientationTokens ?? []) {
-            let normalizedToken = normalizeToken(token)
-            guard !normalizedToken.isEmpty else {
-                continue
+        } else {
+            let substrate = ruleProvider.sharedSubstrateRules()
+            for canonical in substrate.treatmentKeywords.keys.sorted() {
+                guard let keywords = substrate.treatmentKeywords[canonical] else { continue }
+                for keyword in keywords {
+                    let normalized = normalizeToken(keyword)
+                    guard !normalized.isEmpty else { continue }
+                    rules.treatmentNeedles[normalized] = canonical
+                }
             }
-            rules.orientationNeedles.insert(normalizedToken)
-        }
-
-        for (alias, canonical) in (substrate.orientationAliases ?? [:]) {
-            let normalizedAlias = normalizeToken(alias)
-            let normalizedCanonical = normalizeToken(canonical)
-            guard !normalizedAlias.isEmpty, !normalizedCanonical.isEmpty else {
-                continue
+            for material in substrate.materialTokens {
+                let normalized = normalizeToken(material)
+                guard !normalized.isEmpty else { continue }
+                rules.materialNeedles[normalized] = material.uppercased()
             }
-            rules.orientationNeedles.insert(normalizedAlias)
-            rules.orientationNeedles.insert(normalizedCanonical)
-            rules.orientationAliases[normalizedAlias] = normalizedCanonical
+            for (alias, canonical) in (substrate.materialAliases ?? [:]) {
+                let normalized = normalizeToken(alias)
+                guard !normalized.isEmpty else { continue }
+                rules.materialNeedles[normalized] = canonical.uppercased()
+            }
+            for token in (substrate.orientationTokens ?? []) {
+                let normalized = normalizeToken(token)
+                guard !normalized.isEmpty else { continue }
+                rules.orientationNeedles.insert(normalized)
+            }
+            for (alias, canonical) in (substrate.orientationAliases ?? [:]) {
+                let normalizedAlias = normalizeToken(alias)
+                let normalizedCanonical = normalizeToken(canonical)
+                guard !normalizedAlias.isEmpty, !normalizedCanonical.isEmpty else { continue }
+                rules.orientationNeedles.insert(normalizedAlias)
+                rules.orientationNeedles.insert(normalizedCanonical)
+                rules.orientationAliases[normalizedAlias] = normalizedCanonical
+            }
         }
 
         for entry in ruleSet.substrateTagRules {
@@ -99,8 +120,7 @@ struct FileRoutingSemanticRules {
     }
 
     private static func probesForMatch(_ match: FilenameRuleSet.MatchSpec) -> [String] {
-        let rawValues = (match.values ?? []) + [match.value].compactMap { $0 }
-        return rawValues.map(normalizeToken)
+        match.matchValues.map(normalizeToken)
     }
 
     private static func normalizeToken(_ token: String) -> String {

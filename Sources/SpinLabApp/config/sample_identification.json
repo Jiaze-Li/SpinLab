@@ -1,0 +1,259 @@
+{
+  "version": 2,
+  "sampleId": {
+    "patterns": [
+      "^(PN|PT|SL)\\d+$"
+    ]
+  },
+  "substrate": {
+    "tokenSeparators": "_- ()",
+    "substrateTagRules": [
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equalsOrContainsAny",
+          "matchValues": [
+            "HF"
+          ]
+        },
+        "value": "HF"
+      },
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equalsOrContainsAny",
+          "matchValues": [
+            "BAKE",
+            "BAKED"
+          ]
+        },
+        "value": "baked"
+      },
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equalsOrContainsAny",
+          "matchValues": [
+            "ORIGIN",
+            "ORIGINAL"
+          ]
+        },
+        "value": "o"
+      },
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "matchValues": ["STO111"]
+        },
+        "value": "STO 111"
+      },
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "matchValues": ["STO001"]
+        },
+        "value": "STO 001"
+      },
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "matchValues": ["STO"]
+        },
+        "value": "STO"
+      },
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "matchValues": ["NGO"]
+        },
+        "value": "NGO"
+      },
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "matchValues": ["111"]
+        },
+        "value": "111"
+      },
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "matchValues": ["001"]
+        },
+        "value": "001"
+      },
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "matchValues": ["o"]
+        },
+        "value": "o"
+      },
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "matchValues": ["O"]
+        },
+        "value": "o"
+      },
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "matchValues": ["MgO"]
+        },
+        "value": "MgO"
+      },
+      {
+        "match": {
+          "scope": "tokens",
+          "type": "equals",
+          "matchValues": ["b"]
+        },
+        "value": "b"
+      }
+    ],
+    "materials": [
+      {
+        "id": "STO",
+        "tokens": [
+          "STO"
+        ],
+        "aliases": [],
+        "displayName": "STO"
+      },
+      {
+        "id": "NGO",
+        "tokens": [
+          "NGO"
+        ],
+        "aliases": [],
+        "displayName": "NGO"
+      },
+      {
+        "id": "MAO",
+        "tokens": [
+          "MAO"
+        ],
+        "aliases": [],
+        "displayName": "MAO"
+      },
+      {
+        "id": "MGO",
+        "tokens": [
+          "MGO"
+        ],
+        "aliases": [],
+        "displayName": "MgO"
+      },
+      {
+        "id": "AL2O3",
+        "tokens": [
+          "AL2O3"
+        ],
+        "aliases": [],
+        "displayName": "Al2O3"
+      },
+      {
+        "id": "SI",
+        "tokens": [
+          "SI"
+        ],
+        "aliases": [
+          "ONSI"
+        ],
+        "displayName": "Si"
+      },
+      {
+        "id": "POLY-SIO2",
+        "tokens": [
+          "POLY-SIO2",
+          "POLY-SIO2 ON SI"
+        ],
+        "aliases": [],
+        "displayName": "poly-SiO2 on Si"
+      }
+    ],
+    "treatments": [
+      {
+        "id": "HF",
+        "displayName": "HF",
+        "keywords": [
+          "hf"
+        ],
+        "standaloneTokens": [],
+        "containsTokens": []
+      },
+      {
+        "id": "b",
+        "displayName": "baked",
+        "keywords": [
+          "b",
+          "bake",
+          "baked"
+        ],
+        "standaloneTokens": [],
+        "containsTokens": []
+      },
+      {
+        "id": "o",
+        "displayName": "o",
+        "keywords": [
+          "o",
+          "origin",
+          "original"
+        ],
+        "standaloneTokens": [
+          "o"
+        ],
+        "containsTokens": [
+          "origin",
+          "original"
+        ]
+      }
+    ],
+    "orientations": {
+      "pattern": "\\d{3}",
+      "rows": [
+        {
+          "id": "001",
+          "tokens": [
+            "001"
+          ],
+          "aliases": [
+            "100"
+          ]
+        },
+        {
+          "id": "111",
+          "tokens": [
+            "111"
+          ],
+          "aliases": []
+        },
+        {
+          "id": "110",
+          "tokens": [
+            "110"
+          ],
+          "aliases": []
+        },
+        {
+          "id": "0001",
+          "tokens": [
+            "0001"
+          ],
+          "aliases": []
+        }
+      ]
+    }
+  }
+}

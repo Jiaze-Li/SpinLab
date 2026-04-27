@@ -134,7 +134,7 @@ final class SpinLabAppState {
     var registry: RegistryFeatureStore { registryFeatureStore }
     var library: LibraryFeatureStore { libraryFeatureStore }
     var workbench: WorkbenchFeatureStore { workbenchFeatureStore }
-    var conditionRulesHandbook: ConditionRulesHandbookStore { conditionRulesHandbookStore }
+    var rulesPanel: RulesManagementStore { rulesPanelStore }
     var workflowDefinitions: [WorkflowDefinition] = []
 
     var selectedPendingImportID: UUID? {
@@ -162,13 +162,27 @@ final class SpinLabAppState {
     private var registryFeatureStore: RegistryFeatureStore
     private let libraryFeatureStore: LibraryFeatureStore
     private let workbenchFeatureStore: WorkbenchFeatureStore
-    private let conditionRulesHandbookStore: ConditionRulesHandbookStore
     private let appLogger = AppLogger.shared
     private let interactionSnapshotCoordinator: InteractionSnapshotCoordinator
     private var hasRestoredInteractionSnapshot = false
     private var lastLibraryCacheValidationRootPath: String?
     private var lastLibraryCacheValidationAt: Date?
     private let dataActor: any SpinLabDataActing
+    @ObservationIgnored private var rulesSyncEngine: RulesSyncEngine?
+    @ObservationIgnored private var rulesSyncStartupOutcome: StartupOutcome = .skipped
+    @ObservationIgnored
+    private lazy var rulesPanelStore: RulesManagementStore = {
+        RulesManagementStore(
+            onRulesSaved: { [weak self] in
+                self?.refreshRoutingRuleMetadata(forceReload: true)
+                self?.recomputeAllPendingParsedHints()
+                // R1: refresh Workbench conditionDefinitionOptions so picker reflects new rules immediately
+                self?.workbenchFeatureStore.reloadWorkflowDefinitionsAfterRulesChange()
+            },
+            syncEngine: self.rulesSyncEngine,
+            syncStartupOutcome: self.rulesSyncStartupOutcome
+        )
+    }()
     private let registryLifecycleService = RegistryLifecycleService()
     @ObservationIgnored
     private var contentFingerprintCache: [String: String] = [:]
@@ -330,13 +344,10 @@ final class SpinLabAppState {
         )
         self.registryFeatureStore = RegistryFeatureStore()
         self.libraryFeatureStore = LibraryFeatureStore()
-        self.conditionRulesHandbookStore = environment.conditionRulesHandbookStore
         self.workbenchFeatureStore = WorkbenchFeatureStore(
             libraryRepository: self.libraryRepository,
             dataActor: environment.dataActor,
-            workflowRegistryStore: environment.workflowRegistryStore,
-            workflowIDAllocator: environment.workflowIDAllocator,
-            conditionRulesHandbookStore: self.conditionRulesHandbookStore
+            workflowDefinitionStore: environment.workflowDefinitionStore
         )
         let interactionMemory = InteractionMemoryStore(persistence: environment.persistence)
         self.interactionSnapshotCoordinator = InteractionSnapshotCoordinator(interactionMemory: interactionMemory)
@@ -376,6 +387,14 @@ final class SpinLabAppState {
                 self?.persistInteractionSnapshotIfReady()
             }
         )
+
+        // §5.4 startup sequence: pointer → engine → reverseSync → reloadCached → stores
+        let runtimeConfigPaths = RulesConfigPaths()
+        let syncPointer = RepositoryPointer.load(runtimeConfigDir: runtimeConfigPaths.configDirectoryURL)
+        let engine = RulesSyncEngine(pointer: syncPointer)
+        self.rulesSyncEngine = engine
+        self.rulesSyncStartupOutcome = engine.reverseSyncOnStartup(runtimePaths: runtimeConfigPaths)
+        _ = RuleLoader.shared.reloadCached()
 
         load()
         if let rootPath = libraryFeatureStore.librarySettings.rootPath, !rootPath.isEmpty {
@@ -1755,7 +1774,6 @@ final class SpinLabAppState {
             "routingRulePath": inboxFeatureStore.routingRuleSourcePath,
             "routingRuleFingerprint": inboxFeatureStore.routingRuleFingerprint,
             "routingRuleHashPrefix": inboxFeatureStore.routingRuleHashPrefix,
-            "routingRuleLoadedOverrideFiles": inboxFeatureStore.routingRuleLoadedOverrideFiles.joined(separator: ","),
             "pendingImportCount": "\(inboxFeatureStore.pendingImports.count)",
             "archivedRecordCount": "\(workbenchFeatureStore.archivedRecords.count)",
             "selectedArea": selectedArea.rawValue
