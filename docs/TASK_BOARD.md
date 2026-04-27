@@ -15,7 +15,6 @@
 |---|---|---|---|
 | 5.1.5 | 规则管理统一 + 自动同步基础设施 (s1-s7 已完成) | 需求提出 (s8) | [V5_ROADMAP §5.1.5](V5_ROADMAP.md) |
 | 5.1.6 | Codex 派发提速基建（杠杆 A/B/C + 重构方案设计） | 需求提出 | [V5_ROADMAP §5.1.6](V5_ROADMAP.md) |
-| 5.7.1 | TASK_BOARD 引入 + 文档治理重构 | 方案执行中 (5.7.1) | [handoff/2026-04-26-5.7.1-task-board-introduction.md](handoff/2026-04-26-5.7.1-task-board-introduction.md) |
 
 ## 待拍板
 
