@@ -69,16 +69,6 @@ struct FilenameRuleParser {
             grandparentTokens: grandparentTokens
         )
 
-        let joined = joinedSourceText(
-            fileStem: fileScopeTokens.joined(separator: " "),
-            parentName: parentName,
-            grandparentName: grandparentName
-        )
-        let fileJoined = fileScopeTokens.joined(separator: " ").lowercased()
-        let folderJoined = [parentName, grandparentName]
-            .joined(separator: " ")
-            .lowercased()
-
         let fileSampleIDs = ruleSet.sampleIDs(from: fileScopeTokens)
         let folderSampleIDs = uniquePreservingOrder(
             ruleSet.sampleIDs(from: parentTokens)
@@ -172,20 +162,6 @@ struct FilenameRuleParser {
             }
         }
         return collected
-    }
-
-    private func joinedSourceText(fileStem: String, parentName: String, grandparentName: String) -> String {
-        let parts: [String] = ruleSet.sources.map { source in
-            switch source {
-            case .file:
-                return fileStem
-            case .parent:
-                return parentName
-            case .grandparent:
-                return grandparentName
-            }
-        }
-        return parts.joined(separator: " ").lowercased()
     }
 
     private func channelHints(from fileTokens: [String]) -> [SpinLabDomain.ParsedChannelHint] {

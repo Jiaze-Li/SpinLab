@@ -6,8 +6,6 @@ struct WorkflowSection: View {
     @State private var draft: WorkflowFileDraft?
 
     @State private var expandedWorkflowID: String? = nil
-    @State private var expandedWorkflowRuleIndexByID: [String: Int] = [:]
-    @State private var expandedMeasurementTagRuleIndex: Int? = nil
 
     @State private var pendingDeleteWorkflowID: String? = nil
     @State private var showDeleteWorkflowConfirm = false
@@ -234,76 +232,34 @@ struct WorkflowSection: View {
 
     @ViewBuilder
     private func workflowMatchRulesEditor(d: WorkflowFileDraft, idx: Int) -> some View {
-        let entry = d.workflows[idx]
-        let workflowID = entry.id
+        MatchRulesEditor(
+            rules: workflowMatchSpecsBinding(d: d, workflowIdx: idx),
+            allowedOps: [.equals, .contains],
+            defaultOp: .equals
+        )
+    }
 
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            HStack {
-                Text("Match Rules")
-                    .font(AppFontScale.groupHeader)
-                Spacer()
-                Button("Add Rule") {
-                    var updated = d
-                    updated.workflows[idx].matchRules.append(
-                        .init(scope: "tokens", type: "equalsOrContainsAny", matchValues: [])
+    private func workflowMatchSpecsBinding(d: WorkflowFileDraft, workflowIdx: Int) -> Binding<[FilenameRuleSet.MatchSpec]> {
+        Binding(
+            get: {
+                guard let current = draft,
+                      current.workflows.indices.contains(workflowIdx) else { return [] }
+                return current.workflows[workflowIdx].matchRules.map {
+                    FilenameRuleSet.MatchSpec(
+                        type: FilenameRuleSet.Operation(rawValue: $0.type) ?? .equals,
+                        value: $0.matchValues.first ?? ""
                     )
-                    apply(updated)
-                    expandedWorkflowRuleIndexByID[workflowID] = updated.workflows[idx].matchRules.count - 1
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-
-            ForEach(entry.matchRules.indices, id: \.self) { ruleIdx in
-                let isRuleExpanded = expandedWorkflowRuleIndexByID[workflowID] == ruleIdx
-
-                VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                    Button {
-                        if isRuleExpanded {
-                            expandedWorkflowRuleIndexByID.removeValue(forKey: workflowID)
-                        } else {
-                            expandedWorkflowRuleIndexByID[workflowID] = ruleIdx
-                        }
-                    } label: {
-                        HStack(spacing: AppSpacing.md) {
-                            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
-                                Text(ruleHeadline(entry.matchRules[ruleIdx]))
-                                    .font(.subheadline.weight(.medium))
-                                Text("\(entry.matchRules[ruleIdx].scope) · \(entry.matchRules[ruleIdx].type)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Button(role: .destructive) {
-                                var updated = d
-                                updated.workflows[idx].matchRules.remove(at: ruleIdx)
-                                apply(updated)
-                                expandedWorkflowRuleIndexByID.removeValue(forKey: workflowID)
-                            } label: {
-                                Image(systemName: "minus.circle")
-                            }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel("Remove rule")
-                            Image(systemName: isRuleExpanded ? "chevron.up" : "chevron.down")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-
-                    if isRuleExpanded {
-                        UnifiedMatchRuleEditor(
-                            type: workflowMatchRuleTypeBinding(workflowIdx: idx, ruleIdx: ruleIdx),
-                            matchValues: workflowMatchRuleValuesBinding(workflowIdx: idx, ruleIdx: ruleIdx)
-                        )
-                            .padding(AppSpacing.md)
-                            .background(Color(nsColor: .windowBackgroundColor))
-                            .cornerRadius(AppSpacing.sm)
-                    }
+            },
+            set: { specs in
+                guard var updated = draft,
+                      updated.workflows.indices.contains(workflowIdx) else { return }
+                updated.workflows[workflowIdx].matchRules = specs.map {
+                    WorkflowFileDraft.WorkflowMatchSpec(scope: "tokens", type: $0.type.rawValue, matchValues: [$0.value])
                 }
+                apply(updated)
             }
-        }
+        )
     }
 
     @ViewBuilder
@@ -359,84 +315,21 @@ struct WorkflowSection: View {
         saveErrors: [RulesPanelFieldError]
     ) -> some View {
         GroupBox("Measurement Tag Rules") {
-            VStack(alignment: .leading, spacing: AppSpacing.md) {
-                HStack {
-                    Text("Map Rules")
-                        .font(AppFontScale.groupHeader)
-                    Spacer()
-                    Button("Add Rule") {
-                        var updated = d
-                        updated.measurementTagRules.append(
-                            MapRule(
-                                match: .init(scope: "tokens", type: "equalsOrContainsAny", matchValues: []),
-                                value: ""
-                            )
-                        )
+            MatchMapRulesEditor(
+                rules: Binding(
+                    get: { draft?.measurementTagRules ?? [] },
+                    set: { newRules in
+                        guard var updated = draft else { return }
+                        updated.measurementTagRules = newRules
                         apply(updated)
-                        expandedMeasurementTagRuleIndex = updated.measurementTagRules.count - 1
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-
-                ForEach(d.measurementTagRules.indices, id: \.self) { idx in
-                    let isExpanded = expandedMeasurementTagRuleIndex == idx
-
-                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                        Button {
-                            if isExpanded {
-                                expandedMeasurementTagRuleIndex = nil
-                            } else {
-                                expandedMeasurementTagRuleIndex = idx
-                            }
-                        } label: {
-                            HStack(spacing: AppSpacing.md) {
-                                VStack(alignment: .leading, spacing: AppSpacing.xxs) {
-                                    Text("→ \(d.measurementTagRules[idx].value)")
-                                        .font(.callout.weight(.semibold))
-                                    Text(d.measurementTagRules[idx].match.type)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                Button(role: .destructive) {
-                                    var updated = d
-                                    updated.measurementTagRules.remove(at: idx)
-                                    apply(updated)
-                                    if expandedMeasurementTagRuleIndex == idx {
-                                        expandedMeasurementTagRuleIndex = nil
-                                    }
-                                } label: {
-                                    Image(systemName: "minus.circle")
-                                }
-                                .buttonStyle(.borderless)
-                                .accessibilityLabel("Remove rule")
-                                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-
-                        if isExpanded {
-                            UnifiedMatchRuleEditor(
-                                type: measurementTagRuleTypeBinding(idx: idx),
-                                matchValues: measurementTagRuleValuesBinding(idx: idx),
-                                outputBinding: measurementTagRuleOutputBinding(idx: idx)
-                            )
-                                .padding(AppSpacing.md)
-                                .background(Color(nsColor: .windowBackgroundColor))
-                                .cornerRadius(AppSpacing.sm)
-                        }
-                    }
-                }
-            }
+                ),
+                allowedOps: [.equals, .contains],
+                defaultOp: .equals,
+                outputTitle: "Tag"
+            )
         }
-    }
-
-    private func ruleHeadline(_ rule: WorkflowFileDraft.WorkflowMatchSpec) -> String {
-        rule.matchValues.isEmpty ? "(empty)" : rule.matchValues.joined(separator: ", ")
+        .errorHighlight(saveErrors.hasGroup("measurementTagRules"))
     }
 
     private func requestDeleteWorkflow(id: String) {
@@ -451,7 +344,6 @@ struct WorkflowSection: View {
         if expandedWorkflowID == id {
             expandedWorkflowID = nil
         }
-        expandedWorkflowRuleIndexByID.removeValue(forKey: id)
         pendingDeleteWorkflowID = nil
     }
 
@@ -462,100 +354,6 @@ struct WorkflowSection: View {
 
     private func deleteConfirmMessage() -> String {
         "This removes workflow ID, display name, match rules, and condition field mappings."
-    }
-
-    private func workflowMatchRuleTypeBinding(workflowIdx: Int, ruleIdx: Int) -> Binding<String> {
-        Binding(
-            get: {
-                guard let d = draft,
-                      d.workflows.indices.contains(workflowIdx),
-                      d.workflows[workflowIdx].matchRules.indices.contains(ruleIdx) else {
-                    return "equals"
-                }
-                return d.workflows[workflowIdx].matchRules[ruleIdx].type
-            },
-            set: { newValue in
-                guard var d = draft,
-                      d.workflows.indices.contains(workflowIdx),
-                      d.workflows[workflowIdx].matchRules.indices.contains(ruleIdx) else { return }
-                d.workflows[workflowIdx].matchRules[ruleIdx].type = newValue
-                apply(d)
-            }
-        )
-    }
-
-    private func workflowMatchRuleValuesBinding(workflowIdx: Int, ruleIdx: Int) -> Binding<[String]> {
-        Binding(
-            get: {
-                guard let d = draft,
-                      d.workflows.indices.contains(workflowIdx),
-                      d.workflows[workflowIdx].matchRules.indices.contains(ruleIdx) else {
-                    return []
-                }
-                return d.workflows[workflowIdx].matchRules[ruleIdx].matchValues
-            },
-            set: { newValue in
-                guard var d = draft,
-                      d.workflows.indices.contains(workflowIdx),
-                      d.workflows[workflowIdx].matchRules.indices.contains(ruleIdx) else { return }
-                d.workflows[workflowIdx].matchRules[ruleIdx].matchValues = newValue
-                apply(d)
-            }
-        )
-    }
-
-    private func measurementTagRuleTypeBinding(idx: Int) -> Binding<String> {
-        Binding(
-            get: {
-                guard let d = draft,
-                      d.measurementTagRules.indices.contains(idx) else {
-                    return "equals"
-                }
-                return d.measurementTagRules[idx].match.type
-            },
-            set: { newValue in
-                guard var d = draft,
-                      d.measurementTagRules.indices.contains(idx) else { return }
-                d.measurementTagRules[idx].match.type = newValue
-                apply(d)
-            }
-        )
-    }
-
-    private func measurementTagRuleValuesBinding(idx: Int) -> Binding<[String]> {
-        Binding(
-            get: {
-                guard let d = draft,
-                      d.measurementTagRules.indices.contains(idx) else {
-                    return []
-                }
-                return d.measurementTagRules[idx].match.matchValues
-            },
-            set: { newValue in
-                guard var d = draft,
-                      d.measurementTagRules.indices.contains(idx) else { return }
-                d.measurementTagRules[idx].match.matchValues = newValue
-                apply(d)
-            }
-        )
-    }
-
-    private func measurementTagRuleOutputBinding(idx: Int) -> Binding<String> {
-        Binding(
-            get: {
-                guard let d = draft,
-                      d.measurementTagRules.indices.contains(idx) else {
-                    return ""
-                }
-                return d.measurementTagRules[idx].value
-            },
-            set: { newValue in
-                guard var d = draft,
-                      d.measurementTagRules.indices.contains(idx) else { return }
-                d.measurementTagRules[idx].value = newValue
-                apply(d)
-            }
-        )
     }
 
     private func apply(_ updated: WorkflowFileDraft) {

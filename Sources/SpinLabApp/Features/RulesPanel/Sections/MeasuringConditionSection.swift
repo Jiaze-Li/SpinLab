@@ -7,8 +7,6 @@ struct MeasuringConditionSection: View {
     @State private var selectedConditionID: String? = nil
     @State private var showDeleteConfirm = false
     @State private var pendingDeleteID: String? = nil
-    @State private var expandedTokenMapRuleIndices: [String: Int] = [:]
-    @State private var newUnitInputByConditionID: [String: String] = [:]
 
     private var store: RulesManagementStore { appState.rulesPanel }
 
@@ -160,157 +158,51 @@ struct MeasuringConditionSection: View {
             }
 
             if def.kind == "unit_suffix" {
-                unitSuffixEditor(idx: idx, d: d)
+                MatchRulesEditor(
+                    rules: unitSuffixSpecsBinding(condIdx: idx),
+                    allowedOps: [.unitSuffix],
+                    defaultOp: .unitSuffix
+                )
             } else {
-                tokenMapEditor(id: def.id, d: d, idx: idx)
+                MatchMapRulesEditor(
+                    rules: tokenMapRulesBinding(condIdx: idx),
+                    allowedOps: [.equals, .contains],
+                    defaultOp: .equals,
+                    outputTitle: "Mapped to"
+                )
             }
         }
     }
 
-    @ViewBuilder
-    private func unitSuffixEditor(idx: Int, d: MeasuringConditionFileDraft) -> some View {
-        let def = d.conditionDefinitions[idx]
-        let units = UnitSuffixPattern.parse(def.unitPattern ?? "") ?? []
-        LabeledContent("Unit Suffixes") {
-            VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                if !units.isEmpty {
-                    HStack(spacing: AppSpacing.xs) {
-                        ForEach(units, id: \.self) { unit in
-                            HStack(spacing: AppSpacing.xxs) {
-                                Text(unit)
-                                    .font(.callout.monospaced())
-                                Button {
-                                    removeUnit(unit, condIdx: idx, d: d)
-                                } label: {
-                                    Image(systemName: "xmark")
-                                        .font(.caption2)
-                                }
-                                .buttonStyle(.borderless)
-                                .accessibilityLabel("Remove \(unit)")
-                            }
-                            .padding(.horizontal, AppSpacing.sm)
-                            .padding(.vertical, AppSpacing.xxs)
-                            .background(Color.accentColor.opacity(0.1))
-                            .cornerRadius(AppSpacing.xs)
-                        }
-                    }
-                }
-                HStack(spacing: AppSpacing.xs) {
-                    TextField("e.g. mA", text: Binding(
-                        get: { newUnitInputByConditionID[def.id] ?? "" },
-                        set: { newUnitInputByConditionID[def.id] = $0 }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 120)
-                    .onSubmit { commitNewUnit(condIdx: idx, d: d) }
-                    Button("Add") { commitNewUnit(condIdx: idx, d: d) }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .disabled((newUnitInputByConditionID[def.id] ?? "").trimmingCharacters(in: .whitespaces).isEmpty)
-                }
+    // MARK: - Bindings (unit_suffix ↔ [FilenameRuleSet.MatchSpec], token_map ↔ [MapRule])
+
+    private func unitSuffixSpecsBinding(condIdx: Int) -> Binding<[FilenameRuleSet.MatchSpec]> {
+        Binding(
+            get: {
+                guard let d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return [] }
+                return unitsFromUnitPattern(d.conditionDefinitions[condIdx].unitPattern)
+                    .map { FilenameRuleSet.MatchSpec(type: .unitSuffix, value: $0) }
+            },
+            set: { specs in
+                guard var d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return }
+                let units = specs.filter { $0.type == .unitSuffix }.map(\.value).filter { !$0.isEmpty }
+                d.conditionDefinitions[condIdx].unitPattern = units.isEmpty ? "" : unitPatternFromUnits(units)
+                apply(d)
             }
-        }
+        )
     }
 
-    private func removeUnit(_ unit: String, condIdx: Int, d: MeasuringConditionFileDraft) {
-        var current = UnitSuffixPattern.parse(d.conditionDefinitions[condIdx].unitPattern ?? "") ?? []
-        if let i = current.firstIndex(of: unit) { current.remove(at: i) }
-        var u = d
-        u.conditionDefinitions[condIdx].unitPattern = current.isEmpty ? "" : UnitSuffixPattern.compile(current)
-        apply(u)
-    }
-
-    private func commitNewUnit(condIdx: Int, d: MeasuringConditionFileDraft) {
-        let condID = d.conditionDefinitions[condIdx].id
-        let raw = (newUnitInputByConditionID[condID] ?? "").trimmingCharacters(in: .whitespaces)
-        guard !raw.isEmpty else { return }
-        var current = UnitSuffixPattern.parse(d.conditionDefinitions[condIdx].unitPattern ?? "") ?? []
-        guard !current.contains(raw) else { return }
-        current.append(raw)
-        var u = d
-        u.conditionDefinitions[condIdx].unitPattern = UnitSuffixPattern.compile(current)
-        apply(u)
-        newUnitInputByConditionID[condID] = ""
-    }
-
-    @ViewBuilder
-    private func tokenMapEditor(id: String, d: MeasuringConditionFileDraft, idx: Int) -> some View {
-        let rules = d.conditionDefinitions[idx].tokenMap ?? []
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            HStack {
-                Text("Match Rules").font(AppFontScale.groupHeader)
-                Spacer()
-                Button("Add Rule") {
-                    var u = d
-                    var updated = u.conditionDefinitions[idx].tokenMap ?? []
-                    updated.append(MapRule(match: .init(scope: "tokens", type: "equalsOrContainsAny", matchValues: []), value: ""))
-                    u.conditionDefinitions[idx].tokenMap = updated
-                    apply(u)
-                    expandedTokenMapRuleIndices[id] = updated.count - 1
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+    private func tokenMapRulesBinding(condIdx: Int) -> Binding<[MapRule]> {
+        Binding(
+            get: {
+                guard let d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return [] }
+                return d.conditionDefinitions[condIdx].tokenMap ?? []
+            },
+            set: { newRules in
+                guard var d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return }
+                d.conditionDefinitions[condIdx].tokenMap = newRules
+                apply(d)
             }
-            ForEach(rules.indices, id: \.self) { ruleIdx in
-                let isRuleSelected = expandedTokenMapRuleIndices[id] == ruleIdx
-                VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                    Button(action: {
-                        if isRuleSelected {
-                            expandedTokenMapRuleIndices.removeValue(forKey: id)
-                        } else {
-                            expandedTokenMapRuleIndices[id] = ruleIdx
-                        }
-                    }) {
-                        HStack(spacing: AppSpacing.md) {
-                            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
-                                Text("→ \(rules[ruleIdx].value)").font(.callout.weight(.semibold))
-                                Text(rules[ruleIdx].match.type)
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Button(role: .destructive) {
-                                var u = d
-                                var updated = u.conditionDefinitions[idx].tokenMap ?? []
-                                updated.remove(at: ruleIdx)
-                                u.conditionDefinitions[idx].tokenMap = updated
-                                apply(u)
-                                expandedTokenMapRuleIndices.removeValue(forKey: id)
-                            } label: { Image(systemName: "minus.circle") }
-                            .buttonStyle(.borderless)
-                            Image(systemName: isRuleSelected ? "chevron.up" : "chevron.down")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-
-                    if isRuleSelected {
-                        tokenMapRuleEditor(condIdx: idx, ruleIdx: ruleIdx)
-                            .padding(AppSpacing.md)
-                            .background(Color(nsColor: .windowBackgroundColor))
-                            .cornerRadius(AppSpacing.sm)
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func tokenMapRuleEditor(condIdx: Int, ruleIdx: Int) -> some View {
-        let rb = tokenMapRuleBinding(condIdx: condIdx, ruleIdx: ruleIdx)
-        UnifiedMatchRuleEditor(
-            type: Binding(
-                get: { rb.wrappedValue.match.type },
-                set: { v in var r = rb.wrappedValue; r.match.type = v; rb.wrappedValue = r }
-            ),
-            matchValues: Binding(
-                get: { rb.wrappedValue.match.matchValues },
-                set: { v in var r = rb.wrappedValue; r.match.matchValues = v; rb.wrappedValue = r }
-            ),
-            outputBinding: Binding(
-                get: { rb.wrappedValue.value },
-                set: { v in var r = rb.wrappedValue; r.value = v; rb.wrappedValue = r }
-            )
         )
     }
 
@@ -331,7 +223,6 @@ struct MeasuringConditionSection: View {
         d.conditionDefinitions.removeAll { $0.id == id }
         apply(d)
         if selectedConditionID == id { selectedConditionID = nil }
-        expandedTokenMapRuleIndices.removeValue(forKey: id)
         pendingDeleteID = nil
     }
 
@@ -409,22 +300,5 @@ struct MeasuringConditionSection: View {
 
     private func syncFromStore() {
         if let current = store.measuringConditionDraft { draft = current }
-    }
-}
-
-// MARK: - Unit suffix pattern codec
-
-private enum UnitSuffixPattern {
-    private static let knownPrefix = #"^-?\d+(?:\.\d+)?(?:"#
-    private static let knownSuffix = ")$"
-
-    static func parse(_ pattern: String) -> [String]? {
-        guard pattern.hasPrefix(knownPrefix), pattern.hasSuffix(knownSuffix) else { return nil }
-        let inner = String(pattern.dropFirst(knownPrefix.count).dropLast(knownSuffix.count))
-        return inner.isEmpty ? [] : inner.components(separatedBy: "|")
-    }
-
-    static func compile(_ units: [String]) -> String {
-        "\(knownPrefix)\(units.joined(separator: "|"))\(knownSuffix)"
     }
 }

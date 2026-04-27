@@ -263,11 +263,11 @@ extension MeasuringConditionFileDraft.ConditionDefinition: Codable {
 
 // MARK: - Unit pattern helpers (bridging unitPattern string ↔ unit-suffix MatchSpec values)
 
-private func unitPatternFromUnits(_ units: [String]) -> String {
+func unitPatternFromUnits(_ units: [String]) -> String {
     "^-?\\d+(?:\\.\\d+)?(?:\(units.joined(separator: "|")))$"
 }
 
-private func unitsFromUnitPattern(_ pattern: String?) -> [String] {
+func unitsFromUnitPattern(_ pattern: String?) -> [String] {
     guard let pattern else { return [] }
     let prefix = "^-?\\d+(?:\\.\\d+)?(?:"
     let suffix = ")$"

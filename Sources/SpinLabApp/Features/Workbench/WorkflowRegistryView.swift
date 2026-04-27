@@ -119,14 +119,7 @@ struct WorkflowRegistryView: View {
     }
 
     private func matchRuleSummary(_ rule: WorkflowFileDraft.WorkflowMatchSpec) -> String {
-        let scopePart = rule.scope
-        let typePart = rule.type
-        if rule.matchValues.count == 1 {
-            return "\(scopePart) \(typePart) \"\(rule.matchValues[0])\""
-        }
-        if !rule.matchValues.isEmpty {
-            return "\(scopePart) \(typePart) [\(rule.matchValues.joined(separator: ", "))]"
-        }
-        return "\(scopePart) \(typePart)"
+        let value = rule.matchValues.first ?? ""
+        return value.isEmpty ? rule.type : "\(rule.type) \"\(value)\""
     }
 }

@@ -43,12 +43,25 @@ struct SampleIdentificationSection: View {
     @ViewBuilder
     private func batchPrefixesGroup(_ d: SampleIdentificationFileDraft) -> some View {
         GroupBox("Batch ID Prefixes") {
-            stringListField(
-                title: "Prefixes",
-                items: d.sampleId.batchPrefixes,
-                onChange: { v in var u = d; u.sampleId.batchPrefixes = v; apply(u) }
+            MatchRulesEditor(
+                rules: batchSpecsBinding(d),
+                allowedOps: [.startsWith],
+                defaultOp: .startsWith
             )
         }
+    }
+
+    private func batchSpecsBinding(_ d: SampleIdentificationFileDraft) -> Binding<[FilenameRuleSet.MatchSpec]> {
+        Binding(
+            get: {
+                d.sampleId.batchPrefixes.map { FilenameRuleSet.MatchSpec(type: .startsWith, value: $0) }
+            },
+            set: { specs in
+                var u = d
+                u.sampleId.batchPrefixes = specs.filter { $0.type == .startsWith }.map(\.value).filter { !$0.isEmpty }
+                apply(u)
+            }
+        )
     }
 
     // MARK: - Substrate Configuration
@@ -208,89 +221,36 @@ struct SampleIdentificationSection: View {
                 .textFieldStyle(.roundedBorder)
                 .font(.body.monospaced())
             }
-            matchesEditor(entryIdx: idx, entries: entries, onChange: onChange)
+            MatchRulesEditor(
+                rules: substrateMatchesBinding(entryIdx: idx, entries: entries, onChange: onChange),
+                allowedOps: [.equals, .contains],
+                defaultOp: .equals
+            )
         }
     }
 
-    @ViewBuilder
-    private func matchesEditor(
+    private func substrateMatchesBinding(
         entryIdx: Int,
         entries: [SampleIdentificationFileDraft.SubstrateEntry],
         onChange: @escaping ([SampleIdentificationFileDraft.SubstrateEntry]) -> Void
-    ) -> some View {
-        let matches = entries[entryIdx].matches
-        VStack(alignment: .leading, spacing: AppSpacing.xs) {
-            HStack {
-                Text("Matches").font(.subheadline)
-                Spacer()
-                Button("Add") {
-                    var updated = entries
-                    updated[entryIdx].matches.append(.init(type: "equals", value: ""))
-                    onChange(updated)
+    ) -> Binding<[FilenameRuleSet.MatchSpec]> {
+        Binding(
+            get: {
+                entries[entryIdx].matches.map {
+                    FilenameRuleSet.MatchSpec(
+                        type: FilenameRuleSet.Operation(rawValue: $0.type) ?? .equals,
+                        value: $0.value
+                    )
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-            ForEach(matches.indices, id: \.self) { mIdx in
-                HStack(spacing: AppSpacing.sm) {
-                    Picker("", selection: Binding(
-                        get: { matches[mIdx].type },
-                        set: { v in var updated = entries; updated[entryIdx].matches[mIdx].type = v; onChange(updated) }
-                    )) {
-                        Text("equals").tag("equals")
-                        Text("contains").tag("contains")
-                    }
-                    .labelsHidden()
-                    .fixedSize()
-                    TextField("value", text: Binding(
-                        get: { matches[mIdx].value },
-                        set: { v in var updated = entries; updated[entryIdx].matches[mIdx].value = v; onChange(updated) }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-                    .font(.body.monospaced())
-                    Button(role: .destructive) {
-                        var updated = entries
-                        updated[entryIdx].matches.remove(at: mIdx)
-                        onChange(updated)
-                    } label: { Image(systemName: "minus.circle") }
-                    .buttonStyle(.borderless)
+            },
+            set: { specs in
+                var updated = entries
+                updated[entryIdx].matches = specs.map {
+                    SampleIdentificationFileDraft.SubstrateEntry.Match(type: $0.type.rawValue, value: $0.value)
                 }
+                onChange(updated)
             }
-        }
-    }
-
-    // MARK: - Shared helpers
-
-    @ViewBuilder
-    private func stringListField(
-        title: String,
-        items: [String],
-        onChange: @escaping ([String]) -> Void
-    ) -> some View {
-        VStack(alignment: .leading, spacing: AppSpacing.xs) {
-            HStack {
-                Text(title).font(AppFontScale.groupHeader)
-                Spacer()
-                Button("Add") { onChange(items + [""]) }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-            }
-            ForEach(items.indices, id: \.self) { idx in
-                HStack(spacing: AppSpacing.sm) {
-                    TextField("value", text: Binding(
-                        get: { items[idx] },
-                        set: { v in var updated = items; updated[idx] = v; onChange(updated) }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-                    .font(.body.monospaced())
-                    Button(role: .destructive) {
-                        var updated = items; updated.remove(at: idx); onChange(updated)
-                    } label: { Image(systemName: "minus.circle") }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Remove")
-                }
-            }
-        }
+        )
     }
 
     private func apply(_ updated: SampleIdentificationFileDraft) {
