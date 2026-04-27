@@ -441,6 +441,14 @@ _(预留)_
 - [x] 触发范围：先 3ω Scaling Law（当前唯一使用点标签的 tab），其他 workflow 后续接入零成本
 - [x] Copy PNG 分辨率档位 shell：右键菜单原 "Copy PNG" 拆为子菜单 "Copy PNG 1x / 2x / 3x"。1x = 渲染器原始像素（基线），2x = 当前默认（与 5.3.4 行为一致），3x 新增。机制做成通用倍率参数（scale factor 接到既有 PNG 输出管道一处入口），未来加 4x/任意倍率零改动；默认仍 2x，菜单不破坏既有快捷路径
 
+### 5.3.6 — Plot Shell 曲线拖拽排序
+- [ ] Shell 级能力：曲线拖拽排序属于通用 `WorkbenchPlotCanvas` / render pipeline 能力，不做成 3ω 或 XY Rotation 私有交互；workflow 只提供稳定 series identity 和当前结果数据
+- [ ] 唯一排序真相：每个可排序图维护一个 `seriesOrder`，语义固定为 bottom → top；初始值由 workflow 默认顺序生成（当前 stacked 图为温度升序），用户拖动后该数组成为唯一排序源，不再同时维护“温度排序”和“手动排序”
+- [ ] 拖动判定规则：用户拖动线条后，shell 根据每条曲线在 x=0 的截距判定上下位置；释放时以拖动后的截距位置重排 `seriesOrder`
+- [ ] Legend 跟随曲线顺序：legend 不保存独立顺序；渲染仍按 bottom → top 构建曲线，pipeline 统一投影成 legend top = visual top
+- [ ] 持久化：Save Analysis / Load Analysis / Pack restore 必须保存并恢复 `seriesOrder`；重新 Analyze 时先按已有 series identity 对齐旧顺序，新增曲线按 workflow 默认顺序补入，消失曲线剔除
+- [ ] 适用范围：先接入已有 stacked curve 图，机制必须保留为 shell 能力，后续 workflow 接入只需暴露稳定 series identity 与 opt-in 能力
+
 ---
 
 ## 5.4.x — Library 逻辑/架构
