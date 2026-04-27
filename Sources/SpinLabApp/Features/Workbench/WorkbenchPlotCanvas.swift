@@ -146,21 +146,16 @@ struct WorkbenchPlotCanvas: View {
                     .background,
                     in: RoundedRectangle(cornerRadius: 8, style: .continuous)
                 )
-                .gesture(
-                    SpatialTapGesture()
-                        .onEnded { value in
-                            handleTap(at: value.location)
-                        }
-                )
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 4)
-                        .onChanged { value in
+                .overlay {
+                    // AppKit-level mouse handler: bypasses SwiftUI gesture system blocked by NSScrollView.
+                    PlotCanvasMouseTracker(
+                        isEnabled: editingElement == nil,
+                        onTap: { handleTap(at: $0) },
+                        onDragChanged: { start, current in
                             let fitted = fittedRect(in: canvasSize)
-
-                            // ── First frame: determine drag mode ─────────────────────────
                             if dragMode == .none {
                                 if seriesReorderable {
-                                    if _isInLegendArea(value.startLocation, fittedRect: fitted) {
+                                    if _isInLegendArea(start, fittedRect: fitted) {
                                         guard onLegendDrag != nil else { return }
                                         dragMode = .legend
                                     } else if let l = layout, let p = seriesPayload {
@@ -169,10 +164,10 @@ struct WorkbenchPlotCanvas: View {
                                             rendererWidth: l.rendererSize.width,
                                             rendererHeight: l.rendererSize.height
                                         )
-                                        if plotSR.contains(value.startLocation) {
+                                        if plotSR.contains(start) {
                                             let allHaveSampleID = p.series.allSatisfy { $0.sampleID != nil }
                                             if allHaveSampleID,
-                                               let hit = l.hitTestSeries(location: value.startLocation, fittedRect: fitted, payload: p) {
+                                               let hit = l.hitTestSeries(location: start, fittedRect: fitted, payload: p) {
                                                 dragMode = .series(sampleID: hit.sampleID)
                                             }
                                         }
@@ -183,15 +178,12 @@ struct WorkbenchPlotCanvas: View {
                                     dragMode = .legend
                                 }
                             }
-
-                            // ── Ongoing drag ─────────────────────────────────────────────
                             switch dragMode {
-                            case .none:
-                                return
+                            case .none: return
                             case .legend:
-                                guard let cursorNorm = plotNormalized(location: value.location, fittedRect: fitted) else { return }
+                                guard let cursorNorm = plotNormalized(location: current, fittedRect: fitted) else { return }
                                 if dragGrabOffsetNorm == nil {
-                                    let startNorm = plotNormalized(location: value.startLocation, fittedRect: fitted) ?? cursorNorm
+                                    let startNorm = plotNormalized(location: start, fittedRect: fitted) ?? cursorNorm
                                     let origin = currentLegendOriginNorm()
                                     dragGrabOffsetNorm = CGSize(
                                         width:  startNorm.x - origin.x,
@@ -206,13 +198,12 @@ struct WorkbenchPlotCanvas: View {
                                 lastValidDragNorm = adjusted
                                 dragPreviewPt = legendScreenOrigin(normalized: adjusted, fittedRect: fitted)
                             case .series:
-                                seriesGuideYScreen = value.location.y
+                                seriesGuideYScreen = current.y
                             }
-                        }
-                        .onEnded { _ in
+                        },
+                        onDragEnded: { _, _ in
                             switch dragMode {
-                            case .none:
-                                break
+                            case .none: break
                             case .legend:
                                 let last = lastValidDragNorm
                                 dragPreviewPt      = nil
@@ -234,7 +225,8 @@ struct WorkbenchPlotCanvas: View {
                             }
                             dragMode = .none
                         }
-                )
+                    )
+                }
                 .onAppear {
                     rendererPixelSize = Self.extractRendererPixelSize(from: nsImage) ?? Self.defaultRendererSize
                 }
