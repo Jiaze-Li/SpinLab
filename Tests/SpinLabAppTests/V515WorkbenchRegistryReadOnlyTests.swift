@@ -108,8 +108,8 @@ struct V515WorkbenchRegistryReadOnlyTests {
         """
         let draft = try JSONDecoder().decode(WorkflowFileDraft.self, from: Data(json.utf8))
         #expect(draft.workflows.count == 1)
-        #expect(draft.workflows[0].matchRules[0].scope == "")
-        #expect(draft.measurementTagRules[0].match.scope == "")
+        #expect(draft.workflows[0].matchRules[0].scope == "tokens")
+        #expect(draft.measurementTagRules[0].match.scope == "tokens")
     }
 
     @Test("WorkbenchFeatureStore has no workflow CRUD methods (compile-time guard)")
