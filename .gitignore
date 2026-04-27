@@ -2,3 +2,4 @@
 .DS_Store
 tmp/
 .claude/
+Sources/SpinLabApp/config/*.backup
