@@ -213,7 +213,7 @@ struct LibraryView: View {
                 appState.library.syncLibraryFromFiles()
             },
             onBackfillSidecars: {
-                appState.library.backfillLibraryMeasurementSidecars()
+                appState.library.openRecomputePreview()
             },
             onChooseBackupPath: {
                 presentBackupPathPanel()
