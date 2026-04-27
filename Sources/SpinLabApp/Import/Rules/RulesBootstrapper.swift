@@ -24,7 +24,7 @@ struct RulesBootstrapper {
                 let stateObj = try JSONSerialization.jsonObject(with: stateData)
                 if let state = stateObj as? [String: Any],
                    let version = state["rules_schema_version"] as? Int,
-                   version >= 4 {
+                   version >= 5 {
                     AppLogger.shared.info(.import, "RulesBootstrapper migration skipped: already migrated", metadata: [
                         "rules_schema_version": String(version)
                     ])
@@ -37,6 +37,7 @@ struct RulesBootstrapper {
 
         let measuringURL = paths.measuringConditionURL
         let sampleURL = paths.sampleIdentificationURL
+        let workflowURL = paths.workflowURL
         let tokenizationURL = paths.filenameTokenizationURL
 
         guard fm.fileExists(atPath: measuringURL.path), fm.fileExists(atPath: sampleURL.path) else {
@@ -52,6 +53,8 @@ struct RulesBootstrapper {
         let sourceMeasuringJSON: [String: Any]
         let sourceSampleJSON: [String: Any]
         let tokenizationJSON: [String: Any]?
+        let sourceWorkflowData: Data?
+        let sourceWorkflowJSON: [String: Any]?
         do {
             sourceMeasuringData = try Data(contentsOf: measuringURL)
             sourceSampleData = try Data(contentsOf: sampleURL)
@@ -72,6 +75,15 @@ struct RulesBootstrapper {
             } else {
                 tokenizationJSON = nil
             }
+
+            if fm.fileExists(atPath: workflowURL.path) {
+                let wfData = try Data(contentsOf: workflowURL)
+                sourceWorkflowData = wfData
+                sourceWorkflowJSON = try JSONSerialization.jsonObject(with: wfData) as? [String: Any]
+            } else {
+                sourceWorkflowData = nil
+                sourceWorkflowJSON = nil
+            }
         } catch {
             AppLogger.shared.error(.import, "RulesBootstrapper migration skipped: failed to read runtime json", metadata: [
                 "reason": error.localizedDescription
@@ -81,11 +93,15 @@ struct RulesBootstrapper {
 
         let measuringVersion = (sourceMeasuringJSON["version"] as? Int) ?? 0
         let sampleVersion = (sourceSampleJSON["version"] as? Int) ?? 0
-        if measuringVersion >= 2, sampleVersion >= 4 {
-            let sourceHash = [
+        let workflowVersion = (sourceWorkflowJSON?["version"] as? Int) ?? (sourceWorkflowJSON != nil ? 0 : Int.max)
+        if measuringVersion >= 3, sampleVersion >= 4, workflowVersion >= 2 {
+            var sourceHash: [String: String] = [
                 "measuring_condition.json": sha256Hex(sourceMeasuringData),
                 "sample_identification.json": sha256Hex(sourceSampleData)
             ]
+            if let wfd = sourceWorkflowData {
+                sourceHash["workflow.json"] = sha256Hex(wfd)
+            }
             writeMigrationState(
                 to: stateURL,
                 sourceSHA: sourceHash,
@@ -102,8 +118,10 @@ struct RulesBootstrapper {
         var warnings: [String] = []
         let migratedMeasuringJSON: [String: Any]
         let migratedSampleJSON: [String: Any]
+        let migratedWorkflowJSON: [String: Any]?
         do {
-            migratedMeasuringJSON = try migrateMeasuringConditionIfNeeded(json: sourceMeasuringJSON, warnings: &warnings)
+            let v2MeasuringJSON = try migrateMeasuringConditionIfNeeded(json: sourceMeasuringJSON, warnings: &warnings)
+            migratedMeasuringJSON = try migrateMeasuringConditionV2ToV3IfNeeded(json: v2MeasuringJSON, warnings: &warnings)
             let v2SampleJSON = try migrateSampleIdentificationIfNeeded(json: sourceSampleJSON, warnings: &warnings)
             let v3SampleJSON = try migrateSampleIdentificationV2ToV3IfNeeded(
                 json: v2SampleJSON,
@@ -114,6 +132,11 @@ struct RulesBootstrapper {
                 json: v3SampleJSON,
                 warnings: &warnings
             )
+            if let wfJSON = sourceWorkflowJSON {
+                migratedWorkflowJSON = try migrateWorkflowV1ToV2IfNeeded(json: wfJSON, warnings: &warnings)
+            } else {
+                migratedWorkflowJSON = nil
+            }
         } catch {
             AppLogger.shared.error(.import, "RulesBootstrapper migration skipped: transform failed", metadata: [
                 "reason": error.localizedDescription
@@ -123,9 +146,15 @@ struct RulesBootstrapper {
 
         let migratedMeasuringData: Data
         let migratedSampleData: Data
+        let migratedWorkflowData: Data?
         do {
             migratedMeasuringData = try JSONSerialization.data(withJSONObject: migratedMeasuringJSON, options: [.prettyPrinted, .sortedKeys])
             migratedSampleData = try JSONSerialization.data(withJSONObject: migratedSampleJSON, options: [.prettyPrinted, .sortedKeys])
+            if let wfJSON = migratedWorkflowJSON {
+                migratedWorkflowData = try JSONSerialization.data(withJSONObject: wfJSON, options: [.prettyPrinted, .sortedKeys])
+            } else {
+                migratedWorkflowData = nil
+            }
         } catch {
             AppLogger.shared.error(.import, "RulesBootstrapper migration skipped: failed to encode migrated json", metadata: [
                 "reason": error.localizedDescription
@@ -137,6 +166,9 @@ struct RulesBootstrapper {
             try fm.createDirectory(at: tmpDir, withIntermediateDirectories: true)
             try migratedMeasuringData.write(to: tmpDir.appendingPathComponent("measuring_condition.json"), options: .atomic)
             try migratedSampleData.write(to: tmpDir.appendingPathComponent("sample_identification.json"), options: .atomic)
+            if let wfd = migratedWorkflowData {
+                try wfd.write(to: tmpDir.appendingPathComponent("workflow.json"), options: .atomic)
+            }
         } catch {
             AppLogger.shared.error(.import, "RulesBootstrapper migration skipped: failed to write tmp files", metadata: [
                 "reason": error.localizedDescription
@@ -147,6 +179,9 @@ struct RulesBootstrapper {
         do {
             _ = try decoder.decode(MigrationMeasuringConditionFile.self, from: migratedMeasuringData)
             _ = try decoder.decode(MigrationSampleIdentificationFile.self, from: migratedSampleData)
+            if let wfd = migratedWorkflowData {
+                _ = try decoder.decode(MigrationWorkflowFile.self, from: wfd)
+            }
         } catch {
             writeMigrationFailed(
                 to: failedURL,
@@ -157,12 +192,16 @@ struct RulesBootstrapper {
             return
         }
 
-        let shouldWriteBackup = measuringVersion < 2 || sampleVersion < 3
+        let shouldWriteBackup = measuringVersion < 3 || sampleVersion < 3
+            || (sourceWorkflowData != nil && workflowVersion < 2)
         if shouldWriteBackup {
             do {
                 try fm.createDirectory(at: backupDir, withIntermediateDirectories: true)
                 try sourceMeasuringData.write(to: backupDir.appendingPathComponent("measuring_condition.json"), options: .atomic)
                 try sourceSampleData.write(to: backupDir.appendingPathComponent("sample_identification.json"), options: .atomic)
+                if let wfd = sourceWorkflowData {
+                    try wfd.write(to: backupDir.appendingPathComponent("workflow.json"), options: .atomic)
+                }
             } catch {
                 AppLogger.shared.error(.import, "RulesBootstrapper migration skipped: failed to write backup files", metadata: [
                     "reason": error.localizedDescription
@@ -175,6 +214,9 @@ struct RulesBootstrapper {
         do {
             try migratedMeasuringData.write(to: measuringURL, options: .atomic)
             try migratedSampleData.write(to: sampleURL, options: .atomic)
+            if let wfd = migratedWorkflowData {
+                try wfd.write(to: workflowURL, options: .atomic)
+            }
         } catch {
             AppLogger.shared.error(.import, "RulesBootstrapper migration failed: atomic replace failed", metadata: [
                 "reason": error.localizedDescription
@@ -183,16 +225,22 @@ struct RulesBootstrapper {
             return
         }
 
+        var sourceSHA: [String: String] = [
+            "measuring_condition.json": sha256Hex(sourceMeasuringData),
+            "sample_identification.json": sha256Hex(sourceSampleData)
+        ]
+        var targetSHA: [String: String] = [
+            "measuring_condition.json": sha256Hex(migratedMeasuringData),
+            "sample_identification.json": sha256Hex(migratedSampleData)
+        ]
+        if let wfSrc = sourceWorkflowData, let wfTgt = migratedWorkflowData {
+            sourceSHA["workflow.json"] = sha256Hex(wfSrc)
+            targetSHA["workflow.json"] = sha256Hex(wfTgt)
+        }
         writeMigrationState(
             to: stateURL,
-            sourceSHA: [
-                "measuring_condition.json": sha256Hex(sourceMeasuringData),
-                "sample_identification.json": sha256Hex(sourceSampleData)
-            ],
-            targetSHA: [
-                "measuring_condition.json": sha256Hex(migratedMeasuringData),
-                "sample_identification.json": sha256Hex(migratedSampleData)
-            ],
+            sourceSHA: sourceSHA,
+            targetSHA: targetSHA,
             warnings: warnings
         )
 
@@ -679,6 +727,67 @@ struct RulesBootstrapper {
         return values
     }
 
+    private static func migrateMeasuringConditionV2ToV3IfNeeded(json: [String: Any], warnings: inout [String]) throws -> [String: Any] {
+        let version = (json["version"] as? Int) ?? 0
+        guard version < 3 else { return json }
+
+        let definitions = (json["conditionDefinitions"] as? [[String: Any]]) ?? []
+        var migratedDefinitions: [[String: Any]] = []
+        for var def in definitions {
+            if let label = def["label"] as? String {
+                def["displayName"] = label
+                def.removeValue(forKey: "label")
+            }
+            if let tokenMap = def["tokenMap"] as? [[String: Any]] {
+                let cleaned: [[String: Any]] = tokenMap.map { rule in
+                    guard var match = rule["match"] as? [String: Any] else { return rule }
+                    match.removeValue(forKey: "scope")
+                    var cleaned = rule
+                    cleaned["match"] = match
+                    return cleaned
+                }
+                def["tokenMap"] = cleaned
+            }
+            migratedDefinitions.append(def)
+        }
+        return ["version": 3, "conditionDefinitions": migratedDefinitions]
+    }
+
+    private static func migrateWorkflowV1ToV2IfNeeded(json: [String: Any], warnings: inout [String]) throws -> [String: Any] {
+        let version = (json["version"] as? Int) ?? 0
+        guard version < 2 else { return json }
+
+        func stripScope(_ spec: [String: Any]) -> [String: Any] {
+            var s = spec
+            s.removeValue(forKey: "scope")
+            return s
+        }
+
+        let rawWorkflows = (json["workflows"] as? [[String: Any]]) ?? []
+        let migratedWorkflows: [[String: Any]] = rawWorkflows.map { wf in
+            var w = wf
+            if let matchRules = wf["matchRules"] as? [[String: Any]] {
+                w["matchRules"] = matchRules.map(stripScope)
+            }
+            return w
+        }
+
+        let rawTagRules = (json["measurementTagRules"] as? [[String: Any]]) ?? []
+        let migratedTagRules: [[String: Any]] = rawTagRules.map { rule in
+            guard var match = rule["match"] as? [String: Any] else { return rule }
+            match.removeValue(forKey: "scope")
+            var r = rule
+            r["match"] = match
+            return r
+        }
+
+        var migrated = json
+        migrated["version"] = 2
+        migrated["workflows"] = migratedWorkflows
+        migrated["measurementTagRules"] = migratedTagRules
+        return migrated
+    }
+
     private static func writeMigrationState(
         to url: URL,
         sourceSHA: [String: String],
@@ -686,7 +795,7 @@ struct RulesBootstrapper {
         warnings: [String]
     ) {
         let body: [String: Any] = [
-            "rules_schema_version": 4,
+            "rules_schema_version": 5,
             "migrated_at": migrationDateString(),
             "source_sha256": sourceSHA,
             "target_sha256": targetSHA,
@@ -755,6 +864,21 @@ struct RulesBootstrapper {
 private struct MigrationMeasuringConditionFile: Decodable {
     let version: Int
     let conditionDefinitions: [FilenameRuleSet.ConditionDefinition]
+}
+
+private struct MigrationWorkflowFile: Decodable {
+    let version: Int
+    struct WorkflowEntry: Decodable {
+        let id: String
+        let displayName: String
+        let matchRules: [MatchSpec]
+        let conditionFieldIDs: [String]
+        struct MatchSpec: Decodable {
+            let type: String
+            let matchValues: [String]
+        }
+    }
+    let workflows: [WorkflowEntry]
 }
 
 private struct MigrationSampleIdentificationFile: Decodable {

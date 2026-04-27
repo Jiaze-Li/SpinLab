@@ -19,11 +19,13 @@ struct RuleCanonicalizer {
                 synthesized.append(
                     .init(
                         id: id,
-                        label: ConditionFieldCatalog.defaultLabel(for: id),
+                        displayName: ConditionFieldCatalog.defaultLabel(for: id),
                         kind: kind,
                         binding: kind == .unitSuffix
                             ? "conditions.extraConditions.\(id)"
-                            : "conditions.tokenMapRules.\(id)"
+                            : "conditions.tokenMapRules.\(id)",
+                        unitPattern: nil,
+                        tokenMap: nil
                     )
                 )
             }

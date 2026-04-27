@@ -1,11 +1,11 @@
 {
-  "version": 1,
+  "version": 2,
   "workflows": [
     {
       "id": "MR",
       "displayName": "MR",
       "matchRules": [
-        { "scope": "tokens", "type": "equals", "matchValues": ["MR"] }
+        { "type": "equals", "matchValues": ["MR"] }
       ],
       "conditionFieldIDs": ["temperature", "field"]
     },
@@ -13,7 +13,7 @@
       "id": "ahe",
       "displayName": "AHE",
       "matchRules": [
-        { "scope": "tokens", "type": "equals", "matchValues": ["AHE"] }
+        { "type": "equals", "matchValues": ["AHE"] }
       ],
       "conditionFieldIDs": ["temperature", "field"]
     },
@@ -21,7 +21,7 @@
       "id": "3w",
       "displayName": "3ω",
       "matchRules": [
-        { "scope": "tokens", "type": "equals", "matchValues": ["3w"] }
+        { "type": "equals", "matchValues": ["3w"] }
       ],
       "conditionFieldIDs": []
     },
@@ -29,7 +29,7 @@
       "id": "RT",
       "displayName": "RT",
       "matchRules": [
-        { "scope": "tokens", "type": "equals", "matchValues": ["rt"] }
+        { "type": "equals", "matchValues": ["rt"] }
       ],
       "conditionFieldIDs": ["current"]
     },
@@ -37,15 +37,15 @@
       "id": "XY",
       "displayName": "XY Rotation",
       "matchRules": [
-        { "scope": "tokens", "type": "equals", "matchValues": ["xy"] }
+        { "type": "equals", "matchValues": ["xy"] }
       ],
       "conditionFieldIDs": ["temperature", "field"]
     }
   ],
   "measurementTagRules": [
-    { "match": { "scope": "tokens", "type": "equals", "matchValues": ["AMR"] }, "value": "AMR" },
-    { "match": { "scope": "tokens", "type": "equals", "matchValues": ["PHE"] }, "value": "PHE" },
-    { "match": { "scope": "tokens", "type": "equals", "matchValues": ["RXX"] }, "value": "Rxx" },
-    { "match": { "scope": "tokens", "type": "equals", "matchValues": ["RXY"] }, "value": "Rxy" }
+    { "match": { "type": "equals", "matchValues": ["AMR"] }, "value": "AMR" },
+    { "match": { "type": "equals", "matchValues": ["PHE"] }, "value": "PHE" },
+    { "match": { "type": "equals", "matchValues": ["RXX"] }, "value": "Rxx" },
+    { "match": { "type": "equals", "matchValues": ["RXY"] }, "value": "Rxy" }
   ]
 }

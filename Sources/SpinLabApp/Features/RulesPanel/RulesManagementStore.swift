@@ -41,7 +41,7 @@ struct MapRule: Codable, Hashable {
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            scope = try container.decode(String.self, forKey: .scope)
+            scope = (try container.decodeIfPresent(String.self, forKey: .scope)) ?? "tokens"
             type = try container.decode(String.self, forKey: .type)
             if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
                 matchValues = mv
@@ -56,7 +56,6 @@ struct MapRule: Codable, Hashable {
 
         func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode(scope, forKey: .scope)
             try container.encode(type, forKey: .type)
             try container.encode(matchValues, forKey: .matchValues)
         }
@@ -154,7 +153,7 @@ struct WorkflowFileDraft: Codable {
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            scope = try container.decode(String.self, forKey: .scope)
+            scope = (try container.decodeIfPresent(String.self, forKey: .scope)) ?? "tokens"
             type = try container.decode(String.self, forKey: .type)
             if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
                 matchValues = mv
@@ -169,7 +168,6 @@ struct WorkflowFileDraft: Codable {
 
         func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode(scope, forKey: .scope)
             try container.encode(type, forKey: .type)
             try container.encode(matchValues, forKey: .matchValues)
         }
@@ -181,12 +179,42 @@ struct MeasuringConditionFileDraft: Codable {
     var version: Int
     var conditionDefinitions: [ConditionDefinition]
 
-    struct ConditionDefinition: Codable, Identifiable {
+    struct ConditionDefinition: Identifiable {
         var id: String
-        var label: String?
+        var label: String? // UI binds to this; renamed to displayName in exec.B
         var kind: String
         var unitPattern: String?
         var tokenMap: [MapRule]?
+
+        var displayName: String? {
+            get { label }
+            set { label = newValue }
+        }
+    }
+}
+
+extension MeasuringConditionFileDraft.ConditionDefinition: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case id, kind, unitPattern, tokenMap, label, displayName
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        kind = try c.decode(String.self, forKey: .kind)
+        unitPattern = try c.decodeIfPresent(String.self, forKey: .unitPattern)
+        tokenMap = try c.decodeIfPresent([MapRule].self, forKey: .tokenMap)
+        label = try c.decodeIfPresent(String.self, forKey: .displayName)
+            ?? c.decodeIfPresent(String.self, forKey: .label)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(kind, forKey: .kind)
+        try c.encodeIfPresent(unitPattern, forKey: .unitPattern)
+        try c.encodeIfPresent(tokenMap, forKey: .tokenMap)
+        try c.encodeIfPresent(label, forKey: .displayName)
     }
 }
 

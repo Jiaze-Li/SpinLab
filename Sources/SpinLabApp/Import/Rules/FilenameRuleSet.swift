@@ -18,11 +18,39 @@ struct FilenameRuleSet: Decodable {
 
     struct ConditionDefinition: Decodable {
         var id: String
-        var label: String?
+        var displayName: String?
         var kind: ConditionDefinitionKind
         var binding: String? = nil
         var unitPattern: String?
         var tokenMap: [MapRule]?
+
+        @available(*, deprecated, renamed: "displayName")
+        var label: String? { displayName }
+
+        private enum CodingKeys: String, CodingKey {
+            case id, kind, binding, unitPattern, tokenMap, displayName, label
+        }
+
+        init(id: String, displayName: String?, kind: ConditionDefinitionKind,
+             binding: String? = nil, unitPattern: String? = nil, tokenMap: [MapRule]? = nil) {
+            self.id = id
+            self.displayName = displayName
+            self.kind = kind
+            self.binding = binding
+            self.unitPattern = unitPattern
+            self.tokenMap = tokenMap
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.decode(String.self, forKey: .id)
+            kind = try c.decode(ConditionDefinitionKind.self, forKey: .kind)
+            binding = try c.decodeIfPresent(String.self, forKey: .binding)
+            unitPattern = try c.decodeIfPresent(String.self, forKey: .unitPattern)
+            tokenMap = try c.decodeIfPresent([MapRule].self, forKey: .tokenMap)
+            displayName = try c.decodeIfPresent(String.self, forKey: .displayName)
+                ?? c.decodeIfPresent(String.self, forKey: .label)
+        }
     }
 
     struct Tokenization: Decodable {
@@ -169,7 +197,7 @@ struct FilenameRuleSet: Decodable {
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            scope = try container.decode(MatchScope.self, forKey: .scope)
+            scope = try container.decodeIfPresent(MatchScope.self, forKey: .scope) ?? .tokens
             type = try container.decode(MatchType.self, forKey: .type)
             if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
                 matchValues = mv
@@ -787,7 +815,7 @@ struct FilenameRuleSet: Decodable {
             conditionDefinitions: [
                 ConditionDefinition(
                     id: ConditionFieldCatalog.temperatureID,
-                    label: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.temperatureID],
+                    displayName: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.temperatureID],
                     kind: .unitSuffix,
                     binding: "conditions.extraConditions.\(ConditionFieldCatalog.temperatureID)",
                     unitPattern: "",
@@ -795,7 +823,7 @@ struct FilenameRuleSet: Decodable {
                 ),
                 ConditionDefinition(
                     id: ConditionFieldCatalog.currentID,
-                    label: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.currentID],
+                    displayName: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.currentID],
                     kind: .unitSuffix,
                     binding: "conditions.extraConditions.\(ConditionFieldCatalog.currentID)",
                     unitPattern: "",
@@ -803,7 +831,7 @@ struct FilenameRuleSet: Decodable {
                 ),
                 ConditionDefinition(
                     id: ConditionFieldCatalog.fieldID,
-                    label: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.fieldID],
+                    displayName: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.fieldID],
                     kind: .unitSuffix,
                     binding: "conditions.extraConditions.\(ConditionFieldCatalog.fieldID)",
                     unitPattern: "",
@@ -811,7 +839,7 @@ struct FilenameRuleSet: Decodable {
                 ),
                 ConditionDefinition(
                     id: ConditionFieldCatalog.deviceID,
-                    label: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.deviceID],
+                    displayName: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.deviceID],
                     kind: .tokenMap,
                     binding: "conditions.tokenMapRules.\(ConditionFieldCatalog.deviceID)",
                     unitPattern: nil,

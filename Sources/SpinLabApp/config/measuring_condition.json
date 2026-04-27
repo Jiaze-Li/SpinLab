@@ -1,14 +1,13 @@
 {
-  "version": 2,
+  "version": 3,
   "conditionDefinitions": [
     {
       "id": "device",
-      "label": "Device",
+      "displayName": "Device",
       "kind": "token_map",
       "tokenMap": [
         {
           "match": {
-            "scope": "tokens",
             "type": "equals",
             "matchValues": ["wafer"]
           },
@@ -18,25 +17,25 @@
     },
     {
       "id": "temperature",
-      "label": "Temperature",
+      "displayName": "Temperature",
       "kind": "unit_suffix",
       "unitPattern": "^-?\\d+(?:\\.\\d+)?(?:K|k|C)$"
     },
     {
       "id": "current",
-      "label": "Current",
+      "displayName": "Current",
       "kind": "unit_suffix",
       "unitPattern": "^-?\\d+(?:\\.\\d+)?(?:mA|A|uA)$"
     },
     {
       "id": "field",
-      "label": "Field",
+      "displayName": "Field",
       "kind": "unit_suffix",
       "unitPattern": "^-?\\d+(?:\\.\\d+)?(?:T|mT|Oe)$"
     },
     {
       "id": "shift",
-      "label": "Shift",
+      "displayName": "Shift",
       "kind": "unit_suffix",
       "unitPattern": "^-?\\d+(?:\\.\\d+)?(?:shift)$"
     }
