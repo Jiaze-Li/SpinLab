@@ -203,7 +203,6 @@ Do not implement out of order. Skip steps when that layer has no change.
 - `[HARD][must]` Read `docs/philosophy.md` and `docs/features.md` on entering the project.
 - `[HARD][must]` Run `ls tmp/` and triage residue per `docs/handoff/README.md` (留 / 升级到 docs/handoff / 删).
 - `[DIRECTION][should]` Read relevant `docs/history/` entries for architecture tasks.
-- `[DIRECTION][should]` Check `docs/known_issues.md` when modifying flagged areas.
 
 ### Handoff Pointer Registry (overrides global workflow.md §9.a)
 - `[HARD][must]` SpinLab 的 handoff 指针登记落点是 **`docs/handoff/README.md`** 的「待消费」表，不是全局规则里的 `docs/ledger/l1_优化待办.md`（本项目无 ledger 体系，用 V5_ROADMAP + history 替代）。
@@ -213,9 +212,8 @@ Do not implement out of order. Skip steps when that layer has no change.
 - `[HARD][must]` After code changes, walk through:
   1. User-visible behavior changed? → Update `docs/features.md`.
   2. New development preference? → Update `docs/philosophy.md`.
-  3. Known issues resolved or discovered? → Update `docs/known_issues.md`.
-  4. Cross-session user preference? → Write to memory system.
-  5. 接手并完成了某份 handoff？→ 按 `~/.claude/docs/workflow.md §9.c` 4 步归档动作执行（handoff 搬迁 + 索引更新 + 设计思路 ROADMAP→history 迁移 + ROADMAP 改一句话+`[x]`）。
+  3. Cross-session user preference? → Write to memory system.
+  4. 接手并完成了某份 handoff？→ 按 `~/.claude/docs/workflow.md §9.c` 4 步归档动作执行（handoff 搬迁 + 索引更新 + 设计思路 ROADMAP→history 迁移 + ROADMAP 改一句话+`[x]`）。
 - Skip steps that don't apply.
 - `[HARD][must]` **任务流水线文档职责不可越界**：每份文档只装一种内容。详见 `docs/README.md` 顶部「任务流水线文档职责」表 + 反模式段。设计思路一辈子只活一处（ROADMAP 在做时 / history 做完后），不重复、不互灌。
 

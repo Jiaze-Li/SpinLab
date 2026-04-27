@@ -23,7 +23,6 @@
 |---|---|---|
 | `V5_ROADMAP.md` | Active 5.x roadmap — version segments as collection bins. | active |
 | `philosophy.md` | Developer philosophy, habits, collaboration preferences. | active |
-| `known_issues.md` | Intentional behaviors, documentation inconsistencies, deferred items. | active |
 | `features.md` | Feature invariants and test status for all areas (Inbox/Library/Workbench/Shared). | active |
 
 ## architecture (系统设计 & 模块技术参考)
