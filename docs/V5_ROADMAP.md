@@ -267,6 +267,71 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 
 **来源与实证**：归因与杠杆设计来自 2026-04-25 的双 AI 对抗讨论。Codex 实地查证报告（含 Sources 目录统计、规范文档密度核算、dispatch_log 抽样）当时落在 `tmp/2026-04-25-codex-dispatch-speed-opinion.md`，启动本期执行时如需可由 Jack 决定是否升级为 handoff 归档；不升级则随 tmp/ 例行清理。本节量化数字（194 文件 / 3.68 万行 / 6 个 1000+ 行 / 最大 1800 行）已自包含，不依赖原报告存活。
 
+### 5.1.7 — 规则产物可演化层（Rule Provenance + Sidecar v2 + Recompute）
+
+**状态**：`[~]` 已规划，未启动执行。等 5.1.5 验收收尾后启动；可与 5.1.6 并行排队，优先级由 Jack 拍板。
+
+**动机**：5.1.5 解决了"规则怎么管"（5 本子统一 + 自动同步 + UI 编辑），但**规则产物**这一层还停在 5.1.5 之前的状态：
+
+1. `FilenameRuleSet` 求值只产出最终值，无 provenance —— 无法回答"哪个字段是哪条规则填的"
+2. `RuleLoader` 内部已算 5 文件联合 hash，但不向下游暴露指纹 / 版本
+3. `SpinLabFileSidecar` 是单层事件快照，规则改了之后老 sidecar 完全不感知
+4. Import 路径（严格 + 拒绝覆盖）与 Backfill 路径（merge-only + 不覆盖）语义不一致；同一文件走两条路结果可能不同
+5. Sidecar 一旦写入正常路径不可更新；condition 想改值只能删文件重导入
+6. Library 面板的 "Backfill Sidecars" 按钮当前是 merge-only，规则演化场景不管用
+
+**顶层设计**（双层 sidecar）：
+
+```
+ruleSnapshot:                  ← 规则填的，可重算
+  ruleSetVersion: 3              ← 用户视角的语义版本（递增整数；UI 保存时自动 +1）
+  ruleSetFingerprint: r7a3f9c2   ← 机器判断"是否过期"用的内容哈希(来自 RuleLoader 联合 SHA)
+  appliedAt: <ISO 时间戳>
+  fields:
+    sampleID:      { value, source: "rule:sampleId.batchPrefixes#3" }
+    conditions:
+      temperature: { value, source: "rule:condition.temperature.unitSuffix" }
+      voltage:     { value, source: "rule:condition.voltage.tokenMap#0" }
+    substrateTags: [{ value, source: "rule:substrate.materials#2" }]
+userOverrides:                  ← 用户改的，规则不可动
+  conditions:
+    temperature:   { value, reason: "manual", at: <时间戳> }
+```
+
+最终消费值 = `userOverrides` 覆盖 `ruleSnapshot.fields`。规则演化时只刷 `ruleSnapshot`，`userOverrides` 一根毫毛不动。
+
+**任务拆分**：
+
+| 会话 | 主题 | 工作量 |
+|---|---|---|
+| s1 | 设计稿对抗：provenance schema + sidecar v2 schema + Recompute 交互双盲对抗 → handoff | 设计会话 |
+| s2 | Rule provenance 落地：`FilenameRuleSet` 求值返回 `(value, ruleRef)` + `RuleLoader` 暴露 `ruleSetFingerprint` / `ruleSetVersion` + `ParsedFilenameHints` 扩展带 source 字段 | 中（8–12 h） |
+| s3 | Sidecar v2 schema：双层结构落地 + v1→v2 迁移（旧字段全进 `ruleSnapshot.fields`，`userOverrides` 留空）+ Import/Backfill 路径统一走同一条求值链 | 中-大（10–14 h） |
+| s4 | Recompute UI：按钮升级为 "Recompute from Rules"（dry-run + 字段级 diff）+ measurement 详情页直接编辑 condition（写 `userOverrides`）+ 规则更新软提示条 + 字段 source tooltip | 大（12–16 h） |
+
+总工作量约 **30–42 h**，跨 4 个会话。规模与 5.1.5 中后段（s5/s6/s9）相当。
+
+**关键 acceptance gate**（s4 验收时必满足）：
+
+- **AG1** 规则集修改后，Library 顶部出现"X 个测量基于旧规则，可重算"软提示（不强制、不打扰、不自动跑）
+- **AG2** Recompute 按钮点击后弹预览面板，列出字段级 diff，明确标注"用户已手动改过此字段，将保留"
+- **AG3** 用户编辑过的 condition 字段，无论 Recompute 多少次都不被覆盖；UI 上有"已手动修改"标记 + "恢复规则默认"操作（删除对应 `userOverrides` 条目）
+- **AG4** 旧 v1 sidecar 首次读取时静默升 v2（旧字段全进 `ruleSnapshot.fields`，`userOverrides` 留空），用户无感
+- **AG5** Import 与 Backfill/Recompute 路径走同一条求值链，差别只在"是否保留 `userOverrides`"
+- **AG6** Hover condition 字段显示来源 tooltip（"来自规则 X（v3 规则集）" / "手动编辑（YYYY-MM-DD）"）
+
+**否决方案及理由**（不要后续 agent 推翻）：
+
+- ❌ 在 sidecar 里塞规则全文快照 —— 重复、膨胀；rule 文件本身有 git + 5.1.5 backup 副本就够
+- ❌ "sidecar 自动重算"（规则保存即触发） —— 即使有双层保护也违反"用户必须有明确决策权"；必须用户按钮触发
+- ❌ 单层 sidecar 加 `ruleProvenance` 字段（不分层） —— 依旧无法区分用户编辑 vs 规则填值，是当前问题的延续
+- ❌ 把"清理 stale 字段"开关塞进 Recompute 按钮 —— 让按钮语义模糊；那是独立动作，混进来会让用户犹豫
+- ❌ 用 mtime 判规则版本变化 —— git 不保留 mtime；沿用 5.1.6 `RulesSyncEngine` 的 hash 一致
+- ❌ 在没双层 schema 前先把 Backfill 按钮改成"覆盖模式" —— 等于把"merge-only"换成"无脑覆盖"，从一个坑换到另一个坑
+- ❌ 让 `FilenameRuleSet` 之外某层补算 provenance —— 只有规则求值层知道哪条规则命中，必须从 `FilenameRuleSet` 内部透出
+
+**来源**：2026-04-27 与 Jack 对齐。由"Library 的 Backfill Sidecars 按钮该改成什么"逐层展开为"规则产物可演化层"专项 —— 5.1.5 是规则系统的上游补完，5.1.7 是规则系统的下游补完，主题对称。
+
 ---
 
 ## 5.2.x — Import 管线 + Inbox 逻辑/架构
