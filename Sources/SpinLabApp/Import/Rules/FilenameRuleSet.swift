@@ -185,11 +185,6 @@ struct FilenameRuleSet: Decodable {
 
     // MARK: - Legacy match types (retained for Commit 4 cleanup; not used in production paths)
 
-    enum MatchScope: String, Decodable {
-        case tokens
-        case joined
-    }
-
     enum MatchType: String, Decodable {
         case equals
         case equalsAny
@@ -201,18 +196,22 @@ struct FilenameRuleSet: Decodable {
 
     // MARK: - Compiled rule types
 
+    struct CompiledMatchSpec {
+        var spec: MatchSpec
+        var generatedRegex: NSRegularExpression?
+    }
+
     struct CompiledMapRule {
-        var match: MatchSpec
+        var match: CompiledMatchSpec
         var value: String
     }
 
     struct CompiledRules {
-        var sampleIdRegexes: [NSRegularExpression] = []
+        var sampleIdSpecs: [CompiledMatchSpec] = []
         var measurementNameRules: [CompiledMapRule] = []
         var measurementTagRules: [CompiledMapRule] = []
         var channelAliases: [String: String] = [:]
-        var conditionUnitSuffixRegexes: [String: NSRegularExpression] = [:]
-        var conditionTokenMapRules: [String: [CompiledMapRule]] = [:]
+        var conditionRules: [String: [CompiledMapRule]] = [:]
         var substrateMaterialEntries: [CompiledSubstrateEntry] = []
         var substrateTreatmentEntries: [CompiledSubstrateEntry] = []
         var substrateOrientationEntries: [CompiledSubstrateEntry] = []
@@ -301,7 +300,14 @@ struct FilenameRuleSet: Decodable {
     mutating func compile() -> [String] {
         var warnings: [String] = []
 
-        compiled.sampleIdRegexes = compileSampleIdRegexes(warnings: &warnings)
+        compiled.sampleIdSpecs = sampleId.matches.compactMap { spec -> CompiledMatchSpec? in
+            guard spec.type == .startsWith else {
+                warnings.append("sampleId: op '\(spec.type.rawValue)' is not valid for batch ID; rule skipped")
+                return nil
+            }
+            let c = compileMatchSpec(spec, warnings: &warnings, label: "sampleId")
+            return c.generatedRegex != nil ? c : nil
+        }
         compiled.measurementNameRules = compileMapRules(measurementNameRules, warnings: &warnings, label: "measurementNameRules")
         compiled.measurementTagRules = compileMapRules(measurementTagRules, warnings: &warnings, label: "measurementTagRules")
         compileConditionDefinitions(warnings: &warnings)
@@ -327,7 +333,7 @@ struct FilenameRuleSet: Decodable {
         }
     }
 
-    func measurementName(from tokens: [String], joined: String) -> String? {
+    func measurementName(from tokens: [String]) -> String? {
         firstMatchValue(from: compiled.measurementNameRules, tokens: tokens)
     }
 
@@ -350,34 +356,19 @@ struct FilenameRuleSet: Decodable {
     }
 
     func deviceName(from tokens: [String]) -> String? {
-        firstMatchValue(
-            from: compiled.conditionTokenMapRules[ConditionFieldCatalog.deviceID] ?? [],
-            tokens: tokens
-        )
+        conditionValue(for: ConditionFieldCatalog.deviceID, from: tokens)
     }
 
     func temperature(from tokens: [String]) -> String? {
-        firstRegexMatch(
-            in: tokens,
-            regex: compiled.conditionUnitSuffixRegexes[ConditionFieldCatalog.temperatureID],
-            ruleID: ConditionFieldCatalog.temperatureID
-        )
+        conditionValue(for: ConditionFieldCatalog.temperatureID, from: tokens)
     }
 
     func current(from tokens: [String]) -> String? {
-        firstRegexMatch(
-            in: tokens,
-            regex: compiled.conditionUnitSuffixRegexes[ConditionFieldCatalog.currentID],
-            ruleID: ConditionFieldCatalog.currentID
-        )
+        conditionValue(for: ConditionFieldCatalog.currentID, from: tokens)
     }
 
     func field(from tokens: [String]) -> String? {
-        firstRegexMatch(
-            in: tokens,
-            regex: compiled.conditionUnitSuffixRegexes[ConditionFieldCatalog.fieldID],
-            ruleID: ConditionFieldCatalog.fieldID
-        )
+        conditionValue(for: ConditionFieldCatalog.fieldID, from: tokens)
     }
 
     func extraConditionValues(from tokens: [String]) -> [String: String] {
@@ -385,32 +376,13 @@ struct FilenameRuleSet: Decodable {
     }
 
     func conditionEvaluation(from tokens: [String]) -> ExtraConditionEvaluation {
-        let allRuleIDs = Set(compiled.conditionUnitSuffixRegexes.keys)
-            .union(compiled.conditionTokenMapRules.keys)
-            .sorted()
         var values: [String: String] = [:]
-        var warnings: [String] = []
-
-        for ruleID in allRuleIDs {
-            let regexMatch = compiled.conditionUnitSuffixRegexes[ruleID]
-                .flatMap { firstRegexMatch(in: tokens, regex: $0, ruleID: ruleID) }
-            let tokenMapMatch = compiled.conditionTokenMapRules[ruleID]
-                .flatMap { firstMatchValue(from: $0, tokens: tokens) }
-
-            if let tokenMapMatch {
-                values[ruleID] = tokenMapMatch
-                if regexMatch != nil {
-                    warnings.append("Condition '\(ruleID)' matched both token-map and unit-suffix; token-map result applied.")
-                }
-                continue
-            }
-
-            if let regexMatch {
-                values[ruleID] = regexMatch
+        for ruleID in compiled.conditionRules.keys.sorted() {
+            if let value = conditionValue(for: ruleID, from: tokens) {
+                values[ruleID] = value
             }
         }
-
-        return ExtraConditionEvaluation(values: values, warnings: warnings)
+        return ExtraConditionEvaluation(values: values, warnings: [])
     }
 
     func extraConditionEvaluation(from tokens: [String]) -> ExtraConditionEvaluation {
@@ -442,27 +414,37 @@ struct FilenameRuleSet: Decodable {
 
     // MARK: - Private compile helpers
 
-    private func compileSampleIdRegexes(warnings: inout [String]) -> [NSRegularExpression] {
-        sampleId.matches.compactMap { spec in
-            guard spec.type == .startsWith else {
-                warnings.append("sampleId: op '\(spec.type.rawValue)' is not valid for batch ID; rule skipped")
-                return nil
-            }
-            let trimmed = spec.value.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func compileMatchSpec(_ spec: MatchSpec, warnings: inout [String], label: String) -> CompiledMatchSpec {
+        var result = CompiledMatchSpec(spec: spec, generatedRegex: nil)
+        let trimmed = spec.value.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        switch spec.type {
+        case .equals, .contains:
+            if trimmed.isEmpty { warnings.append("\(label): empty value; rule never matches") }
+
+        case .startsWith:
             guard !trimmed.isEmpty,
                   trimmed.range(of: #"^[A-Za-z0-9_-]+$"#, options: .regularExpression) != nil else {
-                warnings.append("Invalid starts-with value '\(spec.value)'; skipped")
-                return nil
+                warnings.append("\(label): invalid starts-with value '\(spec.value)'; rule never matches")
+                return result
             }
             let pattern = "^\(NSRegularExpression.escapedPattern(for: trimmed))\\d+$"
-            return compileRegex(pattern, warnings: &warnings, label: "sampleId")
+            result.generatedRegex = compileRegex(pattern, warnings: &warnings, label: label)
+
+        case .unitSuffix:
+            guard !trimmed.isEmpty else {
+                warnings.append("\(label): empty unit-suffix value; rule never matches")
+                return result
+            }
+            let pattern = "^-?\\d+(?:\\.\\d+)?(?:\(NSRegularExpression.escapedPattern(for: trimmed)))$"
+            result.generatedRegex = compileRegex(pattern, warnings: &warnings, label: label)
         }
+
+        return result
     }
 
     private func compileRegex(_ pattern: String, warnings: inout [String], label: String) -> NSRegularExpression? {
-        guard !pattern.isEmpty else {
-            return nil
-        }
+        guard !pattern.isEmpty else { return nil }
         do {
             return try NSRegularExpression(pattern: pattern, options: [])
         } catch {
@@ -472,19 +454,13 @@ struct FilenameRuleSet: Decodable {
     }
 
     private func compileMapRules(_ rules: [MapRule], warnings: inout [String], label: String) -> [CompiledMapRule] {
-        rules.compactMap { rule in
-            let trimmed = rule.match.value.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty {
-                warnings.append("\(label): rule with empty value; rule never matches")
-                return nil
-            }
-            return CompiledMapRule(match: rule.match, value: rule.value)
+        rules.map { rule in
+            CompiledMapRule(match: compileMatchSpec(rule.match, warnings: &warnings, label: label), value: rule.value)
         }
     }
 
     private mutating func compileConditionDefinitions(warnings: inout [String]) {
-        compiled.conditionUnitSuffixRegexes = [:]
-        compiled.conditionTokenMapRules = [:]
+        compiled.conditionRules = [:]
 
         for definition in conditionDefinitions {
             let id = definition.id.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -492,20 +468,11 @@ struct FilenameRuleSet: Decodable {
 
             switch definition.matches {
             case .unitSuffix(let specs):
-                let units = specs.compactMap { s -> String? in
-                    let v = s.value.trimmingCharacters(in: .whitespacesAndNewlines)
-                    return v.isEmpty ? nil : v
-                }
-                guard !units.isEmpty else { continue }
-                let alternation = units
-                    .map { NSRegularExpression.escapedPattern(for: $0) }
-                    .joined(separator: "|")
-                let pattern = "^-?\\d+(?:\\.\\d+)?(?:\(alternation))$"
-                if let compiledRegex = compileRegex(pattern, warnings: &warnings, label: id) {
-                    compiled.conditionUnitSuffixRegexes[id] = compiledRegex
+                compiled.conditionRules[id] = specs.map { spec in
+                    CompiledMapRule(match: compileMatchSpec(spec, warnings: &warnings, label: id), value: "$MATCH")
                 }
             case .tokenMap(let rules):
-                compiled.conditionTokenMapRules[id] = compileMapRules(rules, warnings: &warnings, label: id)
+                compiled.conditionRules[id] = compileMapRules(rules, warnings: &warnings, label: id)
             }
         }
     }
@@ -571,8 +538,8 @@ struct FilenameRuleSet: Decodable {
 
     private func normalizeSampleIDToken(_ token: String) -> String? {
         let uppercased = token.uppercased()
-        for regex in compiled.sampleIdRegexes {
-            if regexMatch(regex: regex, text: uppercased) {
+        for spec in compiled.sampleIdSpecs {
+            if tokenMatches(text: uppercased, compiled: spec) {
                 return uppercased
             }
         }
@@ -599,29 +566,22 @@ struct FilenameRuleSet: Decodable {
     }
 
     private func tokenMatches(token: String, rule: CompiledMapRule) -> Bool {
-        stringMatches(text: token, rule: rule)
+        tokenMatches(text: token, compiled: rule.match)
     }
 
-    private func stringMatches(text: String, rule: CompiledMapRule) -> Bool {
-        let haystack = text.lowercased()
-        let value = rule.match.value.lowercased()
+    private func tokenMatches(text: String, compiled: CompiledMatchSpec) -> Bool {
+        let value = compiled.spec.value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty else { return false }
 
-        switch rule.match.type {
+        switch compiled.spec.type {
         case .equals:
-            return haystack == value
+            return text.lowercased() == value.lowercased()
         case .contains:
-            return haystack.contains(value)
-        case .startsWith:
-            // Compile 2 will add CompiledMatchSpec with regex; naive impl for now
-            let rest = haystack.dropFirst(value.count)
-            return haystack.hasPrefix(value) && !rest.isEmpty && rest.allSatisfy(\.isNumber)
-        case .unitSuffix:
-            // Compile 2 will add CompiledMatchSpec with regex; naive impl for now
-            guard haystack.hasSuffix(value) else { return false }
-            let prefix = haystack.dropLast(value.count)
-            guard !prefix.isEmpty else { return false }
-            return prefix.allSatisfy { $0.isNumber || $0 == "." || $0 == "-" }
+            return text.lowercased().contains(value.lowercased())
+        case .startsWith, .unitSuffix:
+            guard let regex = compiled.generatedRegex else { return false }
+            let range = NSRange(text.startIndex..<text.endIndex, in: text)
+            return regex.firstMatch(in: text, options: [], range: range) != nil
         }
     }
 
@@ -630,11 +590,18 @@ struct FilenameRuleSet: Decodable {
         return regex.firstMatch(in: text, options: [], range: range) != nil
     }
 
-    private func firstRegexMatch(in tokens: [String], regex: NSRegularExpression?, ruleID: String) -> String? {
-        guard let regex else { return nil }
-        for token in tokens {
-            if regexMatch(regex: regex, text: token) {
-                return normalizeUnitSuffixToken(token, ruleID: ruleID)
+    private func conditionValue(for ruleID: String, from tokens: [String]) -> String? {
+        guard let rules = compiled.conditionRules[ruleID] else { return nil }
+        return conditionFirstMatchValue(ruleID: ruleID, tokens: tokens, rules: rules)
+    }
+
+    private func conditionFirstMatchValue(ruleID: String, tokens: [String], rules: [CompiledMapRule]) -> String? {
+        for rule in rules {
+            if let matched = tokens.first(where: { tokenMatches(text: $0, compiled: rule.match) }) {
+                if rule.value == "$MATCH" {
+                    return normalizeUnitSuffixToken(matched, ruleID: ruleID)
+                }
+                return rule.value
             }
         }
         return nil

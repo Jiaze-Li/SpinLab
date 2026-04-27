@@ -87,13 +87,6 @@ struct ConditionChangeProposal: Identifiable {
     let changes: [FieldChange]
 }
 
-struct WorkflowMatchRuleEntry: Identifiable, Equatable {
-    var id: UUID = UUID()
-    var scope: FilenameRuleSet.MatchScope
-    var type: FilenameRuleSet.MatchType
-    var matchValues: [String]
-    var workflowID: String
-}
 
 struct SeparatedConditionsPatch: Equatable {
     var extraConditions: [String: String]

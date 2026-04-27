@@ -425,7 +425,6 @@ struct V210ImportAndParseTests {
         let parsed = parser.parse(from: fileURL)
 
         #expect(parsed.conditionValues["mode"] == "mode-token")
-        #expect(parsed.warnings.contains(where: { $0.contains("matched both token-map and unit-suffix") }))
     }
 
     private func loadBundledRuleSetForTests() throws -> FilenameRuleSet {

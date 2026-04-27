@@ -87,9 +87,9 @@ struct FilenameRuleParser {
         let allSampleIDs = uniquePreservingOrder(fileSampleIDs + folderSampleIDs)
 
         let measurement = preferredValue(
-            fileValue: ruleSet.measurementName(from: fileScopeTokens, joined: fileJoined),
-            folderValue: ruleSet.measurementName(from: folderContextTokens, joined: folderJoined),
-            fallbackValue: ruleSet.measurementName(from: scopedContextTokens, joined: joined)
+            fileValue: ruleSet.measurementName(from: fileScopeTokens),
+            folderValue: ruleSet.measurementName(from: folderContextTokens),
+            fallbackValue: ruleSet.measurementName(from: scopedContextTokens)
         )
         let measurementTags = preferredTags(
             fileTags: uniquePreservingOrder(ruleSet.measurementTags(from: fileScopeTokens)),
