@@ -6,14 +6,12 @@
 
 | 全局角色 | 项目实例 |
 |---|---|
+| 跨版本任务总览 | `TASK_BOARD.md`（进行中 / 待拍板；状态机见 `~/.claude/docs/workflow.md §9.f`） |
 | ROADMAP | `V5_ROADMAP.md`（5.x 版本段；单条三态 `[ ]` / `[~]` / `[x]`） |
 | handoff 待消费 | `handoff/<YYYY-MM-DD-topic>.md` |
 | handoff 已归档 | `handoff/archive/<YYYY-MM-DD-topic>.md` |
-| history（设计思路 + 实施摘要） | `history/v<版本号>_<topic>.md` |
-| Tech Debt Inbox（未拍板 raw 捕获池） | `history/TECH_DEBT_BACKLOG.md` — Jack 拍板后剪到 ROADMAP 对应版本段 |
-| 双 AI 对抗草稿 | `tmp/<ai>-plan-<topic>.md`（仅对抗期；详见 `handoff/README.md`） |
-
-详细 handoff 索引（待消费 / 已归档）+ 项目示例的执行分工表 → `handoff/README.md`
+| history（设计思路 + 实施摘要）+ 归档索引 | `history/v<版本号>_<topic>.md` + `history/INDEX.md`（永久全量倒序） |
+| 双 AI 对抗草稿 | `tmp/<ai>-plan-<topic>.md`（仅对抗期；见 `~/.claude/docs/workflow.md §9.d`） |
 
 ---
 
@@ -21,6 +19,7 @@
 
 | Document | Purpose | Status |
 |---|---|---|
+| `TASK_BOARD.md` | Cross-version task overview — in-progress + pending-board tasks with pipeline status. | active |
 | `V5_ROADMAP.md` | Active 5.x roadmap — version segments as collection bins. | active |
 | `philosophy.md` | Developer philosophy, habits, collaboration preferences. | active |
 | `features.md` | Feature invariants and test status for all areas (Inbox/Library/Workbench/Shared). | active |
@@ -41,28 +40,13 @@
 
 | Document | Purpose | Status |
 |---|---|---|
+| `history/INDEX.md` | 永久全量归档索引（完成日 / 版本 / 一句话 / history 文件 / handoff archive / commits 6 列，倒序）。 | active |
 | `history/V4_ROADMAP.md` | V4 roadmap and current development direction. | active |
-| `history/TECH_DEBT_BACKLOG.md` | Tech Debt Inbox — raw 捕获池，Jack 拍板后归入 V5_ROADMAP 版本段并从此处删除。 | active |
 | `history/TECH_DEBT_EXECUTION_LOG.md` | Round A–G 历史记录。已 sunset，新完成事件进 `history/vX.Y.Z_*.md`。 | sunset |
-| `handoff/README.md` | Handoff 三态生命周期（草稿 / 待消费 / 已归档）+ tmp 清理约定 + 索引。 | active |
 | `history/v1/` | V1 execution plan. | done |
 | `history/v2/` | V2 execution plan. | done |
 | `history/v3/` | V3 execution plans, acceptance checklists, iteration addendums. | done |
 | `history/v4/` | V4 iteration plans (3Omega/AHE, XY Rotation). | active |
-
-### Development Log (事件驱动开发日志)
-
-Entries added on version bumps, feature changes, or architecture adjustments.
-
-| Version | Event | File |
-|---------|-------|------|
-| v5.0.0 | Knowledge accumulation system setup | `history/v5.0.0_doc_system.md` |
-| v5.3.1 | Plot Shell capability expansion | `history/v5.3.1_plot_shell.md` |
-| v5.3.2 | Plot Render Pipeline unification | `history/v5.3.2_render_pipeline.md` |
-| v5.3.3 | Multi-Tab Render State Manager | `history/v5.3.3_multi_tab_render_manager.md` |
-| v5.3.4 | Legend Dimension Auto-Inference + Visual Consistency | `history/v534_legend_dimension_resolver.md` |
-| v5.3.5 | Point Label Font Size + Visibility Toggle + Copy PNG Scale Menu | `history/v535_point_label_controls.md` |
-| v5.5.0 | Cross-Area UI Unification | `history/v550_ui_unification.md` |
 
 ## specs (产品/数据/UI 规则)
 

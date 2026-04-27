@@ -201,12 +201,12 @@ Do not implement out of order. Skip steps when that layer has no change.
 
 ### Session Startup
 - `[HARD][must]` Read `docs/philosophy.md` and `docs/features.md` on entering the project.
-- `[HARD][must]` Run `ls tmp/` and triage residue per `docs/handoff/README.md` (留 / 升级到 docs/handoff / 删).
+- `[HARD][must]` Run `ls tmp/` and triage residue per `~/.claude/docs/workflow.md §9.d` tmp lifecycle rules（留 / 升级到 docs/handoff / 删；超 14 天默认提示 Jack）.
 - `[DIRECTION][should]` Read relevant `docs/history/` entries for architecture tasks.
 
 ### Handoff Pointer Registry (overrides global workflow.md §9.a)
-- `[HARD][must]` SpinLab 的 handoff 指针登记落点是 **`docs/handoff/README.md`** 的「待消费」表，不是全局规则里的 `docs/ledger/l1_优化待办.md`（本项目无 ledger 体系，用 V5_ROADMAP + history 替代）。
-- 产出 handoff 时：(1) `mv` 草稿到 `docs/handoff/<YYYY-MM-DD-topic>.md`，(2) 在 README 索引「待消费」段加一行。归档时反向迁移到「已归档」段。
+- `[HARD][must]` SpinLab 的 handoff 指针登记落点是 **`docs/TASK_BOARD.md`** 的「进行中」表（不是全局规则里的 `docs/ledger/l1_优化待办.md`，本项目无 ledger 体系）。
+- 产出 handoff 时：(1) `mv` 草稿到 `docs/handoff/<YYYY-MM-DD-topic>.md`，(2) 在 TASK_BOARD「进行中」表对应行翻状态为「方案完成 (s<n>)」+ 指针列改指 handoff 文件。归档时（§9.c）整行删 + history/INDEX 加一行。
 
 ### Session Closeout (event-driven)
 - `[HARD][must]` After code changes, walk through:
@@ -214,6 +214,7 @@ Do not implement out of order. Skip steps when that layer has no change.
   2. New development preference? → Update `docs/philosophy.md`.
   3. Cross-session user preference? → Write to memory system.
   4. 接手并完成了某份 handoff？→ 按 `~/.claude/docs/workflow.md §9.c` 4 步归档动作执行（handoff 搬迁 + 索引更新 + 设计思路 ROADMAP→history 迁移 + ROADMAP 改一句话+`[x]`）。
+  5. 是否动了流水线状态（出 handoff / 第一次 commit / 归档完成）？→ 同步翻 `docs/TASK_BOARD.md` 状态或删行；归档时同步在 `docs/history/INDEX.md` 加一行。详见 `~/.claude/docs/workflow.md §9.f` 触发表。
 - Skip steps that don't apply.
 - `[HARD][must]` **任务流水线文档职责不可越界**：每份文档只装一种内容。详见 `docs/README.md` 顶部「任务流水线文档职责」表 + 反模式段。设计思路一辈子只活一处（ROADMAP 在做时 / history 做完后），不重复、不互灌。
 
@@ -225,7 +226,7 @@ Do not implement out of order. Skip steps when that layer has no change.
 ## Roadmap Reference
 
 - Active roadmap: `docs/V5_ROADMAP.md`. ROADMAP 三态、互相引用方向、反模式 → 见 `~/.claude/docs/workflow.md §3.e`。
-- Discovered bugs/debt: 先进 `docs/history/TECH_DEBT_BACKLOG.md` Inbox；Jack 拍板归入版本段时再剪到 ROADMAP（避免双账本）。
+- Discovered bugs/debt: 先进 `docs/TASK_BOARD.md`「待拍板」段；Jack 拍板归入版本段时迁入「进行中」段（状态 =「需求提出」），同步从「待拍板」删（避免双账本）。
 - Do not reorder/reprioritize unless user instructs.
 - 一次规划只针对**一条需求**，不批量处理 ROADMAP 多条。
 

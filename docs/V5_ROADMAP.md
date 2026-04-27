@@ -15,7 +15,7 @@
 | 5.4.x | Library 逻辑/架构 | 收集中 |
 | 5.5.x | 全区域 UI 统一优化 | 收集中 |
 | 5.6.x | 预留 | — |
-| 5.7.x | Docs 专项 | 收集中 |
+| 5.7.x | Docs 专项 | 进行中 |
 
 ---
 
@@ -381,3 +381,5 @@ _(未分配)_
 ### 5.7.0
 - [x] CLAUDE.md 瘦身：已在 5.5.3 完成 — SpinLab 专有内容下沉到 specs/04 + specs/06，CLAUDE.md 保留通用方法论
 
+### 5.7.1 — TASK_BOARD 引入 + 文档治理重构
+- [x] 新建 TASK_BOARD + history/INDEX，退役 handoff/README + TECH_DEBT_BACKLOG，改 docs/README.md + 项目 CLAUDE.md + 全局 workflow.md；文档治理收敛为单一职责体系 → [`history/v571_task_board.md`](history/v571_task_board.md)
