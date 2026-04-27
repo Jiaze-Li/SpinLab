@@ -6,6 +6,7 @@
 
 | 完成日 | 版本 | 一句话 | history 文件 | handoff archive | commits |
 |---|---|---|---|---|---|
+| 2026-04-27 | 5.1.5-s10 | v4 substrate schema 全量落地：SubstrateEntry 统一三表 + batchPrefixes + UI 重写 + v3→v4 bootstrapper 迁移；117/117 V515 + 18/18 V221 全绿 | [v515_s10_substrate_redesign.md](v515_s10_substrate_redesign.md) | [archive/2026-04-27-5.1.5-s10-substrate-redesign.md](../handoff/archive/2026-04-27-5.1.5-s10-substrate-redesign.md) | 02abdfe + 2523f20 |
 | 2026-04-27 | 5.7.1 | TASK_BOARD 引入 + 文档治理重构：新建 TASK_BOARD + history/INDEX，退役 handoff/README + TECH_DEBT_BACKLOG，改 docs/README.md + 项目 CLAUDE.md + 全局 workflow.md | [v571_task_board.md](v571_task_board.md) | [archive/2026-04-26-5.7.1-task-board-introduction.md](../handoff/archive/2026-04-26-5.7.1-task-board-introduction.md) | 9f5dc7d (项目) + dotfiles 719bb81 + 40c4fec |
 | 2026-04-27 | 5.1.5-s9 | ConditionDefinition inline + SubstrateConfig row-oriented + MatchSpec.matchValues 全仓统一 + RulesBootstrapper v1→v2 迁移（atomic + state + backup）；5 迁移幂等单测；84/84 V515 green + 27/27 V210 green | — | [archive/2026-04-26-5.1.5-s8-schema-second-pass.md](../handoff/archive/2026-04-26-5.1.5-s8-schema-second-pass.md) | C1–C7 |
 | 2026-04-26 | 5.1.5-s7 | rules tail cleanup：WorkflowDefinitionStore + WorkflowRegistryRetirementService + parentID 兼容删 + RulesBootstrapper 替换 RulesMigration + WorkflowRegistryView 只读重写；11 tests（79/79 V515 green）| — | [archive/2026-04-26-5.1.5-s7-rules-tail-cleanup.md](../handoff/archive/2026-04-26-5.1.5-s7-rules-tail-cleanup.md) | 5 commit (08c7f8a–f7939c4) |
