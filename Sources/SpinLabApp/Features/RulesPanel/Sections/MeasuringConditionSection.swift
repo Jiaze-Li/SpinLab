@@ -4,9 +4,6 @@ struct MeasuringConditionSection: View {
     @Environment(SpinLabAppState.self) private var appState
 
     @State private var draft: MeasuringConditionFileDraft?
-    @State private var saveErrors: [RulesPanelFieldError] = []
-    @State private var showConflictAlert = false
-    @State private var pendingConflictChecksum = ""
     @State private var selectedConditionID: String? = nil
     @State private var showDeleteConfirm = false
     @State private var pendingDeleteID: String? = nil
@@ -15,32 +12,15 @@ struct MeasuringConditionSection: View {
     private var store: RulesManagementStore { appState.rulesPanel }
 
     var body: some View {
-        VStack(spacing: 0) {
-            saveBar()
-            Divider()
-            Group {
-                if let d = draft {
-                    scrollContent(d)
-                } else {
-                    ContentUnavailableView("No measuring condition rules loaded", systemImage: "doc.questionmark")
-                }
+        RulesSectionShell(
+            section: .measuringCondition,
+            isDraftAvailable: draft != nil,
+            versionLabel: draft.map { "Schema version \($0.version)" },
+            onSync: syncFromStore
+        ) { $saveErrors in
+            if let d = draft {
+                scrollContent(d, saveErrors: $saveErrors)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            Divider()
-            saveBar()
-        }
-        .onAppear { syncFromStore() }
-        .alert("External Change Detected", isPresented: $showConflictAlert) {
-            Button("Reload External Changes") {
-                store.reloadAfterExternalChange(section: .measuringCondition)
-                syncFromStore()
-            }
-            Button("Override With My Edits", role: .destructive) {
-                handleOutcome(store.overrideWithCurrentDraft(section: .measuringCondition))
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("The file was modified externally (checksum: \(pendingConflictChecksum.prefix(8))). Choose how to resolve.")
         }
         .confirmationDialog(deleteConfirmTitle(), isPresented: $showDeleteConfirm, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { performDelete() }
@@ -50,38 +30,16 @@ struct MeasuringConditionSection: View {
         }
     }
 
-    // MARK: - Save bar
-
-    @ViewBuilder
-    private func saveBar() -> some View {
-        HStack(spacing: AppSpacing.md) {
-            if !saveErrors.isEmpty {
-                SaveErrorsBadge(errors: saveErrors)
-            }
-            Spacer()
-            if let d = draft {
-                Text("Schema version \(d.version)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Button("Discard") { discardEdits() }
-                .buttonStyle(.bordered)
-                .disabled(!store.dirtySections.contains(.measuringCondition))
-            Button("Save") { saveEdits() }
-                .buttonStyle(.borderedProminent)
-                .disabled(!saveErrors.isEmpty)
-        }
-        .padding(.horizontal, AppSpacing.xl)
-        .padding(.vertical, AppSpacing.sm)
-    }
-
     // MARK: - Scroll content
 
     @ViewBuilder
-    private func scrollContent(_ d: MeasuringConditionFileDraft) -> some View {
+    private func scrollContent(
+        _ d: MeasuringConditionFileDraft,
+        saveErrors: Binding<[RulesPanelFieldError]>
+    ) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                conditionDefinitionsGroup(d)
+                conditionDefinitionsGroup(d, saveErrors: saveErrors)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(AppSpacing.xl)
@@ -91,12 +49,15 @@ struct MeasuringConditionSection: View {
     // MARK: - Condition Definitions
 
     @ViewBuilder
-    private func conditionDefinitionsGroup(_ d: MeasuringConditionFileDraft) -> some View {
+    private func conditionDefinitionsGroup(
+        _ d: MeasuringConditionFileDraft,
+        saveErrors: Binding<[RulesPanelFieldError]>
+    ) -> some View {
         GroupBox("Conditions") {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 ForEach(d.conditionDefinitions.indices, id: \.self) { idx in
                     let def = d.conditionDefinitions[idx]
-                    conditionRow(def: def, d: d, idx: idx)
+                    conditionRow(def: def, d: d, idx: idx, saveErrors: saveErrors)
                     Divider()
                 }
                 HStack(spacing: AppSpacing.md) {
@@ -107,33 +68,26 @@ struct MeasuringConditionSection: View {
                 }
             }
         }
-        .errorHighlight(saveErrors.hasGroup("conditionDefinitions"))
+        .errorHighlight(saveErrors.wrappedValue.hasGroup("conditionDefinitions"))
     }
 
     @ViewBuilder
     private func conditionRow(
         def: MeasuringConditionFileDraft.ConditionDefinition,
         d: MeasuringConditionFileDraft,
-        idx: Int
+        idx: Int,
+        saveErrors: Binding<[RulesPanelFieldError]>
     ) -> some View {
         let isSelected = selectedConditionID == def.id
-        let rowHasError = saveErrors.hasRow(group: "conditionDefinitions", key: def.id)
+        let rowHasError = saveErrors.wrappedValue.hasRow(group: "conditionDefinitions", key: def.id)
         VStack(alignment: .leading, spacing: 0) {
             Button(action: {
                 selectedConditionID = isSelected ? nil : def.id
             }) {
                 HStack(spacing: AppSpacing.md) {
-                    VStack(alignment: .leading, spacing: AppSpacing.xxs) {
-                        Text(def.id)
-                            .font(.callout.weight(.semibold).monospaced())
-                            .foregroundStyle(rowHasError ? Color.red : .primary)
-                        HStack(spacing: AppSpacing.xs) {
-                            Text(def.kind).font(.caption).foregroundStyle(.secondary)
-                            if let label = def.label, !label.isEmpty {
-                                Text("· \(label)").font(.caption).foregroundStyle(.secondary)
-                            }
-                        }
-                    }
+                    Text(def.id)
+                        .font(.callout.weight(.semibold).monospaced())
+                        .foregroundStyle(rowHasError ? Color.red : .primary)
                     Spacer()
                     Button(role: .destructive) {
                         requestDelete(id: def.id, d: d)
@@ -165,22 +119,22 @@ struct MeasuringConditionSection: View {
     private func conditionDetail(idx: Int, d: MeasuringConditionFileDraft) -> some View {
         let def = d.conditionDefinitions[idx]
         VStack(alignment: .leading, spacing: AppSpacing.md) {
+            LabeledContent("Display Name") {
+                TextField("display name (optional)", text: Binding(
+                    get: { def.displayName ?? "" },
+                    set: { v in
+                        var u = d
+                        u.conditionDefinitions[idx].displayName = v.isEmpty ? nil : v
+                        apply(u)
+                    }
+                ))
+                .textFieldStyle(.roundedBorder)
+            }
             LabeledContent("ID") {
                 Text(def.id)
                     .font(.body.monospaced())
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
-            }
-            LabeledContent("Label") {
-                TextField("display label (optional)", text: Binding(
-                    get: { def.label ?? "" },
-                    set: { v in
-                        var u = d
-                        u.conditionDefinitions[idx].label = v.isEmpty ? nil : v
-                        apply(u)
-                    }
-                ))
-                .textFieldStyle(.roundedBorder)
             }
             LabeledContent("Kind") {
                 Picker("", selection: Binding(
@@ -263,7 +217,7 @@ struct MeasuringConditionSection: View {
                         HStack(spacing: AppSpacing.md) {
                             VStack(alignment: .leading, spacing: AppSpacing.xxs) {
                                 Text("→ \(rules[ruleIdx].value)").font(.callout.weight(.semibold))
-                                Text("\(rules[ruleIdx].match.scope) · \(rules[ruleIdx].match.type)")
+                                Text(rules[ruleIdx].match.type)
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
@@ -284,7 +238,7 @@ struct MeasuringConditionSection: View {
                     .buttonStyle(.plain)
 
                     if isRuleSelected {
-                        MatchRuleEditor(rule: tokenMapRuleBinding(id: id, idx: idx, ruleIdx: ruleIdx))
+                        tokenMapRuleEditor(condIdx: idx, ruleIdx: ruleIdx)
                             .padding(AppSpacing.md)
                             .background(Color(nsColor: .windowBackgroundColor))
                             .cornerRadius(AppSpacing.sm)
@@ -292,6 +246,25 @@ struct MeasuringConditionSection: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func tokenMapRuleEditor(condIdx: Int, ruleIdx: Int) -> some View {
+        let rb = tokenMapRuleBinding(condIdx: condIdx, ruleIdx: ruleIdx)
+        UnifiedMatchRuleEditor(
+            type: Binding(
+                get: { rb.wrappedValue.match.type },
+                set: { v in var r = rb.wrappedValue; r.match.type = v; rb.wrappedValue = r }
+            ),
+            matchValues: Binding(
+                get: { rb.wrappedValue.match.matchValues },
+                set: { v in var r = rb.wrappedValue; r.match.matchValues = v; rb.wrappedValue = r }
+            ),
+            outputBinding: Binding(
+                get: { rb.wrappedValue.value },
+                set: { v in var r = rb.wrappedValue; r.value = v; rb.wrappedValue = r }
+            )
+        )
     }
 
     // MARK: - Delete confirmation
@@ -346,7 +319,7 @@ struct MeasuringConditionSection: View {
         var u = d
         u.conditionDefinitions.append(.init(
             id: newID,
-            label: nil,
+            displayName: nil,
             kind: "unit_suffix",
             unitPattern: "",
             tokenMap: nil
@@ -357,16 +330,12 @@ struct MeasuringConditionSection: View {
 
     // MARK: - Bindings
 
-    private func tokenMapRuleBinding(
-        id: String,
-        idx: Int,
-        ruleIdx: Int
-    ) -> Binding<MapRule> {
+    private func tokenMapRuleBinding(condIdx: Int, ruleIdx: Int) -> Binding<MapRule> {
         Binding(
             get: {
                 guard let d = self.draft,
-                      d.conditionDefinitions.indices.contains(idx),
-                      let rules = d.conditionDefinitions[idx].tokenMap,
+                      d.conditionDefinitions.indices.contains(condIdx),
+                      let rules = d.conditionDefinitions[condIdx].tokenMap,
                       rules.indices.contains(ruleIdx) else {
                     return MapRule(match: .init(scope: "tokens", type: "equals", matchValues: []), value: "")
                 }
@@ -374,11 +343,11 @@ struct MeasuringConditionSection: View {
             },
             set: { newValue in
                 guard var d = self.draft,
-                      d.conditionDefinitions.indices.contains(idx),
-                      var rules = d.conditionDefinitions[idx].tokenMap,
+                      d.conditionDefinitions.indices.contains(condIdx),
+                      var rules = d.conditionDefinitions[condIdx].tokenMap,
                       rules.indices.contains(ruleIdx) else { return }
                 rules[ruleIdx] = newValue
-                d.conditionDefinitions[idx].tokenMap = rules
+                d.conditionDefinitions[condIdx].tokenMap = rules
                 self.apply(d)
             }
         )
@@ -391,32 +360,7 @@ struct MeasuringConditionSection: View {
         store.updateMeasuringCondition(d)
     }
 
-    private func saveEdits() {
-        store.selectSection(.measuringCondition)
-        handleOutcome(store.saveCurrent())
-    }
-
-    private func discardEdits() {
-        store.discardCurrent()
-        syncFromStore()
-        saveErrors = []
-    }
-
     private func syncFromStore() {
         if let current = store.measuringConditionDraft { draft = current }
-    }
-
-    private func handleOutcome(_ outcome: RulesPanelSaveOutcome) {
-        switch outcome {
-        case .saved, .savedWithMirrorWarning:
-            saveErrors = []
-        case .validationFailed(let errors):
-            saveErrors = errors
-        case .externalConflict(let checksum):
-            pendingConflictChecksum = checksum
-            showConflictAlert = true
-        case .ioError(let error):
-            saveErrors = [RulesPanelFieldError(field: "save", message: error.localizedDescription)]
-        }
     }
 }

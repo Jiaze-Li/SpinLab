@@ -4,9 +4,6 @@ struct WorkflowSection: View {
     @Environment(SpinLabAppState.self) private var appState
 
     @State private var draft: WorkflowFileDraft?
-    @State private var saveErrors: [RulesPanelFieldError] = []
-    @State private var showConflictAlert = false
-    @State private var pendingConflictChecksum = ""
 
     @State private var expandedWorkflowID: String? = nil
     @State private var expandedWorkflowRuleIndexByID: [String: Int] = [:]
@@ -22,32 +19,15 @@ struct WorkflowSection: View {
     private var store: RulesManagementStore { appState.rulesPanel }
 
     var body: some View {
-        VStack(spacing: 0) {
-            saveBar()
-            Divider()
-            Group {
-                if let d = draft {
-                    scrollContent(d)
-                } else {
-                    ContentUnavailableView("No workflow rules loaded", systemImage: "doc.questionmark")
-                }
+        RulesSectionShell(
+            section: .workflow,
+            isDraftAvailable: draft != nil,
+            versionLabel: draft.map { "Schema version \($0.version)" },
+            onSync: syncFromStore
+        ) { saveErrors in
+            if let d = draft {
+                scrollContent(d, saveErrors: saveErrors)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            Divider()
-            saveBar()
-        }
-        .onAppear { syncFromStore() }
-        .alert("External Change Detected", isPresented: $showConflictAlert) {
-            Button("Reload External Changes") {
-                store.reloadAfterExternalChange(section: .workflow)
-                syncFromStore()
-            }
-            Button("Override With My Edits", role: .destructive) {
-                handleOutcome(store.overrideWithCurrentDraft(section: .workflow))
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("The file was modified externally (checksum: \(pendingConflictChecksum.prefix(8))). Choose how to resolve.")
         }
         .confirmationDialog(
             deleteConfirmTitle(),
@@ -62,35 +42,15 @@ struct WorkflowSection: View {
     }
 
     @ViewBuilder
-    private func saveBar() -> some View {
-        HStack(spacing: AppSpacing.md) {
-            if !saveErrors.isEmpty {
-                SaveErrorsBadge(errors: saveErrors)
-            }
-            Spacer()
-            if let d = draft {
-                Text("Schema version \(d.version)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Button("Discard") { discardEdits() }
-                .buttonStyle(.bordered)
-                .disabled(!store.dirtySections.contains(.workflow))
-            Button("Save") { saveEdits() }
-                .buttonStyle(.borderedProminent)
-                .disabled(!saveErrors.isEmpty)
-        }
-        .padding(.horizontal, AppSpacing.xl)
-        .padding(.vertical, AppSpacing.sm)
-    }
-
-    @ViewBuilder
-    private func scrollContent(_ d: WorkflowFileDraft) -> some View {
+    private func scrollContent(
+        _ d: WorkflowFileDraft,
+        saveErrors: Binding<[RulesPanelFieldError]>
+    ) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                workflowsGroup(d)
-                measurementTagRulesGroup(d)
-                    .errorHighlight(saveErrors.hasGroup("measurementTagRules"))
+                workflowsGroup(d, saveErrors: saveErrors.wrappedValue)
+                measurementTagRulesGroup(d, saveErrors: saveErrors.wrappedValue)
+                    .errorHighlight(saveErrors.wrappedValue.hasGroup("measurementTagRules"))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(AppSpacing.xl)
@@ -98,11 +58,14 @@ struct WorkflowSection: View {
     }
 
     @ViewBuilder
-    private func workflowsGroup(_ d: WorkflowFileDraft) -> some View {
+    private func workflowsGroup(
+        _ d: WorkflowFileDraft,
+        saveErrors: [RulesPanelFieldError]
+    ) -> some View {
         GroupBox("Workflows") {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 ForEach(d.workflows.indices, id: \.self) { idx in
-                    workflowRow(d: d, idx: idx)
+                    workflowRow(d: d, idx: idx, saveErrors: saveErrors)
                     Divider()
                 }
 
@@ -181,7 +144,11 @@ struct WorkflowSection: View {
     }
 
     @ViewBuilder
-    private func workflowRow(d: WorkflowFileDraft, idx: Int) -> some View {
+    private func workflowRow(
+        d: WorkflowFileDraft,
+        idx: Int,
+        saveErrors: [RulesPanelFieldError]
+    ) -> some View {
         let entry = d.workflows[idx]
         let isExpanded = expandedWorkflowID == entry.id
         let rowHasError = saveErrors.hasRow(group: "workflows", key: entry.id)
@@ -199,11 +166,6 @@ struct WorkflowSection: View {
                         Text(entry.id)
                             .font(.callout.weight(.semibold).monospaced())
                             .foregroundStyle(rowHasError ? Color.red : .primary)
-                        if !entry.displayName.isEmpty {
-                            Text(entry.displayName)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
                     }
                     Spacer()
                     Text("\(entry.matchRules.count) rule\(entry.matchRules.count == 1 ? "" : "s")")
@@ -243,13 +205,6 @@ struct WorkflowSection: View {
         let entry = d.workflows[idx]
 
         VStack(alignment: .leading, spacing: AppSpacing.md) {
-            LabeledContent("ID") {
-                Text(entry.id)
-                    .font(.body.monospaced())
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-            }
-
             LabeledContent("Display Name") {
                 TextField(
                     "display name",
@@ -263,6 +218,13 @@ struct WorkflowSection: View {
                     )
                 )
                 .textFieldStyle(.roundedBorder)
+            }
+
+            LabeledContent("ID") {
+                Text(entry.id)
+                    .font(.body.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
             }
 
             workflowMatchRulesEditor(d: d, idx: idx)
@@ -331,7 +293,10 @@ struct WorkflowSection: View {
                     .buttonStyle(.plain)
 
                     if isRuleExpanded {
-                        WorkflowMatchRuleEditor(spec: workflowMatchRuleBinding(workflowIdx: idx, ruleIdx: ruleIdx))
+                        UnifiedMatchRuleEditor(
+                            type: workflowMatchRuleTypeBinding(workflowIdx: idx, ruleIdx: ruleIdx),
+                            matchValues: workflowMatchRuleValuesBinding(workflowIdx: idx, ruleIdx: ruleIdx)
+                        )
                             .padding(AppSpacing.md)
                             .background(Color(nsColor: .windowBackgroundColor))
                             .cornerRadius(AppSpacing.sm)
@@ -389,7 +354,10 @@ struct WorkflowSection: View {
     }
 
     @ViewBuilder
-    private func measurementTagRulesGroup(_ d: WorkflowFileDraft) -> some View {
+    private func measurementTagRulesGroup(
+        _ d: WorkflowFileDraft,
+        saveErrors: [RulesPanelFieldError]
+    ) -> some View {
         GroupBox("Measurement Tag Rules") {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 HStack {
@@ -426,7 +394,7 @@ struct WorkflowSection: View {
                                 VStack(alignment: .leading, spacing: AppSpacing.xxs) {
                                     Text("→ \(d.measurementTagRules[idx].value)")
                                         .font(.callout.weight(.semibold))
-                                    Text("\(d.measurementTagRules[idx].match.scope) · \(d.measurementTagRules[idx].match.type)")
+                                    Text(d.measurementTagRules[idx].match.type)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -452,7 +420,11 @@ struct WorkflowSection: View {
                         .buttonStyle(.plain)
 
                         if isExpanded {
-                            MatchRuleEditor(rule: measurementTagRuleBinding(idx: idx))
+                            UnifiedMatchRuleEditor(
+                                type: measurementTagRuleTypeBinding(idx: idx),
+                                matchValues: measurementTagRuleValuesBinding(idx: idx),
+                                outputBinding: measurementTagRuleOutputBinding(idx: idx)
+                            )
                                 .padding(AppSpacing.md)
                                 .background(Color(nsColor: .windowBackgroundColor))
                                 .cornerRadius(AppSpacing.sm)
@@ -492,39 +464,95 @@ struct WorkflowSection: View {
         "This removes workflow ID, display name, match rules, and condition field mappings."
     }
 
-    private func workflowMatchRuleBinding(workflowIdx: Int, ruleIdx: Int) -> Binding<WorkflowFileDraft.WorkflowMatchSpec> {
+    private func workflowMatchRuleTypeBinding(workflowIdx: Int, ruleIdx: Int) -> Binding<String> {
         Binding(
             get: {
                 guard let d = draft,
                       d.workflows.indices.contains(workflowIdx),
                       d.workflows[workflowIdx].matchRules.indices.contains(ruleIdx) else {
-                    return .init(scope: "tokens", type: "equals", matchValues: [])
+                    return "equals"
                 }
-                return d.workflows[workflowIdx].matchRules[ruleIdx]
+                return d.workflows[workflowIdx].matchRules[ruleIdx].type
             },
             set: { newValue in
                 guard var d = draft,
                       d.workflows.indices.contains(workflowIdx),
                       d.workflows[workflowIdx].matchRules.indices.contains(ruleIdx) else { return }
-                d.workflows[workflowIdx].matchRules[ruleIdx] = newValue
+                d.workflows[workflowIdx].matchRules[ruleIdx].type = newValue
                 apply(d)
             }
         )
     }
 
-    private func measurementTagRuleBinding(idx: Int) -> Binding<MapRule> {
+    private func workflowMatchRuleValuesBinding(workflowIdx: Int, ruleIdx: Int) -> Binding<[String]> {
+        Binding(
+            get: {
+                guard let d = draft,
+                      d.workflows.indices.contains(workflowIdx),
+                      d.workflows[workflowIdx].matchRules.indices.contains(ruleIdx) else {
+                    return []
+                }
+                return d.workflows[workflowIdx].matchRules[ruleIdx].matchValues
+            },
+            set: { newValue in
+                guard var d = draft,
+                      d.workflows.indices.contains(workflowIdx),
+                      d.workflows[workflowIdx].matchRules.indices.contains(ruleIdx) else { return }
+                d.workflows[workflowIdx].matchRules[ruleIdx].matchValues = newValue
+                apply(d)
+            }
+        )
+    }
+
+    private func measurementTagRuleTypeBinding(idx: Int) -> Binding<String> {
         Binding(
             get: {
                 guard let d = draft,
                       d.measurementTagRules.indices.contains(idx) else {
-                    return MapRule(match: .init(scope: "tokens", type: "equals", matchValues: []), value: "")
+                    return "equals"
                 }
-                return d.measurementTagRules[idx]
+                return d.measurementTagRules[idx].match.type
             },
             set: { newValue in
                 guard var d = draft,
                       d.measurementTagRules.indices.contains(idx) else { return }
-                d.measurementTagRules[idx] = newValue
+                d.measurementTagRules[idx].match.type = newValue
+                apply(d)
+            }
+        )
+    }
+
+    private func measurementTagRuleValuesBinding(idx: Int) -> Binding<[String]> {
+        Binding(
+            get: {
+                guard let d = draft,
+                      d.measurementTagRules.indices.contains(idx) else {
+                    return []
+                }
+                return d.measurementTagRules[idx].match.matchValues
+            },
+            set: { newValue in
+                guard var d = draft,
+                      d.measurementTagRules.indices.contains(idx) else { return }
+                d.measurementTagRules[idx].match.matchValues = newValue
+                apply(d)
+            }
+        )
+    }
+
+    private func measurementTagRuleOutputBinding(idx: Int) -> Binding<String> {
+        Binding(
+            get: {
+                guard let d = draft,
+                      d.measurementTagRules.indices.contains(idx) else {
+                    return ""
+                }
+                return d.measurementTagRules[idx].value
+            },
+            set: { newValue in
+                guard var d = draft,
+                      d.measurementTagRules.indices.contains(idx) else { return }
+                d.measurementTagRules[idx].value = newValue
                 apply(d)
             }
         )
@@ -535,34 +563,9 @@ struct WorkflowSection: View {
         store.updateWorkflow(updated)
     }
 
-    private func saveEdits() {
-        store.selectSection(.workflow)
-        handleOutcome(store.saveCurrent())
-    }
-
-    private func discardEdits() {
-        store.discardCurrent()
-        syncFromStore()
-        saveErrors = []
-    }
-
     private func syncFromStore() {
         if let current = store.workflowDraft {
             draft = current
-        }
-    }
-
-    private func handleOutcome(_ outcome: RulesPanelSaveOutcome) {
-        switch outcome {
-        case .saved, .savedWithMirrorWarning:
-            saveErrors = []
-        case .validationFailed(let errors):
-            saveErrors = errors
-        case .externalConflict(let checksum):
-            pendingConflictChecksum = checksum
-            showConflictAlert = true
-        case .ioError(let error):
-            saveErrors = [RulesPanelFieldError(field: "save", message: error.localizedDescription)]
         }
     }
 }

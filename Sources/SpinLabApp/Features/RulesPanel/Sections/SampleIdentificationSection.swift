@@ -4,9 +4,6 @@ struct SampleIdentificationSection: View {
     @Environment(SpinLabAppState.self) private var appState
 
     @State private var draft: SampleIdentificationFileDraft?
-    @State private var saveErrors: [RulesPanelFieldError] = []
-    @State private var showConflictAlert = false
-    @State private var pendingConflictChecksum = ""
     @State private var expandedMaterialIndex: Int? = nil
     @State private var expandedTreatmentIndex: Int? = nil
     @State private var expandedOrientationIndex: Int? = nil
@@ -14,67 +11,27 @@ struct SampleIdentificationSection: View {
     private var store: RulesManagementStore { appState.rulesPanel }
 
     var body: some View {
-        VStack(spacing: 0) {
-            saveBar()
-            Divider()
-            Group {
-                if let d = draft {
-                    scrollContent(d)
-                } else {
-                    ContentUnavailableView(
-                        "No sample identification rules loaded",
-                        systemImage: "doc.questionmark"
-                    )
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            Divider()
-            saveBar()
-        }
-        .onAppear { syncFromStore() }
-        .alert("External Change Detected", isPresented: $showConflictAlert) {
-            Button("Reload External Changes") {
-                store.reloadAfterExternalChange(section: .sampleIdentification)
-                syncFromStore()
-            }
-            Button("Override With My Edits", role: .destructive) {
-                handleOutcome(store.overrideWithCurrentDraft(section: .sampleIdentification))
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("The file was modified externally (checksum: \(pendingConflictChecksum.prefix(8))). Choose how to resolve.")
-        }
-    }
-
-    @ViewBuilder
-    private func saveBar() -> some View {
-        HStack(spacing: AppSpacing.md) {
-            if !saveErrors.isEmpty {
-                SaveErrorsBadge(errors: saveErrors)
-            }
-            Spacer()
+        RulesSectionShell(
+            section: .sampleIdentification,
+            isDraftAvailable: draft != nil,
+            versionLabel: draft.map { "Schema version \($0.version)" },
+            onSync: syncFromStore
+        ) { saveErrors in
             if let d = draft {
-                Text("Schema version \(d.version)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                scrollContent(d, saveErrors: saveErrors)
             }
-            Button("Discard") { discardEdits() }
-                .buttonStyle(.bordered)
-                .disabled(!store.dirtySections.contains(.sampleIdentification))
-            Button("Save") { saveEdits() }
-                .buttonStyle(.borderedProminent)
-                .disabled(!saveErrors.isEmpty)
         }
-        .padding(.horizontal, AppSpacing.xl)
-        .padding(.vertical, AppSpacing.sm)
     }
 
     @ViewBuilder
-    private func scrollContent(_ d: SampleIdentificationFileDraft) -> some View {
+    private func scrollContent(
+        _ d: SampleIdentificationFileDraft,
+        saveErrors: Binding<[RulesPanelFieldError]>
+    ) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.xl) {
                 batchPrefixesGroup(d)
-                substrateConfigGroup(d)
+                substrateConfigGroup(d, saveErrors: saveErrors.wrappedValue)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(AppSpacing.xl)
@@ -97,13 +54,17 @@ struct SampleIdentificationSection: View {
     // MARK: - Substrate Configuration
 
     @ViewBuilder
-    private func substrateConfigGroup(_ d: SampleIdentificationFileDraft) -> some View {
+    private func substrateConfigGroup(
+        _ d: SampleIdentificationFileDraft,
+        saveErrors: [RulesPanelFieldError]
+    ) -> some View {
         GroupBox("Substrate Configuration") {
             VStack(alignment: .leading, spacing: AppSpacing.lg) {
                 substrateEntriesEditor(
                     title: "Materials",
                     groupKey: "substrate.materials",
                     entries: d.substrate.materials,
+                    saveErrors: saveErrors,
                     expandedIndex: $expandedMaterialIndex,
                     onAdd: {
                         var u = d
@@ -125,6 +86,7 @@ struct SampleIdentificationSection: View {
                     title: "Treatments",
                     groupKey: "substrate.treatments",
                     entries: d.substrate.treatments,
+                    saveErrors: saveErrors,
                     expandedIndex: $expandedTreatmentIndex,
                     onAdd: {
                         var u = d
@@ -146,6 +108,7 @@ struct SampleIdentificationSection: View {
                     title: "Orientations",
                     groupKey: "substrate.orientations",
                     entries: d.substrate.orientations,
+                    saveErrors: saveErrors,
                     expandedIndex: $expandedOrientationIndex,
                     onAdd: {
                         var u = d
@@ -171,6 +134,7 @@ struct SampleIdentificationSection: View {
         title: String,
         groupKey: String,
         entries: [SampleIdentificationFileDraft.SubstrateEntry],
+        saveErrors: [RulesPanelFieldError],
         expandedIndex: Binding<Int?>,
         onAdd: @escaping () -> Void,
         onRemove: @escaping (Int) -> Void,
@@ -334,34 +298,9 @@ struct SampleIdentificationSection: View {
         store.updateSampleIdentification(updated)
     }
 
-    private func saveEdits() {
-        store.selectSection(.sampleIdentification)
-        handleOutcome(store.saveCurrent())
-    }
-
-    private func discardEdits() {
-        store.discardCurrent()
-        syncFromStore()
-        saveErrors = []
-    }
-
     private func syncFromStore() {
         if let current = store.sampleIdentificationDraft {
             draft = current
-        }
-    }
-
-    private func handleOutcome(_ outcome: RulesPanelSaveOutcome) {
-        switch outcome {
-        case .saved, .savedWithMirrorWarning:
-            saveErrors = []
-        case .validationFailed(let errors):
-            saveErrors = errors
-        case .externalConflict(let checksum):
-            pendingConflictChecksum = checksum
-            showConflictAlert = true
-        case .ioError(let error):
-            saveErrors = [RulesPanelFieldError(field: "save", message: error.localizedDescription)]
         }
     }
 }
