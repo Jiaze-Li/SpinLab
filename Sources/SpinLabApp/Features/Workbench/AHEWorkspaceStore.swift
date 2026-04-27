@@ -285,8 +285,8 @@ final class AHEWorkspaceStore {
 
     // MARK: - Plot label / position overrides (delegate to TabRenderManager)
 
-    func updateSeriesLabel(index: Int, newLabel: String) {
-        tabs.updateSeriesLabel(index: index, newLabel: newLabel)
+    func updateSeriesLabel(sampleID: String, newLabel: String) {
+        tabs.updateSeriesLabel(sampleID: sampleID, newLabel: newLabel)
         _rerenderActiveTab()
     }
 
@@ -748,7 +748,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
 
     var activeImageData: Data? { tabs.activeImageData }
     var activeLayout: WorkbenchPlotLayout? { tabs.activeLayout }
-    var seriesLabelOverrides: [Int: String] { tabs.activeSeriesLabelOverrides }
+    var seriesLabelOverrides: [String: String] { tabs.activeSeriesLabelOverrides }
     var relatedCharts: [WorkbenchResultReference]? {
         guard let payload = tabs.activeManifestPayload else { return nil }
         let inputFiles = payload.series.compactMap(\.sourceRef)

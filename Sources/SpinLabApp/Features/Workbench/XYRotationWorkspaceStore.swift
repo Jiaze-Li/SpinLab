@@ -100,7 +100,7 @@ final class XYRotationWorkspaceStore {
         r.titleOverride = tabState.titleOverride
         r.xLabelOverride = tabState.xLabelOverride
         r.yLabelOverride = tabState.yLabelOverride
-        r.seriesLabelOverrides = tabState.seriesLabelOverrides
+        r.seriesLabelOverrides = toIndexedOverrides(tabState.seriesLabelOverrides, series: [])
         r.phiOffsetOverrides = phiOffsetOverrides
         return r
     }
@@ -444,8 +444,8 @@ extension XYRotationWorkspaceStore: WorkbenchPlottingStore {
         _rerenderActiveTab()
     }
 
-    func updateSeriesLabel(index: Int, newLabel: String) {
-        tabs.updateSeriesLabel(index: index, newLabel: newLabel)
+    func updateSeriesLabel(sampleID: String, newLabel: String) {
+        tabs.updateSeriesLabel(sampleID: sampleID, newLabel: newLabel)
         _rerenderActiveTab()
     }
 }
@@ -561,7 +561,7 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
 
     var activeImageData: Data? { tabs.activeImageData }
     var activeLayout: WorkbenchPlotLayout? { tabs.activeLayout }
-    var seriesLabelOverrides: [Int: String] { tabs.activeSeriesLabelOverrides }
+    var seriesLabelOverrides: [String: String] { tabs.activeSeriesLabelOverrides }
 
     var relatedCharts: [WorkbenchResultReference]? {
         let charts = relatedCharts(for: tabs.activeTab)

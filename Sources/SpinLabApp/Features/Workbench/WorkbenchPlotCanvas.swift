@@ -14,8 +14,8 @@ struct WorkbenchPlotCanvas: View {
     let imageData: Data?
     /// Layout from the most recent render. Nil = hit-testing and editing disabled.
     var layout: WorkbenchPlotLayout? = nil
-    /// Current series label overrides keyed by series index, used to pre-fill the edit field.
-    var seriesLabelOverrides: [Int: String] = [:]
+    /// Current series label overrides keyed by sampleID (or Int-string for no-identity workflows).
+    var seriesLabelOverrides: [String: String] = [:]
 
     /// Called with a plotRect-normalized point (x,y ∈ [0,1], y=0 bottom, y=1 top)
     /// when the user finishes a drag over the plot area. Nil = drag disabled.
@@ -24,12 +24,12 @@ struct WorkbenchPlotCanvas: View {
     var onEditTitle:       ((String) -> Void)?               = nil
     var onEditXLabel:      ((String) -> Void)?               = nil
     var onEditYLabel:      ((String) -> Void)?               = nil
-    /// (seriesIndex, newLabel)
-    var onEditLegendLabel: ((Int, String) -> Void)?          = nil
+    /// (key, newLabel) — key is sampleID or Int-string fallback
+    var onEditLegendLabel: ((String, String) -> Void)?       = nil
     /// Font size change callback: (styleParamsKey, newSize). Triggers re-render.
     var onFontSizeChange:  ((String, CGFloat) -> Void)?      = nil
-    /// Point-dot toggle callback: (seriesIndex, pointIndex).
-    var onTogglePointLabelVisibility: ((Int, Int) -> Void)?  = nil
+    /// Point-dot toggle callback: (key, pointIndex) — key is sampleID or Int-string fallback.
+    var onTogglePointLabelVisibility: ((String, Int) -> Void)? = nil
     /// Copy PNG at a given pixel scale; returns PNG data or nil if unavailable.
     var onCopyPNG: ((CGFloat) -> Data?)? = nil
     /// Style override change callback: (styleParamsKey, stringValue). Triggers re-render.
@@ -91,7 +91,7 @@ struct WorkbenchPlotCanvas: View {
         case title
         case xLabel
         case yLabel
-        case legend(seriesIndex: Int, originalLabel: String)
+        case legend(key: String, originalLabel: String)
         case xTickLabel
         case yTickLabel
         case pointLabel(seriesIndex: Int, pointIndex: Int)
@@ -104,7 +104,7 @@ struct WorkbenchPlotCanvas: View {
         case .title:       return "titleFontSize"
         case .xLabel:      return "axisTitleFontSize"
         case .yLabel:      return "axisTitleFontSize"
-        case .legend:      return "legendFontSize"
+        case .legend:        return "legendFontSize"
         case .xTickLabel:         return "tickLabelFontSize"
         case .yTickLabel:         return "tickLabelFontSize"
         case .pointLabel:         return "pointLabelFontSize"
@@ -423,7 +423,7 @@ struct WorkbenchPlotCanvas: View {
             case .title:            return "Title"
             case .xLabel:           return "X Label"
             case .yLabel:           return "Y Label"
-            case .legend(_, let orig): return "Legend · \(orig)"
+            case .legend(_, let orig):  return "Legend · \(orig)"
             case .xTickLabel:       return "X Tick"
             case .yTickLabel:       return "Y Tick"
             case .pointLabel:       return "Point Label"
@@ -589,9 +589,15 @@ struct WorkbenchPlotCanvas: View {
             for row in layout.legendRows {
                 let sr = toScreen(row.hitRect)
                 if sr.contains(location) {
-                    editText = seriesLabelOverrides[row.seriesIndex] ?? row.originalLabel
+                    let key: String
+                    if let sid = seriesPayload?.series[safe: row.seriesIndex]?.sampleID {
+                        key = sid
+                    } else {
+                        key = String(row.seriesIndex)
+                    }
+                    editText = seriesLabelOverrides[key] ?? row.originalLabel
                     editTargetScreenRect = sr
-                    editingElement = .legend(seriesIndex: row.seriesIndex, originalLabel: row.originalLabel)
+                    editingElement = .legend(key: key, originalLabel: row.originalLabel)
                     return
                 }
             }
@@ -600,7 +606,13 @@ struct WorkbenchPlotCanvas: View {
         if onTogglePointLabelVisibility != nil, !layout.pointDotHitTargets.isEmpty {
             for target in layout.pointDotHitTargets {
                 if toScreen(target.hitRect).contains(location) {
-                    onTogglePointLabelVisibility?(target.seriesIndex, target.pointIndex)
+                    let key: String
+                    if let sid = seriesPayload?.series[safe: target.seriesIndex]?.sampleID {
+                        key = sid
+                    } else {
+                        key = String(target.seriesIndex)
+                    }
+                    onTogglePointLabelVisibility?(key, target.pointIndex)
                     return
                 }
             }
@@ -638,7 +650,7 @@ struct WorkbenchPlotCanvas: View {
         case .title:              onEditTitle?(text)
         case .xLabel:             onEditXLabel?(text)
         case .yLabel:             onEditYLabel?(text)
-        case .legend(let idx, _): onEditLegendLabel?(idx, text)
+        case .legend(let key, _): onEditLegendLabel?(key, text)
         case .xTickLabel, .yTickLabel, .pointLabel, .pointDot: break
         }
         editingElement = nil

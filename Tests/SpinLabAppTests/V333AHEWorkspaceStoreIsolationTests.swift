@@ -63,7 +63,7 @@ struct V333AHEWorkspaceStoreIsolationTests {
         store.tabs.updateTitleOverride("My Plot")
         store.tabs.showPlotGrid = true
         store.tabs.legendAnchor = "top-left"
-        store.tabs.tabStates[.ahe, default: TabRenderState()].seriesLabelOverrides = [0: "Custom A"]
+        store.tabs.tabStates[.ahe, default: TabRenderState()].seriesLabelOverrides = ["0": "Custom A"]
         store.tabs.updateXLabelOverride("X")
         store.tabs.updateYLabelOverride("Y")
 

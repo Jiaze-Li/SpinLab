@@ -95,7 +95,7 @@ protocol WorkbenchWorkspaceProviding: WorkbenchPlottingStore, AnalysisPackProvid
 
     var activeImageData: Data? { get }
     var activeLayout: WorkbenchPlotLayout? { get }
-    var seriesLabelOverrides: [Int: String] { get }
+    var seriesLabelOverrides: [String: String] { get }
     var relatedCharts: [WorkbenchResultReference]? { get }
     var libraryRootURL: URL? { get }
 

@@ -354,6 +354,57 @@ struct V536CurveDragOrderTests {
         #expect(hit == nil, "Series without sampleID must be skipped")
     }
 
+    // MARK: - Test case 8: Series identity storage
+
+    @Test("updateSeriesLabel stores override by sampleID key")
+    @MainActor
+    func updateSeriesLabelStoresBySampleID() {
+        let manager = TabRenderManager(defaultTab: "tab1")
+        manager.updateSeriesLabel(sampleID: "A#300", newLabel: "Custom")
+        #expect(manager.tabStates["tab1"]?.seriesLabelOverrides["A#300"] == "Custom")
+    }
+
+    @Test("toIndexedOverrides translates sampleID keys to series indices")
+    func toIndexedOverridesTranslatesSampleIDKeys() {
+        let series = [
+            WorkbenchPlotSeries(label: "", x: [], y: [], sampleID: "A#300"),
+            WorkbenchPlotSeries(label: "", x: [], y: [], sampleID: "B#300")
+        ]
+        let result = toIndexedOverrides(["A#300": "Custom"], series: series)
+        #expect(result == [0: "Custom"])
+    }
+
+    @Test("toIndexedOverrides passes through Int-string keys (AHE/XY fallback)")
+    func toIndexedOverridesPassesThroughIntStringKeys() {
+        let series: [WorkbenchPlotSeries] = []
+        let result = toIndexedOverrides(["0": "CustomA", "1": "CustomB"], series: series)
+        #expect(result == [0: "CustomA", 1: "CustomB"])
+    }
+
+    @Test("migrateStateIfNeeded converts Int-string keys to sampleID")
+    func migrateStateConvertsIntKeysToSampleID() {
+        var state = TabRenderState(seriesLabelOverrides: ["0": "Custom"])
+        let series = [WorkbenchPlotSeries(label: "", x: [], y: [], sampleID: "A#300")]
+        migrateStateIfNeeded(&state, series: series)
+        #expect(state.seriesLabelOverrides == ["A#300": "Custom"])
+    }
+
+    @Test("migrateStateIfNeeded no-ops when keys are already sampleID")
+    func migrateStateNoOpsForSampleIDKeys() {
+        var state = TabRenderState(seriesLabelOverrides: ["A#300": "Custom"])
+        let series = [WorkbenchPlotSeries(label: "", x: [], y: [], sampleID: "A#300")]
+        migrateStateIfNeeded(&state, series: series)
+        #expect(state.seriesLabelOverrides == ["A#300": "Custom"])
+    }
+
+    @Test("migrateStateIfNeeded drops orphaned Int keys when sampleID is nil")
+    func migrateStateDropsOrphanedIntKeys() {
+        var state = TabRenderState(seriesLabelOverrides: ["0": "Custom"])
+        let series = [WorkbenchPlotSeries(label: "", x: [], y: [], sampleID: nil)]
+        migrateStateIfNeeded(&state, series: series)
+        #expect(state.seriesLabelOverrides.isEmpty)
+    }
+
     // MARK: - Helpers
 
     private func alignSeriesOrder(old: [String]?, defaultIDs: [String]) -> [String]? {

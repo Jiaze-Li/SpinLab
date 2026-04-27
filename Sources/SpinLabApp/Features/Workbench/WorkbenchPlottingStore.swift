@@ -22,15 +22,15 @@ protocol WorkbenchPlottingStore: AnyObject {
     func updateXAxisLabel(_ label: String)
     /// 用户行内编辑 Y 轴标签后回调。
     func updateYAxisLabel(_ label: String)
-    /// 用户重命名图例标签后回调。
-    func updateSeriesLabel(index: Int, newLabel: String)
-    /// 用户点击点位圆点后切换 point label 显隐。
-    func togglePointLabelVisibility(seriesIndex: Int, pointIndex: Int)
+    /// 用户重命名图例标签后回调。key 为 sampleID 或整数字符串（无 sampleID 的 workflow）。
+    func updateSeriesLabel(sampleID: String, newLabel: String)
+    /// 用户点击点位圆点后切换 point label 显隐。key 为 sampleID 或整数字符串。
+    func togglePointLabelVisibility(sampleID: String, pointIndex: Int)
     /// Re-render the active chart at the given pixel scale and return PNG data.
     func renderPNGAtScale(_ scale: CGFloat) -> Data?
 }
 
 extension WorkbenchPlottingStore {
-    func togglePointLabelVisibility(seriesIndex: Int, pointIndex: Int) {}
+    func togglePointLabelVisibility(sampleID: String, pointIndex: Int) {}
     func renderPNGAtScale(_ scale: CGFloat) -> Data? { nil }
 }
