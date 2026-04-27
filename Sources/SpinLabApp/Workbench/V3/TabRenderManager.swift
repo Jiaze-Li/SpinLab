@@ -31,6 +31,8 @@ struct TabRenderState: Codable, Hashable, Sendable {
     var yLabelOverride: String = ""
     var seriesLabelOverrides: [Int: String] = [:]
     var hiddenPointLabelIndicesBySeries: [Int: [Int]] = [:]
+    /// User-defined bottom-to-top series order by sampleID. nil = use workflow default. (v5.3.6)
+    var seriesOrder: [String]? = nil
 
     init(
         legendPoint: CGPointCodable? = nil,
@@ -38,7 +40,8 @@ struct TabRenderState: Codable, Hashable, Sendable {
         xLabelOverride: String = "",
         yLabelOverride: String = "",
         seriesLabelOverrides: [Int: String] = [:],
-        hiddenPointLabelIndicesBySeries: [Int: [Int]] = [:]
+        hiddenPointLabelIndicesBySeries: [Int: [Int]] = [:],
+        seriesOrder: [String]? = nil
     ) {
         self.legendPoint = legendPoint
         self.titleOverride = titleOverride
@@ -46,6 +49,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         self.yLabelOverride = yLabelOverride
         self.seriesLabelOverrides = seriesLabelOverrides
         self.hiddenPointLabelIndicesBySeries = hiddenPointLabelIndicesBySeries
+        self.seriesOrder = seriesOrder
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -55,6 +59,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         case yLabelOverride
         case seriesLabelOverrides
         case hiddenPointLabelIndicesBySeries
+        case seriesOrder
     }
 
     init(from decoder: Decoder) throws {
@@ -65,6 +70,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         yLabelOverride = try c.decodeIfPresent(String.self, forKey: .yLabelOverride) ?? ""
         seriesLabelOverrides = try c.decodeIfPresent([Int: String].self, forKey: .seriesLabelOverrides) ?? [:]
         hiddenPointLabelIndicesBySeries = try c.decodeIfPresent([Int: [Int]].self, forKey: .hiddenPointLabelIndicesBySeries) ?? [:]
+        seriesOrder = try c.decodeIfPresent([String].self, forKey: .seriesOrder)
     }
 }
 
@@ -270,7 +276,8 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             xLabelOverride: s.xLabelOverride,
             yLabelOverride: s.yLabelOverride,
             hiddenPointLabelsBySeries: hiddenPointLabelSet(for: targetTab),
-            styleParamsPatch: patch
+            styleParamsPatch: patch,
+            seriesOrder: s.seriesOrder
         )
     }
 
@@ -280,13 +287,30 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         tabOutputs = [:]
     }
 
-    /// Clears per-tab display overrides (title, axis, series labels) but preserves legend positions.
-    /// Legend positions are canvas preferences that persist across re-analyses.
+    /// Clears per-tab display overrides (title, axis, series labels) but preserves
+    /// legend positions and series order — both are canvas preferences that survive re-analysis.
     func clearStates() {
         for tab in tabStates.keys {
-            let legendPoint = tabStates[tab]?.legendPoint
-            tabStates[tab] = legendPoint.map { TabRenderState(legendPoint: $0) }
+            let lp = tabStates[tab]?.legendPoint
+            let so = tabStates[tab]?.seriesOrder
+            if lp != nil || so != nil {
+                tabStates[tab] = TabRenderState(legendPoint: lp, seriesOrder: so)
+            } else {
+                tabStates[tab] = nil
+            }
         }
+    }
+
+    func updateSeriesOrder(_ order: [String]?) {
+        if let order, !order.isEmpty {
+            tabStates[activeTab, default: TabRenderState()].seriesOrder = order
+        } else {
+            tabStates[activeTab, default: TabRenderState()].seriesOrder = nil
+        }
+    }
+
+    func resetSeriesOrder() {
+        tabStates[activeTab]?.seriesOrder = nil
     }
 
     /// Clears outputs and per-tab overrides, preserving legend positions.
