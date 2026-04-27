@@ -394,7 +394,7 @@ struct V210ImportAndParseTests {
         )
         ruleSet.conditions.tokenMapRules["wafer_type"] = [
             .init(
-                match: .init(scope: .tokens, type: .equals, value: "wafer", values: nil),
+                match: .init(scope: .tokens, type: .equals, matchValues: ["wafer"]),
                 value: "wafer"
             )
         ]
@@ -429,7 +429,7 @@ struct V210ImportAndParseTests {
         ruleSet.conditions.extraConditions["mode"] = "^-?\\d+(?:\\.\\d+)?(?:k)$"
         ruleSet.conditions.tokenMapRules["mode"] = [
             .init(
-                match: .init(scope: .tokens, type: .equals, value: "1k", values: nil),
+                match: .init(scope: .tokens, type: .equals, matchValues: ["1k"]),
                 value: "mode-token"
             )
         ]

@@ -44,7 +44,7 @@ struct V515RulesPanelSaveValidationTests {
         """.data(using: .utf8)!.write(to: paths.filenameTokenizationURL)
 
         try """
-        {"version":1,"sampleId":{"patterns":["^[A-Z]+$"]},"substrate":{"substrateTagRules":[],"shared":{"tokenSeparators":"_","originStandaloneTokens":[],"originContainsTokens":[],"treatmentKeywords":{},"materialTokens":["STO"],"materialAliases":{},"materialDisplayNames":{},"orientationTokens":["111"],"orientationAliases":{},"orientationPattern":"\\\\d{3}"}}}
+        {"version":2,"sampleId":{"patterns":["^[A-Z]+$"]},"substrate":{"tokenSeparators":"_","substrateTagRules":[],"materials":[{"id":"STO","tokens":["STO"],"aliases":[],"displayName":"STO"}],"treatments":[],"orientations":{"pattern":"\\\\d{3}","rows":[{"id":"111","tokens":["111"],"aliases":[]}]}}}
         """.data(using: .utf8)!.write(to: paths.sampleIdentificationURL)
 
         try """
@@ -52,7 +52,7 @@ struct V515RulesPanelSaveValidationTests {
         """.data(using: .utf8)!.write(to: paths.workflowURL)
 
         try """
-        {"version":1,"batch":{"preferSampleId":true,"fallbackPatterns":[]},"conditions":{"extraConditions":{"temperature":"^\\\\d+K$"},"tokenMapRules":{},"displayLabels":{}},"conditionDefinitions":[{"id":"temperature","label":"Temperature","kind":"unit_suffix","binding":"conditions.extraConditions.temperature"}]}
+        {"version":2,"batch":{"preferSampleId":true,"fallbackPatterns":[]},"conditionDefinitions":[{"id":"temperature","label":"Temperature","kind":"unit_suffix","unitPattern":"^\\\\d+K$"}]}
         """.data(using: .utf8)!.write(to: paths.measuringConditionURL)
 
         let store = RulesManagementStore()
@@ -202,21 +202,27 @@ struct V515RulesPanelSaveValidationTests {
         #expect(errors.contains(where: { $0.field.contains("patterns") }))
     }
 
-    @Test("sampleIdentification: materialAlias pointing to unknown token fails")
-    func sampleIDMaterialAliasUnknownTarget() throws {
+    @Test("sampleIdentification: duplicate treatment ID fails")
+    func sampleIDDuplicateTreatmentID() throws {
         let (dir, backup) = try acquireIsolation()
         defer { releaseIsolation(dir: dir, backup: backup) }
         let (store, _) = try makeStore()
 
         var draft = try #require(store.sampleIdentificationDraft)
-        draft.substrate.shared?.materialAliases = ["X": "NOTINLIST"]
+        let t1 = SampleIdentificationFileDraft.TreatmentDefinition(
+            id: "HF", displayName: "HF", keywords: ["HF"], standaloneTokens: [], containsTokens: []
+        )
+        let t2 = SampleIdentificationFileDraft.TreatmentDefinition(
+            id: "HF", displayName: "HF2", keywords: ["HF2"], standaloneTokens: [], containsTokens: []
+        )
+        draft.substrate.treatments = [t1, t2]
         store.updateSampleIdentification(draft)
         store.selectSection(.sampleIdentification)
 
         guard case .validationFailed(let errors) = store.saveCurrent() else {
             Issue.record("Expected validationFailed"); return
         }
-        #expect(errors.contains(where: { $0.field.contains("materialAliases") }))
+        #expect(errors.contains(where: { $0.message.contains("Duplicate") && $0.message.contains("HF") }))
     }
 
     // MARK: - Workflow
@@ -246,7 +252,7 @@ struct V515RulesPanelSaveValidationTests {
 
         var draft = try #require(store.workflowDraft)
         draft.workflows.append(.init(id: "MR", displayName: "MR2",
-                                     matchRules: [.init(scope: "tokens", type: "equals", value: "MR2")],
+                                     matchRules: [.init(scope: "tokens", type: "equals", matchValues: ["MR2"])],
                                      conditionFieldIDs: []))
         store.updateWorkflow(draft)
         store.selectSection(.workflow)
@@ -284,7 +290,7 @@ struct V515RulesPanelSaveValidationTests {
 
         var draft = try #require(store.measuringConditionDraft)
         draft.conditionDefinitions.append(.init(id: "temperature", label: nil, kind: "unit_suffix",
-                                                binding: "conditions.extraConditions.temperature"))
+                                                unitPattern: "^\\d+K$", tokenMap: nil))
         store.updateMeasuringCondition(draft)
         store.selectSection(.measuringCondition)
 
@@ -301,14 +307,14 @@ struct V515RulesPanelSaveValidationTests {
         let (store, _) = try makeStore()
 
         var draft = try #require(store.measuringConditionDraft)
-        draft.conditions.extraConditions["temperature"] = "[bad"
+        draft.conditionDefinitions[0].unitPattern = "[bad"
         store.updateMeasuringCondition(draft)
         store.selectSection(.measuringCondition)
 
         guard case .validationFailed(let errors) = store.saveCurrent() else {
             Issue.record("Expected validationFailed"); return
         }
-        #expect(errors.contains(where: { $0.field.contains("extraConditions") }))
+        #expect(errors.contains(where: { $0.field.contains("temperature") || $0.field.contains("unitPattern") }))
     }
 
     @Test("measuringCondition: unit_suffix missing extraConditions entry fails")
@@ -319,8 +325,8 @@ struct V515RulesPanelSaveValidationTests {
 
         var draft = try #require(store.measuringConditionDraft)
         draft.conditionDefinitions.append(.init(id: "field", label: nil, kind: "unit_suffix",
-                                                binding: "conditions.extraConditions.field"))
-        // No entry in extraConditions for "field"
+                                                unitPattern: "", tokenMap: nil))
+        // Empty unitPattern for "field" — unit_suffix requires a non-empty pattern
         store.updateMeasuringCondition(draft)
         store.selectSection(.measuringCondition)
 
@@ -338,8 +344,7 @@ struct V515RulesPanelSaveValidationTests {
 
         var draft = try #require(store.measuringConditionDraft)
         draft.conditionDefinitions.append(.init(id: "field", label: "Field", kind: "unit_suffix",
-                                                binding: "conditions.extraConditions.field"))
-        draft.conditions.extraConditions["field"] = "^-?\\d+T$"
+                                                unitPattern: "^-?\\d+T$", tokenMap: nil))
         store.updateMeasuringCondition(draft)
         store.selectSection(.measuringCondition)
 

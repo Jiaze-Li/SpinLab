@@ -49,7 +49,7 @@ struct V515RulesSaveImmediateEffectTests {
         """.data(using: .utf8)!.write(to: paths.filenameTokenizationURL)
 
         try """
-        {"version":1,"sampleId":{"patterns":["^[A-Z]{2}\\\\d+$"]},"substrate":{"substrateTagRules":[]}}
+        {"version":2,"sampleId":{"patterns":["^[A-Z]{2}\\\\d+$"]},"substrate":{"tokenSeparators":"_","substrateTagRules":[],"materials":[],"treatments":[],"orientations":{"pattern":"\\\\d{3}","rows":[]}}}
         """.data(using: .utf8)!.write(to: paths.sampleIdentificationURL)
 
         try """
@@ -58,7 +58,7 @@ struct V515RulesSaveImmediateEffectTests {
 
         // Only "temperature" defined initially
         try """
-        {"version":1,"batch":{"preferSampleId":true,"fallbackPatterns":[]},"conditions":{"extraConditions":{"temperature":"^\\\\d+K$"},"tokenMapRules":{},"displayLabels":{}},"conditionDefinitions":[{"id":"temperature","label":"Temperature","kind":"unit_suffix","binding":"conditions.extraConditions.temperature"}]}
+        {"version":2,"batch":{"preferSampleId":true,"fallbackPatterns":[]},"conditionDefinitions":[{"id":"temperature","label":"Temperature","kind":"unit_suffix","unitPattern":"^\\\\d+K$"}]}
         """.data(using: .utf8)!.write(to: paths.measuringConditionURL)
 
         return paths
@@ -109,7 +109,7 @@ struct V515RulesSaveImmediateEffectTests {
 
         var draft = try #require(store.workflowDraft)
         draft.measurementTagRules.append(
-            MapRule(match: .init(scope: "tokens", type: "equals", value: "NEWTAG", values: nil),
+            MapRule(match: .init(scope: "tokens", type: "equals", matchValues: ["NEWTAG"]),
                     value: "NEWTAG")
         )
         store.updateWorkflow(draft)
@@ -147,8 +147,7 @@ struct V515RulesSaveImmediateEffectTests {
         // Add "field" condition
         var draft = try #require(store.measuringConditionDraft)
         draft.conditionDefinitions.append(.init(id: "field", label: "Field", kind: "unit_suffix",
-                                                binding: "conditions.extraConditions.field"))
-        draft.conditions.extraConditions["field"] = "^\\d+T$"
+                                                unitPattern: "^\\d+T$", tokenMap: nil))
         store.updateMeasuringCondition(draft)
         store.selectSection(.measuringCondition)
 
@@ -176,8 +175,7 @@ struct V515RulesSaveImmediateEffectTests {
 
         var draft = try #require(store.measuringConditionDraft)
         draft.conditionDefinitions.append(.init(id: "current", label: "Current", kind: "unit_suffix",
-                                                binding: "conditions.extraConditions.current"))
-        draft.conditions.extraConditions["current"] = "^\\d+mA$"
+                                                unitPattern: "^\\d+mA$", tokenMap: nil))
         store.updateMeasuringCondition(draft)
         store.selectSection(.measuringCondition)
 

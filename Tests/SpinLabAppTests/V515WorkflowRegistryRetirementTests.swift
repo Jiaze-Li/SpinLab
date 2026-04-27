@@ -108,7 +108,7 @@ struct V515WorkflowRegistryRetirementTests {
         #expect(xy.conditionFieldIDs == ["temperature", "field"])
         // matchRules preserved from workflow.json
         #expect(xy.matchRules.count == 1)
-        #expect(xy.matchRules.first?.value == "xy")
+        #expect(xy.matchRules.first?.matchValues.first == "xy")
 
         // Outer registry retired
         #expect(!FileManager.default.fileExists(atPath: ctx.outerRegistryURL.path))

@@ -44,7 +44,7 @@ struct V515RulesPanelCrossSectionTests {
         """.data(using: .utf8)!.write(to: paths.filenameTokenizationURL)
 
         try """
-        {"version":1,"sampleId":{"patterns":[]},"substrate":{"substrateTagRules":[]}}
+        {"version":2,"sampleId":{"patterns":[]},"substrate":{"tokenSeparators":"_","substrateTagRules":[],"materials":[],"treatments":[],"orientations":{"pattern":"\\\\d{3}","rows":[]}}}
         """.data(using: .utf8)!.write(to: paths.sampleIdentificationURL)
 
         // workflow references first conditionID
@@ -55,11 +55,10 @@ struct V515RulesPanelCrossSectionTests {
 
         // measuringCondition defines all conditionIDs
         let defs = conditionIDs.map { id in
-            "{\"id\":\"\(id)\",\"label\":\"\(id)\",\"kind\":\"unit_suffix\",\"binding\":\"conditions.extraConditions.\(id)\"}"
+            "{\"id\":\"\(id)\",\"label\":\"\(id)\",\"kind\":\"unit_suffix\",\"unitPattern\":\"^\\\\d+$\"}"
         }.joined(separator: ",")
-        let extras = conditionIDs.map { id in "\"\(id)\":\"^\\\\d+$\"" }.joined(separator: ",")
         try """
-        {"version":1,"batch":{"preferSampleId":true,"fallbackPatterns":[]},"conditions":{"extraConditions":{\(extras)},"tokenMapRules":{},"displayLabels":{}},"conditionDefinitions":[\(defs)]}
+        {"version":2,"batch":{"preferSampleId":true,"fallbackPatterns":[]},"conditionDefinitions":[\(defs)]}
         """.data(using: .utf8)!.write(to: paths.measuringConditionURL)
 
         let store = RulesManagementStore()
@@ -78,8 +77,7 @@ struct V515RulesPanelCrossSectionTests {
         // Add a new condition only in the draft (not yet saved to disk)
         var mcDraft = try #require(store.measuringConditionDraft)
         mcDraft.conditionDefinitions.append(.init(id: "field", label: "Field", kind: "unit_suffix",
-                                                  binding: "conditions.extraConditions.field"))
-        mcDraft.conditions.extraConditions["field"] = "^\\d+T$"
+                                                  unitPattern: "^\\d+T$", tokenMap: nil))
         store.updateMeasuringCondition(mcDraft)
 
         // Workflow references the new "field" condition that exists only in draft
@@ -151,8 +149,7 @@ struct V515RulesPanelCrossSectionTests {
         // The disk has only "temperature". Add "device" to the dirty draft only.
         var mcDraft = try #require(store.measuringConditionDraft)
         mcDraft.conditionDefinitions.append(.init(id: "device", label: "Device", kind: "unit_suffix",
-                                                  binding: "conditions.extraConditions.device"))
-        mcDraft.conditions.extraConditions["device"] = "^wafer$"
+                                                  unitPattern: "^wafer$", tokenMap: nil))
         store.updateMeasuringCondition(mcDraft)
 
         // Workflow references "device" (only in dirty draft)

@@ -3,7 +3,7 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V5.1.5 Shared Substrate Validation", .serialized)
+@Suite("V5.1.5 Substrate v2 Validation", .serialized)
 struct V515SharedSubstrateTests {
 
     private static let backupExtension = "v515-substrate-backup"
@@ -44,17 +44,16 @@ struct V515SharedSubstrateTests {
         """.data(using: .utf8)!.write(to: paths.filenameTokenizationURL)
 
         try """
-        {"version":1,"sampleId":{"patterns":[]},"substrate":{"substrateTagRules":[],"shared":{"tokenSeparators":"_","originStandaloneTokens":[],"originContainsTokens":[],"treatmentKeywords":{},"materialTokens":["STO"],"materialAliases":{},"materialDisplayNames":{},"orientationTokens":["001"],"orientationAliases":{},"orientationPattern":"\\\\d{3}"}}}
+        {"version":2,"sampleId":{"patterns":[]},"substrate":{"tokenSeparators":"_","substrateTagRules":[],"materials":[{"id":"STO","tokens":["STO"],"aliases":[],"displayName":"STO"}],"treatments":[],"orientations":{"pattern":"\\\\d{3}","rows":[{"id":"001","tokens":["001"],"aliases":[]}]}}}
         """.data(using: .utf8)!.write(to: paths.sampleIdentificationURL)
 
         try """
         {"version":1,"workflows":[],"measurementTagRules":[]}
         """.data(using: .utf8)!.write(to: paths.workflowURL)
 
-        let defs = conditionIDs.map { "{\"id\":\"\($0)\",\"label\":\"\($0)\",\"kind\":\"unit_suffix\",\"binding\":\"conditions.extraConditions.\($0)\"}" }.joined(separator: ",")
-        let extras = conditionIDs.map { "\"\($0)\":\"^\\\\d+$\"" }.joined(separator: ",")
+        let defs = conditionIDs.map { "{\"id\":\"\($0)\",\"label\":\"\($0)\",\"kind\":\"unit_suffix\",\"unitPattern\":\"^\\\\d+$\"}" }.joined(separator: ",")
         try """
-        {"version":1,"batch":{"preferSampleId":true,"fallbackPatterns":[]},"conditions":{"extraConditions":{\(extras)},"tokenMapRules":{},"displayLabels":{}},"conditionDefinitions":[\(defs)]}
+        {"version":2,"batch":{"preferSampleId":true,"fallbackPatterns":[]},"conditionDefinitions":[\(defs)]}
         """.data(using: .utf8)!.write(to: paths.measuringConditionURL)
 
         let store = RulesManagementStore()
@@ -64,71 +63,79 @@ struct V515SharedSubstrateTests {
 
     // MARK: - Tests
 
-    @Test("orientationAlias pointing to nonexistent orientationToken fails")
-    func orientationAliasUnknownTargetFails() throws {
+    @Test("duplicate material ID fails validation")
+    func duplicateMaterialIDFails() throws {
         let (dir, backup) = try acquireIsolation()
         defer { releaseIsolation(dir: dir, backup: backup) }
         let store = try makeStore()
 
         var draft = try #require(store.sampleIdentificationDraft)
-        // "111" is not in orientationTokens (only "001" is)
-        draft.substrate.shared?.orientationAliases = ["badAlias": "111"]
+        let extra = SampleIdentificationFileDraft.MaterialDefinition(
+            id: "STO", tokens: ["STRONTIUM"], aliases: [], displayName: "STO duplicate"
+        )
+        draft.substrate.materials.append(extra)
         store.updateSampleIdentification(draft)
         store.selectSection(.sampleIdentification)
 
         guard case .validationFailed(let errors) = store.saveCurrent() else {
             Issue.record("Expected validationFailed"); return
         }
-        #expect(errors.contains(where: { $0.field.contains("orientationAliases") }))
+        #expect(errors.contains(where: { $0.message.contains("Duplicate") && $0.message.contains("STO") }))
     }
 
-    @Test("substrate with no shared block saves without error")
-    func nilSharedConfigSavesSuccessfully() throws {
+    @Test("duplicate orientation row ID fails validation")
+    func duplicateOrientationRowIDFails() throws {
         let (dir, backup) = try acquireIsolation()
         defer { releaseIsolation(dir: dir, backup: backup) }
         let store = try makeStore()
 
         var draft = try #require(store.sampleIdentificationDraft)
-        draft.substrate.shared = nil
+        let extra = SampleIdentificationFileDraft.OrientationConfig.Row(
+            id: "001", tokens: ["001"], aliases: []
+        )
+        draft.substrate.orientations.rows.append(extra)
         store.updateSampleIdentification(draft)
         store.selectSection(.sampleIdentification)
 
-        guard case .saved = store.saveCurrent() else {
-            Issue.record("Expected .saved when shared is nil"); return
+        guard case .validationFailed(let errors) = store.saveCurrent() else {
+            Issue.record("Expected validationFailed"); return
         }
+        #expect(errors.contains(where: { $0.message.contains("Duplicate") && $0.message.contains("001") }))
     }
 
-    @Test("valid materialAlias pointing to existing token saves successfully")
-    func validMaterialAliasSavesSuccessfully() throws {
+    @Test("valid substrate config saves successfully")
+    func validSubstrateConfigSavesSuccessfully() throws {
         let (dir, backup) = try acquireIsolation()
         defer { releaseIsolation(dir: dir, backup: backup) }
         let store = try makeStore()
 
         var draft = try #require(store.sampleIdentificationDraft)
-        // "STO" is already in materialTokens; alias pointing to it is valid
-        draft.substrate.shared?.materialAliases = ["SrTiO3": "STO"]
+        let newMaterial = SampleIdentificationFileDraft.MaterialDefinition(
+            id: "NGO", tokens: ["NGO"], aliases: ["NdGaO3"], displayName: "NGO"
+        )
+        draft.substrate.materials.append(newMaterial)
         store.updateSampleIdentification(draft)
         store.selectSection(.sampleIdentification)
 
         guard case .saved = store.saveCurrent() else {
-            Issue.record("Expected .saved for valid materialAlias"); return
+            Issue.record("Expected .saved for valid substrate config"); return
         }
     }
 
-    @Test("invalid orientationPattern regex fails")
+    @Test("invalid orientation pattern regex fails validation")
     func invalidOrientationPatternFails() throws {
         let (dir, backup) = try acquireIsolation()
         defer { releaseIsolation(dir: dir, backup: backup) }
         let store = try makeStore()
 
         var draft = try #require(store.sampleIdentificationDraft)
-        draft.substrate.shared?.orientationPattern = "([bad"
+        draft.substrate.orientations.pattern = "([bad"
         store.updateSampleIdentification(draft)
         store.selectSection(.sampleIdentification)
 
         guard case .validationFailed(let errors) = store.saveCurrent() else {
             Issue.record("Expected validationFailed"); return
         }
-        #expect(errors.contains(where: { $0.field.contains("orientationPattern") }))
+        #expect(errors.contains(where: { $0.field.contains("orientations.pattern") }))
     }
 }

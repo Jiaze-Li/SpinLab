@@ -57,7 +57,7 @@
 
 ### 5.1.5 — 规则管理统一 + 自动同步基础设施 [~]
 
-**状态**：`[~]` 进行中。s1–s7 已完成，**s8 / s9（3 项 schema 二次重塑，分 2 对话收尾）剩余**。
+**状态**：`[x]` 完成。s1–s9 全部完成。
 
 **动机**：4·25 事故暴露规则架构散落多文件、bundle 与 runtime schema 不一致、半成品迁移路径并存（如代码层齐全但永远不会真存在的 `conditions_rules.json` 分文件）。同一份概念多处存放、隐式"分文件赢"约定、bundle 与 runtime 没有自动同步——任何一处改动都可能让另一处静默漂移。需要从根上修。
 
@@ -144,8 +144,8 @@ R1 —— 工作流 ID 策略相关规则保存后立刻生效，App 内不存�
 | s5 ✅ 已归档 | 5 个 section UI 重写 + close-alert / save / discard / 外部冲突集成 + R1 acceptance gate（保存立即生效）路径 + 测试补全（36 tests）；swift build clean；commit ea09161。[实施摘要](../history/v515_s5_rules_panel_rewrite.md) | — |
 | s6 ✅ 已归档 | 自动同步引擎：RepositoryPointer（含 .git 身份校验）+ RulesSyncEngine（dual-write + reverseSyncOnStartup）+ degraded banner + mirror 警告图标 + 32 tests（20 engine + 12 startup）；swift build clean；68/68 V515 tests green；commits 99514e2 + 4a586fe。[实施摘要](../history/v515_s6_auto_sync_engine.md) | — |
 | s7 ✅ 已归档 | 任务 2/3/4 落地：WorkflowDefinitionStore（读 config/workflow.json）+ WorkflowRegistryRetirementService（外层 registry 合并）+ parentID 兼容码删除 + RulesBootstrapper 替换 RulesMigration + WorkflowRegistryView 只读重写；5 commit（08c7f8a–f7939c4）+ 11 tests（79/79 V515 green）。[实施摘要](../history/v515_s7_rules_tail_cleanup.md) | — |
-| **s8（设计稿 + handoff）** | 任务 1/5/6：condition definitions inline + substrate row-oriented + 字段命名一致性。涉及数据迁移 + 全表 touch，单独对抗对话产出 handoff | — |
-| **s9（按 s8 handoff 执行）** | 按 s8 handoff 执行 + 测试 + commit；本版本段收尾会话 | 6–11 h |
+| s8 ✅ 已归档 | 设计稿 + handoff：condition definitions inline + substrate row-oriented + MatchSpec.matchValues 命名统一；双盲对抗收敛，handoff 写 archive/2026-04-26-5.1.5-s8-schema-second-pass.md | — |
+| s9 ✅ 已归档 | 按 s8 handoff 执行：ConditionDefinition inline + SubstrateConfig row-oriented + MatchSpec.matchValues 全仓统一 + RulesBootstrapper v1→v2 迁移（atomic + state + backup + 幂等）；7 commits；84/84 V515 green + 27/27 V210 green。[实施摘要](../history/v515_s9_schema_second_pass.md) | — |
 
 总计约 **44–66 h** 跨 7 对话（s1–s9，s8 是设计对话不计工作量）。s5 / s9 是工作量最大的执行会话。
 

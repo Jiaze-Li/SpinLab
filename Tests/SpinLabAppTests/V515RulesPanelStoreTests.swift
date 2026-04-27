@@ -79,7 +79,7 @@ struct V515RulesPanelStoreTests {
 
     private func seedSampleIdentification(at url: URL) throws {
         try """
-        {"version":1,"sampleId":{"patterns":["^[A-Z]{2}\\\\d+$"]},"substrate":{"substrateTagRules":[],"shared":{"tokenSeparators":"_- ()","originStandaloneTokens":[],"originContainsTokens":[],"treatmentKeywords":{},"materialTokens":["STO"],"materialAliases":{},"materialDisplayNames":{},"orientationTokens":["111"],"orientationAliases":{},"orientationPattern":"\\\\d{3}"}}}
+        {"version":2,"sampleId":{"patterns":["^[A-Z]{2}\\\\d+$"]},"substrate":{"tokenSeparators":"_- ()","substrateTagRules":[],"materials":[{"id":"STO","tokens":["STO"],"aliases":[],"displayName":"STO"}],"treatments":[],"orientations":{"pattern":"\\\\d{3}","rows":[{"id":"111","tokens":["111"],"aliases":[]}]}}}
         """.data(using: .utf8)!.write(to: url)
     }
 
@@ -91,7 +91,7 @@ struct V515RulesPanelStoreTests {
 
     private func seedMeasuringCondition(at url: URL) throws {
         try """
-        {"version":1,"batch":{"preferSampleId":true,"fallbackPatterns":[]},"conditions":{"extraConditions":{"temperature":"^-?\\\\d+(?:\\\\.\\\\d+)?(?:K)$"},"tokenMapRules":{},"displayLabels":{}},"conditionDefinitions":[{"id":"temperature","label":"Temperature","kind":"unit_suffix","binding":"conditions.extraConditions.temperature"}]}
+        {"version":2,"batch":{"preferSampleId":true,"fallbackPatterns":[]},"conditionDefinitions":[{"id":"temperature","label":"Temperature","kind":"unit_suffix","unitPattern":"^-?\\\\d+(?:\\\\.\\\\d+)?(?:K)$"}]}
         """.data(using: .utf8)!.write(to: url)
     }
 
@@ -128,8 +128,7 @@ struct V515RulesPanelStoreTests {
 
         var draft = try #require(store.measuringConditionDraft)
         draft.conditionDefinitions.append(.init(id: "field", label: "Field", kind: "unit_suffix",
-                                                binding: "conditions.extraConditions.field"))
-        draft.conditions.extraConditions["field"] = "^-?\\d+T$"
+                                                unitPattern: "^-?\\d+T$", tokenMap: nil))
         store.updateMeasuringCondition(draft)
 
         #expect(store.availableConditionFieldIDs.contains("field"))

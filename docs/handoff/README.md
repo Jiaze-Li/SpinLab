@@ -28,14 +28,13 @@
 
 ## 待消费
 
-| 日期 | Handoff | 状态 |
-|---|---|---|
-| 2026-04-26 | [2026-04-26-5.1.5-s8-schema-second-pass.md](2026-04-26-5.1.5-s8-schema-second-pass.md) | s9 待执行（7 commit / 6–11h） |
+（无）
 
 ## 已归档
 
 | 日期 | Handoff | 完成会话 | 验收摘要 |
 |---|---|---|---|
+| 2026-04-26 | [2026-04-26-5.1.5-s8-schema-second-pass.md](archive/2026-04-26-5.1.5-s8-schema-second-pass.md) | 2026-04-27 s9 | C1–C7：ConditionDefinition inline + SubstrateConfig row-oriented + MatchSpec.matchValues 全仓统一 + RulesBootstrapper v1→v2 迁移（atomic + state + backup）；5 迁移幂等单测；84/84 V515 green + 27/27 V210 green |
 | 2026-04-26 | [2026-04-26-5.1.5-s7-rules-tail-cleanup.md](archive/2026-04-26-5.1.5-s7-rules-tail-cleanup.md) | 2026-04-26 s7 | WorkflowDefinitionStore + WorkflowRegistryRetirementService（外层 registry 合并）+ parentID 删除 + RulesBootstrapper 替换 RulesMigration + WorkflowRegistryView 只读重写；5 commits 08c7f8a–f7939c4；11 new tests；79/79 V515 green |
 | 2026-04-26 | [2026-04-26-5.1.5-s6-auto-sync-engine.md](archive/2026-04-26-5.1.5-s6-auto-sync-engine.md) | 2026-04-26 s6 | RepositoryPointer（.git 身份校验）+ RulesSyncEngine（dual-write + reverseSyncOnStartup + H5 decode guard）+ degraded banner + mirror 警告图标 + 32 tests（20+12）；68/68 V515 green；commits 99514e2 + 4a586fe |
 | 2026-04-26 | [2026-04-26-5.1.5-s5-rules-panel-rewrite.md](archive/2026-04-26-5.1.5-s5-rules-panel-rewrite.md) | 2026-04-26 s5 | RulesManagementStore 重写 + 5 新 section + WorkflowMatchRuleEditor + 36 tests；R1 硬门禁满足；旧 5 section 文件全删；commit ea09161；swift build clean |
