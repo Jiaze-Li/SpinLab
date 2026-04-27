@@ -268,12 +268,22 @@ Entry point: "Rules" button in Inbox Operations header row (opens separate Windo
 - Hash precondition check on save: if the file was modified externally since panel opened, save fails with `externalConflict` — user must choose Reload or Override
 - Closing the window with unsaved edits triggers a three-option alert: Discard Changes / Cancel / Save All
 
-### Section Structure (s4+ schema)
+### Section Structure (s10(2) v4 schema)
 - 5 sections: Import Filters, Filename Tokenization, Sample Identification, Workflow, Measuring Condition
-- UI rewrite pending (s5) — current panel still loads from legacy v2 paths until s5 ships
+
+### Sample Identification — v4 substrate schema (s10(2))
+- **Batch prefixes**: plain text prefixes (e.g., "PN", "PT"); replaces v3 regex `sampleId.patterns`
+- **Substrate**: three unified lists — Materials, Treatments, Orientations — each an array of `SubstrateEntry {displayName, matches: [{type: equals|contains, value}]}`
+  - `displayName` has an implicit `equals(normalize(displayName))` probe injected at compile time; no need to repeat it in `matches`
+  - `matches` is OR-based; all probes are token-scoped
+  - displayName uniqueness is not hard-enforced at save time; duplicate entries produce undefined matching behavior
+- **"b" and "baked" are separate treatment entries**: "b" maps to `equals "b"`; "baked" maps to `contains "bake"`. Not aliases — intentional v4 behavioral separation
+- **Origin treatment detection**: compile phase detects treatment entries whose `normalize(displayName)` or any match value normalizes to "o"; stored in `compiledOriginTreatmentDisplayNames`; no longer hardcoded to treatment id == "o"
+- **Composite token behavior**: a token like "STO111" can simultaneously match a Material entry (STO) and an Orientation entry (111) via `contains` probes → two substrate tags emitted (["STO", "111"] not ["STO 111"]); this is an accepted behavioral change from v3
+- **Runtime migration**: v3 sample_identification.json (with materials/treatments/orientations in old schema + substrateTagRules) is migrated to v4 on first app launch via `RulesBootstrapper`; backup written to `<config_dir>/.backup-<timestamp>/`
 
 ### Validation
-- Sample ID: each pattern validated as NSRegularExpression; invalid compile = Save disabled
+- Sample ID: displayName uniqueness on substrate entries not enforced at save; user responsibility
 - Workflow Match: cross-rule token conflicts detected at save time
 - Filename Parse: conditionDefinition ids must be unique; binding auto-derived from kind + id
-- Substrate: regex field in orientationPattern validated inline
+- Workflow conditionFieldIDs: cross-validated against dirty measuringCondition draft (not just disk)
