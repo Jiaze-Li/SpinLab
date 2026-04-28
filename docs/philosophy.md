@@ -32,6 +32,37 @@ It helps AI assistants understand *how Jack thinks* so they can collaborate more
 - Reject complexity that serves hypothetical future needs.
 - Three similar lines of code is better than a premature abstraction.
 
+## Shell & Composition Philosophy
+
+> Established v5.1.5 (s12 sample); SpinLab-wide principle for code structure.
+
+When multiple call sites do the same thing, the default assumption is: **abstract into a single shell, with thin call-site wrappers.** Two dimensions:
+
+- **Horizontal (cross-region / cross-workflow shells)**: features shared across 3ω / XY rotation / AHE, or across the 5 rule sections (matching), or across Inbox / Library / Workbench (UI shell), are extracted into one shared shell. Call sites do not re-implement.
+- **Vertical (clear internal boundaries)**: the shared shell itself does not become a single big file. Internally split by responsibility into composable smaller modules (e.g. plot canvas shell internally splits into title / grid / legend / font / copy-PNG). The shell body composes; small modules implement.
+
+Three benefits:
+
+1. Avoid mega-files (vertical split keeps the shell body readable)
+2. Clear functional layering (each small module does one thing — bug locating is precise)
+3. Avoid duplicate work (horizontal shell eliminates "same concept written N times")
+
+Reject patterns:
+
+- 5 rule sections each implementing equals / contains filtering
+- 3 workflows each writing series-order sorting logic
+- 5 places each implementing match-rule editor
+- A plot canvas shell that puts title / grid / legend all in one 1500-line file
+
+Exceptions only when difference is substantive semantics, not surface duplication.
+
+Samples:
+
+- **Horizontal**: v5.1.5-s12 `UnifiedMatchRuleEditor` — 5 match-UI sites unified into one shell + 4-operation closed set
+- **Horizontal + vertical**: `WorkbenchPlotCanvas` — provides plot capabilities to 3 workflows (horizontal); intent is internal segmentation by title / grid / legend / font / copy-PNG (vertical — verify in 5.1.6 s1 scan)
+
+When architecture mapping (5.1.6 region scan), parallel implementations or bloated shell internals are flagged into the shell-化 candidate list (`REGION_MAP` appendix G), evaluated for extraction in mid-term versions.
+
 ## Collaboration Philosophy
 
 > Canonical collaboration rules (role definition, execution gate, adversarial protocol, workload balancing) live in the global `~/.claude/CLAUDE.md`. This section documents SpinLab-specific context and the full rationale.
