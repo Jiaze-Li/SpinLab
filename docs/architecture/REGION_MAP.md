@@ -44,11 +44,54 @@
 
 ---
 
+## Session Plan（s1 三会话拆分）
+
+> 总工时估 7–8.5 h，分 3 会话。每会话独立可交付，断点不留半成品。
+
+| 会话 | 范围 | 文件数 | 估时 | 交付里程碑 |
+|---|---|---|---|---|
+| **s1.a** | 锚点 + Inbox 全栈 | 67 | 2.5–3 h | 起手前置三步完成；锚点立住（Domain / App / App/State）；Inbox 全栈完成；三份附录起底 |
+| **s1.b** | Library + Workbench | 76 | 2.5–3 h | Library + Workbench 区块完成；Workflow 顺手处理 |
+| **s1.c** | Rules + 基础设施 + 收尾 | 75 + 暧昧回扫 | 2–2.5 h | Rules 全栈完成；UseCases / UI / Extensions / Repositories / Storage / Persistence / Registry 完成；暧昧条目第二轮收敛；s1 验收 |
+
+### s1.a 范围（按目录）
+
+`Domain/` (4) + `App/` (29) + `App/State/` (14) + `Import/` 顶层 (2) + `Import/Parse/` (4) + `Import/Route/` (3) + `Import/Match/` (1) + `Import/Evaluate/` (3) + `Import/Presentation/` (1) + `Features/Inbox/` (6) = **67 文件**
+
+### s1.b 范围（按目录）
+
+`Library/` (13) + `Features/Library/` (19) + `Workbench/V3/` (16) + `Features/Workbench/` (24) + `Workflow/` (4) = **76 文件**
+
+### s1.c 范围（按目录）
+
+`Import/Rules/` (12) + `Features/RulesPanel/` (5) + `Features/RulesPanel/Sections/` (5) + `Features/RulesPanel/Components/` (4) + `UseCases/` (30) + `UI/` (7) + `Extensions/` (1) + `Repositories/` (1) + `Storage/` (4) + `Persistence/` (1) + `Registry/` (4) + 顶层 `SpinLabApp.swift` (1) = **75 文件** + 暧昧回扫
+
+### 跨会话承接规则
+
+每会话结束前：
+1. Scan Progress 已扫目录的 `[ ]` 翻 `[x]`
+2. 更新「进度统计」表
+3. 没扫完的目录标"部分完成 (X/Y)"，记断点
+
+下次会话开始：
+- 全 `[x]` 跳过；`[ ]` 从头开始；"部分完成"从断点续
+
+### 每会话结束的 commit 模板
+
+```
+docs(s1.x): REGION_MAP <主题> 扫描完成
+
+- N 文件归属表填毕（含 <批次范围>）
+- 暧昧条目 X / 共享候选 Y / 死代码可疑 Z
+```
+
+---
+
 ## Scan Progress
 
 > 每扫完一个目录，把 `[ ]` 翻 `[x]` 并把该目录文件填入下方对应区块段。会话中断后下次继续从未翻的项开始。
 
-### 预备步骤（s1 起手必做）
+### 预备步骤（s1.a 起手必做，仅一次）
 
 - [ ] 一次性跑 `wc -l` 全 swift 文件，落表得「行数」列底数
 - [ ] 一次性 grep `TODO|FIXME|XXX` 全 swift 文件，得 TODO 行数 + 具体行写入附录 C
