@@ -1,8 +1,21 @@
 # Region Map (Working File — 5.1.6 s1)
 
-> **状态**：s1 进行中。本文件是工作产物，含 scan checklist + 6 列文件信息表 + 4 份附录。
+> **状态**：s1 进行中。本文件是工作产物，含 scan checklist + 9 列文件信息表 + 7 份附录（A–G）。
 >
-> s1 完成后「Scan Progress」段删除，附录 A–D 拆出独立文档；本文件留作 s2 输入；最终 s4 收敛产出 `INDEX.md`。
+> s1 完成后「Scan Progress」段删除，附录 A–G 部分拆出独立文档；本文件留作 s2 输入；最终 s4 收敛产出 `INDEX.md`。
+
+## 相关文档索引（5.1.6 完整规划链路）
+
+| 文档 | 用途 |
+|---|---|
+| [`docs/V5_ROADMAP.md` §5.1.6](../V5_ROADMAP.md) | 立项依据、s1–s4 任务拆分、7 AG、否决方案 |
+| [`docs/V5_ROADMAP.md` §5.1.8](../V5_ROADMAP.md) | 5.1.6 完成后首条结构债清理（条件解耦）|
+| [`docs/TASK_BOARD.md`](../TASK_BOARD.md) | 5.1.6 / 5.1.8 进行中状态 |
+| [`docs/philosophy.md` Shell & Composition](../philosophy.md) | 通用 shell 优先 + 内部分层哲学（顶层原则 #4 来源）|
+| 本文件 (REGION_MAP.md) | s1 工作文件（区块归属表 + 7 附录）|
+| [`docs/handoff/_pending/5.1.8-condition-kind-decoupling-design-seed.md`](../handoff/_pending/5.1.8-condition-kind-decoupling-design-seed.md) | 5.1.8 派发种子（待 s4 收尾后启动）|
+| [`docs/history/v516_design_review_codex.md`](../history/v516_design_review_codex.md) | Codex 对本期方案的独立评审报告（驱动多处 AG 收紧）|
+| [`docs/history/v515_s12_deep_match_unification.md`](../history/v515_s12_deep_match_unification.md) | Shell & Composition 横向样板诞生案例 |
 
 ---
 

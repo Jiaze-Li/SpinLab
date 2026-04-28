@@ -56,10 +56,15 @@ Reject patterns:
 
 Exceptions only when difference is substantive semantics, not surface duplication.
 
-Samples:
+Samples (historical extractions that shaped this principle):
 
-- **Horizontal**: v5.1.5-s12 `UnifiedMatchRuleEditor` — 5 match-UI sites unified into one shell + 4-operation closed set
-- **Horizontal + vertical**: `WorkbenchPlotCanvas` — provides plot capabilities to 3 workflows (horizontal); intent is internal segmentation by title / grid / legend / font / copy-PNG (vertical — verify in 5.1.6 s1 scan)
+- **Horizontal — match logic + UI**: v5.1.5-s12 `UnifiedMatchRuleEditor` — 5 match-UI sites unified into one shell + 4-operation closed set
+- **Horizontal — render pipeline**: v5.3.2 `WorkbenchRenderPipeline` — 3 workflows (3ω / XY / AHE) share one plot pipeline instead of each writing its own
+- **Horizontal — multi-tab render state**: v5.3.3 `TabRenderState` + `TabRenderOutput` — per-tab overlay state unified into one value type, replaces 5 scattered dicts × 7 scattered Data fields per workflow
+- **Horizontal — legend dimension**: v5.3.4 `LegendDimensionResolver` + pipeline series reversal — eliminates duplicated `.reversed()` calls in `ThreeOmegaPlotRenderer` / `XYRotationPlotRenderer`
+- **Vertical — UI big-file split**: v5.5.1 split 4 UI big files (InboxView / LibraryDetailSections / RulesHandbookView / WorkbenchSharedComponents) into focused components per responsibility
+- **Horizontal — shared layout**: v5.5.2 `FlowLayout` consolidation — duplicate Wrap implementations merged into one shared component
+- **Horizontal + vertical (intent)**: `WorkbenchPlotCanvas` — provides plot capabilities to 3 workflows (horizontal); intent is internal segmentation by title / grid / legend / font / copy-PNG (vertical — verify in 5.1.6 s1 scan)
 
 When architecture mapping (5.1.6 region scan), parallel implementations or bloated shell internals are flagged into the shell-化 candidate list (`REGION_MAP` appendix G), evaluated for extraction in mid-term versions.
 
