@@ -1405,7 +1405,16 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
                 r.titleOverride              = s.titleOverride
                 r.xLabelOverride             = s.xLabelOverride
                 r.yLabelOverride             = s.yLabelOverride
-                r.seriesLabelOverrides       = toIndexedOverrides(s.seriesLabelOverrides, series: fakeSeries)
+                // R1omega and R3omega use reverseSeriesForLegend: true; the pipeline reverses before
+                // applying index-keyed label overrides, so map against the post-reversal order.
+                let labelMapSeries: [WorkbenchPlotSeries]
+                switch tab {
+                case .fieldSweep1omega, .fieldSweep3omega:
+                    labelMapSeries = Array(fakeSeries.reversed())
+                default:
+                    labelMapSeries = fakeSeries
+                }
+                r.seriesLabelOverrides       = toIndexedOverrides(s.seriesLabelOverrides, series: labelMapSeries)
                 return r
             }
 

@@ -167,7 +167,7 @@ struct WorkbenchPlotCanvas: View {
                                         if plotSR.contains(start) {
                                             let allHaveSampleID = p.series.allSatisfy { $0.sampleID != nil }
                                             if allHaveSampleID,
-                                               let hit = l.hitTestSeries(location: start, fittedRect: fitted, payload: p) {
+                                               let hit = l.hitTestSeries(location: start, fittedRect: fitted, payload: p, radius: 8) {
                                                 dragMode = .series(sampleID: hit.sampleID)
                                             }
                                         }
