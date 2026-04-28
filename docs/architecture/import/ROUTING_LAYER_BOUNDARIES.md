@@ -20,4 +20,4 @@ Enforcement in code:
 
 - `InboxRoutingState` is the only App-level routing façade.
 - `RoutingCapabilities` + `RuleRuntimeCapability` are the capability boundaries consumed by App state.
-- For phase transitions and Evaluate verdict details, see `docs/architecture/IMPORT_PIPELINE_EVALUATE_FLOW.md`.
+- For phase transitions and Evaluate verdict details, see `IMPORT_PIPELINE_EVALUATE_FLOW.md` (same directory).
