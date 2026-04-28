@@ -248,8 +248,14 @@ extension MeasuringConditionFileDraft.ConditionDefinition: Codable {
         try c.encode(id, forKey: .id)
         try c.encode(kind, forKey: .kind)
         try c.encodeIfPresent(displayName, forKey: .displayName)
-        let specs = (tokenMap ?? []).map { ["type": $0.match.type, "value": $0.match.value] }
-        try c.encode(specs, forKey: .matches)
+        if kind == "token_map" {
+            // Nested MapRule format preserves output value: {match: {type, value}, value: outputValue}
+            try c.encode(tokenMap ?? [], forKey: .matches)
+        } else {
+            // unit_suffix: flat format {type, value}; output is always implicit $MATCH
+            let specs = (tokenMap ?? []).map { ["type": $0.match.type, "value": $0.match.value] }
+            try c.encode(specs, forKey: .matches)
+        }
     }
 }
 

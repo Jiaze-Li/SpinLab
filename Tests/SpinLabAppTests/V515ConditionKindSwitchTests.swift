@@ -131,4 +131,48 @@ struct V515ConditionKindSwitchTests {
         #expect(specs.count == 2)
         #expect(specs.map(\.value).sorted() == ["AC", "DC"])
     }
+
+    @Test("token_map encode/decode round-trip preserves output value")
+    func tokenMapEncodeDecodePreservesOutputValue() throws {
+        var def = MeasuringConditionFileDraft.ConditionDefinition(
+            id: "device", displayName: nil, kind: "token_map", unitPattern: nil, tokenMap: [
+                MapRule(match: .init(type: "equals", value: "dev1"), value: "Device 1"),
+                MapRule(match: .init(type: "contains", value: "chip"), value: "Chip")
+            ]
+        )
+        _ = def  // suppress unused warning
+
+        // Encode to JSON
+        let encoded = try JSONEncoder().encode(
+            MeasuringConditionFileDraft(version: 1, conditionDefinitions: [def])
+        )
+
+        // Decode back
+        let decoded = try JSONDecoder().decode(MeasuringConditionFileDraft.self, from: encoded)
+        let roundTripped = decoded.conditionDefinitions.first
+        #expect(roundTripped?.kind == "token_map")
+        #expect(roundTripped?.tokenMap?.count == 2)
+        #expect(roundTripped?.tokenMap?.first?.value == "Device 1", "output value must survive encode/decode")
+        #expect(roundTripped?.tokenMap?.last?.value == "Chip")
+        #expect(roundTripped?.tokenMap?.first?.match.type == "equals")
+    }
+
+    @Test("unit_suffix encode/decode round-trip preserves specs")
+    func unitSuffixEncodeDecodePreservesSpecs() throws {
+        let def = MeasuringConditionFileDraft.ConditionDefinition(
+            id: "temperature", displayName: nil, kind: "unit_suffix", unitPattern: nil, tokenMap: [
+                MapRule(match: .init(type: "unit-suffix", value: "K"), value: "$MATCH"),
+                MapRule(match: .init(type: "equals", value: "RT"), value: "$MATCH")
+            ]
+        )
+
+        let encoded = try JSONEncoder().encode(
+            MeasuringConditionFileDraft(version: 1, conditionDefinitions: [def])
+        )
+        let decoded = try JSONDecoder().decode(MeasuringConditionFileDraft.self, from: encoded)
+        let roundTripped = decoded.conditionDefinitions.first
+        #expect(roundTripped?.kind == "unit_suffix")
+        #expect(roundTripped?.tokenMap?.count == 2)
+        #expect(roundTripped?.tokenMap?.map(\.match.type).sorted() == ["equals", "unit-suffix"])
+    }
 }
