@@ -183,17 +183,6 @@ struct FilenameRuleSet: Decodable {
         var containsNeedlesNormalized: [String]
     }
 
-    // MARK: - Legacy match types (retained for Commit 4 cleanup; not used in production paths)
-
-    enum MatchType: String, Decodable {
-        case equals
-        case equalsAny
-        case contains
-        case containsAny
-        case equalsOrContainsAny
-        case regex
-    }
-
     // MARK: - Compiled rule types
 
     struct CompiledMatchSpec {

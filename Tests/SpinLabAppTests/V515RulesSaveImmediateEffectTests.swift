@@ -109,8 +109,7 @@ struct V515RulesSaveImmediateEffectTests {
 
         var draft = try #require(store.workflowDraft)
         draft.measurementTagRules.append(
-            MapRule(match: .init(scope: "tokens", type: "equals", matchValues: ["NEWTAG"]),
-                    value: "NEWTAG")
+            MapRule(match: .init(type: "equals", value: "NEWTAG"), value: "NEWTAG")
         )
         store.updateWorkflow(draft)
         store.selectSection(.workflow)

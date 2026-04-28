@@ -248,7 +248,7 @@ struct V515RulesPanelSaveValidationTests {
 
         var draft = try #require(store.workflowDraft)
         draft.workflows.append(.init(id: "MR", displayName: "MR2",
-                                     matchRules: [.init(scope: "tokens", type: "equals", matchValues: ["MR2"])],
+                                     matchRules: [.init(type: "equals", value: "MR2")],
                                      conditionFieldIDs: []))
         store.updateWorkflow(draft)
         store.selectSection(.workflow)
@@ -360,7 +360,7 @@ struct V515RulesPanelSaveValidationTests {
 
         var draft = try #require(store.workflowDraft)
         draft.workflows[0].matchRules = [
-            .init(scope: "tokens", type: "regex", matchValues: ["[bad"])
+            .init(type: "regex", value: "[bad")
         ]
         store.updateWorkflow(draft)
         store.selectSection(.workflow)
@@ -379,7 +379,7 @@ struct V515RulesPanelSaveValidationTests {
 
         var draft = try #require(store.workflowDraft)
         draft.measurementTagRules = [
-            MapRule(match: .init(scope: "tokens", type: "regex", matchValues: ["[bad"]), value: "TAG")
+            MapRule(match: .init(type: "regex", value: "[bad"), value: "TAG")
         ]
         store.updateWorkflow(draft)
         store.selectSection(.workflow)

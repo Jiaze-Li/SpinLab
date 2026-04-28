@@ -162,9 +162,7 @@ struct WorkflowStrategy: SectionPersistenceStrategy {
                                     message: "Workflow '\(w.id)' must have at least one match rule"))
             }
             for spec in w.matchRules where spec.type == "regex" {
-                spec.matchValues.forEach {
-                    validateRegexField($0, field: "workflows[\(w.id)].matchRules", errors: &errors)
-                }
+                validateRegexField(spec.value, field: "workflows[\(w.id)].matchRules", errors: &errors)
             }
         }
         let knownConditionIDs: Set<String>
@@ -180,9 +178,7 @@ struct WorkflowStrategy: SectionPersistenceStrategy {
             }
         }
         for rule in draft.measurementTagRules where rule.match.type == "regex" {
-            rule.match.matchValues.forEach {
-                validateRegexField($0, field: "measurementTagRules", errors: &errors)
-            }
+            validateRegexField(rule.match.value, field: "measurementTagRules", errors: &errors)
         }
         return errors
     }
@@ -227,9 +223,7 @@ struct MeasuringConditionStrategy: SectionPersistenceStrategy {
                                         message: "token_map requires tokenMap"))
                 }
                 for rule in def.tokenMap ?? [] where rule.match.type == "regex" {
-                    rule.match.matchValues.forEach {
-                        validateRegexField($0, field: "conditionDefinitions[\(def.id)].tokenMap", errors: &errors)
-                    }
+                    validateRegexField(rule.match.value, field: "conditionDefinitions[\(def.id)].tokenMap", errors: &errors)
                 }
             }
         }

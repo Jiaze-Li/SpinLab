@@ -247,7 +247,7 @@ struct WorkflowSection: View {
                 return current.workflows[workflowIdx].matchRules.map {
                     FilenameRuleSet.MatchSpec(
                         type: FilenameRuleSet.Operation(rawValue: $0.type) ?? .equals,
-                        value: $0.matchValues.first ?? ""
+                        value: $0.value
                     )
                 }
             },
@@ -255,7 +255,7 @@ struct WorkflowSection: View {
                 guard var updated = draft,
                       updated.workflows.indices.contains(workflowIdx) else { return }
                 updated.workflows[workflowIdx].matchRules = specs.map {
-                    WorkflowFileDraft.WorkflowMatchSpec(scope: "tokens", type: $0.type.rawValue, matchValues: [$0.value])
+                    WorkflowFileDraft.WorkflowMatchSpec(type: $0.type.rawValue, value: $0.value)
                 }
                 apply(updated)
             }

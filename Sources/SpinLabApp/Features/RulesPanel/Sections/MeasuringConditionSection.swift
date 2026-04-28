@@ -275,7 +275,7 @@ struct MeasuringConditionSection: View {
                       d.conditionDefinitions.indices.contains(condIdx),
                       let rules = d.conditionDefinitions[condIdx].tokenMap,
                       rules.indices.contains(ruleIdx) else {
-                    return MapRule(match: .init(scope: "tokens", type: "equals", matchValues: []), value: "")
+                    return MapRule(match: .init(type: "equals", value: ""), value: "")
                 }
                 return rules[ruleIdx]
             },

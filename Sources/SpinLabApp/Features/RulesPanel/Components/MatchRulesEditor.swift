@@ -50,8 +50,8 @@ struct MatchMapRulesEditor: View {
                         set: { rules[idx].match.type = $0 }
                     ),
                     value: Binding(
-                        get: { rules[idx].match.matchValues.first ?? "" },
-                        set: { rules[idx].match.matchValues = $0.isEmpty ? [] : [$0] }
+                        get: { rules[idx].match.value },
+                        set: { rules[idx].match.value = $0 }
                     ),
                     allowedOps: allowedOps,
                     onDelete: { rules.remove(at: idx) }
@@ -67,7 +67,7 @@ struct MatchMapRulesEditor: View {
             }
             Button("Add") {
                 rules.append(MapRule(
-                    match: .init(scope: "tokens", type: defaultOp.rawValue, matchValues: []),
+                    match: .init(type: defaultOp.rawValue, value: ""),
                     value: ""
                 ))
             }

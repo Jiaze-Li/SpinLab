@@ -94,7 +94,7 @@ struct WorkflowRegistryView: View {
 
     private func matchRulesSection(entry: WorkflowFileDraft.WorkflowEntry) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Match Rules")
+            Text("Matches")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if entry.matchRules.isEmpty {
@@ -119,7 +119,7 @@ struct WorkflowRegistryView: View {
     }
 
     private func matchRuleSummary(_ rule: WorkflowFileDraft.WorkflowMatchSpec) -> String {
-        let value = rule.matchValues.first ?? ""
+        let value = rule.value
         return value.isEmpty ? rule.type : "\(rule.type) \"\(value)\""
     }
 }

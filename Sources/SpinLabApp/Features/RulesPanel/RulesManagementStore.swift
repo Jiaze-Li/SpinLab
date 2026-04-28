@@ -25,42 +25,36 @@ struct MapRule: Codable, Hashable {
     var value: String
 
     struct MatchSpec: Codable, Hashable {
-        // scope retained for view compat; always "tokens" in s12+ schemas
-        var scope: String
         var type: String
-        // matchValues retained for view compat; maps to/from new single-value "value" field
-        var matchValues: [String]
+        var value: String
 
         enum CodingKeys: String, CodingKey {
-            case scope, type, matchValues, value, values
+            case type, value, matchValues, values
         }
 
-        init(scope: String, type: String, matchValues: [String]) {
-            self.scope = scope
+        init(type: String, value: String) {
             self.type = type
-            self.matchValues = matchValues
+            self.value = value
         }
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            scope = "tokens"
             type = try container.decode(String.self, forKey: .type)
-            // s12+ format: single "value"; pre-s12 format: "matchValues" array
             if let v = try container.decodeIfPresent(String.self, forKey: .value) {
-                matchValues = [v]
+                value = v
             } else if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
-                matchValues = mv
+                value = mv.first ?? ""
             } else if let vs = try container.decodeIfPresent([String].self, forKey: .values) {
-                matchValues = vs
+                value = vs.first ?? ""
             } else {
-                matchValues = []
+                value = ""
             }
         }
 
         func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encode(type, forKey: .type)
-            try container.encode(matchValues.first ?? "", forKey: .value)
+            try container.encode(value, forKey: .value)
         }
     }
 }
@@ -164,40 +158,36 @@ struct WorkflowFileDraft: Codable {
     }
 
     struct WorkflowMatchSpec: Codable, Hashable {
-        // scope/matchValues retained for view compat; updated Codable bridges to s12+ {type, value} schema
-        var scope: String
         var type: String
-        var matchValues: [String]
+        var value: String
 
         enum CodingKeys: String, CodingKey {
-            case scope, type, matchValues, value, values
+            case type, value, matchValues, values
         }
 
-        init(scope: String, type: String, matchValues: [String]) {
-            self.scope = scope
+        init(type: String, value: String) {
             self.type = type
-            self.matchValues = matchValues
+            self.value = value
         }
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            scope = "tokens"
             type = try container.decode(String.self, forKey: .type)
             if let v = try container.decodeIfPresent(String.self, forKey: .value) {
-                matchValues = [v]
+                value = v
             } else if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
-                matchValues = mv
+                value = mv.first ?? ""
             } else if let vs = try container.decodeIfPresent([String].self, forKey: .values) {
-                matchValues = vs
+                value = vs.first ?? ""
             } else {
-                matchValues = []
+                value = ""
             }
         }
 
         func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encode(type, forKey: .type)
-            try container.encode(matchValues.first ?? "", forKey: .value)
+            try container.encode(value, forKey: .value)
         }
     }
 }
