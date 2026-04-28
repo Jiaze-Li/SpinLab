@@ -145,7 +145,7 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 - [ ] `Repositories/` (1)
 - [ ] `Storage/` (4)
 - [ ] `Persistence/` (1)
-- [ ] `Registry/` (4)
+- [x] `Registry/` (4)
 - [x] `Workflow/` (4)
 - [x] `Library/` (13)
 - [x] `Workbench/` (0 顶层 + V3 子目录)
@@ -156,13 +156,13 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 - [x] `Import/Match/` (1)
 - [x] `Import/Evaluate/` (3)
 - [x] `Import/Presentation/` (1)
-- [ ] `Import/Rules/` (12)
+- [x] `Import/Rules/` (12)
 - [x] `Features/Inbox/` (6)
 - [x] `Features/Library/` (19)
 - [x] `Features/Workbench/` (24)
-- [ ] `Features/RulesPanel/` (5)
-- [ ] `Features/RulesPanel/Sections/` (5)
-- [ ] `Features/RulesPanel/Components/` (4)
+- [x] `Features/RulesPanel/` (5)
+- [x] `Features/RulesPanel/Sections/` (5)
+- [x] `Features/RulesPanel/Components/` (4)
 - [ ] 顶层 `SpinLabApp.swift`（入口）
 
 **总计**：217 swift 文件 / 27 目录条目（含顶层入口）。
@@ -171,11 +171,11 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 
 | 维度 | 数值 |
 |---|---|
-| 已扫目录 | 16 / 27 |
-| 已填文件 | 143 / 217 |
+| 已扫目录 | 21 / 27 |
+| 已填文件 | 173 / 217 |
 | 暧昧条目 | 0（全表 0%；任一区块 > 20–25% 触发停下校准）|
-| 共享候选 | 64（含合法 cross-cutting；s3 再按 4 分类实证收敛） |
-| 平行候选（附录 G） | 9（横向 H + 纵向 V 合计；目标 ≥ 5）|
+| 共享候选 | 84（含合法 cross-cutting；s3 再按 4 分类实证收敛） |
+| 平行候选（附录 G） | 14（横向 H + 纵向 V 合计；目标 ≥ 5）|
 | 死代码可疑 | 0 |
 
 ---
@@ -311,8 +311,32 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 
 | 文件 | 归属依据 | 层级预判 | 行数 | 共享 | 平行 | TODO | 测试 |
 |---|---|---|---|---|---|---|---|
-
-_(待填)_
+| `Features/RulesPanel/Components/MatchRulesEditor.swift` | consumer: RulesPanel match rule UI | UI component | 112 | ⭐ legitimate_cross_cutting within RulesPanel sections | ⭐G H: repeated match editor shell | 0 | behavioral |
+| `Features/RulesPanel/Components/RegexField.swift` | consumer: RulesPanel regex input | UI component | 41 |  |  | 0 | none |
+| `Features/RulesPanel/Components/RulesPanelErrorMatching.swift` | consumer: RulesPanel save error filtering | UI helper | 30 |  |  | 0 | behavioral |
+| `Features/RulesPanel/Components/SaveErrorsBadge.swift` | consumer: RulesPanel save error badge | UI component | 38 |  |  | 0 | none |
+| `Features/RulesPanel/RulesManagementStore.swift` | consumer: RulesPanel drafts/save/load + runtime rules files | Store | 580 | ⭐ coordination_surface: Rules config writes affect Inbox/Workbench/Registry | ⭐G V: draft schemas + store in one file | 0 | direct |
+| `Features/RulesPanel/RulesPanelSection.swift` | consumer: RulesPanel section identity/order | UI model | 21 |  |  | 0 | behavioral |
+| `Features/RulesPanel/RulesPanelView.swift` | consumer: rules management root UI | UI | 212 |  |  | 0 | behavioral |
+| `Features/RulesPanel/RulesSectionShell.swift` | consumer: shared RulesPanel section save shell | UI shell | 112 | ⭐ legitimate_cross_cutting within RulesPanel sections | ⭐G H: section shell reused across config books | 0 | behavioral |
+| `Features/RulesPanel/SectionPersistenceStrategy.swift` | consumer: RulesPanel section validation/persist hooks | Strategy/UseCase helper | 219 | ⭐ coordination_surface: cross-section workflow/condition validation | ⭐G H: section strategy protocol | 0 | direct |
+| `Features/RulesPanel/Sections/FilenameTokenizationSection.swift` | consumer: filename tokenization config UI | UI | 275 | ⭐ consumer: Rules+Inbox parser behavior |  | 0 | behavioral |
+| `Features/RulesPanel/Sections/ImportFiltersSection.swift` | consumer: import filter config UI | UI | 185 | ⭐ consumer: Rules+Inbox import pipeline |  | 0 | behavioral |
+| `Features/RulesPanel/Sections/MeasuringConditionSection.swift` | consumer: measuring condition config UI | UI | 319 | ⭐ consumer: Rules+Workbench condition fields |  | 0 | behavioral |
+| `Features/RulesPanel/Sections/SampleIdentificationSection.swift` | consumer: sample/substrate identification config UI | UI | 266 | ⭐ consumer: Rules+Registry+Inbox substrate semantics |  | 0 | behavioral |
+| `Features/RulesPanel/Sections/WorkflowSection.swift` | consumer: workflow config UI | UI | 364 | ⭐ consumer: Rules+Workbench workflow definitions |  | 0 | behavioral |
+| `Import/Rules/ConditionFieldCatalog.swift` | consumer: Workbench condition field options | Rule helper | 54 | ⭐ consumer: Rules+Workbench |  | 0 | behavioral |
+| `Import/Rules/FileRoutingSemanticRules.swift` | consumer: Inbox route semantic rules from rule set | Rule helper | 67 | ⭐ consumer: Rules+Inbox routing |  | 0 | direct |
+| `Import/Rules/FilenameRuleSet.swift` | consumer: parser/routing/RulesPanel/Workbench rule semantics | Domain/Rule model | 956 | ⭐ legitimate_cross_cutting: canonical rule contract | ⭐G V: schema + compile + evaluate | 0 | direct |
+| `Import/Rules/RuleCanonicalizer.swift` | consumer: RulesPanel save canonicalization | UseCase helper | 144 |  |  | 0 | behavioral |
+| `Import/Rules/RuleEntryKind.swift` | consumer: rule-entry UI/validation | Rule model | 11 | ⭐ consumer: RulesPanel+Workbench entry UI |  | 0 | behavioral |
+| `Import/Rules/RuleLoader.swift` | consumer: app-wide runtime/bundle rule loading | Repository/Loader | 608 | ⭐ coordination_surface: runtime rules feed Inbox/Workbench/Registry | ⭐G V: cache + load + assemble + hash | 0 | direct |
+| `Import/Rules/RuleRef.swift` | consumer: explainable route/rule references | Rule model | 86 | ⭐ consumer: Rules+Inbox presentation |  | 0 | behavioral |
+| `Import/Rules/RulesBootstrapper.swift` | consumer: startup migration of runtime rule files | Migration service | 1117 | ⭐ migration_candidate: legacy runtime config migration | ⭐G V: multi-version JSON migration monolith | 0 | direct |
+| `Import/Rules/RulesConfigPaths.swift` | consumer: runtime rules file layout | Config paths | 73 | ⭐ legitimate_cross_cutting: runtime config paths |  | 0 | direct |
+| `Import/Rules/RulesPersistenceHook.swift` | consumer: immediate rule reload after save | Persistence hook | 5 | ⭐ coordination_surface: RulesPanel save affects runtime rule cache |  | 0 | behavioral |
+| `Import/Rules/SpinLabRuleProvider.swift` | consumer: injectable rules capability | Capability protocol/provider | 78 | ⭐ legitimate_cross_cutting: rules DI for Inbox/Registry |  | 0 | direct |
+| `Import/Rules/WorkflowRegistryRetirementService.swift` | consumer: migrate retired outer workflow registry into workflow.json | Migration service | 109 | ⭐ migration_candidate: old workflow registry cleanup |  | 0 | direct |
 
 ### 跨区共享
 
@@ -349,6 +373,10 @@ _(待填)_
 | `Import/Parse/SampleSemanticDescriptor.swift` | consumer: Inbox route + Workbench search/ingestion + Library parser | Shared domain/parser model | 130 | ⭐ migration_candidate: Domain-like type under Import |  | 0 | behavioral |
 | `Import/Parse/SampleTokenization.swift` | consumer: Inbox matching + Workbench search | Shared parser/helper | 56 | ⭐ migration_candidate: Import helper consumed outside Inbox |  | 0 | behavioral |
 | `Import/RegistrySubstrateRuleBook.swift` | consumer: AppEnvironment/ArchivedRecordResolver + registry substrate tests | Shared rulebook | 264 | ⭐ coordination_surface: Registry+Inbox+Rules |  | 0 | direct |
+| `Registry/RegistryLookupRuleBook.swift` | consumer: SampleRegistry lookup aliases from Rules | Shared rulebook | 85 | ⭐ coordination_surface: Registry+Rules |  | 0 | direct |
+| `Registry/RegistrySheetFilter.swift` | consumer: registry sheet exclusion | Utility | 14 | ⭐ consumer: Registry+Rules excludedSheetNames |  | 0 | behavioral |
+| `Registry/SampleRegistry.swift` | consumer: Registry index for Inbox routing + Library workspace | Repository/Index | 334 | ⭐ coordination_surface: Registry+Inbox+Library |  | 0 | behavioral |
+| `Registry/XLSXSheetValueReader.swift` | consumer: Registry XLSX cell parsing | Parser helper | 81 |  |  | 0 | behavioral |
 | `Workflow/WorkflowDefinition.swift` | consumer: Rules config + Workbench/Inbox workflow display | Domain/Config model | 37 | ⭐ legitimate_cross_cutting: workflow config contract |  | 0 | behavioral |
 | `Workflow/WorkflowDefinitionStore.swift` | consumer: Workbench store reads workflow.json definitions | Repository | 28 | ⭐ coordination_surface: Rules-owned config consumed by Workbench |  | 0 | direct |
 | `Workflow/WorkflowID.swift` | consumer: workflow canonical IDs/aliases | Domain/Config model | 70 | ⭐ legitimate_cross_cutting: workflow identity contract |  | 0 | behavioral |
@@ -377,17 +405,17 @@ _(s2 后填)_
 | `Features/Workbench/ThreeOmegaWorkspaceStore.swift` | 1517 | Workbench | workflow store + pack/render/provider protocols，已入附录 G |
 | `Library/LibraryStore.swift` | 1537 | Library | repository + filesystem/index/archive helpers，已入附录 G |
 | `App/State/LibraryFeatureStore.swift` | 1145 | Library | Store 主体，已入附录 G |
-| `Import/Rules/RulesBootstrapper.swift` | 1117 | Rules | 待 s1.c 判断职责边界 |
-| `Import/Rules/FilenameRuleSet.swift` | 956 | Rules | 待 s1.c 判断职责边界 |
+| `Import/Rules/RulesBootstrapper.swift` | 1117 | Rules | multi-version runtime JSON migration，已入附录 G |
+| `Import/Rules/FilenameRuleSet.swift` | 956 | Rules | rule schema + compile/evaluate，已入附录 G |
 | `App/State/WorkbenchFeatureStore.swift` | 877 | Workbench | Store 主体，已入附录 G |
 | `Features/Workbench/AHEWorkspaceStore.swift` | 763 | Workbench | workflow store + shared protocols，已入附录 G |
 | `Features/Workbench/WorkbenchPlotCanvas.swift` | 728 | Workbench | 共享 plot shell，已入附录 G |
 | `Library/LibraryXLSXSyncService.swift` | 663 | Library | XLSX sync service，已入附录 G |
 | `Features/Workbench/XYRotationWorkspaceStore.swift` | 623 | Workbench | workflow store + shared protocols，已入附录 G |
-| `Import/Rules/RuleLoader.swift` | 608 | Rules | 待 s1.c 判断职责边界 |
+| `Import/Rules/RuleLoader.swift` | 608 | Rules | runtime/bundle loader + cache + assembly，已入附录 G |
 | `Workbench/V3/WorkbenchChartRenderer.swift` | 604 | Workbench | shared chart renderer |
 | `Features/Library/LibraryWorkspaceSections.swift` | 587 | Library | multi-section Library UI，已入附录 G |
-| `Features/RulesPanel/RulesManagementStore.swift` | 580 | Rules | 待 s1.c 判断职责边界 |
+| `Features/RulesPanel/RulesManagementStore.swift` | 580 | Rules | draft schemas + save/load store，已入附录 G |
 | `Features/Workbench/WorkflowWorkspaceShell.swift` | 567 | Workbench | shared workflow shell，已入附录 G |
 | `Library/LibraryRegistryParser.swift` | 545 | Library | registry parser + substrate parser |
 
@@ -432,6 +460,26 @@ _(s2 后填)_
 | `Features/Workbench/UnitTagEditor.swift` | Workbench UI edits condition/rule units | pending |
 | `Features/Workbench/WorkflowRegistryView.swift` | Workbench displays Rules-owned workflow definitions | pending |
 | `Workflow/WorkflowDefinitionStore.swift` | Rules-owned workflow config consumed by Workbench | pending |
+| `Features/RulesPanel/RulesManagementStore.swift` | RulesPanel runtime config save immediately affects Inbox/Workbench/Registry behavior | pending |
+| `Features/RulesPanel/RulesSectionShell.swift` | Shared save/reload shell used by RulesPanel sections | pending |
+| `Features/RulesPanel/SectionPersistenceStrategy.swift` | Cross-section validation couples workflow condition IDs to measuring condition definitions | pending |
+| `Features/RulesPanel/Sections/FilenameTokenizationSection.swift` | Rules UI edits parser behavior consumed by Inbox route planning | pending |
+| `Features/RulesPanel/Sections/ImportFiltersSection.swift` | Rules UI edits import filter behavior consumed by Inbox pipeline | pending |
+| `Features/RulesPanel/Sections/MeasuringConditionSection.swift` | Rules UI edits Workbench condition field semantics | pending |
+| `Features/RulesPanel/Sections/SampleIdentificationSection.swift` | Rules UI edits substrate semantics consumed by Registry/Inbox | pending |
+| `Features/RulesPanel/Sections/WorkflowSection.swift` | Rules UI edits workflow definitions consumed by Workbench | pending |
+| `Import/Rules/ConditionFieldCatalog.swift` | Workbench condition options derive from Rules definitions | pending |
+| `Import/Rules/FileRoutingSemanticRules.swift` | Inbox routing semantic rules derive from rule set | pending |
+| `Import/Rules/FilenameRuleSet.swift` | Canonical rule contract feeds parser/routing/RulesPanel/Workbench | pending |
+| `Import/Rules/RuleEntryKind.swift` | Rule-entry UI is shared by RulesPanel and Workbench entry points | pending |
+| `Import/Rules/RuleLoader.swift` | Runtime rules loader feeds app-wide routing/search/registry semantics | pending |
+| `Import/Rules/RuleRef.swift` | Rule references surface in Inbox explanations | pending |
+| `Import/Rules/RulesConfigPaths.swift` | Runtime config paths used by loader, bootstrapper, RulesPanel save | pending |
+| `Import/Rules/RulesPersistenceHook.swift` | RulesPanel save invalidates/reloads runtime rule cache | pending |
+| `Import/Rules/SpinLabRuleProvider.swift` | Rules capability injected into Inbox/Registry rule consumers | pending |
+| `Registry/RegistryLookupRuleBook.swift` | Registry lookup aliases come from Rules registry config | pending |
+| `Registry/RegistrySheetFilter.swift` | Registry sheet filtering comes from Rules excluded-sheet config | pending |
+| `Registry/SampleRegistry.swift` | Registry index feeds Inbox routing metadata and Library workspace | pending |
 
 ## 附录 C — TODO / FIXME / XXX 收割
 
@@ -467,6 +515,8 @@ _(s2 后填)_
 | `Features/Workbench/WorkbenchTitleTemplateField.swift` | Workbench | 38 | Low：title field UI 无 direct test |
 | `Features/Workbench/WorkbenchTracePanel.swift` | Workbench | 52 | Low：trace UI 无 direct test |
 | `Features/Workbench/WorkflowHitRow.swift` | Workbench | 80 | Low：search-hit UI 无 direct test |
+| `Features/RulesPanel/Components/RegexField.swift` | Rules | 41 | Low：regex input UI 无 direct test |
+| `Features/RulesPanel/Components/SaveErrorsBadge.swift` | Rules | 38 | Low：save error badge UI 无 direct test |
 
 ## 附录 E — 死代码可疑清单
 
@@ -512,6 +562,11 @@ _(s4 可选填)_
 | G-007 | H+V | `WorkbenchPlotCanvas.swift` 728 行 shared plot shell | 保持 cross-workflow shell，评估内部按 title/grid/legend/font/copy PNG 再拆 | plot canvas shell 已横向共享但内部职责多 | 哲学样板点名对象 |
 | G-008 | H+V | `WorkflowWorkspaceShell.swift` 567 行 shared workflow shell | 保持 shell，评估 warning/search/action/plot slots 内部分层 | shell 横向共享；内部 UI responsibilities 多 | s1.b 记录；不立即拆 |
 | G-009 | V | `LibraryWorkspaceSections.swift` 587 行多 section UI | 评估按 settings / registry / search sections 垂直拆 | Library workspace section responsibilities | s1.b 记录；不立即拆 |
+| G-010 | V | `RulesBootstrapper.swift` 1117 行 migration service | 评估按 schema migration step / atomic write / state tracking 拆分 | 多版本 JSON 迁移集中在单文件 | s1.c 记录；不立即拆 |
+| G-011 | V | `FilenameRuleSet.swift` 956 行 rule contract | 评估 schema structs / compile / evaluation 是否分文件 | canonical rule model 同时承载编译与求值 | s1.c 记录；不立即拆 |
+| G-012 | V | `RuleLoader.swift` 608 行 loader | 评估 runtime/bundle loading、cache、assembly/hash 分层 | loader 同时做 cache invalidation、schema assembly、hash | s1.c 记录；不立即拆 |
+| G-013 | V | `RulesManagementStore.swift` 580 行 store + draft schema | 评估 draft Codable schemas 与 observable store 拆分 | 多个 config book draft + save/load 状态同文件 | s1.c 记录；不立即拆 |
+| G-014 | H | `RulesSectionShell` + `SectionPersistenceStrategy` + 5 section views | 保持 section shell，评估策略协议是否成为规则配置编辑统一壳 | 5 个 config book 共用 save/reload/validate/persist 形态 | 与 v5.1.5-s12 match editor 样板同类 |
 
 _(s1 扫描时持续追加。每条 ID 编号，类型 H / V，候选形态精简描述。)_
 
