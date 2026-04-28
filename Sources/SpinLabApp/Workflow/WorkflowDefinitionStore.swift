@@ -9,17 +9,20 @@ final class WorkflowDefinitionStore {
     }
 
     func load() -> [WorkflowDefinition] {
-        guard FileManager.default.fileExists(atPath: fileURL.path),
-              let data = try? Data(contentsOf: fileURL),
-              let draft = try? decoder.decode(WorkflowFileDraft.self, from: data) else {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return [] }
+        do {
+            let data = try Data(contentsOf: fileURL)
+            let draft = try decoder.decode(WorkflowFileDraft.self, from: data)
+            return draft.workflows.map { entry in
+                WorkflowDefinition(
+                    id: entry.id,
+                    displayName: entry.displayName,
+                    conditionFields: entry.conditionFieldIDs.map { WorkflowConditionField(definitionID: $0) }
+                )
+            }
+        } catch {
+            fputs("[WorkflowDefinitionStore] load failed: \(error)\n", stderr)
             return []
-        }
-        return draft.workflows.map { entry in
-            WorkflowDefinition(
-                id: entry.id,
-                displayName: entry.displayName,
-                conditionFields: entry.conditionFieldIDs.map { WorkflowConditionField(definitionID: $0) }
-            )
         }
     }
 }

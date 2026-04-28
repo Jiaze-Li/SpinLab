@@ -97,6 +97,13 @@ struct WorkbenchPlotLayout: Sendable {
     /// The rendered Y-axis label text (after display-label override).
     let yAxisLabel:  String
 
+    /// Actual axis range used by the renderer (mirrors WorkbenchChartRenderer logic).
+    /// Hit-test coordinate math must use these values, not re-derive from raw data.
+    let axisXMin: Double
+    let axisXMax: Double
+    let axisYMin: Double
+    let axisYMax: Double
+
     // MARK: - Factory
 
     static func compute(
@@ -168,23 +175,36 @@ struct WorkbenchPlotLayout: Sendable {
             legendFontSize: style.legendFontSize
         )
 
-        // Point dot + label hit targets (for series that carry point labels)
-        var pointDotHitTargets:   [WorkbenchPlotLayout.PointHitTarget] = []
-        var pointLabelHitTargets: [WorkbenchPlotLayout.PointHitTarget] = []
+        // Axis range — mirrors WorkbenchChartRenderer axis computation exactly.
+        // Computed unconditionally so hitTestSeries can use it.
         let allXForHit = payload.series.flatMap(\.x)
         let allYForHit = payload.series.flatMap(\.y)
-        if !allXForHit.isEmpty, payload.series.contains(where: { !$0.pointLabels.isEmpty }) {
+        let axisXMin: Double
+        let axisXMax: Double
+        let axisYMin: Double
+        let axisYMax: Double
+        if allXForHit.isEmpty {
+            axisXMin = 0; axisXMax = 1; axisYMin = 0; axisYMax = 1
+        } else {
             let xRawH = options.fixedXMin ?? allXForHit.min()!
             let xRawMaxH = options.fixedXMax ?? allXForHit.max()!
             let yRawH = allYForHit.min()!, yRawMaxH = allYForHit.max()!
             let xRawSpanH = xRawMaxH == xRawH ? 1.0 : xRawMaxH - xRawH
             let yRawSpanH = yRawMaxH == yRawH ? 1.0 : yRawMaxH - yRawH
-            let xMinH = options.fixedXMin != nil ? xRawH : xRawH - xRawSpanH * 0.05
-            let xMaxH = options.fixedXMax != nil ? xRawMaxH : xRawMaxH + xRawSpanH * 0.05
-            let yMinH = yRawH - yRawSpanH * 0.05
-            let yMaxH = yRawMaxH + yRawSpanH * 0.05
-            let xSpanH = xMaxH - xMinH
-            let ySpanH = yMaxH - yMinH
+            axisXMin = options.fixedXMin != nil ? xRawH    : xRawH    - xRawSpanH * 0.05
+            axisXMax = options.fixedXMax != nil ? xRawMaxH : xRawMaxH + xRawSpanH * 0.05
+            axisYMin = yRawH    - yRawSpanH * 0.05
+            axisYMax = yRawMaxH + yRawSpanH * 0.05
+        }
+        let axisXSpan = axisXMax - axisXMin
+        let axisYSpan = axisYMax - axisYMin
+
+        // Point dot + label hit targets (for series that carry point labels)
+        var pointDotHitTargets:   [WorkbenchPlotLayout.PointHitTarget] = []
+        var pointLabelHitTargets: [WorkbenchPlotLayout.PointHitTarget] = []
+        if !allXForHit.isEmpty, payload.series.contains(where: { !$0.pointLabels.isEmpty }) {
+            let xSpanH = axisXSpan, ySpanH = axisYSpan
+            let xMinH = axisXMin,   yMinH = axisYMin
             for (si, series) in payload.series.enumerated() {
                 guard !series.pointLabels.isEmpty,
                       series.x.count == series.y.count else { continue }
@@ -240,7 +260,11 @@ struct WorkbenchPlotLayout: Sendable {
             pointLabelHitTargets: pointLabelHitTargets,
             chartTitle:    chartTitle,
             xAxisLabel:    xAxisLabel,
-            yAxisLabel:    yAxisLabel
+            yAxisLabel:    yAxisLabel,
+            axisXMin:      axisXMin,
+            axisXMax:      axisXMax,
+            axisYMin:      axisYMin,
+            axisYMax:      axisYMax
         )
     }
 
@@ -321,5 +345,85 @@ struct WorkbenchPlotLayout: Sendable {
             width:  cgRect.width  * scaleX,
             height: cgRect.height * scaleY
         )
+    }
+}
+
+// MARK: - Series hit-test
+
+extension WorkbenchPlotLayout {
+
+    /// Finds the series closest to `location` within `radius` screen points.
+    /// Uses axis extents derived from the payload data (matches renderer behavior for charts
+    /// without fixedXMin/fixedXMax, i.e. all 3ω stacked charts).
+    /// Returns the sampleID of the nearest hit series and its mid-polyline screen y.
+    /// radius: nil = always return nearest series in the plot area (no distance limit).
+    func hitTestSeries(
+        location: CGPoint,
+        fittedRect: CGRect,
+        payload: WorkbenchPlotPayload,
+        radius: CGFloat? = nil
+    ) -> (sampleID: String, screenY: CGFloat)? {
+        let series = payload.series
+        guard !series.isEmpty else { return nil }
+        guard !series.flatMap(\.x).isEmpty else { return nil }
+
+        let xMin = axisXMin, xMax = axisXMax
+        let yMin = axisYMin, yMax = axisYMax
+        let xSpan = xMax - xMin
+        let ySpan = yMax - yMin
+        guard xSpan > 0, ySpan > 0 else { return nil }
+
+        let scaleX = fittedRect.width  / rendererSize.width
+        let scaleY = fittedRect.height / rendererSize.height
+
+        func dataToScreen(_ x: Double, _ y: Double) -> CGPoint {
+            let cgX = plotRect.minX + CGFloat((x - xMin) / xSpan) * plotRect.width
+            let cgY = plotRect.minY + CGFloat((y - yMin) / ySpan) * plotRect.height
+            return CGPoint(
+                x: fittedRect.minX + cgX * scaleX,
+                y: fittedRect.minY + (rendererSize.height - cgY) * scaleY
+            )
+        }
+
+        var best: (sampleID: String, screenY: CGFloat, dist: CGFloat)?
+
+        for s in series {
+            guard let sid = s.sampleID else { continue }
+            guard s.x.count == s.y.count, !s.x.isEmpty else { continue }
+
+            let pts = zip(s.x, s.y).map { dataToScreen($0, $1) }
+
+            var minDist: CGFloat = .infinity
+            if pts.count == 1 {
+                minDist = Self._dist(location, pts[0])
+            } else {
+                for i in 0..<pts.count - 1 {
+                    let d = Self._distToSegment(location, pts[i], pts[i + 1])
+                    if d < minDist { minDist = d }
+                }
+            }
+
+            if let r = radius, minDist > r { continue }
+
+            let midScreenY = pts[pts.count / 2].y
+            if best == nil || minDist < best!.dist ||
+               (abs(minDist - best!.dist) < 0.5 && abs(location.y - midScreenY) < abs(location.y - best!.screenY)) {
+                best = (sid, midScreenY, minDist)
+            }
+        }
+
+        return best.map { ($0.sampleID, $0.screenY) }
+    }
+
+    private static func _dist(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
+        hypot(a.x - b.x, a.y - b.y)
+    }
+
+    private static func _distToSegment(_ p: CGPoint, _ a: CGPoint, _ b: CGPoint) -> CGFloat {
+        let dx = b.x - a.x, dy = b.y - a.y
+        let lenSq = dx * dx + dy * dy
+        if lenSq == 0 { return _dist(p, a) }
+        let t = max(0, min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq))
+        return _dist(p, CGPoint(x: a.x + t * dx, y: a.y + t * dy))
     }
 }

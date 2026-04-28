@@ -41,6 +41,9 @@ enum WorkbenchRenderPipeline {
         var styleParamsPatch: [String: String] = [:]
         /// Pixel density override for export at a non-default scale (nil = use baseOptions.pixelScale).
         var pixelScaleOverride: CGFloat? = nil
+        /// Expected bottom-to-top series order by sampleID (v5.3.6). Used for mismatch detection only —
+        /// the pipeline never reorders; reordering must happen in the workflow renderer before this call.
+        var seriesOrder: [String]? = nil
     }
 
     struct Output: Sendable {
@@ -81,6 +84,16 @@ enum WorkbenchRenderPipeline {
         payload.series = payload.series.map {
             guard !$0.renderModeLocked else { return $0 }
             var s = $0; s.renderMode = input.seriesRenderMode; return s
+        }
+
+        // 4a. Series order consistency check (v5.3.6):
+        //     If the payload opts in to drag reordering and a seriesOrder was provided,
+        //     verify the renderer already produced series in the expected order.
+        //     The pipeline NEVER reorders — mismatch means the renderer has a bug.
+        if payload.seriesReorderable, let expectedOrder = input.seriesOrder {
+            if let warning = Self.detectSeriesOrderMismatch(payload.series, expected: expectedOrder) {
+                pipelineWarnings.append(warning)
+            }
         }
 
         // 4b. Reverse series for legend-visual consistency (v5.3.4):
@@ -161,5 +174,18 @@ enum WorkbenchRenderPipeline {
         }
 
         return Output(imageData: imageData, layout: layout, manifestPayload: manifestPayload, warnings: pipelineWarnings)
+    }
+
+    // MARK: - Private helpers
+
+    /// Returns a warning string if `series` sampleID order (filtered to those in `expected`)
+    /// does not match `expected` order (filtered to those in `series`). Returns nil when consistent.
+    static func detectSeriesOrderMismatch(_ series: [WorkbenchPlotSeries], expected: [String]) -> String? {
+        let actual = series.compactMap(\.sampleID)
+        let expectedFiltered = expected.filter { id in actual.contains(id) }
+        let actualFiltered = actual.filter { id in expected.contains(id) }
+        guard expectedFiltered != actualFiltered else { return nil }
+        return "seriesOrder mismatch: renderer produced \(actualFiltered) but expected \(expectedFiltered). " +
+               "Stack offsets are likely incorrect — fix the renderer to honor input.seriesOrder."
     }
 }

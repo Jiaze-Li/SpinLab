@@ -102,6 +102,8 @@ Behavior details: `specs/three_omega_physics.md`
 - Test: V534LegendDimensionResolverTests — resolver priority, tolerance, ambiguity, pipeline reversal, backward decode
 - Test: V535PointLabelVisibilityTests, V535TabRenderStatePackTests, V535ScopeGateTests — point label toggle logic, Pack Codable, payload-capability gate
 - Test: V535CopyPNGScaleMenuTests — scale array alignment, output pixel dimensions, 2x determinism
+- Curve drag-to-reorder (opt-in, 3ω stacked R(1ω)/R(3ω) charts): drag a curve in the legend area pans all curves; drag outside legend hits a specific curve and reorders it. Guide line shows target position during drag. Right-click → Reset Curve Order returns to default. Order persists in AnalysisPack save/load. Canvas capability gated per chart via `seriesReorderable` flag in payload. (v5.3.6)
+- Test: V536CurveDragOrderTests — alignSeriesOrder, TabRenderState Codable, pipeline mismatch detection, hitTestSeries hit/miss/nil-id
 
 ### 3-Omega AHE
 - Fit ranges are part of scaling chart semantic identity — different fit configs produce separate chart entries, not overwrites

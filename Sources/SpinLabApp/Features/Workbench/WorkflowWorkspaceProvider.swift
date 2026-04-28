@@ -95,9 +95,20 @@ protocol WorkbenchWorkspaceProviding: WorkbenchPlottingStore, AnalysisPackProvid
 
     var activeImageData: Data? { get }
     var activeLayout: WorkbenchPlotLayout? { get }
-    var seriesLabelOverrides: [Int: String] { get }
+    var seriesLabelOverrides: [String: String] { get }
     var relatedCharts: [WorkbenchResultReference]? { get }
     var libraryRootURL: URL? { get }
+
+    // MARK: Series reordering (opt-in)
+
+    /// Bottom-to-top sampleID order for the active tab; nil = workflow default order.
+    var activeSeriesOrder: [String]? { get }
+    /// Whether the active tab's chart supports drag-to-reorder curves.
+    var canReorderSeries: Bool { get }
+    /// Commits a new bottom-to-top series order from the canvas.
+    func updateSeriesOrder(_ order: [String])
+    /// Resets to workflow default order.
+    func resetSeriesOrder()
 
     // MARK: Save to Library
 
@@ -119,6 +130,11 @@ extension WorkbenchWorkspaceProviding {
     func commitRunTrace() {
         currentRunTrace = buildRunTrace()
     }
+
+    var activeSeriesOrder: [String]? { nil }
+    var canReorderSeries: Bool { false }
+    func updateSeriesOrder(_ order: [String]) {}
+    func resetSeriesOrder() {}
 }
 
 // MARK: - WorkbenchWarningEntry

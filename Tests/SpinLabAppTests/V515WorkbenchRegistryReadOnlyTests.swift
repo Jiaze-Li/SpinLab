@@ -86,6 +86,32 @@ struct V515WorkbenchRegistryReadOnlyTests {
         #expect(store.workflowDefinitions.isEmpty)
     }
 
+    @Test("WorkflowFileDraft decodes match rules and measurementTagRules without scope field")
+    func decodesMatchRulesWithoutScope() throws {
+        // Regression: scope was decoded as required; real workflow.json never wrote it.
+        // Both WorkflowMatchSpec and MapRule.MatchSpec must tolerate a missing scope key.
+        let json = """
+        {
+          "version": 2,
+          "workflows": [
+            {
+              "id": "MR",
+              "displayName": "MR",
+              "conditionFieldIDs": ["temperature"],
+              "matchRules": [{"type": "equals", "matchValues": ["MR"]}]
+            }
+          ],
+          "measurementTagRules": [
+            {"match": {"type": "equals", "matchValues": ["AMR"]}, "value": "AMR"}
+          ]
+        }
+        """
+        let draft = try JSONDecoder().decode(WorkflowFileDraft.self, from: Data(json.utf8))
+        #expect(draft.workflows.count == 1)
+        #expect(draft.workflows[0].matchRules[0].scope == "tokens")
+        #expect(draft.measurementTagRules[0].match.scope == "tokens")
+    }
+
     @Test("WorkbenchFeatureStore has no workflow CRUD methods (compile-time guard)")
     func noCRUDMethodsExist() {
         // Structural check: if any CRUD method were re-added, the corresponding

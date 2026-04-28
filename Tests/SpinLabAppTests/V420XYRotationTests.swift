@@ -136,7 +136,7 @@ struct V420XYRotationTests {
             tabStates: [
                 XYRotationWorkbenchTab.rxxVsPhi.rawValue: TabRenderState(
                     yLabelOverride: "Custom Y",
-                    seriesLabelOverrides: [0: "80 K custom"]
+                    seriesLabelOverrides: ["0": "80 K custom"]
                 )
             ],
             cachedSearchResults: [],

@@ -14,8 +14,8 @@ struct WorkbenchPlotCanvas: View {
     let imageData: Data?
     /// Layout from the most recent render. Nil = hit-testing and editing disabled.
     var layout: WorkbenchPlotLayout? = nil
-    /// Current series label overrides keyed by series index, used to pre-fill the edit field.
-    var seriesLabelOverrides: [Int: String] = [:]
+    /// Current series label overrides keyed by sampleID (or Int-string for no-identity workflows).
+    var seriesLabelOverrides: [String: String] = [:]
 
     /// Called with a plotRect-normalized point (x,y ∈ [0,1], y=0 bottom, y=1 top)
     /// when the user finishes a drag over the plot area. Nil = drag disabled.
@@ -24,12 +24,12 @@ struct WorkbenchPlotCanvas: View {
     var onEditTitle:       ((String) -> Void)?               = nil
     var onEditXLabel:      ((String) -> Void)?               = nil
     var onEditYLabel:      ((String) -> Void)?               = nil
-    /// (seriesIndex, newLabel)
-    var onEditLegendLabel: ((Int, String) -> Void)?          = nil
+    /// (key, newLabel) — key is sampleID or Int-string fallback
+    var onEditLegendLabel: ((String, String) -> Void)?       = nil
     /// Font size change callback: (styleParamsKey, newSize). Triggers re-render.
     var onFontSizeChange:  ((String, CGFloat) -> Void)?      = nil
-    /// Point-dot toggle callback: (seriesIndex, pointIndex).
-    var onTogglePointLabelVisibility: ((Int, Int) -> Void)?  = nil
+    /// Point-dot toggle callback: (key, pointIndex) — key is sampleID or Int-string fallback.
+    var onTogglePointLabelVisibility: ((String, Int) -> Void)? = nil
     /// Copy PNG at a given pixel scale; returns PNG data or nil if unavailable.
     var onCopyPNG: ((CGFloat) -> Data?)? = nil
     /// Style override change callback: (styleParamsKey, stringValue). Triggers re-render.
@@ -41,6 +41,16 @@ struct WorkbenchPlotCanvas: View {
     var relatedCharts: [WorkbenchResultReference]? = nil
     /// Library root for loading chart thumbnails.
     var libraryRootURL: URL? = nil
+
+    // MARK: Series reordering (opt-in)
+    var seriesReorderable: Bool = false
+    var currentSeriesOrder: [String]? = nil
+    /// Manifest payload for the active chart; required for series hit-testing.
+    var seriesPayload: WorkbenchPlotPayload? = nil
+    /// Called with bottom-to-top sampleID array when user commits a drag reorder.
+    var onSeriesOrderCommit: (([String]) -> Void)? = nil
+    /// Called when user selects "Reset Curve Order" from context menu.
+    var onResetSeriesOrder: (() -> Void)? = nil
 
     // TODO(用户设计): 调整最小高度、背景样式、空状态文字
     var minHeight: CGFloat = 360
@@ -54,6 +64,15 @@ struct WorkbenchPlotCanvas: View {
     /// Last valid adjusted normalized point during an active drag.
     /// Used by onEnded as fallback when cursor lands in padding area (plotNormalized → nil).
     @State private var lastValidDragNorm: CGPoint? = nil
+
+    // Series drag state
+    private enum DragMode: Equatable {
+        case none
+        case legend
+        case series(sampleID: String)
+    }
+    @State private var dragMode: DragMode = .none
+    @State private var seriesGuideYScreen: CGFloat? = nil
     /// Which chart element is currently being edited.
     @State private var editingElement: EditTarget? = nil
     /// Live text for the active edit field.
@@ -72,7 +91,7 @@ struct WorkbenchPlotCanvas: View {
         case title
         case xLabel
         case yLabel
-        case legend(seriesIndex: Int, originalLabel: String)
+        case legend(key: String, originalLabel: String)
         case xTickLabel
         case yTickLabel
         case pointLabel(seriesIndex: Int, pointIndex: Int)
@@ -85,7 +104,7 @@ struct WorkbenchPlotCanvas: View {
         case .title:       return "titleFontSize"
         case .xLabel:      return "axisTitleFontSize"
         case .yLabel:      return "axisTitleFontSize"
-        case .legend:      return "legendFontSize"
+        case .legend:        return "legendFontSize"
         case .xTickLabel:         return "tickLabelFontSize"
         case .yTickLabel:         return "tickLabelFontSize"
         case .pointLabel:         return "pointLabelFontSize"
@@ -117,6 +136,7 @@ struct WorkbenchPlotCanvas: View {
                     }
                 )
                 .overlay { legendDragPreview }
+                .overlay { seriesDragGuidePreview }
                 .overlay {
                     if let elem = editingElement {
                         editPanel(for: elem)
@@ -126,53 +146,87 @@ struct WorkbenchPlotCanvas: View {
                     .background,
                     in: RoundedRectangle(cornerRadius: 8, style: .continuous)
                 )
-                .gesture(
-                    SpatialTapGesture()
-                        .onEnded { value in
-                            handleTap(at: value.location)
-                        }
-                )
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 4)
-                        .onChanged { value in
-                            guard onLegendDrag != nil else { return }
+                .overlay {
+                    // AppKit-level mouse handler: bypasses SwiftUI gesture system blocked by NSScrollView.
+                    PlotCanvasMouseTracker(
+                        isEnabled: editingElement == nil,
+                        onTap: { handleTap(at: $0) },
+                        onDragChanged: { start, current in
                             let fitted = fittedRect(in: canvasSize)
-                            // Only treat this drag as a legend move if it started on the legend.
-                            // startLocation is constant for the gesture, so this guard is stable.
-                            guard isLocationOnLegend(value.startLocation, fittedRect: fitted) else { return }
-                            // plotNormalized always returns a value (clamps to fitted+plot boundary).
-                            guard let cursorNorm = plotNormalized(location: value.location, fittedRect: fitted) else { return }
-                            // Capture grab offset once using startLocation (not first-frame location)
-                            // to avoid the minimumDistance:4 threshold causing a positional jump.
-                            if dragGrabOffsetNorm == nil {
-                                let startNorm = plotNormalized(location: value.startLocation, fittedRect: fitted) ?? cursorNorm
-                                let origin = currentLegendOriginNorm()
-                                dragGrabOffsetNorm = CGSize(
-                                    width:  startNorm.x - origin.x,
-                                    height: startNorm.y - origin.y
-                                )
+                            if dragMode == .none {
+                                if seriesReorderable {
+                                    if _isInLegendArea(start, fittedRect: fitted) {
+                                        guard onLegendDrag != nil else { return }
+                                        dragMode = .legend
+                                    } else if let l = layout, let p = seriesPayload {
+                                        let plotSR = WorkbenchPlotLayout.cgToScreen(
+                                            l.plotRect, fittedIn: fitted,
+                                            rendererWidth: l.rendererSize.width,
+                                            rendererHeight: l.rendererSize.height
+                                        )
+                                        if plotSR.contains(start) {
+                                            let allHaveSampleID = p.series.allSatisfy { $0.sampleID != nil }
+                                            if allHaveSampleID,
+                                               let hit = l.hitTestSeries(location: start, fittedRect: fitted, payload: p, radius: 8) {
+                                                dragMode = .series(sampleID: hit.sampleID)
+                                            }
+                                        }
+                                        if case .none = dragMode { return }
+                                    } else { return }
+                                } else {
+                                    guard onLegendDrag != nil else { return }
+                                    dragMode = .legend
+                                }
                             }
-                            let grab = dragGrabOffsetNorm ?? .zero
-                            // Legend origin follows cursor minus the grab offset.
-                            // cursorNorm is already clamped to [0,1] so adjusted is too.
-                            let adjusted = CGPoint(
-                                x: min(max(cursorNorm.x - grab.width,  0), 1),
-                                y: min(max(cursorNorm.y - grab.height, 0), 1)
-                            )
-                            lastValidDragNorm = adjusted
-                            dragPreviewPt = legendScreenOrigin(normalized: adjusted, fittedRect: fitted)
+                            switch dragMode {
+                            case .none: return
+                            case .legend:
+                                guard let cursorNorm = plotNormalized(location: current, fittedRect: fitted) else { return }
+                                if dragGrabOffsetNorm == nil {
+                                    let startNorm = plotNormalized(location: start, fittedRect: fitted) ?? cursorNorm
+                                    let origin = currentLegendOriginNorm()
+                                    dragGrabOffsetNorm = CGSize(
+                                        width:  startNorm.x - origin.x,
+                                        height: startNorm.y - origin.y
+                                    )
+                                }
+                                let grab = dragGrabOffsetNorm ?? .zero
+                                let adjusted = CGPoint(
+                                    x: min(max(cursorNorm.x - grab.width,  0), 1),
+                                    y: min(max(cursorNorm.y - grab.height, 0), 1)
+                                )
+                                lastValidDragNorm = adjusted
+                                dragPreviewPt = legendScreenOrigin(normalized: adjusted, fittedRect: fitted)
+                            case .series:
+                                seriesGuideYScreen = current.y
+                            }
+                        },
+                        onDragEnded: { _, _ in
+                            switch dragMode {
+                            case .none: break
+                            case .legend:
+                                let last = lastValidDragNorm
+                                dragPreviewPt      = nil
+                                dragGrabOffsetNorm = nil
+                                lastValidDragNorm  = nil
+                                if let callback = onLegendDrag, let finalNorm = last {
+                                    callback(finalNorm)
+                                }
+                            case .series(let sampleID):
+                                if let p = seriesPayload, let l = layout, let guideY = seriesGuideYScreen {
+                                    let fitted = fittedRect(in: canvasSize)
+                                    let newOrder = _computeNewSeriesOrder(
+                                        draggedSampleID: sampleID, guideYScreen: guideY,
+                                        payload: p, layout: l, fittedRect: fitted
+                                    )
+                                    onSeriesOrderCommit?(newOrder)
+                                }
+                                seriesGuideYScreen = nil
+                            }
+                            dragMode = .none
                         }
-                        .onEnded { value in
-                            let last = lastValidDragNorm
-                            dragPreviewPt      = nil
-                            dragGrabOffsetNorm = nil
-                            lastValidDragNorm  = nil
-                            guard let callback = onLegendDrag, let finalNorm = last else { return }
-                            // finalNorm is already clamped to [0,1] from onChanged.
-                            // It matches exactly the last preview position, so landing = preview.
-                            callback(finalNorm)
-                        }
-                )
+                    )
+                }
                 .onAppear {
                     rendererPixelSize = Self.extractRendererPixelSize(from: nsImage) ?? Self.defaultRendererSize
                 }
@@ -191,12 +245,17 @@ struct WorkbenchPlotCanvas: View {
                             }
                         }
                     }
+                    if onResetSeriesOrder != nil {
+                        Divider()
+                        Button("Reset Curve Order") { onResetSeriesOrder?() }
+                            .disabled(!seriesReorderable || currentSeriesOrder == nil)
+                    }
                 }
                 .hoverPopover(
                     showDelay: .seconds(1),
                     dismissDelay: .milliseconds(500),
                     arrowEdge: .trailing,
-                    isEnabled: relatedCharts?.isEmpty == false
+                    isEnabled: relatedCharts?.isEmpty == false && dragMode == .none
                 ) { onHoverChanged, onDialogActiveChanged in
                     MeasurementPlotPreviewPanel(
                         references: relatedCharts ?? [],
@@ -252,22 +311,79 @@ struct WorkbenchPlotCanvas: View {
         }
     }
 
-    /// Whether a screen-space location falls inside the visible legend block.
-    /// Used to gate the legend drag so dragging elsewhere on the canvas doesn't move the legend.
-    private func isLocationOnLegend(_ location: CGPoint, fittedRect: CGRect) -> Bool {
-        guard let layout, !layout.legendRows.isEmpty,
-              fittedRect.width > 0, fittedRect.height > 0 else { return false }
-        var union = layout.legendRows[0].hitRect
-        for row in layout.legendRows.dropFirst() {
-            union = union.union(row.hitRect)
+    // MARK: - Series drag guide
+
+    @ViewBuilder
+    private var seriesDragGuidePreview: some View {
+        if case .series = dragMode, let yScreen = seriesGuideYScreen, let l = layout {
+            let fitted = fittedRect(in: canvasSize)
+            if fitted.width > 0 {
+                let scaleX = fitted.width / l.rendererSize.width
+                let plotMinX = fitted.minX + l.plotRect.minX * scaleX
+                let plotMaxX = fitted.minX + l.plotRect.maxX * scaleX
+                Path { p in
+                    p.move(to: CGPoint(x: plotMinX, y: yScreen))
+                    p.addLine(to: CGPoint(x: plotMaxX, y: yScreen))
+                }
+                .stroke(
+                    Color.accentColor.opacity(0.85),
+                    style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])
+                )
+            }
         }
-        let screen = WorkbenchPlotLayout.cgToScreen(
-            union,
-            fittedIn: fittedRect,
-            rendererWidth:  layout.rendererSize.width,
-            rendererHeight: layout.rendererSize.height
-        )
-        return screen.contains(location)
+    }
+
+    private func _isInLegendArea(_ location: CGPoint, fittedRect: CGRect) -> Bool {
+        guard let l = layout else { return false }
+        for row in l.legendRows {
+            let screenRect = WorkbenchPlotLayout.cgToScreen(
+                row.hitRect, fittedIn: fittedRect,
+                rendererWidth: l.rendererSize.width, rendererHeight: l.rendererSize.height
+            )
+            if screenRect.contains(location) { return true }
+        }
+        return false
+    }
+
+    private func _computeNewSeriesOrder(
+        draggedSampleID: String,
+        guideYScreen: CGFloat,
+        payload: WorkbenchPlotPayload,
+        layout: WorkbenchPlotLayout,
+        fittedRect: CGRect
+    ) -> [String] {
+        let series = payload.series
+        let allX = series.flatMap(\.x)
+        let allY = series.flatMap(\.y)
+        guard !allX.isEmpty else { return series.compactMap(\.sampleID) }
+
+        let xRaw = allX.min()!, xRawMax = allX.max()!
+        let yRaw = allY.min()!, yRawMax = allY.max()!
+        let yRawSpan = yRawMax == yRaw ? 1.0 : yRawMax - yRaw
+        let yMin = yRaw - yRawSpan * 0.05
+        let yMax = yRawMax + yRawSpan * 0.05
+        let ySpan = yMax - yMin
+        guard ySpan > 0 else { return series.compactMap(\.sampleID) }
+        _ = xRaw; _ = xRawMax   // suppress unused warnings
+
+        let scaleY = fittedRect.height / layout.rendererSize.height
+
+        func cgToScreenY(_ y: Double) -> CGFloat {
+            let cgY = layout.plotRect.minY + CGFloat((y - yMin) / ySpan) * layout.plotRect.height
+            return fittedRect.minY + (layout.rendererSize.height - cgY) * scaleY
+        }
+
+        var pairs: [(id: String, screenY: CGFloat)] = []
+        for s in series {
+            guard let id = s.sampleID, !s.y.isEmpty else { continue }
+            let y: CGFloat = id == draggedSampleID
+                ? guideYScreen
+                : cgToScreenY(s.y[s.y.count / 2])
+            pairs.append((id, y))
+        }
+
+        // Screen y ascending = top → bottom; seriesOrder is bottom → top, so reverse.
+        return pairs.sorted { $0.screenY < $1.screenY }.reversed().map(\.id)
     }
 
     /// Returns the current legend origin as a normalized plot point (x,y ∈ [0,1], Y-up).
@@ -299,7 +415,7 @@ struct WorkbenchPlotCanvas: View {
             case .title:            return "Title"
             case .xLabel:           return "X Label"
             case .yLabel:           return "Y Label"
-            case .legend(_, let orig): return "Legend · \(orig)"
+            case .legend(_, let orig):  return "Legend · \(orig)"
             case .xTickLabel:       return "X Tick"
             case .yTickLabel:       return "Y Tick"
             case .pointLabel:       return "Point Label"
@@ -465,9 +581,15 @@ struct WorkbenchPlotCanvas: View {
             for row in layout.legendRows {
                 let sr = toScreen(row.hitRect)
                 if sr.contains(location) {
-                    editText = seriesLabelOverrides[row.seriesIndex] ?? row.originalLabel
+                    let key: String
+                    if let sid = seriesPayload?.series[safe: row.seriesIndex]?.sampleID {
+                        key = sid
+                    } else {
+                        key = String(row.seriesIndex)
+                    }
+                    editText = seriesLabelOverrides[key] ?? row.originalLabel
                     editTargetScreenRect = sr
-                    editingElement = .legend(seriesIndex: row.seriesIndex, originalLabel: row.originalLabel)
+                    editingElement = .legend(key: key, originalLabel: row.originalLabel)
                     return
                 }
             }
@@ -476,7 +598,13 @@ struct WorkbenchPlotCanvas: View {
         if onTogglePointLabelVisibility != nil, !layout.pointDotHitTargets.isEmpty {
             for target in layout.pointDotHitTargets {
                 if toScreen(target.hitRect).contains(location) {
-                    onTogglePointLabelVisibility?(target.seriesIndex, target.pointIndex)
+                    let key: String
+                    if let sid = seriesPayload?.series[safe: target.seriesIndex]?.sampleID {
+                        key = sid
+                    } else {
+                        key = String(target.seriesIndex)
+                    }
+                    onTogglePointLabelVisibility?(key, target.pointIndex)
                     return
                 }
             }
@@ -514,7 +642,7 @@ struct WorkbenchPlotCanvas: View {
         case .title:              onEditTitle?(text)
         case .xLabel:             onEditXLabel?(text)
         case .yLabel:             onEditYLabel?(text)
-        case .legend(let idx, _): onEditLegendLabel?(idx, text)
+        case .legend(let key, _): onEditLegendLabel?(key, text)
         case .xTickLabel, .yTickLabel, .pointLabel, .pointDot: break
         }
         editingElement = nil

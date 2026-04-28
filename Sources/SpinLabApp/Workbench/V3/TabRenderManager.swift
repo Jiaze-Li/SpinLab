@@ -29,16 +29,19 @@ struct TabRenderState: Codable, Hashable, Sendable {
     var titleOverride: String = ""
     var xLabelOverride: String = ""
     var yLabelOverride: String = ""
-    var seriesLabelOverrides: [Int: String] = [:]
-    var hiddenPointLabelIndicesBySeries: [Int: [Int]] = [:]
+    var seriesLabelOverrides: [String: String] = [:]
+    var hiddenPointLabelIndicesBySeries: [String: [Int]] = [:]
+    /// User-defined bottom-to-top series order by sampleID. nil = use workflow default. (v5.3.6)
+    var seriesOrder: [String]? = nil
 
     init(
         legendPoint: CGPointCodable? = nil,
         titleOverride: String = "",
         xLabelOverride: String = "",
         yLabelOverride: String = "",
-        seriesLabelOverrides: [Int: String] = [:],
-        hiddenPointLabelIndicesBySeries: [Int: [Int]] = [:]
+        seriesLabelOverrides: [String: String] = [:],
+        hiddenPointLabelIndicesBySeries: [String: [Int]] = [:],
+        seriesOrder: [String]? = nil
     ) {
         self.legendPoint = legendPoint
         self.titleOverride = titleOverride
@@ -46,6 +49,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         self.yLabelOverride = yLabelOverride
         self.seriesLabelOverrides = seriesLabelOverrides
         self.hiddenPointLabelIndicesBySeries = hiddenPointLabelIndicesBySeries
+        self.seriesOrder = seriesOrder
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -55,6 +59,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         case yLabelOverride
         case seriesLabelOverrides
         case hiddenPointLabelIndicesBySeries
+        case seriesOrder
     }
 
     init(from decoder: Decoder) throws {
@@ -63,8 +68,9 @@ struct TabRenderState: Codable, Hashable, Sendable {
         titleOverride = try c.decodeIfPresent(String.self, forKey: .titleOverride) ?? ""
         xLabelOverride = try c.decodeIfPresent(String.self, forKey: .xLabelOverride) ?? ""
         yLabelOverride = try c.decodeIfPresent(String.self, forKey: .yLabelOverride) ?? ""
-        seriesLabelOverrides = try c.decodeIfPresent([Int: String].self, forKey: .seriesLabelOverrides) ?? [:]
-        hiddenPointLabelIndicesBySeries = try c.decodeIfPresent([Int: [Int]].self, forKey: .hiddenPointLabelIndicesBySeries) ?? [:]
+        seriesLabelOverrides = try c.decodeIfPresent([String: String].self, forKey: .seriesLabelOverrides) ?? [:]
+        hiddenPointLabelIndicesBySeries = try c.decodeIfPresent([String: [Int]].self, forKey: .hiddenPointLabelIndicesBySeries) ?? [:]
+        seriesOrder = try c.decodeIfPresent([String].self, forKey: .seriesOrder)
     }
 }
 
@@ -164,7 +170,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     var activeManifestPayload: WorkbenchPlotPayload? { activeOutput.manifestPayload }
 
     /// Active tab's series label overrides (convenience for canvas).
-    var activeSeriesLabelOverrides: [Int: String] {
+    var activeSeriesLabelOverrides: [String: String] {
         activeState.seriesLabelOverrides
     }
 
@@ -196,32 +202,31 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         tabStates[activeTab, default: TabRenderState()].yLabelOverride = label
     }
 
-    func updateSeriesLabel(index: Int, newLabel: String) {
+    func updateSeriesLabel(sampleID: String, newLabel: String) {
         let trimmed = newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            tabStates[activeTab, default: TabRenderState()].seriesLabelOverrides.removeValue(forKey: index)
+            tabStates[activeTab, default: TabRenderState()].seriesLabelOverrides.removeValue(forKey: sampleID)
         } else {
-            tabStates[activeTab, default: TabRenderState()].seriesLabelOverrides[index] = trimmed
+            tabStates[activeTab, default: TabRenderState()].seriesLabelOverrides[sampleID] = trimmed
         }
     }
 
     // Toggle a point label's visibility for the active tab.
-    func togglePointLabelVisibility(seriesIndex: Int, pointIndex: Int) {
+    func togglePointLabelVisibility(sampleID: String, pointIndex: Int) {
         var hidden = tabStates[activeTab, default: TabRenderState()].hiddenPointLabelIndicesBySeries
-        var indices = Set(hidden[seriesIndex] ?? [])
+        var indices = Set(hidden[sampleID] ?? [])
         if indices.contains(pointIndex) {
             indices.remove(pointIndex)
         } else {
             indices.insert(pointIndex)
         }
-        hidden[seriesIndex] = indices.isEmpty ? nil : indices.sorted()
+        hidden[sampleID] = indices.isEmpty ? nil : indices.sorted()
         tabStates[activeTab, default: TabRenderState()].hiddenPointLabelIndicesBySeries = hidden
     }
 
-    // Returns the hidden-point-label set for a given tab (runtime format for O(1) lookup).
-    func hiddenPointLabelSet(for tab: Tab) -> [Int: Set<Int>] {
-        let indices = (tabStates[tab] ?? TabRenderState()).hiddenPointLabelIndicesBySeries
-        return indices.mapValues { Set($0) }
+    // Returns the hidden-point-label indices for a given tab, keyed by sampleID or Int-string.
+    func hiddenPointLabelsBySampleID(for tab: Tab) -> [String: [Int]] {
+        (tabStates[tab] ?? TabRenderState()).hiddenPointLabelIndicesBySeries
     }
 
     // MARK: - Render output management
@@ -265,12 +270,13 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             legendPoint: s.legendPoint?.cgPoint,
             seriesRenderMode: seriesRenderMode,
             chartStyleOverrides: chartStyleOverrides,
-            seriesLabelOverrides: s.seriesLabelOverrides,
+            seriesLabelOverrides: toIndexedOverrides(s.seriesLabelOverrides, series: payload.series),
             titleOverride: s.titleOverride,
             xLabelOverride: s.xLabelOverride,
             yLabelOverride: s.yLabelOverride,
-            hiddenPointLabelsBySeries: hiddenPointLabelSet(for: targetTab),
-            styleParamsPatch: patch
+            hiddenPointLabelsBySeries: toIndexedOverrides(hiddenPointLabelsBySampleID(for: targetTab), series: payload.series).mapValues { Set($0) },
+            styleParamsPatch: patch,
+            seriesOrder: s.seriesOrder
         )
     }
 
@@ -280,13 +286,30 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         tabOutputs = [:]
     }
 
-    /// Clears per-tab display overrides (title, axis, series labels) but preserves legend positions.
-    /// Legend positions are canvas preferences that persist across re-analyses.
+    /// Clears per-tab display overrides (title, axis, series labels) but preserves
+    /// legend positions and series order — both are canvas preferences that survive re-analysis.
     func clearStates() {
         for tab in tabStates.keys {
-            let legendPoint = tabStates[tab]?.legendPoint
-            tabStates[tab] = legendPoint.map { TabRenderState(legendPoint: $0) }
+            let lp = tabStates[tab]?.legendPoint
+            let so = tabStates[tab]?.seriesOrder
+            if lp != nil || so != nil {
+                tabStates[tab] = TabRenderState(legendPoint: lp, seriesOrder: so)
+            } else {
+                tabStates[tab] = nil
+            }
         }
+    }
+
+    func updateSeriesOrder(_ order: [String]?) {
+        if let order, !order.isEmpty {
+            tabStates[activeTab, default: TabRenderState()].seriesOrder = order
+        } else {
+            tabStates[activeTab, default: TabRenderState()].seriesOrder = nil
+        }
+    }
+
+    func resetSeriesOrder() {
+        tabStates[activeTab]?.seriesOrder = nil
     }
 
     /// Clears outputs and per-tab overrides, preserving legend positions.
@@ -312,5 +335,47 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
                 tabStates[tab] = state
             }
         }
+    }
+}
+
+// MARK: - Translation helpers
+
+/// Translates a sampleID-keyed or Int-string-keyed dictionary to index-keyed.
+/// - Int-parseable key → direct index (AHE/XY fallback path)
+/// - Otherwise → first index in series where sampleID matches (3ω path)
+func toIndexedOverrides<V>(_ stringKeyed: [String: V], series: [WorkbenchPlotSeries]) -> [Int: V] {
+    var result: [Int: V] = [:]
+    for (key, value) in stringKeyed {
+        if let idx = Int(key) {
+            result[idx] = value
+        } else if let idx = series.firstIndex(where: { $0.sampleID == key }) {
+            result[idx] = value
+        }
+    }
+    return result
+}
+
+/// Migrates TabRenderState from Int-string keys (5.3.5 and earlier) to sampleID keys.
+/// No-ops if keys are not pure Int-string format (already migrated or sampleID-keyed).
+func migrateStateIfNeeded(_ state: inout TabRenderState, series: [WorkbenchPlotSeries]) {
+    let labelsAreIntKeys = state.seriesLabelOverrides.keys.allSatisfy { Int($0) != nil }
+    if labelsAreIntKeys && !state.seriesLabelOverrides.isEmpty {
+        var migrated: [String: String] = [:]
+        for (key, value) in state.seriesLabelOverrides {
+            if let idx = Int(key), idx < series.count, let sid = series[idx].sampleID {
+                migrated[sid] = value
+            }
+        }
+        state.seriesLabelOverrides = migrated
+    }
+    let hiddenAreIntKeys = state.hiddenPointLabelIndicesBySeries.keys.allSatisfy { Int($0) != nil }
+    if hiddenAreIntKeys && !state.hiddenPointLabelIndicesBySeries.isEmpty {
+        var migrated: [String: [Int]] = [:]
+        for (key, value) in state.hiddenPointLabelIndicesBySeries {
+            if let idx = Int(key), idx < series.count, let sid = series[idx].sampleID {
+                migrated[sid] = value
+            }
+        }
+        state.hiddenPointLabelIndicesBySeries = migrated
     }
 }

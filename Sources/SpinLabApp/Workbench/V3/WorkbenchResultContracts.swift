@@ -17,6 +17,7 @@ struct WorkbenchPlotSeries: Hashable, Sendable {
     var x: [Double]
     var y: [Double]
     var sourceRef: String?
+    var sampleID: String?        // v5.3.6: stable series identity; nil = pre-5.3.6 data
     var renderMode: SeriesRenderMode
     var pointLabels: [String]   // per-point annotation text for scatter series (empty = none)
     var lineWidth: Double        // line width for line series; default 1.5
@@ -35,6 +36,7 @@ struct WorkbenchPlotSeries: Hashable, Sendable {
         x: [Double],
         y: [Double],
         sourceRef: String? = nil,
+        sampleID: String? = nil,
         renderMode: SeriesRenderMode = .line,
         renderModeLocked: Bool = false,
         pointLabels: [String] = [],
@@ -45,6 +47,7 @@ struct WorkbenchPlotSeries: Hashable, Sendable {
         self.x = x
         self.y = y
         self.sourceRef = sourceRef
+        self.sampleID = sampleID
         self.renderMode = renderMode
         self.renderModeLocked = renderModeLocked
         self.pointLabels = pointLabels
@@ -77,7 +80,7 @@ struct WorkbenchPlotSeries: Hashable, Sendable {
 
 extension WorkbenchPlotSeries: Codable {
     private enum CodingKeys: String, CodingKey {
-        case label, x, y, sourceRef, renderMode, renderModeLocked, pointLabels, lineWidth, metadata
+        case label, x, y, sourceRef, sampleID, renderMode, renderModeLocked, pointLabels, lineWidth, metadata
         case isScatter  // legacy key — read-only
     }
 
@@ -87,6 +90,7 @@ extension WorkbenchPlotSeries: Codable {
         x           = try c.decode([Double].self, forKey: .x)
         y           = try c.decode([Double].self, forKey: .y)
         sourceRef   = try c.decodeIfPresent(String.self, forKey: .sourceRef)
+        sampleID    = try c.decodeIfPresent(String.self, forKey: .sampleID)
         pointLabels = try c.decodeIfPresent([String].self, forKey: .pointLabels) ?? []
         lineWidth   = try c.decodeIfPresent(Double.self, forKey: .lineWidth) ?? 1.5
         renderModeLocked = try c.decodeIfPresent(Bool.self, forKey: .renderModeLocked) ?? false
@@ -107,6 +111,7 @@ extension WorkbenchPlotSeries: Codable {
         try c.encode(x, forKey: .x)
         try c.encode(y, forKey: .y)
         try c.encodeIfPresent(sourceRef, forKey: .sourceRef)
+        try c.encodeIfPresent(sampleID, forKey: .sampleID)
         try c.encode(renderMode, forKey: .renderMode)
         if renderModeLocked { try c.encode(true, forKey: .renderModeLocked) }
         try c.encode(pointLabels, forKey: .pointLabels)
@@ -134,6 +139,10 @@ struct WorkbenchPlotPayload: Codable, Hashable, Sendable {
     /// appears first in the legend (index 0 = legend top = visual top). Default true. (v5.3.4)
     var reverseSeriesForLegend: Bool
 
+    /// When true, WorkbenchPlotCanvas allows the user to drag-reorder curves. (v5.3.6)
+    /// Only stacked plots (R(1ω), R(3ω)) opt in; non-stacked plots leave this false.
+    var seriesReorderable: Bool
+
     init(
         schemaVersion: Int = 1,
         workflowID: String,
@@ -144,7 +153,8 @@ struct WorkbenchPlotPayload: Codable, Hashable, Sendable {
         semanticParams: [String: String] = [:],
         styleParams: [String: String] = [:],
         legendDimension: String? = nil,
-        reverseSeriesForLegend: Bool = false
+        reverseSeriesForLegend: Bool = false,
+        seriesReorderable: Bool = false
     ) {
         self.schemaVersion = schemaVersion
         self.workflowID = workflowID
@@ -156,6 +166,7 @@ struct WorkbenchPlotPayload: Codable, Hashable, Sendable {
         self.styleParams = styleParams
         self.legendDimension = legendDimension
         self.reverseSeriesForLegend = reverseSeriesForLegend
+        self.seriesReorderable = seriesReorderable
     }
 
     // Backward-compatible decode: legendDimension defaults nil, reverseSeriesForLegend defaults false
@@ -172,6 +183,7 @@ struct WorkbenchPlotPayload: Codable, Hashable, Sendable {
         styleParams            = try c.decode([String: String].self, forKey: .styleParams)
         legendDimension        = try c.decodeIfPresent(String.self, forKey: .legendDimension)
         reverseSeriesForLegend = try c.decodeIfPresent(Bool.self, forKey: .reverseSeriesForLegend) ?? false
+        seriesReorderable      = try c.decodeIfPresent(Bool.self, forKey: .seriesReorderable) ?? false
     }
 }
 
@@ -437,5 +449,11 @@ struct WorkbenchMeasurementDataStore: Codable, Hashable, Sendable {
             canonicalUnit: record.canonicalUnit,
             generatedAt: record.generatedAt
         )
+    }
+}
+
+extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }

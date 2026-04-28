@@ -5,12 +5,12 @@ import XCTest
 final class V535TabRenderStatePackTests: XCTestCase {
 
     func testCodableRoundtrip() throws {
-        let state = TabRenderState(hiddenPointLabelIndicesBySeries: [0: [1, 3]])
+        let state = TabRenderState(hiddenPointLabelIndicesBySeries: ["0": [1, 3]])
 
         let data = try JSONEncoder().encode(state)
         let decoded = try JSONDecoder().decode(TabRenderState.self, from: data)
 
-        XCTAssertEqual(decoded.hiddenPointLabelIndicesBySeries, [0: [1, 3]])
+        XCTAssertEqual(decoded.hiddenPointLabelIndicesBySeries, ["0": [1, 3]])
     }
 
     func testOldPackMissingField() throws {

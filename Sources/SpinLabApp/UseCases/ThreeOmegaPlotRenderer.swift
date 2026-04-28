@@ -34,13 +34,15 @@ struct ThreeOmegaPlotRenderer {
 
     mutating func renderAllTabs(
         result: ThreeOmegaIngestionResult,
+        seriesOrder1omega: [String]? = nil,
+        seriesOrder3omega: [String]? = nil,
         rahe1Method: ThreeOmegaV3Method = .highField,
         rahe3Method: ThreeOmegaV3Method = .highField
     ) -> ThreeOmegaRenderedPlots {
         collectedWarnings = []
         var plots = ThreeOmegaRenderedPlots()
-        (plots.r1omega,  plots.layoutR1omega)  = renderR1omega(sweeps: result.fieldSweeps, device: result.device)
-        (plots.r3omega,  plots.layoutR3omega)  = renderR3omega(sweeps: result.fieldSweeps, device: result.device)
+        (plots.r1omega,  plots.layoutR1omega)  = renderR1omega(sweeps: result.fieldSweeps, device: result.device, seriesOrder: seriesOrder1omega)
+        (plots.r3omega,  plots.layoutR3omega)  = renderR3omega(sweeps: result.fieldSweeps, device: result.device, seriesOrder: seriesOrder3omega)
         (plots.rahe1omegaVsT, plots.layoutRAHE1omegaVsT) = renderRAHE1omegaVsT(sweeps: result.fieldSweeps, device: result.device, method: rahe1Method)
         (plots.rahe3omegaVsT, plots.layoutRAHE3omegaVsT) = renderRAHE3omegaVsT(sweeps: result.fieldSweeps, device: result.device, method: rahe3Method)
         (plots.hcVsT,    plots.layoutHcVsT)    = renderHcVsT(sweeps: result.fieldSweeps, device: result.device)
@@ -55,18 +57,51 @@ struct ThreeOmegaPlotRenderer {
     // MARK: - Individual tab renderers
 
     /// Tab 1: R(1ω) vs H, stacked by temperature
-    mutating func renderR1omega(sweeps: [ThreeOmegaFieldSweepResult], device: String) -> (Data?, WorkbenchPlotLayout?) {
+    mutating func renderR1omega(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        device: String,
+        seriesOrder: [String]? = nil
+    ) -> (Data?, WorkbenchPlotLayout?) {
         guard !sweeps.isEmpty else { return (nil, nil) }
+        let orderedSweeps: [ThreeOmegaFieldSweepResult]
+        if let order = seriesOrder, !order.isEmpty {
+            var bySampleID: [String: ThreeOmegaFieldSweepResult] = [:]
+            var withoutID: [ThreeOmegaFieldSweepResult] = []
+            for sweep in sweeps {
+                if let id = sweep.sampleID {
+                    bySampleID[id] = sweep
+                } else {
+                    withoutID.append(sweep)
+                }
+            }
+            var result: [ThreeOmegaFieldSweepResult] = []
+            var consumed: Set<String> = []
+            for id in order {
+                if let sweep = bySampleID[id] {
+                    result.append(sweep)
+                    consumed.insert(id)
+                }
+            }
+            for sweep in sweeps where sweep.sampleID.map({ !consumed.contains($0) }) ?? false {
+                result.append(sweep)
+            }
+            result.append(contentsOf: withoutID)
+            orderedSweeps = result
+        } else {
+            orderedSweeps = sweeps
+        }
+
         let offsets = ThreeOmegaStackOffsetUseCase().execute(
-            yValues: sweeps.map { $0.r1omega },
+            yValues: orderedSweeps.map { $0.r1omega },
             multiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction
         )
-        let series = zip(sweeps, offsets).map { (sweep, offset) in
+        let series = zip(orderedSweeps, offsets).map { (sweep, offset) in
             WorkbenchPlotSeries(
                 label: _tempLabel(sweep.temperatureK),
                 x: sweep.hField.map { $0 / 10000 },
                 y: sweep.r1omega.map { $0 + offset },
+                sampleID: sweep.sampleID,
                 metadata: sweep.sampleMetadata ?? [:]
             )
         }
@@ -78,24 +113,58 @@ struct ThreeOmegaPlotRenderer {
             // Formula: R(1ω)(H) = V¹ω_X(H) / I_rms, centered, then stacked by temperature
             axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: yLabel),
             series: series,
-            reverseSeriesForLegend: true
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
         )
         return _render(payload: &payload, options: _stackedOptions(sweepCount: sweeps.count))
     }
 
     /// Tab 2: R(3ω) vs H, stacked by temperature
-    mutating func renderR3omega(sweeps: [ThreeOmegaFieldSweepResult], device: String) -> (Data?, WorkbenchPlotLayout?) {
+    mutating func renderR3omega(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        device: String,
+        seriesOrder: [String]? = nil
+    ) -> (Data?, WorkbenchPlotLayout?) {
         guard !sweeps.isEmpty else { return (nil, nil) }
+        let orderedSweeps: [ThreeOmegaFieldSweepResult]
+        if let order = seriesOrder, !order.isEmpty {
+            var bySampleID: [String: ThreeOmegaFieldSweepResult] = [:]
+            var withoutID: [ThreeOmegaFieldSweepResult] = []
+            for sweep in sweeps {
+                if let id = sweep.sampleID {
+                    bySampleID[id] = sweep
+                } else {
+                    withoutID.append(sweep)
+                }
+            }
+            var result: [ThreeOmegaFieldSweepResult] = []
+            var consumed: Set<String> = []
+            for id in order {
+                if let sweep = bySampleID[id] {
+                    result.append(sweep)
+                    consumed.insert(id)
+                }
+            }
+            for sweep in sweeps where sweep.sampleID.map({ !consumed.contains($0) }) ?? false {
+                result.append(sweep)
+            }
+            result.append(contentsOf: withoutID)
+            orderedSweeps = result
+        } else {
+            orderedSweeps = sweeps
+        }
+
         let offsets = ThreeOmegaStackOffsetUseCase().execute(
-            yValues: sweeps.map { $0.r3omega },
+            yValues: orderedSweeps.map { $0.r3omega },
             multiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction
         )
-        let series = zip(sweeps, offsets).map { (sweep, offset) in
+        let series = zip(orderedSweeps, offsets).map { (sweep, offset) in
             WorkbenchPlotSeries(
                 label: _tempLabel(sweep.temperatureK),
                 x: sweep.hField.map { $0 / 10000 },
                 y: sweep.r3omega.map { $0 + offset },
+                sampleID: sweep.sampleID,
                 metadata: sweep.sampleMetadata ?? [:]
             )
         }
@@ -107,7 +176,8 @@ struct ThreeOmegaPlotRenderer {
             // Formula: R(3ω)(H) = V³ω_X(H) / I_rms, centered, then stacked by temperature
             axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: yLabel),
             series: series,
-            reverseSeriesForLegend: true
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
         )
         return _render(payload: &payload, options: _stackedOptions(sweepCount: sweeps.count))
     }
