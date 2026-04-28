@@ -8,7 +8,8 @@
 
 | 文档 | 用途 |
 |---|---|
-| [`docs/V5_ROADMAP.md` §5.1.6](../V5_ROADMAP.md) | 立项依据、s1–s4 任务拆分、7 AG、否决方案 |
+| [`docs/V5_ROADMAP.md` §5.1.6](../V5_ROADMAP.md) | 立项依据、动机、顶层原则、实施方案入口 |
+| [`docs/handoff/2026-04-28-5.1.6-architecture-index.md`](../handoff/2026-04-28-5.1.6-architecture-index.md) | 实施方案：拍板要点、s1–s4 任务拆分、7 AG、否决方案 |
 | [`docs/V5_ROADMAP.md` §5.1.8](../V5_ROADMAP.md) | 5.1.6 完成后首条结构债清理（条件解耦）|
 | [`docs/TASK_BOARD.md`](../TASK_BOARD.md) | 5.1.6 / 5.1.8 进行中状态 |
 | [`docs/philosophy.md` Shell & Composition](../philosophy.md) | 通用 shell 优先 + 内部分层哲学（顶层原则 #4 来源）|
@@ -44,6 +45,17 @@
 每会话结束统计每区块的 `[暧昧]` 比例（含未归属未填）：
 - 任一区块 `[暧昧]` 比例 > 20–25% → **必须停下补一轮抽样校准定义**，不要继续扩大误差
 - 全表 `[暧昧]` 比例 > 15% → 检查区块定义本身是否粒度不对
+
+## 锚点归属判例（s1.a）
+
+1. `Domain/*.swift`：即使被 Inbox / Library / Workbench 同时消费，也归「跨区共享 / Domain」。它们是领域契约，不按当前消费者改归属。
+2. `SpinLabAppState.swift`：归「跨区共享 / AppShell」。它暴露 feature stores 并做跨 store 协调，不是单一业务 FeatureStore。
+3. `InboxFeatureStore.swift`：归「Inbox / Store」。它拥有 pending imports、routing state、import task 和 Inbox interaction restore。
+4. `LibraryFeatureStore.swift` 及其扩展：归「Library / Store」。扩展文件跟随主 store，不因在 `App/State` 目录下改归跨区。
+5. `WorkbenchFeatureStore.swift`：归「Workbench / Store」，但标共享候选。它包含 condition/rule draft 类型，后续 s3 需确认是否存在 Rules↔Workbench 协调面迁移。
+6. `AnalysisVault.swift`：归「Workbench / Store」。文件注释明确由 WorkbenchFeatureStore owning，persistence 也是 analysis pack 语义。
+7. `AppRouter.swift` / `RootSplitView.swift` / sidebar 相关文件：归「跨区共享 / UI or Navigation」。导航和根 shell 是全局 concerns。
+8. `App/` 下 service 不按目录归属：`Inbox*` / `ApplyCoordinator` / `PendingCleanupService` 归 Inbox；`Library*` 归 Library；`Registry*` 暂归跨区共享（Inbox routing + Library registry preview 双消费）。
 
 ---
 
@@ -124,9 +136,9 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 
 ### Top-level（Sources/SpinLabApp 下）
 
-- [ ] `App/` (29 swift)
-- [ ] `App/State/` (14)
-- [ ] `Domain/` (4)
+- [x] `App/` (29 swift)
+- [x] `App/State/` (14)
+- [x] `Domain/` (4)
 - [ ] `UseCases/` (30)
 - [ ] `UI/` (7)
 - [ ] `Extensions/` (1)
@@ -138,14 +150,14 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 - [ ] `Library/` (13)
 - [ ] `Workbench/` (0 顶层 + V3 子目录)
 - [ ] `Workbench/V3/` (16)
-- [ ] `Import/` (2 顶层)
-- [ ] `Import/Parse/` (4)
-- [ ] `Import/Route/` (3)
-- [ ] `Import/Match/` (1)
-- [ ] `Import/Evaluate/` (3)
-- [ ] `Import/Presentation/` (1)
+- [x] `Import/` (2 顶层)
+- [x] `Import/Parse/` (4)
+- [x] `Import/Route/` (3)
+- [x] `Import/Match/` (1)
+- [x] `Import/Evaluate/` (3)
+- [x] `Import/Presentation/` (1)
 - [ ] `Import/Rules/` (12)
-- [ ] `Features/Inbox/` (6)
+- [x] `Features/Inbox/` (6)
 - [ ] `Features/Library/` (19)
 - [ ] `Features/Workbench/` (24)
 - [ ] `Features/RulesPanel/` (5)
@@ -159,39 +171,69 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 
 | 维度 | 数值 |
 |---|---|
-| 已扫目录 | 0 / 27 |
-| 已填文件 | 0 / 217 |
+| 已扫目录 | 10 / 27 |
+| 已填文件 | 67 / 217 |
 | 暧昧条目 | 0（全表 0%；任一区块 > 20–25% 触发停下校准）|
-| 共享候选 | 0 |
-| 平行候选（附录 G） | 0（横向 H + 纵向 V 合计；目标 ≥ 5）|
+| 共享候选 | 37（含合法 cross-cutting；s3 再按 4 分类实证收敛） |
+| 平行候选（附录 G） | 4（横向 H + 纵向 V 合计；目标 ≥ 5）|
 | 死代码可疑 | 0 |
 
 ---
 
 ## File Region Assignments
 
-> 6 列宽表。每段一个区块。暧昧 / 未确定单独段。
+> 按区块分段的 8 字段表。区块由段落标题表达；暧昧 / 未确定单独段。
 
 ### Inbox
 
 | 文件 | 归属依据 | 层级预判 | 行数 | 共享 | 平行 | TODO | 测试 |
 |---|---|---|---|---|---|---|---|
-
-_(待填)_
+| `App/ApplyCoordinator.swift` | consumer: Inbox apply + Library write | Service/Orchestrator | 176 | ⭐ coordination_surface: Inbox→Library |  | 0 | direct |
+| `App/ArchivedRecordResolverService.swift` | consumer: Inbox archive apply + registry lookup | Service | 98 | ⭐ consumer: Inbox+Registry |  | 0 | behavioral |
+| `App/DuplicateGuard.swift` | consumer: Inbox import dedupe | Service | 58 |  |  | 0 | direct |
+| `App/InboxArchiveApplyService.swift` | consumer: Inbox apply to Library drawers | Service | 350 | ⭐ coordination_surface: Inbox→Library |  | 0 | direct |
+| `App/InboxFacade.swift` | consumer: AppState delegates Inbox workflows | Facade/Orchestrator | 157 | ⭐ coordination_surface: Inbox+Rules+Workbench condition options |  | 0 | behavioral |
+| `App/InboxWorkflowService.swift` | consumer: Inbox recompute + pending hints | Service | 107 | ⭐ consumer: Inbox+Rules |  | 0 | behavioral |
+| `App/PendingCleanupService.swift` | consumer: Inbox clear imports | Service | 17 |  |  | 0 | direct |
+| `App/State/InboxFeatureStore.swift` | consumer: InboxView/AppState; owns pending imports | Store | 428 |  |  | 0 | direct |
+| `App/State/InboxRoutingState.swift` | consumer: InboxFeatureStore; owns routing drafts/snapshots | Store | 301 |  |  | 0 | behavioral |
+| `Features/Inbox/InboxInspectorPanel.swift` | consumer: Inbox right-column reserved/inspector UI | UI | 102 |  |  | 0 | none |
+| `Features/Inbox/InboxOperationPanel.swift` | consumer: Inbox operations UI | UI | 258 |  |  | 0 | behavioral |
+| `Features/Inbox/InboxProgressOverlays.swift` | consumer: Inbox import/apply progress UI | UI | 85 |  |  | 0 | none |
+| `Features/Inbox/InboxSelectionWorkbenchPanel.swift` | consumer: selected pending review/edit UI | UI | 482 | ⭐ coordination_surface: Inbox UI edits route/workflow/condition drafts |  | 0 | behavioral |
+| `Features/Inbox/InboxView.swift` | consumer: RootSplitView Inbox area | UI | 64 |  |  | 0 | behavioral |
+| `Features/Inbox/InboxViewModel.swift` | consumer: InboxView local UI state | ViewModel | 58 |  |  | 0 | behavioral |
+| `Import/Evaluate/PendingRoutingRuleBook.swift` | consumer: PendingRoutingSnapshotEvaluator constants | UseCase helper | 7 |  |  | 0 | behavioral |
+| `Import/Evaluate/PendingRoutingSnapshotEvaluator.swift` | consumer: Inbox route verdict evaluation | UseCase | 113 |  |  | 0 | direct |
+| `Import/Evaluate/RoutingExplanationBook.swift` | consumer: Inbox routing explanation UI/tests | Presentation helper | 41 |  |  | 0 | direct |
+| `Import/ImportPipeline.swift` | consumer: Inbox import parse pipeline | Pipeline | 47 | ⭐ consumer: Inbox+Rules ruleProvider |  | 0 | behavioral |
+| `Import/Match/DrawerMatchEngine.swift` | consumer: Inbox drawer matching | UseCase | 96 | ⭐ consumer: Inbox+Library samples |  | 0 | direct |
+| `Import/Parse/FilenameRuleParser.swift` | consumer: import filename parsing | Parser | 441 | ⭐ consumer: Inbox+Rules ruleSet |  | 0 | direct |
+| `Import/Presentation/PendingRoutePresentation.swift` | consumer: Inbox route presentation/warnings | Presentation | 150 |  |  | 0 | direct |
+| `Import/Route/FileRoutingRuleBook.swift` | consumer: RoutePlanner sample token semantics | UseCase helper | 265 | ⭐ consumer: Inbox+Rules semantic rules |  | 0 | direct |
+| `Import/Route/RoutePlanner.swift` | consumer: Inbox route candidate planning | UseCase | 183 |  |  | 0 | direct |
+| `Import/Route/RoutingCapabilities.swift` | consumer: InboxRoutingState DI protocols | Capability protocols | 54 | ⭐ legitimate_cross_cutting within Inbox pipeline |  | 0 | behavioral |
 
 ### Library
 
 | 文件 | 归属依据 | 层级预判 | 行数 | 共享 | 平行 | TODO | 测试 |
 |---|---|---|---|---|---|---|---|
-
-_(待填)_
+| `App/LibraryDiskCleanupService.swift` | consumer: Library deletion cleanup | Service | 327 |  |  | 0 | behavioral |
+| `App/LibraryMutationService.swift` | consumer: LibraryFeatureStore mutations | Service | 402 |  |  | 0 | behavioral |
+| `App/LibraryPreviewComputationService.swift` | consumer: Library preview projection | Service | 58 |  |  | 0 | behavioral |
+| `App/State/LibraryFeatureStore.swift` | consumer: LibraryView/AppState; owns library state | Store | 1145 |  | ⭐G V: >1000 lines, projection/mutation/selection responsibilities | 0 | direct |
+| `App/State/LibraryFeatureStore+Logs.swift` | extension of LibraryFeatureStore | Store extension | 97 |  |  | 0 | direct |
+| `App/State/LibraryFeatureStore+Projection.swift` | extension of LibraryFeatureStore | Store extension | 244 |  |  | 0 | direct |
+| `App/State/LibraryFeatureStore+SampleEdit.swift` | extension of LibraryFeatureStore | Store extension | 184 |  |  | 0 | direct |
+| `App/State/LibraryState.swift` | consumer: LibraryFeatureStore legacy/simple observable state | Store | 9 |  |  | 0 | behavioral |
 
 ### Workbench
 
 | 文件 | 归属依据 | 层级预判 | 行数 | 共享 | 平行 | TODO | 测试 |
 |---|---|---|---|---|---|---|---|
-
-_(待填)_
+| `App/State/AnalysisVault.swift` | inline-doc: owned by WorkbenchFeatureStore | Store/Persistence | 135 |  |  | 0 | direct |
+| `App/State/WorkbenchFeatureStore.swift` | consumer: WorkbenchView + workflow stores | Store | 877 | ⭐ coordination_surface: Workbench+Rules condition/rule draft types | ⭐G V: large store + embedded rule projection structs | 0 | direct |
+| `App/State/WorkbenchState.swift` | consumer: WorkbenchFeatureStore state container | Store | 11 |  |  | 0 | behavioral |
 
 ### Rules
 
@@ -204,8 +246,37 @@ _(待填)_
 
 | 文件 | 归属依据 | 层级预判 | 行数 | 共享 | 平行 | TODO | 测试 |
 |---|---|---|---|---|---|---|---|
-
-_(待填)_
+| `App/AppEnvironment.swift` | consumer: SpinLabAppState dependency injection | AppShell/DI | 25 | ⭐ legitimate_cross_cutting |  | 0 | direct |
+| `App/AppError.swift` | consumer: app-wide error surface | Error model | 39 | ⭐ legitimate_cross_cutting |  | 0 | behavioral |
+| `App/AppLogger.swift` | consumer: app-wide logging | Infrastructure | 180 | ⭐ legitimate_cross_cutting |  | 0 | behavioral |
+| `App/AppVersion.swift` | consumer: RootSplitView display | AppShell | 5 |  |  | 0 | none |
+| `App/AuditEvent.swift` | consumer: AuditLogger + Inbox/Library writes | Audit model | 12 | ⭐ legitimate_cross_cutting |  | 0 | direct |
+| `App/AuditLogger.swift` | consumer: Inbox/Library audit writes | Infrastructure | 116 | ⭐ legitimate_cross_cutting |  | 0 | direct |
+| `App/InteractionMemoryStore.swift` | consumer: interaction snapshot persistence | Infrastructure | 98 | ⭐ legitimate_cross_cutting |  | 0 | direct |
+| `App/InteractionSnapshotCoordinator.swift` | consumer: AppState interaction snapshot load/save | Coordinator | 106 | ⭐ legitimate_cross_cutting |  | 0 | behavioral |
+| `App/InteractionSnapshotKeyCodec.swift` | consumer: Inbox/interaction dictionary keys | Utility | 7 | ⭐ legitimate_cross_cutting |  | 0 | behavioral |
+| `App/RegistryCoordinator.swift` | consumer: AppState/RegistryFacade; registry drives Inbox routing + Library preview | Coordinator | 103 | ⭐ coordination_surface: Inbox+Library registry |  | 0 | behavioral |
+| `App/RegistryFacade.swift` | consumer: AppState registry facade; async registry workflow | Facade/Orchestrator | 103 | ⭐ coordination_surface: Inbox+Library registry |  | 0 | behavioral |
+| `App/RegistryLifecycleService.swift` | consumer: RegistryCoordinator lifecycle helper | Service | 43 | ⭐ coordination_surface: Inbox+Library registry |  | 0 | behavioral |
+| `App/RootSplitView.swift` | consumer: app root UI + navigation | UI shell | 259 | ⭐ legitimate_cross_cutting |  | 0 | none |
+| `App/ServiceOutcome.swift` | consumer: app workflow outcome wrappers | Utility | 13 | ⭐ legitimate_cross_cutting |  | 0 | none |
+| `App/SidebarMenuModel.swift` | consumer: RootSplitView/SidebarTreeView | UI model | 70 | ⭐ legitimate_cross_cutting |  | 0 | none |
+| `App/SidebarTreeView.swift` | consumer: RootSplitView sidebar | UI shell | 123 | ⭐ legitimate_cross_cutting |  | 0 | none |
+| `App/SpinLabAppState.swift` | consumer: root environment; coordinates all stores | AppShell/Coordinator | 1816 | ⭐ coordination_surface: all stores | ⭐G V: 1800+ line app coordinator | 0 | behavioral |
+| `App/SpinLabDataActor.swift` | consumer: AppState/Registry/Library/Workbench async I/O | Data actor | 61 | ⭐ legitimate_cross_cutting |  | 0 | direct |
+| `App/SpinLabSidebarMenuProvider.swift` | consumer: RootSplitView sidebar model assembly | UI shell | 155 | ⭐ legitimate_cross_cutting |  | 0 | none |
+| `App/State/AppCoordinator.swift` | consumer: AppState cross-area route resolution | Coordinator | 28 | ⭐ legitimate_cross_cutting |  | 0 | behavioral |
+| `App/State/AppRouter.swift` | consumer: RootSplitView navigation/deep-link | Navigation | 92 | ⭐ legitimate_cross_cutting |  | 0 | none |
+| `App/State/InteractionStateModels.swift` | consumer: interaction snapshots across Inbox/Library/sidebar | Interaction model | 376 | ⭐ legitimate_cross_cutting |  | 0 | direct |
+| `App/State/RegistryFeatureStore.swift` | consumer: registry presentation used by Inbox/Library flows | Store | 13 | ⭐ coordination_surface: Registry not standalone region |  | 0 | direct |
+| `Domain/AnalysisPack.swift` | consumer: Workbench packs + tests; domain envelope | Domain | 84 | ⭐ legitimate_cross_cutting |  | 0 | direct |
+| `Domain/Models.swift` | consumer: Inbox/Library/Workbench shared domain | Domain | 474 | ⭐ legitimate_cross_cutting |  | 0 | behavioral |
+| `Domain/RecomputePreviewItem.swift` | consumer: Library recompute UI/logic | Domain/Projection | 43 |  |  | 0 | behavioral |
+| `Domain/WorkflowSearchModels.swift` | consumer: Workbench search + Library sidecar index | Domain/Search model | 102 | ⭐ legitimate_cross_cutting |  | 0 | behavioral |
+| `Import/Parse/SampleKeyNormalizer.swift` | consumer: Inbox routing + Workbench search + drawer matching | Shared parser/helper | 71 | ⭐ migration_candidate: Import helper consumed outside Inbox |  | 0 | behavioral |
+| `Import/Parse/SampleSemanticDescriptor.swift` | consumer: Inbox route + Workbench search/ingestion + Library parser | Shared domain/parser model | 130 | ⭐ migration_candidate: Domain-like type under Import |  | 0 | behavioral |
+| `Import/Parse/SampleTokenization.swift` | consumer: Inbox matching + Workbench search | Shared parser/helper | 56 | ⭐ migration_candidate: Import helper consumed outside Inbox |  | 0 | behavioral |
+| `Import/RegistrySubstrateRuleBook.swift` | consumer: AppEnvironment/ArchivedRecordResolver + registry substrate tests | Shared rulebook | 264 | ⭐ coordination_surface: Registry+Inbox+Rules |  | 0 | direct |
 
 ### `[暧昧]` 清单（s2 第二轮判断）
 
@@ -226,8 +297,23 @@ _(s2 后填)_
 
 | 文件 | 行数 | 区块 | 备注 |
 |---|---|---|---|
-
-_(待填)_
+| `App/SpinLabAppState.swift` | 1816 | 跨区共享 | App coordinator，已入附录 G |
+| `Features/Workbench/ThreeOmegaWorkspaceStore.swift` | 1517 | Workbench | 待 s1.b 判断职责边界 |
+| `Library/LibraryStore.swift` | 1537 | Library | 待 s1.b 判断职责边界 |
+| `App/State/LibraryFeatureStore.swift` | 1145 | Library | Store 主体，已入附录 G |
+| `Import/Rules/RulesBootstrapper.swift` | 1117 | Rules | 待 s1.c 判断职责边界 |
+| `Import/Rules/FilenameRuleSet.swift` | 956 | Rules | 待 s1.c 判断职责边界 |
+| `App/State/WorkbenchFeatureStore.swift` | 877 | Workbench | Store 主体，已入附录 G |
+| `Features/Workbench/AHEWorkspaceStore.swift` | 763 | Workbench | 待 s1.b 判断职责边界 |
+| `Features/Workbench/WorkbenchPlotCanvas.swift` | 728 | Workbench | 已有 H+V 样板，待 s1.b 实证 |
+| `Library/LibraryXLSXSyncService.swift` | 663 | Library | 待 s1.b 判断职责边界 |
+| `Features/Workbench/XYRotationWorkspaceStore.swift` | 623 | Workbench | 待 s1.b 判断职责边界 |
+| `Import/Rules/RuleLoader.swift` | 608 | Rules | 待 s1.c 判断职责边界 |
+| `Workbench/V3/WorkbenchChartRenderer.swift` | 604 | Workbench | 待 s1.b 判断职责边界 |
+| `Features/Library/LibraryWorkspaceSections.swift` | 587 | Library | 待 s1.b 判断职责边界 |
+| `Features/RulesPanel/RulesManagementStore.swift` | 580 | Rules | 待 s1.c 判断职责边界 |
+| `Features/Workbench/WorkflowWorkspaceShell.swift` | 567 | Workbench | 待 s1.b 判断是否 shell 内部肥大 |
+| `Library/LibraryRegistryParser.swift` | 545 | Library | 待 s1.b 判断职责边界 |
 
 ## 附录 B — 共享候选清单
 
@@ -235,8 +321,26 @@ _(待填)_
 
 | 文件 | 嗅探信号 | s3 实证状态 |
 |---|---|---|
-
-_(待填)_
+| `App/ApplyCoordinator.swift` | Inbox apply 调用 LibraryStore + InboxArchiveApplyService | pending |
+| `App/ArchivedRecordResolverService.swift` | Inbox archive 需要 registry lookup / substrate rules | pending |
+| `App/InboxArchiveApplyService.swift` | Inbox pending → Library drawer write + audit | pending |
+| `App/InboxFacade.swift` | Inbox facade 读 Rules/Workbench condition options 并回写 interaction state | pending |
+| `App/InboxWorkflowService.swift` | Inbox recompute 依赖 rules-derived hints | pending |
+| `App/RegistryCoordinator.swift` | Registry 同时服务 Inbox routing metadata 与 Library preview/reload | pending |
+| `App/RegistryFacade.swift` | Registry async workflow 跨 AppState / Inbox / Library | pending |
+| `App/RegistryLifecycleService.swift` | Registry lifecycle helper 跨 registry install/load/reload | pending |
+| `App/SpinLabAppState.swift` | all stores + global coordination | pending |
+| `App/State/RegistryFeatureStore.swift` | Registry 没有独立区块，当前作为 Inbox+Library 协调面 | pending |
+| `App/State/WorkbenchFeatureStore.swift` | Workbench store 内含 condition/rule draft projection | pending |
+| `Features/Inbox/InboxSelectionWorkbenchPanel.swift` | Inbox UI writes route/workflow/condition drafts in one panel | pending |
+| `Import/ImportPipeline.swift` | Import filtering uses Rules provider at pipeline construction | pending |
+| `Import/Match/DrawerMatchEngine.swift` | Inbox matching consumes Library sample models | pending |
+| `Import/Parse/FilenameRuleParser.swift` | Parser consumes Rules ruleSet directly | pending |
+| `Import/Parse/SampleKeyNormalizer.swift` | Import helper consumed by Workbench search / matching | pending |
+| `Import/Parse/SampleSemanticDescriptor.swift` | Domain-like sample semantics live under Import but used by Workbench/Library | pending |
+| `Import/Parse/SampleTokenization.swift` | Import tokenization helper consumed by Workbench search | pending |
+| `Import/RegistrySubstrateRuleBook.swift` | Registry substrate resolution depends on Rules and feeds Inbox archive warnings | pending |
+| `Import/Route/FileRoutingRuleBook.swift` | Routing rulebook depends on semantic rules from Rules layer | pending |
 
 ## 附录 C — TODO / FIXME / XXX 收割
 
@@ -255,8 +359,12 @@ _(待填)_
 
 | 文件 | 区块 | 行数 | 优先级 |
 |---|---|---|---|
-
-_(待填)_
+| `App/RootSplitView.swift` | 跨区共享 | 259 | Medium：根 UI 无 direct test，行为多靠集成 |
+| `App/State/AppRouter.swift` | 跨区共享 | 92 | Medium：deep-link / route stack 当前无 direct test |
+| `App/SidebarTreeView.swift` | 跨区共享 | 123 | Low：UI shell，无 direct test |
+| `App/SpinLabSidebarMenuProvider.swift` | 跨区共享 | 155 | Low：sidebar model assembly 无 direct test |
+| `Features/Inbox/InboxInspectorPanel.swift` | Inbox | 102 | Low：reserved/inspector UI 无 direct test |
+| `Features/Inbox/InboxProgressOverlays.swift` | Inbox | 85 | Low：progress overlay UI 无 direct test |
 
 ## 附录 E — 死代码可疑清单
 
@@ -294,6 +402,9 @@ _(s4 可选填)_
 | ID | 类型 | 当前形态 | 建议形态 | 平行 / 肥大点 | 风险 / 备注 |
 |---|---|---|---|---|---|
 | G-001 | H | 三 workflow 各写 `_applySeriesOrder` 等 4 个 protocol 方法 | 抽到 `WorkbenchWorkspaceProviding` default extension | 3ω / XY / AHE store | 5.3.6 观察已记录，等第三 workflow opt-in（TASK_BOARD 待拍板段）|
+| G-002 | V | `SpinLabAppState.swift` 1816 行 app coordinator | 维持 App shell，但继续迁出单域 workflow 到 FeatureStore/facade | all-store coordination + persistence + registry + inbox hooks | s1.a 锚点；只记录，不立即拆 |
+| G-003 | V | `LibraryFeatureStore.swift` 1145 行主 store + 多 extension | 评估是否继续垂直拆 projection / mutation / selection 子模块 | Library projection/mutation/selection responsibilities | s1.a 锚点；已有 partial extensions |
+| G-004 | V | `WorkbenchFeatureStore.swift` 877 行且嵌入 condition/rule draft structs | 评估 Rules projection 是否迁出或收敛为明确 coordination surface | Workbench + Rules condition/rule projection | 关联 5.1.8 后续结构债 |
 
 _(s1 扫描时持续追加。每条 ID 编号，类型 H / V，候选形态精简描述。)_
 
