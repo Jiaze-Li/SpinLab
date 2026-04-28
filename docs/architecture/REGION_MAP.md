@@ -116,9 +116,9 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 
 ### 预备步骤（s1.a 起手必做，仅一次）
 
-- [ ] 一次性跑 `wc -l` 全 swift 文件，落表得「行数」列底数
-- [ ] 一次性 grep `TODO|FIXME|XXX` 全 swift 文件，得 TODO 行数 + 具体行写入附录 C
-- [ ] 列出 `Tests/SpinLabAppTests/` 现存测试文件清单，作为「测试」列查询底数
+- [x] 一次性跑 `wc -l` 全 swift 文件，落表得「行数」列底数（2026-04-29：217 swift / 43,220 total lines）
+- [x] 一次性 grep `TODO|FIXME|XXX` 全 swift 文件，得 TODO 行数 + 具体行写入附录 C（2026-04-29：3 个真实 TODO + 1 个 `XXX` 误匹配）
+- [x] 列出 `Tests/SpinLabAppTests/` 现存测试文件清单，作为「测试」列查询底数（2026-04-29：后续按 `direct` / `behavioral` / `none` 填测试列）
 
 这三步前置完成后，扫每文件时只剩"区块判断 + 共享候选嗅探"，每文件 30–60 秒。
 
@@ -244,8 +244,10 @@ _(待填)_
 
 | 文件 | 行号 | 类别 | 内容 |
 |---|---|---|---|
-
-_(待填)_
+| `Features/Workbench/WorkbenchTracePanel.swift` | 14 | TODO(用户设计) | 调整 label 列宽、字号、是否折叠显示 |
+| `Features/Workbench/WorkbenchStatusArea.swift` | 15 | TODO(用户设计) | 考虑是否合并为单条消息、是否加图标前缀 |
+| `Features/Workbench/WorkbenchPlotCanvas.swift` | 55 | TODO(用户设计) | 调整最小高度、背景样式、空状态文字 |
+| `Import/Rules/RulesBootstrapper.swift` | 1059 | false-positive | `dateFormat` 字符串含 `XXX`，不是 TODO / FIXME / XXX 注释 |
 
 ## 附录 D — 测试覆盖盲区清单
 
