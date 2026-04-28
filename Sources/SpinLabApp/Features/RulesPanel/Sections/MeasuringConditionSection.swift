@@ -81,7 +81,9 @@ struct MeasuringConditionSection: View {
         let rowHasError = saveErrors.wrappedValue.hasRow(group: "conditionDefinitions", key: def.id)
         VStack(alignment: .leading, spacing: 0) {
             Button(action: {
-                selectedConditionID = isSelected ? nil : def.id
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    selectedConditionID = isSelected ? nil : def.id
+                }
             }) {
                 HStack(spacing: AppSpacing.md) {
                     Text(def.id)
@@ -135,16 +137,10 @@ struct MeasuringConditionSection: View {
                     set: { newKind in
                         var u = d
                         u.conditionDefinitions[idx].kind = newKind
-                        if newKind == "unit_suffix" {
-                            u.conditionDefinitions[idx].tokenMap = nil
-                            if u.conditionDefinitions[idx].unitPattern == nil {
-                                u.conditionDefinitions[idx].unitPattern = ""
-                            }
-                        } else {
-                            u.conditionDefinitions[idx].unitPattern = nil
-                            if u.conditionDefinitions[idx].tokenMap == nil {
-                                u.conditionDefinitions[idx].tokenMap = []
-                            }
+                        if newKind == "unit_suffix" && u.conditionDefinitions[idx].unitPattern == nil {
+                            u.conditionDefinitions[idx].unitPattern = ""
+                        } else if newKind == "token_map" && u.conditionDefinitions[idx].tokenMap == nil {
+                            u.conditionDefinitions[idx].tokenMap = []
                         }
                         apply(u)
                     }
@@ -160,7 +156,7 @@ struct MeasuringConditionSection: View {
             if def.kind == "unit_suffix" {
                 MatchRulesEditor(
                     rules: unitSuffixSpecsBinding(condIdx: idx),
-                    allowedOps: [.unitSuffix],
+                    allowedOps: [.unitSuffix, .equals, .contains],
                     defaultOp: .unitSuffix
                 )
             } else {
@@ -180,13 +176,23 @@ struct MeasuringConditionSection: View {
         Binding(
             get: {
                 guard let d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return [] }
-                return unitsFromUnitPattern(d.conditionDefinitions[condIdx].unitPattern)
+                let def = d.conditionDefinitions[condIdx]
+                if let tokenMap = def.tokenMap {
+                    return tokenMap.compactMap {
+                        guard let op = FilenameRuleSet.Operation(rawValue: $0.match.type) else { return nil }
+                        return FilenameRuleSet.MatchSpec(type: op, value: $0.match.value)
+                    }
+                }
+                // legacy: unitPattern fallback
+                return unitsFromUnitPattern(def.unitPattern)
                     .map { FilenameRuleSet.MatchSpec(type: .unitSuffix, value: $0) }
             },
             set: { specs in
                 guard var d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return }
-                let units = specs.filter { $0.type == .unitSuffix }.map(\.value).filter { !$0.isEmpty }
-                d.conditionDefinitions[condIdx].unitPattern = units.isEmpty ? "" : unitPatternFromUnits(units)
+                d.conditionDefinitions[condIdx].tokenMap = specs.map {
+                    MapRule(match: .init(type: $0.type.rawValue, value: $0.value), value: "$MATCH")
+                }
+                d.conditionDefinitions[condIdx].unitPattern = nil
                 apply(d)
             }
         )
@@ -196,11 +202,20 @@ struct MeasuringConditionSection: View {
         Binding(
             get: {
                 guard let d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return [] }
-                return d.conditionDefinitions[condIdx].tokenMap ?? []
+                // Exclude unit-suffix rules from token_map view — they're incompatible with
+                // token_map's allowed ops and would cause Picker auto-snap data corruption.
+                // They remain in storage and reappear when switching back to unit_suffix.
+                return (d.conditionDefinitions[condIdx].tokenMap ?? []).filter {
+                    $0.match.type != "unit-suffix"
+                }
             },
             set: { newRules in
                 guard var d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return }
-                d.conditionDefinitions[condIdx].tokenMap = newRules
+                // Preserve any hidden unit-suffix rules alongside the new token_map rules.
+                let preserved = (d.conditionDefinitions[condIdx].tokenMap ?? []).filter {
+                    $0.match.type == "unit-suffix"
+                }
+                d.conditionDefinitions[condIdx].tokenMap = preserved + newRules
                 apply(d)
             }
         )
@@ -259,8 +274,8 @@ struct MeasuringConditionSection: View {
             id: newID,
             displayName: nil,
             kind: "unit_suffix",
-            unitPattern: "",
-            tokenMap: nil
+            unitPattern: nil,
+            tokenMap: []
         ))
         apply(u)
         selectedConditionID = newID

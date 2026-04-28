@@ -435,7 +435,7 @@ struct FilenameRuleSet: Decodable {
     private func compileRegex(_ pattern: String, warnings: inout [String], label: String) -> NSRegularExpression? {
         guard !pattern.isEmpty else { return nil }
         do {
-            return try NSRegularExpression(pattern: pattern, options: [])
+            return try NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
         } catch {
             warnings.append("Failed to compile regex for \(label): \(pattern)")
             return nil

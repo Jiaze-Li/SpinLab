@@ -201,30 +201,13 @@ struct MeasuringConditionStrategy: SectionPersistenceStrategy {
                                     message: "Unknown kind '\(def.kind)'"))
                 continue
             }
-            if def.kind == "unit_suffix" {
-                if def.tokenMap != nil {
-                    errors.append(.init(field: "conditionDefinitions[\(def.id)]",
-                                        message: "unit_suffix must not have tokenMap"))
-                }
-                let pattern = def.unitPattern ?? ""
-                if pattern.isEmpty {
-                    errors.append(.init(field: "conditionDefinitions[\(def.id)]",
-                                        message: "unit_suffix requires a non-empty unitPattern"))
-                } else {
-                    validateRegexField(pattern, field: "conditionDefinitions[\(def.id)].unitPattern", errors: &errors)
-                }
-            } else {
-                if def.unitPattern != nil {
-                    errors.append(.init(field: "conditionDefinitions[\(def.id)]",
-                                        message: "token_map must not have unitPattern"))
-                }
-                if def.tokenMap == nil {
-                    errors.append(.init(field: "conditionDefinitions[\(def.id)]",
-                                        message: "token_map requires tokenMap"))
-                }
-                for rule in def.tokenMap ?? [] where rule.match.type == "regex" {
-                    validateRegexField(rule.match.value, field: "conditionDefinitions[\(def.id)].tokenMap", errors: &errors)
-                }
+            // Both kinds now use tokenMap for storage; validate the active specs.
+            if def.tokenMap == nil && def.kind == "token_map" {
+                errors.append(.init(field: "conditionDefinitions[\(def.id)]",
+                                    message: "token_map requires at least one match rule"))
+            }
+            for rule in def.tokenMap ?? [] where rule.match.type == "regex" {
+                validateRegexField(rule.match.value, field: "conditionDefinitions[\(def.id)].matches", errors: &errors)
             }
         }
         return errors

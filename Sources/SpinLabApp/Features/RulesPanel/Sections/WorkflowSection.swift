@@ -153,10 +153,12 @@ struct WorkflowSection: View {
 
         VStack(alignment: .leading, spacing: 0) {
             Button {
-                if isExpanded {
-                    expandedWorkflowID = nil
-                } else {
-                    expandedWorkflowID = entry.id
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    if isExpanded {
+                        expandedWorkflowID = nil
+                    } else {
+                        expandedWorkflowID = entry.id
+                    }
                 }
             } label: {
                 HStack(spacing: AppSpacing.md) {
@@ -216,13 +218,6 @@ struct WorkflowSection: View {
                     )
                 )
                 .textFieldStyle(.roundedBorder)
-            }
-
-            LabeledContent("ID") {
-                Text(entry.id)
-                    .font(.body.monospaced())
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
             }
 
             workflowMatchRulesEditor(d: d, idx: idx)

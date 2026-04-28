@@ -219,15 +219,22 @@ extension MeasuringConditionFileDraft.ConditionDefinition: Codable {
             ?? c.decodeIfPresent(String.self, forKey: .label)
 
         if kind == "unit_suffix" {
-            // s12+ format: matches: [{type: "unit-suffix", value: "K"}, ...]
-            struct UnitEntry: Decodable { let type: String?; let value: String? }
-            if let entries = try c.decodeIfPresent([UnitEntry].self, forKey: .matches) {
-                let units = entries.filter { $0.type == "unit-suffix" }.compactMap(\.value).filter { !$0.isEmpty }
-                unitPattern = units.isEmpty ? nil : unitPatternFromUnits(units)
+            // Unified format: matches: [{type, value}] supporting all 4 ops.
+            // Legacy fallback: unitPattern string or old [{type:"unit-suffix", value}] array.
+            struct MatchEntry: Decodable { let type: String?; let value: String? }
+            if let entries = try c.decodeIfPresent([MatchEntry].self, forKey: .matches) {
+                tokenMap = entries.compactMap { e -> MapRule? in
+                    guard let t = e.type, let v = e.value, !v.isEmpty,
+                          FilenameRuleSet.Operation(rawValue: t) != nil else { return nil }
+                    return MapRule(match: .init(type: t, value: v), value: "$MATCH")
+                }
+            } else if let pattern = try c.decodeIfPresent(String.self, forKey: .unitPattern) {
+                let units = unitsFromUnitPattern(pattern)
+                tokenMap = units.map { MapRule(match: .init(type: "unit-suffix", value: $0), value: "$MATCH") }
             } else {
-                unitPattern = try c.decodeIfPresent(String.self, forKey: .unitPattern)
+                tokenMap = []
             }
-            tokenMap = nil
+            unitPattern = nil
         } else {
             // token_map — s12+ format: matches: [MapRule]; pre-s12 format: tokenMap: [MapRule]
             tokenMap = try c.decodeIfPresent([MapRule].self, forKey: .matches)
@@ -241,13 +248,8 @@ extension MeasuringConditionFileDraft.ConditionDefinition: Codable {
         try c.encode(id, forKey: .id)
         try c.encode(kind, forKey: .kind)
         try c.encodeIfPresent(displayName, forKey: .displayName)
-        if kind == "unit_suffix" {
-            let units = unitsFromUnitPattern(unitPattern)
-            let entries = units.map { ["type": "unit-suffix", "value": $0] }
-            try c.encode(entries, forKey: .matches)
-        } else {
-            try c.encode(tokenMap ?? [], forKey: .matches)
-        }
+        let specs = (tokenMap ?? []).map { ["type": $0.match.type, "value": $0.match.value] }
+        try c.encode(specs, forKey: .matches)
     }
 }
 
