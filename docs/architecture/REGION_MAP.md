@@ -1,6 +1,6 @@
 # Region Map (Working File — 5.1.6 s2)
 
-> **状态**：s2 完成。s1 已完成 218 / 218 swift 文件归属扫描；s2 已完成层级规范族映射 + 消费者关系二轮判断。
+> **状态**：s3 进行中。s1 已完成 218 / 218 swift 文件归属扫描；s2 已完成层级规范族映射 + 消费者关系二轮判断；s3 正在做字段级共享点实证。
 >
 > s2 完成后将保留文件归属 + 层级归属 + 二轮判断结果；最终 s4 收敛产出 `INDEX.md`。
 
@@ -99,6 +99,28 @@
 | s2 未确定条目 | 0；当前没有需要进入 `[未确定]` 的文件 |
 | 层级覆盖 | 218 / 218 已有层级标签；本轮新增规范族映射，不做无价值的全表同义词重写 |
 | 后续输入 | s3 从「共享候选」「平行候选」和附录 B/G 进入字段级实证 |
+
+## s3 共享点实证
+
+> s3 只做证据分级，不改代码。结构债清单最终只收 `suspect_coupling` 与需迁移的 `coordination_surface`；`legitimate_cross_cutting` 和 `migration_candidate` 保留为背景证据。
+
+| ID | 分类 | 共享点 | 证据文件 | 结论 / 后续 |
+|---|---|---|---|---|
+| SP-001 | `suspect_coupling` | `MeasuringConditionFileDraft.ConditionDefinition.tokenMap` 同时承载 `unit_suffix` 和 `token_map` 两种 UI/规则语义 | `Features/RulesPanel/RulesManagementStore.swift`; `Features/RulesPanel/Sections/MeasuringConditionSection.swift`; `Features/RulesPanel/SectionPersistenceStrategy.swift`; `Tests/SpinLabAppTests/V515ConditionKindSwitchTests.swift`; `docs/handoff/_pending/5.1.8-condition-kind-decoupling-design-seed.md` | 已有 5.1.8 种子；这是字段级错误耦合，不应作为合法共享抽象保留 |
+| SP-002 | `coordination_surface` | Workbench condition projection 从 Rules rule set 派生，但缓存/展示在 `WorkbenchFeatureStore` | `App/State/WorkbenchFeatureStore.swift`; `Import/Rules/RuleLoader.swift`; `Import/Rules/ConditionFieldCatalog.swift`; `App/InboxFacade.swift` | Workbench 消费 Rules 配置是合理关系；需确认 projection 是否应迁到 Rules-facing facade 或明确为 Workbench coordination surface |
+| SP-003 | `coordination_surface` | RulesPanel 保存后立即影响 runtime rule cache、Inbox routing、Registry lookup、Workbench condition options | `Features/RulesPanel/RulesManagementStore.swift`; `Import/Rules/RulesPersistenceHook.swift`; `Import/Rules/RuleLoader.swift`; `Import/Rules/SpinLabRuleProvider.swift`; `App/SpinLabAppState.swift` | 保存路径是跨区状态刷新点；s4 结构债应要求明确 reload/notification 边界 |
+| SP-004 | `coordination_surface` | `workflow.json` 是 Rules-owned config，但 Workbench 通过 `WorkflowDefinitionStore` / registry UI 消费 workflow 定义 | `Workflow/WorkflowDefinitionStore.swift`; `Workflow/WorkflowDefinition.swift`; `Features/Workbench/WorkflowRegistryView.swift`; `Features/RulesPanel/Sections/WorkflowSection.swift`; `Import/Rules/WorkflowRegistryRetirementService.swift` | 配置所有权与展示消费分离合理；需要在 INDEX 标出首读 Rules config + Workbench consumer |
+| SP-005 | `coordination_surface` | Registry lookup aliases and sheet filtering come from Rules config while registry index serves Inbox + Library | `Registry/RegistryLookupRuleBook.swift`; `Registry/RegistrySheetFilter.swift`; `Registry/SampleRegistry.swift`; `Import/RegistrySubstrateRuleBook.swift`; `App/RegistryCoordinator.swift` | Registry 不是独立产品区块；s4 INDEX 应作为跨区共享入口，避免误派给 Inbox 或 Library 单区 |
+
+### s3 当前覆盖
+
+| 项目 | 数值 |
+|---|---|
+| 已实证共享点 | 5 |
+| `suspect_coupling` | 1 |
+| `coordination_surface` | 4 |
+| `legitimate_cross_cutting` | 0（本批暂未收敛，待 sweep UI/Domain/Infrastructure） |
+| `migration_candidate` | 0（本批暂未收敛，待 sweep Import legacy helpers / rule migration） |
 
 ---
 
