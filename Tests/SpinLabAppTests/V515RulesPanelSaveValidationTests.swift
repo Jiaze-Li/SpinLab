@@ -248,7 +248,7 @@ struct V515RulesPanelSaveValidationTests {
 
         var draft = try #require(store.workflowDraft)
         draft.workflows.append(.init(id: "MR", displayName: "MR2",
-                                     matchRules: [.init(scope: "tokens", type: "equals", matchValues: ["MR2"])],
+                                     matchRules: [.init(type: "equals", value: "MR2")],
                                      conditionFieldIDs: []))
         store.updateWorkflow(draft)
         store.selectSection(.workflow)
@@ -285,7 +285,7 @@ struct V515RulesPanelSaveValidationTests {
         let (store, _) = try makeStore()
 
         var draft = try #require(store.measuringConditionDraft)
-        draft.conditionDefinitions.append(.init(id: "temperature", label: nil, kind: "unit_suffix",
+        draft.conditionDefinitions.append(.init(id: "temperature", displayName: nil, kind: "unit_suffix",
                                                 unitPattern: "^\\d+K$", tokenMap: nil))
         store.updateMeasuringCondition(draft)
         store.selectSection(.measuringCondition)
@@ -320,7 +320,7 @@ struct V515RulesPanelSaveValidationTests {
         let (store, _) = try makeStore()
 
         var draft = try #require(store.measuringConditionDraft)
-        draft.conditionDefinitions.append(.init(id: "field", label: nil, kind: "unit_suffix",
+        draft.conditionDefinitions.append(.init(id: "field", displayName: nil, kind: "unit_suffix",
                                                 unitPattern: "", tokenMap: nil))
         // Empty unitPattern for "field" — unit_suffix requires a non-empty pattern
         store.updateMeasuringCondition(draft)
@@ -339,7 +339,7 @@ struct V515RulesPanelSaveValidationTests {
         let (store, _) = try makeStore()
 
         var draft = try #require(store.measuringConditionDraft)
-        draft.conditionDefinitions.append(.init(id: "field", label: "Field", kind: "unit_suffix",
+        draft.conditionDefinitions.append(.init(id: "field", displayName: "Field", kind: "unit_suffix",
                                                 unitPattern: "^-?\\d+T$", tokenMap: nil))
         store.updateMeasuringCondition(draft)
         store.selectSection(.measuringCondition)
@@ -348,5 +348,45 @@ struct V515RulesPanelSaveValidationTests {
             Issue.record("Expected .saved"); return
         }
         #expect(!store.dirtySections.contains(.measuringCondition))
+    }
+
+    // MARK: - Workflow regex validation (s11)
+
+    @Test("workflow: invalid regex in matchRules fails validation")
+    func workflowMatchRulesInvalidRegex() throws {
+        let (dir, backup) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir, backup: backup) }
+        let (store, _) = try makeStore()
+
+        var draft = try #require(store.workflowDraft)
+        draft.workflows[0].matchRules = [
+            .init(type: "regex", value: "[bad")
+        ]
+        store.updateWorkflow(draft)
+        store.selectSection(.workflow)
+
+        guard case .validationFailed(let errors) = store.saveCurrent() else {
+            Issue.record("Expected validationFailed"); return
+        }
+        #expect(errors.contains(where: { $0.field.contains("matchRules") && $0.message.contains("[bad") }))
+    }
+
+    @Test("workflow: invalid regex in measurementTagRules fails validation")
+    func workflowMeasurementTagRulesInvalidRegex() throws {
+        let (dir, backup) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir, backup: backup) }
+        let (store, _) = try makeStore()
+
+        var draft = try #require(store.workflowDraft)
+        draft.measurementTagRules = [
+            MapRule(match: .init(type: "regex", value: "[bad"), value: "TAG")
+        ]
+        store.updateWorkflow(draft)
+        store.selectSection(.workflow)
+
+        guard case .validationFailed(let errors) = store.saveCurrent() else {
+            Issue.record("Expected validationFailed"); return
+        }
+        #expect(errors.contains(where: { $0.field.contains("measurementTagRules") && $0.message.contains("[bad") }))
     }
 }

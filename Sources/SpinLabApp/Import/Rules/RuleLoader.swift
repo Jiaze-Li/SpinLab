@@ -168,7 +168,7 @@ struct RuleLoader {
             )
             logger.info(.import, "Rules loaded", metadata: [
                 "source": label,
-                "sampleIdPrefixCount": "\(ruleSet.sampleId.batchPrefixes.count + ruleSet.sampleId.patterns.count)",
+                "sampleIdPrefixCount": "\(ruleSet.sampleId.matches.count)",
                 "ruleVersion": "\(ruleSet.version)",
                 "fingerprint": metadata.fingerprint
             ])
@@ -198,7 +198,7 @@ struct RuleLoader {
                 loadedAt: Date()
             )
             logger.info(.import, "Rules loaded from bundle", metadata: [
-                "sampleIdPrefixCount": "\(ruleSet.sampleId.batchPrefixes.count + ruleSet.sampleId.patterns.count)",
+                "sampleIdPrefixCount": "\(ruleSet.sampleId.matches.count)",
                 "ruleVersion": "\(ruleSet.version)"
             ])
             return LoadResult(ruleSet: ruleSet, warnings: warnings, metadata: metadata)
@@ -508,7 +508,7 @@ private struct SampleIdentificationFile: Decodable {
 
     private static func convertV3ToV4(_ v3: V3SubstrateSection) -> FilenameRuleSet.SubstrateConfig {
         let materials: [FilenameRuleSet.SubstrateEntry] = v3.materials.map { m in
-            var matches: [FilenameRuleSet.SubstrateEntry.Match] = []
+            var matches: [FilenameRuleSet.MatchSpec] = []
             for token in m.tokens where token.uppercased() != m.displayName.uppercased() {
                 matches.append(.init(type: .equals, value: token))
             }
@@ -518,7 +518,7 @@ private struct SampleIdentificationFile: Decodable {
             return FilenameRuleSet.SubstrateEntry(displayName: m.displayName, matches: matches)
         }
         let treatments: [FilenameRuleSet.SubstrateEntry] = v3.treatments.map { t in
-            var matches: [FilenameRuleSet.SubstrateEntry.Match] = []
+            var matches: [FilenameRuleSet.MatchSpec] = []
             for token in t.standaloneTokens {
                 matches.append(.init(type: .equals, value: token))
             }
@@ -532,7 +532,7 @@ private struct SampleIdentificationFile: Decodable {
             return FilenameRuleSet.SubstrateEntry(displayName: t.displayName, matches: matches)
         }
         let orientations: [FilenameRuleSet.SubstrateEntry] = v3.orientations.rows.map { row in
-            var matches: [FilenameRuleSet.SubstrateEntry.Match] = []
+            var matches: [FilenameRuleSet.MatchSpec] = []
             for token in row.tokens where token != row.id {
                 matches.append(.init(type: .equals, value: token))
             }

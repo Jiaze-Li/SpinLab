@@ -119,6 +119,11 @@ struct V223AppEnvironmentIntegrationTests {
         let importURL = root.appendingPathComponent("PN20_AHE_1mA.dat")
         try Data("test".utf8).write(to: importURL)
 
+        let workflowDefURL = root.appendingPathComponent("workflow_def.json")
+        try """
+        {"version":3,"workflows":[{"id":"ahe","displayName":"AHE","matchRules":[{"type":"equals","value":"AHE"}],"conditionFieldIDs":[]}],"measurementTagRules":[]}
+        """.data(using: .utf8)!.write(to: workflowDefURL)
+
         let persistence = LocalPersistenceStub(
             pendingImports: [],
             archivedRecords: [],
@@ -132,7 +137,8 @@ struct V223AppEnvironmentIntegrationTests {
             registrySubstrateRules: RegistrySubstrateRuleBook(),
             routingCapabilities: .live,
             ruleRuntime: makeBundleRuleRuntime(),
-            dataActor: MockDataActor()
+            dataActor: MockDataActor(),
+            workflowDefinitionStore: WorkflowDefinitionStore(fileURL: workflowDefURL)
         )
         let appState = SpinLabAppState(environment: environment)
 

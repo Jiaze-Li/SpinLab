@@ -69,15 +69,7 @@ struct FilenameRuleParser {
             grandparentTokens: grandparentTokens
         )
 
-        let joined = joinedSourceText(
-            fileStem: fileScopeTokens.joined(separator: " "),
-            parentName: parentName,
-            grandparentName: grandparentName
-        )
         let fileJoined = fileScopeTokens.joined(separator: " ").lowercased()
-        let folderJoined = [parentName, grandparentName]
-            .joined(separator: " ")
-            .lowercased()
 
         let fileSampleIDs = ruleSet.sampleIDs(from: fileScopeTokens)
         let folderSampleIDs = uniquePreservingOrder(
@@ -87,9 +79,9 @@ struct FilenameRuleParser {
         let allSampleIDs = uniquePreservingOrder(fileSampleIDs + folderSampleIDs)
 
         let measurement = preferredValue(
-            fileValue: ruleSet.measurementName(from: fileScopeTokens, joined: fileJoined),
-            folderValue: ruleSet.measurementName(from: folderContextTokens, joined: folderJoined),
-            fallbackValue: ruleSet.measurementName(from: scopedContextTokens, joined: joined)
+            fileValue: ruleSet.measurementName(from: fileScopeTokens),
+            folderValue: ruleSet.measurementName(from: folderContextTokens),
+            fallbackValue: ruleSet.measurementName(from: scopedContextTokens)
         )
         let measurementTags = preferredTags(
             fileTags: uniquePreservingOrder(ruleSet.measurementTags(from: fileScopeTokens)),
@@ -232,20 +224,6 @@ struct FilenameRuleParser {
             }
         }
         return collected
-    }
-
-    private func joinedSourceText(fileStem: String, parentName: String, grandparentName: String) -> String {
-        let parts: [String] = ruleSet.sources.map { source in
-            switch source {
-            case .file:
-                return fileStem
-            case .parent:
-                return parentName
-            case .grandparent:
-                return grandparentName
-            }
-        }
-        return parts.joined(separator: " ").lowercased()
     }
 
     private func channelHints(from fileTokens: [String]) -> [SpinLabDomain.ParsedChannelHint] {

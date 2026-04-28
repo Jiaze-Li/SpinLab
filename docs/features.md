@@ -289,3 +289,15 @@ Entry point: "Rules" button in Inbox Operations header row (opens separate Windo
 - Workflow Match: cross-rule token conflicts detected at save time
 - Filename Parse: conditionDefinition ids must be unique; binding auto-derived from kind + id
 - Workflow conditionFieldIDs: cross-validated against dirty measuringCondition draft (not just disk)
+
+### Match Op Per-Context Restriction
+- `starts-with`: only available in Batch ID Prefixes (SampleIdentification section)
+- `unit-suffix`: only available in Measuring Condition (both unit_suffix and token_map kinds)
+- `equals` / `contains`: available in all contexts
+- All four ops are case-insensitive at runtime
+
+### Measuring Condition — Kind Switch Invariant
+- unit_suffix kind allows ops: `unit-suffix`, `equals`, `contains`; token_map kind allows: `equals`, `contains`
+- When in token_map view, existing `unit-suffix` op rules are hidden but preserved in storage (not exposed to the Picker, which would cause SwiftUI auto-snap corruption)
+- Switching back to unit_suffix restores all rules including the hidden ones
+- Regression test: `V515ConditionKindSwitchTests` (4 cases covering round-trip, visibility, and cross-op preservation)

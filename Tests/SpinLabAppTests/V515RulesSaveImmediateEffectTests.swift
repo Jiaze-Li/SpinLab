@@ -74,8 +74,8 @@ struct V515RulesSaveImmediateEffectTests {
 
         var r1Fired = false
         let store = RulesManagementStore(onRulesSaved: {
-            let prefixes = RuleLoader.shared.loadCached().ruleSet.sampleId.batchPrefixes
-            if prefixes.contains("NEWPATTERN") {
+            let matches = RuleLoader.shared.loadCached().ruleSet.sampleId.matches
+            if matches.contains(where: { $0.value == "NEWPATTERN" }) {
                 r1Fired = true
             }
         })
@@ -109,8 +109,7 @@ struct V515RulesSaveImmediateEffectTests {
 
         var draft = try #require(store.workflowDraft)
         draft.measurementTagRules.append(
-            MapRule(match: .init(scope: "tokens", type: "equals", matchValues: ["NEWTAG"]),
-                    value: "NEWTAG")
+            MapRule(match: .init(type: "equals", value: "NEWTAG"), value: "NEWTAG")
         )
         store.updateWorkflow(draft)
         store.selectSection(.workflow)
@@ -146,7 +145,7 @@ struct V515RulesSaveImmediateEffectTests {
 
         // Add "field" condition
         var draft = try #require(store.measuringConditionDraft)
-        draft.conditionDefinitions.append(.init(id: "field", label: "Field", kind: "unit_suffix",
+        draft.conditionDefinitions.append(.init(id: "field", displayName: "Field", kind: "unit_suffix",
                                                 unitPattern: "^\\d+T$", tokenMap: nil))
         store.updateMeasuringCondition(draft)
         store.selectSection(.measuringCondition)
@@ -174,7 +173,7 @@ struct V515RulesSaveImmediateEffectTests {
         #expect(before == ["temperature"])
 
         var draft = try #require(store.measuringConditionDraft)
-        draft.conditionDefinitions.append(.init(id: "current", label: "Current", kind: "unit_suffix",
+        draft.conditionDefinitions.append(.init(id: "current", displayName: "Current", kind: "unit_suffix",
                                                 unitPattern: "^\\d+mA$", tokenMap: nil))
         store.updateMeasuringCondition(draft)
         store.selectSection(.measuringCondition)

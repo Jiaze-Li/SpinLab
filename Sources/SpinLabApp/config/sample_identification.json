@@ -1,105 +1,162 @@
 {
-  "version": 4,
-  "sampleId": {
-    "batchPrefixes": [
-      "PN",
-      "PT",
-      "SL"
-    ]
-  },
-  "substrate": {
-    "materials": [
-      {
-        "displayName": "STO",
+    "version": 5,
+    "sampleId": {
         "matches": [
-          {"type": "contains", "value": "STO111"},
-          {"type": "contains", "value": "STO001"}
+            {
+                "type": "starts-with",
+                "value": "PN"
+            },
+            {
+                "type": "starts-with",
+                "value": "PT"
+            },
+            {
+                "type": "starts-with",
+                "value": "SL"
+            }
         ]
-      },
-      {
-        "displayName": "NGO",
-        "matches": []
-      },
-      {
-        "displayName": "MAO",
-        "matches": []
-      },
-      {
-        "displayName": "MgO",
-        "matches": [
-          {"type": "equals", "value": "MGO"}
+    },
+    "substrate": {
+        "materials": [
+            {
+                "displayName": "STO",
+                "matches": [
+                    {
+                        "type": "contains",
+                        "value": "STO111"
+                    },
+                    {
+                        "type": "contains",
+                        "value": "STO001"
+                    }
+                ]
+            },
+            {
+                "displayName": "NGO",
+                "matches": []
+            },
+            {
+                "displayName": "MAO",
+                "matches": []
+            },
+            {
+                "displayName": "MgO",
+                "matches": [
+                    {
+                        "type": "equals",
+                        "value": "MGO"
+                    }
+                ]
+            },
+            {
+                "displayName": "Al2O3",
+                "matches": [
+                    {
+                        "type": "equals",
+                        "value": "AL2O3"
+                    }
+                ]
+            },
+            {
+                "displayName": "Si",
+                "matches": [
+                    {
+                        "type": "equals",
+                        "value": "SI"
+                    },
+                    {
+                        "type": "equals",
+                        "value": "ONSI"
+                    }
+                ]
+            },
+            {
+                "displayName": "poly-SiO2 on Si",
+                "matches": [
+                    {
+                        "type": "equals",
+                        "value": "POLY-SIO2"
+                    },
+                    {
+                        "type": "equals",
+                        "value": "POLY-SIO2 ON SI"
+                    }
+                ]
+            }
+        ],
+        "treatments": [
+            {
+                "displayName": "HF",
+                "matches": [
+                    {
+                        "type": "contains",
+                        "value": "hf"
+                    }
+                ]
+            },
+            {
+                "displayName": "baked",
+                "matches": [
+                    {
+                        "type": "contains",
+                        "value": "bake"
+                    }
+                ]
+            },
+            {
+                "displayName": "b",
+                "matches": [
+                    {
+                        "type": "equals",
+                        "value": "b"
+                    }
+                ]
+            },
+            {
+                "displayName": "o",
+                "matches": [
+                    {
+                        "type": "contains",
+                        "value": "origin"
+                    },
+                    {
+                        "type": "contains",
+                        "value": "original"
+                    }
+                ]
+            }
+        ],
+        "orientations": [
+            {
+                "displayName": "001",
+                "matches": [
+                    {
+                        "type": "equals",
+                        "value": "100"
+                    },
+                    {
+                        "type": "contains",
+                        "value": "STO001"
+                    }
+                ]
+            },
+            {
+                "displayName": "111",
+                "matches": [
+                    {
+                        "type": "contains",
+                        "value": "STO111"
+                    }
+                ]
+            },
+            {
+                "displayName": "110",
+                "matches": []
+            },
+            {
+                "displayName": "0001",
+                "matches": []
+            }
         ]
-      },
-      {
-        "displayName": "Al2O3",
-        "matches": [
-          {"type": "equals", "value": "AL2O3"}
-        ]
-      },
-      {
-        "displayName": "Si",
-        "matches": [
-          {"type": "equals", "value": "SI"},
-          {"type": "equals", "value": "ONSI"}
-        ]
-      },
-      {
-        "displayName": "poly-SiO2 on Si",
-        "matches": [
-          {"type": "equals", "value": "POLY-SIO2"},
-          {"type": "equals", "value": "POLY-SIO2 ON SI"}
-        ]
-      }
-    ],
-    "treatments": [
-      {
-        "displayName": "HF",
-        "matches": [
-          {"type": "contains", "value": "hf"}
-        ]
-      },
-      {
-        "displayName": "baked",
-        "matches": [
-          {"type": "contains", "value": "bake"}
-        ]
-      },
-      {
-        "displayName": "b",
-        "matches": [
-          {"type": "equals", "value": "b"}
-        ]
-      },
-      {
-        "displayName": "o",
-        "matches": [
-          {"type": "contains", "value": "origin"},
-          {"type": "contains", "value": "original"}
-        ]
-      }
-    ],
-    "orientations": [
-      {
-        "displayName": "001",
-        "matches": [
-          {"type": "equals", "value": "100"},
-          {"type": "contains", "value": "STO001"}
-        ]
-      },
-      {
-        "displayName": "111",
-        "matches": [
-          {"type": "contains", "value": "STO111"}
-        ]
-      },
-      {
-        "displayName": "110",
-        "matches": []
-      },
-      {
-        "displayName": "0001",
-        "matches": []
-      }
-    ]
-  }
+    }
 }

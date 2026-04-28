@@ -345,12 +345,11 @@ struct V210ImportAndParseTests {
         ruleSet.conditionDefinitions.append(
             .init(
                 id: "device",
-                label: "Device",
+                displayName: "Device",
                 kind: .unitSuffix,
-                binding: "conditions.extraConditions.device"
+                matches: .unitSuffix([.init(type: .unitSuffix, value: "deg")])
             )
         )
-        ruleSet.conditions.extraConditions["device"] = "^-?\\d+(?:\\.\\d+)?(?:deg)$"
         ruleSet.loadWarnings = ruleSet.compile()
         let parser = FilenameRuleParser(ruleSet: ruleSet)
         let fileURL = URL(fileURLWithPath: "/tmp/PN69/RT_run/run_0deg_1mA.dat")
@@ -366,12 +365,11 @@ struct V210ImportAndParseTests {
         ruleSet.conditionDefinitions.append(
             .init(
                 id: "abc",
-                label: "ABC",
+                displayName: "ABC",
                 kind: .unitSuffix,
-                binding: "conditions.extraConditions.abc"
+                matches: .unitSuffix([.init(type: .unitSuffix, value: "abc")])
             )
         )
-        ruleSet.conditions.extraConditions["abc"] = "^-?\\d+(?:\\.\\d+)?(?:abc)$"
         ruleSet.loadWarnings = ruleSet.compile()
         let parser = FilenameRuleParser(ruleSet: ruleSet)
         let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_12abc_1mA.dat")
@@ -387,17 +385,11 @@ struct V210ImportAndParseTests {
         ruleSet.conditionDefinitions.append(
             .init(
                 id: "wafer_type",
-                label: "Wafer Type",
+                displayName: "Wafer Type",
                 kind: .tokenMap,
-                binding: "conditions.tokenMapRules.wafer_type"
+                matches: .tokenMap([.init(match: .init(type: .equals, value: "wafer"), value: "wafer")])
             )
         )
-        ruleSet.conditions.tokenMapRules["wafer_type"] = [
-            .init(
-                match: .init(scope: .tokens, type: .equals, matchValues: ["wafer"]),
-                value: "wafer"
-            )
-        ]
         ruleSet.loadWarnings = ruleSet.compile()
         let parser = FilenameRuleParser(ruleSet: ruleSet)
         let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_wafer_1mA.dat")
@@ -413,26 +405,19 @@ struct V210ImportAndParseTests {
         ruleSet.conditionDefinitions.append(
             .init(
                 id: "mode",
-                label: "Mode",
+                displayName: "Mode",
                 kind: .unitSuffix,
-                binding: "conditions.extraConditions.mode"
+                matches: .unitSuffix([.init(type: .unitSuffix, value: "k")])
             )
         )
         ruleSet.conditionDefinitions.append(
             .init(
                 id: "mode",
-                label: "Mode",
+                displayName: "Mode",
                 kind: .tokenMap,
-                binding: "conditions.tokenMapRules.mode"
+                matches: .tokenMap([.init(match: .init(type: .equals, value: "1k"), value: "mode-token")])
             )
         )
-        ruleSet.conditions.extraConditions["mode"] = "^-?\\d+(?:\\.\\d+)?(?:k)$"
-        ruleSet.conditions.tokenMapRules["mode"] = [
-            .init(
-                match: .init(scope: .tokens, type: .equals, matchValues: ["1k"]),
-                value: "mode-token"
-            )
-        ]
         ruleSet.loadWarnings = ruleSet.compile()
         let parser = FilenameRuleParser(ruleSet: ruleSet)
         let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_1k_1mA.dat")
@@ -440,7 +425,6 @@ struct V210ImportAndParseTests {
         let parsed = parser.parse(from: fileURL)
 
         #expect(parsed.conditionValues["mode"] == "mode-token")
-        #expect(parsed.warnings.contains(where: { $0.contains("matched both token-map and unit-suffix") }))
     }
 
     private func loadBundledRuleSetForTests() throws -> FilenameRuleSet {
@@ -451,5 +435,84 @@ struct V210ImportAndParseTests {
             ])
         }
         return result.ruleSet
+    }
+
+    // MARK: - s11 decode compat tests
+
+    @Test("MatchSpec {type,value} decodes and evaluates correctly")
+    func matchSpecWithoutScopeDecodesAsTokens() throws {
+        let json = """
+        {
+          "version": 5,
+          "tokenization": {"separators": "_- ()", "caseFold": "preserve"},
+          "sources": ["file"],
+          "sampleId": {"matches": []},
+          "measurementNameRules": [],
+          "measurementTagRules": [
+            {"match": {"type": "equals", "value": "AMR"}, "value": "AMR"}
+          ],
+          "channel": {"aliases": {}},
+          "conditionDefinitions": [],
+          "conditions": {"extraConditions": {}, "tokenMapRules": {}, "displayLabels": {}}
+        }
+        """
+        let data = try #require(json.data(using: .utf8))
+        var ruleSet = try JSONDecoder().decode(FilenameRuleSet.self, from: data)
+        _ = ruleSet.compile()
+
+        let tags = ruleSet.measurementTags(from: ["AMR", "other"])
+        #expect(tags == ["AMR"])
+    }
+
+    @Test("ConditionDefinition with displayName field decodes and labelMap is correct")
+    func conditionDefinitionDisplayNameDecodeAndLabelMap() throws {
+        let json = """
+        {
+          "version": 3,
+          "tokenization": {"separators": "_", "caseFold": "preserve"},
+          "sources": ["file"],
+          "sampleId": {"batchPrefixes": []},
+          "measurementNameRules": [],
+          "measurementTagRules": [],
+          "channel": {"aliases": {}},
+          "conditionDefinitions": [
+            {"id": "temperature", "displayName": "Temperature v3", "kind": "unit_suffix", "unitPattern": "^\\\\d+K$"}
+          ],
+          "conditions": {"extraConditions": {}, "tokenMapRules": {}, "displayLabels": {}}
+        }
+        """
+        let data = try #require(json.data(using: .utf8))
+        let ruleSet = try JSONDecoder().decode(FilenameRuleSet.self, from: data)
+
+        let def = ruleSet.conditionDefinitions.first
+        #expect(def?.displayName == "Temperature v3")
+        let labels = ConditionFieldCatalog.labelMap(from: ruleSet)
+        #expect(labels["temperature"] == "Temperature v3", "labelMap must reflect displayName from v3 file")
+    }
+
+    @Test("ConditionDefinition with legacy label field: labelMap still correct")
+    func conditionDefinitionLegacyLabelDecodeAndLabelMap() throws {
+        let json = """
+        {
+          "version": 2,
+          "tokenization": {"separators": "_", "caseFold": "preserve"},
+          "sources": ["file"],
+          "sampleId": {"batchPrefixes": []},
+          "measurementNameRules": [],
+          "measurementTagRules": [],
+          "channel": {"aliases": {}},
+          "conditionDefinitions": [
+            {"id": "temperature", "label": "Temp (legacy)", "kind": "unit_suffix", "unitPattern": "^\\\\d+K$"}
+          ],
+          "conditions": {"extraConditions": {}, "tokenMapRules": {}, "displayLabels": {}}
+        }
+        """
+        let data = try #require(json.data(using: .utf8))
+        let ruleSet = try JSONDecoder().decode(FilenameRuleSet.self, from: data)
+
+        let def = ruleSet.conditionDefinitions.first
+        #expect(def?.displayName == "Temp (legacy)", "legacy label must decode into displayName")
+        let labels = ConditionFieldCatalog.labelMap(from: ruleSet)
+        #expect(labels["temperature"] == "Temp (legacy)", "labelMap must work after legacy label decode")
     }
 }

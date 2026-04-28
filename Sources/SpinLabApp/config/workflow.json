@@ -1,51 +1,101 @@
 {
-  "version": 1,
-  "workflows": [
-    {
-      "id": "MR",
-      "displayName": "MR",
-      "matchRules": [
-        { "scope": "tokens", "type": "equals", "matchValues": ["MR"] }
-      ],
-      "conditionFieldIDs": ["temperature", "field"]
-    },
-    {
-      "id": "ahe",
-      "displayName": "AHE",
-      "matchRules": [
-        { "scope": "tokens", "type": "equals", "matchValues": ["AHE"] }
-      ],
-      "conditionFieldIDs": ["temperature", "field"]
-    },
-    {
-      "id": "3w",
-      "displayName": "3ω",
-      "matchRules": [
-        { "scope": "tokens", "type": "equals", "matchValues": ["3w"] }
-      ],
-      "conditionFieldIDs": []
-    },
-    {
-      "id": "RT",
-      "displayName": "RT",
-      "matchRules": [
-        { "scope": "tokens", "type": "equals", "matchValues": ["rt"] }
-      ],
-      "conditionFieldIDs": ["current"]
-    },
-    {
-      "id": "XY",
-      "displayName": "XY Rotation",
-      "matchRules": [
-        { "scope": "tokens", "type": "equals", "matchValues": ["xy"] }
-      ],
-      "conditionFieldIDs": ["temperature", "field"]
-    }
-  ],
-  "measurementTagRules": [
-    { "match": { "scope": "tokens", "type": "equals", "matchValues": ["AMR"] }, "value": "AMR" },
-    { "match": { "scope": "tokens", "type": "equals", "matchValues": ["PHE"] }, "value": "PHE" },
-    { "match": { "scope": "tokens", "type": "equals", "matchValues": ["RXX"] }, "value": "Rxx" },
-    { "match": { "scope": "tokens", "type": "equals", "matchValues": ["RXY"] }, "value": "Rxy" }
-  ]
+    "version": 3,
+    "workflows": [
+        {
+            "id": "MR",
+            "displayName": "MR",
+            "matchRules": [
+                {
+                    "type": "equals",
+                    "value": "MR"
+                }
+            ],
+            "conditionFieldIDs": [
+                "temperature",
+                "field"
+            ]
+        },
+        {
+            "id": "ahe",
+            "displayName": "AHE",
+            "matchRules": [
+                {
+                    "type": "equals",
+                    "value": "AHE"
+                }
+            ],
+            "conditionFieldIDs": [
+                "temperature",
+                "field"
+            ]
+        },
+        {
+            "id": "3w",
+            "displayName": "3\u03c9",
+            "matchRules": [
+                {
+                    "type": "equals",
+                    "value": "3w"
+                }
+            ],
+            "conditionFieldIDs": []
+        },
+        {
+            "id": "RT",
+            "displayName": "RT",
+            "matchRules": [
+                {
+                    "type": "equals",
+                    "value": "rt"
+                }
+            ],
+            "conditionFieldIDs": [
+                "current"
+            ]
+        },
+        {
+            "id": "XY",
+            "displayName": "XY Rotation",
+            "matchRules": [
+                {
+                    "type": "equals",
+                    "value": "xy"
+                }
+            ],
+            "conditionFieldIDs": [
+                "temperature",
+                "field"
+            ]
+        }
+    ],
+    "measurementTagRules": [
+        {
+            "match": {
+                "type": "equals",
+                "value": "AMR"
+            },
+            "value": "AMR"
+        },
+        {
+            "match": {
+                "type": "equals",
+                "value": "PHE"
+            },
+            "value": "PHE"
+        },
+        {
+            "match": {
+                "type": "equals",
+                "value": "RXX"
+            },
+            "value": "Rxx"
+        },
+        {
+            "match": {
+                "type": "equals",
+                "value": "RXY"
+            },
+            "value": "Rxy"
+        }
+    ]
 }

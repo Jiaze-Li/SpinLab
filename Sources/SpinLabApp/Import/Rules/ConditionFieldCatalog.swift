@@ -41,7 +41,7 @@ struct ConditionFieldCatalog {
         var labels = builtInConditionLabels
         for definition in ruleSet.conditionDefinitions {
             let normalizedKey = definition.id.trimmingCharacters(in: .whitespacesAndNewlines)
-            let normalizedValue = definition.label?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let normalizedValue = definition.displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !normalizedKey.isEmpty, !normalizedValue.isEmpty else { continue }
             labels[normalizedKey] = normalizedValue
         }

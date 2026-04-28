@@ -38,6 +38,8 @@
 
 ## history (开发历史线 & 开发日志)
 
+> **Symlink 设计说明**：`docs/history/` 和 `docs/TASK_BOARD.md` 是指向 `../../SpinLab-shared/` 的 symlink，在本机多 worktree 布局下跨分支共享同一份任务板和历史索引。这是单人单机的有意设计，不支持标准 `git clone`——不需要支持。
+
 | Document | Purpose | Status |
 |---|---|---|
 | `history/INDEX.md` | 永久全量归档索引（完成日 / 版本 / 一句话 / history 文件 / handoff archive / commits 6 列，倒序）。 | active |

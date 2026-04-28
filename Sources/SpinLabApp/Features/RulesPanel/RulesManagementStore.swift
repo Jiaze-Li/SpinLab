@@ -25,43 +25,36 @@ struct MapRule: Codable, Hashable {
     var value: String
 
     struct MatchSpec: Codable, Hashable {
-        var scope: String
         var type: String
-        var matchValues: [String]
+        var value: String
 
         enum CodingKeys: String, CodingKey {
-            case scope, type, matchValues, value, values
+            case type, value, matchValues, values
         }
 
-        init(scope: String, type: String, matchValues: [String]) {
-            self.scope = scope
+        init(type: String, value: String) {
             self.type = type
-            self.matchValues = matchValues
+            self.value = value
         }
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            // Legacy files may omit scope. Default to "tokens" (a valid MatchScope in
-            // FilenameRuleSet); defaulting to "" would round-trip through encode and
-            // break the runtime loader on next read.
-            scope = try container.decodeIfPresent(String.self, forKey: .scope) ?? "tokens"
             type = try container.decode(String.self, forKey: .type)
-            if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
-                matchValues = mv
+            if let v = try container.decodeIfPresent(String.self, forKey: .value) {
+                value = v
+            } else if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
+                value = mv.first ?? ""
             } else if let vs = try container.decodeIfPresent([String].self, forKey: .values) {
-                matchValues = vs
-            } else if let v = try container.decodeIfPresent(String.self, forKey: .value) {
-                matchValues = [v]
+                value = vs.first ?? ""
             } else {
-                matchValues = []
+                value = ""
             }
         }
 
         func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode(scope, forKey: .scope)
             try container.encode(type, forKey: .type)
-            try container.encode(matchValues, forKey: .matchValues)
+            try container.encode(value, forKey: .value)
         }
     }
 }
@@ -107,7 +100,31 @@ struct SampleIdentificationFileDraft: Codable {
     var substrate: SubstrateConfig
 
     struct SampleIdConfig: Codable {
+        // batchPrefixes retained for view compat; Codable bridges to s12+ "matches" schema
         var batchPrefixes: [String]
+
+        private enum CodingKeys: String, CodingKey { case batchPrefixes, matches }
+
+        init(batchPrefixes: [String]) { self.batchPrefixes = batchPrefixes }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            struct Entry: Decodable { let type: String?; let value: String? }
+            if let entries = try c.decodeIfPresent([Entry].self, forKey: .matches) {
+                batchPrefixes = entries
+                    .filter { $0.type == "starts-with" }
+                    .compactMap(\.value)
+                    .filter { !$0.isEmpty }
+            } else {
+                batchPrefixes = try c.decodeIfPresent([String].self, forKey: .batchPrefixes) ?? []
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            let matches = batchPrefixes.filter { !$0.isEmpty }.map { ["type": "starts-with", "value": $0] }
+            try c.encode(matches, forKey: .matches)
+        }
     }
 
     struct SubstrateEntry: Codable, Identifiable {
@@ -141,43 +158,36 @@ struct WorkflowFileDraft: Codable {
     }
 
     struct WorkflowMatchSpec: Codable, Hashable {
-        var scope: String
         var type: String
-        var matchValues: [String]
+        var value: String
 
         enum CodingKeys: String, CodingKey {
-            case scope, type, matchValues, value, values
+            case type, value, matchValues, values
         }
 
-        init(scope: String, type: String, matchValues: [String]) {
-            self.scope = scope
+        init(type: String, value: String) {
             self.type = type
-            self.matchValues = matchValues
+            self.value = value
         }
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            // Legacy files may omit scope. Default to "tokens" (a valid MatchScope in
-            // FilenameRuleSet); defaulting to "" would round-trip through encode and
-            // break the runtime loader on next read.
-            scope = try container.decodeIfPresent(String.self, forKey: .scope) ?? "tokens"
             type = try container.decode(String.self, forKey: .type)
-            if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
-                matchValues = mv
+            if let v = try container.decodeIfPresent(String.self, forKey: .value) {
+                value = v
+            } else if let mv = try container.decodeIfPresent([String].self, forKey: .matchValues) {
+                value = mv.first ?? ""
             } else if let vs = try container.decodeIfPresent([String].self, forKey: .values) {
-                matchValues = vs
-            } else if let v = try container.decodeIfPresent(String.self, forKey: .value) {
-                matchValues = [v]
+                value = vs.first ?? ""
             } else {
-                matchValues = []
+                value = ""
             }
         }
 
         func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode(scope, forKey: .scope)
             try container.encode(type, forKey: .type)
-            try container.encode(matchValues, forKey: .matchValues)
+            try container.encode(value, forKey: .value)
         }
     }
 }
@@ -187,13 +197,81 @@ struct MeasuringConditionFileDraft: Codable {
     var version: Int
     var conditionDefinitions: [ConditionDefinition]
 
-    struct ConditionDefinition: Codable, Identifiable {
+    struct ConditionDefinition: Identifiable {
         var id: String
-        var label: String?
+        var displayName: String?
         var kind: String
         var unitPattern: String?
         var tokenMap: [MapRule]?
     }
+}
+
+extension MeasuringConditionFileDraft.ConditionDefinition: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case id, kind, unitPattern, tokenMap, label, displayName, matches
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        kind = try c.decode(String.self, forKey: .kind)
+        displayName = try c.decodeIfPresent(String.self, forKey: .displayName)
+            ?? c.decodeIfPresent(String.self, forKey: .label)
+
+        if kind == "unit_suffix" {
+            // Unified format: matches: [{type, value}] supporting all 4 ops.
+            // Legacy fallback: unitPattern string or old [{type:"unit-suffix", value}] array.
+            struct MatchEntry: Decodable { let type: String?; let value: String? }
+            if let entries = try c.decodeIfPresent([MatchEntry].self, forKey: .matches) {
+                tokenMap = entries.compactMap { e -> MapRule? in
+                    guard let t = e.type, let v = e.value, !v.isEmpty,
+                          FilenameRuleSet.Operation(rawValue: t) != nil else { return nil }
+                    return MapRule(match: .init(type: t, value: v), value: "$MATCH")
+                }
+            } else if let pattern = try c.decodeIfPresent(String.self, forKey: .unitPattern) {
+                let units = unitsFromUnitPattern(pattern)
+                tokenMap = units.map { MapRule(match: .init(type: "unit-suffix", value: $0), value: "$MATCH") }
+            } else {
+                tokenMap = []
+            }
+            unitPattern = nil
+        } else {
+            // token_map — s12+ format: matches: [MapRule]; pre-s12 format: tokenMap: [MapRule]
+            tokenMap = try c.decodeIfPresent([MapRule].self, forKey: .matches)
+                ?? c.decodeIfPresent([MapRule].self, forKey: .tokenMap)
+            unitPattern = nil
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(kind, forKey: .kind)
+        try c.encodeIfPresent(displayName, forKey: .displayName)
+        if kind == "token_map" {
+            // Nested MapRule format preserves output value: {match: {type, value}, value: outputValue}
+            try c.encode(tokenMap ?? [], forKey: .matches)
+        } else {
+            // unit_suffix: flat format {type, value}; output is always implicit $MATCH
+            let specs = (tokenMap ?? []).map { ["type": $0.match.type, "value": $0.match.value] }
+            try c.encode(specs, forKey: .matches)
+        }
+    }
+}
+
+// MARK: - Unit pattern helpers (bridging unitPattern string ↔ unit-suffix MatchSpec values)
+
+func unitPatternFromUnits(_ units: [String]) -> String {
+    "^-?\\d+(?:\\.\\d+)?(?:\(units.joined(separator: "|")))$"
+}
+
+func unitsFromUnitPattern(_ pattern: String?) -> [String] {
+    guard let pattern else { return [] }
+    let prefix = "^-?\\d+(?:\\.\\d+)?(?:"
+    let suffix = ")$"
+    guard pattern.hasPrefix(prefix), pattern.hasSuffix(suffix) else { return [] }
+    let inner = String(pattern.dropFirst(prefix.count).dropLast(suffix.count))
+    return inner.isEmpty ? [] : inner.components(separatedBy: "|")
 }
 
 // MARK: - Store
@@ -210,7 +288,6 @@ final class RulesManagementStore {
     private(set) var workflowDraft: WorkflowFileDraft?
     private(set) var measuringConditionDraft: MeasuringConditionFileDraft?
 
-    // Derived from measuringConditionDraft; refreshed on load + external reload
     private(set) var availableConditionFieldIDs: [String] = []
 
     @ObservationIgnored var persistenceHook: RulesPersistenceHook?
@@ -287,13 +364,7 @@ final class RulesManagementStore {
     // MARK: - Save / Discard
 
     func saveCurrent() -> RulesPanelSaveOutcome {
-        switch currentSection {
-        case .importFilters:        return saveImportFilters()
-        case .filenameTokenization: return saveFilenameTokenization()
-        case .sampleIdentification: return saveSampleIdentification()
-        case .workflow:             return saveWorkflow()
-        case .measuringCondition:   return saveMeasuringCondition()
-        }
+        saveSection(currentSection)
     }
 
     func discardCurrent() {
@@ -308,13 +379,7 @@ final class RulesManagementStore {
 
     func overrideWithCurrentDraft(section: RulesPanelSection) -> RulesPanelSaveOutcome {
         openTimeHashes.removeValue(forKey: section)
-        switch section {
-        case .importFilters:        return saveImportFilters()
-        case .filenameTokenization: return saveFilenameTokenization()
-        case .sampleIdentification: return saveSampleIdentification()
-        case .workflow:             return saveWorkflow()
-        case .measuringCondition:   return saveMeasuringCondition()
-        }
+        return saveSection(section)
     }
 
     func reloadAfterExternalChange(section: RulesPanelSection) {
@@ -327,17 +392,38 @@ final class RulesManagementStore {
     private func loadSection(_ section: RulesPanelSection) {
         switch section {
         case .importFilters:
-            importFiltersDraft = loadAndCacheHash(url: paths.importFiltersURL, section: section)
+            importFiltersDraft = loadWithStrategy(
+                ImportFiltersStrategy(runtimeURL: paths.importFiltersURL), section: section)
         case .filenameTokenization:
-            filenameTokenizationDraft = loadAndCacheHash(url: paths.filenameTokenizationURL, section: section)
+            filenameTokenizationDraft = loadWithStrategy(
+                FilenameTokenizationStrategy(runtimeURL: paths.filenameTokenizationURL), section: section)
         case .sampleIdentification:
-            sampleIdentificationDraft = loadAndCacheHash(url: paths.sampleIdentificationURL, section: section)
+            sampleIdentificationDraft = loadWithStrategy(
+                SampleIdentificationStrategy(runtimeURL: paths.sampleIdentificationURL), section: section)
         case .workflow:
-            workflowDraft = loadAndCacheHash(url: paths.workflowURL, section: section)
+            workflowDraft = loadWithStrategy(
+                WorkflowStrategy(runtimeURL: paths.workflowURL), section: section)
         case .measuringCondition:
-            let draft: MeasuringConditionFileDraft? = loadAndCacheHash(url: paths.measuringConditionURL, section: section)
-            measuringConditionDraft = draft
-            availableConditionFieldIDs = draft?.conditionDefinitions.map(\.id) ?? []
+            measuringConditionDraft = loadWithStrategy(
+                MeasuringConditionStrategy(runtimeURL: paths.measuringConditionURL), section: section)
+        }
+    }
+
+    private func loadWithStrategy<S: SectionPersistenceStrategy>(
+        _ strategy: S, section: RulesPanelSection
+    ) -> S.Draft? {
+        guard let draft: S.Draft = loadAndCacheHash(url: strategy.runtimeURL, section: section) else {
+            return nil
+        }
+        let effect = strategy.postLoad(draft, context: makeStoreContext())
+        applyPostLoadEffect(effect)
+        return draft
+    }
+
+    private func applyPostLoadEffect(_ effect: PostLoadEffect) {
+        switch effect {
+        case .none: break
+        case .updateConditionFieldIDs(let ids): availableConditionFieldIDs = ids
         }
     }
 
@@ -351,219 +437,47 @@ final class RulesManagementStore {
         return decoded
     }
 
-    // MARK: - Per-section save
+    // MARK: - Save dispatch
 
-    private func saveImportFilters() -> RulesPanelSaveOutcome {
-        guard let draft = importFiltersDraft else {
-            return .ioError(AppError.state("No import filters draft"))
+    private func saveSection(_ section: RulesPanelSection) -> RulesPanelSaveOutcome {
+        switch section {
+        case .importFilters:
+            return saveWithStrategy(
+                ImportFiltersStrategy(runtimeURL: paths.importFiltersURL),
+                draft: importFiltersDraft, section: section)
+        case .filenameTokenization:
+            return saveWithStrategy(
+                FilenameTokenizationStrategy(runtimeURL: paths.filenameTokenizationURL),
+                draft: filenameTokenizationDraft, section: section)
+        case .sampleIdentification:
+            return saveWithStrategy(
+                SampleIdentificationStrategy(runtimeURL: paths.sampleIdentificationURL),
+                draft: sampleIdentificationDraft, section: section)
+        case .workflow:
+            return saveWithStrategy(
+                WorkflowStrategy(runtimeURL: paths.workflowURL),
+                draft: workflowDraft, section: section)
+        case .measuringCondition:
+            return saveWithStrategy(
+                MeasuringConditionStrategy(runtimeURL: paths.measuringConditionURL),
+                draft: measuringConditionDraft, section: section)
         }
-        var errors: [RulesPanelFieldError] = []
-
-        // No extension may contain spaces
-        let allExts = draft.config.supportedFileExtensions + draft.config.ignoredFileExtensions
-        for ext in allExts where ext.contains(" ") {
-            errors.append(.init(field: "extensions", message: "Extension '\(ext)' must not contain spaces"))
-        }
-        // No extension may start with '.'
-        for ext in allExts where ext.hasPrefix(".") {
-            errors.append(.init(field: "extensions", message: "Extension '\(ext)' must not start with '.'"))
-        }
-        // supported and ignored must not overlap
-        let supported = Set(draft.config.supportedFileExtensions)
-        let ignored = Set(draft.config.ignoredFileExtensions)
-        let overlap = supported.intersection(ignored)
-        for ext in overlap.sorted() {
-            errors.append(.init(field: "extensions", message: "'\(ext)' is in both supported and ignored"))
-        }
-
-        if !errors.isEmpty { return .validationFailed(errors) }
-        return persist(section: .importFilters, url: paths.importFiltersURL, value: draft)
     }
 
-    private func saveFilenameTokenization() -> RulesPanelSaveOutcome {
-        guard let draft = filenameTokenizationDraft else {
-            return .ioError(AppError.state("No filename tokenization draft"))
+    private func saveWithStrategy<S: SectionPersistenceStrategy>(
+        _ strategy: S, draft: S.Draft?, section: RulesPanelSection
+    ) -> RulesPanelSaveOutcome {
+        guard let d = draft else {
+            return .ioError(AppError.state("No \(section.rawValue) draft loaded"))
         }
-        var errors: [RulesPanelFieldError] = []
-
-        if draft.tokenization.separators.isEmpty {
-            errors.append(.init(field: "tokenization.separators", message: "Separators must not be empty"))
-        }
-
-        let allowedSources: Set<String> = ["file", "parent", "grandparent"]
-        let dedupedSources = Array(NSOrderedSet(array: draft.sources)) as? [String] ?? draft.sources
-        if dedupedSources.isEmpty {
-            errors.append(.init(field: "sources", message: "Sources must contain at least one entry"))
-        }
-        for source in dedupedSources where !allowedSources.contains(source) {
-            errors.append(.init(field: "sources", message: "Unknown source '\(source)'; allowed: file, parent, grandparent"))
-        }
-
-        for (key, value) in draft.channel.aliases {
-            if key.isEmpty || value.isEmpty {
-                errors.append(.init(field: "channel.aliases", message: "Alias key and value must not be empty"))
-            }
-        }
-
+        let context = makeStoreContext()
+        let errors = strategy.validate(d, context: context)
         if !errors.isEmpty { return .validationFailed(errors) }
-        return persist(section: .filenameTokenization, url: paths.filenameTokenizationURL, value: draft)
-    }
-
-    private func saveSampleIdentification() -> RulesPanelSaveOutcome {
-        guard let draft = sampleIdentificationDraft else {
-            return .ioError(AppError.state("No sample identification draft"))
-        }
-        var errors: [RulesPanelFieldError] = []
-
-        var seenMaterialNames: Set<String> = []
-        for m in draft.substrate.materials {
-            if m.displayName.isEmpty {
-                errors.append(.init(field: "substrate.materials", message: "Material displayName must not be empty"))
-            }
-            if !seenMaterialNames.insert(m.displayName).inserted {
-                errors.append(.init(field: "substrate.materials[\(m.displayName)]", message: "Duplicate material '\(m.displayName)'"))
-            }
-        }
-
-        var seenTreatmentNames: Set<String> = []
-        for t in draft.substrate.treatments {
-            if t.displayName.isEmpty {
-                errors.append(.init(field: "substrate.treatments", message: "Treatment displayName must not be empty"))
-            }
-            if !seenTreatmentNames.insert(t.displayName).inserted {
-                errors.append(.init(field: "substrate.treatments[\(t.displayName)]", message: "Duplicate treatment '\(t.displayName)'"))
-            }
-        }
-
-        var seenOrientationNames: Set<String> = []
-        for o in draft.substrate.orientations {
-            if o.displayName.isEmpty {
-                errors.append(.init(field: "substrate.orientations", message: "Orientation displayName must not be empty"))
-            }
-            if !seenOrientationNames.insert(o.displayName).inserted {
-                errors.append(.init(field: "substrate.orientations[\(o.displayName)]", message: "Duplicate orientation '\(o.displayName)'"))
-            }
-        }
-
-        if !errors.isEmpty { return .validationFailed(errors) }
-        return persist(section: .sampleIdentification, url: paths.sampleIdentificationURL, value: draft)
-    }
-
-    private func saveWorkflow() -> RulesPanelSaveOutcome {
-        guard let draft = workflowDraft else {
-            return .ioError(AppError.state("No workflow draft"))
-        }
-        var errors: [RulesPanelFieldError] = []
-
-        // workflow IDs must be non-empty, no whitespace, unique
-        var seenIDs: Set<String> = []
-        for w in draft.workflows {
-            if w.id.isEmpty || w.id.contains(where: \.isWhitespace) {
-                errors.append(.init(field: "workflows[\(w.id)].id",
-                                    message: "Workflow ID must be non-empty and contain no whitespace"))
-            }
-            if !seenIDs.insert(w.id).inserted {
-                errors.append(.init(field: "workflows[\(w.id)].id",
-                                    message: "Duplicate workflow ID '\(w.id)'"))
-            }
-            if w.displayName.isEmpty {
-                errors.append(.init(field: "workflows[\(w.id)].displayName",
-                                    message: "Display name must not be empty"))
-            }
-            if w.matchRules.isEmpty {
-                errors.append(.init(field: "workflows[\(w.id)].matchRules",
-                                    message: "Workflow '\(w.id)' must have at least one match rule"))
-            }
-            for spec in w.matchRules where spec.type == "regex" {
-                spec.matchValues.forEach { validateRegex($0, field: "workflows[\(w.id)].matchRules", errors: &errors) }
-            }
-        }
-
-        // conditionFieldIDs cross-section validation
-        // Use dirty measuringConditionDraft if present, else load from disk
-        let knownConditionIDs: Set<String>
-        if dirtySections.contains(.measuringCondition), let mc = measuringConditionDraft {
-            knownConditionIDs = Set(mc.conditionDefinitions.map(\.id))
-        } else {
-            let mc: MeasuringConditionFileDraft? = loadFromDiskOnly(url: paths.measuringConditionURL)
-            knownConditionIDs = Set(mc?.conditionDefinitions.map(\.id) ?? [])
-        }
-        for w in draft.workflows {
-            for fieldID in w.conditionFieldIDs where !knownConditionIDs.contains(fieldID) {
-                errors.append(.init(field: "workflows[\(w.id)].conditionFieldIDs",
-                                    message: "Condition '\(fieldID)' not found in measuring_condition.json"))
-            }
-        }
-
-        for rule in draft.measurementTagRules where rule.match.type == "regex" {
-            rule.match.matchValues.forEach { validateRegex($0, field: "measurementTagRules", errors: &errors) }
-        }
-
-        if !errors.isEmpty { return .validationFailed(errors) }
-        return persist(section: .workflow, url: paths.workflowURL, value: draft)
-    }
-
-    private func saveMeasuringCondition() -> RulesPanelSaveOutcome {
-        guard let draft = measuringConditionDraft else {
-            return .ioError(AppError.state("No measuring condition draft"))
-        }
-        var errors: [RulesPanelFieldError] = []
-
-        var seenIDs: Set<String> = []
-        for def in draft.conditionDefinitions {
-            if !seenIDs.insert(def.id).inserted {
-                errors.append(.init(field: "conditionDefinitions", message: "Duplicate condition ID '\(def.id)'"))
-            }
-            guard def.kind == "unit_suffix" || def.kind == "token_map" else {
-                errors.append(.init(field: "conditionDefinitions[\(def.id)].kind",
-                                    message: "Unknown kind '\(def.kind)'"))
-                continue
-            }
-            if def.kind == "unit_suffix" {
-                if def.tokenMap != nil {
-                    errors.append(.init(field: "conditionDefinitions[\(def.id)]",
-                                        message: "unit_suffix must not have tokenMap"))
-                }
-                let pattern = def.unitPattern ?? ""
-                if pattern.isEmpty {
-                    errors.append(.init(field: "conditionDefinitions[\(def.id)]",
-                                        message: "unit_suffix requires a non-empty unitPattern"))
-                } else {
-                    validateRegex(pattern, field: "conditionDefinitions[\(def.id)].unitPattern", errors: &errors)
-                }
-            } else {
-                if def.unitPattern != nil {
-                    errors.append(.init(field: "conditionDefinitions[\(def.id)]",
-                                        message: "token_map must not have unitPattern"))
-                }
-                if def.tokenMap == nil {
-                    errors.append(.init(field: "conditionDefinitions[\(def.id)]",
-                                        message: "token_map requires tokenMap"))
-                }
-                for rule in def.tokenMap ?? [] where rule.match.type == "regex" {
-                    rule.match.matchValues.forEach {
-                        validateRegex($0, field: "conditionDefinitions[\(def.id)].tokenMap", errors: &errors)
-                    }
-                }
-            }
-        }
-
-        if !errors.isEmpty { return .validationFailed(errors) }
-        let outcome = persist(section: .measuringCondition, url: paths.measuringConditionURL, value: draft)
-
-        // Soft warning: check for dangling references in workflow
-        if case .saved = outcome {
-            let savedIDs = Set(draft.conditionDefinitions.map(\.id))
-            if let wf = workflowDraft ?? loadFromDiskOnly(url: paths.workflowURL) as WorkflowFileDraft? {
-                let danglingWorkflows = wf.workflows.filter { w in
-                    w.conditionFieldIDs.contains { !savedIDs.contains($0) }
-                }
-                if !danglingWorkflows.isEmpty {
-                    // Not blocking — just surface via hook for potential UI display
-                    let names = danglingWorkflows.map(\.id).joined(separator: ", ")
-                    _ = names // Dangling reference warning available for UI layer if needed
-                }
-            }
+        let outcome = persist(section: section, url: strategy.runtimeURL, value: d)
+        switch outcome {
+        case .saved, .savedWithMirrorWarning:
+            strategy.postPersist(d, context: context)
+        default: break
         }
         return outcome
     }
@@ -620,21 +534,29 @@ final class RulesManagementStore {
         }
     }
 
+    // MARK: - Context factory
+
+    private func makeStoreContext() -> StoreContext {
+        StoreContext(
+            dirtyMeasuringCondition: dirtySections.contains(.measuringCondition) ? measuringConditionDraft : nil,
+            dirtyWorkflow: dirtySections.contains(.workflow) ? workflowDraft : nil,
+            loadMeasuringConditionFromDisk: { [weak self] in
+                guard let self else { return nil }
+                return self.loadFromDiskOnly(url: self.paths.measuringConditionURL)
+            },
+            loadWorkflowFromDisk: { [weak self] in
+                guard let self else { return nil }
+                return self.loadFromDiskOnly(url: self.paths.workflowURL)
+            }
+        )
+    }
+
     // MARK: - Helpers
 
     private func loadFromDiskOnly<T: Decodable>(url: URL) -> T? {
         guard FileManager.default.fileExists(atPath: url.path),
               let data = try? Data(contentsOf: url) else { return nil }
         return try? Self.jsonDecoder.decode(T.self, from: data)
-    }
-
-    private func validateRegex(_ pattern: String, field: String, errors: inout [RulesPanelFieldError]) {
-        guard !pattern.isEmpty else { return }
-        do {
-            _ = try NSRegularExpression(pattern: pattern, options: [])
-        } catch {
-            errors.append(.init(field: field, message: "Invalid regex '\(pattern)': \(error.localizedDescription)"))
-        }
     }
 
     private func sha256Hex(of data: Data) -> String {

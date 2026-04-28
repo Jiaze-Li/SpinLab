@@ -6,23 +6,20 @@ import Testing
 struct V515SampleIdentificationBatchPrefixesTests {
 
     private func makeRuleSet(batchPrefixes: [String]) throws -> FilenameRuleSet {
+        let matchesJSON = "[" + batchPrefixes.map { "{\"type\":\"starts-with\",\"value\":\"\($0)\"}" }.joined(separator: ",") + "]"
         let json = """
         {
-            "version": 4,
+            "version": 5,
             "tokenization": { "separators": "_", "caseFold": "preserve" },
             "sources": ["file"],
             "channel": { "aliases": {} },
-            "sampleId": { "batchPrefixes": \(batchPrefixJSON(batchPrefixes)) },
+            "sampleId": { "matches": \(matchesJSON) },
             "substrateConfig": { "materials": [], "treatments": [], "orientations": [] }
         }
         """
         var ruleSet = try JSONDecoder().decode(FilenameRuleSet.self, from: Data(json.utf8))
         ruleSet.loadWarnings = ruleSet.compile()
         return ruleSet
-    }
-
-    private func batchPrefixJSON(_ prefixes: [String]) -> String {
-        "[" + prefixes.map { "\"\($0)\"" }.joined(separator: ",") + "]"
     }
 
     @Test("three prefixes each match their own IDs")
