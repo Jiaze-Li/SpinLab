@@ -63,7 +63,7 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `specs/04_UI_RULES.md`
 ### Archive
 - Once archived, records must not be silently modified
 - Internal archive (App Support) is canonical source of truth
-- Audit log maintained under Library Root and App Support (append-only)
+- Audit log maintained under Library Root and App Support (append-only); if log file exists but cannot be read, write is skipped to prevent overwrite
 - Required sidecar fields: version, source_file, sample_key, workflow, conditions, channel_bindings, normalized_tags, raw_tags, applied_at
 
 ---
