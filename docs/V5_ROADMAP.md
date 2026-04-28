@@ -301,8 +301,8 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 
 **顶层原则**：
 1. **梳理在前，修补在后**——近期纯文档零代码，结构债清单 → 中期按条目立项修
-2. **真共享 vs 不该共享分开**——前者归 cross_cutting 正式化，后者进中期债条目
-3. **不为行数拆文件**，仅为职责混杂拆
+2. **共享点 4 分类**：`legitimate_cross_cutting`（合法基础设施共享，正式化到 cross_cutting）/ `coordination_surface`（AppState 协调型，部分需迁移到 FeatureStore）/ `suspect_coupling`（错误字段级耦合，必须拆）/ `migration_candidate`（旧设计遗留待清理）。**结构债清单只收 `suspect_coupling` 与需迁移的 `coordination_surface`**
+3. **不以行数单独作为拆分理由**：但大文件本身可作为"职责混杂的信号"——必须检查是否存在职责混杂、测试困难或派发成本异常。附录 A 输出"拆分候选理由"，不是自动拆分清单
 
 **任务拆分（s1–s4，1–2 周纯文档）**：
 
@@ -316,10 +316,10 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 **关键 acceptance gate**（s4 验收必满足）：
 
 - **AG1** 每个 swift 文件都有区块 + 层级归属，含 `[暧昧]` / `[未确定]` 标签的清单完整
-- **AG2** 至少识别出 5+ 类似 `def.tokenMap` 形态的字段级共享点
-- **AG3** 索引可被 AI 派发引用直接命中文件（取代原 dispatch 表方案）
-- **AG4** 维护规则嵌入 closeout 流程，改某区域代码 → 同步检查对应区块条目
-- **AG5** 「结构债清单」产出，作为中期版本（5.1.8+）立项依据
+- **AG2** 完成字段级共享扫描并按证据分级（按上方 4 分类）；若 `suspect_coupling` 类少于 5 个，需说明扫描范围与未发现原因。`def.tokenMap` 作为模板参考，不作为数量验收
+- **AG3** 索引可被 AI 派发引用直接命中文件，并通过抽样验证：选 8–12 个真实 / 假想任务描述（覆盖 5 区块），要求索引能给出首读文件 + 相关消费者 + 风险共享点，记录 miss case
+- **AG4** 维护规则嵌入 closeout 流程，改某区域代码 → 同步检查对应区块条目；`docs/architecture/INDEX.md` 明确为现行架构索引唯一入口，历史材料只从 `docs/history/INDEX` 进入，不在现行路径重复维护
+- **AG5** 「结构债清单」产出，按 4 分类组织，作为中期版本（5.1.8+）立项依据
 - **AG6** 全程零代码改动（写入暧昧清单不算改代码）
 
 **否决方案及理由**（不要后续 agent 推翻）：
@@ -348,32 +348,38 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 **顶层原则**：UI 上语义独立的两种模式，数据模型必须独立存储。共享字段靠 binding 过滤是结构债，不是设计。
 
 **拍板要点**：
-1. **数据模型解耦**：`ConditionDefinition` 拆出独立字段（命名待 s8-design 拍板，候选 `unitSuffixSpecs` + `tokenMapRules`），各自存各自的规则
+1. **数据模型解耦**：`ConditionDefinition` 拆出独立字段（命名待 s1-design 拍板，候选 `unitSuffixSpecs` + `tokenMapRules`），各自存各自的规则
 2. **kind 切换无副作用**：纯标记切换，不再涉及数据合并/过滤
-3. **schema 迁移 v5→v6**：runtime 数据原子迁移 + backup + 幂等
-4. **binding 层简化**：现有 `unitSuffixSpecsBinding` / `tokenMapRulesBinding` 的过滤合并逻辑全删
-5. **测试同步更新**：V515ConditionKindSwitchTests 重写为新数据模型的契约（不再守 binding 兜底，而是守"两个字段互不影响"）
+3. **schema 迁移 v5→v6**：runtime 数据原子迁移 + backup + 幂等；旧 schema decoder **只能存在于 migration / bootstrapper 层**，runtime domain model / Rules Panel draft / RuleLoader 正常路径不得暴露旧 `tokenMap`
+4. **binding 层简化**：跨 kind 的过滤合并逻辑全删；UI 内部 ordering / stable IDs / section-local edit semantics 视情况保留（不属于跨字段耦合）
+5. **测试同步更新**：V515ConditionKindSwitchTests 重写为新数据模型的契约（守"两个字段互不影响"），并补 v5→v6 round-trip + 持久化不含旧字段的覆盖
+
+**s1-design 必拍板问题**：
+- **产品语义**：Condition kind 是"互斥活动模式 + 保留非活动配置"，还是"同一 condition 下两个独立规则分区"？前者考虑 enum + inactive payload；后者两字段方案成立
+- **迁移歧义策略**：旧 `tokenMap` 中 `match.type == "unit-suffix"` 但 value 非 `$MATCH` 的脏数据如何处理；同一 rule 兼具两种语义形态如何分流
+- **字段命名**：`unitSuffixSpecs` / `tokenMapRules` 是否最优
 
 **任务拆分**：
 
 | 会话 | 主题 | 工作量 |
 |---|---|---|
-| s1-design | 设计稿对抗：字段命名 + schema v5→v6 迁移路径 + 测试改写策略 → handoff | 设计会话 |
+| s1-design | 设计稿对抗：产品语义拍板（enum vs 双字段）+ 字段命名 + schema v5→v6 迁移路径（含歧义策略）+ 测试改写策略 → handoff | 设计会话 |
 | s1-exec | 执行：domain model 拆字段 + bootstrapper v5→v6 迁移 + binding 层简化 + 测试改写 + UI 验证两种模式互不干扰 | 中（6–10 h） |
 
 **关键 acceptance gate**：
 
-- **AG1** `ConditionDefinition` 有两个独立字段，各自存对应模式的规则；`tokenMap` 单字段不再存在
+- **AG1** `ConditionDefinition` 有两个独立字段（或 enum + payload，取决于 s1-design 拍板），各自存对应模式的规则；`tokenMap` 单字段在 runtime domain model 中不再存在
 - **AG2** kind 切换不改任何数据，仅改 kind 标记本身
-- **AG3** v5→v6 迁移：含旧 `tokenMap` 含混合规则的 runtime 文件能解码并按 `match.type` 拆分到两字段（atomic + backup + 幂等）；迁移后旧解码路径删除
-- **AG4** V515ConditionKindSwitchTests 重写为契约测试（写 unit-suffix 字段不影响 token_map 字段，反之亦然），原 4 个回归用例的行为仍守
-- **AG5** UI 行为对用户完全一致 —— 两种模式仍可见、可编辑、互不干扰
+- **AG3** v5→v6 迁移：旧 `tokenMap` 解码只在 migration/bootstrapper DTO 层；精确 `unit-suffix` 进入 unitSuffix 字段，其余规则保留到 tokenMap 字段；**歧义条目不得静默丢弃**，必须 backup + migration warning/audit；迁移后 runtime / RuleLoader 正常路径不得暴露旧 `tokenMap`
+- **AG4** 测试覆盖三类：(a) v5 mixed fixture 迁移到 v6；(b) v6 fixture decode/encode round-trip 保持两个字段独立；(c) Rules Panel 保存后文件不含旧 `tokenMap`。V515ConditionKindSwitchTests 重写为契约测试（写一字段不影响另一字段），原 4 个回归用例行为仍守
+- **AG5** UI 行为对用户完全一致 —— 包含分区内规则显示顺序、增删改操作位置、切换 kind 后返回原分区的内容和顺序不变；删除的是跨 kind 过滤合并逻辑，不是所有 UI projection / order 逻辑
 
 **否决方案及理由**（不要后续 agent 推翻）：
 
 - ❌ 保留 `tokenMap` 单字段 + 加更复杂的 binding 过滤逻辑 —— 结构债加深，非清理
 - ❌ v5→v6 双 schema 并存兼容 —— 一次性迁完，与 5.1.5 F 项迁移策略一致
 - ❌ 测试只守 V515ConditionKindSwitchTests 4 用例不删 —— 数据模型变了，测试形态必须跟改
+- ❌ 迁移时把无法判定的歧义条目静默归到一边 —— 违反"用户配置不可清理"硬约束，必须 backup + warning
 
 **来源**：5.1.5 s12 收尾确认的回归 case；2026-04-28 与 Jack 对齐为 5.1.6 架构梳理后的首条结构债。
 
