@@ -1047,11 +1047,20 @@ final class ThreeOmegaWorkspaceStore {
         to sweeps: [ThreeOmegaFieldSweepResult]
     ) -> [ThreeOmegaFieldSweepResult] {
         guard let order, !order.isEmpty else { return sweeps }
-        let bySampleID = Dictionary(uniqueKeysWithValues: sweeps.compactMap { s in s.sampleID.map { ($0, s) } })
+        // Group by sampleID — duplicate IDs are possible when the same sample/temperature
+        // is selected more than once; preserve all matches in encounter order.
+        var bySampleID: [String: [ThreeOmegaFieldSweepResult]] = [:]
+        for s in sweeps {
+            guard let sid = s.sampleID else { continue }
+            bySampleID[sid, default: []].append(s)
+        }
         var result: [ThreeOmegaFieldSweepResult] = []
         var consumed = Set<String>()
         for id in order {
-            if let s = bySampleID[id] { result.append(s); consumed.insert(id) }
+            if let bucket = bySampleID[id] {
+                result.append(contentsOf: bucket)
+                consumed.insert(id)
+            }
         }
         for s in sweeps where s.sampleID.map({ !consumed.contains($0) }) ?? true {
             result.append(s)

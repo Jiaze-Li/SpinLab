@@ -414,7 +414,6 @@ final class XYRotationWorkspaceStore {
     /// Re-renders both tabs after loadPack.
     private func _rerenderAllTabs() {
         guard let ingestion = ingestionResult else { return }
-        let sweeps = ingestion.sweeps
         let device = ingestion.device
 
         _renderRevision &+= 1
@@ -422,14 +421,18 @@ final class XYRotationWorkspaceStore {
 
         for tab in XYRotationWorkbenchTab.allCases {
             let renderer = _snapshotRenderer(forTab: tab)
+            let orderedSweeps = XYRotationWorkspaceStore._applySeriesOrder(
+                tabs.state(for: tab).seriesOrder,
+                to: ingestion.sweeps
+            )
             Task.detached(priority: .userInitiated) { [weak self] in
                 var r = renderer
                 let (data, layout, payload): (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?)
                 switch tab {
                 case .rxxVsPhi:
-                    (data, layout, payload) = r.renderRxxVsPhi(sweeps: sweeps, device: device)
+                    (data, layout, payload) = r.renderRxxVsPhi(sweeps: orderedSweeps, device: device)
                 case .rxyVsPhi:
-                    (data, layout, payload) = r.renderRxyVsPhi(sweeps: sweeps, device: device)
+                    (data, layout, payload) = r.renderRxyVsPhi(sweeps: orderedSweeps, device: device)
                 }
 
                 await MainActor.run { [weak self] in
