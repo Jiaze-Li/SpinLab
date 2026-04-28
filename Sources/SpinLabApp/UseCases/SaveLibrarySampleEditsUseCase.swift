@@ -24,7 +24,7 @@ struct SaveLibrarySampleEditsUseCase {
         input: Input,
         snapshotIndexFromFilesystem: (URL) -> LibraryIndex,
         applyDraft: (LibrarySampleEditDraft, LibrarySample) throws -> LibrarySample,
-        updateSample: (LibrarySample, URL) -> Void,
+        updateSample: (LibrarySample, URL) throws -> Void,
         resolveRegistrySourceURL: () -> URL?,
         syncRegistrySource: (LibrarySample, LibrarySample, URL) throws -> LibraryRegistrySourceSyncResult
     ) -> Result<Output, AppError> {
@@ -50,7 +50,7 @@ struct SaveLibrarySampleEditsUseCase {
 
         do {
             let updated = try applyDraft(draft, current)
-            updateSample(updated, rootURL)
+            try updateSample(updated, rootURL)
 
             var syncSummary: LibraryRegistrySourceSyncResult?
             var syncIssue: RegistrySyncIssue?

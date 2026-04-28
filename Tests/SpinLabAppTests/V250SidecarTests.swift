@@ -339,7 +339,7 @@ private struct Fixture {
                 updatedAt: .now
             )
             samplesByID[sampleSeed.id] = sample
-            libraryStore.createDrawer(for: sample, batch: batch, rootURL: libraryRootURL)
+            try libraryStore.createDrawer(for: sample, batch: batch, rootURL: libraryRootURL)
         }
 
         let libraryIndex = libraryStore.syncIndexFromFilesystem(rootURL: libraryRootURL)

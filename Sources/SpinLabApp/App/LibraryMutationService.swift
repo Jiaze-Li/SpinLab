@@ -86,8 +86,12 @@ struct LibraryMutationService {
             guard let batch = batchesById[sample.batchId] else {
                 continue
             }
-            libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
-            created += 1
+            do {
+                try libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
+                created += 1
+            } catch {
+                return .failure(message: "Failed to create drawer for \(sample.id): \(error.localizedDescription)")
+            }
         }
 
         var index = preview.index
@@ -142,7 +146,11 @@ struct LibraryMutationService {
         }
 
         for sample in targetSamples {
-            libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
+            do {
+                try libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
+            } catch {
+                return .failure(message: "Failed to create drawer for \(sample.id): \(error.localizedDescription)")
+            }
         }
 
         let baselineIndex = libraryStore.loadIndex(from: rootURL)
@@ -206,9 +214,17 @@ struct LibraryMutationService {
         }
 
         for sample in targetSamples {
-            libraryStore.deleteSampleDrawer(for: sample, rootURL: rootURL)
+            do {
+                try libraryStore.deleteSampleDrawer(for: sample, rootURL: rootURL)
+            } catch {
+                return .failure(message: "Failed to delete drawer for \(sample.id): \(error.localizedDescription)")
+            }
         }
-        libraryStore.deleteBatchDrawer(batchID: batchId, rootURL: rootURL)
+        do {
+            try libraryStore.deleteBatchDrawer(batchID: batchId, rootURL: rootURL)
+        } catch {
+            return .failure(message: "Failed to delete batch drawer \(batchId): \(error.localizedDescription)")
+        }
 
         var index = baselineIndex
         index.updatedAt = .now
@@ -304,7 +320,11 @@ struct LibraryMutationService {
         for change in review.deferredNumericChanges {
             let sample = change.sample
             mergedSamplesByID[sample.id] = sample
-            libraryStore.updateSample(sample, rootURL: rootURL)
+            do {
+                try libraryStore.updateSample(sample, rootURL: rootURL)
+            } catch {
+                return .failure(message: "Failed to update sample \(sample.id): \(error.localizedDescription)")
+            }
             touchedBatchIDs.insert(sample.batchId)
         }
 
@@ -313,7 +333,11 @@ struct LibraryMutationService {
                 continue
             }
             mergedBatchesByID[batchID] = batch
-            libraryStore.updateBatch(batch, rootURL: rootURL)
+            do {
+                try libraryStore.updateBatch(batch, rootURL: rootURL)
+            } catch {
+                return .failure(message: "Failed to update batch \(batchID): \(error.localizedDescription)")
+            }
         }
 
         var mergedIndex = baselineIndex

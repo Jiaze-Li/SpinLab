@@ -229,23 +229,24 @@ final class LibrarySyncService {
         var touched = 0
         for sample in newSamples {
             if let batch = batchesByIDInPreview[sample.batchId] {
-                libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
-                touched += 1
+                if (try? libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)) != nil {
+                    touched += 1
+                }
             }
         }
         for sample in changedSamples {
-            libraryStore.updateSample(sample, rootURL: rootURL)
+            try? libraryStore.updateSample(sample, rootURL: rootURL)
             touched += 1
         }
         for sample in removedSamples {
-            libraryStore.deleteSampleDrawer(for: sample, rootURL: rootURL)
+            try? libraryStore.deleteSampleDrawer(for: sample, rootURL: rootURL)
             touched += 1
         }
 
         if removedBatch {
-            libraryStore.deleteBatchDrawer(batchID: batchId, rootURL: rootURL)
+            try? libraryStore.deleteBatchDrawer(batchID: batchId, rootURL: rootURL)
         } else if let batch = changedBatch ?? batchesByIDInPreview[batchId], (!newSamples.isEmpty || !changedSamples.isEmpty || !removedSamples.isEmpty || changedBatch != nil) {
-            libraryStore.updateBatch(batch, rootURL: rootURL)
+            try? libraryStore.updateBatch(batch, rootURL: rootURL)
         }
 
         var syncedIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
@@ -271,18 +272,18 @@ final class LibrarySyncService {
             guard let batch = batchesByIDInPreview[sample.batchId] else {
                 continue
             }
-            libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
+            try? libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
             touchedBatchIDs.insert(batch.id)
         }
 
         for change in diff.changedSamples {
             let sample = change.sample
-            libraryStore.updateSample(sample, rootURL: rootURL)
+            try? libraryStore.updateSample(sample, rootURL: rootURL)
             touchedBatchIDs.insert(sample.batchId)
         }
 
         for removedSample in diff.removedSamples {
-            libraryStore.deleteSampleDrawer(for: removedSample, rootURL: rootURL)
+            try? libraryStore.deleteSampleDrawer(for: removedSample, rootURL: rootURL)
             touchedBatchIDs.insert(removedSample.batchId)
         }
 
@@ -294,11 +295,11 @@ final class LibrarySyncService {
             guard let batch = batchesByIDInPreview[batchID] else {
                 continue
             }
-            libraryStore.updateBatch(batch, rootURL: rootURL)
+            try? libraryStore.updateBatch(batch, rootURL: rootURL)
         }
 
         for removedBatch in diff.removedBatches {
-            libraryStore.deleteBatchDrawer(batchID: removedBatch.id, rootURL: rootURL)
+            try? libraryStore.deleteBatchDrawer(batchID: removedBatch.id, rootURL: rootURL)
         }
 
         var mergedIndex = preview.index

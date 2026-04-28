@@ -46,9 +46,16 @@ final class LibraryStore {
     private var fileListCache: [String: FileListCacheEntry] = [:]
 
     func ensureRoot(at rootURL: URL) {
-        try? fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
-        try? fileManager.createDirectory(at: indexDirectoryURL(rootURL), withIntermediateDirectories: true)
-        try? fileManager.createDirectory(at: batchesDirectoryURL(rootURL), withIntermediateDirectories: true)
+        do {
+            try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
+            try fileManager.createDirectory(at: indexDirectoryURL(rootURL), withIntermediateDirectories: true)
+            try fileManager.createDirectory(at: batchesDirectoryURL(rootURL), withIntermediateDirectories: true)
+        } catch {
+            logger.error(.library, "Failed to create library root directories", metadata: [
+                "path": rootURL.path,
+                "reason": error.localizedDescription
+            ])
+        }
         migrateLegacyBatchLayoutIfNeeded(at: rootURL)
     }
 
@@ -171,24 +178,24 @@ final class LibraryStore {
         invalidateNodeCache(at: url.deletingLastPathComponent())
     }
 
-    func createDrawer(for sample: LibrarySample, batch: LibraryBatch, rootURL: URL) {
+    func createDrawer(for sample: LibrarySample, batch: LibraryBatch, rootURL: URL) throws {
         ensureRoot(at: rootURL)
         let batchURL = preferredBatchDirectoryURL(rootURL, batchID: batch.id)
         let sampleURL = sampleDirectoryURL(rootURL, batchID: batch.id, sampleKey: sample.id)
-        try? fileManager.createDirectory(at: batchURL, withIntermediateDirectories: true)
-        try? fileManager.createDirectory(at: sampleURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: batchURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: sampleURL, withIntermediateDirectories: true)
 
         let testsURL = sampleURL.appending(path: "tests", directoryHint: .isDirectory)
         let plotsURL = sampleURL.appending(path: "plots", directoryHint: .isDirectory)
         let analysisURL = sampleURL.appending(path: "analysis", directoryHint: .isDirectory)
         let measurementsURL = sampleURL.appending(path: "measurements", directoryHint: .isDirectory)
         let testSlots = ["XRD", "M-H", "R-H", "EDS", "AFM"]
-        try? fileManager.createDirectory(at: testsURL, withIntermediateDirectories: true)
-        try? fileManager.createDirectory(at: plotsURL, withIntermediateDirectories: true)
-        try? fileManager.createDirectory(at: analysisURL, withIntermediateDirectories: true)
-        try? fileManager.createDirectory(at: measurementsURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: testsURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: plotsURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: analysisURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: measurementsURL, withIntermediateDirectories: true)
         for slot in testSlots {
-            try? fileManager.createDirectory(at: testsURL.appending(path: slot, directoryHint: .isDirectory), withIntermediateDirectories: true)
+            try fileManager.createDirectory(at: testsURL.appending(path: slot, directoryHint: .isDirectory), withIntermediateDirectories: true)
         }
 
         writeBatch(batch, to: batchURL)
@@ -199,11 +206,11 @@ final class LibraryStore {
         invalidateNodeCache(at: batchesDirectoryURL(rootURL))
     }
 
-    func updateSample(_ sample: LibrarySample, rootURL: URL, changeSource: String = "system_update") {
+    func updateSample(_ sample: LibrarySample, rootURL: URL, changeSource: String = "system_update") throws {
         let sampleURL = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
         let previousSampleURL = sampleURL.appending(path: "sample.json")
         let previous = decodeSample(from: previousSampleURL)
-        try? fileManager.createDirectory(at: sampleURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: sampleURL, withIntermediateDirectories: true)
         writeSample(sample, to: sampleURL)
         let changes = appendSampleChangeLogIfNeeded(
             previous: previous,
@@ -272,19 +279,19 @@ final class LibraryStore {
         )
     }
 
-    func updateBatch(_ batch: LibraryBatch, rootURL: URL) {
+    func updateBatch(_ batch: LibraryBatch, rootURL: URL) throws {
         let batchURL = resolvedBatchDirectoryURL(rootURL, batchID: batch.id)
-        try? fileManager.createDirectory(at: batchURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: batchURL, withIntermediateDirectories: true)
         writeBatch(batch, to: batchURL)
         invalidateNodeCache(at: batchURL)
         invalidateNodeCache(at: batchURL.deletingLastPathComponent())
         invalidateNodeCache(at: batchesDirectoryURL(rootURL))
     }
 
-    func deleteSampleDrawer(for sample: LibrarySample, rootURL: URL) {
+    func deleteSampleDrawer(for sample: LibrarySample, rootURL: URL) throws {
         let sampleURL = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
         if fileManager.fileExists(atPath: sampleURL.path) {
-            try? fileManager.removeItem(at: sampleURL)
+            try fileManager.removeItem(at: sampleURL)
         }
         let samplesDirectory = resolvedBatchDirectoryURL(rootURL, batchID: sample.batchId)
             .appending(path: "samples", directoryHint: .isDirectory)
@@ -293,14 +300,14 @@ final class LibraryStore {
         invalidateNodeCache(at: samplesDirectory)
     }
 
-    func deleteBatchDrawer(batchID: String, rootURL: URL) {
+    func deleteBatchDrawer(batchID: String, rootURL: URL) throws {
         let preferred = preferredBatchDirectoryURL(rootURL, batchID: batchID)
         let legacy = legacyBatchDirectoryURL(rootURL, batchID: batchID)
         if fileManager.fileExists(atPath: preferred.path) {
-            try? fileManager.removeItem(at: preferred)
+            try fileManager.removeItem(at: preferred)
         }
         if preferred.path != legacy.path, fileManager.fileExists(atPath: legacy.path) {
-            try? fileManager.removeItem(at: legacy)
+            try fileManager.removeItem(at: legacy)
         }
         removeDirectoryIfEmpty(preferred.deletingLastPathComponent())
         invalidateNodeCache(at: preferred)
@@ -359,17 +366,37 @@ final class LibraryStore {
     func loadMeasurementSets(for sample: LibrarySample, rootURL: URL) -> [MeasurementSet] {
         let sampleDir = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
         let fileURL = sampleDir.appending(path: Self.measurementSetsFileName)
-        guard let data = try? Data(contentsOf: fileURL) else { return [] }
+        guard fileManager.fileExists(atPath: fileURL.path) else { return [] }
+        let data: Data
+        do {
+            data = try Data(contentsOf: fileURL)
+        } catch {
+            logger.error(.library, "Failed to read measurement sets", metadata: [
+                "path": fileURL.path,
+                "reason": error.localizedDescription
+            ])
+            return []
+        }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return (try? decoder.decode([MeasurementSet].self, from: data)) ?? []
+        do {
+            return try decoder.decode([MeasurementSet].self, from: data)
+        } catch {
+            logger.error(.library, "Failed to decode measurement sets", metadata: [
+                "path": fileURL.path,
+                "reason": error.localizedDescription
+            ])
+            return []
+        }
     }
 
     func saveMeasurementSets(_ sets: [MeasurementSet], for sample: LibrarySample, rootURL: URL) throws {
         let sampleDir = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
         let fileURL = sampleDir.appending(path: Self.measurementSetsFileName)
         if sets.isEmpty {
-            try? FileManager.default.removeItem(at: fileURL)
+            if fileManager.fileExists(atPath: fileURL.path) {
+                try fileManager.removeItem(at: fileURL)
+            }
             return
         }
         let encoder = JSONEncoder()
@@ -589,7 +616,7 @@ final class LibraryStore {
         }
 
         let logURL = sampleChangeLogURL(sampleURL: sampleURL)
-        var entries = loadSampleChangeLogEntries(from: logURL)
+        guard var entries = loadSampleChangeLogEntries(from: logURL) else { return changes }
         entries.append(
             LibrarySampleChangeLogEntry(
                 id: UUID(),
@@ -615,7 +642,7 @@ final class LibraryStore {
         }
         let batchURL = resolvedBatchDirectoryURL(rootURL, batchID: updated.batchId)
         let logURL = batchEditLogURL(batchURL: batchURL)
-        var entries = loadSampleChangeLogEntries(from: logURL)
+        guard var entries = loadSampleChangeLogEntries(from: logURL) else { return }
         entries.append(
             LibrarySampleChangeLogEntry(
                 id: UUID(),
@@ -629,14 +656,31 @@ final class LibraryStore {
         writeJSON(entries, to: logURL)
     }
 
-    private func loadSampleChangeLogEntries(from url: URL) -> [LibrarySampleChangeLogEntry] {
-        guard fileManager.fileExists(atPath: url.path),
-              let data = try? Data(contentsOf: url) else {
+    private func loadSampleChangeLogEntries(from url: URL) -> [LibrarySampleChangeLogEntry]? {
+        guard fileManager.fileExists(atPath: url.path) else {
             return []
+        }
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            logger.error(.library, "Failed to read change log — skipping write to prevent data loss", metadata: [
+                "path": url.path,
+                "reason": error.localizedDescription
+            ])
+            return nil
         }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return (try? decoder.decode([LibrarySampleChangeLogEntry].self, from: data)) ?? []
+        do {
+            return try decoder.decode([LibrarySampleChangeLogEntry].self, from: data)
+        } catch {
+            logger.error(.library, "Failed to decode change log — skipping write to prevent data loss", metadata: [
+                "path": url.path,
+                "reason": error.localizedDescription
+            ])
+            return nil
+        }
     }
 
     private func sampleChangeLogURL(sampleURL: URL) -> URL {
@@ -850,13 +894,29 @@ final class LibraryStore {
         if let cached = decodedBatchCache[key], cached.modificationDate == modificationDate {
             return cached.batch
         }
-        guard let data = try? Data(contentsOf: batchJSONURL) else {
+        let data: Data
+        do {
+            data = try Data(contentsOf: batchJSONURL)
+        } catch {
+            logger.error(.library, "Failed to read batch JSON", metadata: [
+                "path": batchJSONURL.path,
+                "reason": error.localizedDescription
+            ])
             decodedBatchCache[key] = DecodedBatchCacheEntry(modificationDate: modificationDate, batch: nil)
             return nil
         }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        let decoded = try? decoder.decode(LibraryBatch.self, from: data)
+        let decoded: LibraryBatch?
+        do {
+            decoded = try decoder.decode(LibraryBatch.self, from: data)
+        } catch {
+            logger.error(.library, "Failed to decode batch JSON", metadata: [
+                "path": batchJSONURL.path,
+                "reason": error.localizedDescription
+            ])
+            decoded = nil
+        }
         decodedBatchCache[key] = DecodedBatchCacheEntry(modificationDate: modificationDate, batch: decoded)
         return decoded
     }
@@ -884,13 +944,29 @@ final class LibraryStore {
         if let cached = decodedSampleCache[key], cached.modificationDate == modificationDate {
             return cached.sample
         }
-        guard let data = try? Data(contentsOf: sampleJSONURL) else {
+        let data: Data
+        do {
+            data = try Data(contentsOf: sampleJSONURL)
+        } catch {
+            logger.error(.library, "Failed to read sample JSON", metadata: [
+                "path": sampleJSONURL.path,
+                "reason": error.localizedDescription
+            ])
             decodedSampleCache[key] = DecodedSampleCacheEntry(modificationDate: modificationDate, sample: nil)
             return nil
         }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        let decoded = try? decoder.decode(LibrarySample.self, from: data)
+        let decoded: LibrarySample?
+        do {
+            decoded = try decoder.decode(LibrarySample.self, from: data)
+        } catch {
+            logger.error(.library, "Failed to decode sample JSON", metadata: [
+                "path": sampleJSONURL.path,
+                "reason": error.localizedDescription
+            ])
+            decoded = nil
+        }
         decodedSampleCache[key] = DecodedSampleCacheEntry(modificationDate: modificationDate, sample: decoded)
         return decoded
     }
@@ -913,8 +989,24 @@ final class LibraryStore {
 
         for case let url as URL in enumerator {
             guard url.lastPathComponent.hasSuffix(".spinlab.json") else { continue }
-            guard let data = try? Data(contentsOf: url),
-                  let sidecar = try? decoder.decode(SpinLabFileSidecar.self, from: data) else {
+            let data: Data
+            do {
+                data = try Data(contentsOf: url)
+            } catch {
+                logger.warning(.library, "Failed to read sidecar", metadata: [
+                    "path": url.path,
+                    "reason": error.localizedDescription
+                ])
+                continue
+            }
+            let sidecar: SpinLabFileSidecar
+            do {
+                sidecar = try decoder.decode(SpinLabFileSidecar.self, from: data)
+            } catch {
+                logger.warning(.library, "Failed to decode sidecar", metadata: [
+                    "path": url.path,
+                    "reason": error.localizedDescription
+                ])
                 continue
             }
 
@@ -1129,16 +1221,24 @@ final class LibraryStore {
             return cached.entries
         }
 
-        let entries = try? fileManager.contentsOfDirectory(
-            at: url,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        )
-        if let entries {
-            directoryEntriesCache[key] = DirectoryEntriesCacheEntry(modificationDate: modificationDate, entries: entries)
-        } else {
+        let entries: [URL]
+        do {
+            entries = try fileManager.contentsOfDirectory(
+                at: url,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )
+        } catch {
+            if fileManager.fileExists(atPath: url.path) {
+                logger.error(.library, "Failed to read directory contents", metadata: [
+                    "path": url.path,
+                    "reason": error.localizedDescription
+                ])
+            }
             directoryEntriesCache.removeValue(forKey: key)
+            return nil
         }
+        directoryEntriesCache[key] = DirectoryEntriesCacheEntry(modificationDate: modificationDate, entries: entries)
         return entries
     }
 

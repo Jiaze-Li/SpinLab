@@ -216,7 +216,7 @@ struct V260MeasurementsDisplayTests {
             ]
         )
 
-        fixture.libraryStore.createDrawer(for: sample, batch: batch, rootURL: fixture.libraryRootURL)
+        try fixture.libraryStore.createDrawer(for: sample, batch: batch, rootURL: fixture.libraryRootURL)
         let sampleJSON = fixture.libraryStore
             .drawerRootURL(for: sample, rootURL: fixture.libraryRootURL)
             .appending(path: "sample.json", directoryHint: .notDirectory)
@@ -273,7 +273,7 @@ private struct Fixture {
                 updatedAt: .now
             )
             samplesByID[sampleID] = sample
-            libraryStore.createDrawer(for: sample, batch: batch, rootURL: libraryRootURL)
+            try libraryStore.createDrawer(for: sample, batch: batch, rootURL: libraryRootURL)
         }
 
         return Fixture(

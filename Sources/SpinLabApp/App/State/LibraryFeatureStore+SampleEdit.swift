@@ -25,7 +25,7 @@ extension LibraryFeatureStore {
                 try librarySampleEditService.apply(draft: draft, to: current)
             },
             updateSample: { [libraryStore] updated, rootURL in
-                libraryStore.updateSample(updated, rootURL: rootURL, changeSource: "manual_edit")
+                try libraryStore.updateSample(updated, rootURL: rootURL, changeSource: "manual_edit")
             },
             resolveRegistrySourceURL: resolveRegistrySourceURL,
             syncRegistrySource: { [libraryStore] current, updated, registrySourceURL in
