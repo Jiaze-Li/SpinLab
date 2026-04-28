@@ -146,10 +146,10 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 - [ ] `Storage/` (4)
 - [ ] `Persistence/` (1)
 - [ ] `Registry/` (4)
-- [ ] `Workflow/` (4)
-- [ ] `Library/` (13)
-- [ ] `Workbench/` (0 顶层 + V3 子目录)
-- [ ] `Workbench/V3/` (16)
+- [x] `Workflow/` (4)
+- [x] `Library/` (13)
+- [x] `Workbench/` (0 顶层 + V3 子目录)
+- [x] `Workbench/V3/` (16)
 - [x] `Import/` (2 顶层)
 - [x] `Import/Parse/` (4)
 - [x] `Import/Route/` (3)
@@ -158,8 +158,8 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 - [x] `Import/Presentation/` (1)
 - [ ] `Import/Rules/` (12)
 - [x] `Features/Inbox/` (6)
-- [ ] `Features/Library/` (19)
-- [ ] `Features/Workbench/` (24)
+- [x] `Features/Library/` (19)
+- [x] `Features/Workbench/` (24)
 - [ ] `Features/RulesPanel/` (5)
 - [ ] `Features/RulesPanel/Sections/` (5)
 - [ ] `Features/RulesPanel/Components/` (4)
@@ -171,11 +171,11 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 
 | 维度 | 数值 |
 |---|---|
-| 已扫目录 | 10 / 27 |
-| 已填文件 | 67 / 217 |
+| 已扫目录 | 16 / 27 |
+| 已填文件 | 143 / 217 |
 | 暧昧条目 | 0（全表 0%；任一区块 > 20–25% 触发停下校准）|
-| 共享候选 | 37（含合法 cross-cutting；s3 再按 4 分类实证收敛） |
-| 平行候选（附录 G） | 4（横向 H + 纵向 V 合计；目标 ≥ 5）|
+| 共享候选 | 64（含合法 cross-cutting；s3 再按 4 分类实证收敛） |
+| 平行候选（附录 G） | 9（横向 H + 纵向 V 合计；目标 ≥ 5）|
 | 死代码可疑 | 0 |
 
 ---
@@ -226,6 +226,38 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `App/State/LibraryFeatureStore+Projection.swift` | extension of LibraryFeatureStore | Store extension | 244 |  |  | 0 | direct |
 | `App/State/LibraryFeatureStore+SampleEdit.swift` | extension of LibraryFeatureStore | Store extension | 184 |  |  | 0 | direct |
 | `App/State/LibraryState.swift` | consumer: LibraryFeatureStore legacy/simple observable state | Store | 9 |  |  | 0 | behavioral |
+| `Features/Library/LibraryExistingDrawerSampleSectionView.swift` | consumer: Library detail existing-drawer sample UI | UI | 72 |  |  | 0 | none |
+| `Features/Library/LibraryMeasurementsDoneSection.swift` | consumer: Library measurement list/detail UI | UI | 470 |  |  | 0 | behavioral |
+| `Features/Library/LibrarySampleDetailHeaderView.swift` | consumer: Library sample detail header UI | UI | 56 |  |  | 0 | none |
+| `Features/Library/LibrarySelectionSync.swift` | consumer: Library selection restore/sync | UI helper | 83 |  |  | 0 | direct |
+| `Features/Library/LibrarySheets.swift` | consumer: Library modal/log sheets | UI | 289 |  |  | 0 | none |
+| `Features/Library/LibraryView+DetailColumn.swift` | extension of LibraryView detail column | UI extension | 477 |  |  | 0 | behavioral |
+| `Features/Library/LibraryView+Panels.swift` | extension of LibraryView panels/file pickers | UI extension | 73 |  |  | 0 | none |
+| `Features/Library/LibraryView+Search.swift` | extension of LibraryView search helpers | UI extension | 186 |  |  | 0 | behavioral |
+| `Features/Library/LibraryView+State.swift` | extension of LibraryView state/sheets | UI extension | 231 |  |  | 0 | behavioral |
+| `Features/Library/LibraryView.swift` | consumer: RootSplitView Library area | UI | 309 |  |  | 0 | behavioral |
+| `Features/Library/LibraryViewComputationService.swift` | consumer: LibraryView filtering/projection | UI service | 296 |  |  | 0 | behavioral |
+| `Features/Library/LibraryViewModel.swift` | consumer: LibraryView local UI state | ViewModel | 72 |  |  | 0 | behavioral |
+| `Features/Library/LibraryViewSupport.swift` | consumer: Library UI support models/rows | UI model | 64 |  |  | 0 | none |
+| `Features/Library/LibraryWorkspaceSections.swift` | consumer: Library workspace sections | UI | 587 |  | ⭐G V: large multi-section UI | 0 | none |
+| `Features/Library/MeasurementConditionDetailView.swift` | consumer: Library measurement condition detail UI | UI | 277 |  |  | 0 | behavioral |
+| `Features/Library/MeasurementDataSectionView.swift` | consumer: Library measurement data section UI | UI | 271 | ⭐ consumer: Library+Workbench measurement data models |  | 0 | behavioral |
+| `Features/Library/MeasurementPlotPreviewPanel.swift` | consumer: Library chart preview UI | UI | 129 | ⭐ consumer: Library+Workbench chart artifacts |  | 0 | behavioral |
+| `Features/Library/RecomputePreviewPanel.swift` | consumer: Library recompute preview UI | UI | 238 | ⭐ consumer: Library+Rules recompute projections |  | 0 | direct |
+| `Features/Library/RecomputeStaleBannerView.swift` | consumer: Library stale recompute banner | UI | 33 |  |  | 0 | direct |
+| `Library/LibraryDiffEngine.swift` | consumer: Library sync diff | UseCase/Service | 183 |  |  | 0 | direct |
+| `Library/LibraryLogger.swift` | consumer: Library append-only logs | Infrastructure | 47 | ⭐ consumer: Library+Audit semantics |  | 0 | behavioral |
+| `Library/LibraryModels.swift` | consumer: Library store/UI + Inbox apply + Workbench persistence | Domain/Model | 394 | ⭐ legitimate_cross_cutting: Library models used across features |  | 0 | behavioral |
+| `Library/LibraryPathResolver.swift` | consumer: Workbench artifact/read/write paths under Library root | Infrastructure | 45 | ⭐ consumer: Library+Workbench |  | 0 | direct |
+| `Library/LibraryRegistryParser.swift` | consumer: Library registry XLSX parse | Parser | 545 | ⭐ consumer: Library+Import sample semantics |  | 0 | behavioral |
+| `Library/LibrarySampleEditService.swift` | consumer: Library sample metadata edits | Service | 193 |  |  | 0 | behavioral |
+| `Library/LibrarySettingsStore.swift` | consumer: Library settings persistence | Repository | 55 |  |  | 0 | behavioral |
+| `Library/LibrarySort.swift` | consumer: Library UI/store sorting | Utility | 40 |  |  | 0 | behavioral |
+| `Library/LibraryStore.swift` | consumer: Library persistence + Inbox apply + Workbench read paths | Repository | 1537 | ⭐ coordination_surface: Library storage used by Inbox/Workbench | ⭐G V: 1500+ line repository | 0 | behavioral |
+| `Library/LibrarySyncService.swift` | consumer: Library registry/filesystem sync | Service | 311 |  |  | 0 | behavioral |
+| `Library/LibraryWriteTransaction.swift` | consumer: Inbox apply + Library writes | Infrastructure | 87 | ⭐ consumer: Inbox+Library write transaction |  | 0 | behavioral |
+| `Library/LibraryXLSXSyncService.swift` | consumer: Library XLSX sync | Service | 663 |  | ⭐G V: 600+ line sync service | 0 | behavioral |
+| `Library/SpinLabFileSidecar.swift` | consumer: Library sidecars + Inbox apply + Workbench search | Domain/Persistence model | 155 | ⭐ legitimate_cross_cutting: sidecar contract |  | 0 | direct |
 
 ### Workbench
 
@@ -234,6 +266,46 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `App/State/AnalysisVault.swift` | inline-doc: owned by WorkbenchFeatureStore | Store/Persistence | 135 |  |  | 0 | direct |
 | `App/State/WorkbenchFeatureStore.swift` | consumer: WorkbenchView + workflow stores | Store | 877 | ⭐ coordination_surface: Workbench+Rules condition/rule draft types | ⭐G V: large store + embedded rule projection structs | 0 | direct |
 | `App/State/WorkbenchState.swift` | consumer: WorkbenchFeatureStore state container | Store | 11 |  |  | 0 | behavioral |
+| `Features/Workbench/AHEWorkspaceStore.swift` | consumer: AHE workspace state/orchestration | Store | 763 |  | ⭐G H: parallel workspace store protocols | 0 | direct |
+| `Features/Workbench/AHEWorkspaceView.swift` | consumer: AHE workspace UI provider | UI | 276 |  |  | 0 | behavioral |
+| `Features/Workbench/NewRuleEntrySheet.swift` | consumer: Workbench rule-entry sheet | UI | 137 | ⭐ consumer: Workbench+Rules rule entry |  | 0 | none |
+| `Features/Workbench/PlotCanvasMouseTracker.swift` | consumer: WorkbenchPlotCanvas mouse bridge | UI bridge | 88 |  |  | 0 | behavioral |
+| `Features/Workbench/ThreeOmegaWorkspaceStore.swift` | consumer: 3ω workspace state/orchestration | Store | 1517 |  | ⭐G H/V: largest workflow store + parallel protocols | 0 | direct |
+| `Features/Workbench/ThreeOmegaWorkspaceView.swift` | consumer: 3ω workspace UI provider | UI | 447 |  |  | 0 | behavioral |
+| `Features/Workbench/TokenMapEditor.swift` | consumer: Workbench condition/rule token map UI | UI | 62 | ⭐ consumer: Workbench+Rules condition editing |  | 0 | none |
+| `Features/Workbench/UnitTagEditor.swift` | consumer: Workbench condition unit tag UI | UI | 70 | ⭐ consumer: Workbench+Rules condition editing |  | 0 | none |
+| `Features/Workbench/WorkbenchPlotCanvas.swift` | consumer: shared plot canvas | UI shell | 728 | ⭐ legitimate_cross_cutting within Workbench workflows | ⭐G H/V: plot shell + internal responsibilities | 1 | behavioral |
+| `Features/Workbench/WorkbenchPlotControlsPanel.swift` | consumer: Workbench plot controls wrapper | UI shell | 37 |  |  | 0 | none |
+| `Features/Workbench/WorkbenchPlottingStore.swift` | consumer: plot-capability protocol | Capability protocol | 36 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | behavioral |
+| `Features/Workbench/WorkbenchSharedComponents.swift` | consumer: shared Workbench UI components | UI helper | 10 |  |  | 0 | none |
+| `Features/Workbench/WorkbenchStandardPlotControls.swift` | consumer: shared plot controls | UI shell | 107 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | behavioral |
+| `Features/Workbench/WorkbenchStatusArea.swift` | consumer: Workbench warnings/status UI | UI | 29 |  |  | 1 | none |
+| `Features/Workbench/WorkbenchTitleTemplateField.swift` | consumer: Workbench title template editor | UI | 38 |  |  | 0 | none |
+| `Features/Workbench/WorkbenchTracePanel.swift` | consumer: Workbench trace UI | UI | 52 |  |  | 1 | none |
+| `Features/Workbench/WorkbenchView.swift` | consumer: RootSplitView Workbench area | UI | 64 |  |  | 0 | behavioral |
+| `Features/Workbench/WorkflowHitRow.swift` | consumer: Workbench search hit row | UI | 80 |  |  | 0 | none |
+| `Features/Workbench/WorkflowRegistryView.swift` | consumer: Workbench read-only workflow list | UI | 125 | ⭐ consumer: Workbench+Rules workflow definitions |  | 0 | behavioral |
+| `Features/Workbench/WorkflowWorkspaceProvider.swift` | consumer: workflow workspace protocols + warning log | Capability protocol | 177 | ⭐ legitimate_cross_cutting within Workbench workflows | ⭐G H: default hooks candidate | 0 | behavioral |
+| `Features/Workbench/WorkflowWorkspaceRegistry.swift` | consumer: Workbench workflow view dispatch | UI registry | 39 |  |  | 0 | direct |
+| `Features/Workbench/WorkflowWorkspaceShell.swift` | consumer: shared workflow workspace shell | UI shell | 567 | ⭐ legitimate_cross_cutting within Workbench workflows | ⭐G H/V: cross-workflow shell | 0 | direct |
+| `Features/Workbench/XYRotationWorkspaceStore.swift` | consumer: XY Rotation workspace state/orchestration | Store | 623 |  | ⭐G H: parallel workspace store protocols | 0 | direct |
+| `Features/Workbench/XYRotationWorkspaceView.swift` | consumer: XY Rotation workspace UI provider | UI | 101 |  |  | 0 | behavioral |
+| `Workbench/V3/AHEIngestionContracts.swift` | consumer: AHE ingestion/result contracts | Domain/Contract | 48 |  |  | 0 | direct |
+| `Workbench/V3/AHEPackContracts.swift` | consumer: AHE analysis pack Codable contracts | Domain/Contract | 64 |  |  | 0 | behavioral |
+| `Workbench/V3/AnalysisPackProviding.swift` | consumer: workflow stores pack save/load | Capability protocol | 194 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
+| `Workbench/V3/ConditionAliasConfig.swift` | consumer: Workbench condition alias config | Config model | 92 | ⭐ consumer: Workbench+Library sidecar conditions |  | 0 | behavioral |
+| `Workbench/V3/SeriesOrderAlignHelper.swift` | consumer: curve reorder alignment | UseCase helper | 22 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
+| `Workbench/V3/TabRenderManager.swift` | consumer: workflow tab render state | Store helper | 381 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
+| `Workbench/V3/ThreeOmegaIngestionContracts.swift` | consumer: 3ω ingestion/result contracts | Domain/Contract | 258 |  |  | 0 | direct |
+| `Workbench/V3/ThreeOmegaPackContracts.swift` | consumer: 3ω analysis pack Codable contracts | Domain/Contract | 93 |  |  | 0 | behavioral |
+| `Workbench/V3/WorkbenchArtifactIdentity.swift` | consumer: chart/metric identity | UseCase helper | 96 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
+| `Workbench/V3/WorkbenchChartRenderer.swift` | consumer: render payload to PNG | Renderer | 604 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
+| `Workbench/V3/WorkbenchChartStyle.swift` | consumer: chart style params | Domain/Config | 38 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
+| `Workbench/V3/WorkbenchPlotLayout.swift` | consumer: chart layout/hit testing | Renderer helper | 429 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
+| `Workbench/V3/WorkbenchRenderPipeline.swift` | consumer: shared chart render pipeline | Renderer pipeline | 191 | ⭐ legitimate_cross_cutting within Workbench workflows | ⭐G H: established shared render shell | 0 | direct |
+| `Workbench/V3/WorkbenchResultContracts.swift` | consumer: Workbench result/chart/metric contracts | Domain/Contract | 459 | ⭐ consumer: Workbench+Library artifact indexes |  | 0 | direct |
+| `Workbench/V3/XYRotationIngestionContracts.swift` | consumer: XY Rotation ingestion/result contracts | Domain/Contract | 53 |  |  | 0 | direct |
+| `Workbench/V3/XYRotationPackContracts.swift` | consumer: XY analysis pack Codable contracts | Domain/Contract | 66 |  |  | 0 | behavioral |
 
 ### Rules
 
@@ -277,6 +349,10 @@ _(待填)_
 | `Import/Parse/SampleSemanticDescriptor.swift` | consumer: Inbox route + Workbench search/ingestion + Library parser | Shared domain/parser model | 130 | ⭐ migration_candidate: Domain-like type under Import |  | 0 | behavioral |
 | `Import/Parse/SampleTokenization.swift` | consumer: Inbox matching + Workbench search | Shared parser/helper | 56 | ⭐ migration_candidate: Import helper consumed outside Inbox |  | 0 | behavioral |
 | `Import/RegistrySubstrateRuleBook.swift` | consumer: AppEnvironment/ArchivedRecordResolver + registry substrate tests | Shared rulebook | 264 | ⭐ coordination_surface: Registry+Inbox+Rules |  | 0 | direct |
+| `Workflow/WorkflowDefinition.swift` | consumer: Rules config + Workbench/Inbox workflow display | Domain/Config model | 37 | ⭐ legitimate_cross_cutting: workflow config contract |  | 0 | behavioral |
+| `Workflow/WorkflowDefinitionStore.swift` | consumer: Workbench store reads workflow.json definitions | Repository | 28 | ⭐ coordination_surface: Rules-owned config consumed by Workbench |  | 0 | direct |
+| `Workflow/WorkflowID.swift` | consumer: workflow canonical IDs/aliases | Domain/Config model | 70 | ⭐ legitimate_cross_cutting: workflow identity contract |  | 0 | behavioral |
+| `Workflow/WorkflowRegistry.swift` | consumer: extension bundle registry | Infrastructure | 105 | ⭐ legitimate_cross_cutting: workflow extensions |  | 0 | behavioral |
 
 ### `[暧昧]` 清单（s2 第二轮判断）
 
@@ -298,22 +374,22 @@ _(s2 后填)_
 | 文件 | 行数 | 区块 | 备注 |
 |---|---|---|---|
 | `App/SpinLabAppState.swift` | 1816 | 跨区共享 | App coordinator，已入附录 G |
-| `Features/Workbench/ThreeOmegaWorkspaceStore.swift` | 1517 | Workbench | 待 s1.b 判断职责边界 |
-| `Library/LibraryStore.swift` | 1537 | Library | 待 s1.b 判断职责边界 |
+| `Features/Workbench/ThreeOmegaWorkspaceStore.swift` | 1517 | Workbench | workflow store + pack/render/provider protocols，已入附录 G |
+| `Library/LibraryStore.swift` | 1537 | Library | repository + filesystem/index/archive helpers，已入附录 G |
 | `App/State/LibraryFeatureStore.swift` | 1145 | Library | Store 主体，已入附录 G |
 | `Import/Rules/RulesBootstrapper.swift` | 1117 | Rules | 待 s1.c 判断职责边界 |
 | `Import/Rules/FilenameRuleSet.swift` | 956 | Rules | 待 s1.c 判断职责边界 |
 | `App/State/WorkbenchFeatureStore.swift` | 877 | Workbench | Store 主体，已入附录 G |
-| `Features/Workbench/AHEWorkspaceStore.swift` | 763 | Workbench | 待 s1.b 判断职责边界 |
-| `Features/Workbench/WorkbenchPlotCanvas.swift` | 728 | Workbench | 已有 H+V 样板，待 s1.b 实证 |
-| `Library/LibraryXLSXSyncService.swift` | 663 | Library | 待 s1.b 判断职责边界 |
-| `Features/Workbench/XYRotationWorkspaceStore.swift` | 623 | Workbench | 待 s1.b 判断职责边界 |
+| `Features/Workbench/AHEWorkspaceStore.swift` | 763 | Workbench | workflow store + shared protocols，已入附录 G |
+| `Features/Workbench/WorkbenchPlotCanvas.swift` | 728 | Workbench | 共享 plot shell，已入附录 G |
+| `Library/LibraryXLSXSyncService.swift` | 663 | Library | XLSX sync service，已入附录 G |
+| `Features/Workbench/XYRotationWorkspaceStore.swift` | 623 | Workbench | workflow store + shared protocols，已入附录 G |
 | `Import/Rules/RuleLoader.swift` | 608 | Rules | 待 s1.c 判断职责边界 |
-| `Workbench/V3/WorkbenchChartRenderer.swift` | 604 | Workbench | 待 s1.b 判断职责边界 |
-| `Features/Library/LibraryWorkspaceSections.swift` | 587 | Library | 待 s1.b 判断职责边界 |
+| `Workbench/V3/WorkbenchChartRenderer.swift` | 604 | Workbench | shared chart renderer |
+| `Features/Library/LibraryWorkspaceSections.swift` | 587 | Library | multi-section Library UI，已入附录 G |
 | `Features/RulesPanel/RulesManagementStore.swift` | 580 | Rules | 待 s1.c 判断职责边界 |
-| `Features/Workbench/WorkflowWorkspaceShell.swift` | 567 | Workbench | 待 s1.b 判断是否 shell 内部肥大 |
-| `Library/LibraryRegistryParser.swift` | 545 | Library | 待 s1.b 判断职责边界 |
+| `Features/Workbench/WorkflowWorkspaceShell.swift` | 567 | Workbench | shared workflow shell，已入附录 G |
+| `Library/LibraryRegistryParser.swift` | 545 | Library | registry parser + substrate parser |
 
 ## 附录 B — 共享候选清单
 
@@ -341,6 +417,21 @@ _(s2 后填)_
 | `Import/Parse/SampleTokenization.swift` | Import tokenization helper consumed by Workbench search | pending |
 | `Import/RegistrySubstrateRuleBook.swift` | Registry substrate resolution depends on Rules and feeds Inbox archive warnings | pending |
 | `Import/Route/FileRoutingRuleBook.swift` | Routing rulebook depends on semantic rules from Rules layer | pending |
+| `Features/Library/MeasurementDataSectionView.swift` | Library UI displays Workbench measurement data contracts | pending |
+| `Features/Library/MeasurementPlotPreviewPanel.swift` | Library preview reads Workbench chart artifacts | pending |
+| `Features/Library/RecomputePreviewPanel.swift` | Library recompute UI presents rules-derived changes | pending |
+| `Library/LibraryLogger.swift` | Library logging overlaps app-wide audit semantics | pending |
+| `Library/LibraryModels.swift` | Library models consumed by Inbox apply and Workbench persistence paths | pending |
+| `Library/LibraryPathResolver.swift` | Workbench artifact paths live under Library root | pending |
+| `Library/LibraryRegistryParser.swift` | Library parser consumes shared sample semantic descriptor | pending |
+| `Library/LibraryStore.swift` | Library repository called from Inbox apply and Workbench reads | pending |
+| `Library/LibraryWriteTransaction.swift` | Inbox apply uses Library write transaction | pending |
+| `Library/SpinLabFileSidecar.swift` | Sidecar contract feeds Inbox apply, Library archive, Workbench search | pending |
+| `Features/Workbench/NewRuleEntrySheet.swift` | Workbench UI creates rule-like entries | pending |
+| `Features/Workbench/TokenMapEditor.swift` | Workbench UI edits condition/rule token maps | pending |
+| `Features/Workbench/UnitTagEditor.swift` | Workbench UI edits condition/rule units | pending |
+| `Features/Workbench/WorkflowRegistryView.swift` | Workbench displays Rules-owned workflow definitions | pending |
+| `Workflow/WorkflowDefinitionStore.swift` | Rules-owned workflow config consumed by Workbench | pending |
 
 ## 附录 C — TODO / FIXME / XXX 收割
 
@@ -365,6 +456,17 @@ _(s2 后填)_
 | `App/SpinLabSidebarMenuProvider.swift` | 跨区共享 | 155 | Low：sidebar model assembly 无 direct test |
 | `Features/Inbox/InboxInspectorPanel.swift` | Inbox | 102 | Low：reserved/inspector UI 无 direct test |
 | `Features/Inbox/InboxProgressOverlays.swift` | Inbox | 85 | Low：progress overlay UI 无 direct test |
+| `Features/Library/LibraryExistingDrawerSampleSectionView.swift` | Library | 72 | Low：detail UI 无 direct test |
+| `Features/Library/LibrarySheets.swift` | Library | 289 | Low：sheet UI 无 direct test |
+| `Features/Library/LibraryViewSupport.swift` | Library | 64 | Low：UI support rows/models 无 direct test |
+| `Features/Library/LibraryWorkspaceSections.swift` | Library | 587 | Medium：大 UI section 文件无 direct test |
+| `Features/Workbench/NewRuleEntrySheet.swift` | Workbench | 137 | Low：sheet UI 无 direct test |
+| `Features/Workbench/TokenMapEditor.swift` | Workbench | 62 | Low：rule editor UI 无 direct test |
+| `Features/Workbench/UnitTagEditor.swift` | Workbench | 70 | Low：unit editor UI 无 direct test |
+| `Features/Workbench/WorkbenchStatusArea.swift` | Workbench | 29 | Low：status UI 无 direct test |
+| `Features/Workbench/WorkbenchTitleTemplateField.swift` | Workbench | 38 | Low：title field UI 无 direct test |
+| `Features/Workbench/WorkbenchTracePanel.swift` | Workbench | 52 | Low：trace UI 无 direct test |
+| `Features/Workbench/WorkflowHitRow.swift` | Workbench | 80 | Low：search-hit UI 无 direct test |
 
 ## 附录 E — 死代码可疑清单
 
@@ -405,6 +507,11 @@ _(s4 可选填)_
 | G-002 | V | `SpinLabAppState.swift` 1816 行 app coordinator | 维持 App shell，但继续迁出单域 workflow 到 FeatureStore/facade | all-store coordination + persistence + registry + inbox hooks | s1.a 锚点；只记录，不立即拆 |
 | G-003 | V | `LibraryFeatureStore.swift` 1145 行主 store + 多 extension | 评估是否继续垂直拆 projection / mutation / selection 子模块 | Library projection/mutation/selection responsibilities | s1.a 锚点；已有 partial extensions |
 | G-004 | V | `WorkbenchFeatureStore.swift` 877 行且嵌入 condition/rule draft structs | 评估 Rules projection 是否迁出或收敛为明确 coordination surface | Workbench + Rules condition/rule projection | 关联 5.1.8 后续结构债 |
+| G-005 | V | `LibraryStore.swift` 1537 行 repository | 评估 filesystem index / drawer ops / archive helpers 是否继续垂直拆 | repository + filesystem + archive responsibilities | s1.b 记录；不立即拆 |
+| G-006 | H | `ThreeOmegaWorkspaceStore` / `XYRotationWorkspaceStore` / `AHEWorkspaceStore` 都实现同组 workspace protocols | 抽取更强 default extension 或 shared helper where semantics identical | workflow store protocol boilerplate | 与 G-001 相关，需等 s3 实证重复度 |
+| G-007 | H+V | `WorkbenchPlotCanvas.swift` 728 行 shared plot shell | 保持 cross-workflow shell，评估内部按 title/grid/legend/font/copy PNG 再拆 | plot canvas shell 已横向共享但内部职责多 | 哲学样板点名对象 |
+| G-008 | H+V | `WorkflowWorkspaceShell.swift` 567 行 shared workflow shell | 保持 shell，评估 warning/search/action/plot slots 内部分层 | shell 横向共享；内部 UI responsibilities 多 | s1.b 记录；不立即拆 |
+| G-009 | V | `LibraryWorkspaceSections.swift` 587 行多 section UI | 评估按 settings / registry / search sections 垂直拆 | Library workspace section responsibilities | s1.b 记录；不立即拆 |
 
 _(s1 扫描时持续追加。每条 ID 编号，类型 H / V，候选形态精简描述。)_
 
