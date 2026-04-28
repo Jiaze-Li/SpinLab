@@ -58,7 +58,7 @@ struct SampleIdentificationSection: View {
             },
             set: { specs in
                 var u = d
-                u.sampleId.batchPrefixes = specs.filter { $0.type == .startsWith }.map(\.value).filter { !$0.isEmpty }
+                u.sampleId.batchPrefixes = specs.filter { $0.type == .startsWith }.map(\.value)
                 apply(u)
             }
         )

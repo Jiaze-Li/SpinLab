@@ -122,7 +122,7 @@ struct SampleIdentificationFileDraft: Codable {
 
         func encode(to encoder: Encoder) throws {
             var c = encoder.container(keyedBy: CodingKeys.self)
-            let matches = batchPrefixes.map { ["type": "starts-with", "value": $0] }
+            let matches = batchPrefixes.filter { !$0.isEmpty }.map { ["type": "starts-with", "value": $0] }
             try c.encode(matches, forKey: .matches)
         }
     }
