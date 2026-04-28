@@ -143,6 +143,22 @@ final class LibraryFeatureStore {
     /// Nil when the file is absent or fails to load (best-effort, non-fatal per Adj-5).
     var conditionAliasBook: ConditionAliasBook? = nil
 
+    // MARK: - Recompute stale banner (§3.1)
+
+    var recomputeStaleCount: Int = 0
+
+    // MARK: - Recompute preview panel (§3.2 / §3.3)
+
+    var isShowingRecomputePreview: Bool = false
+    var recomputeDiffItems: [RecomputeDiffItem] = []
+    var isComputingRecomputePreview: Bool = false
+    var recomputeApplyMessage: String? = nil
+    var recomputeApplyError: String? = nil
+    var isApplyingRecompute: Bool = false
+
+    @ObservationIgnored
+    private var recomputeDismissedFingerprintByRoot: [String: String] = [:]
+
     @ObservationIgnored
     let librarySettingsStore: LibrarySettingsStore
     @ObservationIgnored
@@ -641,11 +657,11 @@ final class LibraryFeatureStore {
             return nil
         }
         let rootURL = URL(fileURLWithPath: rootPath)
-        let result = libraryStore.backfillMissingMeasurementSidecars(rootURL: rootURL)
+        let result = libraryStore.recomputeAllMeasurementSidecars(rootURL: rootURL)
         appliedMeasurementsCacheBySampleID.removeAll()
         refreshSelectedDrawerAppliedMeasurementsIfNeeded()
         let summary = """
-        Sidecar backfill complete: scanned \(result.scannedSampleCount) samples, \
+        Sidecar recompute complete: scanned \(result.scannedSampleCount) samples, \
         \(result.scannedMeasurementFileCount) measurement files; created \(result.createdSidecarCount), \
         updated \(result.updatedSidecarCount), \
         skipped \(result.skippedExistingSidecarCount), failed \(result.failedSidecarCount).
@@ -1037,5 +1053,93 @@ final class LibraryFeatureStore {
             return
         }
         libraryBackupMessage = "Backup sync successful at \(formatSyncDate(lastSyncedAt))."
+    }
+
+    // MARK: - Recompute facade (§3.1 / §3.2 / §3.4)
+
+    func refreshRecomputeStaleCount() {
+        guard let rootPath = librarySettings.rootPath else {
+            recomputeStaleCount = 0
+            return
+        }
+        let fingerprint = SpinLabRuleProvider.shared.loadResult().ruleSetFingerprint
+        if recomputeDismissedFingerprintByRoot[rootPath] == fingerprint {
+            recomputeStaleCount = 0
+            return
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        recomputeStaleCount = libraryStore.computeStaleCount(rootURL: rootURL, currentFingerprint: fingerprint)
+    }
+
+    func dismissRecomputeBanner() {
+        guard let rootPath = librarySettings.rootPath else { return }
+        let fingerprint = SpinLabRuleProvider.shared.loadResult().ruleSetFingerprint
+        recomputeDismissedFingerprintByRoot[rootPath] = fingerprint
+        recomputeStaleCount = 0
+    }
+
+    func openRecomputePreview() {
+        isShowingRecomputePreview = true
+        isComputingRecomputePreview = true
+        recomputeApplyMessage = nil
+        recomputeApplyError = nil
+        guard let rootPath = librarySettings.rootPath else {
+            isComputingRecomputePreview = false
+            recomputeDiffItems = []
+            return
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let store = libraryStore
+        Task {
+            let items = await Task.detached(priority: .userInitiated) {
+                store.computeRecomputeDiff(rootURL: rootURL)
+            }.value
+            self.recomputeDiffItems = items
+            self.isComputingRecomputePreview = false
+        }
+    }
+
+    func applyRecompute() {
+        isApplyingRecompute = true
+        recomputeApplyMessage = nil
+        recomputeApplyError = nil
+        guard let outcome = backfillSidecarsForCurrentRoot() else {
+            isApplyingRecompute = false
+            recomputeApplyError = "No library root selected."
+            return
+        }
+        isApplyingRecompute = false
+        let succeeded = outcome.result.updatedSidecarCount + outcome.result.createdSidecarCount
+        let failed = outcome.result.failedSidecarCount
+        if failed > 0 {
+            recomputeApplyError = "\(succeeded) 成功 / \(failed) 失败，详情见 Logs"
+        } else {
+            recomputeApplyMessage = "\(succeeded) 个测量已重算"
+        }
+        isShowingRecomputePreview = false
+        refreshRecomputeStaleCount()
+    }
+
+    func saveConditionOverride(measurement: AppliedMeasurement, conditionId: String, value: String) {
+        let updated = libraryStore.saveConditionOverride(
+            sidecarPath: measurement.id,
+            conditionId: conditionId,
+            value: value
+        )
+        if updated {
+            appliedMeasurementsCacheBySampleID.removeAll()
+            refreshSelectedDrawerAppliedMeasurementsIfNeeded()
+        }
+    }
+
+    func removeConditionOverride(measurement: AppliedMeasurement, conditionId: String) {
+        let updated = libraryStore.removeConditionOverride(
+            sidecarPath: measurement.id,
+            conditionId: conditionId
+        )
+        if updated {
+            appliedMeasurementsCacheBySampleID.removeAll()
+            refreshSelectedDrawerAppliedMeasurementsIfNeeded()
+        }
     }
 }

@@ -177,10 +177,15 @@ struct V223AppEnvironmentIntegrationTests {
         let sidecar = SpinLabFileSidecar(
             workflow: "AHE",
             workflowDisplayName: "AHE",
-            conditions: [:],
             channels: [],
             sourceFilePath: importURL.standardizedFileURL.path,
-            appliedAt: .now
+            appliedAt: .now,
+            ruleSnapshot: SidecarRuleSnapshot(
+                ruleSetVersion: 0,
+                ruleSetFingerprint: "test:fixture",
+                appliedAt: .now,
+                fields: SidecarRuleFields(sampleID: nil, conditions: [:], substrateTags: [])
+            )
         )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

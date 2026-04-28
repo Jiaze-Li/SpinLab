@@ -27,7 +27,7 @@ struct V515OriginTreatmentSemanticTests {
             ruleSet: ruleSet,
             warnings: ruleSet.loadWarnings,
             metadata: RuleLoader.RuleMetadata(
-                version: ruleSet.version,
+                schemaVersion: ruleSet.version,
                 sourceLabel: "test",
                 sourcePath: "",
                 contentHash: "test",
@@ -67,7 +67,7 @@ struct V515OriginTreatmentSemanticTests {
             ruleSet: provider.ruleSet(),
             warnings: [],
             metadata: RuleLoader.RuleMetadata(
-                version: 4, sourceLabel: "test", sourcePath: "", contentHash: "test",
+                schemaVersion: 4, sourceLabel: "test", sourcePath: "", contentHash: "test",
                 loadedAt: .now
             )
         ))
@@ -81,7 +81,7 @@ struct V515OriginTreatmentSemanticTests {
             ruleSet: provider.ruleSet(),
             warnings: [],
             metadata: RuleLoader.RuleMetadata(
-                version: 4, sourceLabel: "test", sourcePath: "", contentHash: "test",
+                schemaVersion: 4, sourceLabel: "test", sourcePath: "", contentHash: "test",
                 loadedAt: .now
             )
         ))

@@ -9,6 +9,14 @@ extension LibraryView {
             let sectionSpacing = adaptiveDetailSectionSpacing(for: detailHeight)
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: sectionSpacing) {
+                    if appState.library.recomputeStaleCount > 0 {
+                        RecomputeStaleBannerView(
+                            staleCount: appState.library.recomputeStaleCount,
+                            onDismiss: { appState.library.dismissRecomputeBanner() },
+                            onViewPreview: { appState.library.openRecomputePreview() }
+                        )
+                    }
+
                     sampleDetailHeader
 
                     if let sample = selectedSample {
@@ -86,6 +94,7 @@ extension LibraryView {
                                 onRemoveFromSet: { setID, fileName in appState.library.removeFromMeasurementSet(setID: setID, fileName: fileName) },
                                 onRenameSet: { setID, newName in appState.library.renameMeasurementSet(setID: setID, newName: newName) },
                                 onDeleteSet: { setID in appState.library.deleteMeasurementSet(setID: setID) },
+                                onShowConditionDetail: { m in conditionDetailMeasurement = m },
                                 expandedWorkflows: $expandedWorkflows,
                                 expandedSets: $expandedSets,
                                 expandedUncategorized: $expandedUncategorized

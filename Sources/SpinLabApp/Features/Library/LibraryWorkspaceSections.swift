@@ -38,7 +38,7 @@ struct LibrarySettingsSectionView: View {
                                 onSyncFiles()
                             }
                             .disabled(library.librarySettings.rootPath == nil)
-                            Button("Backfill Sidecars") {
+                            Button("Recompute from Rules") {
                                 onBackfillSidecars()
                             }
                             .disabled(library.librarySettings.rootPath == nil)

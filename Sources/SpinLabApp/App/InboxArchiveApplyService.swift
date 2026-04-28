@@ -237,31 +237,64 @@ struct InboxArchiveApplyService {
             for: workflow,
             workflowDefinitions: workflowDefinitions
         )
-        // Use registry displayName as the human-readable label; fall back to id.
         let workflowDisplayName = matchedDefinition?.displayName ?? workflow
 
-        let sourceConditions = effectiveConditionValues(pending: pending, draft: draft)
-        let conditions: [String: String]
-        if let definition = matchedDefinition {
-            // Only persist non-empty, parsed/confirmed condition values.
-            // Do not hard-fill empty placeholders for missing fields.
-            let selectedIDs = definition.conditionFields.map(\.definitionID)
-            conditions = selectedIDs.reduce(into: [:]) { result, definitionID in
-                guard let value = sourceConditions[definitionID], !value.isEmpty else { return }
-                result[definitionID] = value
+        let loadResult = SpinLabRuleProvider.shared.loadResult()
+        let snapshot = SidecarCompositionUseCase.buildRuleSnapshot(
+            hints: pending.parsedHints,
+            ruleSetFingerprint: loadResult.ruleSetFingerprint,
+            ruleSetVersion: loadResult.ruleSetVersion,
+            evaluatedAt: .now
+        )
+
+        // Compute draft-based overrides: values the user explicitly entered that
+        // differ from what the rules detected → captured as userOverrides.
+        let draftConditions = computeDraftConditions(
+            pending: pending,
+            draft: draft,
+            matchedDefinition: matchedDefinition
+        )
+        var overrideConditions: [String: ManualValueOverride] = [:]
+        for (id, draftValue) in draftConditions {
+            let ruleValue = snapshot.fields.conditions[id]?.value
+            if ruleValue != draftValue {
+                overrideConditions[id] = ManualValueOverride(value: draftValue, reason: "manual", at: .now)
             }
-        } else {
-            conditions = sourceConditions
         }
 
-        return SpinLabFileSidecar(
-            workflow: workflow,
-            workflowDisplayName: workflowDisplayName,
-            conditions: conditions,
-            channels: target.channels,
-            sourceFilePath: pending.sourceFilePath,
-            appliedAt: .now
+        var sidecar = SidecarCompositionUseCase.composeSidecarV2(
+            base: SidecarCompositionBase(
+                workflow: workflow,
+                workflowDisplayName: workflowDisplayName,
+                channels: target.channels,
+                sourceFilePath: pending.sourceFilePath,
+                existingSidecar: nil
+            ),
+            snapshot: snapshot,
+            preserveUserOverrides: false,
+            now: .now
         )
+        sidecar.userOverrides = SidecarUserOverrides(conditions: overrideConditions)
+        return sidecar
+    }
+
+    private func computeDraftConditions(
+        pending: SpinLabDomain.PendingImport,
+        draft: PendingImportConfirmationDraft?,
+        matchedDefinition: WorkflowDefinition?
+    ) -> [String: String] {
+        let source: [String: String]
+        if let draft {
+            // Draft present: trust user-edited values only.
+            source = draft.conditionValues
+        } else {
+            // Draft absent: fall back to parser baseline.
+            source = ConditionFieldCatalog.conditionValues(from: pending.parsedHints)
+        }
+        let normalized = normalizedConditionValues(from: source)
+        guard let definition = matchedDefinition else { return normalized }
+        let selectedIDs = Set(definition.conditionFields.map(\.definitionID))
+        return normalized.filter { selectedIDs.contains($0.key) }
     }
 
     private func normalizedConditionValues(from values: [String: String]) -> [String: String] {
@@ -271,20 +304,6 @@ struct InboxArchiveApplyService {
             guard !key.isEmpty, !value.isEmpty else { return }
             partialResult[key] = value
         }
-    }
-
-    private func effectiveConditionValues(
-        pending: SpinLabDomain.PendingImport,
-        draft: PendingImportConfirmationDraft?
-    ) -> [String: String] {
-        // Boundary rule:
-        // - draft present: trust user-edited values only.
-        // - draft absent: fall back to parser baseline.
-        if let draft {
-            return normalizedConditionValues(from: draft.conditionValues)
-        }
-        let parsedConditions = ConditionFieldCatalog.conditionValues(from: pending.parsedHints)
-        return normalizedConditionValues(from: parsedConditions)
     }
 
     private func resolvedWorkflow(

@@ -22,7 +22,7 @@ struct V515FileRoutingSemanticRulesV4Tests {
             ruleSet: ruleSet,
             warnings: ruleSet.loadWarnings,
             metadata: RuleLoader.RuleMetadata(
-                version: ruleSet.version,
+                schemaVersion: ruleSet.version,
                 sourceLabel: "test",
                 sourcePath: "",
                 contentHash: "test",

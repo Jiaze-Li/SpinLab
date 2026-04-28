@@ -75,6 +75,7 @@ struct XYRotationPlotRenderer {
                 x: paired.x,
                 y: paired.y,
                 sourceRef: (sweep.measurementFilePath ?? "").isEmpty ? sweep.stem : (sweep.measurementFilePath ?? ""),
+                sampleID: sweep.id,
                 metadata: sweep.sampleMetadata ?? [:]
             )
         }
@@ -87,7 +88,8 @@ struct XYRotationPlotRenderer {
             axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: yLabel),
             series: series,
             styleParams: ["xTickStep": "60"],
-            reverseSeriesForLegend: true
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
         )
 
         let (data, layout) = _render(
@@ -143,6 +145,7 @@ struct XYRotationPlotRenderer {
                 x: paired.x,
                 y: paired.y,
                 sourceRef: (sweep.measurementFilePath ?? "").isEmpty ? sweep.stem : (sweep.measurementFilePath ?? ""),
+                sampleID: sweep.id,
                 metadata: sweep.sampleMetadata ?? [:]
             )
         }
@@ -155,7 +158,8 @@ struct XYRotationPlotRenderer {
             axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: yLabel),
             series: series,
             styleParams: ["xTickStep": "60"],
-            reverseSeriesForLegend: true
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
         )
 
         let (data, layout) = _render(

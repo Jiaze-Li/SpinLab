@@ -65,6 +65,7 @@ struct IngestThreeOmegaSelectionsUseCase {
                 case .fieldSweep:
                     if device.isEmpty { device = resolvedDevice }
                     var result = fitter.process(file: file, deviceOverride: resolvedDevice)
+                    result.sampleID = "\(hit.sampleKey)#\(result.temperatureK)"
                     result.sampleMetadata = Self._buildSampleMetadata(
                         from: hit,
                         numericDisplay: numericDisplayBySample[hit.sampleKey] ?? [:]
@@ -187,12 +188,25 @@ struct IngestThreeOmegaSelectionsUseCase {
 
         // SampleKey-level: substrate (processing tokens + material + orientation)
         if let descriptor = SampleSemanticDescriptor.fromSampleKey(hit.sampleKey) {
-            let treatment = descriptor.processingTokens.sorted().joined(separator: "+")
+            // Prefer rule-set-normalized display tokens; fall back to raw key component
+            // so unregistered tokens (e.g. "o", "b") still distinguish series in the legend.
+            let treatment: String
+            if !descriptor.processingTokens.isEmpty {
+                treatment = descriptor.processingTokens.sorted().joined(separator: "+")
+            } else {
+                let keyParts = hit.sampleKey.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+                treatment = keyParts.count >= 2 ? keyParts[1] : ""
+            }
             let material = descriptor.material ?? ""
             let orientation = descriptor.orientation ?? ""
             let parts = [treatment, material, orientation]
                 .filter { !$0.isEmpty }
-            meta["substrate"] = parts.joined(separator: " ")
+            let computed = parts.joined(separator: " ")
+            if !computed.isEmpty {
+                meta["substrate"] = computed
+            } else if !hit.sampleSubstrate.isEmpty {
+                meta["substrate"] = hit.sampleSubstrate
+            }
         } else if !hit.sampleSubstrate.isEmpty {
             meta["substrate"] = hit.sampleSubstrate
         }

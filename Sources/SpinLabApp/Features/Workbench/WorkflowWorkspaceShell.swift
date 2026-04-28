@@ -306,15 +306,15 @@ struct WorkflowWorkspaceShell<
             onEditTitle: { title in store.updatePlotTitle(title) },
             onEditXLabel: { label in store.updateXAxisLabel(label) },
             onEditYLabel: { label in store.updateYAxisLabel(label) },
-            onEditLegendLabel: { idx, label in
-                store.updateSeriesLabel(index: idx, newLabel: label)
+            onEditLegendLabel: { key, label in
+                store.updateSeriesLabel(sampleID: key, newLabel: label)
             },
             onFontSizeChange: { key, size in
                 store.chartStyleOverrides[key] = "\(Int(size))"
                 store.rerenderForStyleChange()
             },
-            onTogglePointLabelVisibility: { s, p in
-                store.togglePointLabelVisibility(seriesIndex: s, pointIndex: p)
+            onTogglePointLabelVisibility: { key, p in
+                store.togglePointLabelVisibility(sampleID: key, pointIndex: p)
             },
             onCopyPNG: { scale in store.renderPNGAtScale(scale) },
             onStyleOverrideChange: { key, value in
@@ -323,7 +323,12 @@ struct WorkflowWorkspaceShell<
             },
             chartStyleOverrides: store.chartStyleOverrides,
             relatedCharts: store.relatedCharts,
-            libraryRootURL: store.libraryRootURL
+            libraryRootURL: store.libraryRootURL,
+            seriesReorderable: store.canReorderSeries,
+            currentSeriesOrder: store.activeSeriesOrder,
+            seriesPayload: store.activeChartManifestPayload,
+            onSeriesOrderCommit: { order in store.updateSeriesOrder(order) },
+            onResetSeriesOrder: { store.resetSeriesOrder() }
         )
     }
 }

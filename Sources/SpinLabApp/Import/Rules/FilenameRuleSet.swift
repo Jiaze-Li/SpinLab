@@ -6,6 +6,17 @@ struct FilenameRuleSet: Decodable {
         var warnings: [String]
     }
 
+    struct SourcedConditionValue {
+        var value: String
+        var ruleRef: String
+    }
+
+    struct ExtraConditionEvaluationWithSources {
+        var sourcedValues: [String: SourcedConditionValue]
+        var warnings: [String]
+        var values: [String: String] { sourcedValues.mapValues(\.value) }
+    }
+
     private enum UnitValueNormalizationMode {
         case trimNoise
         case halfStep
@@ -322,12 +333,46 @@ struct FilenameRuleSet: Decodable {
         }
     }
 
+    func sampleIDsWithSources(from tokens: [String]) -> [(value: String, ruleRef: String)] {
+        var seen: Set<String> = []
+        return tokens.compactMap { token in
+            guard let result = normalizeSampleIDTokenWithSource(token) else {
+                return nil
+            }
+            guard seen.insert(result.value).inserted else {
+                return nil
+            }
+            return result
+        }
+    }
+
     func measurementName(from tokens: [String]) -> String? {
-        firstMatchValue(from: compiled.measurementNameRules, tokens: tokens)
+        firstMatchValue(from: compiled.measurementNameRules, tokens: tokens, joined: nil)
+    }
+
+    func measurementName(from tokens: [String], joined: String) -> String? {
+        firstMatchValue(from: compiled.measurementNameRules, tokens: tokens, joined: joined)
+    }
+
+    func measurementNameWithSource(from tokens: [String], joined: String) -> (value: String, ruleRef: String)? {
+        guard let result = firstMatchValueWithIndex(from: compiled.measurementNameRules, tokens: tokens, joined: joined) else {
+            return nil
+        }
+        return (result.value, RuleRef.measurementNameRule(index: result.ruleIndex))
     }
 
     func measurementTags(from tokens: [String]) -> [String] {
         collectMatchValues(from: compiled.measurementTagRules, tokens: tokens)
+    }
+
+    func measurementTagsWithSources(from tokens: [String]) -> [(value: String, ruleRef: String)] {
+        var result: [(value: String, ruleRef: String)] = []
+        for (idx, rule) in compiled.measurementTagRules.enumerated() {
+            if matches(rule: rule, tokens: tokens, joined: nil) {
+                result.append((rule.value, RuleRef.measurementTagRule(index: idx)))
+            }
+        }
+        return result
     }
 
     func substrateTags(from tokens: [String]) -> [String] {
@@ -339,6 +384,27 @@ struct FilenameRuleSet: Decodable {
         {
             if anyTokenHits(entry, normalizedTokens: normalizedTokens) {
                 result.append(entry.displayName)
+            }
+        }
+        return result
+    }
+
+    func substrateTagsWithSources(from tokens: [String]) -> [(value: String, ruleRef: String)] {
+        let normalizedTokens = tokens.map(Self.normalizeForSubstrate)
+        var result: [(value: String, ruleRef: String)] = []
+        for (idx, entry) in compiled.substrateMaterialEntries.enumerated() {
+            if anyTokenHits(entry, normalizedTokens: normalizedTokens) {
+                result.append((entry.displayName, RuleRef.substrateMaterial(index: idx)))
+            }
+        }
+        for (idx, entry) in compiled.substrateTreatmentEntries.enumerated() {
+            if anyTokenHits(entry, normalizedTokens: normalizedTokens) {
+                result.append((entry.displayName, RuleRef.substrateTreatment(index: idx)))
+            }
+        }
+        for (idx, entry) in compiled.substrateOrientationEntries.enumerated() {
+            if anyTokenHits(entry, normalizedTokens: normalizedTokens) {
+                result.append((entry.displayName, RuleRef.substrateOrientation(index: idx)))
             }
         }
         return result
@@ -374,6 +440,40 @@ struct FilenameRuleSet: Decodable {
         return ExtraConditionEvaluation(values: values, warnings: [])
     }
 
+    func conditionEvaluationWithSources(from tokens: [String]) -> ExtraConditionEvaluationWithSources {
+        let allRuleIDs = compiled.conditionRules.keys.sorted()
+        var sourcedValues: [String: SourcedConditionValue] = [:]
+        let warnings: [String] = []
+
+        for ruleID in allRuleIDs {
+            let definitionIndex = conditionDefinitions.firstIndex(where: { $0.id == ruleID }) ?? 0
+            let definition = conditionDefinitions.first(where: { $0.id == ruleID })
+            guard let rules = compiled.conditionRules[ruleID] else { continue }
+
+            for (ruleIndex, rule) in rules.enumerated() {
+                guard let matched = tokens.first(where: { tokenMatches(text: $0, compiled: rule.match) }) else { continue }
+                let rawValue = rule.value == "$MATCH" ? matched : rule.value
+
+                let isTokenMap: Bool
+                if case .tokenMap = definition?.matches { isTokenMap = true } else { isTokenMap = false }
+
+                let value: String
+                let ref: String
+                if isTokenMap {
+                    value = rawValue
+                    ref = RuleRef.conditionTokenMap(id: ruleID, ruleIndex: ruleIndex)
+                } else {
+                    value = normalizeUnitSuffixToken(rawValue, ruleID: ruleID)
+                    ref = RuleRef.conditionUnitSuffix(id: ruleID, definitionIndex: definitionIndex)
+                }
+                sourcedValues[ruleID] = SourcedConditionValue(value: value, ruleRef: ref)
+                break
+            }
+        }
+
+        return ExtraConditionEvaluationWithSources(sourcedValues: sourcedValues, warnings: warnings)
+    }
+
     func extraConditionEvaluation(from tokens: [String]) -> ExtraConditionEvaluation {
         let evaluated = conditionEvaluation(from: tokens)
         var filtered = evaluated.values
@@ -386,6 +486,14 @@ struct FilenameRuleSet: Decodable {
 
     func normalizeChannel(_ token: String) -> String? {
         compiled.channelAliases[token.lowercased()]
+    }
+
+    func normalizeChannelWithSource(_ token: String) -> (value: String, ruleRef: String)? {
+        let key = token.lowercased()
+        guard let value = compiled.channelAliases[key] else {
+            return nil
+        }
+        return (value, RuleRef.channelAlias(normalizedKey: key))
     }
 
     // MARK: - Normalization (shared for substrate matching and FileRoutingSemanticRules)
@@ -535,7 +643,21 @@ struct FilenameRuleSet: Decodable {
         return nil
     }
 
-    private func firstMatchValue(from rules: [CompiledMapRule], tokens: [String]) -> String? {
+    private func normalizeSampleIDTokenWithSource(_ token: String) -> (value: String, ruleRef: String)? {
+        let uppercased = token.uppercased()
+        let usesBatchPrefixes = sampleId.matches.contains { $0.type == .startsWith }
+        for (idx, spec) in compiled.sampleIdSpecs.enumerated() {
+            if tokenMatches(text: uppercased, compiled: spec) {
+                let ref = usesBatchPrefixes
+                    ? RuleRef.sampleIdBatchPrefix(index: idx)
+                    : RuleRef.sampleIdPattern(index: idx)
+                return (uppercased, ref)
+            }
+        }
+        return nil
+    }
+
+    private func firstMatchValue(from rules: [CompiledMapRule], tokens: [String], joined: String?) -> String? {
         for rule in rules {
             for token in tokens where tokenMatches(token: token, rule: rule) {
                 return rule.value == "$MATCH" ? token : rule.value
@@ -544,7 +666,24 @@ struct FilenameRuleSet: Decodable {
         return nil
     }
 
-    private func collectMatchValues(from rules: [CompiledMapRule], tokens: [String]) -> [String] {
+    private func matches(rule: CompiledMapRule, tokens: [String], joined: String?) -> Bool {
+        tokens.contains(where: { tokenMatches(token: $0, rule: rule) })
+    }
+
+    private func firstMatchValueWithIndex(
+        from rules: [CompiledMapRule],
+        tokens: [String],
+        joined: String?
+    ) -> (value: String, ruleIndex: Int)? {
+        for (idx, rule) in rules.enumerated() {
+            for token in tokens where tokenMatches(token: token, rule: rule) {
+                return (rule.value == "$MATCH" ? token : rule.value, idx)
+            }
+        }
+        return nil
+    }
+
+    private func collectMatchValues(from rules: [CompiledMapRule], tokens: [String], joined: String? = nil) -> [String] {
         var collected: [String] = []
         for rule in rules {
             if tokens.contains(where: { tokenMatches(token: $0, rule: rule) }) {

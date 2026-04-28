@@ -80,7 +80,7 @@ struct V221RoutePresentationTests {
     @Test("rule loader emits metadata with stable fingerprint format")
     func ruleLoaderProvidesMetadata() {
         let loadResult = RuleLoader.shared.loadCached()
-        #expect(loadResult.metadata.version == loadResult.ruleSet.version)
+        #expect(loadResult.metadata.schemaVersion == loadResult.ruleSet.version)
         #expect(!loadResult.metadata.contentHash.isEmpty)
         #expect(loadResult.metadata.fingerprint.hasPrefix("v\(loadResult.ruleSet.version):"))
     }

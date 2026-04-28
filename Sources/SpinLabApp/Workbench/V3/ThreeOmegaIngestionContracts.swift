@@ -67,6 +67,10 @@ struct ThreeOmegaFieldSweepResult: Codable, Hashable, Sendable, Identifiable {
     /// Optional so legacy packs without this field decode safely.
     var sampleMetadata: [String: String]?
 
+    /// Stable series identity injected from WorkflowMeasurementSearchHit.sampleKey (v5.3.6).
+    /// nil in packs created before 5.3.6; used for drag-reorder and label remapping.
+    var sampleID: String? = nil
+
     // Formula: R¹ω(H) = V¹ω_X(H) / I_rms   (Col[1] / I_rms)
     // Then centered: R¹ω_c(H) = R¹ω(H) - (max(R¹ω) + min(R¹ω)) / 2
     var hField: [Double]    // Oe
