@@ -1,8 +1,8 @@
-# Region Map (Working File — 5.1.6 s1)
+# Region Map (Working File — 5.1.6 s2)
 
-> **状态**：s1 进行中。本文件是工作产物，含 scan checklist + 9 列文件信息表 + 7 份附录（A–G）。
+> **状态**：s2 完成。s1 已完成 218 / 218 swift 文件归属扫描；s2 已完成层级规范族映射 + 消费者关系二轮判断。
 >
-> s1 完成后「Scan Progress」段删除，附录 A–G 部分拆出独立文档；本文件留作 s2 输入；最终 s4 收敛产出 `INDEX.md`。
+> s2 完成后将保留文件归属 + 层级归属 + 二轮判断结果；最终 s4 收敛产出 `INDEX.md`。
 
 ## 相关文档索引（5.1.6 完整规划链路）
 
@@ -59,23 +59,46 @@
 
 ---
 
-## 9 列填表规范（s1 主产出）
+## 文件表字段规范（s1 主产出，s2 审核）
 
-每文件一行，9 个字段：
+每文件一行，区块由段落标题表达，表内 8 个字段：
 
 | 字段 | 写什么 | 取值范围 / 例子 |
 |---|---|---|
 | **文件** | 相对 `Sources/SpinLabApp/` 的路径 | `App/State/InboxFeatureStore.swift` |
 | **区块** | 5 区块之一或暧昧 | Inbox / Library / Workbench / Rules / 跨区 / `[暧昧]` |
 | **归属依据** | 为什么归到这个区块（s2 回扫的审计字段）| 短标签：`consumer: Inbox+Rules` / `appstate extension` / `filename-only` / `inline-doc` / `[猜测]` |
-| **层级预判** | 显然层级（s1 不要求精确，捕捉到就填）| UI / Store / UseCase / Repository / Domain / Parser / `[待 s2]` |
+| **层级归属 (s2)** | 文件主要层级；允许保留细分标签，但必须可映射到下方 s2 层级族 | UI / State / Logic / Persistence / Domain / Infrastructure / AppShell |
 | **行数** | swift 文件行数 | 整数（先扫 `wc -l` 一次出全表）|
 | **共享候选** | 是否疑似跨区共享 | ⭐ + 短标签（如 `⭐ consumer:I+L+W`）；不是留空 |
 | **平行候选** | 是否疑似平行实现 / shell 内部肥大（写入附录 G）| ⭐G + 短标签（如 `⭐G H:与 ThreeOmegaXxx 平行` / `⭐G V:疑似 1500 行多职责`）；不是留空 |
 | **TODO 数** | 文件内 TODO/FIXME/XXX 注释数 | 整数（无则 0）；具体内容写入附录 C |
 | **测试** | 直接测试线索 | `direct` / `behavioral` / `none`（按文件名约定查 Tests/ 直接测试 → direct；只有同主题行为测试 → behavioral；查不到 → none，s2/s4 再补行为映射）|
 
-附加注释（一句话职责）写在表格行后或附注里，不挤进 9 列。
+附加注释（一句话职责）写在表格行后或附注里，不挤进表格列。
+
+## s2 层级归属规范
+
+> s2 不追求把每行改成单词级统一标签；优先保留派发有用的细分层级，再用本段规范解释其归一化族。后续 `INDEX.md` 可同时展示「规范族 + 细分标签」。
+
+| 规范族 | 覆盖现有细分标签 | 派发含义 |
+|---|---|---|
+| UI | `UI` / `UI shell` / `UI component` / `UI extension` / `UI helper` / `UI model` / `UI service` / `UI registry` / `UI layout` / `UI modifier` / `UI token` / `UI bridge` / `ViewModel` / `Navigation` | 视图、局部交互、展示模型、导航和可复用 UI 壳 |
+| State | `Store` / `Store extension` / `Store helper` / `Store/Persistence` / `Facade/Orchestrator` / `Coordinator` / `Service/Orchestrator` / `AppShell/Coordinator` / `Data actor` | 长生命周期状态、跨 store 协调、状态恢复、任务编排 |
+| Logic | `UseCase` / `UseCase helper` / `UseCase/Service` / `Service` / `Pipeline` / `Strategy/UseCase helper` / `Parser` / `Parser helper` / `Presentation` / `Presentation helper` / `Renderer` / `Renderer helper` / `Renderer pipeline` / `Rule helper` | 可测试业务逻辑、计算、解析后处理、规则求值、渲染计算 |
+| Persistence | `Repository` / `Repository/Loader` / `Repository/Index` / `Persistence` / `Storage service` / `Storage helper` / `Storage model` / `Storage/Sync service` / `Persistence hook` / `Migration service` / `Config paths` | 文件、索引、运行时配置、迁移、存储同步、仓储抽象 |
+| Domain | `Domain` / `Domain/Model` / `Domain/Contract` / `Domain/Config` / `Domain/Config model` / `Domain/Search model` / `Domain/Projection` / `Domain/Rule model` / `Domain/Persistence model` / `Rule model` / `Config model` / `Interaction model` / `Audit model` / `Error model` | 领域契约、配置模型、规则 schema、投影模型 |
+| Infrastructure | `Infrastructure` / `Utility` / `Capability protocol` / `Capability protocols` / `Capability protocol/provider` / `Extension contract` / `Shared rulebook` / `Shared parser/helper` / `Shared domain/parser model` | 横切基础设施、协议能力、共享 helper、插件扩展点 |
+| AppShell | `AppShell` / `AppShell/DI` / `App entry` | 应用入口、依赖注入、根壳 |
+
+### s2 二轮判断结果
+
+| 项目 | 结果 |
+|---|---|
+| s1 暧昧条目 | 0；无需回收 `[暧昧]` 到具体区块 |
+| s2 未确定条目 | 0；当前没有需要进入 `[未确定]` 的文件 |
+| 层级覆盖 | 218 / 218 已有层级标签；本轮新增规范族映射，不做无价值的全表同义词重写 |
+| 后续输入 | s3 从「共享候选」「平行候选」和附录 B/G 进入字段级实证 |
 
 ---
 
@@ -128,7 +151,7 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 
 ### 预备步骤（s1.a 起手必做，仅一次）
 
-- [x] 一次性跑 `wc -l` 全 swift 文件，落表得「行数」列底数（2026-04-29：217 swift / 43,220 total lines）
+- [x] 一次性跑 `wc -l` 全 swift 文件，落表得「行数」列底数（2026-04-29：218 swift / 43,220 total lines）
 - [x] 一次性 grep `TODO|FIXME|XXX` 全 swift 文件，得 TODO 行数 + 具体行写入附录 C（2026-04-29：3 个真实 TODO + 1 个 `XXX` 误匹配）
 - [x] 列出 `Tests/SpinLabAppTests/` 现存测试文件清单，作为「测试」列查询底数（2026-04-29：后续按 `direct` / `behavioral` / `none` 填测试列）
 
@@ -165,14 +188,14 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 - [x] `Features/RulesPanel/Components/` (4)
 - [x] 顶层 `SpinLabApp.swift`（入口）
 
-**总计**：217 swift 文件 / 27 目录条目（含顶层入口）。
+**总计**：218 swift 文件 / 27 目录条目（含顶层入口）。
 
 ### 进度统计（每会话末尾更新）
 
 | 维度 | 数值 |
 |---|---|
 | 已扫目录 | 27 / 27 |
-| 已填文件 | 217 / 217 |
+| 已填文件 | 218 / 218 |
 | 暧昧条目 | 0（全表 0%；任一区块 > 20–25% 触发停下校准）|
 | 共享候选 | 105（含合法 cross-cutting；s3 再按 4 分类实证收敛） |
 | 平行候选（附录 G） | 16（横向 H + 纵向 V 合计；目标 ≥ 5）|
@@ -186,7 +209,7 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 
 ### Inbox
 
-| 文件 | 归属依据 | 层级预判 | 行数 | 共享 | 平行 | TODO | 测试 |
+| 文件 | 归属依据 | 层级归属 (s2) | 行数 | 共享 | 平行 | TODO | 测试 |
 |---|---|---|---|---|---|---|---|
 | `App/ApplyCoordinator.swift` | consumer: Inbox apply + Library write | Service/Orchestrator | 176 | ⭐ coordination_surface: Inbox→Library |  | 0 | direct |
 | `App/ArchivedRecordResolverService.swift` | consumer: Inbox archive apply + registry lookup | Service | 98 | ⭐ consumer: Inbox+Registry |  | 0 | behavioral |
@@ -216,7 +239,7 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 
 ### Library
 
-| 文件 | 归属依据 | 层级预判 | 行数 | 共享 | 平行 | TODO | 测试 |
+| 文件 | 归属依据 | 层级归属 (s2) | 行数 | 共享 | 平行 | TODO | 测试 |
 |---|---|---|---|---|---|---|---|
 | `App/LibraryDiskCleanupService.swift` | consumer: Library deletion cleanup | Service | 327 |  |  | 0 | behavioral |
 | `App/LibraryMutationService.swift` | consumer: LibraryFeatureStore mutations | Service | 402 |  |  | 0 | behavioral |
@@ -263,7 +286,7 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 
 ### Workbench
 
-| 文件 | 归属依据 | 层级预判 | 行数 | 共享 | 平行 | TODO | 测试 |
+| 文件 | 归属依据 | 层级归属 (s2) | 行数 | 共享 | 平行 | TODO | 测试 |
 |---|---|---|---|---|---|---|---|
 | `App/State/AnalysisVault.swift` | inline-doc: owned by WorkbenchFeatureStore | Store/Persistence | 135 |  |  | 0 | direct |
 | `App/State/WorkbenchFeatureStore.swift` | consumer: WorkbenchView + workflow stores | Store | 877 | ⭐ coordination_surface: Workbench+Rules condition/rule draft types | ⭐G V: large store + embedded rule projection structs | 0 | direct |
@@ -339,7 +362,7 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 
 ### Rules
 
-| 文件 | 归属依据 | 层级预判 | 行数 | 共享 | 平行 | TODO | 测试 |
+| 文件 | 归属依据 | 层级归属 (s2) | 行数 | 共享 | 平行 | TODO | 测试 |
 |---|---|---|---|---|---|---|---|
 | `Features/RulesPanel/Components/MatchRulesEditor.swift` | consumer: RulesPanel match rule UI | UI component | 112 | ⭐ legitimate_cross_cutting within RulesPanel sections | ⭐G H: repeated match editor shell | 0 | behavioral |
 | `Features/RulesPanel/Components/RegexField.swift` | consumer: RulesPanel regex input | UI component | 41 |  |  | 0 | none |
@@ -370,7 +393,7 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 
 ### 跨区共享
 
-| 文件 | 归属依据 | 层级预判 | 行数 | 共享 | 平行 | TODO | 测试 |
+| 文件 | 归属依据 | 层级归属 (s2) | 行数 | 共享 | 平行 | TODO | 测试 |
 |---|---|---|---|---|---|---|---|
 | `App/AppEnvironment.swift` | consumer: SpinLabAppState dependency injection | AppShell/DI | 25 | ⭐ legitimate_cross_cutting |  | 0 | direct |
 | `App/AppError.swift` | consumer: app-wide error surface | Error model | 39 | ⭐ legitimate_cross_cutting |  | 0 | behavioral |
@@ -432,11 +455,11 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | 文件 | 候选区块 | 行数 | 暧昧原因 |
 |---|---|---|---|
 
-_(待填)_
+无。s1 全量扫描后没有留下 `[暧昧]` 文件；s2 无需回收。
 
 ### `[未确定]` 清单（s2 后入中期债条目候选）
 
-_(s2 后填)_
+无。s2 层级归属可通过上方规范族解释，当前没有需要升级为 `[未确定]` 的文件。
 
 ---
 
