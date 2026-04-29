@@ -9,7 +9,7 @@
 | 文档 | 用途 |
 |---|---|
 | [`docs/V5_ROADMAP.md` §5.1.6](../V5_ROADMAP.md) | 立项依据、动机、顶层原则、实施方案入口 |
-| [`docs/handoff/2026-04-28-5.1.6-architecture-index.md`](../handoff/2026-04-28-5.1.6-architecture-index.md) | 实施方案：拍板要点、s1–s4 任务拆分、7 AG、否决方案 |
+| [`docs/handoff/archive/2026-04-28-5.1.6-architecture-index.md`](../handoff/archive/2026-04-28-5.1.6-architecture-index.md) | 已归档实施方案：拍板要点、s1–s4 任务拆分、7 AG、否决方案 |
 | [`docs/V5_ROADMAP.md` §5.1.8](../V5_ROADMAP.md) | 5.1.6 完成后首条结构债清理（条件解耦）|
 | [`docs/TASK_BOARD.md`](../TASK_BOARD.md) | 5.1.6 / 5.1.8 进行中状态 |
 | [`docs/philosophy.md` Shell & Composition](../philosophy.md) | 通用 shell 优先 + 内部分层哲学（顶层原则 #4 来源）|

@@ -293,19 +293,7 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 
 ### 5.1.6 — 架构梳理 + 索引文档（区块 / 层级 / 共享点）
 
-**状态**：`[~]` 已规划设计，s1 启动中。
-
-**动机**：现处于"能用但用得不太好"的节点。痛点三件：(1) 报 bug 后定位代码慢，没有"区域 → 功能 → 文件"的捷径；(2) 改 A 处 B 处回归（已确认一例：`def.tokenMap` 在 unit_suffix / token_map 间共享导致数据互相覆盖），说明结构有缠绕；(3) AI 派发耗时高 + 大文件读不动。
-
-原 5.1.6「Codex 派发提速基建（杠杆 A/B/C）」方案被本期取代——派发速查表是新索引文档的子集，不单独立项。
-
-**顶层原则**：
-1. **梳理在前，修补在后**——近期纯文档零代码，结构债清单 → 中期按条目立项修
-2. **共享点按证据分级**——区分合法基础设施共享与错误字段级耦合，结构债清单只收后者及需迁移的协调点
-3. **不以行数单独作为拆分理由**——大文件作为"职责混杂的信号"出拆分候选，不自动拆
-4. **通用 shell 优先 + 边界清晰的内部分层**——平行实现 / shell 内部肥大入候选清单，s1 只识别不抽象。哲学条款见 [`docs/philosophy.md` Shell & Composition Philosophy](../philosophy.md)
-
-**实施方案**：见 [handoff/2026-04-28-5.1.6-architecture-index.md](handoff/2026-04-28-5.1.6-architecture-index.md)（拍板要点 / 任务拆分 s1–s4 / acceptance gate AG1–AG7 / 否决方案）。
+- [x] 架构梳理 + 索引文档完成：218 个 Swift 文件完成区块 / 层级 / 共享点扫描，现行派发入口为 [architecture/INDEX.md](architecture/INDEX.md)，设计与实施摘要见 [history/v516_architecture_index.md](history/v516_architecture_index.md)。
 
 ### 5.1.7 — 规则产物可演化层（Rule Provenance + Sidecar v2 + Recompute）
 
