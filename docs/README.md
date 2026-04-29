@@ -28,6 +28,7 @@
 
 | Document | Purpose | Status |
 |---|---|---|
+| `architecture/INDEX.md` | Current architecture dispatch index: region → first-read files → shared risks → tests. | active |
 | `architecture/ARCHITECTURE_OVERVIEW.md` | Global architecture: AppState, FeatureStores, column shell, observation patterns. | active |
 | `architecture/APP_FLOW.md` | End-to-end app workflow and page responsibilities. | active |
 | `architecture/import/IMPORT_PIPELINE_EVALUATE_FLOW.md` | Import 5-stage evaluate flow: Parse → Route → Match → Evaluate → Presentation. | active |

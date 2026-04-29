@@ -1,8 +1,8 @@
-# Region Map (Working File — 5.1.6 s2)
+# Region Map (Working File — 5.1.6)
 
-> **状态**：s3 进行中。s1 已完成 218 / 218 swift 文件归属扫描；s2 已完成层级规范族映射 + 消费者关系二轮判断；s3 正在做字段级共享点实证。
+> **状态**：s4 收敛输入。s1 已完成 218 / 218 swift 文件归属扫描；s2 已完成层级规范族映射 + 消费者关系二轮判断；s3 已完成首轮字段级共享点实证。
 >
-> s2 完成后将保留文件归属 + 层级归属 + 二轮判断结果；最终 s4 收敛产出 `INDEX.md`。
+> 现行派发入口见 [`INDEX.md`](INDEX.md)。本文件保留为扫描证据底稿。
 
 ## 相关文档索引（5.1.6 完整规划链路）
 
@@ -13,7 +13,8 @@
 | [`docs/V5_ROADMAP.md` §5.1.8](../V5_ROADMAP.md) | 5.1.6 完成后首条结构债清理（条件解耦）|
 | [`docs/TASK_BOARD.md`](../TASK_BOARD.md) | 5.1.6 / 5.1.8 进行中状态 |
 | [`docs/philosophy.md` Shell & Composition](../philosophy.md) | 通用 shell 优先 + 内部分层哲学（顶层原则 #4 来源）|
-| 本文件 (REGION_MAP.md) | s1 工作文件（区块归属表 + 7 附录）|
+| [`docs/architecture/INDEX.md`](INDEX.md) | 现行架构派发入口：区域 → 首读文件 → 共享风险 → 测试入口 |
+| 本文件 (REGION_MAP.md) | 5.1.6 证据底稿：区块归属表 + s2 层级规范 + s3 共享点实证 + 附录 |
 | [`docs/handoff/_pending/5.1.8-condition-kind-decoupling-design-seed.md`](../handoff/_pending/5.1.8-condition-kind-decoupling-design-seed.md) | 5.1.8 派发种子（待 s4 收尾后启动）|
 | [`docs/history/v516_design_review_codex.md`](../history/v516_design_review_codex.md) | Codex 对本期方案的独立评审报告（驱动多处 AG 收紧）|
 | [`docs/history/v515_s12_deep_match_unification.md`](../history/v515_s12_deep_match_unification.md) | Shell & Composition 横向样板诞生案例 |
