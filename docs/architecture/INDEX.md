@@ -163,3 +163,22 @@ When changing code:
 - If a change touches a shared point `SP-*`, update this index and the evidence in `REGION_MAP.md`.
 - If a new cross-region dependency appears, classify it as `legitimate_cross_cutting`, `coordination_surface`, `suspect_coupling`, or `migration_candidate`.
 - If a new shell/pattern repetition appears, add it to `REGION_MAP.md` Appendix G rather than extracting immediately.
+
+## AG3 Dispatch Validation
+
+> Validation date: 2026-04-29. Each task must resolve to first-read files, consumers/collaborators, and shared risks without reopening the full REGION_MAP.
+
+| Task prompt | INDEX route | Result |
+|---|---|---|
+| "Inbox apply copied files but sidecar overrides are wrong" | Inbox → Apply/archive to Library: `App/ApplyCoordinator.swift`, `App/InboxArchiveApplyService.swift`, `Library/LibraryWriteTransaction.swift`, `Library/SpinLabFileSidecar.swift`; risks `SP-010`, `SP-011` | pass |
+| "Library chart preview misses recently saved Workbench charts" | Library → Chart preview and stored artifacts; Workbench → Save chart/metrics to Library; risks `SP-007`, `SP-008` | pass |
+| "Changing condition kind loses token-map entries" | Rules → Rule schema / RulesPanel state; risk `SP-001`; structure debt priority 1 / 5.1.8 seed | pass |
+| "RulesPanel save does not affect Inbox routing until restart" | Rules → Rule runtime loading/cache + RulesPanel state/save; risks `SP-003`, `SP-002` | pass |
+| "Workbench search cannot find sample by substrate alias" | Workbench → Search measurements; Cross-cutting → Import sample helpers; risks `SP-009`, `SP-013`, `SP-014` | pass |
+| "Registry sheet aliases changed and Inbox routing regressed" | Cross-cutting → Registry bridge; Rules → Runtime rule config; risk `SP-005` | pass |
+| "Add a new workflow workspace" | Workbench → Workflow shell/UI composition; then target workflow store pattern; shell candidates `G-006`, `G-008`, `G-015`; Workflow identity/config | pass |
+| "Refactor large Library repository file" | Library → Library repository/filesystem index; structural debt queue + shell candidate `G-005`; boundary risks `SP-006`, `SP-007`, `SP-010` | pass |
+| "Change sample key normalization" | Cross-cutting → Import sample helpers; Inbox drawer matching; Workbench search; risks `SP-012`, `SP-013`, `SP-014` | pass |
+| "Audit UI components with no direct tests" | Region test sections plus REGION_MAP Appendix D; `UI/*`, `Features/*` UI components | pass with note: detailed blind-spot list remains in REGION_MAP, not duplicated here |
+
+Miss cases: none in this 10-task sample. The only intentional fallback is detailed UI test blind spots, which remain in REGION_MAP Appendix D to avoid duplicating evidence tables in the current dispatch index.
