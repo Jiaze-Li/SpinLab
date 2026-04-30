@@ -81,9 +81,7 @@ struct MeasuringConditionSection: View {
         let rowHasError = saveErrors.wrappedValue.hasRow(group: "conditionDefinitions", key: def.id)
         VStack(alignment: .leading, spacing: 0) {
             Button(action: {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    selectedConditionID = isSelected ? nil : def.id
-                }
+                selectedConditionID = isSelected ? nil : def.id
             }) {
                 HStack(spacing: AppSpacing.md) {
                     Text(def.id)
@@ -107,12 +105,12 @@ struct MeasuringConditionSection: View {
             .cornerRadius(AppSpacing.xs)
             .errorHighlight(rowHasError, cornerRadius: AppSpacing.xs)
 
-            if isSelected {
-                conditionDetail(idx: idx, d: d)
-                    .padding(AppSpacing.md)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(AppSpacing.md)
-            }
+            conditionDetail(idx: idx, d: d)
+                .padding(AppSpacing.md)
+                .background(Color(nsColor: .controlBackgroundColor))
+                .cornerRadius(AppSpacing.md)
+                .frame(maxHeight: isSelected ? .infinity : 0)
+                .clipped()
         }
     }
 

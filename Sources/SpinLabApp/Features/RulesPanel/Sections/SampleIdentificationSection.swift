@@ -216,12 +216,12 @@ struct SampleIdentificationSection: View {
                     .padding(.vertical, 2)
                     .errorHighlight(rowHasError, cornerRadius: 6)
 
-                    if isExpanded {
-                        detail(idx)
-                            .padding(AppSpacing.md)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .cornerRadius(AppSpacing.md)
-                    }
+                    detail(idx)
+                        .padding(AppSpacing.md)
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .cornerRadius(AppSpacing.md)
+                        .frame(maxHeight: isExpanded ? .infinity : 0)
+                        .clipped()
                 }
             }
         }

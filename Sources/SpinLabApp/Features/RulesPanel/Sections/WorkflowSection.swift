@@ -153,12 +153,10 @@ struct WorkflowSection: View {
 
         VStack(alignment: .leading, spacing: 0) {
             Button {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    if isExpanded {
-                        expandedWorkflowID = nil
-                    } else {
-                        expandedWorkflowID = entry.id
-                    }
+                if isExpanded {
+                    expandedWorkflowID = nil
+                } else {
+                    expandedWorkflowID = entry.id
                 }
             } label: {
                 HStack(spacing: AppSpacing.md) {
@@ -191,12 +189,12 @@ struct WorkflowSection: View {
             .cornerRadius(AppSpacing.xs)
             .errorHighlight(rowHasError, cornerRadius: AppSpacing.xs)
 
-            if isExpanded {
-                workflowDetail(d: d, idx: idx)
-                    .padding(AppSpacing.md)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(AppSpacing.md)
-            }
+            workflowDetail(d: d, idx: idx)
+                .padding(AppSpacing.md)
+                .background(Color(nsColor: .controlBackgroundColor))
+                .cornerRadius(AppSpacing.md)
+                .frame(maxHeight: isExpanded ? .infinity : 0)
+                .clipped()
         }
     }
 
