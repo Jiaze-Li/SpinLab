@@ -465,3 +465,16 @@ _(未分配)_
 
 ### 5.7.1 — TASK_BOARD 引入 + 文档治理重构
 - [x] 新建 TASK_BOARD + history/INDEX，退役 handoff/README + TECH_DEBT_BACKLOG，改 docs/README.md + 项目 CLAUDE.md + 全局 workflow.md；文档治理收敛为单一职责体系 → [`history/v571_task_board.md`](history/v571_task_board.md)
+
+### 5.7.2 — 文档结构按功能区/层级重组（Inbox 首发）
+
+**动机**：当前文档分类按「文档类型」（specs / architecture / features.md）切分，但同一功能区的代码描述被强行散到三处（specs/03 routing 算法 / features.md Rules Panel UI / architecture/import/ 管线边界），改 schema 时三处要同步，漂移代价高。Apply 行为已经在 features.md 和 specs/05 漂过一次。正确切法是「功能区 × 层」：每个区一个 architecture/<region>/ 子目录，按编辑 UI / 消费算法 / 输出契约 三层组织。specs/ 退回纯跨域契约（PO 承诺 / 领域模型 / design tokens）。
+
+**首发 Inbox**：把 specs/03 算法 + features.md Rules Panel/Auto-Sync/Bootstrap + architecture/import/ + specs/02 sidecar/tag normalization 整合进 docs/architecture/inbox/。验证模式后再做 Library / Workbench。
+
+- [ ] Inbox 子系统抽取：建立 `docs/architecture/inbox/` 目录（ROUTING / RULES_PANEL / SIDECAR 三份），从 specs/02·03 + features.md 抽内容、合并 architecture/import/、拆解 specs/03（算法搬走、纯 contract 并入 specs/01、文件删）、specs/02 重命名为 02_DOMAIN_MODEL（去 sidecar/tag）、features.md Inbox 段瘦身成 invariant + 测试指针 + 链 architecture/inbox/
+- [ ] Library 子系统抽取（待 Inbox 验证后启动）
+- [ ] Workbench 子系统抽取（待 Inbox 验证后启动）
+- [ ] specs/06 → ARCHITECTURE_OVERVIEW 重做（纳入新分类，原 06 整体删）
+- [ ] specs/00_RULES_INDEX 退役（剩 3-4 份后索引价值消失，CLAUDE.md spec 列表足够）
+- [ ] three_omega_physics.md 搬到 docs/architecture/three_omega/
