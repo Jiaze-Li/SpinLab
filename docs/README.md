@@ -31,8 +31,7 @@
 | `architecture/INDEX.md` | Current architecture dispatch index: region → first-read files → shared risks → tests. | active |
 | `architecture/REGION_MAP.md` | 5.1.6 全量区块/层级/共享点扫描底稿（INDEX.md 的工作文件）。 | active |
 | `architecture/ARCHITECTURE_OVERVIEW.md` | Global architecture: AppState, FeatureStores, column shell, observation patterns. | active |
-| `architecture/import/IMPORT_PIPELINE_EVALUATE_FLOW.md` | Import 5-stage evaluate flow: Parse → Route → Match → Evaluate → Presentation. | active |
-| `architecture/import/ROUTING_LAYER_BOUNDARIES.md` | Import routing layer boundary contracts and dependency rules. | active |
+| `architecture/inbox/` | Inbox subsystem layers: routing pipeline, rules authoring, confirm/apply, output contracts. | active |
 
 ## history (开发历史线 & 开发日志)
 
@@ -54,10 +53,8 @@ All specs have been consolidated under the project-root `specs/` directory.
 
 | Document | Purpose | Status |
 |---|---|---|
-| `../specs/00_RULES_INDEX.md` | Rules entry point and priority order. | active |
 | `../specs/01_PRODUCT_RULES.md` | Product behavior contract and safety boundaries. | active |
 | `../specs/02_DATA_RULES.md` | Domain model, metadata ownership, normalization rules. | active |
-| `../specs/03_PARSER_ROUTING_RULES.md` | Inbox parse/routing rules and conflict behavior. | active |
 | `../specs/04_UI_RULES.md` | UI visual & interaction rules (fonts, spacing, buttons, disclosure, accessibility). | active |
 | `../specs/06_PROJECT_ARCHITECTURE.md` | Project-specific architecture: code placement, module contracts, checklists. | active |
 | `../specs/three_omega_physics.md` | 3-Omega measurement physics reference. | reference |

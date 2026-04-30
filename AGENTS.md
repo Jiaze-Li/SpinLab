@@ -240,6 +240,6 @@ Project-specific architecture, code placement, module contracts, and checklists 
 - `specs/04_UI_RULES.md` — visual rules (fonts, spacing, buttons, disclosure sections, accessibility)
 - `specs/01_PRODUCT_RULES.md` — product behavior contract
 - `specs/02_DATA_RULES.md` — domain model and data rules
-- `specs/03_PARSER_ROUTING_RULES.md` — import parse/routing rules
+- `docs/architecture/inbox/` — Inbox subsystem: routing pipeline, rules authoring, confirm/apply, output contracts
 
 Read the relevant spec when the task touches that area. Do not read all specs every session. Long-term product/architecture philosophy lives in `docs/philosophy.md`, not in specs.

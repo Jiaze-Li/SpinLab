@@ -21,6 +21,7 @@ Execution details: `docs/architecture/inbox/CONFIRM_AND_APPLY.md`
 - Unresolved/conflicting items must enter review-required state.
 - `Clear Imports` only affects pending queue and unarchived managed temp files.
 - `Clear Imports` must never touch files already archived into Library drawers.
+- Duplicate import detection: `fileName + contentHash`. If matched, reject the import and do not create a new pending item.
 
 ## Audit and traceability
 - Keep a full audit log under Library Root.
