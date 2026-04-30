@@ -475,6 +475,6 @@ _(未分配)_
 - [x] Inbox 子系统抽取：建立 docs/architecture/inbox/（4 层 5 文件），退役 specs/03+00+import/，coverage meter 55/218 → [`history/v572_s1_inbox_architecture.md`](history/v572_s1_inbox_architecture.md)
 - [x] specs/00_RULES_INDEX 退役（随 s1 一并收尾，与 Inbox 抽取同批）
 - [x] Library 子系统抽取：建立 docs/architecture/library/（INDEX + 5 层），coverage 97/218 → [`history/v572_s2_library_architecture.md`](history/v572_s2_library_architecture.md)
-- [ ] Workbench 子系统抽取（待 Inbox 验证后启动）
-- [ ] specs/06 → ARCHITECTURE_OVERVIEW 重做（纳入新分类，原 06 整体删）
-- [ ] three_omega_physics.md 纳入 docs/architecture/workbench/（3ω workflow 层文件，不作顶层 region）
+- [x] Workbench 子系统抽取：建立 docs/architecture/workbench/（INDEX + 7 层），coverage 125/218
+- [x] specs/06 → ARCHITECTURE_OVERVIEW 重做（Code Placement + Canonical Implementations + Import Pipeline 合入，原 06 整体删）
+- [x] three_omega_physics.md 纳入 docs/architecture/workbench/THREE_OMEGA_PHYSICS.md（顶层平铺，不嵌套 workflows/ 子目录，决策见 s3 handoff §2 决策 1）
