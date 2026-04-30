@@ -241,5 +241,6 @@ Project-specific architecture, code placement, module contracts, and checklists 
 - `specs/01_PRODUCT_RULES.md` — product behavior contract
 - `specs/02_DATA_RULES.md` — domain model and data rules
 - `docs/architecture/inbox/` — Inbox subsystem: routing pipeline, rules authoring, confirm/apply, output contracts
+- `docs/architecture/workbench/` — Workbench subsystem: shell lifecycle, search, plot canvas, workflow contracts, artifact persistence, 3ω physics (`architecture/workbench/THREE_OMEGA_PHYSICS.md`), extension boundaries
 
 Read the relevant spec when the task touches that area. Do not read all specs every session. Long-term product/architecture philosophy lives in `docs/philosophy.md`, not in specs.

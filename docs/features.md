@@ -83,19 +83,11 @@ Behavior details: `docs/architecture/workbench/INDEX.md`
 - Tests: `V531SeriesRenderModeTests`, `V534LegendDimensionResolverTests`, `V535PointLabelVisibilityTests`, `V535CopyPNGScaleMenuTests`, `V536CurveDragOrderTests`
 - Details: [`PLOT_CANVAS.md`](architecture/workbench/PLOT_CANVAS.md)
 
-### 3-Omega AHE
-- Fit ranges are part of scaling chart semantic identity — different fit configs produce separate chart entries, not overwrites
-- Test: unit tests on fit logic, plot payload construction, data parsing
-
-### AMR/PHE
-- Tag normalization: AMR → R_xx, PHE → R_xy
-- Same plot canvas shell as 3-Omega
-
-### XY Rotation
-- Tag normalization: XY_90shift → workflow=XY + angle_shift=+90deg
-- Default y-axis title: Rxx tab → "Rxx (Ω)", Rxy tab → "Rxy (Ω)" — stacked/center info not shown in title (v5.3.1)
-- Optional auxiliary line at x=180 (toggle in plot controls) (v5.3.1)
-- Test: unit tests on XY data parsing
+### Workflow Contracts (3-Omega AHE / AMR-PHE / XY Rotation)
+- 3ω: fit ranges are part of scaling chart semantic identity — different fit configs produce separate chart entries, not overwrites.
+- AMR/PHE: tag normalization AMR → R_xx, PHE → R_xy.
+- XY Rotation: tag normalization XY_90shift → workflow=XY + angle_shift=+90deg.
+- Details: [`WORKFLOW_CONTRACTS.md`](architecture/workbench/WORKFLOW_CONTRACTS.md), [`THREE_OMEGA_PHYSICS.md`](architecture/workbench/THREE_OMEGA_PHYSICS.md)
 
 ### Extension System
 - Extensions must NOT import Features/ or App/ modules
