@@ -41,7 +41,7 @@
 | Document | Purpose | Status |
 |---|---|---|
 | `history/INDEX.md` | 永久全量归档索引（完成日 / 版本 / 一句话 / history 文件 / handoff archive / commits 6 列，倒序）。 | active |
-| `history/V4_ROADMAP.md` | V4 总路线图，已完成。 | sunset |
+| `history/V4_ROADMAP.md` | V4 roadmap and current development direction. | active |
 | `history/TECH_DEBT_EXECUTION_LOG.md` | Round A–G 历史记录。已 sunset，新完成事件进 `history/vX.Y.Z_*.md`。 | sunset |
 | `history/v1/` | V1 execution plan. | done |
 | `history/v2/` | V2 execution plan. | done |
