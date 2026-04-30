@@ -50,14 +50,12 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `docs/architecture/library/`
 - One-way: XLSX registry → Library drawers (tag alignment, not destructive replacement)
 - Apply operations are atomic with rollback
 
-### File Sync
-- Direction: filesystem → app state, never the reverse
-
-### Archive
-- Once archived, records must not be silently modified
-- Internal archive (App Support) is canonical source of truth
-- Audit log: append-only; if log file exists but cannot be read, write is skipped to prevent overwrite
-- Sidecar schema and required fields: `docs/architecture/inbox/OUTPUT_CONTRACTS.md`
+### Storage
+- Filesystem sync direction: filesystem → app state, never the reverse
+- Once archived, records must not be silently modified; App Support is canonical source of truth
+- Audit log: append-only; unreadable existing log blocks write (no overwrite)
+- Sidecar schema: `docs/architecture/inbox/OUTPUT_CONTRACTS.md`; Library reading behavior: `docs/architecture/library/SIDECAR_AND_CONDITIONS.md`
+- Storage and sync details: `docs/architecture/library/ARCHIVE_STORAGE.md`
 
 ---
 
