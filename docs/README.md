@@ -32,6 +32,7 @@
 | `architecture/REGION_MAP.md` | 5.1.6 全量区块/层级/共享点扫描底稿（INDEX.md 的工作文件）。 | active |
 | `architecture/ARCHITECTURE_OVERVIEW.md` | Global architecture: AppState, FeatureStores, column shell, observation patterns. | active |
 | `architecture/inbox/` | Inbox subsystem layers: routing pipeline, rules authoring, confirm/apply, output contracts. | active |
+| `architecture/library/` | Library subsystem layers: browse/selection, archive storage, metadata editing, sidecar/conditions, artifacts/previews. | active |
 
 ## history (开发历史线 & 开发日志)
 
