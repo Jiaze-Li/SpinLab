@@ -10,7 +10,7 @@ For full behavior details, see the linked specs.
 
 ## Inbox
 
-Behavior details: `specs/01_PRODUCT_RULES.md`, `specs/03_PARSER_ROUTING_RULES.md`
+Behavior details: `specs/01_PRODUCT_RULES.md`, `docs/architecture/inbox/`
 
 ### Import Pipeline
 - Parse stage must never make routing decisions (strict pipeline boundary)
@@ -18,13 +18,11 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `specs/03_PARSER_ROUTING_RULES.md
 - Duplicate filenames in queue: append sequence, never silently overwrite
 - Test: extensive unit tests on parse/route/match/evaluate stages
 
-### Confirm & Draft
-- Drawer matching: token-coverage, exactly one candidate = match, else unresolved (`?`)
-- File-level sample info can fill missing channel sample, but channel-to-channel cross-completion is forbidden
-- Route unresolved metadata alone does not force Review Required when final drawer mapping is unique and valid
+### Confirm & Apply
+- Apply: per-file atomic archive with rollback, sidecar generation, and audit logging
+- Apply All: skips review-required items, processes only library-matched
 - Save-gated mapping (no live remap on keystroke) is deliberate
-- Apply: implemented. Per-file atomic archive with rollback, sidecar generation, and audit logging. Supports single-file and Apply All scopes (Apply All skips review-required items)
-- Test: drawer matching unit tests; draft persistence integration tests
+- Test: drawer matching unit tests; draft persistence integration tests; see `docs/architecture/inbox/CONFIRM_AND_APPLY.md`
 
 ### Registry
 - Prefix-to-sheet mapping is display metadata only, not the lookup routing key
@@ -33,9 +31,6 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `specs/03_PARSER_ROUTING_RULES.md
 ### Queue Management
 - Clear Imports must never touch files already archived into Library drawers
 - Clear Imports only affects pending queue and unarchived managed temp files
-
-### Layout
-- Right column intentionally blank (reserved for future modules)
 
 ---
 

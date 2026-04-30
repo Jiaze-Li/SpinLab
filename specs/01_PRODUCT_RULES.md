@@ -8,6 +8,9 @@ Status: active
 - User confirmation is the authority before archive/apply.
 
 ## Inbox -> Library contract
+
+Execution details: `docs/architecture/inbox/CONFIRM_AND_APPLY.md`
+
 - Inbox supports staged processing: parse, edit, review, then manual apply.
 - `Apply Selected` is per file.
 - `Apply All` processes library-matched items only and skips review-required items.
