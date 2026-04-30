@@ -35,7 +35,13 @@ struct RulesSectionShell<Content: View>: View {
             Divider()
             Group {
                 if isDraftAvailable {
-                    content($saveErrors)
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: AppSpacing.xl) {
+                            content($saveErrors)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(AppSpacing.xl)
+                    }
                 } else {
                     ContentUnavailableView(
                         "No \(section.displayName.lowercased()) rules loaded",

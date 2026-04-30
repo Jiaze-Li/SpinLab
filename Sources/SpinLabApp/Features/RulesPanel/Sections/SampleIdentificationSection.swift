@@ -38,14 +38,8 @@ struct SampleIdentificationSection: View {
         _ d: SampleIdentificationFileDraft,
         saveErrors: Binding<[RulesPanelFieldError]>
     ) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                batchPrefixesGroup(d)
-                substrateConfigGroup(d, saveErrors: saveErrors.wrappedValue)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(AppSpacing.xl)
-        }
+        batchPrefixesGroup(d)
+        substrateConfigGroup(d, saveErrors: saveErrors.wrappedValue)
     }
 
     // MARK: - Batch Prefixes
@@ -175,7 +169,7 @@ struct SampleIdentificationSection: View {
         onRemove: @escaping (Int) -> Void,
         @ViewBuilder detail: @escaping (Int) -> Detail
     ) -> some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+        VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text(title).font(AppFontScale.groupHeader)
                 if saveErrors.hasGroup(groupKey) {
@@ -188,40 +182,23 @@ struct SampleIdentificationSection: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
             }
+            .padding(.bottom, AppSpacing.sm)
             ForEach(entries.indices, id: \.self) { idx in
                 let entry = entries[idx]
                 let isExpanded = expandedIndex.wrappedValue == idx
                 let rowHasError = saveErrors.hasRow(group: groupKey, key: entry.displayName)
-                VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                    Button { expandedIndex.wrappedValue = isExpanded ? nil : idx } label: {
-                        HStack(spacing: AppSpacing.md) {
-                            Text(entry.displayName.isEmpty ? "—" : entry.displayName)
-                                .font(.callout.weight(.semibold).monospaced())
-                                .foregroundStyle(rowHasError ? Color.red : .primary)
-                            Text("\(entry.matches.count) match\(entry.matches.count == 1 ? "" : "es")")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Button(role: .destructive) { onRemove(idx) } label: {
-                                Image(systemName: "minus.circle")
-                            }
-                            .buttonStyle(.borderless)
-                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, AppSpacing.xs)
-                    .padding(.vertical, 2)
-                    .errorHighlight(rowHasError, cornerRadius: 6)
+                let matchCount = entry.matches.count
 
-                    if isExpanded {
-                        detail(idx)
-                            .padding(AppSpacing.md)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .cornerRadius(AppSpacing.md)
-                    }
+                RuleExpandableRow(
+                    title: entry.displayName.isEmpty ? "—" : entry.displayName,
+                    subtitle: "\(matchCount) match\(matchCount == 1 ? "" : "es")",
+                    isExpanded: isExpanded,
+                    rowHasError: rowHasError,
+                    deleteAccessibilityLabel: "Delete \(title.lowercased())",
+                    onToggle: { expandedIndex.wrappedValue = isExpanded ? nil : idx },
+                    onDelete: { onRemove(idx) }
+                ) {
+                    detail(idx)
                 }
             }
         }
