@@ -55,7 +55,7 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `docs/architecture/library/`
 - Filesystem sync direction: filesystem → app state, never the reverse
 - Once archived, records must not be silently modified; App Support is canonical source of truth
 - Audit log: append-only; unreadable existing log blocks write (no overwrite)
-- Sidecar schema: `docs/architecture/inbox/OUTPUT_CONTRACTS.md`; Library reading behavior: `docs/architecture/library/SIDECAR_AND_CONDITIONS.md`
+- Sidecar schema (canonical): `docs/architecture/inbox/OUTPUT_CONTRACTS.md`; Library reading behavior: `docs/architecture/library/SIDECAR_AND_CONDITIONS.md`
 - Storage and sync details: `docs/architecture/library/ARCHIVE_STORAGE.md`
 
 ---

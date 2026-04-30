@@ -66,7 +66,6 @@ The registry lookup is handled by a dedicated rulebook layer, not mixed with rou
 
 ## Code Map
 
-- `Sources/SpinLabApp/Library/SpinLabFileSidecar.swift` — sidecar schema, Codable model, field contracts
 - `Sources/SpinLabApp/Registry/SampleRegistry.swift` — registry lookup entry point
 - `Sources/SpinLabApp/Registry/RegistryLookupRuleBook.swift` — lookup policy: sheet indexing, query path
 - `Sources/SpinLabApp/Registry/RegistrySheetFilter.swift` — sheet inclusion/exclusion rules (__ prefix, column check)
