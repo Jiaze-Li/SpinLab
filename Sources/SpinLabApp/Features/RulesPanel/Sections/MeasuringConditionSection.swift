@@ -131,94 +131,40 @@ struct MeasuringConditionSection: View {
                 ))
                 .textFieldStyle(.roundedBorder)
             }
-            LabeledContent("Kind") {
-                Picker("", selection: Binding(
-                    get: { def.kind },
-                    set: { newKind in
-                        var u = d
-                        u.conditionDefinitions[idx].kind = newKind
-                        if newKind == "unit_suffix" && u.conditionDefinitions[idx].unitPattern == nil {
-                            u.conditionDefinitions[idx].unitPattern = ""
-                        } else if newKind == "token_map" && u.conditionDefinitions[idx].tokenMap == nil {
-                            u.conditionDefinitions[idx].tokenMap = []
-                        }
-                        apply(u)
-                    }
-                )) {
-                    Text("unit_suffix").tag("unit_suffix")
-                    Text("token_map").tag("token_map")
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 240)
-                .labelsHidden()
-            }
-
-            if def.kind == "unit_suffix" {
-                MatchRulesEditor(
-                    rules: unitSuffixSpecsBinding(condIdx: idx),
-                    allowedOps: [.unitSuffix, .equals, .contains],
-                    defaultOp: .unitSuffix
+            MatchRulesEditor(
+                rules: rulesBinding(condIdx: idx),
+                allowedOps: [.equals, .contains, .unitSuffix],
+                defaultOp: .equals,
+                outputBehavior: .editableWithLockedOps(
+                    title: "Mapped to",
+                    lockedOps: [.unitSuffix],
+                    lockedValue: "$MATCH"
                 )
-            } else {
-                MatchMapRulesEditor(
-                    rules: tokenMapRulesBinding(condIdx: idx),
-                    allowedOps: [.equals, .contains],
-                    defaultOp: .equals,
-                    outputTitle: "Mapped to"
-                )
-            }
+            )
         }
     }
 
-    // MARK: - Bindings (unit_suffix ↔ [FilenameRuleSet.MatchSpec], token_map ↔ [MapRule])
+    // MARK: - Binding
 
-    private func unitSuffixSpecsBinding(condIdx: Int) -> Binding<[FilenameRuleSet.MatchSpec]> {
+    private func rulesBinding(condIdx: Int) -> Binding<[MapRule]> {
         Binding(
             get: {
                 guard let d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return [] }
-                let def = d.conditionDefinitions[condIdx]
-                if let tokenMap = def.tokenMap {
-                    return tokenMap.compactMap {
-                        guard let op = FilenameRuleSet.Operation(rawValue: $0.match.type) else { return nil }
-                        return FilenameRuleSet.MatchSpec(type: op, value: $0.match.value)
-                    }
-                }
-                // legacy: unitPattern fallback
-                return unitsFromUnitPattern(def.unitPattern)
-                    .map { FilenameRuleSet.MatchSpec(type: .unitSuffix, value: $0) }
+                return d.conditionDefinitions[condIdx].matches
             },
-            set: { specs in
+            set: { newRules in
                 guard var d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return }
-                d.conditionDefinitions[condIdx].tokenMap = specs.map {
-                    MapRule(match: .init(type: $0.type.rawValue, value: $0.value), value: "$MATCH")
-                }
-                d.conditionDefinitions[condIdx].unitPattern = nil
+                d.conditionDefinitions[condIdx].matches = newRules.map(normalizeConditionRuleForUI)
                 apply(d)
             }
         )
     }
 
-    private func tokenMapRulesBinding(condIdx: Int) -> Binding<[MapRule]> {
-        Binding(
-            get: {
-                guard let d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return [] }
-                // Exclude unit-suffix rules from token_map view — they're incompatible with
-                // token_map's allowed ops and would cause Picker auto-snap data corruption.
-                // They remain in storage and reappear when switching back to unit_suffix.
-                return (d.conditionDefinitions[condIdx].tokenMap ?? []).filter {
-                    $0.match.type != "unit-suffix"
-                }
-            },
-            set: { newRules in
-                guard var d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return }
-                // Preserve any hidden unit-suffix rules alongside the new token_map rules.
-                let preserved = (d.conditionDefinitions[condIdx].tokenMap ?? []).filter {
-                    $0.match.type == "unit-suffix"
-                }
-                d.conditionDefinitions[condIdx].tokenMap = preserved + newRules
-                apply(d)
-            }
-        )
+    private func normalizeConditionRuleForUI(_ rule: MapRule) -> MapRule {
+        guard rule.match.type == "unit-suffix" else { return rule }
+        var normalized = rule
+        normalized.value = "$MATCH"
+        return normalized
     }
 
     // MARK: - Delete confirmation
@@ -270,40 +216,9 @@ struct MeasuringConditionSection: View {
         var n = 2
         while existingIDs.contains(newID) { newID = "new_condition_\(n)"; n += 1 }
         var u = d
-        u.conditionDefinitions.append(.init(
-            id: newID,
-            displayName: nil,
-            kind: "unit_suffix",
-            unitPattern: nil,
-            tokenMap: []
-        ))
+        u.conditionDefinitions.append(.init(id: newID, displayName: nil, matches: []))
         apply(u)
         selectedConditionID = newID
-    }
-
-    // MARK: - Bindings
-
-    private func tokenMapRuleBinding(condIdx: Int, ruleIdx: Int) -> Binding<MapRule> {
-        Binding(
-            get: {
-                guard let d = self.draft,
-                      d.conditionDefinitions.indices.contains(condIdx),
-                      let rules = d.conditionDefinitions[condIdx].tokenMap,
-                      rules.indices.contains(ruleIdx) else {
-                    return MapRule(match: .init(type: "equals", value: ""), value: "")
-                }
-                return rules[ruleIdx]
-            },
-            set: { newValue in
-                guard var d = self.draft,
-                      d.conditionDefinitions.indices.contains(condIdx),
-                      var rules = d.conditionDefinitions[condIdx].tokenMap,
-                      rules.indices.contains(ruleIdx) else { return }
-                rules[ruleIdx] = newValue
-                d.conditionDefinitions[condIdx].tokenMap = rules
-                self.apply(d)
-            }
-        )
     }
 
     // MARK: - Actions

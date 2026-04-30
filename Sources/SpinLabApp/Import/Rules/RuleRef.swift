@@ -17,6 +17,11 @@ enum RuleRef {
 
     // MARK: - condition namespace
 
+    static func conditionRule(id: String, ruleIndex: Int) -> String {
+        "rule:condition.\(id).rules#\(ruleIndex)"
+    }
+
+    // Retained for parsing legacy stored provenance refs only.
     static func conditionUnitSuffix(id: String, definitionIndex: Int) -> String {
         "rule:condition.\(id).unitSuffix#\(definitionIndex)"
     }

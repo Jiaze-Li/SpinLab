@@ -1,10 +1,9 @@
 {
-    "version": 4,
+    "version": 6,
     "conditionDefinitions": [
         {
             "id": "device",
             "displayName": "Device",
-            "kind": "token_map",
             "matches": [
                 {
                     "match": {
@@ -18,68 +17,94 @@
         {
             "id": "temperature",
             "displayName": "Temperature",
-            "kind": "unit_suffix",
             "matches": [
                 {
-                    "type": "unit-suffix",
-                    "value": "K"
+                    "match": {
+                        "type": "unit-suffix",
+                        "value": "K"
+                    },
+                    "value": "$MATCH"
                 },
                 {
-                    "type": "unit-suffix",
-                    "value": "k"
+                    "match": {
+                        "type": "unit-suffix",
+                        "value": "k"
+                    },
+                    "value": "$MATCH"
                 },
                 {
-                    "type": "unit-suffix",
-                    "value": "C"
+                    "match": {
+                        "type": "unit-suffix",
+                        "value": "C"
+                    },
+                    "value": "$MATCH"
                 }
             ]
         },
         {
             "id": "current",
             "displayName": "Current",
-            "kind": "unit_suffix",
             "matches": [
                 {
-                    "type": "unit-suffix",
-                    "value": "mA"
+                    "match": {
+                        "type": "unit-suffix",
+                        "value": "mA"
+                    },
+                    "value": "$MATCH"
                 },
                 {
-                    "type": "unit-suffix",
-                    "value": "A"
+                    "match": {
+                        "type": "unit-suffix",
+                        "value": "A"
+                    },
+                    "value": "$MATCH"
                 },
                 {
-                    "type": "unit-suffix",
-                    "value": "uA"
+                    "match": {
+                        "type": "unit-suffix",
+                        "value": "uA"
+                    },
+                    "value": "$MATCH"
                 }
             ]
         },
         {
             "id": "field",
             "displayName": "Field",
-            "kind": "unit_suffix",
             "matches": [
                 {
-                    "type": "unit-suffix",
-                    "value": "T"
+                    "match": {
+                        "type": "unit-suffix",
+                        "value": "T"
+                    },
+                    "value": "$MATCH"
                 },
                 {
-                    "type": "unit-suffix",
-                    "value": "mT"
+                    "match": {
+                        "type": "unit-suffix",
+                        "value": "mT"
+                    },
+                    "value": "$MATCH"
                 },
                 {
-                    "type": "unit-suffix",
-                    "value": "Oe"
+                    "match": {
+                        "type": "unit-suffix",
+                        "value": "Oe"
+                    },
+                    "value": "$MATCH"
                 }
             ]
         },
         {
             "id": "shift",
             "displayName": "Shift",
-            "kind": "unit_suffix",
             "matches": [
                 {
-                    "type": "unit-suffix",
-                    "value": "shift"
+                    "match": {
+                        "type": "unit-suffix",
+                        "value": "shift"
+                    },
+                    "value": "$MATCH"
                 }
             ]
         }

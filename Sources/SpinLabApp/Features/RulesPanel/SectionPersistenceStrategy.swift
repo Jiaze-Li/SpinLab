@@ -196,17 +196,7 @@ struct MeasuringConditionStrategy: SectionPersistenceStrategy {
             if !seenIDs.insert(def.id).inserted {
                 errors.append(.init(field: "conditionDefinitions", message: "Duplicate condition ID '\(def.id)'"))
             }
-            guard def.kind == "unit_suffix" || def.kind == "token_map" else {
-                errors.append(.init(field: "conditionDefinitions[\(def.id)].kind",
-                                    message: "Unknown kind '\(def.kind)'"))
-                continue
-            }
-            // Both kinds now use tokenMap for storage; validate the active specs.
-            if def.tokenMap == nil && def.kind == "token_map" {
-                errors.append(.init(field: "conditionDefinitions[\(def.id)]",
-                                    message: "token_map requires at least one match rule"))
-            }
-            for rule in def.tokenMap ?? [] where rule.match.type == "regex" {
+            for rule in def.matches where rule.match.type == "regex" {
                 validateRegexField(rule.match.value, field: "conditionDefinitions[\(def.id)].matches", errors: &errors)
             }
         }

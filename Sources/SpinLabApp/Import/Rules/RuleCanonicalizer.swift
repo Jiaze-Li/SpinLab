@@ -14,31 +14,24 @@ struct RuleCanonicalizer {
 
         if ruleSet.conditionDefinitions.isEmpty {
             var synthesized: [FilenameRuleSet.ConditionDefinition] = []
+            var seenIDs: Set<String> = []
 
-            func appendSynthesizedDefinition(id: String, kind: FilenameRuleSet.ConditionDefinitionKind) {
-                synthesized.append(
-                    .init(
-                        id: id,
-                        displayName: ConditionFieldCatalog.defaultLabel(for: id),
-                        kind: kind,
-                        matches: kind == .unitSuffix ? .unitSuffix([]) : .tokenMap([])
-                    )
-                )
+            func appendIfNew(id: String) {
+                let key = id.lowercased()
+                guard seenIDs.insert(key).inserted else { return }
+                synthesized.append(.init(
+                    id: id,
+                    displayName: ConditionFieldCatalog.defaultLabel(for: id),
+                    matches: []
+                ))
             }
 
-            for id in [ConditionFieldCatalog.temperatureID, ConditionFieldCatalog.currentID, ConditionFieldCatalog.fieldID] {
-                appendSynthesizedDefinition(id: id, kind: .unitSuffix)
+            for id in [ConditionFieldCatalog.temperatureID, ConditionFieldCatalog.currentID,
+                       ConditionFieldCatalog.fieldID, ConditionFieldCatalog.deviceID] {
+                appendIfNew(id: id)
             }
-            appendSynthesizedDefinition(id: ConditionFieldCatalog.deviceID, kind: .tokenMap)
-
-            for key in ruleSet.conditions.extraConditions.keys.sorted()
-                where !synthesized.contains(where: { $0.id.caseInsensitiveCompare(key) == .orderedSame && $0.kind == .unitSuffix }) {
-                appendSynthesizedDefinition(id: key, kind: .unitSuffix)
-            }
-            for key in ruleSet.conditions.tokenMapRules.keys.sorted()
-                where !synthesized.contains(where: { $0.id.caseInsensitiveCompare(key) == .orderedSame && $0.kind == .tokenMap }) {
-                appendSynthesizedDefinition(id: key, kind: .tokenMap)
-            }
+            for key in ruleSet.conditions.extraConditions.keys.sorted() { appendIfNew(id: key) }
+            for key in ruleSet.conditions.tokenMapRules.keys.sorted() { appendIfNew(id: key) }
 
             ruleSet.conditionDefinitions = synthesized
             warnings.append("\(sourceLabel) has no conditionDefinitions; synthesized canonical definitions for compatibility.")

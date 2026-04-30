@@ -197,81 +197,36 @@ struct MeasuringConditionFileDraft: Codable {
     var version: Int
     var conditionDefinitions: [ConditionDefinition]
 
-    struct ConditionDefinition: Identifiable {
+    struct ConditionDefinition: Identifiable, Codable {
         var id: String
         var displayName: String?
-        var kind: String
-        var unitPattern: String?
-        var tokenMap: [MapRule]?
-    }
-}
+        var matches: [MapRule]
 
-extension MeasuringConditionFileDraft.ConditionDefinition: Codable {
-    private enum CodingKeys: String, CodingKey {
-        case id, kind, unitPattern, tokenMap, label, displayName, matches
-    }
+        private enum CodingKeys: String, CodingKey {
+            case id, displayName, label, matches
+        }
 
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(String.self, forKey: .id)
-        kind = try c.decode(String.self, forKey: .kind)
-        displayName = try c.decodeIfPresent(String.self, forKey: .displayName)
-            ?? c.decodeIfPresent(String.self, forKey: .label)
+        init(id: String, displayName: String?, matches: [MapRule]) {
+            self.id = id
+            self.displayName = displayName
+            self.matches = matches
+        }
 
-        if kind == "unit_suffix" {
-            // Unified format: matches: [{type, value}] supporting all 4 ops.
-            // Legacy fallback: unitPattern string or old [{type:"unit-suffix", value}] array.
-            struct MatchEntry: Decodable { let type: String?; let value: String? }
-            if let entries = try c.decodeIfPresent([MatchEntry].self, forKey: .matches) {
-                tokenMap = entries.compactMap { e -> MapRule? in
-                    guard let t = e.type, let v = e.value, !v.isEmpty,
-                          FilenameRuleSet.Operation(rawValue: t) != nil else { return nil }
-                    return MapRule(match: .init(type: t, value: v), value: "$MATCH")
-                }
-            } else if let pattern = try c.decodeIfPresent(String.self, forKey: .unitPattern) {
-                let units = unitsFromUnitPattern(pattern)
-                tokenMap = units.map { MapRule(match: .init(type: "unit-suffix", value: $0), value: "$MATCH") }
-            } else {
-                tokenMap = []
-            }
-            unitPattern = nil
-        } else {
-            // token_map — s12+ format: matches: [MapRule]; pre-s12 format: tokenMap: [MapRule]
-            tokenMap = try c.decodeIfPresent([MapRule].self, forKey: .matches)
-                ?? c.decodeIfPresent([MapRule].self, forKey: .tokenMap)
-            unitPattern = nil
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.decode(String.self, forKey: .id)
+            displayName = try c.decodeIfPresent(String.self, forKey: .displayName)
+                ?? c.decodeIfPresent(String.self, forKey: .label)
+            matches = try c.decodeIfPresent([MapRule].self, forKey: .matches) ?? []
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(id, forKey: .id)
+            try c.encodeIfPresent(displayName, forKey: .displayName)
+            try c.encode(matches, forKey: .matches)
         }
     }
-
-    func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(id, forKey: .id)
-        try c.encode(kind, forKey: .kind)
-        try c.encodeIfPresent(displayName, forKey: .displayName)
-        if kind == "token_map" {
-            // Nested MapRule format preserves output value: {match: {type, value}, value: outputValue}
-            try c.encode(tokenMap ?? [], forKey: .matches)
-        } else {
-            // unit_suffix: flat format {type, value}; output is always implicit $MATCH
-            let specs = (tokenMap ?? []).map { ["type": $0.match.type, "value": $0.match.value] }
-            try c.encode(specs, forKey: .matches)
-        }
-    }
-}
-
-// MARK: - Unit pattern helpers (bridging unitPattern string ↔ unit-suffix MatchSpec values)
-
-func unitPatternFromUnits(_ units: [String]) -> String {
-    "^-?\\d+(?:\\.\\d+)?(?:\(units.joined(separator: "|")))$"
-}
-
-func unitsFromUnitPattern(_ pattern: String?) -> [String] {
-    guard let pattern else { return [] }
-    let prefix = "^-?\\d+(?:\\.\\d+)?(?:"
-    let suffix = ")$"
-    guard pattern.hasPrefix(prefix), pattern.hasSuffix(suffix) else { return [] }
-    let inner = String(pattern.dropFirst(prefix.count).dropLast(suffix.count))
-    return inner.isEmpty ? [] : inner.components(separatedBy: "|")
 }
 
 // MARK: - Store

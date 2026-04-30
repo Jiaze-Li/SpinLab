@@ -285,8 +285,8 @@ struct V515RulesPanelSaveValidationTests {
         let (store, _) = try makeStore()
 
         var draft = try #require(store.measuringConditionDraft)
-        draft.conditionDefinitions.append(.init(id: "temperature", displayName: nil, kind: "unit_suffix",
-                                                unitPattern: "^\\d+K$", tokenMap: nil))
+        draft.conditionDefinitions.append(.init(id: "temperature", displayName: nil,
+                                                matches: [MapRule(match: .init(type: "unit-suffix", value: "K"), value: "$MATCH")]))
         store.updateMeasuringCondition(draft)
         store.selectSection(.measuringCondition)
 
@@ -296,33 +296,32 @@ struct V515RulesPanelSaveValidationTests {
         #expect(errors.contains(where: { $0.message.contains("Duplicate") }))
     }
 
-    @Test("measuringCondition: unit_suffix with invalid regex fails")
-    func measuringConditionUnitSuffixInvalidRegex() throws {
+    @Test("measuringCondition: unit_suffix rule saves without regex validation")
+    func measuringConditionUnitSuffixSavesWithoutRegexValidation() throws {
         let (dir, backup) = try acquireIsolation()
         defer { releaseIsolation(dir: dir, backup: backup) }
         let (store, _) = try makeStore()
 
         var draft = try #require(store.measuringConditionDraft)
-        draft.conditionDefinitions[0].unitPattern = "[bad"
+        draft.conditionDefinitions.append(.init(id: "field", displayName: nil,
+                                                matches: [MapRule(match: .init(type: "unit-suffix", value: "T"), value: "$MATCH")]))
         store.updateMeasuringCondition(draft)
         store.selectSection(.measuringCondition)
 
-        guard case .validationFailed(let errors) = store.saveCurrent() else {
-            Issue.record("Expected validationFailed"); return
+        guard case .saved = store.saveCurrent() else {
+            Issue.record("Expected .saved — unit-suffix rules have no regex to validate"); return
         }
-        #expect(errors.contains(where: { $0.field.contains("temperature") || $0.field.contains("unitPattern") }))
     }
 
-    @Test("measuringCondition: unit_suffix missing extraConditions entry fails")
-    func measuringConditionUnitSuffixMissingEntry() throws {
+    @Test("measuringCondition: condition with regex op fails validation")
+    func measuringConditionRegexRuleFails() throws {
         let (dir, backup) = try acquireIsolation()
         defer { releaseIsolation(dir: dir, backup: backup) }
         let (store, _) = try makeStore()
 
         var draft = try #require(store.measuringConditionDraft)
-        draft.conditionDefinitions.append(.init(id: "field", displayName: nil, kind: "unit_suffix",
-                                                unitPattern: "", tokenMap: nil))
-        // Empty unitPattern for "field" — unit_suffix requires a non-empty pattern
+        draft.conditionDefinitions.append(.init(id: "field", displayName: nil,
+                                                matches: [MapRule(match: .init(type: "regex", value: "[invalid"), value: "x")]))
         store.updateMeasuringCondition(draft)
         store.selectSection(.measuringCondition)
 
@@ -339,8 +338,8 @@ struct V515RulesPanelSaveValidationTests {
         let (store, _) = try makeStore()
 
         var draft = try #require(store.measuringConditionDraft)
-        draft.conditionDefinitions.append(.init(id: "field", displayName: "Field", kind: "unit_suffix",
-                                                unitPattern: "^-?\\d+T$", tokenMap: nil))
+        draft.conditionDefinitions.append(.init(id: "field", displayName: "Field",
+                                                matches: [MapRule(match: .init(type: "unit-suffix", value: "T"), value: "$MATCH")]))
         store.updateMeasuringCondition(draft)
         store.selectSection(.measuringCondition)
 

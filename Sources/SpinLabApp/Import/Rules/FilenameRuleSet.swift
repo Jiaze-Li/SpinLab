@@ -45,53 +45,27 @@ struct FilenameRuleSet: Decodable {
         var value: String
     }
 
-    // MARK: - ConditionMatches (kind-discriminated)
-
-    enum ConditionMatches: Sendable {
-        case unitSuffix([MatchSpec])
-        case tokenMap([MapRule])
-    }
-
-    enum ConditionDefinitionKind: String, Decodable {
-        case unitSuffix = "unit_suffix"
-        case tokenMap = "token_map"
-    }
-
     struct ConditionDefinition: Decodable {
         var id: String
         var displayName: String?
-        var kind: ConditionDefinitionKind
-        var matches: ConditionMatches
-
-        @available(*, deprecated, renamed: "displayName")
-        var label: String? { displayName }
+        var matches: [MapRule]
 
         private enum CodingKeys: String, CodingKey {
-            case id, kind, displayName, label, matches
+            case id, displayName, label, matches
         }
 
-        init(id: String, displayName: String?, kind: ConditionDefinitionKind, matches: ConditionMatches) {
+        init(id: String, displayName: String?, matches: [MapRule]) {
             self.id = id
             self.displayName = displayName
-            self.kind = kind
             self.matches = matches
         }
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             id = try c.decode(String.self, forKey: .id)
-            kind = try c.decode(ConditionDefinitionKind.self, forKey: .kind)
             displayName = try c.decodeIfPresent(String.self, forKey: .displayName)
                 ?? c.decodeIfPresent(String.self, forKey: .label)
-
-            switch kind {
-            case .unitSuffix:
-                let specs = try c.decodeIfPresent([MatchSpec].self, forKey: .matches) ?? []
-                matches = .unitSuffix(specs)
-            case .tokenMap:
-                let rules = try c.decodeIfPresent([MapRule].self, forKey: .matches) ?? []
-                matches = .tokenMap(rules)
-            }
+            matches = try c.decodeIfPresent([MapRule].self, forKey: .matches) ?? []
         }
     }
 
@@ -446,26 +420,16 @@ struct FilenameRuleSet: Decodable {
         let warnings: [String] = []
 
         for ruleID in allRuleIDs {
-            let definitionIndex = conditionDefinitions.firstIndex(where: { $0.id == ruleID }) ?? 0
-            let definition = conditionDefinitions.first(where: { $0.id == ruleID })
             guard let rules = compiled.conditionRules[ruleID] else { continue }
-
             for (ruleIndex, rule) in rules.enumerated() {
                 guard let matched = tokens.first(where: { tokenMatches(text: $0, compiled: rule.match) }) else { continue }
-                let rawValue = rule.value == "$MATCH" ? matched : rule.value
-
-                let isTokenMap: Bool
-                if case .tokenMap = definition?.matches { isTokenMap = true } else { isTokenMap = false }
-
                 let value: String
-                let ref: String
-                if isTokenMap {
-                    value = rawValue
-                    ref = RuleRef.conditionTokenMap(id: ruleID, ruleIndex: ruleIndex)
+                if rule.value == "$MATCH" {
+                    value = normalizeUnitSuffixToken(matched, ruleID: ruleID)
                 } else {
-                    value = normalizeUnitSuffixToken(rawValue, ruleID: ruleID)
-                    ref = RuleRef.conditionUnitSuffix(id: ruleID, definitionIndex: definitionIndex)
+                    value = rule.value
                 }
+                let ref = RuleRef.conditionRule(id: ruleID, ruleIndex: ruleIndex)
                 sourcedValues[ruleID] = SourcedConditionValue(value: value, ruleRef: ref)
                 break
             }
@@ -558,19 +522,10 @@ struct FilenameRuleSet: Decodable {
 
     private mutating func compileConditionDefinitions(warnings: inout [String]) {
         compiled.conditionRules = [:]
-
         for definition in conditionDefinitions {
             let id = definition.id.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !id.isEmpty else { continue }
-
-            switch definition.matches {
-            case .unitSuffix(let specs):
-                compiled.conditionRules[id] = specs.map { spec in
-                    CompiledMapRule(match: compileMatchSpec(spec, warnings: &warnings, label: id), value: "$MATCH")
-                }
-            case .tokenMap(let rules):
-                compiled.conditionRules[id] = compileMapRules(rules, warnings: &warnings, label: id)
-            }
+            compiled.conditionRules[id] = compileMapRules(definition.matches, warnings: &warnings, label: id)
         }
     }
 
@@ -851,26 +806,22 @@ struct FilenameRuleSet: Decodable {
                 ConditionDefinition(
                     id: ConditionFieldCatalog.temperatureID,
                     displayName: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.temperatureID],
-                    kind: .unitSuffix,
-                    matches: .unitSuffix([])
+                    matches: []
                 ),
                 ConditionDefinition(
                     id: ConditionFieldCatalog.currentID,
                     displayName: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.currentID],
-                    kind: .unitSuffix,
-                    matches: .unitSuffix([])
+                    matches: []
                 ),
                 ConditionDefinition(
                     id: ConditionFieldCatalog.fieldID,
                     displayName: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.fieldID],
-                    kind: .unitSuffix,
-                    matches: .unitSuffix([])
+                    matches: []
                 ),
                 ConditionDefinition(
                     id: ConditionFieldCatalog.deviceID,
                     displayName: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.deviceID],
-                    kind: .tokenMap,
-                    matches: .tokenMap([])
+                    matches: []
                 )
             ],
             registry: RegistryRules(

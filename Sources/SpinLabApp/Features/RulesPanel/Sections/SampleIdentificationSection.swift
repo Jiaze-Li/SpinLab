@@ -44,7 +44,7 @@ struct SampleIdentificationSection: View {
     private func batchPrefixesGroup(_ d: SampleIdentificationFileDraft) -> some View {
         GroupBox("Batch ID Prefixes") {
             MatchRulesEditor(
-                rules: batchSpecsBinding(d),
+                specs: batchSpecsBinding(d),
                 allowedOps: [.startsWith],
                 defaultOp: .startsWith
             )
@@ -222,7 +222,7 @@ struct SampleIdentificationSection: View {
                 .font(.body.monospaced())
             }
             MatchRulesEditor(
-                rules: substrateMatchesBinding(entryIdx: idx, entries: entries, onChange: onChange),
+                specs: substrateMatchesBinding(entryIdx: idx, entries: entries, onChange: onChange),
                 allowedOps: [.equals, .contains],
                 defaultOp: .equals
             )
