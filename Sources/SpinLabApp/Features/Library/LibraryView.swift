@@ -2,7 +2,6 @@ import SwiftUI
 
 struct LibraryView: View {
     @Environment(SpinLabAppState.self) var appState
-    @Environment(\.openWindow) private var openWindow
     @State var allowedPrefixesDraft: String = ""
     @State var isLibrarySettingsExpanded = true
     @State var isRegistryWorkspaceExpanded = true
@@ -127,6 +126,12 @@ struct LibraryView: View {
             metadataSyncLogMessage: appState.library.libraryMetadataSyncLogMessage,
             onRefreshMetadataSyncLog: { appState.library.loadLibraryMetadataSyncLogs() }
         ))
+        .sheet(isPresented: Binding(
+            get: { appState.library.isShowingRecomputePreview },
+            set: { appState.library.isShowingRecomputePreview = $0 }
+        )) {
+            RecomputePreviewPanel(library: appState.library)
+        }
         .sheet(item: $conditionDetailMeasurement) { measurement in
             MeasurementConditionDetailView(
                 measurement: measurement,
@@ -160,11 +165,6 @@ struct LibraryView: View {
 
     var lib: LibraryFeatureStore {
         appState.library
-    }
-
-    func openRecomputeWindow() {
-        appState.library.openRecomputePreview()
-        openWindow(id: "recompute-preview")
     }
 
     var selectedPrefix: String? {
@@ -213,7 +213,7 @@ struct LibraryView: View {
                 appState.library.syncLibraryFromFiles()
             },
             onBackfillSidecars: {
-                openRecomputeWindow()
+                appState.library.openRecomputePreview()
             },
             onChooseBackupPath: {
                 presentBackupPathPanel()

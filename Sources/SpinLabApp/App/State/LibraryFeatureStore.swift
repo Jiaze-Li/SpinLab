@@ -1068,13 +1068,7 @@ final class LibraryFeatureStore {
             return
         }
         let rootURL = URL(fileURLWithPath: rootPath)
-        let store = libraryStore
-        Task {
-            let count = await Task.detached(priority: .utility) {
-                store.computeStaleCount(rootURL: rootURL, currentFingerprint: fingerprint)
-            }.value
-            self.recomputeStaleCount = count
-        }
+        recomputeStaleCount = libraryStore.computeStaleCount(rootURL: rootURL, currentFingerprint: fingerprint)
     }
 
     func dismissRecomputeBanner() {

@@ -33,8 +33,10 @@ struct InboxOperationPanel: View {
                     Text("Inbox Operations")
                         .font(AppFontScale.sectionTitle)
                     Button("Rules") { openWindow(id: "spin-rules") }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+                        .font(AppFontScale.sectionTitle)
+                        .fontWeight(.regular)
+                        .tint(.accentColor)
+                        .buttonStyle(.borderless)
                     Spacer()
                     Text(AppVersion.current)
                         .font(.caption.monospaced())
