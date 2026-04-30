@@ -477,4 +477,4 @@ _(未分配)_
 - [x] Library 子系统抽取：建立 docs/architecture/library/（INDEX + 5 层），coverage 97/218 → [`history/v572_s2_library_architecture.md`](history/v572_s2_library_architecture.md)
 - [ ] Workbench 子系统抽取（待 Inbox 验证后启动）
 - [ ] specs/06 → ARCHITECTURE_OVERVIEW 重做（纳入新分类，原 06 整体删）
-- [ ] three_omega_physics.md 搬到 docs/architecture/three_omega/
+- [ ] three_omega_physics.md 纳入 docs/architecture/workbench/（3ω workflow 层文件，不作顶层 region）
