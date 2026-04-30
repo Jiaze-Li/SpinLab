@@ -33,6 +33,7 @@
 | `architecture/ARCHITECTURE_OVERVIEW.md` | Global architecture: AppState, FeatureStores, column shell, observation patterns. | active |
 | `architecture/inbox/` | Inbox subsystem layers: routing pipeline, rules authoring, confirm/apply, output contracts. | active |
 | `architecture/library/` | Library subsystem layers: browse/selection, archive storage, metadata editing, sidecar/conditions, artifacts/previews. | active |
+| `architecture/workbench/` | Workbench subsystem layers: shell lifecycle, search, plot canvas, workflow contracts, artifact persistence, 3ω physics, extension boundaries. | active |
 
 ## history (开发历史线 & 开发日志)
 

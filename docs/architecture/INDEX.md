@@ -21,7 +21,7 @@ Do not infer ownership from physical directory alone. Some `App/`, `Import/`, an
 |---|---|---|
 | Inbox | Import, parse, route, match, pending review, apply-to-library | [`architecture/inbox/INDEX.md`](inbox/INDEX.md) |
 | Library | Archived measurement browsing/editing, library persistence, registry sync, sidecar viewing | [`architecture/library/INDEX.md`](library/INDEX.md) |
-| Workbench | Measurement search, workflow analysis, plot shell, chart/metric persistence | `App/State/WorkbenchFeatureStore.swift`; `Features/Workbench/WorkflowWorkspaceShell.swift`; `Features/Workbench/WorkflowWorkspaceProvider.swift`; `UseCases/SearchWorkflowMeasurementsUseCase.swift`; workflow store for target workflow |
+| Workbench | Measurement search, workflow analysis, plot shell, chart/metric persistence | [`architecture/workbench/INDEX.md`](workbench/INDEX.md) |
 | Rules | Runtime rule config, rule loading/migration, RulesPanel UI | `Features/RulesPanel/RulesManagementStore.swift`; `Features/RulesPanel/RulesPanelView.swift`; `Import/Rules/RuleLoader.swift`; `Import/Rules/FilenameRuleSet.swift`; `Import/Rules/RulesBootstrapper.swift` |
 | Cross-cutting | App shell, global DI/navigation/logging, Domain contracts, Registry bridge, shared UI/storage | `App/SpinLabAppState.swift`; `App/AppEnvironment.swift`; `Domain/Models.swift`; `Registry/SampleRegistry.swift`; `UI/AppColumnShell.swift` |
 

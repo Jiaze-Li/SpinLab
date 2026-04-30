@@ -62,16 +62,14 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `docs/architecture/library/`
 
 ## Workbench
 
-Behavior details: `specs/three_omega_physics.md`
+Behavior details: `docs/architecture/workbench/INDEX.md`
 
-### Shell Architecture (v5.3.4)
-- All workflow workspaces use `WorkflowWorkspaceShell` — a single generic two-column container that owns shared UI (search, action bar, results list, plot canvas, trace, warnings)
-- Workflow-specific content injected via 4 ViewBuilder slots: `searchExtra`, `plotControls`, `leftExtra`, `rightExtra`
-- Workspace stores conform to `WorkbenchWorkspaceProviding` protocol — unified contract for selection, analysis, trace, persistence
+### Shell Architecture
 - Shell-driven lifecycle: Search → Select → Analyze (sole trace commit point) → Save. Restore/rerender paths never commit trace.
-- Pack load restores `ingestionResult` from persisted `PackResult`, then rerenders without re-ingestion
-- Invariant: new workflows must use the shell, not standalone views
-- Warning panel uses a shell-level `WorkbenchWarningLog` container that coalesces identical (source, message) pairs. Reruns of analyze / load / scaling never stack duplicate entries. New workflows inherit the rule via `WorkbenchWorkspaceProviding`. (v5.3.5)
+- `PackResult` must include `ingestionResult` so restore can rerender without re-ingestion.
+- New workflows must use the shell, not standalone views.
+- Warning log coalesces identical (source, message) pairs — reruns never stack duplicates.
+- Details: [`SHELL_AND_LIFECYCLE.md`](architecture/workbench/SHELL_AND_LIFECYCLE.md)
 
 ### Measurement Search
 - Workbench fields must use sidecar condition names, never invent new variable names
