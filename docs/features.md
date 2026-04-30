@@ -72,9 +72,9 @@ Behavior details: `docs/architecture/workbench/INDEX.md`
 - Details: [`SHELL_AND_LIFECYCLE.md`](architecture/workbench/SHELL_AND_LIFECYCLE.md)
 
 ### Measurement Search
-- Workbench fields must use sidecar condition names, never invent new variable names
-- Search accepts old ("A"/"B") and new ("ahe"/"3w") IDs as query aliases; persisted data uses new IDs only
-- Search returns file list only; no auto-loading of artifacts or auto-analysis on search completion
+- Workbench fields must use sidecar condition names, never invent new variable names.
+- Search returns file list only; no auto-loading of artifacts or auto-analysis on search completion.
+- Details: [`MEASUREMENT_SEARCH.md`](architecture/workbench/MEASUREMENT_SEARCH.md)
 
 ### Plot Canvas (all workflows)
 - Plot canvas is a workflow-independent shell — legend, edit, interaction behaviors apply uniformly
