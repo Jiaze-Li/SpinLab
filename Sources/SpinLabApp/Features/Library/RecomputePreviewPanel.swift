@@ -166,14 +166,21 @@ struct RecomputePreviewPanel: View {
     private func diffTableRow(_ item: RecomputeDiffItem) -> some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: AppSpacing.xxs) {
-                Text(item.sampleID.isEmpty ? "—" : item.sampleID)
-                    .font(.callout)
-                    .lineLimit(1)
-                Text(item.sourceFileName)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                if !item.sampleID.isEmpty {
+                    Text(item.sampleID)
+                        .font(.callout)
+                        .lineLimit(1)
+                    Text(item.sourceFileName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                } else {
+                    Text(item.sourceFileName)
+                        .font(.callout)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
             }
             .frame(width: colMeasurement, alignment: .leading)
 
