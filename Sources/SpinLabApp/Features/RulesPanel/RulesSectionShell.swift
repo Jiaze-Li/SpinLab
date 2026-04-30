@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct RulesSectionShell<Content: View>: View {
@@ -31,8 +32,6 @@ struct RulesSectionShell<Content: View>: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            saveBar()
-            Divider()
             Group {
                 if isDraftAvailable {
                     ScrollView {
@@ -106,6 +105,7 @@ struct RulesSectionShell<Content: View>: View {
         switch outcome {
         case .saved, .savedWithMirrorWarning:
             saveErrors = []
+            NSApp.keyWindow?.close()
         case .validationFailed(let errors):
             saveErrors = errors
         case .externalConflict(let checksum):
