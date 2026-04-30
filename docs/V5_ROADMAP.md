@@ -299,41 +299,9 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 
 - [x] 双层 sidecar（`ruleSnapshot` 可重算 / `userOverrides` 永不动）+ rule provenance + Recompute UI（stale banner + dry-run preview + condition edit + source tooltip）。设计纪要：[history/v517_rule_provenance.md](history/v517_rule_provenance.md)。
 
-### 5.1.8 — Condition kind 数据模型解耦（首条结构债清理）
+### 5.1.8 — Condition 统一规则列表（首条结构债清理）
 
-**状态**：`[ ]` 待启动。前置依赖 5.1.6 s4 产出的「结构债清单」收尾，本条作为清单的首条立项。
-
-**动机**：5.1.5 s12 落地后留有一处典型结构耦合 —— Measuring Condition 的 `unit_suffix` 与 `token_map` 两种 kind 在 UI 上是独立分区，但底层共享 `ConditionDefinition.tokenMap` 单一字段，靠 `match.type` 过滤区分。切换 kind 时通过 binding 的 getter/setter 做合并/过滤逻辑，**两种模式的写入会互相覆盖**。
-
-回归案例：unit_suffix → token_map → 切回 unit_suffix，原 unit-suffix match 条目消失。s12 收尾追加 `V515ConditionKindSwitchTests` 4 个用例守此契约，但**测试守的是 binding 层兜底，不是数据模型本身**。
-
-**顶层原则**：UI 上语义独立的两种模式，数据模型必须独立存储。共享字段靠 binding 过滤是结构债，不是设计。
-
-**任务拆分**：
-
-| 会话 | 主题 | 工作量 |
-|---|---|---|
-| s1-design | 设计稿对抗 → handoff（消费 design seed 文件作为派发输入） | 设计会话 |
-| s1-exec | 按 handoff 落代码：domain model / 迁移 / binding 简化 / 测试改写 | 中（6–10 h） |
-
-**关键 acceptance gate**（高层口径，细节见 design seed）：
-
-- **AG1** 数据模型层面 kind 完全独立——一种 kind 的写入不影响另一种 kind 的存储
-- **AG2** kind 切换无副作用——纯标记切换，不涉及任何数据合并 / 过滤 / 复制
-- **AG3** schema 一次性迁完，不留双 schema 兼容路径；用户已有规则**不得静默丢弃**（含歧义条目，必须 backup + audit）
-- **AG4** 测试守住数据模型契约（两字段互不影响），不是 binding 兜底
-- **AG5** UI 行为对用户完全一致（切换 kind 不丢内容、不打乱顺序）
-
-**否决方案及理由**（不要后续 agent 推翻）：
-
-- ❌ 保留单字段 + 加更复杂的 binding 过滤逻辑 —— 结构债加深，非清理
-- ❌ 双 schema 并存兼容 —— 一次性迁完，与 5.1.5 F 项迁移策略一致
-- ❌ 测试形态不跟着数据模型变 —— 数据模型变了，契约测试必须重写
-- ❌ 迁移时把无法判定的歧义条目静默归到一边 —— 违反"用户配置不可清理"硬约束
-
-**实施方案种子**：[`docs/handoff/_pending/5.1.8-condition-kind-decoupling-design-seed.md`](handoff/_pending/5.1.8-condition-kind-decoupling-design-seed.md)（含 s1-design 必拍板问题 / 迁移歧义策略 / 字段命名候选 / 测试覆盖详单 / Codex review findings 整合）
-
-**来源**：5.1.5 s12 收尾确认的回归 case；2026-04-28 与 Jack 对齐为 5.1.6 架构梳理后的首条结构债。
+- [x] Condition 不再 `unit_suffix` / `token_map` 二选一，统一为单一 `matches: [MapRule]` + schema v5→v6 一次性迁移；UI 删 segmented control，编辑器收敛到 `MatchRulesEditor`；`$MATCH` 输出锁定到 unit-suffix op（PR #61 Codex 评审守住）。设计与实施摘要：[history/v518_condition_unified_rules.md](history/v518_condition_unified_rules.md)。遗留 `NewRuleEntrySheet.RuleEntryKind` 死路径移交 5.1.9 收编。
 
 ---
 

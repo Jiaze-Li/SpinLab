@@ -111,6 +111,7 @@ Architecture details: `docs/architecture/inbox/RULES_AUTHORING.md`
 - `WorkflowRegistryView`: read-only; all workflow CRUD managed via Rules Panel only
 - Match op per-context: `starts-with` only in Batch ID Prefixes; `unit-suffix` only in Measuring Condition
 - Measuring Condition unified rule list (v5.1.8+): flat `matches: [MapRule]`, no `kind` partition, schema v6
+- `$MATCH` output sentinel triggers normalization only on `unit-suffix` op (v5.1.8+); `equals` / `contains` / `regex` + `$MATCH` returns the matched token verbatim (data-layer enforcement, not just UI lock)
 - Test coverage: 36 + 20 + 12 + 3 + 4 + 4 tests across suites — see `RULES_AUTHORING.md`
 
 ---
