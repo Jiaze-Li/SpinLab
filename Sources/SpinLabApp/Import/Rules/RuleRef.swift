@@ -21,11 +21,6 @@ enum RuleRef {
         "rule:condition.\(id).rules#\(ruleIndex)"
     }
 
-    /// conditions.extraConditions[X] binding → unit pattern source
-    static func conditionExtraPattern(id: String) -> String {
-        "rule:condition.\(id).extraPattern@\(sanitizeKey(id))"
-    }
-
     // MARK: - substrate namespace
 
     static func substrateMaterial(index: Int) -> String {

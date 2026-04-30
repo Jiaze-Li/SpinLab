@@ -69,8 +69,6 @@ struct FilenameRuleParser {
             grandparentTokens: grandparentTokens
         )
 
-        let fileJoined = fileScopeTokens.joined(separator: " ").lowercased()
-
         let fileSampleIDs = ruleSet.sampleIDs(from: fileScopeTokens)
         let folderSampleIDs = uniquePreservingOrder(
             ruleSet.sampleIDs(from: parentTokens)
@@ -165,7 +163,7 @@ struct FilenameRuleParser {
             }
         }
 
-        if let measurementWithSource = ruleSet.measurementNameWithSource(from: fileScopeTokens, joined: fileJoined) {
+        if let measurementWithSource = ruleSet.measurementNameWithSource(from: fileScopeTokens) {
             hintSources["workflowID"] = measurementWithSource.ruleRef
             hintSources["measurementName"] = measurementWithSource.ruleRef
         }
