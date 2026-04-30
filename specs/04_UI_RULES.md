@@ -1,7 +1,7 @@
 # UI Visual & Interaction Rules
 
 Status: active
-Last updated: v5.5.0
+Last updated: v5.5.2
 
 ---
 

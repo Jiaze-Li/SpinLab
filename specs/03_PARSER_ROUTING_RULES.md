@@ -53,7 +53,7 @@ This single rule must handle both:
   - File-level sample info may complete missing channel sample info.
   - Channel-to-channel cross-completion is not allowed.
 
-## Inbox drawer matching runtime rule (V2.2.0 current)
+## Inbox drawer matching runtime rule
 - Matching is token-coverage-based:
   - normalize sample input and drawer keys into uppercase token sets.
   - split alpha-numeric components during tokenization.
@@ -62,7 +62,7 @@ This single rule must handle both:
   - exactly one candidate -> mapped drawer.
   - zero or multiple candidates -> unresolved (`?`).
 
-## Inbox registry lookup runtime rule (V2.2.0 current)
+## Inbox registry lookup runtime rule
 - Rule/logic separation:
   - lookup policy is implemented in dedicated registry rulebook interfaces.
 - Sheet indexing:

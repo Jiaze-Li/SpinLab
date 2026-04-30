@@ -1,12 +1,9 @@
-# Inbox Deposit UI Spec (V2.2.0.52+)
+# Inbox Deposit UI Spec
 
-Status: active (closing preparation)
+Status: active
+Last updated: v5.5.2
 
-This document records the current Inbox design logic, UI flow, button semantics, and mapping behavior for deposit-to-drawer preparation.
-
-Checkpoint marker:
-- V2.2.0 UI iteration is in acceptance/closing preparation.
-- Current document reflects implemented behavior, not planned behavior.
+This document records the current Inbox design logic, UI flow, button semantics, and mapping behavior for deposit-to-drawer preparation. The document reflects implemented behavior.
 
 ## Design intent
 - Keep Inbox primary operations in the center column.
@@ -48,7 +45,7 @@ Contains three subareas:
 3. `Selection Workbench`
 - `Deposit Mapping`
 - `File Tags`
-- Draft action row: `Save Draft`, `Revert Draft`, `Apply` (disabled placeholder for V2.3).
+- Draft action row: `Save Draft`, `Revert Draft`, `Apply`, `Apply All`.
 
 ## Selection Workbench details
 ### Deposit Mapping
@@ -83,8 +80,11 @@ Two modes:
   - restore routing baseline
   - refreshes mapping display
 - `Apply`:
-  - disabled in V2.2
-  - reserved for V2.3 file+tag delivery into matched Library drawer
+  - per-file atomic archive into the matched Library drawer
+  - generates sidecar metadata and writes the audit log
+  - rolls back on failure (no partial state)
+- `Apply All`:
+  - applies all `library-matched` items, skipping `review-required` items
 
 ## Mapping behavior contract
 ### Sample source and edit flow
@@ -111,7 +111,7 @@ Given saved sample input:
 
 Note:
 - Current implementation does not enforce a separate explicit exact-match-first phase.
-- The unique token coverage rule is the effective runtime behavior for V2.2.0.52.
+- The unique token coverage rule is the effective runtime behavior.
 
 ### Queue status strategy (`Library Matched` / `Review Required`)
 - Root definition:
@@ -145,14 +145,3 @@ Note:
   - lookup uses `sampleID -> indexed rows` direct query.
   - prefix-to-sheet mapping is display metadata only, not the lookup routing key.
 
-## Development Record (V2.2.0.52)
-- Phase 1: Inbox layout and operation block refactor.
-  - moved primary actions into center-column operation blocks.
-  - removed Inbox `Create Project` from primary workflow surface.
-- Phase 2: Save-gated mapping workflow completion.
-  - mapping refresh is bound to `Save Draft`/`Revert Draft`, not per-keystroke.
-  - `Apply` remains disabled placeholder for V2.3 write path.
-- Phase 3: Registry lookup rule isolation for Inbox.
-  - extracted registry lookup rulebook and substrate warning rulebook interfaces.
-  - switched sample lookup to direct indexed lookup to avoid sheet-level misrouting.
-  - excluded registry system log sheets from sample lookup index.

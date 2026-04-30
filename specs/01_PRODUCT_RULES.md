@@ -7,7 +7,7 @@ Status: active
 - Parsed metadata is suggestion-only until user confirmation.
 - User confirmation is the authority before archive/apply.
 
-## V2 Inbox -> Library contract
+## Inbox -> Library contract
 - Inbox supports staged processing: parse, edit, review, then manual apply.
 - `Apply Selected` is per file.
 - `Apply All` processes library-matched items only and skips review-required items.

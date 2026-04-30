@@ -1,7 +1,7 @@
 # Feature Invariants & Test Status
 
 Status: active
-Last updated: v5.1.5
+Last updated: v5.5.2
 
 This file records business invariants that are not obvious from code alone.
 For full behavior details, see the linked specs.

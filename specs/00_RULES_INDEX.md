@@ -10,7 +10,8 @@ This file is the entry point for all active implementation rules.
 3. `specs/03_PARSER_ROUTING_RULES.md`
 4. `specs/04_UI_RULES.md`
 5. `specs/05_INBOX_DEPOSIT_UI_SPEC.md`
-6. `specs/APP_DESIGN_PRINCIPLES.md`
+6. `specs/06_PROJECT_ARCHITECTURE.md`
+7. `specs/APP_DESIGN_PRINCIPLES.md`
 
 If two rules conflict, the higher-priority file above wins.
 
@@ -20,7 +21,11 @@ If two rules conflict, the higher-priority file above wins.
 - `03_PARSER_ROUTING_RULES.md`: parse/routing logic contract for Inbox -> Library.
 - `04_UI_RULES.md`: layout and interaction rules only.
 - `05_INBOX_DEPOSIT_UI_SPEC.md`: detailed Inbox deposit UI flow, mapping semantics, and button behavior contract.
+- `06_PROJECT_ARCHITECTURE.md`: SpinLab-specific code placement, canonical implementations, module contracts, change boundaries, build policy, and pre-merge checklist.
 - `APP_DESIGN_PRINCIPLES.md`: long-term philosophy and architectural direction.
+
+## Domain knowledge (non-rule reference)
+- `three_omega_physics.md`: 3ω AHE measurement physics derivations. Reference for `ThreeOmegaFitUseCase` / `ThreeOmegaScalingUseCase` correctness review.
 
 ## Archived specs
 Historical docs are moved under `specs/archive/` and are reference-only.

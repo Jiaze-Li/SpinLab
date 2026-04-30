@@ -1,7 +1,7 @@
 # SpinLab Project Architecture Reference
 
 Status: active
-Last updated: v5.5.0
+Last updated: v5.5.2
 
 This file contains SpinLab-specific architecture details: code placement, canonical implementations, module contracts, and project-specific checklists.
 
