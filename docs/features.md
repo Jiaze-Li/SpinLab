@@ -45,6 +45,7 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `docs/architecture/library/`
 ### Metadata Editing
 - Edits go through LibrarySampleEditService, never direct repository writes from views
 - User-defined display names must never be renamed by AI or automated processes
+- Edit transaction model and registry sync details: `docs/architecture/library/SAMPLE_METADATA_EDITING.md`
 
 ### Registry Sync
 - One-way: XLSX registry → Library drawers (tag alignment, not destructive replacement)

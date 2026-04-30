@@ -23,6 +23,13 @@ Execution details: `docs/architecture/inbox/CONFIRM_AND_APPLY.md`
 - `Clear Imports` must never touch files already archived into Library drawers.
 - Duplicate import detection: `fileName + contentHash`. If matched, reject the import and do not create a new pending item.
 
+## Library Metadata Editing
+
+Execution details: `docs/architecture/library/SAMPLE_METADATA_EDITING.md`
+
+- User-defined display names must never be renamed by AI or automated processes.
+- All sample metadata writes must go through `LibrarySampleEditService`; no direct repository writes from views.
+
 ## Audit and traceability
 - Keep a full audit log under Library Root.
 - Keep a structured mirror audit log under App Support.
