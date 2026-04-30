@@ -472,9 +472,9 @@ _(未分配)_
 
 **首发 Inbox**：把 specs/03 算法 + features.md Rules Panel/Auto-Sync/Bootstrap + architecture/import/ + specs/02 sidecar/tag normalization 整合进 docs/architecture/inbox/。验证模式后再做 Library / Workbench。
 
-- [ ] Inbox 子系统抽取：建立 `docs/architecture/inbox/` 目录（ROUTING / RULES_PANEL / SIDECAR 三份），从 specs/02·03 + features.md 抽内容、合并 architecture/import/、拆解 specs/03（算法搬走、纯 contract 并入 specs/01、文件删）、specs/02 重命名为 02_DOMAIN_MODEL（去 sidecar/tag）、features.md Inbox 段瘦身成 invariant + 测试指针 + 链 architecture/inbox/
+- [x] Inbox 子系统抽取：建立 docs/architecture/inbox/（4 层 5 文件），退役 specs/03+00+import/，coverage meter 55/218 → [`history/v572_s1_inbox_architecture.md`](history/v572_s1_inbox_architecture.md)
+- [x] specs/00_RULES_INDEX 退役（随 s1 一并收尾，与 Inbox 抽取同批）
 - [ ] Library 子系统抽取（待 Inbox 验证后启动）
 - [ ] Workbench 子系统抽取（待 Inbox 验证后启动）
 - [ ] specs/06 → ARCHITECTURE_OVERVIEW 重做（纳入新分类，原 06 整体删）
-- [ ] specs/00_RULES_INDEX 退役（剩 3-4 份后索引价值消失，CLAUDE.md spec 列表足够）
 - [ ] three_omega_physics.md 搬到 docs/architecture/three_omega/
