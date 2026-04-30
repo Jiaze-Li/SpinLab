@@ -4,71 +4,26 @@ struct ImportFiltersSection: View {
     @Environment(SpinLabAppState.self) private var appState
 
     @State private var draft: ImportFiltersFileDraft?
-    @State private var saveErrors: [RulesPanelFieldError] = []
-    @State private var showConflictAlert = false
-    @State private var pendingConflictChecksum = ""
 
     private var store: RulesManagementStore { appState.rulesPanel }
 
     var body: some View {
-        VStack(spacing: 0) {
-            saveBar()
-            Divider()
-            Group {
-                if let d = draft {
-                    scrollContent(d)
-                } else {
-                    ContentUnavailableView("No import filters loaded", systemImage: "doc.questionmark")
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            Divider()
-            saveBar()
-        }
-        .onAppear { syncFromStore() }
-        .alert("External Change Detected", isPresented: $showConflictAlert) {
-            Button("Reload External Changes") {
-                store.reloadAfterExternalChange(section: .importFilters)
-                syncFromStore()
-            }
-            Button("Override With My Edits", role: .destructive) {
-                handleOutcome(store.overrideWithCurrentDraft(section: .importFilters))
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("The file was modified externally (checksum: \(pendingConflictChecksum.prefix(8))). Choose how to resolve.")
-        }
-    }
-
-    // MARK: - Save bar
-
-    @ViewBuilder
-    private func saveBar() -> some View {
-        HStack(spacing: AppSpacing.md) {
-            if !saveErrors.isEmpty {
-                SaveErrorsBadge(errors: saveErrors)
-            }
-            Spacer()
+        RulesSectionShell(
+            section: .importFilters,
+            isDraftAvailable: draft != nil,
+            versionLabel: draft.map { "Schema version \($0.version)" },
+            onSync: syncFromStore
+        ) { $saveErrors in
             if let d = draft {
-                Text("Schema version \(d.version)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                scrollContent(d, saveErrors: $saveErrors)
             }
-            Button("Discard") { discardEdits() }
-                .buttonStyle(.bordered)
-                .disabled(!store.dirtySections.contains(.importFilters))
-            Button("Save") { saveEdits() }
-                .buttonStyle(.borderedProminent)
-                .disabled(!saveErrors.isEmpty)
         }
-        .padding(.horizontal, AppSpacing.xl)
-        .padding(.vertical, AppSpacing.sm)
     }
 
     // MARK: - Scroll content
 
     @ViewBuilder
-    private func scrollContent(_ d: ImportFiltersFileDraft) -> some View {
+    private func scrollContent(_ d: ImportFiltersFileDraft, saveErrors: Binding<[RulesPanelFieldError]>) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.xl) {
                 extensionListEditor(
@@ -77,15 +32,15 @@ struct ImportFiltersSection: View {
                     items: d.config.supportedFileExtensions,
                     onChange: { v in var u = d; u.config.supportedFileExtensions = v; apply(u) }
                 )
-                .errorHighlight(saveErrors.hasGroup("extensions"))
+                .errorHighlight(saveErrors.wrappedValue.hasGroup("extensions"))
                 extensionListEditor(
                     title: "Ignored Extensions",
                     subtitle: "Files with these extensions will be skipped",
                     items: d.config.ignoredFileExtensions,
                     onChange: { v in var u = d; u.config.ignoredFileExtensions = v; apply(u) }
                 )
-                .errorHighlight(saveErrors.hasGroup("extensions"))
-                extensionErrorList()
+                .errorHighlight(saveErrors.wrappedValue.hasGroup("extensions"))
+                extensionErrorList(saveErrors.wrappedValue)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(AppSpacing.xl)
@@ -132,8 +87,7 @@ struct ImportFiltersSection: View {
     }
 
     @ViewBuilder
-    private func extensionErrorList() -> some View {
-        let errors = saveErrors
+    private func extensionErrorList(_ errors: [RulesPanelFieldError]) -> some View {
         if !errors.isEmpty {
             GroupBox("Validation Errors") {
                 VStack(alignment: .leading, spacing: AppSpacing.xs) {
@@ -154,32 +108,7 @@ struct ImportFiltersSection: View {
         store.updateImportFilters(d)
     }
 
-    private func saveEdits() {
-        store.selectSection(.importFilters)
-        handleOutcome(store.saveCurrent())
-    }
-
-    private func discardEdits() {
-        store.discardCurrent()
-        syncFromStore()
-        saveErrors = []
-    }
-
     private func syncFromStore() {
         if let current = store.importFiltersDraft { draft = current }
-    }
-
-    private func handleOutcome(_ outcome: RulesPanelSaveOutcome) {
-        switch outcome {
-        case .saved, .savedWithMirrorWarning:
-            saveErrors = []
-        case .validationFailed(let errors):
-            saveErrors = errors
-        case .externalConflict(let checksum):
-            pendingConflictChecksum = checksum
-            showConflictAlert = true
-        case .ioError(let error):
-            saveErrors = [RulesPanelFieldError(field: "save", message: error.localizedDescription)]
-        }
     }
 }
