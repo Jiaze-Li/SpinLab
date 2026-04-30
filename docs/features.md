@@ -10,7 +10,7 @@ For full behavior details, see the linked specs.
 
 ## Inbox
 
-Behavior details: `specs/05_INBOX_DEPOSIT_UI_SPEC.md`, `specs/01_PRODUCT_RULES.md`
+Behavior details: `specs/01_PRODUCT_RULES.md`, `specs/03_PARSER_ROUTING_RULES.md`
 
 ### Import Pipeline
 - Parse stage must never make routing decisions (strict pipeline boundary)

@@ -59,10 +59,10 @@ All specs have been consolidated under the project-root `specs/` directory.
 | `../specs/02_DATA_RULES.md` | Domain model, metadata ownership, normalization rules. | active |
 | `../specs/03_PARSER_ROUTING_RULES.md` | Inbox parse/routing rules and conflict behavior. | active |
 | `../specs/04_UI_RULES.md` | UI visual & interaction rules (fonts, spacing, buttons, disclosure, accessibility). | active |
-| `../specs/05_INBOX_DEPOSIT_UI_SPEC.md` | Inbox deposit UI flow, button semantics, drawer-mapping contract. | active |
 | `../specs/06_PROJECT_ARCHITECTURE.md` | Project-specific architecture: code placement, module contracts, checklists. | active |
-| `../specs/APP_DESIGN_PRINCIPLES.md` | Long-term architecture and product philosophy. | active |
 | `../specs/three_omega_physics.md` | 3-Omega measurement physics reference. | reference |
+| `../specs/archive/INBOX_DEPOSIT_UI_LEGACY.md` | Former 05 — Inbox deposit UI flow. Rules folded into 01/03/04 + `features.md`. | archived |
+| `../specs/archive/APP_DESIGN_PRINCIPLES_LEGACY.md` | Former design-principles entry. Folded into `philosophy.md` + 01/02/06. | archived |
 
 ## Notes
 - Architecture docs: system design and per-module technical reference.

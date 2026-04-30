@@ -1,9 +1,8 @@
 # Inbox Deposit UI Spec
 
-Status: active
-Last updated: v5.5.2
+Status: historical (archived v5.5.2 — Inbox behavior rules now live in `specs/01_PRODUCT_RULES.md` + `specs/03_PARSER_ROUTING_RULES.md`; UI structure in `specs/04_UI_RULES.md` + `docs/features.md`. UI structural details should be read from code rather than maintained here.)
 
-This document records the current Inbox design logic, UI flow, button semantics, and mapping behavior for deposit-to-drawer preparation. The document reflects implemented behavior.
+This document originally recorded the current Inbox design logic, UI flow, button semantics, and mapping behavior for deposit-to-drawer preparation. Reference-only.
 
 ## Design intent
 - Keep Inbox primary operations in the center column.
