@@ -50,11 +50,16 @@ Stale banner and Recompute UI hook: `RecomputeStaleBannerView` / `RecomputePrevi
 
 ## Code Map
 
-- `Sources/SpinLabApp/UseCases/SaveActiveChartToLibraryUseCase.swift`
-- `Sources/SpinLabApp/UseCases/PersistChartArtifactUseCase.swift`
-- `Sources/SpinLabApp/UseCases/PersistMeasurementDataUseCase.swift`
-- `Sources/SpinLabApp/UseCases/BackfillMeasurementPlotIndexUseCase.swift`
-- `Sources/SpinLabApp/Workbench/V3/WorkbenchResultContracts.swift`
-- `Sources/SpinLabApp/App/State/AnalysisVault.swift`
-- `Sources/SpinLabApp/Domain/AnalysisPack.swift`
-- `Sources/SpinLabApp/Domain/RecomputePreviewItem.swift`
+- `Sources/SpinLabApp/UseCases/SaveActiveChartToLibraryUseCase.swift` — saves the active analysis chart as a Library artifact with metadata
+- `Sources/SpinLabApp/UseCases/PersistChartArtifactUseCase.swift` — persists a chart artifact to app-support storage and returns its identifier
+- `Sources/SpinLabApp/UseCases/PersistMeasurementDataUseCase.swift` — persists processed measurement data as a typed artifact
+- `Sources/SpinLabApp/UseCases/BackfillMeasurementPlotIndexUseCase.swift` — backfills missing plot index entries for existing measurement artifacts
+- `Sources/SpinLabApp/Workbench/V3/WorkbenchResultContracts.swift` — pack result contract types shared across workbench workflow implementations
+- `Sources/SpinLabApp/App/State/AnalysisVault.swift` — stores and retrieves AnalysisPack instances across Workbench sessions
+- `Sources/SpinLabApp/Domain/AnalysisPack.swift` — domain model for a completed analysis artifact (pack result + provenance metadata)
+- `Sources/SpinLabApp/Domain/RecomputePreviewItem.swift` — domain model for a queued chart preview recomputation item
+- `Sources/SpinLabApp/UseCases/LoadLatestChartArtifactUseCase.swift` — loads the most recently saved chart artifact for a given measurement
+- `Sources/SpinLabApp/UseCases/LoadMeasurementDataUseCase.swift` — loads processed measurement data from artifact storage by session key
+- `Sources/SpinLabApp/UseCases/LoadWorkbenchResultsUseCase.swift` — loads saved Workbench analysis results for a given session identifier
+- `Sources/SpinLabApp/Workbench/V3/AnalysisPackProviding.swift` — protocol for providing AnalysisPack instances to the Workbench shell
+- `Sources/SpinLabApp/Workbench/V3/WorkbenchArtifactIdentity.swift` — uniquely identifies a Workbench artifact by workflow, session, and version

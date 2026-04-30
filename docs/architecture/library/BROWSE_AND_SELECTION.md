@@ -48,3 +48,4 @@ Start with `V513LibraryFeatureStoreFacadeTests.swift`, `V260MeasurementsDisplayT
 - `Sources/SpinLabApp/Features/Library/LibraryWorkspaceSections.swift` — defines and orders detail column sections
 - `Sources/SpinLabApp/Features/Library/LibraryViewSupport.swift` — shared view helpers and modifiers
 - `Sources/SpinLabApp/Features/Library/LibrarySampleDetailHeaderView.swift` — sample detail header (name, drawer, status badges)
+- `Sources/SpinLabApp/UI/MetadataViews.swift` — shared metadata display views (condition chips, tag badges) used in Library panels

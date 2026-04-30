@@ -52,3 +52,8 @@ Start with `V416DeleteAppliedMeasurementTests.swift`, `V343DeleteWorkbenchResult
 - `Sources/SpinLabApp/Library/LibraryWriteTransaction.swift` — sole write interface for paired file + sidecar archive operations
 - `Sources/SpinLabApp/App/LibraryDiskCleanupService.swift` — artifact directory cleanup on measurement deletion
 - `Sources/SpinLabApp/UseCases/LibraryDestinationSubpath.swift` — root-relative destination subpath computation for archive writes
+- `Sources/SpinLabApp/App/ArchivedRecordResolverService.swift` — resolves archived record paths and validates archive directory integrity
+- `Sources/SpinLabApp/Repositories/DomainRepositories.swift` — AsyncStream-backed repositories for Library drawers and sidecar data
+- `Sources/SpinLabApp/Storage/AtomicFileWriter.swift` — atomic file write utility ensuring no partial writes land on disk
+- `Sources/SpinLabApp/Storage/ManagedStorage.swift` — coordinates managed file storage lifecycle across import, archive, and cleanup phases
+- `Sources/SpinLabApp/Storage/RepositoryPointer.swift` — value type pointing to a repository root location in App Support
