@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RecomputePreviewPanel: View {
     let library: LibraryFeatureStore
+    @Environment(\.dismiss) private var dismiss
     @State private var showNoChange = false
 
     private var group0: [RecomputeDiffItem] { library.recomputeDiffItems.filter { $0.status.groupIndex == 0 } }
@@ -22,8 +23,11 @@ struct RecomputePreviewPanel: View {
             Divider()
             footer
         }
-        .frame(minWidth: 680, minHeight: 460)
+        .frame(minWidth: 680, idealWidth: 900, maxWidth: .infinity, minHeight: 460, idealHeight: 600, maxHeight: .infinity)
         .padding(AppSpacing.xxl)
+        .onChange(of: library.isShowingRecomputePreview) { _, showing in
+            if !showing { dismiss() }
+        }
     }
 
     // MARK: Header
@@ -54,24 +58,44 @@ struct RecomputePreviewPanel: View {
     // MARK: Diff list
 
     private var diffList: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: AppSpacing.lg) {
-                if group0.isEmpty && group1.isEmpty {
-                    Text("所有测量均已是最新规则，无需重算。")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, AppSpacing.xl)
-                } else {
-                    if !group0.isEmpty {
-                        sectionHeader("将更新 (\(group0.count) 字段)", expanded: true)
-                        diffRows(group0)
+        List {
+            if group0.isEmpty && group1.isEmpty {
+                Text("所有测量均已是最新规则，无需重算。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, AppSpacing.xl)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            }
+            if !group0.isEmpty {
+                Section {
+                    ForEach(group0) { item in
+                        diffTableRow(item)
+                            .listRowBackground(Color.clear)
                     }
-                    if !group1.isEmpty {
-                        sectionHeader("手动覆盖保留 (\(group1.count) 字段)", expanded: true)
-                        diffRows(group1)
-                    }
+                } header: {
+                    diffSectionHeader("将更新 (\(group0.count) 字段)")
                 }
-                if !group2.isEmpty {
+            }
+            if !group1.isEmpty {
+                Section {
+                    ForEach(group1) { item in
+                        diffTableRow(item)
+                            .listRowBackground(Color.clear)
+                    }
+                } header: {
+                    diffSectionHeader("手动覆盖保留 (\(group1.count) 字段)")
+                }
+            }
+            if !group2.isEmpty {
+                Section {
+                    if showNoChange {
+                        ForEach(group2) { item in
+                            diffTableRow(item)
+                                .listRowBackground(Color.clear)
+                        }
+                    }
+                } header: {
                     Button {
                         showNoChange.toggle()
                     } label: {
@@ -86,31 +110,23 @@ struct RecomputePreviewPanel: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    if showNoChange {
-                        diffRows(group2)
-                    }
+                    .padding(.bottom, AppSpacing.xxs)
                 }
             }
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
     }
 
-    private func sectionHeader(_ title: String, expanded: Bool) -> some View {
-        Text(title)
-            .font(.callout.weight(.semibold))
-            .foregroundStyle(.primary)
-    }
-
-    @ViewBuilder
-    private func diffRows(_ items: [RecomputeDiffItem]) -> some View {
+    private func diffSectionHeader(_ title: String) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            Text(title)
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(.primary)
             diffTableHeader
-            Divider()
-            ForEach(items) { item in
-                diffTableRow(item)
-                Divider().opacity(0.4)
-            }
         }
-        .padding(.bottom, AppSpacing.sm)
+        .padding(.bottom, AppSpacing.xxs)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private var diffTableHeader: some View {
@@ -218,7 +234,7 @@ struct RecomputePreviewPanel: View {
                 Text(message).font(.callout).foregroundStyle(.secondary)
             }
             Spacer()
-            Button("取消") { library.isShowingRecomputePreview = false }
+            Button("取消") { dismiss() }
                 .buttonStyle(.bordered)
             Button("确认重算并应用") {
                 library.applyRecompute()
