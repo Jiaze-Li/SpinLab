@@ -127,8 +127,8 @@ struct V515RulesPanelStoreTests {
         #expect(initial.contains("temperature"))
 
         var draft = try #require(store.measuringConditionDraft)
-        draft.conditionDefinitions.append(.init(id: "field", displayName: "Field", kind: "unit_suffix",
-                                                unitPattern: "^-?\\d+T$", tokenMap: nil))
+        draft.conditionDefinitions.append(.init(id: "field", displayName: "Field",
+                                                matches: [MapRule(match: .init(type: "unit-suffix", value: "T"), value: "$MATCH")]))
         store.updateMeasuringCondition(draft)
 
         #expect(store.availableConditionFieldIDs.contains("field"))

@@ -31,8 +31,9 @@
 | `architecture/INDEX.md` | Current architecture dispatch index: region → first-read files → shared risks → tests. | active |
 | `architecture/REGION_MAP.md` | 5.1.6 全量区块/层级/共享点扫描底稿（INDEX.md 的工作文件）。 | active |
 | `architecture/ARCHITECTURE_OVERVIEW.md` | Global architecture: AppState, FeatureStores, column shell, observation patterns. | active |
-| `architecture/import/IMPORT_PIPELINE_EVALUATE_FLOW.md` | Import 5-stage evaluate flow: Parse → Route → Match → Evaluate → Presentation. | active |
-| `architecture/import/ROUTING_LAYER_BOUNDARIES.md` | Import routing layer boundary contracts and dependency rules. | active |
+| `architecture/inbox/` | Inbox subsystem layers: routing pipeline, rules authoring, confirm/apply, output contracts. | active |
+| `architecture/library/` | Library subsystem layers: browse/selection, archive storage, metadata editing, sidecar/conditions, artifacts/previews. | active |
+| `architecture/workbench/` | Workbench subsystem layers: shell lifecycle, search, plot canvas, workflow contracts, artifact persistence, 3ω physics, extension boundaries. | active |
 
 ## history (开发历史线 & 开发日志)
 
@@ -54,15 +55,13 @@ All specs have been consolidated under the project-root `specs/` directory.
 
 | Document | Purpose | Status |
 |---|---|---|
-| `../specs/00_RULES_INDEX.md` | Rules entry point and priority order. | active |
 | `../specs/01_PRODUCT_RULES.md` | Product behavior contract and safety boundaries. | active |
 | `../specs/02_DATA_RULES.md` | Domain model, metadata ownership, normalization rules. | active |
-| `../specs/03_PARSER_ROUTING_RULES.md` | Inbox parse/routing rules and conflict behavior. | active |
 | `../specs/04_UI_RULES.md` | UI visual & interaction rules (fonts, spacing, buttons, disclosure, accessibility). | active |
-| `../specs/05_INBOX_DEPOSIT_UI_SPEC.md` | Inbox deposit UI flow, button semantics, drawer-mapping contract. | active |
 | `../specs/06_PROJECT_ARCHITECTURE.md` | Project-specific architecture: code placement, module contracts, checklists. | active |
-| `../specs/APP_DESIGN_PRINCIPLES.md` | Long-term architecture and product philosophy. | active |
 | `../specs/three_omega_physics.md` | 3-Omega measurement physics reference. | reference |
+| `../specs/archive/INBOX_DEPOSIT_UI_LEGACY.md` | Former 05 — Inbox deposit UI flow. Rules folded into 01/03/04 + `features.md`. | archived |
+| `../specs/archive/APP_DESIGN_PRINCIPLES_LEGACY.md` | Former design-principles entry. Folded into `philosophy.md` + 01/02/06. | archived |
 
 ## Notes
 - Architecture docs: system design and per-module technical reference.

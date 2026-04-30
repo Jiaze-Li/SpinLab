@@ -228,7 +228,7 @@ struct WorkflowSection: View {
     @ViewBuilder
     private func workflowMatchRulesEditor(d: WorkflowFileDraft, idx: Int) -> some View {
         MatchRulesEditor(
-            rules: workflowMatchSpecsBinding(d: d, workflowIdx: idx),
+            specs: workflowMatchSpecsBinding(d: d, workflowIdx: idx),
             allowedOps: [.equals, .contains],
             defaultOp: .equals
         )
@@ -310,7 +310,7 @@ struct WorkflowSection: View {
         saveErrors: [RulesPanelFieldError]
     ) -> some View {
         GroupBox("Measurement Tag Rules") {
-            MatchMapRulesEditor(
+            MatchRulesEditor(
                 rules: Binding(
                     get: { draft?.measurementTagRules ?? [] },
                     set: { newRules in
@@ -321,7 +321,7 @@ struct WorkflowSection: View {
                 ),
                 allowedOps: [.equals, .contains],
                 defaultOp: .equals,
-                outputTitle: "Tag"
+                outputBehavior: .editable(title: "Tag")
             )
         }
         .errorHighlight(saveErrors.hasGroup("measurementTagRules"))

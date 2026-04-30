@@ -465,3 +465,94 @@ _(未分配)_
 
 ### 5.7.1 — TASK_BOARD 引入 + 文档治理重构
 - [x] 新建 TASK_BOARD + history/INDEX，退役 handoff/README + TECH_DEBT_BACKLOG，改 docs/README.md + 项目 CLAUDE.md + 全局 workflow.md；文档治理收敛为单一职责体系 → [`history/v571_task_board.md`](history/v571_task_board.md)
+
+### 5.7.2 — [x] 文档结构按功能区×层重组：建立 inbox/ library/ workbench/ 三区子目录，退役 specs/03+00+06，coverage 55→125/218 → [`history/v572_s3_workbench_architecture.md`](history/v572_s3_workbench_architecture.md)
+
+### 5.7.3 — 新增 Swift 代码登记 workflow（SOP 主路径 + Code Map hook 兜底）
+
+**状态**：`[ ]` 待启动。前置依赖 5.7.2 已完成（13 份层文档底部 `## Code Map` 段已铺好，每条已是「反引号路径 — 一行人话注释」格式）+ `scripts/verify_architecture_code_coverage.sh` 已存在做半套机械校验。
+
+**动机**：5.7.2 把代码索引按"功能区 × 层"切到 13 份层文档，结构铺好但**新代码加进来时没有标准操作流程** —— 写代码者要靠记忆/翻 INDEX 才知道归哪个区哪一层、注释怎么写，加完容易忘记登记，前两次 `features.md` 漂移证明这种动力学下纯靠自觉守不住。需要把"新增 Swift 代码"做成**清晰可执行的 SOP**（标准入口），并由 pre-commit hook 兜底诊断 SOP 漏掉的情况（兜底，不是主角）。现有 `verify_architecture_code_coverage.sh` 已扫 `## Code Map` 段 + 校验文件存在 + 校验 INDEX 分子，但有三个空缺：(a) 新增 swift 时分母 fail 信息只说"总数变了"，不指出具体哪个文件；(b) 未接到 commit 路径；(c) 反向 orphan 检查（代码存在 → 文档必须列）粒度过粗。本期升级脚本 + 接 hook + 建 SOP，让 SOP 和兜底成对出现。
+
+**顶层原则**：
+> 新增 `Sources/**/*.swift` 走 SOP 主路径登记到对应区/层 `## Code Map` 段；pre-commit hook 是 SOP 漏掉时的可诊断兜底，给出具体未对齐路径与候选区/层提示。
+
+**SOP 落点结构**（一处权威，两处指针）：
+
+- **CLAUDE.md** ——  唯一权威，承载完整 4 步 SOP + 第 2 步 region/layer 判定树 + 第 3 步注释体例约束 + [HARD] 强制规则。AI 在执行任务时最稳定读 CLAUDE.md，操作闭环放这里。
+- **`docs/architecture/INDEX.md`** —— 承载定位入口。现 `How To Use` 段只讲"找代码"，本期扩展加"加新代码：定位 region/layer 并进入对应 Code Map"小节，仅作为指针指回 CLAUDE.md SOP，不复制全文。
+- **本 ROADMAP 5.7.3 段** —— 只写目标 / 拍板要点 / acceptance gate；**不复制 SOP 全文**，避免双索引漂移。
+
+**拍板要点**：
+
+1. **机制实质未变（同 r1 收敛）**：升级 `verify_architecture_code_coverage.sh` + pre-commit hook + `install_hooks.sh` 自举安装 + 双向集合差（unmapped / missing 两类输出）+ 动态 `actual_total` 取代 `EXPECTED_TOTAL=218` 硬编码 + INDEX 分子分母由脚本自动维护。
+2. **commit gate 定位为兜底，不是主路径**。错误信息形态必须接得上 SOP：报"unmapped X.swift → 候选区/层：A / B / C → 在对应 md 的 `## Code Map` 段加一行 `- \`X.swift\` — <一句职责>`"，让卡住的人能直接跳回 SOP 第 2-3 步。
+3. **SOP 4 步骨架（CLAUDE.md 完整版）**：
+   1. 写代码。
+   2. 决定归哪个 region / layer（**判定树见 CLAUDE.md**：先按消费者/行为归 region 不按物理目录；再按层归属 —— Input/parse/route/match/evaluate → Consume；rule authoring/persistence → Edit；pending/apply workflow → Workflow；跨域输出/sidecar/registry contract → Contract；跨两 region 时优先登记主 owner，collaborator 文档仅在长期契约时补）。
+   3. 在对应 `architecture/<region>/<layer>.md` 的 `## Code Map` 段加一行：`` - `Sources/...swift` — <一句职责> ``（注释体例：**主动短句描述稳定职责**；不写条件从句、临时实现原因、测试结论、调用方信息）。
+   4. `git commit`（pre-commit hook 校验）。
+4. **机器锚点统一为 `## Code Map`**。规则、hook 提示、CLAUDE.md 文案禁止使用 "Source of truth" 作为段名或脚本锚点（仅可作概念描述用语）。`inbox/ROUTING_PIPELINE.md` 第 53–60 行那段 "Source of truth:" 叙述子段保留作为正文内容，不作机器识别目标。
+5. **rename 不做特殊业务**。pre-commit hook 用 `git diff --cached --name-status --find-renames --find-copies` 做"本次 staged 涉及"提示，但**最终放行依据是双向集合差**：commit 后状态下 unmapped == ∅ 且 missing == ∅。R 状态自然分解为"旧路径 dangling + 新路径 orphan"两个普通问题。
+6. **hook 分发与可绕过性诚实声明**。本地 git hook 必须 `scripts/install_hooks.sh` 自举安装；onboarding/CLAUDE.md 要求会话启动或首次提交前确认安装；`--no-verify` 永远可绕过 = git 本身限制；GitHub Actions 服务端兜底等仓库推 GitHub 再加（**不在本期范围**）；Claude Code PreToolUse hook 不作主机制。Acceptance 表述只能写"已安装 hook 的本地提交会拦截"。
+7. **边界 + 豁免清单**。默认契约：`Sources/**/*.swift` 全部必须登记。**短期不引入豁免清单**（当前 Sources 无 generated/fixture）；未来出现 SwiftUI Preview helper / generated / 单文件 helper struct 时走显式 `scripts/architecture_coverage_exempt.txt`，每条带原因注释，且本身参与校验（豁免路径必须存在、不得与 mapped 重叠、删除时报 stale exemption）。
+8. **不再做"一行人话"升级 / 降级**。现状 13 份文档已是"反引号路径 — 一行人话注释"格式；本期只 sweep 体例偏离条目，不重写注释。
+9. **CLAUDE.md 改动 + specs/06 死指针修复**：(a) Engineering Quality 段加 [HARD]"新增 `Sources/**/*.swift` 文件必须登记到对应 `architecture/<region>/*.md` 的 `## Code Map` 段，由 pre-commit hook 强制（`scripts/install_hooks.sh` 安装后生效）"；(b) **新增 "Adding New Swift Code" 子段**承载完整 4 步 SOP + 判定树 + 注释体例；(c) Session Closeout 第 6 条加"改动 `Sources/` swift 文件 → 反查 Code Map 条目仍准确"；(d) 修复 L22 死指针 `specs/06_PROJECT_ARCHITECTURE.md` → 改指 `architecture/ARCHITECTURE_OVERVIEW.md` Build and Version Policy 段。文案使用 functional language。
+10. **不扩张到自动登记 / PR 候选生成**。本期不做"AI 检测新 swift 自动加 Code Map 一行"或"PR 自动生成候选条目"——这是新机制需求，超出 brief 范围；写代码者按 SOP 手动登记，hook 兜底。
+11. **全局 `~/.claude/docs/workflow.md` 暂不动**。本期不留全局占位段（占位本身是漂移入口）。验证窗口期满评估后再决定是否升级。
+
+**验证窗口（[HARD] s1-exec 收尾时必排 schedule）**：
+
+- **起算点**：5.7.3 s1-exec 最后一个 commit 落地当天。
+- **窗口长度**：60 天。
+- **回顾任务定义**（s1-exec 归档时与 `/schedule` 远程 agent prompt 一并写入）：
+  - 扫 60 天内 commit hook 触发拦截次数（grep stdout log / git reflog）
+  - 数 `--no-verify` 绕过次数（git log 比对 hook 应触发但未触发的 commit）
+  - 列漏报案例（hook 放行但事后发现 Code Map 与代码偏离的 swift 文件）
+  - 评 SOP 体感（CLAUDE.md SOP 是否真被读到 / 判定树是否够用 / 注释体例约束是否阻碍写作）
+  - 输出形态：≤ 100 行报告 + 单行升级建议（`promote-to-global` / `keep-project-local` / `rework-and-extend-window`）
+- **执行方**：远程 agent（`/schedule` cron 一次性触发），不依赖 Jack 或 Claude 主动记得。
+- **若升级建议是 promote-to-global**：开 5.7.4 任务规划全局 `~/.claude/docs/workflow.md` 升级（不在本期 5.7.3 范围）。
+
+**任务拆分**：
+
+| 会话 | 主题 | 工作量 |
+|---|---|---|
+| s1-design | 设计稿对抗：(a) 升级后 verify 脚本接口（unmapped / missing 输出 + 退出码 + 错误信息接 SOP 第 2-3 步格式）；(b) pre-commit hook 调用形态；(c) `install_hooks.sh` 自举；(d) `smoke_architecture_code_coverage.sh` 4 场景接口；(e) CLAUDE.md "Adding New Swift Code" SOP 段文案 + 判定树 + 注释体例约束；(f) `architecture/INDEX.md` "How To Use" 加"加代码"指针段文案；(g) 验证窗口 `/schedule` agent prompt 模板（60 天后跑回顾任务定义）→ handoff | 设计会话 |
+| s1-exec | 执行：升级 verify 脚本（双向集合差 + 动态分母）/ pre-commit hook / install_hooks.sh / smoke_architecture_code_coverage.sh / CLAUDE.md 改 [HARD] + 加 SOP 段 + Session Closeout 第 6 条 + 修 specs/06 死指针 / `architecture/INDEX.md` 加指针段 / 13 份 Code Map 段格式 sweep / **收尾排 60 天 `/schedule` 远程 agent**（AG11 强制） | 小（5–8 h） |
+
+**关键 acceptance gate**（s1-exec 验收时必满足）：
+
+- **AG1** 升级后 `verify_architecture_code_coverage.sh` 输出 unmapped + missing 两类清单，不再用 `EXPECTED_TOTAL` 硬编码。
+- **AG2** pre-commit 调用同一脚本；任一清单非空（且非豁免）则退出非零并打印具体路径 + **候选区/层提示 + SOP 第 3 步注释体例提示**（让兜底信息接得上 SOP）。
+- **AG3** `scripts/install_hooks.sh` 一键安装 pre-commit；onboarding 提示加入 CLAUDE.md。
+- **AG4** `smoke_architecture_code_coverage.sh` 在临时 fixture/worktree 跑 4 场景：(a) 新增未登记；(b) rename 旧路径未删 + 新路径未加；(c) 删除 swift 但文档行未删；(d) 同 commit A/R/D 多类一次性报全部错误。退出码 0/1，不污染工作树。
+- **AG5** rename 通过双向集合差天然覆盖，hook 不含 rename 专用业务逻辑。
+- **AG6** **CLAUDE.md 含完整 SOP**：Engineering Quality 段 [HARD] 规则 + 新增 "Adding New Swift Code" 子段（4 步 + 判定树 + 注释体例）+ Session Closeout 第 6 条 + specs/06 死指针修复。机器锚点写为 `## Code Map`，**禁用 "Source of truth"**。
+- **AG7** **`architecture/INDEX.md` "How To Use" 段加"加新代码"小节作为指针指回 CLAUDE.md SOP**，不复制 SOP 全文。
+- **AG8** ROADMAP 5.7.3 段不含完整 SOP 全文（只引用 SOP 落点 + acceptance）。
+- **AG9** Hook 不拦无关 commit（docs-only / 配置 / 测试 / 非 Sources 下 swift 改动）；staged 不含 `Sources/**/*.swift` 增删/重命名时直接放行不调脚本。
+- **AG10** 13 份 architecture 层文档 `## Code Map` 段格式严格统一（`- \`Sources/...swift\` — <注释>`）；脚本对体例偏离能识别报错。
+- **AG11** **s1-exec 最后 commit 落地当天调用 `/schedule` 排一个 60 天后的远程 agent**，prompt 含本节"验证窗口"段定义的回顾任务（拦截次数 / 绕过次数 / 漏报案例 / SOP 体感 / 升级建议），输出落到 tmp/ 或 docs/handoff/_pending/。该 schedule 编号与触发时间在归档 history/v573 实施摘要里登记。
+- **AG12** `architecture/INDEX.md` 顶部 "Code coverage: N/M" 行由脚本自动维护（写回 numerator + denominator + last verified 日期）。
+- **AG13** Acceptance 文档表述诚实：hook 拦截语义是"已安装 hook 的本地提交"；`--no-verify` 可绕过 + 远端兜底未上 = 已知边界。
+
+**否决方案及理由**（不要后续 agent 推翻）：
+
+- ❌ 用 "Source of truth" 作为段名或机器锚点 —— 实际锚点是 `## Code Map`，混用会让规则与脚本分叉。
+- ❌ 把 5.7.3 包装成"建立新机制"叙事 —— 现有脚本已做一半工作，应叙述为"升级 + 接 hook + 建 SOP"。
+- ❌ ROADMAP 5.7.3 段复制 SOP 全文 —— 双索引漂移；SOP 全文唯一权威落 CLAUDE.md。
+- ❌ 把 commit gate 写成"主拦截规则"叙事 —— Codex r2 校准：兜底定位，不是主角；主路径是 SOP。
+- ❌ rename 写专用业务逻辑 —— 双向集合差天然覆盖。
+- ❌ 用 Claude Code PreToolUse hook 作主拦截 —— 不覆盖 Jack 手动 git commit。
+- ❌ acceptance 写"hook 不可绕过"或"绝对拦截" —— `--no-verify` 现实让此承诺不诚实。
+- ❌ 提前引入豁免清单 —— 当前 Sources 无 generated/fixture。
+- ❌ 把维护职责落到"AI 自觉性"（无 hook 仅靠 CLAUDE.md 规则） —— 前两次 features.md 漂移证明纯规则不可靠。
+- ❌ commit hook 同时拦"修改文件"（验证注释是否仍准确） —— 注释漂移概率低；强加变成走过场。
+- ❌ 把 Codex 评审 gate（每次 PR Codex 复核 Code Map）写进本期 —— 推 GitHub 后再单独评估。
+- ❌ AI 自动登记 / PR 自动生成 Code Map 候选条目 —— 新机制需求，超本期 brief 范围。
+- ❌ 全局 `~/.claude/docs/workflow.md` 提前升级或加占位段 —— 占位本身是漂移入口；验证窗口期满再决定。
+- ❌ 60 天验证窗口靠 Jack 或 Claude 主动记得 —— 必须远程 agent `/schedule` cron 触发，否则两个月后必忘。
+- ❌ 把 `EXPECTED_TOTAL` 继续硬编码 —— 是漂移源不是防漂源。
+
+**来源**：2026-04-30 与 Jack 对齐。讨论收敛历经：(1) 三道闸 + 一行人话升级提案 → (2) Codex r1 评审 reject-and-rework，暴露事实错误（机器锚点是 `## Code Map` 不是"Source of truth"；Code Map 现已是"路径 + 一行人话"格式；现有脚本已半套实现）→ (3) 重写为"升级现有脚本 + 接 hook + 双向集合差" → (4) Jack 校准目标"机制保证未来新代码加入流畅，规划 workflow" → (5) Codex r2 评审 adopt-with-fixes，确立"SOP 主路径 + hook 兜底"叙事、"一处权威 + 两处指针"落点结构、SOP 第 2 步判定树必填、第 3 步注释体例约束 → (6) Jack 提"验证 1-2 个月后再考虑要排时钟提醒"，加入验证窗口 + AG11 强制 `/schedule` 远程 agent。Codex 评审 artifacts：`tmp/5.7.3-codex-review.md`（r1）+ `tmp/5.7.3-codex-review-r2.md`（r2）。

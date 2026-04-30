@@ -1,10 +1,8 @@
 # SpinLab App Design Principles
 
-Status: active
+Status: historical (archived v5.5.2 — content folded into `docs/philosophy.md`, `specs/01_PRODUCT_RULES.md`, `specs/02_DATA_RULES.md`, `specs/06_PROJECT_ARCHITECTURE.md`)
 
-This document defines the long-term architecture and product philosophy of SpinLab.
-
-It is intended to guide future product, data model, workflow, and UI decisions.
+This document originally defined the long-term architecture and product philosophy of SpinLab. Reference-only — use the active sources above for current rules.
 
 ## 1. Core Philosophy
 

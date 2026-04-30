@@ -277,7 +277,7 @@ final class WorkbenchFeatureStore {
         let initialConditionOptions: [ConditionDefinitionOption] = initialRuleSet.conditionDefinitions.compactMap { def in
             let id = def.id.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !id.isEmpty else { return nil }
-            let label = def.label?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let label = def.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
             let resolvedLabel = (label?.isEmpty == false)
                 ? label!
                 : (ConditionFieldCatalog.labelMap(from: initialRuleSet)[id] ?? ConditionFieldCatalog.defaultLabel(for: id))
@@ -795,7 +795,7 @@ final class WorkbenchFeatureStore {
         conditionDefinitionOptions = ruleSet.conditionDefinitions.compactMap { def in
             let id = def.id.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !id.isEmpty else { return nil }
-            let label = def.label?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let label = def.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
             let resolvedLabel = (label?.isEmpty == false)
                 ? label!
                 : (ConditionFieldCatalog.labelMap(from: ruleSet)[id] ?? ConditionFieldCatalog.defaultLabel(for: id))

@@ -76,8 +76,8 @@ struct V515RulesPanelCrossSectionTests {
 
         // Add a new condition only in the draft (not yet saved to disk)
         var mcDraft = try #require(store.measuringConditionDraft)
-        mcDraft.conditionDefinitions.append(.init(id: "field", displayName: "Field", kind: "unit_suffix",
-                                                  unitPattern: "^\\d+T$", tokenMap: nil))
+        mcDraft.conditionDefinitions.append(.init(id: "field", displayName: "Field",
+                                                  matches: [MapRule(match: .init(type: "unit-suffix", value: "T"), value: "$MATCH")]))
         store.updateMeasuringCondition(mcDraft)
 
         // Workflow references the new "field" condition that exists only in draft
@@ -148,8 +148,7 @@ struct V515RulesPanelCrossSectionTests {
 
         // The disk has only "temperature". Add "device" to the dirty draft only.
         var mcDraft = try #require(store.measuringConditionDraft)
-        mcDraft.conditionDefinitions.append(.init(id: "device", displayName: "Device", kind: "unit_suffix",
-                                                  unitPattern: "^wafer$", tokenMap: nil))
+        mcDraft.conditionDefinitions.append(.init(id: "device", displayName: "Device", matches: []))
         store.updateMeasuringCondition(mcDraft)
 
         // Workflow references "device" (only in dirty draft)

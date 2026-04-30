@@ -2,6 +2,7 @@
 
 > **Status**: 5.1.6 current architecture dispatch entry.
 > **Source**: distilled from [`REGION_MAP.md`](REGION_MAP.md). Use REGION_MAP for scan evidence, line counts, TODOs, shell candidates, and shared-point proof table.
+> **Code coverage**: 125/218 source files mapped. Last verified: 2026-04-30 by `scripts/verify_architecture_code_coverage.sh`.
 
 ## How To Use
 
@@ -18,85 +19,29 @@ Do not infer ownership from physical directory alone. Some `App/`, `Import/`, an
 
 | Region | Owns | First-read files |
 |---|---|---|
-| Inbox | Import, parse, route, match, pending review, apply-to-library | `App/State/InboxFeatureStore.swift`; `App/State/InboxRoutingState.swift`; `Import/ImportPipeline.swift`; `Import/Route/RoutePlanner.swift`; `App/ApplyCoordinator.swift` |
-| Library | Archived measurement browsing/editing, library persistence, registry sync, sidecar viewing | `App/State/LibraryFeatureStore.swift`; `Library/LibraryStore.swift`; `Library/SpinLabFileSidecar.swift`; `Library/LibraryPathResolver.swift`; `Features/Library/LibraryView.swift` |
-| Workbench | Measurement search, workflow analysis, plot shell, chart/metric persistence | `App/State/WorkbenchFeatureStore.swift`; `Features/Workbench/WorkflowWorkspaceShell.swift`; `Features/Workbench/WorkflowWorkspaceProvider.swift`; `UseCases/SearchWorkflowMeasurementsUseCase.swift`; workflow store for target workflow |
+| Inbox | Import, parse, route, match, pending review, apply-to-library | [`architecture/inbox/INDEX.md`](inbox/INDEX.md) |
+| Library | Archived measurement browsing/editing, library persistence, registry sync, sidecar viewing | [`architecture/library/INDEX.md`](library/INDEX.md) |
+| Workbench | Measurement search, workflow analysis, plot shell, chart/metric persistence | [`architecture/workbench/INDEX.md`](workbench/INDEX.md) |
 | Rules | Runtime rule config, rule loading/migration, RulesPanel UI | `Features/RulesPanel/RulesManagementStore.swift`; `Features/RulesPanel/RulesPanelView.swift`; `Import/Rules/RuleLoader.swift`; `Import/Rules/FilenameRuleSet.swift`; `Import/Rules/RulesBootstrapper.swift` |
 | Cross-cutting | App shell, global DI/navigation/logging, Domain contracts, Registry bridge, shared UI/storage | `App/SpinLabAppState.swift`; `App/AppEnvironment.swift`; `Domain/Models.swift`; `Registry/SampleRegistry.swift`; `UI/AppColumnShell.swift` |
 
 ## Inbox
 
-**First-Read**
+Dispatch entry: [`architecture/inbox/INDEX.md`](inbox/INDEX.md)
 
-| Task area | Start here | Then inspect |
-|---|---|---|
-| Pending import state / tasks | `App/State/InboxFeatureStore.swift` | `Features/Inbox/InboxView.swift`; `Features/Inbox/InboxOperationPanel.swift`; `Features/Inbox/InboxViewModel.swift` |
-| Route state / draft edits | `App/State/InboxRoutingState.swift` | `Features/Inbox/InboxSelectionWorkbenchPanel.swift`; `Import/Evaluate/PendingRoutingSnapshotEvaluator.swift` |
-| Parse/import pipeline | `Import/ImportPipeline.swift` | `Import/Parse/FilenameRuleParser.swift`; `Import/Route/RoutePlanner.swift`; `Import/Presentation/PendingRoutePresentation.swift` |
-| Drawer matching | `Import/Match/DrawerMatchEngine.swift` | `Import/Parse/SampleKeyNormalizer.swift`; `Library/LibraryModels.swift` |
-| Apply/archive to Library | `App/ApplyCoordinator.swift` | `App/InboxArchiveApplyService.swift`; `Library/LibraryWriteTransaction.swift`; `Library/SpinLabFileSidecar.swift`; `Library/LibraryStore.swift` |
-
-**Boundary Rules**
-
-| Shared point | Classification | Risk |
-|---|---|---|
-| Inbox apply writes Library files/sidecars | `coordination_surface` (`SP-010`) | Keep Inbox as workflow owner, Library as storage owner. Do not bypass `LibraryWriteTransaction` for paired file + sidecar writes. |
-| Drawer matching uses Library sample shape and Import sample helpers | `coordination_surface` (`SP-012`) | Changes to sample key semantics can affect Inbox matching and Workbench search. |
-| Inbox route semantics depend on Rules | `coordination_surface` | Check `RuleLoader`, `FileRoutingRuleBook`, and RulesPanel save behavior when changing route rules. |
-
-**Tests**
-
-Start with `V230ApplyTests.swift`, `V250SidecarTests.swift`, `V221DrawerMatchEngineTests.swift`, `V211RoutePlannerTests.swift`, `V221RoutePresentationTests.swift`.
+Key risks: `SP-010` (Inbox apply writes Library files/sidecars), `SP-012` (drawer matching uses Library sample shape), `SP-006` (sidecar as shared file contract).
 
 ## Library
 
-**First-Read**
+Dispatch entry: [`architecture/library/INDEX.md`](library/INDEX.md)
 
-| Task area | Start here | Then inspect |
-|---|---|---|
-| Library state / selection / projections | `App/State/LibraryFeatureStore.swift` | `App/State/LibraryFeatureStore+Projection.swift`; `App/State/LibraryFeatureStore+SampleEdit.swift`; `Features/Library/LibraryView.swift` |
-| Library repository / filesystem index | `Library/LibraryStore.swift` | `Library/LibrarySyncService.swift`; `Library/LibraryXLSXSyncService.swift`; `Library/LibrarySettingsStore.swift` |
-| Registry sync / sample metadata edits | `App/LibraryMutationService.swift` | `UseCases/SaveLibrarySampleEditsUseCase.swift`; `Library/LibraryRegistryParser.swift`; `Library/LibraryDiffEngine.swift` |
-| Measurement condition/sidecar UI | `Library/SpinLabFileSidecar.swift` | `Features/Library/MeasurementConditionDetailView.swift`; `Features/Library/MeasurementDataSectionView.swift` |
-| Chart preview and stored artifacts | `Features/Library/MeasurementPlotPreviewPanel.swift` | `Library/LibraryPathResolver.swift`; `UseCases/LoadMeasurementPlotIndexUseCase.swift`; `UseCases/LoadRelatedChartsUseCase.swift` |
-
-**Boundary Rules**
-
-| Shared point | Classification | Risk |
-|---|---|---|
-| `SpinLabFileSidecar` shared by Library, Inbox, Workbench | `legitimate_cross_cutting` (`SP-006`) | Treat as file contract. Schema changes require migration/tests, not local UI-only edits. |
-| Workbench writes Library `_spinlab` artifacts/indexes | `coordination_surface` (`SP-007`) | Workbench owns generation; Library owns storage namespace and cleanup invariants. |
-| `LibraryPathResolver` shared across Library and Workbench | `legitimate_cross_cutting` (`SP-008`) | Use it for root-relative paths. Avoid hand-built absolute/relative path logic. |
-
-**Tests**
-
-Start with `V513LibraryFeatureStoreFacadeTests.swift`, `V220LibraryDiffEngineTests.swift`, `V260MeasurementsDisplayTests.swift`, `V416DeleteAppliedMeasurementTests.swift`, `V343DeleteWorkbenchResultTests.swift`, `V41217MeasurementPlotIndexTests.swift`.
+Key risks: `SP-006` (sidecar shared by Library/Inbox/Workbench), `SP-007` (Workbench writes Library `_spinlab`), `SP-008` (`LibraryPathResolver` shared).
 
 ## Workbench
 
-**First-Read**
+Dispatch entry: [`architecture/workbench/INDEX.md`](workbench/INDEX.md)
 
-| Task area | Start here | Then inspect |
-|---|---|---|
-| Workbench state and common condition projections | `App/State/WorkbenchFeatureStore.swift` | `Features/Workbench/WorkbenchView.swift`; `Features/Workbench/WorkflowRegistryView.swift` |
-| Workflow shell/UI composition | `Features/Workbench/WorkflowWorkspaceShell.swift` | `Features/Workbench/WorkflowWorkspaceProvider.swift`; `Features/Workbench/WorkflowWorkspaceRegistry.swift` |
-| 3-Omega workflow | `Features/Workbench/ThreeOmegaWorkspaceStore.swift` | `Features/Workbench/ThreeOmegaWorkspaceView.swift`; `UseCases/ThreeOmegaFitUseCase.swift`; `UseCases/ThreeOmegaPlotRenderer.swift` |
-| XY Rotation workflow | `Features/Workbench/XYRotationWorkspaceStore.swift` | `Features/Workbench/XYRotationWorkspaceView.swift`; `UseCases/XYRotationDATParser.swift`; `UseCases/XYRotationPlotRenderer.swift` |
-| AHE workflow | `Features/Workbench/AHEWorkspaceStore.swift` | `Features/Workbench/AHEWorkspaceView.swift`; `UseCases/AHEDataParser.swift`; `UseCases/AHEAxisDetector.swift` |
-| Search measurements | `UseCases/SearchWorkflowMeasurementsUseCase.swift` | `Domain/WorkflowSearchModels.swift`; `Workflow/WorkflowID.swift`; `Library/SpinLabFileSidecar.swift` |
-| Save chart/metrics to Library | `UseCases/SaveActiveChartToLibraryUseCase.swift` | `UseCases/PersistChartArtifactUseCase.swift`; `UseCases/PersistMeasurementDataUseCase.swift`; `Workbench/V3/WorkbenchResultContracts.swift` |
-
-**Boundary Rules**
-
-| Shared point | Classification | Risk |
-|---|---|---|
-| Condition projection from Rules lives in Workbench store | `coordination_surface` (`SP-002`) | Verify rule reload path when editing condition definitions or Workbench condition options. |
-| Workbench search reads Library sidecars and Import semantics | `coordination_surface` (`SP-009`) | Sample key semantics affect search, ingestion, and drawer matching together. |
-| Shared plot/workflow shells | shell candidates (`G-006`, `G-007`, `G-008`, `G-015`) | Do not extract more shell code without checking semantic equality across workflows. |
-
-**Tests**
-
-Start with `V310WorkbenchFoundationTests.swift`, `V320WorkflowSearchAcrossDrawersTests.swift`, `V330WorkbenchShellContractTests.swift`, `V532WorkbenchRenderPipelineTests.swift`, `V4111SaveActiveChartToLibraryUseCaseTests.swift`, `V413ThreeOmegaFitUseCaseTests.swift`, `V321AHEIngestionAxisDetectionTests.swift`.
+Key risks: `SP-002` (condition projection from Rules), `SP-009` (search reads Library sidecars), `SP-007` (Workbench writes Library `_spinlab`); shell candidates `G-006`, `G-007`, `G-008`, `G-015`.
 
 ## Rules
 

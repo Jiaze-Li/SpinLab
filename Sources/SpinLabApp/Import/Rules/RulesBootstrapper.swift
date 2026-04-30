@@ -25,10 +25,24 @@ struct RulesBootstrapper {
                 if let state = stateObj as? [String: Any],
                    let version = state["rules_schema_version"] as? Int,
                    version >= 6 {
-                    AppLogger.shared.info(.import, "RulesBootstrapper migration skipped: already migrated", metadata: [
-                        "rules_schema_version": String(version)
-                    ])
-                    return
+                    // State says migrated, but verify measuring_condition.json is actually at v6.
+                    // A state=6 written by a pre-v6-schema build means the file is still at v4.
+                    let measURL = paths.measuringConditionURL
+                    let measFileVersion: Int
+                    if let md = try? Data(contentsOf: measURL),
+                       let mo = try? JSONSerialization.jsonObject(with: md) as? [String: Any],
+                       let fv = mo["version"] as? Int {
+                        measFileVersion = fv
+                    } else {
+                        measFileVersion = 0
+                    }
+                    if measFileVersion >= 6 {
+                        AppLogger.shared.info(.import, "RulesBootstrapper migration skipped: already migrated", metadata: [
+                            "rules_schema_version": String(version)
+                        ])
+                        return
+                    }
+                    AppLogger.shared.info(.import, "RulesBootstrapper: state=\(version) but measuring_condition.json version=\(measFileVersion); continuing v5→v6 migration")
                 }
             }
         } catch {
@@ -94,7 +108,7 @@ struct RulesBootstrapper {
         let measuringVersion = (sourceMeasuringJSON["version"] as? Int) ?? 0
         let sampleVersion = (sourceSampleJSON["version"] as? Int) ?? 0
         let workflowVersion = (sourceWorkflowJSON?["version"] as? Int) ?? (sourceWorkflowJSON != nil ? 0 : Int.max)
-        if measuringVersion >= 4, sampleVersion >= 5, workflowVersion >= 3 {
+        if measuringVersion >= 6, sampleVersion >= 5, workflowVersion >= 3 {
             var sourceHash: [String: String] = [
                 "measuring_condition.json": sha256Hex(sourceMeasuringData),
                 "sample_identification.json": sha256Hex(sourceSampleData)
@@ -122,7 +136,8 @@ struct RulesBootstrapper {
         do {
             let v2MeasuringJSON = try migrateMeasuringConditionIfNeeded(json: sourceMeasuringJSON, warnings: &warnings)
             let v3MeasuringJSON = try migrateMeasuringConditionV2ToV3IfNeeded(json: v2MeasuringJSON, warnings: &warnings)
-            migratedMeasuringJSON = try migrateMeasuringConditionV3ToV4IfNeeded(json: v3MeasuringJSON, warnings: &warnings)
+            let v4MeasuringJSON = try migrateMeasuringConditionV3ToV4IfNeeded(json: v3MeasuringJSON, warnings: &warnings)
+            migratedMeasuringJSON = try migrateMeasuringConditionV5ToV6IfNeeded(json: v4MeasuringJSON, warnings: &warnings)
             let v2SampleJSON = try migrateSampleIdentificationIfNeeded(json: sourceSampleJSON, warnings: &warnings)
             let v3SampleJSON = try migrateSampleIdentificationV2ToV3IfNeeded(
                 json: v2SampleJSON,
@@ -849,6 +864,55 @@ struct RulesBootstrapper {
             migratedDefinitions.append(migrated)
         }
         return ["version": 4, "conditionDefinitions": migratedDefinitions]
+    }
+
+    private static func migrateMeasuringConditionV5ToV6IfNeeded(json: [String: Any], warnings: inout [String]) throws -> [String: Any] {
+        let version = (json["version"] as? Int) ?? 0
+        guard version < 6 else { return json }
+
+        let definitions = (json["conditionDefinitions"] as? [[String: Any]]) ?? []
+        var migratedDefinitions: [[String: Any]] = []
+        for def in definitions {
+            guard let id = def["id"] as? String else {
+                warnings.append("measuring_condition v5→v6: entry missing id, skipped")
+                continue
+            }
+            let kind = (def["kind"] as? String) ?? "token_map"
+            var migrated: [String: Any] = ["id": id]
+            if let displayName = def["displayName"] as? String {
+                migrated["displayName"] = displayName
+            }
+            let rawMatches = (def["matches"] as? [[String: Any]]) ?? []
+            switch kind {
+            case "unit_suffix":
+                // flat MatchSpec [{type, value}] → MapRule [{match: {type, value}, value: "$MATCH"}]
+                let mapRules: [[String: Any]] = rawMatches.compactMap { spec in
+                    guard let t = spec["type"] as? String, let v = spec["value"] as? String else { return nil }
+                    return ["match": ["type": t, "value": v] as [String: Any], "value": "$MATCH"]
+                }
+                migrated["matches"] = mapRules
+            default:
+                // token_map (or unknown kind treated as token_map): already MapRule format.
+                // Fix any unit-suffix rows whose output is not "$MATCH".
+                let mapRules: [[String: Any]] = rawMatches.map { rule in
+                    guard let match = rule["match"] as? [String: Any],
+                          let matchType = match["type"] as? String,
+                          matchType == "unit-suffix",
+                          let existingValue = rule["value"] as? String,
+                          !existingValue.isEmpty,
+                          existingValue != "$MATCH" else {
+                        return rule
+                    }
+                    warnings.append("measuring_condition v5→v6: conditionDefinitions[\(id)] unit-suffix row value '\(existingValue)' rewritten to \"$MATCH\"")
+                    var rewritten = rule
+                    rewritten["value"] = "$MATCH"
+                    return rewritten
+                }
+                migrated["matches"] = mapRules
+            }
+            migratedDefinitions.append(migrated)
+        }
+        return ["version": 6, "conditionDefinitions": migratedDefinitions]
     }
 
     private static func migrateSampleIdentificationV4ToV5IfNeeded(json: [String: Any], warnings: inout [String]) throws -> [String: Any] {

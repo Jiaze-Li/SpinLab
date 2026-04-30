@@ -7,6 +7,8 @@ struct SampleIdentificationSection: View {
     @State private var expandedMaterialIndex: Int? = nil
     @State private var expandedTreatmentIndex: Int? = nil
     @State private var expandedOrientationIndex: Int? = nil
+    @State private var pendingDelete: (displayName: String, action: () -> Void)? = nil
+    @State private var showDeleteConfirm = false
 
     private var store: RulesManagementStore { appState.rulesPanel }
 
@@ -20,6 +22,14 @@ struct SampleIdentificationSection: View {
             if let d = draft {
                 scrollContent(d, saveErrors: saveErrors)
             }
+        }
+        .confirmationDialog(
+            "Delete '\(pendingDelete?.displayName ?? "")'?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) { pendingDelete?.action() }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
         }
     }
 
@@ -44,7 +54,7 @@ struct SampleIdentificationSection: View {
     private func batchPrefixesGroup(_ d: SampleIdentificationFileDraft) -> some View {
         GroupBox("Batch ID Prefixes") {
             MatchRulesEditor(
-                rules: batchSpecsBinding(d),
+                specs: batchSpecsBinding(d),
                 allowedOps: [.startsWith],
                 defaultOp: .startsWith
             )
@@ -86,8 +96,12 @@ struct SampleIdentificationSection: View {
                         expandedMaterialIndex = u.substrate.materials.count - 1
                     },
                     onRemove: { idx in
-                        var u = d; u.substrate.materials.remove(at: idx); apply(u)
-                        if expandedMaterialIndex == idx { expandedMaterialIndex = nil }
+                        let name = d.substrate.materials[idx].displayName
+                        pendingDelete = (displayName: name.isEmpty ? "—" : name, action: {
+                            var u = d; u.substrate.materials.remove(at: idx); apply(u)
+                            if expandedMaterialIndex == idx { expandedMaterialIndex = nil }
+                        })
+                        showDeleteConfirm = true
                     }
                 ) { idx in
                     entryDetail(idx: idx, entries: d.substrate.materials) { v in
@@ -108,8 +122,12 @@ struct SampleIdentificationSection: View {
                         expandedTreatmentIndex = u.substrate.treatments.count - 1
                     },
                     onRemove: { idx in
-                        var u = d; u.substrate.treatments.remove(at: idx); apply(u)
-                        if expandedTreatmentIndex == idx { expandedTreatmentIndex = nil }
+                        let name = d.substrate.treatments[idx].displayName
+                        pendingDelete = (displayName: name.isEmpty ? "—" : name, action: {
+                            var u = d; u.substrate.treatments.remove(at: idx); apply(u)
+                            if expandedTreatmentIndex == idx { expandedTreatmentIndex = nil }
+                        })
+                        showDeleteConfirm = true
                     }
                 ) { idx in
                     entryDetail(idx: idx, entries: d.substrate.treatments) { v in
@@ -130,8 +148,12 @@ struct SampleIdentificationSection: View {
                         expandedOrientationIndex = u.substrate.orientations.count - 1
                     },
                     onRemove: { idx in
-                        var u = d; u.substrate.orientations.remove(at: idx); apply(u)
-                        if expandedOrientationIndex == idx { expandedOrientationIndex = nil }
+                        let name = d.substrate.orientations[idx].displayName
+                        pendingDelete = (displayName: name.isEmpty ? "—" : name, action: {
+                            var u = d; u.substrate.orientations.remove(at: idx); apply(u)
+                            if expandedOrientationIndex == idx { expandedOrientationIndex = nil }
+                        })
+                        showDeleteConfirm = true
                     }
                 ) { idx in
                     entryDetail(idx: idx, entries: d.substrate.orientations) { v in
@@ -222,7 +244,7 @@ struct SampleIdentificationSection: View {
                 .font(.body.monospaced())
             }
             MatchRulesEditor(
-                rules: substrateMatchesBinding(entryIdx: idx, entries: entries, onChange: onChange),
+                specs: substrateMatchesBinding(entryIdx: idx, entries: entries, onChange: onChange),
                 allowedOps: [.equals, .contains],
                 defaultOp: .equals
             )
