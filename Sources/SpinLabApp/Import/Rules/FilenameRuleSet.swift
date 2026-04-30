@@ -491,7 +491,12 @@ struct FilenameRuleSet: Decodable {
                 warnings.append("\(label): empty regex pattern; rule never matches")
                 return result
             }
-            result.generatedRegex = compileRegex(trimmed, warnings: &warnings, label: label)
+            // Regex semantics: pattern represents the unit suffix. Token must be
+            // <signed number><optional whitespace><pattern>, anchored end-to-end.
+            // Pattern itself is a regex sub-expression (alternation/character class allowed),
+            // wrapped in a non-capturing group so anchoring isn't broken.
+            let pattern = "^-?\\d+(?:\\.\\d+)?\\s*(?:\(trimmed))$"
+            result.generatedRegex = compileRegex(pattern, warnings: &warnings, label: label)
         }
 
         return result
