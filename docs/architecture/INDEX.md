@@ -2,7 +2,7 @@
 
 > **Status**: 5.1.6 current architecture dispatch entry.
 > **Source**: distilled from [`REGION_MAP.md`](REGION_MAP.md). Use REGION_MAP for scan evidence, line counts, TODOs, shell candidates, and shared-point proof table.
-> **Code coverage**: 55/218 source files mapped. Last verified: 2026-04-30 by `scripts/verify_architecture_code_coverage.sh`.
+> **Code coverage**: 68/218 source files mapped. Last verified: 2026-04-30 by `scripts/verify_architecture_code_coverage.sh`.
 
 ## How To Use
 
@@ -20,7 +20,7 @@ Do not infer ownership from physical directory alone. Some `App/`, `Import/`, an
 | Region | Owns | First-read files |
 |---|---|---|
 | Inbox | Import, parse, route, match, pending review, apply-to-library | [`architecture/inbox/INDEX.md`](inbox/INDEX.md) |
-| Library | Archived measurement browsing/editing, library persistence, registry sync, sidecar viewing | `App/State/LibraryFeatureStore.swift`; `Library/LibraryStore.swift`; `Library/SpinLabFileSidecar.swift`; `Library/LibraryPathResolver.swift`; `Features/Library/LibraryView.swift` |
+| Library | Archived measurement browsing/editing, library persistence, registry sync, sidecar viewing | [`architecture/library/INDEX.md`](library/INDEX.md) |
 | Workbench | Measurement search, workflow analysis, plot shell, chart/metric persistence | `App/State/WorkbenchFeatureStore.swift`; `Features/Workbench/WorkflowWorkspaceShell.swift`; `Features/Workbench/WorkflowWorkspaceProvider.swift`; `UseCases/SearchWorkflowMeasurementsUseCase.swift`; workflow store for target workflow |
 | Rules | Runtime rule config, rule loading/migration, RulesPanel UI | `Features/RulesPanel/RulesManagementStore.swift`; `Features/RulesPanel/RulesPanelView.swift`; `Import/Rules/RuleLoader.swift`; `Import/Rules/FilenameRuleSet.swift`; `Import/Rules/RulesBootstrapper.swift` |
 | Cross-cutting | App shell, global DI/navigation/logging, Domain contracts, Registry bridge, shared UI/storage | `App/SpinLabAppState.swift`; `App/AppEnvironment.swift`; `Domain/Models.swift`; `Registry/SampleRegistry.swift`; `UI/AppColumnShell.swift` |

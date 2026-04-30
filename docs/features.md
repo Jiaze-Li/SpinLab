@@ -36,13 +36,11 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `docs/architecture/inbox/`
 
 ## Library
 
-Behavior details: `specs/01_PRODUCT_RULES.md`, `specs/04_UI_RULES.md`
+Behavior details: `specs/01_PRODUCT_RULES.md`, `docs/architecture/library/`
 
 ### Browse
 - All views use AppColumnShell, never raw HSplitView
-- Left column width persisted via @AppStorage
-- Detail section order is fixed (see `04_UI_RULES.md`)
-- Test: library store and index loading tested
+- Detail section order is fixed; see `docs/architecture/library/BROWSE_AND_SELECTION.md`
 
 ### Metadata Editing
 - Edits go through LibrarySampleEditService, never direct repository writes from views
@@ -58,7 +56,7 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `specs/04_UI_RULES.md`
 ### Archive
 - Once archived, records must not be silently modified
 - Internal archive (App Support) is canonical source of truth
-- Audit log maintained under Library Root and App Support (append-only); if log file exists but cannot be read, write is skipped to prevent overwrite
+- Audit log: append-only; if log file exists but cannot be read, write is skipped to prevent overwrite
 - Sidecar schema and required fields: `docs/architecture/inbox/OUTPUT_CONTRACTS.md`
 
 ---
