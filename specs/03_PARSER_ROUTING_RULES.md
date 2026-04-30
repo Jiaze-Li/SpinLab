@@ -2,6 +2,9 @@
 
 Status: active
 
+## Rule source
+- Filename matching rules live in `filename_rules.json` and are loaded via `RuleLoader.shared`. Do not hard-code patterns in Swift source.
+
 ## Parse sources
 - file name
 - parent folder

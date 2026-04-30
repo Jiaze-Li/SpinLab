@@ -134,7 +134,6 @@ ViewBuilder slots reference:
 - Evaluate/: compute final RouteStatus verdict only. No direct UI output.
 - Presentation/: convert routing data to UI structs only. No business logic.
 - InboxRoutingState is the only facade connecting the routing pipeline to AppState.
-- Filename matching rules live in filename_rules.json via RuleLoader.shared. Do not hard-code patterns.
 
 ---
 
@@ -146,37 +145,6 @@ ViewBuilder slots reference:
 - Extension modules must NOT import Features/ or App/ modules.
   - They may only depend on Domain types and protocol contracts in Extensions/ExtensionPoints.swift.
 - New measurement types: add to domain enum first, then implement in extension.
-
----
-
-## Change Boundary Policy (strict)
-
-UI-only tasks may modify only the feature directory corresponding to the requested change:
-- `Sources/SpinLabApp/Features/Inbox/**` (for Inbox UI changes)
-- `Sources/SpinLabApp/Features/Library/**` (for Library UI changes)
-- `Sources/SpinLabApp/Features/Workbench/**` (for Workbench UI changes)
-- `Sources/SpinLabApp/UI/**` (for shared UI components)
-
-UI-only tasks must NOT modify parser/state/registry logic files.
-
-If a request requires both UI and logic changes:
-- Stop and explicitly split into two tasks first.
-- Complete UI and logic in separate rounds.
-
----
-
-## Pre-merge Architecture Checklist
-
-- No new root passthrough property was added to AppState for single-domain state.
-- Single-domain logic lives in its FeatureStore.
-- Cross-domain logic lives in AppState.
-- New/changed behavior has tests at matching version prefix.
-- `./scripts/build_desktop_app.sh debug` succeeded after all source changes.
-
-Anti-patterns (forbidden):
-- Adding new `library*` / `inbox*` / `workbench*` state fields directly on AppState when a FeatureStore exists.
-- Calling Repository/Store directly from Views.
-- Mixing UI-only changes with parser/state/storage logic in one undifferentiated commit.
 
 ---
 
@@ -196,13 +164,3 @@ Exit criteria:
 
 - Every functional change must bump `Sources/SpinLabApp/App/AppVersion.swift` (`AppVersion.library`), unless the user explicitly instructs otherwise.
 - `[HARD][must]` Every round of code changes must end with executing `./scripts/build_desktop_app.sh debug` to rebuild and overwrite `/Users/jack/Desktop/SpinLab.app`. This is a sign-off gate.
-
----
-
-## Cross-review Trigger Criteria (SpinLab-specific)
-
-- Touches 2+ architectural modules or crosses layer boundaries
-- Introduces a new pattern, protocol, or structural convention
-- Changes persistence format or domain model shape
-- Modifies CLAUDE.md rules or docs/ architecture specs
-- Exception: purely mechanical and contained changes skip design review.
