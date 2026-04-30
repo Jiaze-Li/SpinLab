@@ -287,17 +287,18 @@ Entry point: "Rules" button in Inbox Operations header row (opens separate Windo
 ### Validation
 - Sample ID: displayName uniqueness on substrate entries not enforced at save; user responsibility
 - Workflow Match: cross-rule token conflicts detected at save time
-- Filename Parse: conditionDefinition ids must be unique; binding auto-derived from kind + id
+- Filename Parse: conditionDefinition ids must be unique
 - Workflow conditionFieldIDs: cross-validated against dirty measuringCondition draft (not just disk)
 
 ### Match Op Per-Context Restriction
 - `starts-with`: only available in Batch ID Prefixes (SampleIdentification section)
-- `unit-suffix`: only available in Measuring Condition (both unit_suffix and token_map kinds)
+- `unit-suffix`: only available in Measuring Condition
 - `equals` / `contains`: available in all contexts
 - All four ops are case-insensitive at runtime
 
-### Measuring Condition — Kind Switch Invariant
-- unit_suffix kind allows ops: `unit-suffix`, `equals`, `contains`; token_map kind allows: `equals`, `contains`
-- When in token_map view, existing `unit-suffix` op rules are hidden but preserved in storage (not exposed to the Picker, which would cause SwiftUI auto-snap corruption)
-- Switching back to unit_suffix restores all rules including the hidden ones
-- Regression test: `V515ConditionKindSwitchTests` (4 cases covering round-trip, visibility, and cross-op preservation)
+### Measuring Condition — Unified Rule List (v5.1.8+)
+- Each condition has a single flat rule list (`matches: [MapRule]`); no kind field or partition
+- All ops (`unit-suffix`, `equals`, `contains`) coexist in one list; evaluation order = list order, first match wins
+- `unit-suffix` rows lock the output to `$MATCH` (sentinel); switching to another op clears the output to ""
+- JSON schema is version 6; migrator converts legacy `unit_suffix` (MatchSpec) and `token_map` ([MapRule]) from v5 and earlier
+- Regression tests: `V518ConditionUnifiedRulesMigrationTests` (7) + `V518ConditionUnifiedRulesRoundTripTests` (5) + `V515ConditionKindSwitchTests` (5)
