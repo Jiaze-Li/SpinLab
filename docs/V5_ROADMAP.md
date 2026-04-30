@@ -466,15 +466,4 @@ _(未分配)_
 ### 5.7.1 — TASK_BOARD 引入 + 文档治理重构
 - [x] 新建 TASK_BOARD + history/INDEX，退役 handoff/README + TECH_DEBT_BACKLOG，改 docs/README.md + 项目 CLAUDE.md + 全局 workflow.md；文档治理收敛为单一职责体系 → [`history/v571_task_board.md`](history/v571_task_board.md)
 
-### 5.7.2 — 文档结构按功能区/层级重组（Inbox 首发）
-
-**动机**：当前文档分类按「文档类型」（specs / architecture / features.md）切分，但同一功能区的代码描述被强行散到三处（specs/03 routing 算法 / features.md Rules Panel UI / architecture/import/ 管线边界），改 schema 时三处要同步，漂移代价高。Apply 行为已经在 features.md 和 specs/05 漂过一次。正确切法是「功能区 × 层」：每个区一个 architecture/<region>/ 子目录，按编辑 UI / 消费算法 / 输出契约 三层组织。specs/ 退回纯跨域契约（PO 承诺 / 领域模型 / design tokens）。
-
-**首发 Inbox**：把 specs/03 算法 + features.md Rules Panel/Auto-Sync/Bootstrap + architecture/import/ + specs/02 sidecar/tag normalization 整合进 docs/architecture/inbox/。验证模式后再做 Library / Workbench。
-
-- [x] Inbox 子系统抽取：建立 docs/architecture/inbox/（4 层 5 文件），退役 specs/03+00+import/，coverage meter 55/218 → [`history/v572_s1_inbox_architecture.md`](history/v572_s1_inbox_architecture.md)
-- [x] specs/00_RULES_INDEX 退役（随 s1 一并收尾，与 Inbox 抽取同批）
-- [x] Library 子系统抽取：建立 docs/architecture/library/（INDEX + 5 层），coverage 97/218 → [`history/v572_s2_library_architecture.md`](history/v572_s2_library_architecture.md)
-- [x] Workbench 子系统抽取：建立 docs/architecture/workbench/（INDEX + 7 层），coverage 125/218
-- [x] specs/06 → ARCHITECTURE_OVERVIEW 重做（Code Placement + Canonical Implementations + Import Pipeline 合入，原 06 整体删）
-- [x] three_omega_physics.md 纳入 docs/architecture/workbench/THREE_OMEGA_PHYSICS.md（顶层平铺，不嵌套 workflows/ 子目录，决策见 s3 handoff §2 决策 1）
+### 5.7.2 — [x] 文档结构按功能区×层重组：建立 inbox/ library/ workbench/ 三区子目录，退役 specs/03+00+06，coverage 55→125/218 → [`history/v572_s3_workbench_architecture.md`](history/v572_s3_workbench_architecture.md)
