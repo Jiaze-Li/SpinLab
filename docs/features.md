@@ -126,85 +126,22 @@ Behavior details: `specs/three_omega_physics.md`
 
 ---
 
-## Rules Panel (v5.1.5)
+## Rules Panel
 
-Architecture details: `docs/history/v515_s5_rules_panel_rewrite.md`
+Architecture details: `docs/architecture/inbox/RULES_AUTHORING.md`
 
-### 5-Section Structure
-- Sections: Import Filters / Filename Tokenization / Sample Identification / Workflow / Measuring Condition
-- Each section maps 1:1 to a JSON config file under `RulesConfigPaths`
-- `RulesPanelSection.allCases` order is the canonical Save All iteration order — never use Set iteration
-
-### Save Behavior
-- Save button writes only the active section; Save All iterates allCases filtered by dirtySections
-- Hash precondition: file hash captured at open-time; mismatch on save → externalConflict (never silent overwrite)
-- After save: RuleLoader cache updated → onRulesSaved callback fires → persistence hook fires (in that order)
-- R1 invariant: rules changes are live in RuleLoader.shared *before* onRulesSaved fires — no restart required
-
-### Cross-Section Validation
-- Workflow conditionFieldIDs are validated against dirty measuringConditionDraft (if dirty), else disk
-- This means Save All works correctly even when workflow saves before measuringCondition
-
-### availableConditionFieldIDs
-- Derived from measuringConditionDraft.conditionDefinitions; refreshed on load and every updateMeasuringCondition call
-- WorkflowSection reads this to populate conditionFieldIDs multi-select UI
-
-### Test Coverage
-- 36 tests across 5 suites: store lifecycle, per-field validation, cross-section contract, R1 gate, SharedSubstrate
-
----
-
-## Rules Auto-Sync Engine (v5.1.5 s6)
-
-Architecture details: `docs/history/v515_s6_auto_sync_engine.md`
-
-### Dual-Write on Save
-- Every rule section save writes runtime first, then mirrors to `repositoryConfigDir` from `.repo_pointer.json`
-- Mirror failure is non-fatal: save succeeds, yellow triangle appears on the affected sidebar section
-- Mirror write creates parent directories if absent; backs up old mirror content before overwriting
-- `DualWriteOutcome`: `.runtimeOnly` / `.mirrored` / `.mirrorFailedRuntimeOk(reason:)`
-
-### Reverse Sync on Startup
-- On App launch, compares SHA-256 hashes of each of the 5 rule files between mirror and runtime
-- If mirror differs: decode-check first (H5 guard — rejects corrupt or mismatched schema), then backup runtime and write mirror content
-- Returns `.healthy` (no diff or all synced) / `.skipped` (no pointer) / `.degraded(failedFiles:reason:)` (one or more files couldn't sync)
-- Degraded state shows a dismissable orange banner in the Rules Panel sidebar; reloadCached is called after sync
-
-### Repository Pointer
-- `.repo_pointer.json` in runtime config dir; version==1, `repository_config_dir` + `repo_root` fields required
-- Identity checks: `repo_root` must exist as a directory containing `.git`; `repository_config_dir` must be under `repo_root`
-- Auto-write on first cold dev start: walks up 12 levels from Bundle looking for `Sources/SpinLabApp/config` + `.git`
-- Auto-write is skipped in test environments (`RulesConfigPaths.isRunningTests()`)
-
-### Test Coverage
-- 20 engine tests: dual-write, mirror failure stubs, backup behavior, pointer parsing edge cases
-- 12 startup tests: consistent state, cold start, runtime diff, absent mirror file, H5 decode reject, identity check fail, corrupt JSON
-
----
-
-## Rules Startup Bootstrap & Registry Retirement (v5.1.5 s7)
-
-### Bootstrapper
-- `RulesBootstrapper.seedMissingRuntimeFilesFromBundleIfNeeded()` runs on every App launch
-- Per-file atomic seed: only missing files are written; existing files are never touched
-- Replaces `RulesMigration` (full migration pipeline retired)
-
-### Workflow Registry Retirement
-- `WorkflowRegistryRetirementService.runIfNeeded()` runs once on first launch after upgrade
-- Detects outer `workflow_registry.json` (legacy location, one level above `config/`); if absent → no-op
-- Merge logic: same ID → update `displayName` + `conditionFieldIDs`, preserve `matchRules`; registry-only ID → append with empty `matchRules`
-- Failure safe: decode errors back up registry and leave `workflow.json` unchanged
-- After merge the outer registry is retired (deleted)
-
-### Workbench Workflow List (read-only)
-- `WorkbenchFeatureStore` reads workflow definitions from `config/workflow.json` via `WorkflowDefinitionStore`
-- All CRUD methods for workflows removed; workflow definitions are managed exclusively via the Rules Panel
-- `WorkflowRegistryView` is now a read-only list+summary with a jump-to-rules-panel button
-
-### Test Coverage
-- 3 bootstrapper tests: seed all, seed partial, idempotent
-- 4 retirement tests: same-ID merge, registry-only append, decode-failure backup, second-startup no-op
-- 4 workbench read-only tests: load from JSON, route to workflow, empty file no crash, CRUD absence guard
+### Key Invariants
+- Entry: "Rules" button in Inbox Operations header → opens separate window via `openWindow(id: "spin-rules")`
+- 5 sections: Import Filters / Filename Tokenization / Sample Identification / Workflow / Measuring Condition
+- **R1**: rules changes are live in `RuleLoader.shared` before `onRulesSaved` fires — no restart needed
+- Hash precondition on save: external file modification → `externalConflict`; user must Reload or Override
+- Closing with unsaved edits → 3-option alert: Discard Changes / Cancel / Save All
+- Dual-write on save mirrors to repo config dir; reverse sync on startup restores from mirror when they differ
+- Bootstrapper: seeds only missing files; idempotent; never touches existing files
+- `WorkflowRegistryView`: read-only; all workflow CRUD managed via Rules Panel only
+- Match op per-context: `starts-with` only in Batch ID Prefixes; `unit-suffix` only in Measuring Condition
+- Measuring Condition unified rule list (v5.1.8+): flat `matches: [MapRule]`, no `kind` partition, schema v6
+- Test coverage: 36 + 20 + 12 + 3 + 4 + 4 tests across suites — see `RULES_AUTHORING.md`
 
 ---
 
@@ -258,47 +195,3 @@ Behavior details: `specs/04_UI_RULES.md`
 - Both edit-confirm and archive-apply actions logged
 - Append-only, never modified retroactively
 
----
-
-## Rules Panel (v5.1.5+)
-
-Entry point: "Rules" button in Inbox Operations header row (opens separate Window via `openWindow(id: "spin-rules")`).
-
-### Save Semantics
-- Every section has Save + Discard buttons at both top and bottom of the scroll area
-- Saving writes atomically to runtime config dir; triggers `RuleLoader.shared.reloadCached()` + routing re-parse
-- Hash precondition check on save: if the file was modified externally since panel opened, save fails with `externalConflict` — user must choose Reload or Override
-- Closing the window with unsaved edits triggers a three-option alert: Discard Changes / Cancel / Save All
-
-### Section Structure (s10(2) v4 schema)
-- 5 sections: Import Filters, Filename Tokenization, Sample Identification, Workflow, Measuring Condition
-
-### Sample Identification — v4 substrate schema (s10(2))
-- **Batch prefixes**: plain text prefixes (e.g., "PN", "PT"); replaces v3 regex `sampleId.patterns`
-- **Substrate**: three unified lists — Materials, Treatments, Orientations — each an array of `SubstrateEntry {displayName, matches: [{type: equals|contains, value}]}`
-  - `displayName` has an implicit `equals(normalize(displayName))` probe injected at compile time; no need to repeat it in `matches`
-  - `matches` is OR-based; all probes are token-scoped
-  - displayName uniqueness is not hard-enforced at save time; duplicate entries produce undefined matching behavior
-- **"b" and "baked" are separate treatment entries**: "b" maps to `equals "b"`; "baked" maps to `contains "bake"`. Not aliases — intentional v4 behavioral separation
-- **Origin treatment detection**: compile phase detects treatment entries whose `normalize(displayName)` or any match value normalizes to "o"; stored in `compiledOriginTreatmentDisplayNames`; no longer hardcoded to treatment id == "o"
-- **Composite token behavior**: a token like "STO111" can simultaneously match a Material entry (STO) and an Orientation entry (111) via `contains` probes → two substrate tags emitted (["STO", "111"] not ["STO 111"]); this is an accepted behavioral change from v3
-- **Runtime migration**: v3 sample_identification.json (with materials/treatments/orientations in old schema + substrateTagRules) is migrated to v4 on first app launch via `RulesBootstrapper`; backup written to `<config_dir>/.backup-<timestamp>/`
-
-### Validation
-- Sample ID: displayName uniqueness on substrate entries not enforced at save; user responsibility
-- Workflow Match: cross-rule token conflicts detected at save time
-- Filename Parse: conditionDefinition ids must be unique
-- Workflow conditionFieldIDs: cross-validated against dirty measuringCondition draft (not just disk)
-
-### Match Op Per-Context Restriction
-- `starts-with`: only available in Batch ID Prefixes (SampleIdentification section)
-- `unit-suffix`: only available in Measuring Condition
-- `equals` / `contains`: available in all contexts
-- All four ops are case-insensitive at runtime
-
-### Measuring Condition — Unified Rule List (v5.1.8+)
-- Each condition has a single flat rule list (`matches: [MapRule]`); no kind field or partition
-- All ops (`unit-suffix`, `equals`, `contains`) coexist in one list; evaluation order = list order, first match wins
-- `unit-suffix` rows lock the output to `$MATCH` (sentinel); switching to another op clears the output to ""
-- JSON schema is version 6; migrator converts legacy `unit_suffix` (MatchSpec) and `token_map` ([MapRule]) from v5 and earlier
-- Regression tests: `V518ConditionUnifiedRulesMigrationTests` (7) + `V518ConditionUnifiedRulesRoundTripTests` (5) + `V515ConditionKindSwitchTests` (5)
