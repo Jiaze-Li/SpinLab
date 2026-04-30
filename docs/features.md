@@ -77,23 +77,11 @@ Behavior details: `docs/architecture/workbench/INDEX.md`
 - Details: [`MEASUREMENT_SEARCH.md`](architecture/workbench/MEASUREMENT_SEARCH.md)
 
 ### Plot Canvas (all workflows)
-- Plot canvas is a workflow-independent shell — legend, edit, interaction behaviors apply uniformly
-- Stack offset range default: 0...1.6 unless user specifies otherwise
-- Series render mode (line/scatter/line+scatter) selectable per workflow, applied uniformly to all series (v5.3.1)
-- Chart title is not bold (v5.3.1)
-- Axis titles (x/y) centered on plot drawing area, not full image (v5.3.1)
-- Font sizes (title, axis, tick, legend) and tick density (x/y) configurable via Chart Style disclosure panel (v5.3.1)
-- Right-click → Copy PNG submenu: 1x / 2x / 3x scale options. 2x reuses cached imageData (fast path); 1x/3x re-render via pipeline. (v5.3.5)
-- Chart style settings stored in styleParams, parsed via WorkbenchChartStyle (v5.3.1)
-- Point labels (scatter series): font size configurable via tap on label; tap on dot toggles label visibility per-point, persists across Pack save/load. (v5.3.5)
-- Legend dimension auto-inference: data-driven priority chain resolves which metadata dimension distinguishes series (temperature > substrate = energy = pressure > thickness). Ambiguous or indeterminate cases produce warnings. (v5.3.4)
-- Legend-visual consistency: stacked charts guarantee legend top entry = visually highest curve. Controlled by reverseSeriesForLegend flag on payload, applied uniformly in render pipeline. (v5.3.4)
-- Test: V531SeriesRenderModeTests — Codable migration, ChartStyle parsing, axis alignment
-- Test: V534LegendDimensionResolverTests — resolver priority, tolerance, ambiguity, pipeline reversal, backward decode
-- Test: V535PointLabelVisibilityTests, V535TabRenderStatePackTests, V535ScopeGateTests — point label toggle logic, Pack Codable, payload-capability gate
-- Test: V535CopyPNGScaleMenuTests — scale array alignment, output pixel dimensions, 2x determinism
-- Curve drag-to-reorder (opt-in, 3ω stacked R(1ω)/R(3ω) charts): drag a curve in the legend area pans all curves; drag outside legend hits a specific curve and reorders it. Guide line shows target position during drag. Right-click → Reset Curve Order returns to default. Order persists in AnalysisPack save/load. Canvas capability gated per chart via `seriesReorderable` flag in payload. (v5.3.6)
-- Test: V536CurveDragOrderTests — alignSeriesOrder, TabRenderState Codable, pipeline mismatch detection, hitTestSeries hit/miss/nil-id
+- Plot canvas is a workflow-independent shell — legend, edit, interaction behaviors apply uniformly.
+- Stack offset range default: `0...1.6` unless user specifies otherwise.
+- Curve drag-to-reorder is opt-in via `seriesReorderable` payload flag (currently: 3ω stacked charts only).
+- Tests: `V531SeriesRenderModeTests`, `V534LegendDimensionResolverTests`, `V535PointLabelVisibilityTests`, `V535CopyPNGScaleMenuTests`, `V536CurveDragOrderTests`
+- Details: [`PLOT_CANVAS.md`](architecture/workbench/PLOT_CANVAS.md)
 
 ### 3-Omega AHE
 - Fit ranges are part of scaling chart semantic identity — different fit configs produce separate chart entries, not overwrites
