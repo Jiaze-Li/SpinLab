@@ -24,21 +24,8 @@ Status: active
 - Archive and retrieval should preserve sample-level provenance.
 
 ## Metadata and sidecar ownership
+
+Sidecar schema, minimum fields, and tag normalization: `docs/architecture/inbox/OUTPUT_CONTRACTS.md`
+
 - Archive metadata sidecar in sample drawers is the primary metadata source for archived measurement file tagging.
 - App index/state may mirror sidecar metadata for fast lookup, but should not silently diverge.
-- Minimum sidecar fields for archived measurement files:
-  - `version`
-  - `source_file`
-  - `sample_key`
-  - `workflow`
-  - `conditions` (`temperature`, `current`, `field`)
-  - `channel_bindings`
-  - `normalized_tags`
-  - `raw_tags`
-  - `applied_at`
-
-## Tag normalization rules
-- `AMR -> R_xx`
-- `PHE -> R_xy`
-- `XY_90shift -> workflow = XY` plus `angle_shift = +90deg`
-- Keep raw source values alongside normalized values for traceability.

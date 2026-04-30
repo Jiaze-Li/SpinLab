@@ -236,10 +236,12 @@ Do not implement out of order. Skip steps when that layer has no change.
 ## Project Reference (SpinLab-specific)
 
 Project-specific architecture, code placement, module contracts, and checklists are in:
-- `specs/06_PROJECT_ARCHITECTURE.md` — code placement, canonical implementations, Workbench Shell, Import pipeline, extension modules, change boundaries, pre-merge checklist, temporary exceptions, build policy
+- `docs/architecture/ARCHITECTURE_OVERVIEW.md` — code placement, canonical implementations, Import pipeline, AppState/FeatureStore boundaries, UI shell patterns
+- `docs/architecture/workbench/INDEX.md` — Workbench subsystem: shell lifecycle, search, plot canvas, workflow contracts, artifact persistence, extension boundaries
 - `specs/04_UI_RULES.md` — visual rules (fonts, spacing, buttons, disclosure sections, accessibility)
 - `specs/01_PRODUCT_RULES.md` — product behavior contract
 - `specs/02_DATA_RULES.md` — domain model and data rules
-- `specs/03_PARSER_ROUTING_RULES.md` — import parse/routing rules
+- `docs/architecture/inbox/` — Inbox subsystem: routing pipeline, rules authoring, confirm/apply, output contracts
+- `docs/architecture/workbench/` — Workbench subsystem: shell lifecycle, search, plot canvas, workflow contracts, artifact persistence, 3ω physics (`architecture/workbench/THREE_OMEGA_PHYSICS.md`), extension boundaries
 
 Read the relevant spec when the task touches that area. Do not read all specs every session. Long-term product/architecture philosophy lives in `docs/philosophy.md`, not in specs.

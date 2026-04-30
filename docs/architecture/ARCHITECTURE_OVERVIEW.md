@@ -119,9 +119,45 @@ Operational rules for contributors/agents:
 | Library search 参数 | LibraryInteractionState (11 个 text + hasExecuted) | 已有 |
 | Workbench 分析状态 | FeatureStore（不在 @State） | 不需要 view 级持久化 |
 
+## Code Placement
+
+| Code shape | Destination |
+|---|---|
+| New observable feature state | FeatureStore in `Sources/SpinLabApp/App/State/` |
+| Cross-feature coordination | `SpinLabAppState` methods |
+| Complex operation within a single feature | FeatureStore method returning `Outcome` enum/result |
+| Stateless business operation (Input → Output) | `Sources/SpinLabApp/UseCases/` struct |
+| Stateful domain service/orchestration | Service/Orchestrator in `Sources/SpinLabApp/App/` or domain module |
+| External I/O (filesystem/persistence) | Repository/Store layer |
+| Filename parsing/matching/routing rules | `Sources/SpinLabApp/Import/` pipeline layers |
+| Pure UI interaction state (expand/collapse/filter text) | `FeatureViewModel` |
+| New workflow workspace store | `Sources/SpinLabApp/Features/Workbench/<Name>WorkspaceStore.swift` conforming `WorkbenchWorkspaceProviding` |
+| New workflow workspace view | `Sources/SpinLabApp/Features/Workbench/<Name>WorkspaceView.swift` wrapping `WorkflowWorkspaceShell` |
+| New workflow ingestion UseCase | `Sources/SpinLabApp/UseCases/Ingest<Name>SelectionsUseCase.swift` |
+| New workflow pack contracts | `Sources/SpinLabApp/Workbench/V3/<Name>PackContracts.swift` (`PackConfig` + `PackResult`) |
+| New workflow ingestion contracts | `Sources/SpinLabApp/Workbench/V3/<Name>IngestionContracts.swift` |
+
+## Canonical Implementations (reference)
+
+- Feature Store pattern: `Sources/SpinLabApp/App/State/InboxFeatureStore.swift`; `Sources/SpinLabApp/App/State/LibraryFeatureStore.swift`
+- UseCase (sync flow): `Sources/SpinLabApp/UseCases/IngestAHESelectionsUseCase.swift`
+- UseCase (non-fatal error channel): `Sources/SpinLabApp/UseCases/SaveLibrarySampleEditsUseCase.swift`
+- Apply / archive orchestration (Service layer): `Sources/SpinLabApp/App/ApplyCoordinator.swift`; `Sources/SpinLabApp/App/InboxArchiveApplyService.swift`
+- Repository + AsyncStream projection: `Sources/SpinLabApp/Repositories/DomainRepositories.swift`
+- Workbench Shell + WorkspaceStore pattern: `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceShell.swift`; `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift` (most complete reference)
+
+## Import Pipeline (5-stage boundary)
+
+- `Parse/` — filename tokenization only. No routing decisions.
+- `Route/` — generate RoutePlan candidates only. No final verdict.
+- `Match/` — library drawer matching only. No UI projection.
+- `Evaluate/` — compute final RouteStatus verdict only. No direct UI output.
+- `Presentation/` — convert routing data to UI structs only. No business logic.
+- `InboxRoutingState` is the only facade connecting the routing pipeline to AppState.
+
+Details: `docs/architecture/inbox/ROUTING_PIPELINE.md`
+
 ## Related docs
 
-- Routing stage boundaries:
-  - `docs/architecture/ROUTING_LAYER_BOUNDARIES.md`
-- Agent execution rules:
-  - `AGENTS.md`
+- Routing pipeline: `docs/architecture/inbox/ROUTING_PIPELINE.md`
+- Workbench shell and adding new workflows: `docs/architecture/workbench/EXTENSION_BOUNDARIES.md`
