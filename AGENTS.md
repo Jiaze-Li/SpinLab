@@ -19,6 +19,7 @@
 - `[HARD][must]` Prefer long-term maintainability over short-term convenience.
 - `[HARD][must]` Sign-off criteria: structural quality + maintainability + testability, not just feature correctness.
 - `[HARD][must]` Do not rename, remap, or reformat any user-defined display name, ID, field name, or configuration value unless the user explicitly requests it. "Cleanup" or "normalization" of user-chosen names is forbidden.
+- `[HARD][must]` **Desktop app rebuild gate**: every round of Swift code changes must end with `./scripts/build_desktop_app.sh debug` to rebuild and overwrite `/Users/jack/Desktop/SpinLab.app`. A Stop hook (`~/.claude/hooks/spinlab_desktop_build.sh`) automates this on session end as a safety net, but execution responsibility still belongs to the AI completing the change. Full build policy: `specs/06_PROJECT_ARCHITECTURE.md` §Build and Version Policy.
 - Execution gate and collaboration model: inherited from global `~/.claude/CLAUDE.md`.
 
 ---
