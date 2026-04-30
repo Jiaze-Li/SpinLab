@@ -60,9 +60,12 @@ If you encounter `"A"` or `"B"` as workflowID in sidecar files, persisted JSON, 
   - `Sources/SpinLabApp/App/State/InboxFeatureStore.swift`
   - `Sources/SpinLabApp/App/State/LibraryFeatureStore.swift`
 - UseCase (sync flow):
-  - `Sources/SpinLabApp/UseCases/ConfirmPendingImportUseCase.swift`
+  - `Sources/SpinLabApp/UseCases/IngestAHESelectionsUseCase.swift`
 - UseCase (non-fatal error channel):
   - `Sources/SpinLabApp/UseCases/SaveLibrarySampleEditsUseCase.swift`
+- Apply / archive orchestration (Service layer):
+  - `Sources/SpinLabApp/App/ApplyCoordinator.swift`
+  - `Sources/SpinLabApp/App/InboxArchiveApplyService.swift`
 - Repository + AsyncStream projection:
   - `Sources/SpinLabApp/Repositories/DomainRepositories.swift`
 - Routing pipeline boundary example:

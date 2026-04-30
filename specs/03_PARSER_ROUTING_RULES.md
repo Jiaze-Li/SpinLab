@@ -15,10 +15,8 @@ Status: active
 - Ignored in classification/routing: `.gph`
 
 ## Sample key rules
-- Primary sample patterns:
-  - `PN\\d+`
-  - `PT\\d+`
-  - `S\\d+`
+- Sample key prefixes are configured in `config/sample_identification.json` (`sampleId.matches`), not hard-coded in source.
+- Each entry uses an explicit match op: `starts-with` (current canonical), `equals`, or `contains`. Regex patterns are not used since the v4 schema migration.
 - Folder-derived sample is allowed as fallback only when unique.
 
 ## Channel mapping rules
