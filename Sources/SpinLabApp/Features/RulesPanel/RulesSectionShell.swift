@@ -13,6 +13,7 @@ struct RulesSectionShell<Content: View>: View {
     @State private var saveErrors: [RulesPanelFieldError] = []
     @State private var showConflictAlert = false
     @State private var pendingConflictChecksum = ""
+    @State private var shouldCloseAfterSave = false
 
     private var store: RulesManagementStore { appState.rulesPanel }
 
@@ -79,6 +80,9 @@ struct RulesSectionShell<Content: View>: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            Button("Apply") { applyEdits() }
+                .buttonStyle(.bordered)
+                .disabled(!saveErrors.isEmpty)
             Button("Discard") { discardEdits() }
                 .buttonStyle(.bordered)
                 .disabled(!store.dirtySections.contains(section))
@@ -92,6 +96,13 @@ struct RulesSectionShell<Content: View>: View {
 
     private func saveEdits() {
         store.selectSection(section)
+        shouldCloseAfterSave = true
+        handleOutcome(store.saveCurrent())
+    }
+
+    private func applyEdits() {
+        store.selectSection(section)
+        shouldCloseAfterSave = false
         handleOutcome(store.saveCurrent())
     }
 
@@ -105,14 +116,19 @@ struct RulesSectionShell<Content: View>: View {
         switch outcome {
         case .saved, .savedWithMirrorWarning:
             saveErrors = []
-            NSApp.keyWindow?.close()
+            if shouldCloseAfterSave {
+                NSApp.keyWindow?.close()
+            }
+            shouldCloseAfterSave = false
         case .validationFailed(let errors):
             saveErrors = errors
+            shouldCloseAfterSave = false
         case .externalConflict(let checksum):
             pendingConflictChecksum = checksum
             showConflictAlert = true
         case .ioError(let error):
             saveErrors = [RulesPanelFieldError(field: "save", message: error.localizedDescription)]
+            shouldCloseAfterSave = false
         }
     }
 }
