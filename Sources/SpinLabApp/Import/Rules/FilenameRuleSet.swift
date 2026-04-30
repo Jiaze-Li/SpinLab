@@ -411,7 +411,9 @@ struct FilenameRuleSet: Decodable {
                 guard let matched = tokens.first(where: { tokenMatches(text: $0, compiled: rule.match) }) else { continue }
                 let value: String
                 if rule.value == "$MATCH" {
-                    value = normalizeUnitSuffixToken(matched, ruleID: ruleID)
+                    value = rule.match.spec.type == .unitSuffix
+                        ? normalizeUnitSuffixToken(matched, ruleID: ruleID)
+                        : matched
                 } else {
                     value = rule.value
                 }
@@ -661,7 +663,10 @@ struct FilenameRuleSet: Decodable {
         guard let rules = compiled.conditionRules[ruleID] else { return nil }
         for rule in rules {
             if let matched = tokens.first(where: { tokenMatches(text: $0, compiled: rule.match) }) {
-                return rule.value == "$MATCH" ? normalizeUnitSuffixToken(matched, ruleID: ruleID) : rule.value
+                guard rule.value == "$MATCH" else { return rule.value }
+                return rule.match.spec.type == .unitSuffix
+                    ? normalizeUnitSuffixToken(matched, ruleID: ruleID)
+                    : matched
             }
         }
         return nil
