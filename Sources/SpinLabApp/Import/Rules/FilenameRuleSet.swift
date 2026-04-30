@@ -322,32 +322,22 @@ struct FilenameRuleSet: Decodable {
     }
 
     func measurementName(from tokens: [String]) -> String? {
-        firstMatchValue(from: compiled.measurementNameRules, tokens: tokens, joined: nil)
+        firstMatchWithIndex(from: compiled.measurementNameRules, tokens: tokens)?.value
     }
 
-    func measurementName(from tokens: [String], joined: String) -> String? {
-        firstMatchValue(from: compiled.measurementNameRules, tokens: tokens, joined: joined)
-    }
-
-    func measurementNameWithSource(from tokens: [String], joined: String) -> (value: String, ruleRef: String)? {
-        guard let result = firstMatchValueWithIndex(from: compiled.measurementNameRules, tokens: tokens, joined: joined) else {
-            return nil
-        }
+    func measurementNameWithSource(from tokens: [String]) -> (value: String, ruleRef: String)? {
+        guard let result = firstMatchWithIndex(from: compiled.measurementNameRules, tokens: tokens) else { return nil }
         return (result.value, RuleRef.measurementNameRule(index: result.ruleIndex))
     }
 
     func measurementTags(from tokens: [String]) -> [String] {
-        collectMatchValues(from: compiled.measurementTagRules, tokens: tokens)
+        collectMatchedRules(from: compiled.measurementTagRules, tokens: tokens).map(\.value)
     }
 
     func measurementTagsWithSources(from tokens: [String]) -> [(value: String, ruleRef: String)] {
-        var result: [(value: String, ruleRef: String)] = []
-        for (idx, rule) in compiled.measurementTagRules.enumerated() {
-            if matches(rule: rule, tokens: tokens, joined: nil) {
-                result.append((rule.value, RuleRef.measurementTagRule(index: idx)))
-            }
+        collectMatchedRules(from: compiled.measurementTagRules, tokens: tokens).map {
+            ($0.value, RuleRef.measurementTagRule(index: $0.ruleIndex))
         }
-        return result
     }
 
     func substrateTags(from tokens: [String]) -> [String] {
@@ -406,13 +396,8 @@ struct FilenameRuleSet: Decodable {
     }
 
     func conditionEvaluation(from tokens: [String]) -> ExtraConditionEvaluation {
-        var values: [String: String] = [:]
-        for ruleID in compiled.conditionRules.keys.sorted() {
-            if let value = conditionValue(for: ruleID, from: tokens) {
-                values[ruleID] = value
-            }
-        }
-        return ExtraConditionEvaluation(values: values, warnings: [])
+        let sourced = conditionEvaluationWithSources(from: tokens)
+        return ExtraConditionEvaluation(values: sourced.values, warnings: sourced.warnings)
     }
 
     func conditionEvaluationWithSources(from tokens: [String]) -> ExtraConditionEvaluationWithSources {
@@ -506,7 +491,12 @@ struct FilenameRuleSet: Decodable {
                 warnings.append("\(label): empty regex pattern; rule never matches")
                 return result
             }
-            result.generatedRegex = compileRegex(trimmed, warnings: &warnings, label: label)
+            // Regex semantics: pattern represents the unit suffix. Token must be
+            // <signed number><optional whitespace><pattern>, anchored end-to-end.
+            // Pattern itself is a regex sub-expression (alternation/character class allowed),
+            // wrapped in a non-capturing group so anchoring isn't broken.
+            let pattern = "^-?\\d+(?:\\.\\d+)?\\s*(?:\(trimmed))$"
+            result.generatedRegex = compileRegex(pattern, warnings: &warnings, label: label)
         }
 
         return result
@@ -620,24 +610,7 @@ struct FilenameRuleSet: Decodable {
         return nil
     }
 
-    private func firstMatchValue(from rules: [CompiledMapRule], tokens: [String], joined: String?) -> String? {
-        for rule in rules {
-            for token in tokens where tokenMatches(token: token, rule: rule) {
-                return rule.value == "$MATCH" ? token : rule.value
-            }
-        }
-        return nil
-    }
-
-    private func matches(rule: CompiledMapRule, tokens: [String], joined: String?) -> Bool {
-        tokens.contains(where: { tokenMatches(token: $0, rule: rule) })
-    }
-
-    private func firstMatchValueWithIndex(
-        from rules: [CompiledMapRule],
-        tokens: [String],
-        joined: String?
-    ) -> (value: String, ruleIndex: Int)? {
+    private func firstMatchWithIndex(from rules: [CompiledMapRule], tokens: [String]) -> (value: String, ruleIndex: Int)? {
         for (idx, rule) in rules.enumerated() {
             for token in tokens where tokenMatches(token: token, rule: rule) {
                 return (rule.value == "$MATCH" ? token : rule.value, idx)
@@ -646,14 +619,10 @@ struct FilenameRuleSet: Decodable {
         return nil
     }
 
-    private func collectMatchValues(from rules: [CompiledMapRule], tokens: [String], joined: String? = nil) -> [String] {
-        var collected: [String] = []
-        for rule in rules {
-            if tokens.contains(where: { tokenMatches(token: $0, rule: rule) }) {
-                collected.append(rule.value)
-            }
+    private func collectMatchedRules(from rules: [CompiledMapRule], tokens: [String]) -> [(value: String, ruleIndex: Int)] {
+        rules.enumerated().compactMap { (idx, rule) in
+            tokens.contains(where: { tokenMatches(token: $0, rule: rule) }) ? (rule.value, idx) : nil
         }
-        return collected
     }
 
     private func tokenMatches(token: String, rule: CompiledMapRule) -> Bool {
@@ -676,28 +645,6 @@ struct FilenameRuleSet: Decodable {
         }
     }
 
-    private func regexMatch(regex: NSRegularExpression, text: String) -> Bool {
-        let range = NSRange(text.startIndex..<text.endIndex, in: text)
-        return regex.firstMatch(in: text, options: [], range: range) != nil
-    }
-
-    private func conditionValue(for ruleID: String, from tokens: [String]) -> String? {
-        guard let rules = compiled.conditionRules[ruleID] else { return nil }
-        return conditionFirstMatchValue(ruleID: ruleID, tokens: tokens, rules: rules)
-    }
-
-    private func conditionFirstMatchValue(ruleID: String, tokens: [String], rules: [CompiledMapRule]) -> String? {
-        for rule in rules {
-            if let matched = tokens.first(where: { tokenMatches(text: $0, compiled: rule.match) }) {
-                if rule.value == "$MATCH" {
-                    return normalizeUnitSuffixToken(matched, ruleID: ruleID)
-                }
-                return rule.value
-            }
-        }
-        return nil
-    }
-
     private func normalizeUnitSuffixToken(_ token: String, ruleID: String) -> String {
         guard let split = splitNumericUnitToken(token) else {
             return token
@@ -708,6 +655,16 @@ struct FilenameRuleSet: Decodable {
 
         let normalized = normalize(numericValue, mode: normalizationMode(for: ruleID))
         return "\(formatDecimal(normalized))\(split.unit)"
+    }
+
+    private func conditionValue(for ruleID: String, from tokens: [String]) -> String? {
+        guard let rules = compiled.conditionRules[ruleID] else { return nil }
+        for rule in rules {
+            if let matched = tokens.first(where: { tokenMatches(text: $0, compiled: rule.match) }) {
+                return rule.value == "$MATCH" ? normalizeUnitSuffixToken(matched, ruleID: ruleID) : rule.value
+            }
+        }
+        return nil
     }
 
     private func normalizationMode(for ruleID: String) -> UnitValueNormalizationMode {
