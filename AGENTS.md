@@ -236,7 +236,8 @@ Do not implement out of order. Skip steps when that layer has no change.
 ## Project Reference (SpinLab-specific)
 
 Project-specific architecture, code placement, module contracts, and checklists are in:
-- `specs/06_PROJECT_ARCHITECTURE.md` — code placement, canonical implementations, Workbench Shell, Import pipeline, extension modules, change boundaries, pre-merge checklist, temporary exceptions, build policy
+- `docs/architecture/ARCHITECTURE_OVERVIEW.md` — code placement, canonical implementations, Import pipeline, AppState/FeatureStore boundaries, UI shell patterns
+- `docs/architecture/workbench/INDEX.md` — Workbench subsystem: shell lifecycle, search, plot canvas, workflow contracts, artifact persistence, extension boundaries
 - `specs/04_UI_RULES.md` — visual rules (fonts, spacing, buttons, disclosure sections, accessibility)
 - `specs/01_PRODUCT_RULES.md` — product behavior contract
 - `specs/02_DATA_RULES.md` — domain model and data rules

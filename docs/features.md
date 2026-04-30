@@ -90,9 +90,9 @@ Behavior details: `docs/architecture/workbench/INDEX.md`
 - Details: [`WORKFLOW_CONTRACTS.md`](architecture/workbench/WORKFLOW_CONTRACTS.md), [`THREE_OMEGA_PHYSICS.md`](architecture/workbench/THREE_OMEGA_PHYSICS.md)
 
 ### Extension System
-- Extensions must NOT import Features/ or App/ modules
-- Extensions depend only on Domain types and ExtensionPoints protocol contracts
-- New measurement types: add to domain enum first, then implement in extension
+- Extensions must NOT import Features/ or App/ modules.
+- Extensions depend only on Domain types and ExtensionPoints protocol contracts.
+- Details: [`EXTENSION_BOUNDARIES.md`](architecture/workbench/EXTENSION_BOUNDARIES.md)
 
 ---
 
