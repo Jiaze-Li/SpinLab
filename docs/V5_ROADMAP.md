@@ -299,69 +299,41 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 
 - [x] 双层 sidecar（`ruleSnapshot` 可重算 / `userOverrides` 永不动）+ rule provenance + Recompute UI（stale banner + dry-run preview + condition edit + source tooltip）。设计纪要：[history/v517_rule_provenance.md](history/v517_rule_provenance.md)。
 
-### 5.1.8 — Condition 统一规则列表（kind 数据模型解耦 + Rule shell 迁移）
+### 5.1.8 — Condition kind 数据模型解耦（首条结构债清理）
 
-- [x] Measuring Condition 删除 `kind { unit_suffix, token_map }` 二选一，改为单一 `matches: [MapRule]`；v5→v6 schema 迁移 + bootstrapper state guard 修复 + RuleRef provenance 统一为 `conditionRule(id:ruleIndex:)` + MatchMapRulesEditor 删除（保留唯一 `MatchRulesEditor` 双 init + outputBehavior）；衍生 RuleExpandableRow shell 抽取 / 三本子 RulesSectionShell 迁移 / 本子改名 + Sample 删除统一确认弹窗 / RecomputePreviewPanel 拖动+列表性能 + global 坐标系防抖 + regex 匹配语义改「数字 + 单位」修复 8T → 90shift 误匹配；17 V518 + V515 重写 tests 全绿；遗留尾巴（Workbench `NewRuleEntrySheet` 仍按 `RuleEntryKind` 二选一）移交 5.1.9 AG5 死代码清单清理。设计纪要：[history/v518_condition_unified_rules.md](history/v518_condition_unified_rules.md)。
+**状态**：`[ ]` 待启动。前置依赖 5.1.6 s4 产出的「结构债清单」收尾，本条作为清单的首条立项。
 
-### 5.1.9 — Measuring Condition 单位标准化（标准单位 + 换算操作 + 精度清洗）
+**动机**：5.1.5 s12 落地后留有一处典型结构耦合 —— Measuring Condition 的 `unit_suffix` 与 `token_map` 两种 kind 在 UI 上是独立分区，但底层共享 `ConditionDefinition.tokenMap` 单一字段，靠 `match.type` 过滤区分。切换 kind 时通过 binding 的 getter/setter 做合并/过滤逻辑，**两种模式的写入会互相覆盖**。
 
-**状态**：`[ ]` 待启动。需求于 2026-04-30 与 Jack 对齐。
+回归案例：unit_suffix → token_map → 切回 unit_suffix，原 unit-suffix match 条目消失。s12 收尾追加 `V515ConditionKindSwitchTests` 4 个用例守此契约，但**测试守的是 binding 层兜底，不是数据模型本身**。
 
-**动机**：现行 measuring condition 引擎对捕获 token 的精度处理按 ruleID 硬编码（temperature/field 走 0.5 步长，其它走 6 位小数去尾零），藏在代码里、用户无法配置；并且不做单位换算 —— 同一物理量在不同文件出现 `5mA` / `1A` / `3uA` 时，sidecar 直接保留各自单位，无法横向比较，给 Workbench 排序 / 筛选埋雷。前置铺垫：本轮已修 regex 匹配语义为「数字 + 单位」（`8T → 90shift` 误匹配修复），但单位混乱根因未解。
-
-**顶层原则**：物理量的"单位换算 + 数值清洗"是一等数据规则，必须在 condition 配置里看得见、改得动；引擎不再按 ruleID 硬编码任何特殊行为。
-
-**执行哲学**（贯穿 s1 / s2，不可绕过）：
-
-1. **优先做通用 shell**：UI 控件下沉到 `MatchRulesEditor`（共享组件），数据字段下沉到 `ConditionDefinition` schema，引擎逻辑统一在 `FilenameRuleSet` 单一入口；禁止在调用方（MeasuringConditionSection 等）写一次性 picker 行 / 一次性 if-else 分支。
-2. **架构先行**：先确定 schema 字段 + 引擎 API + 共享 UI 组件契约，再在调用方注入 binding，不要把架构决策埋在 SwiftUI body 里。
-3. **死代码必须当轮清掉，禁止留尾**：本轮硬约束清理项见 AG5；s2 收尾必须有一份「清掉了什么」的清单（commit message 或 history 摘要），不允许"先放着以后清"。
-4. **只做用户用得到的能力**：unit-suffix 不并入换算 = 当前用不到，本轮不做；equals/contains 不沾换算逻辑 = 物理上没意义，本轮不做。范围扩张需走新 ROADMAP 条目。
-
-**功能要点**：
-
-- 每个 condition 在 Matches 标题右侧新增两个框：
-  - **标准单位**（下拉，必填）：候选项动态来自该 condition 已有 regex pattern 字面量
-  - **精度**（数字，选填）：留空 = 不清洗精度；填值 = 最小步长（1 = 整数 / 0.5 = 半步 / 0.01 = 两位小数）
-- 每条 regex match 行复用现有"Mapped to"框（现行锁定为 `$MATCH`），激活成换算操作输入：
-  - 格式：`<op><number>`，op ∈ {`+`, `-`, `*`, `/`}，例：`*1000` / `+273` / `/0.001`
-  - 留空 = 该单位保留原样（不换算到标准单位，sidecar 仍写原单位）
-  - 标准单位对应的那一行：灰掉锁定为"原值"
-- 引擎流程：捕获 number + 原 unit → 应用换算 op → 套精度 → 单位写为标准单位（若有换算）或原单位（若该行换算空）→ trim 尾零 → 写 sidecar
-- equals/contains 行不受影响；unit-suffix 行本轮维持 `$MATCH` 锁定（暂不并入换算逻辑）
+**顶层原则**：UI 上语义独立的两种模式，数据模型必须独立存储。共享字段靠 binding 过滤是结构债，不是设计。
 
 **任务拆分**：
 
 | 会话 | 主题 | 工作量 |
 |---|---|---|
-| s1 | 实施方案对抗 → handoff（schema / 引擎 / UI / 迁移 / 校验） | 设计会话 |
-| s2 | 按 handoff 落代码：schema + engine + UI + 迁移 + 测试 | 中（4–8 h） |
+| s1-design | 设计稿对抗 → handoff（消费 design seed 文件作为派发输入） | 设计会话 |
+| s1-exec | 按 handoff 落代码：domain model / 迁移 / binding 简化 / 测试改写 | 中（6–10 h） |
 
-**关键 acceptance gate**：
+**关键 acceptance gate**（高层口径，细节见 design seed）：
 
-- **AG1** 标准单位下拉候选项动态跟随 matches 的 regex pattern；增删 regex 行下拉项实时同步
-- **AG2** 引擎对捕获 token 的换算 + 精度处理结果与 UI 配置一致；equals/contains 行行为不变；unit-suffix 行行为不变
-- **AG3** 老 `measuring_condition.json` 解码默认行为：Temperature → K/精度 1，Field → T/精度 0.5，Current/Shift/Device → matches[0]/精度空，所有行换算空 —— 现行行为不被打破（除 Field 5.0001T → 5T 这种正向修正）
-- **AG4** 标准单位 / 精度 / 任一行换算变化都进入 ruleSetFingerprint，自动让相关 sidecar 在 Recompute Preview 出现
-- **AG5** 死代码清单当轮清完（s2 commit message 或 history 摘要必须列出）：
-  - 删除 `FilenameRuleSet.normalizationMode(for:)` 硬编码 switch
-  - 删除引擎内对 `ConditionFieldCatalog.temperatureID / fieldID` 的 normalization 分支引用
-  - 废除私有 `UnitValueNormalizationMode` 枚举（升格为 schema 字段或同等公开形式）
-  - MatchRulesEditor 的 `editableWithLockedOps` 路径如已被新换算编辑器吃掉，相应锁定逻辑同步清理
-  - **顺带清理 5.1.8 收尾未覆盖的尾巴**：Workbench `NewRuleEntrySheet` 仍按 `RuleEntryKind { tokenMap, unitSuffix }` 二选一构造规则、写 v5 路径 `conditions.tokenMapRules.<id>` / `conditions.extraConditions.<id>`；本轮一并迁移为统一 `MapRule` 写入 `matches: [MapRule]`，`RuleEntryKind` 枚举（11 行 + 3 处引用：sheet `let kind` / `WorkbenchFeatureStore.RuleEntry.kind` / 定义文件本身）连带删除。先 grep `onAdd` 调用方确认写入路径再下手；估值 1–4h 视写入路径走 v5 还是 v6 而定。
-- **AG6** 保存校验：换算操作字符串非空时必须能解析成 op + 数字，否则 save 失败并报错
+- **AG1** 数据模型层面 kind 完全独立——一种 kind 的写入不影响另一种 kind 的存储
+- **AG2** kind 切换无副作用——纯标记切换，不涉及任何数据合并 / 过滤 / 复制
+- **AG3** schema 一次性迁完，不留双 schema 兼容路径；用户已有规则**不得静默丢弃**（含歧义条目，必须 backup + audit）
+- **AG4** 测试守住数据模型契约（两字段互不影响），不是 binding 兜底
+- **AG5** UI 行为对用户完全一致（切换 kind 不丢内容、不打乱顺序）
 
 **否决方案及理由**（不要后续 agent 推翻）：
 
-- ❌ 全局 condition 共享一套清洗 / 换算配置 —— Field/Current/Temperature 物理语义不同，强制共享 = 三选一冲突
-- ❌ 在 condition 编辑界面单独加 Picker 行 —— 与 MatchRulesEditor shell 复用原则冲突，「不要一个 condition 做一个 UI」
-- ❌ sidecar 双存 raw + normalized —— 单值清洗后写入；原始 token 仍可从文件名重新解析
-- ❌ unit-suffix 类型同步并入换算 —— 本轮范围限定 regex；unit-suffix 后续专项再说
-- ❌ 标准单位下拉允许任意字符串输入 —— 必须从已有 regex pattern 中选，否则换算引擎找不到对应 match 行
+- ❌ 保留单字段 + 加更复杂的 binding 过滤逻辑 —— 结构债加深，非清理
+- ❌ 双 schema 并存兼容 —— 一次性迁完，与 5.1.5 F 项迁移策略一致
+- ❌ 测试形态不跟着数据模型变 —— 数据模型变了，契约测试必须重写
+- ❌ 迁移时把无法判定的歧义条目静默归到一边 —— 违反"用户配置不可清理"硬约束
 
-**实施方案种子**：本轮 design 在会话内对齐完成（8 轮迭代收敛）；s1 直接产出 handoff，无需独立 design seed 文件。
+**实施方案种子**：[`docs/handoff/_pending/5.1.8-condition-kind-decoupling-design-seed.md`](handoff/_pending/5.1.8-condition-kind-decoupling-design-seed.md)（含 s1-design 必拍板问题 / 迁移歧义策略 / 字段命名候选 / 测试覆盖详单 / Codex review findings 整合）
 
-**来源**：2026-04-30 Jack 调研 RecomputePreviewPanel "8T → 90shift" 异常时识别出 condition 单位混乱根因；regex 匹配语义已在本轮 commit `b765048` 之后修正。
+**来源**：5.1.5 s12 收尾确认的回归 case；2026-04-28 与 Jack 对齐为 5.1.6 架构梳理后的首条结构债。
 
 ---
 

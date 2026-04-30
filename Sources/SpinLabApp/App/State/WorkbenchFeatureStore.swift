@@ -88,6 +88,12 @@ struct ConditionChangeProposal: Identifiable {
 }
 
 
+struct SeparatedConditionsPatch: Equatable {
+    var extraConditions: [String: String]
+    var deletedExtraConditionKeys: Set<String>
+    var tokenMapRules: [String: [TokenMapping]]
+}
+
 struct RulePatternCodec {
     static let canonicalPrefix = #"^-?\d+(?:\.\d+)?(?:"#
     static let canonicalSuffix = #")$"#
