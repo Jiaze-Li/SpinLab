@@ -5,6 +5,14 @@ struct RecomputePreviewPanel: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showNoChange = false
 
+    @AppStorage("spinlab.recompute.col.measurement") private var savedMeasurement: Double = 160
+    @AppStorage("spinlab.recompute.col.field") private var savedField: Double = 140
+    @AppStorage("spinlab.recompute.col.oldValue") private var savedOldValue: Double = 100
+
+    @State private var colMeasurement: Double = 160
+    @State private var colField: Double = 140
+    @State private var colOldValue: Double = 100
+
     private var group0: [RecomputeDiffItem] { library.recomputeDiffItems.filter { $0.status.groupIndex == 0 } }
     private var group1: [RecomputeDiffItem] { library.recomputeDiffItems.filter { $0.status.groupIndex == 1 } }
     private var group2: [RecomputeDiffItem] { library.recomputeDiffItems.filter { $0.status.groupIndex == 2 } }
@@ -25,6 +33,11 @@ struct RecomputePreviewPanel: View {
         }
         .frame(minWidth: 680, idealWidth: 900, maxWidth: .infinity, minHeight: 460, idealHeight: 600, maxHeight: .infinity)
         .padding(AppSpacing.xxl)
+        .onAppear {
+            colMeasurement = savedMeasurement
+            colField = savedField
+            colOldValue = savedOldValue
+        }
         .onChange(of: library.isShowingRecomputePreview) { _, showing in
             if !showing { dismiss() }
         }
@@ -131,14 +144,23 @@ struct RecomputePreviewPanel: View {
 
     private var diffTableHeader: some View {
         HStack(spacing: 0) {
-            Text("Measurement").font(.caption).foregroundStyle(.secondary).frame(width: 160, alignment: .leading)
-            Text("Field").font(.caption).foregroundStyle(.secondary).frame(width: 140, alignment: .leading)
-            Text("旧值").font(.caption).foregroundStyle(.secondary).frame(width: 100, alignment: .leading)
-            Text("新值").font(.caption).foregroundStyle(.secondary).frame(width: 100, alignment: .leading)
-            Text("来源变化").font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+            Text("Measurement").font(.caption).foregroundStyle(.secondary).frame(width: colMeasurement, alignment: .leading)
+            ColumnDivider(leftWidth: $colMeasurement, rightWidth: $colField) { savedMeasurement = colMeasurement; savedField = colField }
+            Text("Field").font(.caption).foregroundStyle(.secondary).frame(width: colField, alignment: .leading)
+            ColumnDivider(leftWidth: $colField, rightWidth: $colOldValue) { savedField = colField; savedOldValue = colOldValue }
+            Text("旧值").font(.caption).foregroundStyle(.secondary).frame(width: colOldValue, alignment: .leading)
+            ColumnDivider(leftWidth: $colOldValue) { savedOldValue = colOldValue }
+            Text("新值").font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
             Text("状态").font(.caption).foregroundStyle(.secondary).frame(width: 80, alignment: .trailing)
         }
         .padding(.horizontal, AppSpacing.xs)
+    }
+
+    private var colSeparator: some View {
+        ZStack {
+            Color.clear.frame(width: 8)
+            Color(nsColor: .separatorColor).opacity(0.35).frame(width: 1)
+        }
     }
 
     private func diffTableRow(_ item: RecomputeDiffItem) -> some View {
@@ -153,54 +175,36 @@ struct RecomputePreviewPanel: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
-            .frame(width: 160, alignment: .leading)
+            .frame(width: colMeasurement, alignment: .leading)
+
+            colSeparator
 
             Text(item.fieldKey)
                 .font(.callout)
-                .frame(width: 140, alignment: .leading)
+                .frame(width: colField, alignment: .leading)
                 .lineLimit(1)
+
+            colSeparator
 
             Text(item.oldValue ?? "∅")
                 .font(.callout)
                 .foregroundStyle(item.oldValue == nil ? .secondary : .primary)
-                .frame(width: 100, alignment: .leading)
+                .frame(width: colOldValue, alignment: .leading)
                 .lineLimit(1)
+
+            colSeparator
 
             Text(item.newValue ?? "∅")
                 .font(.callout)
                 .foregroundStyle(item.newValue == nil ? .secondary : .primary)
-                .frame(width: 100, alignment: .leading)
-                .lineLimit(1)
-
-            sourceChangeLabel(item)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .lineLimit(1)
 
             statusBadge(item.status)
                 .frame(width: 80, alignment: .trailing)
         }
         .padding(.horizontal, AppSpacing.xs)
         .padding(.vertical, AppSpacing.xxs)
-    }
-
-    @ViewBuilder
-    private func sourceChangeLabel(_ item: RecomputeDiffItem) -> some View {
-        let old = shortRef(item.oldSource)
-        let new = shortRef(item.newSource)
-        if old == new {
-            Text(old).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-        } else {
-            HStack(spacing: AppSpacing.xxs) {
-                Text(old).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                Image(systemName: "arrow.right").font(.caption2)
-                Text(new).font(.caption).foregroundStyle(item.status == .migration ? .orange : .primary).lineLimit(1)
-            }
-        }
-    }
-
-    private func shortRef(_ ref: String?) -> String {
-        guard let ref else { return "—" }
-        if ref.hasPrefix("rule:") { return String(ref.dropFirst(5)) }
-        return ref
     }
 
     @ViewBuilder
@@ -243,6 +247,47 @@ struct RecomputePreviewPanel: View {
             .disabled(library.isComputingRecomputePreview || library.isApplyingRecompute || group0.isEmpty)
         }
         .padding(.top, AppSpacing.lg)
+    }
+}
+
+// MARK: - Column divider
+
+private struct ColumnDivider: View {
+    @Binding var leftWidth: Double
+    var rightWidth: Binding<Double>? = nil
+    var onCommit: (() -> Void)? = nil
+    private let minWidth: Double = 60
+    @State private var dragStart: (left: Double, right: Double)?
+
+    var body: some View {
+        ZStack {
+            Color.clear.frame(width: 8)
+            Color(nsColor: .separatorColor).opacity(0.35).frame(width: 1)
+        }
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            if hovering { NSCursor.resizeLeftRight.push() }
+            else { NSCursor.pop() }
+        }
+        .highPriorityGesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
+            .onChanged { value in
+                if dragStart == nil { dragStart = (leftWidth, rightWidth?.wrappedValue ?? 0) }
+                guard let start = dragStart else { return }
+                let delta = value.translation.width
+                if let rb = rightWidth {
+                    let total = start.left + start.right
+                    let clamped = min(total - minWidth, max(minWidth, start.left + delta))
+                    leftWidth = clamped
+                    rb.wrappedValue = total - clamped
+                } else {
+                    leftWidth = max(minWidth, start.left + delta)
+                }
+            }
+            .onEnded { _ in
+                dragStart = nil
+                onCommit?()
+            }
+        )
     }
 }
 
