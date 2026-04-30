@@ -29,13 +29,10 @@
 | Document | Purpose | Status |
 |---|---|---|
 | `architecture/INDEX.md` | Current architecture dispatch index: region → first-read files → shared risks → tests. | active |
+| `architecture/REGION_MAP.md` | 5.1.6 全量区块/层级/共享点扫描底稿（INDEX.md 的工作文件）。 | active |
 | `architecture/ARCHITECTURE_OVERVIEW.md` | Global architecture: AppState, FeatureStores, column shell, observation patterns. | active |
-| `architecture/APP_FLOW.md` | End-to-end app workflow and page responsibilities. | active |
 | `architecture/import/IMPORT_PIPELINE_EVALUATE_FLOW.md` | Import 5-stage evaluate flow: Parse → Route → Match → Evaluate → Presentation. | active |
 | `architecture/import/ROUTING_LAYER_BOUNDARIES.md` | Import routing layer boundary contracts and dependency rules. | active |
-| `architecture/rules/RULE_BASELINE_MANIFEST.md` | Rule file inventory, loading sequence, override mechanism. | active |
-| `architecture/rules/RULE_SCHEMA_VERSIONING.md` | Rule schema version policy and migration strategy. | active |
-| `architecture/library/LIBRARY_ARCHITECTURE_AUDIT.md` | Library feature audit: layer map, redundancy analysis, consolidation plan. | active |
 
 ## history (开发历史线 & 开发日志)
 

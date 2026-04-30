@@ -331,7 +331,7 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 - ❌ 测试形态不跟着数据模型变 —— 数据模型变了，契约测试必须重写
 - ❌ 迁移时把无法判定的歧义条目静默归到一边 —— 违反"用户配置不可清理"硬约束
 
-**实施方案种子**：[`docs/handoff/_pending/5.1.8-condition-kind-decoupling-design-seed.md`](../handoff/_pending/5.1.8-condition-kind-decoupling-design-seed.md)（含 s1-design 必拍板问题 / 迁移歧义策略 / 字段命名候选 / 测试覆盖详单 / Codex review findings 整合）
+**实施方案种子**：[`docs/handoff/_pending/5.1.8-condition-kind-decoupling-design-seed.md`](handoff/_pending/5.1.8-condition-kind-decoupling-design-seed.md)（含 s1-design 必拍板问题 / 迁移歧义策略 / 字段命名候选 / 测试覆盖详单 / Codex review findings 整合）
 
 **来源**：5.1.5 s12 收尾确认的回归 case；2026-04-28 与 Jack 对齐为 5.1.6 架构梳理后的首条结构债。
 
