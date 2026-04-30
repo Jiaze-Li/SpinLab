@@ -133,11 +133,11 @@ struct MeasuringConditionSection: View {
             }
             MatchRulesEditor(
                 rules: rulesBinding(condIdx: idx),
-                allowedOps: [.equals, .contains, .unitSuffix],
+                allowedOps: [.equals, .contains, .unitSuffix, .regex],
                 defaultOp: .equals,
                 outputBehavior: .editableWithLockedOps(
                     title: "Mapped to",
-                    lockedOps: [.unitSuffix],
+                    lockedOps: [.unitSuffix, .regex],
                     lockedValue: "$MATCH"
                 )
             )
@@ -161,7 +161,7 @@ struct MeasuringConditionSection: View {
     }
 
     private func normalizeConditionRuleForUI(_ rule: MapRule) -> MapRule {
-        guard rule.match.type == "unit-suffix" else { return rule }
+        guard rule.match.type == "unit-suffix" || rule.match.type == "regex" else { return rule }
         var normalized = rule
         normalized.value = "$MATCH"
         return normalized

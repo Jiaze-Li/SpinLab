@@ -22,13 +22,14 @@ struct FilenameRuleSet: Decodable {
         case halfStep
     }
 
-    // MARK: - Operation enum (4-op closed set)
+    // MARK: - Operation enum (5-op closed set)
 
     enum Operation: String, Codable, Hashable, Sendable, CaseIterable {
         case equals
         case contains
         case startsWith = "starts-with"
         case unitSuffix = "unit-suffix"
+        case regex
     }
 
     // MARK: - Flat MatchSpec (type + single value)
@@ -499,6 +500,13 @@ struct FilenameRuleSet: Decodable {
             }
             let pattern = "^-?\\d+(?:\\.\\d+)?(?:\(NSRegularExpression.escapedPattern(for: trimmed)))$"
             result.generatedRegex = compileRegex(pattern, warnings: &warnings, label: label)
+
+        case .regex:
+            guard !trimmed.isEmpty else {
+                warnings.append("\(label): empty regex pattern; rule never matches")
+                return result
+            }
+            result.generatedRegex = compileRegex(trimmed, warnings: &warnings, label: label)
         }
 
         return result
@@ -661,7 +669,7 @@ struct FilenameRuleSet: Decodable {
             return text.lowercased() == value.lowercased()
         case .contains:
             return text.lowercased().contains(value.lowercased())
-        case .startsWith, .unitSuffix:
+        case .startsWith, .unitSuffix, .regex:
             guard let regex = compiled.generatedRegex else { return false }
             let range = NSRange(text.startIndex..<text.endIndex, in: text)
             return regex.firstMatch(in: text, options: [], range: range) != nil
