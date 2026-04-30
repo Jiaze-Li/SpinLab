@@ -82,7 +82,7 @@ struct RulesSectionShell<Content: View>: View {
             }
             Button("Apply") { applyEdits() }
                 .buttonStyle(.bordered)
-                .disabled(!saveErrors.isEmpty)
+                .disabled(!saveErrors.isEmpty || !store.dirtySections.contains(section))
             Button("Discard") { discardEdits() }
                 .buttonStyle(.bordered)
                 .disabled(!store.dirtySections.contains(section))
