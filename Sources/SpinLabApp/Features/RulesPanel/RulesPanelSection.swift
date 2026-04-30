@@ -13,9 +13,9 @@ enum RulesPanelSection: String, CaseIterable, Identifiable {
         switch self {
         case .importFilters:        return "Import Filters"
         case .filenameTokenization: return "Filename Tokenization"
-        case .sampleIdentification: return "Sample Identification"
+        case .sampleIdentification: return "Sample"
         case .workflow:             return "Workflow"
-        case .measuringCondition:   return "Measuring Condition"
+        case .measuringCondition:   return "Condition"
         }
     }
 }
