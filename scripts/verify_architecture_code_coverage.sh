@@ -10,7 +10,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ARCH_DIR="$REPO_ROOT/docs/architecture"
 INDEX_FILE="$ARCH_DIR/INDEX.md"
 SOURCES_DIR="$REPO_ROOT/Sources"
-EXPECTED_TOTAL=218
+EXPECTED_TOTAL=219
 
 # ---- extract Code Map paths from architecture docs ----
 # Scans each .md (excluding REGION_MAP.md).

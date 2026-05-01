@@ -19,6 +19,7 @@ Key entry points:
 
 **Architecture coverage hook**: after first clone, run `./scripts/install_git_hooks.sh` to install the architecture documentation coverage pre-commit check.
 
+
 ## Agent Policy
 
 | Document | Purpose |

@@ -21,20 +21,6 @@ enum RuleRef {
         "rule:condition.\(id).rules#\(ruleIndex)"
     }
 
-    // Retained for parsing legacy stored provenance refs only.
-    static func conditionUnitSuffix(id: String, definitionIndex: Int) -> String {
-        "rule:condition.\(id).unitSuffix#\(definitionIndex)"
-    }
-
-    static func conditionTokenMap(id: String, ruleIndex: Int) -> String {
-        "rule:condition.\(id).tokenMap#\(ruleIndex)"
-    }
-
-    /// conditions.extraConditions[X] binding → unit pattern source
-    static func conditionExtraPattern(id: String) -> String {
-        "rule:condition.\(id).extraPattern@\(sanitizeKey(id))"
-    }
-
     // MARK: - substrate namespace
 
     static func substrateMaterial(index: Int) -> String {

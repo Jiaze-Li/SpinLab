@@ -36,13 +36,7 @@ struct MeasuringConditionSection: View {
         _ d: MeasuringConditionFileDraft,
         saveErrors: Binding<[RulesPanelFieldError]>
     ) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                conditionDefinitionsGroup(d, saveErrors: saveErrors)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(AppSpacing.xl)
-        }
+        conditionDefinitionsGroup(d, saveErrors: saveErrors)
     }
 
     // MARK: - Condition Definitions
@@ -53,11 +47,10 @@ struct MeasuringConditionSection: View {
         saveErrors: Binding<[RulesPanelFieldError]>
     ) -> some View {
         GroupBox("Conditions") {
-            VStack(alignment: .leading, spacing: AppSpacing.md) {
+            VStack(alignment: .leading, spacing: 0) {
                 ForEach(d.conditionDefinitions.indices, id: \.self) { idx in
                     let def = d.conditionDefinitions[idx]
                     conditionRow(def: def, d: d, idx: idx, saveErrors: saveErrors)
-                    Divider()
                 }
                 HStack(spacing: AppSpacing.md) {
                     Button("+ New Condition") {
@@ -65,6 +58,7 @@ struct MeasuringConditionSection: View {
                     }
                     .buttonStyle(.bordered)
                 }
+                .padding(.top, AppSpacing.md)
             }
         }
         .errorHighlight(saveErrors.wrappedValue.hasGroup("conditionDefinitions"))
@@ -79,40 +73,16 @@ struct MeasuringConditionSection: View {
     ) -> some View {
         let isSelected = selectedConditionID == def.id
         let rowHasError = saveErrors.wrappedValue.hasRow(group: "conditionDefinitions", key: def.id)
-        VStack(alignment: .leading, spacing: 0) {
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    selectedConditionID = isSelected ? nil : def.id
-                }
-            }) {
-                HStack(spacing: AppSpacing.md) {
-                    Text(def.id)
-                        .font(.callout.weight(.semibold).monospaced())
-                        .foregroundStyle(rowHasError ? Color.red : .primary)
-                    Spacer()
-                    Button(role: .destructive) {
-                        requestDelete(id: def.id, d: d)
-                    } label: { Image(systemName: "minus.circle") }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Delete condition")
-                    Image(systemName: isSelected ? "chevron.up" : "chevron.down")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                .contentShape(Rectangle())
-                .padding(.vertical, AppSpacing.xs)
-                .padding(.horizontal, AppSpacing.xs)
-            }
-            .buttonStyle(.plain)
-            .background(isSelected ? Color.accentColor.opacity(0.08) : .clear)
-            .cornerRadius(AppSpacing.xs)
-            .errorHighlight(rowHasError, cornerRadius: AppSpacing.xs)
 
-            if isSelected {
-                conditionDetail(idx: idx, d: d)
-                    .padding(AppSpacing.md)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(AppSpacing.md)
-            }
+        RuleExpandableRow(
+            title: def.id,
+            isExpanded: isSelected,
+            rowHasError: rowHasError,
+            deleteAccessibilityLabel: "Delete condition",
+            onToggle: { selectedConditionID = isSelected ? nil : def.id },
+            onDelete: { requestDelete(id: def.id, d: d) }
+        ) {
+            conditionDetail(idx: idx, d: d)
         }
     }
 
