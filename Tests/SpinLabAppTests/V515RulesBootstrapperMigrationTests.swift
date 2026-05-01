@@ -58,6 +58,13 @@ struct V515RulesBootstrapperMigrationTests {
         try json.data(using: .utf8)!.write(to: url)
     }
 
+    private func seedV7MeasuringCondition(at url: URL) throws {
+        let json = """
+        {"version":7,"conditionDefinitions":[{"id":"temperature","displayName":"Temperature","standardization":{"standardUnit":null,"precision":null},"matches":[{"match":{"type":"unit-suffix","value":"K"},"value":"$MATCH","transform":null}]}]}
+        """
+        try json.data(using: .utf8)!.write(to: url)
+    }
+
     private func seedV2SampleIdentification(at url: URL, separators: String = "_") throws {
         let json = """
         {"version":2,"sampleId":{"patterns":[]},"substrate":{"tokenSeparators":"\(separators)","substrateTagRules":[],"materials":[{"id":"STO","tokens":["STO"],"aliases":[],"displayName":"STO"}],"treatments":[],"orientations":{"pattern":"\\\\d{3}","rows":[{"id":"001","tokens":["001"],"aliases":[]}]}}}
@@ -102,7 +109,7 @@ struct V515RulesBootstrapperMigrationTests {
 
         let measuringData = try Data(contentsOf: paths.measuringConditionURL)
         let measuringObj = try JSONSerialization.jsonObject(with: measuringData) as? [String: Any]
-        #expect(measuringObj?["version"] as? Int == 6, "measuring_condition must be v6 after full migration chain")
+        #expect(measuringObj?["version"] as? Int == 7, "measuring_condition must be v7 after full migration chain")
         #expect(measuringObj?["conditions"] == nil, "v6 measuring_condition must not have legacy 'conditions' key")
         let defs = measuringObj?["conditionDefinitions"] as? [[String: Any]]
         let firstDef = defs?.first
@@ -127,7 +134,7 @@ struct V515RulesBootstrapperMigrationTests {
         #expect(FileManager.default.fileExists(atPath: stateURL.path), ".migration_state.json must exist")
         let stateData = try Data(contentsOf: stateURL)
         let stateObj = try JSONSerialization.jsonObject(with: stateData) as? [String: Any]
-        #expect(stateObj?["rules_schema_version"] as? Int == 6)
+        #expect(stateObj?["rules_schema_version"] as? Int == 7)
 
         let contents = try FileManager.default.contentsOfDirectory(atPath: dir.path)
         let backupDirs = contents.filter { $0.hasPrefix(".backup-") }
@@ -179,11 +186,11 @@ struct V515RulesBootstrapperMigrationTests {
         #expect(FileManager.default.fileExists(atPath: stateURL.path), "state file must be written")
         let stateData = try Data(contentsOf: stateURL)
         let stateObj = try JSONSerialization.jsonObject(with: stateData) as? [String: Any]
-        #expect(stateObj?["rules_schema_version"] as? Int == 6, "state must be v6 after migration")
+        #expect(stateObj?["rules_schema_version"] as? Int == 7, "state must be v7 after migration")
 
         let measuringData = try Data(contentsOf: paths.measuringConditionURL)
         let measuringObj = try JSONSerialization.jsonObject(with: measuringData) as? [String: Any]
-        #expect(measuringObj?["version"] as? Int == 6, "measuring must be migrated to v6 after full chain")
+        #expect(measuringObj?["version"] as? Int == 7, "measuring must be migrated to v7 after full chain")
         let defs = measuringObj?["conditionDefinitions"] as? [[String: Any]]
         #expect(defs?.first?["displayName"] != nil, "v6 measuring must use displayName")
         #expect(defs?.first?["label"] == nil, "v6 measuring must not use label")
@@ -223,7 +230,7 @@ struct V515RulesBootstrapperMigrationTests {
 
         let stateData = try Data(contentsOf: stateURL)
         let stateObj = try JSONSerialization.jsonObject(with: stateData) as? [String: Any]
-        #expect(stateObj?["rules_schema_version"] as? Int == 6, "state must be bumped to v6")
+        #expect(stateObj?["rules_schema_version"] as? Int == 7, "state must be bumped to v7")
     }
 
     @Test("v3 full schema → v5: materials/treatments/orientations converted, substrateTagRules discarded, batchPrefixes→matches")
@@ -278,36 +285,36 @@ struct V515RulesBootstrapperMigrationTests {
         let stateURL = dir.appendingPathComponent(".migration_state.json")
         let stateData = try Data(contentsOf: stateURL)
         let stateObj = try JSONSerialization.jsonObject(with: stateData) as? [String: Any]
-        #expect(stateObj?["rules_schema_version"] as? Int == 6)
+        #expect(stateObj?["rules_schema_version"] as? Int == 7)
 
         let warnings = stateObj?["warnings"] as? [String] ?? []
         #expect(warnings.contains(where: { $0.contains("substrateTagRule") }), "substrateTagRules discard must be recorded in warnings")
         #expect(warnings.contains(where: { $0.contains("orientations.pattern") }), "dropped pattern field must be warned")
     }
 
-    @Test("state gate >= 6: migration is skipped when state=6 and measuring file is already v6")
-    func stateGateV6SkipsMigration() throws {
+    @Test("state gate >= 7: migration is skipped when state=7 and measuring file is already v7")
+    func stateGateV7SkipsMigration() throws {
         let (dir, backup) = try acquireIsolation()
         defer { releaseIsolation(dir: dir, backup: backup) }
         let paths = RulesConfigPaths()
 
-        // Both state and measuring file must be v6 for the gate to skip — the gate
+        // Both state and measuring file must be v7 for the gate to skip — the gate
         // checks file version to prevent false-positive skips after partial migrations.
-        try seedV6MeasuringCondition(at: paths.measuringConditionURL)
+        try seedV7MeasuringCondition(at: paths.measuringConditionURL)
         try seedV3SampleIdentificationFull(at: paths.sampleIdentificationURL)
         try seedFilenameTokenization(at: paths.filenameTokenizationURL)
 
         let stateURL = dir.appendingPathComponent(".migration_state.json")
-        let state6 = """
-        {"rules_schema_version":6,"migrated_at":"2026-01-01T00:00:00+00:00","source_sha256":{},"target_sha256":{},"warnings":[]}
+        let state7 = """
+        {"rules_schema_version":7,"migrated_at":"2026-01-01T00:00:00+00:00","source_sha256":{},"target_sha256":{},"warnings":[]}
         """
-        try state6.data(using: .utf8)!.write(to: stateURL)
+        try state7.data(using: .utf8)!.write(to: stateURL)
 
         let sampleBefore = try Data(contentsOf: paths.sampleIdentificationURL)
         RulesBootstrapper.migrateRuntimeRulesIfNeeded()
         let sampleAfter = try Data(contentsOf: paths.sampleIdentificationURL)
 
-        #expect(sampleBefore == sampleAfter, "file must not change when state gate is already v6 and measuring file is v6")
+        #expect(sampleBefore == sampleAfter, "file must not change when state gate is already v7 and measuring file is v7")
     }
 
     @Test("v3→v5: non-standard sampleId.patterns produce warnings and are discarded")
@@ -463,7 +470,7 @@ struct V515RulesBootstrapperMigrationTests {
 
         let data = try Data(contentsOf: paths.measuringConditionURL)
         let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        #expect(obj?["version"] as? Int == 6, "measuring_condition must be v6 after full migration chain")
+        #expect(obj?["version"] as? Int == 7, "measuring_condition must be v7 after full migration chain")
 
         let defs = obj?["conditionDefinitions"] as? [[String: Any]]
 
@@ -487,7 +494,7 @@ struct V515RulesBootstrapperMigrationTests {
 
         let stateData = try Data(contentsOf: dir.appendingPathComponent(".migration_state.json"))
         let stateObj = try JSONSerialization.jsonObject(with: stateData) as? [String: Any]
-        #expect(stateObj?["rules_schema_version"] as? Int == 6)
+        #expect(stateObj?["rules_schema_version"] as? Int == 7)
     }
 
     @Test("workflow v1→v3: scope stripped, matchValues→value, version bumped")
@@ -525,7 +532,7 @@ struct V515RulesBootstrapperMigrationTests {
 
         let stateData = try Data(contentsOf: dir.appendingPathComponent(".migration_state.json"))
         let stateObj = try JSONSerialization.jsonObject(with: stateData) as? [String: Any]
-        #expect(stateObj?["rules_schema_version"] as? Int == 6)
+        #expect(stateObj?["rules_schema_version"] as? Int == 7)
     }
 
     @Test("workflow absent during migration: state still reaches v6")
@@ -543,7 +550,7 @@ struct V515RulesBootstrapperMigrationTests {
 
         let stateData = try Data(contentsOf: dir.appendingPathComponent(".migration_state.json"))
         let stateObj = try JSONSerialization.jsonObject(with: stateData) as? [String: Any]
-        #expect(stateObj?["rules_schema_version"] as? Int == 6, "state must reach v6 even without workflow.json")
+        #expect(stateObj?["rules_schema_version"] as? Int == 7, "state must reach v7 even without workflow.json")
         #expect(!FileManager.default.fileExists(atPath: paths.workflowURL.path), "workflow.json must not be created")
     }
 
@@ -590,7 +597,7 @@ struct V515RulesBootstrapperMigrationTests {
 
         let stateData = try Data(contentsOf: dir.appendingPathComponent(".migration_state.json"))
         let stateObj = try JSONSerialization.jsonObject(with: stateData) as? [String: Any]
-        #expect(stateObj?["rules_schema_version"] as? Int == 6)
+        #expect(stateObj?["rules_schema_version"] as? Int == 7)
     }
 
     @Test("workflow v2→v3: containsAny expands to individual contains rules")
@@ -713,7 +720,7 @@ struct V515RulesBootstrapperMigrationTests {
 
         let data = try Data(contentsOf: paths.measuringConditionURL)
         let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        #expect(obj?["version"] as? Int == 6)
+        #expect(obj?["version"] as? Int == 7)
 
         let defs = obj?["conditionDefinitions"] as? [[String: Any]]
         let currentDef = defs?.first(where: { $0["id"] as? String == "current" })
@@ -729,7 +736,7 @@ struct V515RulesBootstrapperMigrationTests {
 
         let stateData = try Data(contentsOf: dir.appendingPathComponent(".migration_state.json"))
         let stateObj = try JSONSerialization.jsonObject(with: stateData) as? [String: Any]
-        #expect(stateObj?["rules_schema_version"] as? Int == 6)
+        #expect(stateObj?["rules_schema_version"] as? Int == 7)
     }
 
     @Test("measuring_condition v3→v4: non-canonical unitPattern produces empty matches and warning")
@@ -748,7 +755,7 @@ struct V515RulesBootstrapperMigrationTests {
 
         let data = try Data(contentsOf: paths.measuringConditionURL)
         let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        #expect(obj?["version"] as? Int == 6)
+        #expect(obj?["version"] as? Int == 7)
 
         let defs = obj?["conditionDefinitions"] as? [[String: Any]]
         let tempDef = defs?.first(where: { $0["id"] as? String == "temperature" })
@@ -779,7 +786,7 @@ struct V515RulesBootstrapperMigrationTests {
 
         let data = try Data(contentsOf: paths.measuringConditionURL)
         let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        #expect(obj?["version"] as? Int == 6)
+        #expect(obj?["version"] as? Int == 7)
 
         let defs = obj?["conditionDefinitions"] as? [[String: Any]]
         let deviceDef = defs?.first(where: { $0["id"] as? String == "device" })

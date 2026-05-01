@@ -1,110 +1,141 @@
 {
-    "version": 6,
+    "version": 7,
     "conditionDefinitions": [
         {
             "id": "device",
             "displayName": "Device",
+            "standardization": {
+                "standardUnit": null,
+                "precision": null
+            },
             "matches": [
                 {
                     "match": {
                         "type": "equals",
                         "value": "wafer"
                     },
-                    "value": "wafer"
+                    "value": "wafer",
+                    "transform": null
                 }
             ]
         },
         {
             "id": "temperature",
             "displayName": "Temperature",
+            "standardization": {
+                "standardUnit": null,
+                "precision": null
+            },
             "matches": [
                 {
                     "match": {
                         "type": "unit-suffix",
                         "value": "K"
                     },
-                    "value": "$MATCH"
+                    "value": "$MATCH",
+                    "transform": null
                 },
                 {
                     "match": {
                         "type": "unit-suffix",
                         "value": "k"
                     },
-                    "value": "$MATCH"
+                    "value": "$MATCH",
+                    "transform": null
                 },
                 {
                     "match": {
                         "type": "unit-suffix",
                         "value": "C"
                     },
-                    "value": "$MATCH"
+                    "value": "$MATCH",
+                    "transform": null
                 }
             ]
         },
         {
             "id": "current",
             "displayName": "Current",
+            "standardization": {
+                "standardUnit": null,
+                "precision": null
+            },
             "matches": [
                 {
                     "match": {
                         "type": "unit-suffix",
                         "value": "mA"
                     },
-                    "value": "$MATCH"
+                    "value": "$MATCH",
+                    "transform": null
                 },
                 {
                     "match": {
                         "type": "unit-suffix",
                         "value": "A"
                     },
-                    "value": "$MATCH"
+                    "value": "$MATCH",
+                    "transform": null
                 },
                 {
                     "match": {
                         "type": "unit-suffix",
                         "value": "uA"
                     },
-                    "value": "$MATCH"
+                    "value": "$MATCH",
+                    "transform": null
                 }
             ]
         },
         {
             "id": "field",
             "displayName": "Field",
+            "standardization": {
+                "standardUnit": null,
+                "precision": null
+            },
             "matches": [
                 {
                     "match": {
                         "type": "unit-suffix",
                         "value": "T"
                     },
-                    "value": "$MATCH"
+                    "value": "$MATCH",
+                    "transform": null
                 },
                 {
                     "match": {
                         "type": "unit-suffix",
                         "value": "mT"
                     },
-                    "value": "$MATCH"
+                    "value": "$MATCH",
+                    "transform": null
                 },
                 {
                     "match": {
                         "type": "unit-suffix",
                         "value": "Oe"
                     },
-                    "value": "$MATCH"
+                    "value": "$MATCH",
+                    "transform": null
                 }
             ]
         },
         {
             "id": "shift",
             "displayName": "Shift",
+            "standardization": {
+                "standardUnit": null,
+                "precision": null
+            },
             "matches": [
                 {
                     "match": {
                         "type": "unit-suffix",
                         "value": "shift"
                     },
-                    "value": "$MATCH"
+                    "value": "$MATCH",
+                    "transform": null
                 }
             ]
         }

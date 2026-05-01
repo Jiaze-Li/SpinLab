@@ -191,4 +191,4 @@ Persist both raw and normalized values in archive metadata.
 - `Sources/SpinLabApp/Import/Rules/FilenameRuleSet.swift` — rule data model and compiled rule set
 - `Sources/SpinLabApp/Import/Rules/FileRoutingSemanticRules.swift` — semantic routing rule definitions
 - `Sources/SpinLabApp/Import/Rules/ConditionFieldCatalog.swift` — condition field definitions consumed by pipeline
-- `Sources/SpinLabApp/Import/Rules/RuleEntryKind.swift` — rule entry kind enum
+- `Sources/SpinLabApp/Import/Rules/ConditionTransformExpressionEvaluator.swift` — evaluates numeric condition transform expressions

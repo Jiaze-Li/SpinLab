@@ -20,9 +20,21 @@ enum RulesPanelSaveOutcome {
 
 // MARK: - Shared types
 
+struct ConditionStandardization: Codable, Hashable {
+    var standardUnit: String?
+    var precision: String?
+
+    var parsedPrecision: Decimal? {
+        guard let s = precision?.trimmingCharacters(in: .whitespaces), !s.isEmpty,
+              let d = Decimal(string: s), d > 0 else { return nil }
+        return d
+    }
+}
+
 struct MapRule: Codable, Hashable {
     var match: MatchSpec
     var value: String
+    var transform: String?
 
     struct MatchSpec: Codable, Hashable {
         var type: String
@@ -56,6 +68,28 @@ struct MapRule: Codable, Hashable {
             try container.encode(type, forKey: .type)
             try container.encode(value, forKey: .value)
         }
+    }
+
+    enum CodingKeys: String, CodingKey { case match, value, transform }
+
+    init(match: MatchSpec, value: String, transform: String? = nil) {
+        self.match = match
+        self.value = value
+        self.transform = transform
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        match = try c.decode(MatchSpec.self, forKey: .match)
+        value = try c.decode(String.self, forKey: .value)
+        transform = try c.decodeIfPresent(String.self, forKey: .transform)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(match, forKey: .match)
+        try c.encode(value, forKey: .value)
+        try c.encodeIfPresent(transform, forKey: .transform)
     }
 }
 
@@ -200,15 +234,17 @@ struct MeasuringConditionFileDraft: Codable {
     struct ConditionDefinition: Identifiable, Codable {
         var id: String
         var displayName: String?
+        var standardization: ConditionStandardization
         var matches: [MapRule]
 
         private enum CodingKeys: String, CodingKey {
-            case id, displayName, label, matches
+            case id, displayName, label, standardization, matches
         }
 
-        init(id: String, displayName: String?, matches: [MapRule]) {
+        init(id: String, displayName: String?, standardization: ConditionStandardization = ConditionStandardization(), matches: [MapRule]) {
             self.id = id
             self.displayName = displayName
+            self.standardization = standardization
             self.matches = matches
         }
 
@@ -217,6 +253,8 @@ struct MeasuringConditionFileDraft: Codable {
             id = try c.decode(String.self, forKey: .id)
             displayName = try c.decodeIfPresent(String.self, forKey: .displayName)
                 ?? c.decodeIfPresent(String.self, forKey: .label)
+            standardization = try c.decodeIfPresent(ConditionStandardization.self, forKey: .standardization)
+                ?? ConditionStandardization()
             matches = try c.decodeIfPresent([MapRule].self, forKey: .matches) ?? []
         }
 
@@ -224,6 +262,7 @@ struct MeasuringConditionFileDraft: Codable {
             var c = encoder.container(keyedBy: CodingKeys.self)
             try c.encode(id, forKey: .id)
             try c.encodeIfPresent(displayName, forKey: .displayName)
+            try c.encode(standardization, forKey: .standardization)
             try c.encode(matches, forKey: .matches)
         }
     }

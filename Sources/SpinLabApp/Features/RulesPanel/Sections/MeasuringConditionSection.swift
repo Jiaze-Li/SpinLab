@@ -7,6 +7,7 @@ struct MeasuringConditionSection: View {
     @State private var selectedConditionID: String? = nil
     @State private var showDeleteConfirm = false
     @State private var pendingDeleteID: String? = nil
+    @State private var showInvalidStandardUnitAlert = false
 
     private var store: RulesManagementStore { appState.rulesPanel }
 
@@ -26,6 +27,11 @@ struct MeasuringConditionSection: View {
             Button("Cancel", role: .cancel) { pendingDeleteID = nil }
         } message: {
             Text(deleteConfirmMessage())
+        }
+        .alert("Standard unit no longer exists", isPresented: $showInvalidStandardUnitAlert) {
+            Button("Choose Unit") { showInvalidStandardUnitAlert = false }
+        } message: {
+            Text("Choose a standard unit from the current unit rows before saving.")
         }
     }
 
@@ -105,16 +111,17 @@ struct MeasuringConditionSection: View {
                 rules: rulesBinding(condIdx: idx),
                 allowedOps: [.equals, .contains, .unitSuffix, .regex],
                 defaultOp: .equals,
-                outputBehavior: .editableWithLockedOps(
+                outputBehavior: .conditionTransform(
                     title: "Mapped to",
-                    lockedOps: [.unitSuffix, .regex],
-                    lockedValue: "$MATCH"
+                    standardUnit: standardUnitBinding(condIdx: idx),
+                    precision: precisionBinding(condIdx: idx),
+                    onInvalidStandardUnit: { showInvalidStandardUnitAlert = true }
                 )
             )
         }
     }
 
-    // MARK: - Binding
+    // MARK: - Bindings
 
     private func rulesBinding(condIdx: Int) -> Binding<[MapRule]> {
         Binding(
@@ -124,16 +131,71 @@ struct MeasuringConditionSection: View {
             },
             set: { newRules in
                 guard var d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return }
-                d.conditionDefinitions[condIdx].matches = newRules.map(normalizeConditionRuleForUI)
+                let standardUnit = d.conditionDefinitions[condIdx].standardization.standardUnit
+                let normalized = newRules.map { normalizeConditionRuleForUI($0, standardUnit: standardUnit) }
+                d.conditionDefinitions[condIdx].matches = normalized
+                // Check if current standardUnit is still available
+                if let su = standardUnit {
+                    let available = normalized.filter {
+                        let op = FilenameRuleSet.Operation(rawValue: $0.match.type)
+                        return op == .unitSuffix || op == .regex
+                    }.map { $0.match.value.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    if !available.contains(where: { $0.lowercased() == su.lowercased() }) {
+                        d.conditionDefinitions[condIdx].standardization.standardUnit = nil
+                        d.conditionDefinitions[condIdx].matches = normalized.map { normalizeConditionRuleForUI($0, standardUnit: nil) }
+                        showInvalidStandardUnitAlert = true
+                    }
+                }
                 apply(d)
             }
         )
     }
 
-    private func normalizeConditionRuleForUI(_ rule: MapRule) -> MapRule {
-        guard rule.match.type == "unit-suffix" || rule.match.type == "regex" else { return rule }
+    private func standardUnitBinding(condIdx: Int) -> Binding<String?> {
+        Binding(
+            get: {
+                guard let d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return nil }
+                return d.conditionDefinitions[condIdx].standardization.standardUnit
+            },
+            set: { newVal in
+                guard var d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return }
+                d.conditionDefinitions[condIdx].standardization.standardUnit = newVal
+                apply(d)
+            }
+        )
+    }
+
+    private func precisionBinding(condIdx: Int) -> Binding<String> {
+        Binding(
+            get: {
+                guard let d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return "" }
+                return d.conditionDefinitions[condIdx].standardization.precision ?? ""
+            },
+            set: { newVal in
+                guard var d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return }
+                let trimmed = newVal.trimmingCharacters(in: .whitespacesAndNewlines)
+                d.conditionDefinitions[condIdx].standardization.precision = trimmed.isEmpty ? nil : trimmed
+                apply(d)
+            }
+        )
+    }
+
+    private func normalizeConditionRuleForUI(_ rule: MapRule, standardUnit: String?) -> MapRule {
+        let op = FilenameRuleSet.Operation(rawValue: rule.match.type)
+        guard op == .unitSuffix || op == .regex else {
+            var r = rule
+            r.transform = nil
+            return r
+        }
         var normalized = rule
         normalized.value = "$MATCH"
+        // Identity row: auto-fill *1 so precision runs through the same pipeline
+        if let su = standardUnit,
+           rule.match.value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == su.lowercased() {
+            normalized.transform = "*1"
+        } else if rule.transform == "*1" {
+            normalized.transform = nil
+        }
         return normalized
     }
 

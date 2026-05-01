@@ -110,9 +110,12 @@ Architecture details: `docs/architecture/inbox/RULES_AUTHORING.md`
 - Bootstrapper: seeds only missing files; idempotent; never touches existing files
 - `WorkflowRegistryView`: read-only; all workflow CRUD managed via Rules Panel only
 - Match op per-context: `starts-with` only in Batch ID Prefixes; `unit-suffix` only in Measuring Condition
-- Measuring Condition unified rule list (v5.1.8+): flat `matches: [MapRule]`, no `kind` partition, schema v6
-- `$MATCH` output sentinel triggers normalization only on `unit-suffix` op (v5.1.8+); `equals` / `contains` / `regex` + `$MATCH` returns the matched token verbatim (data-layer enforcement, not just UI lock)
-- Test coverage: 36 + 20 + 12 + 3 + 4 + 4 tests across suites — see `RULES_AUTHORING.md`
+- Measuring Condition unified rule list (v5.1.8+): flat `matches: [MapRule]`, no `kind` partition, schema v7
+- `$MATCH` output: all ops return raw matched token verbatim — no normalization in any path (v5.1.9+)
+- Per-condition standardization (v5.1.9+): optional standard unit + per-row transform expression (implicit-left-value: `*1000` = value×1000, `-273` = value−273) + precision rounding; transform ignored when standard unit is nil
+- v6→v7 migration: adds `standardization` object and `transform: null` to all rules; bootstrapper gate at schema v7
+- Legacy unit normalization (halfStep / trimNoise) fully deleted in v5.1.9
+- Test coverage: 36 + 20 + 12 + 3 + 4 + 4 + 44 tests across suites — see `RULES_AUTHORING.md`
 
 ---
 

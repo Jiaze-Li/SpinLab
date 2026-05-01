@@ -305,8 +305,7 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 
 ### 5.1.9 — Measuring Condition 单位标准化 + NewRuleEntrySheet 死路径收编
 
-- [ ] Measuring Condition 单位标准化（标准单位 + 换算 + 精度清洗）
-- [ ] `NewRuleEntrySheet.RuleEntryKind` 死路径收编（来源：5.1.8 遗留）
+- [x] Measuring Condition 单位标准化（标准单位 + 换算 + 精度清洗）+ NewRuleEntrySheet 死路径收编；v6→v7 schema 迁移；旧隐式归一化完全删除；47 tests 全绿。设计与实施摘要：[history/v519_condition_standardization.md](history/v519_condition_standardization.md)
 
 ---
 

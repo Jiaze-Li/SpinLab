@@ -17,11 +17,6 @@ struct FilenameRuleSet: Decodable {
         var values: [String: String] { sourcedValues.mapValues(\.value) }
     }
 
-    private enum UnitValueNormalizationMode {
-        case trimNoise
-        case halfStep
-    }
-
     // MARK: - Operation enum (5-op closed set)
 
     enum Operation: String, Codable, Hashable, Sendable, CaseIterable {
@@ -39,25 +34,65 @@ struct FilenameRuleSet: Decodable {
         var value: String
     }
 
-    // MARK: - MapRule (match + output value)
+    // MARK: - ConditionStandardization
+
+    struct ConditionStandardization: Codable, Hashable, Sendable {
+        var standardUnit: String?
+        var precision: String?
+
+        var parsedPrecision: Decimal? {
+            guard let p = precision,
+                  let v = Decimal(string: p.trimmingCharacters(in: .whitespacesAndNewlines),
+                                  locale: Locale(identifier: "en_US_POSIX")),
+                  v > 0 else { return nil }
+            return v
+        }
+    }
+
+    // MARK: - MapRule (match + output value + optional transform)
 
     struct MapRule: Codable, Hashable, Sendable {
         var match: MatchSpec
         var value: String
+        var transform: String?
+
+        private enum CodingKeys: String, CodingKey { case match, value, transform }
+
+        init(match: MatchSpec, value: String, transform: String? = nil) {
+            self.match = match
+            self.value = value
+            self.transform = transform
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            match = try c.decode(MatchSpec.self, forKey: .match)
+            value = try c.decode(String.self, forKey: .value)
+            transform = try c.decodeIfPresent(String.self, forKey: .transform)
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(match, forKey: .match)
+            try c.encode(value, forKey: .value)
+            try c.encodeIfPresent(transform, forKey: .transform)
+        }
     }
 
     struct ConditionDefinition: Decodable {
         var id: String
         var displayName: String?
+        var standardization: ConditionStandardization?
         var matches: [MapRule]
 
         private enum CodingKeys: String, CodingKey {
-            case id, displayName, label, matches
+            case id, displayName, label, standardization, matches
         }
 
-        init(id: String, displayName: String?, matches: [MapRule]) {
+        init(id: String, displayName: String?, standardization: ConditionStandardization? = nil, matches: [MapRule]) {
             self.id = id
             self.displayName = displayName
+            self.standardization = standardization
             self.matches = matches
         }
 
@@ -66,6 +101,7 @@ struct FilenameRuleSet: Decodable {
             id = try c.decode(String.self, forKey: .id)
             displayName = try c.decodeIfPresent(String.self, forKey: .displayName)
                 ?? c.decodeIfPresent(String.self, forKey: .label)
+            standardization = try c.decodeIfPresent(ConditionStandardization.self, forKey: .standardization)
             matches = try c.decodeIfPresent([MapRule].self, forKey: .matches) ?? []
         }
     }
@@ -179,6 +215,12 @@ struct FilenameRuleSet: Decodable {
     struct CompiledMapRule {
         var match: CompiledMatchSpec
         var value: String
+        var transform: String?
+    }
+
+    struct CompiledConditionDefinition {
+        var standardization: ConditionStandardization?
+        var rules: [CompiledMapRule]
     }
 
     struct CompiledRules {
@@ -186,7 +228,7 @@ struct FilenameRuleSet: Decodable {
         var measurementNameRules: [CompiledMapRule] = []
         var measurementTagRules: [CompiledMapRule] = []
         var channelAliases: [String: String] = [:]
-        var conditionRules: [String: [CompiledMapRule]] = [:]
+        var conditionRules: [String: CompiledConditionDefinition] = [:]
         var substrateMaterialEntries: [CompiledSubstrateEntry] = []
         var substrateTreatmentEntries: [CompiledSubstrateEntry] = []
         var substrateOrientationEntries: [CompiledSubstrateEntry] = []
@@ -403,19 +445,27 @@ struct FilenameRuleSet: Decodable {
     func conditionEvaluationWithSources(from tokens: [String]) -> ExtraConditionEvaluationWithSources {
         let allRuleIDs = compiled.conditionRules.keys.sorted()
         var sourcedValues: [String: SourcedConditionValue] = [:]
-        let warnings: [String] = []
+        var warnings: [String] = []
 
         for ruleID in allRuleIDs {
-            guard let rules = compiled.conditionRules[ruleID] else { continue }
-            for (ruleIndex, rule) in rules.enumerated() {
+            guard let condDef = compiled.conditionRules[ruleID] else { continue }
+            for (ruleIndex, rule) in condDef.rules.enumerated() {
                 guard let matched = tokens.first(where: { tokenMatches(text: $0, compiled: rule.match) }) else { continue }
                 let value: String
-                if rule.value == "$MATCH" {
-                    value = rule.match.spec.type == .unitSuffix
-                        ? normalizeUnitSuffixToken(matched, ruleID: ruleID)
-                        : matched
-                } else {
+                let op = rule.match.spec.type
+                if rule.value != "$MATCH" {
                     value = rule.value
+                } else if op == .regex {
+                    value = applyStandardization(
+                        matched: matched,
+                        transform: rule.transform,
+                        standardization: condDef.standardization,
+                        ruleID: ruleID,
+                        ruleIndex: ruleIndex,
+                        warnings: &warnings
+                    )
+                } else {
+                    value = matched
                 }
                 let ref = RuleRef.conditionRule(id: ruleID, ruleIndex: ruleIndex)
                 sourcedValues[ruleID] = SourcedConditionValue(value: value, ruleRef: ref)
@@ -516,7 +566,11 @@ struct FilenameRuleSet: Decodable {
 
     private func compileMapRules(_ rules: [MapRule], warnings: inout [String], label: String) -> [CompiledMapRule] {
         rules.map { rule in
-            CompiledMapRule(match: compileMatchSpec(rule.match, warnings: &warnings, label: label), value: rule.value)
+            CompiledMapRule(
+                match: compileMatchSpec(rule.match, warnings: &warnings, label: label),
+                value: rule.value,
+                transform: rule.transform
+            )
         }
     }
 
@@ -525,7 +579,10 @@ struct FilenameRuleSet: Decodable {
         for definition in conditionDefinitions {
             let id = definition.id.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !id.isEmpty else { continue }
-            compiled.conditionRules[id] = compileMapRules(definition.matches, warnings: &warnings, label: id)
+            compiled.conditionRules[id] = CompiledConditionDefinition(
+                standardization: definition.standardization,
+                rules: compileMapRules(definition.matches, warnings: &warnings, label: id)
+            )
         }
     }
 
@@ -647,38 +704,54 @@ struct FilenameRuleSet: Decodable {
         }
     }
 
-    private func normalizeUnitSuffixToken(_ token: String, ruleID: String) -> String {
-        guard let split = splitNumericUnitToken(token) else {
-            return token
-        }
-        guard let numericValue = Decimal(string: split.number, locale: Locale(identifier: "en_US_POSIX")) else {
-            return token
-        }
-
-        let normalized = normalize(numericValue, mode: normalizationMode(for: ruleID))
-        return "\(formatDecimal(normalized))\(split.unit)"
+    private func conditionValue(for ruleID: String, from tokens: [String]) -> String? {
+        conditionEvaluationWithSources(from: tokens).sourcedValues[ruleID]?.value
     }
 
-    private func conditionValue(for ruleID: String, from tokens: [String]) -> String? {
-        guard let rules = compiled.conditionRules[ruleID] else { return nil }
-        for rule in rules {
-            if let matched = tokens.first(where: { tokenMatches(text: $0, compiled: rule.match) }) {
-                guard rule.value == "$MATCH" else { return rule.value }
-                return rule.match.spec.type == .unitSuffix
-                    ? normalizeUnitSuffixToken(matched, ruleID: ruleID)
-                    : matched
+    private func applyStandardization(
+        matched: String,
+        transform: String?,
+        standardization: ConditionStandardization?,
+        ruleID: String,
+        ruleIndex: Int,
+        warnings: inout [String]
+    ) -> String {
+        guard let standardization, let standardUnit = standardization.standardUnit else {
+            return matched
+        }
+        guard let split = splitNumericUnitToken(matched),
+              let numericValue = Double(split.number) else {
+            return matched
+        }
+        let trimmedTransform = transform?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        var workingValue = numericValue
+        if !trimmedTransform.isEmpty {
+            let evaluator = ConditionTransformExpressionEvaluator()
+            do {
+                workingValue = try evaluator.evaluate(trimmedTransform, value: numericValue)
+            } catch {
+                warnings.append("condition '\(ruleID)' rule \(ruleIndex): transform '\(trimmedTransform)' invalid: \(error)")
+                return matched
             }
         }
-        return nil
+        var finalDecimal = Decimal(string: String(workingValue)) ?? Decimal(workingValue)
+        if let precision = standardization.parsedPrecision {
+            finalDecimal = roundToPrecision(finalDecimal, precision: precision)
+        }
+        return "\(formatDecimal(finalDecimal))\(standardUnit)"
     }
 
-    private func normalizationMode(for ruleID: String) -> UnitValueNormalizationMode {
-        switch ruleID {
-        case ConditionFieldCatalog.temperatureID, ConditionFieldCatalog.fieldID:
-            return .halfStep
-        default:
-            return .trimNoise
-        }
+    private func roundToPrecision(_ value: Decimal, precision: Decimal) -> Decimal {
+        var v = value
+        var p = precision
+        var ratio = Decimal()
+        NSDecimalDivide(&ratio, &v, &p, .plain)
+        var rounded = Decimal()
+        var ratioSource = ratio
+        NSDecimalRound(&rounded, &ratioSource, 0, .plain)
+        var result = Decimal()
+        NSDecimalMultiply(&result, &rounded, &p, .plain)
+        return result
     }
 
     private func splitNumericUnitToken(_ token: String) -> (number: String, unit: String)? {
@@ -699,37 +772,6 @@ struct FilenameRuleSet: Decodable {
             return nil
         }
         return (number: number, unit: unit)
-    }
-
-    private func normalize(_ value: Decimal, mode: UnitValueNormalizationMode) -> Decimal {
-        switch mode {
-        case .trimNoise:
-            return rounded(value, scale: 6)
-        case .halfStep:
-            return roundedToHalfStep(value)
-        }
-    }
-
-    private func rounded(_ value: Decimal, scale: Int) -> Decimal {
-        var source = value
-        var result = Decimal()
-        NSDecimalRound(&result, &source, scale, .plain)
-        return result
-    }
-
-    private func roundedToHalfStep(_ value: Decimal) -> Decimal {
-        var source = value
-        var two = Decimal(2)
-        var scaled = Decimal()
-        NSDecimalMultiply(&scaled, &source, &two, .plain)
-
-        var roundedScaled = Decimal()
-        var scaledSource = scaled
-        NSDecimalRound(&roundedScaled, &scaledSource, 0, .plain)
-
-        var result = Decimal()
-        NSDecimalDivide(&result, &roundedScaled, &two, .plain)
-        return result
     }
 
     private func formatDecimal(_ value: Decimal) -> String {
