@@ -307,6 +307,152 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 
 - [x] Measuring Condition 单位标准化（标准单位 + 换算 + 精度清洗）+ NewRuleEntrySheet 死路径收编；v6→v7 schema 迁移；旧隐式归一化完全删除；47 tests 全绿。设计与实施摘要：[history/v519_condition_standardization.md](history/v519_condition_standardization.md)
 
+### 5.1.10 — 架构合规审计多版本流水线规划
+
+- [x] 5.1.11–5.1.14 多版本架构合规审计流水线规划入 ROADMAP（流水线总段 + 4 子段）+ TASK_BOARD（8 行进行中）；双 AI 协作收敛 14 条决策 + "不做"清单；AUDIT_PLAYBOOK 推迟到 5.1.11a 跑通后落地；纯文档零代码。设计与协作过程纪要：[history/v5110_audit_pipeline_planning.md](history/v5110_audit_pipeline_planning.md)
+
+## 架构合规审计多版本流水线（5.1.11 – 5.1.14）
+
+> 此段是 5.1.11–5.1.14 共享的设计纪要，落 ROADMAP 是为了未来打开任一子版本时不需要回头翻 tmp / handoff 才能理解决策。规划起点：`tmp/2026-05-02-claude-review-of-capability-threads.md`（含 Codex 收敛意见）。
+
+### 动机
+
+5.1.6 完成"区/层 → 文件 → 稳定职责"的全量映射（218 文件，0 暧昧），但**只回答了"这文件归谁"，没回答"它实际做的事是不是匹配那个层应该做的事"**。一年内 5.1.7/5.1.8/5.1.9 三轮持续在 Inbox 区改动，5.3.x 持续在 Workbench 区改动，Code Map 注释和实际代码必然出现漂移。如果不审，5.1.6 那张图会慢慢变装饰；如果用全代码 review 的方式审，体量太大不可执行。本流水线选"风险驱动抽样 + 按区分流水线"的中间路径。
+
+### 任务范围（拍板）
+
+- **只做"架构合规审计"**：验代码 vs Code Map 声明的层职责
+- **不做** 跨区流程链索引文档（`CAPABILITY_THREADS.md`）：与 5.1.6 INDEX collaborator 段重复，会变第四真理源
+- **不做** 扩展契约文档（`EXTENSION_CONTRACTS.md`）：暂留 deferred；只在审计中重复出现 extension pattern drift（多个新 workflow 都 fork shell / 多个 workflow-private plot 控件重复一样的事）时回头起独立版本
+
+### 编号约定
+
+- `a` = 审计（纯文档，零代码改动）
+- `b` = 修复主轮
+- `c/d` = 修复溢出（按需启用）
+- 一个版本对应一个区（11=Workbench / 12=Inbox / 13=Library / 14=跨区 meta）
+
+### 流水线顺序与理由
+
+```
+5.1.11ab  Workbench   ← 当前最活跃（5.3.x 持续改），漂移概率最高，前期收益最大
+5.1.12ab  Inbox       ← 5.1.7-9 三轮重构刚做完，验证刚改完的边界
+5.1.13ab  Library     ← 相对稳定，预计违规密度低
+5.1.14ab  跨区 meta   ← 吃前三轮攒出的链级 + 边界不清问题
+```
+
+每对独立闭环：a 完成后才开 b；其他区的 a 可以并发开（11b 修着可以开 12a），但不强制。
+
+### 判定口径（双 lens）
+
+> 调用链优先 + 必要时验实际行为。纯调用链会漏：UI 文件可能调一个看似正常的 helper、helper 内偷做业务排序；Store 调 service 看似正常但实际拥有跨区策略；Repository import 看着无害但持久化路径里有业务分支。
+
+每个抽样文件审两件事：
+
+1. **调用链**：这文件实际调谁、被谁调；和 Code Map 声明的层职责是否匹配
+2. **实际行为**：副作用、数据变换、ownership 行为；是否只做该层应该做的事
+
+### 三分类发现 + 处置策略
+
+| 类型 | 定义 | 处置 |
+|---|---|---|
+| **Violation** | 实际边界违规，存在 regression / 派发误判 / 测试性风险 | 入清单 → 喂给 b/c/d 或 14；产出表 disposition 列直接标注下一版派发信息（target version / 修复粒度 / 依赖关系），让 a 跑完时 b 的 ROADMAP 已成型 |
+| **Drift** | code 与 docs 不一致但风险不高 | a 轮内**当场改 Code Map 注释**（已是 Session Closeout 第 6 条职责）；产出表加一段 `Doc Drift Fixed`，让审计历史可读，不入独立任务清单 |
+| **Accepted Boundary** | 跨区行为是有意为之、与架构一致 | 简短记录（产出表 `Accepted Boundaries` 段）；如果有意为之但不显然，顺手补 docs |
+
+### 跨区疑点侧栏（Cross-Region Doubts For 5.1.14）
+
+每个 a 轮产出表必含此段，规则：
+
+- **只记自然出现的**——不分支去做完整链调查
+- **不在当区 b 修**——除非有明确单区 owner
+- **喂给 14**——14 入场时把三轮侧栏合并为输入清单
+
+理由：避免 Workbench/Inbox/Library 的 b 轮被链级问题污染范围；同时给 14 免费攒输入（前三轮等于在垂直审计的同时做了水平观察）。
+
+### 抽样策略（风险驱动，不强求 218 全量）
+
+每个 a 轮抽样池构造：
+
+- 该区 Code Map 全部条目
+- 关联到 5.1.6 `SP-*` 共享点的文件
+- 关联到 5.1.6 `G-*` shell / 大文件候选
+- 该区高风险层代表（UI / FeatureStore / UseCase / Service / Repository 各挑代表）
+- 5.1.6 之后新增 / 移动的 swift 文件（pre-commit hook 强制登记的那批）
+- 自 5.1.6 以来变更频繁的文件（git 触达次数高 + 与高风险共享重合）
+
+11a 跑完一轮后再决定 12/13 是继续风险驱动还是扩面。
+
+### Cross-cutting 归属规则
+
+不立独立审计版本（理由：Cross-cutting 没有"作为单一区的边界"，本来就是给多区共用，违规形态分散）。归属：
+
+- **共享 UI / Domain / helper 文件** → 按"主消费者"归 11/12/13（抽样池构造时归属判定写入 a 段产出表注释）
+- **AppState / Registry / 全局协调器整体设计问题** → 归 14（属于跨区 meta）
+- **5.1.6 附录 G `G-*` 候选**（G-002 AppState 1816 行 / G-008 WorkflowWorkspaceShell / G-010 RulesBootstrapper 等） → 按既有 ROADMAP 节奏走，**不**归审计版本
+
+### c/d 溢出触发（四维度判断，不用违规条数硬卡）
+
+启用 c/d 当：
+
+- 影响层数：b 单轮波及 ≥ 3 个 layer
+- commit 数：b 单轮 ≥ 5 个独立 commit
+- 是否能独立 review：违规之间有依赖、无法独立 review → 拆 c
+- 行为变更 vs 纯移代码：纯移代码可以合并，行为变更必须独立 → 拆 c
+
+### AUDIT_PLAYBOOK 时机（不预先建）
+
+> 方法没实战验证就正式化会变成束缚。
+
+- 5.1.11a **之前**：方法说明只在 11a handoff / tmp 草稿中存在
+- 5.1.11a **之中**：用方法跑 Workbench
+- 5.1.11a **跑完**：从 battle-tested 方法落正式 `docs/architecture/AUDIT_PLAYBOOK.md`，定位"审计方法论"，不写 Code Map / 不写流程链 / 不和既有架构文档抢内容
+- 5.1.12a / 5.1.13a：套 playbook，仅当有真实改进时回写 playbook（活文档）
+
+### 验收 / 归档
+
+- a 轮：产出表（Violation + Doc Drift Fixed + Accepted Boundaries + Cross-Region Doubts + Fix-Round Draft 五段）落 `docs/handoff/<YYYY-MM-DD>-<region>-audit.md`，归档时同步更新 `docs/history/` + `history/INDEX.md`
+- b/c/d 轮：每个 Violation 消除有对应 commit；commit message 引用产出表行号
+- 14 验收：前三轮 Cross-Region Doubts 全部有处置（修订 / 接受 / 推迟到具体后续版本）
+
+---
+
+### 5.1.11 — Workbench 边界合规审计 + 修复（架构审计流水线第 1 轮）
+
+> 流水线起点。本版本同时承担"跑通方法 + 审 Workbench"双任务。
+
+- [ ] 5.1.11a 审计：按上述抽样策略 + 判定口径在 Workbench 区扫一轮；产出五段表；纯文档零代码（Drift 改 Code Map 注释除外）
+- [ ] 5.1.11a 收尾：从 battle-tested 方法落 `docs/architecture/AUDIT_PLAYBOOK.md`
+- [ ] 5.1.11b 修复：按 5.1.11a Fix-Round Draft 入修；commit 拆批以"独立 review"为粒度
+- [ ] 5.1.11c/d 修复溢出（按需启用，依四维度判断）
+
+### 5.1.12 — Inbox 边界合规审计 + 修复（架构审计流水线第 2 轮）
+
+> 套用 `AUDIT_PLAYBOOK.md`；针对 5.1.7-9 三轮重构后的 Inbox 区。
+
+- [ ] 5.1.12a 审计
+- [ ] 5.1.12b 修复
+- [ ] 5.1.12c/d 修复溢出（按需启用）
+
+### 5.1.13 — Library 边界合规审计 + 修复（架构审计流水线第 3 轮）
+
+> 套用 `AUDIT_PLAYBOOK.md`；Library 相对稳定，预计违规密度低于 11/12。
+
+- [ ] 5.1.13a 审计
+- [ ] 5.1.13b 修复
+- [ ] 5.1.13c/d 修复溢出（按需启用）
+
+### 5.1.14 — 跨区 meta 修订（链级一致性 + 边界不清）
+
+> 吃 11a/12a/13a 攒出的 `Cross-Region Doubts For 5.1.14` 侧栏 + 边界不清问题。两类问题合并处理（都属于跨区 meta，单独立版本不划算）：
+>
+> - **链级一致性**：跨区流程契约不一致（典型例：sidecar 字段在 Inbox 写入时和 Workbench 解读时语义有微差；Rules 改了 runtime 不刷新；protocol 设计造成跨区泄漏）
+> - **边界不清**：Code Map 描述模糊导致多文件同时漂移；AppState / Registry / 全局协调器整体设计问题
+
+- [ ] 5.1.14a 收敛：汇总前三轮 Cross-Region Doubts + 边界不清问题清单；提出修订方案（Code Map 措辞调整 / 区层重划 / 协调器重构提案）
+- [ ] 5.1.14b 落地：执行修订方案；纯文档调整（Code Map）与代码调整（协调器重构）按修订类型拆 commit
+- [ ] 5.1.14c/d 溢出（按需启用）：若 14a 设计问题清单 ≥ 10 条，事后拆多轮修订；触发条件留作 14a 收敛时事后判断，**不**在当前 ROADMAP 预留具体版本号
+
 ---
 
 ## 5.2.x — Import 管线 + Inbox 逻辑/架构
