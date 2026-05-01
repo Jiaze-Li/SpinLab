@@ -734,7 +734,7 @@ struct FilenameRuleSet: Decodable {
                 return matched
             }
         }
-        var finalDecimal = Decimal(workingValue)
+        var finalDecimal = Decimal(string: String(workingValue)) ?? Decimal(workingValue)
         if let precision = standardization.parsedPrecision {
             finalDecimal = roundToPrecision(finalDecimal, precision: precision)
         }
