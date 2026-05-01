@@ -455,7 +455,7 @@ struct FilenameRuleSet: Decodable {
                 let op = rule.match.spec.type
                 if rule.value != "$MATCH" {
                     value = rule.value
-                } else if op == .unitSuffix || op == .regex {
+                } else if op == .regex {
                     value = applyStandardization(
                         matched: matched,
                         transform: rule.transform,

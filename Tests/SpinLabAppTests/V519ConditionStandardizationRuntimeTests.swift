@@ -41,7 +41,7 @@ struct V519ConditionStandardizationRuntimeTests {
         #expect(result["current"] == "2.31A", "no transform → raw token")
     }
 
-    @Test("non-standard unit with transform outputs in standard unit")
+    @Test("non-standard unit with transform outputs in standard unit (regex op)")
     func nonStandardUnitTransformOutputsStandardUnit() throws {
         let ruleSet = try makeRuleSet(conditionDefinitionsJSON: """
         [{
@@ -49,7 +49,7 @@ struct V519ConditionStandardizationRuntimeTests {
           "standardization": {"standardUnit": "mA", "precision": null},
           "matches": [
             {"match": {"type": "unit-suffix", "value": "mA"}, "value": "$MATCH"},
-            {"match": {"type": "unit-suffix", "value": "A"}, "value": "$MATCH", "transform": "*1000"}
+            {"match": {"type": "regex", "value": "A"}, "value": "$MATCH", "transform": "*1000"}
           ]
         }]
         """)
@@ -57,7 +57,7 @@ struct V519ConditionStandardizationRuntimeTests {
         #expect(result["current"] == "2310mA")
     }
 
-    @Test("precision rounds after transform in standard unit")
+    @Test("precision rounds after transform in standard unit (regex op)")
     func precisionRoundsAfterTransformInStandardUnit() throws {
         let ruleSet = try makeRuleSet(conditionDefinitionsJSON: """
         [{
@@ -65,13 +65,28 @@ struct V519ConditionStandardizationRuntimeTests {
           "standardization": {"standardUnit": "mA", "precision": "0.5"},
           "matches": [
             {"match": {"type": "unit-suffix", "value": "mA"}, "value": "$MATCH"},
-            {"match": {"type": "unit-suffix", "value": "A"}, "value": "$MATCH", "transform": "*1000"}
+            {"match": {"type": "regex", "value": "A"}, "value": "$MATCH", "transform": "*1000"}
           ]
         }]
         """)
         // 2.31 A * 1000 = 2310 mA, round to 0.5 → 2310 (already on grid)
         let result = ruleSet.conditionEvaluation(from: ["2.31A"]).values
         #expect(result["current"] == "2310mA")
+    }
+
+    @Test("unit-suffix transform is ignored (only regex triggers transform)")
+    func unitSuffixTransformIsIgnored() throws {
+        let ruleSet = try makeRuleSet(conditionDefinitionsJSON: """
+        [{
+          "id": "current",
+          "standardization": {"standardUnit": "mA", "precision": null},
+          "matches": [
+            {"match": {"type": "unit-suffix", "value": "A"}, "value": "$MATCH", "transform": "*1000"}
+          ]
+        }]
+        """)
+        let result = ruleSet.conditionEvaluation(from: ["2.31A"]).values
+        #expect(result["current"] == "2.31A", "unit-suffix ignores transform — raw token returned")
     }
 
     @Test("missing standard unit outputs raw matched token without normalization")
@@ -107,14 +122,14 @@ struct V519ConditionStandardizationRuntimeTests {
         #expect(result["current"] == "2.31A", "transform must be ignored when standardUnit is nil")
     }
 
-    @Test("invalid transform keeps original token and emits warning")
+    @Test("invalid transform keeps original token and emits warning (regex op)")
     func invalidTransformKeepsOriginalTokenAndEmitsWarning() throws {
         let ruleSet = try makeRuleSet(conditionDefinitionsJSON: """
         [{
           "id": "current",
           "standardization": {"standardUnit": "mA", "precision": null},
           "matches": [
-            {"match": {"type": "unit-suffix", "value": "A"}, "value": "$MATCH", "transform": "**invalid"}
+            {"match": {"type": "regex", "value": "A"}, "value": "$MATCH", "transform": "**invalid"}
           ]
         }]
         """)

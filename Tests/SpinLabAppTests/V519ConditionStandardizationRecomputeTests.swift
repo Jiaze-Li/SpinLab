@@ -46,7 +46,7 @@ struct V519ConditionStandardizationRecomputeTests {
             "standardization": {"standardUnit": "mA", "precision": null},
             "matches": [
               {"match": {"type": "unit-suffix", "value": "mA"}, "value": "$MATCH"},
-              {"match": {"type": "unit-suffix", "value": "A"}, "value": "$MATCH", "transform": "*1000"}
+              {"match": {"type": "regex", "value": "A"}, "value": "$MATCH", "transform": "*1000"}
             ]
           }]
         }
