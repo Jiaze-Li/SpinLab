@@ -89,6 +89,36 @@ struct V519ConditionStandardizationRuntimeTests {
         #expect(result["current"] == "2.31A", "unit-suffix ignores transform — raw token returned")
     }
 
+    @Test("precision alone (no transform) rounds value and appends standard unit")
+    func precisionAloneRoundsValueWithoutTransform() throws {
+        let ruleSet = try makeRuleSet(conditionDefinitionsJSON: """
+        [{
+          "id": "temperature",
+          "standardization": {"standardUnit": "K", "precision": "1"},
+          "matches": [
+            {"match": {"type": "regex", "value": "K"}, "value": "$MATCH"}
+          ]
+        }]
+        """)
+        let result = ruleSet.conditionEvaluation(from: ["80.3K"]).values
+        #expect(result["temperature"] == "80K", "precision=1 rounds 80.3K → 80K without transform")
+    }
+
+    @Test("precision rounds near-zero value to zero")
+    func precisionRoundsNearZeroValue() throws {
+        let ruleSet = try makeRuleSet(conditionDefinitionsJSON: """
+        [{
+          "id": "temperature",
+          "standardization": {"standardUnit": "K", "precision": "1"},
+          "matches": [
+            {"match": {"type": "regex", "value": "K"}, "value": "$MATCH"}
+          ]
+        }]
+        """)
+        let result = ruleSet.conditionEvaluation(from: ["0.001K"]).values
+        #expect(result["temperature"] == "0K", "precision=1 rounds 0.001K → 0K")
+    }
+
     @Test("missing standard unit outputs raw matched token without normalization")
     func missingStandardUnitOutputsRawMatchedToken() throws {
         let ruleSet = try makeRuleSet(conditionDefinitionsJSON: """

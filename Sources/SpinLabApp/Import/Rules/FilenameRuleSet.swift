@@ -719,23 +719,26 @@ struct FilenameRuleSet: Decodable {
         guard let standardization, let standardUnit = standardization.standardUnit else {
             return matched
         }
+        let hasPrecision = standardization.parsedPrecision != nil
         let trimmedTransform = transform?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !trimmedTransform.isEmpty else {
+        guard !trimmedTransform.isEmpty || hasPrecision else {
             return matched
         }
         guard let split = splitNumericUnitToken(matched),
               let numericValue = Double(split.number) else {
             return matched
         }
-        let evaluator = ConditionTransformExpressionEvaluator()
-        let transformed: Double
-        do {
-            transformed = try evaluator.evaluate(trimmedTransform, value: numericValue)
-        } catch {
-            warnings.append("condition '\(ruleID)' rule \(ruleIndex): transform '\(trimmedTransform)' invalid: \(error)")
-            return matched
+        var workingValue = numericValue
+        if !trimmedTransform.isEmpty {
+            let evaluator = ConditionTransformExpressionEvaluator()
+            do {
+                workingValue = try evaluator.evaluate(trimmedTransform, value: numericValue)
+            } catch {
+                warnings.append("condition '\(ruleID)' rule \(ruleIndex): transform '\(trimmedTransform)' invalid: \(error)")
+                return matched
+            }
         }
-        var finalDecimal = Decimal(transformed)
+        var finalDecimal = Decimal(workingValue)
         if let precision = standardization.parsedPrecision {
             finalDecimal = roundToPrecision(finalDecimal, precision: precision)
         }
