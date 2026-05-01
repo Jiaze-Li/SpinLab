@@ -40,27 +40,25 @@ _hits=$(printf '%s\n' "$_staged" | awk '
   $1 ~ /^[ADC]/ && $2 ~ /^Sources\/.+\.swift$/ { print; next }
   $1 ~ /^R/     && ($2 ~ /^Sources\/.+\.swift$/ || $3 ~ /^Sources\/.+\.swift$/) { print }
 ')
-if [ -z "$_hits" ]; then
-    unset _staged _hits
-    exit 0
-fi
-_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-_tmp_tree=$(mktemp -d)
-git checkout-index --prefix="$_tmp_tree/" -af 2>/dev/null
-(cd "$_tmp_tree" && bash scripts/verify_architecture_code_coverage.sh --check-only)
-_rc=$?
-rm -rf "$_tmp_tree"
-mkdir -p tmp
-printf '%s\trc=%d\tstaged=%s\n' "$_ts" "$_rc" "$(printf '%s\n' "$_hits" | tr '\n' ';')" >> tmp/architecture-coverage-hook.log
-unset _staged _hits _ts _tmp_tree
-if [ $_rc -eq 0 ]; then
+if [ -n "$_hits" ]; then
+    _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    _tmp_tree=$(mktemp -d)
+    git checkout-index --prefix="$_tmp_tree/" -af 2>/dev/null
+    (cd "$_tmp_tree" && bash scripts/verify_architecture_code_coverage.sh --check-only)
+    _rc=$?
+    rm -rf "$_tmp_tree"
+    mkdir -p tmp
+    printf '%s\trc=%d\tstaged=%s\n' "$_ts" "$_rc" "$(printf '%s\n' "$_hits" | tr '\n' ';')" >> tmp/architecture-coverage-hook.log
+    unset _ts _tmp_tree
+    if [ $_rc -ne 0 ]; then
+        unset _staged _hits _rc
+        echo "[pre-commit] Code Map と Sources が不一致です。上記の unmapped/missing 提示に従って修正後、再 commit してください。"
+        echo "[pre-commit] 緊急バイパス: git commit --no-verify（既知の制限。60 日後の検証で git log から逆引き識別されます）"
+        exit 1
+    fi
     unset _rc
-    exit 0
 fi
-unset _rc
-echo "[pre-commit] Code Map と Sources が不一致です。上記の unmapped/missing 提示に従って修正後、再 commit してください。"
-echo "[pre-commit] 緊急バイパス: git commit --no-verify（既知の制限。60 日後の検証で git log から逆引き識別されます）"
-exit 1
+unset _staged _hits
 # spinlab-architecture-coverage:end
 HOOKEOF
 )

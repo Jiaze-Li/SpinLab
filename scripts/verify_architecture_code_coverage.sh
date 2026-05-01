@@ -115,7 +115,9 @@ if [[ "$MODE" == "check-only" ]]; then
     fi
 elif [[ "$MODE" == "write-index" ]]; then
     today="$(date +%Y-%m-%d)"
-    sed -i '' "s|Code coverage\*\*: [0-9]*/[0-9]* source files mapped\. Last verified: [0-9-]*|Code coverage**: ${mapped_count}/${actual_count} source files mapped. Last verified: ${today}|" "$INDEX_FILE"
+    _tmp_idx=$(mktemp)
+    sed "s|Code coverage\*\*: [0-9]*/[0-9]* source files mapped\. Last verified: [0-9-]*|Code coverage**: ${mapped_count}/${actual_count} source files mapped. Last verified: ${today}|" "$INDEX_FILE" > "$_tmp_idx" && mv "$_tmp_idx" "$INDEX_FILE"
+    unset _tmp_idx
     echo "[architecture-coverage][index-updated] ${mapped_count}/${actual_count} @ ${today}"
 fi
 
