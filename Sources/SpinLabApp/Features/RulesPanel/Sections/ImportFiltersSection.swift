@@ -24,27 +24,21 @@ struct ImportFiltersSection: View {
 
     @ViewBuilder
     private func scrollContent(_ d: ImportFiltersFileDraft, saveErrors: Binding<[RulesPanelFieldError]>) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                extensionListEditor(
-                    title: "Supported Extensions",
-                    subtitle: "Files with these extensions will be imported",
-                    items: d.config.supportedFileExtensions,
-                    onChange: { v in var u = d; u.config.supportedFileExtensions = v; apply(u) }
-                )
-                .errorHighlight(saveErrors.wrappedValue.hasGroup("extensions"))
-                extensionListEditor(
-                    title: "Ignored Extensions",
-                    subtitle: "Files with these extensions will be skipped",
-                    items: d.config.ignoredFileExtensions,
-                    onChange: { v in var u = d; u.config.ignoredFileExtensions = v; apply(u) }
-                )
-                .errorHighlight(saveErrors.wrappedValue.hasGroup("extensions"))
-                extensionErrorList(saveErrors.wrappedValue)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(AppSpacing.xl)
-        }
+        extensionListEditor(
+            title: "Supported Extensions",
+            subtitle: "Files with these extensions will be imported",
+            items: d.config.supportedFileExtensions,
+            onChange: { v in var u = d; u.config.supportedFileExtensions = v; apply(u) }
+        )
+        .errorHighlight(saveErrors.wrappedValue.hasGroup("extensions"))
+        extensionListEditor(
+            title: "Ignored Extensions",
+            subtitle: "Files with these extensions will be skipped",
+            items: d.config.ignoredFileExtensions,
+            onChange: { v in var u = d; u.config.ignoredFileExtensions = v; apply(u) }
+        )
+        .errorHighlight(saveErrors.wrappedValue.hasGroup("extensions"))
+        extensionErrorList(saveErrors.wrappedValue)
     }
 
     @ViewBuilder

@@ -1069,10 +1069,14 @@ final class LibraryFeatureStore {
         }
         let rootURL = URL(fileURLWithPath: rootPath)
         let store = libraryStore
+        let snapshotRoot = rootPath
+        let snapshotFingerprint = fingerprint
         Task {
             let count = await Task.detached(priority: .utility) {
-                store.computeStaleCount(rootURL: rootURL, currentFingerprint: fingerprint)
+                store.computeStaleCount(rootURL: rootURL, currentFingerprint: snapshotFingerprint)
             }.value
+            guard self.librarySettings.rootPath == snapshotRoot,
+                  SpinLabRuleProvider.shared.loadResult().ruleSetFingerprint == snapshotFingerprint else { return }
             self.recomputeStaleCount = count
         }
     }
