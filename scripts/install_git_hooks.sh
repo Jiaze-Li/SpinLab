@@ -45,11 +45,14 @@ if [ -z "$_hits" ]; then
     exit 0
 fi
 _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-./scripts/verify_architecture_code_coverage.sh --check-only
+_tmp_tree=$(mktemp -d)
+git checkout-index --prefix="$_tmp_tree/" -af 2>/dev/null
+(cd "$_tmp_tree" && bash scripts/verify_architecture_code_coverage.sh --check-only)
 _rc=$?
+rm -rf "$_tmp_tree"
 mkdir -p tmp
 printf '%s\trc=%d\tstaged=%s\n' "$_ts" "$_rc" "$(printf '%s\n' "$_hits" | tr '\n' ';')" >> tmp/architecture-coverage-hook.log
-unset _staged _hits _ts
+unset _staged _hits _ts _tmp_tree
 if [ $_rc -eq 0 ]; then
     unset _rc
     exit 0
