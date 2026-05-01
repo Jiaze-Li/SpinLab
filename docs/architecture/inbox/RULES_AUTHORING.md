@@ -166,6 +166,7 @@ Each section maps 1:1 to a JSON config file under `RulesConfigPaths`. `RulesPane
 - `Sources/SpinLabApp/Import/Rules/RuleRef.swift` — rule reference model
 - `Sources/SpinLabApp/Storage/RulesSyncEngine.swift` — dual-write engine and reverse sync on startup
 - `Sources/SpinLabApp/Features/RulesPanel/Components/MatchRulesEditor.swift` — interactive rule match condition editor component
+- `Sources/SpinLabApp/Features/RulesPanel/Components/RuleExpandableRow.swift` — expandable row shell shared by all five rule sections (collapse/expand, header click area, dead-zone fix)
 - `Sources/SpinLabApp/Features/RulesPanel/Components/RegexField.swift` — regex pattern input field with live validation feedback
 - `Sources/SpinLabApp/Features/RulesPanel/Components/RulesPanelErrorMatching.swift` — visualizes rule error matching state in the rules panel
 - `Sources/SpinLabApp/Features/RulesPanel/Components/SaveErrorsBadge.swift` — badge displaying count of unsaved rule errors

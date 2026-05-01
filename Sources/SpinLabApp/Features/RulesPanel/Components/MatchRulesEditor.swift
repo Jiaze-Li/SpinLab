@@ -61,8 +61,14 @@ private struct SpecsEditorBody: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.xs) {
-            Text("Matches")
-                .font(AppFontScale.groupHeader)
+            HStack {
+                Text("Matches")
+                    .font(AppFontScale.groupHeader)
+                Spacer()
+                Text("Case-insensitive")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
             ForEach(specs.indices, id: \.self) { idx in
                 MatchRuleRowShell(
                     opRawValue: Binding(
@@ -91,8 +97,14 @@ private struct MapRulesEditorBody: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.xs) {
-            Text("Matches")
-                .font(AppFontScale.groupHeader)
+            HStack {
+                Text("Matches")
+                    .font(AppFontScale.groupHeader)
+                Spacer()
+                Text("Case-insensitive")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
             ForEach(rules.indices, id: \.self) { idx in
                 let op = FilenameRuleSet.Operation(rawValue: rules[idx].match.type)
                 let isLocked = isOpLocked(op)

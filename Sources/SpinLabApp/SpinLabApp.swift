@@ -32,6 +32,11 @@ struct SpinLabApp: App {
             RulesPanelView()
                 .environment(appState)
         }
+
+        Window("Recompute Preview", id: "recompute-preview") {
+            RecomputePreviewPanel(library: appState.library)
+        }
+        .defaultSize(width: 900, height: 600)
     }
 
     private static func workflowSelection(from rawValue: String?) -> SpinLabDomain.WorkflowKind {

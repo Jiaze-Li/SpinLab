@@ -25,18 +25,12 @@ struct FilenameTokenizationSection: View {
 
     @ViewBuilder
     private func scrollContent(_ d: FilenameTokenizationFileDraft, saveErrors: Binding<[RulesPanelFieldError]>) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                tokenizationGroup(d)
-                    .errorHighlight(saveErrors.wrappedValue.hasGroup("tokenization.separators"))
-                sourcesGroup(d)
-                    .errorHighlight(saveErrors.wrappedValue.hasGroup("sources"))
-                channelGroup(d)
-                    .errorHighlight(saveErrors.wrappedValue.hasGroup("channel.aliases"))
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(AppSpacing.xl)
-        }
+        tokenizationGroup(d)
+            .errorHighlight(saveErrors.wrappedValue.hasGroup("tokenization.separators"))
+        sourcesGroup(d)
+            .errorHighlight(saveErrors.wrappedValue.hasGroup("sources"))
+        channelGroup(d)
+            .errorHighlight(saveErrors.wrappedValue.hasGroup("channel.aliases"))
     }
 
     // MARK: - Tokenization

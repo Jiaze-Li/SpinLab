@@ -303,6 +303,11 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 
 - [x] Condition 不再 `unit_suffix` / `token_map` 二选一，统一为单一 `matches: [MapRule]` + schema v5→v6 一次性迁移；UI 删 segmented control，编辑器收敛到 `MatchRulesEditor`；`$MATCH` 输出锁定到 unit-suffix op（PR #61 Codex 评审守住）。设计与实施摘要：[history/v518_condition_unified_rules.md](history/v518_condition_unified_rules.md)。遗留 `NewRuleEntrySheet.RuleEntryKind` 死路径移交 5.1.9 收编。
 
+### 5.1.9 — Measuring Condition 单位标准化 + NewRuleEntrySheet 死路径收编
+
+- [ ] Measuring Condition 单位标准化（标准单位 + 换算 + 精度清洗）
+- [ ] `NewRuleEntrySheet.RuleEntryKind` 死路径收编（来源：5.1.8 遗留）
+
 ---
 
 ## 5.2.x — Import 管线 + Inbox 逻辑/架构

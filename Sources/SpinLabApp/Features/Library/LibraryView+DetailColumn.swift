@@ -13,7 +13,7 @@ extension LibraryView {
                         RecomputeStaleBannerView(
                             staleCount: appState.library.recomputeStaleCount,
                             onDismiss: { appState.library.dismissRecomputeBanner() },
-                            onViewPreview: { appState.library.openRecomputePreview() }
+                            onViewPreview: { openRecomputeWindow() }
                         )
                     }
 
