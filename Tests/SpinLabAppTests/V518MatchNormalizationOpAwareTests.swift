@@ -46,8 +46,9 @@ struct V518MatchNormalizationOpAwareTests {
                 "regex+\\$MATCH must return captured token verbatim; got \(String(describing: result["regex_capture"]))")
     }
 
-    @Test("unit-suffix op with $MATCH still normalizes (regression guard)")
-    func unitSuffixStillNormalizes() throws {
+    @Test("unit-suffix op with $MATCH returns raw token when no standardUnit set")
+    func unitSuffixReturnsRawTokenWithoutStandardUnit() throws {
+        // 5.1.9: normalizeUnitSuffixToken removed. Without standardUnit, raw token is preserved.
         let ruleSet = try makeRuleSet(conditionDefinitions: """
         [
           {
@@ -60,8 +61,8 @@ struct V518MatchNormalizationOpAwareTests {
         ]
         """)
         let result = ruleSet.conditionEvaluation(from: ["001A"]).values
-        #expect(result["unit_capture"] == "1A",
-                "unit-suffix+\\$MATCH must normalize numeric+unit (001A → 1A); got \(String(describing: result["unit_capture"]))")
+        #expect(result["unit_capture"] == "001A",
+                "unit-suffix+$MATCH without standardUnit returns raw matched token; got \(String(describing: result["unit_capture"]))")
     }
 
     @Test("equals op with $MATCH returns matched token verbatim, no normalization")

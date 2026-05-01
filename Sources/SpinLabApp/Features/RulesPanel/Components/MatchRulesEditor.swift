@@ -1,9 +1,15 @@
 import SwiftUI
 
-enum MatchRuleOutputBehavior: Equatable {
+enum MatchRuleOutputBehavior {
     case none
     case editable(title: String)
     case editableWithLockedOps(title: String, lockedOps: Set<FilenameRuleSet.Operation>, lockedValue: String)
+    case conditionTransform(
+        title: String,
+        standardUnit: Binding<String?>,
+        precision: Binding<String>,
+        onInvalidStandardUnit: () -> Void
+    )
 }
 
 // Unified rule editor — two init overloads:
@@ -101,9 +107,17 @@ private struct MapRulesEditorBody: View {
                 Text("Matches")
                     .font(AppFontScale.groupHeader)
                 Spacer()
-                Text("Case-insensitive")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                if case .conditionTransform(_, let standardUnitBinding, let precisionBinding, let onInvalid) = outputBehavior {
+                    conditionTransformHeader(
+                        standardUnit: standardUnitBinding,
+                        precision: precisionBinding,
+                        onInvalidStandardUnit: onInvalid
+                    )
+                } else {
+                    Text("Case-insensitive")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
             }
             ForEach(rules.indices, id: \.self) { idx in
                 let op = FilenameRuleSet.Operation(rawValue: rules[idx].match.type)
@@ -142,6 +156,45 @@ private struct MapRulesEditorBody: View {
     }
 
     @ViewBuilder
+    private func conditionTransformHeader(
+        standardUnit: Binding<String?>,
+        precision: Binding<String>,
+        onInvalidStandardUnit: @escaping () -> Void
+    ) -> some View {
+        let unitOptions = unitSuffixOptions()
+        HStack(spacing: AppSpacing.sm) {
+            Picker("Standard unit", selection: Binding(
+                get: { standardUnit.wrappedValue ?? "" },
+                set: { v in
+                    let newVal = v.isEmpty ? nil : v
+                    if let newVal, !unitOptions.contains(where: { $0.lowercased() == newVal.lowercased() }) {
+                        onInvalidStandardUnit()
+                    } else {
+                        standardUnit.wrappedValue = newVal
+                    }
+                }
+            )) {
+                Text("None").tag("")
+                ForEach(unitOptions, id: \.self) { opt in
+                    Text(opt).tag(opt)
+                }
+            }
+            .labelsHidden()
+            .fixedSize()
+            .disabled(unitOptions.isEmpty)
+
+            TextField("Precision", text: precision)
+                .textFieldStyle(.roundedBorder)
+                .font(.body.monospaced())
+                .frame(width: 72)
+
+            Text("Case-insensitive")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    @ViewBuilder
     private func outputTrailing(idx: Int, isLocked: Bool) -> some View {
         switch outputBehavior {
         case .none:
@@ -156,7 +209,68 @@ private struct MapRulesEditorBody: View {
             .frame(maxWidth: .infinity)
             .disabled(isLocked)
             .foregroundStyle(isLocked ? .secondary : .primary)
+        case .conditionTransform(let title, let standardUnitBinding, _, _):
+            conditionTransformTrailing(idx: idx, title: title, standardUnit: standardUnitBinding.wrappedValue)
         }
+    }
+
+    @ViewBuilder
+    private func conditionTransformTrailing(idx: Int, title: String, standardUnit: String?) -> some View {
+        let op = FilenameRuleSet.Operation(rawValue: rules[idx].match.type)
+        let isUnitOp = op == .unitSuffix || op == .regex
+
+        if !isUnitOp {
+            // equals/contains: editable Mapped-to value
+            TextField(title, text: Binding(
+                get: { rules[idx].value },
+                set: { rules[idx].value = $0 }
+            ))
+            .textFieldStyle(.roundedBorder)
+            .font(.body.monospaced())
+            .frame(maxWidth: .infinity)
+        } else if let su = standardUnit,
+                  rules[idx].match.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                      .lowercased() == su.lowercased() {
+            // unit-suffix/regex row matching standardUnit: identity, grey
+            TextField("", text: .constant("identity"))
+                .textFieldStyle(.roundedBorder)
+                .font(.body.monospaced())
+                .frame(maxWidth: .infinity)
+                .disabled(true)
+                .foregroundStyle(.secondary)
+        } else if standardUnit != nil {
+            // unit-suffix/regex row with non-standard unit: editable Transform
+            TextField("Transform", text: Binding(
+                get: { rules[idx].transform ?? "" },
+                set: { rules[idx].transform = $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
+            ))
+            .textFieldStyle(.roundedBorder)
+            .font(.body.monospaced())
+            .frame(maxWidth: .infinity)
+        } else {
+            // No standardUnit selected: grey $MATCH (locked)
+            TextField("", text: .constant("$MATCH"))
+                .textFieldStyle(.roundedBorder)
+                .font(.body.monospaced())
+                .frame(maxWidth: .infinity)
+                .disabled(true)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func unitSuffixOptions() -> [String] {
+        var seen: Set<String> = []
+        var result: [String] = []
+        for rule in rules {
+            let op = FilenameRuleSet.Operation(rawValue: rule.match.type)
+            guard op == .unitSuffix || op == .regex else { continue }
+            let trimmed = rule.match.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            if seen.insert(trimmed).inserted {
+                result.append(trimmed)
+            }
+        }
+        return result
     }
 
     private func isOpLocked(_ op: FilenameRuleSet.Operation?) -> Bool {

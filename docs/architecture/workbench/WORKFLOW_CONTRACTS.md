@@ -100,8 +100,7 @@ Search accepts both old and new IDs as query aliases; all persisted data uses ne
 - `Sources/SpinLabApp/UseCases/XYRotationLVMParser.swift` — parses LVM files containing XY Rotation measurement data
 - `Sources/SpinLabApp/UseCases/IngestXYRotationSelectionsUseCase.swift` — ingests selected files into XY Rotation analysis via LVM/DAT parsing
 - `Sources/SpinLabApp/Workbench/V3/XYRotationIngestionContracts.swift` — ingestion input contracts and result types for the XY Rotation workflow
-- `Sources/SpinLabApp/Features/Workbench/NewRuleEntrySheet.swift` — sheet for creating a new condition matching rule from within the Workbench
-- `Sources/SpinLabApp/Features/Workbench/TokenMapEditor.swift` — editor for workflow-specific token-to-condition mappings
+
 - `Sources/SpinLabApp/Features/Workbench/UnitTagEditor.swift` — editor for attaching and editing unit tags on measurement conditions
 - `Sources/SpinLabApp/Workbench/V3/ConditionAliasConfig.swift` — per-workflow condition alias configuration for display name remapping
 - `Sources/SpinLabApp/Workbench/V3/SeriesOrderAlignHelper.swift` — aligns series display order between workspace store and plot canvas

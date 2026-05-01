@@ -24,9 +24,8 @@ struct RulesBootstrapper {
                 let stateObj = try JSONSerialization.jsonObject(with: stateData)
                 if let state = stateObj as? [String: Any],
                    let version = state["rules_schema_version"] as? Int,
-                   version >= 6 {
-                    // State says migrated, but verify measuring_condition.json is actually at v6.
-                    // A state=6 written by a pre-v6-schema build means the file is still at v4.
+                   version >= 7 {
+                    // State says migrated to v7, but verify measuring_condition.json is actually at v7.
                     let measURL = paths.measuringConditionURL
                     let measFileVersion: Int
                     if let md = try? Data(contentsOf: measURL),
@@ -36,13 +35,13 @@ struct RulesBootstrapper {
                     } else {
                         measFileVersion = 0
                     }
-                    if measFileVersion >= 6 {
+                    if measFileVersion >= 7 {
                         AppLogger.shared.info(.import, "RulesBootstrapper migration skipped: already migrated", metadata: [
                             "rules_schema_version": String(version)
                         ])
                         return
                     }
-                    AppLogger.shared.info(.import, "RulesBootstrapper: state=\(version) but measuring_condition.json version=\(measFileVersion); continuing v5→v6 migration")
+                    AppLogger.shared.info(.import, "RulesBootstrapper: state=\(version) but measuring_condition.json version=\(measFileVersion); continuing migration")
                 }
             }
         } catch {
@@ -108,7 +107,7 @@ struct RulesBootstrapper {
         let measuringVersion = (sourceMeasuringJSON["version"] as? Int) ?? 0
         let sampleVersion = (sourceSampleJSON["version"] as? Int) ?? 0
         let workflowVersion = (sourceWorkflowJSON?["version"] as? Int) ?? (sourceWorkflowJSON != nil ? 0 : Int.max)
-        if measuringVersion >= 6, sampleVersion >= 5, workflowVersion >= 3 {
+        if measuringVersion >= 7, sampleVersion >= 5, workflowVersion >= 3 {
             var sourceHash: [String: String] = [
                 "measuring_condition.json": sha256Hex(sourceMeasuringData),
                 "sample_identification.json": sha256Hex(sourceSampleData)
@@ -137,7 +136,8 @@ struct RulesBootstrapper {
             let v2MeasuringJSON = try migrateMeasuringConditionIfNeeded(json: sourceMeasuringJSON, warnings: &warnings)
             let v3MeasuringJSON = try migrateMeasuringConditionV2ToV3IfNeeded(json: v2MeasuringJSON, warnings: &warnings)
             let v4MeasuringJSON = try migrateMeasuringConditionV3ToV4IfNeeded(json: v3MeasuringJSON, warnings: &warnings)
-            migratedMeasuringJSON = try migrateMeasuringConditionV5ToV6IfNeeded(json: v4MeasuringJSON, warnings: &warnings)
+            let v6MeasuringJSON = try migrateMeasuringConditionV5ToV6IfNeeded(json: v4MeasuringJSON, warnings: &warnings)
+            migratedMeasuringJSON = try migrateMeasuringConditionV6ToV7IfNeeded(json: v6MeasuringJSON, warnings: &warnings)
             let v2SampleJSON = try migrateSampleIdentificationIfNeeded(json: sourceSampleJSON, warnings: &warnings)
             let v3SampleJSON = try migrateSampleIdentificationV2ToV3IfNeeded(
                 json: v2SampleJSON,
@@ -213,7 +213,7 @@ struct RulesBootstrapper {
             return
         }
 
-        let shouldWriteBackup = measuringVersion < 4 || sampleVersion < 5
+        let shouldWriteBackup = measuringVersion < 4 || sampleVersion < 5 || measuringVersion < 7
             || (sourceWorkflowData != nil && workflowVersion < 3)
         if shouldWriteBackup {
             do {
@@ -915,6 +915,28 @@ struct RulesBootstrapper {
         return ["version": 6, "conditionDefinitions": migratedDefinitions]
     }
 
+    private static func migrateMeasuringConditionV6ToV7IfNeeded(json: [String: Any], warnings: inout [String]) throws -> [String: Any] {
+        let version = (json["version"] as? Int) ?? 0
+        guard version < 7 else { return json }
+
+        let definitions = (json["conditionDefinitions"] as? [[String: Any]]) ?? []
+        let migratedDefinitions: [[String: Any]] = definitions.map { def in
+            var migrated = def
+            if migrated["standardization"] == nil {
+                migrated["standardization"] = ["standardUnit": NSNull(), "precision": NSNull()] as [String: Any]
+            }
+            if let matches = migrated["matches"] as? [[String: Any]] {
+                migrated["matches"] = matches.map { rule -> [String: Any] in
+                    var r = rule
+                    if r["transform"] == nil { r["transform"] = NSNull() }
+                    return r
+                }
+            }
+            return migrated
+        }
+        return ["version": 7, "conditionDefinitions": migratedDefinitions]
+    }
+
     private static func migrateSampleIdentificationV4ToV5IfNeeded(json: [String: Any], warnings: inout [String]) throws -> [String: Any] {
         let version = (json["version"] as? Int) ?? 0
         guard version < 5 else { return json }
@@ -1073,7 +1095,7 @@ struct RulesBootstrapper {
         warnings: [String]
     ) {
         let body: [String: Any] = [
-            "rules_schema_version": 6,
+            "rules_schema_version": 7,
             "migrated_at": migrationDateString(),
             "source_sha256": sourceSHA,
             "target_sha256": targetSHA,

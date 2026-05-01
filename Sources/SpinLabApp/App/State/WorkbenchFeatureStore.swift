@@ -52,28 +52,6 @@ struct ConditionDefinitionOption: Identifiable, Equatable {
     var description: String { label }
 }
 
-enum TokenMatchType: String, CaseIterable, Equatable {
-    case equals
-    case regex
-}
-
-struct TokenMapping: Identifiable, Equatable {
-    var id: UUID = UUID()
-    var matchType: TokenMatchType = .equals
-    var pattern: String
-    var value: String
-}
-
-struct RuleEntry: Identifiable, Equatable {
-    var ruleID: String
-    var label: String
-    var kind: RuleEntryKind
-    var units: [String] = []
-    var mappings: [TokenMapping] = []
-    var readOnlyMessage: String?
-
-    var id: String { "\(ruleID):\(kind.rawValue)" }
-}
 
 struct ConditionChangeProposal: Identifiable {
     struct FieldChange {
