@@ -238,8 +238,8 @@ private struct MapRulesEditorBody: View {
                 .frame(maxWidth: .infinity)
                 .disabled(true)
                 .foregroundStyle(.secondary)
-        } else if standardUnit != nil {
-            // unit-suffix/regex row with non-standard unit: editable Transform
+        } else if standardUnit != nil && op == .regex {
+            // regex row with non-standard unit: editable Transform
             TextField("Transform", text: Binding(
                 get: { rules[idx].transform ?? "" },
                 set: { rules[idx].transform = $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }

@@ -64,13 +64,13 @@ struct V519MeasuringConditionStandardizationUITests {
         #expect(isIdentity)
     }
 
-    @Test("unit-suffix row with different unit enables transform field")
-    func unitSuffixRowWithDifferentUnitEnablesTransformField() {
+    @Test("unit-suffix row with different unit is non-identity (transform field grayed)")
+    func unitSuffixRowWithDifferentUnitIsNonIdentity() {
         let standardUnit = "mA"
         let rule = MapRule(match: .init(type: "unit-suffix", value: "A"), value: "$MATCH")
         let isIdentity = rule.match.value.trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased() == standardUnit.lowercased()
-        #expect(!isIdentity, "A != mA → transform field should be enabled")
+        #expect(!isIdentity, "A != mA → non-identity row; transform field grayed (unit-suffix does not support transform)")
     }
 
     @Test("standardUnit matches row unit case-insensitively")

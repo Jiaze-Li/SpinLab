@@ -141,6 +141,8 @@ struct MeasuringConditionSection: View {
                         return op == .unitSuffix || op == .regex
                     }.map { $0.match.value.trimmingCharacters(in: .whitespacesAndNewlines) }
                     if !available.contains(where: { $0.lowercased() == su.lowercased() }) {
+                        d.conditionDefinitions[condIdx].standardization.standardUnit = nil
+                        d.conditionDefinitions[condIdx].matches = normalized.map { normalizeConditionRuleForUI($0, standardUnit: nil) }
                         showInvalidStandardUnitAlert = true
                     }
                 }
