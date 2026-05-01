@@ -2,9 +2,22 @@
 
 > **Status**: 5.1.6 current architecture dispatch entry.
 > **Source**: distilled from [`REGION_MAP.md`](REGION_MAP.md). Use REGION_MAP for scan evidence, line counts, TODOs, shell candidates, and shared-point proof table.
-> **Code coverage**: 125/219 source files mapped. Last verified: 2026-04-30 by `scripts/verify_architecture_code_coverage.sh`.
+> **Code coverage**: 219/219 source files mapped. Last verified: 2026-05-01 by `scripts/verify_architecture_code_coverage.sh`.
 
 ## How To Use
+
+### Adding new Swift code
+
+新增 `Sources/**/*.swift` → 走 4 步 SOP（`CLAUDE.md > Adding New Swift Code` 段为唯一权威）：
+
+1. 写代码 →
+2. 按 region/layer 判定树（见 SOP）选目标 `docs/architecture/<region>/<layer>.md` →
+3. 在该 md 的 `## Code Map` 段加一行 `` - `Sources/...swift` — <一句职责> `` →
+4. `git commit`（pre-commit hook 自举：`scripts/install_git_hooks.sh`；报 unmapped/missing 时按 SOP 第 2-3 步修复）
+
+不在此处复制 SOP 全文（避免双索引漂移）；Code coverage 行由 `verify_architecture_code_coverage.sh --write-index` 自动写回。
+
+### Reading the index
 
 For a change request, pick the region first, then read:
 

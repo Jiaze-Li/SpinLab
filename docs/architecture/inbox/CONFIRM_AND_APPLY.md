@@ -106,4 +106,8 @@ The right column is no longer blank/reserved — it is actively used for inspect
 - `Sources/SpinLabApp/Features/Inbox/InboxInspectorPanel.swift` — right-column inspector/output panel
 - `Sources/SpinLabApp/Features/Inbox/InboxSelectionWorkbenchPanel.swift` — route edit panel for selected pending item
 - `Sources/SpinLabApp/Features/Inbox/InboxProgressOverlays.swift` — progress overlay during apply operations
-- `Sources/SpinLabApp/Library/LibraryWriteTransaction.swift` — paired file + sidecar write; rollback on failure
+- `Sources/SpinLabApp/App/AuditEvent.swift` — domain model for an auditable archive operation event
+- `Sources/SpinLabApp/App/AuditLogger.swift` — append-only audit log writer for Library archive operations
+- `Sources/SpinLabApp/App/DuplicateGuard.swift` — guards against duplicate file imports by tracking known content hashes
+- `Sources/SpinLabApp/App/PendingCleanupService.swift` — removes temp files for cancelled or expired pending import items
+- `Sources/SpinLabApp/App/ServiceOutcome.swift` — result type for service operations (success/skip/failure with reason)

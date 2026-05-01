@@ -24,10 +24,7 @@
 
 ## Code Map
 
-- `Sources/SpinLabApp/UseCases/SearchWorkflowMeasurementsUseCase.swift`
-- `Sources/SpinLabApp/Domain/WorkflowSearchModels.swift`
-- `Sources/SpinLabApp/Workflow/WorkflowID.swift`
-- `Sources/SpinLabApp/Features/Workbench/WorkflowHitRow.swift`
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchSharedComponents.swift` (search bar components)
-- `Sources/SpinLabApp/Import/Parse/SampleKeyNormalizer.swift` (cross-cutting; consumed by Workbench search)
-- `Sources/SpinLabApp/Import/Parse/SampleSemanticDescriptor.swift` (cross-cutting; domain-like semantics under Import)
+- `Sources/SpinLabApp/UseCases/SearchWorkflowMeasurementsUseCase.swift` — executes measurement search queries against Library using sidecar conditions
+- `Sources/SpinLabApp/Domain/WorkflowSearchModels.swift` — domain models for search query parameters and search result types
+- `Sources/SpinLabApp/Features/Workbench/WorkflowHitRow.swift` — renders a single measurement search result row in the hit list
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchSharedComponents.swift` — shared search bar and filter UI components used across Workbench views
