@@ -232,7 +232,7 @@ private struct MapRulesEditorBody: View {
                   rules[idx].match.value.trimmingCharacters(in: .whitespacesAndNewlines)
                       .lowercased() == su.lowercased() {
             // unit-suffix/regex row matching standardUnit: identity, grey
-            TextField("", text: .constant("identity"))
+            TextField("", text: .constant("*1"))
                 .textFieldStyle(.roundedBorder)
                 .font(.body.monospaced())
                 .frame(maxWidth: .infinity)

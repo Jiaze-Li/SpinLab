@@ -187,9 +187,11 @@ struct MeasuringConditionSection: View {
         }
         var normalized = rule
         normalized.value = "$MATCH"
-        // Clear transform if this row IS the standard unit (identity row)
+        // Identity row: auto-fill *1 so precision runs through the same pipeline
         if let su = standardUnit,
            rule.match.value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == su.lowercased() {
+            normalized.transform = "*1"
+        } else if rule.transform == "*1" {
             normalized.transform = nil
         }
         return normalized
