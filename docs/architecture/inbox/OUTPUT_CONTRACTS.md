@@ -71,3 +71,8 @@ The registry lookup is handled by a dedicated rulebook layer, not mixed with rou
 - `Sources/SpinLabApp/Registry/RegistrySheetFilter.swift` — sheet inclusion/exclusion rules (__ prefix, column check)
 - `Sources/SpinLabApp/Import/RegistrySubstrateRuleBook.swift` — substrate-level registry rule book consumed by Inbox routing
 - `Sources/SpinLabApp/App/State/RegistryFeatureStore.swift` — registry feature state; wires registry lookup into App layer
+- `Sources/SpinLabApp/App/RegistryCoordinator.swift` — coordinates XLSX registry sync with Library drawers on load and refresh
+- `Sources/SpinLabApp/App/RegistryFacade.swift` — facade exposing registry lookup and sync operations to the App shell
+- `Sources/SpinLabApp/App/RegistryLifecycleService.swift` — manages registry load, refresh, and version lifecycle
+- `Sources/SpinLabApp/Registry/XLSXSheetValueReader.swift` — reads typed cell values from XLSX registry sheets
+- `Sources/SpinLabApp/UseCases/SidecarCompositionUseCase.swift` — composes sidecar metadata from parsed fields and registry lookup context

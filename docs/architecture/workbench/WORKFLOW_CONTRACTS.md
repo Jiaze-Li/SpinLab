@@ -27,7 +27,7 @@ Search accepts both old and new IDs as query aliases; all persisted data uses ne
 
 **Physics**: `THREE_OMEGA_PHYSICS.md` — 3ω physical model, Scaling Law derivation, RAHE extraction.
 
-**Code Map**:
+**Core files:**
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift` (1517 lines — ⭐ large file)
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift`
 - `Sources/SpinLabApp/UseCases/ThreeOmegaFitUseCase.swift`
@@ -44,7 +44,7 @@ Search accepts both old and new IDs as query aliases; all persisted data uses ne
 - AMR → `R_xx`
 - PHE → `R_xy`
 
-**Code Map**:
+**Core files:**
 - `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` (763 lines — ⭐ large file)
 - `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift`
 - `Sources/SpinLabApp/UseCases/AHEDataParser.swift`
@@ -65,9 +65,43 @@ Search accepts both old and new IDs as query aliases; all persisted data uses ne
 - Default y-axis title: Rxx tab → `"Rxx (Ω)"`, Rxy tab → `"Rxy (Ω)"` — stacked/center info not shown in title.
 - Optional auxiliary line at x=180 (toggle in plot controls).
 
-**Code Map**:
+**Core files:**
 - `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift` (623 lines)
 - `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift`
 - `Sources/SpinLabApp/UseCases/XYRotationDATParser.swift`
 - `Sources/SpinLabApp/UseCases/XYRotationPlotRenderer.swift`
 - `Sources/SpinLabApp/Workbench/V3/XYRotationPackContracts.swift`
+
+## Code Map
+
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift` — 3ω workflow store; ingestion state, fit results, scaling output, series order
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift` — 3ω workspace view; assembles fit, scaling, geometry, and plot panels
+- `Sources/SpinLabApp/UseCases/ThreeOmegaFitUseCase.swift` — runs 3ω curve fitting algorithm and returns fit result for each run
+- `Sources/SpinLabApp/UseCases/ThreeOmegaPlotRenderer.swift` — renders 3ω fit and raw data as chart series for the plot canvas
+- `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift` — pack config and result contracts for the 3ω workflow
+- `Sources/SpinLabApp/UseCases/ThreeOmegaLVMParser.swift` — parses LVM files containing 3ω measurement data into structured types
+- `Sources/SpinLabApp/UseCases/ThreeOmegaScalingUseCase.swift` — computes thermal conductivity scaling from 3ω fit results
+- `Sources/SpinLabApp/UseCases/ThreeOmegaStackOffsetUseCase.swift` — applies per-curve stack offsets to 3ω plot series
+- `Sources/SpinLabApp/UseCases/IngestThreeOmegaSelectionsUseCase.swift` — ingests selected files into 3ω analysis via LVM parsing and condition mapping
+- `Sources/SpinLabApp/Workbench/V3/ThreeOmegaIngestionContracts.swift` — ingestion input contracts and result types for the 3ω workflow
+- `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` — AHE workflow store; ingestion state, axis-detected results, plot series
+- `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift` — AHE workspace view; assembles axis-detection results and plot panels
+- `Sources/SpinLabApp/UseCases/AHEDataParser.swift` — parses raw AHE measurement files into structured domain types
+- `Sources/SpinLabApp/UseCases/AHEAxisDetector.swift` — detects AHE measurement axes (Rxx/Rxy) from ingested data columns
+- `Sources/SpinLabApp/UseCases/BuildAHEPlotPayloadUseCase.swift` — builds plot payload from AHE ingestion results for the plot canvas
+- `Sources/SpinLabApp/Workbench/V3/AHEPackContracts.swift` — pack config and result contracts for the AHE workflow
+- `Sources/SpinLabApp/UseCases/IngestAHESelectionsUseCase.swift` — ingests selected files into AHE analysis via data parsing and axis detection
+- `Sources/SpinLabApp/Workbench/V3/AHEIngestionContracts.swift` — ingestion input contracts and result types for the AHE workflow
+- `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift` — XY Rotation workflow store; ingestion state, series data, plot configuration
+- `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift` — XY Rotation workspace view; assembles Rxx/Rxy tabs and auxiliary line panels
+- `Sources/SpinLabApp/UseCases/XYRotationDATParser.swift` — parses DAT files containing XY Rotation measurement data
+- `Sources/SpinLabApp/UseCases/XYRotationPlotRenderer.swift` — renders XY Rotation data as Rxx/Rxy chart series for the plot canvas
+- `Sources/SpinLabApp/Workbench/V3/XYRotationPackContracts.swift` — pack config and result contracts for the XY Rotation workflow
+- `Sources/SpinLabApp/UseCases/XYRotationLVMParser.swift` — parses LVM files containing XY Rotation measurement data
+- `Sources/SpinLabApp/UseCases/IngestXYRotationSelectionsUseCase.swift` — ingests selected files into XY Rotation analysis via LVM/DAT parsing
+- `Sources/SpinLabApp/Workbench/V3/XYRotationIngestionContracts.swift` — ingestion input contracts and result types for the XY Rotation workflow
+- `Sources/SpinLabApp/Features/Workbench/NewRuleEntrySheet.swift` — sheet for creating a new condition matching rule from within the Workbench
+- `Sources/SpinLabApp/Features/Workbench/TokenMapEditor.swift` — editor for workflow-specific token-to-condition mappings
+- `Sources/SpinLabApp/Features/Workbench/UnitTagEditor.swift` — editor for attaching and editing unit tags on measurement conditions
+- `Sources/SpinLabApp/Workbench/V3/ConditionAliasConfig.swift` — per-workflow condition alias configuration for display name remapping
+- `Sources/SpinLabApp/Workbench/V3/SeriesOrderAlignHelper.swift` — aligns series display order between workspace store and plot canvas

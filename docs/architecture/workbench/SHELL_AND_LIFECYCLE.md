@@ -50,14 +50,43 @@ Warning panel: shell-level `WorkbenchWarningLog` container coalesces identical (
 
 ## Code Map
 
-Primary files for this layer:
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceShell.swift` — shell layout, slot wiring, and lifecycle orchestration for all workflow workspaces
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift` — WorkbenchWorkspaceProviding protocol and default slot implementations
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift` — maps workflow IDs to their workspace view factory functions
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchView.swift` — top-level Workbench region entry view
+- `Sources/SpinLabApp/Features/Workbench/WorkflowRegistryView.swift` — workflow selector view in the Workbench sidebar
+- `Sources/SpinLabApp/App/State/WorkbenchFeatureStore.swift` — Workbench store; manages search, condition projection, and analysis lifecycle
+- `Sources/SpinLabApp/App/State/WorkbenchState.swift` — Workbench state value types for persistence and cross-store observation
 
-- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceShell.swift` (567 lines — ⭐ large file; shell layout + slot wiring + lifecycle orchestration)
-- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift` (`WorkbenchWorkspaceProviding` protocol + default implementations)
-- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift` (workflow view registration)
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchView.swift` (top-level Workbench region entry)
-- `Sources/SpinLabApp/Features/Workbench/WorkflowRegistryView.swift` (workflow selector)
-- `Sources/SpinLabApp/App/State/WorkbenchFeatureStore.swift` (877 lines — ⭐ large file; Workbench store, search, condition projection)
-- `Sources/SpinLabApp/App/State/WorkbenchState.swift` (Workbench state value types)
+- `Sources/SpinLabApp/App/AppEnvironment.swift` — runtime dependency container; holds all injected services at app startup
+- `Sources/SpinLabApp/App/AppError.swift` — unified error type mapping all domain and infrastructure errors to AppError
+- `Sources/SpinLabApp/App/AppLogger.swift` — structured logging facade used across all feature regions
+- `Sources/SpinLabApp/App/AppVersion.swift` — app version and build metadata constants
+- `Sources/SpinLabApp/App/InteractionMemoryStore.swift` — persists and restores interaction state snapshots across sessions
+- `Sources/SpinLabApp/App/InteractionSnapshotCoordinator.swift` — coordinates capture and restore of per-feature interaction snapshots
+- `Sources/SpinLabApp/App/InteractionSnapshotKeyCodec.swift` — encodes and decodes interaction snapshot keys for persistence
+- `Sources/SpinLabApp/App/RootSplitView.swift` — root three-pane split view hosting Inbox, Library, and Workbench regions
+- `Sources/SpinLabApp/App/SidebarMenuModel.swift` — sidebar navigation menu state and item model
+- `Sources/SpinLabApp/App/SidebarTreeView.swift` — sidebar tree view rendering region navigation hierarchy
+- `Sources/SpinLabApp/App/SpinLabAppState.swift` — root app state; cross-store coordination, navigation, and alert management
+- `Sources/SpinLabApp/App/SpinLabDataActor.swift` — data actor isolating background I/O from main-actor app state
+- `Sources/SpinLabApp/App/SpinLabSidebarMenuProvider.swift` — provides sidebar menu items registered by each region
+- `Sources/SpinLabApp/App/State/AppCoordinator.swift` — app-level cross-store coordinator for multi-region workflows
+- `Sources/SpinLabApp/App/State/AppRouter.swift` — navigation routing and sheet/alert presentation coordinator
+- `Sources/SpinLabApp/App/State/InteractionStateModels.swift` — value types for interaction state serialization and restore
+- `Sources/SpinLabApp/Domain/Models.swift` — core domain models: SampleRecord, LibraryItem, DrawerID, and shared value types
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchStatusArea.swift` — status and warning log area at the bottom of the Workbench shell
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchTitleTemplateField.swift` — title template text field in the Workbench analysis header
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchTracePanel.swift` — trace log panel displaying analysis warnings and run events
+- `Sources/SpinLabApp/Persistence/Persistence.swift` — app persistence protocol and LocalJSON file-backed implementation
+- `Sources/SpinLabApp/SpinLabApp.swift` — SwiftUI app entry point; wires AppEnvironment and AppState at launch
+- `Sources/SpinLabApp/UI/AppColumnShell.swift` — shared two-column layout shell with configurable sidebar and detail panels
+- `Sources/SpinLabApp/UI/AppFontScale.swift` — app-wide font scale constants and scale-aware view modifiers
+- `Sources/SpinLabApp/UI/AppSpacing.swift` — app-wide spacing constants used across all region layouts
+- `Sources/SpinLabApp/UI/CollapsibleSectionHeader.swift` — reusable collapsible section header with disclosure chevron
+- `Sources/SpinLabApp/UI/FlowLayout.swift` — wrapping flow layout for dynamic tag and chip collections
+- `Sources/SpinLabApp/UI/HoverPopoverModifier.swift` — view modifier presenting a popover on mouse hover
+- `Sources/SpinLabApp/UseCases/BuildRunTraceProjectionUseCase.swift` — builds ordered run trace projections for Workbench display from analysis output
+- `Sources/SpinLabApp/UseCases/WorkbenchTitleResolver.swift` — resolves display titles for Workbench analysis sessions
 
 Not in this layer: workflow workspace stores (→ `WORKFLOW_CONTRACTS.md`), plot canvas (→ `PLOT_CANVAS.md`).

@@ -438,7 +438,7 @@ _(未分配)_
 
 ### 5.7.3 — 新增 Swift 代码登记 workflow（SOP 主路径 + Code Map hook 兜底）
 
-**状态**：`[ ]` 待启动。前置依赖 5.7.2 已完成（13 份层文档底部 `## Code Map` 段已铺好，每条已是「反引号路径 — 一行人话注释」格式）+ `scripts/verify_architecture_code_coverage.sh` 已存在做半套机械校验。
+**状态**：`[x]` 完成。218/218 Swift 文件全登记，pre-commit hook 接入，CLAUDE.md 4 步 SOP 落点，60 天验证窗口 remote agent 已排（trig_016KyxQa7BKYQA8Gvbvogm7R，2026-06-30）。设计思路 → [`history/v573_swift_code_registration.md`](history/v573_swift_code_registration.md)。
 
 **动机**：5.7.2 把代码索引按"功能区 × 层"切到 13 份层文档，结构铺好但**新代码加进来时没有标准操作流程** —— 写代码者要靠记忆/翻 INDEX 才知道归哪个区哪一层、注释怎么写，加完容易忘记登记，前两次 `features.md` 漂移证明这种动力学下纯靠自觉守不住。需要把"新增 Swift 代码"做成**清晰可执行的 SOP**（标准入口），并由 pre-commit hook 兜底诊断 SOP 漏掉的情况（兜底，不是主角）。现有 `verify_architecture_code_coverage.sh` 已扫 `## Code Map` 段 + 校验文件存在 + 校验 INDEX 分子，但有三个空缺：(a) 新增 swift 时分母 fail 信息只说"总数变了"，不指出具体哪个文件；(b) 未接到 commit 路径；(c) 反向 orphan 检查（代码存在 → 文档必须列）粒度过粗。本期升级脚本 + 接 hook + 建 SOP，让 SOP 和兜底成对出现。
 

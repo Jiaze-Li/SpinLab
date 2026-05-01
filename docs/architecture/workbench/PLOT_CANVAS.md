@@ -42,9 +42,14 @@
 
 ## Code Map
 
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift` (728 lines — ⭐ large file; shared plot shell, interaction, hit-test, Copy PNG)
-- `Sources/SpinLabApp/Features/Workbench/PlotCanvasMouseTracker.swift`
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift`
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift`
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift`
-- `Sources/SpinLabApp/Workbench/V3/WorkbenchChartRenderer.swift` (604 lines — shared chart renderer)
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift` — workflow-independent plot shell; interaction, hit-test, legend overlay, Copy PNG
+- `Sources/SpinLabApp/Features/Workbench/PlotCanvasMouseTracker.swift` — tracks mouse position and computes hit-test results on the plot canvas
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift` — sidebar controls panel for plot display settings (style, ranges, offsets)
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift` — standard plot control bindings and default implementations shared across workflows
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift` — observable store for plot display state (style params, visibility, range overrides)
+- `Sources/SpinLabApp/Workbench/V3/WorkbenchChartRenderer.swift` — shared chart renderer producing plot layer output from workflow analysis data
+- `Sources/SpinLabApp/UseCases/LegendDimensionResolver.swift` — resolves legend item dimensions for auto-sizing the plot legend overlay
+- `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift` — manages tab-based rendering pipeline switching in the plot canvas
+- `Sources/SpinLabApp/Workbench/V3/WorkbenchChartStyle.swift` — chart style parameters (colors, line widths, markers) shared across all workflows
+- `Sources/SpinLabApp/Workbench/V3/WorkbenchPlotLayout.swift` — layout parameters for plot canvas regions (margins, axes, legend areas)
+- `Sources/SpinLabApp/Workbench/V3/WorkbenchRenderPipeline.swift` — render pipeline coordinating chart layers from workflow analysis results
