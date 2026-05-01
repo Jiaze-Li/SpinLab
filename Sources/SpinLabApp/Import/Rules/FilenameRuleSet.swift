@@ -733,6 +733,8 @@ struct FilenameRuleSet: Decodable {
                 warnings.append("condition '\(ruleID)' rule \(ruleIndex): transform '\(trimmedTransform)' invalid: \(error)")
                 return matched
             }
+        } else if split.unit.lowercased() != standardUnit.lowercased() {
+            return matched
         }
         var finalDecimal = Decimal(workingValue)
         if let precision = standardization.parsedPrecision {
