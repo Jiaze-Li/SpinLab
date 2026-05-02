@@ -2,7 +2,9 @@
 
 > **执行 handoff**: `docs/handoff/2026-05-02-5.1.12a-s1-design.md`
 > **Step 0 完成**: 2026-05-02（Claude 方）
-> **当前状态**: §0 已封闭（Codex challenge 待发）；§1–§5 待批次审计填入
+> **Batch 1 完成**: 2026-05-02（Claude 主审，0 Violation）
+> **Batch 2 完成**: 2026-05-02（Codex 主审 / Claude 评审，9 Violation，2 challenge 驳回）
+> **当前状态**: 审计完成，待 §4.3 收尾对账
 
 ---
 
@@ -172,6 +174,20 @@ Output 入样：**3 条**（AS-25..AS-27；target 3–4，达下限 ✓）
 
 **Batch 1 结果（Claude 主审，2026-05-02）：0 条 Violation**
 
+### Batch 2（Rules + ConfirmApply，Codex 主审 / Claude 评审，2026-05-02）
+
+| V-ID | AS-ID | 文件名 | 信号 | overlay | 严重度 | 行为描述 | next_action |
+|---|---|---|---|---|---|---|---|
+| V-001 | AS-10 | `RulesManagementStore.swift` | #6 | — | M | `loadAndCacheHash`/`loadFromDiskOnly`/`fileHash` 的 `try?` 折叠 read/decode error 为 nil 且无日志；`fileExists` guard 不覆盖 corrupt/decode fail，违反 Adj-10 | 11b |
+| V-002 | AS-10 | `RulesManagementStore.swift` | #15 | — | M | `persist()` 直接调用 `RuleLoader.shared.reloadCached()` + `bumpRuleSetVersion()`，运行时副作用未经 AppEnvironment 注入（L511-512） | 14a |
+| V-003 | AS-13 | `MeasuringConditionSection.swift` | #2 | — | M | `rulesBinding` setter 执行 `normalizeConditionRuleForUI`（`$MATCH`/`*1` 赋值 + standardUnit 可用性过滤）at L135/L183-199，View 承载归一化和过滤逻辑 | 11b |
+| V-004 | AS-14 | `SampleIdentificationSection.swift` | #2 | — | L | `batchSpecsBinding` setter 过滤非 `.startsWith` spec 后写回 `batchPrefixes`（L65），规则过滤逻辑在 View binding setter 中 | 11b |
+| V-005 | AS-15 | `RulesBootstrapper.swift` | #15 | — | M | 静态启动迁移工具直接使用 `FileManager`/`Data.write` 执行运行时副作用，未经 AppEnvironment capability 注入（AppLogger.shared 属 logging 豁免；G-001 大文件） | defer-to-G-track |
+| V-006 | AS-19 | `MatchRulesEditor.swift` | #2 | — | L | `unitSuffixOptions()`（L261-274）在 View 方法中过滤 rule ops 并去重生成 standardUnit picker 选项，规则语义派生列表应由非 View 层提供 | 11b |
+| V-007 | AS-23 | `InboxArchiveApplyService.swift` | #6 | — | H | `try? transaction.rollback()` at L133/L151 静默丢弃 rollback error；事务清理失败无日志，可能掩盖部分写入残留 | 11b |
+| V-008 | AS-23 | `InboxArchiveApplyService.swift` | #15 | — | H | `AuditLogger.shared` 作为 stored property（L13）；`SpinLabRuleProvider.shared.loadResult()` 直接调用（L242）；运行时副作用均未注入 | 14a |
+| V-009 | AS-24 | `InboxOperationPanel.swift` | #2 | — | M | View body 计算 `libraryMatchedCount`/`reviewRequiredCount`（L22-27）并调用 `filteredPendingImports(using:)`（L28, L194-204）按 route verdict 过滤域对象 | 11b |
+
 ---
 
 ## 2. Drift
@@ -179,6 +195,8 @@ Output 入样：**3 条**（AS-25..AS-27；target 3–4，达下限 ✓）
 > 格式：`AS-ID | 文件名 | Code Map 现注释 | 实现偏离描述 | commit_id`
 
 **Batch 1 结果：0 条 Drift**（Code Map 注释与实现对齐）
+
+**Batch 2 结果：0 条 Drift**（Code Map 注释与实现对齐）
 
 ---
 
@@ -203,6 +221,21 @@ Output 入样：**3 条**（AS-25..AS-27；target 3–4，达下限 ✓）
 | AS-26 | `RegistryFeatureStore.swift` | 全通过 | 13L 纯展示态 struct；CLAUDE.md "small presentation-only state containers may be struct" exception 成立 |
 | AS-27 | `RegistryCoordinator.swift` | 全通过 | `@MainActor` coordinator struct；async methods 合法（非 AppState 直接方法）；`refreshRoutingRuleMetadata(inboxStore:)` 跨区调用通过 AppState 参数注入，编排方仍是 AppState |
 
+### Batch 2（Rules + ConfirmApply，Codex 主审 / Claude 评审，2026-05-02）
+
+| AS-ID | 文件名 | 信号 | 判断依据 |
+|---|---|---|---|
+| AS-10 | `RulesManagementStore.swift` | #13 challenge → 驳回 | `persist()` I/O 为小型 config JSON（~few KB），同步写入是 save outcome 准确报告的必要设计；@Observable no-async 规则排除异步化选项；不属于"重 I/O" |
+| AS-11 | `RulesSectionShell.swift` | 全通过 | `@Environment` 获取 AppState；仅编排保存/冲突 UI，无 18-signal 命中 |
+| AS-12 | `WorkflowSection.swift` | 全通过 | 本地 draft 为 transient UI 态；binding 映射为 UI 编辑适配，无 sort/filter/normalize |
+| AS-16 | `RuleCanonicalizer.swift` | 全通过 | 纯 canonicalization helper，返回 warnings，无副作用 |
+| AS-17 | `RuleRef.swift` | 全通过 | 纯 ruleRef 字符串工厂，无 I/O / 状态流 / UI 逻辑 |
+| AS-18 | `RulesSyncEngine.swift` | 全通过 | 依赖全部注入；`try?` 满足 Adj-10（mirror absent = first boot 预期）；`RuleLoader.shared.load()` 为 reverse sync 后只读校验边界 |
+| AS-20 | `RuleExpandableRow.swift` | 全通过 | 通用展开行 UI，仅接收标题/错误态/回调，无业务逻辑 |
+| AS-21 | `InboxFeatureStore.swift` | 全通过 | `@MainActor @Observable final class`；长任务通过内部 Task 编排；routing cache 以 `@ObservationIgnored` 持有 |
+| AS-22 | `ApplyCoordinator.swift` | 全通过 | 纯 struct coordinator；依赖全部参数注入；apply service 注入不持有 |
+| AS-23 | `InboxArchiveApplyService.swift` | #20 challenge → 驳回 | `LibraryWriteTransaction` 是 Library FS 指定事务写 API；`libraryStore` 用于路径解析和元数据读取；write path 未绕过 LibraryStore 接口 |
+
 ---
 
 ## 4. Cross-Region Doubts For 5.1.14
@@ -224,4 +257,24 @@ Output 入样：**3 条**（AS-25..AS-27；target 3–4，达下限 ✓）
 
 > 格式：`V-ID | AS-ID | next_action | 修复描述（一行）`
 
-（待 §1 Violations 填入后由本批收尾时填写）
+### next_action 分布（9 条，两批合计）
+
+| next_action | 条数 | V-ID |
+|---|---|---|
+| 11b | 6 | V-001, V-003, V-004, V-006, V-007, V-009 |
+| 14a | 2 | V-002, V-008 |
+| defer-to-G-track | 1 | V-005 |
+
+### 修复明细
+
+| V-ID | AS-ID | next_action | 修复描述 |
+|---|---|---|---|
+| V-001 | AS-10 | 11b | `loadAndCacheHash`/`loadFromDiskOnly`/`fileHash`：file-not-found 仍返回 nil；corrupt/decode/read failure 补 `logger.error` |
+| V-002 | AS-10 | 14a | `RuleLoader` 作为 AppEnvironment capability 注入 `RulesManagementStore`；`persist()` 通过注入实例触发 `reloadCached`/`bumpRuleSetVersion` |
+| V-003 | AS-13 | 11b | `normalizeConditionRuleForUI` 及 standardUnit 可用性过滤下沉到 `RulesManagementStore` 或专用 UseCase；View binding setter 只传值 |
+| V-004 | AS-14 | 11b | `batchSpecsBinding` setter 的 `.startsWith` filter 移至 `store.updateSampleIdentification` 或 editor contract |
+| V-005 | AS-15 | defer-to-G-track | `RulesBootstrapper` DI bypass 留 G-001 大文件拆分轮收敛 |
+| V-006 | AS-19 | 11b | `unitSuffixOptions()` 迁移到调用方（`MeasuringConditionSection`）或通过 binding 由调用方传入；不在 `MatchRulesEditor` 内部计算 |
+| V-007 | AS-23 | 11b | `try? transaction.rollback()` 改为 `do { try transaction.rollback() } catch { logger.error(...) }` |
+| V-008 | AS-23 | 14a | `AuditLogger` 和 `SpinLabRuleProvider` 作为 init 参数注入 `InboxArchiveApplyService` |
+| V-009 | AS-24 | 11b | `libraryMatchedCount`/`filteredPendingImports` 计算迁移到 `InboxViewModel`；View 只消费展示态属性 |
