@@ -109,7 +109,7 @@ final class XYRotationWorkspaceStore {
             case .rxxVsPhi: baseForTab = ingestion.sweeps
             case .rxyVsPhi: baseForTab = ingestion.sweeps.filter { $0.resistanceXY != nil }
             }
-            let ordered = XYRotationWorkspaceStore._applySeriesOrder(tabState.seriesOrder, to: baseForTab)
+            let ordered = AlignXYSeriesOrderUseCase.applySeriesOrder(tabState.seriesOrder, to: baseForTab)
             labelMapSeries = Array(ordered.reversed()).map { WorkbenchPlotSeries(label: "", x: [], y: [], sampleID: $0.id) }
         } else {
             labelMapSeries = []
@@ -160,12 +160,12 @@ final class XYRotationWorkspaceStore {
 
                 var rxx = rxxRenderer
                 let (rxxData, rxxLayout, rxxPayload) = rxx.renderRxxVsPhi(
-                    sweeps: XYRotationWorkspaceStore._applySeriesOrder(capturedOrderRxx, to: result.sweeps),
+                    sweeps: AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxx, to: result.sweeps),
                     device: result.device
                 )
                 var rxy = rxyRenderer
                 let (rxyData, rxyLayout, rxyPayload) = rxy.renderRxyVsPhi(
-                    sweeps: XYRotationWorkspaceStore._applySeriesOrder(capturedOrderRxy, to: result.sweeps),
+                    sweeps: AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxy, to: result.sweeps),
                     device: result.device
                 )
                 // Deduplicate pipeline warnings from both tabs
@@ -218,7 +218,7 @@ final class XYRotationWorkspaceStore {
         let tab = tabs.activeTab
         let renderer = _snapshotRenderer(forTab: tab)
         let capturedOrder = tabs.state(for: tab).seriesOrder
-        let orderedSweeps = XYRotationWorkspaceStore._applySeriesOrder(capturedOrder, to: ingestion.sweeps)
+        let orderedSweeps = AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrder, to: ingestion.sweeps)
         let device = ingestion.device
 
         _renderRevision &+= 1
@@ -239,20 +239,6 @@ final class XYRotationWorkspaceStore {
                 self.tabs.setOutput(TabRenderOutput(imageData: data, layout: layout, manifestPayload: payload), for: tab)
             }
         }
-    }
-
-    // MARK: - Series reordering
-
-    nonisolated static func _applySeriesOrder(_ order: [String]?, to sweeps: [XYRotationAngleSweep]) -> [XYRotationAngleSweep] {
-        guard let order, !order.isEmpty else { return sweeps }
-        let byID = Dictionary(uniqueKeysWithValues: sweeps.map { ($0.id, $0) })
-        var result: [XYRotationAngleSweep] = []
-        var consumed = Set<String>()
-        for id in order {
-            if let s = byID[id] { result.append(s); consumed.insert(id) }
-        }
-        for s in sweeps where !consumed.contains(s.id) { result.append(s) }
-        return result
     }
 
     // MARK: - Selection helpers
@@ -421,7 +407,7 @@ final class XYRotationWorkspaceStore {
 
         for tab in XYRotationWorkbenchTab.allCases {
             let renderer = _snapshotRenderer(forTab: tab)
-            let orderedSweeps = XYRotationWorkspaceStore._applySeriesOrder(
+            let orderedSweeps = AlignXYSeriesOrderUseCase.applySeriesOrder(
                 tabs.state(for: tab).seriesOrder,
                 to: ingestion.sweeps
             )

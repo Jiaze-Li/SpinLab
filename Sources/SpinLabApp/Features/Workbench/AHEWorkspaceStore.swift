@@ -54,6 +54,13 @@ final class AHEWorkspaceStore {
     /// Convenience: R_AHE from the first (or only) extracted metric, for single-sample UI binding.
     var lastExtractedRAHE: Double? { lastExtractedMetrics.values.first?.rAHE }
 
+    var sortedExtractedMetrics: [AHEExtractedMetric] {
+        lastExtractedMetrics.values.sorted { lhs, rhs in
+            if lhs.sampleKey != rhs.sampleKey { return lhs.sampleKey < rhs.sampleKey }
+            return lhs.hc < rhs.hc
+        }
+    }
+
     // MARK: - Warning log
 
     var warningLog: WorkbenchWarningLog = WorkbenchWarningLog()
@@ -237,6 +244,30 @@ final class AHEWorkspaceStore {
         cachedSampleNumericDisplay = [:]
     }
 
+    func updateHcCandidate(rawValue: String, rawReason: String) {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { pendingMetricOverride = nil; return }
+        guard let parsed = Double(trimmed) else { pendingMetricOverride = nil; return }
+        let reason = rawReason.trimmingCharacters(in: .whitespacesAndNewlines)
+        pendingMetricOverride = WorkbenchMetricOverrideCandidate(
+            proposedValue: parsed,
+            reason: reason.isEmpty ? "visual check" : reason,
+            source: .manual
+        )
+    }
+
+    func updateRAHECandidate(rawValue: String, rawReason: String) {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { pendingRAHEOverride = nil; return }
+        guard let parsed = Double(trimmed) else { pendingRAHEOverride = nil; return }
+        let reason = rawReason.trimmingCharacters(in: .whitespacesAndNewlines)
+        pendingRAHEOverride = WorkbenchMetricOverrideCandidate(
+            proposedValue: parsed,
+            reason: reason.isEmpty ? "visual check" : reason,
+            source: .manual
+        )
+    }
+
     // MARK: - Save to Library
 
     func persistToLibrary(onComplete: (() -> Void)? = nil) {
@@ -337,127 +368,6 @@ final class AHEWorkspaceStore {
         return selections
     }
 
-    /// Persists chart + metric artifacts for a completed render.
-    ///
-    /// `runID` is generated once by the caller and passed into both
-    /// `PersistChartArtifactUseCase` and `PersistMeasurementDataUseCase` so that
-    /// the run manifest and the metric record share the same identifier (Adj-2).
-    ///
-    /// Returns `PersistenceOutcome` — never throws or returns nil — so partial
-    /// failures (chart OK, metric failed) are surfaced to the store (Adj-3).
-    ///
-    /// Extracts Hc and R_AHE for every series, keyed by sampleKey parsed from the series label.
-    ///
-    /// Series label format (from IngestAHESelectionsUseCase):
-    ///   "sampleKey | channel" or "sampleKey | channel | temperature"
-    /// The sampleKey is the first segment before " | ".
-    ///
-    /// When multiple series share the same sampleKey (e.g. different channels), only the
-    /// first series for that key is used for metric extraction (consistent with single-file-per-sample semantics).
-    ///
-    /// If any series label cannot be parsed to extract a sampleKey, returns
-    /// `.failure(.unparseableLabels([...]))` with the full list of unparseable labels.
-    nonisolated static func extractAHEMetricsPerSeries(
-        from series: [WorkbenchPlotSeries]
-    ) -> Result<[String: AHEExtractedMetric], AHEMetricExtractionError> {
-        var result: [String: AHEExtractedMetric] = [:]
-        var failedLabels: [String] = []
-        for s in series {
-            guard let key = parseSampleKey(from: s.label) else {
-                failedLabels.append(s.label.isEmpty ? "<empty>" : s.label)
-                continue
-            }
-            guard result[key] == nil else { continue }
-            let (hc, rAHE) = extractSingleSeriesMetrics(s)
-            result[key] = AHEExtractedMetric(sampleKey: key, hc: hc, rAHE: rAHE)
-        }
-        guard failedLabels.isEmpty else {
-            return .failure(.unparseableLabels(failedLabels))
-        }
-        return .success(result)
-    }
-
-    /// Parses the sampleKey from an AHE series label.
-    /// Label format: "sampleKey | channel | temperature" or "sampleKey | channel".
-    /// Returns nil if the label is empty or has no " | " separator.
-    nonisolated static func parseSampleKey(from label: String) -> String? {
-        let segment = label.components(separatedBy: " | ").first?.trimmingCharacters(in: .whitespaces)
-        guard let key = segment, !key.isEmpty else { return nil }
-        return key
-    }
-
-    /// Extracts Hc and R_AHE from a single series.
-    ///
-    /// **Background removal:**
-    ///   threshold = (ymin + ymax) / 2;  y_shifted = y − threshold
-    ///
-    /// **Hc** — coercive field via zero-crossing interpolation.
-    /// **R_AHE** — saturation plateau method (|H| > 80% H_max).
-    nonisolated static func extractSingleSeriesMetrics(
-        _ series: WorkbenchPlotSeries
-    ) -> (hc: Double, rAHE: Double) {
-        guard series.x.count > 1 else { return (0.0, 0.0) }
-        let xs = series.x
-        let rawYs = series.y
-
-        let yMin = rawYs.min()!
-        let yMax = rawYs.max()!
-        let threshold = (yMin + yMax) / 2.0
-        let ys = rawYs.map { $0 - threshold }
-
-        // --- Hc ---
-        var crossings: [Double] = []
-        for i in 0..<xs.count - 1 {
-            let y0 = ys[i], y1 = ys[i + 1]
-            if y0 * y1 <= 0, y0 != y1 {
-                let t = y0 / (y0 - y1)
-                crossings.append(xs[i] + t * (xs[i + 1] - xs[i]))
-            }
-        }
-
-        let hc: Double
-        if crossings.isEmpty {
-            var minAbs = Double.infinity
-            var result = 0.0
-            for i in 0..<xs.count {
-                let a = abs(ys[i])
-                if a < minAbs { minAbs = a; result = xs[i] }
-            }
-            hc = abs(result)
-        } else {
-            let posCrossings = crossings.filter { $0 > 0 }
-            let negCrossings = crossings.filter { $0 < 0 }
-            if !posCrossings.isEmpty && !negCrossings.isEmpty {
-                hc = (posCrossings.max()! + abs(negCrossings.min()!)) / 2.0
-            } else {
-                hc = crossings.map { abs($0) }.reduce(0, +) / Double(crossings.count)
-            }
-        }
-
-        // --- R_AHE ---
-        let hMax = xs.map { abs($0) }.max() ?? 0.0
-        let rAHE: Double
-        if hMax > 0 {
-            let satThreshold = 0.8 * hMax
-            let topPlateau = zip(xs, ys).compactMap { $0.0 > satThreshold ? $0.1 : nil }
-            let bottomPlateau = zip(xs, ys).compactMap { $0.0 < -satThreshold ? $0.1 : nil }
-            if !topPlateau.isEmpty && !bottomPlateau.isEmpty {
-                rAHE = (AHEWorkspaceStore.median(topPlateau) - AHEWorkspaceStore.median(bottomPlateau)) / 2.0
-            } else {
-                rAHE = (yMax - yMin) / 2.0
-            }
-        } else {
-            rAHE = (yMax - yMin) / 2.0
-        }
-
-        return (hc, rAHE)
-    }
-
-    private nonisolated static func median(_ values: [Double]) -> Double {
-        let sorted = values.sorted()
-        let n = sorted.count
-        return n % 2 == 1 ? sorted[n / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0
-    }
 }
 
 // MARK: - WorkbenchPlottingStore conformance
@@ -681,7 +591,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                         yColumnOverride: yOverride.isEmpty ? nil : yOverride,
                         numericDisplayBySample: capturedNumericDisplay
                     )
-                    let extractedMetrics = try AHEWorkspaceStore.extractAHEMetricsPerSeries(from: ingestion.series).get()
+                    let extractedMetrics = try ExtractAHEMetricsUseCase.extractAHEMetricsPerSeries(from: ingestion.series).get()
                     let resolvedTitle: String = {
                         if !capturedTabState.titleOverride.isEmpty { return capturedTabState.titleOverride }
                         var tokens = capturedTitleTokens

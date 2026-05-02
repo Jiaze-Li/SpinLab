@@ -80,11 +80,14 @@ struct PersistMeasurementDataUseCase {
         let absURL = try pathResolver.absoluteURL(for: relPath)
 
         var store: WorkbenchMeasurementDataStore
-        if let data = try? Data(contentsOf: absURL),
-           let decoded = try? Self.decoder.decode(WorkbenchMeasurementDataStore.self, from: data) {
-            store = decoded
-        } else {
+        do {
+            let data = try Data(contentsOf: absURL)
+            store = try Self.decoder.decode(WorkbenchMeasurementDataStore.self, from: data)
+        } catch let nsErr as NSError where nsErr.domain == NSCocoaErrorDomain && nsErr.code == NSFileReadNoSuchFileError {
             store = WorkbenchMeasurementDataStore()
+        } catch {
+            fputs("[SpinLab] [PersistMeasurementData] read/decode failed at \(absURL.path): \(error)\n", stderr)
+            throw AppError.io("measurement_data corrupt or unreadable at \(absURL.path): \(error.localizedDescription)")
         }
 
         store.append(record)

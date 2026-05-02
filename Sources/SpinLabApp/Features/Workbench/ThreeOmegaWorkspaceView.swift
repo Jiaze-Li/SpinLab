@@ -297,7 +297,10 @@ private struct ThreeOmegaRTSearchField: View {
 
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 4) {
-                TextField("RT file…", text: $store.rtQuery)
+                TextField("RT file…", text: Binding(
+                    get: { store.rtQuery },
+                    set: { store.updateRTQuery($0) }
+                ))
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 140)
                     .onSubmit {
@@ -401,8 +404,7 @@ private struct ThreeOmegaAddOverlayButton: View {
     var body: some View {
         let vault = appState.workbench.analysisVault
         let store = appState.workbench.threeOmegaWorkspace
-        let excludeIDs: Set<UUID> = Set(store.overlayPackIDs).union(store.activePackID.map { [$0] } ?? [])
-        let available = vault.packs(forWorkflow: "3w").filter { !excludeIDs.contains($0.id) }
+        let available = store.availableOverlayPacks(in: vault)
 
         Button("Add Analysis") {
             showPopover.toggle()

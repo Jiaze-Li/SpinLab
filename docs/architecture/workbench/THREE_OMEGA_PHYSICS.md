@@ -365,3 +365,11 @@ func rahe(harmonic: 1|3, method: HFE|WA) → Double?
 - [ ] 量纲与文献核对
 - [ ] 高场阈值 f=0.70 是否需要用户可调
 - [ ] V3w_AHE 高场点数不足时的 fallback 策略
+
+---
+
+## Code Map
+
+- `Sources/SpinLabApp/Domain/ThreeOmegaFieldSweepResult.swift` — captures field-sweep output for 3ω analysis
+- `Sources/SpinLabApp/Domain/ThreeOmegaGeometry.swift` — describes 3ω sample geometry
+- `Sources/SpinLabApp/Domain/ThreeOmegaScalingResult.swift` — encodes 3ω scaling-law fit output

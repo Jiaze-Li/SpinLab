@@ -2,7 +2,7 @@
 
 > **Status**: 5.1.6 current architecture dispatch entry.
 > **Source**: distilled from [`REGION_MAP.md`](REGION_MAP.md). Use REGION_MAP for scan evidence, line counts, TODOs, shell candidates, and shared-point proof table.
-> **Code coverage**: 217/217 source files mapped. Last verified: 2026-05-01 by `scripts/verify_architecture_code_coverage.sh`.
+> **Code coverage**: 223/223 source files mapped. Last verified: 2026-05-02 by `scripts/verify_architecture_code_coverage.sh`.
 
 ## How To Use
 

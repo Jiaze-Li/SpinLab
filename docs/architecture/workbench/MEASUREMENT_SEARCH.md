@@ -27,4 +27,4 @@
 - `Sources/SpinLabApp/UseCases/SearchWorkflowMeasurementsUseCase.swift` — executes measurement search queries against Library using sidecar conditions
 - `Sources/SpinLabApp/Domain/WorkflowSearchModels.swift` — domain models for search query parameters and search result types
 - `Sources/SpinLabApp/Features/Workbench/WorkflowHitRow.swift` — renders a single measurement search result row in the hit list
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchSharedComponents.swift` — shared search bar and filter UI components used across Workbench views
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchSharedComponents.swift` — placeholder stub; formerly consolidated shared workbench UI; contents split into dedicated files

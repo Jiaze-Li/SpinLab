@@ -4,6 +4,7 @@ import SwiftUI
 
 struct RootSplitView: View {
     @Environment(SpinLabAppState.self) private var appState
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var expandedSidebarNodeIDs: Set<String> = []
     @State private var pendingDeleteDrawerBatchID: String?
     @State private var pendingDeleteDrawerPrefix: String?
@@ -18,7 +19,7 @@ struct RootSplitView: View {
     var body: some View {
         @Bindable var bindableAppState = appState
 
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             VStack(spacing: 0) {
                 Color.clear
                     .frame(height: sidebarTopInset)

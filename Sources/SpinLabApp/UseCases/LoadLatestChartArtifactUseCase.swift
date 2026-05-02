@@ -19,30 +19,61 @@ struct LoadLatestChartArtifactUseCase {
     /// or nil if no index exists, the index is unreadable, or the files are missing.
     func execute(sampleKey: String) -> LoadedChartArtifact? {
         let indexRelPath = "samples/\(sampleKey)/_spinlab/results_index.json"
-        guard let indexURL = try? pathResolver.absoluteURL(for: indexRelPath),
-              let indexData = try? Data(contentsOf: indexURL),
-              let index = try? Self.decoder.decode(WorkbenchResultsIndex.self, from: indexData),
-              !index.references.isEmpty else {
+        let indexURL: URL
+        do {
+            indexURL = try pathResolver.absoluteURL(for: indexRelPath)
+        } catch {
+            fputs("[SpinLab] [LoadLatestChartArtifact] resolver failed for \(sampleKey): \(error)\n", stderr)
             return nil
         }
 
-        // Most recent by generatedAt
-        guard let latest = index.references.max(by: { $0.generatedAt < $1.generatedAt }) else {
+        let index: WorkbenchResultsIndex
+        do {
+            let data = try Data(contentsOf: indexURL)
+            index = try Self.decoder.decode(WorkbenchResultsIndex.self, from: data)
+        } catch let nsErr as NSError where nsErr.domain == NSCocoaErrorDomain && nsErr.code == NSFileReadNoSuchFileError {
+            return nil
+        } catch {
+            fputs("[SpinLab] [LoadLatestChartArtifact] index corrupt at \(indexURL.path): \(error)\n", stderr)
+            return nil
+        }
+        guard !index.references.isEmpty,
+              let latest = index.references.max(by: { $0.generatedAt < $1.generatedAt }) else {
             return nil
         }
 
-        guard let imageURL = try? pathResolver.absoluteURL(for: latest.chartImagePath),
-              let imageData = try? Data(contentsOf: imageURL),
-              let manifestURL = try? pathResolver.absoluteURL(for: latest.manifestPath),
-              let manifestData = try? Data(contentsOf: manifestURL),
-              let manifest = try? Self.decoder.decode(WorkbenchRunManifest.self, from: manifestData) else {
+        let imageURL: URL
+        let manifestURL: URL
+        do {
+            imageURL = try pathResolver.absoluteURL(for: latest.chartImagePath)
+            manifestURL = try pathResolver.absoluteURL(for: latest.manifestPath)
+        } catch {
+            fputs("[SpinLab] [LoadLatestChartArtifact] path resolve failed: \(error)\n", stderr)
             return nil
         }
 
-        return LoadedChartArtifact(
-            imageData: imageData,
-            manifest: manifest,
-            manifestPath: latest.manifestPath
-        )
+        let imageData: Data
+        let manifestData: Data
+        do {
+            imageData = try Data(contentsOf: imageURL)
+            manifestData = try Data(contentsOf: manifestURL)
+        } catch let nsErr as NSError where nsErr.domain == NSCocoaErrorDomain && nsErr.code == NSFileReadNoSuchFileError {
+            return nil
+        } catch {
+            fputs("[SpinLab] [LoadLatestChartArtifact] artifact read failed at \(imageURL.path): \(error)\n", stderr)
+            return nil
+        }
+
+        do {
+            let manifest = try Self.decoder.decode(WorkbenchRunManifest.self, from: manifestData)
+            return LoadedChartArtifact(
+                imageData: imageData,
+                manifest: manifest,
+                manifestPath: latest.manifestPath
+            )
+        } catch {
+            fputs("[SpinLab] [LoadLatestChartArtifact] manifest decode failed: \(error)\n", stderr)
+            return nil
+        }
     }
 }

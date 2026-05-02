@@ -19,9 +19,7 @@ final class ThreeOmegaWorkspaceStore {
 
     private static let rtQueryDefaultsKey = "workbench.searchQuery.3w.rt"
 
-    var rtQuery: String = "" {
-        didSet { UserDefaults.standard.set(rtQuery, forKey: Self.rtQueryDefaultsKey) }
-    }
+    var rtQuery: String = ""
     var rtSearchResults: [WorkflowMeasurementSearchHit] = []
     var rtSearchMessage: String?
     var isRTSearching: Bool = false
@@ -30,6 +28,15 @@ final class ThreeOmegaWorkspaceStore {
 
     init() {
         self.rtQuery = UserDefaults.standard.string(forKey: Self.rtQueryDefaultsKey) ?? ""
+    }
+
+    func updateRTQuery(_ newValue: String) {
+        rtQuery = newValue
+        persistRTQuery()
+    }
+
+    private func persistRTQuery() {
+        UserDefaults.standard.set(rtQuery, forKey: Self.rtQueryDefaultsKey)
     }
 
     func selectRTHit(_ hit: WorkflowMeasurementSearchHit) {
@@ -223,6 +230,11 @@ final class ThreeOmegaWorkspaceStore {
 
     /// IDs of packs currently overlaid on RAHE tabs.
     var overlayPackIDs: [AnalysisPack.ID] = []
+
+    func availableOverlayPacks(in vault: AnalysisVault) -> [AnalysisPack] {
+        let excludeIDs: Set<AnalysisPack.ID> = Set(overlayPackIDs).union(activePackID.map { [$0] } ?? [])
+        return vault.packs(forWorkflow: "3w").filter { !excludeIDs.contains($0.id) }
+    }
 
     /// Decoupled snapshots of overlay data — survive vault deletion.
     @ObservationIgnored var overlaySnapshots: [AnalysisPack.ID: OverlaySnapshot] = [:]
@@ -704,6 +716,7 @@ final class ThreeOmegaWorkspaceStore {
         cachedSearchResults      = []
         cachedSampleNumericDisplay = [:]
         rtQuery                  = ""
+        persistRTQuery()
         rtSearchResults          = []
         rtSearchMessage          = nil
         isRTSearching            = false
@@ -1256,6 +1269,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
         rahe1omegaMethod = ThreeOmegaV3Method(rawValue: config.rahe1Method) ?? .highField
         rahe3omegaMethod = ThreeOmegaV3Method(rawValue: config.rahe3Method) ?? .highField
         rtQuery = config.rtQuery
+        persistRTQuery()
         selectedRTHit = config.selectedRTHit
 
         // Restore display settings

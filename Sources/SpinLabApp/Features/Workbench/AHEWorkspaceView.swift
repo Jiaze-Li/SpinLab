@@ -94,14 +94,13 @@ private struct AHEMetricOverridePanel: View {
 
     var body: some View {
         @Bindable var ahe = appState.workbench.aheWorkspace
-        let sortedMetrics = ahe.lastExtractedMetrics.values.sorted(by: { $0.sampleKey < $1.sampleKey })
 
         VStack(alignment: .leading, spacing: 6) {
             if isMultiSample {
                 Text("Hc (auto-detected per sample)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                ForEach(sortedMetrics, id: \.sampleKey) { m in
+                ForEach(ahe.sortedExtractedMetrics, id: \.sampleKey) { m in
                     Text("\(m.sampleKey): \(String(format: "%g", m.hc)) T")
                         .font(.caption)
                         .foregroundStyle(.primary)
@@ -125,11 +124,11 @@ private struct AHEMetricOverridePanel: View {
                     TextField("Corrected Hc (T)", text: $valueText)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 120)
-                        .onChange(of: valueText) { _, new in updateCandidate(value: new, reason: reasonText) }
+                        .onChange(of: valueText) { _, new in ahe.updateHcCandidate(rawValue: new, rawReason: reasonText) }
 
                     TextField("Reason", text: $reasonText)
                         .textFieldStyle(.roundedBorder)
-                        .onChange(of: reasonText) { _, new in updateCandidate(value: valueText, reason: new) }
+                        .onChange(of: reasonText) { _, new in ahe.updateHcCandidate(rawValue: valueText, rawReason: new) }
 
                     if ahe.pendingMetricOverride != nil {
                         Button("Clear") {
@@ -159,23 +158,6 @@ private struct AHEMetricOverridePanel: View {
             if new == nil { valueText = ""; reasonText = "" }
         }
     }
-
-    private func updateCandidate(value: String, reason: String) {
-        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedReason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedValue.isEmpty {
-            appState.workbench.aheWorkspace.pendingMetricOverride = nil
-        } else if let parsed = Double(trimmedValue) {
-            let effectiveReason = trimmedReason.isEmpty ? "visual check" : trimmedReason
-            appState.workbench.aheWorkspace.pendingMetricOverride = WorkbenchMetricOverrideCandidate(
-                proposedValue: parsed,
-                reason: effectiveReason,
-                source: .manual
-            )
-        } else {
-            appState.workbench.aheWorkspace.pendingMetricOverride = nil
-        }
-    }
 }
 
 // MARK: - Pre-persist R_AHE Override Panel
@@ -191,14 +173,13 @@ private struct AHERAHEOverridePanel: View {
 
     var body: some View {
         @Bindable var ahe = appState.workbench.aheWorkspace
-        let sortedMetrics = ahe.lastExtractedMetrics.values.sorted(by: { $0.sampleKey < $1.sampleKey })
 
         VStack(alignment: .leading, spacing: 6) {
             if isMultiSample {
                 Text("R_AHE (auto-detected per sample)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                ForEach(sortedMetrics, id: \.sampleKey) { m in
+                ForEach(ahe.sortedExtractedMetrics, id: \.sampleKey) { m in
                     Text("\(m.sampleKey): \(String(format: "%g", m.rAHE)) Ω")
                         .font(.caption)
                         .foregroundStyle(.primary)
@@ -222,11 +203,11 @@ private struct AHERAHEOverridePanel: View {
                     TextField("Corrected R_AHE (Ω)", text: $valueText)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 140)
-                        .onChange(of: valueText) { _, new in updateCandidate(value: new, reason: reasonText) }
+                        .onChange(of: valueText) { _, new in ahe.updateRAHECandidate(rawValue: new, rawReason: reasonText) }
 
                     TextField("Reason", text: $reasonText)
                         .textFieldStyle(.roundedBorder)
-                        .onChange(of: reasonText) { _, new in updateCandidate(value: valueText, reason: new) }
+                        .onChange(of: reasonText) { _, new in ahe.updateRAHECandidate(rawValue: valueText, rawReason: new) }
 
                     if ahe.pendingRAHEOverride != nil {
                         Button("Clear") {
@@ -254,23 +235,6 @@ private struct AHERAHEOverridePanel: View {
         }
         .onChange(of: appState.workbench.aheWorkspace.pendingRAHEOverride) { _, new in
             if new == nil { valueText = ""; reasonText = "" }
-        }
-    }
-
-    private func updateCandidate(value: String, reason: String) {
-        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedReason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedValue.isEmpty {
-            appState.workbench.aheWorkspace.pendingRAHEOverride = nil
-        } else if let parsed = Double(trimmedValue) {
-            let effectiveReason = trimmedReason.isEmpty ? "visual check" : trimmedReason
-            appState.workbench.aheWorkspace.pendingRAHEOverride = WorkbenchMetricOverrideCandidate(
-                proposedValue: parsed,
-                reason: effectiveReason,
-                source: .manual
-            )
-        } else {
-            appState.workbench.aheWorkspace.pendingRAHEOverride = nil
         }
     }
 }

@@ -30,6 +30,11 @@ struct ThreeOmegaPlotRenderer {
 
     private let defaultOptions = WorkbenchChartRenderer.Options()
 
+    private enum RenderOutcome {
+        case success(Data, WorkbenchPlotLayout, [String])
+        case failure(String)
+    }
+
     // MARK: - Render all 5 analysis tabs (excludes scaling — geometry required)
 
     mutating func renderAllTabs(
@@ -116,7 +121,7 @@ struct ThreeOmegaPlotRenderer {
             reverseSeriesForLegend: true,
             seriesReorderable: true
         )
-        return _render(payload: &payload, options: _stackedOptions(sweepCount: sweeps.count))
+        return _consume(_render(payload: &payload, options: _stackedOptions(sweepCount: sweeps.count)))
     }
 
     /// Tab 2: R(3ω) vs H, stacked by temperature
@@ -179,7 +184,7 @@ struct ThreeOmegaPlotRenderer {
             reverseSeriesForLegend: true,
             seriesReorderable: true
         )
-        return _render(payload: &payload, options: _stackedOptions(sweepCount: sweeps.count))
+        return _consume(_render(payload: &payload, options: _stackedOptions(sweepCount: sweeps.count)))
     }
 
     /// Tab 3a: RAHE(1ω) vs T
@@ -196,7 +201,7 @@ struct ThreeOmegaPlotRenderer {
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE(1ω) (Ω)"),
             series: [WorkbenchPlotSeries(label: "RAHE(1ω)", x: temps, y: vals)]
         )
-        return _render(payload: &payload)
+        return _consume(_render(payload: &payload))
     }
 
     /// Tab 3b: RAHE(3ω) vs T
@@ -213,7 +218,7 @@ struct ThreeOmegaPlotRenderer {
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE(3ω) (Ω)"),
             series: [WorkbenchPlotSeries(label: "RAHE(3ω)", x: temps, y: vals)]
         )
-        return _render(payload: &payload)
+        return _consume(_render(payload: &payload))
     }
 
     /// Tab 3a multi-group: RAHE(1ω) vs T with overlays from multiple analysis packs
@@ -264,7 +269,7 @@ struct ThreeOmegaPlotRenderer {
             series: series,
             semanticParams: ["device": device, "tabKey": harmonic == 1 ? "rahe1omegaVsT" : "rahe3omegaVsT", "v3method": methodTag]
         )
-        let (data, layout) = _render(payload: &payload)
+        let (data, layout) = _consume(_render(payload: &payload))
         return (data, layout, payload)
     }
 
@@ -288,7 +293,7 @@ struct ThreeOmegaPlotRenderer {
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "Hc (Oe)"),
             series: series
         )
-        return _render(payload: &payload)
+        return _consume(_render(payload: &payload))
     }
 
     /// Tab 5: Rxx vs T (from RT file)
@@ -302,7 +307,7 @@ struct ThreeOmegaPlotRenderer {
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "Rxx (Ω)"),
             series: [WorkbenchPlotSeries(label: "Rxx", x: rt.temperatureK, y: rt.rxx)]
         )
-        return _render(payload: &payload)
+        return _consume(_render(payload: &payload))
     }
 
     /// Tab 6: Fig 5b — E^(3ω)_AHE / (E_xx³ × σ_xx) vs σ²_xx
@@ -373,7 +378,7 @@ struct ThreeOmegaPlotRenderer {
             ),
             series: series
         )
-        return _render(payload: &payload)
+        return _consume(_render(payload: &payload))
     }
 
     // MARK: - Private
@@ -383,7 +388,7 @@ struct ThreeOmegaPlotRenderer {
     private mutating func _render(
         payload: inout WorkbenchPlotPayload,
         options: WorkbenchChartRenderer.Options? = nil
-    ) -> (Data?, WorkbenchPlotLayout?) {
+    ) -> RenderOutcome {
         var patch: [String: String] = [:]
         if showGrid { patch["showGrid"] = "true" }
         if !legendAnchor.isEmpty { patch["legendAnchor"] = legendAnchor }
@@ -401,10 +406,26 @@ struct ThreeOmegaPlotRenderer {
             hiddenPointLabelsBySeries: hiddenPointLabelsBySeries,
             styleParamsPatch: patch
         )
-        guard let output = try? WorkbenchRenderPipeline.render(input) else { return (nil, nil) }
-        collectedWarnings.append(contentsOf: output.warnings)
-        payload = output.manifestPayload
-        return (output.imageData, output.layout)
+        do {
+            let output = try WorkbenchRenderPipeline.render(input)
+            payload = output.manifestPayload
+            return .success(output.imageData, output.layout, output.warnings)
+        } catch {
+            let reason = "pipeline failure: \(error)"
+            fputs("[SpinLab] ThreeOmegaPlotRenderer: \(reason)\n", stderr)
+            return .failure(reason)
+        }
+    }
+
+    private mutating func _consume(_ outcome: RenderOutcome) -> (Data?, WorkbenchPlotLayout?) {
+        switch outcome {
+        case .success(let imageData, let layout, let warnings):
+            collectedWarnings.append(contentsOf: warnings)
+            return (imageData, layout)
+        case .failure(let reason):
+            collectedWarnings.append(reason)
+            return (nil, nil)
+        }
     }
 
     /// Computes chart height for stacked waterfall plots.
