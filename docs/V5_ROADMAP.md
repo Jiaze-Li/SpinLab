@@ -421,10 +421,10 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 
 > 流水线起点。本版本同时承担"跑通方法 + 审 Workbench"双任务。
 
-- [x] 5.1.11a 审计：按上述抽样策略 + 判定口径在 Workbench 区扫一轮；产出五段表；纯文档零代码（Drift 改 Code Map 注释除外）。44 样本；21 Violation / 8 Drift / 34 Accepted；§5 Fix-Round Draft 分 5 批。设计与审计纪要：[handoff/2026-05-02-workbench-audit.md](handoff/2026-05-02-workbench-audit.md)
+- [x] 5.1.11a 审计：按上述抽样策略 + 判定口径在 Workbench 区扫一轮；产出五段表；纯文档零代码（Drift 改 Code Map 注释除外）。44 样本；21 Violation / 8 Drift / 34 Accepted；§5 Fix-Round Draft 分 5 批。设计与审计纪要：[history/v5111a_workbench_audit.md](history/v5111a_workbench_audit.md)
 - [x] 5.1.11a 收尾：从 battle-tested 方法落 `docs/architecture/AUDIT_PLAYBOOK.md`
-- [ ] 5.1.11b 修复：按 5.1.11a Fix-Round Draft 入修；commit 拆批以"独立 review"为粒度
-- [ ] 5.1.11c/d 修复溢出（按需启用，依四维度判断）
+- [x] 5.1.11b 修复：Renderer do-catch pipeline + Persistence fail-soft + Setter/View 副作用搬位（AS-18/19/21/32/35/36/38）
+- [x] 5.1.11c/d 修复溢出：AHE metric + XY series order → UseCase；3ω physics models + PPMSParsedFile → Domain/；附加修复 NavigationSplitView columnVisibility。纪要：[history/v5111bcd_workbench_compliance_fixes.md](history/v5111bcd_workbench_compliance_fixes.md)
 
 ### 5.1.12 — Inbox 边界合规审计 + 修复（架构审计流水线第 2 轮）
 
