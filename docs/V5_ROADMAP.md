@@ -438,7 +438,7 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 
 > 套用 `AUDIT_PLAYBOOK.md`；Library 相对稳定，预计违规密度低于 11/12。
 
-- [ ] 5.1.13a 审计
+- [x] 5.1.13a 审计 — 套 AUDIT_PLAYBOOK Library 5 层 29 条 AS-ID；Codex 综合评审 adopt-with-fixes；产出 9 V + 4 D + 16 A + 3 CR。Handoff: `docs/handoff/2026-05-03-library-audit.md`；4 条 Code Map drift 已立即 commit。
 - [ ] 5.1.13b 修复
 - [ ] 5.1.13c/d 修复溢出（按需启用）
 
