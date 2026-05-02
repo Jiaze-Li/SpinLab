@@ -77,7 +77,7 @@ Search accepts both old and new IDs as query aliases; all persisted data uses ne
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift` — 3ω workflow store; coordinates search selection, RT selection, analysis/render state, scaling, overlays, pack restore, and chart persistence
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift` — 3ω workspace view; assembles fit, scaling, geometry, and plot panels
 - `Sources/SpinLabApp/UseCases/ThreeOmegaFitUseCase.swift` — runs 3ω curve fitting algorithm and returns fit result for each run
-- `Sources/SpinLabApp/UseCases/ThreeOmegaPlotRenderer.swift` — renders 3ω fit and raw data as chart series for the plot canvas
+- `Sources/SpinLabApp/UseCases/ThreeOmegaPlotRenderer.swift` — renders all 3ω chart tabs from ingestion/scaling outputs through the shared render pipeline
 - `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift` — pack config and result contracts for the 3ω workflow
 - `Sources/SpinLabApp/UseCases/ThreeOmegaLVMParser.swift` — parses LVM files containing 3ω measurement data into structured types
 - `Sources/SpinLabApp/UseCases/ThreeOmegaScalingUseCase.swift` — computes thermal conductivity scaling from 3ω fit results
