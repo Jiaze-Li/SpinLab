@@ -91,6 +91,7 @@ Search accepts both old and new IDs as query aliases; all persisted data uses ne
 - `Sources/SpinLabApp/UseCases/BuildAHEPlotPayloadUseCase.swift` — builds plot payload from AHE ingestion results for the plot canvas
 - `Sources/SpinLabApp/Workbench/V3/AHEPackContracts.swift` — pack config and result contracts for the AHE workflow
 - `Sources/SpinLabApp/UseCases/IngestAHESelectionsUseCase.swift` — ingests selected files into AHE analysis via data parsing and axis detection
+- `Sources/SpinLabApp/UseCases/ExtractAHEMetricsUseCase.swift` — extracts AHE Hc and R_AHE metrics from sweep series with label-derived metadata
 - `Sources/SpinLabApp/Workbench/V3/AHEIngestionContracts.swift` — ingestion input contracts and result types for the AHE workflow
 - `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift` — XY Rotation workflow store; coordinates ingestion, tab render state, persistence, packs, related charts, and series ordering
 - `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift` — XY Rotation workspace view; assembles Rxx/Rxy tabs and auxiliary line panels
@@ -99,6 +100,7 @@ Search accepts both old and new IDs as query aliases; all persisted data uses ne
 - `Sources/SpinLabApp/Workbench/V3/XYRotationPackContracts.swift` — pack config and result contracts for the XY Rotation workflow
 - `Sources/SpinLabApp/UseCases/XYRotationLVMParser.swift` — parses LVM files containing XY Rotation measurement data
 - `Sources/SpinLabApp/UseCases/IngestXYRotationSelectionsUseCase.swift` — ingests selected files into XY Rotation analysis via LVM/DAT parsing
+- `Sources/SpinLabApp/UseCases/AlignXYSeriesOrderUseCase.swift` — aligns XY rotation series order across persisted state, selected hits, and legend display
 - `Sources/SpinLabApp/Workbench/V3/XYRotationIngestionContracts.swift` — ingestion input contracts and result types for the XY Rotation workflow
 
 - `Sources/SpinLabApp/Features/Workbench/UnitTagEditor.swift` — editor for attaching and editing unit tags on measurement conditions
