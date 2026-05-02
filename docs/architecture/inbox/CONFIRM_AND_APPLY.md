@@ -101,7 +101,7 @@ The right column is no longer blank/reserved — it is actively used for inspect
 - `Sources/SpinLabApp/App/InboxWorkflowService.swift` — workflow-level Inbox service orchestration
 - `Sources/SpinLabApp/App/InboxFacade.swift` — App-level Inbox capability facade
 - `Sources/SpinLabApp/Features/Inbox/InboxView.swift` — Inbox two-column root view
-- `Sources/SpinLabApp/Features/Inbox/InboxViewModel.swift` — transient UI state: selection, filter, expansion
+- `Sources/SpinLabApp/Features/Inbox/InboxViewModel.swift` — transient UI state (selection, filter, expansion) + InboxOperationProjection computation from AppState
 - `Sources/SpinLabApp/Features/Inbox/InboxOperationPanel.swift` — Apply / Apply All / Clear Imports button bar
 - `Sources/SpinLabApp/Features/Inbox/InboxInspectorPanel.swift` — right-column inspector/output panel
 - `Sources/SpinLabApp/Features/Inbox/InboxSelectionWorkbenchPanel.swift` — route edit panel for selected pending item
