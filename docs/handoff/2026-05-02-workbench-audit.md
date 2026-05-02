@@ -248,26 +248,28 @@ Extension 入样：1 条（E-01）
 | AS-32 | `UseCases/XYRotationPlotRenderer.swift` | Workflow Renderer | #6 | `renderRxxVsPhi`/`renderRxyVsPhi` → `_render` → `try? WorkbenchRenderPipeline.render` 返回 `(nil, nil)` 丢弃 render error | High | next_action=14a / 修复粒度=single / 依赖=无 |
 | AS-32 | `UseCases/XYRotationPlotRenderer.swift` | Workflow Renderer | #16 | `XYRotationPlotRenderer` → 含 `collectedWarnings`/config 可变字段 → UseCase 非 stateless struct | Med | next_action=14a / 修复粒度=multi / 依赖=无 |
 
-| AS-42 | `UseCases/SearchWorkflowMeasurementsUseCase.swift` | Search UseCase | #16 | `SearchWorkflowMeasurementsUseCase` → `private let sampleKeyNormalizer = SampleKeyNormalizer()` → UseCase 内部自建 helper 实例而非接受 function 参数 | Low | next_action=no-fix-accepted / 修复粒度=single / 依赖=无 |
+| AS-35 | `UseCases/PersistChartArtifactUseCase.swift` | Persistence UseCase | #6 | `execute` → `try? Data(contentsOf: results_index)` / `try? decoder.decode(WorkbenchResultsIndex)` → 读取或解码失败静默 rebuild index 无日志 | Med | next_action=14a / 修复粒度=single / 依赖=无 |
+| AS-36 | `UseCases/PersistMeasurementDataUseCase.swift` | Persistence UseCase | #6 | `execute` → `try? Data(contentsOf: measurement_data)` / `try? decoder.decode(WorkbenchMeasurementDataStore)` → 读取或解码失败静默创建空 store，可能覆盖损坏但可恢复的数据 | High | next_action=14a / 修复粒度=single / 依赖=无 |
+| AS-38 | `UseCases/LoadLatestChartArtifactUseCase.swift` | Persistence UseCase | #6 | `execute` → 多处 `try?` 读取/解码 index/image/manifest → 非缺文件错误（corrupt JSON/manifest）静默 nil | Low | next_action=14a / 修复粒度=single / 依赖=无 |
+| AS-42 | `UseCases/SearchWorkflowMeasurementsUseCase.swift` | Search UseCase | #16 | `SearchWorkflowMeasurementsUseCase` → `private let sampleKeyNormalizer = SampleKeyNormalizer()` → UseCase 内部自建 helper 实例 | Low | next_action=no-fix-accepted / 修复粒度=single / 依赖=无 |
+| AS-42 | `UseCases/SearchWorkflowMeasurementsUseCase.swift` | Search UseCase | #15 | `loadNumericTags()` → `LibraryStore()` → UseCase 内部自建 storage dependency 并读取 Library index，未经 AppEnvironment 注入 | Med | next_action=14a / 修复粒度=single / 依赖=无 |
 
-**Violation 汇总**: 17 条（High: 4 / Med: 8 / Low: 5）。Batch 1 (Shell/Render) 0 条；Batch 3 1 条。
+**Violation 汇总**: 21 条（High: 5 / Med: 10 / Low: 6）。Batch 1 (Shell/Render) 0 条；Batch 3 5 条（4 条由 Codex 评审补入）。
 
 ---
 
-## 2. Doc Drift（建议 Code Map 注释修订方向）
+## 2. Doc Drift Fixed（已 commit Code Map 注释）
 
-> 审计轮不直接 commit；修订方向供 Claude 方在 5.1.11b 执行。
-
-| File | 旧注释 | 建议新注释方向 | 偏离原因 |
-|---|---|---|---|
-| `Features/Workbench/ThreeOmegaWorkspaceStore.swift` | 3ω workflow store; ingestion state, fit results, scaling output, series order | 3ω workflow store; coordinates search selection, RT selection, analysis/render state, scaling, overlays, pack restore, and chart persistence | 实现已包含 RT 独立搜索、overlay、pack restore、manifest/persistence，旧注释偏窄 |
-| `UseCases/ThreeOmegaPlotRenderer.swift` | renders 3ω fit and raw data as chart series for the plot canvas | renders all 3ω chart tabs from ingestion/scaling outputs through the shared render pipeline | 实现覆盖 RAHE/Hc/RT/Scaling/overlay multi-group 与 pipeline warning collection |
-| `Workbench/V3/ThreeOmegaIngestionContracts.swift` | ingestion input contracts and result types for the 3ω workflow | defines 3ω parsed-file, processed-result, scaling, geometry, and tab contracts | 文件承载 workflow domain/result/tab 类型，不只是 ingestion input/result |
-| `Features/Workbench/AHEWorkspaceStore.swift` | AHE workflow store; ingestion state, axis-detected results, plot series | AHE workflow store; coordinates ingestion, plot render state, metrics, persistence, packs, and related charts | 实现包含 persistence outcome、metric override/extraction cache、analysis pack restore、related-chart loading |
-| `Features/Workbench/AHEWorkspaceView.swift` | AHE workspace view; assembles axis-detection results and plot panels | AHE workspace view; assembles plot controls, metric override panels, and workflow shell content | 主体是 shell composition 加 Hc/R_AHE override panels |
-| `Features/Workbench/XYRotationWorkspaceStore.swift` | XY Rotation workflow store; ingestion state, series data, plot configuration | XY Rotation workflow store; coordinates ingestion, tab render state, persistence, packs, related charts, and series ordering | 实现包含 save-to-library、pack restore、related-chart lookup、reorder/rerender 协调 |
-| `Workbench/V3/SeriesOrderAlignHelper.swift` | aligns series display order between workspace store and plot canvas | aligns persisted series order with the current sweep identifiers after re-analysis | 是纯 persisted-order reconciliation helper，不直接桥接 store 与 canvas |
-| `Features/Workbench/WorkbenchSharedComponents.swift` | shared search bar and filter UI components used across Workbench views | placeholder stub; formerly consolidated shared workbench UI; contents split into dedicated files | 文件已拆分为 7 个独立文件，现只剩 redirect 注释，Code Map 注释描述的代码已不在此处 |
+| File | 旧注释 | 新注释 | 偏离原因 | commit_id |
+|---|---|---|---|---|
+| `Features/Workbench/ThreeOmegaWorkspaceStore.swift` | 3ω workflow store; ingestion state, fit results, scaling output, series order | 3ω workflow store; coordinates search selection, RT selection, analysis/render state, scaling, overlays, pack restore, and chart persistence | 实现已包含 RT 独立搜索、overlay、pack restore、manifest/persistence | 53fb1b5 |
+| `UseCases/ThreeOmegaPlotRenderer.swift` | renders 3ω fit and raw data as chart series for the plot canvas | renders all 3ω chart tabs from ingestion/scaling outputs through the shared render pipeline | 实现覆盖 RAHE/Hc/RT/Scaling/overlay multi-group 与 pipeline warning collection | d7408ff |
+| `Workbench/V3/ThreeOmegaIngestionContracts.swift` | ingestion input contracts and result types for the 3ω workflow | defines 3ω parsed-file, processed-result, scaling, geometry, and tab contracts | 文件承载 workflow domain/result/tab 类型，不只是 ingestion input/result | b41561a |
+| `Features/Workbench/AHEWorkspaceStore.swift` | AHE workflow store; ingestion state, axis-detected results, plot series | AHE workflow store; coordinates ingestion, plot render state, metrics, persistence, packs, and related charts | 实现包含 persistence outcome、metric override/extraction cache、analysis pack restore、related-chart loading | 2fcc7e8 |
+| `Features/Workbench/AHEWorkspaceView.swift` | AHE workspace view; assembles axis-detection results and plot panels | AHE workspace view; assembles plot controls, metric override panels, and workflow shell content | 主体是 shell composition 加 Hc/R_AHE override panels | 04bafaa |
+| `Features/Workbench/XYRotationWorkspaceStore.swift` | XY Rotation workflow store; ingestion state, series data, plot configuration | XY Rotation workflow store; coordinates ingestion, tab render state, persistence, packs, related charts, and series ordering | 实现包含 save-to-library、pack restore、related-chart lookup、reorder/rerender 协调 | de3e8e2 |
+| `Workbench/V3/SeriesOrderAlignHelper.swift` | aligns series display order between workspace store and plot canvas | aligns persisted series order with the current sweep identifiers after re-analysis | 是纯 persisted-order reconciliation helper，不直接桥接 store 与 canvas | 94447fa |
+| `Features/Workbench/WorkbenchSharedComponents.swift` | shared search bar and filter UI components used across Workbench views | placeholder stub; formerly consolidated shared workbench UI; contents split into dedicated files | 文件已拆分为 7 个独立文件，现只剩 redirect 注释 | b399f6f |
 
 ---
 
@@ -298,10 +300,10 @@ Extension 入样：1 条（E-01）
 | `UseCases/BuildAHEPlotPayloadUseCase.swift` | Workflow payload builder depends on Workbench plot domain contracts | Stateless struct；无 SwiftUI；无 storage 细节；纯 ingestion result → plot payload 映射 | Accepted Boundary |
 | `Features/Workbench/XYRotationWorkspaceView.swift` | View reads workflow ingestion result and binds phi offset controls to store | @Environment AppState；mutation 通过 store 方法；无 sorting/filtering/normalization | Accepted Boundary |
 | `UseCases/SaveActiveChartToLibraryUseCase.swift` | SP-007/SP-008: orchestrates chart + metric persist to Library | Foundation only；无 stored 依赖；validates input + delegates to sub-UseCases；local writer/resolver creation 视为 factory pattern | Accepted Boundary |
-| `UseCases/PersistChartArtifactUseCase.swift` | SP-007/SP-008: writes chart image + manifest to Library | Foundation only；injected `writer: AtomicFileWritingCapability` + `pathResolver`；使用 throws 正确上报 error | Accepted Boundary |
-| `UseCases/PersistMeasurementDataUseCase.swift` | SP-007/SP-008: appends metric record to Library measurement_data.json | Foundation only；injected capabilities；uses throws ✓ | Accepted Boundary |
+| `UseCases/PersistChartArtifactUseCase.swift` | SP-007/SP-008: writes chart image + manifest to Library | Foundation only；injected capabilities；主执行路径 throws；但 results_index read/decode 有 #6 Violation（见 §1 AS-35） | Violation + partial Accepted |
+| `UseCases/PersistMeasurementDataUseCase.swift` | SP-007/SP-008: appends metric record to Library measurement_data.json | Foundation only；injected capabilities；但 measurement_data read/decode 有 #6 High Violation（见 §1 AS-36） | Violation + partial Accepted |
 | `UseCases/BackfillMeasurementPlotIndexUseCase.swift` | SP-008: one-time backfill rebuilds MeasurementPlotIndex from manifests | Adj-10 approved fail-soft with stderr logging；跳过不可读 manifest 是设计意图 | Accepted Boundary |
-| `UseCases/LoadLatestChartArtifactUseCase.swift` | SP-008: loads most recent chart artifact | graceful nil-on-failure load；file-not-found 是预期场景 | Accepted Boundary |
+| `UseCases/LoadLatestChartArtifactUseCase.swift` | SP-008: loads most recent chart artifact | nil-on-failure load；但非缺文件错误（corrupt data）也静默 nil，有 #6 Low Violation（见 §1 AS-38） | Violation + partial Accepted |
 | `UseCases/LoadWorkbenchResultsUseCase.swift` | SP-008: loads WorkbenchResultsIndex | Adj-10 fail-soft；non-missing-file errors logged to stderr | Accepted Boundary |
 | `UseCases/LoadMeasurementDataUseCase.swift` | SP-008: loads WorkbenchMeasurementDataStore | same pattern as AS-39 | Accepted Boundary |
 | `Workbench/V3/WorkbenchResultContracts.swift` | Workbench-internal persistence contracts | Workbench-specific data types (plot series, run manifest, results index)；Foundation only；不是跨区 domain entity | Accepted Boundary |
@@ -381,4 +383,14 @@ Extension 入样：1 条（E-01）
 
 **补充 Violation**: 无。所有 Codex Batch 2 结论经验证，无误报/漏报。
 
-*Batch 1+3 评审（Codex 评 Claude 方）+ §4.3 收尾对账 待完成*
+### Batch 1+3 评审（Codex，2026-05-02）
+
+**AS-42 Violation Challenge**: accept-with-addition — no-fix-accepted for `sampleKeyNormalizer` 保留；追加 Med #15 for `LibraryStore()` in `loadNumericTags()`。
+
+**SP-*/G-* 复核（12 文件）**: AS-35/36/38 disputed（补 #6 violations）；其余 9 文件 pass。AS-03 WorkflowWorkspaceShell 有 popover filter，但判定为 UI transient list，非业务 filter——接受。
+
+**随机抽查（7 文件，Batch 1 non-SP/G 6/13 = 46%；Batch 3 non-SP/G 1/3 = 33%）**: 全部 accept。
+
+**补充 Violation**: 4 条（AS-35 Med #6，AS-36 High #6，AS-38 Low #6，AS-42 Med #15）——已写入 §1，AS-35/36/38 §3 状态已更新。
+
+*§4.3 收尾对账 待完成*
