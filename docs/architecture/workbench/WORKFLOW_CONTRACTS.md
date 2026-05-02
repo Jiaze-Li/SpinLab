@@ -92,7 +92,7 @@ Search accepts both old and new IDs as query aliases; all persisted data uses ne
 - `Sources/SpinLabApp/Workbench/V3/AHEPackContracts.swift` — pack config and result contracts for the AHE workflow
 - `Sources/SpinLabApp/UseCases/IngestAHESelectionsUseCase.swift` — ingests selected files into AHE analysis via data parsing and axis detection
 - `Sources/SpinLabApp/Workbench/V3/AHEIngestionContracts.swift` — ingestion input contracts and result types for the AHE workflow
-- `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift` — XY Rotation workflow store; ingestion state, series data, plot configuration
+- `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift` — XY Rotation workflow store; coordinates ingestion, tab render state, persistence, packs, related charts, and series ordering
 - `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift` — XY Rotation workspace view; assembles Rxx/Rxy tabs and auxiliary line panels
 - `Sources/SpinLabApp/UseCases/XYRotationDATParser.swift` — parses DAT files containing XY Rotation measurement data
 - `Sources/SpinLabApp/UseCases/XYRotationPlotRenderer.swift` — renders XY Rotation data as Rxx/Rxy chart series for the plot canvas
