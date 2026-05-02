@@ -347,4 +347,38 @@ Extension 入样：1 条（E-01）
 
 审计范围：AS-34–AS-44（Persistence 8 + Search 2 + Extension 1）。Violation 1 条（Low #16 SearchUseCase 内建 helper），Drift 1 条（WorkbenchSharedComponents redirect stub），Accepted 11 条。
 
-*Batch 1+3 评审（Codex 评 Claude 方）+ Batch 2 评审（Claude 评 Codex 方）+ §4.3 收尾对账 待完成*
+### Batch 2 评审（Claude 评 Codex 方，2026-05-02）
+
+**评审范围**: Batch 2a (AS-18–25) + Batch 2b (AS-26–33)，共 16 Violations。
+
+**Violation 100% Challenge 结论**:
+
+| AS-ID | 信号 | Challenge 结论 | 依据 |
+|---|---|---|---|
+| AS-18 #1 | setter→UserDefaults | ✅ Accept | `rtQuery` setter 有 `didSet` 写 `UserDefaults.standard`，明确违反 @Observable setter 副作用规则 |
+| AS-18 #15 | DI bypass | ✅ Accept | Store 直接 instantiate `LibraryStore()`/`FileManager.default` 绕过 AppEnvironment，符合 #15 |
+| AS-19 #2 | overlay filter in View | ✅ Accept | SwiftUI View body 调 `.filter` 是 business filter 逻辑，符合 #2 |
+| AS-21 #6 | try? silences render error | ✅ Accept | `try? WorkbenchRenderPipeline.render` 失败返回 (nil,nil) 无日志，符合 #6 |
+| AS-21 #16 | stateful config | ✅ Accept（no-fix disposition 合理） | ThreeOmegaPlotRenderer 持有 showGrid 等 mutable 配置；no-fix-accepted 对图表渲染配置可接受 |
+| AS-24 #16 | stateful parser/fitter | ✅ Accept（no-fix disposition 合理） | 同上，持有 parser/fitter 实例；模式已建立 |
+| AS-25 #17 | domain models in Workbench/V3 | ✅ Accept High | `ThreeOmegaIngestionContracts.swift` 定义 `ThreeOmegaFieldSweepResult`/`ThreeOmegaGeometry` 等 → 明确 #17 High |
+| AS-26 #5 | AHE Store business logic | ✅ Accept High | Store 包含 Hc/R_AHE 提取策略 + label 解析，这是业务策略，不是 CRUD |
+| AS-26 #15 | FileManager.default | ✅ Accept | 同 AS-18 #15 模式 |
+| AS-27 #2a | sorted display ordering | ✅ Accept | `values.sorted` 在 View body，符合 #2 |
+| AS-27 #2b | input normalization | ✅ Accept | trim + Double 转换 + 默认值填充在 View 方法，符合 #2 |
+| AS-28 #17 | PPMSParsedFile outside Domain/ | ✅ Accept High | `PPMSParsedFile` 是 parsed domain model，定义在 `UseCases/` 而非 `Domain/`，符合 #17 |
+| AS-30 #5 | XY Store series ordering | ✅ Accept | Store 含 series-order merge 和 legend reverse mapping 策略，超出 CRUD 范围 |
+| AS-30 #15 | FileManager.default | ✅ Accept | 同 AS-26 #15 |
+| AS-32 #6 | XY renderer try? | ✅ Accept High | 同 AS-21 #6 模式，但此处 render failure 返回 (nil,nil) 且无 warning，High 风险合适 |
+| AS-32 #16 | stateful renderer | ✅ Accept | XYRotationPlotRenderer 持有 `collectedWarnings` mutable state，比 AS-21 更严重 |
+
+**SP-*/G-* 100% 复核**（AS-18 G-006，AS-21 G-015，AS-25，AS-26 G-006，AS-29 G-015，AS-30 G-006，AS-32 G-015）: 全部 pass。AS-29 BuildAHEPlotPayloadUseCase 判 Accepted（stateless struct）正确；G-006 三个 Store 均有实际 Violation，判定合理。
+
+**30% 随机抽查**（AS-20 ThreeOmegaFitUseCase，AS-22 ThreeOmegaScalingUseCase，AS-31 XYRotationWorkspaceView）:
+- AS-20: 物理拟合 UseCase，stateless，Foundation only → Accepted 正确
+- AS-22: scaling computation，stateless，Foundation only → Accepted 正确
+- AS-31: @Environment AppState，phi offset mutation 经 store → Accepted 正确
+
+**补充 Violation**: 无。所有 Codex Batch 2 结论经验证，无误报/漏报。
+
+*Batch 1+3 评审（Codex 评 Claude 方）+ §4.3 收尾对账 待完成*
