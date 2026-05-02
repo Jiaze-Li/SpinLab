@@ -716,6 +716,7 @@ final class ThreeOmegaWorkspaceStore {
         cachedSearchResults      = []
         cachedSampleNumericDisplay = [:]
         rtQuery                  = ""
+        persistRTQuery()
         rtSearchResults          = []
         rtSearchMessage          = nil
         isRTSearching            = false
@@ -1268,6 +1269,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
         rahe1omegaMethod = ThreeOmegaV3Method(rawValue: config.rahe1Method) ?? .highField
         rahe3omegaMethod = ThreeOmegaV3Method(rawValue: config.rahe3Method) ?? .highField
         rtQuery = config.rtQuery
+        persistRTQuery()
         selectedRTHit = config.selectedRTHit
 
         // Restore display settings
