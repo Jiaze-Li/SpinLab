@@ -83,7 +83,7 @@ Search accepts both old and new IDs as query aliases; all persisted data uses ne
 - `Sources/SpinLabApp/UseCases/ThreeOmegaScalingUseCase.swift` — computes thermal conductivity scaling from 3ω fit results
 - `Sources/SpinLabApp/UseCases/ThreeOmegaStackOffsetUseCase.swift` — applies per-curve stack offsets to 3ω plot series
 - `Sources/SpinLabApp/UseCases/IngestThreeOmegaSelectionsUseCase.swift` — ingests selected files into 3ω analysis via LVM parsing and condition mapping
-- `Sources/SpinLabApp/Workbench/V3/ThreeOmegaIngestionContracts.swift` — ingestion input contracts and result types for the 3ω workflow
+- `Sources/SpinLabApp/Workbench/V3/ThreeOmegaIngestionContracts.swift` — defines 3ω parsed-file, processed-result, scaling, geometry, and tab contracts
 - `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` — AHE workflow store; ingestion state, axis-detected results, plot series
 - `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift` — AHE workspace view; assembles axis-detection results and plot panels
 - `Sources/SpinLabApp/UseCases/AHEDataParser.swift` — parses raw AHE measurement files into structured domain types
