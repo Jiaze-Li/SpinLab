@@ -74,7 +74,7 @@ Search accepts both old and new IDs as query aliases; all persisted data uses ne
 
 ## Code Map
 
-- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift` — 3ω workflow store; ingestion state, fit results, scaling output, series order
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift` — 3ω workflow store; coordinates search selection, RT selection, analysis/render state, scaling, overlays, pack restore, and chart persistence
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift` — 3ω workspace view; assembles fit, scaling, geometry, and plot panels
 - `Sources/SpinLabApp/UseCases/ThreeOmegaFitUseCase.swift` — runs 3ω curve fitting algorithm and returns fit result for each run
 - `Sources/SpinLabApp/UseCases/ThreeOmegaPlotRenderer.swift` — renders 3ω fit and raw data as chart series for the plot canvas
