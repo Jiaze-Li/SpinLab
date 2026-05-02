@@ -170,7 +170,7 @@ Output 入样：**3 条**（AS-25..AS-27；target 3–4，达下限 ✓）
 
 > 格式：`AS-ID | 文件名 | 信号 #N (base) | overlay_signal | 严重度 | 行为描述 | next_action`
 
-（待 Batch 1 / Batch 2 审计填入）
+**Batch 1 结果（Claude 主审，2026-05-02）：0 条 Violation**
 
 ---
 
@@ -178,15 +178,30 @@ Output 入样：**3 条**（AS-25..AS-27；target 3–4，达下限 ✓）
 
 > 格式：`AS-ID | 文件名 | Code Map 现注释 | 实现偏离描述 | commit_id`
 
-（待审计；Drift 当批发现当批 commit 修正）
+**Batch 1 结果：0 条 Drift**（Code Map 注释与实现对齐）
 
 ---
 
 ## 3. Accepted Boundaries
 
-> 格式：`AS-ID | 文件名 | 信号 # | 判断依据（architecture decision）`
+> 格式：`AS-ID | 文件名 | 信号检查结论 | 判断依据`
 
-（待审计填入）
+### Batch 1（Routing + Output，Claude 主审，2026-05-02）
+
+| AS-ID | 文件名 | 信号 | 判断依据 |
+|---|---|---|---|
+| AS-01 | `ImportPipeline.swift` | 全通过 | `ruleProvider` 参数可注入（默认 singleton 为 read-only exception） |
+| AS-02 | `FilenameRuleParser.swift` | 全通过 | 纯 parser struct，无 SwiftUI / 无 storage 调用 |
+| AS-03 | `SampleKeyNormalizer.swift` | 全通过 | 纯归一化 struct；`FileRoutingRuleBook()` 值类型 inline 实例 |
+| AS-04 | `SampleSemanticDescriptor.swift` | 全通过 | static `ruleProvider.ruleSet()` 为 read-only exception；struct 不含 side-effecting 写操作 |
+| AS-05 | `DrawerMatchEngine.swift` | 全通过 | 纯 token-coverage matching，无副作用 |
+| AS-06 | `PendingRoutingSnapshotEvaluator.swift` | 全通过 | 纯 snapshot builder；`PendingRoutingRuleBook()` 值类型 inline 实例 |
+| AS-07 | `InboxRoutingState.swift` | 全通过 | `final class`（非 @Observable）设计为 routing 内部缓存，由 AppState 以 `@ObservationIgnored` 持有；Layer boundary 注释明确；无 SwiftUI 可观察接口 |
+| AS-08 | `FilenameRuleSet.swift` | 全通过 | rule schema + 编译/评估，大文件（919L G-002）；`ConditionTransformExpressionEvaluator()` inline 值类型实例合法；`applyStandardization` 抛出 transform 错误进 warning list 而非 `try?` 丢弃 |
+| AS-09 | `ConditionTransformExpressionEvaluator.swift` | 全通过 | 完全无状态 recursive descent parser，AR 新文件；无信号命中 |
+| AS-25 | `SampleRegistry.swift` | 全通过 | `buildIndex` 通过 `RegistryLookupRuleBook` 协议注入策略；`try? parseSharedStrings()` 符合 Adj-10（XLSX shared strings 缺失为正常 format 变体）；env var 读取 read-only；`SampleIDParser` singleton read-only exception |
+| AS-26 | `RegistryFeatureStore.swift` | 全通过 | 13L 纯展示态 struct；CLAUDE.md "small presentation-only state containers may be struct" exception 成立 |
+| AS-27 | `RegistryCoordinator.swift` | 全通过 | `@MainActor` coordinator struct；async methods 合法（非 AppState 直接方法）；`refreshRoutingRuleMetadata(inboxStore:)` 跨区调用通过 AppState 参数注入，编排方仍是 AppState |
 
 ---
 
