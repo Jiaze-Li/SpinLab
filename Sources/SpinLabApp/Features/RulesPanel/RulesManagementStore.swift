@@ -355,6 +355,12 @@ final class RulesManagementStore {
         dirtySections.insert(.measuringCondition)
     }
 
+    func setBatchPrefixes(from specs: [FilenameRuleSet.MatchSpec]) {
+        guard var draft = sampleIdentificationDraft else { return }
+        draft.sampleId.batchPrefixes = specs.filter { $0.type == .startsWith }.map(\.value)
+        updateSampleIdentification(draft)
+    }
+
     // MARK: - Save / Discard
 
     func saveCurrent() -> RulesPanelSaveOutcome {
