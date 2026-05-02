@@ -130,7 +130,9 @@ struct InboxArchiveApplyService {
             )
             return result
         } catch let error as InboxArchiveApplyError {
-            try? transaction.rollback()
+            do { try transaction.rollback() } catch let rollbackError {
+                AppLogger.shared.error(.import, "rollback failed after apply error: \(rollbackError)")
+            }
             writeAuditEvent(
                 pending: pending,
                 sourceURL: sourceURL,
@@ -148,7 +150,9 @@ struct InboxArchiveApplyService {
             )
             throw error
         } catch {
-            try? transaction.rollback()
+            do { try transaction.rollback() } catch let rollbackError {
+                AppLogger.shared.error(.import, "rollback failed after apply error: \(rollbackError)")
+            }
             let appError = AppError.from(error, fallback: "Failed to commit file writes.")
             writeAuditEvent(
                 pending: pending,

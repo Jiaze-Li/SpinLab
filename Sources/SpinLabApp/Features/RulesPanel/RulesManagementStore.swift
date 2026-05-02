@@ -422,13 +422,22 @@ final class RulesManagementStore {
     }
 
     private func loadAndCacheHash<T: Decodable>(url: URL, section: RulesPanelSection) -> T? {
-        guard FileManager.default.fileExists(atPath: url.path),
-              let data = try? Data(contentsOf: url),
-              let decoded = try? Self.jsonDecoder.decode(T.self, from: data) else {
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            AppLogger.shared.error(.system, "rules read failed: \(url.lastPathComponent)", metadata: ["error": error.localizedDescription])
             return nil
         }
-        openTimeHashes[section] = sha256Hex(of: data)
-        return decoded
+        do {
+            let decoded = try Self.jsonDecoder.decode(T.self, from: data)
+            openTimeHashes[section] = sha256Hex(of: data)
+            return decoded
+        } catch {
+            AppLogger.shared.error(.system, "rules decode failed: \(url.lastPathComponent)", metadata: ["error": error.localizedDescription])
+            return nil
+        }
     }
 
     // MARK: - Save dispatch
@@ -548,9 +557,20 @@ final class RulesManagementStore {
     // MARK: - Helpers
 
     private func loadFromDiskOnly<T: Decodable>(url: URL) -> T? {
-        guard FileManager.default.fileExists(atPath: url.path),
-              let data = try? Data(contentsOf: url) else { return nil }
-        return try? Self.jsonDecoder.decode(T.self, from: data)
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            AppLogger.shared.error(.system, "rules read failed: \(url.lastPathComponent)", metadata: ["error": error.localizedDescription])
+            return nil
+        }
+        do {
+            return try Self.jsonDecoder.decode(T.self, from: data)
+        } catch {
+            AppLogger.shared.error(.system, "rules decode failed: \(url.lastPathComponent)", metadata: ["error": error.localizedDescription])
+            return nil
+        }
     }
 
     private func sha256Hex(of data: Data) -> String {
@@ -559,8 +579,14 @@ final class RulesManagementStore {
     }
 
     private func fileHash(at url: URL) -> String? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return sha256Hex(of: data)
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        do {
+            let data = try Data(contentsOf: url)
+            return sha256Hex(of: data)
+        } catch {
+            AppLogger.shared.error(.system, "rules read failed: \(url.lastPathComponent)", metadata: ["error": error.localizedDescription])
+            return nil
+        }
     }
 }
 
