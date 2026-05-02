@@ -29,6 +29,11 @@ struct XYRotationPlotRenderer {
 
     private let defaultOptions = WorkbenchChartRenderer.Options()
 
+    private enum RenderOutcome {
+        case success(Data, WorkbenchPlotLayout, [String])
+        case failure(String)
+    }
+
     // MARK: - R(φ) tab
 
     /// Tab 1: Rxx vs φ with one series per temperature, optionally stacked.
@@ -92,10 +97,10 @@ struct XYRotationPlotRenderer {
             seriesReorderable: true
         )
 
-        let (data, layout) = _render(
+        let (data, layout) = _consume(_render(
             payload: &payload,
             options: _stackedOptions(sweepCount: sweeps.count)
-        )
+        ))
         return (data, layout, payload)
     }
 
@@ -162,10 +167,10 @@ struct XYRotationPlotRenderer {
             seriesReorderable: true
         )
 
-        let (data, layout) = _render(
+        let (data, layout) = _consume(_render(
             payload: &payload,
             options: _stackedOptions(sweepCount: rxySweeps.count)
-        )
+        ))
         return (data, layout, payload)
     }
 
@@ -174,7 +179,7 @@ struct XYRotationPlotRenderer {
     private mutating func _render(
         payload: inout WorkbenchPlotPayload,
         options: WorkbenchChartRenderer.Options? = nil
-    ) -> (Data?, WorkbenchPlotLayout?) {
+    ) -> RenderOutcome {
         var patch: [String: String] = [:]
         if showGrid { patch["showGrid"] = "true" }
         if showAuxiliaryLine180 { patch["auxVerticalX"] = "180" }
@@ -191,10 +196,26 @@ struct XYRotationPlotRenderer {
             yLabelOverride: yLabelOverride,
             styleParamsPatch: patch
         )
-        guard let output = try? WorkbenchRenderPipeline.render(input) else { return (nil, nil) }
-        collectedWarnings.append(contentsOf: output.warnings)
-        payload = output.manifestPayload
-        return (output.imageData, output.layout)
+        do {
+            let output = try WorkbenchRenderPipeline.render(input)
+            payload = output.manifestPayload
+            return .success(output.imageData, output.layout, output.warnings)
+        } catch {
+            let reason = "pipeline failure: \(error)"
+            fputs("[SpinLab] XYRotationPlotRenderer: \(reason)\n", stderr)
+            return .failure(reason)
+        }
+    }
+
+    private mutating func _consume(_ outcome: RenderOutcome) -> (Data?, WorkbenchPlotLayout?) {
+        switch outcome {
+        case .success(let imageData, let layout, let warnings):
+            collectedWarnings.append(contentsOf: warnings)
+            return (imageData, layout)
+        case .failure(let reason):
+            collectedWarnings.append(reason)
+            return (nil, nil)
+        }
     }
 
     private func _stackedOptions(sweepCount: Int) -> WorkbenchChartRenderer.Options {
