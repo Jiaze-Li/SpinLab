@@ -95,6 +95,7 @@ struct MeasuringConditionSection: View {
     @ViewBuilder
     private func conditionDetail(idx: Int, d: MeasuringConditionFileDraft) -> some View {
         let def = d.conditionDefinitions[idx]
+        let unitOptions = MeasuringConditionRuleProjection.standardUnitOptions(from: def.matches)
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             LabeledContent("Display Name") {
                 TextField("display name (optional)", text: Binding(
@@ -116,7 +117,8 @@ struct MeasuringConditionSection: View {
                     standardUnit: standardUnitBinding(condIdx: idx),
                     precision: precisionBinding(condIdx: idx),
                     onInvalidStandardUnit: { showInvalidStandardUnitAlert = true }
-                )
+                ),
+                unitOptions: unitOptions
             )
         }
     }
@@ -132,20 +134,10 @@ struct MeasuringConditionSection: View {
             set: { newRules in
                 guard var d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return }
                 let standardUnit = d.conditionDefinitions[condIdx].standardization.standardUnit
-                let normalized = newRules.map { normalizeConditionRuleForUI($0, standardUnit: standardUnit) }
-                d.conditionDefinitions[condIdx].matches = normalized
-                // Check if current standardUnit is still available
-                if let su = standardUnit {
-                    let available = normalized.filter {
-                        let op = FilenameRuleSet.Operation(rawValue: $0.match.type)
-                        return op == .unitSuffix || op == .regex
-                    }.map { $0.match.value.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    if !available.contains(where: { $0.lowercased() == su.lowercased() }) {
-                        d.conditionDefinitions[condIdx].standardization.standardUnit = nil
-                        d.conditionDefinitions[condIdx].matches = normalized.map { normalizeConditionRuleForUI($0, standardUnit: nil) }
-                        showInvalidStandardUnitAlert = true
-                    }
-                }
+                let outcome = MeasuringConditionRuleProjection.normalize(rules: newRules, standardUnit: standardUnit)
+                d.conditionDefinitions[condIdx].matches = outcome.normalizedRules
+                d.conditionDefinitions[condIdx].standardization.standardUnit = outcome.standardUnit
+                if outcome.didInvalidateStandardUnit { showInvalidStandardUnitAlert = true }
                 apply(d)
             }
         )
@@ -178,25 +170,6 @@ struct MeasuringConditionSection: View {
                 apply(d)
             }
         )
-    }
-
-    private func normalizeConditionRuleForUI(_ rule: MapRule, standardUnit: String?) -> MapRule {
-        let op = FilenameRuleSet.Operation(rawValue: rule.match.type)
-        guard op == .unitSuffix || op == .regex else {
-            var r = rule
-            r.transform = nil
-            return r
-        }
-        var normalized = rule
-        normalized.value = "$MATCH"
-        // Identity row: auto-fill *1 so precision runs through the same pipeline
-        if let su = standardUnit,
-           rule.match.value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == su.lowercased() {
-            normalized.transform = "*1"
-        } else if rule.transform == "*1" {
-            normalized.transform = nil
-        }
-        return normalized
     }
 
     // MARK: - Delete confirmation

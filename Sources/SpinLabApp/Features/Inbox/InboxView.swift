@@ -15,11 +15,11 @@ struct InboxView: View {
         ZStack {
             AppColumnShell(columnKey: "inbox", defaults: .inbox) {
                 InboxOperationPanel(
+                    inboxViewModel: viewModel,
                     isImportSourceExpanded: $bindableViewModel.isImportSourceExpanded,
                     isPendingQueueExpanded: $bindableViewModel.isPendingQueueExpanded,
                     isRoutingReviewExpanded: $bindableViewModel.isRoutingReviewExpanded,
                     isApplyExpanded: $bindableViewModel.isApplyExpanded,
-                    fileFilter: $bindableViewModel.fileFilter,
                     applySelected: { viewModel.applySelected() },
                     applyAll: { viewModel.applyAll() }
                 )

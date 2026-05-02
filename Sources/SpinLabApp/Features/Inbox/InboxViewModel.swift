@@ -1,6 +1,13 @@
 import Foundation
 import Observation
 
+struct InboxOperationProjection {
+    let libraryMatchedCount: Int
+    let reviewRequiredCount: Int
+    let filteredPendingImports: [SpinLabDomain.PendingImport]
+    let routePresentationByID: [UUID: PendingRoutePresentation]
+}
+
 @MainActor
 @Observable
 final class InboxViewModel {
@@ -42,17 +49,30 @@ final class InboxViewModel {
         )
     }
 
-    func filteredPendingImports(
-        from appState: SpinLabAppState,
-        routePresentationByID: [UUID: PendingRoutePresentation]
-    ) -> [SpinLabDomain.PendingImport] {
+    func projection(from appState: SpinLabAppState) -> InboxOperationProjection {
+        _ = appState.inbox.routingSnapshotRevision  // @Observable invalidation trigger — do not remove
+        let routePresentationByID = appState.pendingRoutePresentationByID()
+
+        let libraryMatchedCount = appState.inbox.pendingImports.reduce(into: 0) { partial, pending in
+            if routePresentationByID[pending.id]?.isLibraryMatched == true { partial += 1 }
+        }
+        let reviewRequiredCount = max(0, appState.inbox.pendingImports.count - libraryMatchedCount)
+
+        let filtered: [SpinLabDomain.PendingImport]
         switch fileFilter {
         case .all:
-            return appState.inbox.pendingImports
+            filtered = appState.inbox.pendingImports
         case .libraryMatched:
-            return appState.inbox.pendingImports.filter { routePresentationByID[$0.id]?.isLibraryMatched == true }
+            filtered = appState.inbox.pendingImports.filter { routePresentationByID[$0.id]?.isLibraryMatched == true }
         case .reviewRequired:
-            return appState.inbox.pendingImports.filter { routePresentationByID[$0.id]?.isLibraryMatched != true }
+            filtered = appState.inbox.pendingImports.filter { routePresentationByID[$0.id]?.isLibraryMatched != true }
         }
+
+        return InboxOperationProjection(
+            libraryMatchedCount: libraryMatchedCount,
+            reviewRequiredCount: reviewRequiredCount,
+            filteredPendingImports: filtered,
+            routePresentationByID: routePresentationByID
+        )
     }
 }

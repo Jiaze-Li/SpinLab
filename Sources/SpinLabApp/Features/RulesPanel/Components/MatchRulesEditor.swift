@@ -23,6 +23,7 @@ struct MatchRulesEditor: View {
     private let content: Content
     let allowedOps: [FilenameRuleSet.Operation]
     let defaultOp: FilenameRuleSet.Operation
+    let unitOptions: [String]
 
     init(
         specs: Binding<[FilenameRuleSet.MatchSpec]>,
@@ -32,17 +33,20 @@ struct MatchRulesEditor: View {
         self.content = .specs(specs)
         self.allowedOps = allowedOps
         self.defaultOp = defaultOp
+        self.unitOptions = []
     }
 
     init(
         rules: Binding<[MapRule]>,
         allowedOps: [FilenameRuleSet.Operation],
         defaultOp: FilenameRuleSet.Operation,
-        outputBehavior: MatchRuleOutputBehavior
+        outputBehavior: MatchRuleOutputBehavior,
+        unitOptions: [String] = []
     ) {
         self.content = .rules(rules, outputBehavior)
         self.allowedOps = allowedOps
         self.defaultOp = defaultOp
+        self.unitOptions = unitOptions
     }
 
     var body: some View {
@@ -54,7 +58,8 @@ struct MatchRulesEditor: View {
                 rules: rulesBinding,
                 allowedOps: allowedOps,
                 defaultOp: defaultOp,
-                outputBehavior: outputBehavior
+                outputBehavior: outputBehavior,
+                unitOptions: unitOptions
             )
         }
     }
@@ -100,6 +105,7 @@ private struct MapRulesEditorBody: View {
     let allowedOps: [FilenameRuleSet.Operation]
     let defaultOp: FilenameRuleSet.Operation
     let outputBehavior: MatchRuleOutputBehavior
+    let unitOptions: [String]
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.xs) {
@@ -161,7 +167,6 @@ private struct MapRulesEditorBody: View {
         precision: Binding<String>,
         onInvalidStandardUnit: @escaping () -> Void
     ) -> some View {
-        let unitOptions = unitSuffixOptions()
         HStack(spacing: AppSpacing.sm) {
             Picker("Standard unit", selection: Binding(
                 get: { standardUnit.wrappedValue ?? "" },
@@ -256,21 +261,6 @@ private struct MapRulesEditorBody: View {
                 .disabled(true)
                 .foregroundStyle(.secondary)
         }
-    }
-
-    private func unitSuffixOptions() -> [String] {
-        var seen: Set<String> = []
-        var result: [String] = []
-        for rule in rules {
-            let op = FilenameRuleSet.Operation(rawValue: rule.match.type)
-            guard op == .unitSuffix || op == .regex else { continue }
-            let trimmed = rule.match.value.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
-            if seen.insert(trimmed).inserted {
-                result.append(trimmed)
-            }
-        }
-        return result
     }
 
     private func isOpLocked(_ op: FilenameRuleSet.Operation?) -> Bool {

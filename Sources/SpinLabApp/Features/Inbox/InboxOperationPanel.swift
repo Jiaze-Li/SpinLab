@@ -4,28 +4,18 @@ import SwiftUI
 struct InboxOperationPanel: View {
     @Environment(SpinLabAppState.self) private var appState
     @Environment(\.openWindow) private var openWindow
+    let inboxViewModel: InboxViewModel
     @Binding var isImportSourceExpanded: Bool
     @Binding var isPendingQueueExpanded: Bool
     @Binding var isRoutingReviewExpanded: Bool
     @Binding var isApplyExpanded: Bool
-    @Binding var fileFilter: InboxViewModel.FileFilter
     let applySelected: () -> Void
     let applyAll: () -> Void
     @State private var isPresentingClearImportsConfirm = false
 
     var body: some View {
         @Bindable var bindableInbox = appState.inbox
-        let routePresentationByID: [UUID: PendingRoutePresentation] = {
-            _ = appState.inbox.routingSnapshotRevision
-            return appState.pendingRoutePresentationByID()
-        }()
-        let libraryMatchedCount = appState.inbox.pendingImports.reduce(into: 0) { partial, pending in
-            if routePresentationByID[pending.id]?.isLibraryMatched == true {
-                partial += 1
-            }
-        }
-        let reviewRequiredCount = max(0, appState.inbox.pendingImports.count - libraryMatchedCount)
-        let filteredPendingImports = filteredPendingImports(using: routePresentationByID)
+        let projection = inboxViewModel.projection(from: appState)
 
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 12) {
@@ -77,13 +67,13 @@ struct InboxOperationPanel: View {
                                 )
                                 queueStatusCard(
                                     title: "Library Matched",
-                                    count: libraryMatchedCount,
+                                    count: projection.libraryMatchedCount,
                                     tint: .green,
                                     filter: .libraryMatched
                                 )
                                 queueStatusCard(
                                     title: "Review Required",
-                                    count: reviewRequiredCount,
+                                    count: projection.reviewRequiredCount,
                                     tint: .orange,
                                     filter: .reviewRequired
                                 )
@@ -94,15 +84,15 @@ struct InboxOperationPanel: View {
                                 MetadataValueRow(label: "File Path", value: selected.sourceFilePath, monospaced: true)
                             }
 
-                            if filteredPendingImports.isEmpty {
+                            if projection.filteredPendingImports.isEmpty {
                                 Text("No pending files for this filter.")
                                     .font(.callout)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(nil)
                                     .fixedSize(horizontal: false, vertical: true)
                             } else {
-                                List(filteredPendingImports, selection: $bindableInbox.selectedPendingImportID) { pending in
-                                    let presentation = routePresentationByID[pending.id]
+                                List(projection.filteredPendingImports, selection: $bindableInbox.selectedPendingImportID) { pending in
+                                    let presentation = projection.routePresentationByID[pending.id]
                                     let verdict = presentation?.verdict ?? .reviewRequired
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(pending.fileName)
@@ -191,25 +181,12 @@ struct InboxOperationPanel: View {
         }
     }
 
-    private func filteredPendingImports(
-        using routePresentationByID: [UUID: PendingRoutePresentation]
-    ) -> [SpinLabDomain.PendingImport] {
-        switch fileFilter {
-        case .all:
-            return appState.inbox.pendingImports
-        case .libraryMatched:
-            return appState.inbox.pendingImports.filter { routePresentationByID[$0.id]?.isLibraryMatched == true }
-        case .reviewRequired:
-            return appState.inbox.pendingImports.filter { routePresentationByID[$0.id]?.isLibraryMatched != true }
-        }
-    }
-
     @ViewBuilder
     private func queueStatusCard(title: String, count: Int, tint: Color, filter: InboxViewModel.FileFilter) -> some View {
-        let isSelected = fileFilter == filter
+        let isSelected = inboxViewModel.fileFilter == filter
 
         Button {
-            fileFilter = filter
+            inboxViewModel.fileFilter = filter
         } label: {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)

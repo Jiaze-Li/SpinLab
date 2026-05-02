@@ -61,9 +61,8 @@ struct SampleIdentificationSection: View {
                 d.sampleId.batchPrefixes.map { FilenameRuleSet.MatchSpec(type: .startsWith, value: $0) }
             },
             set: { specs in
-                var u = d
-                u.sampleId.batchPrefixes = specs.filter { $0.type == .startsWith }.map(\.value)
-                apply(u)
+                store.setBatchPrefixes(from: specs)
+                if let updated = store.sampleIdentificationDraft { draft = updated }
             }
         )
     }
