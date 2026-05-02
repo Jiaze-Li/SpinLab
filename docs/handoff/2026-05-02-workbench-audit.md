@@ -231,26 +231,26 @@ Extension 入样：1 条（E-01）
 
 | AS-ID | File | Layer | #N | caller→callee→行为 | High/Med/Low | next_action / 修复粒度 / 依赖 |
 |---|---|---|---|---|---|---|
-| AS-18 | `Features/Workbench/ThreeOmegaWorkspaceStore.swift` | Workflow Store | #1 | `ThreeOmegaWorkspaceStore.rtQuery` setter → `UserDefaults.standard.set` → @Observable setter 含 UserDefaults 写副作用 | Med | next_action=14a / 修复粒度=single / 依赖=无 |
+| AS-18 | `Features/Workbench/ThreeOmegaWorkspaceStore.swift` | Workflow Store | #1 | `ThreeOmegaWorkspaceStore.rtQuery` setter → `UserDefaults.standard.set` → @Observable setter 含 UserDefaults 写副作用 | Med | next_action=11b / 修复粒度=single / 依赖=无 |
 | AS-18 | `Features/Workbench/ThreeOmegaWorkspaceStore.swift` | Workflow Store | #15 | `ThreeOmegaWorkspaceStore` → `UserDefaults`/`FileManager`/`LibraryStore()` direct instantiation → 运行时副作用依赖未经 AppEnvironment 注入 | Med | next_action=14a / 修复粒度=multi / 依赖=无 |
-| AS-19 | `Features/Workbench/ThreeOmegaWorkspaceView.swift` | Workflow View | #2 | `ThreeOmegaAddOverlayButton.body` → `vault.packs(forWorkflow:).filter` → View 内含业务过滤逻辑 | Low | next_action=14a / 修复粒度=single / 依赖=无 |
-| AS-21 | `UseCases/ThreeOmegaPlotRenderer.swift` | Workflow Renderer | #6 | `ThreeOmegaPlotRenderer._render` → `try? WorkbenchRenderPipeline.render` → render 失败返回 `(nil, nil)` 静默丢弃 error | Med | next_action=14a / 修复粒度=single / 依赖=无 |
+| AS-19 | `Features/Workbench/ThreeOmegaWorkspaceView.swift` | Workflow View | #2 | `ThreeOmegaAddOverlayButton.body` → `vault.packs(forWorkflow:).filter` → View 内含业务过滤逻辑 | Low | next_action=11b / 修复粒度=single / 依赖=无 |
+| AS-21 | `UseCases/ThreeOmegaPlotRenderer.swift` | Workflow Renderer | #6 | `ThreeOmegaPlotRenderer._render` → `try? WorkbenchRenderPipeline.render` → render 失败返回 `(nil, nil)` 静默丢弃 error | Med | next_action=11b / 修复粒度=single / 依赖=无 |
 | AS-21 | `UseCases/ThreeOmegaPlotRenderer.swift` | Workflow Renderer | #16 | Store → `ThreeOmegaPlotRenderer` → 持有 `showGrid`/label/style 可变配置状态 → UseCase 非 stateless struct | Low | next_action=no-fix-accepted / 修复粒度=single / 依赖=无 |
 | AS-24 | `UseCases/IngestThreeOmegaSelectionsUseCase.swift` | Workflow UseCase | #16 | Store → `IngestThreeOmegaSelectionsUseCase` → 持有 parser/fitter 实例属性 → UseCase 非 stateless struct | Low | next_action=no-fix-accepted / 修复粒度=single / 依赖=无 |
 | AS-25 | `Workbench/V3/ThreeOmegaIngestionContracts.swift` | Workflow Contracts | #17 | Workflow 层 → 定义 `ThreeOmegaFieldSweepResult`/`ThreeOmegaGeometry`/scaling/tab 类型 → domain model 在 Workbench/V3 而非 Domain/ | High | next_action=11b / 修复粒度=multi / 依赖=无 |
-| AS-26 | `Features/Workbench/AHEWorkspaceStore.swift` | Workflow Store | #5 | `runAnalysis` → `extractAHEMetricsPerSeries`/`extractSingleSeriesMetrics` → Store 含 Hc/R_AHE 提取策略和 label 解析业务规则 | High | next_action=14a / 修复粒度=multi / 依赖=无 |
+| AS-26 | `Features/Workbench/AHEWorkspaceStore.swift` | Workflow Store | #5 | `runAnalysis` → `extractAHEMetricsPerSeries`/`extractSingleSeriesMetrics` → Store 含 Hc/R_AHE 提取策略和 label 解析业务规则 | High | next_action=11b / 修复粒度=multi / 依赖=无 |
 | AS-26 | `Features/Workbench/AHEWorkspaceStore.swift` | Workflow Store | #15 | `AHEWorkspaceStore.refreshRelatedCharts` → `FileManager.default.fileExists` → filesystem capability 未经 AppEnvironment 注入 | Med | next_action=14a / 修复粒度=single / 依赖=无 |
-| AS-27 | `Features/Workbench/AHEWorkspaceView.swift` | Workflow View | #2 | `AHEMetricOverridePanel.body` → `lastExtractedMetrics.values.sorted` → View 含显示排序逻辑 | Med | next_action=14a / 修复粒度=single / 依赖=AS-26 |
-| AS-27 | `Features/Workbench/AHEWorkspaceView.swift` | Workflow View | #2 | `updateCandidate(value:reason:)` → `trim` + `Double(...)` 转换 + 默认 reason 填写 → View 含输入归一化/解析和 fallback 策略 | Med | next_action=14a / 修复粒度=single / 依赖=AS-26 |
-| AS-28 | `UseCases/AHEDataParser.swift` | Parser | #17 | `AHEDataParser.parse` → 返回 `PPMSParsedFile` → raw domain model 定义在 UseCases/ 而非 Domain/ | High | next_action=14a / 修复粒度=single / 依赖=无 |
-| AS-30 | `Features/Workbench/XYRotationWorkspaceStore.swift` | Workflow Store | #5 | `runAnalysis`/`_snapshotRenderer`/`_applySeriesOrder` → Store 含 selected-hit ordering、legend reverse mapping 和 persisted series-order merge 策略 | Med | next_action=14a / 修复粒度=multi / 依赖=AS-33 |
+| AS-27 | `Features/Workbench/AHEWorkspaceView.swift` | Workflow View | #2 | `AHEMetricOverridePanel.body` → `lastExtractedMetrics.values.sorted` → View 含显示排序逻辑 | Med | next_action=11b / 修复粒度=single / 依赖=AS-26 |
+| AS-27 | `Features/Workbench/AHEWorkspaceView.swift` | Workflow View | #2 | `updateCandidate(value:reason:)` → `trim` + `Double(...)` 转换 + 默认 reason 填写 → View 含输入归一化/解析和 fallback 策略 | Med | next_action=11b / 修复粒度=single / 依赖=AS-26 |
+| AS-28 | `UseCases/AHEDataParser.swift` | Parser | #17 | `AHEDataParser.parse` → 返回 `PPMSParsedFile` → raw domain model 定义在 UseCases/ 而非 Domain/ | High | next_action=11b / 修复粒度=single / 依赖=无 |
+| AS-30 | `Features/Workbench/XYRotationWorkspaceStore.swift` | Workflow Store | #5 | `runAnalysis`/`_snapshotRenderer`/`_applySeriesOrder` → Store 含 selected-hit ordering、legend reverse mapping 和 persisted series-order merge 策略 | Med | next_action=11b / 修复粒度=multi / 依赖=AS-33 |
 | AS-30 | `Features/Workbench/XYRotationWorkspaceStore.swift` | Workflow Store | #15 | `XYRotationWorkspaceStore.refreshRelatedCharts` → `FileManager.default.fileExists` → filesystem capability 未经 AppEnvironment 注入 | Med | next_action=14a / 修复粒度=single / 依赖=无 |
-| AS-32 | `UseCases/XYRotationPlotRenderer.swift` | Workflow Renderer | #6 | `renderRxxVsPhi`/`renderRxyVsPhi` → `_render` → `try? WorkbenchRenderPipeline.render` 返回 `(nil, nil)` 丢弃 render error | High | next_action=14a / 修复粒度=single / 依赖=无 |
+| AS-32 | `UseCases/XYRotationPlotRenderer.swift` | Workflow Renderer | #6 | `renderRxxVsPhi`/`renderRxyVsPhi` → `_render` → `try? WorkbenchRenderPipeline.render` 返回 `(nil, nil)` 丢弃 render error | High | next_action=11b / 修复粒度=single / 依赖=无 |
 | AS-32 | `UseCases/XYRotationPlotRenderer.swift` | Workflow Renderer | #16 | `XYRotationPlotRenderer` → 含 `collectedWarnings`/config 可变字段 → UseCase 非 stateless struct | Med | next_action=14a / 修复粒度=multi / 依赖=无 |
 
-| AS-35 | `UseCases/PersistChartArtifactUseCase.swift` | Persistence UseCase | #6 | `execute` → `try? Data(contentsOf: results_index)` / `try? decoder.decode(WorkbenchResultsIndex)` → 读取或解码失败静默 rebuild index 无日志 | Med | next_action=14a / 修复粒度=single / 依赖=无 |
-| AS-36 | `UseCases/PersistMeasurementDataUseCase.swift` | Persistence UseCase | #6 | `execute` → `try? Data(contentsOf: measurement_data)` / `try? decoder.decode(WorkbenchMeasurementDataStore)` → 读取或解码失败静默创建空 store，可能覆盖损坏但可恢复的数据 | High | next_action=14a / 修复粒度=single / 依赖=无 |
-| AS-38 | `UseCases/LoadLatestChartArtifactUseCase.swift` | Persistence UseCase | #6 | `execute` → 多处 `try?` 读取/解码 index/image/manifest → 非缺文件错误（corrupt JSON/manifest）静默 nil | Low | next_action=14a / 修复粒度=single / 依赖=无 |
+| AS-35 | `UseCases/PersistChartArtifactUseCase.swift` | Persistence UseCase | #6 | `execute` → `try? Data(contentsOf: results_index)` / `try? decoder.decode(WorkbenchResultsIndex)` → 读取或解码失败静默 rebuild index 无日志 | Med | next_action=11b / 修复粒度=single / 依赖=无 |
+| AS-36 | `UseCases/PersistMeasurementDataUseCase.swift` | Persistence UseCase | #6 | `execute` → `try? Data(contentsOf: measurement_data)` / `try? decoder.decode(WorkbenchMeasurementDataStore)` → 读取或解码失败静默创建空 store，可能覆盖损坏但可恢复的数据 | High | next_action=11b / 修复粒度=single / 依赖=无 |
+| AS-38 | `UseCases/LoadLatestChartArtifactUseCase.swift` | Persistence UseCase | #6 | `execute` → 多处 `try?` 读取/解码 index/image/manifest → 非缺文件错误（corrupt JSON/manifest）静默 nil | Low | next_action=11b / 修复粒度=single / 依赖=无 |
 | AS-42 | `UseCases/SearchWorkflowMeasurementsUseCase.swift` | Search UseCase | #16 | `SearchWorkflowMeasurementsUseCase` → `private let sampleKeyNormalizer = SampleKeyNormalizer()` → UseCase 内部自建 helper 实例 | Low | next_action=no-fix-accepted / 修复粒度=single / 依赖=无 |
 | AS-42 | `UseCases/SearchWorkflowMeasurementsUseCase.swift` | Search UseCase | #15 | `loadNumericTags()` → `LibraryStore()` → UseCase 内部自建 storage dependency 并读取 Library index，未经 AppEnvironment 注入 | Med | next_action=14a / 修复粒度=single / 依赖=无 |
 
@@ -327,7 +327,73 @@ Extension 入样：1 条（E-01）
 
 ## 5. Fix-Round Draft（5.1.11b 派工预案）
 
-*待 §4.3 收尾对账后填入*
+> next_action=11b 共 13 条，按依赖/风险分 5 批；每批含负责文件、修复要点、验收口径。
+> next_action=14a 共 5 条（DI arch + stateful renderer）留 5.1.14a 收敛，不入本轮。
+
+### Batch A — Persistence 安全（优先级最高）
+
+**AS-ID**: AS-36 (High), AS-35 (Med), AS-38 (Low)  
+**文件**: `UseCases/PersistMeasurementDataUseCase.swift`, `UseCases/PersistChartArtifactUseCase.swift`, `UseCases/LoadLatestChartArtifactUseCase.swift`  
+**修复要点**:
+- AS-36: 将 `try? Data(contentsOf: measurement_data)` 改为 `do { ... } catch { log + throw }`；失败不创建空 store，向上传播 error
+- AS-35: 同模式修 `try? Data(contentsOf: results_index)` + decode；失败记 stderr + 允许 rebuild 分支但须显式日志
+- AS-38: 将多处 `try?` path/read/decode 改为 `do { ... } catch`；file-not-found 返回 nil（Adj-10 预期行为）；其余 error 记 stderr + 返回 nil
+**验收**: 三个文件无静默 `try?`；corrupt file 场景有 stderr 记录；file-not-found 仍 nil；throws 链向上正确传递  
+**commit 粒度**: single（三文件一 commit）
+
+### Batch B — Renderer 错误传播
+
+**AS-ID**: AS-21 (Med), AS-32 (High)  
+**文件**: `UseCases/ThreeOmegaPlotRenderer.swift`, `UseCases/XYRotationPlotRenderer.swift`  
+**修复要点**:
+- 两个 renderer 的 `_render` 调用 `try? WorkbenchRenderPipeline.render` → 改为 `throws` 或捕获后记 stderr warning + 返回失败标记（与 Adj-10 对齐：失败不崩溃但须有诊断）
+- 调用方需处理传播的 error 或 result，消除静默 `(nil, nil)` 返回
+**验收**: render 失败有 stderr 记录；caller 收到明确 error/nil-with-reason；不再静默  
+**commit 粒度**: single（两文件一 commit）
+
+### Batch C — Domain Model 归位
+
+**AS-ID**: AS-25 (High), AS-28 (High)  
+**文件**: `Workbench/V3/ThreeOmegaIngestionContracts.swift`（type extract），`UseCases/AHEDataParser.swift`（PPMSParsedFile），以及所有 import 调用方  
+**修复要点**:
+- AS-25: 从 `ThreeOmegaIngestionContracts.swift` 提取 `ThreeOmegaFieldSweepResult`/`ThreeOmegaGeometry`/scaling/tab structs → `Domain/` 新文件；更新所有 import/typealias 引用
+- AS-28: 将 `PPMSParsedFile` 定义从 `UseCases/AHEDataParser.swift` 移至 `Domain/`；`AHEDataParser` 保留 parsing logic，import domain type
+**注意**: multi-file；需登记 Code Map；pre-commit hook 检查 unmapped swift  
+**验收**: `Domain/` 含新 struct 文件；`Workbench/V3/` 和 `UseCases/` 中无 domain struct 定义；Code Map 已更新  
+**commit 粒度**: multi（Domain 新文件 + 调用方更新，可拆两 commit）
+
+### Batch D — Store 业务逻辑下沉
+
+**AS-ID**: AS-26 (High), AS-27 #2a (Med), AS-27 #2b (Med), AS-30 (Med)  
+**文件**: `Features/Workbench/AHEWorkspaceStore.swift`, `Features/Workbench/AHEWorkspaceView.swift`, `Features/Workbench/XYRotationWorkspaceStore.swift`, + 新 UseCase 文件  
+**修复要点**:
+- AS-26: 将 `extractAHEMetricsPerSeries`/`extractSingleSeriesMetrics` 提取为新 UseCase（如 `ExtractAHEMetricsUseCase`）；Store 调用 UseCase，不含业务策略
+- AS-27 #2a: `lastExtractedMetrics.values.sorted` 移至 Store 计算属性（暴露 `sortedMetrics`）；View 直接消费
+- AS-27 #2b: `trim`/`Double(...)` 归一化逻辑移至 Store 方法（如 `updateMetricCandidate(rawValue:)`)；View 传原始字符串
+- AS-30: `_applySeriesOrder` / legend reverse mapping 策略提取为 UseCase（如 `AlignXYSeriesOrderUseCase`，与 `SeriesOrderAlignHelper` 协作）；Store 保留 CRUD
+**注意**: multi-file；新 UseCase 文件需登记 Code Map  
+**验收**: Store 方法无 Hc/R_AHE 策略代码；View body 无 sorted/trim/Double 转换；新 UseCase 测试覆盖提取逻辑  
+**commit 粒度**: multi（可按 AHE + XY 拆两 commit）
+
+### Batch E — Setter / View 杂项
+
+**AS-ID**: AS-18 #1 (Med), AS-19 #2 (Low)  
+**文件**: `Features/Workbench/ThreeOmegaWorkspaceStore.swift`, `Features/Workbench/ThreeOmegaWorkspaceView.swift`  
+**修复要点**:
+- AS-18 #1: 将 `rtQuery` setter 中 `UserDefaults.standard.set` 写移出 setter；改为在调用 `rtQuery` 赋值的调用点之后显式调用 `persistRTQuery()` 方法，或在 Task 内写
+- AS-19 #2: `ThreeOmegaAddOverlayButton.body` 中 `.filter { ... }` 移至 `ThreeOmegaWorkspaceStore` 计算属性 `availableOverlayPacks`；View 消费投影结果
+**验收**: setter 无 UserDefaults 写；View body 无 `.filter`；行为不变  
+**commit 粒度**: single（两文件一 commit）
+
+### 14a 存档（不入 5.1.11b）
+
+| AS-ID | 信号 | 原因 |
+|---|---|---|
+| AS-18 #15 | DI bypass: UserDefaults/FileManager/LibraryStore() | 需 AppEnvironment capability protocol 新增，跨 region arch 决策 |
+| AS-26 #15 | DI bypass: FileManager.default | 同上 |
+| AS-30 #15 | DI bypass: FileManager.default | 同上 |
+| AS-32 #16 | stateful renderer: collectedWarnings | 重构路径不明确，留 14a meta |
+| AS-42 #15 | LibraryStore() in search UseCase | Search→Library 跨区 storage 注入，需 AppEnvironment Library capability |
 
 ---
 
@@ -393,4 +459,11 @@ Extension 入样：1 条（E-01）
 
 **补充 Violation**: 4 条（AS-35 Med #6，AS-36 High #6，AS-38 Low #6，AS-42 Med #15）——已写入 §1，AS-35/36/38 §3 状态已更新。
 
-*§4.3 收尾对账 待完成*
+### §4.3 收尾对账（Claude，2026-05-02）
+
+1. **44 文件全分类** ✅ — 21 Violation + 8 Drift + 34 Accepted（含 partial）
+2. **Drift commit_ids 齐全** ✅ — 8 条全有 commit_id（53fb1b5–b399f6f）
+3. **Cross-Region Doubts §4** ✅ — 5 条，字段完整
+4. **Fix-Round Draft §5** ✅ — 13 条 11b violations 分 5 批，next_action 已从 14a 修正；14a 5 条存档
+
+§4.3 对账通过。审计轮 5.1.11a 封闭。
