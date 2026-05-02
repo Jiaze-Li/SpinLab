@@ -109,10 +109,13 @@ struct PersistChartArtifactUseCase {
             let indexRelPath = "samples/\(sk)/_spinlab/results_index.json"
             let indexAbsURL  = try pathResolver.absoluteURL(for: indexRelPath)
             var index: WorkbenchResultsIndex
-            if let existing = try? Data(contentsOf: indexAbsURL),
-               let decoded  = try? Self.decoder.decode(WorkbenchResultsIndex.self, from: existing) {
-                index = decoded
-            } else {
+            do {
+                let existing = try Data(contentsOf: indexAbsURL)
+                index = try Self.decoder.decode(WorkbenchResultsIndex.self, from: existing)
+            } catch let nsErr as NSError where nsErr.domain == NSCocoaErrorDomain && nsErr.code == NSFileReadNoSuchFileError {
+                index = WorkbenchResultsIndex(sampleKey: sk, updatedAt: generatedAt, references: [])
+            } catch {
+                fputs("[SpinLab] [PersistChartArtifact] results_index corrupt, rebuilding (\(sk)): \(error)\n", stderr)
                 index = WorkbenchResultsIndex(sampleKey: sk, updatedAt: generatedAt, references: [])
             }
             if let existingIdx = index.references.firstIndex(where: { $0.chartIdentityKey == identityKey }) {
