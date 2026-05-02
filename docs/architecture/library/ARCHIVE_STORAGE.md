@@ -43,7 +43,7 @@ Start with `V416DeleteAppliedMeasurementTests.swift`, `V343DeleteWorkbenchResult
 
 ## Code Map
 
-- `Sources/SpinLabApp/Library/LibraryStore.swift` — drawer index persistence, AsyncStream emission, and index loading
+- `Sources/SpinLabApp/Library/LibraryStore.swift` — drawer index, sample, batch, and sidecar persistence
 - `Sources/SpinLabApp/Library/LibrarySyncService.swift` — filesystem scan and app-state sync (one-way: filesystem→state)
 - `Sources/SpinLabApp/Library/LibrarySettingsStore.swift` — Library Root path and user preferences persistence
 - `Sources/SpinLabApp/Library/LibraryLogger.swift` — audit log append writer (Library Root + App Support)
