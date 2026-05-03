@@ -47,7 +47,8 @@ Start with `V416DeleteAppliedMeasurementTests.swift`, `V343DeleteWorkbenchResult
 - `Sources/SpinLabApp/Library/LibrarySyncService.swift` — filesystem scan and app-state sync (one-way: filesystem→state)
 - `Sources/SpinLabApp/Library/LibrarySettingsStore.swift` — Library Root path and user preferences persistence
 - `Sources/SpinLabApp/Library/LibraryLogger.swift` — audit log append writer (Library Root + App Support)
-- `Sources/SpinLabApp/Library/LibraryModels.swift` — Library domain models (DrawerItem, MeasurementItem, LibraryIndex)
+- `Sources/SpinLabApp/Library/Domain/LibraryDomainModels.swift` — Tier 2 Library domain entities (LibraryIndex, LibrarySample, LibraryBatch, AppliedMeasurement, LibraryWarning, change log types)
+- `Sources/SpinLabApp/Library/LibraryModels.swift` — Tier 3 Library UI projections (LibraryPreview, LibraryDiff, LibraryRefreshReview, edit drafts, log entry display types)
 - `Sources/SpinLabApp/Library/LibrarySort.swift` — sort key and direction logic for measurement list
 - `Sources/SpinLabApp/Library/LibraryWriteTransaction.swift` — sole write interface for paired file + sidecar archive operations
 - `Sources/SpinLabApp/App/LibraryDiskCleanupService.swift` — artifact directory cleanup on measurement deletion

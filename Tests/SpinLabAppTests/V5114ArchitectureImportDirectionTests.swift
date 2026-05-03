@@ -60,6 +60,51 @@ struct V5114ArchitectureImportDirectionTests {
                 "ThreeOmegaIngestionResult domain contract must not be in Features/ — found in: \(found)")
     }
 
+    // MARK: - INV-12: LibraryModels three-tier split
+
+    // INV-12a: core domain types (LibrarySample, LibraryIndex) live in Library/Domain/
+    @Test("INV-12a: LibrarySample domain entity is defined in Library/Domain")
+    func librarySampleInDomain() throws {
+        let domainDir = Self.projectRoot
+            .appendingPathComponent("Sources/SpinLabApp/Library/Domain", isDirectory: true)
+
+        let found = try swiftFilesContaining(pattern: "struct LibrarySample:", under: domainDir)
+        #expect(!found.isEmpty,
+                "LibrarySample must be in Sources/SpinLabApp/Library/Domain/ — found in: \(found)")
+    }
+
+    // INV-12b: UI projection types (LibraryPreview, LibraryRefreshReview) are NOT in Library/Domain/
+    @Test("INV-12b: LibraryPreview UI projection is absent from Library/Domain")
+    func libraryPreviewAbsentFromDomain() throws {
+        let domainDir = Self.projectRoot
+            .appendingPathComponent("Sources/SpinLabApp/Library/Domain", isDirectory: true)
+
+        let found = try swiftFilesContaining(pattern: "struct LibraryPreview", under: domainDir)
+        #expect(found.isEmpty,
+                "LibraryPreview UI projection must not be in Library/Domain/ — found in: \(found)")
+    }
+
+    // INV-12c: UI projection types are not used by the UseCase layer
+    @Test("INV-12c: UseCases do not reference UI-only Library projections")
+    func useCasesDoNotUseLibraryProjections() throws {
+        let useCasesDir = Self.projectRoot
+            .appendingPathComponent("Sources/SpinLabApp/UseCases", isDirectory: true)
+
+        let uiOnlyTypes = ["LibraryPreview", "LibraryPreviewBatchGroup", "LibraryRefreshReview",
+                           "LibrarySyncBatchStatus", "LibraryDiff"]
+        var violations: [String] = []
+
+        for typeName in uiOnlyTypes {
+            let found = try swiftFilesContaining(pattern: typeName, under: useCasesDir)
+            if !found.isEmpty {
+                violations.append("\(typeName) found in: \(found)")
+            }
+        }
+
+        #expect(violations.isEmpty,
+                "UseCase layer must not reference Library UI projections — violations: \(violations)")
+    }
+
     // MARK: - Helpers
 
     private func swiftFilesContaining(pattern: String, under dir: URL) throws -> [String] {
