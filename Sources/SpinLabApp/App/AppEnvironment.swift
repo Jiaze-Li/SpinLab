@@ -9,6 +9,7 @@ struct AppEnvironment {
     var ruleRuntime: any RuleRuntimeCapability
     var dataActor: any SpinLabDataActing
     var workflowDefinitionStore: WorkflowDefinitionStore = WorkflowDefinitionStore()
+    var libraryAccess: any LibraryAccessCapability = LibraryStore()
 
     static func live(previewRowCount: Int = 10) -> AppEnvironment {
         AppEnvironment(

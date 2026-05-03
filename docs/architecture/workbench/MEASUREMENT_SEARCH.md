@@ -24,6 +24,7 @@
 
 ## Code Map
 
+- `Sources/SpinLabApp/Domain/Capabilities/LibraryAccessCapability.swift` — capability protocol abstracting LibraryStore index reads for workbench search and workspace stores <!-- legitimate_cross_cutting -->
 - `Sources/SpinLabApp/UseCases/SearchWorkflowMeasurementsUseCase.swift` — executes measurement search queries against Library using sidecar conditions
 - `Sources/SpinLabApp/Domain/WorkflowSearchModels.swift` — domain models for search query parameters and search result types
 - `Sources/SpinLabApp/Features/Workbench/WorkflowHitRow.swift` — renders a single measurement search result row in the hit list
