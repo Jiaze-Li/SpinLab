@@ -296,7 +296,7 @@ struct LibraryView_Previews: PreviewProvider {
         let appState = SpinLabAppState(
             workflowBundle: bundle,
             persistence: LocalJSONPersistence(),
-            managedStorage: SpinLabManagedStorage(
+            libraryArchiveScan: LibraryArchiveScanService(
                 rootURL: FileManager.default.temporaryDirectory
                     .appendingPathComponent("spinlab-library-preview", isDirectory: true)
             )

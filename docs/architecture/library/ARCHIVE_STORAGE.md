@@ -55,5 +55,7 @@ Start with `V416DeleteAppliedMeasurementTests.swift`, `V343DeleteWorkbenchResult
 - `Sources/SpinLabApp/App/ArchivedRecordResolverService.swift` — resolves archived record paths and validates archive directory integrity
 - `Sources/SpinLabApp/Repositories/DomainRepositories.swift` — AsyncStream-backed repositories for Library drawers and sidecar data
 - `Sources/SpinLabApp/Storage/AtomicFileWriter.swift` — atomic file write utility ensuring no partial writes land on disk
-- `Sources/SpinLabApp/Storage/ManagedStorage.swift` — coordinates managed file storage lifecycle across import, archive, and cleanup phases
+- `Sources/SpinLabApp/Storage/LibraryArchiveScanService.swift` — registry install, measurements directory management, and managed-path detection
+- `Sources/SpinLabApp/Storage/ContentFingerprintService.swift` — SHA-256 content fingerprint computation for duplicate detection
+- `Sources/SpinLabApp/Storage/ManagedStorage.swift` — superseded; split into LibraryArchiveScanService, InboxImportFilterService, ContentFingerprintService (14c-c5)
 - `Sources/SpinLabApp/Storage/RepositoryPointer.swift` — value type pointing to a repository root location in App Support

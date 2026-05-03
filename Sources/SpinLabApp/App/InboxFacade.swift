@@ -5,7 +5,7 @@ final class InboxFacade {
     private let inboxWorkflowService: InboxWorkflowService
     private let pendingCleanupService: PendingCleanupService
     private let inboxStore: InboxFeatureStore
-    private let managedStorage: SpinLabManagedStorage
+    private let inboxImportFilter: InboxImportFilterService
     private let importPipeline: SpinLabImportPipeline
 
     private let existingImportedOriginalPaths: () -> Set<String>
@@ -28,7 +28,7 @@ final class InboxFacade {
         inboxWorkflowService: InboxWorkflowService,
         pendingCleanupService: PendingCleanupService = PendingCleanupService(),
         inboxStore: InboxFeatureStore,
-        managedStorage: SpinLabManagedStorage,
+        inboxImportFilter: InboxImportFilterService,
         importPipeline: SpinLabImportPipeline,
         existingImportedOriginalPaths: @escaping () -> Set<String>,
         existingImportedContentFingerprints: @escaping () -> Set<String>,
@@ -49,7 +49,7 @@ final class InboxFacade {
         self.inboxWorkflowService = inboxWorkflowService
         self.pendingCleanupService = pendingCleanupService
         self.inboxStore = inboxStore
-        self.managedStorage = managedStorage
+        self.inboxImportFilter = inboxImportFilter
         self.importPipeline = importPipeline
         self.existingImportedOriginalPaths = existingImportedOriginalPaths
         self.existingImportedContentFingerprints = existingImportedContentFingerprints
@@ -74,7 +74,7 @@ final class InboxFacade {
         let select = selectFirstImportedPendingAndFocusInbox
         inboxStore.startImportFiles(
             from: urls,
-            managedStorage: managedStorage,
+            inboxImportFilter: inboxImportFilter,
             importPipeline: importPipeline,
             excludedOriginalFilePaths: existingImportedOriginalPaths(),
             excludedContentFingerprints: existingImportedContentFingerprints(),

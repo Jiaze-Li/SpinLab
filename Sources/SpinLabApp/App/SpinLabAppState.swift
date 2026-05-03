@@ -156,7 +156,8 @@ final class SpinLabAppState {
     private let archivedRecordResolverService: ArchivedRecordResolverService
     private let analysisModule: AnalysisModuleExtension
     private let viewExtension: ViewExtension
-    private let managedStorage: SpinLabManagedStorage
+    private let inboxImportFilter: InboxImportFilterService
+    private let libraryArchiveScan: LibraryArchiveScanService
     private var sampleRegistry: SampleRegistryIndexing
     private let inboxFeatureStore: InboxFeatureStore
     private var registryFeatureStore: RegistryFeatureStore
@@ -191,7 +192,7 @@ final class SpinLabAppState {
     private let registryCoordinator = RegistryCoordinator()
     @ObservationIgnored
     private lazy var registryFacade = RegistryFacade(
-        managedStorage: managedStorage,
+        libraryArchiveScan: libraryArchiveScan,
         registryLifecycleService: registryLifecycleService,
         registryCoordinator: registryCoordinator,
         dataActor: dataActor,
@@ -217,7 +218,7 @@ final class SpinLabAppState {
     private lazy var inboxFacade = InboxFacade(
         inboxWorkflowService: inboxWorkflowService,
         inboxStore: inboxFeatureStore,
-        managedStorage: managedStorage,
+        inboxImportFilter: inboxImportFilter,
         importPipeline: importPipeline,
         existingImportedOriginalPaths: { [weak self] in
             self?.existingImportedOriginalPaths() ?? []
@@ -334,7 +335,8 @@ final class SpinLabAppState {
         self.importPipeline = workflowBundle.importPipeline
         self.analysisModule = workflowBundle.analysisModule
         self.viewExtension = workflowBundle.viewExtension
-        self.managedStorage = environment.managedStorage
+        self.inboxImportFilter = environment.inboxImportFilter
+        self.libraryArchiveScan = environment.libraryArchiveScan
         self.sampleRegistry = environment.sampleRegistry
         self.archivedRecordResolverService = ArchivedRecordResolverService(registrySubstrateRules: environment.registrySubstrateRules)
         self.inboxFeatureStore = InboxFeatureStore(
@@ -357,7 +359,7 @@ final class SpinLabAppState {
             self?.workflowDefinitions = definitions
         }
 
-        if !self.sampleRegistry.isLoaded, let currentRegistryURL = environment.managedStorage.currentSampleRegistryFileURL() {
+        if !self.sampleRegistry.isLoaded, let currentRegistryURL = environment.libraryArchiveScan.currentSampleRegistryFileURL() {
             self.sampleRegistry = XLSXPrefixSampleRegistryIndex.fromFileURL(currentRegistryURL, previewRowCount: 10)
         }
 
@@ -402,7 +404,7 @@ final class SpinLabAppState {
         }
         setupRepositoryProjectionTasks()
         migrateManagedMeasurementPathsToOriginalIfPossible()
-        managedStorage.clearManagedMeasurementCopies()
+        libraryArchiveScan.clearManagedMeasurementCopies()
         registryFeatureStore.applyPresentation(
             registryCoordinator.makePresentation(
                 sampleRegistry: sampleRegistry,
@@ -423,7 +425,8 @@ final class SpinLabAppState {
     convenience init(
         workflowBundle: WorkflowBundle = WorkflowRegistry.shared.defaultBundle(),
         persistence: SpinLabPersistence = LocalJSONPersistence(),
-        managedStorage: SpinLabManagedStorage = SpinLabManagedStorage(),
+        inboxImportFilter: InboxImportFilterService = InboxImportFilterService(),
+        libraryArchiveScan: LibraryArchiveScanService = LibraryArchiveScanService(),
         sampleRegistry: SampleRegistryIndexing = XLSXPrefixSampleRegistryIndex.fromEnvironment(previewRowCount: 10),
         registrySubstrateRules: any RegistrySubstrateRuleProviding = RegistrySubstrateRuleBook(),
         routingCapabilities: RoutingCapabilities = .live,
@@ -433,7 +436,8 @@ final class SpinLabAppState {
             workflowBundle: workflowBundle,
             environment: AppEnvironment(
                 persistence: persistence,
-                managedStorage: managedStorage,
+                inboxImportFilter: inboxImportFilter,
+                libraryArchiveScan: libraryArchiveScan,
                 sampleRegistry: sampleRegistry,
                 registrySubstrateRules: registrySubstrateRules,
                 routingCapabilities: routingCapabilities,
@@ -653,7 +657,7 @@ final class SpinLabAppState {
         var archivedChanged = false
 
         let migratedPendingImports = inboxFeatureStore.pendingImports.map { pending in
-            guard managedStorage.isManagedMeasurementPath(pending.sourceFilePath),
+            guard libraryArchiveScan.isManagedMeasurementPath(pending.sourceFilePath),
                   let originalPath = pending.originalFilePath,
                   fileManager.fileExists(atPath: originalPath) else {
                 return pending
@@ -668,14 +672,14 @@ final class SpinLabAppState {
             var migrated = record
             var didChange = false
 
-            if managedStorage.isManagedMeasurementPath(record.measurement.sourceFilePath),
+            if libraryArchiveScan.isManagedMeasurementPath(record.measurement.sourceFilePath),
                let originalPath = record.measurement.originalFilePath,
                fileManager.fileExists(atPath: originalPath) {
                 migrated.measurement.sourceFilePath = URL(fileURLWithPath: originalPath).standardizedFileURL.path
                 didChange = true
             }
 
-            if managedStorage.isManagedMeasurementPath(record.dataset.sourceFilePath),
+            if libraryArchiveScan.isManagedMeasurementPath(record.dataset.sourceFilePath),
                let originalPath = record.dataset.originalFilePath ?? record.measurement.originalFilePath,
                fileManager.fileExists(atPath: originalPath) {
                 migrated.dataset.sourceFilePath = URL(fileURLWithPath: originalPath).standardizedFileURL.path
@@ -811,7 +815,7 @@ final class SpinLabAppState {
     private func resolvedLibraryRegistryPath() -> String? {
         let fileManager = FileManager.default
         let sourcePath = libraryFeatureStore.librarySettings.registrySourcePath
-        let internalPath = libraryFeatureStore.librarySettings.registryInternalPath ?? managedStorage.currentSampleRegistryFileURL()?.path
+        let internalPath = libraryFeatureStore.librarySettings.registryInternalPath ?? libraryArchiveScan.currentSampleRegistryFileURL()?.path
         if let sourcePath, fileManager.fileExists(atPath: sourcePath) {
             return sourcePath
         }
@@ -1506,7 +1510,7 @@ final class SpinLabAppState {
         if let internalPath = libraryFeatureStore.librarySettings.registryInternalPath, fileManager.fileExists(atPath: internalPath) {
             return URL(fileURLWithPath: internalPath)
         }
-        if let current = managedStorage.currentSampleRegistryFileURL(), fileManager.fileExists(atPath: current.path) {
+        if let current = libraryArchiveScan.currentSampleRegistryFileURL(), fileManager.fileExists(atPath: current.path) {
             return current
         }
         return nil

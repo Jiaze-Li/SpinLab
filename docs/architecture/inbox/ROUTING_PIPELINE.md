@@ -192,3 +192,4 @@ Persist both raw and normalized values in archive metadata.
 - `Sources/SpinLabApp/Import/Rules/FileRoutingSemanticRules.swift` — semantic routing rule definitions
 - `Sources/SpinLabApp/Import/Rules/ConditionFieldCatalog.swift` — condition field definitions consumed by pipeline
 - `Sources/SpinLabApp/Import/Rules/ConditionTransformExpressionEvaluator.swift` — evaluates numeric condition transform expressions
+- `Sources/SpinLabApp/Import/InboxImportFilterService.swift` — file scan, deduplication, and import filtering for inbox ingestion pipeline
