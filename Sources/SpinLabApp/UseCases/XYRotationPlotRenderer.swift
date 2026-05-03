@@ -7,9 +7,6 @@ import Foundation
 
 struct XYRotationPlotRenderer {
 
-    /// Pipeline warnings collected during rendering (legend resolver, etc.).
-    private(set) var collectedWarnings: [String] = []
-
     var showGrid: Bool = true
     var legendPoint: CGPoint? = nil
     var stackOffsetMultiplier: Double = 0.0
@@ -40,8 +37,8 @@ struct XYRotationPlotRenderer {
     mutating func renderRxxVsPhi(
         sweeps: [XYRotationAngleSweep],
         device: String
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?) {
-        guard !sweeps.isEmpty else { return (nil, nil, nil) }
+    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
+        guard !sweeps.isEmpty else { return (nil, nil, nil, []) }
 
         let yArrays: [[Double]] = sweeps.map { sweep in
             var y = sweep.resistanceXX
@@ -97,11 +94,12 @@ struct XYRotationPlotRenderer {
             seriesReorderable: true
         )
 
+        var w: [String] = []
         let (data, layout) = _consume(_render(
             payload: &payload,
             options: _stackedOptions(sweepCount: sweeps.count)
-        ))
-        return (data, layout, payload)
+        ), into: &w)
+        return (data, layout, payload, w)
     }
 
     /// Tab 2: Rxy vs φ with one series per temperature, optionally stacked.
@@ -109,9 +107,9 @@ struct XYRotationPlotRenderer {
     mutating func renderRxyVsPhi(
         sweeps: [XYRotationAngleSweep],
         device: String
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?) {
+    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
         let rxySweeps = sweeps.filter { $0.resistanceXY != nil }
-        guard !rxySweeps.isEmpty else { return (nil, nil, nil) }
+        guard !rxySweeps.isEmpty else { return (nil, nil, nil, []) }
 
         let yArrays: [[Double]] = rxySweeps.map { sweep in
             var y = sweep.resistanceXY!
@@ -167,11 +165,12 @@ struct XYRotationPlotRenderer {
             seriesReorderable: true
         )
 
+        var w: [String] = []
         let (data, layout) = _consume(_render(
             payload: &payload,
             options: _stackedOptions(sweepCount: rxySweeps.count)
-        ))
-        return (data, layout, payload)
+        ), into: &w)
+        return (data, layout, payload, w)
     }
 
     // MARK: - Private
@@ -207,13 +206,13 @@ struct XYRotationPlotRenderer {
         }
     }
 
-    private mutating func _consume(_ outcome: RenderOutcome) -> (Data?, WorkbenchPlotLayout?) {
+    private func _consume(_ outcome: RenderOutcome, into warnings: inout [String]) -> (Data?, WorkbenchPlotLayout?) {
         switch outcome {
-        case .success(let imageData, let layout, let warnings):
-            collectedWarnings.append(contentsOf: warnings)
+        case .success(let imageData, let layout, let w):
+            warnings.append(contentsOf: w)
             return (imageData, layout)
         case .failure(let reason):
-            collectedWarnings.append(reason)
+            warnings.append(reason)
             return (nil, nil)
         }
     }

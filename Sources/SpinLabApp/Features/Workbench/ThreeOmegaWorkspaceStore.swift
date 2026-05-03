@@ -426,7 +426,7 @@ final class ThreeOmegaWorkspaceStore {
                 renderer.titleTemplate = capturedTemplate
                 renderer.titleTokens   = capturedTokens
                 let method = capturedV3Method == .highField ? "(HFE)" : "(WA)"
-                let (data, layout) = renderer.renderScaling(result: res, device: capturedDevice, method: method)
+                let (data, layout, _) = renderer.renderScaling(result: res, device: capturedDevice, method: method)
                 return (res, data, layout)
             }.value
 
@@ -806,7 +806,7 @@ final class ThreeOmegaWorkspaceStore {
             r.titleTemplate         = capturedTemplate
             r.titleTokens           = capturedTokens
 
-            let rendered: (Data?, WorkbenchPlotLayout?)
+            let rendered: (Data?, WorkbenchPlotLayout?, [String])
             switch tab {
             case .fieldSweep1omega:
                 rendered = r.renderR1omega(sweeps: ingestion.fieldSweeps, device: capturedDevice, seriesOrder: capturedSeriesOrder)
@@ -819,13 +819,13 @@ final class ThreeOmegaWorkspaceStore {
             case .hcVsT:
                 rendered = r.renderHcVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice)
             case .rtCurve:
-                rendered = ingestion.rtResult.map { r.renderRT(rt: $0) } ?? (nil, nil)
+                rendered = ingestion.rtResult.map { r.renderRT(rt: $0) } ?? (nil, nil, [])
             case .scaling:
                 if let sr = capturedScaling, capturedGeometry.isComplete {
                     let method = capturedV3Method == .highField ? "(HFE)" : "(WA)"
                     rendered = r.renderScaling(result: sr, device: capturedDevice, method: method)
                 } else {
-                    rendered = (nil, nil)
+                    rendered = (nil, nil, [])
                 }
             }
 
@@ -1443,23 +1443,23 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
 
             var plots = ThreeOmegaRenderedPlots()
             var r1 = makeRenderer(for: .fieldSweep1omega)
-            (plots.r1omega, plots.layoutR1omega) = r1.renderR1omega(sweeps: ingestion.fieldSweeps, device: capturedDevice, seriesOrder: tabSnaps[.fieldSweep1omega]?.seriesOrder)
+            (plots.r1omega, plots.layoutR1omega, _) = r1.renderR1omega(sweeps: ingestion.fieldSweeps, device: capturedDevice, seriesOrder: tabSnaps[.fieldSweep1omega]?.seriesOrder)
             var r3 = makeRenderer(for: .fieldSweep3omega)
-            (plots.r3omega, plots.layoutR3omega) = r3.renderR3omega(sweeps: ingestion.fieldSweeps, device: capturedDevice, seriesOrder: tabSnaps[.fieldSweep3omega]?.seriesOrder)
+            (plots.r3omega, plots.layoutR3omega, _) = r3.renderR3omega(sweeps: ingestion.fieldSweeps, device: capturedDevice, seriesOrder: tabSnaps[.fieldSweep3omega]?.seriesOrder)
             var rahe1 = makeRenderer(for: .rahe1omegaVsT)
-            (plots.rahe1omegaVsT, plots.layoutRAHE1omegaVsT) = rahe1.renderRAHE1omegaVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE1Method)
+            (plots.rahe1omegaVsT, plots.layoutRAHE1omegaVsT, _) = rahe1.renderRAHE1omegaVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE1Method)
             var rahe3 = makeRenderer(for: .rahe3omegaVsT)
-            (plots.rahe3omegaVsT, plots.layoutRAHE3omegaVsT) = rahe3.renderRAHE3omegaVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE3Method)
+            (plots.rahe3omegaVsT, plots.layoutRAHE3omegaVsT, _) = rahe3.renderRAHE3omegaVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE3Method)
             var hc = makeRenderer(for: .hcVsT)
-            (plots.hcVsT, plots.layoutHcVsT) = hc.renderHcVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice)
+            (plots.hcVsT, plots.layoutHcVsT, _) = hc.renderHcVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice)
             if let rt = ingestion.rtResult {
                 var rtR = makeRenderer(for: .rtCurve)
-                (plots.rtCurve, plots.layoutRTCurve) = rtR.renderRT(rt: rt)
+                (plots.rtCurve, plots.layoutRTCurve, _) = rtR.renderRT(rt: rt)
             }
             if let sr = capturedScaling, capturedGeometry.isComplete {
                 let method = capturedV3Method == .highField ? "(HFE)" : "(WA)"
                 var scR = makeRenderer(for: .scaling)
-                (plots.scaling, _) = scR.renderScaling(result: sr, device: capturedDevice, method: method)
+                (plots.scaling, _, _) = scR.renderScaling(result: sr, device: capturedDevice, method: method)
             }
 
             await MainActor.run { [weak self] in
