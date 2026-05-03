@@ -73,18 +73,10 @@ final class LibraryFeatureStore {
         var summaryMessage: String
     }
 
-    var librarySelectedPrefix: String? {
-        didSet { onPersistInteractionSnapshot?() }
-    }
-    var librarySelectedBatchId: String? {
-        didSet { onPersistInteractionSnapshot?() }
-    }
-    var librarySelectedSampleId: String? {
-        didSet { onPersistInteractionSnapshot?() }
-    }
-    var libraryActiveSelectionSource: LibrarySelectionSource = .browser {
-        didSet { onPersistInteractionSnapshot?() }
-    }
+    var librarySelectedPrefix: String?
+    var librarySelectedBatchId: String?
+    var librarySelectedSampleId: String?
+    var libraryActiveSelectionSource: LibrarySelectionSource = .browser
 
     var librarySettings: LibrarySettings
     var libraryRootVerificationPath: String?
@@ -169,6 +161,8 @@ final class LibraryFeatureStore {
     let libraryDiffEngine: LibraryDiffEngine
     @ObservationIgnored
     let librarySampleEditService: LibrarySampleEditService
+    let librarySidecarService: LibrarySidecarService
+    let libraryRegistrySyncService: LibraryRegistrySyncService
     @ObservationIgnored
     lazy var librarySyncService = LibrarySyncService(libraryStore: libraryStore, libraryDiffEngine: libraryDiffEngine)
     @ObservationIgnored
@@ -215,6 +209,8 @@ final class LibraryFeatureStore {
         self.libraryLogger = libraryLogger
         self.libraryDiffEngine = libraryDiffEngine
         self.librarySampleEditService = librarySampleEditService
+        self.librarySidecarService = LibrarySidecarService(libraryStore: libraryStore)
+        self.libraryRegistrySyncService = LibraryRegistrySyncService(libraryStore: libraryStore)
         self.librarySettings = librarySettingsStore.load()
     }
 
@@ -400,6 +396,10 @@ final class LibraryFeatureStore {
         snapshot.librarySelectedPrefix = librarySelectedPrefix
         snapshot.librarySelectedBatchId = librarySelectedBatchId
         snapshot.librarySelectedSampleId = librarySelectedSampleId
+    }
+
+    func commitSelection() {
+        onPersistInteractionSnapshot?()
     }
 
     func applyPreparedSyncReviewDecision() -> ApplyPreparedSyncReviewDecision {
@@ -602,7 +602,8 @@ final class LibraryFeatureStore {
             return .noPendingChanges(batchId: batchId, message: message)
         }
 
-        let message = "Applied selected sync for \(batchId): \(applyResult.batchAction), \(applyResult.touchedSamples) sample changes."
+        let failureSuffix = applyResult.failedSamples > 0 ? ", \(applyResult.failedSamples) failed (see console)" : ""
+        let message = "Applied selected sync for \(batchId): \(applyResult.batchAction), \(applyResult.touchedSamples) sample changes\(failureSuffix)."
         libraryDrawerMessage = message
         return .success(
             rootURL: rootURL,
@@ -657,7 +658,7 @@ final class LibraryFeatureStore {
             return nil
         }
         let rootURL = URL(fileURLWithPath: rootPath)
-        let result = libraryStore.recomputeAllMeasurementSidecars(rootURL: rootURL)
+        let result = librarySidecarService.recomputeAllMeasurementSidecars(rootURL: rootURL)
         appliedMeasurementsCacheBySampleID.removeAll()
         refreshSelectedDrawerAppliedMeasurementsIfNeeded()
         let summary = """
@@ -873,6 +874,7 @@ final class LibraryFeatureStore {
         if librarySelectedSampleId == nil || !samples.contains(where: { $0.id == librarySelectedSampleId }) {
             librarySelectedSampleId = samples.first?.id
         }
+        commitSelection()
     }
 
     private func updateSampleAppliedMeasurements(
@@ -944,6 +946,7 @@ final class LibraryFeatureStore {
                     .id
             }
             libraryActiveSelectionSource = .drawer
+            commitSelection()
             incrementLibrarySelectionVersion()
             reconcileLibrarySampleEditingSelection()
             loadWorkbenchResultsForCurrentSelection()
@@ -952,6 +955,7 @@ final class LibraryFeatureStore {
 
         case .browser:
             libraryActiveSelectionSource = .browser
+            commitSelection()
             incrementLibrarySelectionVersion()
             reconcileLibrarySampleEditingSelection()
             loadWorkbenchResultsForCurrentSelection()
@@ -1068,12 +1072,12 @@ final class LibraryFeatureStore {
             return
         }
         let rootURL = URL(fileURLWithPath: rootPath)
-        let store = libraryStore
         let snapshotRoot = rootPath
         let snapshotFingerprint = fingerprint
+        let service = librarySidecarService
         Task {
             let count = await Task.detached(priority: .utility) {
-                store.computeStaleCount(rootURL: rootURL, currentFingerprint: snapshotFingerprint)
+                service.computeStaleCount(rootURL: rootURL, currentFingerprint: snapshotFingerprint)
             }.value
             guard self.librarySettings.rootPath == snapshotRoot,
                   SpinLabRuleProvider.shared.loadResult().ruleSetFingerprint == snapshotFingerprint else { return }
@@ -1099,10 +1103,10 @@ final class LibraryFeatureStore {
             return
         }
         let rootURL = URL(fileURLWithPath: rootPath)
-        let store = libraryStore
+        let service = librarySidecarService
         Task {
             let items = await Task.detached(priority: .userInitiated) {
-                store.computeRecomputeDiff(rootURL: rootURL)
+                service.computeRecomputeDiff(rootURL: rootURL)
             }.value
             self.recomputeDiffItems = items
             self.isComputingRecomputePreview = false
@@ -1130,8 +1134,12 @@ final class LibraryFeatureStore {
         refreshRecomputeStaleCount()
     }
 
+    func loadSidecar(for measurement: AppliedMeasurement) -> SpinLabFileSidecar? {
+        librarySidecarService.loadSidecar(atPath: measurement.id)
+    }
+
     func saveConditionOverride(measurement: AppliedMeasurement, conditionId: String, value: String) {
-        let updated = libraryStore.saveConditionOverride(
+        let updated = librarySidecarService.saveConditionOverride(
             sidecarPath: measurement.id,
             conditionId: conditionId,
             value: value
@@ -1143,7 +1151,7 @@ final class LibraryFeatureStore {
     }
 
     func removeConditionOverride(measurement: AppliedMeasurement, conditionId: String) {
-        let updated = libraryStore.removeConditionOverride(
+        let updated = librarySidecarService.removeConditionOverride(
             sidecarPath: measurement.id,
             conditionId: conditionId
         )

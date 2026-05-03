@@ -27,10 +27,25 @@ final class LibrarySettingsStore {
         guard fileManager.fileExists(atPath: settingsURL.path) else {
             return .default
         }
-        guard let data = try? Data(contentsOf: settingsURL) else {
+        let data: Data
+        do {
+            data = try Data(contentsOf: settingsURL)
+        } catch {
+            logger.error(.library, "Failed to read library settings", metadata: [
+                "path": settingsURL.path,
+                "reason": error.localizedDescription
+            ])
             return .default
         }
-        return (try? decoder.decode(LibrarySettings.self, from: data)) ?? .default
+        do {
+            return try decoder.decode(LibrarySettings.self, from: data)
+        } catch {
+            logger.error(.library, "Failed to decode library settings (corrupt file, using defaults)", metadata: [
+                "path": settingsURL.path,
+                "reason": error.localizedDescription
+            ])
+            return .default
+        }
     }
 
     func save(_ settings: LibrarySettings) {

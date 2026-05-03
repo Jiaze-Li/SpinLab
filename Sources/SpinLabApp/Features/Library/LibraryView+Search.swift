@@ -47,27 +47,12 @@ extension LibraryView {
         }
     }
     var allExistingDrawerSamples: [SearchResultItem] {
-        let groups = lib.libraryExistingGroups
-        return groups
-            .flatMap { prefix, batchGroups in
-                batchGroups.flatMap { group in
-                    group.samples.map { sample in
-                        SearchResultItem(prefix: prefix, sample: sample)
-                    }
-                }
+        let flat = lib.libraryExistingGroups.flatMap { prefix, batchGroups in
+            batchGroups.flatMap { group in
+                group.samples.map { SearchResultItem(prefix: prefix, sample: $0) }
             }
-            .sorted {
-                if $0.prefix != $1.prefix {
-                    return $0.prefix < $1.prefix
-                }
-                if LibrarySort.compareBatch($0.sample.batchId, $1.sample.batchId) {
-                    return true
-                }
-                if LibrarySort.compareBatch($1.sample.batchId, $0.sample.batchId) {
-                    return false
-                }
-                return $0.sample.substrateDisplay < $1.sample.substrateDisplay
-            }
+        }
+        return LibrarySort.sortedExistingDrawerSamples(flat, prefix: \.prefix, batchId: \.sample.batchId, substrate: \.sample.substrateDisplay)
     }
 
     var searchThicknessValue: Double? {

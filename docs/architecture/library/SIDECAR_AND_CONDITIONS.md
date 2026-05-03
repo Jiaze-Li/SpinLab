@@ -41,7 +41,9 @@ Start with `V250SidecarTests.swift`.
 ## Code Map
 
 - `Sources/SpinLabApp/Library/SpinLabFileSidecar.swift` — sidecar schema, Codable model, field contracts (cross-cutting; schema canonical: `inbox/OUTPUT_CONTRACTS.md`)
+- `Sources/SpinLabApp/Library/LibrarySidecarService.swift` — sidecar recompute and dry-run diff business logic extracted from LibraryStore
 - `Sources/SpinLabApp/Features/Library/MeasurementConditionDetailView.swift` — condition fields display (temperature, current, field) from sidecar
 - `Sources/SpinLabApp/Features/Library/MeasurementDataSectionView.swift` — measurement data section with normalized/raw tags
+- `Sources/SpinLabApp/Features/Library/LibraryMeasurementDataPresenter.swift` — groups WorkbenchMeasurementDataStore records into device/method/range hierarchy for display
 - `Sources/SpinLabApp/Features/Library/LibraryMeasurementsDoneSection.swift` — measurements list section within drawer view
 - `Sources/SpinLabApp/Features/Library/LibraryExistingDrawerSampleSectionView.swift` — existing drawer sample section; reads projected sidecar data

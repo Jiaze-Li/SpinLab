@@ -52,4 +52,4 @@ Start with `V41217MeasurementPlotIndexTests.swift`.
 - `Sources/SpinLabApp/Library/LibraryPathResolver.swift` — root-relative path construction for artifact and sidecar locations (shared: Library + Workbench, SP-008)
 - `Sources/SpinLabApp/UseCases/LoadMeasurementPlotIndexUseCase.swift` — reads _spinlab/ plot index to discover available charts
 - `Sources/SpinLabApp/UseCases/LoadRelatedChartsUseCase.swift` — resolves related chart paths for multi-chart measurements
-- `Sources/SpinLabApp/App/LibraryPreviewComputationService.swift` — background preview orchestration (App layer; keeps async I/O off FeatureStore)
+- `Sources/SpinLabApp/App/LibraryPreviewComputationService.swift` — preview group + actionable preview index pure computation

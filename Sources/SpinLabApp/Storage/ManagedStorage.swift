@@ -41,7 +41,7 @@ final class SpinLabManagedStorage {
             try fileManager.createDirectory(at: self.rootURL, withIntermediateDirectories: true)
             try fileManager.createDirectory(at: registryDirectoryURL, withIntermediateDirectories: true)
         } catch {
-            // Keep initialization non-throwing; runtime operations will surface concrete errors.
+            fputs("[ManagedStorage] Failed to create storage directories: \(error.localizedDescription)\n", stderr)
         }
     }
 
@@ -122,7 +122,11 @@ final class SpinLabManagedStorage {
         }
 
         for url in urls {
-            try? fileManager.removeItem(at: url)
+            do {
+                try fileManager.removeItem(at: url)
+            } catch {
+                fputs("[ManagedStorage] Failed to remove managed measurement copy at \(url.lastPathComponent): \(error.localizedDescription)\n", stderr)
+            }
         }
     }
 
@@ -247,10 +251,16 @@ final class SpinLabManagedStorage {
     }
 
     func contentFingerprint(for url: URL) -> String? {
-        guard let data = try? Data(contentsOf: url, options: [.mappedIfSafe]) else {
+        do {
+            let data = try Data(contentsOf: url, options: [.mappedIfSafe])
+            let digest = SHA256.hash(data: data)
+            return digest.map { String(format: "%02x", $0) }.joined()
+        } catch {
+            let code = (error as NSError).code
+            if code != NSFileReadNoSuchFileError && code != NSFileNoSuchFileError {
+                fputs("[ManagedStorage] Failed to read content fingerprint for \(url.lastPathComponent): \(error.localizedDescription)\n", stderr)
+            }
             return nil
         }
-        let digest = SHA256.hash(data: data)
-        return digest.map { String(format: "%02x", $0) }.joined()
     }
 }

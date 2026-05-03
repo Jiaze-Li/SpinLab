@@ -438,9 +438,9 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 
 > 套用 `AUDIT_PLAYBOOK.md`；Library 相对稳定，预计违规密度低于 11/12。
 
-- [ ] 5.1.13a 审计
-- [ ] 5.1.13b 修复
-- [ ] 5.1.13c/d 修复溢出（按需启用）
+- [x] 5.1.13a 审计 — 套 AUDIT_PLAYBOOK Library 5 层 29 条 AS-ID；Codex 综合评审 adopt-with-fixes；产出 9 V + 4 D + 16 A + 3 CR。设计与执行纪要：[history/v5113a_library_audit.md](history/v5113a_library_audit.md)
+- [x] 5.1.13b 修复 — 8 V 全清 (C1–C8)；含 [high] V-003 applyBatch/All `try?` 收口 + V-009 抽 LibraryMeasurementDataPresenter；commit `a134b31`
+- [x] 5.1.13c V-005 完整结案 + AS-19 收口 — 抽 LibraryRegistrySyncService (C9 Phase 2) + stale/override 全归 LibrarySidecarService (C10 Phase 3) + LibraryRegistryParser CoreXLSX try? Adj-10 (C11)；commit `ab0f9e5`。**5.1.13d 未启用**（V-005 已完整结案，无溢出修复需要）。设计与执行纪要：[history/v5113bc_library_compliance_fixes.md](history/v5113bc_library_compliance_fixes.md)
 
 ### 5.1.14 — 跨区 meta 修订（链级一致性 + 边界不清）
 

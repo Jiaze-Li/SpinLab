@@ -36,14 +36,14 @@ Start with `V513LibraryFeatureStoreFacadeTests.swift`, `V260MeasurementsDisplayT
 ## Code Map
 
 - `Sources/SpinLabApp/App/State/LibraryFeatureStore.swift` — Library feature state; selection, projections, and coordination entry point
-- `Sources/SpinLabApp/App/State/LibraryFeatureStore+Projection.swift` — projected item list and selected item computation
+- `Sources/SpinLabApp/App/State/LibraryFeatureStore+Projection.swift` — selection-driven projection load + measurement set CRUD + cascade deletion
 - `Sources/SpinLabApp/App/State/LibraryState.swift` — raw Library state model (drawers, measurements, selection IDs)
 - `Sources/SpinLabApp/Features/Library/LibraryView.swift` — root Library view; composes column shell and subviews
 - `Sources/SpinLabApp/Features/Library/LibraryView+DetailColumn.swift` — right-column detail view composition
 - `Sources/SpinLabApp/Features/Library/LibraryView+Panels.swift` — panel layout helpers
 - `Sources/SpinLabApp/Features/Library/LibraryView+Search.swift` — search field and filter UI
 - `Sources/SpinLabApp/Features/Library/LibraryView+State.swift` — view-local state bindings
-- `Sources/SpinLabApp/Features/Library/LibraryViewModel.swift` — transient UI state (filter text, local selection, expansion)
+- `Sources/SpinLabApp/Features/Library/LibraryViewModel.swift` — AppState action forwarder + interaction state binding for LibraryView
 - `Sources/SpinLabApp/Features/Library/LibrarySelectionSync.swift` — bridges FeatureStore selection into ViewModel interaction state
 - `Sources/SpinLabApp/Features/Library/LibraryWorkspaceSections.swift` — defines and orders detail column sections
 - `Sources/SpinLabApp/Features/Library/LibraryViewSupport.swift` — shared view helpers and modifiers
