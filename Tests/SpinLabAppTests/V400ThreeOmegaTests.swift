@@ -441,7 +441,7 @@ struct V400PlotRendererTests {
             rahe1omega: nil, rahe1omegaWA: nil, hc1omega: nil, hc3omega: nil,
             v3omegaWindow: 2e-5
         )
-        let (data, _) = renderer.renderR1omega(sweeps: [sweep], device: "0deg")
+        let (data, _, _) = renderer.renderR1omega(sweeps: [sweep], device: "0deg")
         #expect(data != nil)
         if let data { #expect(data.count > 0) }
     }
@@ -450,7 +450,7 @@ struct V400PlotRendererTests {
     func renderScalingNoPoints() {
         var renderer = ThreeOmegaPlotRenderer()
         let result = ThreeOmegaScalingResult(points: [], segments: [], warnings: [])
-        let (data, _) = renderer.renderScaling(result: result)
+        let (data, _, _) = renderer.renderScaling(result: result)
         #expect(data == nil)
     }
 }

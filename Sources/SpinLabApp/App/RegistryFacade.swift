@@ -2,7 +2,7 @@ import Foundation
 
 @MainActor
 final class RegistryFacade {
-    private let managedStorage: SpinLabManagedStorage
+    private let libraryArchiveScan: LibraryArchiveScanService
     private let registryLifecycleService: RegistryLifecycleService
     private let registryCoordinator: RegistryCoordinator
     private let dataActor: any SpinLabDataActing
@@ -15,7 +15,7 @@ final class RegistryFacade {
     private let onForwardLoad: (URL) -> Void
 
     init(
-        managedStorage: SpinLabManagedStorage,
+        libraryArchiveScan: LibraryArchiveScanService,
         registryLifecycleService: RegistryLifecycleService,
         registryCoordinator: RegistryCoordinator,
         dataActor: any SpinLabDataActing,
@@ -26,7 +26,7 @@ final class RegistryFacade {
         onPresentError: @escaping (AppError, String) -> Void,
         onForwardLoad: @escaping (URL) -> Void
     ) {
-        self.managedStorage = managedStorage
+        self.libraryArchiveScan = libraryArchiveScan
         self.registryLifecycleService = registryLifecycleService
         self.registryCoordinator = registryCoordinator
         self.dataActor = dataActor
@@ -61,7 +61,7 @@ final class RegistryFacade {
         Task {
             let outcome = await registryCoordinator.loadSampleRegistry(
                 from: url,
-                managedStorage: managedStorage,
+                managedStorage: libraryArchiveScan,
                 registryLifecycleService: registryLifecycleService,
                 dataActor: dataActor
             )

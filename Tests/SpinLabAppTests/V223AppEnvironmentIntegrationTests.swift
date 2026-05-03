@@ -23,7 +23,8 @@ struct V223AppEnvironmentIntegrationTests {
         )
         let environment = AppEnvironment(
             persistence: persistence,
-            managedStorage: SpinLabManagedStorage(rootURL: root.appendingPathComponent("storage", isDirectory: true)),
+            inboxImportFilter: InboxImportFilterService(),
+            libraryArchiveScan: LibraryArchiveScanService(rootURL: root.appendingPathComponent("storage", isDirectory: true)),
             sampleRegistry: SnapshotSampleRegistryIndex(snapshot: .empty()),
             registrySubstrateRules: RegistrySubstrateRuleBook(),
             routingCapabilities: .live,
@@ -62,7 +63,8 @@ struct V223AppEnvironmentIntegrationTests {
         )
         let environment = AppEnvironment(
             persistence: persistence,
-            managedStorage: SpinLabManagedStorage(rootURL: root.appendingPathComponent("storage", isDirectory: true)),
+            inboxImportFilter: InboxImportFilterService(),
+            libraryArchiveScan: LibraryArchiveScanService(rootURL: root.appendingPathComponent("storage", isDirectory: true)),
             sampleRegistry: SnapshotSampleRegistryIndex(snapshot: .empty()),
             registrySubstrateRules: RegistrySubstrateRuleBook(),
             routingCapabilities: .live,
@@ -94,7 +96,8 @@ struct V223AppEnvironmentIntegrationTests {
         )
         let environment = AppEnvironment(
             persistence: persistence,
-            managedStorage: SpinLabManagedStorage(rootURL: root.appendingPathComponent("storage", isDirectory: true)),
+            inboxImportFilter: InboxImportFilterService(),
+            libraryArchiveScan: LibraryArchiveScanService(rootURL: root.appendingPathComponent("storage", isDirectory: true)),
             sampleRegistry: SnapshotSampleRegistryIndex(snapshot: .empty()),
             registrySubstrateRules: RegistrySubstrateRuleBook(),
             routingCapabilities: .live,
@@ -132,7 +135,8 @@ struct V223AppEnvironmentIntegrationTests {
         )
         let environment = AppEnvironment(
             persistence: persistence,
-            managedStorage: SpinLabManagedStorage(rootURL: root.appendingPathComponent("storage", isDirectory: true)),
+            inboxImportFilter: InboxImportFilterService(),
+            libraryArchiveScan: LibraryArchiveScanService(rootURL: root.appendingPathComponent("storage", isDirectory: true)),
             sampleRegistry: SnapshotSampleRegistryIndex(snapshot: .empty()),
             registrySubstrateRules: RegistrySubstrateRuleBook(),
             routingCapabilities: .live,
@@ -200,7 +204,8 @@ struct V223AppEnvironmentIntegrationTests {
         )
         let environment = AppEnvironment(
             persistence: persistence,
-            managedStorage: SpinLabManagedStorage(rootURL: root.appendingPathComponent("storage", isDirectory: true)),
+            inboxImportFilter: InboxImportFilterService(),
+            libraryArchiveScan: LibraryArchiveScanService(rootURL: root.appendingPathComponent("storage", isDirectory: true)),
             sampleRegistry: SnapshotSampleRegistryIndex(snapshot: .empty()),
             registrySubstrateRules: RegistrySubstrateRuleBook(),
             routingCapabilities: .live,

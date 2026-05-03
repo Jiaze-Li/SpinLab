@@ -69,6 +69,14 @@ final class XYRotationWorkspaceStore {
     @ObservationIgnored var vault: AnalysisVault?
     var activePackID: AnalysisPack.ID?
 
+    // MARK: - Environment
+
+    @ObservationIgnored private let env: WorkbenchEnvironment
+
+    init(env: WorkbenchEnvironment = .live) {
+        self.env = env
+    }
+
     // MARK: - Private
 
     @ObservationIgnored private var analysisTask: Task<Void, Never>?
@@ -159,17 +167,17 @@ final class XYRotationWorkspaceStore {
                 let result = IngestXYRotationSelectionsUseCase().execute(hits: selectedHits, numericDisplayBySample: capturedNumericDisplay)
 
                 var rxx = rxxRenderer
-                let (rxxData, rxxLayout, rxxPayload) = rxx.renderRxxVsPhi(
+                let (rxxData, rxxLayout, rxxPayload, rxxWarnings) = rxx.renderRxxVsPhi(
                     sweeps: AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxx, to: result.sweeps),
                     device: result.device
                 )
                 var rxy = rxyRenderer
-                let (rxyData, rxyLayout, rxyPayload) = rxy.renderRxyVsPhi(
+                let (rxyData, rxyLayout, rxyPayload, rxyWarnings) = rxy.renderRxyVsPhi(
                     sweeps: AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxy, to: result.sweeps),
                     device: result.device
                 )
                 // Deduplicate pipeline warnings from both tabs
-                let pipelineWarnings = Array(Set(rxx.collectedWarnings + rxy.collectedWarnings))
+                let pipelineWarnings = Array(Set(rxxWarnings + rxyWarnings))
                 return (result, rxxData, rxxLayout, rxxPayload, rxyData, rxyLayout, rxyPayload, pipelineWarnings)
             }.value
 
@@ -226,12 +234,12 @@ final class XYRotationWorkspaceStore {
 
         Task.detached(priority: .userInitiated) { [weak self] in
             var r = renderer
-            let (data, layout, payload): (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?)
+            let (data, layout, payload, _): (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
             switch tab {
             case .rxxVsPhi:
-                (data, layout, payload) = r.renderRxxVsPhi(sweeps: orderedSweeps, device: device)
+                (data, layout, payload, _) = r.renderRxxVsPhi(sweeps: orderedSweeps, device: device)
             case .rxyVsPhi:
-                (data, layout, payload) = r.renderRxyVsPhi(sweeps: orderedSweeps, device: device)
+                (data, layout, payload, _) = r.renderRxyVsPhi(sweeps: orderedSweeps, device: device)
             }
 
             await MainActor.run { [weak self] in
@@ -301,7 +309,7 @@ final class XYRotationWorkspaceStore {
             return
         }
         let rootURL = URL(fileURLWithPath: rootPath)
-        guard FileManager.default.fileExists(atPath: rootPath) else {
+        guard env.fileManager.fileExists(atPath: rootPath) else {
             relatedChartsGrouped = [:]
             return
         }
@@ -413,12 +421,12 @@ final class XYRotationWorkspaceStore {
             )
             Task.detached(priority: .userInitiated) { [weak self] in
                 var r = renderer
-                let (data, layout, payload): (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?)
+                let (data, layout, payload, _): (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
                 switch tab {
                 case .rxxVsPhi:
-                    (data, layout, payload) = r.renderRxxVsPhi(sweeps: orderedSweeps, device: device)
+                    (data, layout, payload, _) = r.renderRxxVsPhi(sweeps: orderedSweeps, device: device)
                 case .rxyVsPhi:
-                    (data, layout, payload) = r.renderRxyVsPhi(sweeps: orderedSweeps, device: device)
+                    (data, layout, payload, _) = r.renderRxyVsPhi(sweeps: orderedSweeps, device: device)
                 }
 
                 await MainActor.run { [weak self] in

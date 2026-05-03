@@ -287,6 +287,7 @@ final class RulesManagementStore {
     @ObservationIgnored var persistenceHook: RulesPersistenceHook?
     @ObservationIgnored private var openTimeHashes: [RulesPanelSection: String] = [:]
     @ObservationIgnored private let onRulesSaved: () -> Void
+    @ObservationIgnored private let ruleLoader: any RuleProviding
 
     private(set) var syncStartupOutcome: StartupOutcome = .skipped
     private(set) var mirrorWarningSectionLabel: String?
@@ -306,11 +307,13 @@ final class RulesManagementStore {
     init(
         onRulesSaved: @escaping () -> Void = {},
         syncEngine: RulesSyncEngine? = nil,
-        syncStartupOutcome: StartupOutcome = .skipped
+        syncStartupOutcome: StartupOutcome = .skipped,
+        ruleLoader: (any RuleProviding)? = nil
     ) {
         self.onRulesSaved = onRulesSaved
         self.syncEngine = syncEngine
         self.syncStartupOutcome = syncStartupOutcome
+        self.ruleLoader = ruleLoader ?? RuleLoader.shared
     }
 
     // MARK: - Lifecycle
@@ -523,8 +526,8 @@ final class RulesManagementStore {
         let newHash = sha256Hex(of: data)
         openTimeHashes[section] = newHash
 
-        _ = RuleLoader.shared.reloadCached()
-        _ = RuleLoader.shared.bumpRuleSetVersion()
+        _ = ruleLoader.reloadCached()
+        _ = ruleLoader.bumpRuleSetVersion()
         onRulesSaved()
 
         let version = (value as? any _VersionedSchema)?.version ?? 0

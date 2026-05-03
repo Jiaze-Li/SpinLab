@@ -444,14 +444,8 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 
 ### 5.1.14 — 跨区 meta 修订（链级一致性 + 边界不清）
 
-> 吃 11a/12a/13a 攒出的 `Cross-Region Doubts For 5.1.14` 侧栏 + 边界不清问题。两类问题合并处理（都属于跨区 meta，单独立版本不划算）：
->
-> - **链级一致性**：跨区流程契约不一致（典型例：sidecar 字段在 Inbox 写入时和 Workbench 解读时语义有微差；Rules 改了 runtime 不刷新；protocol 设计造成跨区泄漏）
-> - **边界不清**：Code Map 描述模糊导致多文件同时漂移；AppState / Registry / 全局协调器整体设计问题
-
-- [ ] 5.1.14a 收敛：汇总前三轮 Cross-Region Doubts + 边界不清问题清单；提出修订方案（Code Map 措辞调整 / 区层重划 / 协调器重构提案）
-- [ ] 5.1.14b 落地：执行修订方案；纯文档调整（Code Map）与代码调整（协调器重构）按修订类型拆 commit
-- [ ] 5.1.14c/d 溢出（按需启用）：若 14a 设计问题清单 ≥ 10 条，事后拆多轮修订；触发条件留作 14a 收敛时事后判断，**不**在当前 ROADMAP 预留具体版本号
+- [x] 5.1.14a 收敛：三根因收敛（DI 三档 + Domain 三 Tier + UseCase stateless）+ 17 INV 防回归不变式；定稿 handoff 第 3 稿。设计与执行纪要：[history/v5114_cross_region_meta_convergence.md](history/v5114_cross_region_meta_convergence.md)
+- [x] 5.1.14b 落地：14b/14c/14d 三批 20 commit；DI 基础设施 + workspace 注入 + service 拆分 + Domain Tier 1/2 物理迁移；17 INV 全绿；244/244 coverage。**14c/d 溢出未触发**。
 
 ---
 

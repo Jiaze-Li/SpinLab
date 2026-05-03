@@ -165,6 +165,9 @@ Each section maps 1:1 to a JSON config file under `RulesConfigPaths`. `RulesPane
 - `Sources/SpinLabApp/Import/Rules/RulesPersistenceHook.swift` — post-save persistence hook wiring
 - `Sources/SpinLabApp/Import/Rules/RuleRef.swift` — rule reference model
 - `Sources/SpinLabApp/Storage/RulesSyncEngine.swift` — dual-write engine and reverse sync on startup
+- `Sources/SpinLabApp/Domain/Capabilities/RuleProviding.swift` — capability protocol abstracting RuleLoader cache-reload and version-bump operations across regions <!-- legitimate_cross_cutting -->
+- `Sources/SpinLabApp/Domain/Capabilities/AuditLogging.swift` — capability protocol abstracting AuditLogger import and rule-write event logging <!-- legitimate_cross_cutting -->
+- `Sources/SpinLabApp/Domain/Capabilities/AppLogging.swift` — general-purpose injectable logging capability abstracting AppLogger info/warning/error <!-- legitimate_cross_cutting -->
 - `Sources/SpinLabApp/Features/RulesPanel/MeasuringConditionRuleProjection.swift` — pure stateless projections for measuring condition rules: normalize rules with standardUnit handling and derive unit picker options
 - `Sources/SpinLabApp/Features/RulesPanel/Components/MatchRulesEditor.swift` — interactive rule match condition editor component
 - `Sources/SpinLabApp/Features/RulesPanel/Components/RuleExpandableRow.swift` — expandable row shell shared by all five rule sections (collapse/expand, header click area, dead-zone fix)

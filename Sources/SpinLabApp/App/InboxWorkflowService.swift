@@ -10,14 +10,14 @@ struct InboxWorkflowService {
     func importFiles(
         urls: [URL],
         inboxStore: InboxFeatureStore,
-        managedStorage: SpinLabManagedStorage,
+        inboxImportFilter: InboxImportFilterService,
         importPipeline: SpinLabImportPipeline,
         excludedOriginalPaths: Set<String>,
         excludedContentFingerprints: Set<String>
     ) -> [SpinLabDomain.PendingImport] {
         inboxStore.importFiles(
             from: urls,
-            managedStorage: managedStorage,
+            inboxImportFilter: inboxImportFilter,
             importPipeline: importPipeline,
             excludedOriginalFilePaths: excludedOriginalPaths,
             excludedContentFingerprints: excludedContentFingerprints

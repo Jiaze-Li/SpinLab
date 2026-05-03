@@ -1,7 +1,14 @@
 {
-  "version": 1,
-  "import": {
-    "supportedFileExtensions": ["csv", "txt", "dat", "lvm"],
-    "ignoredFileExtensions": ["gph"]
-  }
+  "import" : {
+    "ignoredFileExtensions" : [
+      "gph"
+    ],
+    "supportedFileExtensions" : [
+      "csv",
+      "txt",
+      "dat",
+      "lvm"
+    ]
+  },
+  "version" : 1
 }

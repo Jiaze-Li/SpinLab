@@ -119,6 +119,32 @@ Operational rules for contributors/agents:
 | Library search 参数 | LibraryInteractionState (11 个 text + hasExecuted) | 已有 |
 | Workbench 分析状态 | FeatureStore（不在 @State） | 不需要 view 级持久化 |
 
+## Domain Placement Policy
+
+### Three-Tier Model
+
+| Tier | Definition | Physical Location | Content Boundary |
+|---|---|---|---|
+| Tier 1 cross-region contract | consumed by ≥ 2 regions | `Sources/Domain/<topic>/` | `Codable/Hashable/Sendable` contract only; no parser/loader/evaluator/service I/O |
+| Tier 2 region domain entity | single-region persistence + UseCase shared | `Sources/<Region>/Domain/` | same pure-value constraint |
+| Tier 3 UI projection | View + ViewModel only | `Sources/<Region>/Features/` | not imported by UseCase layer |
+
+**Migration criteria (do not pre-commit to specific file paths; write criteria first):**
+- Is this type a pure `Codable/Hashable/Sendable` value contract? → yes: Tier 1 or 2; no: leave in owner region.
+- Does this file mix contract + behavior? → split first, migrate only the contract portion.
+- `legitimate_cross_cutting` marker: preserved as collaborator Code Map comment after physical migration.
+- Tier 1 migration requires enforcing `Codable/Hashable/Sendable` conformance in the same commit.
+
+### DI Three-Level Classification
+
+| Dependency Type | Substitution Mechanism |
+|---|---|
+| Pure value helper / pure function | instantiate directly |
+| Side-effect-free service | init default parameter + `@ObservationIgnored` + init substitute |
+| Side-effect dep (repository / logger / storage / filesystem / network / `.shared`) | must go through AppEnvironment / capability protocol |
+
+FeatureStore may hold side-effect-free services directly (`@ObservationIgnored`). Side-effect deps must be received via AppEnvironment — not default-constructed inline.
+
 ## Code Placement
 
 | Code shape | Destination |

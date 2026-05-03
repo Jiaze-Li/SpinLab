@@ -7,7 +7,7 @@ struct RegistryPresentationState {
 }
 
 struct RegistryLifecycleService {
-    func installRegistry(from sourceURL: URL, managedStorage: SpinLabManagedStorage) throws -> URL {
+    func installRegistry(from sourceURL: URL, managedStorage: LibraryArchiveScanService) throws -> URL {
         try managedStorage.installSampleRegistry(from: sourceURL)
     }
 

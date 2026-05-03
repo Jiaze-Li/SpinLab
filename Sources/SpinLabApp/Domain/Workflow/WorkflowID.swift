@@ -1,6 +1,6 @@
 import Foundation
 
-enum WorkflowID: String, CaseIterable, Hashable, Sendable {
+enum WorkflowID: String, CaseIterable, Codable, Hashable, Sendable {
     case ahe
     case rt
     case threeOmega = "3w"

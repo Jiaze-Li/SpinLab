@@ -172,7 +172,7 @@ struct V260MeasurementsDisplayTests {
         )
 
         let rootURL = fixture.libraryRootURL
-        let result = fixture.libraryStore.recomputeAllMeasurementSidecars(rootURL: rootURL)
+        let result = LibrarySidecarService(libraryStore: fixture.libraryStore).recomputeAllMeasurementSidecars(rootURL: rootURL)
         #expect(result.createdSidecarCount == 1)
         #expect(result.failedSidecarCount == 0)
 

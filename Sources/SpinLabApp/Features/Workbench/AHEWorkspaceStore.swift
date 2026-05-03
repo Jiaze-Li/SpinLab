@@ -85,7 +85,7 @@ final class AHEWorkspaceStore {
             return
         }
         let rootURL = URL(fileURLWithPath: rootPath)
-        guard FileManager.default.fileExists(atPath: rootPath) else {
+        guard env.fileManager.fileExists(atPath: rootPath) else {
             relatedChartsGrouped = [:]
             return
         }
@@ -135,6 +135,14 @@ final class AHEWorkspaceStore {
     // MARK: - Cached input files (for pack fingerprint)
 
     @ObservationIgnored private(set) var cachedInputFiles: [String] = []
+
+    // MARK: - Environment
+
+    @ObservationIgnored private let env: WorkbenchEnvironment
+
+    init(env: WorkbenchEnvironment = .live) {
+        self.env = env
+    }
 
     // MARK: - Private
 

@@ -117,12 +117,12 @@ final class InboxFeatureStore {
 
     func importFiles(
         from urls: [URL],
-        managedStorage: SpinLabManagedStorage,
+        inboxImportFilter: InboxImportFilterService,
         importPipeline: SpinLabImportPipeline,
         excludedOriginalFilePaths: Set<String>,
         excludedContentFingerprints: Set<String>
     ) -> [SpinLabDomain.PendingImport] {
-        let managedFiles = managedStorage.importMeasurementFiles(
+        let managedFiles = inboxImportFilter.importMeasurementFiles(
             from: urls,
             allowedFileExtensions: importPipeline.supportedFileExtensions,
             ignoredFileExtensions: importPipeline.ignoredFileExtensions,
@@ -144,7 +144,7 @@ final class InboxFeatureStore {
 
     func startImportFiles(
         from urls: [URL],
-        managedStorage: SpinLabManagedStorage,
+        inboxImportFilter: InboxImportFilterService,
         importPipeline: SpinLabImportPipeline,
         excludedOriginalFilePaths: Set<String>,
         excludedContentFingerprints: Set<String>,
@@ -154,7 +154,7 @@ final class InboxFeatureStore {
         importTask?.cancel()
 
         // Phase 1 (sync): fast scan (path/file-name dedupe only) and initialize progress immediately.
-        let scannedURLs = managedStorage.scanMeasurementSourceFiles(
+        let scannedURLs = inboxImportFilter.scanMeasurementSourceFiles(
             from: urls,
             allowedFileExtensions: importPipeline.supportedFileExtensions,
             ignoredFileExtensions: importPipeline.ignoredFileExtensions,
@@ -188,7 +188,7 @@ final class InboxFeatureStore {
                 self.importProgressState.currentFileName = url.lastPathComponent
 
                 let fingerprint = await Task.detached(priority: .utility) {
-                    managedStorage.contentFingerprint(for: url)
+                    inboxImportFilter.contentFingerprint(for: url)
                 }.value
                 guard !Task.isCancelled else { return }
 
