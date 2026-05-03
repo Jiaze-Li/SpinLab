@@ -127,6 +127,7 @@ struct IngestAHESelectionsUseCase {
                 x: xs,
                 y: ys,
                 sourceRef: selection.sourceFilePath,
+                sampleID: selection.sampleKey,
                 metadata: meta
             ))
         }

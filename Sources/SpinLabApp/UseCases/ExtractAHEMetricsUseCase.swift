@@ -9,7 +9,7 @@ struct ExtractAHEMetricsUseCase {
         var result: [String: AHEExtractedMetric] = [:]
         var failedLabels: [String] = []
         for s in series {
-            guard let key = parseSampleKey(from: s.label) else {
+            guard let key = s.sampleID else {
                 failedLabels.append(s.label.isEmpty ? "<empty>" : s.label)
                 continue
             }
