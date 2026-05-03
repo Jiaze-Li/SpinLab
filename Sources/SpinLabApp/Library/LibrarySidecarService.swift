@@ -3,7 +3,12 @@ import Foundation
 struct LibrarySidecarService {
     let libraryStore: LibraryStore
     private let fileManager = FileManager.default
-    private let logger = AppLogger.shared
+    private let logger: any AppLogging
+
+    init(libraryStore: LibraryStore, logger: any AppLogging = AppLogger.shared) {
+        self.libraryStore = libraryStore
+        self.logger = logger
+    }
 
     // MARK: - Recompute all
 
@@ -106,7 +111,7 @@ struct LibrarySidecarService {
 
     // MARK: - Private helpers
 
-    private struct SidecarBackfillStats {
+    struct SidecarBackfillStats {
         var scannedMeasurementFileCount: Int = 0
         var createdSidecarCount: Int = 0
         var updatedSidecarCount: Int = 0
@@ -114,7 +119,7 @@ struct LibrarySidecarService {
         var failedSidecarCount: Int = 0
     }
 
-    private func recomputeSidecars(
+    func recomputeSidecars(
         in sampleDirectory: URL,
         encoder: JSONEncoder,
         loadResult: RuleLoader.LoadResult
@@ -155,6 +160,8 @@ struct LibrarySidecarService {
                 guard let existingData = try? Data(contentsOf: sidecarURL),
                       let existing = try? decoder.decode(SpinLabFileSidecar.self, from: existingData) else {
                     stats.skippedExistingSidecarCount += 1
+                    logger.error(.library, "Sidecar read or decode failed — skipping",
+                                 metadata: ["sidecarPath": sidecarURL.path])
                     continue
                 }
 
@@ -177,7 +184,7 @@ struct LibrarySidecarService {
                     mutated = true
                 } catch {
                     stats.failedSidecarCount += 1
-                    logger.warning(.library, "Failed to recompute sidecar", metadata: [
+                    logger.error(.library, "Failed to recompute sidecar", metadata: [
                         "sidecarPath": sidecarURL.path,
                         "reason": error.localizedDescription
                     ])
@@ -203,7 +210,7 @@ struct LibrarySidecarService {
                     mutated = true
                 } catch {
                     stats.failedSidecarCount += 1
-                    logger.warning(.library, "Failed to create sidecar", metadata: [
+                    logger.error(.library, "Failed to create sidecar", metadata: [
                         "measurementPath": url.path,
                         "sidecarPath": sidecarURL.path,
                         "reason": error.localizedDescription
