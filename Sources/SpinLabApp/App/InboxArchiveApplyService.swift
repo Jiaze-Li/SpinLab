@@ -10,7 +10,13 @@ struct InboxArchiveApplyResult: Equatable {
 }
 
 struct InboxArchiveApplyService {
-    private let auditLogger = AuditLogger.shared
+    private let auditLogger: any AuditLogging
+    private let ruleProvider: any SpinLabRuleProviding
+
+    init(auditLogger: (any AuditLogging)? = nil, ruleProvider: (any SpinLabRuleProviding)? = nil) {
+        self.auditLogger = auditLogger ?? AuditLogger.shared
+        self.ruleProvider = ruleProvider ?? SpinLabRuleProvider.shared
+    }
 
     enum InboxArchiveApplyError: LocalizedError {
         case sourceFileNotFound
@@ -243,7 +249,7 @@ struct InboxArchiveApplyService {
         )
         let workflowDisplayName = matchedDefinition?.displayName ?? workflow
 
-        let loadResult = SpinLabRuleProvider.shared.loadResult()
+        let loadResult = ruleProvider.loadResult()
         let snapshot = SidecarCompositionUseCase.buildRuleSnapshot(
             hints: pending.parsedHints,
             ruleSetFingerprint: loadResult.ruleSetFingerprint,

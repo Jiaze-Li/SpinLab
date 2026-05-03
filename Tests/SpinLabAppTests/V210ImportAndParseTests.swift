@@ -25,8 +25,7 @@ struct V210ImportAndParseTests {
             try Data("content-\(name)".utf8).write(to: url)
         }
 
-        let storage = SpinLabManagedStorage(rootURL: root)
-        let imported = storage.importMeasurementFiles(
+        let imported = InboxImportFilterService().importMeasurementFiles(
             from: [input],
             allowedFileExtensions: ["dat", "lvm", "txt", "csv"],
             ignoredFileExtensions: ["gph"]
@@ -53,8 +52,7 @@ struct V210ImportAndParseTests {
         try contents.write(to: left.appendingPathComponent(fileName))
         try contents.write(to: right.appendingPathComponent(fileName))
 
-        let storage = SpinLabManagedStorage(rootURL: root)
-        let imported = storage.importMeasurementFiles(
+        let imported = InboxImportFilterService().importMeasurementFiles(
             from: [left, right],
             allowedFileExtensions: ["dat"]
         )

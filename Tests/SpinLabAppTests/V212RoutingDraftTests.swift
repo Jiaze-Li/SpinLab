@@ -11,7 +11,7 @@ struct V212RoutingDraftTests {
         let persistence = MockPersistenceForRoutingDraft(pendingImports: [pending])
         let appState = SpinLabAppState(
             persistence: persistence,
-            managedStorage: SpinLabManagedStorage(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("spinlab-routing-draft-\(UUID().uuidString)", isDirectory: true))
+            libraryArchiveScan: LibraryArchiveScanService(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("spinlab-routing-draft-\(UUID().uuidString)", isDirectory: true))
         )
 
         let before = appState.pendingRoutePlan(for: pending)
@@ -31,7 +31,7 @@ struct V212RoutingDraftTests {
         let persistence = MockPersistenceForRoutingDraft(pendingImports: [pending])
         let appState = SpinLabAppState(
             persistence: persistence,
-            managedStorage: SpinLabManagedStorage(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("spinlab-routing-draft-\(UUID().uuidString)", isDirectory: true))
+            libraryArchiveScan: LibraryArchiveScanService(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("spinlab-routing-draft-\(UUID().uuidString)", isDirectory: true))
         )
 
         var draft = appState.routingDraft(for: pending)
@@ -50,7 +50,7 @@ struct V212RoutingDraftTests {
         let persistence = MockPersistenceForRoutingDraft(pendingImports: [pending])
         let appState = SpinLabAppState(
             persistence: persistence,
-            managedStorage: SpinLabManagedStorage(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("spinlab-routing-draft-\(UUID().uuidString)", isDirectory: true))
+            libraryArchiveScan: LibraryArchiveScanService(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("spinlab-routing-draft-\(UUID().uuidString)", isDirectory: true))
         )
 
         var draft = appState.routingDraft(for: pending)
@@ -69,7 +69,7 @@ struct V212RoutingDraftTests {
         let persistence = MockPersistenceForRoutingDraft(pendingImports: [pending])
         let appState = SpinLabAppState(
             persistence: persistence,
-            managedStorage: SpinLabManagedStorage(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("spinlab-routing-draft-\(UUID().uuidString)", isDirectory: true))
+            libraryArchiveScan: LibraryArchiveScanService(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("spinlab-routing-draft-\(UUID().uuidString)", isDirectory: true))
         )
 
         var draft = appState.routingDraft(for: pending)
@@ -103,7 +103,7 @@ struct V212RoutingDraftTests {
 
         let appState = SpinLabAppState(
             persistence: persistence,
-            managedStorage: SpinLabManagedStorage(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("spinlab-routing-draft-\(UUID().uuidString)", isDirectory: true))
+            libraryArchiveScan: LibraryArchiveScanService(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("spinlab-routing-draft-\(UUID().uuidString)", isDirectory: true))
         )
 
         let plan = appState.pendingRoutePlan(for: pending)
@@ -117,7 +117,7 @@ struct V212RoutingDraftTests {
         let persistence = MockPersistenceForRoutingDraft(pendingImports: [pending])
         let appState = SpinLabAppState(
             persistence: persistence,
-            managedStorage: SpinLabManagedStorage(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("spinlab-routing-draft-\(UUID().uuidString)", isDirectory: true))
+            libraryArchiveScan: LibraryArchiveScanService(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("spinlab-routing-draft-\(UUID().uuidString)", isDirectory: true))
         )
 
         #expect(appState.hasSavedRoutingDraft(for: pending) == false)
@@ -135,7 +135,7 @@ struct V212RoutingDraftTests {
         let persistence = MockPersistenceForRoutingDraft(pendingImports: [pending])
         let appState = SpinLabAppState(
             persistence: persistence,
-            managedStorage: SpinLabManagedStorage(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("spinlab-routing-draft-\(UUID().uuidString)", isDirectory: true))
+            libraryArchiveScan: LibraryArchiveScanService(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("spinlab-routing-draft-\(UUID().uuidString)", isDirectory: true))
         )
 
         let baseline = appState.routingDraftBaseline(for: pending)
@@ -162,7 +162,7 @@ struct V212RoutingDraftTests {
         let persistence = MockPersistenceForRoutingDraft(pendingImports: [pending])
         let appState = SpinLabAppState(
             persistence: persistence,
-            managedStorage: SpinLabManagedStorage(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("spinlab-routing-draft-\(UUID().uuidString)", isDirectory: true))
+            libraryArchiveScan: LibraryArchiveScanService(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("spinlab-routing-draft-\(UUID().uuidString)", isDirectory: true))
         )
 
         let baseline = appState.routingDraftBaseline(for: pending)
