@@ -1,6 +1,24 @@
 import Foundation
 
 struct FilenameRuleSet: Decodable {
+    // MARK: - Schema typealiases (physical location: Domain/Routing/FilenameRuleSetSchema.swift)
+    typealias Operation = FilenameRuleSetSchema.Operation
+    typealias MatchSpec = FilenameRuleSetSchema.MatchSpec
+    typealias ConditionStandardization = FilenameRuleSetSchema.ConditionStandardization
+    typealias MapRule = FilenameRuleSetSchema.MapRule
+    typealias ConditionDefinition = FilenameRuleSetSchema.ConditionDefinition
+    typealias Tokenization = FilenameRuleSetSchema.Tokenization
+    typealias Source = FilenameRuleSetSchema.Source
+    typealias SampleIdRules = FilenameRuleSetSchema.SampleIdRules
+    typealias ChannelRules = FilenameRuleSetSchema.ChannelRules
+    typealias ConditionRules = FilenameRuleSetSchema.ConditionRules
+    typealias RegistryRules = FilenameRuleSetSchema.RegistryRules
+    typealias ImportRules = FilenameRuleSetSchema.ImportRules
+    typealias SubstrateEntry = FilenameRuleSetSchema.SubstrateEntry
+    typealias SubstrateConfig = FilenameRuleSetSchema.SubstrateConfig
+
+    // MARK: - Runtime-only result types (not Codable, evaluator output)
+
     struct ExtraConditionEvaluation {
         var values: [String: String]
         var warnings: [String]
@@ -15,186 +33,6 @@ struct FilenameRuleSet: Decodable {
         var sourcedValues: [String: SourcedConditionValue]
         var warnings: [String]
         var values: [String: String] { sourcedValues.mapValues(\.value) }
-    }
-
-    // MARK: - Operation enum (5-op closed set)
-
-    enum Operation: String, Codable, Hashable, Sendable, CaseIterable {
-        case equals
-        case contains
-        case startsWith = "starts-with"
-        case unitSuffix = "unit-suffix"
-        case regex
-    }
-
-    // MARK: - Flat MatchSpec (type + single value)
-
-    struct MatchSpec: Codable, Hashable, Sendable {
-        var type: Operation
-        var value: String
-    }
-
-    // MARK: - ConditionStandardization
-
-    struct ConditionStandardization: Codable, Hashable, Sendable {
-        var standardUnit: String?
-        var precision: String?
-
-        var parsedPrecision: Decimal? {
-            guard let p = precision,
-                  let v = Decimal(string: p.trimmingCharacters(in: .whitespacesAndNewlines),
-                                  locale: Locale(identifier: "en_US_POSIX")),
-                  v > 0 else { return nil }
-            return v
-        }
-    }
-
-    // MARK: - MapRule (match + output value + optional transform)
-
-    struct MapRule: Codable, Hashable, Sendable {
-        var match: MatchSpec
-        var value: String
-        var transform: String?
-
-        private enum CodingKeys: String, CodingKey { case match, value, transform }
-
-        init(match: MatchSpec, value: String, transform: String? = nil) {
-            self.match = match
-            self.value = value
-            self.transform = transform
-        }
-
-        init(from decoder: Decoder) throws {
-            let c = try decoder.container(keyedBy: CodingKeys.self)
-            match = try c.decode(MatchSpec.self, forKey: .match)
-            value = try c.decode(String.self, forKey: .value)
-            transform = try c.decodeIfPresent(String.self, forKey: .transform)
-        }
-
-        func encode(to encoder: Encoder) throws {
-            var c = encoder.container(keyedBy: CodingKeys.self)
-            try c.encode(match, forKey: .match)
-            try c.encode(value, forKey: .value)
-            try c.encodeIfPresent(transform, forKey: .transform)
-        }
-    }
-
-    struct ConditionDefinition: Decodable {
-        var id: String
-        var displayName: String?
-        var standardization: ConditionStandardization?
-        var matches: [MapRule]
-
-        private enum CodingKeys: String, CodingKey {
-            case id, displayName, label, standardization, matches
-        }
-
-        init(id: String, displayName: String?, standardization: ConditionStandardization? = nil, matches: [MapRule]) {
-            self.id = id
-            self.displayName = displayName
-            self.standardization = standardization
-            self.matches = matches
-        }
-
-        init(from decoder: Decoder) throws {
-            let c = try decoder.container(keyedBy: CodingKeys.self)
-            id = try c.decode(String.self, forKey: .id)
-            displayName = try c.decodeIfPresent(String.self, forKey: .displayName)
-                ?? c.decodeIfPresent(String.self, forKey: .label)
-            standardization = try c.decodeIfPresent(ConditionStandardization.self, forKey: .standardization)
-            matches = try c.decodeIfPresent([MapRule].self, forKey: .matches) ?? []
-        }
-    }
-
-    struct Tokenization: Decodable {
-        var separators: String
-        var caseFold: String
-    }
-
-    enum Source: String, Decodable {
-        case file
-        case parent
-        case grandparent
-    }
-
-    struct SampleIdRules: Decodable {
-        var matches: [MatchSpec]
-
-        init(matches: [MatchSpec] = []) {
-            self.matches = matches
-        }
-
-        private enum CodingKeys: String, CodingKey {
-            case matches
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            matches = try container.decodeIfPresent([MatchSpec].self, forKey: .matches) ?? []
-        }
-    }
-
-    struct ChannelRules: Decodable {
-        var aliases: [String: String]
-    }
-
-    struct ConditionRules: Decodable {
-        var extraConditions: [String: String]
-        var tokenMapRules: [String: [MapRule]]
-        var displayLabels: [String: String]
-
-        init(
-            extraConditions: [String: String] = [:],
-            tokenMapRules: [String: [MapRule]] = [:],
-            displayLabels: [String: String] = [:]
-        ) {
-            self.extraConditions = extraConditions
-            self.tokenMapRules = tokenMapRules
-            self.displayLabels = displayLabels
-        }
-
-        private enum CodingKeys: String, CodingKey {
-            case extraConditions, tokenMapRules, displayLabels
-        }
-
-        init(from decoder: any Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            extraConditions = try container.decodeIfPresent([String: String].self, forKey: .extraConditions) ?? [:]
-            tokenMapRules = try container.decodeIfPresent([String: [MapRule]].self, forKey: .tokenMapRules) ?? [:]
-            displayLabels = try container.decodeIfPresent([String: String].self, forKey: .displayLabels) ?? [:]
-        }
-
-        func patternMap() -> [String: String] {
-            extraConditions
-        }
-    }
-
-    struct RegistryRules: Decodable {
-        var sampleHeaderAliases: [String]
-        var excludedSheetNames: [String]
-        var sampleCellSeparators: String
-        var batchHeaderAliases: [String]
-        var substrateHeaderAliases: [String]
-        var numericKeyAliases: [String: [String]]
-        var metadataLookupAliases: [String: [String]]
-    }
-
-    struct ImportRules: Decodable {
-        var supportedFileExtensions: [String]
-        var ignoredFileExtensions: [String]
-    }
-
-    // MARK: - Substrate types (v4+: SubstrateEntry uses shared MatchSpec)
-
-    struct SubstrateEntry: Decodable {
-        var displayName: String
-        var matches: [MatchSpec]
-    }
-
-    struct SubstrateConfig: Decodable {
-        var materials: [SubstrateEntry]
-        var treatments: [SubstrateEntry]
-        var orientations: [SubstrateEntry]
     }
 
     // MARK: - Compiled substrate entry

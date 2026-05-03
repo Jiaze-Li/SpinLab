@@ -129,6 +129,52 @@ struct V5114ArchitectureImportDirectionTests {
                 "UseCase layer must not reference Library UI projections — violations: \(violations)")
     }
 
+    // MARK: - INV-14: FilenameRuleSetSchema lives in Domain/Routing; compiled types stay in Import
+
+    // INV-14a: FilenameRuleSetSchema enum is defined in Domain/Routing/
+    @Test("INV-14a: FilenameRuleSetSchema is defined in Domain/Routing")
+    func filenameRuleSchemaInDomain() throws {
+        let domainDir = Self.projectRoot
+            .appendingPathComponent("Sources/SpinLabApp/Domain/Routing", isDirectory: true)
+
+        let found = try swiftFilesContaining(pattern: "enum FilenameRuleSetSchema", under: domainDir)
+        #expect(!found.isEmpty,
+                "FilenameRuleSetSchema must be in Sources/SpinLabApp/Domain/Routing/ — found in: \(found)")
+    }
+
+    // INV-14b: FilenameRuleSetSchema is NOT defined in Import/Rules/
+    @Test("INV-14b: FilenameRuleSetSchema is absent from Import/Rules")
+    func filenameRuleSchemaAbsentFromImport() throws {
+        let importDir = Self.projectRoot
+            .appendingPathComponent("Sources/SpinLabApp/Import/Rules", isDirectory: true)
+
+        let found = try swiftFilesContaining(pattern: "enum FilenameRuleSetSchema", under: importDir)
+        #expect(found.isEmpty,
+                "FilenameRuleSetSchema must not be defined in Import/Rules/ — found in: \(found)")
+    }
+
+    // INV-14c: CompiledMatchSpec (compiled/runtime type) is NOT in Domain/Routing/
+    @Test("INV-14c: CompiledMatchSpec compiled type is absent from Domain/Routing")
+    func compiledMatchSpecAbsentFromDomain() throws {
+        let domainDir = Self.projectRoot
+            .appendingPathComponent("Sources/SpinLabApp/Domain/Routing", isDirectory: true)
+
+        let found = try swiftFilesContaining(pattern: "struct CompiledMatchSpec", under: domainDir)
+        #expect(found.isEmpty,
+                "CompiledMatchSpec must not leak into Domain/Routing/ — found in: \(found)")
+    }
+
+    // INV-14d: FilenameRuleSet evaluator struct remains in Import/Rules/
+    @Test("INV-14d: FilenameRuleSet evaluator struct is defined in Import/Rules")
+    func filenameRuleSetEvaluatorInImport() throws {
+        let importDir = Self.projectRoot
+            .appendingPathComponent("Sources/SpinLabApp/Import/Rules", isDirectory: true)
+
+        let found = try swiftFilesContaining(pattern: "struct FilenameRuleSet:", under: importDir)
+        #expect(!found.isEmpty,
+                "FilenameRuleSet evaluator must remain in Sources/SpinLabApp/Import/Rules/ — found in: \(found)")
+    }
+
     // MARK: - Helpers
 
     private func swiftFilesContaining(pattern: String, under dir: URL) throws -> [String] {

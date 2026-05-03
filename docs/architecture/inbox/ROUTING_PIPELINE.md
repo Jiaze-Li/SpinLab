@@ -188,7 +188,8 @@ Persist both raw and normalized values in archive metadata.
 - `Sources/SpinLabApp/Import/Presentation/PendingRoutePresentation.swift` — UI-facing route/warning projection
 - `Sources/SpinLabApp/App/State/InboxRoutingState.swift` — App-level routing façade; sole routing surface for App layer
 - `Sources/SpinLabApp/Import/Rules/RuleLoader.swift` — runtime rule loading and cache
-- `Sources/SpinLabApp/Import/Rules/FilenameRuleSet.swift` — rule data model and compiled rule set
+- `Sources/SpinLabApp/Domain/Routing/FilenameRuleSetSchema.swift` — Tier 1 pure Codable/Hashable/Sendable schema contracts for filename rule sets; consumed by Inbox routing and Rules authoring <!-- legitimate_cross_cutting -->
+- `Sources/SpinLabApp/Import/Rules/FilenameRuleSet.swift` — compiled rule set and evaluator; aliases Tier 1 schema types via typealiases
 - `Sources/SpinLabApp/Import/Rules/FileRoutingSemanticRules.swift` — semantic routing rule definitions
 - `Sources/SpinLabApp/Import/Rules/ConditionFieldCatalog.swift` — condition field definitions consumed by pipeline
 - `Sources/SpinLabApp/Import/Rules/ConditionTransformExpressionEvaluator.swift` — evaluates numeric condition transform expressions
