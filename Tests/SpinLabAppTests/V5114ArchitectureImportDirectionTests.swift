@@ -60,6 +60,30 @@ struct V5114ArchitectureImportDirectionTests {
                 "ThreeOmegaIngestionResult domain contract must not be in Features/ — found in: \(found)")
     }
 
+    // MARK: - INV-13: WorkflowID single definition in Domain/Workflow/
+
+    // INV-13a: WorkflowID is defined in Domain/Workflow/
+    @Test("INV-13a: WorkflowID enum is defined in Domain/Workflow")
+    func workflowIDDefinedInDomain() throws {
+        let domainDir = Self.projectRoot
+            .appendingPathComponent("Sources/SpinLabApp/Domain/Workflow", isDirectory: true)
+
+        let found = try swiftFilesContaining(pattern: "enum WorkflowID:", under: domainDir)
+        #expect(!found.isEmpty,
+                "WorkflowID must be defined in Sources/SpinLabApp/Domain/Workflow/ — found in: \(found)")
+    }
+
+    // INV-13b: WorkflowID has no duplicate definition elsewhere in Sources
+    @Test("INV-13b: WorkflowID has exactly one definition across all Sources")
+    func workflowIDDefinedOnce() throws {
+        let sourcesDir = Self.projectRoot
+            .appendingPathComponent("Sources", isDirectory: true)
+
+        let found = try swiftFilesContaining(pattern: "enum WorkflowID:", under: sourcesDir)
+        #expect(found.count == 1,
+                "WorkflowID must be defined exactly once — found \(found.count) definition(s) in: \(found)")
+    }
+
     // MARK: - INV-12: LibraryModels three-tier split
 
     // INV-12a: core domain types (LibrarySample, LibraryIndex) live in Library/Domain/

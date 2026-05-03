@@ -45,7 +45,8 @@ Full shell contract: [`SHELL_AND_LIFECYCLE.md`](SHELL_AND_LIFECYCLE.md)
 
 ## Code Map
 
-- `Sources/SpinLabApp/Workflow/WorkflowID.swift` — registers stable workflow IDs as an enum-like identifier type
+- `Sources/SpinLabApp/Domain/Workflow/WorkflowID.swift` — Tier 1 canonical workflow identity enum with alias normalization; cross-region contract <!-- legitimate_cross_cutting -->
+- `Sources/SpinLabApp/Domain/Workflow/WorkflowDefinitionProviding.swift` — capability protocol for loading workflow definitions; WorkflowDefinitionStore conforms
 - `Sources/SpinLabApp/Workflow/WorkflowDefinition.swift` — defines the workflow registration contract (ID, metadata, capabilities)
 - `Sources/SpinLabApp/Extensions/ExtensionPoints.swift` — declares extension points for workflow opt-in capabilities
 - `Sources/SpinLabApp/Workflow/WorkflowDefinitionStore.swift` — stores registered workflow definitions; populated at app startup
