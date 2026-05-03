@@ -68,13 +68,8 @@ struct V5114SidecarFailSoftLoggingTests {
         let measurementURL = try writeMeasurementFile(in: measurementsDir)
         _ = try writeSidecar(Data("not-valid-json!!!".utf8), for: measurementURL)
 
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-
         _ = svc.recomputeSidecars(
             in: measurementsDir.deletingLastPathComponent(),
-            encoder: encoder,
             loadResult: bundleLoadResult()
         )
 
@@ -98,13 +93,8 @@ struct V5114SidecarFailSoftLoggingTests {
         // Make sidecar read-only so the write back fails
         try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: sidecarURL.path)
 
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-
         _ = svc.recomputeSidecars(
             in: measurementsDir.deletingLastPathComponent(),
-            encoder: encoder,
             loadResult: bundleLoadResult()
         )
 
@@ -126,13 +116,8 @@ struct V5114SidecarFailSoftLoggingTests {
         // Make measurements dir read-only so sidecar creation fails
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: measurementsDir.path)
 
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-
         _ = svc.recomputeSidecars(
             in: measurementsDir.deletingLastPathComponent(),
-            encoder: encoder,
             loadResult: bundleLoadResult()
         )
 

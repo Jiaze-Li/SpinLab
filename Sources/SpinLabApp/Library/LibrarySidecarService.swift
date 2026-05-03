@@ -4,10 +4,19 @@ struct LibrarySidecarService {
     let libraryStore: LibraryStore
     private let fileManager = FileManager.default
     private let logger: any AppLogging
+    let reader: any LibrarySidecarReaderCapability
+    let writer: any LibrarySidecarWriterCapability
 
-    init(libraryStore: LibraryStore, logger: any AppLogging = AppLogger.shared) {
+    init(
+        libraryStore: LibraryStore,
+        logger: any AppLogging = AppLogger.shared,
+        reader: (any LibrarySidecarReaderCapability)? = nil,
+        writer: (any LibrarySidecarWriterCapability)? = nil
+    ) {
         self.libraryStore = libraryStore
         self.logger = logger
+        self.reader = reader ?? LibrarySidecarReader()
+        self.writer = writer ?? LibrarySidecarWriter()
     }
 
     // MARK: - Recompute all
@@ -22,25 +31,16 @@ struct LibrarySidecarService {
         var skippedExistingSidecarCount = 0
         var failedSidecarCount = 0
 
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
         let loadResult = SpinLabRuleProvider.shared.loadResult()
 
         for batchDirectory in batchDirectories {
             let batchJSONURL = batchDirectory.appending(path: "batch.json")
-            guard let batch = libraryStore.decodeBatch(from: batchJSONURL) else {
-                continue
-            }
+            guard let batch = libraryStore.decodeBatch(from: batchJSONURL) else { continue }
 
             for sample in libraryStore.decodeSamples(from: batchDirectory) {
                 scannedSampleCount += 1
                 let sampleDirectory = libraryStore.sampleDirectoryURL(rootURL, batchID: batch.id, sampleKey: sample.id)
-                let result = recomputeSidecars(
-                    in: sampleDirectory,
-                    encoder: encoder,
-                    loadResult: loadResult
-                )
+                let result = recomputeSidecars(in: sampleDirectory, loadResult: loadResult)
                 scannedMeasurementFileCount += result.scannedMeasurementFileCount
                 createdSidecarCount += result.createdSidecarCount
                 updatedSidecarCount += result.updatedSidecarCount
@@ -69,12 +69,10 @@ struct LibrarySidecarService {
     func computeRecomputeDiff(rootURL: URL) -> [RecomputeDiffItem] {
         let loadResult = SpinLabRuleProvider.shared.loadResult()
         let parser = FilenameRuleParser(ruleSet: loadResult.ruleSet)
-        let decoder = makeDecoder()
         var items: [RecomputeDiffItem] = []
 
         for sidecarURL in libraryStore.enumerateAllSidecarURLs(rootURL: rootURL) {
-            guard let data = try? Data(contentsOf: sidecarURL),
-                  let existing = try? decoder.decode(SpinLabFileSidecar.self, from: data) else { continue }
+            guard let existing = reader.loadSidecar(at: sidecarURL) else { continue }
 
             let sidecarName = sidecarURL.lastPathComponent
             let sourceName = sidecarName.replacingOccurrences(of: ".spinlab.json", with: "")
@@ -121,7 +119,6 @@ struct LibrarySidecarService {
 
     func recomputeSidecars(
         in sampleDirectory: URL,
-        encoder: JSONEncoder,
         loadResult: RuleLoader.LoadResult
     ) -> SidecarBackfillStats {
         let measurementsURL = sampleDirectory.appending(path: "measurements", directoryHint: .isDirectory)
@@ -135,11 +132,9 @@ struct LibrarySidecarService {
         }
 
         let parser = FilenameRuleParser(ruleSet: loadResult.ruleSet)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-
         var stats = SidecarBackfillStats()
         var mutated = false
+
         for case let url as URL in enumerator {
             guard !url.lastPathComponent.hasSuffix(".spinlab.json") else { continue }
             guard (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
@@ -157,8 +152,7 @@ struct LibrarySidecarService {
             let sidecarURL = url.deletingPathExtension().appendingPathExtension(url.pathExtension + ".spinlab.json")
 
             if fileManager.fileExists(atPath: sidecarURL.path) {
-                guard let existingData = try? Data(contentsOf: sidecarURL),
-                      let existing = try? decoder.decode(SpinLabFileSidecar.self, from: existingData) else {
+                guard let existing = reader.loadSidecar(at: sidecarURL) else {
                     stats.skippedExistingSidecarCount += 1
                     logger.error(.library, "Sidecar read or decode failed — skipping",
                                  metadata: ["sidecarPath": sidecarURL.path])
@@ -177,17 +171,13 @@ struct LibrarySidecarService {
                     preserveUserOverrides: true,
                     now: .now
                 )
-                do {
-                    let data = try encoder.encode(updated)
-                    try data.write(to: sidecarURL, options: .atomic)
+                if writer.saveSidecar(updated, at: sidecarURL) {
                     stats.updatedSidecarCount += 1
                     mutated = true
-                } catch {
+                } else {
                     stats.failedSidecarCount += 1
-                    logger.error(.library, "Failed to recompute sidecar", metadata: [
-                        "sidecarPath": sidecarURL.path,
-                        "reason": error.localizedDescription
-                    ])
+                    logger.error(.library, "Failed to recompute sidecar",
+                                 metadata: ["sidecarPath": sidecarURL.path])
                 }
             } else {
                 let workflow = inferredWorkflow(forMeasurementFile: url, measurementsRoot: measurementsURL)
@@ -203,18 +193,13 @@ struct LibrarySidecarService {
                     preserveUserOverrides: false,
                     now: .now
                 )
-                do {
-                    let data = try encoder.encode(sidecar)
-                    try data.write(to: sidecarURL, options: .atomic)
+                if writer.saveSidecar(sidecar, at: sidecarURL) {
                     stats.createdSidecarCount += 1
                     mutated = true
-                } catch {
+                } else {
                     stats.failedSidecarCount += 1
-                    logger.error(.library, "Failed to create sidecar", metadata: [
-                        "measurementPath": url.path,
-                        "sidecarPath": sidecarURL.path,
-                        "reason": error.localizedDescription
-                    ])
+                    logger.error(.library, "Failed to create sidecar",
+                                 metadata: ["measurementPath": url.path, "sidecarPath": sidecarURL.path])
                 }
             }
         }
@@ -347,19 +332,11 @@ struct LibrarySidecarService {
         )
     }
 
-    private func makeDecoder() -> JSONDecoder {
-        let d = JSONDecoder()
-        d.dateDecodingStrategy = .iso8601
-        return d
-    }
-
     // MARK: - Stale count
 
     func computeStaleCount(rootURL: URL, currentFingerprint: String) -> Int {
-        let decoder = makeDecoder()
-        return libraryStore.enumerateAllSidecarURLs(rootURL: rootURL).reduce(into: 0) { count, url in
-            guard let data = try? Data(contentsOf: url),
-                  let sidecar = try? decoder.decode(SpinLabFileSidecar.self, from: data) else { return }
+        libraryStore.enumerateAllSidecarURLs(rootURL: rootURL).reduce(into: 0) { count, url in
+            guard let sidecar = reader.loadSidecar(at: url) else { return }
             if sidecar.ruleSnapshot.ruleSetFingerprint != currentFingerprint {
                 count += 1
             }
@@ -369,8 +346,7 @@ struct LibrarySidecarService {
     // MARK: - Single sidecar load
 
     func loadSidecar(atPath path: String) -> SpinLabFileSidecar? {
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return nil }
-        return try? makeDecoder().decode(SpinLabFileSidecar.self, from: data)
+        reader.loadSidecar(atPath: path)
     }
 
     // MARK: - Condition override write-back
@@ -378,37 +354,22 @@ struct LibrarySidecarService {
     @discardableResult
     func saveConditionOverride(sidecarPath: String, conditionId: String, value: String) -> Bool {
         let url = URL(fileURLWithPath: sidecarPath)
-        guard let data = try? Data(contentsOf: url),
-              var sidecar = try? makeDecoder().decode(SpinLabFileSidecar.self, from: data) else { return false }
+        guard var sidecar = reader.loadSidecar(at: url) else { return false }
         if value == sidecar.ruleSnapshot.fields.conditions[conditionId]?.value {
             sidecar.userOverrides.conditions.removeValue(forKey: conditionId)
         } else {
             sidecar.userOverrides.conditions[conditionId] = ManualValueOverride(value: value, reason: "manual", at: Date())
         }
-        return writeSidecar(sidecar, to: url)
+        return writer.saveSidecar(sidecar, at: url)
     }
 
     @discardableResult
     func removeConditionOverride(sidecarPath: String, conditionId: String) -> Bool {
         let url = URL(fileURLWithPath: sidecarPath)
-        guard let data = try? Data(contentsOf: url),
-              var sidecar = try? makeDecoder().decode(SpinLabFileSidecar.self, from: data) else { return false }
+        guard var sidecar = reader.loadSidecar(at: url) else { return false }
         guard sidecar.userOverrides.conditions[conditionId] != nil else { return true }
         sidecar.userOverrides.conditions.removeValue(forKey: conditionId)
-        return writeSidecar(sidecar, to: url)
-    }
-
-    private func writeSidecar(_ sidecar: SpinLabFileSidecar, to url: URL) -> Bool {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(sidecar) else { return false }
-        do {
-            try data.write(to: url, options: .atomic)
-            return true
-        } catch {
-            return false
-        }
+        return writer.saveSidecar(sidecar, at: url)
     }
 }
 
