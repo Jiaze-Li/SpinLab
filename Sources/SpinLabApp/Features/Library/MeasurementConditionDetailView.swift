@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MeasurementConditionDetailView: View {
     let measurement: AppliedMeasurement
+    let onLoadSidecar: () -> SpinLabFileSidecar?
     let onSaveOverride: (_ conditionId: String, _ value: String) -> Void
     let onRemoveOverride: (_ conditionId: String) -> Void
     let onDismiss: () -> Void
@@ -257,15 +258,7 @@ struct MeasurementConditionDetailView: View {
     // MARK: Helpers
 
     private func reloadSidecar() {
-        sidecar = loadSidecarDirect()
-    }
-
-    private func loadSidecarDirect() -> SpinLabFileSidecar? {
-        let path = measurement.id
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return nil }
-        let d = JSONDecoder()
-        d.dateDecodingStrategy = .iso8601
-        return try? d.decode(SpinLabFileSidecar.self, from: data)
+        sidecar = onLoadSidecar()
     }
 
     private func commitEdit(key: String) {

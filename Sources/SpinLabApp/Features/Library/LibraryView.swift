@@ -130,6 +130,7 @@ struct LibraryView: View {
         .sheet(item: $conditionDetailMeasurement) { measurement in
             MeasurementConditionDetailView(
                 measurement: measurement,
+                onLoadSidecar: { appState.library.loadSidecar(for: measurement) },
                 onSaveOverride: { id, value in
                     appState.library.saveConditionOverride(measurement: measurement, conditionId: id, value: value)
                 },

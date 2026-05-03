@@ -17,6 +17,21 @@ enum LibrarySort {
         return (prefix.uppercased(), number, suffix)
     }
 
+    static func sortedExistingDrawerSamples<T>(
+        _ items: [T],
+        prefix: (T) -> String,
+        batchId: (T) -> String,
+        substrate: (T) -> String
+    ) -> [T] {
+        items.sorted {
+            let lp = prefix($0), rp = prefix($1)
+            if lp != rp { return lp < rp }
+            if compareBatch(batchId($0), batchId($1)) { return true }
+            if compareBatch(batchId($1), batchId($0)) { return false }
+            return substrate($0) < substrate($1)
+        }
+    }
+
     static func compareBatch(_ lhs: String, _ rhs: String) -> Bool {
         let left = batchSortKey(lhs)
         let right = batchSortKey(rhs)

@@ -2,6 +2,7 @@ import Foundation
 
 struct LibraryApplyBatchResult {
     var touchedSamples: Int
+    var failedSamples: Int
     var batchAction: String
 }
 
@@ -227,26 +228,48 @@ final class LibrarySyncService {
         }
 
         var touched = 0
+        var failed = 0
         for sample in newSamples {
-            if let batch = batchesByIDInPreview[sample.batchId] {
-                if (try? libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)) != nil {
-                    touched += 1
-                }
+            guard let batch = batchesByIDInPreview[sample.batchId] else { continue }
+            do {
+                try libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
+                touched += 1
+            } catch {
+                failed += 1
+                fputs("[LibrarySyncService.applyBatch] createDrawer failed for \(sample.id): \(error.localizedDescription)\n", stderr)
             }
         }
         for sample in changedSamples {
-            try? libraryStore.updateSample(sample, rootURL: rootURL)
-            touched += 1
+            do {
+                try libraryStore.updateSample(sample, rootURL: rootURL)
+                touched += 1
+            } catch {
+                failed += 1
+                fputs("[LibrarySyncService.applyBatch] updateSample failed for \(sample.id): \(error.localizedDescription)\n", stderr)
+            }
         }
         for sample in removedSamples {
-            try? libraryStore.deleteSampleDrawer(for: sample, rootURL: rootURL)
-            touched += 1
+            do {
+                try libraryStore.deleteSampleDrawer(for: sample, rootURL: rootURL)
+                touched += 1
+            } catch {
+                failed += 1
+                fputs("[LibrarySyncService.applyBatch] deleteSampleDrawer failed for \(sample.id): \(error.localizedDescription)\n", stderr)
+            }
         }
 
         if removedBatch {
-            try? libraryStore.deleteBatchDrawer(batchID: batchId, rootURL: rootURL)
+            do {
+                try libraryStore.deleteBatchDrawer(batchID: batchId, rootURL: rootURL)
+            } catch {
+                fputs("[LibrarySyncService.applyBatch] deleteBatchDrawer failed for \(batchId): \(error.localizedDescription)\n", stderr)
+            }
         } else if let batch = changedBatch ?? batchesByIDInPreview[batchId], (!newSamples.isEmpty || !changedSamples.isEmpty || !removedSamples.isEmpty || changedBatch != nil) {
-            try? libraryStore.updateBatch(batch, rootURL: rootURL)
+            do {
+                try libraryStore.updateBatch(batch, rootURL: rootURL)
+            } catch {
+                fputs("[LibrarySyncService.applyBatch] updateBatch failed for \(batchId): \(error.localizedDescription)\n", stderr)
+            }
         }
 
         var syncedIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
@@ -258,6 +281,7 @@ final class LibrarySyncService {
 
         return LibraryApplyBatchResult(
             touchedSamples: touched,
+            failedSamples: failed,
             batchAction: removedBatch ? "removed" : "updated"
         )
     }
@@ -272,19 +296,31 @@ final class LibrarySyncService {
             guard let batch = batchesByIDInPreview[sample.batchId] else {
                 continue
             }
-            try? libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
-            touchedBatchIDs.insert(batch.id)
+            do {
+                try libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
+                touchedBatchIDs.insert(batch.id)
+            } catch {
+                fputs("[LibrarySyncService.applyAll] createDrawer failed for \(sample.id): \(error.localizedDescription)\n", stderr)
+            }
         }
 
         for change in diff.changedSamples {
             let sample = change.sample
-            try? libraryStore.updateSample(sample, rootURL: rootURL)
-            touchedBatchIDs.insert(sample.batchId)
+            do {
+                try libraryStore.updateSample(sample, rootURL: rootURL)
+                touchedBatchIDs.insert(sample.batchId)
+            } catch {
+                fputs("[LibrarySyncService.applyAll] updateSample failed for \(sample.id): \(error.localizedDescription)\n", stderr)
+            }
         }
 
         for removedSample in diff.removedSamples {
-            try? libraryStore.deleteSampleDrawer(for: removedSample, rootURL: rootURL)
-            touchedBatchIDs.insert(removedSample.batchId)
+            do {
+                try libraryStore.deleteSampleDrawer(for: removedSample, rootURL: rootURL)
+                touchedBatchIDs.insert(removedSample.batchId)
+            } catch {
+                fputs("[LibrarySyncService.applyAll] deleteSampleDrawer failed for \(removedSample.id): \(error.localizedDescription)\n", stderr)
+            }
         }
 
         for batchChange in diff.changedBatches {
@@ -295,11 +331,19 @@ final class LibrarySyncService {
             guard let batch = batchesByIDInPreview[batchID] else {
                 continue
             }
-            try? libraryStore.updateBatch(batch, rootURL: rootURL)
+            do {
+                try libraryStore.updateBatch(batch, rootURL: rootURL)
+            } catch {
+                fputs("[LibrarySyncService.applyAll] updateBatch failed for \(batchID): \(error.localizedDescription)\n", stderr)
+            }
         }
 
         for removedBatch in diff.removedBatches {
-            try? libraryStore.deleteBatchDrawer(batchID: removedBatch.id, rootURL: rootURL)
+            do {
+                try libraryStore.deleteBatchDrawer(batchID: removedBatch.id, rootURL: rootURL)
+            } catch {
+                fputs("[LibrarySyncService.applyAll] deleteBatchDrawer failed for \(removedBatch.id): \(error.localizedDescription)\n", stderr)
+            }
         }
 
         var mergedIndex = preview.index

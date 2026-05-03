@@ -902,6 +902,7 @@ final class SpinLabAppState {
             libraryFeatureStore.librarySelectedPrefix = nil
             libraryFeatureStore.librarySelectedBatchId = nil
             libraryFeatureStore.librarySelectedSampleId = nil
+            libraryFeatureStore.commitSelection()
             refreshPendingDrawerMatches()
             return
         }
@@ -1392,6 +1393,7 @@ final class SpinLabAppState {
             libraryFeatureStore.librarySelectedPrefix = nil
             libraryFeatureStore.librarySelectedBatchId = nil
             libraryFeatureStore.librarySelectedSampleId = nil
+            libraryFeatureStore.commitSelection()
             libraryFeatureStore.librarySampleEditDraft = nil
             libraryState.sampleEditBaseSample = nil
             libraryState.sampleEditOriginalDraft = nil
