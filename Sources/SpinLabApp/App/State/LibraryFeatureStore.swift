@@ -161,7 +161,9 @@ final class LibraryFeatureStore {
     let libraryDiffEngine: LibraryDiffEngine
     @ObservationIgnored
     let librarySampleEditService: LibrarySampleEditService
-    let librarySidecarService: LibrarySidecarService
+    @ObservationIgnored
+    let librarySidecarService: any LibrarySidecarCapability
+    @ObservationIgnored
     let libraryRegistrySyncService: LibraryRegistrySyncService
     @ObservationIgnored
     lazy var librarySyncService = LibrarySyncService(libraryStore: libraryStore, libraryDiffEngine: libraryDiffEngine)
@@ -202,15 +204,17 @@ final class LibraryFeatureStore {
         libraryStore: LibraryStore = LibraryStore(),
         libraryLogger: LibraryLogger = LibraryLogger(),
         libraryDiffEngine: LibraryDiffEngine = LibraryDiffEngine(),
-        librarySampleEditService: LibrarySampleEditService = LibrarySampleEditService()
+        librarySampleEditService: LibrarySampleEditService = LibrarySampleEditService(),
+        librarySidecarService: (any LibrarySidecarCapability)? = nil,
+        libraryRegistrySyncService: LibraryRegistrySyncService? = nil
     ) {
         self.librarySettingsStore = librarySettingsStore
         self.libraryStore = libraryStore
         self.libraryLogger = libraryLogger
         self.libraryDiffEngine = libraryDiffEngine
         self.librarySampleEditService = librarySampleEditService
-        self.librarySidecarService = LibrarySidecarService(libraryStore: libraryStore)
-        self.libraryRegistrySyncService = LibraryRegistrySyncService(libraryStore: libraryStore)
+        self.librarySidecarService = librarySidecarService ?? LibrarySidecarService(libraryStore: libraryStore)
+        self.libraryRegistrySyncService = libraryRegistrySyncService ?? LibraryRegistrySyncService(libraryStore: libraryStore)
         self.librarySettings = librarySettingsStore.load()
     }
 
