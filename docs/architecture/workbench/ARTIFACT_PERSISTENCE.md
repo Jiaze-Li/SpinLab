@@ -63,3 +63,5 @@ Stale banner and Recompute UI hook: `RecomputeStaleBannerView` / `RecomputePrevi
 - `Sources/SpinLabApp/UseCases/LoadWorkbenchResultsUseCase.swift` — loads saved Workbench analysis results for a given session identifier
 - `Sources/SpinLabApp/Workbench/V3/AnalysisPackProviding.swift` — protocol for providing AnalysisPack instances to the Workbench shell
 - `Sources/SpinLabApp/Workbench/V3/WorkbenchArtifactIdentity.swift` — uniquely identifies a Workbench artifact by workflow, session, and version
+- `Sources/SpinLabApp/Domain/Capabilities/AnalysisVaultReading.swift` — capability protocol for reading packs from AnalysisVault; enables stateless UseCase injection
+- `Sources/SpinLabApp/UseCases/RestoreAnalysisPackUseCase.swift` — stateless UseCase: resolves a pack from a vault capability and returns it as a Result
