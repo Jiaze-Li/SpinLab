@@ -40,7 +40,7 @@ Start with `V250SidecarTests.swift`.
 
 ## Code Map
 
-- `Sources/SpinLabApp/Library/SpinLabFileSidecar.swift` — sidecar schema, Codable model, field contracts (cross-cutting; schema canonical: `inbox/OUTPUT_CONTRACTS.md`)
+- `Sources/SpinLabApp/Domain/Sidecar/SpinLabFileSidecar.swift` — Tier 1 sidecar schema and Codable contract shared by Inbox, Library, and Workbench <!-- legitimate_cross_cutting -->
 - `Sources/SpinLabApp/Library/LibrarySidecarService.swift` — sidecar recompute and dry-run diff business logic extracted from LibraryStore
 - `Sources/SpinLabApp/Library/LibrarySidecarCapability.swift` — capability protocol abstracting sidecar read/write/recompute operations for injectable testing
 - `Sources/SpinLabApp/Library/LibrarySidecarReader.swift` — reads and decodes SpinLabFileSidecar from disk; injectable via LibrarySidecarReaderCapability

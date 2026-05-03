@@ -129,6 +129,30 @@ struct V5114ArchitectureImportDirectionTests {
                 "UseCase layer must not reference Library UI projections — violations: \(violations)")
     }
 
+    // MARK: - INV-6: SpinLabFileSidecar lives in Domain/Sidecar (not Library/)
+
+    // INV-6a: SpinLabFileSidecar is defined in Domain/Sidecar/
+    @Test("INV-6a: SpinLabFileSidecar is defined in Domain/Sidecar")
+    func sidecarInDomain() throws {
+        let domainDir = Self.projectRoot
+            .appendingPathComponent("Sources/SpinLabApp/Domain/Sidecar", isDirectory: true)
+
+        let found = try swiftFilesContaining(pattern: "struct SpinLabFileSidecar:", under: domainDir)
+        #expect(!found.isEmpty,
+                "SpinLabFileSidecar must be in Sources/SpinLabApp/Domain/Sidecar/ — found in: \(found)")
+    }
+
+    // INV-6b: SpinLabFileSidecar is NOT defined in Library/
+    @Test("INV-6b: SpinLabFileSidecar is absent from Library")
+    func sidecarAbsentFromLibrary() throws {
+        let libraryDir = Self.projectRoot
+            .appendingPathComponent("Sources/SpinLabApp/Library", isDirectory: true)
+
+        let found = try swiftFilesContaining(pattern: "struct SpinLabFileSidecar:", under: libraryDir)
+        #expect(found.isEmpty,
+                "SpinLabFileSidecar must not remain in Library/ — found in: \(found)")
+    }
+
     // MARK: - INV-14: FilenameRuleSetSchema lives in Domain/Routing; compiled types stay in Import
 
     // INV-14a: FilenameRuleSetSchema enum is defined in Domain/Routing/
