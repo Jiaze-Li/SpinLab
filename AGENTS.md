@@ -91,6 +91,7 @@
 - `[DIRECTION][should]` Complex mutating operations expose explicit outcomes (enum/result).
 - `[GOAL][should]` AppState remains an app shell: cross-store coordination + global concerns only.
 - Exception: small presentation-only state containers may be `struct`.
+- Exception: FeatureStore may hold **side-effect-free** services via `@ObservationIgnored` + init substitute parameter (DI Tier 2). Side-effect repositories/storage/loggers must be received via AppEnvironment (DI Tier 3) — not held as default-constructed properties.
 
 ### Architecture Decision Boundary
 
@@ -146,11 +147,19 @@
 
 ## Dependency Injection (required)
 
+### DI Three-Level Classification
+
+| Dependency Type | Substitution Mechanism |
+|---|---|
+| Pure value helper / pure function | instantiate directly |
+| Side-effect-free service | init default parameter + `@ObservationIgnored` + init substitute parameter |
+| Side-effect dep (repository / logger / storage / filesystem / network / `.shared` singleton) | **must go through AppEnvironment / capability protocol** |
+
 - All runtime dependencies with side effects declared in AppEnvironment.
 - Prefer capability protocols over concrete types.
 - UseCases: stateless structs, receive dependencies as function parameters.
 - AppState stores AppEnvironment fields as `@ObservationIgnored private` properties.
-- Exception: read-only, side-effect-free singletons may be called directly.
+- `[HARD][must]` Side-effect dependencies must NOT use default construction inside FeatureStore or UseCase (no bare `Store()` / `Service()` instantiation at declaration site).
 
 ---
 
@@ -177,9 +186,23 @@
 ## Domain Models (required)
 
 - All domain models: `struct`, conforming to `Codable`, `Hashable`, `Sendable`. Add `Identifiable` where applicable.
-- Domain models live in `Domain/`. Do not define inside `Features/`.
 - Use `enum` for closed-set values. Never String constants.
 - Raw models carry source data only. UI projections are separate presentation structs.
+
+### Domain Three-Tier Placement
+
+| Tier | Definition | Physical Location | Content Boundary |
+|---|---|---|---|
+| Tier 1 cross-region contract | consumed by ≥ 2 regions | `Sources/Domain/<topic>/` | `Codable/Hashable/Sendable` contract **only**; no parser/loader/evaluator/repository/service I/O |
+| Tier 2 region domain entity | single-region persistence + UseCase shared | `Sources/<Region>/Domain/` | same pure-value constraint |
+| Tier 3 UI projection | View + ViewModel only | `Sources/<Region>/Features/` | must NOT be imported by UseCase layer |
+
+**Migration criteria (write criteria, not pre-committed file paths):**
+- "Is this type a pure `Codable/Hashable/Sendable` value contract?" → yes: migrate to Tier 1 or 2; no: leave in owner region.
+- "Does this file mix contract + behavior (loader/evaluator/parser)?" → yes: split first, migrate only the contract portion.
+- `legitimate_cross_cutting` marker: after physical migration to `Domain/`, preserve as collaborator-region Code Map comment identifying cross-region consumer identity. Do not remove this marker.
+
+`[HARD][must]` When migrating a file to Tier 1 `Sources/Domain/`, enforce `Codable/Hashable/Sendable` conformance. Moving the file without adding required conformances is an incomplete commit.
 
 ---
 
