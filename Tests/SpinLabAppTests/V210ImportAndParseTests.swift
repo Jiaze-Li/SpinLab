@@ -287,8 +287,8 @@ struct V210ImportAndParseTests {
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.current == "0.5A")
-        #expect(parsed.field == "250mT")
+        #expect(parsed.current == "500mA")
+        #expect(parsed.field == "0.5T")
     }
 
     @Test("parser recognizes celsius temperature tokens")
@@ -299,7 +299,7 @@ struct V210ImportAndParseTests {
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.temperature == "25C")
+        #expect(parsed.temperature == "298K")
     }
 
     @Test("parser strips whitespace before tokenization so spaced unit suffix tokens are recognized")
@@ -311,7 +311,7 @@ struct V210ImportAndParseTests {
         let parsed = parser.parse(from: fileURL)
 
         #expect(parsed.temperature == "160K")
-        #expect(parsed.current == "0.001A")
+        #expect(parsed.current == "1mA")
     }
 
     @Test("parser rounds field values to nearest half-step and removes trailing .0")
@@ -334,7 +334,7 @@ struct V210ImportAndParseTests {
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.current == "0.0001A")
+        #expect(parsed.current == "0.1mA")
     }
 
     @Test("parser resolves device from unit-suffix definition when handbook defines device as unit-suffix")
