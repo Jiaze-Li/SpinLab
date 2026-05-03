@@ -44,8 +44,16 @@ private func writeSidecar(_ content: Data, for measurementURL: URL) throws -> UR
     return sidecarURL
 }
 
-private func makeService(logger: any AppLogging) -> LibrarySidecarService {
-    LibrarySidecarService(libraryStore: LibraryStore(), logger: logger)
+private struct FailingWriter: LibrarySidecarWriterCapability {
+    @discardableResult
+    func saveSidecar(_: SpinLabFileSidecar, at _: URL) -> Bool { false }
+}
+
+private func makeService(
+    logger: any AppLogging,
+    writer: (any LibrarySidecarWriterCapability)? = nil
+) -> LibrarySidecarService {
+    LibrarySidecarService(libraryStore: LibraryStore(), logger: logger, writer: writer)
 }
 
 private func bundleLoadResult() -> RuleLoader.LoadResult {
@@ -80,18 +88,12 @@ struct V5114SidecarFailSoftLoggingTests {
     @Test("INV-3b: sidecar update write failure triggers logger.error")
     func updateWriteFailureLogsError() throws {
         let log = RecordingLogger()
-        let svc = makeService(logger: log)
+        let svc = makeService(logger: log, writer: FailingWriter())
         let measurementsDir = try makeMeasurementsDir()
-        defer {
-            // Restore permissions before cleanup
-            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: measurementsDir.path)
-            try? FileManager.default.removeItem(at: measurementsDir.deletingLastPathComponent())
-        }
+        defer { try? FileManager.default.removeItem(at: measurementsDir.deletingLastPathComponent()) }
 
         let measurementURL = try writeMeasurementFile(in: measurementsDir)
-        let sidecarURL = try writeSidecar(Data("{}".utf8), for: measurementURL)
-        // Make sidecar read-only so the write back fails
-        try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: sidecarURL.path)
+        _ = try writeSidecar(Data("{}".utf8), for: measurementURL)
 
         _ = svc.recomputeSidecars(
             in: measurementsDir.deletingLastPathComponent(),
