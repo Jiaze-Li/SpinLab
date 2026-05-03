@@ -26,7 +26,7 @@ enum ThreeOmegaFileKind: String, Codable, Hashable, Sendable {
 ///  10  f_ref (Hz)      — ~317.3 Hz = 3ω reference frequency
 ///
 /// For RT files: Col 0 = Temperature (K), Col 9 = Rxx (Ω) pre-calculated.
-struct ThreeOmegaLVMFile: Sendable {
+struct ThreeOmegaLVMFile: Codable, Hashable, Sendable {
     // Formula: I_rms = mean( Col[1][i] / Col[9][i] ) for first N rows
     // Verified: consistent across all rows to ~1e-11; equals I_amp / √2
     var iRms: Double
@@ -55,7 +55,7 @@ struct ThreeOmegaLVMFile: Sendable {
 }
 
 /// Which V^(3ω)_AHE extraction method to use in Scaling Law.
-enum ThreeOmegaV3Method: String, CaseIterable, Identifiable {
+enum ThreeOmegaV3Method: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
     case highField = "High-field extrapolation"
     case window    = "Window average"
 
@@ -94,36 +94,4 @@ struct ThreeOmegaIngestionResult: Codable, Hashable, Sendable {
     /// I_rms (A) keyed by temperatureK — required for scaling use case.
     var iRmsValues: [Double: Double] = [:]
     var warnings: [String] = []
-}
-
-// MARK: - UI tab enum
-
-enum ThreeOmegaWorkbenchTab: String, CaseIterable, Identifiable {
-    case fieldSweep1omega = "AHE (1ω)"
-    case fieldSweep3omega = "AHE (3ω)"
-    case rahe1omegaVsT    = "RAHE (1ω)"
-    case rahe3omegaVsT    = "RAHE (3ω)"
-    case hcVsT            = "Hc"
-    case rtCurve          = "RT"
-    case scaling          = "Scaling Law"
-
-    var id: String { rawValue }
-
-    /// Stable identity key for persistence. Hand-written, never derived via reflection.
-    var stableKey: String {
-        switch self {
-        case .fieldSweep1omega: return "fieldSweep1omega"
-        case .fieldSweep3omega: return "fieldSweep3omega"
-        case .rahe1omegaVsT:    return "rahe1omegaVsT"
-        case .rahe3omegaVsT:    return "rahe3omegaVsT"
-        case .hcVsT:            return "hcVsT"
-        case .rtCurve:          return "rtCurve"
-        case .scaling:          return "scaling"
-        }
-    }
-
-    /// Index in `allCases` order, used for sort rank.
-    static let stableKeyRank: [String: Int] = {
-        Dictionary(uniqueKeysWithValues: allCases.enumerated().map { ($1.stableKey, $0) })
-    }()
 }
