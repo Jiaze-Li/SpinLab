@@ -10,6 +10,8 @@ import Observation
 @Observable
 final class ThreeOmegaWorkspaceStore {
 
+    @ObservationIgnored private let env: WorkbenchEnvironment
+
     // MARK: - Search / Selection
 
     var selectedSearchResultIDs: Set<String> = []
@@ -26,7 +28,8 @@ final class ThreeOmegaWorkspaceStore {
     var showRTPopover: Bool = false
     private(set) var selectedRTHit: WorkflowMeasurementSearchHit?
 
-    init() {
+    init(env: WorkbenchEnvironment = .live) {
+        self.env = env
         self.rtQuery = UserDefaults.standard.string(forKey: Self.rtQueryDefaultsKey) ?? ""
     }
 
@@ -64,8 +67,8 @@ final class ThreeOmegaWorkspaceStore {
     }
 
     /// Parses a sidecar file and rebuilds a lightweight hit. Runs off MainActor.
-    nonisolated static func rebuildRTHit(fromSidecarPath sidecarPath: String) -> WorkflowMeasurementSearchHit? {
-        let fm = FileManager.default
+    nonisolated static func rebuildRTHit(fromSidecarPath sidecarPath: String, fileManager: FileManager = .default) -> WorkflowMeasurementSearchHit? {
+        let fm = fileManager
         guard fm.fileExists(atPath: sidecarPath) else { return nil }
 
         let suffix = ".spinlab.json"
@@ -197,7 +200,7 @@ final class ThreeOmegaWorkspaceStore {
             return
         }
         let rootURL = URL(fileURLWithPath: rootPath)
-        guard FileManager.default.fileExists(atPath: rootPath) else {
+        guard env.fileManager.fileExists(atPath: rootPath) else {
             relatedChartsGrouped = [:]
             return
         }
@@ -1402,7 +1405,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
             var tokens = fallbackTokens
             if let hit = lookupHit, !lookupLibraryRoot.isEmpty {
                 let rootURL = URL(fileURLWithPath: lookupLibraryRoot, isDirectory: true)
-                if let nd = LibraryStore().loadIndex(from: rootURL)?
+                if let nd = env.libraryAccess.loadIndex(from: rootURL)?
                     .sample(matchingDiskKey: hit.sampleKey)?.numericDisplay,
                    !nd.isEmpty {
                     tokens = ["sample": hit.sampleBatchAndSubstrate]

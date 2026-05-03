@@ -107,3 +107,4 @@ Search accepts both old and new IDs as query aliases; all persisted data uses ne
 - `Sources/SpinLabApp/Features/Workbench/UnitTagEditor.swift` — editor for attaching and editing unit tags on measurement conditions
 - `Sources/SpinLabApp/Workbench/V3/ConditionAliasConfig.swift` — per-workflow condition alias configuration for display name remapping
 - `Sources/SpinLabApp/Workbench/V3/SeriesOrderAlignHelper.swift` — aligns persisted series order with the current sweep identifiers after re-analysis
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchEnvironment.swift` — DI container for workspace stores; carries injectable fileManager and libraryAccess capability

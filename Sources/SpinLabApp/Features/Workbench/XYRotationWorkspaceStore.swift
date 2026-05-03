@@ -69,6 +69,14 @@ final class XYRotationWorkspaceStore {
     @ObservationIgnored var vault: AnalysisVault?
     var activePackID: AnalysisPack.ID?
 
+    // MARK: - Environment
+
+    @ObservationIgnored private let env: WorkbenchEnvironment
+
+    init(env: WorkbenchEnvironment = .live) {
+        self.env = env
+    }
+
     // MARK: - Private
 
     @ObservationIgnored private var analysisTask: Task<Void, Never>?
@@ -301,7 +309,7 @@ final class XYRotationWorkspaceStore {
             return
         }
         let rootURL = URL(fileURLWithPath: rootPath)
-        guard FileManager.default.fileExists(atPath: rootPath) else {
+        guard env.fileManager.fileExists(atPath: rootPath) else {
             relatedChartsGrouped = [:]
             return
         }
