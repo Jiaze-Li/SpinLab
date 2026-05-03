@@ -241,44 +241,6 @@ final class LibraryStore {
         return entries.sorted { $0.changedAt > $1.changedAt }
     }
 
-    func syncRegistrySourceForEditedSample(
-        oldSample: LibrarySample,
-        updatedSample: LibrarySample,
-        registrySourceURL: URL
-    ) throws -> LibraryRegistrySourceSyncResult {
-        let changes = sampleChangeItems(old: oldSample, new: updatedSample)
-        let metadataWrites: [LibraryXLSXSyncService.MetadataWrite] = changes.compactMap { change in
-            guard change.key.hasPrefix("metadata.") else {
-                return nil
-            }
-            let key = String(change.key.dropFirst("metadata.".count))
-            return LibraryXLSXSyncService.MetadataWrite(
-                key: key,
-                oldValue: change.oldValue,
-                newValue: change.newValue
-            )
-        }
-
-        let numericLogs: [LibraryXLSXSyncService.NumericLogWrite] = changes.compactMap { change in
-            if change.key.hasPrefix("numeric.") {
-                return LibraryXLSXSyncService.NumericLogWrite(
-                    key: String(change.key.dropFirst("numeric.".count)),
-                    oldValue: change.oldValue,
-                    newValue: change.newValue
-                )
-            }
-            return nil
-        }
-
-        return try xlsxSyncService.syncEditedSample(
-            oldSample: oldSample,
-            updatedSample: updatedSample,
-            registrySourceURL: registrySourceURL,
-            metadataWrites: metadataWrites,
-            numericWrites: numericLogs
-        )
-    }
-
     func updateBatch(_ batch: LibraryBatch, rootURL: URL) throws {
         let batchURL = resolvedBatchDirectoryURL(rootURL, batchID: batch.id)
         try fileManager.createDirectory(at: batchURL, withIntermediateDirectories: true)
@@ -639,7 +601,7 @@ final class LibraryStore {
         batchURL.appending(path: "edit_log.json")
     }
 
-    private func sampleChangeItems(old: LibrarySample, new: LibrarySample) -> [LibrarySampleChangeLogItem] {
+    func sampleChangeItems(old: LibrarySample, new: LibrarySample) -> [LibrarySampleChangeLogItem] {
         var items: [LibrarySampleChangeLogItem] = []
 
         addChange("displayName", old: old.displayName, new: new.displayName, into: &items)
@@ -1125,50 +1087,7 @@ extension LibraryStore {
 
     // MARK: Stale count
 
-    func computeStaleCount(rootURL: URL, currentFingerprint: String) -> Int {
-        let decoder = makeDecoder()
-        return enumerateAllSidecarURLs(rootURL: rootURL).reduce(into: 0) { count, url in
-            guard let data = try? Data(contentsOf: url),
-                  let sidecar = try? decoder.decode(SpinLabFileSidecar.self, from: data) else { return }
-            if sidecar.ruleSnapshot.ruleSetFingerprint != currentFingerprint {
-                count += 1
-            }
-        }
-    }
-
-    // MARK: Sidecar load
-
-    func loadSidecar(atPath path: String) -> SpinLabFileSidecar? {
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return nil }
-        return try? makeDecoder().decode(SpinLabFileSidecar.self, from: data)
-    }
-
-    // MARK: Condition override write-back
-
-    @discardableResult
-    func saveConditionOverride(sidecarPath: String, conditionId: String, value: String) -> Bool {
-        let url = URL(fileURLWithPath: sidecarPath)
-        guard let data = try? Data(contentsOf: url),
-              var sidecar = try? makeDecoder().decode(SpinLabFileSidecar.self, from: data) else { return false }
-        if value == sidecar.ruleSnapshot.fields.conditions[conditionId]?.value {
-            sidecar.userOverrides.conditions.removeValue(forKey: conditionId)
-        } else {
-            sidecar.userOverrides.conditions[conditionId] = ManualValueOverride(value: value, reason: "manual", at: Date())
-        }
-        return writeSidecar(sidecar, to: url)
-    }
-
-    @discardableResult
-    func removeConditionOverride(sidecarPath: String, conditionId: String) -> Bool {
-        let url = URL(fileURLWithPath: sidecarPath)
-        guard let data = try? Data(contentsOf: url),
-              var sidecar = try? makeDecoder().decode(SpinLabFileSidecar.self, from: data) else { return false }
-        guard sidecar.userOverrides.conditions[conditionId] != nil else { return true }
-        sidecar.userOverrides.conditions.removeValue(forKey: conditionId)
-        return writeSidecar(sidecar, to: url)
-    }
-
-    // MARK: Private helpers
+    // MARK: Sidecar enumeration helper (used by LibrarySidecarService)
 
     func enumerateAllSidecarURLs(rootURL: URL) -> [URL] {
         guard let enumerator = fileManager.enumerator(
@@ -1190,18 +1109,4 @@ extension LibraryStore {
         d.dateDecodingStrategy = .iso8601
         return d
     }
-
-    private func writeSidecar(_ sidecar: SpinLabFileSidecar, to url: URL) -> Bool {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(sidecar) else { return false }
-        do {
-            try data.write(to: url, options: .atomic)
-            return true
-        } catch {
-            return false
-        }
-    }
-
 }

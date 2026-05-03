@@ -44,5 +44,6 @@ Start with `V220LibraryDiffEngineTests.swift`.
 - `Sources/SpinLabApp/Library/LibraryRegistryParser.swift` — parses XLSX registry file into diff-engine input
 - `Sources/SpinLabApp/Library/LibraryDiffEngine.swift` — computes delta between XLSX registry state and Library drawer state
 - `Sources/SpinLabApp/Library/LibraryXLSXSyncService.swift` — atomic XLSX→Library sync with rollback
+- `Sources/SpinLabApp/Library/LibraryRegistrySyncService.swift` — registry XLSX write-back for edited samples; metadata + numeric log dispatch
 - `Sources/SpinLabApp/App/LibraryMutationService.swift` — cross-layer coordinator for metadata edit and registry sync operations
 - `Sources/SpinLabApp/UseCases/SaveLibrarySampleEditsUseCase.swift` — validates and persists sample edit batch atomically

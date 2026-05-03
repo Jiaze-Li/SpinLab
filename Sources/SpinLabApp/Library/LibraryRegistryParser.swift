@@ -84,8 +84,27 @@ final class LibraryRegistryParser {
             throw AppError.from(error, fallback: "Failed to parse workbook from XLSX.")
         }
 
-        let sharedStrings = try? file.parseSharedStrings()
-        let worksheetPathsAndNames = (try? file.parseWorksheetPathsAndNames(workbook: workbook)) ?? []
+        let sharedStrings: SharedStrings?
+        do {
+            sharedStrings = try file.parseSharedStrings()
+        } catch {
+            AppLogger.shared.warning(.import, "LibraryRegistryParser: sharedStrings parse failed", metadata: [
+                "path": xlsxURL.path,
+                "reason": String(describing: error)
+            ])
+            sharedStrings = nil
+        }
+
+        let worksheetPathsAndNames: [(String?, String)]
+        do {
+            worksheetPathsAndNames = try file.parseWorksheetPathsAndNames(workbook: workbook)
+        } catch {
+            AppLogger.shared.error(.import, "LibraryRegistryParser: worksheet list parse failed", metadata: [
+                "path": xlsxURL.path,
+                "reason": String(describing: error)
+            ])
+            worksheetPathsAndNames = []
+        }
         let now = Date()
         var batchesByID: [String: LibraryBatch] = [:]
         var samplesByKey: [String: LibrarySample] = [:]
@@ -99,10 +118,17 @@ final class LibraryRegistryParser {
             if RegistrySheetFilter.shouldSkipSheet(named: sheetName, excludedSheetNames: excludedSheetNames) {
                 continue
             }
-            guard let worksheet = try? file.parseWorksheet(at: worksheetPath),
-                  let rows = worksheet.data?.rows,
-                  !rows.isEmpty
-            else {
+            let worksheet: Worksheet
+            do {
+                worksheet = try file.parseWorksheet(at: worksheetPath)
+            } catch {
+                AppLogger.shared.warning(.import, "LibraryRegistryParser: worksheet parse failed", metadata: [
+                    "sheet": sheetName,
+                    "reason": String(describing: error)
+                ])
+                continue
+            }
+            guard let rows = worksheet.data?.rows, !rows.isEmpty else {
                 continue
             }
 

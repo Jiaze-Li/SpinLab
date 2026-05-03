@@ -162,6 +162,7 @@ final class LibraryFeatureStore {
     @ObservationIgnored
     let librarySampleEditService: LibrarySampleEditService
     let librarySidecarService: LibrarySidecarService
+    let libraryRegistrySyncService: LibraryRegistrySyncService
     @ObservationIgnored
     lazy var librarySyncService = LibrarySyncService(libraryStore: libraryStore, libraryDiffEngine: libraryDiffEngine)
     @ObservationIgnored
@@ -209,6 +210,7 @@ final class LibraryFeatureStore {
         self.libraryDiffEngine = libraryDiffEngine
         self.librarySampleEditService = librarySampleEditService
         self.librarySidecarService = LibrarySidecarService(libraryStore: libraryStore)
+        self.libraryRegistrySyncService = LibraryRegistrySyncService(libraryStore: libraryStore)
         self.librarySettings = librarySettingsStore.load()
     }
 
@@ -1070,12 +1072,12 @@ final class LibraryFeatureStore {
             return
         }
         let rootURL = URL(fileURLWithPath: rootPath)
-        let store = libraryStore
         let snapshotRoot = rootPath
         let snapshotFingerprint = fingerprint
+        let service = librarySidecarService
         Task {
             let count = await Task.detached(priority: .utility) {
-                store.computeStaleCount(rootURL: rootURL, currentFingerprint: snapshotFingerprint)
+                service.computeStaleCount(rootURL: rootURL, currentFingerprint: snapshotFingerprint)
             }.value
             guard self.librarySettings.rootPath == snapshotRoot,
                   SpinLabRuleProvider.shared.loadResult().ruleSetFingerprint == snapshotFingerprint else { return }
@@ -1133,11 +1135,11 @@ final class LibraryFeatureStore {
     }
 
     func loadSidecar(for measurement: AppliedMeasurement) -> SpinLabFileSidecar? {
-        libraryStore.loadSidecar(atPath: measurement.id)
+        librarySidecarService.loadSidecar(atPath: measurement.id)
     }
 
     func saveConditionOverride(measurement: AppliedMeasurement, conditionId: String, value: String) {
-        let updated = libraryStore.saveConditionOverride(
+        let updated = librarySidecarService.saveConditionOverride(
             sidecarPath: measurement.id,
             conditionId: conditionId,
             value: value
@@ -1149,7 +1151,7 @@ final class LibraryFeatureStore {
     }
 
     func removeConditionOverride(measurement: AppliedMeasurement, conditionId: String) {
-        let updated = libraryStore.removeConditionOverride(
+        let updated = librarySidecarService.removeConditionOverride(
             sidecarPath: measurement.id,
             conditionId: conditionId
         )
