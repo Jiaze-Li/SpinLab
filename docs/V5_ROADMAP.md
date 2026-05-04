@@ -447,23 +447,13 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 - [x] 5.1.14a 收敛：三根因收敛（DI 三档 + Domain 三 Tier + UseCase stateless）+ 17 INV 防回归不变式；定稿 handoff 第 3 稿。设计与执行纪要：[history/v5114_cross_region_meta_convergence.md](history/v5114_cross_region_meta_convergence.md)
 - [x] 5.1.14b 落地：14b/14c/14d 三批 20 commit；DI 基础设施 + workspace 注入 + service 拆分 + Domain Tier 1/2 物理迁移；17 INV 全绿；244/244 coverage。**14c/d 溢出未触发**。
 
-### 5.1.15 — God file 拆分（5 份 >1000 行 Swift 文件）
+### 5.1.15 — God file 拆分（5 份 >1000 行 Swift 文件）✅ 2026-05-04 — B 节奏 3 轮全绿；5 文件共 6834 行 → 1+11ext/1+9ext/1+11ext/1+7ext/1+11ext+3类型；characterization tests 全绿；295/295 coverage。设计思路见 [history/v5115_godfile_split.md](history/v5115_godfile_split.md)。
 
-**动机**：5.5.1 拆过 4 份 UI big file，但非 UI 侧仍有 5 份 >1000 行的 store / 协调壳 / 持久层 / bootstrap：SpinLabAppState (1822) / ThreeOmegaWorkspaceStore (1534) / RulesBootstrapper (1203) / LibraryFeatureStore (1167) / LibraryStore (1112)。这批文件性质与 UI 不同——`@Observable` 类身份被视图绑定 + cross-store 持有锁定，必须保 type identity 走"同 class + extension 跨文件分布"，行为绝不能外提到 service。
-
-**拍板要点**：
-1. **B 节奏 3 轮分组**：Round 1 RulesBootstrapper + LibraryStore（低风险打底）→ Round 2 ThreeOmegaWorkspaceStore + LibraryFeatureStore（store 拆法定式）→ Round 3 SpinLabAppState（壳收尾）。轮间严格串行；Round 1 / 2 轮内并行，Round 3 Claude 主拆 + Codex acceptance review。
-2. **每轮前置 characterization tests**：拆分前先对当前行为写 snapshot 断言，拆分后跑 snapshot 验证零字节级回归（Jack 2026-05-04 拍板，反"做好分析不要回归"硬约束）。
-3. **保 type identity，extension 切片**：5 份文件全部走"同 class/struct + extension 跨文件分布"。视图绑定 + cross-store 持有引用早已稳定，切碎 type 必引爆 SwiftUI 视图刷新和 nil dereference。
-4. **本批不外提行为**：任何"看起来该抽 service"的方法本轮一律留原 type，作为 5.1.16+ 单独任务。
-
-**任务拆分**：
-
-- [ ] Round 1 — RulesBootstrapper 拆分（Claude）：1203 行 → 1 主 + 7 extension + 1 verification model；characterization tests 覆盖 v1→v7 + s12 完整 migration 链 `[来源: handoff/2026-05-04-godfile-split.md]`
-- [ ] Round 1 — LibraryStore 拆分（Codex）：1112 行 → 1 主 + 9 extension；characterization tests 覆盖 ensureRoot / drawer CRUD / change log / measurement sets / backup `[来源: handoff/2026-05-04-godfile-split.md]`
-- [ ] Round 2 — ThreeOmegaWorkspaceStore 拆分（Codex）：1534 行 → 1 主 + 11 extension；characterization tests 覆盖 runAnalysis / runScaling / pack restore / series order；trace commit point 不变式守护 `[来源: handoff/2026-05-04-godfile-split.md]`
-- [ ] Round 2 — LibraryFeatureStore 拆分（Claude）：1167 行 → 1 主 + 9 extension + 1 outcomes 文件；characterization tests 覆盖 dirty selection guard / facade callback 顺序 / sync review；严禁动 configureFacade 接口形态 `[来源: handoff/2026-05-04-godfile-split.md]`
-- [ ] Round 3 — SpinLabAppState 拆分（Claude 主拆 + Codex acceptance review）：1822 行 → 1 主 + 11 extension + 3 外提类型；characterization tests 覆盖 startup 顺序 / Apply pipeline / ContextProvider capture / duplicate guard / interaction snapshot `[来源: handoff/2026-05-04-godfile-split.md]`
+- [x] Round 1 — RulesBootstrapper 拆分（Claude）：1203 行 → 1 主 + 7 extension + 1 verification model；characterization tests 覆盖 v1→v7 + s12 完整 migration 链
+- [x] Round 1 — LibraryStore 拆分（Codex）：1112 行 → 1 主 + 9 extension；characterization tests 覆盖 ensureRoot / drawer CRUD / change log / measurement sets / backup
+- [x] Round 2 — ThreeOmegaWorkspaceStore 拆分（Codex）：1534 行 → 1 主 + 11 extension；characterization tests 覆盖 runAnalysis / runScaling / pack restore / series order；trace commit point 不变式守护
+- [x] Round 2 — LibraryFeatureStore 拆分（Claude）：1167 行 → 1 主 + 7 extension + 1 outcomes 文件；characterization tests 覆盖 dirty selection guard / facade callback 顺序 / sync review；严禁动 configureFacade 接口形态
+- [x] Round 3 — SpinLabAppState 拆分（Claude 主拆 + Codex acceptance review）：1822 行 → 1 主 + 11 extension + 3 外提类型；characterization tests 覆盖 startup 顺序 / Apply pipeline / ContextProvider capture / duplicate guard / interaction snapshot
 
 ---
 
