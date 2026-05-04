@@ -6,8 +6,10 @@ import Testing
 @Suite("V5.1.16 Recompute Banner False Positive")
 struct V5116RecomputeBannerFalsePositiveTests {
 
-    @Test("staleCount > 0 should imply non-empty recompute diff")
-    func staleCount_implies_nonEmptyDiff() throws {
+    /// 不变式：staleCount 与 recompute diff 必须共享同一事实源。
+    /// 反例：fingerprint 旧但字段实质未变时，staleCount 不能 > 0（横幅假阳性）。
+    @Test("staleCount stays 0 when fingerprint is stale but fields are field-equivalent")
+    func staleCount_zero_when_fields_equivalent() throws {
         let rootURL = makeTempDir()
         defer { try? FileManager.default.removeItem(at: rootURL) }
 
@@ -23,6 +25,8 @@ struct V5116RecomputeBannerFalsePositiveTests {
             ruleSetVersion: loadResult.ruleSetVersion,
             evaluatedAt: Date(timeIntervalSince1970: 0)
         )
+        // 关键：fingerprint 是旧的（"v0:..."），但 snapshot 的字段是用当前规则刚解析得到的；
+        // 所以 sidecar 与"用当前规则重新解析"的结果在字段层面完全一致。
         snapshot.ruleSetFingerprint = "v0:stale-but-field-equivalent"
 
         let sidecar = SpinLabFileSidecar(
@@ -43,14 +47,12 @@ struct V5116RecomputeBannerFalsePositiveTests {
         )
         let diff = service.computeRecomputeDiff(rootURL: rootURL)
 
-        #expect(staleCount > 0)
-        #expect(diff.isEmpty)
-        if staleCount > 0 {
-            #expect(
-                diff.isEmpty == false,
-                "staleCount=\(staleCount) but diff is empty (false positive)"
-            )
-        }
+        // 不变式：当字段实质未变时（diff 空），横幅 staleCount 也必须为 0。
+        #expect(diff.isEmpty, "fixture 设计：字段应与新规则解析结果一致 → diff 空")
+        #expect(
+            staleCount == 0,
+            "staleCount=\(staleCount) 但 diff 为空（横幅假阳性 — 修前必 fail）"
+        )
     }
 
     private func makeTempDir() -> URL {
