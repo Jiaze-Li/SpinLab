@@ -1,0 +1,178 @@
+import Foundation
+
+@MainActor
+extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
+    typealias PackConfig = ThreeOmegaPackConfig
+    typealias PackResult = ThreeOmegaPackResult
+
+
+    func availableOverlayPacks(in vault: AnalysisVault) -> [AnalysisPack] {
+        let excludeIDs: Set<AnalysisPack.ID> = Set(overlayPackIDs).union(activePackID.map { [$0] } ?? [])
+        return vault.packs(forWorkflow: "3w").filter { !excludeIDs.contains($0.id) }
+    }
+
+
+    // MARK: - Analysis Pack (overlay support)
+
+    /// Adds an overlay from a vault pack onto the current RAHE plots.
+    func addOverlay(id: AnalysisPack.ID) {
+        guard let vault, let pack = vault.get(id: id) else { return }
+        guard let result = try? pack.decodeResult(ThreeOmegaPackResult.self) else { return }
+        guard !overlayPackIDs.contains(id) else { return }
+
+        overlaySnapshots[id] = OverlaySnapshot(
+            label: pack.label,
+            sweeps: result.ingestionResult.fieldSweeps,
+            sourceFiles: pack.filePaths,
+            sampleKeys: pack.sampleKeys
+        )
+        overlayPackIDs.append(id)
+        _renderRAHEWithOverlays()
+    }
+
+
+    /// Removes an overlay.
+    func removeOverlay(id: AnalysisPack.ID) {
+        overlayPackIDs.removeAll { $0 == id }
+        overlaySnapshots.removeValue(forKey: id)
+        _renderRAHEWithOverlays()
+    }
+
+
+    func _buildPackConfig() -> ThreeOmegaPackConfig {
+        return ThreeOmegaPackConfig(
+            device: ingestionResult?.device ?? "",
+            geometry: geometry,
+            fitRanges: fitRanges,
+            v3Method: v3Method.rawValue,
+            rahe1Method: rahe1omegaMethod.rawValue,
+            rahe3Method: rahe3omegaMethod.rawValue,
+            rtFilePath: cachedRTFilePath,
+            sampleBatchAndSubstrate: cachedSearchResults.first?.sampleBatchAndSubstrate ?? "",
+            activeTab: tabs.activeTab.stableKey,
+            titleTemplate: titleTemplate,
+            stackOffsetMultiplier: stackOffsetMultiplier,
+            minGapFraction: minGapFraction,
+            showPlotGrid: tabs.showPlotGrid,
+            plotLegendAnchor: tabs.legendAnchor,
+            tabStates: tabs.snapshotStates(keyFor: { $0.stableKey }),
+            chartStyleOverrides: tabs.chartStyleOverrides,
+            cachedSearchResults: cachedSearchResults,
+            selectedSearchResultIDs: Array(selectedSearchResultIDs),
+            selectedRTHit: selectedRTHit,
+            rtQuery: rtQuery,
+            searchQueryText: ""   // filled by caller at WorkbenchFeatureStore level
+        )
+    }
+
+
+    func _buildPackResult() -> ThreeOmegaPackResult {
+        ThreeOmegaPackResult(
+            ingestionResult: ingestionResult!,
+            scalingResult: scalingResult
+        )
+    }
+
+
+    func _autoPackLabel() -> String {
+        let sample = cachedSearchResults.first?.sampleBatchAndSubstrate ?? "Unknown"
+        let device = ingestionResult?.device ?? ""
+        return device.isEmpty ? sample : "\(sample) \(device)"
+    }
+
+
+    func buildPackConfig() -> ThreeOmegaPackConfig { _buildPackConfig() }
+
+func buildPackResult() -> ThreeOmegaPackResult { _buildPackResult() }
+
+func autoPackLabel() -> String { _autoPackLabel() }
+
+
+    func cancelInflightWork() {
+        analysisTask?.cancel(); analysisTask = nil
+        scalingTask?.cancel(); scalingTask = nil
+        isAnalyzing = false
+    }
+
+
+    func restoreFromPack(config: ThreeOmegaPackConfig, result: ThreeOmegaPackResult,
+                         pack: AnalysisPack,
+                         restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void) {
+        // Restore analysis params
+        geometry = config.geometry
+        fitRanges = config.fitRanges
+        v3Method = ThreeOmegaV3Method(rawValue: config.v3Method) ?? .highField
+        rahe1omegaMethod = ThreeOmegaV3Method(rawValue: config.rahe1Method) ?? .highField
+        rahe3omegaMethod = ThreeOmegaV3Method(rawValue: config.rahe3Method) ?? .highField
+        rtQuery = config.rtQuery
+        persistRTQuery()
+        selectedRTHit = config.selectedRTHit
+
+        // Restore display settings
+        if let tab = ThreeOmegaWorkbenchTab.allCases.first(where: { $0.stableKey == config.activeTab }) {
+            tabs.activeTab = tab
+        }
+        titleTemplate = config.titleTemplate
+        stackOffsetMultiplier = config.stackOffsetMultiplier
+        minGapFraction = config.minGapFraction
+        tabs.showPlotGrid = config.showPlotGrid
+        tabs.legendAnchor = config.plotLegendAnchor
+
+        // Restore per-tab states
+        tabs.restoreStates(config.tabStates) { key in
+            ThreeOmegaWorkbenchTab.allCases.first { $0.stableKey == key }
+        }
+        tabs.chartStyleOverrides = config.chartStyleOverrides
+
+        // Restore search selection state
+        cachedSearchResults = config.cachedSearchResults
+        selectedSearchResultIDs = Set(config.selectedSearchResultIDs)
+
+        // Restore results
+        ingestionResult = result.ingestionResult
+        scalingResult = result.scalingResult
+
+        // Build title tokens from restored search results
+        if let hit = config.cachedSearchResults.first {
+            var tokens: [String: String] = ["sample": hit.sampleBatchAndSubstrate]
+            let numericDisplay = cachedSampleNumericDisplay[hit.sampleKey] ?? [:]
+            for (k, v) in numericDisplay { tokens[k] = v }
+            _titleTokens = tokens
+        } else {
+            _titleTokens = [:]
+        }
+
+        // Restore cached persistence state from pack
+        cachedInputFiles = pack.filePaths
+        cachedSampleKeys = pack.sampleKeys
+        cachedRTFilePath = config.rtFilePath
+
+        // Restore library root from vault so persistToLibrary works without a prior search
+        if lastLibraryRootPath.isEmpty, let root = vault?.libraryRootPath {
+            lastLibraryRootPath = root
+        }
+
+        // Clear overlays
+        overlayPackIDs = []
+        overlaySnapshots = [:]
+
+        // Bridge: restore search results into WorkbenchFeatureStore
+        restoreSearchState(config.cachedSearchResults, config.searchQueryText)
+
+        // Migrate any Int-string-keyed overrides (packs saved before 5.3.6) to sampleID keys.
+        for tab in ThreeOmegaWorkbenchTab.allCases {
+            if var state = tabs.tabStates[tab] {
+                let seriesForTab = tabs.output(for: tab).manifestPayload?.series ?? []
+                migrateStateIfNeeded(&state, series: seriesForTab)
+                tabs.tabStates[tab] = state
+            }
+        }
+
+        // Re-render all tabs respecting restored per-tab state and refreshing library tokens.
+        // _rerenderAllTabs() does not apply per-tab overrides (titleOverride, legendPoint, etc.),
+        // so we use _rerenderAllTabsFromRestoredState() in the Pack load path instead.
+        _rerenderAllTabsFromRestoredState()
+        _snapshotAndCacheManifestPayloads()
+        refreshRelatedCharts()
+    }
+}
