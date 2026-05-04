@@ -13,7 +13,7 @@ struct V5111ExtractAHEMetricsUseCaseTests {
     ) -> WorkbenchPlotSeries {
         let xs = [hMax, hMax * 0.5, 0.0, -hMax * 0.5, -hMax, -hMax * 0.5, 0.0, hMax * 0.5, hMax]
         let ys = xs.map { ($0 >= 0 ? amplitude : -amplitude) + yOffset }
-        return WorkbenchPlotSeries(label: "\(sampleKey) | ch1", x: xs, y: ys)
+        return WorkbenchPlotSeries(label: "\(sampleKey) | ch1", x: xs, y: ys, sampleID: sampleKey)
     }
 
     @Test("extractAHEMetricsPerSeries keys metrics by sampleKey")
