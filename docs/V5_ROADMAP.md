@@ -455,11 +455,9 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 - [x] Round 2 — LibraryFeatureStore 拆分（Claude）：1167 行 → 1 主 + 7 extension + 1 outcomes 文件；characterization tests 覆盖 dirty selection guard / facade callback 顺序 / sync review；严禁动 configureFacade 接口形态
 - [x] Round 3 — SpinLabAppState 拆分（Claude 主拆 + Codex acceptance review）：1822 行 → 1 主 + 11 extension + 3 外提类型；characterization tests 覆盖 startup 顺序 / Apply pipeline / ContextProvider capture / duplicate guard / interaction snapshot
 
-### 5.1.15h — 测试隔离 + 配置安全网（hotfix）
+### 5.1.15h — 测试隔离 + 配置安全网（hotfix）✅ 2026-05-04 — LibrarySettingsStore 双 init（生产无参 + 测试 `init(settingsURL: URL)`）+ save() 写 `.backup` 显式 do/catch 安全网 + load() rootPath 不存在 warning + characterization 13 case 改 closure-based isolated fixture + 新增持久化隔离 regression test；测试前后 sha256 sentinel 一字不差；UI 路径 .backup 自动写入已生产验证。设计思路见 [history/v5115h_test_isolation.md](history/v5115h_test_isolation.md)。
 
-事故：5.1.15 r3 引入的 `V5115LibraryFeatureStoreCharacterizationTests` 没做文件系统隔离，跑 `swift test` 把用户真实 `~/Library/Application Support/SpinLab/library_settings.json` 的 `rootPath` 字段覆盖成测试夹具值 `/new/root`，造成生产配置被测试副作用污染。
-
-- [ ] LibrarySettingsStore 改双 init（生产 `init()` + 测试 `init(settingsURL: URL)`，无 optional fallback）+ save() 写 `.backup` 安全网（显式 do/catch）+ load() 加 rootPath 不存在 warning + V5115LibraryFeatureStoreCharacterization 全 case 改 closure-based isolated fixture + 新增持久化隔离 regression test。验收 sentinel：测试前后 `library_settings.json` sha256 一字不差。**已 Codex 评审 adopt-with-fixes**，5 条 must-fix 全并入 handoff [2026-05-04-v5115-test-isolation.md](handoff/2026-05-04-v5115-test-isolation.md)。
+- [x] 实施 + Codex 评审 adopt-with-fixes（5 must-fix 全并入），commit `4b6e052`
 
 ---
 
