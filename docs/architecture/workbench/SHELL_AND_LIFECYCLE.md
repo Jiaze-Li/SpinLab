@@ -50,6 +50,20 @@ Warning panel: shell-level `WorkbenchWarningLog` container coalesces identical (
 
 ## Code Map
 
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift` — owns 3ω workspace state and task lifetimes
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift` — manages independent 3ω RT search state and restoration
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Selection.swift` — manages 3ω measurement selection and clearing state
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+FitRanges.swift` — manages 3ω scaling fit range editing state
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Analysis.swift` — runs 3ω ingestion analysis and commits run traces
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Scaling.swift` — computes 3ω scaling results from frozen ingestion state
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Rendering.swift` — rerenders 3ω plot tabs from stored tab state
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+ManifestCache.swift` — snapshots 3ω manifest payloads and input identities
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Persistence.swift` — saves active 3ω charts and metrics into library artifacts
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RelatedCharts.swift` — loads 3ω related result references for chart overlays
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift` — builds and restores 3ω analysis pack state
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Plotting.swift` — implements 3ω plot editing and active chart protocols
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaRenderedPlots.swift` — carries rendered 3ω plot data and layouts
+- `Sources/SpinLabApp/Features/Workbench/OverlaySnapshot.swift` — stores detached 3ω overlay data for restored packs
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceShell.swift` — shell layout, slot wiring, and lifecycle orchestration for all workflow workspaces
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift` — WorkbenchWorkspaceProviding protocol and default slot implementations
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift` — maps workflow IDs to their workspace view factory functions
@@ -68,7 +82,21 @@ Warning panel: shell-level `WorkbenchWarningLog` container coalesces identical (
 - `Sources/SpinLabApp/App/RootSplitView.swift` — root three-pane split view hosting Inbox, Library, and Workbench regions
 - `Sources/SpinLabApp/App/SidebarMenuModel.swift` — sidebar navigation menu state and item model
 - `Sources/SpinLabApp/App/SidebarTreeView.swift` — sidebar tree view rendering region navigation hierarchy
-- `Sources/SpinLabApp/App/SpinLabAppState.swift` — root app state; cross-store coordination, navigation, and alert management
+- `Sources/SpinLabApp/App/SpinLabAppState.swift` — root app state; class body, stored properties, init, and app-state revision
+- `Sources/SpinLabApp/App/SpinLabAppContextProvider.swift` — ArchivedRecordDomainContextAdapter providing domain context to the archived-record pipeline
+- `Sources/SpinLabApp/App/SpinLabAppState+Navigation.swift` — navigation dispatch: navigate, openDeepLink, route-path switching
+- `Sources/SpinLabApp/App/SpinLabAppState+DrawerMatching.swift` — drawer conflict detection, routing snapshot queries, name-conflict checker wiring
+- `Sources/SpinLabApp/App/SpinLabAppState+RepositoryProjection.swift` — repository projection tasks, pending/archived record replacement, migration
+- `Sources/SpinLabApp/App/SpinLabAppState+InteractionSnapshot.swift` — interaction snapshot capture, restore, flush, and routing-rules change notification
+- `Sources/SpinLabApp/App/SpinLabAppState+InboxImport.swift` — inbox file import, pending-import clearing, condition-rule recompute
+- `Sources/SpinLabApp/App/SpinLabAppState+RegistryCoordination.swift` — sample registry load, reload, routing-rule refresh, registry context application
+- `Sources/SpinLabApp/App/SpinLabAppState+LibraryCoordination.swift` — library preview load/sync, drawer index application, mutation commit, cache validation
+- `Sources/SpinLabApp/App/SpinLabAppState+ImportDeduplication.swift` — import deduplication via path/fingerprint/filename sets and library-path caching
+- `Sources/SpinLabApp/App/SpinLabAppState+ApplyPipeline.swift` — apply-selected and apply-all orchestration, progress tracking, outcome finalization
+- `Sources/SpinLabApp/App/SpinLabAppState+RoutingPresentation.swift` — pending routing presentation, draft resolution, tag readiness, alert helpers, audit trail
+- `Sources/SpinLabApp/App/SpinLabAppState+WorkbenchEntry.swift` — workbench entry points: open pending/archived record, save workbench result
+- `Sources/SpinLabApp/App/State/ApplyProgressState.swift` — value type tracking apply-pipeline progress counters
+- `Sources/SpinLabApp/App/State/PendingTagReadiness.swift` — enum classifying pending-import tag completeness for apply gating
 - `Sources/SpinLabApp/App/SpinLabDataActor.swift` — data actor isolating background I/O from main-actor app state
 - `Sources/SpinLabApp/App/SpinLabSidebarMenuProvider.swift` — provides sidebar menu items registered by each region
 - `Sources/SpinLabApp/App/State/AppCoordinator.swift` — app-level cross-store coordinator for multi-region workflows

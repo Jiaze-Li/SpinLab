@@ -45,8 +45,12 @@ Start with `V250SidecarTests.swift`.
 - `Sources/SpinLabApp/Library/LibrarySidecarCapability.swift` — capability protocol abstracting sidecar read/write/recompute operations for injectable testing
 - `Sources/SpinLabApp/Library/LibrarySidecarReader.swift` — reads and decodes SpinLabFileSidecar from disk; injectable via LibrarySidecarReaderCapability
 - `Sources/SpinLabApp/Library/LibrarySidecarWriter.swift` — encodes and atomically writes SpinLabFileSidecar to disk; injectable via LibrarySidecarWriterCapability
+- `Sources/SpinLabApp/Library/LibraryStore+Measurements.swift` — copies measurement files and loads applied sidecar projections
+- `Sources/SpinLabApp/Library/LibraryStore+SidecarEnumeration.swift` — enumerates sidecar URLs, snapshots, and decodes applied sidecars
 - `Sources/SpinLabApp/Features/Library/MeasurementConditionDetailView.swift` — condition fields display (temperature, current, field) from sidecar
 - `Sources/SpinLabApp/Features/Library/MeasurementDataSectionView.swift` — measurement data section with normalized/raw tags
 - `Sources/SpinLabApp/Features/Library/LibraryMeasurementDataPresenter.swift` — groups WorkbenchMeasurementDataStore records into device/method/range hierarchy for display
 - `Sources/SpinLabApp/Features/Library/LibraryMeasurementsDoneSection.swift` — measurements list section within drawer view
 - `Sources/SpinLabApp/Features/Library/LibraryExistingDrawerSampleSectionView.swift` — existing drawer sample section; reads projected sidecar data
+- `Sources/SpinLabApp/App/State/LibraryFeatureStore+AppliedMeasurements.swift` — applied measurement projection, sidecar loading, and condition override persistence
+- `Sources/SpinLabApp/App/State/LibraryFeatureStore+Recompute.swift` — stale sidecar detection, recompute preview, and bulk recompute apply

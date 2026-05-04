@@ -43,9 +43,18 @@ Start with `V416DeleteAppliedMeasurementTests.swift`, `V343DeleteWorkbenchResult
 
 ## Code Map
 
-- `Sources/SpinLabApp/Library/LibraryStore.swift` — drawer index, sample, batch, and sidecar persistence
+- `Sources/SpinLabApp/Library/LibraryStore.swift` — owns library filesystem persistence and node caches
+- `Sources/SpinLabApp/Library/LibraryStore+RootAndIndex.swift` — maintains root verification and index rebuild persistence
+- `Sources/SpinLabApp/Library/LibraryStore+Drawers.swift` — writes and removes batch and sample drawer files
+- `Sources/SpinLabApp/Library/LibraryStore+MeasurementSets.swift` — persists per-sample measurement set selections
+- `Sources/SpinLabApp/Library/LibraryStore+Backup.swift` — mirrors library root contents into backup storage
+- `Sources/SpinLabApp/Library/LibraryStore+ChangeLogs.swift` — records append-only sample and batch edit logs
+- `Sources/SpinLabApp/Library/LibraryStore+RegistryLogs.swift` — proxies registry manual and metadata log persistence
+- `Sources/SpinLabApp/Library/LibraryStore+PathsAndCache.swift` — resolves library paths and maintains node caches
 - `Sources/SpinLabApp/Library/LibrarySyncService.swift` — filesystem scan and app-state sync (one-way: filesystem→state)
 - `Sources/SpinLabApp/Library/LibrarySettingsStore.swift` — Library Root path and user preferences persistence
+- `Sources/SpinLabApp/App/State/LibraryFeatureStore+Settings.swift` — library root/backup path updates, verification, and backup sync coordination
+- `Sources/SpinLabApp/App/State/LibraryFeatureStore+PreviewSync.swift` — sync review preparation, incremental refresh, drawer mutation commits, and file sync orchestration
 - `Sources/SpinLabApp/Library/LibraryLogger.swift` — audit log append writer (Library Root + App Support)
 - `Sources/SpinLabApp/Library/Domain/LibraryDomainModels.swift` — Tier 2 Library domain entities (LibraryIndex, LibrarySample, LibraryBatch, AppliedMeasurement, LibraryWarning, change log types)
 - `Sources/SpinLabApp/Library/LibraryModels.swift` — Tier 3 Library UI projections (LibraryPreview, LibraryDiff, LibraryRefreshReview, edit drafts, log entry display types)

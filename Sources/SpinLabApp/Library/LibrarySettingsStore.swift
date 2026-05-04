@@ -3,15 +3,20 @@ import Foundation
 final class LibrarySettingsStore {
     private let fileManager = FileManager.default
     private let logger = AppLogger.shared
-    private let settingsURL: URL
+    let settingsURL: URL
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
-    init() {
-        let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+    convenience init() {
+        let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(filePath: NSTemporaryDirectory(), directoryHint: .isDirectory)
         let spinLabURL = appSupportURL.appending(path: "SpinLab", directoryHint: .isDirectory)
-        settingsURL = spinLabURL.appending(path: "library_settings.json")
+        let url = spinLabURL.appending(path: "library_settings.json")
+        self.init(settingsURL: url)
+    }
+
+    init(settingsURL: URL) {
+        self.settingsURL = settingsURL
 
         encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -20,7 +25,10 @@ final class LibrarySettingsStore {
         decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
 
-        try? fileManager.createDirectory(at: spinLabURL, withIntermediateDirectories: true)
+        try? fileManager.createDirectory(
+            at: settingsURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
     }
 
     func load() -> LibrarySettings {
@@ -38,7 +46,14 @@ final class LibrarySettingsStore {
             return .default
         }
         do {
-            return try decoder.decode(LibrarySettings.self, from: data)
+            let settings = try decoder.decode(LibrarySettings.self, from: data)
+            if let rootPath = settings.rootPath, !rootPath.isEmpty,
+               !fileManager.fileExists(atPath: rootPath) {
+                logger.warning(.library, "Library rootPath does not exist on disk", metadata: [
+                    "rootPath": rootPath
+                ])
+            }
+            return settings
         } catch {
             logger.error(.library, "Failed to decode library settings (corrupt file, using defaults)", metadata: [
                 "path": settingsURL.path,
@@ -58,6 +73,22 @@ final class LibrarySettingsStore {
             ])
             return
         }
+
+        if fileManager.fileExists(atPath: settingsURL.path) {
+            let backupURL = settingsURL.appendingPathExtension("backup")
+            do {
+                if fileManager.fileExists(atPath: backupURL.path) {
+                    try fileManager.removeItem(at: backupURL)
+                }
+                try fileManager.copyItem(at: settingsURL, to: backupURL)
+            } catch {
+                logger.warning(.library, "Failed to write settings backup before save (safety net unavailable for this write)", metadata: [
+                    "backupPath": backupURL.path,
+                    "reason": error.localizedDescription
+                ])
+            }
+        }
+
         do {
             try data.write(to: settingsURL, options: .atomic)
         } catch {

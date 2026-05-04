@@ -157,7 +157,15 @@ Each section maps 1:1 to a JSON config file under `RulesConfigPaths`. `RulesPane
 - `Sources/SpinLabApp/Features/RulesPanel/Sections/SampleIdentificationSection.swift` — Sample Identification section UI; v4 substrate schema editor
 - `Sources/SpinLabApp/Features/RulesPanel/Sections/ImportFiltersSection.swift` — Import Filters section UI
 - `Sources/SpinLabApp/Features/RulesPanel/Sections/FilenameTokenizationSection.swift` — Filename Tokenization section UI
-- `Sources/SpinLabApp/Import/Rules/RulesBootstrapper.swift` — seeds missing runtime files from bundle on launch
+- `Sources/SpinLabApp/Import/Rules/RulesBootstrapper.swift` — type declaration shell for the migration and seed namespace
+- `Sources/SpinLabApp/Import/Rules/RulesBootstrapper+MigrationOrchestration.swift` — coordinates full schema migration: reads runtime JSONs, applies all migration steps, atomic-writes results
+- `Sources/SpinLabApp/Import/Rules/RulesBootstrapper+Seed.swift` — seeds missing runtime rule files from bundled defaults after migration
+- `Sources/SpinLabApp/Import/Rules/RulesBootstrapper+MeasuringConditionMigration.swift` — migrates measuring_condition.json from v1 through v7
+- `Sources/SpinLabApp/Import/Rules/RulesBootstrapper+SampleIdentificationMigration.swift` — migrates sample_identification.json from v1 through v5
+- `Sources/SpinLabApp/Import/Rules/RulesBootstrapper+WorkflowMigration.swift` — migrates workflow.json from v1 through v3
+- `Sources/SpinLabApp/Import/Rules/RulesBootstrapper+MigrationFiles.swift` — writes migration state, failure, and SHA files to disk
+- `Sources/SpinLabApp/Import/Rules/RulesBootstrapper+MigrationHelpers.swift` — shared legacy match-spec expansion used by measuring_condition and workflow migrations
+- `Sources/SpinLabApp/Import/Rules/RulesBootstrapperVerificationModels.swift` — decodable verification structs for post-migration decode-verify step
 - `Sources/SpinLabApp/Import/Rules/WorkflowRegistryRetirementService.swift` — one-time legacy registry retirement
 - `Sources/SpinLabApp/Import/Rules/RulesConfigPaths.swift` — config file path resolution; test environment detection
 - `Sources/SpinLabApp/Import/Rules/SpinLabRuleProvider.swift` — rule loading abstraction backing RuleLoader

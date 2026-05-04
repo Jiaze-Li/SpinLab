@@ -447,6 +447,18 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 - [x] 5.1.14a 收敛：三根因收敛（DI 三档 + Domain 三 Tier + UseCase stateless）+ 17 INV 防回归不变式；定稿 handoff 第 3 稿。设计与执行纪要：[history/v5114_cross_region_meta_convergence.md](history/v5114_cross_region_meta_convergence.md)
 - [x] 5.1.14b 落地：14b/14c/14d 三批 20 commit；DI 基础设施 + workspace 注入 + service 拆分 + Domain Tier 1/2 物理迁移；17 INV 全绿；244/244 coverage。**14c/d 溢出未触发**。
 
+### 5.1.15 — God file 拆分（5 份 >1000 行 Swift 文件）✅ 2026-05-04 — B 节奏 3 轮全绿；5 文件共 6834 行 → 1+11ext/1+9ext/1+11ext/1+7ext/1+11ext+3类型；characterization tests 全绿；295/295 coverage。设计思路见 [history/v5115_godfile_split.md](history/v5115_godfile_split.md)。
+
+- [x] Round 1 — RulesBootstrapper 拆分（Claude）：1203 行 → 1 主 + 7 extension + 1 verification model；characterization tests 覆盖 v1→v7 + s12 完整 migration 链
+- [x] Round 1 — LibraryStore 拆分（Codex）：1112 行 → 1 主 + 9 extension；characterization tests 覆盖 ensureRoot / drawer CRUD / change log / measurement sets / backup
+- [x] Round 2 — ThreeOmegaWorkspaceStore 拆分（Codex）：1534 行 → 1 主 + 11 extension；characterization tests 覆盖 runAnalysis / runScaling / pack restore / series order；trace commit point 不变式守护
+- [x] Round 2 — LibraryFeatureStore 拆分（Claude）：1167 行 → 1 主 + 7 extension + 1 outcomes 文件；characterization tests 覆盖 dirty selection guard / facade callback 顺序 / sync review；严禁动 configureFacade 接口形态
+- [x] Round 3 — SpinLabAppState 拆分（Claude 主拆 + Codex acceptance review）：1822 行 → 1 主 + 11 extension + 3 外提类型；characterization tests 覆盖 startup 顺序 / Apply pipeline / ContextProvider capture / duplicate guard / interaction snapshot
+
+### 5.1.15h — 测试隔离 + 配置安全网（hotfix）✅ 2026-05-04 — LibrarySettingsStore 双 init（生产无参 + 测试 `init(settingsURL: URL)`）+ save() 写 `.backup` 显式 do/catch 安全网 + load() rootPath 不存在 warning + characterization 13 case 改 closure-based isolated fixture + 新增持久化隔离 regression test；测试前后 sha256 sentinel 一字不差；UI 路径 .backup 自动写入已生产验证。设计思路见 [history/v5115h_test_isolation.md](history/v5115h_test_isolation.md)。
+
+- [x] 实施 + Codex 评审 adopt-with-fixes（5 must-fix 全并入），commit `4b6e052`
+
 ---
 
 ## 5.2.x — Import 管线 + Inbox 逻辑/架构

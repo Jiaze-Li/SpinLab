@@ -13,6 +13,15 @@
 
 ---
 
+## Product Scope (required)
+
+- `[HARD][must]` This app is **single-user** — only Jack uses it. Do not introduce code paths, abstractions, or settings for multi-user scenarios, account/permission models, multi-machine sync, or i18n.
+- `[HARD][must]` Configuration under `~/Library/Application Support/SpinLab/` is user-specific. Do not propose dotfiles symlinks, cross-machine sync, or git-tracking these files.
+- User-specific literals (paths under `/Users/jack/...`, OneDrive container names, fixed prefix lists, registry filenames in Chinese) are acceptable in defaults, fixtures, and docs. Do not refactor them into config templates "for portability" — there are no other users.
+- Implication for testing/build: tests must NOT write to real `~/Library/Application Support/SpinLab/` (this is the source of the v5.1.15 root-path-loss incident). Use temp directory injection.
+
+---
+
 ## Engineering Quality (required)
 
 - `[HARD][must]` All implementations must follow first-principles reasoning. No redundant, decorative, or non-functional code.
