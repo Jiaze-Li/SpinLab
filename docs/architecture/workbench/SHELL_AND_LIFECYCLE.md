@@ -82,7 +82,21 @@ Warning panel: shell-level `WorkbenchWarningLog` container coalesces identical (
 - `Sources/SpinLabApp/App/RootSplitView.swift` — root three-pane split view hosting Inbox, Library, and Workbench regions
 - `Sources/SpinLabApp/App/SidebarMenuModel.swift` — sidebar navigation menu state and item model
 - `Sources/SpinLabApp/App/SidebarTreeView.swift` — sidebar tree view rendering region navigation hierarchy
-- `Sources/SpinLabApp/App/SpinLabAppState.swift` — root app state; cross-store coordination, navigation, and alert management
+- `Sources/SpinLabApp/App/SpinLabAppState.swift` — root app state; class body, stored properties, init, and app-state revision
+- `Sources/SpinLabApp/App/SpinLabAppContextProvider.swift` — ArchivedRecordDomainContextAdapter providing domain context to the archived-record pipeline
+- `Sources/SpinLabApp/App/SpinLabAppState+Navigation.swift` — navigation dispatch: navigate, openDeepLink, route-path switching
+- `Sources/SpinLabApp/App/SpinLabAppState+DrawerMatching.swift` — drawer conflict detection, routing snapshot queries, name-conflict checker wiring
+- `Sources/SpinLabApp/App/SpinLabAppState+RepositoryProjection.swift` — repository projection tasks, pending/archived record replacement, migration
+- `Sources/SpinLabApp/App/SpinLabAppState+InteractionSnapshot.swift` — interaction snapshot capture, restore, flush, and routing-rules change notification
+- `Sources/SpinLabApp/App/SpinLabAppState+InboxImport.swift` — inbox file import, pending-import clearing, condition-rule recompute
+- `Sources/SpinLabApp/App/SpinLabAppState+RegistryCoordination.swift` — sample registry load, reload, routing-rule refresh, registry context application
+- `Sources/SpinLabApp/App/SpinLabAppState+LibraryCoordination.swift` — library preview load/sync, drawer index application, mutation commit, cache validation
+- `Sources/SpinLabApp/App/SpinLabAppState+ImportDeduplication.swift` — import deduplication via path/fingerprint/filename sets and library-path caching
+- `Sources/SpinLabApp/App/SpinLabAppState+ApplyPipeline.swift` — apply-selected and apply-all orchestration, progress tracking, outcome finalization
+- `Sources/SpinLabApp/App/SpinLabAppState+RoutingPresentation.swift` — pending routing presentation, draft resolution, tag readiness, alert helpers, audit trail
+- `Sources/SpinLabApp/App/SpinLabAppState+WorkbenchEntry.swift` — workbench entry points: open pending/archived record, save workbench result
+- `Sources/SpinLabApp/App/State/ApplyProgressState.swift` — value type tracking apply-pipeline progress counters
+- `Sources/SpinLabApp/App/State/PendingTagReadiness.swift` — enum classifying pending-import tag completeness for apply gating
 - `Sources/SpinLabApp/App/SpinLabDataActor.swift` — data actor isolating background I/O from main-actor app state
 - `Sources/SpinLabApp/App/SpinLabSidebarMenuProvider.swift` — provides sidebar menu items registered by each region
 - `Sources/SpinLabApp/App/State/AppCoordinator.swift` — app-level cross-store coordinator for multi-region workflows
