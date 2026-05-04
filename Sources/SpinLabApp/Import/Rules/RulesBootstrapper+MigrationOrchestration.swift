@@ -2,8 +2,7 @@ import Foundation
 
 extension RulesBootstrapper {
 
-    static func migrateRuntimeRulesIfNeeded() {
-        let paths = RulesConfigPaths()
+    static func migrateRuntimeRulesIfNeeded(paths: RulesConfigPaths = RulesConfigPaths()) {
         let fm = FileManager.default
         let decoder = JSONDecoder()
         let stateURL = paths.configDirectoryURL.appendingPathComponent(".migration_state.json")
