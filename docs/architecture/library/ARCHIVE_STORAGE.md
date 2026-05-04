@@ -53,6 +53,8 @@ Start with `V416DeleteAppliedMeasurementTests.swift`, `V343DeleteWorkbenchResult
 - `Sources/SpinLabApp/Library/LibraryStore+PathsAndCache.swift` — resolves library paths and maintains node caches
 - `Sources/SpinLabApp/Library/LibrarySyncService.swift` — filesystem scan and app-state sync (one-way: filesystem→state)
 - `Sources/SpinLabApp/Library/LibrarySettingsStore.swift` — Library Root path and user preferences persistence
+- `Sources/SpinLabApp/App/State/LibraryFeatureStore+Settings.swift` — library root/backup path updates, verification, and backup sync coordination
+- `Sources/SpinLabApp/App/State/LibraryFeatureStore+PreviewSync.swift` — sync review preparation, incremental refresh, drawer mutation commits, and file sync orchestration
 - `Sources/SpinLabApp/Library/LibraryLogger.swift` — audit log append writer (Library Root + App Support)
 - `Sources/SpinLabApp/Library/Domain/LibraryDomainModels.swift` — Tier 2 Library domain entities (LibraryIndex, LibrarySample, LibraryBatch, AppliedMeasurement, LibraryWarning, change log types)
 - `Sources/SpinLabApp/Library/LibraryModels.swift` — Tier 3 Library UI projections (LibraryPreview, LibraryDiff, LibraryRefreshReview, edit drafts, log entry display types)

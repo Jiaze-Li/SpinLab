@@ -52,3 +52,5 @@ Start with `V250SidecarTests.swift`.
 - `Sources/SpinLabApp/Features/Library/LibraryMeasurementDataPresenter.swift` — groups WorkbenchMeasurementDataStore records into device/method/range hierarchy for display
 - `Sources/SpinLabApp/Features/Library/LibraryMeasurementsDoneSection.swift` — measurements list section within drawer view
 - `Sources/SpinLabApp/Features/Library/LibraryExistingDrawerSampleSectionView.swift` — existing drawer sample section; reads projected sidecar data
+- `Sources/SpinLabApp/App/State/LibraryFeatureStore+AppliedMeasurements.swift` — applied measurement projection, sidecar loading, and condition override persistence
+- `Sources/SpinLabApp/App/State/LibraryFeatureStore+Recompute.swift` — stale sidecar detection, recompute preview, and bulk recompute apply

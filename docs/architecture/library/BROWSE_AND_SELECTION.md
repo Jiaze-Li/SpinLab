@@ -35,7 +35,10 @@ Start with `V513LibraryFeatureStoreFacadeTests.swift`, `V260MeasurementsDisplayT
 
 ## Code Map
 
-- `Sources/SpinLabApp/App/State/LibraryFeatureStore.swift` — Library feature state; selection, projections, and coordination entry point
+- `Sources/SpinLabApp/App/State/LibraryFeatureStore.swift` — Library feature store: stored state, init, and configureFacade wiring
+- `Sources/SpinLabApp/App/State/LibraryFeatureStoreOutcomes.swift` — outcome enums and result structs for library feature store operations
+- `Sources/SpinLabApp/App/State/LibraryFeatureStore+Facade.swift` — public facade API wrapping detailed methods with injected cross-store callbacks
+- `Sources/SpinLabApp/App/State/LibraryFeatureStore+DrawerSelection.swift` — selection state changes, deferred selection guard, and selection normalization
 - `Sources/SpinLabApp/App/State/LibraryFeatureStore+Projection.swift` — selection-driven projection load + measurement set CRUD + cascade deletion
 - `Sources/SpinLabApp/App/State/LibraryState.swift` — raw Library state model (drawers, measurements, selection IDs)
 - `Sources/SpinLabApp/Features/Library/LibraryView.swift` — root Library view; composes column shell and subviews
