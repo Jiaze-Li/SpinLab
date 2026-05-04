@@ -459,6 +459,14 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 
 - [x] 实施 + Codex 评审 adopt-with-fixes（5 must-fix 全并入），commit `4b6e052`
 
+### 5.1.16 — 5.1.15 残债清扫（测试跟进 + Library 横幅假阳性）
+
+- [ ] G1 — V413/V5111 AHE metric 测试跟进 typed sampleID（4 issues 失败、功能没坏）
+- [ ] G2 — V515 RulesEngine 测试跟进统一大写 + 单位换算 condition normalization（3 issues 失败、功能没坏）
+- [ ] G3 — V513 LibraryFeatureStoreFacade Selection didSet 测试跟进显式持久化动作（1 case × 4 issues 失败、功能没坏）
+- [ ] G4 — V221 DrawerMatchEngine 测试跟进 `BAKED → b` 短码（1 issue 失败、功能没坏）
+- [ ] Library 蓝色"X 个测量基于旧规则可重算"横幅假阳性修复（fingerprint 比对 / staleCount 判定与真实数据脱节）
+
 ---
 
 ## 5.2.x — Import 管线 + Inbox 逻辑/架构
