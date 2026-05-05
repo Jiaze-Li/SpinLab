@@ -26,6 +26,13 @@ enum RecomputeDiffStatus: Sendable {
         case .noChange:       return 2
         }
     }
+
+    var isActionable: Bool {
+        switch self {
+        case .willUpdate, .migration, .added, .ruleRemoved, .manualOverride: return true
+        case .noChange: return false
+        }
+    }
 }
 
 struct RecomputeDiffItem: Identifiable, Sendable {

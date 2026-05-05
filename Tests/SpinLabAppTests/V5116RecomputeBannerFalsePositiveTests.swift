@@ -6,14 +6,15 @@ import Testing
 @Suite("V5.1.16 Recompute Banner False Positive")
 struct V5116RecomputeBannerFalsePositiveTests {
 
-    /// 不变式：staleCount 与 recompute diff 必须共享同一事实源。
-    /// 反例：fingerprint 旧但字段实质未变时，staleCount 不能 > 0（横幅假阳性）。
-    @Test("staleCount stays 0 when fingerprint is stale but fields are field-equivalent")
-    func staleCount_zero_when_fields_equivalent() throws {
+    /// 假阳性场景：sidecar fingerprint 旧、字段实质未变
+    /// （生产里 547 个测量都走这条 — buildDiffItems 全部为 .noChange items）
+    @Test("staleCount stays 0 when fingerprint stale but parsed fields equivalent")
+    func staleCount_zero_when_parsed_fields_equivalent() throws {
         let rootURL = makeTempDir()
         defer { try? FileManager.default.removeItem(at: rootURL) }
 
-        let sourceURL = rootURL.appending(path: "unmatched_measurement.dat")
+        let fileName = "RT_80K_1mA_PN40_AHE.dat"
+        let sourceURL = rootURL.appending(path: fileName)
         FileManager.default.createFile(atPath: sourceURL.path, contents: Data())
 
         let loadResult = SpinLabRuleProvider.shared.loadResult()
@@ -25,19 +26,22 @@ struct V5116RecomputeBannerFalsePositiveTests {
             ruleSetVersion: loadResult.ruleSetVersion,
             evaluatedAt: Date(timeIntervalSince1970: 0)
         )
-        // 关键：fingerprint 是旧的（"v0:..."），但 snapshot 的字段是用当前规则刚解析得到的；
-        // 所以 sidecar 与"用当前规则重新解析"的结果在字段层面完全一致。
+
+        // fixture 前提：filename 必须真被规则匹配出 conditions
+        // 否则 buildDiffItems 不走 .noChange 路径，复现不出生产现象
+        try #require(snapshot.fields.conditions.isEmpty == false)
+
         snapshot.ruleSetFingerprint = "v0:stale-but-field-equivalent"
 
         let sidecar = SpinLabFileSidecar(
-            workflow: "General",
-            workflowDisplayName: "General",
+            workflow: "AHE",
+            workflowDisplayName: "AHE",
             channels: [],
             sourceFilePath: sourceURL.path,
             appliedAt: Date(timeIntervalSince1970: 0),
             ruleSnapshot: snapshot
         )
-        let sidecarURL = rootURL.appending(path: "unmatched_measurement.dat.spinlab.json")
+        let sidecarURL = rootURL.appending(path: "\(fileName).spinlab.json")
         try writeSidecar(sidecar, to: sidecarURL)
 
         let service = LibrarySidecarService(libraryStore: LibraryStore())
@@ -47,12 +51,61 @@ struct V5116RecomputeBannerFalsePositiveTests {
         )
         let diff = service.computeRecomputeDiff(rootURL: rootURL)
 
-        // 不变式：当字段实质未变时（diff 空），横幅 staleCount 也必须为 0。
-        #expect(diff.isEmpty, "fixture 设计：字段应与新规则解析结果一致 → diff 空")
+        #expect(diff.allSatisfy { $0.status == .noChange })
         #expect(
             staleCount == 0,
-            "staleCount=\(staleCount) 但 diff 为空（横幅假阳性 — 修前必 fail）"
+            "staleCount=\(staleCount) 但 diff 全是 .noChange — 横幅假阳性"
         )
+    }
+
+    /// 反向 case：真有字段需要更新时，横幅 staleCount 必须计入
+    @Test("staleCount > 0 when an actionable field diff exists")
+    func staleCount_positive_when_actionable_diff() throws {
+        let rootURL = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let fileName = "RT_80K_1mA_PN40_AHE.dat"
+        let sourceURL = rootURL.appending(path: fileName)
+        FileManager.default.createFile(atPath: sourceURL.path, contents: Data())
+
+        let loadResult = SpinLabRuleProvider.shared.loadResult()
+        let parser = FilenameRuleParser(ruleSet: loadResult.ruleSet)
+        let hints = parser.parse(from: sourceURL)
+        var snapshot = SidecarCompositionUseCase.buildRuleSnapshot(
+            hints: hints,
+            ruleSetFingerprint: loadResult.ruleSetFingerprint,
+            ruleSetVersion: loadResult.ruleSetVersion,
+            evaluatedAt: Date(timeIntervalSince1970: 0)
+        )
+
+        // 篡改一个 condition 值，使 sidecar 与"用当前规则重新解析"出现真实差异
+        guard let firstKey = snapshot.fields.conditions.keys.sorted().first else {
+            Issue.record("fixture 前提：parser 必须解析出至少一个 condition")
+            return
+        }
+        snapshot.fields.conditions[firstKey] = SourcedValue(value: "STALE", source: "rule:legacy")
+        snapshot.ruleSetFingerprint = "v0:stale-with-real-diff"
+
+        let sidecar = SpinLabFileSidecar(
+            workflow: "AHE",
+            workflowDisplayName: "AHE",
+            channels: [],
+            sourceFilePath: sourceURL.path,
+            appliedAt: Date(timeIntervalSince1970: 0),
+            ruleSnapshot: snapshot
+        )
+        let sidecarURL = rootURL.appending(path: "\(fileName).spinlab.json")
+        try writeSidecar(sidecar, to: sidecarURL)
+
+        let service = LibrarySidecarService(libraryStore: LibraryStore())
+        let staleCount = service.computeStaleCount(
+            rootURL: rootURL,
+            currentFingerprint: loadResult.ruleSetFingerprint
+        )
+        let diff = service.computeRecomputeDiff(rootURL: rootURL)
+
+        #expect(diff.contains(where: { $0.status == .willUpdate }))
+        #expect(staleCount == 1, "actionable diff 必须计入 banner staleCount")
     }
 
     private func makeTempDir() -> URL {

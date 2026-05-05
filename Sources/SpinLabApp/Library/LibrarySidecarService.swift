@@ -360,7 +360,7 @@ struct LibrarySidecarService {
                     loadResult: loadResult,
                     parser: parser
                 )
-                if diffItems.isEmpty == false {
+                if diffItems.contains(where: { $0.status.isActionable }) {
                     count += 1
                 }
             }
