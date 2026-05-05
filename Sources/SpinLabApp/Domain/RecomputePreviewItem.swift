@@ -29,8 +29,8 @@ enum RecomputeDiffStatus: Sendable {
 
     var isActionable: Bool {
         switch self {
-        case .willUpdate, .migration, .added, .ruleRemoved, .manualOverride: return true
-        case .noChange: return false
+        case .willUpdate, .migration, .added, .ruleRemoved: return true
+        case .manualOverride, .noChange: return false
         }
     }
 }
