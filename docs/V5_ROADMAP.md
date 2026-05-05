@@ -461,11 +461,8 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 
 ### 5.1.16 — 5.1.15 残债清扫（测试跟进 + Library 横幅假阳性）
 
-- [ ] G1 — V413/V5111 AHE metric 测试跟进 typed sampleID（4 issues 失败、功能没坏）
-- [ ] G2 — V515 RulesEngine 测试跟进统一大写 + 单位换算 condition normalization（3 issues 失败、功能没坏）
-- [ ] G3 — V513 LibraryFeatureStoreFacade Selection didSet 测试跟进显式持久化动作（1 case × 4 issues 失败、功能没坏）
-- [ ] G4 — V221 DrawerMatchEngine 测试跟进 `BAKED → b` 短码（1 issue 失败、功能没坏）
-- [ ] Library 蓝色"X 个测量基于旧规则可重算"横幅假阳性修复（fingerprint 比对 / staleCount 判定与真实数据脱节）
+- [x] A 包：4 项测试同步债跟进源码（G1 typed sampleID / G2 condition unification / G3 explicit selection action / G4 substrate short-code）—— history `v5116_test_sync_and_recompute_banner.md`
+- [x] B 包：Library 蓝色横幅假阳性 — H/H2/H3 三阶段修复（口径与 Apply 按钮可点条件统一为 group0 only）—— 同 history
 
 ---
 
