@@ -73,29 +73,11 @@ struct LibrarySidecarService {
 
         for sidecarURL in libraryStore.enumerateAllSidecarURLs(rootURL: rootURL) {
             guard let existing = reader.loadSidecar(at: sidecarURL) else { continue }
-
-            let sidecarName = sidecarURL.lastPathComponent
-            let sourceName = sidecarName.replacingOccurrences(of: ".spinlab.json", with: "")
-            let sourceURL = sidecarURL.deletingLastPathComponent().appending(path: sourceName)
-
-            let hints = parser.parse(from: sourceURL)
-            let newSnapshot = SidecarCompositionUseCase.buildRuleSnapshot(
-                hints: hints,
-                ruleSetFingerprint: loadResult.ruleSetFingerprint,
-                ruleSetVersion: loadResult.ruleSetVersion,
-                evaluatedAt: .now
-            )
-
-            let sampleIDValue = existing.effectiveSampleID ?? ""
-            let sourceFileName = URL(fileURLWithPath: existing.sourceFilePath).lastPathComponent.nilIfEmpty ?? sourceName
-
-            items += buildDiffItems(
-                sidecarPath: sidecarURL.path,
-                sampleID: sampleIDValue,
-                workflow: existing.workflow,
-                sourceFileName: sourceFileName,
+            items += buildDiffItemsForSidecar(
+                sidecarURL: sidecarURL,
                 existing: existing,
-                newSnapshot: newSnapshot
+                loadResult: loadResult,
+                parser: parser
             )
         }
 
@@ -225,6 +207,37 @@ struct LibrarySidecarService {
             ?? "General"
     }
 
+    private func buildDiffItemsForSidecar(
+        sidecarURL: URL,
+        existing: SpinLabFileSidecar,
+        loadResult: RuleLoader.LoadResult,
+        parser: FilenameRuleParser
+    ) -> [RecomputeDiffItem] {
+        let sidecarName = sidecarURL.lastPathComponent
+        let sourceName = sidecarName.replacingOccurrences(of: ".spinlab.json", with: "")
+        let sourceURL = sidecarURL.deletingLastPathComponent().appending(path: sourceName)
+
+        let hints = parser.parse(from: sourceURL)
+        let newSnapshot = SidecarCompositionUseCase.buildRuleSnapshot(
+            hints: hints,
+            ruleSetFingerprint: loadResult.ruleSetFingerprint,
+            ruleSetVersion: loadResult.ruleSetVersion,
+            evaluatedAt: .now
+        )
+
+        let sampleIDValue = existing.effectiveSampleID ?? ""
+        let sourceFileName = URL(fileURLWithPath: existing.sourceFilePath).lastPathComponent.nilIfEmpty ?? sourceName
+
+        return buildDiffItems(
+            sidecarPath: sidecarURL.path,
+            sampleID: sampleIDValue,
+            workflow: existing.workflow,
+            sourceFileName: sourceFileName,
+            existing: existing,
+            newSnapshot: newSnapshot
+        )
+    }
+
     private func buildDiffItems(
         sidecarPath: String,
         sampleID: String,
@@ -335,10 +348,21 @@ struct LibrarySidecarService {
     // MARK: - Stale count
 
     func computeStaleCount(rootURL: URL, currentFingerprint: String) -> Int {
-        libraryStore.enumerateAllSidecarURLs(rootURL: rootURL).reduce(into: 0) { count, url in
+        let loadResult = SpinLabRuleProvider.shared.loadResult()
+        let parser = FilenameRuleParser(ruleSet: loadResult.ruleSet)
+
+        return libraryStore.enumerateAllSidecarURLs(rootURL: rootURL).reduce(into: 0) { count, url in
             guard let sidecar = reader.loadSidecar(at: url) else { return }
             if sidecar.ruleSnapshot.ruleSetFingerprint != currentFingerprint {
-                count += 1
+                let diffItems = buildDiffItemsForSidecar(
+                    sidecarURL: url,
+                    existing: sidecar,
+                    loadResult: loadResult,
+                    parser: parser
+                )
+                if diffItems.contains(where: { $0.status.isActionable }) {
+                    count += 1
+                }
             }
         }
     }
