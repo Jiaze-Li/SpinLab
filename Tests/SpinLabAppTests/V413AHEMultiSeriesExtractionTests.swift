@@ -43,7 +43,7 @@ struct V413AHEMultiSeriesExtractionTests {
         } else {
             label = "\(sampleKey) | \(channel)"
         }
-        return WorkbenchPlotSeries(label: label, x: xs, y: ys)
+        return WorkbenchPlotSeries(label: label, x: xs, y: ys, sampleID: sampleKey)
     }
 
     // MARK: - parseSampleKey
@@ -127,8 +127,8 @@ struct V413AHEMultiSeriesExtractionTests {
     @Test("extractAHEMetricsPerSeries returns failure with unparseable label list")
     func unparseableLabelReturnsFailure() {
         let good = makeAHESeries(sampleKey: "SK-A")
-        var bad = makeAHESeries(sampleKey: "SK-B")
-        bad.label = ""  // unparseable
+        // unparseable = nil sampleID + empty label (没有任何样品标识)
+        let bad = WorkbenchPlotSeries(label: "", x: [0.0], y: [0.0])
         let result = ExtractAHEMetricsUseCase.extractAHEMetricsPerSeries(from: [good, bad])
 
         if case .failure(let error) = result {
@@ -140,10 +140,8 @@ struct V413AHEMultiSeriesExtractionTests {
 
     @Test("extractAHEMetricsPerSeries collects all unparseable labels")
     func multipleUnparseableLabels() {
-        var bad1 = makeAHESeries(sampleKey: "X")
-        bad1.label = ""
-        var bad2 = makeAHESeries(sampleKey: "Y")
-        bad2.label = ""
+        let bad1 = WorkbenchPlotSeries(label: "", x: [0.0], y: [0.0])
+        let bad2 = WorkbenchPlotSeries(label: "", x: [0.0], y: [0.0])
         let result = ExtractAHEMetricsUseCase.extractAHEMetricsPerSeries(from: [bad1, bad2])
 
         if case .failure(let error) = result {

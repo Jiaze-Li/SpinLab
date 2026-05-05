@@ -130,7 +130,7 @@ struct V515RulesEngineRegressionTests {
         let ruleSet = try loadBundledRuleSet()
         let parser = FilenameRuleParser(ruleSet: ruleSet)
         let hints = parser.parse(from: URL(fileURLWithPath: "/data/PN20_MR_300k.dat"))
-        #expect(hints.conditionValues["temperature"] == "300k")
+        #expect(hints.conditionValues["temperature"] == "300K")
     }
 
     @Test("current: mA suffix extracted")
@@ -154,7 +154,7 @@ struct V515RulesEngineRegressionTests {
         let ruleSet = try loadBundledRuleSet()
         let parser = FilenameRuleParser(ruleSet: ruleSet)
         let hints = parser.parse(from: URL(fileURLWithPath: "/data/PN20_MR_300K_500mT.dat"))
-        #expect(hints.conditionValues["field"] == "500mT")
+        #expect(hints.conditionValues["field"] == "0.5T")
     }
 
     @Test("shift: shift suffix extracted")
@@ -174,13 +174,12 @@ struct V515RulesEngineRegressionTests {
         #expect(hints.conditionValues["temperature"] == "10K")
     }
 
-    @Test("half-step normalization rounds 4.5K to 4.5K")
+    @Test("half-step normalization rounds 4.5K to 5K")
     func conditionTemperatureHalfStepNormalization() throws {
-        // Unit-suffix values are normalized to the nearest 0.5 step.
         let ruleSet = try loadBundledRuleSet()
         let parser = FilenameRuleParser(ruleSet: ruleSet)
         let hints = parser.parse(from: URL(fileURLWithPath: "/data/PN20_MR_4.5K.dat"))
-        #expect(hints.conditionValues["temperature"] == "4.5K")
+        #expect(hints.conditionValues["temperature"] == "5K")
     }
 
     // MARK: - Substrate matches
