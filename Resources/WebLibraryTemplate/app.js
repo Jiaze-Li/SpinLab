@@ -32,27 +32,20 @@ const WORKSPACE_MIN_SAMPLES_WIDTH = 420;
 const WORKSPACE_MIN_DETAIL_WIDTH = 360;
 const WORKSPACE_SPLITTER_WIDTH = 12;
 const WORKSPACE_STACK_BREAKPOINT = 900;
-const WORKSPACE_TOP_ROW_HEIGHT = "clamp(520px, 62vh, 760px)";
 const WORKSPACE_DEFAULT_RATIO = 0.58;
 const WORKSPACE_MIN_RATIO = 0.3;
 const WORKSPACE_MAX_RATIO = 0.7;
-const TABLE_COLUMN_STORAGE_KEY = "spinlab.web-library.sample-table-columns";
 const TABLE_COLUMN_DEFS = [
-  { key: "sample", label: "Sample", minWidth: 250, defaultWidth: 340 },
-  { key: "batch", label: "Batch", minWidth: 120, defaultWidth: 150 },
-  { key: "substrate", label: "Substrate", minWidth: 160, defaultWidth: 190 },
-  { key: "charts", label: "Charts", minWidth: 80, defaultWidth: 90 },
-  { key: "updated", label: "Updated", minWidth: 120, defaultWidth: 140 },
+  { key: "sample", label: "Sample" },
+  { key: "substrate", label: "Substrate" },
+  { key: "updated", label: "Updated" },
+  { key: "charts", label: "Charts" },
 ];
 
 const layoutState = {
   splitRatio: WORKSPACE_DEFAULT_RATIO,
   resizeObserver: null,
-};
-
-const tableLayoutState = {
-  columnWidths: null,
-  activeResize: null,
+  detailHeightObserver: null,
 };
 
 const els = {};
@@ -80,7 +73,7 @@ function formatBytes(bytes) {
   return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
-function formatUtcTimestamp(value) {
+function formatReadableTimestamp(value) {
   if (!value) {
     return "";
   }
@@ -88,89 +81,17 @@ function formatUtcTimestamp(value) {
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())} UTC`;
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function sampleCharts(sampleKey) {
   return (state.report?.assetStats?.assets ?? []).filter((asset) => asset.sample_key === sampleKey);
-}
-
-function defaultTableColumnWidths() {
-  return Object.fromEntries(TABLE_COLUMN_DEFS.map((definition) => [definition.key, definition.defaultWidth]));
-}
-
-function sanitizeTableColumnWidths(value) {
-  const fallback = defaultTableColumnWidths();
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return fallback;
-  }
-
-  const widths = {};
-  TABLE_COLUMN_DEFS.forEach((definition) => {
-    const parsed = Number(value[definition.key]);
-    const width = Number.isFinite(parsed) ? Math.round(parsed) : definition.defaultWidth;
-    widths[definition.key] = Math.max(definition.minWidth, width);
-  });
-  return widths;
-}
-
-function readStoredTableColumnWidths() {
-  try {
-    const value = window.localStorage.getItem(TABLE_COLUMN_STORAGE_KEY);
-    if (!value) {
-      return defaultTableColumnWidths();
-    }
-    return sanitizeTableColumnWidths(JSON.parse(value));
-  } catch (error) {
-    return defaultTableColumnWidths();
-  }
-}
-
-function storeTableColumnWidths(widths) {
-  try {
-    window.localStorage.setItem(TABLE_COLUMN_STORAGE_KEY, JSON.stringify(widths));
-  } catch (error) {
-    // Ignore storage failures and keep the current layout in memory.
-  }
-}
-
-function tableColumnWidths() {
-  if (!tableLayoutState.columnWidths) {
-    tableLayoutState.columnWidths = readStoredTableColumnWidths();
-  }
-  return tableLayoutState.columnWidths;
-}
-
-function setTableColumnWidths(nextWidths, persist = true) {
-  tableLayoutState.columnWidths = sanitizeTableColumnWidths(nextWidths);
-  applyTableColumnWidths();
-  if (persist) {
-    storeTableColumnWidths(tableLayoutState.columnWidths);
-  }
-}
-
-function resetTableColumnWidths() {
-  setTableColumnWidths(defaultTableColumnWidths());
-}
-
-function getTableColumnDefinition(key) {
-  return TABLE_COLUMN_DEFS.find((definition) => definition.key === key) ?? null;
-}
-
-function applyTableColumnWidths() {
-  if (!els.sampleTableColgroup) {
-    return;
-  }
-
-  const widths = tableColumnWidths();
-  TABLE_COLUMN_DEFS.forEach((definition, index) => {
-    const column = els.sampleTableColgroup.children[index];
-    if (!column) {
-      return;
-    }
-    column.style.width = `${widths[definition.key]}px`;
-  });
 }
 
 function setupSampleTableStructure() {
@@ -193,93 +114,14 @@ function setupSampleTableStructure() {
   els.sampleTableTable.insertBefore(els.sampleTableColgroup, thead);
 
   headerRow.innerHTML = TABLE_COLUMN_DEFS
-    .map((definition, index) => {
-      const next = TABLE_COLUMN_DEFS[index + 1];
-      const resizeHandle = next
-        ? `<span class="column-resizer" role="separator" aria-orientation="vertical" aria-label="Resize ${escapeHtml(definition.label)} and ${escapeHtml(next.label)} columns" data-resize-left="${escapeHtml(definition.key)}" data-resize-right="${escapeHtml(next.key)}"></span>`
-        : "";
-      return `
+    .map(
+      (definition) => `
         <th class="sample-th sample-th-${escapeHtml(definition.key)}" data-column="${escapeHtml(definition.key)}">
           <span class="sample-th-label">${escapeHtml(definition.label)}</span>
-          ${resizeHandle}
         </th>
-      `;
-    })
+      `,
+    )
     .join("");
-
-  applyTableColumnWidths();
-}
-
-function updateSampleTableColumnWidthsFromDrag(leftKey, rightKey, clientX) {
-  const resizeState = tableLayoutState.activeResize;
-  if (!resizeState || resizeState.leftKey !== leftKey || resizeState.rightKey !== rightKey) {
-    return;
-  }
-
-  const leftDef = getTableColumnDefinition(leftKey);
-  const rightDef = getTableColumnDefinition(rightKey);
-  if (!leftDef || !rightDef) {
-    return;
-  }
-
-  const delta = clientX - resizeState.startX;
-  const minDelta = leftDef.minWidth - resizeState.startWidths[leftKey];
-  const maxDelta = resizeState.startWidths[rightKey] - rightDef.minWidth;
-  const clampedDelta = Math.min(maxDelta, Math.max(minDelta, delta));
-  const nextWidths = { ...resizeState.startWidths };
-  nextWidths[leftKey] = Math.round(resizeState.startWidths[leftKey] + clampedDelta);
-  nextWidths[rightKey] = Math.round(resizeState.startWidths[rightKey] - clampedDelta);
-  setTableColumnWidths(nextWidths, false);
-}
-
-function beginSampleTableColumnResize(event) {
-  const handle = event.target.closest("[data-resize-left][data-resize-right]");
-  if (!handle || event.button !== 0) {
-    return;
-  }
-  event.preventDefault();
-
-  const leftKey = handle.dataset.resizeLeft;
-  const rightKey = handle.dataset.resizeRight;
-  if (!leftKey || !rightKey) {
-    return;
-  }
-
-  const widths = { ...tableColumnWidths() };
-  tableLayoutState.activeResize = {
-    leftKey,
-    rightKey,
-    startX: event.clientX,
-    startWidths: widths,
-  };
-
-  document.body.classList.add("is-resizing-columns");
-  handle.setPointerCapture(event.pointerId);
-  updateSampleTableColumnWidthsFromDrag(leftKey, rightKey, event.clientX);
-
-  const onPointerMove = (moveEvent) => {
-    updateSampleTableColumnWidthsFromDrag(leftKey, rightKey, moveEvent.clientX);
-  };
-  const onPointerUp = () => {
-    document.body.classList.remove("is-resizing-columns");
-    window.removeEventListener("pointermove", onPointerMove);
-    window.removeEventListener("pointerup", onPointerUp);
-    window.removeEventListener("pointercancel", onPointerUp);
-    tableLayoutState.activeResize = null;
-    storeTableColumnWidths(tableColumnWidths());
-  };
-
-  window.addEventListener("pointermove", onPointerMove);
-  window.addEventListener("pointerup", onPointerUp, { once: true });
-  window.addEventListener("pointercancel", onPointerUp, { once: true });
-}
-
-function handleSampleTableColumnDoubleClick(event) {
-  const handle = event.target.closest("[data-resize-left][data-resize-right]");
-  if (!handle) {
-    return;
-  }
-  resetTableColumnWidths();
 }
 
 function readStoredSplitRatio() {
@@ -315,6 +157,20 @@ function workspaceIsStacked() {
   return !workspace || workspace.classList.contains("is-stacked");
 }
 
+function syncTablePanelHeight() {
+  if (!els.tablePanel || !els.detailPanel) {
+    return;
+  }
+  if (workspaceIsStacked()) {
+    els.tablePanel.style.removeProperty("height");
+    return;
+  }
+  const h = els.detailPanel.getBoundingClientRect().height;
+  if (h > 0) {
+    els.tablePanel.style.height = `${h}px`;
+  }
+}
+
 function syncWorkspaceLayout() {
   const workspace = els.workspace;
   if (!workspace) {
@@ -331,12 +187,13 @@ function syncWorkspaceLayout() {
     if (els.workspaceSplitter) {
       els.workspaceSplitter.hidden = true;
     }
+    syncTablePanelHeight();
     return;
   }
 
   workspace.classList.remove("is-stacked");
   workspace.classList.add("is-split");
-  workspace.style.gridTemplateRows = `minmax(0, ${WORKSPACE_TOP_ROW_HEIGHT}) auto`;
+  workspace.style.gridTemplateRows = "auto auto";
 
   const available = Math.max(0, width - workspaceSplitterWidth());
   let leftWidth = Math.round(available * layoutState.splitRatio);
@@ -352,6 +209,7 @@ function syncWorkspaceLayout() {
     els.workspaceSplitter.setAttribute("aria-valuenow", String(Math.round(layoutState.splitRatio * 100)));
     els.workspaceSplitter.setAttribute("aria-valuetext", `${Math.round(layoutState.splitRatio * 100)}% Samples width`);
   }
+  syncTablePanelHeight();
 }
 
 function setWorkspaceSplitRatio(ratio, persist = true) {
@@ -579,12 +437,10 @@ function renderTable() {
         <tr class="${selected}" data-sample-key="${escapeHtml(sample.id)}">
           <td class="sample-cell sample-cell-sample">
             <div>${escapeHtml(sample.displayName)}</div>
-            <div class="muted">${escapeHtml(sample.id)}</div>
           </td>
-          <td class="sample-cell sample-cell-batch">${escapeHtml(sample.batchId)}</td>
           <td class="sample-cell sample-cell-substrate">${escapeHtml(sample.substrateDisplay || sample.substrateRaw || "")}</td>
+          <td class="sample-cell sample-cell-updated">${escapeHtml(formatReadableTimestamp(sample.updatedAt))}</td>
           <td class="sample-cell sample-cell-charts num">${escapeHtml(chartCount)}</td>
-          <td class="sample-cell sample-cell-updated">${escapeHtml((sample.updatedAt ?? "").slice(0, 10))}</td>
         </tr>
       `;
     })
@@ -602,23 +458,6 @@ function renderKeyValueGrid(entries) {
         .map(
           ([label, value]) => `
             <div class="kv">
-              <div class="label">${escapeHtml(label)}</div>
-              <div class="value">${escapeHtml(value)}</div>
-            </div>
-          `,
-        )
-        .join("")}
-    </div>
-  `;
-}
-
-function renderFactList(entries) {
-  return `
-    <div class="fact-list">
-      ${entries
-        .map(
-          ([label, value]) => `
-            <div class="fact">
               <div class="label">${escapeHtml(label)}</div>
               <div class="value">${escapeHtml(value)}</div>
             </div>
@@ -853,14 +692,6 @@ function renderMetadata(sample) {
     (item) => !isDuplicateMetadataKey(item.key) && !isEmptyMetadataValue(item.value),
   );
   return `
-    <div class="detail-section">
-      <div class="section-title">Overview</div>
-      ${renderFactList([
-        ["Updated", formatUtcTimestamp(sample.updatedAt)],
-        ["Batch", sample.batchId ?? ""],
-        ["Substrate", sample.substrateDisplay || sample.substrateRaw || ""],
-      ])}
-    </div>
     <div class="detail-section">
       <div class="section-title">Numeric tags</div>
       ${renderGlassCardGrid(numericEntries, "glass-grid-metrics", "None")}
@@ -1168,8 +999,6 @@ async function saveSelectedNote() {
 function attachEvents() {
   els.workspaceSplitter.addEventListener("pointerdown", beginWorkspaceSplitDrag);
   els.workspaceSplitter.addEventListener("keydown", handleWorkspaceSplitterKeydown);
-  els.sampleTableTable.addEventListener("pointerdown", beginSampleTableColumnResize);
-  els.sampleTableTable.addEventListener("dblclick", handleSampleTableColumnDoubleClick);
 
   els.chartsBody.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-action]");
@@ -1292,7 +1121,6 @@ async function main() {
     els.workspace.insertBefore(els.workspaceSplitter, els.detailPanel);
   }
   layoutState.splitRatio = readStoredSplitRatio();
-  tableLayoutState.columnWidths = readStoredTableColumnWidths();
   setupSampleTableStructure();
   syncWorkspaceLayout();
 
@@ -1303,6 +1131,10 @@ async function main() {
     });
     if (els.workspace) {
       layoutState.resizeObserver.observe(els.workspace);
+    }
+    layoutState.detailHeightObserver = new ResizeObserver(syncTablePanelHeight);
+    if (els.detailPanel) {
+      layoutState.detailHeightObserver.observe(els.detailPanel);
     }
   }
 
