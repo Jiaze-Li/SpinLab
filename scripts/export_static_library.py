@@ -245,7 +245,10 @@ def render_index_html() -> str:
       <header class="topbar">
         <div>
           <div class="kicker">SpinLab web library export</div>
-          <h1>Library</h1>
+          <div class="title-row">
+            <h1>Library</h1>
+            <div id="title-badges" class="title-badges" aria-label="library metadata badges"></div>
+          </div>
         </div>
         <div id="status" class="status">Loading data...</div>
       </header>
@@ -298,8 +301,8 @@ def render_index_html() -> str:
         </section>
 
         <aside class="panel detail-panel" aria-label="sample detail">
-          <div class="panel-head">
-            <h2>Detail</h2>
+          <div class="panel-head detail-panel-head">
+            <div class="kicker">Detail</div>
             <div id="detail-hint" class="muted"></div>
           </div>
           <div id="detail-body" class="detail-body"></div>
@@ -323,20 +326,44 @@ def render_index_html() -> str:
 def render_styles_css() -> str:
     return """\
 :root {
-  color-scheme: dark;
-  --bg: #0d1117;
-  --surface: #161b22;
-  --surface-2: #0f141b;
-  --line: #30363d;
-  --text: #e6edf3;
-  --muted: #8b949e;
-  --accent: #58a6ff;
-  --accent-soft: rgba(88, 166, 255, 0.14);
-  --warn: #d29922;
-  --error: #f85149;
-  --ok: #3fb950;
+  color-scheme: light dark;
+  --bg: #f6f8fa;
+  --surface: #ffffff;
+  --surface-2: #f3f4f6;
+  --line: #d0d7de;
+  --text: #24292f;
+  --muted: #57606a;
+  --accent: #0969da;
+  --accent-soft: rgba(9, 105, 218, 0.1);
+  --warn: #9a6700;
+  --error: #cf222e;
+  --ok: #1a7f37;
   --radius: 6px;
-  --shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+  --panel-accent: var(--surface-2);
+  --table-head-bg: #eaeef2;
+  --chart-bg: #eaeef2;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-2: #0f141b;
+    --line: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --accent-soft: rgba(88, 166, 255, 0.14);
+    --warn: #d29922;
+    --error: #f85149;
+    --ok: #3fb950;
+    --shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+    --panel-accent: var(--surface);
+    --table-head-bg: #11161d;
+    --chart-bg: #0b0f14;
+  }
 }
 
 * {
@@ -388,6 +415,20 @@ body {
   letter-spacing: 0;
 }
 
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.title-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 h1,
 h2,
 h3,
@@ -412,7 +453,7 @@ h2 {
 
 .summary-strip {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   padding: 12px;
 }
@@ -433,6 +474,28 @@ h2 {
   font-size: 18px;
   font-weight: 650;
   margin-top: 4px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.badge-subtle {
+  background: rgba(139, 148, 158, 0.12);
+  color: var(--muted);
+}
+
+.badge-warn {
+  border-color: rgba(210, 153, 34, 0.45);
+  background: rgba(210, 153, 34, 0.12);
+  color: #f2cc60;
 }
 
 .controls {
@@ -491,6 +554,10 @@ h2 {
   margin-bottom: 12px;
 }
 
+.detail-panel-head {
+  align-items: flex-start;
+}
+
 .table-wrap {
   overflow: auto;
   max-height: calc(100vh - 280px);
@@ -507,7 +574,7 @@ table {
 thead th {
   position: sticky;
   top: 0;
-  background: #11161d;
+  background: var(--table-head-bg);
   z-index: 1;
   text-align: left;
   padding: 10px 12px;
@@ -542,6 +609,41 @@ tbody tr.selected {
 .report-body {
   display: grid;
   gap: 12px;
+}
+
+.detail-summary {
+  display: grid;
+  gap: 2px;
+}
+
+.detail-title {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.detail-subtitle {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.source-details {
+  color: var(--muted);
+}
+
+.source-details summary {
+  cursor: pointer;
+  font-size: 12px;
+  list-style: none;
+}
+
+.source-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.source-details-body {
+  margin-top: 8px;
 }
 
 .kv-grid {
@@ -616,7 +718,7 @@ tbody tr.selected {
   height: 120px;
   object-fit: cover;
   border-radius: 4px;
-  background: #0b0f14;
+  background: var(--chart-bg);
 }
 
 .chart .caption {
@@ -655,7 +757,7 @@ tbody tr.selected {
 
 @media (max-width: 1100px) {
   .summary-strip {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .controls {
@@ -795,8 +897,6 @@ function renderSummaryStrip() {
     ["Samples", summary.sampleCount ?? 0],
     ["Charts", assetStats.chartCount ?? 0],
     ["Chart size", formatBytes(assetStats.chartBytes ?? 0)],
-    ["Forced", report.forced ? "Yes" : "No"],
-    ["Schema", state.library?.schemaVersion ?? "n/a"],
   ];
   els.summaryStrip.innerHTML = values
     .map(([label, value]) => `
@@ -806,6 +906,15 @@ function renderSummaryStrip() {
       </div>
     `)
     .join("");
+}
+
+function renderTitleBadges() {
+  const schemaVersion = state.library?.schemaVersion;
+  const badges = [
+    schemaVersion != null ? `<span class="badge badge-subtle">Schema v${escapeHtml(schemaVersion)}</span>` : "",
+    state.report?.forced ? `<span class="badge badge-warn">Forced export</span>` : "",
+  ].filter(Boolean);
+  els.titleBadges.innerHTML = badges.join("");
 }
 
 function populateFilters() {
@@ -879,24 +988,23 @@ function renderMetadata(sample) {
     ? sample.orderedMetadata
     : Object.entries(sample.metadata ?? {}).map(([key, value]) => ({ key, value }));
   const numericEntries = Object.entries(sample.numericDisplay ?? {});
-  const substrateEntries = [
-    ["Substrate raw", sample.substrateRaw ?? ""],
-    ["Substrate display", sample.substrateDisplay ?? ""],
-    ["Substrate tokens", (sample.substrateTokens ?? []).join(", ")],
-    ["Substrate tags", (sample.substrateTags ?? []).join(", ")],
-  ];
   return `
-    <div class="section-title">Identity</div>
+    <div class="section-title">Overview</div>
     ${renderKeyValueGrid([
-      ["Sample", sample.id],
-      ["Display name", sample.displayName],
       ["Batch", sample.batchId],
-      ["Sheet", sample.sourceSheetName ?? ""],
-      ["Row", sample.sourceRowNumber ?? ""],
+      ["Substrate", sample.substrateDisplay || sample.substrateRaw || ""],
       ["Updated", sample.updatedAt ?? ""],
+      ["Charts", sampleCharts(sample.id).length],
     ])}
-    <div class="section-title">Substrate</div>
-    ${renderKeyValueGrid(substrateEntries)}
+    <details class="source-details">
+      <summary>Sheet and row provenance</summary>
+      <div class="source-details-body">
+        ${renderKeyValueGrid([
+          ["Sheet", sample.sourceSheetName ?? ""],
+          ["Row", sample.sourceRowNumber ?? ""],
+        ])}
+      </div>
+    </details>
     <div class="section-title">Numeric tags</div>
     ${renderKeyValueGrid(numericEntries)}
     <div class="section-title">Ordered metadata</div>
@@ -947,7 +1055,12 @@ function renderDetail() {
     els.detailBody.innerHTML = `<div class="muted">No sample selected.</div>`;
     return;
   }
-  els.detailHint.textContent = `${sample.id} · ${sample.batchId}`;
+  els.detailHint.innerHTML = `
+    <div class="detail-summary">
+      <div class="detail-title">${escapeHtml(sample.displayName)}</div>
+      <div class="detail-subtitle">Sample ID: ${escapeHtml(sample.id)}</div>
+    </div>
+  `;
   els.detailBody.innerHTML = `
     ${renderMetadata(sample)}
     ${renderCharts(sample)}
@@ -956,7 +1069,7 @@ function renderDetail() {
 
 function renderReport() {
   const report = state.report ?? {};
-  els.reportStatus.textContent = report.forced ? "Forced export" : "Standard export";
+  els.reportStatus.textContent = "";
   const warnings = report.warnings ?? [];
   const errors = report.errors ?? [];
   const assetStats = report.assetStats ?? {};
@@ -970,7 +1083,6 @@ function renderReport() {
       ["Chart assets", assetStats.chartCount ?? 0],
       ["Chart bytes", formatBytes(assetStats.chartBytes ?? 0)],
       ["Largest asset", assetStats.largestChartKey ?? ""],
-      ["Forced", report.forced ? "Yes" : "No"],
     ])}
     <div class="section-title">Asset groups</div>
     <div class="chips">
@@ -1019,6 +1131,7 @@ function renderReport() {
 
 function reRender() {
   renderSummaryStrip();
+  renderTitleBadges();
   renderTable();
   renderDetail();
   renderReport();
@@ -1086,6 +1199,7 @@ async function main() {
   els.sampleTable = byId("sample-table");
   els.detailHint = byId("detail-hint");
   els.detailBody = byId("detail-body");
+  els.titleBadges = byId("title-badges");
   els.reportStatus = byId("report-status");
   els.reportBody = byId("report-body");
 
