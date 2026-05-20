@@ -43,6 +43,14 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `docs/architecture/library/`
 ### Browse
 - All views use AppColumnShell, never raw HSplitView
 - Detail section order is fixed; see `docs/architecture/library/BROWSE_AND_SELECTION.md`
+- Samples and batch/sample lists use natural sort order
+- Web Library search is token-based AND across sample display name, sample ID, batch, substrate, numeric tags, and additional metadata
+- Web Library series options are inferred from the loaded local samples, not hard-coded
+- Sheet is not a user-facing Web Library filter
+- Single-letter substrate modifiers such as `o` and `b` match only standalone tokens
+- Structured sample IDs emit separate material and orientation tokens plus the combined substrate token
+- Substrate variants such as `STO(111)`, `STO111`, `STO|111`, and `STO 111` are equivalent for search
+- Numeric search supports exact `1000p` / `1000ps` and `700c`, plus ±8 fuzzy matching for `mT` and `mJ`
 
 ### Metadata Editing
 - Edits go through LibrarySampleEditService, never direct repository writes from views
