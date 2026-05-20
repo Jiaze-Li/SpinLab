@@ -11,6 +11,7 @@ struct AppEnvironment {
     var dataActor: any SpinLabDataActing
     var workflowDefinitionStore: WorkflowDefinitionStore = WorkflowDefinitionStore()
     var libraryAccess: any LibraryAccessCapability = LibraryStore()
+    var webLibraryPublisher: any WebLibraryPublishingCapability = WebLibraryPublishService()
 
     static func live(previewRowCount: Int = 10) -> AppEnvironment {
         AppEnvironment(

@@ -66,32 +66,43 @@ struct RepositoryPointer: Sendable {
 
     /// Loads pointer from `<runtimeConfigDir>/.repo_pointer.json`.
     /// If the file is absent and a dev-build repo can be detected heuristically, writes the pointer first.
-    static func load(runtimeConfigDir: URL, fileManager: FileManager = .default) -> RepositoryPointer? {
+    static func load(
+        runtimeConfigDir: URL,
+        fileManager: FileManager = .default,
+        localDevelopmentRepoRootFallback: URL? = nil,
+        allowAutoWriteInTests: Bool = false
+    ) -> RepositoryPointer? {
         let pointerURL = runtimeConfigDir.appendingPathComponent(pointerFileName)
         if fileManager.fileExists(atPath: pointerURL.path) {
             return load(from: pointerURL, fileManager: fileManager)
         }
         // No pointer file: skip auto-write in test environments
-        guard !RulesConfigPaths.isRunningTests() else { return nil }
+        guard !RulesConfigPaths.isRunningTests() || allowAutoWriteInTests else { return nil }
+        if let localDevelopmentRepoRootFallback {
+            if let pointer = attemptAutoWrite(
+                pointerURL: pointerURL,
+                repositoryConfigDir: localDevelopmentRepoRootFallback.appendingPathComponent("Sources/SpinLabApp/config", isDirectory: true),
+                repoRoot: localDevelopmentRepoRootFallback,
+                fileManager: fileManager
+            ) {
+                return pointer
+            }
+        }
         // Try auto-write for developer builds
         guard let repoConfigDir = detectDeveloperRepoConfigDir(from: Bundle.main.bundleURL) else {
             AppLogger.shared.info(.system, "repo pointer: absent and no dev repo detected, skipping mirror")
             return nil
         }
-        // repo_root = parent of Sources/SpinLabApp/config (go up 3 levels)
         let repoRoot = repoConfigDir
             .deletingLastPathComponent()  // Sources/SpinLabApp
             .deletingLastPathComponent()  // Sources
             .deletingLastPathComponent()  // repo root
-        do {
-            try write(to: pointerURL, repositoryConfigDir: repoConfigDir, repoRoot: repoRoot)
-            AppLogger.shared.info(.system, "repo pointer: auto-written for developer build")
-        } catch {
-            AppLogger.shared.warning(.system, "repo pointer: auto-write failed, skipping mirror",
-                                     metadata: ["reason": error.localizedDescription])
-            return nil
-        }
-        return load(from: pointerURL, fileManager: fileManager)
+        return attemptAutoWrite(
+            pointerURL: pointerURL,
+            repositoryConfigDir: repoConfigDir,
+            repoRoot: repoRoot,
+            fileManager: fileManager
+        )
     }
 
     /// Walks up from `startURL` looking for a dir that contains both `Sources/SpinLabApp/config` and `.git`.
@@ -126,5 +137,25 @@ struct RepositoryPointer: Sendable {
         let data = try JSONSerialization.data(withJSONObject: dict, options: [.prettyPrinted, .sortedKeys])
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try data.write(to: url, options: .atomic)
+    }
+
+    private static func attemptAutoWrite(
+        pointerURL: URL,
+        repositoryConfigDir: URL,
+        repoRoot: URL,
+        fileManager: FileManager = .default
+    ) -> RepositoryPointer? {
+        do {
+            try write(to: pointerURL, repositoryConfigDir: repositoryConfigDir, repoRoot: repoRoot)
+            AppLogger.shared.info(.system, "repo pointer: auto-written for developer build")
+        } catch {
+            AppLogger.shared.warning(
+                .system,
+                "repo pointer: auto-write failed, skipping mirror",
+                metadata: ["reason": error.localizedDescription]
+            )
+            return nil
+        }
+        return load(from: pointerURL, fileManager: fileManager)
     }
 }

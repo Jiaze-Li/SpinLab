@@ -338,6 +338,25 @@ struct V210ImportAndParseTests {
         #expect(parsed.current == "1mA")
     }
 
+    @Test("parser keeps parent folder whitespace as sample delimiter")
+    func parserKeepsParentFolderWhitespaceAsSampleDelimiter() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(
+            fileURLWithPath: "/tmp/3w/PN76 111/30deg/20260430220118PN76_111_30deg_3w__Position_0.000000 degree_Iac_0.001000 A_T_30.000 K_Vg_0.000000 V_Ig_0.000000 A.lvm"
+        )
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.defaultSampleKey == "PN76")
+        #expect(parsed.sampleName == "PN76 111")
+        #expect(parsed.sampleIDs.contains("PN76"))
+        #expect(!parsed.sampleIDs.contains("PN76111"))
+        #expect(parsed.substrateTags == ["111"])
+        #expect(parsed.temperature == "30K")
+        #expect(parsed.current == "1mA")
+    }
+
     @Test("parser rounds field values to nearest half-step and removes trailing .0")
     func parserRoundsFieldToHalfStep() throws {
         let ruleSet = try loadBundledRuleSetForTests()

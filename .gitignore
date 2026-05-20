@@ -3,3 +3,5 @@
 tmp/
 .claude/
 Sources/SpinLabApp/config/*.backup
+public/
+scripts/__pycache__/

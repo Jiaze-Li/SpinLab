@@ -9,6 +9,7 @@ APP_BUNDLE_NAME="${APP_NAME}.app"
 APP_BUNDLE_PATH="${SPINLAB_APP_BUNDLE_PATH:-/Users/jack/Desktop/${APP_BUNDLE_NAME}}"
 BUILD_CONFIGURATION="${1:-debug}"
 APP_VERSION_SOURCE="${ROOT_DIR}/Sources/SpinLabApp/App/AppVersion.swift"
+APP_ICON_SOURCE="${ROOT_DIR}/Resources/AppIcon.icns"
 
 if [[ "${BUILD_CONFIGURATION}" != "debug" && "${BUILD_CONFIGURATION}" != "release" ]]; then
   echo "Usage: $0 [debug|release]"
@@ -47,6 +48,11 @@ mkdir -p "${APP_BUNDLE_PATH}/Contents/MacOS"
 cp "${BIN_PATH}" "${APP_BUNDLE_PATH}/Contents/MacOS/${APP_NAME}"
 chmod +x "${APP_BUNDLE_PATH}/Contents/MacOS/${APP_NAME}"
 
+if [[ -f "${APP_ICON_SOURCE}" ]]; then
+  mkdir -p "${APP_BUNDLE_PATH}/Contents/Resources"
+  cp "${APP_ICON_SOURCE}" "${APP_BUNDLE_PATH}/Contents/Resources/AppIcon.icns"
+fi
+
 BIN_DIR="$(dirname "${BIN_PATH}")"
 for bundle in "${BIN_DIR}"/*.bundle; do
   [[ -e "${bundle}" ]] || continue
@@ -64,6 +70,8 @@ cat > "${APP_BUNDLE_PATH}/Contents/Info.plist" <<PLIST
   <string>${APP_NAME}</string>
   <key>CFBundleIdentifier</key>
   <string>com.spinlab.app</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundleVersion</key>
   <string>${APP_BUILD_VERSION}</string>
   <key>CFBundleShortVersionString</key>

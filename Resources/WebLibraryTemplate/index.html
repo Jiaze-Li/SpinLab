@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <title>SpinLab Library</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <div class="kicker">SpinLab web library export</div>
+          <div class="title-row">
+            <h1>Library</h1>
+            <div id="title-badges" class="title-badges" aria-label="library metadata badges"></div>
+          </div>
+        </div>
+        <div id="status" class="status">Loading data...</div>
+      </header>
+
+      <section class="summary-strip" id="summary-strip" aria-label="export summary"></section>
+
+      <section class="controls" aria-label="filters">
+        <label>
+          <span>Search</span>
+          <input id="search" type="search" placeholder="Sample, batch, substrate, metadata..." autocomplete="off" />
+        </label>
+        <label>
+          <span>Series</span>
+          <select id="series-filter"></select>
+        </label>
+        <label>
+          <span>Batch</span>
+          <select id="batch-filter"></select>
+        </label>
+        <label>
+          <span>Sheet</span>
+          <select id="sheet-filter"></select>
+        </label>
+        <label>
+          <span>Asset group</span>
+          <select id="asset-filter"></select>
+        </label>
+        <label class="toggle">
+          <input id="chart-only" type="checkbox" />
+          <span>Has charts</span>
+        </label>
+      </section>
+
+      <main class="workspace">
+        <section class="panel table-panel" aria-label="sample table">
+          <div class="panel-head">
+            <h2>Samples</h2>
+            <div id="table-count" class="muted"></div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Sample</th>
+                  <th>Batch</th>
+                  <th>Substrate</th>
+                  <th class="num">Charts</th>
+                  <th>Updated</th>
+                </tr>
+              </thead>
+              <tbody id="sample-table"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <aside class="panel detail-panel" aria-label="sample detail">
+          <div class="panel-head detail-panel-head">
+            <div class="kicker">Detail</div>
+            <div id="detail-hint" class="muted"></div>
+          </div>
+          <div id="detail-body" class="detail-body"></div>
+        </aside>
+
+        <section class="panel charts-panel" aria-label="sample charts">
+          <div class="panel-head charts-panel-head">
+            <div>
+              <h2>Charts</h2>
+              <div id="charts-hint" class="muted"></div>
+            </div>
+          </div>
+          <div id="charts-body" class="charts-body"></div>
+        </section>
+      </main>
+
+      <section class="panel report-panel" aria-label="export report">
+        <div class="panel-head">
+          <h2>Export report</h2>
+          <div id="report-status" class="muted"></div>
+        </div>
+        <div id="report-body" class="report-body"></div>
+      </section>
+    </div>
+    <script src="./app.js" defer></script>
+  </body>
+</html>

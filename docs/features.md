@@ -17,6 +17,7 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `docs/architecture/inbox/`
 - Parsed metadata is suggestion-only until user confirms
 - Duplicate filenames in queue: append sequence, never silently overwrite
 - Sample IDs may be extracted from glued filename tokens when the token contains a valid `PN/PT/SL` prefix plus digits, e.g. `20260430140313PN80` → `PN80`
+- Sample/substrate tokenization preserves whitespace delimiters; spaced numeric units are compacted only for condition parsing
 - Test: extensive unit tests on parse/route/match/evaluate stages
 
 ### Confirm & Apply
@@ -58,6 +59,20 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `docs/architecture/library/`
 - Audit log: append-only; unreadable existing log blocks write (no overwrite)
 - Sidecar schema (canonical): `docs/architecture/inbox/OUTPUT_CONTRACTS.md`; Library reading behavior: `docs/architecture/library/SIDECAR_AND_CONDITIONS.md`
 - Storage and sync details: `docs/architecture/library/ARCHIVE_STORAGE.md`
+- Library publish action is a shell-out trigger only: `public to html` runs `scripts/publish_web_library.sh`, which exports, validates, and then publishes the separate `SpinLab-Web-Library` repo snapshot; the app UI shows only high-level publish status by default and keeps full script logs behind a failure disclosure
+- Web Library export summary strip keeps only Batches, Samples, Charts, and Chart size; schema appears as a low-priority title badge, and forced export appears only as a warning badge when enabled
+- Source-of-truth details: [`docs/web_library.md`](web_library.md)
+- Sample notes are sample-scoped plain text, edited from the detail panel, and persisted outside the static export via Cloudflare D1 so republishing does not erase them.
+
+### Web Library UI Source of Truth
+- Web Library UI source lives in SpinLab, currently inside `Resources/WebLibraryTemplate/`
+- Generated output lives in `../SpinLab-Web-Library/public/`
+- Never treat `../SpinLab-Web-Library/public/` as the source of truth
+- To change Web Library UI, edit `Resources/WebLibraryTemplate/`
+- Do not manually edit `../SpinLab-Web-Library/public/app.js` or `styles.css` as the primary fix
+- After changing the exporter, run `./scripts/publish_web_library.sh` to regenerate and publish
+- `../SpinLab-Web-Library/public/` is disposable generated output and may be replaced on every publish
+- If templates later move again, that directory becomes the source of truth; until then, `Resources/WebLibraryTemplate/` remains authoritative
 
 ---
 
@@ -169,4 +184,3 @@ Behavior details: `specs/04_UI_RULES.md`
 ### Audit Logging
 - Both edit-confirm and archive-apply actions logged
 - Append-only, never modified retroactively
-

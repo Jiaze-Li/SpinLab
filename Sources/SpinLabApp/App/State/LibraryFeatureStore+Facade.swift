@@ -73,6 +73,86 @@ import Foundation
         }
     }
 
+    func beginWebLibraryPublish() {
+        webLibraryPublishState = .init(
+            isRunning: true,
+            statusMessage: WebLibraryPublishState.publishingMessage,
+            summaryMessage: nil,
+            outputLines: []
+        )
+        webLibraryPublishState.presentationRevision &+= 1
+    }
+
+    func appendWebLibraryPublishOutput(kind: WebLibraryPublishOutputKind, line: String) {
+        webLibraryPublishState.outputLines.append(.init(kind: kind, line: line))
+    }
+
+    func finishWebLibraryPublish(exitCode: Int32) {
+        let presentation = webLibraryPublishPresentation(exitCode: exitCode, outputLines: webLibraryPublishState.outputLines)
+        webLibraryPublishState.isRunning = false
+        webLibraryPublishState.statusMessage = presentation.statusMessage
+        webLibraryPublishState.summaryMessage = presentation.summaryMessage
+        webLibraryPublishState.completedAt = presentation.completedAt
+        webLibraryPublishState.presentationRevision &+= 1
+    }
+
+    func failWebLibraryPublish(summary: String) {
+        webLibraryPublishState.isRunning = false
+        webLibraryPublishState.statusMessage = WebLibraryPublishState.publishFailedMessage
+        webLibraryPublishState.summaryMessage = summary
+        webLibraryPublishState.completedAt = nil
+        webLibraryPublishState.presentationRevision &+= 1
+    }
+
+    private func webLibraryPublishPresentation(
+        exitCode: Int32,
+        outputLines: [WebLibraryPublishOutputLine]
+    ) -> (statusMessage: String, summaryMessage: String?, completedAt: Date) {
+        let completedAt = Date()
+        let hasNoChangesMarker = outputLines.contains(where: { $0.line.contains("No web snapshot changes to publish") })
+        let hasRedeployMarker = outputLines.contains(where: { $0.line.contains("Cloudflare Pages will redeploy automatically") })
+
+        if exitCode == 0 {
+            if hasNoChangesMarker {
+                return (
+                    WebLibraryPublishState.noChangesMessage,
+                    "Site is already up to date.",
+                    completedAt
+                )
+            }
+
+            let summaryMessage = WebLibraryPublishState.publishedSiteMessage
+            if hasRedeployMarker {
+                return (WebLibraryPublishState.publishedSuccessfullyMessage, summaryMessage, completedAt)
+            }
+
+            return (WebLibraryPublishState.publishedSuccessfullyMessage, summaryMessage, completedAt)
+        }
+
+        return (
+            WebLibraryPublishState.publishFailedMessage,
+            webLibraryPublishFailureSummary(exitCode: exitCode, outputLines: outputLines),
+            completedAt
+        )
+    }
+
+    private func webLibraryPublishFailureSummary(
+        exitCode: Int32,
+        outputLines: [WebLibraryPublishOutputLine]
+    ) -> String {
+        if let stderrLine = outputLines.reversed().first(where: { $0.kind == .stderr })?.line.trimmingCharacters(in: .whitespacesAndNewlines),
+           !stderrLine.isEmpty {
+            return stderrLine
+        }
+
+        if let lastLine = outputLines.reversed().first?.line.trimmingCharacters(in: .whitespacesAndNewlines),
+           !lastLine.isEmpty {
+            return lastLine
+        }
+
+        return "Publish script exited with code \(exitCode)."
+    }
+
     func saveLibrarySampleEdits() {
         assertFacadeConfigured()
         guard let saveEditsUseCase, let resolveRegistrySourceURL else { return }
