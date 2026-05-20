@@ -32,12 +32,27 @@ const WORKSPACE_MIN_SAMPLES_WIDTH = 420;
 const WORKSPACE_MIN_DETAIL_WIDTH = 360;
 const WORKSPACE_SPLITTER_WIDTH = 12;
 const WORKSPACE_STACK_BREAKPOINT = 900;
-const WORKSPACE_TOP_ROW_HEIGHT = "clamp(55vh, 60vh, 65vh)";
+const WORKSPACE_TOP_ROW_HEIGHT = "clamp(520px, 62vh, 760px)";
 const WORKSPACE_DEFAULT_RATIO = 0.58;
+const WORKSPACE_MIN_RATIO = 0.3;
+const WORKSPACE_MAX_RATIO = 0.7;
+const TABLE_COLUMN_STORAGE_KEY = "spinlab.web-library.sample-table-columns";
+const TABLE_COLUMN_DEFS = [
+  { key: "sample", label: "Sample", minWidth: 250, defaultWidth: 340 },
+  { key: "batch", label: "Batch", minWidth: 120, defaultWidth: 150 },
+  { key: "substrate", label: "Substrate", minWidth: 160, defaultWidth: 190 },
+  { key: "charts", label: "Charts", minWidth: 80, defaultWidth: 90 },
+  { key: "updated", label: "Updated", minWidth: 120, defaultWidth: 140 },
+];
 
 const layoutState = {
   splitRatio: WORKSPACE_DEFAULT_RATIO,
   resizeObserver: null,
+};
+
+const tableLayoutState = {
+  columnWidths: null,
+  activeResize: null,
 };
 
 const els = {};
@@ -81,6 +96,192 @@ function sampleCharts(sampleKey) {
   return (state.report?.assetStats?.assets ?? []).filter((asset) => asset.sample_key === sampleKey);
 }
 
+function defaultTableColumnWidths() {
+  return Object.fromEntries(TABLE_COLUMN_DEFS.map((definition) => [definition.key, definition.defaultWidth]));
+}
+
+function sanitizeTableColumnWidths(value) {
+  const fallback = defaultTableColumnWidths();
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return fallback;
+  }
+
+  const widths = {};
+  TABLE_COLUMN_DEFS.forEach((definition) => {
+    const parsed = Number(value[definition.key]);
+    const width = Number.isFinite(parsed) ? Math.round(parsed) : definition.defaultWidth;
+    widths[definition.key] = Math.max(definition.minWidth, width);
+  });
+  return widths;
+}
+
+function readStoredTableColumnWidths() {
+  try {
+    const value = window.localStorage.getItem(TABLE_COLUMN_STORAGE_KEY);
+    if (!value) {
+      return defaultTableColumnWidths();
+    }
+    return sanitizeTableColumnWidths(JSON.parse(value));
+  } catch (error) {
+    return defaultTableColumnWidths();
+  }
+}
+
+function storeTableColumnWidths(widths) {
+  try {
+    window.localStorage.setItem(TABLE_COLUMN_STORAGE_KEY, JSON.stringify(widths));
+  } catch (error) {
+    // Ignore storage failures and keep the current layout in memory.
+  }
+}
+
+function tableColumnWidths() {
+  if (!tableLayoutState.columnWidths) {
+    tableLayoutState.columnWidths = readStoredTableColumnWidths();
+  }
+  return tableLayoutState.columnWidths;
+}
+
+function setTableColumnWidths(nextWidths, persist = true) {
+  tableLayoutState.columnWidths = sanitizeTableColumnWidths(nextWidths);
+  applyTableColumnWidths();
+  if (persist) {
+    storeTableColumnWidths(tableLayoutState.columnWidths);
+  }
+}
+
+function resetTableColumnWidths() {
+  setTableColumnWidths(defaultTableColumnWidths());
+}
+
+function getTableColumnDefinition(key) {
+  return TABLE_COLUMN_DEFS.find((definition) => definition.key === key) ?? null;
+}
+
+function applyTableColumnWidths() {
+  if (!els.sampleTableColgroup) {
+    return;
+  }
+
+  const widths = tableColumnWidths();
+  TABLE_COLUMN_DEFS.forEach((definition, index) => {
+    const column = els.sampleTableColgroup.children[index];
+    if (!column) {
+      return;
+    }
+    column.style.width = `${widths[definition.key]}px`;
+  });
+}
+
+function setupSampleTableStructure() {
+  if (!els.sampleTableTable) {
+    return;
+  }
+
+  els.sampleTableTable.classList.add("sample-table");
+
+  const thead = els.sampleTableTable.querySelector("thead");
+  const headerRow = thead?.querySelector("tr");
+  if (!thead || !headerRow) {
+    return;
+  }
+
+  els.sampleTableColgroup = document.createElement("colgroup");
+  els.sampleTableColgroup.innerHTML = TABLE_COLUMN_DEFS
+    .map((definition) => `<col data-column="${escapeHtml(definition.key)}" />`)
+    .join("");
+  els.sampleTableTable.insertBefore(els.sampleTableColgroup, thead);
+
+  headerRow.innerHTML = TABLE_COLUMN_DEFS
+    .map((definition, index) => {
+      const next = TABLE_COLUMN_DEFS[index + 1];
+      const resizeHandle = next
+        ? `<span class="column-resizer" role="separator" aria-orientation="vertical" aria-label="Resize ${escapeHtml(definition.label)} and ${escapeHtml(next.label)} columns" data-resize-left="${escapeHtml(definition.key)}" data-resize-right="${escapeHtml(next.key)}"></span>`
+        : "";
+      return `
+        <th class="sample-th sample-th-${escapeHtml(definition.key)}" data-column="${escapeHtml(definition.key)}">
+          <span class="sample-th-label">${escapeHtml(definition.label)}</span>
+          ${resizeHandle}
+        </th>
+      `;
+    })
+    .join("");
+
+  applyTableColumnWidths();
+}
+
+function updateSampleTableColumnWidthsFromDrag(leftKey, rightKey, clientX) {
+  const resizeState = tableLayoutState.activeResize;
+  if (!resizeState || resizeState.leftKey !== leftKey || resizeState.rightKey !== rightKey) {
+    return;
+  }
+
+  const leftDef = getTableColumnDefinition(leftKey);
+  const rightDef = getTableColumnDefinition(rightKey);
+  if (!leftDef || !rightDef) {
+    return;
+  }
+
+  const delta = clientX - resizeState.startX;
+  const minDelta = leftDef.minWidth - resizeState.startWidths[leftKey];
+  const maxDelta = resizeState.startWidths[rightKey] - rightDef.minWidth;
+  const clampedDelta = Math.min(maxDelta, Math.max(minDelta, delta));
+  const nextWidths = { ...resizeState.startWidths };
+  nextWidths[leftKey] = Math.round(resizeState.startWidths[leftKey] + clampedDelta);
+  nextWidths[rightKey] = Math.round(resizeState.startWidths[rightKey] - clampedDelta);
+  setTableColumnWidths(nextWidths, false);
+}
+
+function beginSampleTableColumnResize(event) {
+  const handle = event.target.closest("[data-resize-left][data-resize-right]");
+  if (!handle || event.button !== 0) {
+    return;
+  }
+  event.preventDefault();
+
+  const leftKey = handle.dataset.resizeLeft;
+  const rightKey = handle.dataset.resizeRight;
+  if (!leftKey || !rightKey) {
+    return;
+  }
+
+  const widths = { ...tableColumnWidths() };
+  tableLayoutState.activeResize = {
+    leftKey,
+    rightKey,
+    startX: event.clientX,
+    startWidths: widths,
+  };
+
+  document.body.classList.add("is-resizing-columns");
+  handle.setPointerCapture(event.pointerId);
+  updateSampleTableColumnWidthsFromDrag(leftKey, rightKey, event.clientX);
+
+  const onPointerMove = (moveEvent) => {
+    updateSampleTableColumnWidthsFromDrag(leftKey, rightKey, moveEvent.clientX);
+  };
+  const onPointerUp = () => {
+    document.body.classList.remove("is-resizing-columns");
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+    window.removeEventListener("pointercancel", onPointerUp);
+    tableLayoutState.activeResize = null;
+    storeTableColumnWidths(tableColumnWidths());
+  };
+
+  window.addEventListener("pointermove", onPointerMove);
+  window.addEventListener("pointerup", onPointerUp, { once: true });
+  window.addEventListener("pointercancel", onPointerUp, { once: true });
+}
+
+function handleSampleTableColumnDoubleClick(event) {
+  const handle = event.target.closest("[data-resize-left][data-resize-right]");
+  if (!handle) {
+    return;
+  }
+  resetTableColumnWidths();
+}
+
 function readStoredSplitRatio() {
   try {
     const value = window.localStorage.getItem(WORKSPACE_SPLIT_STORAGE_KEY);
@@ -91,7 +292,7 @@ function readStoredSplitRatio() {
     if (!Number.isFinite(parsed)) {
       return WORKSPACE_DEFAULT_RATIO;
     }
-    return Math.min(0.8, Math.max(0.2, parsed));
+    return Math.min(WORKSPACE_MAX_RATIO, Math.max(WORKSPACE_MIN_RATIO, parsed));
   } catch (error) {
     return WORKSPACE_DEFAULT_RATIO;
   }
@@ -135,7 +336,7 @@ function syncWorkspaceLayout() {
 
   workspace.classList.remove("is-stacked");
   workspace.classList.add("is-split");
-  workspace.style.gridTemplateRows = `${WORKSPACE_TOP_ROW_HEIGHT} auto`;
+  workspace.style.gridTemplateRows = `minmax(0, ${WORKSPACE_TOP_ROW_HEIGHT}) auto`;
 
   const available = Math.max(0, width - workspaceSplitterWidth());
   let leftWidth = Math.round(available * layoutState.splitRatio);
@@ -154,7 +355,7 @@ function syncWorkspaceLayout() {
 }
 
 function setWorkspaceSplitRatio(ratio, persist = true) {
-  const normalized = Math.min(0.8, Math.max(0.2, ratio));
+  const normalized = Math.min(WORKSPACE_MAX_RATIO, Math.max(WORKSPACE_MIN_RATIO, ratio));
   layoutState.splitRatio = normalized;
   if (persist) {
     storeSplitRatio(normalized);
@@ -220,10 +421,10 @@ function handleWorkspaceSplitterKeydown(event) {
     setWorkspaceSplitRatio(layoutState.splitRatio + step);
   } else if (event.key === "Home") {
     event.preventDefault();
-    setWorkspaceSplitRatio(0.2);
+    setWorkspaceSplitRatio(WORKSPACE_MIN_RATIO);
   } else if (event.key === "End") {
     event.preventDefault();
-    setWorkspaceSplitRatio(0.8);
+    setWorkspaceSplitRatio(WORKSPACE_MAX_RATIO);
   }
 }
 
@@ -376,14 +577,14 @@ function renderTable() {
       const selected = sample.id === state.selectedKey ? "selected" : "";
       return `
         <tr class="${selected}" data-sample-key="${escapeHtml(sample.id)}">
-          <td>
+          <td class="sample-cell sample-cell-sample">
             <div>${escapeHtml(sample.displayName)}</div>
             <div class="muted">${escapeHtml(sample.id)}</div>
           </td>
-          <td>${escapeHtml(sample.batchId)}</td>
-          <td>${escapeHtml(sample.substrateDisplay || sample.substrateRaw || "")}</td>
-          <td class="num">${escapeHtml(chartCount)}</td>
-          <td>${escapeHtml((sample.updatedAt ?? "").slice(0, 10))}</td>
+          <td class="sample-cell sample-cell-batch">${escapeHtml(sample.batchId)}</td>
+          <td class="sample-cell sample-cell-substrate">${escapeHtml(sample.substrateDisplay || sample.substrateRaw || "")}</td>
+          <td class="sample-cell sample-cell-charts num">${escapeHtml(chartCount)}</td>
+          <td class="sample-cell sample-cell-updated">${escapeHtml((sample.updatedAt ?? "").slice(0, 10))}</td>
         </tr>
       `;
     })
@@ -967,6 +1168,8 @@ async function saveSelectedNote() {
 function attachEvents() {
   els.workspaceSplitter.addEventListener("pointerdown", beginWorkspaceSplitDrag);
   els.workspaceSplitter.addEventListener("keydown", handleWorkspaceSplitterKeydown);
+  els.sampleTableTable.addEventListener("pointerdown", beginSampleTableColumnResize);
+  els.sampleTableTable.addEventListener("dblclick", handleSampleTableColumnDoubleClick);
 
   els.chartsBody.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-action]");
@@ -1064,6 +1267,7 @@ async function main() {
   els.chartOnly = byId("chart-only");
   els.tableCount = byId("table-count");
   els.sampleTable = byId("sample-table");
+  els.sampleTableTable = els.sampleTable.closest("table");
   els.detailHint = byId("detail-hint");
   els.detailBody = byId("detail-body");
   els.chartsHint = byId("charts-hint");
@@ -1082,12 +1286,14 @@ async function main() {
   els.workspaceSplitter.setAttribute("aria-orientation", "vertical");
   els.workspaceSplitter.setAttribute("tabindex", "0");
   els.workspaceSplitter.setAttribute("aria-label", "Resize Samples and Detail panels");
-  els.workspaceSplitter.setAttribute("aria-valuemin", "20");
-  els.workspaceSplitter.setAttribute("aria-valuemax", "80");
+  els.workspaceSplitter.setAttribute("aria-valuemin", String(Math.round(WORKSPACE_MIN_RATIO * 100)));
+  els.workspaceSplitter.setAttribute("aria-valuemax", String(Math.round(WORKSPACE_MAX_RATIO * 100)));
   if (els.workspace && els.detailPanel) {
     els.workspace.insertBefore(els.workspaceSplitter, els.detailPanel);
   }
   layoutState.splitRatio = readStoredSplitRatio();
+  tableLayoutState.columnWidths = readStoredTableColumnWidths();
+  setupSampleTableStructure();
   syncWorkspaceLayout();
 
   window.addEventListener("resize", syncWorkspaceLayout);
