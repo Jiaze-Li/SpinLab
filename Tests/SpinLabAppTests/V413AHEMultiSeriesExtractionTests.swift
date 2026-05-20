@@ -43,31 +43,31 @@ struct V413AHEMultiSeriesExtractionTests {
         } else {
             label = "\(sampleKey) | \(channel)"
         }
-        return WorkbenchPlotSeries(label: label, x: xs, y: ys)
+        return WorkbenchPlotSeries(label: label, x: xs, y: ys, sampleID: sampleKey)
     }
 
     // MARK: - parseSampleKey
 
     @Test("parseSampleKey extracts first segment from standard label")
     func parseSampleKeyStandard() {
-        let key = AHEWorkspaceStore.parseSampleKey(from: "PN31 | ch1 | 80K")
+        let key = ExtractAHEMetricsUseCase.parseSampleKey(from: "PN31 | ch1 | 80K")
         #expect(key == "PN31")
     }
 
     @Test("parseSampleKey handles label without temperature")
     func parseSampleKeyNoTemp() {
-        let key = AHEWorkspaceStore.parseSampleKey(from: "SK-A | ch2")
+        let key = ExtractAHEMetricsUseCase.parseSampleKey(from: "SK-A | ch2")
         #expect(key == "SK-A")
     }
 
     @Test("parseSampleKey returns nil for empty label")
     func parseSampleKeyEmpty() {
-        #expect(AHEWorkspaceStore.parseSampleKey(from: "") == nil)
+        #expect(ExtractAHEMetricsUseCase.parseSampleKey(from: "") == nil)
     }
 
     @Test("parseSampleKey returns key for label without separator")
     func parseSampleKeyNoSeparator() {
-        let key = AHEWorkspaceStore.parseSampleKey(from: "PN31")
+        let key = ExtractAHEMetricsUseCase.parseSampleKey(from: "PN31")
         #expect(key == "PN31")
     }
 
@@ -76,7 +76,7 @@ struct V413AHEMultiSeriesExtractionTests {
     @Test("extractSingleSeriesMetrics returns correct Hc and R_AHE for ideal step")
     func singleSeriesIdealStep() {
         let series = makeAHESeries(sampleKey: "SK-A", hMax: 1.0, amplitude: 0.5, yOffset: 10.0)
-        let (hc, rAHE) = AHEWorkspaceStore.extractSingleSeriesMetrics(series)
+        let (hc, rAHE) = ExtractAHEMetricsUseCase.extractSingleSeriesMetrics(series)
         // Hc should be near 0 for a step function centered at H=0
         #expect(hc < 0.1)
         // R_AHE should be near 0.5 (half the total jump)
@@ -86,7 +86,7 @@ struct V413AHEMultiSeriesExtractionTests {
     @Test("extractSingleSeriesMetrics returns (0,0) for single-point series")
     func singlePoint() {
         let series = WorkbenchPlotSeries(label: "SK-A | ch1", x: [0.5], y: [1.0])
-        let (hc, rAHE) = AHEWorkspaceStore.extractSingleSeriesMetrics(series)
+        let (hc, rAHE) = ExtractAHEMetricsUseCase.extractSingleSeriesMetrics(series)
         #expect(hc == 0.0)
         #expect(rAHE == 0.0)
     }
@@ -97,7 +97,7 @@ struct V413AHEMultiSeriesExtractionTests {
     func multiSeriesDistinctKeys() throws {
         let s1 = makeAHESeries(sampleKey: "SK-A", hMax: 1.0, amplitude: 0.5, yOffset: 5.0)
         let s2 = makeAHESeries(sampleKey: "SK-B", hMax: 1.0, amplitude: 1.0, yOffset: 8.0)
-        let metrics = try AHEWorkspaceStore.extractAHEMetricsPerSeries(from: [s1, s2]).get()
+        let metrics = try ExtractAHEMetricsUseCase.extractAHEMetricsPerSeries(from: [s1, s2]).get()
 
         #expect(metrics.count == 2)
         #expect(metrics["SK-A"] != nil)
@@ -110,7 +110,7 @@ struct V413AHEMultiSeriesExtractionTests {
     func multiSeriesSameKey() throws {
         let s1 = makeAHESeries(sampleKey: "SK-A", channel: "ch1")
         let s2 = makeAHESeries(sampleKey: "SK-A", channel: "ch2")
-        let metrics = try AHEWorkspaceStore.extractAHEMetricsPerSeries(from: [s1, s2]).get()
+        let metrics = try ExtractAHEMetricsUseCase.extractAHEMetricsPerSeries(from: [s1, s2]).get()
 
         #expect(metrics.count == 1)
         #expect(metrics["SK-A"] != nil)
@@ -118,7 +118,7 @@ struct V413AHEMultiSeriesExtractionTests {
 
     @Test("extractAHEMetricsPerSeries returns empty dict for empty input")
     func multiSeriesEmpty() throws {
-        let metrics = try AHEWorkspaceStore.extractAHEMetricsPerSeries(from: []).get()
+        let metrics = try ExtractAHEMetricsUseCase.extractAHEMetricsPerSeries(from: []).get()
         #expect(metrics.isEmpty)
     }
 
@@ -127,9 +127,9 @@ struct V413AHEMultiSeriesExtractionTests {
     @Test("extractAHEMetricsPerSeries returns failure with unparseable label list")
     func unparseableLabelReturnsFailure() {
         let good = makeAHESeries(sampleKey: "SK-A")
-        var bad = makeAHESeries(sampleKey: "SK-B")
-        bad.label = ""  // unparseable
-        let result = AHEWorkspaceStore.extractAHEMetricsPerSeries(from: [good, bad])
+        // unparseable = nil sampleID + empty label (没有任何样品标识)
+        let bad = WorkbenchPlotSeries(label: "", x: [0.0], y: [0.0])
+        let result = ExtractAHEMetricsUseCase.extractAHEMetricsPerSeries(from: [good, bad])
 
         if case .failure(let error) = result {
             #expect(error == .unparseableLabels(["<empty>"]))
@@ -140,11 +140,9 @@ struct V413AHEMultiSeriesExtractionTests {
 
     @Test("extractAHEMetricsPerSeries collects all unparseable labels")
     func multipleUnparseableLabels() {
-        var bad1 = makeAHESeries(sampleKey: "X")
-        bad1.label = ""
-        var bad2 = makeAHESeries(sampleKey: "Y")
-        bad2.label = ""
-        let result = AHEWorkspaceStore.extractAHEMetricsPerSeries(from: [bad1, bad2])
+        let bad1 = WorkbenchPlotSeries(label: "", x: [0.0], y: [0.0])
+        let bad2 = WorkbenchPlotSeries(label: "", x: [0.0], y: [0.0])
+        let result = ExtractAHEMetricsUseCase.extractAHEMetricsPerSeries(from: [bad1, bad2])
 
         if case .failure(let error) = result {
             #expect(error == .unparseableLabels(["<empty>", "<empty>"]))

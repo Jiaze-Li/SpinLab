@@ -7,7 +7,10 @@ Status: active
 - Parsed metadata is suggestion-only until user confirmation.
 - User confirmation is the authority before archive/apply.
 
-## V2 Inbox -> Library contract
+## Inbox -> Library contract
+
+Execution details: `docs/architecture/inbox/CONFIRM_AND_APPLY.md`
+
 - Inbox supports staged processing: parse, edit, review, then manual apply.
 - `Apply Selected` is per file.
 - `Apply All` processes library-matched items only and skips review-required items.
@@ -18,6 +21,14 @@ Status: active
 - Unresolved/conflicting items must enter review-required state.
 - `Clear Imports` only affects pending queue and unarchived managed temp files.
 - `Clear Imports` must never touch files already archived into Library drawers.
+- Duplicate import detection: `fileName + contentHash`. If matched, reject the import and do not create a new pending item.
+
+## Library Metadata Editing
+
+Execution details: `docs/architecture/library/SAMPLE_METADATA_EDITING.md`
+
+- User-defined display names must never be renamed by AI or automated processes.
+- All sample metadata writes must go through `LibrarySampleEditService`; no direct repository writes from views.
 
 ## Audit and traceability
 - Keep a full audit log under Library Root.

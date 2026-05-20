@@ -2,18 +2,21 @@ import Foundation
 
 struct AppEnvironment {
     var persistence: SpinLabPersistence
-    var managedStorage: SpinLabManagedStorage
+    var inboxImportFilter: InboxImportFilterService
+    var libraryArchiveScan: LibraryArchiveScanService
     var sampleRegistry: SampleRegistryIndexing
     var registrySubstrateRules: any RegistrySubstrateRuleProviding
     var routingCapabilities: RoutingCapabilities
     var ruleRuntime: any RuleRuntimeCapability
     var dataActor: any SpinLabDataActing
     var workflowDefinitionStore: WorkflowDefinitionStore = WorkflowDefinitionStore()
+    var libraryAccess: any LibraryAccessCapability = LibraryStore()
 
     static func live(previewRowCount: Int = 10) -> AppEnvironment {
         AppEnvironment(
             persistence: LocalJSONPersistence(),
-            managedStorage: SpinLabManagedStorage(),
+            inboxImportFilter: InboxImportFilterService(),
+            libraryArchiveScan: LibraryArchiveScanService(),
             sampleRegistry: XLSXPrefixSampleRegistryIndex.fromEnvironment(previewRowCount: previewRowCount),
             registrySubstrateRules: RegistrySubstrateRuleBook(),
             routingCapabilities: .live,

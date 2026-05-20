@@ -13,8 +13,8 @@ struct V221DrawerMatchEngineTests {
             material: "sto",
             orientation: "111"
         )
-        // In v4, "baked" and "b" are separate treatments; "BAKED" normalizes to treatment "baked"
-        #expect(descriptor.canonicalKey == "PN32|HF+baked+o|STO|111")
+        // v4 substrate schema: "BAKED" canonicalizes to short code "b"
+        #expect(descriptor.canonicalKey == "PN32|HF+b+o|STO|111")
     }
 
     @Test("exact canonical key match resolves uniquely")

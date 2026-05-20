@@ -4,84 +4,33 @@ struct FilenameTokenizationSection: View {
     @Environment(SpinLabAppState.self) private var appState
 
     @State private var draft: FilenameTokenizationFileDraft?
-    @State private var saveErrors: [RulesPanelFieldError] = []
-    @State private var showConflictAlert = false
-    @State private var pendingConflictChecksum = ""
 
     private var store: RulesManagementStore { appState.rulesPanel }
     private let allowedSources = ["file", "parent", "grandparent"]
 
     var body: some View {
-        VStack(spacing: 0) {
-            saveBar()
-            Divider()
-            Group {
-                if let d = draft {
-                    scrollContent(d)
-                } else {
-                    ContentUnavailableView("No filename tokenization rules loaded", systemImage: "doc.questionmark")
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            Divider()
-            saveBar()
-        }
-        .onAppear { syncFromStore() }
-        .alert("External Change Detected", isPresented: $showConflictAlert) {
-            Button("Reload External Changes") {
-                store.reloadAfterExternalChange(section: .filenameTokenization)
-                syncFromStore()
-            }
-            Button("Override With My Edits", role: .destructive) {
-                handleOutcome(store.overrideWithCurrentDraft(section: .filenameTokenization))
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("The file was modified externally (checksum: \(pendingConflictChecksum.prefix(8))). Choose how to resolve.")
-        }
-    }
-
-    // MARK: - Save bar
-
-    @ViewBuilder
-    private func saveBar() -> some View {
-        HStack(spacing: AppSpacing.md) {
-            if !saveErrors.isEmpty {
-                SaveErrorsBadge(errors: saveErrors)
-            }
-            Spacer()
+        RulesSectionShell(
+            section: .filenameTokenization,
+            isDraftAvailable: draft != nil,
+            versionLabel: draft.map { "Schema version \($0.version)" },
+            onSync: syncFromStore
+        ) { $saveErrors in
             if let d = draft {
-                Text("Schema version \(d.version)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                scrollContent(d, saveErrors: $saveErrors)
             }
-            Button("Discard") { discardEdits() }
-                .buttonStyle(.bordered)
-                .disabled(!store.dirtySections.contains(.filenameTokenization))
-            Button("Save") { saveEdits() }
-                .buttonStyle(.borderedProminent)
-                .disabled(!saveErrors.isEmpty)
         }
-        .padding(.horizontal, AppSpacing.xl)
-        .padding(.vertical, AppSpacing.sm)
     }
 
     // MARK: - Scroll content
 
     @ViewBuilder
-    private func scrollContent(_ d: FilenameTokenizationFileDraft) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                tokenizationGroup(d)
-                    .errorHighlight(saveErrors.hasGroup("tokenization.separators"))
-                sourcesGroup(d)
-                    .errorHighlight(saveErrors.hasGroup("sources"))
-                channelGroup(d)
-                    .errorHighlight(saveErrors.hasGroup("channel.aliases"))
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(AppSpacing.xl)
-        }
+    private func scrollContent(_ d: FilenameTokenizationFileDraft, saveErrors: Binding<[RulesPanelFieldError]>) -> some View {
+        tokenizationGroup(d)
+            .errorHighlight(saveErrors.wrappedValue.hasGroup("tokenization.separators"))
+        sourcesGroup(d)
+            .errorHighlight(saveErrors.wrappedValue.hasGroup("sources"))
+        channelGroup(d)
+            .errorHighlight(saveErrors.wrappedValue.hasGroup("channel.aliases"))
     }
 
     // MARK: - Tokenization
@@ -156,7 +105,6 @@ struct FilenameTokenizationSection: View {
                         .foregroundStyle(.secondary)
                     }
                 }
-                // Add missing sources from whitelist
                 let presentSources = Set(d.sources)
                 let missingSources = allowedSources.filter { !presentSources.contains($0) }
                 if !missingSources.isEmpty {
@@ -244,32 +192,7 @@ struct FilenameTokenizationSection: View {
         store.updateFilenameTokenization(d)
     }
 
-    private func saveEdits() {
-        store.selectSection(.filenameTokenization)
-        handleOutcome(store.saveCurrent())
-    }
-
-    private func discardEdits() {
-        store.discardCurrent()
-        syncFromStore()
-        saveErrors = []
-    }
-
     private func syncFromStore() {
         if let current = store.filenameTokenizationDraft { draft = current }
-    }
-
-    private func handleOutcome(_ outcome: RulesPanelSaveOutcome) {
-        switch outcome {
-        case .saved, .savedWithMirrorWarning:
-            saveErrors = []
-        case .validationFailed(let errors):
-            saveErrors = errors
-        case .externalConflict(let checksum):
-            pendingConflictChecksum = checksum
-            showConflictAlert = true
-        case .ioError(let error):
-            saveErrors = [RulesPanelFieldError(field: "save", message: error.localizedDescription)]
-        }
     }
 }

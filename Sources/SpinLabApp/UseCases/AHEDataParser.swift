@@ -1,11 +1,5 @@
 import Foundation
 
-struct PPMSParsedFile {
-    var columnNames: [String]
-    var rows: [[String]]
-    var sourceRef: String
-}
-
 struct AHEDataParser {
     func parse(fileURL: URL) throws -> PPMSParsedFile {
         let raw: String

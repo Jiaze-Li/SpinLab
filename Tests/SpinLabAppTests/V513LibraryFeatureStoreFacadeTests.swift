@@ -344,8 +344,8 @@ struct LibraryFeatureStorePureLogicTests {
 @Suite("LibraryFeatureStore facade — callback wiring")
 struct LibraryFeatureStoreFacadeCallbackTests {
 
-    @Test("Selection property didSet fires onPersistInteractionSnapshot")
-    func selectionDidSet_firesCallback() {
+    @Test("commitSelection fires onPersistInteractionSnapshot")
+    func commitSelection_firesCallback() {
         let store = TestFixtures.makeStore()
         var callCount = 0
         store.configureFacade(
@@ -362,17 +362,18 @@ struct LibraryFeatureStoreFacadeCallbackTests {
             persistInteractionSnapshot: { callCount += 1 }
         )
 
+        // 5.1.13b: selection 持久化从 didSet auto-trigger 改为显式 commitSelection() 动作
         store.librarySelectedPrefix = "STO"
+        store.librarySelectedBatchId = "B1"
+        store.librarySelectedSampleId = "s1"
+        store.libraryActiveSelectionSource = .drawer
+        #expect(callCount == 0, "属性赋值不再自动触发 callback（didSet observer 已删）")
+
+        store.commitSelection()
         #expect(callCount == 1)
 
-        store.librarySelectedBatchId = "B1"
+        store.commitSelection()
         #expect(callCount == 2)
-
-        store.librarySelectedSampleId = "s1"
-        #expect(callCount == 3)
-
-        store.libraryActiveSelectionSource = .drawer
-        #expect(callCount == 4)
     }
 
     @Test("loadLibraryGlobalManualLogs facade calls onPresentError on failure")

@@ -69,6 +69,14 @@ final class XYRotationWorkspaceStore {
     @ObservationIgnored var vault: AnalysisVault?
     var activePackID: AnalysisPack.ID?
 
+    // MARK: - Environment
+
+    @ObservationIgnored private let env: WorkbenchEnvironment
+
+    init(env: WorkbenchEnvironment = .live) {
+        self.env = env
+    }
+
     // MARK: - Private
 
     @ObservationIgnored private var analysisTask: Task<Void, Never>?
@@ -109,7 +117,7 @@ final class XYRotationWorkspaceStore {
             case .rxxVsPhi: baseForTab = ingestion.sweeps
             case .rxyVsPhi: baseForTab = ingestion.sweeps.filter { $0.resistanceXY != nil }
             }
-            let ordered = XYRotationWorkspaceStore._applySeriesOrder(tabState.seriesOrder, to: baseForTab)
+            let ordered = AlignXYSeriesOrderUseCase.applySeriesOrder(tabState.seriesOrder, to: baseForTab)
             labelMapSeries = Array(ordered.reversed()).map { WorkbenchPlotSeries(label: "", x: [], y: [], sampleID: $0.id) }
         } else {
             labelMapSeries = []
@@ -159,17 +167,17 @@ final class XYRotationWorkspaceStore {
                 let result = IngestXYRotationSelectionsUseCase().execute(hits: selectedHits, numericDisplayBySample: capturedNumericDisplay)
 
                 var rxx = rxxRenderer
-                let (rxxData, rxxLayout, rxxPayload) = rxx.renderRxxVsPhi(
-                    sweeps: XYRotationWorkspaceStore._applySeriesOrder(capturedOrderRxx, to: result.sweeps),
+                let (rxxData, rxxLayout, rxxPayload, rxxWarnings) = rxx.renderRxxVsPhi(
+                    sweeps: AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxx, to: result.sweeps),
                     device: result.device
                 )
                 var rxy = rxyRenderer
-                let (rxyData, rxyLayout, rxyPayload) = rxy.renderRxyVsPhi(
-                    sweeps: XYRotationWorkspaceStore._applySeriesOrder(capturedOrderRxy, to: result.sweeps),
+                let (rxyData, rxyLayout, rxyPayload, rxyWarnings) = rxy.renderRxyVsPhi(
+                    sweeps: AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxy, to: result.sweeps),
                     device: result.device
                 )
                 // Deduplicate pipeline warnings from both tabs
-                let pipelineWarnings = Array(Set(rxx.collectedWarnings + rxy.collectedWarnings))
+                let pipelineWarnings = Array(Set(rxxWarnings + rxyWarnings))
                 return (result, rxxData, rxxLayout, rxxPayload, rxyData, rxyLayout, rxyPayload, pipelineWarnings)
             }.value
 
@@ -218,7 +226,7 @@ final class XYRotationWorkspaceStore {
         let tab = tabs.activeTab
         let renderer = _snapshotRenderer(forTab: tab)
         let capturedOrder = tabs.state(for: tab).seriesOrder
-        let orderedSweeps = XYRotationWorkspaceStore._applySeriesOrder(capturedOrder, to: ingestion.sweeps)
+        let orderedSweeps = AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrder, to: ingestion.sweeps)
         let device = ingestion.device
 
         _renderRevision &+= 1
@@ -226,12 +234,12 @@ final class XYRotationWorkspaceStore {
 
         Task.detached(priority: .userInitiated) { [weak self] in
             var r = renderer
-            let (data, layout, payload): (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?)
+            let (data, layout, payload, _): (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
             switch tab {
             case .rxxVsPhi:
-                (data, layout, payload) = r.renderRxxVsPhi(sweeps: orderedSweeps, device: device)
+                (data, layout, payload, _) = r.renderRxxVsPhi(sweeps: orderedSweeps, device: device)
             case .rxyVsPhi:
-                (data, layout, payload) = r.renderRxyVsPhi(sweeps: orderedSweeps, device: device)
+                (data, layout, payload, _) = r.renderRxyVsPhi(sweeps: orderedSweeps, device: device)
             }
 
             await MainActor.run { [weak self] in
@@ -239,20 +247,6 @@ final class XYRotationWorkspaceStore {
                 self.tabs.setOutput(TabRenderOutput(imageData: data, layout: layout, manifestPayload: payload), for: tab)
             }
         }
-    }
-
-    // MARK: - Series reordering
-
-    nonisolated static func _applySeriesOrder(_ order: [String]?, to sweeps: [XYRotationAngleSweep]) -> [XYRotationAngleSweep] {
-        guard let order, !order.isEmpty else { return sweeps }
-        let byID = Dictionary(uniqueKeysWithValues: sweeps.map { ($0.id, $0) })
-        var result: [XYRotationAngleSweep] = []
-        var consumed = Set<String>()
-        for id in order {
-            if let s = byID[id] { result.append(s); consumed.insert(id) }
-        }
-        for s in sweeps where !consumed.contains(s.id) { result.append(s) }
-        return result
     }
 
     // MARK: - Selection helpers
@@ -315,7 +309,7 @@ final class XYRotationWorkspaceStore {
             return
         }
         let rootURL = URL(fileURLWithPath: rootPath)
-        guard FileManager.default.fileExists(atPath: rootPath) else {
+        guard env.fileManager.fileExists(atPath: rootPath) else {
             relatedChartsGrouped = [:]
             return
         }
@@ -421,18 +415,18 @@ final class XYRotationWorkspaceStore {
 
         for tab in XYRotationWorkbenchTab.allCases {
             let renderer = _snapshotRenderer(forTab: tab)
-            let orderedSweeps = XYRotationWorkspaceStore._applySeriesOrder(
+            let orderedSweeps = AlignXYSeriesOrderUseCase.applySeriesOrder(
                 tabs.state(for: tab).seriesOrder,
                 to: ingestion.sweeps
             )
             Task.detached(priority: .userInitiated) { [weak self] in
                 var r = renderer
-                let (data, layout, payload): (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?)
+                let (data, layout, payload, _): (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
                 switch tab {
                 case .rxxVsPhi:
-                    (data, layout, payload) = r.renderRxxVsPhi(sweeps: orderedSweeps, device: device)
+                    (data, layout, payload, _) = r.renderRxxVsPhi(sweeps: orderedSweeps, device: device)
                 case .rxyVsPhi:
-                    (data, layout, payload) = r.renderRxyVsPhi(sweeps: orderedSweeps, device: device)
+                    (data, layout, payload, _) = r.renderRxyVsPhi(sweeps: orderedSweeps, device: device)
                 }
 
                 await MainActor.run { [weak self] in

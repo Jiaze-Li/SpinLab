@@ -20,9 +20,21 @@ enum RulesPanelSaveOutcome {
 
 // MARK: - Shared types
 
+struct ConditionStandardization: Codable, Hashable {
+    var standardUnit: String?
+    var precision: String?
+
+    var parsedPrecision: Decimal? {
+        guard let s = precision?.trimmingCharacters(in: .whitespaces), !s.isEmpty,
+              let d = Decimal(string: s), d > 0 else { return nil }
+        return d
+    }
+}
+
 struct MapRule: Codable, Hashable {
     var match: MatchSpec
     var value: String
+    var transform: String?
 
     struct MatchSpec: Codable, Hashable {
         var type: String
@@ -56,6 +68,28 @@ struct MapRule: Codable, Hashable {
             try container.encode(type, forKey: .type)
             try container.encode(value, forKey: .value)
         }
+    }
+
+    enum CodingKeys: String, CodingKey { case match, value, transform }
+
+    init(match: MatchSpec, value: String, transform: String? = nil) {
+        self.match = match
+        self.value = value
+        self.transform = transform
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        match = try c.decode(MatchSpec.self, forKey: .match)
+        value = try c.decode(String.self, forKey: .value)
+        transform = try c.decodeIfPresent(String.self, forKey: .transform)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(match, forKey: .match)
+        try c.encode(value, forKey: .value)
+        try c.encodeIfPresent(transform, forKey: .transform)
     }
 }
 
@@ -197,81 +231,41 @@ struct MeasuringConditionFileDraft: Codable {
     var version: Int
     var conditionDefinitions: [ConditionDefinition]
 
-    struct ConditionDefinition: Identifiable {
+    struct ConditionDefinition: Identifiable, Codable {
         var id: String
         var displayName: String?
-        var kind: String
-        var unitPattern: String?
-        var tokenMap: [MapRule]?
-    }
-}
+        var standardization: ConditionStandardization
+        var matches: [MapRule]
 
-extension MeasuringConditionFileDraft.ConditionDefinition: Codable {
-    private enum CodingKeys: String, CodingKey {
-        case id, kind, unitPattern, tokenMap, label, displayName, matches
-    }
+        private enum CodingKeys: String, CodingKey {
+            case id, displayName, label, standardization, matches
+        }
 
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(String.self, forKey: .id)
-        kind = try c.decode(String.self, forKey: .kind)
-        displayName = try c.decodeIfPresent(String.self, forKey: .displayName)
-            ?? c.decodeIfPresent(String.self, forKey: .label)
+        init(id: String, displayName: String?, standardization: ConditionStandardization = ConditionStandardization(), matches: [MapRule]) {
+            self.id = id
+            self.displayName = displayName
+            self.standardization = standardization
+            self.matches = matches
+        }
 
-        if kind == "unit_suffix" {
-            // Unified format: matches: [{type, value}] supporting all 4 ops.
-            // Legacy fallback: unitPattern string or old [{type:"unit-suffix", value}] array.
-            struct MatchEntry: Decodable { let type: String?; let value: String? }
-            if let entries = try c.decodeIfPresent([MatchEntry].self, forKey: .matches) {
-                tokenMap = entries.compactMap { e -> MapRule? in
-                    guard let t = e.type, let v = e.value, !v.isEmpty,
-                          FilenameRuleSet.Operation(rawValue: t) != nil else { return nil }
-                    return MapRule(match: .init(type: t, value: v), value: "$MATCH")
-                }
-            } else if let pattern = try c.decodeIfPresent(String.self, forKey: .unitPattern) {
-                let units = unitsFromUnitPattern(pattern)
-                tokenMap = units.map { MapRule(match: .init(type: "unit-suffix", value: $0), value: "$MATCH") }
-            } else {
-                tokenMap = []
-            }
-            unitPattern = nil
-        } else {
-            // token_map — s12+ format: matches: [MapRule]; pre-s12 format: tokenMap: [MapRule]
-            tokenMap = try c.decodeIfPresent([MapRule].self, forKey: .matches)
-                ?? c.decodeIfPresent([MapRule].self, forKey: .tokenMap)
-            unitPattern = nil
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.decode(String.self, forKey: .id)
+            displayName = try c.decodeIfPresent(String.self, forKey: .displayName)
+                ?? c.decodeIfPresent(String.self, forKey: .label)
+            standardization = try c.decodeIfPresent(ConditionStandardization.self, forKey: .standardization)
+                ?? ConditionStandardization()
+            matches = try c.decodeIfPresent([MapRule].self, forKey: .matches) ?? []
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(id, forKey: .id)
+            try c.encodeIfPresent(displayName, forKey: .displayName)
+            try c.encode(standardization, forKey: .standardization)
+            try c.encode(matches, forKey: .matches)
         }
     }
-
-    func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(id, forKey: .id)
-        try c.encode(kind, forKey: .kind)
-        try c.encodeIfPresent(displayName, forKey: .displayName)
-        if kind == "token_map" {
-            // Nested MapRule format preserves output value: {match: {type, value}, value: outputValue}
-            try c.encode(tokenMap ?? [], forKey: .matches)
-        } else {
-            // unit_suffix: flat format {type, value}; output is always implicit $MATCH
-            let specs = (tokenMap ?? []).map { ["type": $0.match.type, "value": $0.match.value] }
-            try c.encode(specs, forKey: .matches)
-        }
-    }
-}
-
-// MARK: - Unit pattern helpers (bridging unitPattern string ↔ unit-suffix MatchSpec values)
-
-func unitPatternFromUnits(_ units: [String]) -> String {
-    "^-?\\d+(?:\\.\\d+)?(?:\(units.joined(separator: "|")))$"
-}
-
-func unitsFromUnitPattern(_ pattern: String?) -> [String] {
-    guard let pattern else { return [] }
-    let prefix = "^-?\\d+(?:\\.\\d+)?(?:"
-    let suffix = ")$"
-    guard pattern.hasPrefix(prefix), pattern.hasSuffix(suffix) else { return [] }
-    let inner = String(pattern.dropFirst(prefix.count).dropLast(suffix.count))
-    return inner.isEmpty ? [] : inner.components(separatedBy: "|")
 }
 
 // MARK: - Store
@@ -293,6 +287,7 @@ final class RulesManagementStore {
     @ObservationIgnored var persistenceHook: RulesPersistenceHook?
     @ObservationIgnored private var openTimeHashes: [RulesPanelSection: String] = [:]
     @ObservationIgnored private let onRulesSaved: () -> Void
+    @ObservationIgnored private let ruleLoader: any RuleProviding
 
     private(set) var syncStartupOutcome: StartupOutcome = .skipped
     private(set) var mirrorWarningSectionLabel: String?
@@ -312,11 +307,13 @@ final class RulesManagementStore {
     init(
         onRulesSaved: @escaping () -> Void = {},
         syncEngine: RulesSyncEngine? = nil,
-        syncStartupOutcome: StartupOutcome = .skipped
+        syncStartupOutcome: StartupOutcome = .skipped,
+        ruleLoader: (any RuleProviding)? = nil
     ) {
         self.onRulesSaved = onRulesSaved
         self.syncEngine = syncEngine
         self.syncStartupOutcome = syncStartupOutcome
+        self.ruleLoader = ruleLoader ?? RuleLoader.shared
     }
 
     // MARK: - Lifecycle
@@ -359,6 +356,12 @@ final class RulesManagementStore {
         measuringConditionDraft = draft
         availableConditionFieldIDs = draft.conditionDefinitions.map(\.id)
         dirtySections.insert(.measuringCondition)
+    }
+
+    func setBatchPrefixes(from specs: [FilenameRuleSet.MatchSpec]) {
+        guard var draft = sampleIdentificationDraft else { return }
+        draft.sampleId.batchPrefixes = specs.filter { $0.type == .startsWith }.map(\.value)
+        updateSampleIdentification(draft)
     }
 
     // MARK: - Save / Discard
@@ -428,13 +431,22 @@ final class RulesManagementStore {
     }
 
     private func loadAndCacheHash<T: Decodable>(url: URL, section: RulesPanelSection) -> T? {
-        guard FileManager.default.fileExists(atPath: url.path),
-              let data = try? Data(contentsOf: url),
-              let decoded = try? Self.jsonDecoder.decode(T.self, from: data) else {
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            AppLogger.shared.error(.system, "rules read failed: \(url.lastPathComponent)", metadata: ["error": error.localizedDescription])
             return nil
         }
-        openTimeHashes[section] = sha256Hex(of: data)
-        return decoded
+        do {
+            let decoded = try Self.jsonDecoder.decode(T.self, from: data)
+            openTimeHashes[section] = sha256Hex(of: data)
+            return decoded
+        } catch {
+            AppLogger.shared.error(.system, "rules decode failed: \(url.lastPathComponent)", metadata: ["error": error.localizedDescription])
+            return nil
+        }
     }
 
     // MARK: - Save dispatch
@@ -514,8 +526,8 @@ final class RulesManagementStore {
         let newHash = sha256Hex(of: data)
         openTimeHashes[section] = newHash
 
-        _ = RuleLoader.shared.reloadCached()
-        _ = RuleLoader.shared.bumpRuleSetVersion()
+        _ = ruleLoader.reloadCached()
+        _ = ruleLoader.bumpRuleSetVersion()
         onRulesSaved()
 
         let version = (value as? any _VersionedSchema)?.version ?? 0
@@ -554,9 +566,20 @@ final class RulesManagementStore {
     // MARK: - Helpers
 
     private func loadFromDiskOnly<T: Decodable>(url: URL) -> T? {
-        guard FileManager.default.fileExists(atPath: url.path),
-              let data = try? Data(contentsOf: url) else { return nil }
-        return try? Self.jsonDecoder.decode(T.self, from: data)
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            AppLogger.shared.error(.system, "rules read failed: \(url.lastPathComponent)", metadata: ["error": error.localizedDescription])
+            return nil
+        }
+        do {
+            return try Self.jsonDecoder.decode(T.self, from: data)
+        } catch {
+            AppLogger.shared.error(.system, "rules decode failed: \(url.lastPathComponent)", metadata: ["error": error.localizedDescription])
+            return nil
+        }
     }
 
     private func sha256Hex(of data: Data) -> String {
@@ -565,8 +588,14 @@ final class RulesManagementStore {
     }
 
     private func fileHash(at url: URL) -> String? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return sha256Hex(of: data)
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        do {
+            let data = try Data(contentsOf: url)
+            return sha256Hex(of: data)
+        } catch {
+            AppLogger.shared.error(.system, "rules read failed: \(url.lastPathComponent)", metadata: ["error": error.localizedDescription])
+            return nil
+        }
     }
 }
 

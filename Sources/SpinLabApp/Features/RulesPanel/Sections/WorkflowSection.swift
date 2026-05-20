@@ -44,15 +44,9 @@ struct WorkflowSection: View {
         _ d: WorkflowFileDraft,
         saveErrors: Binding<[RulesPanelFieldError]>
     ) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                workflowsGroup(d, saveErrors: saveErrors.wrappedValue)
-                measurementTagRulesGroup(d, saveErrors: saveErrors.wrappedValue)
-                    .errorHighlight(saveErrors.wrappedValue.hasGroup("measurementTagRules"))
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(AppSpacing.xl)
-        }
+        workflowsGroup(d, saveErrors: saveErrors.wrappedValue)
+        measurementTagRulesGroup(d, saveErrors: saveErrors.wrappedValue)
+            .errorHighlight(saveErrors.wrappedValue.hasGroup("measurementTagRules"))
     }
 
     @ViewBuilder
@@ -61,10 +55,9 @@ struct WorkflowSection: View {
         saveErrors: [RulesPanelFieldError]
     ) -> some View {
         GroupBox("Workflows") {
-            VStack(alignment: .leading, spacing: AppSpacing.md) {
+            VStack(alignment: .leading, spacing: 0) {
                 ForEach(d.workflows.indices, id: \.self) { idx in
                     workflowRow(d: d, idx: idx, saveErrors: saveErrors)
-                    Divider()
                 }
 
                 Button("+ Add Workflow") {
@@ -73,6 +66,7 @@ struct WorkflowSection: View {
                     showAddWorkflowSheet = true
                 }
                 .buttonStyle(.bordered)
+                .padding(.top, AppSpacing.md)
             }
         }
         .sheet(isPresented: $showAddWorkflowSheet) {
@@ -150,53 +144,20 @@ struct WorkflowSection: View {
         let entry = d.workflows[idx]
         let isExpanded = expandedWorkflowID == entry.id
         let rowHasError = saveErrors.hasRow(group: "workflows", key: entry.id)
+        let count = entry.matchRules.count
 
-        VStack(alignment: .leading, spacing: 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    if isExpanded {
-                        expandedWorkflowID = nil
-                    } else {
-                        expandedWorkflowID = entry.id
-                    }
-                }
-            } label: {
-                HStack(spacing: AppSpacing.md) {
-                    VStack(alignment: .leading, spacing: AppSpacing.xxs) {
-                        Text(entry.id)
-                            .font(.callout.weight(.semibold).monospaced())
-                            .foregroundStyle(rowHasError ? Color.red : .primary)
-                    }
-                    Spacer()
-                    Text("\(entry.matchRules.count) rule\(entry.matchRules.count == 1 ? "" : "s")")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Button(role: .destructive) {
-                        requestDeleteWorkflow(id: entry.id)
-                    } label: {
-                        Image(systemName: "minus.circle")
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Delete workflow")
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .contentShape(Rectangle())
-                .padding(.vertical, AppSpacing.xs)
-                .padding(.horizontal, AppSpacing.xs)
-            }
-            .buttonStyle(.plain)
-            .background(isExpanded ? Color.accentColor.opacity(0.08) : .clear)
-            .cornerRadius(AppSpacing.xs)
-            .errorHighlight(rowHasError, cornerRadius: AppSpacing.xs)
-
-            if isExpanded {
-                workflowDetail(d: d, idx: idx)
-                    .padding(AppSpacing.md)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(AppSpacing.md)
-            }
+        RuleExpandableRow(
+            title: entry.id,
+            subtitle: "\(count) rule\(count == 1 ? "" : "s")",
+            isExpanded: isExpanded,
+            rowHasError: rowHasError,
+            deleteAccessibilityLabel: "Delete workflow",
+            onToggle: {
+                expandedWorkflowID = isExpanded ? nil : entry.id
+            },
+            onDelete: { requestDeleteWorkflow(id: entry.id) }
+        ) {
+            workflowDetail(d: d, idx: idx)
         }
     }
 
@@ -228,7 +189,7 @@ struct WorkflowSection: View {
     @ViewBuilder
     private func workflowMatchRulesEditor(d: WorkflowFileDraft, idx: Int) -> some View {
         MatchRulesEditor(
-            rules: workflowMatchSpecsBinding(d: d, workflowIdx: idx),
+            specs: workflowMatchSpecsBinding(d: d, workflowIdx: idx),
             allowedOps: [.equals, .contains],
             defaultOp: .equals
         )
@@ -310,7 +271,7 @@ struct WorkflowSection: View {
         saveErrors: [RulesPanelFieldError]
     ) -> some View {
         GroupBox("Measurement Tag Rules") {
-            MatchMapRulesEditor(
+            MatchRulesEditor(
                 rules: Binding(
                     get: { draft?.measurementTagRules ?? [] },
                     set: { newRules in
@@ -321,7 +282,7 @@ struct WorkflowSection: View {
                 ),
                 allowedOps: [.equals, .contains],
                 defaultOp: .equals,
-                outputTitle: "Tag"
+                outputBehavior: .editable(title: "Tag")
             )
         }
         .errorHighlight(saveErrors.hasGroup("measurementTagRules"))

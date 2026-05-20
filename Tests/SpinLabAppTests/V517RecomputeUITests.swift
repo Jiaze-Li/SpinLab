@@ -16,8 +16,8 @@ struct V517RecomputeUITests {
         writeSidecar(fingerprint: "v4:bbb", to: dir.appending(path: "b.csv.spinlab.json"))
         writeSidecar(fingerprint: "v4:aaa", to: dir.appending(path: "c.csv.spinlab.json"))
 
-        let store = LibraryStore()
-        let count = store.computeStaleCount(rootURL: dir, currentFingerprint: "v4:aaa")
+        let svc = LibrarySidecarService(libraryStore: LibraryStore())
+        let count = svc.computeStaleCount(rootURL: dir, currentFingerprint: "v4:aaa")
         #expect(count == 1)
     }
 
@@ -29,8 +29,8 @@ struct V517RecomputeUITests {
         writeSidecar(fingerprint: "v4:aaa", to: dir.appending(path: "a.csv.spinlab.json"))
         writeSidecar(fingerprint: "v4:aaa", to: dir.appending(path: "b.csv.spinlab.json"))
 
-        let store = LibraryStore()
-        #expect(store.computeStaleCount(rootURL: dir, currentFingerprint: "v4:aaa") == 0)
+        let svc = LibrarySidecarService(libraryStore: LibraryStore())
+        #expect(svc.computeStaleCount(rootURL: dir, currentFingerprint: "v4:aaa") == 0)
     }
 
     // MARK: - Condition override write-back
@@ -43,8 +43,8 @@ struct V517RecomputeUITests {
         let sidecarURL = dir.appending(path: "test.csv.spinlab.json")
         writeSidecar(fingerprint: "v4:xxx", conditions: ["temperature": ("300K", "rule:condition.temperature.unitSuffix#0")], to: sidecarURL)
 
-        let store = LibraryStore()
-        let ok = store.saveConditionOverride(sidecarPath: sidecarURL.path, conditionId: "temperature", value: "295K")
+        let svc = LibrarySidecarService(libraryStore: LibraryStore())
+        let ok = svc.saveConditionOverride(sidecarPath: sidecarURL.path, conditionId: "temperature", value: "295K")
         #expect(ok)
 
         let reloaded = try loadSidecar(at: sidecarURL)
@@ -65,9 +65,9 @@ struct V517RecomputeUITests {
         sidecar.userOverrides.conditions["temperature"] = ManualValueOverride(value: "295K", reason: "manual", at: .now)
         writeSidecarDirect(sidecar, to: sidecarURL)
 
-        let store = LibraryStore()
+        let svc = LibrarySidecarService(libraryStore: LibraryStore())
         // Set value back to rule value → override should be removed
-        _ = store.saveConditionOverride(sidecarPath: sidecarURL.path, conditionId: "temperature", value: "300K")
+        _ = svc.saveConditionOverride(sidecarPath: sidecarURL.path, conditionId: "temperature", value: "300K")
 
         let reloaded = try loadSidecar(at: sidecarURL)
         #expect(reloaded.userOverrides.conditions["temperature"] == nil)
@@ -83,8 +83,8 @@ struct V517RecomputeUITests {
         sidecar.userOverrides.conditions["voltage"] = ManualValueOverride(value: "5kV", reason: "manual", at: .now)
         writeSidecarDirect(sidecar, to: sidecarURL)
 
-        let store = LibraryStore()
-        _ = store.removeConditionOverride(sidecarPath: sidecarURL.path, conditionId: "voltage")
+        let svc = LibrarySidecarService(libraryStore: LibraryStore())
+        _ = svc.removeConditionOverride(sidecarPath: sidecarURL.path, conditionId: "voltage")
 
         let reloaded = try loadSidecar(at: sidecarURL)
         #expect(reloaded.userOverrides.conditions["voltage"] == nil)

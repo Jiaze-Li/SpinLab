@@ -10,7 +10,13 @@ struct InboxArchiveApplyResult: Equatable {
 }
 
 struct InboxArchiveApplyService {
-    private let auditLogger = AuditLogger.shared
+    private let auditLogger: any AuditLogging
+    private let ruleProvider: any SpinLabRuleProviding
+
+    init(auditLogger: (any AuditLogging)? = nil, ruleProvider: (any SpinLabRuleProviding)? = nil) {
+        self.auditLogger = auditLogger ?? AuditLogger.shared
+        self.ruleProvider = ruleProvider ?? SpinLabRuleProvider.shared
+    }
 
     enum InboxArchiveApplyError: LocalizedError {
         case sourceFileNotFound
@@ -130,7 +136,9 @@ struct InboxArchiveApplyService {
             )
             return result
         } catch let error as InboxArchiveApplyError {
-            try? transaction.rollback()
+            do { try transaction.rollback() } catch let rollbackError {
+                AppLogger.shared.error(.import, "rollback failed after apply error: \(rollbackError)")
+            }
             writeAuditEvent(
                 pending: pending,
                 sourceURL: sourceURL,
@@ -148,7 +156,9 @@ struct InboxArchiveApplyService {
             )
             throw error
         } catch {
-            try? transaction.rollback()
+            do { try transaction.rollback() } catch let rollbackError {
+                AppLogger.shared.error(.import, "rollback failed after apply error: \(rollbackError)")
+            }
             let appError = AppError.from(error, fallback: "Failed to commit file writes.")
             writeAuditEvent(
                 pending: pending,
@@ -239,7 +249,7 @@ struct InboxArchiveApplyService {
         )
         let workflowDisplayName = matchedDefinition?.displayName ?? workflow
 
-        let loadResult = SpinLabRuleProvider.shared.loadResult()
+        let loadResult = ruleProvider.loadResult()
         let snapshot = SidecarCompositionUseCase.buildRuleSnapshot(
             hints: pending.parsedHints,
             ruleSetFingerprint: loadResult.ruleSetFingerprint,

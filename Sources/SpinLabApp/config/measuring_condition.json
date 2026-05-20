@@ -1,87 +1,138 @@
 {
-    "version": 4,
-    "conditionDefinitions": [
+  "conditionDefinitions" : [
+    {
+      "displayName" : "Device",
+      "id" : "device",
+      "matches" : [
         {
-            "id": "device",
-            "displayName": "Device",
-            "kind": "token_map",
-            "matches": [
-                {
-                    "match": {
-                        "type": "equals",
-                        "value": "wafer"
-                    },
-                    "value": "wafer"
-                }
-            ]
+          "match" : {
+            "type" : "regex",
+            "value" : "deg"
+          },
+          "value" : "$MATCH"
         },
         {
-            "id": "temperature",
-            "displayName": "Temperature",
-            "kind": "unit_suffix",
-            "matches": [
-                {
-                    "type": "unit-suffix",
-                    "value": "K"
-                },
-                {
-                    "type": "unit-suffix",
-                    "value": "k"
-                },
-                {
-                    "type": "unit-suffix",
-                    "value": "C"
-                }
-            ]
-        },
-        {
-            "id": "current",
-            "displayName": "Current",
-            "kind": "unit_suffix",
-            "matches": [
-                {
-                    "type": "unit-suffix",
-                    "value": "mA"
-                },
-                {
-                    "type": "unit-suffix",
-                    "value": "A"
-                },
-                {
-                    "type": "unit-suffix",
-                    "value": "uA"
-                }
-            ]
-        },
-        {
-            "id": "field",
-            "displayName": "Field",
-            "kind": "unit_suffix",
-            "matches": [
-                {
-                    "type": "unit-suffix",
-                    "value": "T"
-                },
-                {
-                    "type": "unit-suffix",
-                    "value": "mT"
-                },
-                {
-                    "type": "unit-suffix",
-                    "value": "Oe"
-                }
-            ]
-        },
-        {
-            "id": "shift",
-            "displayName": "Shift",
-            "kind": "unit_suffix",
-            "matches": [
-                {
-                    "type": "unit-suffix",
-                    "value": "shift"
-                }
-            ]
+          "match" : {
+            "type" : "equals",
+            "value" : "wafer"
+          },
+          "value" : "wafer"
         }
-    ]
+      ],
+      "standardization" : {
+        "precision" : "1",
+        "standardUnit" : "deg"
+      }
+    },
+    {
+      "displayName" : "Temperature",
+      "id" : "temperature",
+      "matches" : [
+        {
+          "match" : {
+            "type" : "regex",
+            "value" : "K"
+          },
+          "value" : "$MATCH"
+        },
+        {
+          "match" : {
+            "type" : "regex",
+            "value" : "C"
+          },
+          "transform" : "+273",
+          "value" : "$MATCH"
+        }
+      ],
+      "standardization" : {
+        "precision" : "1",
+        "standardUnit" : "K"
+      }
+    },
+    {
+      "displayName" : "Current",
+      "id" : "current",
+      "matches" : [
+        {
+          "match" : {
+            "type" : "regex",
+            "value" : "mA"
+          },
+          "value" : "$MATCH"
+        },
+        {
+          "match" : {
+            "type" : "regex",
+            "value" : "A"
+          },
+          "transform" : "*1000",
+          "value" : "$MATCH"
+        },
+        {
+          "match" : {
+            "type" : "regex",
+            "value" : "uA"
+          },
+          "transform" : "*0.001",
+          "value" : "$MATCH"
+        }
+      ],
+      "standardization" : {
+        "precision" : "0.1",
+        "standardUnit" : "mA"
+      }
+    },
+    {
+      "displayName" : "Field",
+      "id" : "field",
+      "matches" : [
+        {
+          "match" : {
+            "type" : "regex",
+            "value" : "T"
+          },
+          "transform" : "*1",
+          "value" : "$MATCH"
+        },
+        {
+          "match" : {
+            "type" : "regex",
+            "value" : "Oe"
+          },
+          "transform" : "*0.0001",
+          "value" : "$MATCH"
+        },
+        {
+          "match" : {
+            "type" : "regex",
+            "value" : "mT"
+          },
+          "transform" : "*0.001",
+          "value" : "$MATCH"
+        }
+      ],
+      "standardization" : {
+        "precision" : "0.5",
+        "standardUnit" : "T"
+      }
+    },
+    {
+      "displayName" : "Shift",
+      "id" : "shift",
+      "matches" : [
+        {
+          "match" : {
+            "type" : "regex",
+            "value" : "shift"
+          },
+          "value" : "$MATCH"
+        }
+      ],
+      "standardization" : {
+        "precision" : "1",
+        "standardUnit" : "shift"
+      }
+    }
+  ],
+  "version" : 7
 }

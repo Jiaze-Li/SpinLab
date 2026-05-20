@@ -7,6 +7,7 @@ struct MeasuringConditionSection: View {
     @State private var selectedConditionID: String? = nil
     @State private var showDeleteConfirm = false
     @State private var pendingDeleteID: String? = nil
+    @State private var showInvalidStandardUnitAlert = false
 
     private var store: RulesManagementStore { appState.rulesPanel }
 
@@ -27,6 +28,11 @@ struct MeasuringConditionSection: View {
         } message: {
             Text(deleteConfirmMessage())
         }
+        .alert("Standard unit no longer exists", isPresented: $showInvalidStandardUnitAlert) {
+            Button("Choose Unit") { showInvalidStandardUnitAlert = false }
+        } message: {
+            Text("Choose a standard unit from the current unit rows before saving.")
+        }
     }
 
     // MARK: - Scroll content
@@ -36,13 +42,7 @@ struct MeasuringConditionSection: View {
         _ d: MeasuringConditionFileDraft,
         saveErrors: Binding<[RulesPanelFieldError]>
     ) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                conditionDefinitionsGroup(d, saveErrors: saveErrors)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(AppSpacing.xl)
-        }
+        conditionDefinitionsGroup(d, saveErrors: saveErrors)
     }
 
     // MARK: - Condition Definitions
@@ -53,11 +53,10 @@ struct MeasuringConditionSection: View {
         saveErrors: Binding<[RulesPanelFieldError]>
     ) -> some View {
         GroupBox("Conditions") {
-            VStack(alignment: .leading, spacing: AppSpacing.md) {
+            VStack(alignment: .leading, spacing: 0) {
                 ForEach(d.conditionDefinitions.indices, id: \.self) { idx in
                     let def = d.conditionDefinitions[idx]
                     conditionRow(def: def, d: d, idx: idx, saveErrors: saveErrors)
-                    Divider()
                 }
                 HStack(spacing: AppSpacing.md) {
                     Button("+ New Condition") {
@@ -65,6 +64,7 @@ struct MeasuringConditionSection: View {
                     }
                     .buttonStyle(.bordered)
                 }
+                .padding(.top, AppSpacing.md)
             }
         }
         .errorHighlight(saveErrors.wrappedValue.hasGroup("conditionDefinitions"))
@@ -79,46 +79,23 @@ struct MeasuringConditionSection: View {
     ) -> some View {
         let isSelected = selectedConditionID == def.id
         let rowHasError = saveErrors.wrappedValue.hasRow(group: "conditionDefinitions", key: def.id)
-        VStack(alignment: .leading, spacing: 0) {
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    selectedConditionID = isSelected ? nil : def.id
-                }
-            }) {
-                HStack(spacing: AppSpacing.md) {
-                    Text(def.id)
-                        .font(.callout.weight(.semibold).monospaced())
-                        .foregroundStyle(rowHasError ? Color.red : .primary)
-                    Spacer()
-                    Button(role: .destructive) {
-                        requestDelete(id: def.id, d: d)
-                    } label: { Image(systemName: "minus.circle") }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Delete condition")
-                    Image(systemName: isSelected ? "chevron.up" : "chevron.down")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                .contentShape(Rectangle())
-                .padding(.vertical, AppSpacing.xs)
-                .padding(.horizontal, AppSpacing.xs)
-            }
-            .buttonStyle(.plain)
-            .background(isSelected ? Color.accentColor.opacity(0.08) : .clear)
-            .cornerRadius(AppSpacing.xs)
-            .errorHighlight(rowHasError, cornerRadius: AppSpacing.xs)
 
-            if isSelected {
-                conditionDetail(idx: idx, d: d)
-                    .padding(AppSpacing.md)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(AppSpacing.md)
-            }
+        RuleExpandableRow(
+            title: def.id,
+            isExpanded: isSelected,
+            rowHasError: rowHasError,
+            deleteAccessibilityLabel: "Delete condition",
+            onToggle: { selectedConditionID = isSelected ? nil : def.id },
+            onDelete: { requestDelete(id: def.id, d: d) }
+        ) {
+            conditionDetail(idx: idx, d: d)
         }
     }
 
     @ViewBuilder
     private func conditionDetail(idx: Int, d: MeasuringConditionFileDraft) -> some View {
         let def = d.conditionDefinitions[idx]
+        let unitOptions = MeasuringConditionRuleProjection.standardUnitOptions(from: def.matches)
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             LabeledContent("Display Name") {
                 TextField("display name (optional)", text: Binding(
@@ -131,91 +108,65 @@ struct MeasuringConditionSection: View {
                 ))
                 .textFieldStyle(.roundedBorder)
             }
-            LabeledContent("Kind") {
-                Picker("", selection: Binding(
-                    get: { def.kind },
-                    set: { newKind in
-                        var u = d
-                        u.conditionDefinitions[idx].kind = newKind
-                        if newKind == "unit_suffix" && u.conditionDefinitions[idx].unitPattern == nil {
-                            u.conditionDefinitions[idx].unitPattern = ""
-                        } else if newKind == "token_map" && u.conditionDefinitions[idx].tokenMap == nil {
-                            u.conditionDefinitions[idx].tokenMap = []
-                        }
-                        apply(u)
-                    }
-                )) {
-                    Text("unit_suffix").tag("unit_suffix")
-                    Text("token_map").tag("token_map")
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 240)
-                .labelsHidden()
-            }
-
-            if def.kind == "unit_suffix" {
-                MatchRulesEditor(
-                    rules: unitSuffixSpecsBinding(condIdx: idx),
-                    allowedOps: [.unitSuffix, .equals, .contains],
-                    defaultOp: .unitSuffix
-                )
-            } else {
-                MatchMapRulesEditor(
-                    rules: tokenMapRulesBinding(condIdx: idx),
-                    allowedOps: [.equals, .contains],
-                    defaultOp: .equals,
-                    outputTitle: "Mapped to"
-                )
-            }
+            MatchRulesEditor(
+                rules: rulesBinding(condIdx: idx),
+                allowedOps: [.equals, .contains, .unitSuffix, .regex],
+                defaultOp: .equals,
+                outputBehavior: .conditionTransform(
+                    title: "Mapped to",
+                    standardUnit: standardUnitBinding(condIdx: idx),
+                    precision: precisionBinding(condIdx: idx),
+                    onInvalidStandardUnit: { showInvalidStandardUnitAlert = true }
+                ),
+                unitOptions: unitOptions
+            )
         }
     }
 
-    // MARK: - Bindings (unit_suffix ↔ [FilenameRuleSet.MatchSpec], token_map ↔ [MapRule])
+    // MARK: - Bindings
 
-    private func unitSuffixSpecsBinding(condIdx: Int) -> Binding<[FilenameRuleSet.MatchSpec]> {
+    private func rulesBinding(condIdx: Int) -> Binding<[MapRule]> {
         Binding(
             get: {
                 guard let d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return [] }
-                let def = d.conditionDefinitions[condIdx]
-                if let tokenMap = def.tokenMap {
-                    return tokenMap.compactMap {
-                        guard let op = FilenameRuleSet.Operation(rawValue: $0.match.type) else { return nil }
-                        return FilenameRuleSet.MatchSpec(type: op, value: $0.match.value)
-                    }
-                }
-                // legacy: unitPattern fallback
-                return unitsFromUnitPattern(def.unitPattern)
-                    .map { FilenameRuleSet.MatchSpec(type: .unitSuffix, value: $0) }
+                return d.conditionDefinitions[condIdx].matches
             },
-            set: { specs in
+            set: { newRules in
                 guard var d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return }
-                d.conditionDefinitions[condIdx].tokenMap = specs.map {
-                    MapRule(match: .init(type: $0.type.rawValue, value: $0.value), value: "$MATCH")
-                }
-                d.conditionDefinitions[condIdx].unitPattern = nil
+                let standardUnit = d.conditionDefinitions[condIdx].standardization.standardUnit
+                let outcome = MeasuringConditionRuleProjection.normalize(rules: newRules, standardUnit: standardUnit)
+                d.conditionDefinitions[condIdx].matches = outcome.normalizedRules
+                d.conditionDefinitions[condIdx].standardization.standardUnit = outcome.standardUnit
+                if outcome.didInvalidateStandardUnit { showInvalidStandardUnitAlert = true }
                 apply(d)
             }
         )
     }
 
-    private func tokenMapRulesBinding(condIdx: Int) -> Binding<[MapRule]> {
+    private func standardUnitBinding(condIdx: Int) -> Binding<String?> {
         Binding(
             get: {
-                guard let d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return [] }
-                // Exclude unit-suffix rules from token_map view — they're incompatible with
-                // token_map's allowed ops and would cause Picker auto-snap data corruption.
-                // They remain in storage and reappear when switching back to unit_suffix.
-                return (d.conditionDefinitions[condIdx].tokenMap ?? []).filter {
-                    $0.match.type != "unit-suffix"
-                }
+                guard let d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return nil }
+                return d.conditionDefinitions[condIdx].standardization.standardUnit
             },
-            set: { newRules in
+            set: { newVal in
                 guard var d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return }
-                // Preserve any hidden unit-suffix rules alongside the new token_map rules.
-                let preserved = (d.conditionDefinitions[condIdx].tokenMap ?? []).filter {
-                    $0.match.type == "unit-suffix"
-                }
-                d.conditionDefinitions[condIdx].tokenMap = preserved + newRules
+                d.conditionDefinitions[condIdx].standardization.standardUnit = newVal
+                apply(d)
+            }
+        )
+    }
+
+    private func precisionBinding(condIdx: Int) -> Binding<String> {
+        Binding(
+            get: {
+                guard let d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return "" }
+                return d.conditionDefinitions[condIdx].standardization.precision ?? ""
+            },
+            set: { newVal in
+                guard var d = draft, d.conditionDefinitions.indices.contains(condIdx) else { return }
+                let trimmed = newVal.trimmingCharacters(in: .whitespacesAndNewlines)
+                d.conditionDefinitions[condIdx].standardization.precision = trimmed.isEmpty ? nil : trimmed
                 apply(d)
             }
         )
@@ -270,40 +221,9 @@ struct MeasuringConditionSection: View {
         var n = 2
         while existingIDs.contains(newID) { newID = "new_condition_\(n)"; n += 1 }
         var u = d
-        u.conditionDefinitions.append(.init(
-            id: newID,
-            displayName: nil,
-            kind: "unit_suffix",
-            unitPattern: nil,
-            tokenMap: []
-        ))
+        u.conditionDefinitions.append(.init(id: newID, displayName: nil, matches: []))
         apply(u)
         selectedConditionID = newID
-    }
-
-    // MARK: - Bindings
-
-    private func tokenMapRuleBinding(condIdx: Int, ruleIdx: Int) -> Binding<MapRule> {
-        Binding(
-            get: {
-                guard let d = self.draft,
-                      d.conditionDefinitions.indices.contains(condIdx),
-                      let rules = d.conditionDefinitions[condIdx].tokenMap,
-                      rules.indices.contains(ruleIdx) else {
-                    return MapRule(match: .init(type: "equals", value: ""), value: "")
-                }
-                return rules[ruleIdx]
-            },
-            set: { newValue in
-                guard var d = self.draft,
-                      d.conditionDefinitions.indices.contains(condIdx),
-                      var rules = d.conditionDefinitions[condIdx].tokenMap,
-                      rules.indices.contains(ruleIdx) else { return }
-                rules[ruleIdx] = newValue
-                d.conditionDefinitions[condIdx].tokenMap = rules
-                self.apply(d)
-            }
-        )
     }
 
     // MARK: - Actions

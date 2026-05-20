@@ -1,6 +1,24 @@
 import Foundation
 
 struct FilenameRuleSet: Decodable {
+    // MARK: - Schema typealiases (physical location: Domain/Routing/FilenameRuleSetSchema.swift)
+    typealias Operation = FilenameRuleSetSchema.Operation
+    typealias MatchSpec = FilenameRuleSetSchema.MatchSpec
+    typealias ConditionStandardization = FilenameRuleSetSchema.ConditionStandardization
+    typealias MapRule = FilenameRuleSetSchema.MapRule
+    typealias ConditionDefinition = FilenameRuleSetSchema.ConditionDefinition
+    typealias Tokenization = FilenameRuleSetSchema.Tokenization
+    typealias Source = FilenameRuleSetSchema.Source
+    typealias SampleIdRules = FilenameRuleSetSchema.SampleIdRules
+    typealias ChannelRules = FilenameRuleSetSchema.ChannelRules
+    typealias ConditionRules = FilenameRuleSetSchema.ConditionRules
+    typealias RegistryRules = FilenameRuleSetSchema.RegistryRules
+    typealias ImportRules = FilenameRuleSetSchema.ImportRules
+    typealias SubstrateEntry = FilenameRuleSetSchema.SubstrateEntry
+    typealias SubstrateConfig = FilenameRuleSetSchema.SubstrateConfig
+
+    // MARK: - Runtime-only result types (not Codable, evaluator output)
+
     struct ExtraConditionEvaluation {
         var values: [String: String]
         var warnings: [String]
@@ -15,175 +33,6 @@ struct FilenameRuleSet: Decodable {
         var sourcedValues: [String: SourcedConditionValue]
         var warnings: [String]
         var values: [String: String] { sourcedValues.mapValues(\.value) }
-    }
-
-    private enum UnitValueNormalizationMode {
-        case trimNoise
-        case halfStep
-    }
-
-    // MARK: - Operation enum (4-op closed set)
-
-    enum Operation: String, Codable, Hashable, Sendable, CaseIterable {
-        case equals
-        case contains
-        case startsWith = "starts-with"
-        case unitSuffix = "unit-suffix"
-    }
-
-    // MARK: - Flat MatchSpec (type + single value)
-
-    struct MatchSpec: Codable, Hashable, Sendable {
-        var type: Operation
-        var value: String
-    }
-
-    // MARK: - MapRule (match + output value)
-
-    struct MapRule: Codable, Hashable, Sendable {
-        var match: MatchSpec
-        var value: String
-    }
-
-    // MARK: - ConditionMatches (kind-discriminated)
-
-    enum ConditionMatches: Sendable {
-        case unitSuffix([MatchSpec])
-        case tokenMap([MapRule])
-    }
-
-    enum ConditionDefinitionKind: String, Decodable {
-        case unitSuffix = "unit_suffix"
-        case tokenMap = "token_map"
-    }
-
-    struct ConditionDefinition: Decodable {
-        var id: String
-        var displayName: String?
-        var kind: ConditionDefinitionKind
-        var matches: ConditionMatches
-
-        @available(*, deprecated, renamed: "displayName")
-        var label: String? { displayName }
-
-        private enum CodingKeys: String, CodingKey {
-            case id, kind, displayName, label, matches
-        }
-
-        init(id: String, displayName: String?, kind: ConditionDefinitionKind, matches: ConditionMatches) {
-            self.id = id
-            self.displayName = displayName
-            self.kind = kind
-            self.matches = matches
-        }
-
-        init(from decoder: Decoder) throws {
-            let c = try decoder.container(keyedBy: CodingKeys.self)
-            id = try c.decode(String.self, forKey: .id)
-            kind = try c.decode(ConditionDefinitionKind.self, forKey: .kind)
-            displayName = try c.decodeIfPresent(String.self, forKey: .displayName)
-                ?? c.decodeIfPresent(String.self, forKey: .label)
-
-            switch kind {
-            case .unitSuffix:
-                let specs = try c.decodeIfPresent([MatchSpec].self, forKey: .matches) ?? []
-                matches = .unitSuffix(specs)
-            case .tokenMap:
-                let rules = try c.decodeIfPresent([MapRule].self, forKey: .matches) ?? []
-                matches = .tokenMap(rules)
-            }
-        }
-    }
-
-    struct Tokenization: Decodable {
-        var separators: String
-        var caseFold: String
-    }
-
-    enum Source: String, Decodable {
-        case file
-        case parent
-        case grandparent
-    }
-
-    struct SampleIdRules: Decodable {
-        var matches: [MatchSpec]
-
-        init(matches: [MatchSpec] = []) {
-            self.matches = matches
-        }
-
-        private enum CodingKeys: String, CodingKey {
-            case matches
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            matches = try container.decodeIfPresent([MatchSpec].self, forKey: .matches) ?? []
-        }
-    }
-
-    struct ChannelRules: Decodable {
-        var aliases: [String: String]
-    }
-
-    struct ConditionRules: Decodable {
-        var extraConditions: [String: String]
-        var tokenMapRules: [String: [MapRule]]
-        var displayLabels: [String: String]
-
-        init(
-            extraConditions: [String: String] = [:],
-            tokenMapRules: [String: [MapRule]] = [:],
-            displayLabels: [String: String] = [:]
-        ) {
-            self.extraConditions = extraConditions
-            self.tokenMapRules = tokenMapRules
-            self.displayLabels = displayLabels
-        }
-
-        private enum CodingKeys: String, CodingKey {
-            case extraConditions, tokenMapRules, displayLabels
-        }
-
-        init(from decoder: any Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            extraConditions = try container.decodeIfPresent([String: String].self, forKey: .extraConditions) ?? [:]
-            tokenMapRules = try container.decodeIfPresent([String: [MapRule]].self, forKey: .tokenMapRules) ?? [:]
-            displayLabels = try container.decodeIfPresent([String: String].self, forKey: .displayLabels) ?? [:]
-        }
-
-        func patternMap() -> [String: String] {
-            extraConditions
-        }
-    }
-
-    struct RegistryRules: Decodable {
-        var sampleHeaderAliases: [String]
-        var excludedSheetNames: [String]
-        var sampleCellSeparators: String
-        var batchHeaderAliases: [String]
-        var substrateHeaderAliases: [String]
-        var numericKeyAliases: [String: [String]]
-        var metadataLookupAliases: [String: [String]]
-    }
-
-    struct ImportRules: Decodable {
-        var supportedFileExtensions: [String]
-        var ignoredFileExtensions: [String]
-    }
-
-    // MARK: - Substrate types (v4+: SubstrateEntry uses shared MatchSpec)
-
-    struct SubstrateEntry: Decodable {
-        var displayName: String
-        var matches: [MatchSpec]
-    }
-
-    struct SubstrateConfig: Decodable {
-        var materials: [SubstrateEntry]
-        var treatments: [SubstrateEntry]
-        var orientations: [SubstrateEntry]
     }
 
     // MARK: - Compiled substrate entry
@@ -204,6 +53,12 @@ struct FilenameRuleSet: Decodable {
     struct CompiledMapRule {
         var match: CompiledMatchSpec
         var value: String
+        var transform: String?
+    }
+
+    struct CompiledConditionDefinition {
+        var standardization: ConditionStandardization?
+        var rules: [CompiledMapRule]
     }
 
     struct CompiledRules {
@@ -211,7 +66,7 @@ struct FilenameRuleSet: Decodable {
         var measurementNameRules: [CompiledMapRule] = []
         var measurementTagRules: [CompiledMapRule] = []
         var channelAliases: [String: String] = [:]
-        var conditionRules: [String: [CompiledMapRule]] = [:]
+        var conditionRules: [String: CompiledConditionDefinition] = [:]
         var substrateMaterialEntries: [CompiledSubstrateEntry] = []
         var substrateTreatmentEntries: [CompiledSubstrateEntry] = []
         var substrateOrientationEntries: [CompiledSubstrateEntry] = []
@@ -347,32 +202,22 @@ struct FilenameRuleSet: Decodable {
     }
 
     func measurementName(from tokens: [String]) -> String? {
-        firstMatchValue(from: compiled.measurementNameRules, tokens: tokens, joined: nil)
+        firstMatchWithIndex(from: compiled.measurementNameRules, tokens: tokens)?.value
     }
 
-    func measurementName(from tokens: [String], joined: String) -> String? {
-        firstMatchValue(from: compiled.measurementNameRules, tokens: tokens, joined: joined)
-    }
-
-    func measurementNameWithSource(from tokens: [String], joined: String) -> (value: String, ruleRef: String)? {
-        guard let result = firstMatchValueWithIndex(from: compiled.measurementNameRules, tokens: tokens, joined: joined) else {
-            return nil
-        }
+    func measurementNameWithSource(from tokens: [String]) -> (value: String, ruleRef: String)? {
+        guard let result = firstMatchWithIndex(from: compiled.measurementNameRules, tokens: tokens) else { return nil }
         return (result.value, RuleRef.measurementNameRule(index: result.ruleIndex))
     }
 
     func measurementTags(from tokens: [String]) -> [String] {
-        collectMatchValues(from: compiled.measurementTagRules, tokens: tokens)
+        collectMatchedRules(from: compiled.measurementTagRules, tokens: tokens).map(\.value)
     }
 
     func measurementTagsWithSources(from tokens: [String]) -> [(value: String, ruleRef: String)] {
-        var result: [(value: String, ruleRef: String)] = []
-        for (idx, rule) in compiled.measurementTagRules.enumerated() {
-            if matches(rule: rule, tokens: tokens, joined: nil) {
-                result.append((rule.value, RuleRef.measurementTagRule(index: idx)))
-            }
+        collectMatchedRules(from: compiled.measurementTagRules, tokens: tokens).map {
+            ($0.value, RuleRef.measurementTagRule(index: $0.ruleIndex))
         }
-        return result
     }
 
     func substrateTags(from tokens: [String]) -> [String] {
@@ -431,41 +276,36 @@ struct FilenameRuleSet: Decodable {
     }
 
     func conditionEvaluation(from tokens: [String]) -> ExtraConditionEvaluation {
-        var values: [String: String] = [:]
-        for ruleID in compiled.conditionRules.keys.sorted() {
-            if let value = conditionValue(for: ruleID, from: tokens) {
-                values[ruleID] = value
-            }
-        }
-        return ExtraConditionEvaluation(values: values, warnings: [])
+        let sourced = conditionEvaluationWithSources(from: tokens)
+        return ExtraConditionEvaluation(values: sourced.values, warnings: sourced.warnings)
     }
 
     func conditionEvaluationWithSources(from tokens: [String]) -> ExtraConditionEvaluationWithSources {
         let allRuleIDs = compiled.conditionRules.keys.sorted()
         var sourcedValues: [String: SourcedConditionValue] = [:]
-        let warnings: [String] = []
+        var warnings: [String] = []
 
         for ruleID in allRuleIDs {
-            let definitionIndex = conditionDefinitions.firstIndex(where: { $0.id == ruleID }) ?? 0
-            let definition = conditionDefinitions.first(where: { $0.id == ruleID })
-            guard let rules = compiled.conditionRules[ruleID] else { continue }
-
-            for (ruleIndex, rule) in rules.enumerated() {
+            guard let condDef = compiled.conditionRules[ruleID] else { continue }
+            for (ruleIndex, rule) in condDef.rules.enumerated() {
                 guard let matched = tokens.first(where: { tokenMatches(text: $0, compiled: rule.match) }) else { continue }
-                let rawValue = rule.value == "$MATCH" ? matched : rule.value
-
-                let isTokenMap: Bool
-                if case .tokenMap = definition?.matches { isTokenMap = true } else { isTokenMap = false }
-
                 let value: String
-                let ref: String
-                if isTokenMap {
-                    value = rawValue
-                    ref = RuleRef.conditionTokenMap(id: ruleID, ruleIndex: ruleIndex)
+                let op = rule.match.spec.type
+                if rule.value != "$MATCH" {
+                    value = rule.value
+                } else if op == .regex {
+                    value = applyStandardization(
+                        matched: matched,
+                        transform: rule.transform,
+                        standardization: condDef.standardization,
+                        ruleID: ruleID,
+                        ruleIndex: ruleIndex,
+                        warnings: &warnings
+                    )
                 } else {
-                    value = normalizeUnitSuffixToken(rawValue, ruleID: ruleID)
-                    ref = RuleRef.conditionUnitSuffix(id: ruleID, definitionIndex: definitionIndex)
+                    value = matched
                 }
+                let ref = RuleRef.conditionRule(id: ruleID, ruleIndex: ruleIndex)
                 sourcedValues[ruleID] = SourcedConditionValue(value: value, ruleRef: ref)
                 break
             }
@@ -535,6 +375,18 @@ struct FilenameRuleSet: Decodable {
             }
             let pattern = "^-?\\d+(?:\\.\\d+)?(?:\(NSRegularExpression.escapedPattern(for: trimmed)))$"
             result.generatedRegex = compileRegex(pattern, warnings: &warnings, label: label)
+
+        case .regex:
+            guard !trimmed.isEmpty else {
+                warnings.append("\(label): empty regex pattern; rule never matches")
+                return result
+            }
+            // Regex semantics: pattern represents the unit suffix. Token must be
+            // <signed number><optional whitespace><pattern>, anchored end-to-end.
+            // Pattern itself is a regex sub-expression (alternation/character class allowed),
+            // wrapped in a non-capturing group so anchoring isn't broken.
+            let pattern = "^-?\\d+(?:\\.\\d+)?\\s*(?:\(trimmed))$"
+            result.generatedRegex = compileRegex(pattern, warnings: &warnings, label: label)
         }
 
         return result
@@ -552,25 +404,23 @@ struct FilenameRuleSet: Decodable {
 
     private func compileMapRules(_ rules: [MapRule], warnings: inout [String], label: String) -> [CompiledMapRule] {
         rules.map { rule in
-            CompiledMapRule(match: compileMatchSpec(rule.match, warnings: &warnings, label: label), value: rule.value)
+            CompiledMapRule(
+                match: compileMatchSpec(rule.match, warnings: &warnings, label: label),
+                value: rule.value,
+                transform: rule.transform
+            )
         }
     }
 
     private mutating func compileConditionDefinitions(warnings: inout [String]) {
         compiled.conditionRules = [:]
-
         for definition in conditionDefinitions {
             let id = definition.id.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !id.isEmpty else { continue }
-
-            switch definition.matches {
-            case .unitSuffix(let specs):
-                compiled.conditionRules[id] = specs.map { spec in
-                    CompiledMapRule(match: compileMatchSpec(spec, warnings: &warnings, label: id), value: "$MATCH")
-                }
-            case .tokenMap(let rules):
-                compiled.conditionRules[id] = compileMapRules(rules, warnings: &warnings, label: id)
-            }
+            compiled.conditionRules[id] = CompiledConditionDefinition(
+                standardization: definition.standardization,
+                rules: compileMapRules(definition.matches, warnings: &warnings, label: id)
+            )
         }
     }
 
@@ -681,24 +531,7 @@ struct FilenameRuleSet: Decodable {
         return nil
     }
 
-    private func firstMatchValue(from rules: [CompiledMapRule], tokens: [String], joined: String?) -> String? {
-        for rule in rules {
-            for token in tokens where tokenMatches(token: token, rule: rule) {
-                return rule.value == "$MATCH" ? token : rule.value
-            }
-        }
-        return nil
-    }
-
-    private func matches(rule: CompiledMapRule, tokens: [String], joined: String?) -> Bool {
-        tokens.contains(where: { tokenMatches(token: $0, rule: rule) })
-    }
-
-    private func firstMatchValueWithIndex(
-        from rules: [CompiledMapRule],
-        tokens: [String],
-        joined: String?
-    ) -> (value: String, ruleIndex: Int)? {
+    private func firstMatchWithIndex(from rules: [CompiledMapRule], tokens: [String]) -> (value: String, ruleIndex: Int)? {
         for (idx, rule) in rules.enumerated() {
             for token in tokens where tokenMatches(token: token, rule: rule) {
                 return (rule.value == "$MATCH" ? token : rule.value, idx)
@@ -707,14 +540,10 @@ struct FilenameRuleSet: Decodable {
         return nil
     }
 
-    private func collectMatchValues(from rules: [CompiledMapRule], tokens: [String], joined: String? = nil) -> [String] {
-        var collected: [String] = []
-        for rule in rules {
-            if tokens.contains(where: { tokenMatches(token: $0, rule: rule) }) {
-                collected.append(rule.value)
-            }
+    private func collectMatchedRules(from rules: [CompiledMapRule], tokens: [String]) -> [(value: String, ruleIndex: Int)] {
+        rules.enumerated().compactMap { (idx, rule) in
+            tokens.contains(where: { tokenMatches(token: $0, rule: rule) }) ? (rule.value, idx) : nil
         }
-        return collected
     }
 
     private func tokenMatches(token: String, rule: CompiledMapRule) -> Bool {
@@ -730,54 +559,61 @@ struct FilenameRuleSet: Decodable {
             return text.lowercased() == value.lowercased()
         case .contains:
             return text.lowercased().contains(value.lowercased())
-        case .startsWith, .unitSuffix:
+        case .startsWith, .unitSuffix, .regex:
             guard let regex = compiled.generatedRegex else { return false }
             let range = NSRange(text.startIndex..<text.endIndex, in: text)
             return regex.firstMatch(in: text, options: [], range: range) != nil
         }
     }
 
-    private func regexMatch(regex: NSRegularExpression, text: String) -> Bool {
-        let range = NSRange(text.startIndex..<text.endIndex, in: text)
-        return regex.firstMatch(in: text, options: [], range: range) != nil
-    }
-
     private func conditionValue(for ruleID: String, from tokens: [String]) -> String? {
-        guard let rules = compiled.conditionRules[ruleID] else { return nil }
-        return conditionFirstMatchValue(ruleID: ruleID, tokens: tokens, rules: rules)
+        conditionEvaluationWithSources(from: tokens).sourcedValues[ruleID]?.value
     }
 
-    private func conditionFirstMatchValue(ruleID: String, tokens: [String], rules: [CompiledMapRule]) -> String? {
-        for rule in rules {
-            if let matched = tokens.first(where: { tokenMatches(text: $0, compiled: rule.match) }) {
-                if rule.value == "$MATCH" {
-                    return normalizeUnitSuffixToken(matched, ruleID: ruleID)
-                }
-                return rule.value
+    private func applyStandardization(
+        matched: String,
+        transform: String?,
+        standardization: ConditionStandardization?,
+        ruleID: String,
+        ruleIndex: Int,
+        warnings: inout [String]
+    ) -> String {
+        guard let standardization, let standardUnit = standardization.standardUnit else {
+            return matched
+        }
+        guard let split = splitNumericUnitToken(matched),
+              let numericValue = Double(split.number) else {
+            return matched
+        }
+        let trimmedTransform = transform?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        var workingValue = numericValue
+        if !trimmedTransform.isEmpty {
+            let evaluator = ConditionTransformExpressionEvaluator()
+            do {
+                workingValue = try evaluator.evaluate(trimmedTransform, value: numericValue)
+            } catch {
+                warnings.append("condition '\(ruleID)' rule \(ruleIndex): transform '\(trimmedTransform)' invalid: \(error)")
+                return matched
             }
         }
-        return nil
+        var finalDecimal = Decimal(string: String(workingValue)) ?? Decimal(workingValue)
+        if let precision = standardization.parsedPrecision {
+            finalDecimal = roundToPrecision(finalDecimal, precision: precision)
+        }
+        return "\(formatDecimal(finalDecimal))\(standardUnit)"
     }
 
-    private func normalizeUnitSuffixToken(_ token: String, ruleID: String) -> String {
-        guard let split = splitNumericUnitToken(token) else {
-            return token
-        }
-        guard let numericValue = Decimal(string: split.number, locale: Locale(identifier: "en_US_POSIX")) else {
-            return token
-        }
-
-        let normalized = normalize(numericValue, mode: normalizationMode(for: ruleID))
-        return "\(formatDecimal(normalized))\(split.unit)"
-    }
-
-    private func normalizationMode(for ruleID: String) -> UnitValueNormalizationMode {
-        switch ruleID {
-        case ConditionFieldCatalog.temperatureID, ConditionFieldCatalog.fieldID:
-            return .halfStep
-        default:
-            return .trimNoise
-        }
+    private func roundToPrecision(_ value: Decimal, precision: Decimal) -> Decimal {
+        var v = value
+        var p = precision
+        var ratio = Decimal()
+        NSDecimalDivide(&ratio, &v, &p, .plain)
+        var rounded = Decimal()
+        var ratioSource = ratio
+        NSDecimalRound(&rounded, &ratioSource, 0, .plain)
+        var result = Decimal()
+        NSDecimalMultiply(&result, &rounded, &p, .plain)
+        return result
     }
 
     private func splitNumericUnitToken(_ token: String) -> (number: String, unit: String)? {
@@ -798,37 +634,6 @@ struct FilenameRuleSet: Decodable {
             return nil
         }
         return (number: number, unit: unit)
-    }
-
-    private func normalize(_ value: Decimal, mode: UnitValueNormalizationMode) -> Decimal {
-        switch mode {
-        case .trimNoise:
-            return rounded(value, scale: 6)
-        case .halfStep:
-            return roundedToHalfStep(value)
-        }
-    }
-
-    private func rounded(_ value: Decimal, scale: Int) -> Decimal {
-        var source = value
-        var result = Decimal()
-        NSDecimalRound(&result, &source, scale, .plain)
-        return result
-    }
-
-    private func roundedToHalfStep(_ value: Decimal) -> Decimal {
-        var source = value
-        var two = Decimal(2)
-        var scaled = Decimal()
-        NSDecimalMultiply(&scaled, &source, &two, .plain)
-
-        var roundedScaled = Decimal()
-        var scaledSource = scaled
-        NSDecimalRound(&roundedScaled, &scaledSource, 0, .plain)
-
-        var result = Decimal()
-        NSDecimalDivide(&result, &roundedScaled, &two, .plain)
-        return result
     }
 
     private func formatDecimal(_ value: Decimal) -> String {
@@ -875,26 +680,22 @@ struct FilenameRuleSet: Decodable {
                 ConditionDefinition(
                     id: ConditionFieldCatalog.temperatureID,
                     displayName: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.temperatureID],
-                    kind: .unitSuffix,
-                    matches: .unitSuffix([])
+                    matches: []
                 ),
                 ConditionDefinition(
                     id: ConditionFieldCatalog.currentID,
                     displayName: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.currentID],
-                    kind: .unitSuffix,
-                    matches: .unitSuffix([])
+                    matches: []
                 ),
                 ConditionDefinition(
                     id: ConditionFieldCatalog.fieldID,
                     displayName: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.fieldID],
-                    kind: .unitSuffix,
-                    matches: .unitSuffix([])
+                    matches: []
                 ),
                 ConditionDefinition(
                     id: ConditionFieldCatalog.deviceID,
                     displayName: ConditionFieldCatalog.builtInConditionLabels[ConditionFieldCatalog.deviceID],
-                    kind: .tokenMap,
-                    matches: .tokenMap([])
+                    matches: []
                 )
             ],
             registry: RegistryRules(

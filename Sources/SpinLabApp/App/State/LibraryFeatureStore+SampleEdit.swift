@@ -28,8 +28,8 @@ extension LibraryFeatureStore {
                 try libraryStore.updateSample(updated, rootURL: rootURL, changeSource: "manual_edit")
             },
             resolveRegistrySourceURL: resolveRegistrySourceURL,
-            syncRegistrySource: { [libraryStore] current, updated, registrySourceURL in
-                try libraryStore.syncRegistrySourceForEditedSample(
+            syncRegistrySource: { [libraryRegistrySyncService] current, updated, registrySourceURL in
+                try libraryRegistrySyncService.syncEditedSample(
                     oldSample: current,
                     updatedSample: updated,
                     registrySourceURL: registrySourceURL

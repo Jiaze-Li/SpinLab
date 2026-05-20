@@ -29,7 +29,7 @@ struct RegistryCoordinator {
 
     func loadSampleRegistry(
         from sourceURL: URL,
-        managedStorage: SpinLabManagedStorage,
+        managedStorage: LibraryArchiveScanService,
         registryLifecycleService: RegistryLifecycleService,
         dataActor: any SpinLabDataActing
     ) async -> RegistryLoadOutcome {

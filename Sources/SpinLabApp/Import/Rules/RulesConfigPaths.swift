@@ -3,6 +3,13 @@ import Foundation
 struct RulesConfigPaths {
     let configDirectoryURL: URL
 
+    /// Test / explicit-injection entry: caller provides the config directory directly.
+    /// Use this from tests with a tempDir to avoid touching the real Application Support.
+    /// Mirror of `LibrarySettingsStore.init(settingsURL:)`; same single-user-app rationale.
+    init(configDirectoryURL: URL) {
+        self.configDirectoryURL = configDirectoryURL
+    }
+
     init(fileManager: FileManager = .default) {
         let base = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory())

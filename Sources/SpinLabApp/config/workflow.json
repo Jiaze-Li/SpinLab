@@ -1,101 +1,106 @@
 {
-    "version": 3,
-    "workflows": [
+  "measurementTagRules" : [
+    {
+      "match" : {
+        "type" : "equals",
+        "value" : "AMR"
+      },
+      "value" : "AMR"
+    },
+    {
+      "match" : {
+        "type" : "equals",
+        "value" : "PHE"
+      },
+      "value" : "PHE"
+    },
+    {
+      "match" : {
+        "type" : "equals",
+        "value" : "RXX"
+      },
+      "value" : "Rxx"
+    },
+    {
+      "match" : {
+        "type" : "equals",
+        "value" : "RXY"
+      },
+      "value" : "Rxy"
+    }
+  ],
+  "version" : 3,
+  "workflows" : [
+    {
+      "conditionFieldIDs" : [
+        "device",
+        "temperature"
+      ],
+      "displayName" : "MR",
+      "id" : "MR",
+      "matchRules" : [
         {
-            "id": "MR",
-            "displayName": "MR",
-            "matchRules": [
-                {
-                    "type": "equals",
-                    "value": "MR"
-                }
-            ],
-            "conditionFieldIDs": [
-                "temperature",
-                "field"
-            ]
-        },
-        {
-            "id": "ahe",
-            "displayName": "AHE",
-            "matchRules": [
-                {
-                    "type": "equals",
-                    "value": "AHE"
-                }
-            ],
-            "conditionFieldIDs": [
-                "temperature",
-                "field"
-            ]
-        },
-        {
-            "id": "3w",
-            "displayName": "3\u03c9",
-            "matchRules": [
-                {
-                    "type": "equals",
-                    "value": "3w"
-                }
-            ],
-            "conditionFieldIDs": []
-        },
-        {
-            "id": "RT",
-            "displayName": "RT",
-            "matchRules": [
-                {
-                    "type": "equals",
-                    "value": "rt"
-                }
-            ],
-            "conditionFieldIDs": [
-                "current"
-            ]
-        },
-        {
-            "id": "XY",
-            "displayName": "XY Rotation",
-            "matchRules": [
-                {
-                    "type": "equals",
-                    "value": "xy"
-                }
-            ],
-            "conditionFieldIDs": [
-                "temperature",
-                "field"
-            ]
+          "type" : "equals",
+          "value" : "MR"
         }
-    ],
-    "measurementTagRules": [
+      ]
+    },
+    {
+      "conditionFieldIDs" : [
+        "device",
+        "temperature"
+      ],
+      "displayName" : "AHE",
+      "id" : "ahe",
+      "matchRules" : [
         {
-            "match": {
-                "type": "equals",
-                "value": "AMR"
-            },
-            "value": "AMR"
-        },
-        {
-            "match": {
-                "type": "equals",
-                "value": "PHE"
-            },
-            "value": "PHE"
-        },
-        {
-            "match": {
-                "type": "equals",
-                "value": "RXX"
-            },
-            "value": "Rxx"
-        },
-        {
-            "match": {
-                "type": "equals",
-                "value": "RXY"
-            },
-            "value": "Rxy"
+          "type" : "equals",
+          "value" : "AHE"
         }
-    ]
+      ]
+    },
+    {
+      "conditionFieldIDs" : [
+        "device",
+        "temperature"
+      ],
+      "displayName" : "3w",
+      "id" : "3w",
+      "matchRules" : [
+        {
+          "type" : "equals",
+          "value" : "3w"
+        }
+      ]
+    },
+    {
+      "conditionFieldIDs" : [
+        "device"
+      ],
+      "displayName" : "RT",
+      "id" : "RT",
+      "matchRules" : [
+        {
+          "type" : "equals",
+          "value" : "rt"
+        }
+      ]
+    },
+    {
+      "conditionFieldIDs" : [
+        "device",
+        "temperature",
+        "field",
+        "shift"
+      ],
+      "displayName" : "XY Rotation",
+      "id" : "XY",
+      "matchRules" : [
+        {
+          "type" : "equals",
+          "value" : "xy"
+        }
+      ]
+    }
+  ]
 }

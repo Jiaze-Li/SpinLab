@@ -325,7 +325,7 @@ struct V213InboxClosedLoopTests {
     private func makeAppState(persistence: MockPersistenceForV213) -> SpinLabAppState {
         SpinLabAppState(
             persistence: persistence,
-            managedStorage: SpinLabManagedStorage(
+            libraryArchiveScan: LibraryArchiveScanService(
                 rootURL: FileManager.default.temporaryDirectory
                     .appendingPathComponent("spinlab-v213-\(UUID().uuidString)", isDirectory: true)
             )

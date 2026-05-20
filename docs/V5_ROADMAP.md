@@ -299,41 +299,170 @@ s3 输出的设计稿必须显式列出以下代码点，s4 才能一次清干�
 
 - [x] 双层 sidecar（`ruleSnapshot` 可重算 / `userOverrides` 永不动）+ rule provenance + Recompute UI（stale banner + dry-run preview + condition edit + source tooltip）。设计纪要：[history/v517_rule_provenance.md](history/v517_rule_provenance.md)。
 
-### 5.1.8 — Condition kind 数据模型解耦（首条结构债清理）
+### 5.1.8 — Condition 统一规则列表（首条结构债清理）
 
-**状态**：`[ ]` 待启动。前置依赖 5.1.6 s4 产出的「结构债清单」收尾，本条作为清单的首条立项。
+- [x] Condition 不再 `unit_suffix` / `token_map` 二选一，统一为单一 `matches: [MapRule]` + schema v5→v6 一次性迁移；UI 删 segmented control，编辑器收敛到 `MatchRulesEditor`；`$MATCH` 输出锁定到 unit-suffix op（PR #61 Codex 评审守住）。设计与实施摘要：[history/v518_condition_unified_rules.md](history/v518_condition_unified_rules.md)。遗留 `NewRuleEntrySheet.RuleEntryKind` 死路径移交 5.1.9 收编。
 
-**动机**：5.1.5 s12 落地后留有一处典型结构耦合 —— Measuring Condition 的 `unit_suffix` 与 `token_map` 两种 kind 在 UI 上是独立分区，但底层共享 `ConditionDefinition.tokenMap` 单一字段，靠 `match.type` 过滤区分。切换 kind 时通过 binding 的 getter/setter 做合并/过滤逻辑，**两种模式的写入会互相覆盖**。
+### 5.1.9 — Measuring Condition 单位标准化 + NewRuleEntrySheet 死路径收编
 
-回归案例：unit_suffix → token_map → 切回 unit_suffix，原 unit-suffix match 条目消失。s12 收尾追加 `V515ConditionKindSwitchTests` 4 个用例守此契约，但**测试守的是 binding 层兜底，不是数据模型本身**。
+- [x] Measuring Condition 单位标准化（标准单位 + 换算 + 精度清洗）+ NewRuleEntrySheet 死路径收编；v6→v7 schema 迁移；旧隐式归一化完全删除；47 tests 全绿。设计与实施摘要：[history/v519_condition_standardization.md](history/v519_condition_standardization.md)
 
-**顶层原则**：UI 上语义独立的两种模式，数据模型必须独立存储。共享字段靠 binding 过滤是结构债，不是设计。
+### 5.1.10 — 架构合规审计多版本流水线规划
 
-**任务拆分**：
+- [x] 5.1.11–5.1.14 多版本架构合规审计流水线规划入 ROADMAP（流水线总段 + 4 子段）+ TASK_BOARD（8 行进行中）；双 AI 协作收敛 14 条决策 + "不做"清单；AUDIT_PLAYBOOK 推迟到 5.1.11a 跑通后落地；纯文档零代码。设计与协作过程纪要：[history/v5110_audit_pipeline_planning.md](history/v5110_audit_pipeline_planning.md)
 
-| 会话 | 主题 | 工作量 |
+## 架构合规审计多版本流水线（5.1.11 – 5.1.14）
+
+> 此段是 5.1.11–5.1.14 共享的设计纪要，落 ROADMAP 是为了未来打开任一子版本时不需要回头翻 tmp / handoff 才能理解决策。规划起点：`tmp/2026-05-02-claude-review-of-capability-threads.md`（含 Codex 收敛意见）。
+
+### 动机
+
+5.1.6 完成"区/层 → 文件 → 稳定职责"的全量映射（218 文件，0 暧昧），但**只回答了"这文件归谁"，没回答"它实际做的事是不是匹配那个层应该做的事"**。一年内 5.1.7/5.1.8/5.1.9 三轮持续在 Inbox 区改动，5.3.x 持续在 Workbench 区改动，Code Map 注释和实际代码必然出现漂移。如果不审，5.1.6 那张图会慢慢变装饰；如果用全代码 review 的方式审，体量太大不可执行。本流水线选"风险驱动抽样 + 按区分流水线"的中间路径。
+
+### 任务范围（拍板）
+
+- **只做"架构合规审计"**：验代码 vs Code Map 声明的层职责
+- **不做** 跨区流程链索引文档（`CAPABILITY_THREADS.md`）：与 5.1.6 INDEX collaborator 段重复，会变第四真理源
+- **不做** 扩展契约文档（`EXTENSION_CONTRACTS.md`）：暂留 deferred；只在审计中重复出现 extension pattern drift（多个新 workflow 都 fork shell / 多个 workflow-private plot 控件重复一样的事）时回头起独立版本
+
+### 编号约定
+
+- `a` = 审计（纯文档，零代码改动）
+- `b` = 修复主轮
+- `c/d` = 修复溢出（按需启用）
+- 一个版本对应一个区（11=Workbench / 12=Inbox / 13=Library / 14=跨区 meta）
+
+### 流水线顺序与理由
+
+```
+5.1.11ab  Workbench   ← 当前最活跃（5.3.x 持续改），漂移概率最高，前期收益最大
+5.1.12ab  Inbox       ← 5.1.7-9 三轮重构刚做完，验证刚改完的边界
+5.1.13ab  Library     ← 相对稳定，预计违规密度低
+5.1.14ab  跨区 meta   ← 吃前三轮攒出的链级 + 边界不清问题
+```
+
+每对独立闭环：a 完成后才开 b；其他区的 a 可以并发开（11b 修着可以开 12a），但不强制。
+
+### 判定口径（双 lens）
+
+> 调用链优先 + 必要时验实际行为。纯调用链会漏：UI 文件可能调一个看似正常的 helper、helper 内偷做业务排序；Store 调 service 看似正常但实际拥有跨区策略；Repository import 看着无害但持久化路径里有业务分支。
+
+每个抽样文件审两件事：
+
+1. **调用链**：这文件实际调谁、被谁调；和 Code Map 声明的层职责是否匹配
+2. **实际行为**：副作用、数据变换、ownership 行为；是否只做该层应该做的事
+
+### 三分类发现 + 处置策略
+
+| 类型 | 定义 | 处置 |
 |---|---|---|
-| s1-design | 设计稿对抗 → handoff（消费 design seed 文件作为派发输入） | 设计会话 |
-| s1-exec | 按 handoff 落代码：domain model / 迁移 / binding 简化 / 测试改写 | 中（6–10 h） |
+| **Violation** | 实际边界违规，存在 regression / 派发误判 / 测试性风险 | 入清单 → 喂给 b/c/d 或 14；产出表 disposition 列直接标注下一版派发信息（target version / 修复粒度 / 依赖关系），让 a 跑完时 b 的 ROADMAP 已成型 |
+| **Drift** | code 与 docs 不一致但风险不高 | a 轮内**当场改 Code Map 注释**（已是 Session Closeout 第 6 条职责）；产出表加一段 `Doc Drift Fixed`，让审计历史可读，不入独立任务清单 |
+| **Accepted Boundary** | 跨区行为是有意为之、与架构一致 | 简短记录（产出表 `Accepted Boundaries` 段）；如果有意为之但不显然，顺手补 docs |
 
-**关键 acceptance gate**（高层口径，细节见 design seed）：
+### 跨区疑点侧栏（Cross-Region Doubts For 5.1.14）
 
-- **AG1** 数据模型层面 kind 完全独立——一种 kind 的写入不影响另一种 kind 的存储
-- **AG2** kind 切换无副作用——纯标记切换，不涉及任何数据合并 / 过滤 / 复制
-- **AG3** schema 一次性迁完，不留双 schema 兼容路径；用户已有规则**不得静默丢弃**（含歧义条目，必须 backup + audit）
-- **AG4** 测试守住数据模型契约（两字段互不影响），不是 binding 兜底
-- **AG5** UI 行为对用户完全一致（切换 kind 不丢内容、不打乱顺序）
+每个 a 轮产出表必含此段，规则：
 
-**否决方案及理由**（不要后续 agent 推翻）：
+- **只记自然出现的**——不分支去做完整链调查
+- **不在当区 b 修**——除非有明确单区 owner
+- **喂给 14**——14 入场时把三轮侧栏合并为输入清单
 
-- ❌ 保留单字段 + 加更复杂的 binding 过滤逻辑 —— 结构债加深，非清理
-- ❌ 双 schema 并存兼容 —— 一次性迁完，与 5.1.5 F 项迁移策略一致
-- ❌ 测试形态不跟着数据模型变 —— 数据模型变了，契约测试必须重写
-- ❌ 迁移时把无法判定的歧义条目静默归到一边 —— 违反"用户配置不可清理"硬约束
+理由：避免 Workbench/Inbox/Library 的 b 轮被链级问题污染范围；同时给 14 免费攒输入（前三轮等于在垂直审计的同时做了水平观察）。
 
-**实施方案种子**：[`docs/handoff/_pending/5.1.8-condition-kind-decoupling-design-seed.md`](handoff/_pending/5.1.8-condition-kind-decoupling-design-seed.md)（含 s1-design 必拍板问题 / 迁移歧义策略 / 字段命名候选 / 测试覆盖详单 / Codex review findings 整合）
+### 抽样策略（风险驱动，不强求 218 全量）
 
-**来源**：5.1.5 s12 收尾确认的回归 case；2026-04-28 与 Jack 对齐为 5.1.6 架构梳理后的首条结构债。
+每个 a 轮抽样池构造：
+
+- 该区 Code Map 全部条目
+- 关联到 5.1.6 `SP-*` 共享点的文件
+- 关联到 5.1.6 `G-*` shell / 大文件候选
+- 该区高风险层代表（UI / FeatureStore / UseCase / Service / Repository 各挑代表）
+- 5.1.6 之后新增 / 移动的 swift 文件（pre-commit hook 强制登记的那批）
+- 自 5.1.6 以来变更频繁的文件（git 触达次数高 + 与高风险共享重合）
+
+11a 跑完一轮后再决定 12/13 是继续风险驱动还是扩面。
+
+### Cross-cutting 归属规则
+
+不立独立审计版本（理由：Cross-cutting 没有"作为单一区的边界"，本来就是给多区共用，违规形态分散）。归属：
+
+- **共享 UI / Domain / helper 文件** → 按"主消费者"归 11/12/13（抽样池构造时归属判定写入 a 段产出表注释）
+- **AppState / Registry / 全局协调器整体设计问题** → 归 14（属于跨区 meta）
+- **5.1.6 附录 G `G-*` 候选**（G-002 AppState 1816 行 / G-008 WorkflowWorkspaceShell / G-010 RulesBootstrapper 等） → 按既有 ROADMAP 节奏走，**不**归审计版本
+
+### c/d 溢出触发（四维度判断，不用违规条数硬卡）
+
+启用 c/d 当：
+
+- 影响层数：b 单轮波及 ≥ 3 个 layer
+- commit 数：b 单轮 ≥ 5 个独立 commit
+- 是否能独立 review：违规之间有依赖、无法独立 review → 拆 c
+- 行为变更 vs 纯移代码：纯移代码可以合并，行为变更必须独立 → 拆 c
+
+### AUDIT_PLAYBOOK 时机（不预先建）
+
+> 方法没实战验证就正式化会变成束缚。
+
+- 5.1.11a **之前**：方法说明只在 11a handoff / tmp 草稿中存在
+- 5.1.11a **之中**：用方法跑 Workbench
+- 5.1.11a **跑完**：从 battle-tested 方法落正式 `docs/architecture/AUDIT_PLAYBOOK.md`，定位"审计方法论"，不写 Code Map / 不写流程链 / 不和既有架构文档抢内容
+- 5.1.12a / 5.1.13a：套 playbook，仅当有真实改进时回写 playbook（活文档）
+
+### 验收 / 归档
+
+- a 轮：产出表（Violation + Doc Drift Fixed + Accepted Boundaries + Cross-Region Doubts + Fix-Round Draft 五段）落 `docs/handoff/<YYYY-MM-DD>-<region>-audit.md`，归档时同步更新 `docs/history/` + `history/INDEX.md`
+- b/c/d 轮：每个 Violation 消除有对应 commit；commit message 引用产出表行号
+- 14 验收：前三轮 Cross-Region Doubts 全部有处置（修订 / 接受 / 推迟到具体后续版本）
+
+---
+
+### 5.1.11 — Workbench 边界合规审计 + 修复（架构审计流水线第 1 轮）
+
+> 流水线起点。本版本同时承担"跑通方法 + 审 Workbench"双任务。
+
+- [x] 5.1.11a 审计：按上述抽样策略 + 判定口径在 Workbench 区扫一轮；产出五段表；纯文档零代码（Drift 改 Code Map 注释除外）。44 样本；21 Violation / 8 Drift / 34 Accepted；§5 Fix-Round Draft 分 5 批。设计与审计纪要：[history/v5111a_workbench_audit.md](history/v5111a_workbench_audit.md)
+- [x] 5.1.11a 收尾：从 battle-tested 方法落 `docs/architecture/AUDIT_PLAYBOOK.md`
+- [x] 5.1.11b 修复：Renderer do-catch pipeline + Persistence fail-soft + Setter/View 副作用搬位（AS-18/19/21/32/35/36/38）
+- [x] 5.1.11c/d 修复溢出：AHE metric + XY series order → UseCase；3ω physics models + PPMSParsedFile → Domain/；附加修复 NavigationSplitView columnVisibility。纪要：[history/v5111bcd_workbench_compliance_fixes.md](history/v5111bcd_workbench_compliance_fixes.md)
+
+### 5.1.12 — Inbox 边界合规审计 + 修复（架构审计流水线第 2 轮）
+
+> 套用 `AUDIT_PLAYBOOK.md`；针对 5.1.7-9 三轮重构后的 Inbox 区。
+
+- [x] 5.1.12a 审计
+- [x] 5.1.12b 修复
+- [ ] 5.1.12c/d 修复溢出（按需启用）
+
+### 5.1.13 — Library 边界合规审计 + 修复（架构审计流水线第 3 轮）
+
+> 套用 `AUDIT_PLAYBOOK.md`；Library 相对稳定，预计违规密度低于 11/12。
+
+- [x] 5.1.13a 审计 — 套 AUDIT_PLAYBOOK Library 5 层 29 条 AS-ID；Codex 综合评审 adopt-with-fixes；产出 9 V + 4 D + 16 A + 3 CR。设计与执行纪要：[history/v5113a_library_audit.md](history/v5113a_library_audit.md)
+- [x] 5.1.13b 修复 — 8 V 全清 (C1–C8)；含 [high] V-003 applyBatch/All `try?` 收口 + V-009 抽 LibraryMeasurementDataPresenter；commit `a134b31`
+- [x] 5.1.13c V-005 完整结案 + AS-19 收口 — 抽 LibraryRegistrySyncService (C9 Phase 2) + stale/override 全归 LibrarySidecarService (C10 Phase 3) + LibraryRegistryParser CoreXLSX try? Adj-10 (C11)；commit `ab0f9e5`。**5.1.13d 未启用**（V-005 已完整结案，无溢出修复需要）。设计与执行纪要：[history/v5113bc_library_compliance_fixes.md](history/v5113bc_library_compliance_fixes.md)
+
+### 5.1.14 — 跨区 meta 修订（链级一致性 + 边界不清）
+
+- [x] 5.1.14a 收敛：三根因收敛（DI 三档 + Domain 三 Tier + UseCase stateless）+ 17 INV 防回归不变式；定稿 handoff 第 3 稿。设计与执行纪要：[history/v5114_cross_region_meta_convergence.md](history/v5114_cross_region_meta_convergence.md)
+- [x] 5.1.14b 落地：14b/14c/14d 三批 20 commit；DI 基础设施 + workspace 注入 + service 拆分 + Domain Tier 1/2 物理迁移；17 INV 全绿；244/244 coverage。**14c/d 溢出未触发**。
+
+### 5.1.15 — God file 拆分（5 份 >1000 行 Swift 文件）✅ 2026-05-04 — B 节奏 3 轮全绿；5 文件共 6834 行 → 1+11ext/1+9ext/1+11ext/1+7ext/1+11ext+3类型；characterization tests 全绿；295/295 coverage。设计思路见 [history/v5115_godfile_split.md](history/v5115_godfile_split.md)。
+
+- [x] Round 1 — RulesBootstrapper 拆分（Claude）：1203 行 → 1 主 + 7 extension + 1 verification model；characterization tests 覆盖 v1→v7 + s12 完整 migration 链
+- [x] Round 1 — LibraryStore 拆分（Codex）：1112 行 → 1 主 + 9 extension；characterization tests 覆盖 ensureRoot / drawer CRUD / change log / measurement sets / backup
+- [x] Round 2 — ThreeOmegaWorkspaceStore 拆分（Codex）：1534 行 → 1 主 + 11 extension；characterization tests 覆盖 runAnalysis / runScaling / pack restore / series order；trace commit point 不变式守护
+- [x] Round 2 — LibraryFeatureStore 拆分（Claude）：1167 行 → 1 主 + 7 extension + 1 outcomes 文件；characterization tests 覆盖 dirty selection guard / facade callback 顺序 / sync review；严禁动 configureFacade 接口形态
+- [x] Round 3 — SpinLabAppState 拆分（Claude 主拆 + Codex acceptance review）：1822 行 → 1 主 + 11 extension + 3 外提类型；characterization tests 覆盖 startup 顺序 / Apply pipeline / ContextProvider capture / duplicate guard / interaction snapshot
+
+### 5.1.15h — 测试隔离 + 配置安全网（hotfix）✅ 2026-05-04 — LibrarySettingsStore 双 init（生产无参 + 测试 `init(settingsURL: URL)`）+ save() 写 `.backup` 显式 do/catch 安全网 + load() rootPath 不存在 warning + characterization 13 case 改 closure-based isolated fixture + 新增持久化隔离 regression test；测试前后 sha256 sentinel 一字不差；UI 路径 .backup 自动写入已生产验证。设计思路见 [history/v5115h_test_isolation.md](history/v5115h_test_isolation.md)。
+
+- [x] 实施 + Codex 评审 adopt-with-fixes（5 must-fix 全并入），commit `4b6e052`
+
+### 5.1.16 — 5.1.15 残债清扫（测试跟进 + Library 横幅假阳性）
+
+- [x] A 包：4 项测试同步债跟进源码（G1 typed sampleID / G2 condition unification / G3 explicit selection action / G4 substrate short-code）—— history `v5116_test_sync_and_recompute_banner.md`
+- [x] B 包：Library 蓝色横幅假阳性 — H/H2/H3 三阶段修复（口径与 Apply 按钮可点条件统一为 group0 only）—— 同 history
 
 ---
 
@@ -465,3 +594,94 @@ _(未分配)_
 
 ### 5.7.1 — TASK_BOARD 引入 + 文档治理重构
 - [x] 新建 TASK_BOARD + history/INDEX，退役 handoff/README + TECH_DEBT_BACKLOG，改 docs/README.md + 项目 CLAUDE.md + 全局 workflow.md；文档治理收敛为单一职责体系 → [`history/v571_task_board.md`](history/v571_task_board.md)
+
+### 5.7.2 — [x] 文档结构按功能区×层重组：建立 inbox/ library/ workbench/ 三区子目录，退役 specs/03+00+06，coverage 55→125/218 → [`history/v572_s3_workbench_architecture.md`](history/v572_s3_workbench_architecture.md)
+
+### 5.7.3 — 新增 Swift 代码登记 workflow（SOP 主路径 + Code Map hook 兜底）
+
+**状态**：`[x]` 完成。218/218 Swift 文件全登记，pre-commit hook 接入，CLAUDE.md 4 步 SOP 落点，60 天验证窗口 remote agent 已排（trig_016KyxQa7BKYQA8Gvbvogm7R，2026-06-30）。设计思路 → [`history/v573_swift_code_registration.md`](history/v573_swift_code_registration.md)。
+
+**动机**：5.7.2 把代码索引按"功能区 × 层"切到 13 份层文档，结构铺好但**新代码加进来时没有标准操作流程** —— 写代码者要靠记忆/翻 INDEX 才知道归哪个区哪一层、注释怎么写，加完容易忘记登记，前两次 `features.md` 漂移证明这种动力学下纯靠自觉守不住。需要把"新增 Swift 代码"做成**清晰可执行的 SOP**（标准入口），并由 pre-commit hook 兜底诊断 SOP 漏掉的情况（兜底，不是主角）。现有 `verify_architecture_code_coverage.sh` 已扫 `## Code Map` 段 + 校验文件存在 + 校验 INDEX 分子，但有三个空缺：(a) 新增 swift 时分母 fail 信息只说"总数变了"，不指出具体哪个文件；(b) 未接到 commit 路径；(c) 反向 orphan 检查（代码存在 → 文档必须列）粒度过粗。本期升级脚本 + 接 hook + 建 SOP，让 SOP 和兜底成对出现。
+
+**顶层原则**：
+> 新增 `Sources/**/*.swift` 走 SOP 主路径登记到对应区/层 `## Code Map` 段；pre-commit hook 是 SOP 漏掉时的可诊断兜底，给出具体未对齐路径与候选区/层提示。
+
+**SOP 落点结构**（一处权威，两处指针）：
+
+- **CLAUDE.md** ——  唯一权威，承载完整 4 步 SOP + 第 2 步 region/layer 判定树 + 第 3 步注释体例约束 + [HARD] 强制规则。AI 在执行任务时最稳定读 CLAUDE.md，操作闭环放这里。
+- **`docs/architecture/INDEX.md`** —— 承载定位入口。现 `How To Use` 段只讲"找代码"，本期扩展加"加新代码：定位 region/layer 并进入对应 Code Map"小节，仅作为指针指回 CLAUDE.md SOP，不复制全文。
+- **本 ROADMAP 5.7.3 段** —— 只写目标 / 拍板要点 / acceptance gate；**不复制 SOP 全文**，避免双索引漂移。
+
+**拍板要点**：
+
+1. **机制实质未变（同 r1 收敛）**：升级 `verify_architecture_code_coverage.sh` + pre-commit hook + `install_hooks.sh` 自举安装 + 双向集合差（unmapped / missing 两类输出）+ 动态 `actual_total` 取代 `EXPECTED_TOTAL=218` 硬编码 + INDEX 分子分母由脚本自动维护。
+2. **commit gate 定位为兜底，不是主路径**。错误信息形态必须接得上 SOP：报"unmapped X.swift → 候选区/层：A / B / C → 在对应 md 的 `## Code Map` 段加一行 `- \`X.swift\` — <一句职责>`"，让卡住的人能直接跳回 SOP 第 2-3 步。
+3. **SOP 4 步骨架（CLAUDE.md 完整版）**：
+   1. 写代码。
+   2. 决定归哪个 region / layer（**判定树见 CLAUDE.md**：先按消费者/行为归 region 不按物理目录；再按层归属 —— Input/parse/route/match/evaluate → Consume；rule authoring/persistence → Edit；pending/apply workflow → Workflow；跨域输出/sidecar/registry contract → Contract；跨两 region 时优先登记主 owner，collaborator 文档仅在长期契约时补）。
+   3. 在对应 `architecture/<region>/<layer>.md` 的 `## Code Map` 段加一行：`` - `Sources/...swift` — <一句职责> ``（注释体例：**主动短句描述稳定职责**；不写条件从句、临时实现原因、测试结论、调用方信息）。
+   4. `git commit`（pre-commit hook 校验）。
+4. **机器锚点统一为 `## Code Map`**。规则、hook 提示、CLAUDE.md 文案禁止使用 "Source of truth" 作为段名或脚本锚点（仅可作概念描述用语）。`inbox/ROUTING_PIPELINE.md` 第 53–60 行那段 "Source of truth:" 叙述子段保留作为正文内容，不作机器识别目标。
+5. **rename 不做特殊业务**。pre-commit hook 用 `git diff --cached --name-status --find-renames --find-copies` 做"本次 staged 涉及"提示，但**最终放行依据是双向集合差**：commit 后状态下 unmapped == ∅ 且 missing == ∅。R 状态自然分解为"旧路径 dangling + 新路径 orphan"两个普通问题。
+6. **hook 分发与可绕过性诚实声明**。本地 git hook 必须 `scripts/install_hooks.sh` 自举安装；onboarding/CLAUDE.md 要求会话启动或首次提交前确认安装；`--no-verify` 永远可绕过 = git 本身限制；GitHub Actions 服务端兜底等仓库推 GitHub 再加（**不在本期范围**）；Claude Code PreToolUse hook 不作主机制。Acceptance 表述只能写"已安装 hook 的本地提交会拦截"。
+7. **边界 + 豁免清单**。默认契约：`Sources/**/*.swift` 全部必须登记。**短期不引入豁免清单**（当前 Sources 无 generated/fixture）；未来出现 SwiftUI Preview helper / generated / 单文件 helper struct 时走显式 `scripts/architecture_coverage_exempt.txt`，每条带原因注释，且本身参与校验（豁免路径必须存在、不得与 mapped 重叠、删除时报 stale exemption）。
+8. **不再做"一行人话"升级 / 降级**。现状 13 份文档已是"反引号路径 — 一行人话注释"格式；本期只 sweep 体例偏离条目，不重写注释。
+9. **CLAUDE.md 改动 + specs/06 死指针修复**：(a) Engineering Quality 段加 [HARD]"新增 `Sources/**/*.swift` 文件必须登记到对应 `architecture/<region>/*.md` 的 `## Code Map` 段，由 pre-commit hook 强制（`scripts/install_hooks.sh` 安装后生效）"；(b) **新增 "Adding New Swift Code" 子段**承载完整 4 步 SOP + 判定树 + 注释体例；(c) Session Closeout 第 6 条加"改动 `Sources/` swift 文件 → 反查 Code Map 条目仍准确"；(d) 修复 L22 死指针 `specs/06_PROJECT_ARCHITECTURE.md` → 改指 `architecture/ARCHITECTURE_OVERVIEW.md` Build and Version Policy 段。文案使用 functional language。
+10. **不扩张到自动登记 / PR 候选生成**。本期不做"AI 检测新 swift 自动加 Code Map 一行"或"PR 自动生成候选条目"——这是新机制需求，超出 brief 范围；写代码者按 SOP 手动登记，hook 兜底。
+11. **全局 `~/.claude/docs/workflow.md` 暂不动**。本期不留全局占位段（占位本身是漂移入口）。验证窗口期满评估后再决定是否升级。
+
+**验证窗口（[HARD] s1-exec 收尾时必排 schedule）**：
+
+- **起算点**：5.7.3 s1-exec 最后一个 commit 落地当天。
+- **窗口长度**：60 天。
+- **回顾任务定义**（s1-exec 归档时与 `/schedule` 远程 agent prompt 一并写入）：
+  - 扫 60 天内 commit hook 触发拦截次数（grep stdout log / git reflog）
+  - 数 `--no-verify` 绕过次数（git log 比对 hook 应触发但未触发的 commit）
+  - 列漏报案例（hook 放行但事后发现 Code Map 与代码偏离的 swift 文件）
+  - 评 SOP 体感（CLAUDE.md SOP 是否真被读到 / 判定树是否够用 / 注释体例约束是否阻碍写作）
+  - 输出形态：≤ 100 行报告 + 单行升级建议（`promote-to-global` / `keep-project-local` / `rework-and-extend-window`）
+- **执行方**：远程 agent（`/schedule` cron 一次性触发），不依赖 Jack 或 Claude 主动记得。
+- **若升级建议是 promote-to-global**：开 5.7.4 任务规划全局 `~/.claude/docs/workflow.md` 升级（不在本期 5.7.3 范围）。
+
+**任务拆分**：
+
+| 会话 | 主题 | 工作量 |
+|---|---|---|
+| s1-design | 设计稿对抗：(a) 升级后 verify 脚本接口（unmapped / missing 输出 + 退出码 + 错误信息接 SOP 第 2-3 步格式）；(b) pre-commit hook 调用形态；(c) `install_hooks.sh` 自举；(d) `smoke_architecture_code_coverage.sh` 4 场景接口；(e) CLAUDE.md "Adding New Swift Code" SOP 段文案 + 判定树 + 注释体例约束；(f) `architecture/INDEX.md` "How To Use" 加"加代码"指针段文案；(g) 验证窗口 `/schedule` agent prompt 模板（60 天后跑回顾任务定义）→ handoff | 设计会话 |
+| s1-exec | 执行：升级 verify 脚本（双向集合差 + 动态分母）/ pre-commit hook / install_hooks.sh / smoke_architecture_code_coverage.sh / CLAUDE.md 改 [HARD] + 加 SOP 段 + Session Closeout 第 6 条 + 修 specs/06 死指针 / `architecture/INDEX.md` 加指针段 / 13 份 Code Map 段格式 sweep / **收尾排 60 天 `/schedule` 远程 agent**（AG11 强制） | 小（5–8 h） |
+
+**关键 acceptance gate**（s1-exec 验收时必满足）：
+
+- **AG1** 升级后 `verify_architecture_code_coverage.sh` 输出 unmapped + missing 两类清单，不再用 `EXPECTED_TOTAL` 硬编码。
+- **AG2** pre-commit 调用同一脚本；任一清单非空（且非豁免）则退出非零并打印具体路径 + **候选区/层提示 + SOP 第 3 步注释体例提示**（让兜底信息接得上 SOP）。
+- **AG3** `scripts/install_hooks.sh` 一键安装 pre-commit；onboarding 提示加入 CLAUDE.md。
+- **AG4** `smoke_architecture_code_coverage.sh` 在临时 fixture/worktree 跑 4 场景：(a) 新增未登记；(b) rename 旧路径未删 + 新路径未加；(c) 删除 swift 但文档行未删；(d) 同 commit A/R/D 多类一次性报全部错误。退出码 0/1，不污染工作树。
+- **AG5** rename 通过双向集合差天然覆盖，hook 不含 rename 专用业务逻辑。
+- **AG6** **CLAUDE.md 含完整 SOP**：Engineering Quality 段 [HARD] 规则 + 新增 "Adding New Swift Code" 子段（4 步 + 判定树 + 注释体例）+ Session Closeout 第 6 条 + specs/06 死指针修复。机器锚点写为 `## Code Map`，**禁用 "Source of truth"**。
+- **AG7** **`architecture/INDEX.md` "How To Use" 段加"加新代码"小节作为指针指回 CLAUDE.md SOP**，不复制 SOP 全文。
+- **AG8** ROADMAP 5.7.3 段不含完整 SOP 全文（只引用 SOP 落点 + acceptance）。
+- **AG9** Hook 不拦无关 commit（docs-only / 配置 / 测试 / 非 Sources 下 swift 改动）；staged 不含 `Sources/**/*.swift` 增删/重命名时直接放行不调脚本。
+- **AG10** 13 份 architecture 层文档 `## Code Map` 段格式严格统一（`- \`Sources/...swift\` — <注释>`）；脚本对体例偏离能识别报错。
+- **AG11** **s1-exec 最后 commit 落地当天调用 `/schedule` 排一个 60 天后的远程 agent**，prompt 含本节"验证窗口"段定义的回顾任务（拦截次数 / 绕过次数 / 漏报案例 / SOP 体感 / 升级建议），输出落到 tmp/ 或 docs/handoff/_pending/。该 schedule 编号与触发时间在归档 history/v573 实施摘要里登记。
+- **AG12** `architecture/INDEX.md` 顶部 "Code coverage: N/M" 行由脚本自动维护（写回 numerator + denominator + last verified 日期）。
+- **AG13** Acceptance 文档表述诚实：hook 拦截语义是"已安装 hook 的本地提交"；`--no-verify` 可绕过 + 远端兜底未上 = 已知边界。
+
+**否决方案及理由**（不要后续 agent 推翻）：
+
+- ❌ 用 "Source of truth" 作为段名或机器锚点 —— 实际锚点是 `## Code Map`，混用会让规则与脚本分叉。
+- ❌ 把 5.7.3 包装成"建立新机制"叙事 —— 现有脚本已做一半工作，应叙述为"升级 + 接 hook + 建 SOP"。
+- ❌ ROADMAP 5.7.3 段复制 SOP 全文 —— 双索引漂移；SOP 全文唯一权威落 CLAUDE.md。
+- ❌ 把 commit gate 写成"主拦截规则"叙事 —— Codex r2 校准：兜底定位，不是主角；主路径是 SOP。
+- ❌ rename 写专用业务逻辑 —— 双向集合差天然覆盖。
+- ❌ 用 Claude Code PreToolUse hook 作主拦截 —— 不覆盖 Jack 手动 git commit。
+- ❌ acceptance 写"hook 不可绕过"或"绝对拦截" —— `--no-verify` 现实让此承诺不诚实。
+- ❌ 提前引入豁免清单 —— 当前 Sources 无 generated/fixture。
+- ❌ 把维护职责落到"AI 自觉性"（无 hook 仅靠 CLAUDE.md 规则） —— 前两次 features.md 漂移证明纯规则不可靠。
+- ❌ commit hook 同时拦"修改文件"（验证注释是否仍准确） —— 注释漂移概率低；强加变成走过场。
+- ❌ 把 Codex 评审 gate（每次 PR Codex 复核 Code Map）写进本期 —— 推 GitHub 后再单独评估。
+- ❌ AI 自动登记 / PR 自动生成 Code Map 候选条目 —— 新机制需求，超本期 brief 范围。
+- ❌ 全局 `~/.claude/docs/workflow.md` 提前升级或加占位段 —— 占位本身是漂移入口；验证窗口期满再决定。
+- ❌ 60 天验证窗口靠 Jack 或 Claude 主动记得 —— 必须远程 agent `/schedule` cron 触发，否则两个月后必忘。
+- ❌ 把 `EXPECTED_TOTAL` 继续硬编码 —— 是漂移源不是防漂源。
+
+**来源**：2026-04-30 与 Jack 对齐。讨论收敛历经：(1) 三道闸 + 一行人话升级提案 → (2) Codex r1 评审 reject-and-rework，暴露事实错误（机器锚点是 `## Code Map` 不是"Source of truth"；Code Map 现已是"路径 + 一行人话"格式；现有脚本已半套实现）→ (3) 重写为"升级现有脚本 + 接 hook + 双向集合差" → (4) Jack 校准目标"机制保证未来新代码加入流畅，规划 workflow" → (5) Codex r2 评审 adopt-with-fixes，确立"SOP 主路径 + hook 兜底"叙事、"一处权威 + 两处指针"落点结构、SOP 第 2 步判定树必填、第 3 步注释体例约束 → (6) Jack 提"验证 1-2 个月后再考虑要排时钟提醒"，加入验证窗口 + AG11 强制 `/schedule` 远程 agent。Codex 评审 artifacts：`tmp/5.7.3-codex-review.md`（r1）+ `tmp/5.7.3-codex-review-r2.md`（r2）。

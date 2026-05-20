@@ -13,13 +13,69 @@
 
 ---
 
+## Product Scope (required)
+
+- `[HARD][must]` This app is **single-user** — only Jack uses it. Do not introduce code paths, abstractions, or settings for multi-user scenarios, account/permission models, multi-machine sync, or i18n.
+- `[HARD][must]` Configuration under `~/Library/Application Support/SpinLab/` is user-specific. Do not propose dotfiles symlinks, cross-machine sync, or git-tracking these files.
+- User-specific literals (paths under `/Users/jack/...`, OneDrive container names, fixed prefix lists, registry filenames in Chinese) are acceptable in defaults, fixtures, and docs. Do not refactor them into config templates "for portability" — there are no other users.
+- Implication for testing/build: tests must NOT write to real `~/Library/Application Support/SpinLab/` (this is the source of the v5.1.15 root-path-loss incident). Use temp directory injection.
+
+---
+
 ## Engineering Quality (required)
 
 - `[HARD][must]` All implementations must follow first-principles reasoning. No redundant, decorative, or non-functional code.
 - `[HARD][must]` Prefer long-term maintainability over short-term convenience.
 - `[HARD][must]` Sign-off criteria: structural quality + maintainability + testability, not just feature correctness.
 - `[HARD][must]` Do not rename, remap, or reformat any user-defined display name, ID, field name, or configuration value unless the user explicitly requests it. "Cleanup" or "normalization" of user-chosen names is forbidden.
+- `[HARD][must]` **Desktop app rebuild gate**: a round that includes Swift source changes must end with `./scripts/build_desktop_app.sh debug` to rebuild and overwrite `/Users/jack/Desktop/SpinLab.app`. **Skip the rebuild when the round has no `.swift` changes** (docs-only / config-only / handoff-only rounds do not trigger build). A Stop hook (`~/.claude/hooks/spinlab_desktop_build.sh`) enforces this automatically — it compares `Sources/**/*.swift` mtimes against the app bundle and exits silently when nothing is newer, so it is safe to rely on. Execution responsibility still belongs to the AI completing the change when source did move. Full build policy: `docs/architecture/ARCHITECTURE_OVERVIEW.md` §Build and Version Policy.
+- `[HARD][must]` 新增 `Sources/**/*.swift` 必须登记到对应 `docs/architecture/<region>/<layer>.md` 的 `## Code Map` 段（4 步 SOP 见下方 `## Adding New Swift Code` 段）。pre-commit hook 强制检查；准备 commit 含 `Sources/**/*.swift` 增删/重命名前，确认 `.git/hooks/pre-commit` 含 `spinlab-architecture-coverage:start` sentinel——首次提交前跑 `scripts/install_git_hooks.sh --check || scripts/install_git_hooks.sh` 自举安装。
 - Execution gate and collaboration model: inherited from global `~/.claude/CLAUDE.md`.
+
+---
+
+## Adding New Swift Code (required)
+
+新增 `Sources/**/*.swift` 必须走以下 4 步登记到对应区/层 `## Code Map` 段；pre-commit hook 兜底。
+
+### 步骤
+
+1. **写代码**。
+2. **决定 region / layer**（判定树见下）。
+3. **在 `docs/architecture/<region>/<layer>.md` 的 `## Code Map` 段加一行**：
+
+   `` - `Sources/...swift` — <一句主动短句描述稳定职责> ``
+
+   **注释体例**（`[HARD]`）：
+   - 主动短句，描述稳定职责（"coordinates X across Y"，不是"called by Z to handle..."）
+   - 不写条件从句（"when ... then ..."）
+   - 不写临时实现原因（"workaround for...""until..."）
+   - 不写测试结论（"verified passing in V515..."）
+   - 不写调用方信息（"used by ApplyCoordinator"）
+   - 长度建议 ≤ 80 字符（不强制）
+
+4. **`git commit`**（已安装 pre-commit hook 时自动走 `verify_architecture_code_coverage.sh --check-only`）。
+
+### 第 2 步判定树
+
+**先 region**（按消费者/行为，不按物理目录）：
+
+- Input/parse/route/match/evaluate/RulesPanel UI/Rule schema → **inbox**
+  - 子层：ROUTING_PIPELINE.md（parse/match）/ RULES_AUTHORING.md（rule schema/RulesPanel）/ CONFIRM_AND_APPLY.md（pending review/apply-to-library）/ OUTPUT_CONTRACTS.md（registry, sidecar 输出契约）
+- Library 浏览/编辑/持久化/registry 同步/sidecar 查看 → **library**
+  - 子层：BROWSE_AND_SELECTION.md / SAMPLE_METADATA_EDITING.md / ARCHIVE_STORAGE.md / SIDECAR_AND_CONDITIONS.md / ARTIFACTS_AND_PREVIEWS.md
+- Measurement search/workflow analysis/plot shell/chart 持久化 → **workbench**
+  - 子层：SHELL_AND_LIFECYCLE.md / MEASUREMENT_SEARCH.md / PLOT_CANVAS.md / WORKFLOW_CONTRACTS.md / ARTIFACT_PERSISTENCE.md / EXTENSION_BOUNDARIES.md
+- App shell / global DI/navigation/logging / Domain contracts / Registry bridge / 共享 UI/storage → **按主 owner（消费频率最高的 region）** 登记到既有 region/layer 的 `## Code Map`；*不*在 `architecture/INDEX.md` 重复登记。
+
+**跨两 region 时**：canonical Code Map 只在主 owner 一处；collaborator region 默认不重复登记同一文件。
+
+**判定树兜底**：拿不准 → pre-commit hook 报 unmapped 后看候选区/层提示，3 选 1。
+
+### 维护
+
+- 修改既有 swift 文件核心职责后，反查 `## Code Map` 注释是否仍准确；偏离则补改（触发点：Session Closeout 第 6 条）。
+- rename / 删除：双向集合差天然覆盖；改了就 commit，hook 报什么改什么。
 
 ---
 
@@ -44,6 +100,7 @@
 - `[DIRECTION][should]` Complex mutating operations expose explicit outcomes (enum/result).
 - `[GOAL][should]` AppState remains an app shell: cross-store coordination + global concerns only.
 - Exception: small presentation-only state containers may be `struct`.
+- Exception: FeatureStore may hold **side-effect-free** services via `@ObservationIgnored` + init substitute parameter (DI Tier 2). Side-effect repositories/storage/loggers must be received via AppEnvironment (DI Tier 3) — not held as default-constructed properties.
 
 ### Architecture Decision Boundary
 
@@ -99,11 +156,19 @@
 
 ## Dependency Injection (required)
 
+### DI Three-Level Classification
+
+| Dependency Type | Substitution Mechanism |
+|---|---|
+| Pure value helper / pure function | instantiate directly |
+| Side-effect-free service | init default parameter + `@ObservationIgnored` + init substitute parameter |
+| Side-effect dep (repository / logger / storage / filesystem / network / `.shared` singleton) | **must go through AppEnvironment / capability protocol** |
+
 - All runtime dependencies with side effects declared in AppEnvironment.
 - Prefer capability protocols over concrete types.
 - UseCases: stateless structs, receive dependencies as function parameters.
 - AppState stores AppEnvironment fields as `@ObservationIgnored private` properties.
-- Exception: read-only, side-effect-free singletons may be called directly.
+- `[HARD][must]` Side-effect dependencies must NOT use default construction inside FeatureStore or UseCase (no bare `Store()` / `Service()` instantiation at declaration site).
 
 ---
 
@@ -130,9 +195,23 @@
 ## Domain Models (required)
 
 - All domain models: `struct`, conforming to `Codable`, `Hashable`, `Sendable`. Add `Identifiable` where applicable.
-- Domain models live in `Domain/`. Do not define inside `Features/`.
 - Use `enum` for closed-set values. Never String constants.
 - Raw models carry source data only. UI projections are separate presentation structs.
+
+### Domain Three-Tier Placement
+
+| Tier | Definition | Physical Location | Content Boundary |
+|---|---|---|---|
+| Tier 1 cross-region contract | consumed by ≥ 2 regions | `Sources/Domain/<topic>/` | `Codable/Hashable/Sendable` contract **only**; no parser/loader/evaluator/repository/service I/O |
+| Tier 2 region domain entity | single-region persistence + UseCase shared | `Sources/<Region>/Domain/` | same pure-value constraint |
+| Tier 3 UI projection | View + ViewModel only | `Sources/<Region>/Features/` | must NOT be imported by UseCase layer |
+
+**Migration criteria (write criteria, not pre-committed file paths):**
+- "Is this type a pure `Codable/Hashable/Sendable` value contract?" → yes: migrate to Tier 1 or 2; no: leave in owner region.
+- "Does this file mix contract + behavior (loader/evaluator/parser)?" → yes: split first, migrate only the contract portion.
+- `legitimate_cross_cutting` marker: after physical migration to `Domain/`, preserve as collaborator-region Code Map comment identifying cross-region consumer identity. Do not remove this marker.
+
+`[HARD][must]` When migrating a file to Tier 1 `Sources/Domain/`, enforce `Codable/Hashable/Sendable` conformance. Moving the file without adding required conformances is an incomplete commit.
 
 ---
 
@@ -215,6 +294,7 @@ Do not implement out of order. Skip steps when that layer has no change.
   3. Cross-session user preference? → Write to memory system.
   4. 接手并完成了某份 handoff？→ 按 `~/.claude/docs/workflow.md §9.c` 4 步归档动作执行（handoff 搬迁 + 索引更新 + 设计思路 ROADMAP→history 迁移 + ROADMAP 改一句话+`[x]`）。
   5. 是否动了流水线状态（出 handoff / 第一次 commit / 归档完成）？→ 同步翻 `docs/TASK_BOARD.md` 状态或删行；归档时同步在 `docs/history/INDEX.md` 加一行。详见 `docs/TASK_BOARD.md` 末尾「维护规则」段。
+  6. 改动 `Sources/` swift 文件 → 反查对应 `## Code Map` 条目注释是否仍准确（职责描述是否偏离当前实现）；偏离则补改注释行。
 - Skip steps that don't apply.
 - `[HARD][must]` **任务流水线文档职责不可越界**：每份文档只装一种内容。详见 `docs/README.md` 顶部「任务流水线文档职责」表 + 反模式段。设计思路一辈子只活一处（ROADMAP 在做时 / history 做完后），不重复、不互灌。
 
@@ -235,10 +315,12 @@ Do not implement out of order. Skip steps when that layer has no change.
 ## Project Reference (SpinLab-specific)
 
 Project-specific architecture, code placement, module contracts, and checklists are in:
-- `specs/06_PROJECT_ARCHITECTURE.md` — code placement, canonical implementations, Workbench Shell, Import pipeline, extension modules, change boundaries, pre-merge checklist, temporary exceptions, build policy
+- `docs/architecture/ARCHITECTURE_OVERVIEW.md` — code placement, canonical implementations, Import pipeline, AppState/FeatureStore boundaries, UI shell patterns
+- `docs/architecture/workbench/INDEX.md` — Workbench subsystem: shell lifecycle, search, plot canvas, workflow contracts, artifact persistence, extension boundaries
 - `specs/04_UI_RULES.md` — visual rules (fonts, spacing, buttons, disclosure sections, accessibility)
 - `specs/01_PRODUCT_RULES.md` — product behavior contract
 - `specs/02_DATA_RULES.md` — domain model and data rules
-- `specs/03_PARSER_ROUTING_RULES.md` — import parse/routing rules
+- `docs/architecture/inbox/` — Inbox subsystem: routing pipeline, rules authoring, confirm/apply, output contracts
+- `docs/architecture/workbench/` — Workbench subsystem: shell lifecycle, search, plot canvas, workflow contracts, artifact persistence, 3ω physics (`architecture/workbench/THREE_OMEGA_PHYSICS.md`), extension boundaries
 
-Read the relevant spec when the task touches that area. Do not read all specs every session.
+Read the relevant spec when the task touches that area. Do not read all specs every session. Long-term product/architecture philosophy lives in `docs/philosophy.md`, not in specs.

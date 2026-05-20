@@ -7,7 +7,8 @@ struct SearchWorkflowMeasurementsUseCase {
         query: WorkflowSearchQuery,
         libraryRootURL: URL,
         workflowDefinitions: [WorkflowDefinition] = [],
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        libraryAccess: any LibraryAccessCapability = LibraryStore()
     ) throws -> [WorkflowMeasurementSearchHit] {
         guard fileManager.fileExists(atPath: libraryRootURL.path) else {
             throw AppError.notFound("Library root not found at \(libraryRootURL.path).")
@@ -16,7 +17,7 @@ struct SearchWorkflowMeasurementsUseCase {
         let parsed = parseQuery(query.rawText)
 
         // Load library index for numeric matching (graceful: empty map if missing)
-        let numericTagsBySampleKey = loadNumericTags(libraryRootURL: libraryRootURL)
+        let numericTagsBySampleKey = loadNumericTags(libraryRootURL: libraryRootURL, libraryAccess: libraryAccess)
 
         let sidecarURLs = collectSidecarURLs(libraryRootURL: libraryRootURL, fileManager: fileManager)
         let decoder = JSONDecoder()
@@ -322,11 +323,8 @@ struct SearchWorkflowMeasurementsUseCase {
         return ParsedQuery(textTokens: textTokens, numericTerms: numericTerms)
     }
 
-    /// Loads library index and builds sampleKey → numericTags lookup.
-    /// Returns empty dict if index is unavailable (graceful degradation).
-    private func loadNumericTags(libraryRootURL: URL) -> [String: [String: Double]] {
-        let store = LibraryStore()
-        guard let index = store.loadIndex(from: libraryRootURL) else { return [:] }
+    private func loadNumericTags(libraryRootURL: URL, libraryAccess: any LibraryAccessCapability) -> [String: [String: Double]] {
+        guard let index = libraryAccess.loadIndex(from: libraryRootURL) else { return [:] }
         var map: [String: [String: Double]] = [:]
         map.reserveCapacity(index.samples.count)
         for sample in index.samples {

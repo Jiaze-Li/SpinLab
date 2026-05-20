@@ -7,9 +7,6 @@ import Foundation
 
 struct XYRotationPlotRenderer {
 
-    /// Pipeline warnings collected during rendering (legend resolver, etc.).
-    private(set) var collectedWarnings: [String] = []
-
     var showGrid: Bool = true
     var legendPoint: CGPoint? = nil
     var stackOffsetMultiplier: Double = 0.0
@@ -29,14 +26,19 @@ struct XYRotationPlotRenderer {
 
     private let defaultOptions = WorkbenchChartRenderer.Options()
 
+    private enum RenderOutcome {
+        case success(Data, WorkbenchPlotLayout, [String])
+        case failure(String)
+    }
+
     // MARK: - R(φ) tab
 
     /// Tab 1: Rxx vs φ with one series per temperature, optionally stacked.
     mutating func renderRxxVsPhi(
         sweeps: [XYRotationAngleSweep],
         device: String
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?) {
-        guard !sweeps.isEmpty else { return (nil, nil, nil) }
+    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
+        guard !sweeps.isEmpty else { return (nil, nil, nil, []) }
 
         let yArrays: [[Double]] = sweeps.map { sweep in
             var y = sweep.resistanceXX
@@ -92,11 +94,12 @@ struct XYRotationPlotRenderer {
             seriesReorderable: true
         )
 
-        let (data, layout) = _render(
+        var w: [String] = []
+        let (data, layout) = _consume(_render(
             payload: &payload,
             options: _stackedOptions(sweepCount: sweeps.count)
-        )
-        return (data, layout, payload)
+        ), into: &w)
+        return (data, layout, payload, w)
     }
 
     /// Tab 2: Rxy vs φ with one series per temperature, optionally stacked.
@@ -104,9 +107,9 @@ struct XYRotationPlotRenderer {
     mutating func renderRxyVsPhi(
         sweeps: [XYRotationAngleSweep],
         device: String
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?) {
+    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
         let rxySweeps = sweeps.filter { $0.resistanceXY != nil }
-        guard !rxySweeps.isEmpty else { return (nil, nil, nil) }
+        guard !rxySweeps.isEmpty else { return (nil, nil, nil, []) }
 
         let yArrays: [[Double]] = rxySweeps.map { sweep in
             var y = sweep.resistanceXY!
@@ -162,11 +165,12 @@ struct XYRotationPlotRenderer {
             seriesReorderable: true
         )
 
-        let (data, layout) = _render(
+        var w: [String] = []
+        let (data, layout) = _consume(_render(
             payload: &payload,
             options: _stackedOptions(sweepCount: rxySweeps.count)
-        )
-        return (data, layout, payload)
+        ), into: &w)
+        return (data, layout, payload, w)
     }
 
     // MARK: - Private
@@ -174,7 +178,7 @@ struct XYRotationPlotRenderer {
     private mutating func _render(
         payload: inout WorkbenchPlotPayload,
         options: WorkbenchChartRenderer.Options? = nil
-    ) -> (Data?, WorkbenchPlotLayout?) {
+    ) -> RenderOutcome {
         var patch: [String: String] = [:]
         if showGrid { patch["showGrid"] = "true" }
         if showAuxiliaryLine180 { patch["auxVerticalX"] = "180" }
@@ -191,10 +195,26 @@ struct XYRotationPlotRenderer {
             yLabelOverride: yLabelOverride,
             styleParamsPatch: patch
         )
-        guard let output = try? WorkbenchRenderPipeline.render(input) else { return (nil, nil) }
-        collectedWarnings.append(contentsOf: output.warnings)
-        payload = output.manifestPayload
-        return (output.imageData, output.layout)
+        do {
+            let output = try WorkbenchRenderPipeline.render(input)
+            payload = output.manifestPayload
+            return .success(output.imageData, output.layout, output.warnings)
+        } catch {
+            let reason = "pipeline failure: \(error)"
+            fputs("[SpinLab] XYRotationPlotRenderer: \(reason)\n", stderr)
+            return .failure(reason)
+        }
+    }
+
+    private func _consume(_ outcome: RenderOutcome, into warnings: inout [String]) -> (Data?, WorkbenchPlotLayout?) {
+        switch outcome {
+        case .success(let imageData, let layout, let w):
+            warnings.append(contentsOf: w)
+            return (imageData, layout)
+        case .failure(let reason):
+            warnings.append(reason)
+            return (nil, nil)
+        }
     }
 
     private func _stackedOptions(sweepCount: Int) -> WorkbenchChartRenderer.Options {

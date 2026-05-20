@@ -25,8 +25,7 @@ struct V210ImportAndParseTests {
             try Data("content-\(name)".utf8).write(to: url)
         }
 
-        let storage = SpinLabManagedStorage(rootURL: root)
-        let imported = storage.importMeasurementFiles(
+        let imported = InboxImportFilterService().importMeasurementFiles(
             from: [input],
             allowedFileExtensions: ["dat", "lvm", "txt", "csv"],
             ignoredFileExtensions: ["gph"]
@@ -53,8 +52,7 @@ struct V210ImportAndParseTests {
         try contents.write(to: left.appendingPathComponent(fileName))
         try contents.write(to: right.appendingPathComponent(fileName))
 
-        let storage = SpinLabManagedStorage(rootURL: root)
-        let imported = storage.importMeasurementFiles(
+        let imported = InboxImportFilterService().importMeasurementFiles(
             from: [left, right],
             allowedFileExtensions: ["dat"]
         )
@@ -301,8 +299,8 @@ struct V210ImportAndParseTests {
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.current == "0.5A")
-        #expect(parsed.field == "250mT")
+        #expect(parsed.current == "500mA")
+        #expect(parsed.field == "0.5T")
     }
 
     @Test("parser recognizes celsius temperature tokens")
@@ -313,7 +311,7 @@ struct V210ImportAndParseTests {
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.temperature == "25C")
+        #expect(parsed.temperature == "298K")
     }
 
     @Test("parser strips whitespace before tokenization so spaced unit suffix tokens are recognized")
@@ -325,7 +323,7 @@ struct V210ImportAndParseTests {
         let parsed = parser.parse(from: fileURL)
 
         #expect(parsed.temperature == "160K")
-        #expect(parsed.current == "0.001A")
+        #expect(parsed.current == "1mA")
     }
 
     @Test("parser rounds field values to nearest half-step and removes trailing .0")
@@ -348,7 +346,7 @@ struct V210ImportAndParseTests {
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.current == "0.0001A")
+        #expect(parsed.current == "0.1mA")
     }
 
     @Test("parser resolves device from unit-suffix definition when handbook defines device as unit-suffix")
@@ -358,8 +356,7 @@ struct V210ImportAndParseTests {
             .init(
                 id: "device",
                 displayName: "Device",
-                kind: .unitSuffix,
-                matches: .unitSuffix([.init(type: .unitSuffix, value: "deg")])
+                matches: [FilenameRuleSet.MapRule(match: .init(type: .unitSuffix, value: "deg"), value: "$MATCH")]
             )
         )
         ruleSet.loadWarnings = ruleSet.compile()
@@ -378,8 +375,7 @@ struct V210ImportAndParseTests {
             .init(
                 id: "abc",
                 displayName: "ABC",
-                kind: .unitSuffix,
-                matches: .unitSuffix([.init(type: .unitSuffix, value: "abc")])
+                matches: [FilenameRuleSet.MapRule(match: .init(type: .unitSuffix, value: "abc"), value: "$MATCH")]
             )
         )
         ruleSet.loadWarnings = ruleSet.compile()
@@ -398,8 +394,7 @@ struct V210ImportAndParseTests {
             .init(
                 id: "wafer_type",
                 displayName: "Wafer Type",
-                kind: .tokenMap,
-                matches: .tokenMap([.init(match: .init(type: .equals, value: "wafer"), value: "wafer")])
+                matches: [FilenameRuleSet.MapRule(match: .init(type: .equals, value: "wafer"), value: "wafer")]
             )
         )
         ruleSet.loadWarnings = ruleSet.compile()
@@ -411,23 +406,17 @@ struct V210ImportAndParseTests {
         #expect(parsed.conditionValues["wafer_type"] == "wafer")
     }
 
-    @Test("token-map wins when same label matches both token-map and unit-suffix")
+    @Test("exact-match rule wins when same token matches both equals and unit-suffix")
     func tokenMapWinsWhenDualMatched() throws {
         var ruleSet = try loadBundledRuleSetForTests()
         ruleSet.conditionDefinitions.append(
             .init(
                 id: "mode",
                 displayName: "Mode",
-                kind: .unitSuffix,
-                matches: .unitSuffix([.init(type: .unitSuffix, value: "k")])
-            )
-        )
-        ruleSet.conditionDefinitions.append(
-            .init(
-                id: "mode",
-                displayName: "Mode",
-                kind: .tokenMap,
-                matches: .tokenMap([.init(match: .init(type: .equals, value: "1k"), value: "mode-token")])
+                matches: [
+                    FilenameRuleSet.MapRule(match: .init(type: .equals, value: "1k"), value: "mode-token"),
+                    FilenameRuleSet.MapRule(match: .init(type: .unitSuffix, value: "k"), value: "$MATCH")
+                ]
             )
         )
         ruleSet.loadWarnings = ruleSet.compile()

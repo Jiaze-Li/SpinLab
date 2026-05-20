@@ -52,28 +52,6 @@ struct ConditionDefinitionOption: Identifiable, Equatable {
     var description: String { label }
 }
 
-enum TokenMatchType: String, CaseIterable, Equatable {
-    case equals
-    case regex
-}
-
-struct TokenMapping: Identifiable, Equatable {
-    var id: UUID = UUID()
-    var matchType: TokenMatchType = .equals
-    var pattern: String
-    var value: String
-}
-
-struct RuleEntry: Identifiable, Equatable {
-    var ruleID: String
-    var label: String
-    var kind: RuleEntryKind
-    var units: [String] = []
-    var mappings: [TokenMapping] = []
-    var readOnlyMessage: String?
-
-    var id: String { "\(ruleID):\(kind.rawValue)" }
-}
 
 struct ConditionChangeProposal: Identifiable {
     struct FieldChange {
@@ -87,12 +65,6 @@ struct ConditionChangeProposal: Identifiable {
     let changes: [FieldChange]
 }
 
-
-struct SeparatedConditionsPatch: Equatable {
-    var extraConditions: [String: String]
-    var deletedExtraConditionKeys: Set<String>
-    var tokenMapRules: [String: [TokenMapping]]
-}
 
 struct RulePatternCodec {
     static let canonicalPrefix = #"^-?\d+(?:\.\d+)?(?:"#
@@ -277,7 +249,7 @@ final class WorkbenchFeatureStore {
         let initialConditionOptions: [ConditionDefinitionOption] = initialRuleSet.conditionDefinitions.compactMap { def in
             let id = def.id.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !id.isEmpty else { return nil }
-            let label = def.label?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let label = def.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
             let resolvedLabel = (label?.isEmpty == false)
                 ? label!
                 : (ConditionFieldCatalog.labelMap(from: initialRuleSet)[id] ?? ConditionFieldCatalog.defaultLabel(for: id))
@@ -795,7 +767,7 @@ final class WorkbenchFeatureStore {
         conditionDefinitionOptions = ruleSet.conditionDefinitions.compactMap { def in
             let id = def.id.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !id.isEmpty else { return nil }
-            let label = def.label?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let label = def.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
             let resolvedLabel = (label?.isEmpty == false)
                 ? label!
                 : (ConditionFieldCatalog.labelMap(from: ruleSet)[id] ?? ConditionFieldCatalog.defaultLabel(for: id))
