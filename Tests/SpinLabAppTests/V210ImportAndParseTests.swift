@@ -166,6 +166,18 @@ struct V210ImportAndParseTests {
         #expect(parsed.defaultSampleKey == "PN80")
     }
 
+    @Test("parser does not extract sample IDs from embedded letter prefixes")
+    func parserDoesNotExtractPNFromEmbeddedLetters() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/misc/alphaPN80_001_180deg_3w__Position_0.000000 degree_Iac_0.001000 A_T_50.004 K_Vg_0.000000 V_Ig_0.000000 A.lvm")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(!parsed.sampleIDs.contains("PN80"))
+        #expect(parsed.defaultSampleKey == nil)
+    }
+
     @Test("parser score arbitration selects unique winner when no single-source shortcut applies")
     func parserSelectsUniqueScoreArbitrationWinner() throws {
         let ruleSet = try loadBundledRuleSetForTests()

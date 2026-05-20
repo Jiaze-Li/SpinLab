@@ -511,14 +511,15 @@ struct FilenameRuleSet: Decodable {
             let prefix = spec.spec.value.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
             guard !prefix.isEmpty else { continue }
 
-            let pattern = "\(NSRegularExpression.escapedPattern(for: prefix))\\d+"
+            let pattern = "(?:^|[^A-Z])(\(NSRegularExpression.escapedPattern(for: prefix))\\d+)"
             guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
                 continue
             }
 
             let range = NSRange(uppercased.startIndex..<uppercased.endIndex, in: uppercased)
             guard let match = regex.firstMatch(in: uppercased, options: [], range: range),
-                  let matchRange = Range(match.range, in: uppercased) else {
+                  match.numberOfRanges > 1,
+                  let matchRange = Range(match.range(at: 1), in: uppercased) else {
                 continue
             }
 
