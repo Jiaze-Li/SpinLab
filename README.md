@@ -19,6 +19,27 @@ Key entry points:
 
 **Architecture coverage hook**: after first clone, run `./scripts/install_git_hooks.sh` to install the architecture documentation coverage pre-commit check.
 
+## Web Library Export
+
+SpinLab-html stays code-only. The static web library lives in the separate private repo `../SpinLab-Web-Library`, and the exporter writes only into that repo's `public/` directory.
+
+Supported export path:
+
+```bash
+python scripts/export_static_library.py \
+  --library-root /Users/jack/Downloads/data \
+  --output-dir ../SpinLab-Web-Library/public
+```
+
+Workflow:
+
+1. Run the exporter from this repo.
+2. Review the generated files in `../SpinLab-Web-Library/public`.
+3. Manually commit and push changes from the private web repo. The exporter never runs `git commit` or `git push`.
+4. Cloudflare Pages deploys from the private repo's `public/` output.
+5. Cloudflare Access uses One-time PIN login. Keep the browser session for 30 days when you want the login to persist across visits.
+
+The exporter may replace files inside `--output-dir`, but it must not delete or modify anything outside that directory.
 
 ## Agent Policy
 
