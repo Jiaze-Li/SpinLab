@@ -68,4 +68,4 @@ Start with `V416DeleteAppliedMeasurementTests.swift`, `V343DeleteWorkbenchResult
 - `Sources/SpinLabApp/Storage/LibraryArchiveScanService.swift` — registry install, measurements directory management, and managed-path detection
 - `Sources/SpinLabApp/Storage/ContentFingerprintService.swift` — SHA-256 content fingerprint computation for duplicate detection
 - `Sources/SpinLabApp/Storage/ManagedStorage.swift` — superseded; split into LibraryArchiveScanService, InboxImportFilterService, ContentFingerprintService (14c-c5)
-- `Sources/SpinLabApp/Storage/RepositoryPointer.swift` — value type pointing to a repository root location in App Support
+- `Sources/SpinLabApp/Storage/RepositoryPointer.swift` — parses, validates, and auto-writes repository root pointers in App Support
