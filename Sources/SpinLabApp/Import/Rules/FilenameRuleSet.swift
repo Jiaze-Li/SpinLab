@@ -634,18 +634,19 @@ struct FilenameRuleSet: Decodable {
     }
 
     private func normalizeSampleIDToken(_ token: String) -> String? {
-        let uppercased = token.uppercased()
-        for spec in compiled.sampleIdSpecs {
-            if tokenMatches(text: uppercased, compiled: spec) {
-                return uppercased
-            }
-        }
-        return nil
+        sampleIDMatch(in: token)?.value
     }
 
     private func normalizeSampleIDTokenWithSource(_ token: String) -> (value: String, ruleRef: String)? {
+        sampleIDMatch(in: token)
+    }
+
+    /// Sample IDs stay token-based, but we also accept glued tokens like
+    /// `20260430140313PN80` by scanning for a prefix + digits fragment.
+    private func sampleIDMatch(in token: String) -> (value: String, ruleRef: String)? {
         let uppercased = token.uppercased()
         let usesBatchPrefixes = sampleId.matches.contains { $0.type == .startsWith }
+
         for (idx, spec) in compiled.sampleIdSpecs.enumerated() {
             if tokenMatches(text: uppercased, compiled: spec) {
                 let ref = usesBatchPrefixes
@@ -654,6 +655,29 @@ struct FilenameRuleSet: Decodable {
                 return (uppercased, ref)
             }
         }
+
+        for (idx, spec) in compiled.sampleIdSpecs.enumerated() {
+            guard spec.spec.type == .startsWith else { continue }
+            let prefix = spec.spec.value.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+            guard !prefix.isEmpty else { continue }
+
+            let pattern = "\(NSRegularExpression.escapedPattern(for: prefix))\\d+"
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+                continue
+            }
+
+            let range = NSRange(uppercased.startIndex..<uppercased.endIndex, in: uppercased)
+            guard let match = regex.firstMatch(in: uppercased, options: [], range: range),
+                  let matchRange = Range(match.range, in: uppercased) else {
+                continue
+            }
+
+            let ref = usesBatchPrefixes
+                ? RuleRef.sampleIdBatchPrefix(index: idx)
+                : RuleRef.sampleIdPattern(index: idx)
+            return (String(uppercased[matchRange]), ref)
+        }
+
         return nil
     }
 
