@@ -4,6 +4,26 @@ import Observation
 @MainActor
 @Observable
 final class LibraryFeatureStore {
+    struct WebLibraryPublishState {
+        static let publishedSiteMessage = "Site: https://spinlab-web-library.pages.dev"
+        static let publishingMessage = "Publishing..."
+        static let publishedSuccessfullyMessage = "Published successfully."
+        static let noChangesMessage = "No changes to publish."
+        static let publishFailedMessage = "Publish failed."
+
+        var isRunning: Bool = false
+        var statusMessage: String?
+        var summaryMessage: String?
+        var outputLines: [WebLibraryPublishOutputLine] = []
+        var completedAt: Date?
+        var presentationRevision: Int = 0
+    }
+
+    struct WebLibraryPublishOutputLine: Sendable, Hashable {
+        var kind: WebLibraryPublishOutputKind
+        var line: String
+    }
+
     struct MutationCommitContext {
         var rootURL: URL
         var previewIndex: LibraryIndex?
@@ -62,6 +82,7 @@ final class LibraryFeatureStore {
     var libraryMetadataSyncLogs: [LibraryMetadataSyncLogEntry] = []
     var libraryMetadataSyncLogError: String?
     var libraryMetadataSyncLogMessage: String?
+    var webLibraryPublishState: WebLibraryPublishState = .init()
     var libraryState = LibraryState()
 
     // MARK: - Workbench Results projection (V3.4.2)

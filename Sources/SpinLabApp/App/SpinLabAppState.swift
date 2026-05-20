@@ -35,6 +35,7 @@ final class SpinLabAppState {
     var registryFeatureStore: RegistryFeatureStore
     let libraryFeatureStore: LibraryFeatureStore
     let workbenchFeatureStore: WorkbenchFeatureStore
+    let webLibraryPublisher: any WebLibraryPublishingCapability
     let appLogger = AppLogger.shared
     let interactionSnapshotCoordinator: InteractionSnapshotCoordinator
     var hasRestoredInteractionSnapshot = false
@@ -182,9 +183,14 @@ final class SpinLabAppState {
     private let libraryRepository: LibraryRepository
     private let inboxImportFilter: InboxImportFilterService
     private let saveLibrarySampleEditsUseCase = SaveLibrarySampleEditsUseCase()
+    private let repositoryPointer: RepositoryPointer?
     @ObservationIgnored private var rulesSyncEngine: RulesSyncEngine?
     @ObservationIgnored private var rulesSyncStartupOutcome: StartupOutcome = .skipped
     private let inboxWorkflowService = InboxWorkflowService()
+    private static let localDevelopmentRepoRootFallback = URL(
+        fileURLWithPath: "/Users/jack/Downloads/scripts/Codex SpinLab/SpinLab-html",
+        isDirectory: true
+    )
     @ObservationIgnored
     private lazy var rulesPanelStore: RulesManagementStore = {
         RulesManagementStore(
@@ -227,6 +233,13 @@ final class SpinLabAppState {
             dataActor: environment.dataActor,
             workflowDefinitionStore: environment.workflowDefinitionStore
         )
+        let runtimeConfigPaths = RulesConfigPaths()
+        let syncPointer = RepositoryPointer.load(
+            runtimeConfigDir: runtimeConfigPaths.configDirectoryURL,
+            localDevelopmentRepoRootFallback: Self.localDevelopmentRepoRootFallback
+        )
+        self.repositoryPointer = syncPointer
+        self.webLibraryPublisher = environment.webLibraryPublisher
         let interactionMemory = InteractionMemoryStore(persistence: environment.persistence)
         self.interactionSnapshotCoordinator = InteractionSnapshotCoordinator(interactionMemory: interactionMemory)
         self.dataActor = environment.dataActor
@@ -267,8 +280,6 @@ final class SpinLabAppState {
         )
 
         // §5.4 startup sequence: pointer → engine → reverseSync → reloadCached → stores
-        let runtimeConfigPaths = RulesConfigPaths()
-        let syncPointer = RepositoryPointer.load(runtimeConfigDir: runtimeConfigPaths.configDirectoryURL)
         let engine = RulesSyncEngine(pointer: syncPointer)
         self.rulesSyncEngine = engine
         self.rulesSyncStartupOutcome = engine.reverseSyncOnStartup(runtimePaths: runtimeConfigPaths)
@@ -327,5 +338,39 @@ final class SpinLabAppState {
 
     func bumpAppStateRevision() {
         appStateRevision &+= 1
+    }
+
+    func publishWebLibrary() {
+        guard !libraryFeatureStore.webLibraryPublishState.isRunning else {
+            return
+        }
+        guard let repoRootURL = repositoryPointer?.repoRoot else {
+            libraryFeatureStore.failWebLibraryPublish(
+                summary: "SpinLab checkout root is not configured."
+            )
+            return
+        }
+
+        libraryFeatureStore.beginWebLibraryPublish()
+        let publisher = webLibraryPublisher
+
+        Task.detached(priority: .utility) { [weak self] in
+            guard let self else { return }
+            do {
+                let exitCode = try await publisher.publishWebLibrary(repoRootURL: repoRootURL) { kind, line in
+                    Task { @MainActor in
+                        self.libraryFeatureStore.appendWebLibraryPublishOutput(kind: kind, line: line)
+                    }
+                }
+                await MainActor.run {
+                    self.libraryFeatureStore.finishWebLibraryPublish(exitCode: exitCode)
+                }
+            } catch {
+                let appError = AppError.from(error, fallback: "Failed to publish web library.")
+                await MainActor.run {
+                    self.libraryFeatureStore.failWebLibraryPublish(summary: appError.localizedDescription)
+                }
+            }
+        }
     }
 }

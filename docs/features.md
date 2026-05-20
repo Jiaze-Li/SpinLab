@@ -59,6 +59,7 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `docs/architecture/library/`
 - Audit log: append-only; unreadable existing log blocks write (no overwrite)
 - Sidecar schema (canonical): `docs/architecture/inbox/OUTPUT_CONTRACTS.md`; Library reading behavior: `docs/architecture/library/SIDECAR_AND_CONDITIONS.md`
 - Storage and sync details: `docs/architecture/library/ARCHIVE_STORAGE.md`
+- Library publish action is a shell-out trigger only: `public to html` runs `scripts/publish_web_library.sh` and publishes the separate `SpinLab-Web-Library` repo snapshot; the app UI shows only high-level publish status by default and keeps full script logs behind a failure disclosure
 
 ---
 

@@ -49,6 +49,7 @@ Start with `V41217MeasurementPlotIndexTests.swift`.
 - `Sources/SpinLabApp/Features/Library/RecomputeStaleBannerView.swift` — stale artifact banner (display only; recompute routes to Workbench)
 - `Sources/SpinLabApp/Features/Library/LibrarySheets.swift` — Library sheet presentation modifiers (edit, preview sheets)
 - `Sources/SpinLabApp/Features/Library/LibraryViewComputationService.swift` — UI-layer bridge for preview loading; surfaces results to view
+- `Sources/SpinLabApp/App/WebLibraryPublishService.swift` — shells out to the separate web-library publish script, streams publish output, and returns the exit code for UI summarization
 - `Sources/SpinLabApp/Library/LibraryPathResolver.swift` — root-relative path construction for artifact and sidecar locations (shared: Library + Workbench, SP-008)
 - `Sources/SpinLabApp/UseCases/LoadMeasurementPlotIndexUseCase.swift` — reads _spinlab/ plot index to discover available charts
 - `Sources/SpinLabApp/UseCases/LoadRelatedChartsUseCase.swift` — resolves related chart paths for multi-chart measurements
