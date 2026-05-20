@@ -66,7 +66,8 @@ def main() -> int:
     args = parse_args()
     repo_dir = Path(args.repo_dir).expanduser().resolve()
 
-    tracked_changes = run_git(repo_dir, "diff", "--name-only", "--", "public").splitlines()
+    unstaged_changes = run_git(repo_dir, "diff", "--name-only", "--", "public").splitlines()
+    staged_changes = run_git(repo_dir, "diff", "--cached", "--name-only", "--", "public").splitlines()
     untracked_changes = run_git(
         repo_dir,
         "ls-files",
@@ -75,7 +76,9 @@ def main() -> int:
         "--",
         "public",
     ).splitlines()
-    changed_paths = sorted({path for path in tracked_changes + untracked_changes if path})
+    changed_paths = sorted(
+        {path for path in unstaged_changes + staged_changes + untracked_changes if path}
+    )
 
     if not changed_paths:
         print("No web snapshot changes to publish.")
