@@ -16,6 +16,7 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `docs/architecture/inbox/`
 - Parse stage must never make routing decisions (strict pipeline boundary)
 - Parsed metadata is suggestion-only until user confirms
 - Duplicate filenames in queue: append sequence, never silently overwrite
+- Sample IDs may be extracted from glued filename tokens when the token contains a valid `PN/PT/SL` prefix plus digits, e.g. `20260430140313PN80` → `PN80`
 - Test: extensive unit tests on parse/route/match/evaluate stages
 
 ### Confirm & Apply
