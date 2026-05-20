@@ -37,14 +37,16 @@ struct FilenameRuleParser {
         let originalFileStem = fileURL.deletingPathExtension().lastPathComponent
         let originalParentName = fileURL.deletingLastPathComponent().lastPathComponent
         let originalGrandparentName = fileURL.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent
-        let fileStem = normalizedForParsing(originalFileStem)
-        let parentName = normalizedForParsing(originalParentName)
-        let grandparentName = normalizedForParsing(originalGrandparentName)
+        let fileStem = originalFileStem
+        let parentName = originalParentName
+        let grandparentName = originalGrandparentName
 
         let fileTokens = tokenize(fileStem)
         let fileScopeTokens = fileTokensBeforeFirstChannel(fileTokens)
         let parentTokens = tokenize(parentName)
         let grandparentTokens = tokenize(grandparentName)
+        let conditionFileTokens = conditionTokens(from: fileTokens)
+        let conditionFolderTokens = conditionTokens(from: parentTokens + grandparentTokens)
 
         // Scoped context: pre-channel file tokens + folder tokens.
         // Used for sample ID, measurement name, substrate tags — avoids pulling
@@ -86,11 +88,11 @@ struct FilenameRuleParser {
             folderTags: uniquePreservingOrder(ruleSet.measurementTags(from: folderContextTokens))
         )
         let substrateTags = preferredTags(
-            fileTags: uniquePreservingOrder(ruleSet.substrateTags(from: fileScopeTokens)),
-            folderTags: uniquePreservingOrder(ruleSet.substrateTags(from: folderContextTokens))
+            fileTags: uniquePreservingOrder(ruleSet.substrateTags(from: substrateTokens(from: fileScopeTokens))),
+            folderTags: uniquePreservingOrder(ruleSet.substrateTags(from: substrateTokens(from: folderContextTokens)))
         )
-        let fileConditionEvaluation = ruleSet.conditionEvaluation(from: fileTokens)
-        let folderConditionEvaluation = ruleSet.conditionEvaluation(from: folderContextTokens)
+        let fileConditionEvaluation = ruleSet.conditionEvaluation(from: conditionFileTokens)
+        let folderConditionEvaluation = ruleSet.conditionEvaluation(from: conditionFolderTokens)
         let conditionEvaluation = mergedConditionEvaluation(
             fileEvaluation: fileConditionEvaluation,
             folderEvaluation: folderConditionEvaluation
@@ -118,24 +120,24 @@ struct FilenameRuleParser {
             hintSources["sampleID#\(idx)"] = item.ruleRef
         }
 
-        let fileConditionWithSources = ruleSet.conditionEvaluationWithSources(from: fileTokens)
+        let fileConditionWithSources = ruleSet.conditionEvaluationWithSources(from: conditionFileTokens)
         for (id, sourced) in fileConditionWithSources.sourcedValues {
             hintSources["condition.\(id)"] = sourced.ruleRef
         }
         // Folder-derived conditions: fill keys absent from file scope
-        let folderConditionWithSources = ruleSet.conditionEvaluationWithSources(from: folderContextTokens)
+        let folderConditionWithSources = ruleSet.conditionEvaluationWithSources(from: conditionFolderTokens)
         for (id, sourced) in folderConditionWithSources.sourcedValues where hintSources["condition.\(id)"] == nil {
             hintSources["condition.\(id)"] = sourced.ruleRef
         }
 
-        let fileSubstrateWithSources = ruleSet.substrateTagsWithSources(from: fileScopeTokens)
+        let fileSubstrateWithSources = ruleSet.substrateTagsWithSources(from: substrateTokens(from: fileScopeTokens))
         if !fileSubstrateWithSources.isEmpty {
             for (idx, item) in fileSubstrateWithSources.enumerated() {
                 hintSources["substrateTags[\(idx)]"] = item.ruleRef
             }
         } else {
             // preferredTags returns folder tags when file has none
-            let folderSubstrateWithSources = ruleSet.substrateTagsWithSources(from: folderContextTokens)
+            let folderSubstrateWithSources = ruleSet.substrateTagsWithSources(from: substrateTokens(from: folderContextTokens))
             for (idx, item) in folderSubstrateWithSources.enumerated() {
                 hintSources["substrateTags[\(idx)]"] = item.ruleRef
             }
@@ -190,10 +192,6 @@ struct FilenameRuleParser {
         SampleTokenization.split(value, separators: ruleSet.tokenization.separators)
     }
 
-    private func normalizedForParsing(_ value: String) -> String {
-        value.replacingOccurrences(of: #"\s+"#, with: "", options: .regularExpression)
-    }
-
     private func fileTokensBeforeFirstChannel(_ fileTokens: [String]) -> [String] {
         var collected: [String] = []
         for token in fileTokens {
@@ -224,6 +222,41 @@ struct FilenameRuleParser {
         return collected
     }
 
+    private func conditionTokens(from tokens: [String]) -> [String] {
+        var result = tokens
+        guard tokens.count > 1 else {
+            return result
+        }
+
+        for index in tokens.indices.dropLast() {
+            let value = tokens[index]
+            let unit = tokens[tokens.index(after: index)]
+            guard isNumericToken(value), isUnitToken(unit) else {
+                continue
+            }
+            result.append(value + unit)
+        }
+        return result
+    }
+
+    private func substrateTokens(from tokens: [String]) -> [String] {
+        tokens.filter { token in
+            !isDecimalNumericToken(token)
+        }
+    }
+
+    private func isNumericToken(_ token: String) -> Bool {
+        token.range(of: #"^-?\d+(?:\.\d+)?$"#, options: .regularExpression) != nil
+    }
+
+    private func isDecimalNumericToken(_ token: String) -> Bool {
+        token.range(of: #"^-?\d+\.\d+$"#, options: .regularExpression) != nil
+    }
+
+    private func isUnitToken(_ token: String) -> Bool {
+        token.range(of: #"^[A-Za-z]+$"#, options: .regularExpression) != nil
+    }
+
     private func channelHints(from fileTokens: [String]) -> [SpinLabDomain.ParsedChannelHint] {
         var hints: [SpinLabDomain.ParsedChannelHint] = []
         var index = 0
@@ -242,7 +275,7 @@ struct FilenameRuleParser {
                 index += 1
             }
 
-            let tags = uniquePreservingOrder(ruleSet.substrateTags(from: collected))
+            let tags = uniquePreservingOrder(ruleSet.substrateTags(from: substrateTokens(from: collected)))
             let sampleID = defaultSampleName(
                 defaultSampleKey: ruleSet.sampleIDs(from: collected).first,
                 substrateTags: tags
