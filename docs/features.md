@@ -62,6 +62,7 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `docs/architecture/library/`
 - Library publish action is a shell-out trigger only: `public to html` runs `scripts/publish_web_library.sh`, which exports, validates, and then publishes the separate `SpinLab-Web-Library` repo snapshot; the app UI shows only high-level publish status by default and keeps full script logs behind a failure disclosure
 - Web Library export summary strip keeps only Batches, Samples, Charts, and Chart size; schema appears as a low-priority title badge, and forced export appears only as a warning badge when enabled
 - Source-of-truth details: [`docs/web_library.md`](web_library.md)
+- Sample notes are sample-scoped plain text, edited from the detail panel, and persisted outside the static export via Cloudflare D1 so republishing does not erase them.
 
 ### Web Library UI Source of Truth
 - Web Library UI source lives in SpinLab, currently inside `Resources/WebLibraryTemplate/`

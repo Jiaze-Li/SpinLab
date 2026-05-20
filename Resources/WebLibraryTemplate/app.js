@@ -2,6 +2,16 @@ const state = {
   library: null,
   report: null,
   selectedKey: null,
+  note: {
+    sampleId: null,
+    status: "idle",
+    error: "",
+    text: "",
+    draft: "",
+    editing: false,
+    requestToken: 0,
+    savedTimer: null,
+  },
   filters: {
     search: "",
     series: "all",
@@ -16,6 +26,19 @@ const SERIES_FILTERS = [
   { value: "PN", label: "PN", prefixes: ["PN"] },
   { value: "SL", label: "SL", prefixes: ["SL"] },
 ];
+
+const WORKSPACE_SPLIT_STORAGE_KEY = "spinlab.web-library.split-ratio";
+const WORKSPACE_MIN_SAMPLES_WIDTH = 420;
+const WORKSPACE_MIN_DETAIL_WIDTH = 360;
+const WORKSPACE_SPLITTER_WIDTH = 12;
+const WORKSPACE_STACK_BREAKPOINT = 900;
+const WORKSPACE_TOP_ROW_HEIGHT = "clamp(55vh, 60vh, 65vh)";
+const WORKSPACE_DEFAULT_RATIO = 0.58;
+
+const layoutState = {
+  splitRatio: WORKSPACE_DEFAULT_RATIO,
+  resizeObserver: null,
+};
 
 const els = {};
 
@@ -56,6 +79,152 @@ function formatUtcTimestamp(value) {
 
 function sampleCharts(sampleKey) {
   return (state.report?.assetStats?.assets ?? []).filter((asset) => asset.sample_key === sampleKey);
+}
+
+function readStoredSplitRatio() {
+  try {
+    const value = window.localStorage.getItem(WORKSPACE_SPLIT_STORAGE_KEY);
+    if (value == null) {
+      return WORKSPACE_DEFAULT_RATIO;
+    }
+    const parsed = Number.parseFloat(value);
+    if (!Number.isFinite(parsed)) {
+      return WORKSPACE_DEFAULT_RATIO;
+    }
+    return Math.min(0.8, Math.max(0.2, parsed));
+  } catch (error) {
+    return WORKSPACE_DEFAULT_RATIO;
+  }
+}
+
+function storeSplitRatio(value) {
+  try {
+    window.localStorage.setItem(WORKSPACE_SPLIT_STORAGE_KEY, String(value));
+  } catch (error) {
+    // Ignore storage failures and keep the current layout in memory.
+  }
+}
+
+function workspaceSplitterWidth() {
+  return WORKSPACE_SPLITTER_WIDTH;
+}
+
+function workspaceIsStacked() {
+  const workspace = els.workspace;
+  return !workspace || workspace.classList.contains("is-stacked");
+}
+
+function syncWorkspaceLayout() {
+  const workspace = els.workspace;
+  if (!workspace) {
+    return;
+  }
+
+  const width = workspace.clientWidth;
+  const minRequiredWidth = WORKSPACE_MIN_SAMPLES_WIDTH + WORKSPACE_MIN_DETAIL_WIDTH + workspaceSplitterWidth();
+  if (width < Math.max(WORKSPACE_STACK_BREAKPOINT, minRequiredWidth)) {
+    workspace.classList.add("is-stacked");
+    workspace.classList.remove("is-split");
+    workspace.style.removeProperty("grid-template-columns");
+    workspace.style.removeProperty("grid-template-rows");
+    if (els.workspaceSplitter) {
+      els.workspaceSplitter.hidden = true;
+    }
+    return;
+  }
+
+  workspace.classList.remove("is-stacked");
+  workspace.classList.add("is-split");
+  workspace.style.gridTemplateRows = `${WORKSPACE_TOP_ROW_HEIGHT} auto`;
+
+  const available = Math.max(0, width - workspaceSplitterWidth());
+  let leftWidth = Math.round(available * layoutState.splitRatio);
+  const maxLeftWidth = Math.max(WORKSPACE_MIN_SAMPLES_WIDTH, available - WORKSPACE_MIN_DETAIL_WIDTH);
+  leftWidth = Math.min(maxLeftWidth, Math.max(WORKSPACE_MIN_SAMPLES_WIDTH, leftWidth));
+  const rightWidth = Math.max(WORKSPACE_MIN_DETAIL_WIDTH, available - leftWidth);
+  leftWidth = Math.max(WORKSPACE_MIN_SAMPLES_WIDTH, available - rightWidth);
+  layoutState.splitRatio = available > 0 ? leftWidth / available : WORKSPACE_DEFAULT_RATIO;
+  workspace.style.gridTemplateColumns = `${leftWidth}px ${workspaceSplitterWidth()}px ${rightWidth}px`;
+
+  if (els.workspaceSplitter) {
+    els.workspaceSplitter.hidden = false;
+    els.workspaceSplitter.setAttribute("aria-valuenow", String(Math.round(layoutState.splitRatio * 100)));
+    els.workspaceSplitter.setAttribute("aria-valuetext", `${Math.round(layoutState.splitRatio * 100)}% Samples width`);
+  }
+}
+
+function setWorkspaceSplitRatio(ratio, persist = true) {
+  const normalized = Math.min(0.8, Math.max(0.2, ratio));
+  layoutState.splitRatio = normalized;
+  if (persist) {
+    storeSplitRatio(normalized);
+  }
+  syncWorkspaceLayout();
+}
+
+function updateWorkspaceSplitFromPointer(clientX, persist = true) {
+  const workspace = els.workspace;
+  if (!workspace || workspaceIsStacked()) {
+    return;
+  }
+  const rect = workspace.getBoundingClientRect();
+  const available = Math.max(0, rect.width - workspaceSplitterWidth());
+  if (available <= 0) {
+    return;
+  }
+
+  const leftWidth = Math.min(
+    available - WORKSPACE_MIN_DETAIL_WIDTH,
+    Math.max(WORKSPACE_MIN_SAMPLES_WIDTH, clientX - rect.left),
+  );
+  const normalized = leftWidth / available;
+  setWorkspaceSplitRatio(normalized, persist);
+}
+
+function beginWorkspaceSplitDrag(event) {
+  if (event.button !== 0 || workspaceIsStacked()) {
+    return;
+  }
+  event.preventDefault();
+  const handle = event.currentTarget;
+  handle.setPointerCapture(event.pointerId);
+  document.body.classList.add("is-resizing-workspace");
+  updateWorkspaceSplitFromPointer(event.clientX, false);
+
+  const onPointerMove = (moveEvent) => {
+    updateWorkspaceSplitFromPointer(moveEvent.clientX, false);
+  };
+  const onPointerUp = () => {
+    document.body.classList.remove("is-resizing-workspace");
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+    window.removeEventListener("pointercancel", onPointerUp);
+    storeSplitRatio(layoutState.splitRatio);
+  };
+
+  window.addEventListener("pointermove", onPointerMove);
+  window.addEventListener("pointerup", onPointerUp, { once: true });
+  window.addEventListener("pointercancel", onPointerUp, { once: true });
+}
+
+function handleWorkspaceSplitterKeydown(event) {
+  if (workspaceIsStacked()) {
+    return;
+  }
+  const step = event.shiftKey ? 0.05 : 0.02;
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    setWorkspaceSplitRatio(layoutState.splitRatio - step);
+  } else if (event.key === "ArrowRight") {
+    event.preventDefault();
+    setWorkspaceSplitRatio(layoutState.splitRatio + step);
+  } else if (event.key === "Home") {
+    event.preventDefault();
+    setWorkspaceSplitRatio(0.2);
+  } else if (event.key === "End") {
+    event.preventDefault();
+    setWorkspaceSplitRatio(0.8);
+  }
 }
 
 function normaliseText(value) {
@@ -347,6 +516,92 @@ function chartSizeLabel(chart) {
   return formatBytes(chart.size_bytes ?? 0);
 }
 
+function noteApiUrl(sampleId) {
+  return `./api/note?sample_id=${encodeURIComponent(sampleId)}`;
+}
+
+function clearNoteSavedTimer() {
+  if (state.note.savedTimer) {
+    window.clearTimeout(state.note.savedTimer);
+    state.note.savedTimer = null;
+  }
+}
+
+function resetNoteState(sampleId, status = "loading") {
+  clearNoteSavedTimer();
+  state.note.sampleId = sampleId;
+  state.note.status = status;
+  state.note.error = "";
+  state.note.text = "";
+  state.note.draft = "";
+  state.note.editing = false;
+  state.note.requestToken += 1;
+  return state.note.requestToken;
+}
+
+function renderNoteSection(sample) {
+  const note = state.note;
+  const active = note.sampleId === sample.id;
+  if (!active) {
+    return `
+      <div class="detail-section note-section">
+        <div class="detail-section-head">
+          <div class="section-title">Note</div>
+          <button type="button" class="action-button action-button-secondary" disabled>Edit</button>
+        </div>
+        <div class="note-card">
+          <div class="note-text muted">Loading note...</div>
+        </div>
+      </div>
+    `;
+  }
+  const statusText =
+    note.status === "loading"
+      ? "Loading note..."
+      : note.status === "saving"
+        ? "Saving..."
+        : note.status === "saved"
+          ? "Saved"
+          : note.status === "error"
+            ? note.error
+            : "";
+
+  if (note.editing && active) {
+    return `
+      <div class="detail-section note-section">
+        <div class="detail-section-head">
+          <div class="section-title">Note</div>
+          <div class="note-actions">
+            <button type="button" class="action-button action-button-secondary" data-note-action="cancel" ${note.status === "saving" ? "disabled" : ""}>Cancel</button>
+            <button type="button" class="action-button" data-note-action="save" ${note.status === "saving" ? "disabled" : ""}>Save</button>
+          </div>
+        </div>
+        <textarea class="note-editor" data-note-editor="true" spellcheck="true" aria-label="Sample note" ${note.status === "saving" ? "disabled" : ""}>${escapeHtml(note.draft)}</textarea>
+        ${statusText ? `<div class="note-status ${note.status === "error" ? "note-error" : ""}">${escapeHtml(statusText)}</div>` : ""}
+      </div>
+    `;
+  }
+
+  return `
+    <div class="detail-section note-section">
+      <div class="detail-section-head">
+        <div class="section-title">Note</div>
+        <button type="button" class="action-button action-button-secondary" data-note-action="edit" ${note.status === "loading" || note.status === "saving" || note.status === "error" ? "disabled" : ""}>Edit</button>
+      </div>
+      <div class="note-card">
+        ${note.status === "loading" && active
+          ? `<div class="note-text muted">Loading note...</div>`
+          : note.status === "error" && active
+            ? `<div class="note-status note-error">${escapeHtml(statusText)}</div>`
+            : note.text.length === 0 && active
+              ? `<div class="note-text muted">No note yet.</div>`
+              : `<div class="note-text">${escapeHtml(note.text)}</div>`}
+      </div>
+      ${note.status === "saved" && active ? `<div class="note-status note-ok">Saved</div>` : ""}
+    </div>
+  `;
+}
+
 async function copyTextToClipboard(text) {
   if (navigator.clipboard?.writeText) {
     try {
@@ -421,6 +676,7 @@ function renderMetadata(sample) {
         </div>
       `
       : ""}
+    ${renderNoteSection(sample)}
   `;
 }
 
@@ -587,9 +843,131 @@ function selectSample(sampleKey) {
   renderTable();
   renderDetail();
   renderChartsPanel();
+  void loadSelectedSampleNote();
+}
+
+async function loadSelectedSampleNote() {
+  const sample = selectedSample();
+  if (!sample) {
+    resetNoteState(null, "idle");
+    renderDetail();
+    return;
+  }
+
+  const token = resetNoteState(sample.id, "loading");
+  renderDetail();
+
+  try {
+    const response = await fetch(noteApiUrl(sample.id), {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to load note (${response.status})`);
+    }
+    const payload = await response.json();
+    if (token !== state.note.requestToken || state.selectedKey !== sample.id) {
+      return;
+    }
+    state.note.status = "ready";
+    state.note.error = "";
+    state.note.text = String(payload.note_text ?? "");
+    state.note.draft = state.note.text;
+    state.note.editing = false;
+  } catch (error) {
+    if (token !== state.note.requestToken || state.selectedKey !== sample.id) {
+      return;
+    }
+    state.note.status = "error";
+    state.note.error = error instanceof Error ? error.message : "Unable to load note.";
+    state.note.editing = false;
+  }
+
+  renderDetail();
+}
+
+function enterNoteEditMode() {
+  const sample = selectedSample();
+  if (!sample || state.note.sampleId !== sample.id || state.note.status === "loading" || state.note.status === "saving") {
+    return;
+  }
+  clearNoteSavedTimer();
+  state.note.editing = true;
+  state.note.status = "ready";
+  state.note.error = "";
+  state.note.draft = state.note.text;
+  renderDetail();
+}
+
+function cancelNoteEditMode() {
+  state.note.editing = false;
+  state.note.error = "";
+  state.note.draft = state.note.text;
+  state.note.status = "ready";
+  renderDetail();
+}
+
+async function saveSelectedNote() {
+  const sample = selectedSample();
+  if (!sample || state.note.sampleId !== sample.id || !state.note.editing || state.note.status === "saving") {
+    return;
+  }
+
+  const token = ++state.note.requestToken;
+  const noteText = state.note.draft ?? "";
+  clearNoteSavedTimer();
+  state.note.status = "saving";
+  state.note.error = "";
+  renderDetail();
+
+  try {
+    const response = await fetch("./api/note", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        sample_id: sample.id,
+        note_text: noteText,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to save note (${response.status})`);
+    }
+    const payload = await response.json();
+    if (token !== state.note.requestToken || state.selectedKey !== sample.id) {
+      return;
+    }
+    state.note.status = "saved";
+    state.note.error = "";
+    state.note.text = String(payload.note_text ?? noteText);
+    state.note.draft = state.note.text;
+    state.note.editing = false;
+    renderDetail();
+    state.note.savedTimer = window.setTimeout(() => {
+      if (state.selectedKey === sample.id && state.note.sampleId === sample.id && state.note.status === "saved") {
+        state.note.status = "ready";
+        renderDetail();
+      }
+    }, 1200);
+  } catch (error) {
+    if (token !== state.note.requestToken || state.selectedKey !== sample.id) {
+      return;
+    }
+    state.note.status = "error";
+    state.note.error = error instanceof Error ? error.message : "Unable to save note.";
+    state.note.editing = true;
+    renderDetail();
+  }
 }
 
 function attachEvents() {
+  els.workspaceSplitter.addEventListener("pointerdown", beginWorkspaceSplitDrag);
+  els.workspaceSplitter.addEventListener("keydown", handleWorkspaceSplitterKeydown);
+
   els.chartsBody.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-action]");
     if (!button) {
@@ -599,6 +977,33 @@ function attachEvents() {
       const copied = await copyTextToClipboard(button.dataset.chartUrl ?? "");
       flashCopiedFeedback(button, copied);
     }
+  });
+
+  els.detailBody.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-note-action]");
+    if (!button) {
+      return;
+    }
+    const action = button.dataset.noteAction;
+    if (action === "edit") {
+      enterNoteEditMode();
+      return;
+    }
+    if (action === "cancel") {
+      cancelNoteEditMode();
+      return;
+    }
+    if (action === "save") {
+      void saveSelectedNote();
+    }
+  });
+
+  els.detailBody.addEventListener("input", (event) => {
+    const editor = event.target.closest("[data-note-editor]");
+    if (!editor) {
+      return;
+    }
+    state.note.draft = editor.value;
   });
 
   els.search.addEventListener("input", (event) => {
@@ -666,6 +1071,35 @@ async function main() {
   els.titleBadges = byId("title-badges");
   els.reportStatus = byId("report-status");
   els.reportBody = byId("report-body");
+  els.workspace = document.querySelector(".workspace");
+  els.tablePanel = document.querySelector(".table-panel");
+  els.detailPanel = document.querySelector(".detail-panel");
+  els.chartsPanel = document.querySelector(".charts-panel");
+  els.workspaceSplitter = document.createElement("div");
+  els.workspaceSplitter.id = "workspace-splitter";
+  els.workspaceSplitter.className = "workspace-splitter";
+  els.workspaceSplitter.setAttribute("role", "separator");
+  els.workspaceSplitter.setAttribute("aria-orientation", "vertical");
+  els.workspaceSplitter.setAttribute("tabindex", "0");
+  els.workspaceSplitter.setAttribute("aria-label", "Resize Samples and Detail panels");
+  els.workspaceSplitter.setAttribute("aria-valuemin", "20");
+  els.workspaceSplitter.setAttribute("aria-valuemax", "80");
+  if (els.workspace && els.detailPanel) {
+    els.workspace.insertBefore(els.workspaceSplitter, els.detailPanel);
+  }
+  layoutState.splitRatio = readStoredSplitRatio();
+  syncWorkspaceLayout();
+
+  window.addEventListener("resize", syncWorkspaceLayout);
+  if (window.ResizeObserver) {
+    layoutState.resizeObserver = new ResizeObserver(() => {
+      syncWorkspaceLayout();
+    });
+    if (els.workspace) {
+      layoutState.resizeObserver.observe(els.workspace);
+    }
+  }
+
   const reportPanel = els.reportBody.closest(".report-panel");
   if (reportPanel) {
     reportPanel.hidden = true;
@@ -677,6 +1111,8 @@ async function main() {
     populateFilters();
     attachEvents();
     reRender();
+    syncWorkspaceLayout();
+    void loadSelectedSampleNote();
   } catch (error) {
     els.status.textContent = "Load failed";
     els.detailBody.innerHTML = `<div class="error"><strong>Unable to load export data.</strong><div class="muted">${escapeHtml(error.message)}</div></div>`;
