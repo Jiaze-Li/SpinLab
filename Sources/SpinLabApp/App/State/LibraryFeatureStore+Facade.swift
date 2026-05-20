@@ -114,7 +114,11 @@ import Foundation
 
         if exitCode == 0 {
             if hasNoChangesMarker {
-                return (WebLibraryPublishState.noChangesMessage, nil, completedAt)
+                return (
+                    WebLibraryPublishState.noChangesMessage,
+                    "Site is already up to date.",
+                    completedAt
+                )
             }
 
             let summaryMessage = WebLibraryPublishState.publishedSiteMessage

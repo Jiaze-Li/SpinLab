@@ -29,7 +29,8 @@ struct V552WebLibraryPublishStateTests {
         store.finishWebLibraryPublish(exitCode: 0)
 
         #expect(store.webLibraryPublishState.statusMessage == LibraryFeatureStore.WebLibraryPublishState.noChangesMessage)
-        #expect(store.webLibraryPublishState.summaryMessage == nil)
+        #expect(store.webLibraryPublishState.summaryMessage == "Site is already up to date.")
+        #expect(store.webLibraryPublishState.completedAt != nil)
     }
 
     @Test("finishWebLibraryPublish shows failure summary from stderr")

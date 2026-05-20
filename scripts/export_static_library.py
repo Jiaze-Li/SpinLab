@@ -1121,7 +1121,6 @@ def build_library_export(
     index: dict[str, Any],
     asset_records: list[AssetRecord],
     source_root: Path,
-    exported_at: str,
 ) -> dict[str, Any]:
     batches = index.get("batches", [])
     samples = index.get("samples", [])
@@ -1144,7 +1143,6 @@ def build_library_export(
 
     return {
         "schemaVersion": 1,
-        "exportedAt": exported_at,
         "sourceSummary": {
             "sourceRootName": source_root.name,
             "indexVersion": index.get("version", 1),
@@ -1260,7 +1258,7 @@ def main() -> int:
         record.destination_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(record.source_path, record.destination_path)
 
-    library_export = build_library_export(index, asset_records, library_root, exported_at)
+    library_export = build_library_export(index, asset_records, library_root)
     write_json(output_dir / "data" / "library.json", library_export)
     write_json(report_path, report)
     (output_dir / "index.html").write_text(render_index_html(), encoding="utf-8")

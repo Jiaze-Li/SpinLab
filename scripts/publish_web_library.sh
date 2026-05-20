@@ -26,13 +26,24 @@ python3 "$source_root/scripts/export_static_library.py" \
     --library-root "$library_root" \
     --output-dir "$export_output_dir"
 
-log "Checking web snapshot changes..."
-cd "$web_repo"
+log "Validating web library snapshot..."
+python3 "$source_root/scripts/validate_web_library.py" \
+    --output-dir "$export_output_dir"
 
-if git diff --quiet -- public && git diff --cached --quiet -- public && [[ -z "$(git status --porcelain -- public)" ]]; then
-    log "No web snapshot changes to publish."
+log "Checking web snapshot changes..."
+change_check_status=0
+if python3 "$source_root/scripts/check_web_library_changes.py" \
+    --repo-dir "$web_repo"; then
     exit 0
+else
+    change_check_status=$?
 fi
+
+if [[ $change_check_status -ne 1 ]]; then
+    exit "$change_check_status"
+fi
+
+cd "$web_repo"
 
 if ! git diff --cached --quiet -- . ':(exclude)public'; then
     log "Refusing to publish because unrelated staged changes exist in $web_repo."

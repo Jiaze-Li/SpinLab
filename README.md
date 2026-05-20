@@ -34,10 +34,17 @@ python scripts/export_static_library.py \
 Workflow:
 
 1. Run the exporter from this repo.
-2. Review the generated files in `../SpinLab-Web-Library/public`.
-3. Manually commit and push changes from the private web repo. The exporter never runs `git commit` or `git push`.
+2. Validate the generated bundle before publishing:
+
+```bash
+python3 scripts/validate_web_library.py --output-dir ../SpinLab-Web-Library/public
+```
+
+3. Publish by running `scripts/publish_web_library.sh`, which exports and validates before it commits or pushes the web repo.
 4. Cloudflare Pages deploys from the private repo's `public/` output.
 5. Cloudflare Access uses One-time PIN login. Keep the browser session for 30 days when you want the login to persist across visits.
+
+Validation is required before publishing. Do not commit or push a web export until the validator passes.
 
 The exporter may replace files inside `--output-dir`, but it must not delete or modify anything outside that directory.
 
