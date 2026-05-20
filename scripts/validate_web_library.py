@@ -21,6 +21,10 @@ def default_output_dir() -> Path:
     return repo_root().parent / "SpinLab-Web-Library" / "public"
 
 
+def template_dir() -> Path:
+    return repo_root() / "Resources" / "WebLibraryTemplate"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate the exported SpinLab web library bundle.")
     parser.add_argument(
@@ -131,6 +135,31 @@ def validate_frontend(app_js: Path, errors: list[str]) -> None:
         errors.append("public/app.js must not build chart image paths from asset_key, sample, batch, or assets/")
 
 
+def validate_generated_ui_matches_templates(output_dir: Path, errors: list[str]) -> None:
+    source_dir = template_dir()
+    if not source_dir.exists():
+        errors.append(f"Missing Web Library template directory: {source_dir}")
+        return
+
+    for name in ["index.html", "app.js", "styles.css"]:
+        generated_path = output_dir / name
+        template_path = source_dir / name
+        if not template_path.exists():
+            errors.append(f"Missing Web Library template file: {template_path}")
+            continue
+        if not generated_path.exists():
+            errors.append(f"Missing generated Web Library file: {generated_path}")
+            continue
+        generated_text = generated_path.read_text(encoding="utf-8")
+        template_text = template_path.read_text(encoding="utf-8")
+        if generated_text != template_text:
+            errors.append(
+                "Generated Web Library output was edited directly. "
+                "Move UI changes to Resources/WebLibraryTemplate/."
+            )
+            return
+
+
 def validate_output_directory(output_dir: Path, verbose: bool) -> list[str]:
     errors: list[str] = []
     if verbose:
@@ -155,6 +184,7 @@ def validate_output_directory(output_dir: Path, verbose: bool) -> list[str]:
 
     validate_chart_assets(report_data, errors)
     validate_frontend(app_js, errors)
+    validate_generated_ui_matches_templates(output_dir, errors)
 
     for json_path in iter_json_files(output_dir):
         try:

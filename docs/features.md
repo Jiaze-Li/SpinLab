@@ -61,6 +61,17 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `docs/architecture/library/`
 - Storage and sync details: `docs/architecture/library/ARCHIVE_STORAGE.md`
 - Library publish action is a shell-out trigger only: `public to html` runs `scripts/publish_web_library.sh`, which exports, validates, and then publishes the separate `SpinLab-Web-Library` repo snapshot; the app UI shows only high-level publish status by default and keeps full script logs behind a failure disclosure
 - Web Library export summary strip keeps only Batches, Samples, Charts, and Chart size; schema appears as a low-priority title badge, and forced export appears only as a warning badge when enabled
+- Source-of-truth details: [`docs/web_library.md`](web_library.md)
+
+### Web Library UI Source of Truth
+- Web Library UI source lives in SpinLab, currently inside `Resources/WebLibraryTemplate/`
+- Generated output lives in `../SpinLab-Web-Library/public/`
+- Never treat `../SpinLab-Web-Library/public/` as the source of truth
+- To change Web Library UI, edit `Resources/WebLibraryTemplate/`
+- Do not manually edit `../SpinLab-Web-Library/public/app.js` or `styles.css` as the primary fix
+- After changing the exporter, run `./scripts/publish_web_library.sh` to regenerate and publish
+- `../SpinLab-Web-Library/public/` is disposable generated output and may be replaced on every publish
+- If templates later move again, that directory becomes the source of truth; until then, `Resources/WebLibraryTemplate/` remains authoritative
 
 ---
 

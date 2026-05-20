@@ -23,6 +23,15 @@ Key entry points:
 
 SpinLab-html stays code-only. The static web library lives in the separate private repo `../SpinLab-Web-Library`, and the exporter writes only into that repo's `public/` directory.
 
+### Where to edit Web Library UI
+
+- Correct: edit [`Resources/WebLibraryTemplate/`](Resources/WebLibraryTemplate)
+- Wrong: edit [`../SpinLab-Web-Library/public/app.js`](../SpinLab-Web-Library/public/app.js) directly
+- Publish: run [`./scripts/publish_web_library.sh`](scripts/publish_web_library.sh)
+- Reference: [`docs/web_library.md`](docs/web_library.md)
+
+`../SpinLab-Web-Library/public/` is disposable generated output. It may be replaced on every publish, so manual edits there are not the source of truth.
+
 Supported export path:
 
 ```bash
