@@ -91,6 +91,7 @@ const NATURAL_COLLATOR = new Intl.Collator(undefined, {
 
 const SEARCH_TOKEN_RE = /[\p{L}\p{N}]+/gu;
 const SEARCH_COMPACT_RE = /[^\p{L}\p{N}]+/gu;
+const SEARCH_QUERY_TOKEN_RE = /-?\d+(?:\.\d+)?(?:[°µμ]?[a-z]+)?|[\p{L}\p{N}]+/gu;
 const NUMERIC_QUERY_RE = /^(-?\d+(?:\.\d+)?)([a-z°µμ]+)$/i;
 const NUMERIC_VALUE_RE = /^(-?\d+(?:\.\d+)?)\s*(?:([°µμ]))?\s*([\p{L}]+)$/u;
 const MODIFIER_QUERY_TOKENS = new Set(["o", "b", "hf"]);
@@ -510,7 +511,7 @@ function sampleSearchQueryMatches(sample, search) {
   }
 
   const { numericValues, modifierTokens, tokens } = sampleSearchIndex(sample);
-  const queryTokens = query.match(SEARCH_TOKEN_RE) ?? [];
+  const queryTokens = query.match(SEARCH_QUERY_TOKEN_RE) ?? [];
   if (queryTokens.length === 0) {
     return true;
   }
