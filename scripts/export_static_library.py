@@ -526,6 +526,12 @@ h2 {
   color: var(--warn);
 }
 
+.badge-error {
+  border-color: rgba(239, 68, 68, 0.34);
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--error);
+}
+
 .controls {
   display: grid;
   grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(160px, 1fr)) auto;
@@ -663,6 +669,55 @@ tbody tr.selected td:first-child {
 .report-body {
   display: grid;
   gap: 14px;
+}
+
+.report-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 4px 0 2px;
+}
+
+.report-summary-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.report-summary-line .separator {
+  color: var(--muted);
+  font-weight: 500;
+  margin: 0 8px;
+}
+
+.report-details {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.report-details summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.report-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.report-details-body {
+  display: grid;
+  gap: 14px;
+  padding-top: 12px;
 }
 
 .detail-summary {
@@ -1116,11 +1171,30 @@ function renderFactList(entries) {
   `;
 }
 
+function normalizeMetadataKey(key) {
+  return String(key ?? "").trim().toLowerCase();
+}
+
+function isDuplicateMetadataKey(key) {
+  return new Set([
+    "编号",
+    "sample",
+    "batch",
+    "substrate",
+    "生长温度",
+    "温度",
+    "氧压",
+    "能量",
+    "厚度",
+  ]).has(normalizeMetadataKey(key));
+}
+
 function renderMetadata(sample) {
   const ordered = Array.isArray(sample.orderedMetadata) && sample.orderedMetadata.length
     ? sample.orderedMetadata
     : Object.entries(sample.metadata ?? {}).map(([key, value]) => ({ key, value }));
   const numericEntries = Object.entries(sample.numericDisplay ?? {});
+  const additionalMetadata = ordered.filter((item) => !isDuplicateMetadataKey(item.key));
   return `
     <div class="detail-section">
       <div class="section-title">Overview</div>
@@ -1154,21 +1228,25 @@ function renderMetadata(sample) {
           : `<div class="muted">None</div>`}
       </div>
     </div>
-    <div class="detail-section">
-      <div class="section-title">Ordered metadata</div>
-      <div class="kv-grid">
-        ${ordered
-          .map(
-            (item) => `
-              <div class="kv">
-                <div class="label">${escapeHtml(item.key)}</div>
-                <div class="value">${escapeHtml(item.value ?? "")}</div>
-              </div>
-            `,
-          )
-          .join("")}
-      </div>
-    </div>
+    ${additionalMetadata.length
+      ? `
+        <div class="detail-section">
+          <div class="section-title">Additional metadata</div>
+          <div class="kv-grid">
+            ${additionalMetadata
+              .map(
+                (item) => `
+                  <div class="kv">
+                    <div class="label">${escapeHtml(item.key)}</div>
+                    <div class="value">${escapeHtml(item.value ?? "")}</div>
+                  </div>
+                `,
+              )
+              .join("")}
+          </div>
+        </div>
+      `
+      : ""}
   `;
 }
 
@@ -1225,56 +1303,88 @@ function renderReport() {
   const thresholds = report.thresholds ?? {};
   const assets = assetStats.assets ?? [];
   const sampleKeys = Array.from(new Set(assets.map((asset) => asset.sample_key).filter(Boolean)));
+  const summaryParts = [
+    errors.length > 0 ? "Export issues" : "Export OK",
+    `${assetStats.chartCount ?? 0} charts`,
+    formatBytes(assetStats.chartBytes ?? 0),
+  ];
+  const badges = [
+    warnings.length ? `<span class="badge badge-warn">Warnings ${escapeHtml(warnings.length)}</span>` : "",
+    errors.length ? `<span class="badge badge-error">Errors ${escapeHtml(errors.length)}</span>` : "",
+  ].filter(Boolean);
 
   els.reportBody.innerHTML = `
-    ${renderKeyValueGrid([
-      ["Exported at", report.exportedAt ?? ""],
-      ["Chart assets", assetStats.chartCount ?? 0],
-      ["Chart bytes", formatBytes(assetStats.chartBytes ?? 0)],
-      ["Largest asset", assetStats.largestChartKey ?? ""],
-    ])}
-    <div class="section-title">Asset groups</div>
-    <div class="chips">
-      ${sampleKeys
-        .map((value) => `<span class="chip">${escapeHtml(assetGroupLabel(value))}</span>`)
-        .join("")}
+    <div class="report-summary" aria-label="export report summary">
+      <div class="report-summary-line">
+        ${summaryParts
+          .map((part, index) =>
+            index === 0
+              ? `<span>${escapeHtml(part)}</span>`
+              : `<span class="separator">·</span><span>${escapeHtml(part)}</span>`,
+          )
+          .join("")}
+      </div>
+      ${badges.join("")}
     </div>
-    <div class="section-title">Thresholds</div>
-    ${renderKeyValueGrid(Object.entries(thresholds).map(([key, value]) => [key, value]))}
-    <div class="section-title">Warnings</div>
-    <div class="warning-list">
-      ${
-        warnings.length
-          ? warnings
-              .map(
-                (warning) => `
-                  <div class="warning">
-                    <div><strong>${escapeHtml(warning.code)}</strong></div>
-                    <div class="muted">${escapeHtml(warning.message)}</div>
-                  </div>
-                `,
-              )
-              .join("")
-          : `<div class="muted">None</div>`
-      }
-    </div>
-    <div class="section-title">Errors</div>
-    <div class="error-list">
-      ${
-        errors.length
-          ? errors
-              .map(
-                (error) => `
-                  <div class="error">
-                    <div><strong>${escapeHtml(error.code)}</strong></div>
-                    <div class="muted">${escapeHtml(error.message)}</div>
-                  </div>
-                `,
-              )
-              .join("")
-          : `<div class="muted">None</div>`
-      }
-    </div>
+    <details class="report-details">
+      <summary>Report details</summary>
+      <div class="report-details-body">
+        ${renderKeyValueGrid([
+          ["Exported at", report.exportedAt ?? ""],
+          ["Largest asset", assetStats.largestChartKey ?? ""],
+        ])}
+        <div class="detail-section">
+          <div class="section-title">Asset groups</div>
+          <div class="chips">
+            ${sampleKeys
+              .map((value) => `<span class="chip">${escapeHtml(assetGroupLabel(value))}</span>`)
+              .join("")}
+          </div>
+        </div>
+        <div class="detail-section">
+          <div class="section-title">Thresholds</div>
+          ${renderKeyValueGrid(Object.entries(thresholds).map(([key, value]) => [key, value]))}
+        </div>
+        <div class="detail-section">
+          <div class="section-title">Warnings</div>
+          <div class="warning-list">
+            ${
+              warnings.length
+                ? warnings
+                    .map(
+                      (warning) => `
+                        <div class="warning">
+                          <div><strong>${escapeHtml(warning.code)}</strong></div>
+                          <div class="muted">${escapeHtml(warning.message)}</div>
+                        </div>
+                      `,
+                    )
+                    .join("")
+                : `<div class="muted">None</div>`
+            }
+          </div>
+        </div>
+        <div class="detail-section">
+          <div class="section-title">Errors</div>
+          <div class="error-list">
+            ${
+              errors.length
+                ? errors
+                    .map(
+                      (error) => `
+                        <div class="error">
+                          <div><strong>${escapeHtml(error.code)}</strong></div>
+                          <div class="muted">${escapeHtml(error.message)}</div>
+                        </div>
+                      `,
+                    )
+                    .join("")
+                : `<div class="muted">None</div>`
+            }
+          </div>
+        </div>
+      </div>
+    </details>
   `;
 }
 
