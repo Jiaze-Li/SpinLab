@@ -4,12 +4,18 @@ const state = {
   selectedKey: null,
   filters: {
     search: "",
+    series: "all",
     batch: "all",
     sheet: "all",
     assetGroup: "all",
     chartsOnly: false,
   },
 };
+
+const SERIES_FILTERS = [
+  { value: "PN", label: "PN", prefixes: ["PN"] },
+  { value: "SL", label: "SL", prefixes: ["SL"] },
+];
 
 const els = {};
 
@@ -56,8 +62,33 @@ function normaliseText(value) {
   return String(value ?? "").toLowerCase();
 }
 
+function normalisePrefix(value) {
+  return String(value ?? "").trim().toUpperCase();
+}
+
+function sampleSeriesHaystack(sample) {
+  return [sample.batchId, sample.id, sample.displayName]
+    .map(normalisePrefix)
+    .filter(Boolean);
+}
+
+function sampleMatchesSeries(sample, series) {
+  if (series === "all") {
+    return true;
+  }
+  const family = SERIES_FILTERS.find((item) => item.value === series);
+  if (!family) {
+    return true;
+  }
+  const haystack = sampleSeriesHaystack(sample);
+  return haystack.some((value) => family.prefixes.some((prefix) => value.startsWith(prefix)));
+}
+
 function sampleMatches(sample) {
   const search = state.filters.search.trim().toLowerCase();
+  if (!sampleMatchesSeries(sample, state.filters.series)) {
+    return false;
+  }
   if (state.filters.batch !== "all" && sample.batchId !== state.filters.batch) {
     return false;
   }
@@ -126,8 +157,16 @@ function renderSummaryStrip() {
 
 function renderTitleBadges() {
   const schemaVersion = state.library?.schemaVersion;
+  const warnings = state.report?.warnings ?? [];
+  const errors = state.report?.errors ?? [];
+  const exportBadge = errors.length > 0
+    ? '<span class="badge badge-error badge-status">Export error</span>'
+    : warnings.length > 0
+      ? '<span class="badge badge-warn badge-status">Export warning</span>'
+      : '<span class="badge badge-subtle badge-status">Export OK</span>';
   const badges = [
     schemaVersion != null ? `<span class="badge badge-subtle">Schema v${escapeHtml(schemaVersion)}</span>` : "",
+    exportBadge,
     state.report?.forced ? `<span class="badge badge-warn">Forced export</span>` : "",
   ].filter(Boolean);
   els.titleBadges.innerHTML = badges.join("");
@@ -139,11 +178,15 @@ function populateFilters() {
     return;
   }
 
+  const seriesOptions = ["all", ...SERIES_FILTERS.map((item) => item.value)];
   const batches = ["all", ...(library.filters?.batchIds ?? [])];
   const sheets = ["all", ...(library.filters?.sheetNames ?? [])];
   const sampleIds = new Set((library.samples ?? []).map((sample) => sample.id));
   const assetGroups = ["all", ...((state.report?.assetStats?.sampleKeys ?? []).filter((value) => sampleIds.has(value)))];
 
+  els.seriesFilter.innerHTML = seriesOptions
+    .map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value === "all" ? "All series" : value)}</option>`)
+    .join("");
   els.batchFilter.innerHTML = batches
     .map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value === "all" ? "All batches" : value)}</option>`)
     .join("");
@@ -216,6 +259,26 @@ function renderFactList(entries) {
   `;
 }
 
+function renderGlassCardGrid(entries, cardClass, emptyMessage) {
+  if (!entries.length) {
+    return `<div class="muted">${escapeHtml(emptyMessage)}</div>`;
+  }
+  return `
+    <div class="glass-grid ${escapeHtml(cardClass)}">
+      ${entries
+        .map(
+          ([label, value]) => `
+            <div class="glass-card">
+              <div class="glass-label">${escapeHtml(label)}</div>
+              <div class="glass-value">${escapeHtml(value)}</div>
+            </div>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 function normalizeMetadataKey(key) {
   return String(key ?? "").trim().toLowerCase();
 }
@@ -250,11 +313,86 @@ function isEmptyMetadataValue(value) {
   return false;
 }
 
+function basename(value) {
+  const text = String(value ?? "");
+  const parts = text.split(/[\\/]/);
+  return parts[parts.length - 1] ?? text;
+}
+
+function stripExtension(value) {
+  return String(value ?? "").replace(/\.[^.]+$/, "");
+}
+
+function shortenText(value, maxLength) {
+  const text = String(value ?? "").trim();
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+function chartFullLabel(chart) {
+  return basename(chart.source_file ?? chart.title ?? chart.display_name ?? chart.asset_key ?? "chart");
+}
+
+function chartTitle(chart) {
+  const source = stripExtension(chart.source_file ?? chart.title ?? chart.display_name ?? chart.asset_key ?? "chart")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return shortenText(source || "Chart", 34);
+}
+
+function chartSizeLabel(chart) {
+  return formatBytes(chart.size_bytes ?? 0);
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (error) {
+      // Fall through to legacy copy below.
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  textarea.setSelectionRange(0, textarea.value.length);
+  let copied = false;
+  try {
+    copied = document.execCommand("copy");
+  } catch (error) {
+    copied = false;
+  }
+  document.body.removeChild(textarea);
+  return copied;
+}
+
+function flashCopiedFeedback(button, copied) {
+  if (!button) {
+    return;
+  }
+  const original = button.dataset.originalLabel ?? button.textContent;
+  button.dataset.originalLabel = original;
+  button.textContent = copied ? "Copied" : "Copy failed";
+  window.clearTimeout(button._copyFeedbackTimer);
+  button._copyFeedbackTimer = window.setTimeout(() => {
+    button.textContent = button.dataset.originalLabel ?? original;
+  }, copied ? 1200 : 1600);
+}
+
 function renderMetadata(sample) {
   const ordered = Array.isArray(sample.orderedMetadata) && sample.orderedMetadata.length
     ? sample.orderedMetadata
     : Object.entries(sample.metadata ?? {}).map(([key, value]) => ({ key, value }));
-  const numericEntries = Object.entries(sample.numericDisplay ?? {});
+  const numericEntries = Object.entries(sample.numericDisplay ?? {}).filter(([, value]) => !isEmptyMetadataValue(value));
   const additionalMetadata = ordered.filter(
     (item) => !isDuplicateMetadataKey(item.key) && !isEmptyMetadataValue(item.value),
   );
@@ -263,81 +401,87 @@ function renderMetadata(sample) {
       <div class="section-title">Overview</div>
       ${renderFactList([
         ["Updated", formatUtcTimestamp(sample.updatedAt)],
-        ["Charts", sampleCharts(sample.id).length],
+        ["Batch", sample.batchId ?? ""],
+        ["Substrate", sample.substrateDisplay || sample.substrateRaw || ""],
       ])}
     </div>
-    <details class="source-details">
-      <summary>Sheet and row provenance</summary>
-      <div class="source-details-body">
-        ${renderFactList([
-          ["Sheet", sample.sourceSheetName ?? ""],
-          ["Row", sample.sourceRowNumber ?? ""],
-        ])}
-      </div>
-    </details>
     <div class="detail-section">
       <div class="section-title">Numeric tags</div>
-      <div class="tag-row">
-        ${numericEntries.length
-          ? numericEntries
-              .map(
-                ([label, value]) => `
-                  <span class="chip">${escapeHtml(label)}: ${escapeHtml(value)}</span>
-                `,
-              )
-              .join("")
-          : `<div class="muted">None</div>`}
-      </div>
+      ${renderGlassCardGrid(numericEntries, "glass-grid-metrics", "None")}
     </div>
     ${additionalMetadata.length
       ? `
         <div class="detail-section">
           <div class="section-title">Additional metadata</div>
-          <div class="kv-grid">
-            ${additionalMetadata
-              .map(
-                (item) => `
-                  <div class="kv">
-                    <div class="label">${escapeHtml(item.key)}</div>
-                    <div class="value">${escapeHtml(item.value ?? "")}</div>
-                  </div>
-                `,
-              )
-              .join("")}
-          </div>
+          ${renderGlassCardGrid(
+            additionalMetadata.map((item) => [item.key, item.value ?? ""]),
+            "glass-grid-metadata",
+            "None",
+          )}
         </div>
       `
       : ""}
   `;
 }
 
-function renderCharts(sample) {
-  const charts = sampleCharts(sample.id);
-  if (charts.length === 0) {
-    return `
-      <div class="section-title">Charts</div>
-      <div class="muted">No chart images were exported for this sample.</div>
-    `;
-  }
+function selectedSample() {
+  const sample = (state.library?.samples ?? []).find((item) => item.id === state.selectedKey);
+  return sample ?? null;
+}
+
+function renderChartCard(chart) {
+  const fullLabel = chartFullLabel(chart);
+  const shortTitle = chartTitle(chart);
+  const sizeLabel = chartSizeLabel(chart);
   return `
-    <div class="section-title">Charts</div>
-    <div class="chart-grid">
-      ${charts
-        .map(
-          (chart) => `
-            <div class="chart">
-              <img loading="lazy" src="${escapeHtml(chart.url)}" alt="${escapeHtml(chart.asset_key)}" />
-              <div class="caption">${escapeHtml(chart.source_file)}<br />${escapeHtml(formatBytes(chart.size_bytes))}</div>
-            </div>
-          `,
-        )
-        .join("")}
+    <article class="chart-card" title="${escapeHtml(fullLabel)}">
+      <div class="chart-card-thumb">
+        <img loading="lazy" src="${escapeHtml(chart.url)}" alt="${escapeHtml(fullLabel)}" />
+      </div>
+      <div class="chart-card-body">
+        <div class="chart-card-title">${escapeHtml(shortTitle)}</div>
+        <div class="chart-card-meta">
+          <span class="chart-card-size">${escapeHtml(sizeLabel)}</span>
+          <span class="chart-card-file" title="${escapeHtml(fullLabel)}">${escapeHtml(shortenText(fullLabel, 46))}</span>
+        </div>
+        <div class="chart-card-actions">
+          <button type="button" class="action-button" data-action="copy-chart-link" data-chart-url="${escapeHtml(chart.url)}">
+            Copy link
+          </button>
+          <a class="action-link" href="${escapeHtml(chart.url)}" target="_blank" rel="noopener noreferrer">
+            Open in new tab
+          </a>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderChartsPanel() {
+  const sample = selectedSample();
+  if (!sample) {
+    els.chartsHint.textContent = "Select a sample row";
+    els.chartsBody.innerHTML = `<div class="muted">No sample selected.</div>`;
+    return;
+  }
+
+  const charts = sampleCharts(sample.id);
+  els.chartsHint.textContent = sample.displayName;
+
+  if (charts.length === 0) {
+    els.chartsBody.innerHTML = `<div class="muted">No chart images were exported for this sample.</div>`;
+    return;
+  }
+
+  els.chartsBody.innerHTML = `
+    <div class="chart-gallery" aria-label="chart gallery">
+      ${charts.map((chart) => renderChartCard(chart)).join("")}
     </div>
   `;
 }
 
 function renderDetail() {
-  const sample = (state.library?.samples ?? []).find((item) => item.id === state.selectedKey);
+  const sample = selectedSample();
   if (!sample) {
     els.detailHint.textContent = "Select a sample row";
     els.detailBody.innerHTML = `<div class="muted">No sample selected.</div>`;
@@ -351,49 +495,32 @@ function renderDetail() {
   `;
   els.detailBody.innerHTML = `
     ${renderMetadata(sample)}
-    ${renderCharts(sample)}
   `;
 }
 
 function renderReport() {
   const report = state.report ?? {};
-  els.reportStatus.textContent = "";
   const warnings = report.warnings ?? [];
   const errors = report.errors ?? [];
-  const assetStats = report.assetStats ?? {};
+  const hasIssues = warnings.length > 0 || errors.length > 0;
+  const panel = els.reportBody.closest(".report-panel");
+  if (panel) {
+    panel.hidden = !hasIssues;
+  }
+  if (!hasIssues) {
+    els.reportStatus.textContent = "";
+    els.reportBody.innerHTML = "";
+    return;
+  }
   const thresholds = report.thresholds ?? {};
-  const assets = assetStats.assets ?? [];
+  const assets = report.assetStats?.assets ?? [];
   const sampleKeys = Array.from(new Set(assets.map((asset) => asset.sample_key).filter(Boolean)));
-  const summaryParts = [
-    errors.length > 0 ? "Export issues" : "Export OK",
-    `${assetStats.chartCount ?? 0} charts`,
-    formatBytes(assetStats.chartBytes ?? 0),
-  ];
-  const badges = [
-    warnings.length ? `<span class="badge badge-warn">Warnings ${escapeHtml(warnings.length)}</span>` : "",
-    errors.length ? `<span class="badge badge-error">Errors ${escapeHtml(errors.length)}</span>` : "",
-  ].filter(Boolean);
 
   els.reportBody.innerHTML = `
-    <div class="report-summary" aria-label="export report summary">
-      <div class="report-summary-line">
-        ${summaryParts
-          .map((part, index) =>
-            index === 0
-              ? `<span>${escapeHtml(part)}</span>`
-              : `<span class="separator">·</span><span>${escapeHtml(part)}</span>`,
-          )
-          .join("")}
-      </div>
-      ${badges.join("")}
-    </div>
     <details class="report-details">
       <summary>Report details</summary>
       <div class="report-details-body">
-        ${renderKeyValueGrid([
-          ["Exported at", report.exportedAt ?? ""],
-          ["Largest asset", assetStats.largestChartKey ?? ""],
-        ])}
+        ${renderKeyValueGrid([["Exported at", report.exportedAt ?? ""]])}
         <div class="detail-section">
           <div class="section-title">Asset groups</div>
           <div class="chips">
@@ -410,18 +537,16 @@ function renderReport() {
           <div class="section-title">Warnings</div>
           <div class="warning-list">
             ${
-              warnings.length
-                ? warnings
-                    .map(
-                      (warning) => `
-                        <div class="warning">
-                          <div><strong>${escapeHtml(warning.code)}</strong></div>
-                          <div class="muted">${escapeHtml(warning.message)}</div>
-                        </div>
-                      `,
-                    )
-                    .join("")
-                : `<div class="muted">None</div>`
+              warnings
+                .map(
+                  (warning) => `
+                    <div class="warning">
+                      <div><strong>${escapeHtml(warning.code)}</strong></div>
+                      <div class="muted">${escapeHtml(warning.message)}</div>
+                    </div>
+                  `,
+                )
+                .join("")
             }
           </div>
         </div>
@@ -429,18 +554,16 @@ function renderReport() {
           <div class="section-title">Errors</div>
           <div class="error-list">
             ${
-              errors.length
-                ? errors
-                    .map(
-                      (error) => `
-                        <div class="error">
-                          <div><strong>${escapeHtml(error.code)}</strong></div>
-                          <div class="muted">${escapeHtml(error.message)}</div>
-                        </div>
-                      `,
-                    )
-                    .join("")
-                : `<div class="muted">None</div>`
+              errors
+                .map(
+                  (error) => `
+                    <div class="error">
+                      <div><strong>${escapeHtml(error.code)}</strong></div>
+                      <div class="muted">${escapeHtml(error.message)}</div>
+                    </div>
+                  `,
+                )
+                .join("")
             }
           </div>
         </div>
@@ -454,6 +577,7 @@ function reRender() {
   renderTitleBadges();
   renderTable();
   renderDetail();
+  renderChartsPanel();
   renderReport();
   els.status.textContent = `${filteredSamples().length} samples visible`;
 }
@@ -462,11 +586,28 @@ function selectSample(sampleKey) {
   state.selectedKey = sampleKey;
   renderTable();
   renderDetail();
+  renderChartsPanel();
 }
 
 function attachEvents() {
+  els.chartsBody.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-action]");
+    if (!button) {
+      return;
+    }
+    if (button.dataset.action === "copy-chart-link") {
+      const copied = await copyTextToClipboard(button.dataset.chartUrl ?? "");
+      flashCopiedFeedback(button, copied);
+    }
+  });
+
   els.search.addEventListener("input", (event) => {
     state.filters.search = event.target.value;
+    renderTable();
+    els.status.textContent = `${filteredSamples().length} samples visible`;
+  });
+  els.seriesFilter.addEventListener("change", (event) => {
+    state.filters.series = event.target.value;
     renderTable();
     els.status.textContent = `${filteredSamples().length} samples visible`;
   });
@@ -511,6 +652,7 @@ async function main() {
   els.status = byId("status");
   els.summaryStrip = byId("summary-strip");
   els.search = byId("search");
+  els.seriesFilter = byId("series-filter");
   els.batchFilter = byId("batch-filter");
   els.sheetFilter = byId("sheet-filter");
   els.assetFilter = byId("asset-filter");
@@ -519,9 +661,15 @@ async function main() {
   els.sampleTable = byId("sample-table");
   els.detailHint = byId("detail-hint");
   els.detailBody = byId("detail-body");
+  els.chartsHint = byId("charts-hint");
+  els.chartsBody = byId("charts-body");
   els.titleBadges = byId("title-badges");
   els.reportStatus = byId("report-status");
   els.reportBody = byId("report-body");
+  const reportPanel = els.reportBody.closest(".report-panel");
+  if (reportPanel) {
+    reportPanel.hidden = true;
+  }
 
   try {
     await loadData();
