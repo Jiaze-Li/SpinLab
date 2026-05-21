@@ -12,24 +12,12 @@ cd "$repo_root"
 changed_files=()
 while IFS= read -r path; do
   [[ -n "$path" ]] && changed_files+=("$path")
-done < <(git diff --name-only HEAD)
-
-while IFS= read -r path; do
-  [[ -n "$path" ]] && changed_files+=("$path")
-done < <(git ls-files --others --exclude-standard)
-
-deduped_changed_files=()
-seen_paths=""
-for path in "${changed_files[@]}"; do
-  case "|$seen_paths|" in
-    *"|$path|"*)
-      continue
-      ;;
-  esac
-  deduped_changed_files+=("$path")
-  seen_paths="${seen_paths}|$path"
-done
-changed_files=("${deduped_changed_files[@]}")
+done < <(
+  {
+    git diff --name-only HEAD
+    git ls-files --others --exclude-standard
+  } | awk '!seen[$0]++'
+)
 
 requires_build=false
 requires_publish=false
