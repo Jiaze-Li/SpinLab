@@ -277,6 +277,7 @@ Future refactors should stay incremental instead of jumping straight into one la
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift` — defines the workspace provider contract for shell composition
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchStatusArea.swift` — presents shared status content for workflow workspaces
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchTracePanel.swift` — presents last-run trace content for workflow workspaces
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchReadAdapter.swift` — snapshots shell-facing result state for workflow read paths
 - `Sources/SpinLabApp/UseCases/BuildRunTraceProjectionUseCase.swift` — builds run trace projections for shell display
 - `Sources/SpinLabApp/UseCases/SaveActiveChartToLibraryUseCase.swift` — orchestrates save-to-library flow from shell-facing chart state
 - `Sources/SpinLabApp/Workbench/V3/WorkbenchResultContracts.swift` — defines shared workbench result contracts used by shell-facing flows
