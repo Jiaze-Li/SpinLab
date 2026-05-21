@@ -12,6 +12,7 @@ struct LibraryMetadataItem: Identifiable, Codable, Hashable, Sendable {
 
 struct LibrarySettings: Codable, Hashable, Sendable {
     var rootPath: String?
+    var rootBookmarkData: Data?
     var registryInternalPath: String?
     var registrySourcePath: String?
     var backupPath: String?
@@ -21,6 +22,7 @@ struct LibrarySettings: Codable, Hashable, Sendable {
 
     static let `default` = LibrarySettings(
         rootPath: nil,
+        rootBookmarkData: nil,
         registryInternalPath: nil,
         registrySourcePath: nil,
         backupPath: nil,

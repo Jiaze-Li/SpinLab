@@ -28,9 +28,20 @@ struct V5114SearchUseCaseCapabilityInjectionTests {
         let fake = FakeLibraryAccess()
         let useCase = SearchWorkflowMeasurementsUseCase()
         let query = WorkflowSearchQuery(rawText: "")
+        let settings = LibrarySettings(
+            rootPath: tmp.path,
+            rootBookmarkData: nil,
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            backupPath: nil,
+            backupLastSyncedAt: nil,
+            allowedBatchPrefixes: [],
+            lastRefreshAt: nil
+        )
 
         let hits = try useCase.execute(
             query: query,
+            settings: settings,
             libraryRootURL: tmp,
             workflowDefinitions: [],
             libraryAccess: fake
@@ -51,9 +62,20 @@ struct V5114SearchUseCaseCapabilityInjectionTests {
         fake.stubbedIndex = nil
         let useCase = SearchWorkflowMeasurementsUseCase()
         let query = WorkflowSearchQuery(rawText: "")
+        let settings = LibrarySettings(
+            rootPath: tmp.path,
+            rootBookmarkData: nil,
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            backupPath: nil,
+            backupLastSyncedAt: nil,
+            allowedBatchPrefixes: [],
+            lastRefreshAt: nil
+        )
 
         let hits = try useCase.execute(
             query: query,
+            settings: settings,
             libraryRootURL: tmp,
             workflowDefinitions: [],
             libraryAccess: fake

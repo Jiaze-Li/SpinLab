@@ -2,9 +2,11 @@ import Foundation
 
 struct SearchWorkflowMeasurementsUseCase {
     private let sampleKeyNormalizer = SampleKeyNormalizer()
+    private let rootAccess = LibraryRootAccess()
 
     func execute(
         query: WorkflowSearchQuery,
+        settings: LibrarySettings = .default,
         libraryRootURL: URL,
         workflowDefinitions: [WorkflowDefinition] = [],
         fileManager: FileManager = .default,
@@ -15,11 +17,40 @@ struct SearchWorkflowMeasurementsUseCase {
         }
 
         let parsed = parseQuery(query.rawText)
+        let numericTermStrings = parsed.numericTerms.map { "\($0.field)=\($0.value)" }
+        print("[SpinLab][Search] query=\"\(query.rawText)\" textTokens=\(parsed.textTokens) numericTerms=\(numericTermStrings)")
 
         // Load library index for numeric matching (graceful: empty map if missing)
         let numericTagsBySampleKey = loadNumericTags(libraryRootURL: libraryRootURL, libraryAccess: libraryAccess)
 
-        let sidecarURLs = collectSidecarURLs(libraryRootURL: libraryRootURL, fileManager: fileManager)
+        let effectiveSettings = settings.rootPath == nil
+            ? LibrarySettings(
+                rootPath: libraryRootURL.path,
+                rootBookmarkData: nil,
+                registryInternalPath: settings.registryInternalPath,
+                registrySourcePath: settings.registrySourcePath,
+                backupPath: settings.backupPath,
+                backupLastSyncedAt: settings.backupLastSyncedAt,
+                allowedBatchPrefixes: settings.allowedBatchPrefixes,
+                lastRefreshAt: settings.lastRefreshAt
+            )
+            : settings
+
+        let result = rootAccess.enumerateSidecarURLs(settings: effectiveSettings, fileManager: fileManager)
+        if case .fallback(let rootURL) = result.status {
+            print("[SpinLab][Search] warning=fallback path access used for \(rootURL.path)")
+        }
+        if case .missingBookmark = result.status {
+            throw AppError.validation("Please reselect Library Root.")
+        }
+        if case .staleBookmark = result.status {
+            throw AppError.validation("Please reselect Library Root.")
+        }
+        let sidecarURLs = result.urls
+        print("[SpinLab][Search] scannedSidecars=\(sidecarURLs.count)")
+        if sidecarURLs.isEmpty {
+            print("[SpinLab][Search] warning=no sidecars discovered under \(libraryRootURL.path)")
+        }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
 
@@ -40,31 +71,9 @@ struct SearchWorkflowMeasurementsUseCase {
                 hits.append(hit)
             }
         }
+        print("[SpinLab][Search] matchedHits=\(hits.count)")
 
         return hits.sorted(by: compareHit)
-    }
-
-    private func collectSidecarURLs(libraryRootURL: URL, fileManager: FileManager) -> [URL] {
-        guard let enumerator = fileManager.enumerator(
-            at: libraryRootURL,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return []
-        }
-
-        var urls: [URL] = []
-        for case let fileURL as URL in enumerator {
-            guard fileURL.lastPathComponent.hasSuffix(".spinlab.json") else {
-                continue
-            }
-            let normalizedPath = fileURL.path.replacingOccurrences(of: "\\", with: "/").lowercased()
-            guard normalizedPath.contains("/measurements/") else {
-                continue
-            }
-            urls.append(fileURL)
-        }
-        return urls
     }
 
     private func buildHit(sidecar: SpinLabFileSidecar, sidecarURL: URL, displayNameByID: [String: String]) -> WorkflowMeasurementSearchHit {

@@ -6,10 +6,29 @@ extension ThreeOmegaWorkspaceStore {
     // MARK: - Manifest payload helpers
 
     /// Builds a manifest payload for the given tab with sourceRef properly filled.
+    private func _projectFieldSweepSeries(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        inputFiles: [String],
+        yValues: KeyPath<ThreeOmegaFieldSweepResult, [Double]>
+    ) -> [WorkbenchPlotSeries] {
+        sweeps.enumerated().map { index, sweep in
+            let sourceRef = index < inputFiles.count ? inputFiles[index] : nil
+            return WorkbenchPlotSeries(
+                label: sweep.sampleID ?? sourceRef.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "",
+                x: sweep.hField.map { $0 / 10000 },
+                y: sweep[keyPath: yValues],
+                sourceRef: sourceRef,
+                sampleID: sweep.sampleID,
+                metadata: sweep.sampleMetadata ?? [:]
+            )
+        }
+    }
+
     private func _buildManifestPayload(
         tab: ThreeOmegaWorkbenchTab,
         device: String,
         inputFiles: [String],
+        fieldSweeps: [ThreeOmegaFieldSweepResult],
         rtFilePath: String?,
         titleTemplate: String,
         titleTokens: [String: String],
@@ -44,9 +63,23 @@ extension ThreeOmegaWorkspaceStore {
 
         switch tab {
         case .fieldSweep1omega:
-            return makePayload(title: resolveTitle("R(1ω)"), xField: "H (T)", yField: "R(1ω) (Ω)", files: inputFiles)
+            return WorkbenchPlotPayload(
+                workflowID: "3w",
+                workflowDisplayName: "3w",
+                title: resolveTitle("R(1ω)"),
+                axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R(1ω) (Ω)"),
+                series: _projectFieldSweepSeries(sweeps: fieldSweeps, inputFiles: inputFiles, yValues: \.r1omega),
+                semanticParams: ["device": device, "tabKey": tab.stableKey]
+            )
         case .fieldSweep3omega:
-            return makePayload(title: resolveTitle("R(3ω)"), xField: "H (T)", yField: "R(3ω) (Ω)", files: inputFiles)
+            return WorkbenchPlotPayload(
+                workflowID: "3w",
+                workflowDisplayName: "3w",
+                title: resolveTitle("R(3ω)"),
+                axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R(3ω) (Ω)"),
+                series: _projectFieldSweepSeries(sweeps: fieldSweeps, inputFiles: inputFiles, yValues: \.r3omega),
+                semanticParams: ["device": device, "tabKey": tab.stableKey]
+            )
         case .rahe1omegaVsT:
             let tag = rahe1omegaMethod == .highField ? "HFE" : "WA"
             return makePayload(
@@ -113,11 +146,17 @@ extension ThreeOmegaWorkspaceStore {
                 tab: tab,
                 device: device,
                 inputFiles: cachedInputFiles,
+                fieldSweeps: ingestionResult?.fieldSweeps ?? [],
                 rtFilePath: cachedRTFilePath,
                 titleTemplate: titleTemplate,
                 titleTokens: _titleTokens,
                 v3Method: v3Method
             )
+            if let payload, payload.seriesReorderable, payload.series.contains(where: { $0.sampleID == nil }) {
+                let message = "Reorderable \(tab.stableKey) manifest payload missing sampleID."
+                assertionFailure(message)
+                appendWarning(source: "Manifest", message: message)
+            }
             var existing = tabs.tabOutputs[tab] ?? TabRenderOutput()
             existing.manifestPayload = payload
             tabs.tabOutputs[tab] = existing

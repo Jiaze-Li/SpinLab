@@ -206,17 +206,22 @@ struct V5115LibraryFeatureStoreCharacterizationTests {
         }
     }
 
-    // MARK: - 9. updateLibraryRoot clears verification state
+    // MARK: - 9. updateLibraryRoot clears verification state and stores bookmark
 
-    @Test("updateLibraryRoot clears verification path and message")
+    @Test("updateLibraryRoot clears verification state and stores bookmark data")
     func updateLibraryRootClearsVerificationState() throws {
         try withIsolatedFeatureStore { store, _ in
             store.libraryRootVerificationPath = "/old/path"
             store.libraryRootVerificationMessage = "Previously verified."
 
-            store.updateLibraryRoot(to: URL(fileURLWithPath: "/new/root"))
+            let root = FileManager.default.temporaryDirectory.appending(path: "bookmark-root-\(UUID().uuidString)", directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: root) }
 
-            #expect(store.librarySettings.rootPath == "/new/root")
+            store.updateLibraryRoot(to: root)
+
+            #expect(store.librarySettings.rootPath == root.path)
+            #expect(store.librarySettings.rootBookmarkData != nil)
             #expect(store.libraryRootVerificationPath == nil)
             #expect(store.libraryRootVerificationMessage == nil)
         }

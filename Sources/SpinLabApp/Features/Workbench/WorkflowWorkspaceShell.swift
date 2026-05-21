@@ -88,7 +88,11 @@ struct WorkflowWorkspaceShell<
                           text: queryBinding)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit {
-                        workbench.runWorkflowMeasurementSearch(workflowID: workflowID, libraryRootPath: libraryRoot)
+                        workbench.runWorkflowMeasurementSearch(
+                            workflowID: workflowID,
+                            libraryRootPath: libraryRoot,
+                            librarySettings: appState.library.librarySettings
+                        )
                     }
 
                 Button("Clear") {
@@ -120,9 +124,13 @@ struct WorkflowWorkspaceShell<
 
     private func actionBar(libraryRoot: String?) -> some View {
         HStack(spacing: 8) {
-            Button("Search") {
-                workbench.runWorkflowMeasurementSearch(workflowID: workflowID, libraryRootPath: libraryRoot)
-            }
+                Button("Search") {
+                workbench.runWorkflowMeasurementSearch(
+                    workflowID: workflowID,
+                    libraryRootPath: libraryRoot,
+                    librarySettings: appState.library.librarySettings
+                )
+                }
             .buttonStyle(.borderedProminent)
             .disabled(workbench.isSearchRunning(for: workflowID) || libraryRoot == nil)
 

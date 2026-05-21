@@ -8,7 +8,7 @@ struct LibraryPreviewParseSnapshot: Sendable {
 protocol SpinLabDataActing: Sendable {
     func loadRegistrySnapshot(from xlsxURL: URL, previewRowCount: Int) async throws -> SampleRegistrySnapshot
     func parseLibraryPreview(registryPath: String, settings: LibrarySettings) async throws -> LibraryPreviewParseSnapshot
-    func searchWorkflowMeasurements(libraryRootPath: String, query: WorkflowSearchQuery, workflowDefinitions: [WorkflowDefinition]) async throws -> [WorkflowMeasurementSearchHit]
+    func searchWorkflowMeasurements(settings: LibrarySettings, query: WorkflowSearchQuery, workflowDefinitions: [WorkflowDefinition]) async throws -> [WorkflowMeasurementSearchHit]
     func lookupSampleNumericDisplay(libraryRootPath: String, sampleKey: String) async throws -> [String: String]
 }
 
@@ -38,15 +38,16 @@ actor SpinLabDataActor: SpinLabDataActing {
         return LibraryPreviewParseSnapshot(index: result.index, warnings: result.warnings)
     }
 
-    func searchWorkflowMeasurements(libraryRootPath: String, query: WorkflowSearchQuery, workflowDefinitions: [WorkflowDefinition]) throws -> [WorkflowMeasurementSearchHit] {
-        let normalizedPath = libraryRootPath.trimmingCharacters(in: .whitespacesAndNewlines)
+    func searchWorkflowMeasurements(settings: LibrarySettings, query: WorkflowSearchQuery, workflowDefinitions: [WorkflowDefinition]) throws -> [WorkflowMeasurementSearchHit] {
+        let normalizedPath = settings.rootPath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !normalizedPath.isEmpty else {
             throw AppError.validation("Library root path is required for workflow search.")
         }
         let rootURL = URL(fileURLWithPath: normalizedPath, isDirectory: true)
+        print("[SpinLab][Search] root=\(rootURL.path) exists=\(FileManager.default.fileExists(atPath: rootURL.path)) readable=\(FileManager.default.isReadableFile(atPath: rootURL.path))")
         let useCase = SearchWorkflowMeasurementsUseCase()
         do {
-            return try useCase.execute(query: query, libraryRootURL: rootURL, workflowDefinitions: workflowDefinitions)
+            return try useCase.execute(query: query, settings: settings, libraryRootURL: rootURL, workflowDefinitions: workflowDefinitions)
         } catch {
             throw AppError.from(error, fallback: "Workflow search failed.")
         }

@@ -4,6 +4,11 @@ import Foundation
 
     func updateLibraryRoot(to url: URL) {
         librarySettings.rootPath = url.path
+        librarySettings.rootBookmarkData = try? url.bookmarkData(
+            options: [.withSecurityScope],
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        )
         librarySettingsStore.save(librarySettings)
         libraryRootVerificationPath = nil
         libraryRootVerificationMessage = nil
