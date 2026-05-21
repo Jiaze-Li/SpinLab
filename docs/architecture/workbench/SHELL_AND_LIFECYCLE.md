@@ -114,7 +114,6 @@ Warning panel: shell-level `WorkbenchWarningLog` container coalesces identical (
 - `Sources/SpinLabApp/UI/CollapsibleSectionHeader.swift` — reusable collapsible section header with disclosure chevron
 - `Sources/SpinLabApp/UI/FlowLayout.swift` — wrapping flow layout for dynamic tag and chip collections
 - `Sources/SpinLabApp/UI/HoverPopoverModifier.swift` — view modifier presenting a popover on mouse hover
-- `Sources/SpinLabApp/UseCases/BuildRunTraceProjectionUseCase.swift` — builds ordered run trace projections for Workbench display from analysis output
 - `Sources/SpinLabApp/UseCases/WorkbenchTitleResolver.swift` — resolves display titles for Workbench analysis sessions
 
 Not in this layer: workflow workspace stores (→ `WORKFLOW_CONTRACTS.md`), plot canvas (→ `PLOT_CANVAS.md`).

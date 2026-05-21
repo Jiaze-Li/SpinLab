@@ -35,7 +35,10 @@ if ! git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     exit 1
 fi
 
-mapfile -t WORKBENCH_FILES < <(
+WORKBENCH_FILES=()
+while IFS= read -r rel; do
+    [[ -n "$rel" ]] && WORKBENCH_FILES+=("$rel")
+done < <(
     {
         git -C "$REPO_ROOT" diff --name-only --cached --diff-filter=ACMR -- "$WORKBENCH_DIR"
         git -C "$REPO_ROOT" diff --name-only --diff-filter=ACMR -- "$WORKBENCH_DIR"

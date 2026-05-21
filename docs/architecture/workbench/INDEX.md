@@ -34,6 +34,7 @@
 |---|---|---|
 | Workbench state and condition projections | `App/State/WorkbenchFeatureStore.swift` | `Features/Workbench/WorkbenchView.swift`; `Features/Workbench/WorkflowRegistryView.swift` |
 | Workflow shell / UI composition | `Features/Workbench/WorkflowWorkspaceShell.swift` | `Features/Workbench/WorkflowWorkspaceProvider.swift`; `Features/Workbench/WorkflowWorkspaceRegistry.swift` |
+| Result header shell | `Features/Workbench/WorkbenchResultHeaderShell.swift` | `Features/Workbench/WorkbenchReadAdapter.swift`; `Features/Workbench/WorkflowWorkspaceShell.swift` |
 | 3-Omega workflow | `Features/Workbench/ThreeOmegaWorkspaceStore.swift` | `Features/Workbench/ThreeOmegaWorkspaceView.swift`; `UseCases/ThreeOmegaFitUseCase.swift`; `UseCases/ThreeOmegaPlotRenderer.swift` |
 | XY Rotation workflow | `Features/Workbench/XYRotationWorkspaceStore.swift` | `Features/Workbench/XYRotationWorkspaceView.swift`; `UseCases/XYRotationDATParser.swift`; `UseCases/XYRotationPlotRenderer.swift` |
 | AHE workflow | `Features/Workbench/AHEWorkspaceStore.swift` | `Features/Workbench/AHEWorkspaceView.swift`; `UseCases/AHEDataParser.swift`; `UseCases/AHEAxisDetector.swift` |
