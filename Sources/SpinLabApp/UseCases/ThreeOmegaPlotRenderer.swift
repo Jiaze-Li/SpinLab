@@ -116,7 +116,7 @@ struct ThreeOmegaPlotRenderer {
         var payload = WorkbenchPlotPayload(
             workflowID: "3w",
             workflowDisplayName: "3w",
-            title: _defaultTitle("R(1ω)", device: device),
+            title: _defaultTitle("R(1ω)", device: device, deviceMode: _deviceMode(for: device)),
             // Formula: R(1ω)(H) = V¹ω_X(H) / I_rms, centered, then stacked by temperature
             axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: yLabel),
             series: series,
@@ -181,7 +181,7 @@ struct ThreeOmegaPlotRenderer {
         var payload = WorkbenchPlotPayload(
             workflowID: "3w",
             workflowDisplayName: "3w",
-            title: _defaultTitle("R(3ω)", device: device),
+            title: _defaultTitle("R(3ω)", device: device, deviceMode: _deviceMode(for: device)),
             // Formula: R(3ω)(H) = V³ω_X(H) / I_rms, centered, then stacked by temperature
             axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: yLabel),
             series: series,
@@ -203,7 +203,7 @@ struct ThreeOmegaPlotRenderer {
         var payload = WorkbenchPlotPayload(
             workflowID: "3w",
             workflowDisplayName: "3w",
-            title: _defaultTitle("RAHE(1ω) (\(methodTag))", device: device),
+            title: _defaultTitle("RAHE(1ω) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE(1ω) (Ω)"),
             series: [WorkbenchPlotSeries(label: "RAHE(1ω)", x: temps, y: vals)]
         )
@@ -222,7 +222,7 @@ struct ThreeOmegaPlotRenderer {
         var payload = WorkbenchPlotPayload(
             workflowID: "3w",
             workflowDisplayName: "3w",
-            title: _defaultTitle("RAHE(3ω) (\(methodTag))", device: device),
+            title: _defaultTitle("RAHE(3ω) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE(3ω) (Ω)"),
             series: [WorkbenchPlotSeries(label: "RAHE(3ω)", x: temps, y: vals)]
         )
@@ -299,7 +299,7 @@ struct ThreeOmegaPlotRenderer {
         var payload = WorkbenchPlotPayload(
             workflowID: "3w",
             workflowDisplayName: "3w",
-            title: _defaultTitle("Hc", device: device),
+            title: _defaultTitle("Hc", device: device, deviceMode: _deviceMode(for: device)),
             // Formula: Hc = (|Hc⁺| + |Hc⁻|) / 2  (midpoint crossing on each branch)
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "Hc (Oe)"),
             series: series
@@ -315,7 +315,7 @@ struct ThreeOmegaPlotRenderer {
         var payload = WorkbenchPlotPayload(
             workflowID: "3w",
             workflowDisplayName: "3w",
-            title: _defaultTitle("RT", device: rt.device),
+            title: _defaultTitle("RT", device: rt.device, deviceMode: _deviceMode(for: rt.device)),
             // Formula: Rxx(T) = Col[9] = V¹ω_X / I_rms (pre-calculated in RT file)
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "Rxx (Ω)"),
             series: [WorkbenchPlotSeries(label: "Rxx", x: rt.temperatureK, y: rt.rxx)]
@@ -384,7 +384,7 @@ struct ThreeOmegaPlotRenderer {
         var payload = WorkbenchPlotPayload(
             workflowID: "3w",
             workflowDisplayName: "3w",
-            title: _defaultTitle("Scaling Law", device: device, method: method) + r2Str,
+            title: _defaultTitle("Scaling Law", device: device, method: method, deviceMode: _deviceMode(for: device)) + r2Str,
             // Formula: Y = E^(3ω)_AHE / (E_xx³ × σ_xx) = α·σ²_xx + β
             // β → Q_xxz Berry curvature quadrupole; E_xx³ = E_xx to the power 3
             axisMapping: WorkbenchAxisMapping(
@@ -453,12 +453,25 @@ struct ThreeOmegaPlotRenderer {
         return opts
     }
 
-    private func _defaultTitle(_ tabName: String, device: String, method: String = "") -> String {
+    private func _defaultTitle(_ tabName: String, device: String, method: String = "", deviceMode: String = "single") -> String {
         var tokens = titleTokens
         tokens["tab"] = tabName
-        tokens["device"] = device
+        if deviceMode == "single" {
+            tokens["device"] = device
+        } else {
+            tokens["device"] = ""
+            tokens["deviceMode"] = "angleSweep"
+        }
         if !method.isEmpty { tokens["method"] = method }
         return WorkbenchTitleResolver.resolve(template: titleTemplate, tokens: tokens)
+    }
+
+    private func _deviceMode(for device: String) -> String {
+        device == "angle_sweep" ? "angleSweep" : "single"
+    }
+
+    func resolvedTitle(for tabName: String, device: String, method: String = "", deviceMode: String = "single") -> String {
+        _defaultTitle(tabName, device: device, method: method, deviceMode: deviceMode)
     }
 
     private func _tempLabel(_ t: Double) -> String {

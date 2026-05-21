@@ -14,7 +14,17 @@ struct V552LibraryRootAccessTests {
         try "{}".data(using: .utf8)!.write(to: sidecar)
         defer { try? fm.removeItem(at: root) }
 
-        let urls = LibraryRootAccess().enumerateSidecarURLs(in: root)
+        let settings = LibrarySettings(
+            rootPath: root.path,
+            rootBookmarkData: nil,
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            backupPath: nil,
+            backupLastSyncedAt: nil,
+            allowedBatchPrefixes: [],
+            lastRefreshAt: nil
+        )
+        let urls = LibraryRootAccess().enumerateSidecarURLs(settings: settings, sandboxed: false).urls
 
         #expect(urls.count == 1)
         #expect(urls[0].lastPathComponent == "example.spinlab.json")
@@ -27,7 +37,17 @@ struct V552LibraryRootAccessTests {
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: root) }
 
-        let urls = LibraryRootAccess().enumerateSidecarURLs(in: root)
+        let settings = LibrarySettings(
+            rootPath: root.path,
+            rootBookmarkData: nil,
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            backupPath: nil,
+            backupLastSyncedAt: nil,
+            allowedBatchPrefixes: [],
+            lastRefreshAt: nil
+        )
+        let urls = LibraryRootAccess().enumerateSidecarURLs(settings: settings, sandboxed: false).urls
 
         #expect(urls.isEmpty)
     }

@@ -251,6 +251,22 @@ struct V400ScalingUseCaseTests {
 
 @Suite("V400 IngestThreeOmegaSelectionsUseCase")
 struct V400IngestionUseCaseTests {
+    private func makeMixedHit(path: String, device: String) -> WorkflowMeasurementSearchHit {
+        WorkflowMeasurementSearchHit(
+            sidecarPath: path + ".sidecar",
+            measurementFilePath: path,
+            sourceFilePath: path,
+            workflowID: "3w",
+            workflowDisplayName: "3w",
+            workflowCanonicalID: "3w",
+            batchID: "B1",
+            sampleKey: "TestSample",
+            sampleSubstrate: "",
+            conditions: ["device": device],
+            channels: [],
+            appliedAt: Date()
+        )
+    }
 
     @Test("Empty selections returns empty result with warning")
     func emptySelections() {
@@ -325,6 +341,49 @@ struct V400IngestionUseCaseTests {
         #expect(result.fieldSweeps.isEmpty)
         #expect(result.rtResult != nil)
         #expect(result.rtResult?.temperatureK.count == 3)
+    }
+
+    @Test("single device keeps device metadata unchanged")
+    func singleDeviceUnchanged() {
+        let uc = IngestThreeOmegaSelectionsUseCase()
+        var file = makeSyntheticLVMFile()
+        file.device = "0deg"
+        let hit = makeMixedHit(path: "/fake/0.lvm", device: "0deg")
+        let result = uc.execute(hits: [hit]) { _ in file }
+
+        #expect(result.device == "0deg")
+        #expect(result.deviceMode == "single")
+        #expect(result.devices == ["0deg"])
+    }
+
+    @Test("mixed device selection exposes angle-sweep metadata")
+    func mixedDeviceMetadata() {
+        let uc = IngestThreeOmegaSelectionsUseCase()
+        let filesByPath: [String: ThreeOmegaLVMFile] = [
+            "/fake/0.lvm": {
+                var file = makeSyntheticLVMFile(temperatureK: 5)
+                file.device = "0deg"
+                return file
+            }(),
+            "/fake/1.lvm": {
+                var file = makeSyntheticLVMFile(temperatureK: 10)
+                file.device = "90deg"
+                return file
+            }()
+        ]
+        let hits = [
+            makeMixedHit(path: "/fake/0.lvm", device: "0deg"),
+            makeMixedHit(path: "/fake/1.lvm", device: "90deg")
+        ]
+        let result = uc.execute(hits: hits) { url in
+            guard let file = filesByPath[url.path] else { throw NSError(domain: "Test", code: 0) }
+            return file
+        }
+
+        #expect(result.device == "angle_sweep")
+        #expect(result.deviceMode == "angleSweep")
+        #expect(result.devices == ["0deg", "90deg"])
+        #expect(result.fieldSweeps.count == 2)
     }
 }
 
@@ -452,6 +511,38 @@ struct V400PlotRendererTests {
         let result = ThreeOmegaScalingResult(points: [], segments: [], warnings: [])
         let (data, _, _) = renderer.renderScaling(result: result)
         #expect(data == nil)
+    }
+
+    @Test("mixed angle device omits single-device token from title")
+    func mixedAngleTitleOmitsSingleDevice() {
+        var renderer = ThreeOmegaPlotRenderer()
+        renderer.titleTemplate = "#tab #device"
+        let title = renderer.resolvedTitle(for: "R(1ω)", device: "angle_sweep", deviceMode: "angleSweep")
+        #expect(!title.contains("0deg"))
+    }
+
+    @Test("single device title still includes device token")
+    func singleDeviceTitleIncludesDevice() {
+        var renderer = ThreeOmegaPlotRenderer()
+        renderer.titleTemplate = "#tab #device"
+        let title = renderer.resolvedTitle(for: "R(1ω)", device: "0deg", deviceMode: "single")
+        #expect(title.contains("0deg"))
+    }
+
+    @Test("rendering remains numerically unchanged under angle-sweep metadata")
+    func mixedAngleRenderPreservesData() {
+        var renderer = ThreeOmegaPlotRenderer()
+        let sweep = ThreeOmegaFieldSweepResult(
+            temperatureK: 5.0, device: "angle_sweep",
+            hField: [-100, 0, 100], r1omega: [-1, 0, 1], r3omega: [0, 0, 0],
+            iRms: 1e-4,
+            rahe1omega: nil, rahe1omegaWA: nil, hc1omega: nil, hc3omega: nil,
+            v3omegaWindow: 2e-5
+        )
+        let (data, layout, warnings) = renderer.renderR1omega(sweeps: [sweep], device: "angle_sweep")
+        #expect(data != nil)
+        #expect(layout != nil)
+        #expect(warnings.isEmpty)
     }
 }
 

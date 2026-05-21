@@ -310,7 +310,7 @@ private actor AppStateCharStubActor: SpinLabDataActing {
     }
 
     func searchWorkflowMeasurements(
-        libraryRootPath: String,
+        settings: LibrarySettings,
         query: WorkflowSearchQuery,
         workflowDefinitions: [WorkflowDefinition]
     ) async throws -> [WorkflowMeasurementSearchHit] {

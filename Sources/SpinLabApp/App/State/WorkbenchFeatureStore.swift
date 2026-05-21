@@ -149,6 +149,7 @@ final class WorkbenchFeatureStore {
     /// Per-workflow search state, keyed by WorkbenchWorkflowID.
     var searchQueryTexts: [WorkbenchWorkflowID: String] = [:]
     private(set) var searchResults: [WorkbenchWorkflowID: [WorkflowMeasurementSearchHit]] = [:]
+    // TODO(boundary): collapse duplicated search projections once workflow stores stop mirroring searchResults.
     var searchMessages: [WorkbenchWorkflowID: String] = [:]
     private(set) var searchRunning: [WorkbenchWorkflowID: Bool] = [:]
 

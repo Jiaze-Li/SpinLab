@@ -143,6 +143,8 @@ extension ThreeOmegaWorkspaceStore: ActiveChartProviding {
         guard let sampleKey = cachedSampleKeys.first else { return [] }
         let methodTag = v3Method == .highField ? "HFE" : "WA"
         let device = ingestionResult?.device ?? ""
+        let deviceMode = ingestionResult?.deviceMode ?? "single"
+        let devices = ingestionResult?.devices ?? []
 
         var entries: [PendingMetricEntry] = []
         for seg in scaling.segments {
@@ -150,7 +152,14 @@ extension ThreeOmegaWorkspaceStore: ActiveChartProviding {
                 "range": "\(Int(seg.tLo.rounded()))K–\(Int(seg.tHi.rounded()))K",
                 "v3method": methodTag
             ]
-            if !device.isEmpty { segConditions["device"] = device }
+            if deviceMode == "angleSweep" {
+                segConditions["deviceMode"] = "angleSweep"
+                if !devices.isEmpty {
+                    segConditions["devices"] = devices.joined(separator: ",")
+                }
+            } else if !device.isEmpty {
+                segConditions["device"] = device
+            }
 
             entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "alpha", value: seg.alpha * 1e31, canonicalUnit: "Ω·μm³·cm²·V⁻²·S⁻²", conditions: segConditions))
             entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "beta", value: seg.beta * 1e20, canonicalUnit: "Ω·μm³·V⁻²", conditions: segConditions))
@@ -165,13 +174,16 @@ extension ThreeOmegaWorkspaceStore: WorkbenchWorkspaceProviding {
     func buildRunTrace() -> WorkbenchRunTraceProjection? {
         guard let result = ingestionResult else { return nil }
         let sweepCount = result.fieldSweeps.count
+        let device = result.deviceMode == "angleSweep" ? "angle_sweep" : (result.device.isEmpty ? "unknown" : result.device)
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,
             workflowID: "3w",
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(xField: "H (Oe)", yField: "R (Ω)"),
             semanticParams: [
-                "device":       result.device.isEmpty ? "unknown" : result.device,
+                "device":       device,
+                "deviceMode":   result.deviceMode,
+                "devices":      result.devices.joined(separator: ","),
                 "fieldSweeps":  "\(sweepCount)",
                 "rtLoaded":     result.rtResult != nil ? "yes" : "no"
             ],
