@@ -9,22 +9,15 @@ expected_repository_config_dir="/Users/jack/Downloads/scripts/Codex SpinLab/Spin
 
 cd "$repo_root"
 
-changed_files=()
-while IFS= read -r path; do
-  [[ -n "$path" ]] && changed_files+=("$path")
-done < <(
-  {
-    git diff --name-only HEAD
-    git ls-files --others --exclude-standard
-  } | awk '!seen[$0]++'
-)
-
 requires_build=false
 requires_publish=false
 recommends_publish=false
 docs_or_readme_only=true
 
-for path in "${changed_files[@]}"; do
+saw_any_change=false
+while IFS= read -r path; do
+  [[ -z "$path" ]] && continue
+  saw_any_change=true
   case "$path" in
     Sources/SpinLabApp/*)
       requires_build=true
@@ -44,9 +37,14 @@ for path in "${changed_files[@]}"; do
       docs_or_readme_only=false
       ;;
   esac
-done
+done < <(
+  {
+    git diff --name-only HEAD
+    git ls-files --others --exclude-standard
+  } | awk '!seen[$0]++'
+)
 
-if [[ ${#changed_files[@]} -eq 0 || "$docs_or_readme_only" == true ]]; then
+if [[ "$saw_any_change" == false || "$docs_or_readme_only" == true ]]; then
   echo "No rebuild or publish required"
 fi
 
