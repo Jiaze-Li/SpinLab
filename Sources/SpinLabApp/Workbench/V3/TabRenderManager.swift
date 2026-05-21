@@ -19,7 +19,7 @@ struct CGPointCodable: Codable, Hashable, Sendable {
 
 // MARK: - TabRenderState
 
-/// Per-tab display override state.
+    /// Per-tab display override state.
 ///
 /// Captures all user-interactive display customizations for a single tab:
 /// legend position, title/axis label overrides, series label renames.
@@ -31,6 +31,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
     var yLabelOverride: String = ""
     var seriesLabelOverrides: [String: String] = [:]
     var hiddenPointLabelIndicesBySeries: [String: [Int]] = [:]
+    // TODO(boundary): remove legacy Int-string key migration once all persisted packs are migrated to sampleID keys.
     /// User-defined bottom-to-top series order by sampleID. nil = use workflow default. (v5.3.6)
     var seriesOrder: [String]? = nil
 

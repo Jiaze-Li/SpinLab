@@ -304,6 +304,7 @@ final class XYRotationWorkspaceStore {
 
         let keys = cachedSampleKeys
         let rootPath = lastLibraryRootPath
+        // TODO(boundary): replace raw root-path probing with a shared library-root access helper.
         guard !keys.isEmpty, !rootPath.isEmpty else {
             relatedChartsGrouped = [:]
             return

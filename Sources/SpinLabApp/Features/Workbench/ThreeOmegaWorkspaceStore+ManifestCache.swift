@@ -6,21 +6,50 @@ extension ThreeOmegaWorkspaceStore {
     // MARK: - Manifest payload helpers
 
     /// Builds a manifest payload for the given tab with sourceRef properly filled.
+    private func _projectFieldSweepSeries(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        inputFiles: [String],
+        yValues: KeyPath<ThreeOmegaFieldSweepResult, [Double]>
+    ) -> [WorkbenchPlotSeries] {
+        sweeps.enumerated().map { index, sweep in
+            let sourceRef = sweep.sourceFilePath ?? (index < inputFiles.count ? inputFiles[index] : nil)
+            return WorkbenchPlotSeries(
+                label: sweep.sampleID ?? sourceRef.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "",
+                x: sweep.hField.map { $0 / 10000 },
+                y: sweep[keyPath: yValues],
+                sourceRef: sourceRef,
+                sampleID: sweep.sampleID,
+                metadata: sweep.sampleMetadata ?? [:]
+            )
+        }
+    }
+
     private func _buildManifestPayload(
         tab: ThreeOmegaWorkbenchTab,
         device: String,
+        deviceMode: String,
+        devices: [String],
         inputFiles: [String],
+        fieldSweeps: [ThreeOmegaFieldSweepResult],
         rtFilePath: String?,
         titleTemplate: String,
         titleTokens: [String: String],
         v3Method: ThreeOmegaV3Method
     ) -> WorkbenchPlotPayload? {
         let methodTag = v3Method == .highField ? "HFE" : "WA"
+        let isAngleSweep = deviceMode == "angleSweep"
+        let deviceToken = isAngleSweep ? "" : device
+        let devicesToken = devices.isEmpty ? "" : devices.joined(separator: ",")
 
         func resolveTitle(_ tabName: String) -> String {
             var tokens = titleTokens
             tokens["tab"] = tabName
-            tokens["device"] = device
+            if isAngleSweep {
+                tokens["device"] = ""
+                tokens["deviceMode"] = "angleSweep"
+            } else {
+                tokens["device"] = device
+            }
             var result = titleTemplate
             for (key, value) in tokens {
                 result = result.replacingOccurrences(of: "#\(key)", with: value)
@@ -30,7 +59,16 @@ extension ThreeOmegaWorkspaceStore {
         }
 
         func makePayload(title: String, xField: String, yField: String, files: [String], extraParams: [String: String] = [:]) -> WorkbenchPlotPayload {
-            var params: [String: String] = ["device": device, "tabKey": tab.stableKey]
+            var params: [String: String] = ["tabKey": tab.stableKey]
+            if !deviceToken.isEmpty {
+                params["device"] = deviceToken
+            }
+            if isAngleSweep {
+                params["deviceMode"] = "angleSweep"
+                if !devicesToken.isEmpty {
+                    params["devices"] = devicesToken
+                }
+            }
             for (k, v) in extraParams { params[k] = v }
             return WorkbenchPlotPayload(
                 workflowID: "3w",
@@ -44,9 +82,27 @@ extension ThreeOmegaWorkspaceStore {
 
         switch tab {
         case .fieldSweep1omega:
-            return makePayload(title: resolveTitle("R(1ω)"), xField: "H (T)", yField: "R(1ω) (Ω)", files: inputFiles)
+            return WorkbenchPlotPayload(
+                workflowID: "3w",
+                workflowDisplayName: "3w",
+                title: resolveTitle("R(1ω)"),
+                axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R(1ω) (Ω)"),
+                series: _projectFieldSweepSeries(sweeps: fieldSweeps, inputFiles: inputFiles, yValues: \.r1omega),
+                semanticParams: isAngleSweep
+                    ? ["tabKey": tab.stableKey, "deviceMode": "angleSweep", "devices": devicesToken]
+                    : ["device": device, "tabKey": tab.stableKey]
+            )
         case .fieldSweep3omega:
-            return makePayload(title: resolveTitle("R(3ω)"), xField: "H (T)", yField: "R(3ω) (Ω)", files: inputFiles)
+            return WorkbenchPlotPayload(
+                workflowID: "3w",
+                workflowDisplayName: "3w",
+                title: resolveTitle("R(3ω)"),
+                axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R(3ω) (Ω)"),
+                series: _projectFieldSweepSeries(sweeps: fieldSweeps, inputFiles: inputFiles, yValues: \.r3omega),
+                semanticParams: isAngleSweep
+                    ? ["tabKey": tab.stableKey, "deviceMode": "angleSweep", "devices": devicesToken]
+                    : ["device": device, "tabKey": tab.stableKey]
+            )
         case .rahe1omegaVsT:
             let tag = rahe1omegaMethod == .highField ? "HFE" : "WA"
             return makePayload(
@@ -107,17 +163,27 @@ extension ThreeOmegaWorkspaceStore {
     /// Safe to call after scaling reruns — does NOT re-read UI selection.
     func _refreshManifestPayloads() {
         let device = ingestionResult?.device ?? ""
+        let deviceMode = ingestionResult?.deviceMode ?? "single"
+        let devices = ingestionResult?.devices ?? []
 
         for tab in ThreeOmegaWorkbenchTab.allCases {
             let payload = _buildManifestPayload(
                 tab: tab,
                 device: device,
+                deviceMode: deviceMode,
+                devices: devices,
                 inputFiles: cachedInputFiles,
+                fieldSweeps: ingestionResult?.fieldSweeps ?? [],
                 rtFilePath: cachedRTFilePath,
                 titleTemplate: titleTemplate,
                 titleTokens: _titleTokens,
                 v3Method: v3Method
             )
+            if let payload, payload.seriesReorderable, payload.series.contains(where: { $0.sampleID == nil }) {
+                let message = "Reorderable \(tab.stableKey) manifest payload missing sampleID."
+                assertionFailure(message)
+                appendWarning(source: "Manifest", message: message)
+            }
             var existing = tabs.tabOutputs[tab] ?? TabRenderOutput()
             existing.manifestPayload = payload
             tabs.tabOutputs[tab] = existing
@@ -132,6 +198,8 @@ extension ThreeOmegaWorkspaceStore {
         // Collect all source files across all groups (individual entries, not ;-joined)
         let allFiles = groups.flatMap(\.sourceFiles)
         let device = ingestionResult?.device ?? ""
+        let deviceMode = ingestionResult?.deviceMode ?? "single"
+        let devices = ingestionResult?.devices ?? []
 
         for tab in [ThreeOmegaWorkbenchTab.rahe1omegaVsT, .rahe3omegaVsT] {
             let isR1 = tab == .rahe1omegaVsT
@@ -139,13 +207,30 @@ extension ThreeOmegaWorkspaceStore {
             let methodTag = method == .highField ? "HFE" : "WA"
             let hLabel = isR1 ? "1ω" : "3ω"
 
-            let series = allFiles.map {
+            let series = groups.flatMap { group in
+                zip(group.sweeps, group.sourceFiles).map { sweep, sourceFile in
+                    WorkbenchPlotSeries(
+                        label: sweep.sampleID ?? URL(fileURLWithPath: sourceFile).lastPathComponent,
+                        x: [],
+                        y: [],
+                        sourceRef: sourceFile,
+                        sampleID: sweep.sampleID,
+                        metadata: sweep.sampleMetadata ?? [:]
+                    )
+                }
+            }
+            let fallbackSeries = series.isEmpty ? allFiles.map {
                 WorkbenchPlotSeries(label: URL(fileURLWithPath: $0).lastPathComponent, x: [], y: [], sourceRef: $0)
             }
-            let params: [String: String] = ["device": device, "tabKey": tab.stableKey, "v3method": methodTag]
+            : series
+            let params: [String: String] = deviceMode == "angleSweep"
+                ? ["tabKey": tab.stableKey, "v3method": methodTag, "deviceMode": "angleSweep", "devices": devices.joined(separator: ",")]
+                : ["device": device, "tabKey": tab.stableKey, "v3method": methodTag]
             let title = WorkbenchTitleResolver.resolve(
                 template: titleTemplate,
-                tokens: _titleTokens.merging(["tab": "RAHE(\(hLabel))", "device": device]) { _, new in new }
+                tokens: _titleTokens.merging(deviceMode == "angleSweep"
+                    ? ["tab": "RAHE(\(hLabel))", "device": "", "deviceMode": "angleSweep"]
+                    : ["tab": "RAHE(\(hLabel))", "device": device]) { _, new in new }
             ) + " (\(methodTag))"
 
             var existing = tabs.tabOutputs[tab] ?? TabRenderOutput()
@@ -154,7 +239,7 @@ extension ThreeOmegaWorkspaceStore {
                 workflowDisplayName: "3w",
                 title: title,
                 axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE(\(hLabel)) (Ω)"),
-                series: series,
+                series: fallbackSeries,
                 semanticParams: params
             )
             tabs.tabOutputs[tab] = existing

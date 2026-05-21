@@ -15,6 +15,10 @@ struct ThreeOmegaFieldSweepResult: Codable, Hashable, Sendable, Identifiable {
     /// nil in packs created before 5.3.6; used for drag-reorder and label remapping.
     var sampleID: String? = nil
 
+    /// Measurement file path carried through ingestion so manifest sourceRef stays aligned
+    /// after field sweeps are sorted by temperature.
+    var sourceFilePath: String? = nil
+
     // Formula: R¹ω(H) = V¹ω_X(H) / I_rms   (Col[1] / I_rms)
     // Then centered: R¹ω_c(H) = R¹ω(H) - (max(R¹ω) + min(R¹ω)) / 2
     var hField: [Double]    // Oe

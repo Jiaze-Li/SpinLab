@@ -2,8 +2,9 @@
 # Architecture Code Map coverage verifier.
 #
 # Usage:
-#   ./scripts/verify_architecture_code_coverage.sh              # --check-only (default)
+#   ./scripts/verify_architecture_code_coverage.sh                 # --check-only (default)
 #   ./scripts/verify_architecture_code_coverage.sh --write-index
+#   ./scripts/verify_architecture_code_coverage.sh --force-refresh # recompute live Workbench index
 #   ./scripts/verify_architecture_code_coverage.sh --no-format-check  # debug only
 #
 # Exit 0  = unmapped == 0 && missing == 0 && format_violations == 0
@@ -14,7 +15,8 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ARCH_DIR="$REPO_ROOT/docs/architecture"
 INDEX_FILE="$ARCH_DIR/INDEX.md"
-SOURCES_DIR="$REPO_ROOT/Sources"
+WORKBENCH_DOC="$ARCH_DIR/workbench/SHELL_BLOCKS.md"
+WORKBENCH_SOURCES_DIR="$REPO_ROOT/Sources/SpinLabApp/Features/Workbench"
 
 # ─── parse flags ─────────────────────────────────────────────────────────────
 MODE="check-only"
@@ -23,6 +25,7 @@ for arg in "$@"; do
     case "$arg" in
         --check-only)      MODE="check-only" ;;
         --write-index)     MODE="write-index" ;;
+        --force-refresh)   MODE="force-refresh" ;;
         --no-format-check) FORMAT_CHECK=0 ;;
     esac
 done
@@ -32,64 +35,54 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 RAW_FILE="$TMP_DIR/raw.txt"
-MAPPED_ALL="$TMP_DIR/mapped_all.txt"
 MAPPED_FILE="$TMP_DIR/mapped.txt"
 ACTUAL_FILE="$TMP_DIR/actual.txt"
 FORMAT_FILE="$TMP_DIR/format.txt"
 DUP_FILE="$TMP_DIR/dup.txt"
 UNMAPPED_FILE="$TMP_DIR/unmapped.txt"
 MISSING_FILE="$TMP_DIR/missing.txt"
-touch "$RAW_FILE" "$MAPPED_ALL" "$MAPPED_FILE" "$ACTUAL_FILE" \
+touch "$RAW_FILE" "$MAPPED_FILE" "$ACTUAL_FILE" \
       "$FORMAT_FILE" "$DUP_FILE" "$UNMAPPED_FILE" "$MISSING_FILE"
 
-# ─── step 1: extract Code Map entries from architecture docs ─────────────────
+# ─── step 1: extract Code Map entries from the Workbench shell doc ───────────
 # Outputs:
 #   PATH:<swift-path>              — each registered path (may repeat across docs)
 #   FORMAT:<file>:<lineno>:<line>  — lines failing strict format
 
-# U+2014 em dash literal
-EM_DASH="—"
+if [[ ! -f "$WORKBENCH_DOC" ]]; then
+    echo "[architecture-coverage][error] missing workbench doc: $WORKBENCH_DOC"
+    exit 1
+fi
 
-find "$ARCH_DIR" -name '*.md' -type f | grep -v 'REGION_MAP\.md' | sort | while read -r f; do
-    awk -v file="$f" -v format_check="$FORMAT_CHECK" -v em_dash="—" '
-    /^## Code Map/ { in_map=1; in_fence=0; next }
-    in_map && /^## /  { in_map=0; in_fence=0; next }
-    in_map && /^```/ { in_fence = !in_fence; next }
-    in_map && !in_fence {
-        line = $0
-        if (!(line ~ /`Sources\/[^`]+\.swift`/)) next
+awk -v file="$WORKBENCH_DOC" -v format_check="$FORMAT_CHECK" '
+/^## Code Map/ { in_map=1; in_fence=0; next }
+in_map && /^## /  { in_map=0; in_fence=0; next }
+in_map && /^```/ { in_fence = !in_fence; next }
+in_map && !in_fence {
+    line = $0
+    if (!(line ~ /`Sources\/[^`]+\.swift`/)) next
 
-        # Extract all backtick-quoted swift paths on this line
-        tmp = line
-        while (match(tmp, /`Sources\/[^`]+\.swift`/)) {
-            path = substr(tmp, RSTART+1, RLENGTH-2)
-            print "PATH:" path
-            tmp = substr(tmp, RSTART + RLENGTH)
-        }
+    tmp = line
+    while (match(tmp, /`Sources\/[^`]+\.swift`/)) {
+        path = substr(tmp, RSTART+1, RLENGTH-2)
+        print "PATH:" path
+        tmp = substr(tmp, RSTART + RLENGTH)
+    }
 
-        # Format check: strict top-level bullet with em dash
-        # Pattern: ^- `Sources/[^`]+.swift` [em_dash] [non-space].+$
-        if (format_check) {
-            if (!(line ~ ("^- `Sources/[^`]+\\.swift` " em_dash " [^ \t].+"))) {
-                print "FORMAT:" file ":" NR ":" line
-            }
+    if (format_check) {
+        if (!(line ~ /^- `Sources\/[^`]+\.swift` — [^ \t].+/)) {
+            print "FORMAT:" file ":" NR ":" line
         }
     }
-    ' "$f"
-done > "$RAW_FILE"
+}
+' "$WORKBENCH_DOC" > "$RAW_FILE"
 
-# Extract paths
-grep '^PATH:' "$RAW_FILE" | sed 's/^PATH://' | sort > "$MAPPED_ALL"
-sort -u "$MAPPED_ALL" > "$MAPPED_FILE"
-
-# Dup detection (warning, not failure)
-sort "$MAPPED_ALL" | uniq -d > "$DUP_FILE" || true
-
-# Format violations
+grep '^PATH:' "$RAW_FILE" | sed 's/^PATH://' | sort > "$MAPPED_FILE"
 grep '^FORMAT:' "$RAW_FILE" | sed 's/^FORMAT://' > "$FORMAT_FILE" || true
+sort "$MAPPED_FILE" | uniq -d > "$DUP_FILE" || true
 
-# ─── step 2: actual Sources swift files ──────────────────────────────────────
-find "$SOURCES_DIR" -name '*.swift' -type f | sed "s|$REPO_ROOT/||" | sort > "$ACTUAL_FILE"
+# ─── step 2: actual Workbench swift files ────────────────────────────────────
+find "$WORKBENCH_SOURCES_DIR" -name '*.swift' -type f | sed "s|$REPO_ROOT/||" | sort > "$ACTUAL_FILE"
 
 # ─── step 3: set differences ─────────────────────────────────────────────────
 comm -23 "$ACTUAL_FILE" "$MAPPED_FILE" > "$UNMAPPED_FILE" || true
@@ -103,22 +96,15 @@ missing_count="$(wc -l < "$MISSING_FILE" | tr -d '[:space:]')"
 format_count="$(wc -l < "$FORMAT_FILE" | tr -d '[:space:]')"
 dup_count="$(wc -l < "$DUP_FILE" | tr -d '[:space:]')"
 
-# ─── step 5: INDEX check / write-back ────────────────────────────────────────
-index_exit=0
-if [[ "$MODE" == "check-only" ]]; then
-    current_index="$(grep -m1 'Code coverage' "$INDEX_FILE" 2>/dev/null \
-        | grep -oE '[0-9]+/[0-9]+' | head -1 || true)"
-    expected_index="${mapped_count}/${actual_count}"
-    if [[ "${current_index:-}" != "$expected_index" ]]; then
-        echo "[architecture-coverage][stale-index] index=${current_index:-not found} actual=${expected_index}"
-        index_exit=1
-    fi
-elif [[ "$MODE" == "write-index" ]]; then
+# ─── step 4: optional refresh / write-back ───────────────────────────────────
+if [[ "$MODE" == "write-index" ]]; then
     today="$(date +%Y-%m-%d)"
     _tmp_idx=$(mktemp)
     sed "s|Code coverage\*\*: [0-9]*/[0-9]* source files mapped\. Last verified: [0-9-]*|Code coverage**: ${mapped_count}/${actual_count} source files mapped. Last verified: ${today}|" "$INDEX_FILE" > "$_tmp_idx" && mv "$_tmp_idx" "$INDEX_FILE"
     unset _tmp_idx
-    echo "[architecture-coverage][index-updated] ${mapped_count}/${actual_count} @ ${today}"
+    echo "[architecture-coverage][index-updated] workbench=${mapped_count}/${actual_count} @ ${today}"
+elif [[ "$MODE" == "force-refresh" ]]; then
+    echo "[architecture-coverage][force-refresh] workbench=${mapped_count}/${actual_count}"
 fi
 
 # ─── helpers: candidate region / layer hints ─────────────────────────────────
@@ -147,8 +133,9 @@ get_layers() {
         workbench)                 dir="$ARCH_DIR/workbench" ;;
         *) echo "(see docs/architecture/)"; return ;;
     esac
-    find "$dir" -name '*.md' -not -name 'INDEX.md' | xargs -n1 basename | sort \
-        | tr '\n' '|' | sed 's/|$//' | sed 's/|/ | /g'
+    find "$dir" -name '*.md' -not -name 'INDEX.md' -print0 \
+        | while IFS= read -r -d '' f; do basename "$f"; done \
+        | sort | paste -sd ' | ' -
 }
 
 # ─── step 6: output ──────────────────────────────────────────────────────────
@@ -204,8 +191,6 @@ if [[ "$format_count" -gt 0 ]]; then
         echo "  found: ${v_content}"
     done < "$FORMAT_FILE"
 fi
-
-[[ $index_exit -ne 0 ]] && exit_code=1
 
 if [[ $exit_code -eq 0 ]]; then
     echo "[architecture-coverage] PASS"

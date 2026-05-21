@@ -91,6 +91,8 @@ struct ThreeOmegaIngestionResult: Codable, Hashable, Sendable {
     var fieldSweeps: [ThreeOmegaFieldSweepResult]   // sorted by temperatureK ascending
     var rtResult: ThreeOmegaRTResult?
     var device: String
+    var deviceMode: String = "single"
+    var devices: [String] = []
     /// I_rms (A) keyed by temperatureK — required for scaling use case.
     var iRmsValues: [Double: Double] = [:]
     var warnings: [String] = []

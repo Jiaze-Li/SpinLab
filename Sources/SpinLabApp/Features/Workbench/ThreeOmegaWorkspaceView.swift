@@ -305,7 +305,10 @@ private struct ThreeOmegaRTSearchField: View {
                     .frame(width: 140)
                     .onSubmit {
                         store.clearRTSelection()
-                        appState.workbench.runThreeOmegaRTSearch(libraryRootPath: libraryRoot)
+                        appState.workbench.runThreeOmegaRTSearch(
+                            libraryRootPath: libraryRoot,
+                            librarySettings: appState.library.librarySettings
+                        )
                     }
                     .popover(isPresented: $store.showRTPopover, arrowEdge: .bottom) {
                         ThreeOmegaRTPopover()
@@ -314,7 +317,10 @@ private struct ThreeOmegaRTSearchField: View {
 
                 Button {
                     store.clearRTSelection()
-                    appState.workbench.runThreeOmegaRTSearch(libraryRootPath: libraryRoot)
+                    appState.workbench.runThreeOmegaRTSearch(
+                        libraryRootPath: libraryRoot,
+                        librarySettings: appState.library.librarySettings
+                    )
                 } label: {
                     Image(systemName: "magnifyingglass")
                 }

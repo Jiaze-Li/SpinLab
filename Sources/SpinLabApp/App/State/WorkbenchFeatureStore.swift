@@ -149,6 +149,7 @@ final class WorkbenchFeatureStore {
     /// Per-workflow search state, keyed by WorkbenchWorkflowID.
     var searchQueryTexts: [WorkbenchWorkflowID: String] = [:]
     private(set) var searchResults: [WorkbenchWorkflowID: [WorkflowMeasurementSearchHit]] = [:]
+    // TODO(boundary): collapse duplicated search projections once workflow stores stop mirroring searchResults.
     var searchMessages: [WorkbenchWorkflowID: String] = [:]
     private(set) var searchRunning: [WorkbenchWorkflowID: Bool] = [:]
 
@@ -555,7 +556,11 @@ final class WorkbenchFeatureStore {
         return archivedRecords
     }
 
-    func runWorkflowMeasurementSearch(workflowID wf: WorkbenchWorkflowID, libraryRootPath: String?) {
+    func runWorkflowMeasurementSearch(
+        workflowID wf: WorkbenchWorkflowID,
+        libraryRootPath: String?,
+        librarySettings: LibrarySettings? = nil
+    ) {
         let query = searchQueryText(for: wf).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else {
             searchResults[wf] = []
@@ -589,7 +594,7 @@ final class WorkbenchFeatureStore {
             guard let self else { return }
             do {
                 let result = try await dataActor.searchWorkflowMeasurements(
-                    libraryRootPath: libraryRootPath,
+                    settings: librarySettings ?? LibrarySettings(rootPath: libraryRootPath, rootBookmarkData: nil, registryInternalPath: nil, registrySourcePath: nil, backupPath: nil, backupLastSyncedAt: nil, allowedBatchPrefixes: [], lastRefreshAt: nil),
                     query: WorkflowSearchQuery(rawText: query),
                     workflowDefinitions: workflowDefinitions
                 )
@@ -677,7 +682,7 @@ final class WorkbenchFeatureStore {
         }
     }
 
-    func runThreeOmegaRTSearch(libraryRootPath: String?) {
+    func runThreeOmegaRTSearch(libraryRootPath: String?, librarySettings: LibrarySettings? = nil) {
         let store = threeOmegaWorkspace
         let query = store.rtQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else {
@@ -703,7 +708,7 @@ final class WorkbenchFeatureStore {
             guard let self else { return }
             do {
                 let result = try await dataActor.searchWorkflowMeasurements(
-                    libraryRootPath: libraryRootPath,
+                    settings: librarySettings ?? LibrarySettings(rootPath: libraryRootPath, rootBookmarkData: nil, registryInternalPath: nil, registrySourcePath: nil, backupPath: nil, backupLastSyncedAt: nil, allowedBatchPrefixes: [], lastRefreshAt: nil),
                     query: WorkflowSearchQuery(rawText: query),
                     workflowDefinitions: workflowDefinitions
                 )

@@ -125,7 +125,7 @@ struct WorkbenchPlotCanvas: View {
     }
 
     var body: some View {
-        if let data = imageData, let nsImage = NSImage(data: data) {
+        if let imageData, let nsImage = NSImage(data: imageData) {
             Image(nsImage: nsImage)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
@@ -154,28 +154,31 @@ struct WorkbenchPlotCanvas: View {
                         onDragChanged: { start, current in
                             let fitted = fittedRect(in: canvasSize)
                             if dragMode == .none {
-                                if seriesReorderable {
-                                    if _isInLegendArea(start, fittedRect: fitted) {
-                                        guard onLegendDrag != nil else { return }
-                                        dragMode = .legend
-                                    } else if let l = layout, let p = seriesPayload {
-                                        let plotSR = WorkbenchPlotLayout.cgToScreen(
-                                            l.plotRect, fittedIn: fitted,
-                                            rendererWidth: l.rendererSize.width,
-                                            rendererHeight: l.rendererSize.height
-                                        )
-                                        if plotSR.contains(start) {
-                                            let allHaveSampleID = p.series.allSatisfy { $0.sampleID != nil }
-                                            if allHaveSampleID,
-                                               let hit = l.hitTestSeries(location: start, fittedRect: fitted, payload: p, radius: 8) {
-                                                dragMode = .series(sampleID: hit.sampleID)
-                                            }
-                                        }
-                                        if case .none = dragMode { return }
-                                    } else { return }
-                                } else {
+                                // Dispatch priority:
+                                // 1) legend frame drag
+                                // 2) series reorder hit-test
+                                // 3) hover/crosshair remains passive
+                                // 4) otherwise no-op
+                                if _isInLegendFrame(start, fittedRect: fitted) {
                                     guard onLegendDrag != nil else { return }
                                     dragMode = .legend
+                                } else if seriesReorderable,
+                                          let l = layout,
+                                          let p = seriesPayload {
+                                    let plotSR = WorkbenchPlotLayout.cgToScreen(
+                                        l.plotRect, fittedIn: fitted,
+                                        rendererWidth: l.rendererSize.width,
+                                        rendererHeight: l.rendererSize.height
+                                    )
+                                    guard plotSR.contains(start) else { return }
+                                    let allHaveSampleID = p.series.allSatisfy { $0.sampleID != nil }
+                                    guard allHaveSampleID,
+                                          let hit = l.hitTestSeries(location: start, fittedRect: fitted, payload: p, radius: 8) else {
+                                        return
+                                    }
+                                    dragMode = .series(sampleID: hit.sampleID)
+                                } else {
+                                    return
                                 }
                             }
                             switch dragMode {
@@ -227,18 +230,11 @@ struct WorkbenchPlotCanvas: View {
                         }
                     )
                 }
-                .onAppear {
-                    rendererPixelSize = Self.extractRendererPixelSize(from: nsImage) ?? Self.defaultRendererSize
-                }
-                .onChange(of: imageData) { _, _ in
-                    rendererPixelSize = Self.extractRendererPixelSize(from: nsImage) ?? Self.defaultRendererSize
-                }
                 .contextMenu {
                     Menu("Copy PNG") {
                         ForEach(Self.copyPNGScales, id: \.self) { s in
                             Button("\(Int(s))x") {
-                                let scaled = onCopyPNG?(s)
-                                guard let d = scaled ?? imageData else { return }
+                                let d = onCopyPNG?(s) ?? imageData
                                 let pb = NSPasteboard.general
                                 pb.clearContents()
                                 pb.setData(d, forType: .png)
@@ -333,16 +329,17 @@ struct WorkbenchPlotCanvas: View {
         }
     }
 
-    private func _isInLegendArea(_ location: CGPoint, fittedRect: CGRect) -> Bool {
+    private func _isInLegendFrame(_ location: CGPoint, fittedRect: CGRect) -> Bool {
         guard let l = layout else { return false }
+        var frame: CGRect?
         for row in l.legendRows {
             let screenRect = WorkbenchPlotLayout.cgToScreen(
                 row.hitRect, fittedIn: fittedRect,
                 rendererWidth: l.rendererSize.width, rendererHeight: l.rendererSize.height
             )
-            if screenRect.contains(location) { return true }
+            frame = frame.map { $0.union(screenRect) } ?? screenRect
         }
-        return false
+        return frame?.contains(location) ?? false
     }
 
     private func _computeNewSeriesOrder(

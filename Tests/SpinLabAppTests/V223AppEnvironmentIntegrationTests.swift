@@ -278,7 +278,11 @@ private actor MockDataActor: SpinLabDataActing {
         )
     }
 
-    func searchWorkflowMeasurements(libraryRootPath: String, query: WorkflowSearchQuery, workflowDefinitions: [WorkflowDefinition]) async throws -> [WorkflowMeasurementSearchHit] {
+    func searchWorkflowMeasurements(
+        settings: LibrarySettings,
+        query: WorkflowSearchQuery,
+        workflowDefinitions: [WorkflowDefinition]
+    ) async throws -> [WorkflowMeasurementSearchHit] {
         []
     }
 

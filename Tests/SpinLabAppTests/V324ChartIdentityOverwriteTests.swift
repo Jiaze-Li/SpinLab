@@ -63,6 +63,27 @@ struct V324ChartIdentityOverwriteTests {
                 WorkbenchChartIdentity.makeIdentityKey(from: rt))
     }
 
+    @Test("angle sweep metadata changes chart identity away from single device")
+    func angleSweepIdentityDiffersFromSingleDevice() {
+        let single = makePayload(
+            workflowID: "3w",
+            sourceRef: "a.dat",
+            xField: "H (T)",
+            yField: "R(1ω) (Ω)",
+            semanticParams: ["device": "0deg", "tabKey": "fieldSweep1omega"]
+        )
+        let mixed = makePayload(
+            workflowID: "3w",
+            sourceRef: "a.dat",
+            xField: "H (T)",
+            yField: "R(1ω) (Ω)",
+            semanticParams: ["deviceMode": "angleSweep", "devices": "0deg,30deg,90deg", "tabKey": "fieldSweep1omega"]
+        )
+
+        #expect(WorkbenchChartIdentity.makeIdentityKey(from: single) !=
+                WorkbenchChartIdentity.makeIdentityKey(from: mixed))
+    }
+
     @Test("identity key format is chart_ prefix followed by 64 hex chars")
     func identityKeyFormat() {
         let payload = makePayload(workflowID: "AHE", sourceRef: "a.dat", xField: "X", yField: "Y")

@@ -50,11 +50,9 @@ Stale banner and Recompute UI hook: `RecomputeStaleBannerView` / `RecomputePrevi
 
 ## Code Map
 
-- `Sources/SpinLabApp/UseCases/SaveActiveChartToLibraryUseCase.swift` — saves the active analysis chart as a Library artifact with metadata
 - `Sources/SpinLabApp/UseCases/PersistChartArtifactUseCase.swift` — persists a chart artifact to app-support storage and returns its identifier
 - `Sources/SpinLabApp/UseCases/PersistMeasurementDataUseCase.swift` — persists processed measurement data as a typed artifact
 - `Sources/SpinLabApp/UseCases/BackfillMeasurementPlotIndexUseCase.swift` — backfills missing plot index entries for existing measurement artifacts
-- `Sources/SpinLabApp/Workbench/V3/WorkbenchResultContracts.swift` — pack result contract types shared across workbench workflow implementations
 - `Sources/SpinLabApp/App/State/AnalysisVault.swift` — stores and retrieves AnalysisPack instances across Workbench sessions
 - `Sources/SpinLabApp/Domain/AnalysisPack.swift` — domain model for a completed analysis artifact (pack result + provenance metadata)
 - `Sources/SpinLabApp/Domain/RecomputePreviewItem.swift` — domain model for a queued chart preview recomputation item

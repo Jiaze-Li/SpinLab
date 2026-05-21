@@ -29,6 +29,8 @@ struct IngestThreeOmegaSelectionsUseCase {
                 fieldSweeps: [],
                 rtResult: nil,
                 device: "",
+                deviceMode: "single",
+                devices: [],
                 warnings: ["No files selected."]
             )
         }
@@ -66,6 +68,7 @@ struct IngestThreeOmegaSelectionsUseCase {
                     if device.isEmpty { device = resolvedDevice }
                     var result = fitter.process(file: file, deviceOverride: resolvedDevice)
                     result.sampleID = "\(hit.sampleKey)#\(result.temperatureK)"
+                    result.sourceFilePath = hit.measurementFilePath
                     result.sampleMetadata = Self._buildSampleMetadata(
                         from: hit,
                         numericDisplay: numericDisplayBySample[hit.sampleKey] ?? [:]
@@ -134,8 +137,12 @@ struct IngestThreeOmegaSelectionsUseCase {
 
         // Detect mixed device values from sidecar conditions (field-sweep files only).
         let uniqueDevices = Set(deviceValues)
-        if uniqueDevices.count > 1 {
-            warnings.append("Mixed device angles detected (\(uniqueDevices.sorted().joined(separator: ", "))) — only the first device (\(device)) is used for analysis.")
+        let sortedDevices = uniqueDevices.sorted()
+        let isMixedDeviceAngleSelection = sortedDevices.count > 1
+        let resolvedDevice = isMixedDeviceAngleSelection ? "angle_sweep" : device
+        let deviceMode = isMixedDeviceAngleSelection ? "angleSweep" : "single"
+        if isMixedDeviceAngleSelection {
+            warnings.append("Mixed device angles detected (\(sortedDevices.joined(separator: ", "))) — angle sweep metadata is used for titles and manifests.")
         }
 
         if rtResult == nil {
@@ -145,7 +152,9 @@ struct IngestThreeOmegaSelectionsUseCase {
         return ThreeOmegaIngestionResult(
             fieldSweeps: fieldSweeps,
             rtResult: rtResult,
-            device: device,
+            device: resolvedDevice,
+            deviceMode: deviceMode,
+            devices: sortedDevices,
             iRmsValues: iRmsValues,
             warnings: warnings
         )

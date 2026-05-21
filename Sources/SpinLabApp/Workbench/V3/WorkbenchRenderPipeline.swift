@@ -91,6 +91,8 @@ enum WorkbenchRenderPipeline {
         //     verify the renderer already produced series in the expected order.
         //     The pipeline NEVER reorders — mismatch means the renderer has a bug.
         if payload.seriesReorderable, let expectedOrder = input.seriesOrder {
+            assert(payload.series.allSatisfy { $0.sampleID != nil },
+                   "seriesReorderable payloads require stable sampleID values for order checks")
             if let warning = Self.detectSeriesOrderMismatch(payload.series, expected: expectedOrder) {
                 pipelineWarnings.append(warning)
             }
