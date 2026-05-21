@@ -87,6 +87,91 @@ def natural_key(value: str) -> list[Any]:
     return key
 
 
+def resolved_tab_key(chart_path: str, tab_key: str | None) -> str | None:
+    if tab_key:
+        return tab_key
+    filename = Path(chart_path).name
+    if filename.startswith("R1ω_") or filename.startswith("R1\u03C9_"):
+        return "fieldSweep1omega"
+    if filename.startswith("R3ω_") or filename.startswith("R3\u03C9_"):
+        return "fieldSweep3omega"
+    if filename.startswith("RAHE1ω") or filename.startswith("RAHE1\u03C9"):
+        return "rahe1omegaVsT"
+    if filename.startswith("RAHE3ω") or filename.startswith("RAHE3\u03C9"):
+        return "rahe3omegaVsT"
+    if filename.startswith("Hc_"):
+        return "hcVsT"
+    if filename.startswith("Rxx_vs_T_") or filename.startswith("RT_"):
+        return "rtCurve"
+    if filename.startswith("Scaling_Law_"):
+        return "scaling"
+    return None
+
+
+TAB_RANK = {
+    "fieldSweep1omega": 0,
+    "fieldSweep3omega": 1,
+    "rahe1omegaVsT": 2,
+    "rahe3omegaVsT": 3,
+    "hcVsT": 4,
+    "rtCurve": 5,
+    "scaling": 6,
+}
+
+
+def chart_sort_key(ref: dict[str, Any], original_index: int) -> tuple[int, str, int]:
+    rank = TAB_RANK.get(resolved_tab_key(str(ref.get("chartImagePath", "")), ref.get("tabKey")), len(TAB_RANK))
+    generated_at = str(ref.get("generatedAt") or "")
+    return (rank, generated_at, original_index)
+
+
+def extract_angle_value(*candidates: Any) -> float | None:
+    pattern = re.compile(r"(?i)(-?\d+(?:\.\d+)?)\s*(?:deg|degree)")
+    for candidate in candidates:
+        text = str(candidate or "")
+        match = pattern.search(text)
+        if match:
+            try:
+                return float(match.group(1))
+            except ValueError:
+                continue
+    return None
+
+
+def measurement_group_angle(measurement_source: str, chart_refs: list[dict[str, Any]]) -> float | None:
+    candidates: list[Any] = [measurement_source]
+    for ref in chart_refs:
+        chart_path = ref.get("chartImagePath")
+        candidates.append(chart_path)
+        candidates.append(Path(str(chart_path or "")).stem)
+    return extract_angle_value(*candidates)
+
+
+def group_angle_for_measurement(
+    measurement_source: str,
+    chart_keys: list[str],
+    refs_by_key: dict[str, dict[str, Any]],
+) -> float | None:
+    selected_refs: list[dict[str, Any]] = []
+    for chart_key in chart_keys:
+        ref = refs_by_key.get(chart_key)
+        if isinstance(ref, dict):
+            selected_refs.append(ref)
+    angle = measurement_group_angle(measurement_source, selected_refs)
+    if angle is not None:
+        return angle
+    # If the measurement key is opaque, fall back to any chart title/path evidence.
+    for ref in selected_refs:
+        angle = extract_angle_value(
+            ref.get("chartImagePath"),
+            Path(str(ref.get("chartImagePath") or "")).stem,
+            ref.get("source_file"),
+        )
+        if angle is not None:
+            return angle
+    return None
+
+
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -153,58 +238,138 @@ def build_asset_records(library_root: Path, output_dir: Path, images: Iterable[P
     return records
 
 
-def load_sample_chart_order_map(library_root: Path) -> dict[str, dict[str, int]]:
-    order_map: dict[str, dict[str, int]] = {}
-    samples_dir = library_root / "samples"
-    if not samples_dir.exists():
-        return order_map
+def load_sample_indexes(library_root: Path, sample_key: str) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    sample_dir = library_root / "samples" / sample_key
+    results_path = sample_dir / "_spinlab" / "results_index.json"
+    plot_path = sample_dir / "_spinlab" / "measurement_plot_index.json"
 
-    for sample_dir in samples_dir.iterdir():
-        if not sample_dir.is_dir():
-            continue
-        sample_key = sample_dir.name
-        index_path = sample_dir / "_spinlab" / "results_index.json"
-        if not index_path.exists():
-            continue
-        try:
-            index = read_json(index_path)
-        except Exception:
-            continue
-        references = index.get("references", [])
-        if not isinstance(references, list) or not references:
-            continue
-        sample_order: dict[str, int] = {}
-        for idx, reference in enumerate(references):
-            if not isinstance(reference, dict):
+    results: dict[str, Any] | None = None
+    plot: dict[str, Any] | None = None
+
+    try:
+        if results_path.exists():
+            loaded_results = read_json(results_path)
+            if isinstance(loaded_results, dict) and isinstance(loaded_results.get("references"), list):
+                results = loaded_results
+    except Exception:
+        results = None
+
+    try:
+        if plot_path.exists():
+            loaded_plot = read_json(plot_path)
+            if isinstance(loaded_plot, dict) and isinstance(loaded_plot.get("entries"), dict):
+                plot = loaded_plot
+    except Exception:
+        plot = None
+
+    return results, plot
+
+
+def ordered_chart_paths_for_sample(library_root: Path, sample_key: str) -> list[str]:
+    results, plot = load_sample_indexes(library_root, sample_key)
+
+    if results and plot:
+        refs_by_key = {
+            ref.get("chartIdentityKey"): ref
+            for ref in results.get("references", [])
+            if isinstance(ref, dict) and isinstance(ref.get("chartIdentityKey"), str)
+        }
+        seen: set[str] = set()
+        ordered_paths: list[str] = []
+        grouped_measurements: list[tuple[int, float | None, str, list[str]]] = []
+        for insertion_index, (measurement_source, chart_keys) in enumerate(plot["entries"].items()):
+            if not isinstance(measurement_source, str) or not isinstance(chart_keys, list):
                 continue
-            chart_path = reference.get("chartImagePath")
-            if isinstance(chart_path, str) and chart_path:
-                sample_order[chart_path] = idx
-        if sample_order:
-            order_map[sample_key] = sample_order
-    return order_map
+            grouped_measurements.append((insertion_index, None, measurement_source, [ck for ck in chart_keys if isinstance(ck, str)]))
+
+        def measurement_sort_key(item: tuple[int, float | None, str, list[str]]) -> tuple[int, float, int, str]:
+            insertion_index, angle, measurement_source, chart_keys = item
+            if angle is None:
+                angle = group_angle_for_measurement(measurement_source, chart_keys, refs_by_key)
+            if angle is None:
+                return (1, 0.0, insertion_index, measurement_source)
+            return (0, float(angle), insertion_index, measurement_source)
+
+        for _, _, measurement_source, chart_keys in sorted(grouped_measurements, key=measurement_sort_key):
+            selected: list[tuple[int, dict[str, Any]]] = []
+            for original_index, chart_key in enumerate(chart_keys):
+                ref = refs_by_key.get(chart_key)
+                if isinstance(ref, dict):
+                    selected.append((original_index, ref))
+            selected.sort(key=lambda item: chart_sort_key(item[1], item[0]))
+            for _, ref in selected:
+                chart_key = ref.get("chartIdentityKey")
+                chart_path = ref.get("chartImagePath")
+                if not isinstance(chart_key, str) or not isinstance(chart_path, str):
+                    continue
+                if chart_key in seen:
+                    continue
+                seen.add(chart_key)
+                ordered_paths.append(chart_path)
+        for ref in results.get("references", []):
+            if not isinstance(ref, dict):
+                continue
+            chart_key = ref.get("chartIdentityKey")
+            chart_path = ref.get("chartImagePath")
+            if not isinstance(chart_key, str) or not isinstance(chart_path, str):
+                continue
+            if chart_key in seen:
+                continue
+            seen.add(chart_key)
+            ordered_paths.append(chart_path)
+        return ordered_paths
+
+    if results:
+        ordered_paths: list[str] = []
+        seen: set[str] = set()
+        for ref in results.get("references", []):
+            if not isinstance(ref, dict):
+                continue
+            chart_key = ref.get("chartIdentityKey")
+            chart_path = ref.get("chartImagePath")
+            if not isinstance(chart_key, str) or not isinstance(chart_path, str):
+                continue
+            if chart_key in seen:
+                continue
+            seen.add(chart_key)
+            ordered_paths.append(chart_path)
+        return ordered_paths
+
+    return []
 
 
 def sort_asset_records(
+    library_root: Path,
     asset_records: list[AssetRecord],
-    chart_order_map: dict[str, dict[str, int]],
 ) -> list[AssetRecord]:
-    def sort_key(record: AssetRecord) -> tuple[Any, ...]:
-        sample_key = record.sample_key or ""
-        sample_bucket = 0 if sample_key else 1
-        order_map = chart_order_map.get(sample_key, {})
-        chart_order = order_map.get(record.source_relpath)
-        fallback_title = Path(record.source_relpath).stem
-        return (
-            sample_bucket,
-            natural_key(sample_key),
-            0 if chart_order is not None else 1,
-            chart_order if chart_order is not None else 0,
-            natural_key(fallback_title),
-            record.source_relpath,
-        )
+    by_sample: dict[str, dict[str, AssetRecord]] = {}
+    for record in asset_records:
+        if record.sample_key:
+            by_sample.setdefault(record.sample_key, {})[record.source_relpath] = record
 
-    return sorted(asset_records, key=sort_key)
+    ordered: list[AssetRecord] = []
+    seen_keys: set[str] = set()
+    seen_paths: set[str] = set()
+
+    sample_keys = sorted(by_sample.keys(), key=natural_key)
+    for sample_key in sample_keys:
+        ordered_paths = ordered_chart_paths_for_sample(library_root, sample_key)
+        if not ordered_paths:
+            continue
+        for chart_path in ordered_paths:
+            record = by_sample.get(sample_key, {}).get(chart_path)
+            if record is None:
+                continue
+            if record.asset_key in seen_keys or record.source_relpath in seen_paths:
+                continue
+            seen_keys.add(record.asset_key)
+            seen_paths.add(record.source_relpath)
+            ordered.append(record)
+
+    remaining = [record for record in asset_records if record.asset_key not in seen_keys]
+    remaining.sort(key=lambda record: natural_key(Path(record.source_relpath).stem))
+    ordered.extend(remaining)
+    return ordered
 
 
 def summarize_thresholds() -> dict[str, int]:
@@ -449,8 +614,7 @@ def main() -> int:
     index = read_json(index_path)
     images = collect_images(library_root, output_dir)
     asset_records = build_asset_records(library_root, output_dir, images)
-    chart_order_map = load_sample_chart_order_map(library_root)
-    asset_records = sort_asset_records(asset_records, chart_order_map)
+    asset_records = sort_asset_records(library_root, asset_records)
     warnings, errors = build_warnings_and_errors(asset_records)
     exported_at = utc_now_iso()
     report = build_report(asset_records, warnings, errors, force, exported_at)
