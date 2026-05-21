@@ -236,6 +236,33 @@ The migration direction is incremental:
 
 The immediate design goal is to make composition explicit without forcing a monolithic runtime abstraction.
 
+## Incremental Migration Rule
+
+Future refactors should stay incremental instead of jumping straight into one large runtime or one giant `Standard Result`.
+
+1. Start from the existing workflows first:
+   - AHE
+   - XY Rotation
+   - 3ω
+2. Extract one shell-facing boundary at a time.
+3. Test after each extraction before moving to the next one.
+4. Prefer read/adaptor surfaces before execution lifecycle helpers.
+5. Do not introduce one giant `Standard Result` struct.
+   Prefer a minimal shell-facing result surface / adapter capability.
+6. Recommended extraction order:
+   - Phase 0: baseline tests
+   - Phase 1: active result read surface
+   - Phase 2: warning / trace surface
+   - Phase 3: tab output / active plot surface
+   - Phase 4: save input surface
+   - Phase 5: pack restore / rerender surface
+   - Phase 6: thin lifecycle helper
+7. Recommended workflow order:
+   - AHE first
+   - XY Rotation second
+   - 3ω last as the stress test
+8. Scientific logic must remain workflow-specific.
+
 ## Cross-Links
 
 - [Shell and Lifecycle](SHELL_AND_LIFECYCLE.md)
