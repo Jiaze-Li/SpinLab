@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import sys
 from dataclasses import dataclass
@@ -73,6 +74,19 @@ def short_hash(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
 
 
+def natural_key(value: str) -> list[Any]:
+    parts = re.split(r"(\d+)", value)
+    key: list[Any] = []
+    for part in parts:
+        if not part:
+            continue
+        if part.isdigit():
+            key.append(int(part))
+        else:
+            key.append(part.casefold())
+    return key
+
+
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -137,6 +151,60 @@ def build_asset_records(library_root: Path, output_dir: Path, images: Iterable[P
             )
         )
     return records
+
+
+def load_sample_chart_order_map(library_root: Path) -> dict[str, dict[str, int]]:
+    order_map: dict[str, dict[str, int]] = {}
+    samples_dir = library_root / "samples"
+    if not samples_dir.exists():
+        return order_map
+
+    for sample_dir in samples_dir.iterdir():
+        if not sample_dir.is_dir():
+            continue
+        sample_key = sample_dir.name
+        index_path = sample_dir / "_spinlab" / "results_index.json"
+        if not index_path.exists():
+            continue
+        try:
+            index = read_json(index_path)
+        except Exception:
+            continue
+        references = index.get("references", [])
+        if not isinstance(references, list) or not references:
+            continue
+        sample_order: dict[str, int] = {}
+        for idx, reference in enumerate(references):
+            if not isinstance(reference, dict):
+                continue
+            chart_path = reference.get("chartImagePath")
+            if isinstance(chart_path, str) and chart_path:
+                sample_order[chart_path] = idx
+        if sample_order:
+            order_map[sample_key] = sample_order
+    return order_map
+
+
+def sort_asset_records(
+    asset_records: list[AssetRecord],
+    chart_order_map: dict[str, dict[str, int]],
+) -> list[AssetRecord]:
+    def sort_key(record: AssetRecord) -> tuple[Any, ...]:
+        sample_key = record.sample_key or ""
+        sample_bucket = 0 if sample_key else 1
+        order_map = chart_order_map.get(sample_key, {})
+        chart_order = order_map.get(record.source_relpath)
+        fallback_title = Path(record.source_relpath).stem
+        return (
+            sample_bucket,
+            natural_key(sample_key),
+            0 if chart_order is not None else 1,
+            chart_order if chart_order is not None else 0,
+            natural_key(fallback_title),
+            record.source_relpath,
+        )
+
+    return sorted(asset_records, key=sort_key)
 
 
 def summarize_thresholds() -> dict[str, int]:
@@ -381,6 +449,8 @@ def main() -> int:
     index = read_json(index_path)
     images = collect_images(library_root, output_dir)
     asset_records = build_asset_records(library_root, output_dir, images)
+    chart_order_map = load_sample_chart_order_map(library_root)
+    asset_records = sort_asset_records(asset_records, chart_order_map)
     warnings, errors = build_warnings_and_errors(asset_records)
     exported_at = utc_now_iso()
     report = build_report(asset_records, warnings, errors, force, exported_at)
