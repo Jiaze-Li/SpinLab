@@ -8,6 +8,7 @@
 | File | Layer | Scope |
 |---|---|---|
 | `INDEX.md` | — | Dispatch entry (this file) |
+| `SHELL_BLOCKS.md` | Shell | Shell block composition model, workflow-specific slots, Standard Result boundary, and migration path toward reusable shell units |
 | `SHELL_AND_LIFECYCLE.md` | Shell | WorkflowWorkspaceShell 协议、6 阶段 lifecycle、4 ViewBuilder 槽、3 条 [HARD] 不变式、WorkspaceStore contract |
 | `MEASUREMENT_SEARCH.md` | Search | Sidecar 字段消费、condition projection、workflow ID alias、search 返回 file list 语义 |
 | `PLOT_CANVAS.md` | Render | Workflow-independent plot shell、style params、legend dimension auto-inference、Copy PNG 倍率、point label、curve reorder opt-in |
@@ -19,12 +20,13 @@
 ## Reading Order
 
 1. **SHELL_AND_LIFECYCLE.md** — shell-driven lifecycle and WorkspaceStore contract: how all workflows share one shell
-2. **MEASUREMENT_SEARCH.md** — how measurements are searched and condition projections are built
-3. **PLOT_CANVAS.md** — workflow-independent plot capabilities and opt-in extensions
-4. **WORKFLOW_CONTRACTS.md** — each workflow's ingestion, pack, and tag normalization contracts
-5. **ARTIFACT_PERSISTENCE.md** — how analysis results are saved to Library and how stale detection works
-6. **THREE_OMEGA_PHYSICS.md** — 3ω physical model, Scaling Law, and RAHE derivation
-7. **EXTENSION_BOUNDARIES.md** — how to add a new workflow and the module boundary rules
+2. **SHELL_BLOCKS.md** — shell block composition, workflow-specific slots, and Standard Result boundary
+3. **MEASUREMENT_SEARCH.md** — how measurements are searched and condition projections are built
+4. **PLOT_CANVAS.md** — workflow-independent plot capabilities and opt-in extensions
+5. **WORKFLOW_CONTRACTS.md** — each workflow's ingestion, pack, and tag normalization contracts
+6. **ARTIFACT_PERSISTENCE.md** — how analysis results are saved to Library and how stale detection works
+7. **THREE_OMEGA_PHYSICS.md** — 3ω physical model, Scaling Law, and RAHE derivation
+8. **EXTENSION_BOUNDARIES.md** — how to add a new workflow and the module boundary rules
 
 ## First-Read Files
 
@@ -66,3 +68,4 @@ This directory describes Workbench-internal behavior only. Cross-domain contract
 - `docs/architecture/inbox/OUTPUT_CONTRACTS.md` — Sidecar schema canonical source of truth (Workbench search is read-only consumer)
 - `docs/architecture/library/SIDECAR_AND_CONDITIONS.md` — Sidecar display in Library view (Workbench writes; Library reads and displays)
 - `docs/architecture/library/ARTIFACTS_AND_PREVIEWS.md` — Library view of chart/metric artifacts and preview (Workbench writes generation; Library owns namespace and cleanup)
+- `docs/architecture/workbench/SHELL_BLOCKS.md` — Shell block composition and workflow boundary model for Workbench
