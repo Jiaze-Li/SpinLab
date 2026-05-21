@@ -53,6 +53,14 @@ python3 scripts/validate_web_library.py --output-dir ../SpinLab-Web-Library/publ
 4. Cloudflare Pages deploys from the private repo's `public/` output.
 5. Cloudflare Access uses One-time PIN login. Keep the browser session for 30 days when you want the login to persist across visits.
 
+If you just want to check what follow-up action is required after local edits, run:
+
+```bash
+./scripts/check_required_actions.sh
+```
+
+It reports whether you need to rebuild the desktop app, publish the web library, or do nothing for docs-only changes. It also reminds you to restart SpinLab.app if the external repo pointer file was edited.
+
 Validation is required before publishing. Do not commit or push a web export until the validator passes.
 
 The exporter may replace files inside `--output-dir`, but it must not delete or modify anything outside that directory.
@@ -62,3 +70,15 @@ The exporter may replace files inside `--output-dir`, but it must not delete or 
 | Document | Purpose |
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md) / [`AGENTS.md`](AGENTS.md) | Agent execution policy, hard gates, implementation behavior constraints (mirrored copies) |
+
+## Cross-Agent Delivery
+
+Codex and Claude should treat code edits as incomplete until the required app/site action is performed.
+
+- Run `./scripts/check_required_actions.sh` after any code change.
+- If `Sources/SpinLabApp/` changed, run `./scripts/build_desktop_app.sh debug`.
+- If `Resources/WebLibraryTemplate/` or `scripts/export_static_library.py` changed, run `./scripts/publish_web_library.sh`.
+- If both changed, do both.
+- Real app: `/Applications/SpinLab.app`
+- Desktop shortcut: `~/Desktop/SpinLab.app` -> `/Applications/SpinLab.app`
+- Final responses must say whether Swift changed, whether Web UI/export changed, whether rebuild/publish was required, whether each was completed, and the updated app/site result.

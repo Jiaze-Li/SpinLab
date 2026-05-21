@@ -29,6 +29,13 @@
 - `[HARD][must]` Sign-off criteria: structural quality + maintainability + testability, not just feature correctness.
 - `[HARD][must]` Do not rename, remap, or reformat any user-defined display name, ID, field name, or configuration value unless the user explicitly requests it. "Cleanup" or "normalization" of user-chosen names is forbidden.
 - `[HARD][must]` **Desktop app rebuild gate**: a round that includes Swift source changes must end with `./scripts/build_desktop_app.sh debug` to rebuild and overwrite `/Users/jack/Desktop/SpinLab.app`. **Skip the rebuild when the round has no `.swift` changes** (docs-only / config-only / handoff-only rounds do not trigger build). A Stop hook (`~/.claude/hooks/spinlab_desktop_build.sh`) enforces this automatically — it compares `Sources/**/*.swift` mtimes against the app bundle and exits silently when nothing is newer, so it is safe to rely on. Execution responsibility still belongs to the AI completing the change when source did move. Full build policy: `docs/architecture/ARCHITECTURE_OVERVIEW.md` §Build and Version Policy.
+- `[HARD][must]` After any code change, run `./scripts/check_required_actions.sh` before handoff. Treat its output as the machine-readable action gate for rebuild/publish decisions.
+- `[HARD][must]` If `Sources/SpinLabApp/` changed, complete `./scripts/build_desktop_app.sh debug` and update `/Applications/SpinLab.app`.
+- `[HARD][must]` If `Resources/WebLibraryTemplate/` or `scripts/export_static_library.py` changed, complete `./scripts/publish_web_library.sh`.
+- `[HARD][must]` If both Swift and Web Library inputs changed, do both actions.
+- `[HARD][must]` The real app bundle is `/Applications/SpinLab.app`.
+- `[HARD][must]` The Desktop app at `~/Desktop/SpinLab.app` is only a symlink to `/Applications/SpinLab.app`.
+- `[HARD][must]` Final responses must explicitly report whether Swift changed, whether Web UI/export changed, whether rebuild/publish was required, whether each was completed, and the updated app or site result. Do not claim a task is done if a required rebuild or publish was skipped.
 - `[HARD][must]` 新增 `Sources/**/*.swift` 必须登记到对应 `docs/architecture/<region>/<layer>.md` 的 `## Code Map` 段（4 步 SOP 见下方 `## Adding New Swift Code` 段）。pre-commit hook 强制检查；准备 commit 含 `Sources/**/*.swift` 增删/重命名前，确认 `.git/hooks/pre-commit` 含 `spinlab-architecture-coverage:start` sentinel——首次提交前跑 `scripts/install_git_hooks.sh --check || scripts/install_git_hooks.sh` 自举安装。
 - Execution gate and collaboration model: inherited from global `~/.claude/CLAUDE.md`.
 
