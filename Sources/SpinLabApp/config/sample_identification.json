@@ -68,8 +68,12 @@
         "displayName" : "111",
         "matches" : [
           {
-            "type" : "contains",
+            "type" : "equals",
             "value" : "111"
+          },
+          {
+            "type" : "equals",
+            "value" : "STO111"
           }
         ]
       },
@@ -86,12 +90,16 @@
         "displayName" : "001",
         "matches" : [
           {
-            "type" : "contains",
+            "type" : "equals",
             "value" : "100"
           },
           {
-            "type" : "contains",
+            "type" : "equals",
             "value" : "001"
+          },
+          {
+            "type" : "equals",
+            "value" : "STO001"
           }
         ]
       },
