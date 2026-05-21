@@ -67,6 +67,7 @@ Current block inventory:
 - `SearchShell`
 - `SelectionShell`
 - `AnalyzeLifecycleShell`
+- `ResultHeaderShell`
 - `PlotShell`
 - `PlotControlsShell`
 - `SaveShell`
@@ -127,6 +128,10 @@ Owns selection state presentation and selection actions.
 ### AnalyzeLifecycleShell
 
 Owns the shared analyze / rerun / lifecycle gating surface.
+
+### ResultHeaderShell
+
+Owns the shared result action header, including clear, save, and load-pack entry points.
 
 ### PlotShell
 
@@ -275,9 +280,40 @@ Future refactors should stay incremental instead of jumping straight into one la
 
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceShell.swift` — composes shared workflow shell layout and injects workflow slots
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift` — defines the workspace provider contract for shell composition
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchStatusArea.swift` — presents shared status content for workflow workspaces
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchTracePanel.swift` — presents last-run trace content for workflow workspaces
+- `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` — owns AHE workflow workspace state and rendering lifecycle
+- `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift` — renders the AHE workflow workspace shell
+- `Sources/SpinLabApp/Features/Workbench/OverlaySnapshot.swift` — stores detached overlay state for restored Workbench packs
+- `Sources/SpinLabApp/Features/Workbench/PlotCanvasMouseTracker.swift` — tracks mouse position for the shared plot canvas
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaRenderedPlots.swift` — carries rendered 3ω plot data and layouts
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkbenchTab.swift` — defines the 3ω workflow tab identity set
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift` — owns 3ω workflow workspace state and orchestration
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Analysis.swift` — runs 3ω ingestion analysis and trace commit
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+FitRanges.swift` — manages 3ω fit range editing state
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+ManifestCache.swift` — snapshots 3ω manifest payloads and input identities
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift` — builds and restores 3ω analysis pack state
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Persistence.swift` — saves 3ω charts and metrics to library artifacts
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Plotting.swift` — exposes 3ω plot editing and chart access
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift` — manages 3ω RT search and restore state
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RelatedCharts.swift` — loads 3ω related result references
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Rendering.swift` — rerenders 3ω tabs from stored tab state
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Scaling.swift` — computes 3ω scaling results from frozen ingestion state
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Selection.swift` — manages 3ω measurement selection and clearing state
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift` — renders the 3ω workflow workspace shell
+- `Sources/SpinLabApp/Features/Workbench/UnitTagEditor.swift` — edits unit-tag values in Workbench forms
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchEnvironment.swift` — supplies Workbench-specific environment capabilities
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift` — renders the shared Workbench plot canvas
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift` — hosts shared plot controls for Workbench
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift` — defines the shared Workbench plotting contract
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchReadAdapter.swift` — snapshots shell-facing result state for workflow read paths
-- `Sources/SpinLabApp/UseCases/BuildRunTraceProjectionUseCase.swift` — builds run trace projections for shell display
-- `Sources/SpinLabApp/UseCases/SaveActiveChartToLibraryUseCase.swift` — orchestrates save-to-library flow from shell-facing chart state
-- `Sources/SpinLabApp/Workbench/V3/WorkbenchResultContracts.swift` — defines shared workbench result contracts used by shell-facing flows
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchResultHeaderShell.swift` — presents shared result actions and save/load entry points
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchSharedComponents.swift` — groups shared Workbench component declarations
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift` — renders standard shared plot controls
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchStatusArea.swift` — presents shared status content for workflow workspaces
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchTitleTemplateField.swift` — provides the Workbench title template field
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchTracePanel.swift` — presents last-run trace content for workflow workspaces
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchView.swift` — routes Workbench region content by selected section
+- `Sources/SpinLabApp/Features/Workbench/WorkflowHitRow.swift` — renders a measurement search hit row
+- `Sources/SpinLabApp/Features/Workbench/WorkflowRegistryView.swift` — renders the workflow registry selection view
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift` — maps workflow IDs to workspace view factories
+- `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift` — owns XY Rotation workflow workspace state and orchestration
+- `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift` — renders the XY Rotation workflow workspace shell

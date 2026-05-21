@@ -211,7 +211,7 @@ struct WorkflowWorkspaceShell<
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 12) {
                 resultHeader
-                statusArea
+                WorkbenchLoadPackPopover(workflowID: workflowID.rawValue, store: store)
                 plotCanvas
                 rightExtra
                 WorkbenchTracePanel(trace: store.currentRunTrace)
@@ -226,70 +226,25 @@ struct WorkflowWorkspaceShell<
     // MARK: - Result header (Save/Update + Save to Library)
 
     private var resultHeader: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Result")
-                    .font(AppFontScale.sectionTitle)
-                Spacer()
-
-                Button("Clear Plot") {
-                    store.clearPlot()
+        let queryText = workbench.searchQueryText(for: workflowID)
+        return WorkbenchResultHeaderShell(
+            store: store,
+            analysisMessage: store.analysisMessage,
+            warningCount: store.warningLog.count,
+            isAnalyzing: store.isAnalyzing,
+            hasAnalysisResult: store.hasAnalysisResult,
+            hasActiveImageData: store.activeImageData != nil,
+            onClearPlot: { store.clearPlot() },
+            onSaveAnalysis: {
+                store.saveAnalysis(searchQueryText: queryText)
+            },
+            onSaveToLibrary: {
+                store.persistToLibrary {
+                    appState.library.loadWorkbenchResultsForCurrentSelection()
+                    appState.library.loadMeasurementDataForCurrentSelection()
                 }
-                .buttonStyle(.bordered)
-                .disabled(store.activeImageData == nil && !store.isAnalyzing)
-
-                if store.matchingVaultPack != nil {
-                    Button("Update Analysis") {
-                        let queryText = workbench.searchQueryText(for: workflowID)
-                        store.saveAnalysis(searchQueryText: queryText)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(!store.hasAnalysisResult)
-                } else {
-                    Button("Save Analysis") {
-                        let queryText = workbench.searchQueryText(for: workflowID)
-                        store.saveAnalysis(searchQueryText: queryText)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!store.hasAnalysisResult)
-                }
-
-                Button("Save to Library") {
-                    store.persistToLibrary {
-                        appState.library.loadWorkbenchResultsForCurrentSelection()
-                        appState.library.loadMeasurementDataForCurrentSelection()
-                    }
-                }
-                .buttonStyle(.bordered)
-                .disabled(!store.hasAnalysisResult)
             }
-
-            if let pack = store.matchingVaultPack {
-                Text("→ \(pack.label)")
-                    .font(.caption)
-                    .foregroundColor(.accentColor)
-            }
-        }
-    }
-
-    // MARK: - Status area
-
-    @ViewBuilder
-    private var statusArea: some View {
-        let warningCount = store.warningLog.count
-        if let msg = store.analysisMessage {
-            if warningCount > 0 {
-                (Text(msg).foregroundStyle(.secondary)
-                 + Text(" (\(warningCount) warning(s))").foregroundStyle(.orange))
-                    .font(.callout)
-                    .textSelection(.enabled)
-            } else {
-                Text(msg)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-            }
-        }
+        )
     }
 
     // MARK: - Plot canvas
