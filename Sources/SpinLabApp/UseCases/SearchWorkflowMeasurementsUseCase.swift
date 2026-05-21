@@ -20,9 +20,6 @@ struct SearchWorkflowMeasurementsUseCase {
         let numericTermStrings = parsed.numericTerms.map { "\($0.field)=\($0.value)" }
         print("[SpinLab][Search] query=\"\(query.rawText)\" textTokens=\(parsed.textTokens) numericTerms=\(numericTermStrings)")
 
-        // Load library index for numeric matching (graceful: empty map if missing)
-        let numericTagsBySampleKey = loadNumericTags(libraryRootURL: libraryRootURL, libraryAccess: libraryAccess)
-
         let effectiveSettings = settings.rootPath == nil
             ? LibrarySettings(
                 rootPath: libraryRootURL.path,
@@ -35,6 +32,17 @@ struct SearchWorkflowMeasurementsUseCase {
                 lastRefreshAt: settings.lastRefreshAt
             )
             : settings
+        let rootResolution = rootAccess.resolveRootURL(settings: effectiveSettings)
+        let resolvedLibraryRootURL: URL
+        switch rootResolution {
+        case .available(let rootURL), .staleBookmark(let rootURL), .fallback(let rootURL):
+            resolvedLibraryRootURL = rootURL
+        case .missingBookmark:
+            throw AppError.validation("Please reselect Library Root.")
+        }
+
+        // Load library index for numeric matching (graceful: empty map if missing)
+        let numericTagsBySampleKey = loadNumericTags(libraryRootURL: resolvedLibraryRootURL, libraryAccess: libraryAccess)
 
         let result = rootAccess.enumerateSidecarURLs(settings: effectiveSettings, fileManager: fileManager)
         if case .fallback(let rootURL) = result.status {
@@ -49,7 +57,7 @@ struct SearchWorkflowMeasurementsUseCase {
         let sidecarURLs = result.urls
         print("[SpinLab][Search] scannedSidecars=\(sidecarURLs.count)")
         if sidecarURLs.isEmpty {
-            print("[SpinLab][Search] warning=no sidecars discovered under \(libraryRootURL.path)")
+            print("[SpinLab][Search] warning=no sidecars discovered under \(resolvedLibraryRootURL.path)")
         }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601

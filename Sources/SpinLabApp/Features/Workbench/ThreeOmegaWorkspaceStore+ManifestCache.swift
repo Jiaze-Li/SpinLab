@@ -12,7 +12,7 @@ extension ThreeOmegaWorkspaceStore {
         yValues: KeyPath<ThreeOmegaFieldSweepResult, [Double]>
     ) -> [WorkbenchPlotSeries] {
         sweeps.enumerated().map { index, sweep in
-            let sourceRef = index < inputFiles.count ? inputFiles[index] : nil
+            let sourceRef = sweep.sourceFilePath ?? (index < inputFiles.count ? inputFiles[index] : nil)
             return WorkbenchPlotSeries(
                 label: sweep.sampleID ?? sourceRef.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "",
                 x: sweep.hField.map { $0 / 10000 },
@@ -207,9 +207,22 @@ extension ThreeOmegaWorkspaceStore {
             let methodTag = method == .highField ? "HFE" : "WA"
             let hLabel = isR1 ? "1ω" : "3ω"
 
-            let series = allFiles.map {
+            let series = groups.flatMap { group in
+                zip(group.sweeps, group.sourceFiles).map { sweep, sourceFile in
+                    WorkbenchPlotSeries(
+                        label: sweep.sampleID ?? URL(fileURLWithPath: sourceFile).lastPathComponent,
+                        x: [],
+                        y: [],
+                        sourceRef: sourceFile,
+                        sampleID: sweep.sampleID,
+                        metadata: sweep.sampleMetadata ?? [:]
+                    )
+                }
+            }
+            let fallbackSeries = series.isEmpty ? allFiles.map {
                 WorkbenchPlotSeries(label: URL(fileURLWithPath: $0).lastPathComponent, x: [], y: [], sourceRef: $0)
             }
+            : series
             let params: [String: String] = deviceMode == "angleSweep"
                 ? ["tabKey": tab.stableKey, "v3method": methodTag, "deviceMode": "angleSweep", "devices": devices.joined(separator: ",")]
                 : ["device": device, "tabKey": tab.stableKey, "v3method": methodTag]
@@ -226,7 +239,7 @@ extension ThreeOmegaWorkspaceStore {
                 workflowDisplayName: "3w",
                 title: title,
                 axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE(\(hLabel)) (Ω)"),
-                series: series,
+                series: fallbackSeries,
                 semanticParams: params
             )
             tabs.tabOutputs[tab] = existing
