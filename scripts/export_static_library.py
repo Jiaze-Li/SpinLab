@@ -36,6 +36,15 @@ class AssetRecord:
     destination_path: Path
 
 
+@dataclass(frozen=True)
+class ActiveChartSource:
+    chart_identity_key: str
+    sample_key: str | None
+    source_file: str
+    source_relpath: str
+    source_path: Path
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Export SpinLab library data to a static web bundle.")
     parser.add_argument("--library-root", required=True, help="Root directory containing index/ and samples/")
@@ -176,23 +185,6 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def collect_images(library_root: Path, output_dir: Path) -> list[Path]:
-    images: list[Path] = []
-    output_resolved = output_dir.resolve()
-    for path in library_root.rglob("*"):
-        if not path.is_file():
-            continue
-        if path.suffix.lower() not in IMAGE_EXTENSIONS:
-            continue
-        try:
-            if output_resolved in path.resolve().parents or path.resolve() == output_resolved:
-                continue
-        except FileNotFoundError:
-            continue
-        images.append(path)
-    return sorted(images)
-
-
 def infer_sample_key(library_root: Path, source_path: Path) -> str | None:
     rel = source_path.relative_to(library_root)
     parts = rel.parts
@@ -209,29 +201,88 @@ def infer_sample_key(library_root: Path, source_path: Path) -> str | None:
     return None
 
 
-def build_asset_records(library_root: Path, output_dir: Path, images: Iterable[Path]) -> list[AssetRecord]:
+def collect_active_chart_sources(library_root: Path) -> tuple[list[ActiveChartSource], list[dict[str, Any]]]:
+    sources: list[ActiveChartSource] = []
+    warnings: list[dict[str, Any]] = []
+    samples_root = library_root / "samples"
+    if not samples_root.exists():
+        return sources, warnings
+
+    seen_keys: set[str] = set()
+    seen_paths: set[str] = set()
+
+    for sample_dir in sorted((path for path in samples_root.iterdir() if path.is_dir()), key=lambda path: natural_key(path.name)):
+        sample_key = sample_dir.name
+        results, _ = load_sample_indexes(library_root, sample_key)
+        if not results:
+            continue
+
+        refs_by_path = {
+            ref.get("chartImagePath"): ref
+            for ref in results.get("references", [])
+            if isinstance(ref, dict) and isinstance(ref.get("chartImagePath"), str)
+        }
+        ordered_paths = ordered_chart_paths_for_sample(library_root, sample_key)
+
+        for chart_path in ordered_paths:
+            ref = refs_by_path.get(chart_path)
+            if not isinstance(ref, dict):
+                continue
+            chart_key = ref.get("chartIdentityKey")
+            if not isinstance(chart_key, str):
+                continue
+            if chart_key in seen_keys or chart_path in seen_paths:
+                continue
+
+            seen_keys.add(chart_key)
+            seen_paths.add(chart_path)
+
+            source_path = library_root / chart_path
+            if not source_path.exists():
+                warnings.append(
+                    {
+                        "code": "missing_active_chart_png",
+                        "message": "Active chart reference points to a missing PNG.",
+                        "sample_key": sample_key,
+                        "chart_identity_key": chart_key,
+                        "chart_image_path": chart_path,
+                    }
+                )
+                continue
+
+            sources.append(
+                ActiveChartSource(
+                    chart_identity_key=chart_key,
+                    sample_key=infer_sample_key(library_root, source_path) or sample_key,
+                    source_file=source_path.name,
+                    source_relpath=chart_path,
+                    source_path=source_path,
+                )
+            )
+
+    return sources, warnings
+
+
+def build_asset_records(library_root: Path, output_dir: Path, sources: Iterable[ActiveChartSource]) -> list[AssetRecord]:
     records: list[AssetRecord] = []
     assets_dir = output_dir / "assets"
-    for source_path in images:
-        rel = source_path.relative_to(library_root)
-        sample_key = infer_sample_key(library_root, source_path)
-        source_file = source_path.name
-        rel_text = rel.as_posix()
+    for source in sources:
+        rel_text = source.source_relpath
         digest = short_hash(rel_text)
-        ext = source_path.suffix.lower()
-        file_name = f"{safe_slug(sample_key or 'orphan')}--{digest}{ext}"
+        ext = source.source_path.suffix.lower()
+        file_name = f"{safe_slug(source.sample_key or 'orphan')}--{digest}{ext}"
         destination_path = assets_dir / file_name
-        asset_key = f"{sample_key or 'orphan'}::{source_file}::{digest}"
+        asset_key = f"{source.sample_key or 'orphan'}::{source.source_file}::{digest}"
         url = f"assets/{quote(file_name)}"
         records.append(
             AssetRecord(
                 asset_key=asset_key,
                 url=url,
-                sample_key=sample_key,
-                source_file=source_file,
-                size_bytes=source_path.stat().st_size,
+                sample_key=source.sample_key,
+                source_file=source.source_file,
+                size_bytes=source.source_path.stat().st_size,
                 source_relpath=rel_text,
-                source_path=source_path,
+                source_path=source.source_path,
                 destination_path=destination_path,
             )
         )
@@ -612,10 +663,11 @@ def main() -> int:
         return 2
 
     index = read_json(index_path)
-    images = collect_images(library_root, output_dir)
-    asset_records = build_asset_records(library_root, output_dir, images)
+    active_sources, active_warnings = collect_active_chart_sources(library_root)
+    asset_records = build_asset_records(library_root, output_dir, active_sources)
     asset_records = sort_asset_records(library_root, asset_records)
     warnings, errors = build_warnings_and_errors(asset_records)
+    warnings = active_warnings + warnings
     exported_at = utc_now_iso()
     report = build_report(asset_records, warnings, errors, force, exported_at)
 
