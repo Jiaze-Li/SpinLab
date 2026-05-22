@@ -144,6 +144,27 @@ struct LibraryView: View {
                 onDismiss: { conditionDetailMeasurement = nil }
             )
         }
+        .sheet(isPresented: Binding(
+            get: { appState.library.isShowingChartAudit },
+            set: { appState.library.isShowingChartAudit = $0 }
+        )) {
+            ChartAssetAuditView(
+                report: appState.library.chartAuditReport,
+                isRunning: appState.library.isChartAuditRunning,
+                message: appState.library.chartAuditMessage,
+                onRefresh: { appState.library.runChartAssetAudit() },
+                onArchiveSelected: { paths in
+                    appState.library.archiveOrphanCharts(relativePaths: paths)
+                },
+                onArchiveAll: {
+                    let report = appState.library.chartAuditReport
+                    let allPaths = (report?.orphanImages ?? []).map(\.relativePath)
+                        + (report?.orphanManifests ?? []).map(\.relativePath)
+                    appState.library.archiveOrphanCharts(relativePaths: allPaths)
+                },
+                onDismiss: { appState.library.isShowingChartAudit = false }
+            )
+        }
     }
 
     var librarySettingsColumn: some View {
@@ -194,6 +215,12 @@ struct LibraryView: View {
                 .font(AppFontScale.sectionTitle)
             Button("Export Audit") {
                 presentAuditTrailExportPanel()
+            }
+            .font(.callout)
+            .buttonStyle(.bordered)
+            Button("Chart Audit") {
+                appState.library.isShowingChartAudit = true
+                appState.library.runChartAssetAudit()
             }
             .font(.callout)
             .buttonStyle(.bordered)
