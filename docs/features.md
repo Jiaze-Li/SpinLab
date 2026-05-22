@@ -72,6 +72,14 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `docs/architecture/library/`
 - Source-of-truth details: [`docs/web_library.md`](web_library.md)
 - Sample notes are sample-scoped plain text, edited from the detail panel, and persisted outside the static export via Cloudflare D1 so republishing does not erase them.
 
+### Chart Asset Audit (v5.3.8)
+- "Chart Audit" button in the Library header launches a scan of all `samples/*/charts/` and `_spinlab/multi-sample/charts/` directories
+- Orphan chart: PNG or manifest file exists on disk but is not referenced by any `results_index.json`
+- Missing active: a `results_index.json` entry exists but the corresponding file is absent on disk
+- Orphan files can be archived individually (select rows) or all at once; they move to `deleted-charts/orphan-{timestamp}/` with an `archive.json` record
+- Web export remains active-index-driven; orphan files are invisible to it unless manually restored into the index
+- `results_index.json` is never rewritten by the audit; only orphan file moves occur
+
 ### Web Library UI Source of Truth
 - Web Library UI source lives in SpinLab, currently inside `Resources/WebLibraryTemplate/`
 - Generated output lives in `../SpinLab-Web-Library/public/`
