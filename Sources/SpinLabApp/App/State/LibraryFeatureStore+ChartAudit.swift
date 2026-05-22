@@ -29,10 +29,10 @@ import Foundation
         }
     }
 
-    // MARK: - Archive orphans
+    // MARK: - Delete orphans
 
-    /// Archives the given orphan relative paths, then re-runs the audit to refresh state.
-    func archiveOrphanCharts(relativePaths: [String]) {
+    /// Permanently deletes the given orphan relative paths from disk, then re-runs the audit.
+    func deleteOrphanCharts(relativePaths: [String]) {
         guard let rootPath = librarySettings.rootPath else { return }
         guard !relativePaths.isEmpty else { return }
         let rootURL = URL(fileURLWithPath: rootPath)
@@ -40,15 +40,44 @@ import Foundation
         isChartAuditRunning = true
         chartAuditMessage = nil
         Task {
-            let archived = await Task.detached(priority: .userInitiated) {
-                ChartAssetAuditService.archiveOrphanFiles(pathsCopy, rootURL: rootURL)
+            let result = await Task.detached(priority: .userInitiated) {
+                ChartAssetAuditService.deleteOrphanFiles(pathsCopy, rootURL: rootURL)
             }.value
             let report = await Task.detached(priority: .userInitiated) {
                 ChartAssetAuditService.audit(rootURL: rootURL)
             }.value
             self.chartAuditReport = report
             self.isChartAuditRunning = false
-            self.chartAuditMessage = "Archived \(archived) file(s)."
+            if result.failedPaths.isEmpty {
+                self.chartAuditMessage = "Deleted \(result.deletedCount) file(s)."
+            } else {
+                self.chartAuditMessage = "Deleted \(result.deletedCount) file(s); \(result.failedPaths.count) failed."
+            }
+        }
+    }
+
+    // MARK: - Clean missing references
+
+    /// Removes index entries whose PNG or manifest files are absent on disk, then re-runs the audit.
+    func cleanMissingReferences() {
+        guard let rootPath = librarySettings.rootPath else { return }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        isChartAuditRunning = true
+        chartAuditMessage = nil
+        Task {
+            let result = await Task.detached(priority: .userInitiated) {
+                ChartAssetAuditService.cleanMissingReferences(rootURL: rootURL)
+            }.value
+            let report = await Task.detached(priority: .userInitiated) {
+                ChartAssetAuditService.audit(rootURL: rootURL)
+            }.value
+            self.chartAuditReport = report
+            self.isChartAuditRunning = false
+            if result.failedSampleKeys.isEmpty {
+                self.chartAuditMessage = "Cleaned \(result.cleanedRefCount) missing reference(s)."
+            } else {
+                self.chartAuditMessage = "Cleaned \(result.cleanedRefCount) reference(s); \(result.failedSampleKeys.count) sample(s) failed."
+            }
         }
     }
 }

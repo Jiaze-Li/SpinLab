@@ -23,30 +23,26 @@ struct ChartAssetAuditReport: Sendable {
     var missingActiveManifests: [MissingActiveFile]
 }
 
+// MARK: - Operation result types
+
+struct DeleteOrphanResult: Sendable {
+    var deletedCount: Int
+    var failedPaths: [String]
+}
+
+struct CleanMissingRefsResult: Sendable {
+    var cleanedRefCount: Int
+    var failedSampleKeys: [String]
+}
+
 // MARK: - Chart Asset Audit Service
 
 enum ChartAssetAuditService {
 
-    private static let timestampFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.calendar = Calendar(identifier: .gregorian)
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = TimeZone(secondsFromGMT: 0)
-        f.dateFormat = "yyyyMMddHHmmss"
-        return f
-    }()
-
-    private static let archiveEncoder: JSONEncoder = {
-        let e = JSONEncoder()
-        e.dateEncodingStrategy = .iso8601
-        e.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return e
-    }()
-
     // MARK: - Audit
 
     /// Scans the library root and classifies chart assets as active, orphan, or missing.
-    /// - Active: referenced by results_index.json and/or measurement_plot_index.json.
+    /// - Active: referenced by results_index.json.
     /// - Orphan: PNG/manifest exists on disk but is not referenced by any active index.
     /// - Missing: active reference exists in index but the file is absent on disk.
     nonisolated static func audit(rootURL: URL) -> ChartAssetAuditReport {
@@ -127,64 +123,132 @@ enum ChartAssetAuditService {
         )
     }
 
-    // MARK: - Archive orphan files
+    // MARK: - Delete orphan files
 
-    /// Moves orphan files into `deleted-charts/orphan-{timestamp}/` folders and writes `archive.json`.
-    /// Returns count of successfully archived files.
+    /// Permanently deletes orphan files from disk.
+    /// Orphan files are not referenced by any active index, so no index rewrite is needed.
+    /// Returns counts and any paths that could not be deleted.
     @discardableResult
-    nonisolated static func archiveOrphanFiles(_ relativePaths: [String], rootURL: URL) -> Int {
-        guard !relativePaths.isEmpty else { return 0 }
+    nonisolated static func deleteOrphanFiles(_ relativePaths: [String], rootURL: URL) -> DeleteOrphanResult {
+        guard !relativePaths.isEmpty else { return DeleteOrphanResult(deletedCount: 0, failedPaths: []) }
         let resolver = LibraryPathResolver(libraryRootURL: rootURL)
         let fm = FileManager.default
-        let timestamp = timestampFormatter.string(from: Date())
 
-        // Group files by their archive directory: parent-of-charts / deleted-charts / orphan-{ts}
-        var byArchiveDir: [URL: [(source: URL, relPath: String)]] = [:]
+        var deletedCount = 0
+        var failedPaths: [String] = []
+
         for relPath in relativePaths {
-            guard let sourceURL = try? resolver.absoluteURL(for: relPath),
-                  fm.fileExists(atPath: sourceURL.path) else {
-                fputs("[SpinLab] ChartAssetAudit: source not found — \(relPath)\n", stderr)
+            guard let sourceURL = try? resolver.absoluteURL(for: relPath) else {
+                fputs("[SpinLab] ChartAssetAudit: cannot resolve path — \(relPath)\n", stderr)
+                failedPaths.append(relPath)
                 continue
             }
-            let chartsDir = sourceURL.deletingLastPathComponent()
-            let sampleDir = chartsDir.deletingLastPathComponent()
-            let archiveDir = sampleDir.appending(path: "deleted-charts/orphan-\(timestamp)")
-            byArchiveDir[archiveDir, default: []].append((sourceURL, relPath))
+            guard fm.fileExists(atPath: sourceURL.path) else {
+                deletedCount += 1  // already absent — treat as success
+                continue
+            }
+            do {
+                try fm.removeItem(at: sourceURL)
+                deletedCount += 1
+            } catch {
+                fputs("[SpinLab] ChartAssetAudit: delete failed \(sourceURL.path): \(error)\n", stderr)
+                failedPaths.append(relPath)
+            }
         }
 
-        var successCount = 0
+        return DeleteOrphanResult(deletedCount: deletedCount, failedPaths: failedPaths)
+    }
 
-        for (archiveDir, entries) in byArchiveDir {
-            do {
-                try fm.createDirectory(at: archiveDir, withIntermediateDirectories: true)
-            } catch {
-                fputs("[SpinLab] ChartAssetAudit: cannot create archive dir \(archiveDir.path): \(error)\n", stderr)
+    // MARK: - Clean missing references
+
+    /// Removes active index entries whose PNG or manifest files are absent on disk.
+    /// Cleans both results_index.json and measurement_plot_index.json for every affected sample.
+    /// Does not delete any files — only rewrites index JSON.
+    nonisolated static func cleanMissingReferences(rootURL: URL) -> CleanMissingRefsResult {
+        let resolver = LibraryPathResolver(libraryRootURL: rootURL)
+        let fm = FileManager.default
+        let samplesURL = rootURL.appending(path: "samples")
+        let sampleDirs = sampleDirectories(at: samplesURL, using: fm)
+        let writer = AtomicFileWriter()
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+
+        var totalCleaned = 0
+        var failedSampleKeys: [String] = []
+
+        for sampleDir in sampleDirs {
+            let sk = sampleDir.lastPathComponent
+
+            // Load results_index — absent file is fine (nothing to clean).
+            guard let resultsIndex = LoadWorkbenchResultsUseCase(pathResolver: resolver).execute(sampleKey: sk) else {
                 continue
             }
 
-            var archiveEntries: [OrphanArchiveEntry] = []
-            for (sourceURL, originalRelPath) in entries {
-                let destURL = archiveDir.appending(path: sourceURL.lastPathComponent)
-                do {
-                    try fm.moveItem(at: sourceURL, to: destURL)
-                    let archivedRelPath = (try? resolver.relativePath(for: destURL)) ?? destURL.path
-                    archiveEntries.append(OrphanArchiveEntry(
-                        originalRelativePath: originalRelPath,
-                        archivedRelativePath: archivedRelPath))
-                    successCount += 1
-                } catch {
-                    fputs("[SpinLab] ChartAssetAudit: move failed \(sourceURL.path): \(error)\n", stderr)
+            // Identify refs where either the PNG or the manifest is missing on disk.
+            var brokenKeys = Set<String>()
+            for ref in resultsIndex.references {
+                let imageMissing: Bool
+                if let url = try? resolver.absoluteURL(for: ref.chartImagePath) {
+                    imageMissing = !fm.fileExists(atPath: url.path)
+                } else {
+                    imageMissing = true
+                }
+                let manifestMissing: Bool
+                if let url = try? resolver.absoluteURL(for: ref.manifestPath) {
+                    manifestMissing = !fm.fileExists(atPath: url.path)
+                } else {
+                    manifestMissing = true
+                }
+                if imageMissing || manifestMissing {
+                    brokenKeys.insert(ref.chartIdentityKey)
                 }
             }
 
-            let record = OrphanArchiveRecord(archivedAt: Date(), entries: archiveEntries)
-            if let data = try? archiveEncoder.encode(record) {
-                let recordURL = archiveDir.appending(path: "archive.json")
-                try? data.write(to: recordURL, options: .atomic)
+            guard !brokenKeys.isEmpty else { continue }
+
+            // Build cleaned results_index.
+            var updatedResults = resultsIndex
+            updatedResults.references.removeAll { brokenKeys.contains($0.chartIdentityKey) }
+            updatedResults.updatedAt = Date()
+
+            let resultsRelPath = "samples/\(sk)/_spinlab/results_index.json"
+            guard let resultsAbsURL = try? resolver.absoluteURL(for: resultsRelPath),
+                  let resultsData = try? encoder.encode(updatedResults) else {
+                failedSampleKeys.append(sk)
+                continue
+            }
+
+            // Build cleaned measurement_plot_index if present.
+            var plotWrites: [AtomicWriteEntry] = []
+            let plotRelPath = "samples/\(sk)/_spinlab/measurement_plot_index.json"
+            if let plotAbsURL = try? resolver.absoluteURL(for: plotRelPath),
+               fm.fileExists(atPath: plotAbsURL.path),
+               let plotIndex = LoadMeasurementPlotIndexUseCase(pathResolver: resolver).execute(sampleKey: sk) {
+                var updatedPlot = plotIndex
+                updatedPlot.entries = plotIndex.entries
+                    .mapValues { $0.filter { !brokenKeys.contains($0) } }
+                    .filter { !$0.value.isEmpty }
+                updatedPlot.updatedAt = Date()
+                if let plotData = try? encoder.encode(updatedPlot) {
+                    plotWrites.append(AtomicWriteEntry(destinationURL: plotAbsURL, data: plotData))
+                }
+            }
+
+            var writes: [AtomicWriteEntry] = [AtomicWriteEntry(destinationURL: resultsAbsURL, data: resultsData)]
+            writes.append(contentsOf: plotWrites)
+
+            do {
+                try writer.commit(writes)
+                totalCleaned += brokenKeys.count
+            } catch {
+                fputs("[SpinLab] ChartAssetAudit: cleanMissingRefs write failed for \(sk): \(error)\n", stderr)
+                failedSampleKeys.append(sk)
             }
         }
 
-        return successCount
+        return CleanMissingRefsResult(cleanedRefCount: totalCleaned, failedSampleKeys: failedSampleKeys)
     }
 
     // MARK: - Helpers
@@ -225,24 +289,5 @@ enum ChartAssetAuditService {
         let parts = relativePath.split(separator: "/", maxSplits: 3)
         guard parts.count >= 2, parts[0] == "samples" else { return nil }
         return String(parts[1])
-    }
-
-    // MARK: - Private archive models
-
-    private struct OrphanArchiveEntry: Codable {
-        var originalRelativePath: String
-        var archivedRelativePath: String
-    }
-
-    private struct OrphanArchiveRecord: Codable {
-        var schemaVersion: Int
-        var archivedAt: Date
-        var entries: [OrphanArchiveEntry]
-
-        init(archivedAt: Date, entries: [OrphanArchiveEntry]) {
-            schemaVersion = 1
-            self.archivedAt = archivedAt
-            self.entries = entries
-        }
     }
 }

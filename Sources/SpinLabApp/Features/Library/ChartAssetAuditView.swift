@@ -5,8 +5,9 @@ struct ChartAssetAuditView: View {
     let isRunning: Bool
     let message: String?
     let onRefresh: () -> Void
-    let onArchiveSelected: ([String]) -> Void
-    let onArchiveAll: () -> Void
+    let onDeleteSelected: ([String]) -> Void
+    let onDeleteAll: () -> Void
+    let onCleanMissingRefs: () -> Void
     let onDismiss: () -> Void
 
     @State private var selectedOrphanIDs: Set<String> = []
@@ -100,7 +101,8 @@ struct ChartAssetAuditView: View {
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 if !allOrphans.isEmpty {
-                    groupHeader("Orphan Files", count: allOrphans.count, note: "click to select for archiving")
+                    groupHeader("Orphan Files", count: allOrphans.count,
+                                note: "on disk but not referenced by any active index — click to select for deletion")
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 2) {
                             ForEach(allOrphans) { file in
@@ -117,7 +119,7 @@ struct ChartAssetAuditView: View {
                 let allMissing = report.missingActiveImages + report.missingActiveManifests
                 if !allMissing.isEmpty {
                     groupHeader("Missing Active Files", count: allMissing.count,
-                                note: "indexed but absent on disk — re-run analysis to restore")
+                                note: "indexed but absent on disk — use Clean Missing References to remove stale entries")
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 2) {
                             ForEach(allMissing, id: \.relativePath) { missing in
@@ -211,15 +213,24 @@ struct ChartAssetAuditView: View {
 
             let allOrphans = (report?.orphanImages ?? []) + (report?.orphanManifests ?? [])
             if !allOrphans.isEmpty {
-                Button("Archive Selected (\(selectedOrphanIDs.count))") {
-                    onArchiveSelected(Array(selectedOrphanIDs))
+                Button("Delete Selected Orphans (\(selectedOrphanIDs.count))") {
+                    onDeleteSelected(Array(selectedOrphanIDs))
                     selectedOrphanIDs = []
                 }
                 .disabled(selectedOrphanIDs.isEmpty || isRunning)
 
-                Button("Archive All Orphans") {
-                    onArchiveAll()
+                Button("Delete All Orphans") {
+                    onDeleteAll()
                     selectedOrphanIDs = []
+                }
+                .disabled(isRunning)
+            }
+
+            let hasMissing = !(report?.missingActiveImages.isEmpty ?? true)
+                || !(report?.missingActiveManifests.isEmpty ?? true)
+            if hasMissing {
+                Button("Clean Missing References") {
+                    onCleanMissingRefs()
                 }
                 .disabled(isRunning)
             }

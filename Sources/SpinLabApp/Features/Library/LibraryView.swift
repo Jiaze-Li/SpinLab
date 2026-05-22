@@ -153,15 +153,16 @@ struct LibraryView: View {
                 isRunning: appState.library.isChartAuditRunning,
                 message: appState.library.chartAuditMessage,
                 onRefresh: { appState.library.runChartAssetAudit() },
-                onArchiveSelected: { paths in
-                    appState.library.archiveOrphanCharts(relativePaths: paths)
+                onDeleteSelected: { paths in
+                    appState.library.deleteOrphanCharts(relativePaths: paths)
                 },
-                onArchiveAll: {
+                onDeleteAll: {
                     let report = appState.library.chartAuditReport
                     let allPaths = (report?.orphanImages ?? []).map(\.relativePath)
                         + (report?.orphanManifests ?? []).map(\.relativePath)
-                    appState.library.archiveOrphanCharts(relativePaths: allPaths)
+                    appState.library.deleteOrphanCharts(relativePaths: allPaths)
                 },
+                onCleanMissingRefs: { appState.library.cleanMissingReferences() },
                 onDismiss: { appState.library.isShowingChartAudit = false }
             )
         }
