@@ -99,3 +99,7 @@ codesign --force --sign - "${APP_BUNDLE_PATH}"
 
 echo "Version: ${APP_VERSION} (${APP_BUILD_VERSION})"
 echo "Done: ${APP_BUNDLE_PATH}"
+
+if [[ "${BUILD_CONFIGURATION}" == "debug" ]]; then
+  "${ROOT_DIR}/scripts/verify_app_bundle.sh"
+fi

@@ -36,6 +36,7 @@
 - `[HARD][must]` The real app bundle is `/Applications/SpinLab.app`.
 - `[HARD][must]` No Desktop `SpinLab.app` bundle, symlink, or alias should exist.
 - `[HARD][must]` Final responses must explicitly report whether Swift changed, whether Web UI/export changed, whether rebuild/publish was required, whether each was completed, and the updated app or site result. Do not claim a task is done if a required rebuild or publish was skipped.
+- `[HARD][must]` After build/publish-sensitive changes, final responses must include actual command outputs from: `git status --short`, `./scripts/check_required_actions.sh`, `ls -ld /Applications/SpinLab.app`, and `ls -ld ~/Desktop/SpinLab.app || true`.
 - `[HARD][must]` 新增 `Sources/**/*.swift` 必须登记到对应 `docs/architecture/<region>/<layer>.md` 的 `## Code Map` 段（4 步 SOP 见下方 `## Adding New Swift Code` 段）。pre-commit hook 强制检查；准备 commit 含 `Sources/**/*.swift` 增删/重命名前，确认 `.git/hooks/pre-commit` 含 `spinlab-architecture-coverage:start` sentinel——首次提交前跑 `scripts/install_git_hooks.sh --check || scripts/install_git_hooks.sh` 自举安装。
 - Execution gate and collaboration model: inherited from global `~/.claude/CLAUDE.md`.
 

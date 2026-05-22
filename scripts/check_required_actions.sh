@@ -73,7 +73,8 @@ if [[ ! -d "/Applications/SpinLab.app" ]]; then
 fi
 
 if [[ -e "$HOME/Desktop/SpinLab.app" ]]; then
-  echo "Warning: remove $HOME/Desktop/SpinLab.app; only /Applications/SpinLab.app should exist"
+  echo "Error: remove $HOME/Desktop/SpinLab.app; only /Applications/SpinLab.app should exist"
+  exit 1
 fi
 
 echo "Real app: /Applications/SpinLab.app"
