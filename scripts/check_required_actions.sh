@@ -67,5 +67,14 @@ if [[ -f "$pointer_file" ]]; then
   fi
 fi
 
+if [[ ! -d "/Applications/SpinLab.app" ]]; then
+  echo "Error: /Applications/SpinLab.app does not exist"
+  exit 1
+fi
+
+if [[ -e "$HOME/Desktop/SpinLab.app" ]]; then
+  echo "Warning: remove $HOME/Desktop/SpinLab.app; only /Applications/SpinLab.app should exist"
+fi
+
 echo "Real app: /Applications/SpinLab.app"
-echo "Desktop shortcut: ~/Desktop/SpinLab.app -> /Applications/SpinLab.app"
+echo "Desktop app: none"

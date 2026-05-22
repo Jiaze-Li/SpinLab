@@ -41,7 +41,7 @@ enum WorkbenchRenderPipeline {
         var styleParamsPatch: [String: String] = [:]
         /// Pixel density override for export at a non-default scale (nil = use baseOptions.pixelScale).
         var pixelScaleOverride: CGFloat? = nil
-        /// Expected bottom-to-top series order by sampleID (v5.3.6). Used for mismatch detection only —
+        /// Expected bottom-to-top series order keys. Used for mismatch detection only —
         /// the pipeline never reorders; reordering must happen in the workflow renderer before this call.
         var seriesOrder: [String]? = nil
     }
@@ -87,12 +87,16 @@ enum WorkbenchRenderPipeline {
         }
 
         // 4a. Series order consistency check (v5.3.6):
+        //     Reorderable payloads must carry sourceRef values so order keys stay
+        //     attached to file identity instead of sample identity or render geometry.
+        if payload.seriesReorderable {
+            assert(payload.series.allSatisfy { ($0.sourceRef?.isEmpty == false) },
+                   "seriesReorderable payloads require sourceRef values")
+        }
         //     If the payload opts in to drag reordering and a seriesOrder was provided,
         //     verify the renderer already produced series in the expected order.
         //     The pipeline NEVER reorders — mismatch means the renderer has a bug.
         if payload.seriesReorderable, let expectedOrder = input.seriesOrder {
-            assert(payload.series.allSatisfy { $0.sampleID != nil },
-                   "seriesReorderable payloads require stable sampleID values for order checks")
             if let warning = Self.detectSeriesOrderMismatch(payload.series, expected: expectedOrder) {
                 pipelineWarnings.append(warning)
             }
@@ -109,30 +113,7 @@ enum WorkbenchRenderPipeline {
         //     When legendDimension is not pre-set and series carry metadata,
         //     run LegendDimensionResolver to infer the distinguishing dimension
         //     and update series labels accordingly.
-        if payload.legendDimension == nil, payload.series.count > 1 {
-            let seriesMeta = payload.series.map(\.metadata)
-            let hasMetadata = seriesMeta.contains { !$0.isEmpty }
-            if hasMetadata {
-                let resolver = LegendDimensionResolver(chain: LegendDimensionResolver.defaultChain)
-                let result = resolver.resolve(seriesMetadata: seriesMeta)
-                switch result {
-                case .resolved(let dim, let values):
-                    payload.legendDimension = dim.displayName
-                    for i in payload.series.indices {
-                        if !values[i].isEmpty {
-                            payload.series[i].label = values[i]
-                        }
-                    }
-                case .ambiguous(let dims):
-                    let names = dims.map(\.displayName).joined(separator: " / ")
-                    payload.legendDimension = "⚠ " + names
-                    pipelineWarnings.append("Legend: multiple dimensions vary at the same priority (\(names)). Select legend manually.")
-                case .indeterminate:
-                    payload.legendDimension = "⚠ No distinguishing dimension"
-                    pipelineWarnings.append("Legend: no distinguishing dimension found across selected samples.")
-                }
-            }
-        }
+        pipelineWarnings.append(contentsOf: Self.applyLegendDimensionResolution(to: &payload))
 
         // 5. Merge chart style overrides into styleParams
         for (k, v) in input.chartStyleOverrides {
@@ -180,14 +161,87 @@ enum WorkbenchRenderPipeline {
 
     // MARK: - Private helpers
 
-    /// Returns a warning string if `series` sampleID order (filtered to those in `expected`)
+    /// Applies metadata-driven legend label resolution in the same way for both
+    /// live rendering and manifest payload generation.
+    @discardableResult
+    static func applyLegendDimensionResolution(to payload: inout WorkbenchPlotPayload) -> [String] {
+        guard payload.legendDimension == nil, payload.series.count > 1 else { return [] }
+        let seriesMeta = payload.series.map(\.metadata)
+        guard seriesMeta.contains(where: { !$0.isEmpty }) else { return [] }
+
+        let resolver = LegendDimensionResolver(chain: LegendDimensionResolver.defaultChain)
+        let result = resolver.resolve(seriesMetadata: seriesMeta)
+        var warnings: [String] = []
+        switch result {
+        case .resolved(let dim, let values):
+            payload.legendDimension = dim.displayName
+            for i in payload.series.indices {
+                if !values[i].isEmpty {
+                    payload.series[i].label = values[i]
+                }
+            }
+        case .ambiguous(let dims):
+            let names = dims.map(\.displayName).joined(separator: " / ")
+            payload.legendDimension = "⚠ " + names
+            warnings.append("Legend: multiple dimensions vary at the same priority (\(names)). Select legend manually.")
+        case .indeterminate:
+            payload.legendDimension = "⚠ No distinguishing dimension"
+            warnings.append("Legend: no distinguishing dimension found across selected samples.")
+        }
+        return warnings
+    }
+
+    /// Returns a warning string if `series` order keys (filtered to those in `expected`)
     /// does not match `expected` order (filtered to those in `series`). Returns nil when consistent.
     static func detectSeriesOrderMismatch(_ series: [WorkbenchPlotSeries], expected: [String]) -> String? {
-        let actual = series.compactMap(\.sampleID)
-        let expectedFiltered = expected.filter { id in actual.contains(id) }
-        let actualFiltered = actual.filter { id in expected.contains(id) }
+        let actual = series.enumerated().map { index, series in
+            (key: seriesOrderKey(for: series, index: index), sampleID: series.sampleID ?? "", index: index)
+        }
+        let actualKeys = actual.map(\.key)
+        let resolvedExpected = resolveSeriesOrder(expected, actual: actual)
+        let expectedFiltered = resolvedExpected.filter { id in actualKeys.contains(id) }
+        let actualFiltered = actualKeys.filter { id in resolvedExpected.contains(id) }
         guard expectedFiltered != actualFiltered else { return nil }
         return "seriesOrder mismatch: renderer produced \(actualFiltered) but expected \(expectedFiltered). " +
                "Stack offsets are likely incorrect — fix the renderer to honor input.seriesOrder."
+    }
+
+    private static func seriesOrderKey(for series: WorkbenchPlotSeries, index: Int) -> String {
+        if let sourceRef = series.sourceRef, !sourceRef.isEmpty {
+            return sourceRef
+        }
+        return "series#\(index)"
+    }
+
+    private static func resolveSeriesOrder(
+        _ order: [String],
+        actual: [(key: String, sampleID: String, index: Int)]
+    ) -> [String] {
+        let byKey = Dictionary(uniqueKeysWithValues: actual.map { ($0.key, $0.index) })
+        let bySampleID = Dictionary(grouping: actual, by: { $0.sampleID })
+        var consumed = Set<Int>()
+        var result: [String] = []
+
+        func append(index: Int) {
+            guard consumed.insert(index).inserted else { return }
+            result.append(actual[index].key)
+        }
+
+        for token in order {
+            if let index = byKey[token] {
+                append(index: index)
+                continue
+            }
+            if let matches = bySampleID[token], !matches.isEmpty {
+                for match in matches {
+                    append(index: match.index)
+                }
+            }
+        }
+
+        for item in actual where !consumed.contains(item.index) {
+            append(index: item.index)
+        }
+        return result
     }
 }

@@ -70,33 +70,7 @@ struct ThreeOmegaPlotRenderer {
         seriesOrder: [String]? = nil
     ) -> (Data?, WorkbenchPlotLayout?, [String]) {
         guard !sweeps.isEmpty else { return (nil, nil, []) }
-        let orderedSweeps: [ThreeOmegaFieldSweepResult]
-        if let order = seriesOrder, !order.isEmpty {
-            var bySampleID: [String: ThreeOmegaFieldSweepResult] = [:]
-            var withoutID: [ThreeOmegaFieldSweepResult] = []
-            for sweep in sweeps {
-                if let id = sweep.sampleID {
-                    bySampleID[id] = sweep
-                } else {
-                    withoutID.append(sweep)
-                }
-            }
-            var result: [ThreeOmegaFieldSweepResult] = []
-            var consumed: Set<String> = []
-            for id in order {
-                if let sweep = bySampleID[id] {
-                    result.append(sweep)
-                    consumed.insert(id)
-                }
-            }
-            for sweep in sweeps where sweep.sampleID.map({ !consumed.contains($0) }) ?? false {
-                result.append(sweep)
-            }
-            result.append(contentsOf: withoutID)
-            orderedSweeps = result
-        } else {
-            orderedSweeps = sweeps
-        }
+        let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(seriesOrder, to: sweeps)
 
         let offsets = ThreeOmegaStackOffsetUseCase().execute(
             yValues: orderedSweeps.map { $0.r1omega },
@@ -108,6 +82,7 @@ struct ThreeOmegaPlotRenderer {
                 label: _tempLabel(sweep.temperatureK),
                 x: sweep.hField.map { $0 / 10000 },
                 y: sweep.r1omega.map { $0 + offset },
+                sourceRef: sweep.sourceFilePath,
                 sampleID: sweep.sampleID,
                 metadata: sweep.sampleMetadata ?? [:]
             )
@@ -135,33 +110,7 @@ struct ThreeOmegaPlotRenderer {
         seriesOrder: [String]? = nil
     ) -> (Data?, WorkbenchPlotLayout?, [String]) {
         guard !sweeps.isEmpty else { return (nil, nil, []) }
-        let orderedSweeps: [ThreeOmegaFieldSweepResult]
-        if let order = seriesOrder, !order.isEmpty {
-            var bySampleID: [String: ThreeOmegaFieldSweepResult] = [:]
-            var withoutID: [ThreeOmegaFieldSweepResult] = []
-            for sweep in sweeps {
-                if let id = sweep.sampleID {
-                    bySampleID[id] = sweep
-                } else {
-                    withoutID.append(sweep)
-                }
-            }
-            var result: [ThreeOmegaFieldSweepResult] = []
-            var consumed: Set<String> = []
-            for id in order {
-                if let sweep = bySampleID[id] {
-                    result.append(sweep)
-                    consumed.insert(id)
-                }
-            }
-            for sweep in sweeps where sweep.sampleID.map({ !consumed.contains($0) }) ?? false {
-                result.append(sweep)
-            }
-            result.append(contentsOf: withoutID)
-            orderedSweeps = result
-        } else {
-            orderedSweeps = sweeps
-        }
+        let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(seriesOrder, to: sweeps)
 
         let offsets = ThreeOmegaStackOffsetUseCase().execute(
             yValues: orderedSweeps.map { $0.r3omega },
@@ -173,6 +122,7 @@ struct ThreeOmegaPlotRenderer {
                 label: _tempLabel(sweep.temperatureK),
                 x: sweep.hField.map { $0 / 10000 },
                 y: sweep.r3omega.map { $0 + offset },
+                sourceRef: sweep.sourceFilePath,
                 sampleID: sweep.sampleID,
                 metadata: sweep.sampleMetadata ?? [:]
             )

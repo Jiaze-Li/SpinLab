@@ -62,7 +62,7 @@ struct MeasurementPlotPreviewPanel: View {
                 pendingDeleteChart = nil
             }
         } message: {
-            Text("This will permanently delete the chart image and its manifest. This cannot be undone.")
+            Text("This will remove the chart from active views and archive its image and manifest for recovery.")
         }
     }
 
@@ -97,7 +97,7 @@ struct MeasurementPlotPreviewPanel: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Delete chart")
                 .padding(4)
-                .help("Delete this chart and its files")
+                .help("Remove this chart from active views and archive its files")
             }
         }
         .contentShape(Rectangle())

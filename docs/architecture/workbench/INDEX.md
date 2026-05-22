@@ -12,6 +12,7 @@
 | `SHELL_AND_LIFECYCLE.md` | Shell | WorkflowWorkspaceShell 协议、6 阶段 lifecycle、4 ViewBuilder 槽、3 条 [HARD] 不变式、WorkspaceStore contract |
 | `MEASUREMENT_SEARCH.md` | Search | Sidecar 字段消费、condition projection、workflow ID alias、search 返回 file list 语义 |
 | `PLOT_CANVAS.md` | Render | Workflow-independent plot shell、style params、legend dimension auto-inference、Copy PNG 倍率、point label、curve reorder opt-in |
+| `SERIES_ORDER_BOUNDARY.md` | Boundary | Reorder identity, control-surface ownership, and render-geometry guardrails |
 | `WORKFLOW_CONTRACTS.md` | Workflow | 3-Omega AHE / AMR-PHE / XY Rotation 各自的 ingestion / pack / tag normalization / semantic identity |
 | `ARTIFACT_PERSISTENCE.md` | Persistence | Pack save/load、`_spinlab/` 写入边界（Workbench owns generation；Library owns namespace 与 cleanup）、stale detection、Recompute UI 钩子 |
 | `THREE_OMEGA_PHYSICS.md` | Domain | 3ω 物理推演（搬自 specs/three_omega_physics.md） |
@@ -23,10 +24,11 @@
 2. **SHELL_BLOCKS.md** — shell block composition, workflow-specific slots, and Standard Result boundary
 3. **MEASUREMENT_SEARCH.md** — how measurements are searched and condition projections are built
 4. **PLOT_CANVAS.md** — workflow-independent plot capabilities and opt-in extensions
-5. **WORKFLOW_CONTRACTS.md** — each workflow's ingestion, pack, and tag normalization contracts
-6. **ARTIFACT_PERSISTENCE.md** — how analysis results are saved to Library and how stale detection works
-7. **THREE_OMEGA_PHYSICS.md** — 3ω physical model, Scaling Law, and RAHE derivation
-8. **EXTENSION_BOUNDARIES.md** — how to add a new workflow and the module boundary rules
+5. **SERIES_ORDER_BOUNDARY.md** — control-surface ownership and reorder identity guardrails
+6. **WORKFLOW_CONTRACTS.md** — each workflow's ingestion, pack, and tag normalization contracts
+7. **ARTIFACT_PERSISTENCE.md** — how analysis results are saved to Library and how stale detection works
+8. **THREE_OMEGA_PHYSICS.md** — 3ω physical model, Scaling Law, and RAHE derivation
+9. **EXTENSION_BOUNDARIES.md** — how to add a new workflow and the module boundary rules
 
 ## First-Read Files
 

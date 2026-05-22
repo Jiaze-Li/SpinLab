@@ -7,10 +7,11 @@ import SwiftUI
 /// 所有 workflow 的 PlotControlsPanel 必须以此为容器，workflow 专属控件通过 ViewBuilder 注入。
 /// Shell 级控件（绘图模式、tick 密度）自动附加在底部。
 /// 字号通过点击图上元素调整，不在此面板。
-struct WorkbenchPlotControlsPanel<Content: View>: View {
+struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
     @Binding var seriesRenderMode: SeriesRenderMode
     @Binding var chartStyleOverrides: [String: String]
     var onStyleChange: (() -> Void)? = nil
+    @ViewBuilder var supplementalContent: () -> Supplemental
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -29,9 +30,25 @@ struct WorkbenchPlotControlsPanel<Content: View>: View {
                     .pickerStyle(.segmented)
                     .onChange(of: seriesRenderMode) { _, _ in onStyleChange?() }
                 }
+                supplementalContent()
             }
             .padding(.vertical, 4)
         }
     }
 
+}
+
+extension WorkbenchPlotControlsPanel where Supplemental == EmptyView {
+    init(
+        seriesRenderMode: Binding<SeriesRenderMode>,
+        chartStyleOverrides: Binding<[String: String]>,
+        onStyleChange: (() -> Void)? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self._seriesRenderMode = seriesRenderMode
+        self._chartStyleOverrides = chartStyleOverrides
+        self.onStyleChange = onStyleChange
+        self.supplementalContent = { EmptyView() }
+        self.content = content
+    }
 }

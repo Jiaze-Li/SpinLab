@@ -72,6 +72,14 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `docs/architecture/library/`
 - Source-of-truth details: [`docs/web_library.md`](web_library.md)
 - Sample notes are sample-scoped plain text, edited from the detail panel, and persisted outside the static export via Cloudflare D1 so republishing does not erase them.
 
+### Chart Asset Audit (v5.3.8)
+- "Chart Audit" button in the Library header launches a scan of all `samples/*/charts/` and `_spinlab/multi-sample/charts/` directories
+- Orphan chart: PNG or manifest file exists on disk but is not referenced by any `results_index.json`
+- Missing active: a `results_index.json` entry exists but the corresponding file is absent on disk
+- Orphan files can be archived individually (select rows) or all at once; they move to `deleted-charts/orphan-{timestamp}/` with an `archive.json` record
+- Web export remains active-index-driven; orphan files are invisible to it unless manually restored into the index
+- `results_index.json` is never rewritten by the audit; only orphan file moves occur
+
 ### Web Library UI Source of Truth
 - Web Library UI source lives in SpinLab, currently inside `Resources/WebLibraryTemplate/`
 - Generated output lives in `../SpinLab-Web-Library/public/`
@@ -104,6 +112,7 @@ Behavior details: `docs/architecture/workbench/INDEX.md`
 - Plot canvas is a workflow-independent shell — legend, edit, interaction behaviors apply uniformly.
 - Stack offset range default: `0...1.6` unless user specifies otherwise.
 - Curve drag-to-reorder is opt-in via `seriesReorderable` payload flag (currently: 3ω stacked charts only).
+- Inline plot editors auto-focus the text field on open, and outside clicks dismiss the editor cleanly.
 - Tests: `V531SeriesRenderModeTests`, `V534LegendDimensionResolverTests`, `V535PointLabelVisibilityTests`, `V535CopyPNGScaleMenuTests`, `V536CurveDragOrderTests`
 - Details: [`PLOT_CANVAS.md`](architecture/workbench/PLOT_CANVAS.md)
 

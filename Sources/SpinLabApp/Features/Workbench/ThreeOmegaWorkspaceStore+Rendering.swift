@@ -34,8 +34,7 @@ extension ThreeOmegaWorkspaceStore {
         let capturedTokens     = _titleTokens
         let capturedLegend1    = tabs.state(for: .fieldSweep1omega).legendPoint?.cgPoint
         let capturedLegend3    = tabs.state(for: .fieldSweep3omega).legendPoint?.cgPoint
-        let capturedOrder1     = tabs.state(for: .fieldSweep1omega).seriesOrder
-        let capturedOrder3     = tabs.state(for: .fieldSweep3omega).seriesOrder
+        let capturedFieldSweepSeriesOrder = fieldSweepSeriesOrder
 
         Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
@@ -49,9 +48,9 @@ extension ThreeOmegaWorkspaceStore {
             r.titleTemplate         = capturedTemplate
             r.titleTokens           = capturedTokens
             r.legendPoint           = capturedLegend1
-            let r1 = r.renderR1omega(sweeps: ingestion.fieldSweeps, device: ingestion.device, seriesOrder: capturedOrder1)
+            let r1 = r.renderR1omega(sweeps: ingestion.fieldSweeps, device: ingestion.device, seriesOrder: capturedFieldSweepSeriesOrder)
             r.legendPoint           = capturedLegend3
-            let r3 = r.renderR3omega(sweeps: ingestion.fieldSweeps, device: ingestion.device, seriesOrder: capturedOrder3)
+            let r3 = r.renderR3omega(sweeps: ingestion.fieldSweeps, device: ingestion.device, seriesOrder: capturedFieldSweepSeriesOrder)
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 let m1 = self.tabs.output(for: .fieldSweep1omega).manifestPayload
@@ -112,7 +111,7 @@ extension ThreeOmegaWorkspaceStore {
         let xLabelOverride = tabState.xLabelOverride
         let yLabelOverride = tabState.yLabelOverride
         let capturedLabelOverrides = tabState.seriesLabelOverrides
-        let capturedSeriesOrder = tabState.seriesOrder
+        let capturedSeriesOrder = (tab == .fieldSweep1omega || tab == .fieldSweep3omega) ? fieldSweepSeriesOrder : tabState.seriesOrder
         let capturedFieldSweeps = ingestion.fieldSweeps
         let capturedScaling = scalingResult
         let capturedGeometry = geometry
@@ -334,6 +333,7 @@ extension ThreeOmegaWorkspaceStore {
         let capturedGeometry      = geometry
         let capturedV3Method      = v3Method
         let capturedDevice        = ingestion.device
+        let capturedFieldSweepSeriesOrder = fieldSweepSeriesOrder
 
         struct PerTabSnap: Sendable {
             let titleOverride: String
@@ -354,7 +354,7 @@ extension ThreeOmegaWorkspaceStore {
                     seriesLabelOverrides: s.seriesLabelOverrides,
                     legendPoint: s.legendPoint?.cgPoint,
                     hiddenPointLabelsBySeries: tabs.hiddenPointLabelsBySampleID(for: tab),
-                    seriesOrder: s.seriesOrder
+                    seriesOrder: (tab == .fieldSweep1omega || tab == .fieldSweep3omega) ? capturedFieldSweepSeriesOrder : s.seriesOrder
                 ))
             }
         )
@@ -414,9 +414,9 @@ extension ThreeOmegaWorkspaceStore {
 
             var plots = ThreeOmegaRenderedPlots()
             var r1 = makeRenderer(for: .fieldSweep1omega)
-            (plots.r1omega, plots.layoutR1omega, _) = r1.renderR1omega(sweeps: ingestion.fieldSweeps, device: capturedDevice, seriesOrder: tabSnaps[.fieldSweep1omega]?.seriesOrder)
+            (plots.r1omega, plots.layoutR1omega, _) = r1.renderR1omega(sweeps: ingestion.fieldSweeps, device: capturedDevice, seriesOrder: capturedFieldSweepSeriesOrder)
             var r3 = makeRenderer(for: .fieldSweep3omega)
-            (plots.r3omega, plots.layoutR3omega, _) = r3.renderR3omega(sweeps: ingestion.fieldSweeps, device: capturedDevice, seriesOrder: tabSnaps[.fieldSweep3omega]?.seriesOrder)
+            (plots.r3omega, plots.layoutR3omega, _) = r3.renderR3omega(sweeps: ingestion.fieldSweeps, device: capturedDevice, seriesOrder: capturedFieldSweepSeriesOrder)
             var rahe1 = makeRenderer(for: .rahe1omegaVsT)
             (plots.rahe1omegaVsT, plots.layoutRAHE1omegaVsT, _) = rahe1.renderRAHE1omegaVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE1Method)
             var rahe3 = makeRenderer(for: .rahe3omegaVsT)

@@ -258,7 +258,7 @@ struct WorkflowWorkspaceShell<
     // MARK: - Plot canvas
 
     private var plotCanvas: some View {
-        WorkbenchPlotCanvas(
+        return WorkbenchPlotCanvas(
             imageData: store.activeImageData,
             layout: store.activeLayout,
             seriesLabelOverrides: store.seriesLabelOverrides,
@@ -285,13 +285,9 @@ struct WorkflowWorkspaceShell<
                 store.rerenderForStyleChange()
             },
             chartStyleOverrides: store.chartStyleOverrides,
+            seriesPayload: store.activeChartManifestPayload,
             relatedCharts: store.relatedCharts,
             libraryRootURL: store.libraryRootURL,
-            seriesReorderable: store.canReorderSeries,
-            currentSeriesOrder: store.activeSeriesOrder,
-            seriesPayload: store.activeChartManifestPayload,
-            onSeriesOrderCommit: { order in store.updateSeriesOrder(order) },
-            onResetSeriesOrder: { store.resetSeriesOrder() }
         )
     }
 }

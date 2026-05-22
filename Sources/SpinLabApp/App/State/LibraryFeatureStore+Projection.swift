@@ -94,7 +94,10 @@ extension LibraryFeatureStore {
         guard let rootPath = librarySettings.rootPath else { return }
         let rootURL = URL(fileURLWithPath: rootPath)
 
-        guard LibraryDiskCleanupService.deleteWorkbenchResultOnDisk(ref, rootURL: rootURL) else { return }
+        guard LibraryDiskCleanupService.deleteWorkbenchResultOnDisk(ref, rootURL: rootURL) else {
+            librarySampleEditError = "Failed to archive chart."
+            return
+        }
 
         // Refresh the in-memory projection (both indexes).
         loadWorkbenchResultsForCurrentSelection()

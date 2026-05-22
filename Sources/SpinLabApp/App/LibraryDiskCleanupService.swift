@@ -1,6 +1,33 @@
 import Foundation
 
 enum LibraryDiskCleanupService {
+    private struct DeletedChartArchiveRecord: Codable, Hashable, Sendable {
+        var schemaVersion: Int = 1
+        var chartIdentityKey: String
+        var deletedAt: Date
+        var originalChartImagePath: String
+        var originalManifestPath: String
+        var archivedChartImagePath: String
+        var archivedManifestPath: String
+        var workflowID: String
+    }
+
+    private static let archiveRecordEncoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return encoder
+    }()
+
+    private static let archiveFolderFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyyMMddHHmmss"
+        return formatter
+    }()
+
     // MARK: - Metric record deletion (V4.1.11)
 
     /// Removes a single metric record from measurement_data.json by identity key.
@@ -70,7 +97,8 @@ enum LibraryDiskCleanupService {
     /// 2. For each index that contains this identity key, prepare an atomic write entry.
     ///    If ANY write entry cannot be prepared (path resolution or encode failure), abort entirely.
     /// 3. Atomically commit all index rewrites. Abort if the commit throws.
-    /// 4. Only after all indexes are consistent, delete the PNG and manifest (best-effort).
+    /// 4. Archive the PNG and manifest under deleted-charts/, then delete the active originals.
+    /// 5. If the archive or final delete fails, restore the active indexes and leave a visible log.
     @discardableResult
     nonisolated static func deleteWorkbenchResultOnDisk(
         _ ref: WorkbenchResultReference,
@@ -78,10 +106,31 @@ enum LibraryDiskCleanupService {
     ) -> Bool {
         let resolver = LibraryPathResolver(libraryRootURL: rootURL)
         let writer = AtomicFileWriter()
+        let fileManager = FileManager.default
+        let now = Date()
 
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+
+        let imageURL: URL
+        let manifestURL: URL
+        do {
+            imageURL = try resolver.absoluteURL(for: ref.chartImagePath)
+            manifestURL = try resolver.absoluteURL(for: ref.manifestPath)
+        } catch {
+            fputs("[SpinLab] deleteWorkbenchResult: path resolve failed for \(ref.chartIdentityKey): \(error)\n", stderr)
+            return false
+        }
+
+        guard fileManager.fileExists(atPath: imageURL.path) else {
+            fputs("[SpinLab] deleteWorkbenchResult: active PNG missing for \(ref.chartIdentityKey)\n", stderr)
+            return false
+        }
+        guard fileManager.fileExists(atPath: manifestURL.path) else {
+            fputs("[SpinLab] deleteWorkbenchResult: active manifest missing for \(ref.chartIdentityKey)\n", stderr)
+            return false
+        }
 
         // 1. Enumerate all results_index.json files directly from the filesystem.
         let samplesURL = rootURL.appending(path: "samples")
@@ -92,8 +141,8 @@ enum LibraryDiskCleanupService {
         )) ?? []
 
         // 2. For every index that references this identity key, build an updated write entry.
-        let now = Date()
         var indexWrites: [AtomicWriteEntry] = []
+        var rollbackIndexWrites: [AtomicWriteEntry] = []
         var preparationFailed = false
 
         for sampleDir in sampleDirs {
@@ -104,11 +153,13 @@ enum LibraryDiskCleanupService {
             // Fail-closed: if the file exists but cannot be decoded, abort entirely.
             // A corrupt index may still reference this chart; deleting the chart files
             // without cleaning the reference would leave a dangling pointer.
-            guard var index = LoadWorkbenchResultsUseCase(pathResolver: resolver).execute(sampleKey: sk) else {
+            guard let originalIndexData = try? Data(contentsOf: indexURL),
+                  let originalIndex = LoadWorkbenchResultsUseCase(pathResolver: resolver).execute(sampleKey: sk) else {
                 fputs("[SpinLab] deleteWorkbenchResult: results_index unreadable for \(sk), aborting\n", stderr)
                 preparationFailed = true
                 break
             }
+            var index = originalIndex
             guard index.references.contains(where: { $0.chartIdentityKey == ref.chartIdentityKey }) else {
                 continue  // This sample does not reference the chart — nothing to do
             }
@@ -125,10 +176,17 @@ enum LibraryDiskCleanupService {
                 break
             }
             indexWrites.append(AtomicWriteEntry(destinationURL: indexURL, data: data))
+            rollbackIndexWrites.append(AtomicWriteEntry(destinationURL: indexURL, data: originalIndexData))
 
             // Also clean measurement_plot_index.json for this sample (P1: disk-level cleanup).
             let plotIndexURL = sampleDir.appending(path: "_spinlab/measurement_plot_index.json")
-            if var plotIndex = LoadMeasurementPlotIndexUseCase(pathResolver: resolver).execute(sampleKey: sk) {
+            if fileManager.fileExists(atPath: plotIndexURL.path) {
+                guard let originalPlotIndexData = try? Data(contentsOf: plotIndexURL),
+                      var plotIndex = LoadMeasurementPlotIndexUseCase(pathResolver: resolver).execute(sampleKey: sk) else {
+                    fputs("[SpinLab] deleteWorkbenchResult: plot_index unreadable for \(sk), aborting\n", stderr)
+                    preparationFailed = true
+                    break
+                }
                 let keyToRemove = ref.chartIdentityKey
                 var changed = false
                 plotIndex.entries = plotIndex.entries
@@ -149,6 +207,7 @@ enum LibraryDiskCleanupService {
                         break
                     }
                     indexWrites.append(AtomicWriteEntry(destinationURL: plotIndexURL, data: plotData))
+                    rollbackIndexWrites.append(AtomicWriteEntry(destinationURL: plotIndexURL, data: originalPlotIndexData))
                 }
             }
             // measurement_plot_index.json missing → nothing to clean (not an error).
@@ -157,21 +216,110 @@ enum LibraryDiskCleanupService {
         // Abort if any write entry could not be prepared — do not touch files.
         guard !preparationFailed else { return false }
 
-        // 3. Atomically commit all index updates. Abort if the commit fails.
+        let archiveFolderName = Self.archiveFolderName(for: ref, generatedAt: ref.generatedAt)
+        let archiveDirectoryURL = Self.archiveDirectoryURL(
+            for: imageURL,
+            folderName: archiveFolderName
+        )
+        let archivedImageURL = archiveDirectoryURL.appending(path: imageURL.lastPathComponent, directoryHint: .notDirectory)
+        let archivedManifestURL = archiveDirectoryURL.appending(path: manifestURL.lastPathComponent, directoryHint: .notDirectory)
+        let archiveRecordURL = archiveDirectoryURL.appending(path: "archive.json", directoryHint: .notDirectory)
+        let archivedImagePath: String
+        let archivedManifestPath: String
         do {
-            try writer.commit(indexWrites)
+            archivedImagePath = try resolver.relativePath(for: archivedImageURL)
+            archivedManifestPath = try resolver.relativePath(for: archivedManifestURL)
         } catch {
-            fputs("[SpinLab] deleteWorkbenchResult: atomic commit failed: \(error)\n", stderr)
+            fputs("[SpinLab] deleteWorkbenchResult: archive path resolution failed for \(ref.chartIdentityKey): \(error)\n", stderr)
             return false
         }
 
-        // 4. Delete the chart files only after all indexes are consistent.
-        for relPath in [ref.chartImagePath, ref.manifestPath] {
-            if let url = try? resolver.absoluteURL(for: relPath) {
-                try? FileManager.default.removeItem(at: url)
+        let archiveRecord = DeletedChartArchiveRecord(
+            chartIdentityKey: ref.chartIdentityKey,
+            deletedAt: now,
+            originalChartImagePath: ref.chartImagePath,
+            originalManifestPath: ref.manifestPath,
+            archivedChartImagePath: archivedImagePath,
+            archivedManifestPath: archivedManifestPath,
+            workflowID: ref.workflowID
+        )
+        guard let archiveRecordData = try? Self.archiveRecordEncoder.encode(archiveRecord) else {
+            fputs("[SpinLab] deleteWorkbenchResult: archive record encode failed for \(ref.chartIdentityKey)\n", stderr)
+            return false
+        }
+
+        do {
+            try fileManager.createDirectory(at: archiveDirectoryURL, withIntermediateDirectories: true)
+            try fileManager.copyItem(at: imageURL, to: archivedImageURL)
+            try fileManager.copyItem(at: manifestURL, to: archivedManifestURL)
+        } catch {
+            fputs("[SpinLab] deleteWorkbenchResult: archive staging failed for \(ref.chartIdentityKey): \(error)\n", stderr)
+            try? fileManager.removeItem(at: archiveDirectoryURL)
+            return false
+        }
+
+        // 3. Atomically commit all index updates. Abort if the commit fails.
+        do {
+            try writer.commit(indexWrites + [AtomicWriteEntry(destinationURL: archiveRecordURL, data: archiveRecordData)])
+        } catch {
+            fputs("[SpinLab] deleteWorkbenchResult: atomic commit failed: \(error)\n", stderr)
+            if !rollbackIndexWrites.isEmpty {
+                do {
+                    try writer.commit(rollbackIndexWrites)
+                    try? fileManager.removeItem(at: archiveDirectoryURL)
+                } catch {
+                    fputs("[SpinLab] deleteWorkbenchResult: failed to restore active indexes: \(error)\n", stderr)
+                }
+            } else {
+                try? fileManager.removeItem(at: archiveDirectoryURL)
+            }
+            return false
+        }
+
+        // 4. Delete the active originals only after all indexes and archive files are in place.
+        var deleteFailed = false
+        for url in [imageURL, manifestURL] {
+            do {
+                if fileManager.fileExists(atPath: url.path) {
+                    try fileManager.removeItem(at: url)
+                }
+            } catch {
+                fputs("[SpinLab] deleteWorkbenchResult: failed to remove active file \(url.path): \(error)\n", stderr)
+                deleteFailed = true
             }
         }
+
+        if deleteFailed {
+            fputs("[SpinLab] deleteWorkbenchResult: restoring active indexes after filesystem failure for \(ref.chartIdentityKey)\n", stderr)
+            if fileManager.fileExists(atPath: imageURL.path) == false {
+                try? fileManager.copyItem(at: archivedImageURL, to: imageURL)
+            }
+            if fileManager.fileExists(atPath: manifestURL.path) == false {
+                try? fileManager.copyItem(at: archivedManifestURL, to: manifestURL)
+            }
+            if !rollbackIndexWrites.isEmpty {
+                do {
+                    try writer.commit(rollbackIndexWrites)
+                    try? fileManager.removeItem(at: archiveDirectoryURL)
+                } catch {
+                    fputs("[SpinLab] deleteWorkbenchResult: failed to restore active indexes: \(error)\n", stderr)
+                }
+            }
+            return false
+        }
+
         return true
+    }
+
+    private static func archiveFolderName(for ref: WorkbenchResultReference, generatedAt: Date) -> String {
+        let timestamp = archiveFolderFormatter.string(from: generatedAt)
+        return "\(ref.chartIdentityKey)-\(timestamp)"
+    }
+
+    private static func archiveDirectoryURL(for sourceURL: URL, folderName: String) -> URL {
+        let chartDirectoryURL = sourceURL.deletingLastPathComponent()
+        let archiveRootURL = chartDirectoryURL.deletingLastPathComponent().appending(path: "deleted-charts", directoryHint: .isDirectory)
+        return archiveRootURL.appending(path: folderName, directoryHint: .isDirectory)
     }
 
     // MARK: - Applied Measurement deletion (V4.1.6)

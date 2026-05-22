@@ -6,7 +6,7 @@ APP_NAME_DEFAULT="SpinLab"
 APP_NAME="${SPINLAB_APP_NAME:-${APP_NAME_DEFAULT}}"
 PRODUCT_NAME="SpinLabApp"
 APP_BUNDLE_NAME="${APP_NAME}.app"
-APP_BUNDLE_PATH="${SPINLAB_APP_BUNDLE_PATH:-/Users/jack/Desktop/${APP_BUNDLE_NAME}}"
+APP_BUNDLE_PATH="/Applications/${APP_BUNDLE_NAME}"
 BUILD_CONFIGURATION="${1:-debug}"
 APP_VERSION_SOURCE="${ROOT_DIR}/Sources/SpinLabApp/App/AppVersion.swift"
 APP_ICON_SOURCE="${ROOT_DIR}/Resources/AppIcon.icns"
@@ -54,9 +54,13 @@ if [[ -f "${APP_ICON_SOURCE}" ]]; then
 fi
 
 BIN_DIR="$(dirname "${BIN_PATH}")"
+mkdir -p "${APP_BUNDLE_PATH}/Contents/Resources"
 for bundle in "${BIN_DIR}"/*.bundle; do
-  [[ -e "${bundle}" ]] || continue
-  cp -R "${bundle}" "${APP_BUNDLE_PATH}/Contents/MacOS/"
+  [[ -d "${bundle}" ]] || continue
+  bundle_name="$(basename "${bundle}")"
+  # Skip test bundles — they have no place in a production app bundle.
+  [[ "${bundle_name}" == *Tests* ]] && continue
+  cp -R "${bundle}" "${APP_BUNDLE_PATH}/Contents/Resources/"
 done
 
 cat > "${APP_BUNDLE_PATH}/Contents/Info.plist" <<PLIST
@@ -88,8 +92,10 @@ cat > "${APP_BUNDLE_PATH}/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# Ad-hoc sign to avoid launch restrictions on manually bundled apps.
-codesign --force --deep --sign - "${APP_BUNDLE_PATH}" >/dev/null 2>&1 || true
+# Ad-hoc sign the app bundle. This creates _CodeSignature/CodeResources,
+# sealing Info.plist, the executable, and all inner resource bundles.
+# Inner bundles here are resource-only (no code), so are sealed as resources.
+codesign --force --sign - "${APP_BUNDLE_PATH}"
 
 echo "Version: ${APP_VERSION} (${APP_BUILD_VERSION})"
 echo "Done: ${APP_BUNDLE_PATH}"

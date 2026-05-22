@@ -113,6 +113,13 @@ final class LibraryFeatureStore {
 
     var recomputeStaleCount: Int = 0
 
+    // MARK: - Chart Asset Audit (v5.3.8)
+
+    var chartAuditReport: ChartAssetAuditReport? = nil
+    var isChartAuditRunning: Bool = false
+    var chartAuditMessage: String? = nil
+    var isShowingChartAudit: Bool = false
+
     // MARK: - Recompute preview panel (§3.2 / §3.3)
 
     var isShowingRecomputePreview: Bool = false

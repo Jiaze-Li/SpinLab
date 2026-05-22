@@ -54,3 +54,6 @@ Start with `V41217MeasurementPlotIndexTests.swift`.
 - `Sources/SpinLabApp/UseCases/LoadMeasurementPlotIndexUseCase.swift` — reads _spinlab/ plot index to discover available charts
 - `Sources/SpinLabApp/UseCases/LoadRelatedChartsUseCase.swift` — resolves related chart paths for multi-chart measurements
 - `Sources/SpinLabApp/App/LibraryPreviewComputationService.swift` — preview group + actionable preview index pure computation
+- `Sources/SpinLabApp/Library/ChartAssetAuditService.swift` — scans library root to classify chart assets as active, orphan, or missing; archives orphan files into deleted-charts/
+- `Sources/SpinLabApp/App/State/LibraryFeatureStore+ChartAudit.swift` — triggers chart asset audit and orphan archive operations; refreshes audit state
+- `Sources/SpinLabApp/Features/Library/ChartAssetAuditView.swift` — chart audit sheet: shows counts, selectable orphan list, archive actions

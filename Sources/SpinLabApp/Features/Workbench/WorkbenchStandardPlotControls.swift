@@ -21,6 +21,10 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     let numericDisplayCache: [String: [String: String]]
     @Binding var seriesRenderMode: SeriesRenderMode
     @Binding var chartStyleOverrides: [String: String]
+    var seriesOrderPayload: WorkbenchPlotPayload? = nil
+    var currentSeriesOrder: [String]? = nil
+    var canReorderSeries: Bool = false
+    var onSeriesOrderCommit: (([String]) -> Void)? = nil
     var onChange: (() -> Void)? = nil
     @ViewBuilder var extraContent: () -> Extra
 
@@ -28,7 +32,22 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
         WorkbenchPlotControlsPanel(
             seriesRenderMode: $seriesRenderMode,
             chartStyleOverrides: $chartStyleOverrides,
-            onStyleChange: onChange
+            onStyleChange: onChange,
+            supplementalContent: {
+                if canReorderSeries {
+                    WorkbenchSeriesOrderPanel(
+                        payload: seriesOrderPayload,
+                        currentSeriesOrder: currentSeriesOrder,
+                        isVisible: canReorderSeries,
+                        onCommit: { order in
+                            onSeriesOrderCommit?(order)
+                            onChange?()
+                        }
+                    )
+                } else {
+                    EmptyView()
+                }
+            }
         ) {
             // Row 1: Tab + Stack + Gap
             HStack(spacing: 8) {
@@ -89,6 +108,10 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         numericDisplayCache: [String: [String: String]],
         seriesRenderMode: Binding<SeriesRenderMode>,
         chartStyleOverrides: Binding<[String: String]>,
+        seriesOrderPayload: WorkbenchPlotPayload? = nil,
+        currentSeriesOrder: [String]? = nil,
+        canReorderSeries: Bool = false,
+        onSeriesOrderCommit: (([String]) -> Void)? = nil,
         onChange: (() -> Void)? = nil
     ) {
         self._activeTab = activeTab
@@ -101,6 +124,10 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         self.numericDisplayCache = numericDisplayCache
         self._seriesRenderMode = seriesRenderMode
         self._chartStyleOverrides = chartStyleOverrides
+        self.seriesOrderPayload = seriesOrderPayload
+        self.currentSeriesOrder = currentSeriesOrder
+        self.canReorderSeries = canReorderSeries
+        self.onSeriesOrderCommit = onSeriesOrderCommit
         self.onChange = onChange
         self.extraContent = { EmptyView() }
     }

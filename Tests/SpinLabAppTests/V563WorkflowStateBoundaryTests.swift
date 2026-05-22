@@ -31,24 +31,24 @@ struct V563WorkflowStateBoundaryTests {
         #expect(manager.output(for: .first).imageData == nil)
     }
 
-    @Test("Reorderable payloads use stable sampleID values")
-    func reorderablePayloadUsesStableSampleID() throws {
+    @Test("Reorderable payloads use stable sourceRef identity")
+    func reorderablePayloadUsesStableSourceRefIdentity() throws {
         let payload = WorkbenchPlotPayload(
             workflowID: "test",
             workflowDisplayName: "test",
             title: "T",
             axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
             series: [
-                WorkbenchPlotSeries(label: "A", x: [0, 1], y: [0, 1], sampleID: "sample-a"),
-                WorkbenchPlotSeries(label: "B", x: [0, 1], y: [1, 2], sampleID: "sample-b")
+                WorkbenchPlotSeries(label: "A", x: [0, 1], y: [0, 1], sourceRef: "/tmp/a.csv", sampleID: "sample-a"),
+                WorkbenchPlotSeries(label: "B", x: [0, 1], y: [1, 2], sourceRef: "/tmp/b.csv", sampleID: "sample-b")
             ],
             seriesReorderable: true
         )
 
-        #expect(payload.series.allSatisfy { $0.sampleID != nil })
+        #expect(payload.series.allSatisfy { ($0.sourceRef?.isEmpty == false) })
 
         var input = WorkbenchRenderPipeline.Input(payload: payload)
-        input.seriesOrder = ["sample-a", "sample-b"]
+        input.seriesOrder = ["/tmp/a.csv", "/tmp/b.csv"]
         let output = try WorkbenchRenderPipeline.render(input)
         #expect(output.warnings.isEmpty)
     }
@@ -99,5 +99,42 @@ struct V563WorkflowStateBoundaryTests {
         let afterClear = WorkbenchReadAdapter(store: store)
         #expect(afterClear.activeImageData == nil)
     }
-}
 
+    @Test("WorkbenchPlotCanvas exposes no series reorder API surface")
+    func plotCanvasDoesNotExposeSeriesReorderSurface() {
+        let canvas = WorkbenchPlotCanvas(imageData: nil)
+        let labels = Mirror(reflecting: canvas).children.compactMap(\.label)
+
+        #expect(!labels.contains("onSeriesOrderCommit"))
+        #expect(!labels.contains("seriesOrderPayload"))
+        #expect(!labels.contains("seriesReorderable"))
+        #expect(!labels.contains(where: { $0.localizedCaseInsensitiveContains("reorder") }))
+    }
+
+    @Test("WorkbenchPlotCanvas editor ownership disables the mouse tracker")
+    func plotCanvasEditorOwnershipGatesTrackerAndDismissLayer() {
+        #expect(WorkbenchPlotCanvas.shouldInstallMouseTracker(isEditing: false))
+        #expect(!WorkbenchPlotCanvas.shouldInstallEditorDismissLayer(isEditing: false))
+
+        #expect(!WorkbenchPlotCanvas.shouldInstallMouseTracker(isEditing: true))
+        #expect(WorkbenchPlotCanvas.shouldInstallEditorDismissLayer(isEditing: true))
+    }
+
+    @Test("Reorderable payloads require sourceRef identity")
+    func reorderablePayloadRequiresSourceRefIdentity() {
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test",
+            workflowDisplayName: "test",
+            title: "T",
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [
+                WorkbenchPlotSeries(label: "A", x: [0, 1], y: [0, 1], sourceRef: "/tmp/a.csv", sampleID: "sample-a"),
+                WorkbenchPlotSeries(label: "B", x: [0, 1], y: [1, 2], sourceRef: "/tmp/b.csv", sampleID: "sample-a")
+            ],
+            seriesReorderable: true
+        )
+
+        #expect(payload.series.allSatisfy { ($0.sourceRef?.isEmpty == false) })
+        #expect(payload.series.map(\.sourceRef) == ["/tmp/a.csv", "/tmp/b.csv"])
+    }
+}

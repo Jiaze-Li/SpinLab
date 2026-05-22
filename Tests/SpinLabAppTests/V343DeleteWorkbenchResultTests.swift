@@ -61,6 +61,12 @@ private struct FixtureDelete {
         try Data("PNG".utf8).write(to: url)
     }
 
+    func writeArchiveRootConflict(sampleKey: String) throws {
+        let url = rootURL.appending(path: "samples/\(sampleKey)/deleted-charts")
+        try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("conflict".utf8).write(to: url)
+    }
+
     func fileExists(relativePath: String) -> Bool {
         guard let url = try? resolver.absoluteURL(for: relativePath) else { return false }
         return fm.fileExists(atPath: url.path)
@@ -73,19 +79,36 @@ private struct FixtureDelete {
     func loadPlotIndex(sampleKey: String) -> MeasurementPlotIndex? {
         LoadMeasurementPlotIndexUseCase(pathResolver: resolver).execute(sampleKey: sampleKey)
     }
+
+    func archivedRelativePath(for ref: WorkbenchResultReference, fileName: String) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyyMMddHHmmss"
+
+        let archiveFolderName = "\(ref.chartIdentityKey)-\(formatter.string(from: ref.generatedAt))"
+        let components = ref.chartImagePath.split(separator: "/").map(String.init)
+        guard let chartsIndex = components.firstIndex(of: "charts"), chartsIndex > 0 else {
+            return "deleted-charts/\(archiveFolderName)/\(fileName)"
+        }
+        let prefix = components.prefix(chartsIndex).joined(separator: "/")
+        return "\(prefix)/deleted-charts/\(archiveFolderName)/\(fileName)"
+    }
 }
 
 private func makeRef(
     key: String = "chart-A",
     imagePath: String = "samples/S1/charts/chart-A.png",
-    manifestPath: String = "samples/S1/charts/chart-A.manifest.json"
+    manifestPath: String = "samples/S1/charts/chart-A.manifest.json",
+    generatedAt: Date = Date(timeIntervalSince1970: 1_700_000_000)
 ) -> WorkbenchResultReference {
     WorkbenchResultReference(
         chartIdentityKey: key,
         chartImagePath: imagePath,
         manifestPath: manifestPath,
         workflowID: "wf-1",
-        generatedAt: Date()
+        generatedAt: generatedAt
     )
 }
 
@@ -94,8 +117,8 @@ private func makeRef(
 @Suite("deleteWorkbenchResult — happy path")
 struct DeleteWorkbenchResultHappyPath {
 
-    @Test("removes reference from results_index and deletes chart files")
-    func removesRefAndFiles() throws {
+    @Test("archives chart files and removes active references")
+    func archivesFilesAndRemovesActiveReferences() throws {
         let f = try FixtureDelete()
         defer { f.cleanup() }
 
@@ -114,9 +137,12 @@ struct DeleteWorkbenchResultHappyPath {
         #expect(idx != nil)
         #expect(idx?.references.count == 1)
         #expect(idx?.references.first?.chartIdentityKey == "chart-B")
-        // chart files should be gone
+        // chart files should be archived, not discarded
         #expect(!f.fileExists(relativePath: refA.chartImagePath))
         #expect(!f.fileExists(relativePath: refA.manifestPath))
+        #expect(f.fileExists(relativePath: f.archivedRelativePath(for: refA, fileName: "chart-A.png")))
+        #expect(f.fileExists(relativePath: f.archivedRelativePath(for: refA, fileName: "chart-A.manifest.json")))
+        #expect(f.fileExists(relativePath: f.archivedRelativePath(for: refA, fileName: "archive.json")))
     }
 
     @Test("cleans measurement_plot_index.json on disk after delete")
@@ -158,6 +184,33 @@ struct DeleteWorkbenchResultHappyPath {
         let success = LibraryDiskCleanupService.deleteWorkbenchResultOnDisk(refA, rootURL: f.rootURL)
         #expect(success)
         #expect(!f.fileExists(relativePath: refA.chartImagePath))
+    }
+}
+
+@Suite("deleteWorkbenchResult — archive rollback")
+struct DeleteWorkbenchResultArchiveRollback {
+
+    @Test("returns false and leaves active data intact when archive staging fails")
+    func archiveStagingFailureLeavesActiveDataIntact() throws {
+        let f = try FixtureDelete()
+        defer { f.cleanup() }
+
+        let refA = makeRef()
+        try f.writeResultsIndex(sampleKey: "S1", references: [refA])
+        try f.writePlotIndex(sampleKey: "S1", entries: ["run1.dat": ["chart-A"]])
+        try f.writeChartFile(relativePath: refA.chartImagePath)
+        try f.writeChartFile(relativePath: refA.manifestPath)
+        try f.writeArchiveRootConflict(sampleKey: "S1")
+
+        let success = LibraryDiskCleanupService.deleteWorkbenchResultOnDisk(refA, rootURL: f.rootURL)
+
+        #expect(!success)
+        let idx = f.loadResultsIndex(sampleKey: "S1")
+        #expect(idx?.references.map(\.chartIdentityKey) == ["chart-A"])
+        let plotIdx = f.loadPlotIndex(sampleKey: "S1")
+        #expect(plotIdx?.entries["run1.dat"] == ["chart-A"])
+        #expect(f.fileExists(relativePath: refA.chartImagePath))
+        #expect(f.fileExists(relativePath: refA.manifestPath))
     }
 }
 

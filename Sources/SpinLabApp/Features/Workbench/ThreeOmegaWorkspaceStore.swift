@@ -183,7 +183,14 @@ final class ThreeOmegaWorkspaceStore {
     var activeImageData: Data? { tabs.activeImageData }
     var activeLayout: WorkbenchPlotLayout? { tabs.activeLayout }
     var seriesLabelOverrides: [String: String] { tabs.activeSeriesLabelOverrides }
-    var activeSeriesOrder: [String]? { tabs.activeState.seriesOrder }
+    var activeSeriesOrder: [String]? {
+        switch tabs.activeTab {
+        case .fieldSweep1omega, .fieldSweep3omega:
+            return fieldSweepSeriesOrder
+        default:
+            return tabs.activeState.seriesOrder
+        }
+    }
     var canReorderSeries: Bool { tabs.activeOutput.manifestPayload?.seriesReorderable ?? false }
 
     // MARK: - Task lifetimes
@@ -196,5 +203,18 @@ final class ThreeOmegaWorkspaceStore {
         analysisTask?.cancel()
         scalingTask?.cancel()
         relatedChartsTask?.cancel()
+    }
+
+    // MARK: - Field-sweep series order
+
+    /// Canonical shared order for the AHE 1ω/3ω field-sweep tabs.
+    /// 1ω takes precedence when both tabs still carry divergent legacy state.
+    var fieldSweepSeriesOrder: [String]? {
+        tabs.state(for: .fieldSweep1omega).seriesOrder ?? tabs.state(for: .fieldSweep3omega).seriesOrder
+    }
+
+    func setFieldSweepSeriesOrder(_ order: [String]?) {
+        tabs.tabStates[.fieldSweep1omega, default: TabRenderState()].seriesOrder = order
+        tabs.tabStates[.fieldSweep3omega, default: TabRenderState()].seriesOrder = order
     }
 }

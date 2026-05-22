@@ -5,7 +5,8 @@ import AppKit
 
 /// 通用图像显示组件。
 /// 有数据时显示渲染好的 PNG，无数据时显示占位符。
-/// 支持：拖动重置 legend 位置、点击行内编辑 title / 轴标签 / legend 标签。
+/// Supports display-only interaction: legend drag, inline edits, copy PNG.
+/// Series order is owned by the workflow shell and plot controls, not the canvas.
 ///
 /// ## 自定义提示
 /// - `minHeight` 控制最小显示高度
@@ -36,27 +37,19 @@ struct WorkbenchPlotCanvas: View {
     var onStyleOverrideChange: ((String, String) -> Void)?   = nil
     /// Current chart style overrides — used to show current font size / tick density in edit panel.
     var chartStyleOverrides: [String: String] = [:]
+    /// Manifest payload for the active chart; used for point-label and legend edit metadata.
+    var seriesPayload: WorkbenchPlotPayload? = nil
 
     /// Related charts for hover popover (nil or empty = no popover).
     var relatedCharts: [WorkbenchResultReference]? = nil
     /// Library root for loading chart thumbnails.
     var libraryRootURL: URL? = nil
 
-    // MARK: Series reordering (opt-in)
-    var seriesReorderable: Bool = false
-    var currentSeriesOrder: [String]? = nil
-    /// Manifest payload for the active chart; required for series hit-testing.
-    var seriesPayload: WorkbenchPlotPayload? = nil
-    /// Called with bottom-to-top sampleID array when user commits a drag reorder.
-    var onSeriesOrderCommit: (([String]) -> Void)? = nil
-    /// Called when user selects "Reset Curve Order" from context menu.
-    var onResetSeriesOrder: (() -> Void)? = nil
-
     // TODO(用户设计): 调整最小高度、背景样式、空状态文字
     var minHeight: CGFloat = 360
 
     @State private var canvasSize: CGSize = .zero
-    /// Screen-space point of an in-progress drag (nil when not dragging).
+    /// Screen-space point of an in-progress legend drag (nil when not dragging).
     @State private var dragPreviewPt: CGPoint? = nil
     /// Normalized offset (plot-space, Y-up) from legend origin to cursor at drag start.
     /// Captured on the first onChanged frame; nil = not dragging.
@@ -65,20 +58,14 @@ struct WorkbenchPlotCanvas: View {
     /// Used by onEnded as fallback when cursor lands in padding area (plotNormalized → nil).
     @State private var lastValidDragNorm: CGPoint? = nil
 
-    // Series drag state
-    private enum DragMode: Equatable {
-        case none
-        case legend
-        case series(sampleID: String)
-    }
-    @State private var dragMode: DragMode = .none
-    @State private var seriesGuideYScreen: CGFloat? = nil
     /// Which chart element is currently being edited.
     @State private var editingElement: EditTarget? = nil
     /// Live text for the active edit field.
     @State private var editText: String = ""
     /// Screen-space rect of the element being edited, used to position the edit panel.
     @State private var editTargetScreenRect: CGRect = .zero
+    /// Focus ownership for the inline editor text field.
+    @FocusState private var editorFieldFocused: Bool
     /// Pixel size of the current rendered PNG used for coordinate conversion.
     /// Falls back to 800x600 until image metadata is available.
     @State private var rendererPixelSize: CGSize = CGSize(width: 800, height: 600)
@@ -115,6 +102,14 @@ struct WorkbenchPlotCanvas: View {
 
     private static let fontSizeOptions: [CGFloat] = [12, 14, 16, 18, 19, 20, 22, 24, 25, 28, 32]
 
+    static func shouldInstallEditorDismissLayer(isEditing: Bool) -> Bool {
+        isEditing
+    }
+
+    static func shouldInstallMouseTracker(isEditing: Bool) -> Bool {
+        !isEditing
+    }
+
     /// The styleParams key for tick density of the currently editing element (nil if not a tick element).
     private var editTickDensityKey: String? {
         switch editingElement {
@@ -136,100 +131,58 @@ struct WorkbenchPlotCanvas: View {
                     }
                 )
                 .overlay { legendDragPreview }
-                .overlay { seriesDragGuidePreview }
+                .overlay {
+                    if Self.shouldInstallEditorDismissLayer(isEditing: editingElement != nil) {
+                        editorDismissLayer
+                    }
+                }
                 .overlay {
                     if let elem = editingElement {
                         editPanel(for: elem)
+                    }
+                }
+                .overlay {
+                    if Self.shouldInstallMouseTracker(isEditing: editingElement != nil) {
+                        // AppKit-level mouse handler: bypasses SwiftUI gesture system blocked by NSScrollView.
+                        PlotCanvasMouseTracker(
+                            isEnabled: true,
+                            onTap: { handleTap(at: $0) },
+                            onDragChanged: { start, current in
+                                let fitted = fittedRect(in: canvasSize)
+                                if _isInLegendFrame(start, fittedRect: fitted) {
+                                    guard onLegendDrag != nil else { return }
+                                } else {
+                                    return
+                                }
+                                guard onLegendDrag != nil else { return }
+                                guard let step = legendDragStep(
+                                    start: start,
+                                    current: current,
+                                    fittedRect: fitted,
+                                    existingGrabOffset: dragGrabOffsetNorm
+                                ) else { return }
+                                dragGrabOffsetNorm = step.grabOffset
+                                lastValidDragNorm = step.adjustedNorm
+                                dragPreviewPt = step.previewPoint
+                            },
+                            onDragEnded: { _, _ in
+                                if dragPreviewPt != nil {
+                                    let last = lastValidDragNorm
+                                    dragPreviewPt      = nil
+                                    dragGrabOffsetNorm = nil
+                                    lastValidDragNorm  = nil
+                                    if let callback = onLegendDrag, let finalNorm = last {
+                                        callback(finalNorm)
+                                    }
+                                }
+                            }
+                        )
                     }
                 }
                 .background(
                     .background,
                     in: RoundedRectangle(cornerRadius: 8, style: .continuous)
                 )
-                .overlay {
-                    // AppKit-level mouse handler: bypasses SwiftUI gesture system blocked by NSScrollView.
-                    PlotCanvasMouseTracker(
-                        isEnabled: editingElement == nil,
-                        onTap: { handleTap(at: $0) },
-                        onDragChanged: { start, current in
-                            let fitted = fittedRect(in: canvasSize)
-                            if dragMode == .none {
-                                // Dispatch priority:
-                                // 1) legend frame drag
-                                // 2) series reorder hit-test
-                                // 3) hover/crosshair remains passive
-                                // 4) otherwise no-op
-                                if _isInLegendFrame(start, fittedRect: fitted) {
-                                    guard onLegendDrag != nil else { return }
-                                    dragMode = .legend
-                                } else if seriesReorderable,
-                                          let l = layout,
-                                          let p = seriesPayload {
-                                    let plotSR = WorkbenchPlotLayout.cgToScreen(
-                                        l.plotRect, fittedIn: fitted,
-                                        rendererWidth: l.rendererSize.width,
-                                        rendererHeight: l.rendererSize.height
-                                    )
-                                    guard plotSR.contains(start) else { return }
-                                    let allHaveSampleID = p.series.allSatisfy { $0.sampleID != nil }
-                                    guard allHaveSampleID,
-                                          let hit = l.hitTestSeries(location: start, fittedRect: fitted, payload: p, radius: 8) else {
-                                        return
-                                    }
-                                    dragMode = .series(sampleID: hit.sampleID)
-                                } else {
-                                    return
-                                }
-                            }
-                            switch dragMode {
-                            case .none: return
-                            case .legend:
-                                guard let cursorNorm = plotNormalized(location: current, fittedRect: fitted) else { return }
-                                if dragGrabOffsetNorm == nil {
-                                    let startNorm = plotNormalized(location: start, fittedRect: fitted) ?? cursorNorm
-                                    let origin = currentLegendOriginNorm()
-                                    dragGrabOffsetNorm = CGSize(
-                                        width:  startNorm.x - origin.x,
-                                        height: startNorm.y - origin.y
-                                    )
-                                }
-                                let grab = dragGrabOffsetNorm ?? .zero
-                                let adjusted = CGPoint(
-                                    x: min(max(cursorNorm.x - grab.width,  0), 1),
-                                    y: min(max(cursorNorm.y - grab.height, 0), 1)
-                                )
-                                lastValidDragNorm = adjusted
-                                dragPreviewPt = legendScreenOrigin(normalized: adjusted, fittedRect: fitted)
-                            case .series:
-                                seriesGuideYScreen = current.y
-                            }
-                        },
-                        onDragEnded: { _, _ in
-                            switch dragMode {
-                            case .none: break
-                            case .legend:
-                                let last = lastValidDragNorm
-                                dragPreviewPt      = nil
-                                dragGrabOffsetNorm = nil
-                                lastValidDragNorm  = nil
-                                if let callback = onLegendDrag, let finalNorm = last {
-                                    callback(finalNorm)
-                                }
-                            case .series(let sampleID):
-                                if let p = seriesPayload, let l = layout, let guideY = seriesGuideYScreen {
-                                    let fitted = fittedRect(in: canvasSize)
-                                    let newOrder = _computeNewSeriesOrder(
-                                        draggedSampleID: sampleID, guideYScreen: guideY,
-                                        payload: p, layout: l, fittedRect: fitted
-                                    )
-                                    onSeriesOrderCommit?(newOrder)
-                                }
-                                seriesGuideYScreen = nil
-                            }
-                            dragMode = .none
-                        }
-                    )
-                }
                 .contextMenu {
                     Menu("Copy PNG") {
                         ForEach(Self.copyPNGScales, id: \.self) { s in
@@ -241,17 +194,12 @@ struct WorkbenchPlotCanvas: View {
                             }
                         }
                     }
-                    if onResetSeriesOrder != nil {
-                        Divider()
-                        Button("Reset Curve Order") { onResetSeriesOrder?() }
-                            .disabled(!seriesReorderable || currentSeriesOrder == nil)
-                    }
                 }
                 .hoverPopover(
                     showDelay: .seconds(1),
                     dismissDelay: .milliseconds(500),
                     arrowEdge: .trailing,
-                    isEnabled: relatedCharts?.isEmpty == false && dragMode == .none
+                    isEnabled: relatedCharts?.isEmpty == false && dragPreviewPt == nil
                 ) { onHoverChanged, onDialogActiveChanged in
                     MeasurementPlotPreviewPanel(
                         references: relatedCharts ?? [],
@@ -271,6 +219,43 @@ struct WorkbenchPlotCanvas: View {
     }
 
     // MARK: - Legend drag preview
+
+    struct LegendDragStep {
+        let grabOffset: CGSize
+        let adjustedNorm: CGPoint
+        let previewPoint: CGPoint
+    }
+
+    /// Computes the next legend-drag preview point and normalized legend origin.
+    /// The grab offset is captured once, then reused across subsequent drag events.
+    func legendDragStep(
+        start: CGPoint,
+        current: CGPoint,
+        fittedRect: CGRect,
+        existingGrabOffset: CGSize?
+    ) -> LegendDragStep? {
+        guard let cursorNorm = plotNormalized(location: current, fittedRect: fittedRect) else { return nil }
+        let grab: CGSize
+        if let existingGrabOffset {
+            grab = existingGrabOffset
+        } else {
+            let startNorm = plotNormalized(location: start, fittedRect: fittedRect) ?? cursorNorm
+            let origin = currentLegendOriginNorm()
+            grab = CGSize(
+                width: startNorm.x - origin.x,
+                height: startNorm.y - origin.y
+            )
+        }
+        let adjusted = CGPoint(
+            x: min(max(cursorNorm.x - grab.width,  0), 1),
+            y: min(max(cursorNorm.y - grab.height, 0), 1)
+        )
+        return LegendDragStep(
+            grabOffset: grab,
+            adjustedNorm: adjusted,
+            previewPoint: legendScreenOrigin(normalized: adjusted, fittedRect: fittedRect)
+        )
+    }
 
     @ViewBuilder
     private var legendDragPreview: some View {
@@ -307,28 +292,6 @@ struct WorkbenchPlotCanvas: View {
         }
     }
 
-    // MARK: - Series drag guide
-
-    @ViewBuilder
-    private var seriesDragGuidePreview: some View {
-        if case .series = dragMode, let yScreen = seriesGuideYScreen, let l = layout {
-            let fitted = fittedRect(in: canvasSize)
-            if fitted.width > 0 {
-                let scaleX = fitted.width / l.rendererSize.width
-                let plotMinX = fitted.minX + l.plotRect.minX * scaleX
-                let plotMaxX = fitted.minX + l.plotRect.maxX * scaleX
-                Path { p in
-                    p.move(to: CGPoint(x: plotMinX, y: yScreen))
-                    p.addLine(to: CGPoint(x: plotMaxX, y: yScreen))
-                }
-                .stroke(
-                    Color.accentColor.opacity(0.85),
-                    style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])
-                )
-            }
-        }
-    }
-
     private func _isInLegendFrame(_ location: CGPoint, fittedRect: CGRect) -> Bool {
         guard let l = layout else { return false }
         var frame: CGRect?
@@ -340,47 +303,6 @@ struct WorkbenchPlotCanvas: View {
             frame = frame.map { $0.union(screenRect) } ?? screenRect
         }
         return frame?.contains(location) ?? false
-    }
-
-    private func _computeNewSeriesOrder(
-        draggedSampleID: String,
-        guideYScreen: CGFloat,
-        payload: WorkbenchPlotPayload,
-        layout: WorkbenchPlotLayout,
-        fittedRect: CGRect
-    ) -> [String] {
-        let series = payload.series
-        let allX = series.flatMap(\.x)
-        let allY = series.flatMap(\.y)
-        guard !allX.isEmpty else { return series.compactMap(\.sampleID) }
-
-        let xRaw = allX.min()!, xRawMax = allX.max()!
-        let yRaw = allY.min()!, yRawMax = allY.max()!
-        let yRawSpan = yRawMax == yRaw ? 1.0 : yRawMax - yRaw
-        let yMin = yRaw - yRawSpan * 0.05
-        let yMax = yRawMax + yRawSpan * 0.05
-        let ySpan = yMax - yMin
-        guard ySpan > 0 else { return series.compactMap(\.sampleID) }
-        _ = xRaw; _ = xRawMax   // suppress unused warnings
-
-        let scaleY = fittedRect.height / layout.rendererSize.height
-
-        func cgToScreenY(_ y: Double) -> CGFloat {
-            let cgY = layout.plotRect.minY + CGFloat((y - yMin) / ySpan) * layout.plotRect.height
-            return fittedRect.minY + (layout.rendererSize.height - cgY) * scaleY
-        }
-
-        var pairs: [(id: String, screenY: CGFloat)] = []
-        for s in series {
-            guard let id = s.sampleID, !s.y.isEmpty else { continue }
-            let y: CGFloat = id == draggedSampleID
-                ? guideYScreen
-                : cgToScreenY(s.y[s.y.count / 2])
-            pairs.append((id, y))
-        }
-
-        // Screen y ascending = top → bottom; seriesOrder is bottom → top, so reverse.
-        return pairs.sorted { $0.screenY < $1.screenY }.reversed().map(\.id)
     }
 
     /// Returns the current legend origin as a normalized plot point (x,y ∈ [0,1], Y-up).
@@ -431,14 +353,16 @@ struct WorkbenchPlotCanvas: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-            if hasTextField {
-                TextField("", text: $editText)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(minWidth: 100, maxWidth: 180)
-                    .onSubmit { commitEdit() }
-            }
-            if let key = editFontSizeKey, onFontSizeChange != nil {
-                fontSizePicker(key: key)
+                    if hasTextField {
+                        TextField("", text: $editText)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(minWidth: 100, maxWidth: 180)
+                            .focused($editorFieldFocused)
+                            .onSubmit { commitEdit() }
+                            .task { editorFieldFocused = true }
+                    }
+                    if let key = editFontSizeKey, onFontSizeChange != nil {
+                        fontSizePicker(key: key)
             }
             if let densityKey = editTickDensityKey {
                 tickDensityStepper(key: densityKey)
@@ -470,7 +394,17 @@ struct WorkbenchPlotCanvas: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
         .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
         .position(pos)
-        .onExitCommand { editingElement = nil }
+        .onExitCommand { dismissEditing() }
+    }
+
+    @ViewBuilder
+    private var editorDismissLayer: some View {
+        Rectangle()
+            .fill(Color.clear)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                dismissEditing()
+            }
     }
 
     @ViewBuilder
@@ -644,6 +578,13 @@ struct WorkbenchPlotCanvas: View {
         }
         editingElement = nil
         editText = ""
+        editorFieldFocused = false
+    }
+
+    private func dismissEditing() {
+        editingElement = nil
+        editText = ""
+        editorFieldFocused = false
     }
 
     // MARK: - Geometry helpers

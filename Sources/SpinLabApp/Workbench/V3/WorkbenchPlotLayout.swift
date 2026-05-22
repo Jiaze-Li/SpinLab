@@ -385,20 +385,35 @@ extension WorkbenchPlotLayout {
             )
         }
 
-        var best: (sampleID: String, screenY: CGFloat, dist: CGFloat)?
+        func screenDistance(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
+            hypot(a.x - b.x, a.y - b.y)
+        }
 
+        func screenDistanceToSegment(_ p: CGPoint, _ a: CGPoint, _ b: CGPoint) -> CGFloat {
+            let dx = b.x - a.x
+            let dy = b.y - a.y
+            let lenSq = dx * dx + dy * dy
+            if lenSq == 0 { return screenDistance(p, a) }
+            let t = max(0, min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq))
+            return screenDistance(p, CGPoint(x: a.x + t * dx, y: a.y + t * dy))
+        }
+
+        var best: (sampleID: String, screenY: CGFloat, dist: CGFloat)?
         for s in series {
             guard let sid = s.sampleID else { continue }
             guard s.x.count == s.y.count, !s.x.isEmpty else { continue }
+            guard s.x.allSatisfy(\.isFinite), s.y.allSatisfy(\.isFinite) else {
+                continue
+            }
 
             let pts = zip(s.x, s.y).map { dataToScreen($0, $1) }
 
             var minDist: CGFloat = .infinity
             if pts.count == 1 {
-                minDist = Self._dist(location, pts[0])
+                minDist = screenDistance(location, pts[0])
             } else {
                 for i in 0..<pts.count - 1 {
-                    let d = Self._distToSegment(location, pts[i], pts[i + 1])
+                    let d = screenDistanceToSegment(location, pts[i], pts[i + 1])
                     if d < minDist { minDist = d }
                 }
             }
@@ -412,7 +427,8 @@ extension WorkbenchPlotLayout {
             }
         }
 
-        return best.map { ($0.sampleID, $0.screenY) }
+        let result = best.map { ($0.sampleID, $0.screenY) }
+        return result
     }
 
     private static func _dist(_ a: CGPoint, _ b: CGPoint) -> CGFloat {

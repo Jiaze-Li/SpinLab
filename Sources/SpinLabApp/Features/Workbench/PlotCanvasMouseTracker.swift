@@ -69,7 +69,8 @@ final class _PlotMouseView: NSView {
         case .leftMouseDragged:
             guard let start = downPt else { return }
             let dist = hypot(pt.x - start.x, pt.y - start.y)
-            guard dist >= (tracker?.minimumDragDistance ?? 4) else { return }
+            let threshold = tracker?.minimumDragDistance ?? 4
+            guard dist >= threshold else { return }
             dragging = true
             tracker?.onDragChanged?(start, pt)
 

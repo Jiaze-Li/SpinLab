@@ -71,8 +71,8 @@ struct V536CurveDragOrderTests {
                 workflowID: "test", workflowDisplayName: "test", title: "T",
                 axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
                 series: [
-                    WorkbenchPlotSeries(label: "A", x: [0, 1], y: [0, 1], sampleID: "A"),
-                    WorkbenchPlotSeries(label: "B", x: [0, 1], y: [1, 2], sampleID: "B")
+                    WorkbenchPlotSeries(label: "A", x: [0, 1], y: [0, 1], sourceRef: "/tmp/A.csv", sampleID: "A"),
+                    WorkbenchPlotSeries(label: "B", x: [0, 1], y: [1, 2], sourceRef: "/tmp/B.csv", sampleID: "B")
                 ],
                 reverseSeriesForLegend: false,
                 seriesReorderable: false   // opt-in OFF
@@ -93,8 +93,8 @@ struct V536CurveDragOrderTests {
                 workflowID: "test", workflowDisplayName: "test", title: "T",
                 axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
                 series: [
-                    WorkbenchPlotSeries(label: "A", x: [0, 1], y: [0, 1], sampleID: "A"),
-                    WorkbenchPlotSeries(label: "B", x: [0, 1], y: [1, 2], sampleID: "B")
+                    WorkbenchPlotSeries(label: "A", x: [0, 1], y: [0, 1], sourceRef: "/tmp/A.csv", sampleID: "A"),
+                    WorkbenchPlotSeries(label: "B", x: [0, 1], y: [1, 2], sourceRef: "/tmp/B.csv", sampleID: "B")
                 ],
                 reverseSeriesForLegend: true,
                 seriesReorderable: true
@@ -114,14 +114,14 @@ struct V536CurveDragOrderTests {
                 workflowID: "test", workflowDisplayName: "test", title: "T",
                 axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
                 series: [
-                    WorkbenchPlotSeries(label: "A", x: [0, 1], y: [0, 1], sampleID: "A"),
-                    WorkbenchPlotSeries(label: "B", x: [0, 1], y: [1, 2], sampleID: "B")
+                    WorkbenchPlotSeries(label: "A", x: [0, 1], y: [0, 1], sourceRef: "/tmp/A.csv", sampleID: "A"),
+                    WorkbenchPlotSeries(label: "B", x: [0, 1], y: [1, 2], sourceRef: "/tmp/B.csv", sampleID: "B")
                 ],
                 reverseSeriesForLegend: false,
                 seriesReorderable: true
             )
         )
-        input.seriesOrder = ["A", "B"]   // matches actual series order
+        input.seriesOrder = ["/tmp/A.csv", "/tmp/B.csv"]   // matches actual series order
         let output = try WorkbenchRenderPipeline.render(input)
         #expect(!output.warnings.contains { $0.contains("mismatch") })
     }
@@ -135,21 +135,44 @@ struct V536CurveDragOrderTests {
                 workflowID: "test", workflowDisplayName: "test", title: "T",
                 axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
                 series: [
-                    WorkbenchPlotSeries(label: "B", x: [0, 1], y: [1, 2], sampleID: "B"),  // renderer produced [B, A]
-                    WorkbenchPlotSeries(label: "A", x: [0, 1], y: [0, 1], sampleID: "A")
+                    WorkbenchPlotSeries(label: "B", x: [0, 1], y: [1, 2], sourceRef: "/tmp/B.csv", sampleID: "B"),  // renderer produced [B, A]
+                    WorkbenchPlotSeries(label: "A", x: [0, 1], y: [0, 1], sourceRef: "/tmp/A.csv", sampleID: "A")
                 ],
                 reverseSeriesForLegend: false,
                 seriesReorderable: true
             )
         )
-        input.seriesOrder = ["A", "B"]   // expected [A, B]
+        input.seriesOrder = ["/tmp/A.csv", "/tmp/B.csv"]   // expected [A, B]
         let output = try WorkbenchRenderPipeline.render(input)
         #expect(output.warnings.contains { $0.contains("mismatch") },
                 "Warning expected when renderer produced wrong order")
         // Pipeline must NOT silently fix the order — series must stay as renderer produced them
-        let manifestIDs = output.manifestPayload.series.compactMap(\.sampleID)
-        #expect(manifestIDs == ["B", "A"],
+        let manifestIDs = output.manifestPayload.series.compactMap(\.sourceRef)
+        #expect(manifestIDs == ["/tmp/B.csv", "/tmp/A.csv"],
                 "Series order in manifest must be renderer's original [B, A], not silently fixed")
+    }
+
+    @Test("Pipeline legend order follows the updated series order")
+    func pipelineLegendOrderFollowsUpdatedSeriesOrder() throws {
+        let input = WorkbenchRenderPipeline.Input(
+            payload: WorkbenchPlotPayload(
+                workflowID: "test",
+                workflowDisplayName: "test",
+                title: "T",
+                axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+                series: [
+                    WorkbenchPlotSeries(label: "Bottom", x: [0, 1], y: [0, 1], sourceRef: "/tmp/bottom.csv", sampleID: "bottom"),
+                    WorkbenchPlotSeries(label: "Middle", x: [0, 1], y: [1, 2], sourceRef: "/tmp/middle.csv", sampleID: "middle"),
+                    WorkbenchPlotSeries(label: "Top", x: [0, 1], y: [2, 3], sourceRef: "/tmp/top.csv", sampleID: "top")
+                ],
+                reverseSeriesForLegend: true,
+                seriesReorderable: true
+            ),
+            seriesOrder: ["/tmp/bottom.csv", "/tmp/middle.csv", "/tmp/top.csv"]
+        )
+        let output = try WorkbenchRenderPipeline.render(input)
+        let manifestIDs = output.manifestPayload.series.compactMap(\.sourceRef)
+        #expect(manifestIDs == ["/tmp/top.csv", "/tmp/middle.csv", "/tmp/bottom.csv"])
     }
 
     // MARK: - Test case 5: align algorithm
@@ -206,9 +229,9 @@ struct V536CurveDragOrderTests {
         renderer.showGrid = false
 
         // 3 sweeps with distinct amplitudes: A small, B large, C medium
-        let sweepA = makeSweep(sampleID: "A", temperatureK: 100, r1omega: [-0.1, 0.0, 0.1])  // pp=0.2
-        let sweepB = makeSweep(sampleID: "B", temperatureK: 200, r1omega: [-0.5, 0.0, 0.5])  // pp=1.0
-        let sweepC = makeSweep(sampleID: "C", temperatureK: 300, r1omega: [-0.25, 0.0, 0.25]) // pp=0.5
+        let sweepA = makeSweep(sampleID: "A", temperatureK: 100, r1omega: [-0.1, 0.0, 0.1], sourceFilePath: "/tmp/A.csv")  // pp=0.2
+        let sweepB = makeSweep(sampleID: "B", temperatureK: 200, r1omega: [-0.5, 0.0, 0.5], sourceFilePath: "/tmp/B.csv")  // pp=1.0
+        let sweepC = makeSweep(sampleID: "C", temperatureK: 300, r1omega: [-0.25, 0.0, 0.25], sourceFilePath: "/tmp/C.csv") // pp=0.5
 
         // Offset for default order [A, B, C]:
         let defaultOffsets = ThreeOmegaStackOffsetUseCase().execute(
@@ -250,6 +273,317 @@ struct V536CurveDragOrderTests {
         let decoded = try JSONDecoder().decode(TabRenderState.self, from: encoded)
         #expect(decoded.seriesOrder == ["sampleZ", "sampleX", "sampleY"])
         #expect(decoded.legendPoint?.x == 0.1)
+    }
+
+    @Test("Series Order panel displays top-to-bottom visual stack order")
+    func seriesOrderPanelDisplaysTopToBottomStackOrder() {
+        let internalRows = [
+            SeriesOrderRow(identityKey: "0", sampleID: "0", sourceRef: "/tmp/0.csv", label: "0", originalIndex: 0),
+            SeriesOrderRow(identityKey: "30", sampleID: "30", sourceRef: "/tmp/30.csv", label: "30", originalIndex: 1),
+            SeriesOrderRow(identityKey: "90", sampleID: "90", sourceRef: "/tmp/90.csv", label: "90", originalIndex: 2),
+            SeriesOrderRow(identityKey: "120", sampleID: "120", sourceRef: "/tmp/120.csv", label: "120", originalIndex: 3),
+            SeriesOrderRow(identityKey: "180", sampleID: "180", sourceRef: "/tmp/180.csv", label: "180", originalIndex: 4)
+        ]
+
+        let displayed = WorkbenchSeriesOrderPanel.presentedRows(from: internalRows)
+        #expect(displayed.map(\.identityKey) == ["180", "120", "90", "30", "0"])
+        #expect(displayed.map(\.label) == ["180", "120", "90", "30", "0"])
+    }
+
+    @Test("Series Order panel preserves explicit bottom-to-top order")
+    func seriesOrderPanelPreservesExplicitOrder() {
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test",
+            workflowDisplayName: "test",
+            title: "T",
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [
+                WorkbenchPlotSeries(label: "Top label", x: [0], y: [0], sourceRef: "/tmp/top.csv", sampleID: "top"),
+                WorkbenchPlotSeries(label: "Middle label", x: [0], y: [0], sourceRef: "/tmp/middle.csv", sampleID: "middle"),
+                WorkbenchPlotSeries(label: "Bottom label", x: [0], y: [0], sourceRef: "/tmp/bottom.csv", sampleID: "bottom")
+            ],
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+
+        let rows = WorkbenchSeriesOrderPanel.makeRows(
+            payload: payload,
+            currentSeriesOrder: ["bottom", "middle", "top"]
+        )
+        #expect(rows.map(\.sampleID) == ["bottom", "middle", "top"])
+    }
+
+    @Test("Series Order panel keys duplicate sampleIDs by sourceRef")
+    func seriesOrderPanelKeysDuplicateSampleIDsBySourceRef() {
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test",
+            workflowDisplayName: "test",
+            title: "T",
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [
+                WorkbenchPlotSeries(label: "Top curve", x: [0], y: [0], sourceRef: "/tmp/top.csv", sampleID: "sample-1"),
+                WorkbenchPlotSeries(label: "Middle curve", x: [0], y: [0], sourceRef: "/tmp/middle.csv", sampleID: "sample-1"),
+                WorkbenchPlotSeries(label: "Bottom curve", x: [0], y: [0], sourceRef: "/tmp/bottom.csv", sampleID: "sample-2")
+            ],
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+
+        let rows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        #expect(rows.map(\.label) == ["Bottom curve", "Middle curve", "Top curve"])
+        #expect(rows.map(\.identityKey) == ["/tmp/bottom.csv", "/tmp/middle.csv", "/tmp/top.csv"])
+        #expect(rows.map(\.sourceRef) == ["/tmp/bottom.csv", "/tmp/middle.csv", "/tmp/top.csv"])
+        #expect(Set(rows.map(\.identityKey)).count == 3)
+    }
+
+    @Test("Series Order panel commits sourceRef keys")
+    func seriesOrderPanelCommitsSourceRefKeys() {
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test",
+            workflowDisplayName: "test",
+            title: "T",
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [
+                WorkbenchPlotSeries(label: "Top curve", x: [0], y: [0], sourceRef: "/tmp/top.csv", sampleID: "sample-1"),
+                WorkbenchPlotSeries(label: "Middle curve", x: [0], y: [0], sourceRef: "/tmp/middle.csv", sampleID: "sample-1"),
+                WorkbenchPlotSeries(label: "Bottom curve", x: [0], y: [0], sourceRef: "/tmp/bottom.csv", sampleID: "sample-2")
+            ],
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+
+        let rows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        let committedOrder = rows.map(\.identityKey)
+        #expect(committedOrder == ["/tmp/bottom.csv", "/tmp/middle.csv", "/tmp/top.csv"])
+        #expect(rows.allSatisfy { ($0.sourceRef?.isEmpty == false) })
+    }
+
+    @Test("Series Order panel honors sourceRef order for duplicate sampleIDs")
+    func seriesOrderPanelHonorsSourceRefOrderForDuplicateSampleIDs() {
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test",
+            workflowDisplayName: "test",
+            title: "T",
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [
+                WorkbenchPlotSeries(label: "Top curve", x: [0], y: [0], sourceRef: "/tmp/top.csv", sampleID: "sample-1"),
+                WorkbenchPlotSeries(label: "Middle curve", x: [0], y: [0], sourceRef: "/tmp/middle.csv", sampleID: "sample-1"),
+                WorkbenchPlotSeries(label: "Bottom curve", x: [0], y: [0], sourceRef: "/tmp/bottom.csv", sampleID: "sample-2")
+            ],
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+
+        let rows = WorkbenchSeriesOrderPanel.makeRows(
+            payload: payload,
+            currentSeriesOrder: ["/tmp/middle.csv", "/tmp/top.csv", "/tmp/bottom.csv"]
+        )
+        #expect(rows.map(\.identityKey) == ["/tmp/middle.csv", "/tmp/top.csv", "/tmp/bottom.csv"])
+        #expect(rows.map(\.label) == ["Middle curve", "Top curve", "Bottom curve"])
+    }
+
+    @Test("Series Order panel commits visual moves back to bottom-to-top order")
+    func seriesOrderPanelCommitsVisualMovesBackToBottomToTopOrder() {
+        let internalRows = [
+            SeriesOrderRow(identityKey: "0", sampleID: "0", sourceRef: "/tmp/0.csv", label: "0", originalIndex: 0),
+            SeriesOrderRow(identityKey: "30", sampleID: "30", sourceRef: "/tmp/30.csv", label: "30", originalIndex: 1),
+            SeriesOrderRow(identityKey: "90", sampleID: "90", sourceRef: "/tmp/90.csv", label: "90", originalIndex: 2),
+            SeriesOrderRow(identityKey: "120", sampleID: "120", sourceRef: "/tmp/120.csv", label: "120", originalIndex: 3),
+            SeriesOrderRow(identityKey: "180", sampleID: "180", sourceRef: "/tmp/180.csv", label: "180", originalIndex: 4)
+        ]
+
+        let displayed = WorkbenchSeriesOrderPanel.presentedRows(from: internalRows)
+        let movedDisplayed = WorkbenchSeriesOrderPanel.reorderedRows(
+            displayed,
+            draggedKey: "180",
+            targetKey: "120",
+            dropLocationX: 0.8
+        )
+        let committed = WorkbenchSeriesOrderPanel.internalRows(fromPresentedRows: movedDisplayed)
+        #expect(committed.map(\.identityKey) == ["0", "30", "90", "180", "120"])
+    }
+
+    @Test("Series Order chip drag reorders before or after target")
+    func seriesOrderChipDragReordersBeforeOrAfterTarget() {
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test",
+            workflowDisplayName: "test",
+            title: "T",
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [
+                WorkbenchPlotSeries(label: "Bottom curve", x: [0], y: [0], sourceRef: "/tmp/bottom.csv", sampleID: "sample-2"),
+                WorkbenchPlotSeries(label: "Middle curve", x: [0], y: [0], sourceRef: "/tmp/middle.csv", sampleID: "sample-1"),
+                WorkbenchPlotSeries(label: "Top curve", x: [0], y: [0], sourceRef: "/tmp/top.csv", sampleID: "sample-1")
+            ],
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+
+        let rows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        let dragged = WorkbenchSeriesOrderPanel.reorderedRows(
+            rows,
+            draggedKey: "/tmp/top.csv",
+            targetKey: "/tmp/bottom.csv",
+            dropLocationX: 0.2
+        )
+        #expect(dragged.map(\.identityKey) == ["/tmp/middle.csv", "/tmp/top.csv", "/tmp/bottom.csv"])
+
+        let after = WorkbenchSeriesOrderPanel.reorderedRows(
+            rows,
+            draggedKey: "/tmp/top.csv",
+            targetKey: "/tmp/bottom.csv",
+            dropLocationX: 0.8
+        )
+        #expect(after.map(\.identityKey) == ["/tmp/middle.csv", "/tmp/bottom.csv", "/tmp/top.csv"])
+    }
+
+    @Test("ThreeOmegaWorkspaceStore preserves duplicate sampleIDs distinctly when applying sourceRef order")
+    func applySeriesOrderPreservesDuplicateSampleIDsDistinctly() {
+        let sweepTop = makeSweep(
+            sampleID: "sample-1",
+            temperatureK: 300,
+            r1omega: [-0.1, 0.0, 0.1],
+            sourceFilePath: "/tmp/top.csv"
+        )
+        let sweepMiddle = makeSweep(
+            sampleID: "sample-1",
+            temperatureK: 200,
+            r1omega: [-0.2, 0.0, 0.2],
+            sourceFilePath: "/tmp/middle.csv"
+        )
+        let sweepBottom = makeSweep(
+            sampleID: "sample-2",
+            temperatureK: 100,
+            r1omega: [-0.3, 0.0, 0.3],
+            sourceFilePath: "/tmp/bottom.csv"
+        )
+
+        let ordered = ThreeOmegaWorkspaceStore._applySeriesOrder(
+            ["/tmp/middle.csv", "/tmp/top.csv", "/tmp/bottom.csv"],
+            to: [sweepTop, sweepMiddle, sweepBottom]
+        )
+        #expect(ordered.map(\.sourceFilePath) == ["/tmp/middle.csv", "/tmp/top.csv", "/tmp/bottom.csv"])
+        #expect(ordered.map(\.sampleID) == ["sample-1", "sample-1", "sample-2"])
+    }
+
+    @Test("WorkbenchRenderPipeline preserves sourceRef order for duplicate sampleIDs")
+    func pipelinePreservesSourceRefOrderForDuplicateSampleIDs() throws {
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test",
+            workflowDisplayName: "test",
+            title: "T",
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [
+                WorkbenchPlotSeries(label: "Middle curve", x: [0, 1], y: [1, 2], sourceRef: "/tmp/middle.csv", sampleID: "sample-1"),
+                WorkbenchPlotSeries(label: "Top curve", x: [0, 1], y: [0, 1], sourceRef: "/tmp/top.csv", sampleID: "sample-1")
+            ],
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+
+        var input = WorkbenchRenderPipeline.Input(payload: payload)
+        input.seriesOrder = ["/tmp/middle.csv", "/tmp/top.csv"]
+        let output = try WorkbenchRenderPipeline.render(input)
+        #expect(output.warnings.isEmpty)
+        #expect(output.manifestPayload.series.map(\.sourceRef) == ["/tmp/top.csv", "/tmp/middle.csv"])
+    }
+
+    @Test("Manifest cache orders reorderable field sweeps to match rendered legend order")
+    func manifestCacheOrdersFieldSweepsToLegendOrder() {
+        let sweeps = [
+            makeSweep(sampleID: "sample-1", temperatureK: 0,   r1omega: [0, 1], sourceFilePath: "/tmp/0.csv"),
+            makeSweep(sampleID: "sample-1", temperatureK: 30,  r1omega: [1, 2], sourceFilePath: "/tmp/30.csv"),
+            makeSweep(sampleID: "sample-1", temperatureK: 90,  r1omega: [2, 3], sourceFilePath: "/tmp/90.csv"),
+            makeSweep(sampleID: "sample-1", temperatureK: 120, r1omega: [3, 4], sourceFilePath: "/tmp/120.csv"),
+            makeSweep(sampleID: "sample-1", temperatureK: 180, r1omega: [4, 5], sourceFilePath: "/tmp/180.csv")
+        ]
+
+        let ordered = ThreeOmegaWorkspaceStore.manifestOrderedFieldSweeps(
+            sweeps,
+            seriesOrder: ["/tmp/0.csv", "/tmp/30.csv", "/tmp/90.csv", "/tmp/120.csv", "/tmp/180.csv"]
+        )
+
+        #expect(ordered.map(\.sourceFilePath) == ["/tmp/180.csv", "/tmp/120.csv", "/tmp/90.csv", "/tmp/30.csv", "/tmp/0.csv"])
+    }
+
+    @MainActor
+    @Test("Series order survives tab switches and ignores active payload sequence when explicit order exists")
+    func seriesOrderSurvivesTabSwitches() {
+        let explicitOrder = ["/tmp/bottom.csv", "/tmp/middle.csv", "/tmp/top.csv"]
+        let manager = TabRenderManager<ThreeOmegaWorkbenchTab>(defaultTab: .fieldSweep1omega)
+        manager.tabStates[.fieldSweep1omega] = TabRenderState(seriesOrder: explicitOrder)
+
+        let payloadA = WorkbenchPlotPayload(
+            workflowID: "3w",
+            workflowDisplayName: "3w",
+            title: "T",
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [
+                WorkbenchPlotSeries(label: "Top", x: [0, 1], y: [2, 3], sourceRef: "/tmp/top.csv", sampleID: "s1"),
+                WorkbenchPlotSeries(label: "Middle", x: [0, 1], y: [1, 2], sourceRef: "/tmp/middle.csv", sampleID: "s2"),
+                WorkbenchPlotSeries(label: "Bottom", x: [0, 1], y: [0, 1], sourceRef: "/tmp/bottom.csv", sampleID: "s3")
+            ],
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+        let payloadB = WorkbenchPlotPayload(
+            workflowID: "3w",
+            workflowDisplayName: "3w",
+            title: "T",
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [
+                WorkbenchPlotSeries(label: "Middle", x: [0, 1], y: [1, 2], sourceRef: "/tmp/middle.csv", sampleID: "s2"),
+                WorkbenchPlotSeries(label: "Bottom", x: [0, 1], y: [0, 1], sourceRef: "/tmp/bottom.csv", sampleID: "s3"),
+                WorkbenchPlotSeries(label: "Top", x: [0, 1], y: [2, 3], sourceRef: "/tmp/top.csv", sampleID: "s1")
+            ],
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+
+        let rowsA = WorkbenchSeriesOrderPanel.makeRows(payload: payloadA, currentSeriesOrder: manager.state(for: .fieldSweep1omega).seriesOrder)
+        manager.activeTab = .rahe1omegaVsT
+        manager.activeTab = .fieldSweep1omega
+        let rowsB = WorkbenchSeriesOrderPanel.makeRows(payload: payloadB, currentSeriesOrder: manager.state(for: .fieldSweep1omega).seriesOrder)
+
+        #expect(manager.state(for: .fieldSweep1omega).seriesOrder == explicitOrder)
+        #expect(rowsA.map(\.identityKey) == explicitOrder)
+        #expect(rowsB.map(\.identityKey) == explicitOrder)
+        #expect(rowsA.map(\.identityKey) == rowsB.map(\.identityKey))
+    }
+
+    @Test("3ω mixed-angle legend labels match manifest series labels by sourceRef")
+    func mixedAngleLegendLabelsMatchManifestLabelsBySourceRef() throws {
+        let payload = WorkbenchPlotPayload(
+            workflowID: "3w",
+            workflowDisplayName: "3w",
+            title: "R(1ω)",
+            axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R(1ω) (Ω)"),
+            series: [
+                WorkbenchPlotSeries(label: "0 K", x: [0, 1], y: [0, 1], sourceRef: "/tmp/0.csv", sampleID: "sample-1", metadata: ["device": "0deg", "temperature": "70"]),
+                WorkbenchPlotSeries(label: "30 K", x: [0, 1], y: [1, 2], sourceRef: "/tmp/30.csv", sampleID: "sample-1", metadata: ["device": "30deg", "temperature": "70"]),
+                WorkbenchPlotSeries(label: "120 K", x: [0, 1], y: [2, 3], sourceRef: "/tmp/120.csv", sampleID: "sample-1", metadata: ["device": "120deg", "temperature": "70"]),
+                WorkbenchPlotSeries(label: "180 K", x: [0, 1], y: [3, 4], sourceRef: "/tmp/180.csv", sampleID: "sample-1", metadata: ["device": "180deg", "temperature": "70"]),
+                WorkbenchPlotSeries(label: "90 K", x: [0, 1], y: [4, 5], sourceRef: "/tmp/90.csv", sampleID: "sample-1", metadata: ["device": "90deg", "temperature": "70"])
+            ],
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+
+        var renderInput = WorkbenchRenderPipeline.Input(payload: payload)
+        let rendered = try WorkbenchRenderPipeline.render(renderInput)
+
+        var manifestPayload = payload
+        _ = WorkbenchRenderPipeline.applyLegendDimensionResolution(to: &manifestPayload)
+
+        let renderedBySourceRef = Dictionary(uniqueKeysWithValues: rendered.manifestPayload.series.compactMap { series in
+            series.sourceRef.map { ($0, series.label) }
+        })
+        let manifestBySourceRef = Dictionary(uniqueKeysWithValues: manifestPayload.series.compactMap { series in
+            series.sourceRef.map { ($0, series.label) }
+        })
+
+        #expect(renderedBySourceRef == manifestBySourceRef)
+        #expect(Set(renderedBySourceRef.values) == Set(["0deg", "30deg", "90deg", "120deg", "180deg"]))
     }
 
     // MARK: - Test case 10: clearStates preserves seriesOrder
@@ -294,8 +628,8 @@ struct V536CurveDragOrderTests {
     @Test("hitTestSeries returns the nearest series within radius")
     func hitTestSeriesFindsNearestSeries() {
         // Two horizontal series at y=0 and y=1 in data space
-        let seriesLow  = WorkbenchPlotSeries(label: "Low",  x: [0, 1], y: [0.0, 0.0], sampleID: "low")
-        let seriesHigh = WorkbenchPlotSeries(label: "High", x: [0, 1], y: [1.0, 1.0], sampleID: "high")
+        let seriesLow  = WorkbenchPlotSeries(label: "Low",  x: [0, 1], y: [0.0, 0.0], sourceRef: "/tmp/low.csv", sampleID: "low")
+        let seriesHigh = WorkbenchPlotSeries(label: "High", x: [0, 1], y: [1.0, 1.0], sourceRef: "/tmp/high.csv", sampleID: "high")
         let payload = WorkbenchPlotPayload(
             workflowID: "test", workflowDisplayName: "test", title: "",
             axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
@@ -323,7 +657,7 @@ struct V536CurveDragOrderTests {
 
     @Test("hitTestSeries returns nil outside 8pt radius")
     func hitTestSeriesMissesOutsideRadius() {
-        let series = WorkbenchPlotSeries(label: "A", x: [0, 1], y: [0.5, 0.5], sampleID: "A")
+        let series = WorkbenchPlotSeries(label: "A", x: [0, 1], y: [0.5, 0.5], sourceRef: "/tmp/A.csv", sampleID: "A")
         let payload = WorkbenchPlotPayload(
             workflowID: "test", workflowDisplayName: "test", title: "",
             axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
@@ -339,9 +673,90 @@ struct V536CurveDragOrderTests {
         #expect(hit == nil, "Should miss when location is far from all series")
     }
 
+    @Test("hitTestSeries can grab a visibly stacked curve away from the exact stroke center")
+    func hitTestSeriesFindsOffsetStackedCurve() {
+        let low = WorkbenchPlotSeries(label: "Low", x: [0, 1], y: [0.0, 0.0], sourceRef: "/tmp/low.csv", sampleID: "low")
+        let high = WorkbenchPlotSeries(label: "High", x: [0, 1], y: [1.0, 1.0], sourceRef: "/tmp/high.csv", sampleID: "high")
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test", workflowDisplayName: "test", title: "",
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [low, high],
+            reverseSeriesForLegend: false,
+            seriesReorderable: true
+        )
+        let opts = WorkbenchChartRenderer.Options()
+        let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: nil)
+        let fittedRect = CGRect(x: 0, y: 0, width: CGFloat(opts.width), height: CGFloat(opts.height))
+
+        let yMin = -0.05
+        let ySpan = 1.1
+        let lowCGY = layout.plotRect.minY + CGFloat((0.0 - yMin) / ySpan) * layout.plotRect.height
+        let lowScreenY = fittedRect.minY + (CGFloat(opts.height) - lowCGY) * (fittedRect.height / CGFloat(opts.height))
+        let offsetLocation = CGPoint(x: fittedRect.midX + 9, y: lowScreenY + 6)
+
+        let hit = layout.hitTestSeries(location: offsetLocation, fittedRect: fittedRect, payload: payload, radius: 14)
+        #expect(hit?.sampleID == "low", "Visible curve should still be draggable with a small pointer offset")
+    }
+
+    @Test("hitTestSeries works when fitted image rect is narrower than the renderer plotRect")
+    func hitTestSeriesWorksWithNarrowFittedRect() {
+        let low = WorkbenchPlotSeries(label: "Low", x: [0, 1], y: [0.0, 0.0], sourceRef: "/tmp/low.csv", sampleID: "low")
+        let high = WorkbenchPlotSeries(label: "High", x: [0, 1], y: [1.0, 1.0], sourceRef: "/tmp/high.csv", sampleID: "high")
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test", workflowDisplayName: "test", title: "",
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [low, high],
+            reverseSeriesForLegend: false,
+            seriesReorderable: true
+        )
+        let opts = WorkbenchChartRenderer.Options()
+        let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: nil)
+        let fittedRect = CGRect(x: 0, y: 0, width: 629, height: 471.75)
+
+        let yMin = -0.05
+        let ySpan = 1.1
+        let lowCGY = layout.plotRect.minY + CGFloat((0.0 - yMin) / ySpan) * layout.plotRect.height
+        let lowScreenY = fittedRect.minY + (CGFloat(opts.height) - lowCGY) * (fittedRect.height / CGFloat(opts.height))
+        let hitLocation = CGPoint(x: fittedRect.midX, y: lowScreenY)
+
+        let hit = layout.hitTestSeries(location: hitLocation, fittedRect: fittedRect, payload: payload, radius: 14)
+        #expect(hit?.sampleID == "low", "Hit-testing should use the fitted image rect, not the renderer plotRect width")
+    }
+
+    @Test("hitTestSeries can hit a data-space curve spanning x=-3...3 and y around -1...1")
+    func hitTestSeriesHitsDataSpaceCurve() {
+        let xs = stride(from: -3.0, through: 3.0, by: 1.0).map { $0 }
+        let ys = xs.map { sin($0) * 0.9 }
+        let series = WorkbenchPlotSeries(label: "Wave", x: xs, y: ys, sourceRef: "/tmp/wave.csv", sampleID: "wave")
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test", workflowDisplayName: "test", title: "",
+            axisMapping: WorkbenchAxisMapping(xField: "H", yField: "R"),
+            series: [series],
+            reverseSeriesForLegend: false,
+            seriesReorderable: true
+        )
+        let opts = WorkbenchChartRenderer.Options()
+        let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: nil)
+        let fittedRect = CGRect(x: 0, y: 0, width: 629, height: 471.75)
+
+        let xMin = xs.min() ?? 0
+        let xMax = xs.max() ?? 1
+        let yMin = ys.min() ?? 0
+        let yMax = ys.max() ?? 1
+        let targetX = 0.0
+        let targetY = 0.0
+        let cgX = layout.plotRect.minX + CGFloat((targetX - xMin) / (xMax - xMin)) * layout.plotRect.width
+        let cgY = layout.plotRect.minY + CGFloat((targetY - yMin) / (yMax - yMin)) * layout.plotRect.height
+        let screenX = fittedRect.minX + cgX * (fittedRect.width / CGFloat(opts.width))
+        let screenY = fittedRect.minY + (CGFloat(opts.height) - cgY) * (fittedRect.height / CGFloat(opts.height))
+
+        let hit = layout.hitTestSeries(location: CGPoint(x: screenX, y: screenY), fittedRect: fittedRect, payload: payload, radius: 14)
+        #expect(hit?.sampleID == "wave")
+    }
+
     @Test("hitTestSeries skips series without sampleID")
     func hitTestSeriesSkipsNilSampleID() {
-        let seriesNoID = WorkbenchPlotSeries(label: "NoID", x: [0, 1], y: [0.5, 0.5])  // no sampleID
+        let seriesNoID = WorkbenchPlotSeries(label: "NoID", x: [0, 1], y: [0.5, 0.5], sourceRef: "/tmp/noid.csv")
         let payload = WorkbenchPlotPayload(
             workflowID: "test", workflowDisplayName: "test", title: "",
             axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
@@ -414,7 +829,8 @@ struct V536CurveDragOrderTests {
     private func makeSweep(
         sampleID: String,
         temperatureK: Double,
-        r1omega: [Double]
+        r1omega: [Double],
+        sourceFilePath: String? = nil
     ) -> ThreeOmegaFieldSweepResult {
         let n = r1omega.count
         return ThreeOmegaFieldSweepResult(
@@ -422,6 +838,7 @@ struct V536CurveDragOrderTests {
             device: "testDevice",
             sampleMetadata: nil,
             sampleID: sampleID,
+            sourceFilePath: sourceFilePath,
             hField: (0..<n).map { Double($0) * 10000 },
             r1omega: r1omega,
             r3omega: r1omega.map { $0 * 0.1 },

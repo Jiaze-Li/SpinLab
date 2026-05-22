@@ -6,40 +6,68 @@ extension ThreeOmegaWorkspaceStore {
     // MARK: - Series order management
 
     func updateSeriesOrder(_ order: [String]) {
-        tabs.updateSeriesOrder(order)
+        // Order keys are per-series sourceRef identities; legacy sampleID tokens are only tolerated during alignment.
+        setFieldSweepSeriesOrder(order.isEmpty ? nil : order)
         _rerenderActiveTab()
+        _refreshManifestPayloads()
     }
 
 
     func resetSeriesOrder() {
-        tabs.resetSeriesOrder()
+        setFieldSweepSeriesOrder(nil)
         _rerenderActiveTab()
+        _refreshManifestPayloads()
     }
 
 
-    /// Applies a bottom-to-top seriesOrder to fieldSweeps, producing the render order.
+    nonisolated static func seriesOrderKey(for series: WorkbenchPlotSeries, index: Int) -> String {
+        if let sourceRef = series.sourceRef, !sourceRef.isEmpty {
+            return sourceRef
+        }
+        return "series#\(index)"
+    }
+
+
+    nonisolated static func seriesOrderKey(for sweep: ThreeOmegaFieldSweepResult, index: Int) -> String {
+        if let sourceRef = sweep.sourceFilePath, !sourceRef.isEmpty {
+            return sourceRef
+        }
+        return "series#\(index)"
+    }
+
+
+    /// Applies a bottom-to-top per-series order to fieldSweeps, producing the render order.
     nonisolated static func _applySeriesOrder(
         _ order: [String]?,
         to sweeps: [ThreeOmegaFieldSweepResult]
     ) -> [ThreeOmegaFieldSweepResult] {
         guard let order, !order.isEmpty else { return sweeps }
-        // Group by sampleID — duplicate IDs are possible when the same sample/temperature
-        // is selected more than once; preserve all matches in encounter order.
-        var bySampleID: [String: [ThreeOmegaFieldSweepResult]] = [:]
-        for s in sweeps {
-            guard let sid = s.sampleID else { continue }
-            bySampleID[sid, default: []].append(s)
+        let keyedSweeps = sweeps.enumerated().map { index, sweep in
+            (key: seriesOrderKey(for: sweep, index: index), sweep: sweep)
         }
+        let byKey = Dictionary(uniqueKeysWithValues: keyedSweeps.map { ($0.key, $0.sweep) })
+        let bySampleID = Dictionary(grouping: keyedSweeps, by: { $0.sweep.sampleID ?? "" })
         var result: [ThreeOmegaFieldSweepResult] = []
-        var consumed = Set<String>()
-        for id in order {
-            if let bucket = bySampleID[id] {
-                result.append(contentsOf: bucket)
-                consumed.insert(id)
+        var consumedKeys = Set<String>()
+
+        func append(_ keyedSweep: (key: String, sweep: ThreeOmegaFieldSweepResult)) {
+            guard consumedKeys.insert(keyedSweep.key).inserted else { return }
+            result.append(keyedSweep.sweep)
+        }
+
+        for token in order {
+            if let sweep = byKey[token] {
+                append((key: token, sweep: sweep))
+                continue
+            }
+            if let matches = bySampleID[token], !matches.isEmpty {
+                for keyedSweep in matches {
+                    append(keyedSweep)
+                }
             }
         }
-        for s in sweeps where s.sampleID.map({ !consumed.contains($0) }) ?? true {
-            result.append(s)
+        for keyedSweep in keyedSweeps where !consumedKeys.contains(keyedSweep.key) {
+            append(keyedSweep)
         }
         return result
     }
@@ -47,11 +75,19 @@ extension ThreeOmegaWorkspaceStore {
 
     /// Builds a minimal WorkbenchPlotSeries array from sweeps (for toIndexedOverrides translation).
     nonisolated static func _sweepsToFakeSeries(_ sweeps: [ThreeOmegaFieldSweepResult]) -> [WorkbenchPlotSeries] {
-        sweeps.map { WorkbenchPlotSeries(label: $0.sampleID ?? "", x: [], y: [], sampleID: $0.sampleID) }
+        sweeps.enumerated().map { _, sweep in
+            WorkbenchPlotSeries(
+                label: sweep.sampleID ?? "",
+                x: [],
+                y: [],
+                sourceRef: sweep.sourceFilePath,
+                sampleID: sweep.sampleID
+            )
+        }
     }
 
 
-    /// Aligns old seriesOrder against current sweep IDs.
+    /// Aligns old seriesOrder against current sweep keys.
     /// Returns nil when alignment matches the default order (no user customization needed).
     nonisolated static func alignSeriesOrder(old: [String]?, defaultIDs: [String]) -> [String]? {
         guard let old, !old.isEmpty else { return nil }
@@ -67,6 +103,48 @@ extension ThreeOmegaWorkspaceStore {
             result.append(id)
         }
         return result == defaultIDs ? nil : result
+    }
+
+
+    /// Aligns old seriesOrder against the current sweep identities.
+    /// sourceRef keys are preferred; legacy sampleID tokens expand to the matching curves.
+    nonisolated static func alignSeriesOrder(old: [String]?, fieldSweeps: [ThreeOmegaFieldSweepResult]) -> [String]? {
+        guard let old, !old.isEmpty else { return nil }
+        let defaultKeys = fieldSweeps.enumerated().map { index, sweep in
+            seriesOrderKey(for: sweep, index: index)
+        }
+        guard !defaultKeys.isEmpty else { return nil }
+
+        let keyedSweeps = fieldSweeps.enumerated().map { index, sweep in
+            (key: seriesOrderKey(for: sweep, index: index), sampleID: sweep.sampleID ?? "", index: index)
+        }
+        let byKey = Dictionary(uniqueKeysWithValues: keyedSweeps.map { ($0.key, $0.index) })
+        let bySampleID = Dictionary(grouping: keyedSweeps, by: { $0.sampleID })
+
+        var consumed = Set<Int>()
+        var result: [String] = []
+
+        func append(index: Int) {
+            guard consumed.insert(index).inserted else { return }
+            result.append(defaultKeys[index])
+        }
+
+        for token in old {
+            if let index = byKey[token] {
+                append(index: index)
+                continue
+            }
+            if let matches = bySampleID[token], !matches.isEmpty {
+                for match in matches.sorted(by: { $0.index < $1.index }) {
+                    append(index: match.index)
+                }
+            }
+        }
+
+        for index in fieldSweeps.indices where !consumed.contains(index) {
+            append(index: index)
+        }
+        return result == defaultKeys ? nil : result
     }
 }
 
