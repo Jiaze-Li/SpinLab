@@ -14,7 +14,7 @@ extension ThreeOmegaWorkspaceStore {
         sweeps.enumerated().map { index, sweep in
             let sourceRef = sweep.sourceFilePath ?? (index < inputFiles.count ? inputFiles[index] : nil)
             return WorkbenchPlotSeries(
-                label: sweep.sampleID ?? sourceRef.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "",
+                label: _temperatureLabel(sweep.temperatureK),
                 x: sweep.hField.map { $0 / 10000 },
                 y: sweep[keyPath: yValues],
                 sourceRef: sourceRef,
@@ -31,6 +31,7 @@ extension ThreeOmegaWorkspaceStore {
         devices: [String],
         inputFiles: [String],
         fieldSweeps: [ThreeOmegaFieldSweepResult],
+        seriesOrder: [String]? = nil,
         rtFilePath: String?,
         titleTemplate: String,
         titleTokens: [String: String],
@@ -82,27 +83,35 @@ extension ThreeOmegaWorkspaceStore {
 
         switch tab {
         case .fieldSweep1omega:
-            return WorkbenchPlotPayload(
+            let orderedSweeps = Self.manifestOrderedFieldSweeps(fieldSweeps, seriesOrder: seriesOrder)
+            var payload = WorkbenchPlotPayload(
                 workflowID: "3w",
                 workflowDisplayName: "3w",
                 title: resolveTitle("R(1ω)"),
                 axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R(1ω) (Ω)"),
-                series: _projectFieldSweepSeries(sweeps: fieldSweeps, inputFiles: inputFiles, yValues: \.r1omega),
+                series: _projectFieldSweepSeries(sweeps: orderedSweeps, inputFiles: inputFiles, yValues: \.r1omega),
                 semanticParams: isAngleSweep
                     ? ["tabKey": tab.stableKey, "deviceMode": "angleSweep", "devices": devicesToken]
-                    : ["device": device, "tabKey": tab.stableKey]
+                    : ["device": device, "tabKey": tab.stableKey],
+                seriesReorderable: true
             )
+            _ = WorkbenchRenderPipeline.applyLegendDimensionResolution(to: &payload)
+            return payload
         case .fieldSweep3omega:
-            return WorkbenchPlotPayload(
+            let orderedSweeps = Self.manifestOrderedFieldSweeps(fieldSweeps, seriesOrder: seriesOrder)
+            var payload = WorkbenchPlotPayload(
                 workflowID: "3w",
                 workflowDisplayName: "3w",
                 title: resolveTitle("R(3ω)"),
                 axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R(3ω) (Ω)"),
-                series: _projectFieldSweepSeries(sweeps: fieldSweeps, inputFiles: inputFiles, yValues: \.r3omega),
+                series: _projectFieldSweepSeries(sweeps: orderedSweeps, inputFiles: inputFiles, yValues: \.r3omega),
                 semanticParams: isAngleSweep
                     ? ["tabKey": tab.stableKey, "deviceMode": "angleSweep", "devices": devicesToken]
-                    : ["device": device, "tabKey": tab.stableKey]
+                    : ["device": device, "tabKey": tab.stableKey],
+                seriesReorderable: true
             )
+            _ = WorkbenchRenderPipeline.applyLegendDimensionResolution(to: &payload)
+            return payload
         case .rahe1omegaVsT:
             let tag = rahe1omegaMethod == .highField ? "HFE" : "WA"
             return makePayload(
@@ -136,6 +145,16 @@ extension ThreeOmegaWorkspaceStore {
         }
     }
 
+    /// Returns the field-sweep series in final render order for manifest caching.
+    /// Reorderable stacked plots are rendered top-to-bottom, so the cached manifest must
+    /// mirror that order instead of preserving the raw input sweep sequence.
+    nonisolated static func manifestOrderedFieldSweeps(
+        _ fieldSweeps: [ThreeOmegaFieldSweepResult],
+        seriesOrder: [String]?
+    ) -> [ThreeOmegaFieldSweepResult] {
+        Array(_applySeriesOrder(seriesOrder, to: fieldSweeps).reversed())
+    }
+
 
     /// Caches manifest payloads for all tabs after analysis completes.
     /// Snapshots sampleKeys, conditions, inputFiles from the current selection.
@@ -165,8 +184,16 @@ extension ThreeOmegaWorkspaceStore {
         let device = ingestionResult?.device ?? ""
         let deviceMode = ingestionResult?.deviceMode ?? "single"
         let devices = ingestionResult?.devices ?? []
+        let sharedFieldSweepSeriesOrder = fieldSweepSeriesOrder
 
         for tab in ThreeOmegaWorkbenchTab.allCases {
+            let seriesOrder: [String]?
+            switch tab {
+            case .fieldSweep1omega, .fieldSweep3omega:
+                seriesOrder = sharedFieldSweepSeriesOrder
+            default:
+                seriesOrder = tabs.state(for: tab).seriesOrder
+            }
             let payload = _buildManifestPayload(
                 tab: tab,
                 device: device,
@@ -174,13 +201,14 @@ extension ThreeOmegaWorkspaceStore {
                 devices: devices,
                 inputFiles: cachedInputFiles,
                 fieldSweeps: ingestionResult?.fieldSweeps ?? [],
+                seriesOrder: seriesOrder,
                 rtFilePath: cachedRTFilePath,
                 titleTemplate: titleTemplate,
                 titleTokens: _titleTokens,
                 v3Method: v3Method
             )
-            if let payload, payload.seriesReorderable, payload.series.contains(where: { $0.sampleID == nil }) {
-                let message = "Reorderable \(tab.stableKey) manifest payload missing sampleID."
+            if let payload, payload.seriesReorderable, payload.series.contains(where: { ($0.sourceRef?.isEmpty ?? true) }) {
+                let message = "Reorderable \(tab.stableKey) manifest payload missing sourceRef."
                 assertionFailure(message)
                 appendWarning(source: "Manifest", message: message)
             }
@@ -243,6 +271,10 @@ extension ThreeOmegaWorkspaceStore {
                 semanticParams: params
             )
             tabs.tabOutputs[tab] = existing
+            }
         }
     }
-}
+
+    private func _temperatureLabel(_ temperatureK: Double) -> String {
+        "\(Int(temperatureK.rounded())) K"
+    }

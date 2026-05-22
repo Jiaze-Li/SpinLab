@@ -32,7 +32,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
     var seriesLabelOverrides: [String: String] = [:]
     var hiddenPointLabelIndicesBySeries: [String: [Int]] = [:]
     // TODO(boundary): remove legacy Int-string key migration once all persisted packs are migrated to sampleID keys.
-    /// User-defined bottom-to-top series order by sampleID. nil = use workflow default. (v5.3.6)
+    /// User-defined bottom-to-top series order keys. nil = use workflow default. (v5.3.6)
     var seriesOrder: [String]? = nil
 
     init(

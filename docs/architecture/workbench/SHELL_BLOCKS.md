@@ -303,6 +303,7 @@ Future refactors should stay incremental instead of jumping straight into one la
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchEnvironment.swift` — supplies Workbench-specific environment capabilities
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift` — renders the shared Workbench plot canvas
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift` — hosts shared plot controls for Workbench
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift` — coordinates sourceRef-based series reordering for stacked plots
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift` — defines the shared Workbench plotting contract
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchReadAdapter.swift` — snapshots shell-facing result state for workflow read paths
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchResultHeaderShell.swift` — presents shared result actions and save/load entry points

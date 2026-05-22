@@ -54,6 +54,10 @@ private struct ThreeOmegaPlotControlsPanel: View {
             numericDisplayCache: store.cachedSampleNumericDisplay,
             seriesRenderMode: $store.tabs.seriesRenderMode,
             chartStyleOverrides: $store.tabs.chartStyleOverrides,
+            seriesOrderPayload: store.activeChartManifestPayload,
+            currentSeriesOrder: store.activeSeriesOrder,
+            canReorderSeries: store.canReorderSeries,
+            onSeriesOrderCommit: { order in store.updateSeriesOrder(order) },
             onChange: {
                 store.rerenderForStyleChange()
                 appState.flushInteractionSnapshotNow()

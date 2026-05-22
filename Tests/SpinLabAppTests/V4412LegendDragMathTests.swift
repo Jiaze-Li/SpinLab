@@ -119,6 +119,53 @@ final class V4412LegendDragMathTests: XCTestCase {
         XCTAssertEqual(recoveredNorm.y, adjusted.y, accuracy: 1e-4)
     }
 
+    /// Repeated drag updates must keep advancing the legend preview.
+    /// This catches the regression where the canvas captured drag state only on the first frame.
+    func testLegendDragStep_recomputesOnSubsequentDragEvents() {
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test",
+            workflowDisplayName: "test",
+            title: "Legend",
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [
+                WorkbenchPlotSeries(label: "Top", x: [0, 1], y: [1, 2], sourceRef: "/tmp/top.csv", sampleID: "top"),
+                WorkbenchPlotSeries(label: "Bottom", x: [0, 1], y: [0, 1], sourceRef: "/tmp/bottom.csv", sampleID: "bottom")
+            ],
+            reverseSeriesForLegend: true,
+            seriesReorderable: false
+        )
+        let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: nil)
+        let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+
+        let start = CGPoint(x: 180, y: 160)
+        let firstCursor = CGPoint(x: 220, y: 200)
+        let secondCursor = CGPoint(x: 320, y: 260)
+
+        guard let first = canvas.legendDragStep(
+            start: start,
+            current: firstCursor,
+            fittedRect: fitted,
+            existingGrabOffset: nil
+        ) else {
+            XCTFail("Expected first legend drag step")
+            return
+        }
+        guard let second = canvas.legendDragStep(
+            start: start,
+            current: secondCursor,
+            fittedRect: fitted,
+            existingGrabOffset: first.grabOffset
+        ) else {
+            XCTFail("Expected second legend drag step")
+            return
+        }
+
+        XCTAssertNotEqual(first.adjustedNorm.x, second.adjustedNorm.x, accuracy: 1e-6)
+        XCTAssertNotEqual(first.adjustedNorm.y, second.adjustedNorm.y, accuracy: 1e-6)
+        XCTAssertNotEqual(first.previewPoint.x, second.previewPoint.x, accuracy: 1e-6)
+        XCTAssertNotEqual(first.previewPoint.y, second.previewPoint.y, accuracy: 1e-6)
+    }
+
     // MARK: - Helpers (mirrors WorkbenchPlotCanvas private methods)
 
     private func plotNormalizedForTest(location: CGPoint) -> CGPoint? {

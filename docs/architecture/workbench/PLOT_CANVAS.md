@@ -5,6 +5,7 @@
 ## Universal Rules (all workflows)
 
 - Plot canvas is a workflow-independent shell — legend, edit, and interaction behaviors apply uniformly to all workflows.
+- Plot canvas never mutates render geometry; series order is applied before render in the workflow shell / controls path.
 - Stack offset range default: `0...1.6` unless user specifies otherwise.
 - Series render mode (line / scatter / line+scatter) selectable per workflow, applied uniformly to all series.
 - Chart title is not bold.
@@ -31,6 +32,7 @@
 - Drag in legend area pans all curves; drag outside legend area reorders a specific curve. Guide line shows target position during drag.
 - Right-click → Reset Curve Order returns to workflow default.
 - Order persists in AnalysisPack save/load.
+- Boundary details and guardrails: [`SERIES_ORDER_BOUNDARY.md`](SERIES_ORDER_BOUNDARY.md)
 
 ## Tests
 
@@ -46,6 +48,7 @@
 - `Sources/SpinLabApp/Features/Workbench/PlotCanvasMouseTracker.swift` — tracks mouse position and computes hit-test results on the plot canvas
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift` — sidebar controls panel for plot display settings (style, ranges, offsets)
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift` — standard plot control bindings and default implementations shared across workflows
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift` — reorders stacked series from plot controls by per-series identity keys
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift` — observable store for plot display state (style params, visibility, range overrides)
 - `Sources/SpinLabApp/Workbench/V3/WorkbenchChartRenderer.swift` — shared chart renderer producing plot layer output from workflow analysis data
 - `Sources/SpinLabApp/UseCases/LegendDimensionResolver.swift` — resolves legend item dimensions for auto-sizing the plot legend overlay

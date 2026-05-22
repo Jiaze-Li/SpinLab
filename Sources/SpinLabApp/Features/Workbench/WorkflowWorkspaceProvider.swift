@@ -101,7 +101,7 @@ protocol WorkbenchWorkspaceProviding: WorkbenchPlottingStore, AnalysisPackProvid
 
     // MARK: Series reordering (opt-in)
 
-    /// Bottom-to-top sampleID order for the active tab; nil = workflow default order.
+    /// Bottom-to-top per-series order keys for the active tab; nil = workflow default order.
     var activeSeriesOrder: [String]? { get }
     /// Whether the active tab's chart supports drag-to-reorder curves.
     var canReorderSeries: Bool { get }

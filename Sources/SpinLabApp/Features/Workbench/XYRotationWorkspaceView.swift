@@ -25,6 +25,10 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                     numericDisplayCache: store.cachedSampleNumericDisplay,
                     seriesRenderMode: $bindableStore.tabs.seriesRenderMode,
                     chartStyleOverrides: $bindableStore.tabs.chartStyleOverrides,
+                    seriesOrderPayload: store.activeChartManifestPayload,
+                    currentSeriesOrder: store.activeSeriesOrder,
+                    canReorderSeries: store.canReorderSeries,
+                    onSeriesOrderCommit: { order in store.updateSeriesOrder(order) },
                     onChange: { store.rerenderForStyleChange() }
                 ) {
                     HStack(spacing: 12) {

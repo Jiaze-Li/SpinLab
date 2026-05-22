@@ -43,17 +43,14 @@ extension ThreeOmegaWorkspaceStore {
 
         let capturedRTHit = selectedRTHit
         let capturedNumericDisplay: [String: [String: String]] = cachedSampleNumericDisplay
-        let capturedOrder1 = tabs.state(for: .fieldSweep1omega).seriesOrder
-        let capturedOrder3 = tabs.state(for: .fieldSweep3omega).seriesOrder
+        let capturedFieldSweepSeriesOrder = fieldSweepSeriesOrder
 
         analysisTask = Task { [weak self] in
             guard let self else { return }
-            let (result, plots, aligned1, aligned3) = await Task.detached(priority: .userInitiated) { [selectedHits] in
+            let (result, plots, alignedSeriesOrder) = await Task.detached(priority: .userInitiated) { [selectedHits] in
                 let ingestUseCase = IngestThreeOmegaSelectionsUseCase()
                 let result = ingestUseCase.execute(hits: selectedHits, rtHit: capturedRTHit, numericDisplayBySample: capturedNumericDisplay)
-                let defaultIDs = result.fieldSweeps.compactMap(\.sampleID)
-                let aligned1 = ThreeOmegaWorkspaceStore.alignSeriesOrder(old: capturedOrder1, defaultIDs: defaultIDs)
-                let aligned3 = ThreeOmegaWorkspaceStore.alignSeriesOrder(old: capturedOrder3, defaultIDs: defaultIDs)
+                let alignedSeriesOrder = ThreeOmegaWorkspaceStore.alignSeriesOrder(old: capturedFieldSweepSeriesOrder, fieldSweeps: result.fieldSweeps)
                 var renderer = ThreeOmegaPlotRenderer()
                 renderer.showGrid              = capturedGrid
                 renderer.seriesRenderMode      = capturedRenderMode
@@ -63,15 +60,14 @@ extension ThreeOmegaWorkspaceStore {
                 renderer.minGapFraction        = capturedMinGap
                 renderer.titleTemplate          = capturedTemplate
                 renderer.titleTokens            = capturedTokens
-                let plots = renderer.renderAllTabs(result: result, seriesOrder1omega: aligned1, seriesOrder3omega: aligned3, rahe1Method: capturedRAHE1MethodForPlots, rahe3Method: capturedRAHE3MethodForPlots)
-                return (result, plots, aligned1, aligned3)
+                let plots = renderer.renderAllTabs(result: result, seriesOrder1omega: alignedSeriesOrder, seriesOrder3omega: alignedSeriesOrder, rahe1Method: capturedRAHE1MethodForPlots, rahe3Method: capturedRAHE3MethodForPlots)
+                return (result, plots, alignedSeriesOrder)
             }.value
 
             guard !Task.isCancelled else { return }
             self.ingestionResult = result
             self._applyPlots(plots)
-            self.tabs.tabStates[.fieldSweep1omega, default: TabRenderState()].seriesOrder = aligned1
-            self.tabs.tabStates[.fieldSweep3omega, default: TabRenderState()].seriesOrder = aligned3
+            self.setFieldSweepSeriesOrder(alignedSeriesOrder)
 
             // Pipeline warnings (legend resolver)
             for w in plots.pipelineWarnings {
