@@ -47,6 +47,7 @@ mkdir -p "${APP_BUNDLE_PATH}/Contents/MacOS"
 
 cp "${BIN_PATH}" "${APP_BUNDLE_PATH}/Contents/MacOS/${APP_NAME}"
 chmod +x "${APP_BUNDLE_PATH}/Contents/MacOS/${APP_NAME}"
+codesign --remove-signature "${APP_BUNDLE_PATH}/Contents/MacOS/${APP_NAME}"
 
 if [[ -f "${APP_ICON_SOURCE}" ]]; then
   mkdir -p "${APP_BUNDLE_PATH}/Contents/Resources"
@@ -88,8 +89,6 @@ cat > "${APP_BUNDLE_PATH}/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# Ad-hoc sign to avoid launch restrictions on manually bundled apps.
-codesign --force --deep --sign - "${APP_BUNDLE_PATH}" >/dev/null 2>&1 || true
 
 echo "Version: ${APP_VERSION} (${APP_BUILD_VERSION})"
 echo "Done: ${APP_BUNDLE_PATH}"
