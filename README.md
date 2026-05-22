@@ -60,6 +60,7 @@ If you just want to check what follow-up action is required after local edits, r
 ```
 
 It reports whether you need to rebuild the desktop app, publish the web library, or do nothing for docs-only changes. It also reminds you to restart SpinLab.app if the external repo pointer file was edited.
+It expects the real app bundle at `/Applications/SpinLab.app` and does not use any Desktop bundle or alias.
 
 Validation is required before publishing. Do not commit or push a web export until the validator passes.
 
@@ -80,5 +81,5 @@ Codex and Claude should treat code edits as incomplete until the required app/si
 - If `Resources/WebLibraryTemplate/` or `scripts/export_static_library.py` changed, run `./scripts/publish_web_library.sh`.
 - If both changed, do both.
 - Real app: `/Applications/SpinLab.app`
-- Desktop shortcut: `~/Desktop/SpinLab.app` -> `/Applications/SpinLab.app`
+- No Desktop `SpinLab.app` bundle, symlink, or alias should exist.
 - Final responses must say whether Swift changed, whether Web UI/export changed, whether rebuild/publish was required, whether each was completed, and the updated app/site result.
