@@ -62,34 +62,26 @@ final class _PlotMouseView: NSView {
 
         switch event.type {
         case .leftMouseDown:
-            print("[PlotCanvasMouseTracker] leftMouseDown location=\(NSStringFromPoint(pt)) boundsContains=\(bounds.contains(pt))")
             guard bounds.contains(pt) else { _reset(); return }
             downPt = pt
             dragging = false
-            print("[PlotCanvasMouseTracker] mouseDown storedStart=\(String(describing: downPt)) dragging=\(dragging)")
 
         case .leftMouseDragged:
-            print("[PlotCanvasMouseTracker] leftMouseDragged location=\(NSStringFromPoint(pt)) start=\(String(describing: downPt))")
             guard let start = downPt else { return }
             let dist = hypot(pt.x - start.x, pt.y - start.y)
             let threshold = tracker?.minimumDragDistance ?? 4
-            print("[PlotCanvasMouseTracker] drag-distance start=\(NSStringFromPoint(start)) current=\(NSStringFromPoint(pt)) distance=\(dist) threshold=\(threshold) thresholdPassed=\(dist >= threshold)")
             guard dist >= threshold else { return }
             dragging = true
-            print("[PlotCanvasMouseTracker] onDragChangedCallbackCalled=true")
             tracker?.onDragChanged?(start, pt)
 
         case .leftMouseUp:
-            print("[PlotCanvasMouseTracker] leftMouseUp location=\(NSStringFromPoint(pt)) start=\(String(describing: downPt)) dragging=\(dragging)")
             guard let start = downPt else { return }
             if dragging {
-                print("[PlotCanvasMouseTracker] onDragEndedCallbackCalled=true")
                 tracker?.onDragEnded?(start, pt)
             } else {
                 tracker?.onTap?(pt)
             }
             _reset()
-            print("[PlotCanvasMouseTracker] mouseUp reset start=\(String(describing: downPt)) dragging=\(dragging)")
 
         default: break
         }
