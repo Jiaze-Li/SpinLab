@@ -4,6 +4,27 @@ import Testing
 
 @Suite("Workflow State Boundaries")
 struct V563WorkflowStateBoundaryTests {
+    private func makeSearchHit(
+        id: String = "hit-1",
+        sampleKey: String = "PN31|b|STO|111",
+        workflowID: String = "ahe",
+        workflowCanonicalID: String = "ahe"
+    ) -> WorkflowMeasurementSearchHit {
+        WorkflowMeasurementSearchHit(
+            sidecarPath: "/tmp/\(id).spinlab.json",
+            measurementFilePath: "/tmp/\(id).dat",
+            sourceFilePath: "/tmp/\(id).dat",
+            workflowID: workflowID,
+            workflowDisplayName: "AHE",
+            workflowCanonicalID: workflowCanonicalID,
+            batchID: "PN31",
+            sampleKey: sampleKey,
+            sampleSubstrate: "STO111",
+            conditions: ["temperature": "80K"],
+            channels: ["ch1"],
+            appliedAt: .distantPast
+        )
+    }
 
     @MainActor
     @Test("TabRenderManager owns plot outputs; activeImageData is a projection")
@@ -677,5 +698,84 @@ struct V563WorkflowStateBoundaryTests {
         #expect(rahe1Payload?.title != rahe3Payload?.title)
         #expect(rahe1Payload?.axisMapping.xField != rahe3Payload?.axisMapping.xField)
         #expect(rahe1Payload?.axisMapping.yField != rahe3Payload?.axisMapping.yField)
+    }
+
+    @MainActor
+    @Test("Editing plot title does not mutate canonical search query/results/running/message")
+    func editingPlotTitleDoesNotMutateSearchShellState() {
+        let persistence = LocalPersistenceStub(archivedRecords: [], projects: [])
+        let wfs = WorkbenchFeatureStore(
+            libraryRepository: LibraryRepository(persistence: persistence)
+        )
+        let hits = [makeSearchHit()]
+
+        wfs.setSearchQueryText("ahe pn31 80k", for: .ahe)
+        wfs.restoreSearchState(results: hits, queryText: "ahe pn31 80k", for: .ahe)
+        wfs.aheWorkspace.cachedSearchResults = hits
+        wfs.aheWorkspace.updatePlotTitle("Edited title")
+
+        #expect(wfs.searchQueryText(for: .ahe) == "ahe pn31 80k")
+        #expect(wfs.searchResultsList(for: .ahe) == hits)
+        #expect(wfs.isSearchRunning(for: .ahe) == false)
+        #expect(wfs.searchMessage(for: .ahe) == "Restored from analysis pack (1 hit(s)).")
+    }
+
+    @MainActor
+    @Test("Editing legend does not mutate canonical search query/results")
+    func editingLegendDoesNotMutateSearchShellState() {
+        let persistence = LocalPersistenceStub(archivedRecords: [], projects: [])
+        let wfs = WorkbenchFeatureStore(
+            libraryRepository: LibraryRepository(persistence: persistence)
+        )
+        let hits = [makeSearchHit()]
+
+        wfs.setSearchQueryText("ahe pn31", for: .ahe)
+        wfs.restoreSearchState(results: hits, queryText: "ahe pn31", for: .ahe)
+        wfs.aheWorkspace.cachedSearchResults = hits
+        wfs.aheWorkspace.updateLegendPoint(CGPoint(x: 0.2, y: 0.8))
+
+        #expect(wfs.searchQueryText(for: .ahe) == "ahe pn31")
+        #expect(wfs.searchResultsList(for: .ahe) == hits)
+    }
+
+    @MainActor
+    @Test("rerenderForStyleChange does not mutate canonical search query/results/selection")
+    func rerenderForStyleChangeDoesNotMutateSearchOrSelection() {
+        let persistence = LocalPersistenceStub(archivedRecords: [], projects: [])
+        let wfs = WorkbenchFeatureStore(
+            libraryRepository: LibraryRepository(persistence: persistence)
+        )
+        let hit = makeSearchHit(id: "hit-rerender")
+        let hits = [hit]
+
+        wfs.setSearchQueryText("ahe rerender", for: .ahe)
+        wfs.restoreSearchState(results: hits, queryText: "ahe rerender", for: .ahe)
+        wfs.aheWorkspace.cachedSearchResults = hits
+        wfs.aheWorkspace.selectedSearchResultIDs = [hit.id]
+
+        wfs.aheWorkspace.rerenderForStyleChange()
+
+        #expect(wfs.searchQueryText(for: .ahe) == "ahe rerender")
+        #expect(wfs.searchResultsList(for: .ahe) == hits)
+        #expect(wfs.aheWorkspace.selectedSearchResultIDs == [hit.id])
+    }
+
+    @MainActor
+    @Test("Selection toggle does not mutate canonical query text")
+    func selectionToggleDoesNotMutateQueryText() {
+        let persistence = LocalPersistenceStub(archivedRecords: [], projects: [])
+        let wfs = WorkbenchFeatureStore(
+            libraryRepository: LibraryRepository(persistence: persistence)
+        )
+        let hit = makeSearchHit(id: "hit-select")
+        let hits = [hit]
+
+        wfs.setSearchQueryText("ahe selection invariant", for: .ahe)
+        wfs.restoreSearchState(results: hits, queryText: "ahe selection invariant", for: .ahe)
+        wfs.aheWorkspace.cachedSearchResults = hits
+
+        wfs.aheWorkspace.toggleSearchHitSelection(hit.id)
+        #expect(wfs.searchQueryText(for: .ahe) == "ahe selection invariant")
+        #expect(wfs.aheWorkspace.selectedSearchResultIDs.contains(hit.id))
     }
 }
