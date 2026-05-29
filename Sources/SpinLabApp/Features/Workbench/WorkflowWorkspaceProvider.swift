@@ -115,7 +115,13 @@ protocol WorkbenchWorkspaceProviding: WorkbenchPlottingStore, AnalysisPackProvid
     // MARK: Save to Library
 
     func persistToLibrary(onComplete: (() -> Void)?)
+
+    /// Status message produced by the most recent `persistToLibrary()` call.
+    /// Nil when no save has occurred, after `clearPlot()`, or when analysis starts.
+    /// Preferred by the shell over `analysisMessage` when non-nil.
+    var saveMessage: String? { get }
 }
+
 
 // MARK: - Default implementations
 
@@ -146,6 +152,8 @@ extension WorkbenchWorkspaceProviding {
     var canReorderSeries: Bool { false }
     func updateSeriesOrder(_ order: [String]) {}
     func resetSeriesOrder() {}
+
+    var saveMessage: String? { nil }
 }
 
 // MARK: - WorkbenchWarningEntry

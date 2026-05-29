@@ -32,6 +32,11 @@ final class AHEWorkspaceStore {
     /// Use this for `onChange` observation — avoids requiring `PersistenceOutcome: Equatable`.
     private(set) var persistCount: Int = 0
 
+    /// Save-to-library status message. Written only by `persistToLibrary()`.
+    /// Cleared on `clearPlot()` and at analysis start.
+    /// Preferred over `plotMessage` (analysis status) for save status display.
+    var saveMessage: String?
+
     // MARK: - Pre-persist metric override (V3.4.1)
 
     /// A pending manual correction the user has entered before clicking "Save to Library".
@@ -237,6 +242,7 @@ final class AHEWorkspaceStore {
         lastExtractedMetrics = [:]
         isPlotRendering = false
         plotMessage = nil
+        saveMessage = nil
         currentCandidateAxisFields = []
         plotAxisXOverride = ""
         plotAxisYOverride = ""
@@ -281,11 +287,11 @@ final class AHEWorkspaceStore {
 
     func persistToLibrary(onComplete: (() -> Void)? = nil) {
         guard let png = activeChartPNG else {
-            plotMessage = "No chart to save. Render first."
+            saveMessage = "No chart to save. Render first."
             return
         }
         guard let payload = activeChartManifestPayload else {
-            plotMessage = "No manifest payload available."
+            saveMessage = "No manifest payload available."
             return
         }
         let libraryRootPath = lastLibraryRootPath
@@ -312,12 +318,14 @@ final class AHEWorkspaceStore {
                 self.pendingMetricOverride = nil
                 self.pendingRAHEOverride = nil
                 self.persistCount += 1
-                self.plotMessage = "Saved to Library."
+                self.saveMessage = "Saved to Library."
+                self.refreshRelatedCharts()
             case .partial(_, let metricError):
                 self.persistCount += 1
-                self.plotMessage = "Chart saved; metric error: \(metricError)"
+                self.saveMessage = "Chart saved; metric error: \(metricError)"
+                self.refreshRelatedCharts()
             case .failure(let msg):
-                self.plotMessage = "Save failed: \(msg)"
+                self.saveMessage = "Save failed: \(msg)"
             }
             onComplete?()
         }
@@ -614,6 +622,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
         plotTask?.cancel()
         isPlotRendering = true
         plotMessage = nil
+        saveMessage = nil
         tabs.clearOutputs()
         currentRunTrace = nil
         persistenceOutcome = nil

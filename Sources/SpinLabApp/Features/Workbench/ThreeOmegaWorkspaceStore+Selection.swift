@@ -34,6 +34,7 @@ extension ThreeOmegaWorkspaceStore {
         currentRunTrace          = nil
         isAnalyzing              = false
         analysisMessage          = nil
+        saveMessage              = nil
         _titleTokens             = [:]
         tabs.clearAll()
         warningLog.clear()

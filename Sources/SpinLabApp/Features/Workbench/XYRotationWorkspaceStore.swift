@@ -21,6 +21,11 @@ final class XYRotationWorkspaceStore {
     private(set) var isAnalyzing: Bool = false
     var analysisMessage: String?
 
+    /// Save-to-library status message. Written only by `persistToLibrary()`.
+    /// Cleared on `clearPlot()` and at analysis start.
+    /// Preferred over `analysisMessage` (analysis status) for save status display.
+    var saveMessage: String?
+
     // MARK: - Multi-tab render state (shell capability)
 
     var tabs = TabRenderManager<XYRotationWorkbenchTab>(defaultTab: .rxxVsPhi)
@@ -202,6 +207,7 @@ final class XYRotationWorkspaceStore {
         currentRunTrace = nil
         isAnalyzing = false
         analysisMessage = nil
+        saveMessage = nil
         _titleTokens = [:]
         warningLog.clear()
         activePackID = nil
@@ -259,11 +265,11 @@ final class XYRotationWorkspaceStore {
 
     func persistToLibrary(onComplete: (() -> Void)? = nil) {
         guard let png = activeChartPNG else {
-            analysisMessage = "No chart to save. Run analysis first."
+            saveMessage = "No chart to save. Run analysis first."
             return
         }
         guard let payload = activeChartManifestPayload else {
-            analysisMessage = "No manifest payload available for the active tab."
+            saveMessage = "No manifest payload available for the active tab."
             return
         }
         let libraryRootPath = lastLibraryRootPath
@@ -287,13 +293,13 @@ final class XYRotationWorkspaceStore {
             self.currentRunTrace = outcome.trace
             switch outcome {
             case .success:
-                self.analysisMessage = "Saved to Library."
+                self.saveMessage = "Saved to Library."
                 self.refreshRelatedCharts()
             case .partial(_, let err):
-                self.analysisMessage = "Chart saved; metric error: \(err)"
+                self.saveMessage = "Chart saved; metric error: \(err)"
                 self.refreshRelatedCharts()
             case .failure(let err):
-                self.analysisMessage = "Save failed: \(err)"
+                self.saveMessage = "Save failed: \(err)"
             }
             onComplete?()
         }
@@ -586,6 +592,7 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
         analysisTask?.cancel()
         isAnalyzing = true
         analysisMessage = nil
+        saveMessage = nil
         tabs.clearOutputs()
         _renderRevision &+= 1  // invalidate any in-flight rerenders
 

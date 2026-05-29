@@ -71,6 +71,11 @@ final class ThreeOmegaWorkspaceStore {
     var isAnalyzing: Bool = false
     var analysisMessage: String?
 
+    /// Save-to-library status message. Written only by `persistToLibrary()`.
+    /// Cleared on `clearPlot()` and at analysis start.
+    /// Preferred over `analysisMessage` (analysis status) for save status display.
+    var saveMessage: String?
+
     // MARK: - Warning log (persists across runs within the session)
 
     var warningLog: WorkbenchWarningLog = WorkbenchWarningLog()

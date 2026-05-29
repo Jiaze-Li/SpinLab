@@ -212,7 +212,7 @@ struct V537SaveModuleBoundaryTests {
     // MARK: - 3: Nil PNG guard — save fields contained
 
     @MainActor
-    @Test("AHE nil PNG guard sets only plotMessage; persistenceOutcome and currentRunTrace unchanged")
+    @Test("AHE nil PNG guard sets only saveMessage; plotMessage and other state unchanged")
     func ahePersistNilPNGIsContained() {
         let store = AHEWorkspaceStore()
         store.currentRunTrace = sentinelTrace(runID: "sentinel-ahe-png", workflowID: "ahe")
@@ -220,8 +220,9 @@ struct V537SaveModuleBoundaryTests {
 
         store.persistToLibrary()
 
-        // Message field: AHE uses plotMessage (documents test-6 routing)
-        #expect(store.plotMessage == "No chart to save. Render first.")
+        // Save guard writes to saveMessage; plotMessage (analysis field) is untouched
+        #expect(store.saveMessage == "No chart to save. Render first.")
+        #expect(store.plotMessage == nil)
         // Save-side fields unchanged
         #expect(store.persistenceOutcome == nil)
         #expect(store.currentRunTrace?.runID == "sentinel-ahe-png")
@@ -232,7 +233,7 @@ struct V537SaveModuleBoundaryTests {
     }
 
     @MainActor
-    @Test("XY nil PNG guard sets only analysisMessage; persistenceOutcome and currentRunTrace unchanged")
+    @Test("XY nil PNG guard sets only saveMessage; analysisMessage and other state unchanged")
     func xyPersistNilPNGIsContained() {
         let store = XYRotationWorkspaceStore()
         store.currentRunTrace = sentinelTrace(runID: "sentinel-xy-png", workflowID: "xy")
@@ -240,8 +241,9 @@ struct V537SaveModuleBoundaryTests {
 
         store.persistToLibrary()
 
-        // Message field: XY uses analysisMessage (documents test-6 routing)
-        #expect(store.analysisMessage == "No chart to save. Run analysis first.")
+        // Save guard writes to saveMessage; analysisMessage (analysis field) is untouched
+        #expect(store.saveMessage == "No chart to save. Run analysis first.")
+        #expect(store.analysisMessage == nil)
         #expect(store.persistenceOutcome == nil)
         #expect(store.currentRunTrace?.runID == "sentinel-xy-png")
         #expect(store.ingestionResult == nil)
@@ -249,7 +251,7 @@ struct V537SaveModuleBoundaryTests {
     }
 
     @MainActor
-    @Test("3ω nil PNG guard sets only analysisMessage; persistenceOutcome and currentRunTrace unchanged")
+    @Test("3ω nil PNG guard sets only saveMessage; analysisMessage and other state unchanged")
     func threeOmegaPersistNilPNGIsContained() {
         let store = ThreeOmegaWorkspaceStore()
         store.currentRunTrace = sentinelTrace(runID: "sentinel-3w-png", workflowID: "3w")
@@ -257,8 +259,9 @@ struct V537SaveModuleBoundaryTests {
 
         store.persistToLibrary()
 
-        // Message field: 3ω uses analysisMessage (documents test-6 routing)
-        #expect(store.analysisMessage == "No chart to save. Run analysis first.")
+        // Save guard writes to saveMessage; analysisMessage (analysis field) is untouched
+        #expect(store.saveMessage == "No chart to save. Run analysis first.")
+        #expect(store.analysisMessage == nil)
         #expect(store.persistenceOutcome == nil)
         #expect(store.currentRunTrace?.runID == "sentinel-3w-png")
         #expect(store.ingestionResult == nil)
@@ -268,7 +271,7 @@ struct V537SaveModuleBoundaryTests {
     // MARK: - 3: Nil manifest guard — save fields contained
 
     @MainActor
-    @Test("AHE nil manifest guard sets only plotMessage; all other state unchanged")
+    @Test("AHE nil manifest guard sets only saveMessage; plotMessage and other state unchanged")
     func ahePersistNilManifestIsContained() {
         let store = AHEWorkspaceStore()
         // PNG present, manifest absent
@@ -281,7 +284,8 @@ struct V537SaveModuleBoundaryTests {
 
         store.persistToLibrary()
 
-        #expect(store.plotMessage == "No manifest payload available.")
+        #expect(store.saveMessage == "No manifest payload available.")
+        #expect(store.plotMessage == nil)
         #expect(store.persistenceOutcome == nil)
         #expect(store.currentRunTrace?.runID == "sentinel-ahe-mfst")
         #expect(store.ingestionResult == nil)
@@ -289,7 +293,7 @@ struct V537SaveModuleBoundaryTests {
     }
 
     @MainActor
-    @Test("XY nil manifest guard sets only analysisMessage; all other state unchanged")
+    @Test("XY nil manifest guard sets only saveMessage; analysisMessage and other state unchanged")
     func xyPersistNilManifestIsContained() {
         let store = XYRotationWorkspaceStore()
         store.tabs.setOutput(
@@ -301,7 +305,8 @@ struct V537SaveModuleBoundaryTests {
 
         store.persistToLibrary()
 
-        #expect(store.analysisMessage == "No manifest payload available for the active tab.")
+        #expect(store.saveMessage == "No manifest payload available for the active tab.")
+        #expect(store.analysisMessage == nil)
         #expect(store.persistenceOutcome == nil)
         #expect(store.currentRunTrace?.runID == "sentinel-xy-mfst")
         #expect(store.ingestionResult == nil)
@@ -309,7 +314,7 @@ struct V537SaveModuleBoundaryTests {
     }
 
     @MainActor
-    @Test("3ω nil manifest guard sets only analysisMessage; all other state unchanged")
+    @Test("3ω nil manifest guard sets only saveMessage; analysisMessage and other state unchanged")
     func threeOmegaPersistNilManifestIsContained() {
         let store = ThreeOmegaWorkspaceStore()
         store.tabs.setOutput(
@@ -321,7 +326,8 @@ struct V537SaveModuleBoundaryTests {
 
         store.persistToLibrary()
 
-        #expect(store.analysisMessage == "No manifest payload available for the active tab.")
+        #expect(store.saveMessage == "No manifest payload available for the active tab.")
+        #expect(store.analysisMessage == nil)
         #expect(store.persistenceOutcome == nil)
         #expect(store.currentRunTrace?.runID == "sentinel-3w-mfst")
         #expect(store.ingestionResult == nil)
@@ -499,9 +505,9 @@ struct V537SaveModuleBoundaryTests {
         #expect(!threePersist.contains("commitRunTrace()"))
     }
 
-    // MARK: - 6: Message field routing (source inspection, locks current behavior for 5E-3)
+    // MARK: - 6: Message field routing (source inspection, Phase 5E-3 aligned)
 
-    @Test("AHE persistToLibrary uses plotMessage; XY and 3ω use analysisMessage")
+    @Test("All workflows persistToLibrary write to saveMessage; not to analysisMessage or plotMessage")
     func messageFieldRoutingByWorkflow() throws {
         let ahe = try loadSource(file: "AHEWorkspaceStore.swift")
         let xy = try loadSource(file: "XYRotationWorkspaceStore.swift")
@@ -511,20 +517,20 @@ struct V537SaveModuleBoundaryTests {
         let xyPersist = try #require(extractFunction("persistToLibrary", from: xy))
         let threePersist = try #require(extractFunction("persistToLibrary", from: threeOmega))
 
-        // AHE: plotMessage only (analysisMessage is a computed alias — not written directly)
-        #expect(ahePersist.contains("plotMessage"))
-        #expect(!ahePersist.contains("analysisMessage"))
+        // All workflows: saveMessage receives save status
+        #expect(ahePersist.contains("saveMessage"))
+        #expect(xyPersist.contains("saveMessage"))
+        #expect(threePersist.contains("saveMessage"))
 
-        // XY and 3ω: analysisMessage (no plotMessage)
-        #expect(xyPersist.contains("analysisMessage"))
-        #expect(!xyPersist.contains("plotMessage"))
-        #expect(threePersist.contains("analysisMessage"))
-        #expect(!threePersist.contains("plotMessage"))
+        // No workflow writes save status to the analysis message fields
+        #expect(!ahePersist.contains("plotMessage"))
+        #expect(!xyPersist.contains("analysisMessage"))
+        #expect(!threePersist.contains("analysisMessage"))
     }
 
-    // MARK: - 7: Related charts refresh routing (source inspection, 5E-3 target for AHE alignment)
+    // MARK: - 7: Related charts refresh routing (source inspection, Phase 5E-3 aligned)
 
-    @Test("XY and 3ω persistToLibrary call refreshRelatedCharts on success/partial; AHE does not (5E-3 target)")
+    @Test("All three persistToLibrary implementations call refreshRelatedCharts on success/partial; guard paths do not")
     func relatedChartsRefreshRouting() throws {
         let ahe = try loadSource(file: "AHEWorkspaceStore.swift")
         let xy = try loadSource(file: "XYRotationWorkspaceStore.swift")
@@ -534,11 +540,139 @@ struct V537SaveModuleBoundaryTests {
         let xyPersist = try #require(extractFunction("persistToLibrary", from: xy))
         let threePersist = try #require(extractFunction("persistToLibrary", from: threeOmega))
 
-        // XY and 3ω call refreshRelatedCharts after success or partial save
+        // All three call refreshRelatedCharts after success or partial save
+        #expect(ahePersist.contains("refreshRelatedCharts()"))
         #expect(xyPersist.contains("refreshRelatedCharts()"))
         #expect(threePersist.contains("refreshRelatedCharts()"))
 
-        // AHE currently does not — intentional divergence locked here until 5E-3 alignment
-        #expect(!ahePersist.contains("refreshRelatedCharts()"))
+        // Guard paths return before the Task spawns — verified structurally:
+        // refreshRelatedCharts() lives inside the Task body which is after both guard returns.
+        // The guard statements above each contain "return", so any path that exits via guard
+        // cannot reach refreshRelatedCharts().
+        #expect(ahePersist.contains("guard let png"))
+        #expect(xyPersist.contains("guard let png"))
+        #expect(threePersist.contains("guard let png"))
+    }
+
+    // MARK: - 8: saveMessage separation from analysisMessage (Phase 5E-3)
+
+    @MainActor
+    @Test("XY save outcome goes to saveMessage; analysisMessage retains analysis summary")
+    func xySaveMessageDoesNotClobberAnalysisMessage() async {
+        let store = XYRotationWorkspaceStore()
+        let hit = makeHit(
+            id: "xy-save-msg-sep",
+            workflowID: "xy",
+            workflowDisplayName: "XY Rotation",
+            workflowCanonicalID: "xyRotation",
+            measurementFilePath: "Tests/SpinLabAppTests/TestData/XYRotation/xy_rotation_80K_sample.lvm",
+            sourceFilePath: "Tests/SpinLabAppTests/TestData/XYRotation/xy_rotation_80K_sample.lvm"
+        )
+        let wfs = makeWorkbenchStore()
+        let snapshot = wfs.selectedHitsSnapshot(for: .xyRotation, selectedIDs: [hit.id], legacyHits: [hit])
+
+        store.runAnalysis(selectedHitsSnapshot: snapshot)
+        await waitForXYAnalysis(store)
+
+        guard store.activeImageData != nil else {
+            Issue.record("XY analysis produced no chart; cannot test saveMessage separation")
+            return
+        }
+
+        let analysisMessageBeforeSave = store.analysisMessage
+
+        store.persistToLibrary()
+        await waitUntil(timeoutMS: 2000) {
+            await MainActor.run { store.persistenceOutcome != nil }
+        }
+
+        // saveMessage received the save outcome
+        #expect(store.saveMessage != nil)
+        // analysisMessage is unchanged from the analysis result
+        #expect(store.analysisMessage == analysisMessageBeforeSave)
+        // The two fields are separate
+        #expect(store.saveMessage != store.analysisMessage)
+    }
+
+    @MainActor
+    @Test("3ω save outcome goes to saveMessage; analysisMessage retains analysis summary")
+    func threeOmegaSaveMessageDoesNotClobberAnalysisMessage() async {
+        let store = ThreeOmegaWorkspaceStore()
+        let hit = makeHit(
+            id: "3w-save-msg-sep",
+            workflowID: "3w",
+            workflowDisplayName: "3w",
+            workflowCanonicalID: "threeOmega",
+            measurementFilePath: "Tests/SpinLabAppTests/TestData/ThreeOmega/3w_0deg_T_4.999 K_Iac_0.001000 A.lvm",
+            sourceFilePath: "Tests/SpinLabAppTests/TestData/ThreeOmega/3w_0deg_T_4.999 K_Iac_0.001000 A.lvm"
+        )
+        let wfs = makeWorkbenchStore()
+        let snapshot = wfs.selectedHitsSnapshot(for: .threeOmega, selectedIDs: [hit.id], legacyHits: [hit])
+
+        store.runAnalysis(selectedHitsSnapshot: snapshot)
+        await waitForThreeOmegaAnalysis(store)
+
+        guard store.activeImageData != nil else {
+            Issue.record("3ω analysis produced no chart; cannot test saveMessage separation")
+            return
+        }
+
+        let analysisMessageBeforeSave = store.analysisMessage
+
+        store.persistToLibrary()
+        await waitUntil(timeoutMS: 2000) {
+            await MainActor.run { store.persistenceOutcome != nil }
+        }
+
+        #expect(store.saveMessage != nil)
+        #expect(store.analysisMessage == analysisMessageBeforeSave)
+        #expect(store.saveMessage != store.analysisMessage)
+    }
+
+    // MARK: - 9: clearPlot clears saveMessage (Phase 5E-3)
+
+    @MainActor
+    @Test("clearPlot clears saveMessage for AHE")
+    func clearPlotClearsSaveMessageAHE() {
+        let store = AHEWorkspaceStore()
+        // Guard path sets saveMessage
+        store.persistToLibrary()
+        #expect(store.saveMessage != nil)
+        store.clearPlot()
+        #expect(store.saveMessage == nil)
+    }
+
+    @MainActor
+    @Test("clearPlot clears saveMessage for XY")
+    func clearPlotClearsSaveMessageXY() {
+        let store = XYRotationWorkspaceStore()
+        store.persistToLibrary()
+        #expect(store.saveMessage != nil)
+        store.clearPlot()
+        #expect(store.saveMessage == nil)
+    }
+
+    @MainActor
+    @Test("clearPlot clears saveMessage for 3ω")
+    func clearPlotClearsSaveMessageThreeOmega() {
+        let store = ThreeOmegaWorkspaceStore()
+        store.persistToLibrary()
+        #expect(store.saveMessage != nil)
+        store.clearPlot()
+        #expect(store.saveMessage == nil)
+    }
+
+    // MARK: - 10: runAnalysis clears saveMessage (source inspection, Phase 5E-3)
+
+    @Test("runAnalysis start path sets saveMessage = nil in all three workflows")
+    func runAnalysisClearsSaveMessageSourceInspection() throws {
+        let ahe = try loadSource(file: "AHEWorkspaceStore.swift")
+        let xy = try loadSource(file: "XYRotationWorkspaceStore.swift")
+        let analysis3w = try loadSource(file: "ThreeOmegaWorkspaceStore+Analysis.swift")
+
+        // saveMessage = nil appears in analysis start path of each workflow
+        #expect(ahe.contains("saveMessage = nil"))
+        #expect(xy.contains("saveMessage = nil"))
+        #expect(analysis3w.contains("saveMessage = nil"))
     }
 }
