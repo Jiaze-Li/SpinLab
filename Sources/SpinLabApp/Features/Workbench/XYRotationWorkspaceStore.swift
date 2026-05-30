@@ -16,6 +16,7 @@ final class XYRotationWorkspaceStore {
 
     // MARK: - Analysis output
 
+    // Internal setter is kept for boundary-test seeding; production mutation should stay inside analysis lifecycle paths.
     var ingestionResult: XYRotationIngestionResult?
     private(set) var isAnalyzing: Bool = false
     var analysisMessage: String?
