@@ -52,6 +52,7 @@ extension ThreeOmegaWorkspaceStore {
         analysisTask?.cancel()
         isAnalyzing = true
         analysisMessage = nil
+        saveMessage = nil
         activePackID = nil
         _clearPlots()
 

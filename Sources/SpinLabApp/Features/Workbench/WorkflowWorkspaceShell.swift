@@ -242,7 +242,7 @@ struct WorkflowWorkspaceShell<
         let queryText = workbench.searchQueryText(for: workflowID)
         return WorkbenchResultHeaderShell(
             store: store,
-            analysisMessage: store.analysisMessage,
+            analysisMessage: store.saveMessage ?? store.analysisMessage,
             warningCount: store.warningLog.count,
             isAnalyzing: store.isAnalyzing,
             hasAnalysisResult: store.hasAnalysisResult,
