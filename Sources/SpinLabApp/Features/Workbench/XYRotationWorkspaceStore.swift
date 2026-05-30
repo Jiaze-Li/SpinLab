@@ -16,7 +16,7 @@ final class XYRotationWorkspaceStore {
 
     // MARK: - Analysis output
 
-    var ingestionResult: XYRotationIngestionResult?
+    private(set) var ingestionResult: XYRotationIngestionResult?
     private(set) var isAnalyzing: Bool = false
     var analysisMessage: String?
 
@@ -586,6 +586,7 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
         isAnalyzing = true
         analysisMessage = nil
         tabs.clearOutputs()
+        tabs.clearStates()
         _renderRevision &+= 1  // invalidate any in-flight rerenders
 
         let capturedNumericDisplay = cachedSampleNumericDisplay

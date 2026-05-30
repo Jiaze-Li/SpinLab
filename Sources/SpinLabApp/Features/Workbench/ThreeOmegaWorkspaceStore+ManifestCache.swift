@@ -205,7 +205,7 @@ extension ThreeOmegaWorkspaceStore {
             default:
                 seriesOrder = tabs.state(for: tab).seriesOrder
             }
-            let rawPayload = _buildManifestPayload(
+            let payload = _buildManifestPayload(
                 tab: tab,
                 device: device,
                 deviceMode: deviceMode,
@@ -218,29 +218,11 @@ extension ThreeOmegaWorkspaceStore {
                 titleTokens: _titleTokens,
                 v3Method: v3Method
             )
-            if let rawPayload, rawPayload.seriesReorderable, rawPayload.series.contains(where: { ($0.sourceRef?.isEmpty ?? true) }) {
+            if let payload, payload.seriesReorderable, payload.series.contains(where: { ($0.sourceRef?.isEmpty ?? true) }) {
                 let message = "Reorderable \(tab.stableKey) manifest payload missing sourceRef."
                 assertionFailure(message)
                 appendWarning(source: "Manifest", message: message)
             }
-            // Apply per-tab text overrides (same patch contract as _rerenderActiveTab).
-            let payload: WorkbenchPlotPayload? = {
-                guard var p = rawPayload else { return nil }
-                let s = tabs.state(for: tab)
-                if !s.titleOverride.isEmpty { p.title = s.titleOverride }
-                if !s.xLabelOverride.isEmpty { p.axisMapping.xField = s.xLabelOverride }
-                if !s.yLabelOverride.isEmpty { p.axisMapping.yField = s.yLabelOverride }
-                if !s.seriesLabelOverrides.isEmpty {
-                    p.series = p.series.map { series in
-                        guard let sid = series.sampleID,
-                              let renamed = s.seriesLabelOverrides[sid] else { return series }
-                        var copy = series
-                        copy.label = renamed
-                        return copy
-                    }
-                }
-                return p
-            }()
             var existing = tabs.tabOutputs[tab] ?? TabRenderOutput()
             existing.manifestPayload = payload
             tabs.tabOutputs[tab] = existing
@@ -299,27 +281,6 @@ extension ThreeOmegaWorkspaceStore {
                 series: fallbackSeries,
                 semanticParams: params
             )
-            // Apply per-tab text overrides (same patch contract as _rerenderActiveTab).
-            let tabState = tabs.state(for: tab)
-            if !tabState.titleOverride.isEmpty {
-                existing.manifestPayload?.title = tabState.titleOverride
-            }
-            if !tabState.xLabelOverride.isEmpty {
-                existing.manifestPayload?.axisMapping.xField = tabState.xLabelOverride
-            }
-            if !tabState.yLabelOverride.isEmpty {
-                existing.manifestPayload?.axisMapping.yField = tabState.yLabelOverride
-            }
-            if !tabState.seriesLabelOverrides.isEmpty, var p = existing.manifestPayload {
-                p.series = p.series.map { series in
-                    guard let sid = series.sampleID,
-                          let renamed = tabState.seriesLabelOverrides[sid] else { return series }
-                    var copy = series
-                    copy.label = renamed
-                    return copy
-                }
-                existing.manifestPayload = p
-            }
             tabs.tabOutputs[tab] = existing
             }
         }
