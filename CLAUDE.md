@@ -36,6 +36,7 @@
 - `[HARD][must]` The real app bundle is `/Applications/SpinLab.app`.
 - `[HARD][must]` No Desktop `SpinLab.app` bundle, symlink, or alias should exist.
 - `[HARD][must]` Final responses must explicitly report whether Swift changed, whether Web UI/export changed, whether rebuild/publish was required, whether each was completed, and the updated app or site result. Do not claim a task is done if a required rebuild or publish was skipped.
+- `[HARD][must]` After build/publish-sensitive changes, final responses must include actual command outputs from: `git status --short`, `./scripts/check_required_actions.sh`, `ls -ld /Applications/SpinLab.app`, and `ls -ld ~/Desktop/SpinLab.app || true`.
 - `[HARD][must]` 新增 `Sources/**/*.swift` 必须登记到对应 `docs/architecture/<region>/<layer>.md` 的 `## Code Map` 段（4 步 SOP 见下方 `## Adding New Swift Code` 段）。pre-commit hook 强制检查；准备 commit 含 `Sources/**/*.swift` 增删/重命名前，确认 `.git/hooks/pre-commit` 含 `spinlab-architecture-coverage:start` sentinel——首次提交前跑 `scripts/install_git_hooks.sh --check || scripts/install_git_hooks.sh` 自举安装。
 - Execution gate and collaboration model: inherited from global `~/.claude/CLAUDE.md`.
 
@@ -72,7 +73,9 @@
 - Library 浏览/编辑/持久化/registry 同步/sidecar 查看 → **library**
   - 子层：BROWSE_AND_SELECTION.md / SAMPLE_METADATA_EDITING.md / ARCHIVE_STORAGE.md / SIDECAR_AND_CONDITIONS.md / ARTIFACTS_AND_PREVIEWS.md
 - Measurement search/workflow analysis/plot shell/chart 持久化 → **workbench**
-  - 子层：SHELL_AND_LIFECYCLE.md / MEASUREMENT_SEARCH.md / PLOT_CANVAS.md / WORKFLOW_CONTRACTS.md / ARTIFACT_PERSISTENCE.md / EXTENSION_BOUNDARIES.md
+  - 子层（root）：SHELL_BLOCKS.md / EXTENSION_BOUNDARIES.md / MODULE_BOUNDARIES.md / WORKBENCH_ROADMAP.md
+  - 子层（modules/）：MEASUREMENT_SEARCH.md / PLOT_SYSTEM.md / PACK_RESTORE.md
+  - 子层（workflows/three-omega/）：THREE_OMEGA_PHYSICS.md
 - App shell / global DI/navigation/logging / Domain contracts / Registry bridge / 共享 UI/storage → **按主 owner（消费频率最高的 region）** 登记到既有 region/layer 的 `## Code Map`；*不*在 `architecture/INDEX.md` 重复登记。
 
 **跨两 region 时**：canonical Code Map 只在主 owner 一处；collaborator region 默认不重复登记同一文件。
@@ -328,6 +331,6 @@ Project-specific architecture, code placement, module contracts, and checklists 
 - `specs/01_PRODUCT_RULES.md` — product behavior contract
 - `specs/02_DATA_RULES.md` — domain model and data rules
 - `docs/architecture/inbox/` — Inbox subsystem: routing pipeline, rules authoring, confirm/apply, output contracts
-- `docs/architecture/workbench/` — Workbench subsystem: shell lifecycle, search, plot canvas, workflow contracts, artifact persistence, 3ω physics (`architecture/workbench/THREE_OMEGA_PHYSICS.md`), extension boundaries
+- `docs/architecture/workbench/` — Workbench subsystem: Main Board model, module boundaries, extension onboarding, plot/search/pack specialized docs, 3ω physics (`architecture/workbench/workflows/three-omega/THREE_OMEGA_PHYSICS.md`)
 
 Read the relevant spec when the task touches that area. Do not read all specs every session. Long-term product/architecture philosophy lives in `docs/philosophy.md`, not in specs.

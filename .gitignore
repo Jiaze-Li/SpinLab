@@ -5,3 +5,5 @@ tmp/
 Sources/SpinLabApp/config/*.backup
 public/
 scripts/__pycache__/
+__pycache__/
+*.pyc

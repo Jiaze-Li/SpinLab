@@ -541,7 +541,7 @@ tbody tr.selected td:first-child {
 }
 
 .num {
-  text-align: right;
+  text-align: left;
 }
 
 .detail-body,
