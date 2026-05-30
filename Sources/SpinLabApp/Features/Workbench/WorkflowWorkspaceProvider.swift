@@ -62,6 +62,8 @@ protocol WorkbenchWorkspaceProviding: WorkbenchPlottingStore, AnalysisPackProvid
     // MARK: Execution
 
     func runAnalysis()
+    func runAnalysis(searchSnapshot: WorkbenchSearchSnapshot?)
+    func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot?)
     var isAnalyzing: Bool { get }
 
     // MARK: Re-render (style / label change without full re-analysis)
@@ -118,6 +120,15 @@ protocol WorkbenchWorkspaceProviding: WorkbenchPlottingStore, AnalysisPackProvid
 // MARK: - Default implementations
 
 extension WorkbenchWorkspaceProviding {
+    /// Default: ignore snapshot and delegate to the legacy no-arg entrypoint.
+    /// Workflow stores that consume snapshots override this method directly.
+    func runAnalysis(searchSnapshot: WorkbenchSearchSnapshot?) { runAnalysis() }
+
+    /// Default: keep existing compatibility path so workflows can opt-in gradually.
+    func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot?) {
+        runAnalysis(searchSnapshot: nil)
+    }
+
     /// Append a warning to the log. Unified entry point for all workflows.
     /// Same source+message pairs are coalesced inside `WorkbenchWarningLog`,
     /// so reruns of analyze/load/scaling don't stack identical entries.

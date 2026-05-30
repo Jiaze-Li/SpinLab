@@ -159,10 +159,12 @@ extension ThreeOmegaWorkspaceStore {
     /// Caches manifest payloads for all tabs after analysis completes.
     /// Snapshots sampleKeys, conditions, inputFiles from the current selection.
     /// Called once after runAnalysis completes; scaling re-runs call `_refreshManifestPayloads()` instead.
-    func _snapshotAndCacheManifestPayloads() {
-        let selectedHits = cachedSearchResults.filter { selectedSearchResultIDs.contains($0.id) }
-            .sorted(by: { $0.measurementFilePath < $1.measurementFilePath })
-
+    ///
+    /// Pack restore path calls the no-arg overload (reads cachedSearchResults after it has been
+    /// written from the pack). Analysis path calls the parameterized overload with the run-scoped
+    /// selectedHits captured at runAnalysis entry, so stale cachedSearchResults cannot corrupt
+    /// cachedInputFiles for a snapshot-driven run.
+    func _snapshotAndCacheManifestPayloads(from selectedHits: [WorkflowMeasurementSearchHit]) {
         // Snapshot from current selection — frozen for the lifetime of this analysis run
         cachedInputFiles = selectedHits.map { $0.measurementFilePath }
         cachedRTFilePath = selectedRTHit?.measurementFilePath
@@ -175,6 +177,15 @@ extension ThreeOmegaWorkspaceStore {
         cachedConditionsBySampleKey = condMap
 
         _refreshManifestPayloads()
+    }
+
+    /// Legacy/restore overload: derives selectedHits from cachedSearchResults.
+    /// Used by restoreFromPack(), which writes cachedSearchResults before calling this.
+    func _snapshotAndCacheManifestPayloads() {
+        let selectedHits = cachedSearchResults
+            .filter { selectedSearchResultIDs.contains($0.id) }
+            .sorted(by: { $0.measurementFilePath < $1.measurementFilePath })
+        _snapshotAndCacheManifestPayloads(from: selectedHits)
     }
 
 
@@ -194,7 +205,7 @@ extension ThreeOmegaWorkspaceStore {
             default:
                 seriesOrder = tabs.state(for: tab).seriesOrder
             }
-            let payload = _buildManifestPayload(
+            let rawPayload = _buildManifestPayload(
                 tab: tab,
                 device: device,
                 deviceMode: deviceMode,
@@ -207,11 +218,29 @@ extension ThreeOmegaWorkspaceStore {
                 titleTokens: _titleTokens,
                 v3Method: v3Method
             )
-            if let payload, payload.seriesReorderable, payload.series.contains(where: { ($0.sourceRef?.isEmpty ?? true) }) {
+            if let rawPayload, rawPayload.seriesReorderable, rawPayload.series.contains(where: { ($0.sourceRef?.isEmpty ?? true) }) {
                 let message = "Reorderable \(tab.stableKey) manifest payload missing sourceRef."
                 assertionFailure(message)
                 appendWarning(source: "Manifest", message: message)
             }
+            // Apply per-tab text overrides (same patch contract as _rerenderActiveTab).
+            let payload: WorkbenchPlotPayload? = {
+                guard var p = rawPayload else { return nil }
+                let s = tabs.state(for: tab)
+                if !s.titleOverride.isEmpty { p.title = s.titleOverride }
+                if !s.xLabelOverride.isEmpty { p.axisMapping.xField = s.xLabelOverride }
+                if !s.yLabelOverride.isEmpty { p.axisMapping.yField = s.yLabelOverride }
+                if !s.seriesLabelOverrides.isEmpty {
+                    p.series = p.series.map { series in
+                        guard let sid = series.sampleID,
+                              let renamed = s.seriesLabelOverrides[sid] else { return series }
+                        var copy = series
+                        copy.label = renamed
+                        return copy
+                    }
+                }
+                return p
+            }()
             var existing = tabs.tabOutputs[tab] ?? TabRenderOutput()
             existing.manifestPayload = payload
             tabs.tabOutputs[tab] = existing
@@ -270,6 +299,27 @@ extension ThreeOmegaWorkspaceStore {
                 series: fallbackSeries,
                 semanticParams: params
             )
+            // Apply per-tab text overrides (same patch contract as _rerenderActiveTab).
+            let tabState = tabs.state(for: tab)
+            if !tabState.titleOverride.isEmpty {
+                existing.manifestPayload?.title = tabState.titleOverride
+            }
+            if !tabState.xLabelOverride.isEmpty {
+                existing.manifestPayload?.axisMapping.xField = tabState.xLabelOverride
+            }
+            if !tabState.yLabelOverride.isEmpty {
+                existing.manifestPayload?.axisMapping.yField = tabState.yLabelOverride
+            }
+            if !tabState.seriesLabelOverrides.isEmpty, var p = existing.manifestPayload {
+                p.series = p.series.map { series in
+                    guard let sid = series.sampleID,
+                          let renamed = tabState.seriesLabelOverrides[sid] else { return series }
+                    var copy = series
+                    copy.label = renamed
+                    return copy
+                }
+                existing.manifestPayload = p
+            }
             tabs.tabOutputs[tab] = existing
             }
         }

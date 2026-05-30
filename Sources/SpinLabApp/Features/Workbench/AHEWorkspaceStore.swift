@@ -352,8 +352,12 @@ final class AHEWorkspaceStore {
 
     // MARK: - Private helpers
 
-    private func buildAHESelections() -> [AHEPlotSelectionItem] {
-        let hits = cachedSearchResults.filter { selectedSearchResultIDs.contains($0.id) }
+    private func buildAHESelections(from sourceHits: [WorkflowMeasurementSearchHit]) -> [AHEPlotSelectionItem] {
+        let hits = sourceHits.filter { selectedSearchResultIDs.contains($0.id) }
+        return buildAHESelections(fromSelectedHits: hits)
+    }
+
+    private func buildAHESelections(fromSelectedHits hits: [WorkflowMeasurementSearchHit]) -> [AHEPlotSelectionItem] {
         var selections: [AHEPlotSelectionItem] = []
         for hit in hits {
             let channels: [AHEChannel]
@@ -545,7 +549,32 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
     var isAnalyzing: Bool { isPlotRendering }
 
     func runAnalysis() {
-        let selections = buildAHESelections()
+        runAnalysis(searchSnapshot: nil)
+    }
+
+    func runAnalysis(searchSnapshot: WorkbenchSearchSnapshot?) {
+        let sourceHits = searchSnapshot?.results ?? cachedSearchResults
+        let selections = buildAHESelections(from: sourceHits)
+        _runAnalysisWithPreparedSelections(selections, sourceHits: sourceHits)
+    }
+
+    func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot?) {
+        let sourceHits: [WorkflowMeasurementSearchHit]
+        let selections: [AHEPlotSelectionItem]
+        if let selectedHitsSnapshot {
+            sourceHits = selectedHitsSnapshot.selectedHits
+            selections = buildAHESelections(fromSelectedHits: selectedHitsSnapshot.selectedHits)
+        } else {
+            sourceHits = cachedSearchResults
+            selections = buildAHESelections(from: sourceHits)
+        }
+        _runAnalysisWithPreparedSelections(selections, sourceHits: sourceHits)
+    }
+
+    private func _runAnalysisWithPreparedSelections(
+        _ selections: [AHEPlotSelectionItem],
+        sourceHits: [WorkflowMeasurementSearchHit]
+    ) {
         guard !selections.isEmpty else {
             plotMessage = "Select at least one AHE measurement to plot."
             return
@@ -557,7 +586,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
         let capturedTitleTokens: [String: String] = {
             let sortedHits = selections.sorted(by: { $0.sampleKey < $1.sampleKey })
             guard let hit = sortedHits.first,
-                  let searchHit = cachedSearchResults.first(where: { $0.sampleKey == hit.sampleKey }) else { return [:] }
+                  let searchHit = sourceHits.first(where: { $0.sampleKey == hit.sampleKey }) else { return [:] }
             var tokens: [String: String] = ["sample": searchHit.sampleBatchAndSubstrate]
             let numericDisplay = cachedSampleNumericDisplay[searchHit.sampleKey] ?? [:]
             for (k, v) in numericDisplay { tokens[k] = v }
