@@ -122,6 +122,12 @@ Behavior details: `docs/architecture/workbench/INDEX.md`
 - AHE: single-tab, override preserved through `clearOutputs()` + rerender. XY: per-tab, each tab isolated; `clearStates()` call removed in 5.3.7. 3ω: `_refreshManifestPayloads()` applies tabState overrides to rebuilt manifests.
 - Tests: `V537WorkflowShellPhase4Tests` (AHE + XY), `V563WorkflowStateBoundaryTests` (TabRenderManager + 3ω)
 
+### Tab State Override Survival (Phase 4, all workflows)
+- Per-tab text overrides (title, axis labels, series labels) in `TabRenderState` survive all rerender paths — style change, pack restore, scaling run, field-sweep rerender.
+- Only `clearPlot()` may wipe text overrides. `runAnalysis()` must never call `clearStates()`.
+- AHE: single-tab, override preserved through `clearOutputs()` + rerender. XY: per-tab, each tab isolated; `clearStates()` call removed in 5.3.7. 3ω: `_refreshManifestPayloads()` applies tabState overrides to rebuilt manifests.
+- Tests: `V537WorkflowShellPhase4Tests` (AHE + XY), `V563WorkflowStateBoundaryTests` (TabRenderManager + 3ω)
+
 ### Workflow Contracts (3-Omega AHE / AMR-PHE / XY Rotation)
 - 3ω: fit ranges are part of scaling chart semantic identity — different fit configs produce separate chart entries, not overwrites.
 - AMR/PHE: tag normalization AMR → R_xx, PHE → R_xy.
