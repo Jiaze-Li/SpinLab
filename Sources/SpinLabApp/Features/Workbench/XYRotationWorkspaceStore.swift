@@ -130,84 +130,7 @@ final class XYRotationWorkspaceStore {
     // MARK: - Analysis
 
     func runAnalysis() {
-        let selectedHits = cachedSearchResults
-            .filter { selectedSearchResultIDs.contains($0.id) }
-            .sorted(by: { $0.measurementFilePath < $1.measurementFilePath })
-        guard !selectedHits.isEmpty else {
-            analysisMessage = "No files selected."
-            return
-        }
-
-        // Build title tokens from representative hit
-        if let hit = selectedHits.first {
-            var tokens: [String: String] = ["sample": hit.sampleBatchAndSubstrate]
-            let numericDisplay = cachedSampleNumericDisplay[hit.sampleKey] ?? [:]
-            for (k, v) in numericDisplay { tokens[k] = v }
-            _titleTokens = tokens
-        }
-
-        // Snapshot renderers for both tabs (each gets its own legend position)
-        let rxxRenderer = _snapshotRenderer(forTab: .rxxVsPhi)
-        let rxyRenderer = _snapshotRenderer(forTab: .rxyVsPhi)
-        let capturedOrderRxx = tabs.state(for: .rxxVsPhi).seriesOrder
-        let capturedOrderRxy = tabs.state(for: .rxyVsPhi).seriesOrder
-
-        analysisTask?.cancel()
-        isAnalyzing = true
-        analysisMessage = nil
-        tabs.clearOutputs()
-        tabs.clearStates()
-        _renderRevision &+= 1  // invalidate any in-flight rerenders
-
-        let capturedNumericDisplay = cachedSampleNumericDisplay
-
-        analysisTask = Task { [weak self] in
-            let rendered = await Task.detached(priority: .userInitiated) {
-                () -> (XYRotationIngestionResult, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) in
-                let result = IngestXYRotationSelectionsUseCase().execute(hits: selectedHits, numericDisplayBySample: capturedNumericDisplay)
-
-                var rxx = rxxRenderer
-                let (rxxData, rxxLayout, rxxPayload, rxxWarnings) = rxx.renderRxxVsPhi(
-                    sweeps: AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxx, to: result.sweeps),
-                    device: result.device
-                )
-                var rxy = rxyRenderer
-                let (rxyData, rxyLayout, rxyPayload, rxyWarnings) = rxy.renderRxyVsPhi(
-                    sweeps: AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxy, to: result.sweeps),
-                    device: result.device
-                )
-                // Deduplicate pipeline warnings from both tabs
-                let pipelineWarnings = Array(Set(rxxWarnings + rxyWarnings))
-                return (result, rxxData, rxxLayout, rxxPayload, rxyData, rxyLayout, rxyPayload, pipelineWarnings)
-            }.value
-
-            let (result, rxxData, rxxLayout, rxxPayload, rxyData, rxyLayout, rxyPayload, pipelineWarnings) = rendered
-            guard let self, !Task.isCancelled else { return }
-
-            self.ingestionResult = result
-            self.tabs.setOutput(TabRenderOutput(imageData: rxxData, layout: rxxLayout, manifestPayload: rxxPayload), for: .rxxVsPhi)
-            self.tabs.setOutput(TabRenderOutput(imageData: rxyData, layout: rxyLayout, manifestPayload: rxyPayload), for: .rxyVsPhi)
-
-            let sweepCount = result.sweeps.count
-            self.analysisMessage = "Analyzed \(sweepCount) angle-sweep file(s)."
-
-            for w in result.warnings {
-                self.appendWarning(source: "Ingestion", message: w)
-            }
-
-            for w in pipelineWarnings {
-                self.appendWarning(source: "Legend", message: w)
-            }
-
-            // Snapshot for persistence
-            self.cachedInputFiles = selectedHits.map(\.measurementFilePath)
-            self.cachedSampleKeys = Array(Set(selectedHits.map(\.sampleKey))).sorted()
-
-            self.commitRunTrace()
-
-            self.isAnalyzing = false
-            self.refreshRelatedCharts()
-        }
+        runAnalysis(searchSnapshot: nil)
     }
 
     // MARK: - Rerender (style-only, no re-parse)
@@ -576,6 +499,21 @@ extension XYRotationWorkspaceStore: AnalysisPackProviding {
 
 extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
 
+    func runAnalysis(searchSnapshot: WorkbenchSearchSnapshot?) {
+        let sourceHits = searchSnapshot?.results ?? cachedSearchResults
+        let selectedHits = _selectedHits(from: sourceHits, selectedIDs: selectedSearchResultIDs)
+        _runAnalysis(selectedHits: selectedHits)
+    }
+
+    func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot?) {
+        if let selectedHitsSnapshot {
+            _runAnalysis(selectedHits: _sortedSelectedHits(selectedHitsSnapshot.selectedHits))
+        } else {
+            let selectedHits = _selectedHits(from: cachedSearchResults, selectedIDs: selectedSearchResultIDs)
+            _runAnalysis(selectedHits: selectedHits)
+        }
+    }
+
     func buildRunTrace() -> WorkbenchRunTraceProjection? {
         guard !cachedInputFiles.isEmpty else { return nil }
         return WorkbenchRunTraceProjection(
@@ -614,5 +552,91 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
     func resetSeriesOrder() {
         tabs.resetSeriesOrder()
         _rerenderActiveTab()
+    }
+
+    private func _selectedHits(from sourceHits: [WorkflowMeasurementSearchHit], selectedIDs: Set<String>) -> [WorkflowMeasurementSearchHit] {
+        _sortedSelectedHits(sourceHits.filter { selectedIDs.contains($0.id) })
+    }
+
+    private func _sortedSelectedHits(_ selectedHits: [WorkflowMeasurementSearchHit]) -> [WorkflowMeasurementSearchHit] {
+        selectedHits.sorted(by: { $0.measurementFilePath < $1.measurementFilePath })
+    }
+
+    private func _runAnalysis(selectedHits: [WorkflowMeasurementSearchHit]) {
+        guard !selectedHits.isEmpty else {
+            analysisMessage = "No files selected."
+            return
+        }
+
+        // Build title tokens from representative hit
+        if let hit = selectedHits.first {
+            var tokens: [String: String] = ["sample": hit.sampleBatchAndSubstrate]
+            let numericDisplay = cachedSampleNumericDisplay[hit.sampleKey] ?? [:]
+            for (k, v) in numericDisplay { tokens[k] = v }
+            _titleTokens = tokens
+        }
+
+        // Snapshot renderers for both tabs (each gets its own legend position)
+        let rxxRenderer = _snapshotRenderer(forTab: .rxxVsPhi)
+        let rxyRenderer = _snapshotRenderer(forTab: .rxyVsPhi)
+        let capturedOrderRxx = tabs.state(for: .rxxVsPhi).seriesOrder
+        let capturedOrderRxy = tabs.state(for: .rxyVsPhi).seriesOrder
+
+        analysisTask?.cancel()
+        isAnalyzing = true
+        analysisMessage = nil
+        tabs.clearOutputs()
+        tabs.clearStates()
+        _renderRevision &+= 1  // invalidate any in-flight rerenders
+
+        let capturedNumericDisplay = cachedSampleNumericDisplay
+
+        analysisTask = Task { [weak self] in
+            let rendered = await Task.detached(priority: .userInitiated) {
+                () -> (XYRotationIngestionResult, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) in
+                let result = IngestXYRotationSelectionsUseCase().execute(hits: selectedHits, numericDisplayBySample: capturedNumericDisplay)
+
+                var rxx = rxxRenderer
+                let (rxxData, rxxLayout, rxxPayload, rxxWarnings) = rxx.renderRxxVsPhi(
+                    sweeps: AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxx, to: result.sweeps),
+                    device: result.device
+                )
+                var rxy = rxyRenderer
+                let (rxyData, rxyLayout, rxyPayload, rxyWarnings) = rxy.renderRxyVsPhi(
+                    sweeps: AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxy, to: result.sweeps),
+                    device: result.device
+                )
+                // Deduplicate pipeline warnings from both tabs
+                let pipelineWarnings = Array(Set(rxxWarnings + rxyWarnings))
+                return (result, rxxData, rxxLayout, rxxPayload, rxyData, rxyLayout, rxyPayload, pipelineWarnings)
+            }.value
+
+            let (result, rxxData, rxxLayout, rxxPayload, rxyData, rxyLayout, rxyPayload, pipelineWarnings) = rendered
+            guard let self, !Task.isCancelled else { return }
+
+            self.ingestionResult = result
+            self.tabs.setOutput(TabRenderOutput(imageData: rxxData, layout: rxxLayout, manifestPayload: rxxPayload), for: .rxxVsPhi)
+            self.tabs.setOutput(TabRenderOutput(imageData: rxyData, layout: rxyLayout, manifestPayload: rxyPayload), for: .rxyVsPhi)
+
+            let sweepCount = result.sweeps.count
+            self.analysisMessage = "Analyzed \(sweepCount) angle-sweep file(s)."
+
+            for w in result.warnings {
+                self.appendWarning(source: "Ingestion", message: w)
+            }
+
+            for w in pipelineWarnings {
+                self.appendWarning(source: "Legend", message: w)
+            }
+
+            // Snapshot for persistence
+            self.cachedInputFiles = selectedHits.map(\.measurementFilePath)
+            self.cachedSampleKeys = Array(Set(selectedHits.map(\.sampleKey))).sorted()
+
+            self.commitRunTrace()
+
+            self.isAnalyzing = false
+            self.refreshRelatedCharts()
+        }
     }
 }

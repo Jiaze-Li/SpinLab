@@ -145,7 +145,12 @@ struct WorkflowWorkspaceShell<
             .disabled(workbench.searchResultsList(for: workflowID).isEmpty)
 
             Button("Analyze") {
-                store.runAnalysis()
+                let selectedSnapshot = workbench.selectedHitsSnapshot(
+                    for: workflowID,
+                    selectedIDs: store.selectedSearchResultIDs,
+                    legacyHits: store.cachedSearchResults
+                )
+                store.runAnalysis(selectedHitsSnapshot: selectedSnapshot)
             }
             .buttonStyle(.bordered)
             .disabled(store.selectedSearchResultIDs.isEmpty || store.isAnalyzing)

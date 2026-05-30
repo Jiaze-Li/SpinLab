@@ -5,10 +5,35 @@ extension ThreeOmegaWorkspaceStore {
 
     // MARK: - Analysis
 
-    /// Parse all selected files, fit RAHE/Hc, render tabs 1–5.
     func runAnalysis() {
-        let selectedHits = cachedSearchResults.filter { selectedSearchResultIDs.contains($0.id) }
-            .sorted(by: { $0.measurementFilePath < $1.measurementFilePath })
+        runAnalysis(searchSnapshot: nil)
+    }
+
+    /// Parse all selected files, fit RAHE/Hc, render tabs 1–5.
+    /// When searchSnapshot is provided it is the canonical source of hits for this run;
+    /// nil falls back to cachedSearchResults (pack restore, direct calls).
+    func runAnalysis(searchSnapshot: WorkbenchSearchSnapshot?) {
+        let sourceHits = searchSnapshot?.results ?? cachedSearchResults
+        let selectedHits = _sortedSelectedHits(sourceHits.filter { selectedSearchResultIDs.contains($0.id) })
+        _runAnalysis(selectedHits: selectedHits)
+    }
+
+    func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot?) {
+        if let selectedHitsSnapshot {
+            _runAnalysis(selectedHits: _sortedSelectedHits(selectedHitsSnapshot.selectedHits))
+        } else {
+            let selectedHits = _sortedSelectedHits(
+                cachedSearchResults.filter { selectedSearchResultIDs.contains($0.id) }
+            )
+            _runAnalysis(selectedHits: selectedHits)
+        }
+    }
+
+    private func _sortedSelectedHits(_ selectedHits: [WorkflowMeasurementSearchHit]) -> [WorkflowMeasurementSearchHit] {
+        selectedHits.sorted(by: { $0.measurementFilePath < $1.measurementFilePath })
+    }
+
+    private func _runAnalysis(selectedHits: [WorkflowMeasurementSearchHit]) {
         guard !selectedHits.isEmpty else {
             analysisMessage = "Select at least one 3w measurement file."
             return
@@ -82,7 +107,7 @@ extension ThreeOmegaWorkspaceStore {
                 self.appendWarning(source: "Ingestion", message: w)
             }
 
-            self._snapshotAndCacheManifestPayloads()
+            self._snapshotAndCacheManifestPayloads(from: selectedHits)
             self.commitRunTrace()
             self.isAnalyzing = false
             self.refreshRelatedCharts()

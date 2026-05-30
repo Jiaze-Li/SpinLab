@@ -159,10 +159,12 @@ extension ThreeOmegaWorkspaceStore {
     /// Caches manifest payloads for all tabs after analysis completes.
     /// Snapshots sampleKeys, conditions, inputFiles from the current selection.
     /// Called once after runAnalysis completes; scaling re-runs call `_refreshManifestPayloads()` instead.
-    func _snapshotAndCacheManifestPayloads() {
-        let selectedHits = cachedSearchResults.filter { selectedSearchResultIDs.contains($0.id) }
-            .sorted(by: { $0.measurementFilePath < $1.measurementFilePath })
-
+    ///
+    /// Pack restore path calls the no-arg overload (reads cachedSearchResults after it has been
+    /// written from the pack). Analysis path calls the parameterized overload with the run-scoped
+    /// selectedHits captured at runAnalysis entry, so stale cachedSearchResults cannot corrupt
+    /// cachedInputFiles for a snapshot-driven run.
+    func _snapshotAndCacheManifestPayloads(from selectedHits: [WorkflowMeasurementSearchHit]) {
         // Snapshot from current selection — frozen for the lifetime of this analysis run
         cachedInputFiles = selectedHits.map { $0.measurementFilePath }
         cachedRTFilePath = selectedRTHit?.measurementFilePath
@@ -175,6 +177,15 @@ extension ThreeOmegaWorkspaceStore {
         cachedConditionsBySampleKey = condMap
 
         _refreshManifestPayloads()
+    }
+
+    /// Legacy/restore overload: derives selectedHits from cachedSearchResults.
+    /// Used by restoreFromPack(), which writes cachedSearchResults before calling this.
+    func _snapshotAndCacheManifestPayloads() {
+        let selectedHits = cachedSearchResults
+            .filter { selectedSearchResultIDs.contains($0.id) }
+            .sorted(by: { $0.measurementFilePath < $1.measurementFilePath })
+        _snapshotAndCacheManifestPayloads(from: selectedHits)
     }
 
 

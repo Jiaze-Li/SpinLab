@@ -35,7 +35,7 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
 
     func testRunAnalysisCommitsTraceOnlyAfterSuccessfulIngestion() throws {
         let source = try workspaceSource
-        let runAnalysis = try extractFunction("runAnalysis", from: source)
+        let runAnalysis = try extractFunction("_runAnalysis(selectedHits:", from: source)
 
         XCTAssertTrue(runAnalysis.contains("self.ingestionResult = result"))
         XCTAssertTrue(runAnalysis.contains("self._applyPlots(plots)"))
@@ -101,9 +101,14 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
     func testCommitRunTraceCallSitesStayLimited() throws {
         let source = try workspaceSource
         let callCount = source.components(separatedBy: "commitRunTrace()").count - 1
+        let runAnalysis = try extractFunction("runAnalysis(searchSnapshot:", from: source)
+        let selectedHitsAnalysis = try extractFunction("runAnalysis(selectedHitsSnapshot:", from: source)
+        let helper = try extractFunction("_runAnalysis(selectedHits:", from: source)
 
         XCTAssertEqual(callCount, 1)
-        XCTAssertTrue(try extractFunction("runAnalysis", from: source).contains("commitRunTrace()"))
+        XCTAssertFalse(runAnalysis.contains("commitRunTrace()"))
+        XCTAssertFalse(selectedHitsAnalysis.contains("commitRunTrace()"))
+        XCTAssertTrue(helper.contains("commitRunTrace()"))
         XCTAssertFalse(try extractFunction("persistToLibrary", from: source).contains("commitRunTrace()"))
     }
 

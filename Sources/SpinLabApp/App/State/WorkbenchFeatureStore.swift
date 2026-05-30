@@ -193,6 +193,38 @@ final class WorkbenchFeatureStore {
     func isSearchRunning(for wf: WorkbenchWorkflowID) -> Bool {
         searchRunning[wf] ?? false
     }
+
+    func searchSnapshot(for wf: WorkbenchWorkflowID) -> WorkbenchSearchSnapshot {
+        WorkbenchSearchSnapshot(
+            workflowID: wf,
+            queryText: searchQueryText(for: wf),
+            results: searchResultsList(for: wf),
+            isRunning: isSearchRunning(for: wf),
+            message: searchMessage(for: wf)
+        )
+    }
+
+    /// Builds a run-scoped selected-hit read surface.
+    /// Canonical search results win when non-empty; legacy hits are fallback only when canonical is empty.
+    func selectedHitsSnapshot(
+        for wf: WorkbenchWorkflowID,
+        selectedIDs: Set<String>,
+        legacyHits: [WorkflowMeasurementSearchHit]
+    ) -> WorkbenchSelectedHitsSnapshot {
+        let canonical = searchSnapshot(for: wf)
+        let useLegacy = canonical.results.isEmpty && !legacyHits.isEmpty
+        let sourceHits = useLegacy ? legacyHits : canonical.results
+        let selectedHits = sourceHits.filter { selectedIDs.contains($0.id) }
+
+        return WorkbenchSelectedHitsSnapshot(
+            workflowID: wf,
+            queryText: canonical.queryText,
+            selectedIDs: selectedIDs,
+            selectedHits: selectedHits,
+            sourceHitCount: sourceHits.count,
+            selectionSource: useLegacy ? .legacyMirror : .canonicalSnapshot
+        )
+    }
     /// AHE-specific workspace state. All plot, selection, and artifact state lives here.
     let aheWorkspace = AHEWorkspaceStore()
     /// 3w workspace state. Independent workflow — parsing, fitting, scaling, 6 plots.
