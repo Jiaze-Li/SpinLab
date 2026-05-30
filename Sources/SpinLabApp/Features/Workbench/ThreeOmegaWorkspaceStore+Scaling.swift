@@ -20,7 +20,8 @@ extension ThreeOmegaWorkspaceStore {
         let capturedRenderMode = tabs.seriesRenderMode
         let capturedStyleOverrides = tabs.chartStyleOverrides
         let capturedAnchor   = tabs.legendAnchor
-        let capturedLegend   = tabs.state(for: .scaling).legendPoint?.cgPoint
+        let capturedScalingState = tabs.state(for: .scaling)
+        let capturedLegend   = capturedScalingState.legendPoint?.cgPoint
         let capturedRanges   = fitRanges
         let capturedTemplate = titleTemplate
         let capturedTokens   = _titleTokens
@@ -45,8 +46,11 @@ extension ThreeOmegaWorkspaceStore {
                 renderer.seriesRenderMode = capturedRenderMode
                 renderer.chartStyleOverrides = capturedStyleOverrides
                 renderer.legendAnchor = capturedAnchor
-                renderer.legendPoint  = capturedLegend
-                renderer.titleTemplate = capturedTemplate
+                renderer.legendPoint    = capturedLegend
+                renderer.titleOverride  = capturedScalingState.titleOverride
+                renderer.xLabelOverride = capturedScalingState.xLabelOverride
+                renderer.yLabelOverride = capturedScalingState.yLabelOverride
+                renderer.titleTemplate  = capturedTemplate
                 renderer.titleTokens   = capturedTokens
                 let method = capturedV3Method == .highField ? "(HFE)" : "(WA)"
                 let (data, layout, _) = renderer.renderScaling(result: res, device: capturedDevice, method: method)

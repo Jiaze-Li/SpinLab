@@ -16,7 +16,8 @@ final class XYRotationWorkspaceStore {
 
     // MARK: - Analysis output
 
-    private(set) var ingestionResult: XYRotationIngestionResult?
+    // Internal setter is kept for boundary-test seeding; production mutation should stay inside analysis lifecycle paths.
+    var ingestionResult: XYRotationIngestionResult?
     private(set) var isAnalyzing: Bool = false
     var analysisMessage: String?
 
@@ -586,7 +587,6 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
         isAnalyzing = true
         analysisMessage = nil
         tabs.clearOutputs()
-        tabs.clearStates()
         _renderRevision &+= 1  // invalidate any in-flight rerenders
 
         let capturedNumericDisplay = cachedSampleNumericDisplay

@@ -32,31 +32,81 @@ extension ThreeOmegaWorkspaceStore {
         let capturedMinGap     = minGapFraction
         let capturedTemplate   = titleTemplate
         let capturedTokens     = _titleTokens
-        let capturedLegend1    = tabs.state(for: .fieldSweep1omega).legendPoint?.cgPoint
-        let capturedLegend3    = tabs.state(for: .fieldSweep3omega).legendPoint?.cgPoint
         let capturedFieldSweepSeriesOrder = fieldSweepSeriesOrder
+        let capturedState1     = tabs.state(for: .fieldSweep1omega)
+        let capturedState3     = tabs.state(for: .fieldSweep3omega)
 
         Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
-            var r = ThreeOmegaPlotRenderer()
-            r.showGrid              = capturedGrid
-            r.seriesRenderMode      = capturedRenderMode
-            r.chartStyleOverrides   = capturedStyleOverrides
-            r.legendAnchor          = capturedAnchor
-            r.stackOffsetMultiplier = capturedMultiplier
-            r.minGapFraction        = capturedMinGap
-            r.titleTemplate         = capturedTemplate
-            r.titleTokens           = capturedTokens
-            r.legendPoint           = capturedLegend1
-            let r1 = r.renderR1omega(sweeps: ingestion.fieldSweeps, device: ingestion.device, seriesOrder: capturedFieldSweepSeriesOrder)
-            r.legendPoint           = capturedLegend3
-            let r3 = r.renderR3omega(sweeps: ingestion.fieldSweeps, device: ingestion.device, seriesOrder: capturedFieldSweepSeriesOrder)
+            let orderedSweeps  = ThreeOmegaWorkspaceStore._applySeriesOrder(capturedFieldSweepSeriesOrder, to: ingestion.fieldSweeps)
+            let fakeSeries     = ThreeOmegaWorkspaceStore._sweepsToFakeSeries(orderedSweeps)
+            // R1ω and R3ω use reverseSeriesForLegend: true; map label overrides against reversed order.
+            let labelMapSeries = Array(fakeSeries.reversed())
+
+            var renderer1 = ThreeOmegaPlotRenderer()
+            renderer1.showGrid              = capturedGrid
+            renderer1.seriesRenderMode      = capturedRenderMode
+            renderer1.chartStyleOverrides   = capturedStyleOverrides
+            renderer1.legendAnchor          = capturedAnchor
+            renderer1.stackOffsetMultiplier = capturedMultiplier
+            renderer1.minGapFraction        = capturedMinGap
+            renderer1.titleTemplate         = capturedTemplate
+            renderer1.titleTokens           = capturedTokens
+            renderer1.legendPoint           = capturedState1.legendPoint?.cgPoint
+            renderer1.titleOverride         = capturedState1.titleOverride
+            renderer1.xLabelOverride        = capturedState1.xLabelOverride
+            renderer1.yLabelOverride        = capturedState1.yLabelOverride
+            renderer1.seriesLabelOverrides  = toIndexedOverrides(capturedState1.seriesLabelOverrides, series: labelMapSeries)
+            let result1 = renderer1.renderR1omega(sweeps: ingestion.fieldSweeps, device: ingestion.device, seriesOrder: capturedFieldSweepSeriesOrder)
+
+            var renderer3 = ThreeOmegaPlotRenderer()
+            renderer3.showGrid              = capturedGrid
+            renderer3.seriesRenderMode      = capturedRenderMode
+            renderer3.chartStyleOverrides   = capturedStyleOverrides
+            renderer3.legendAnchor          = capturedAnchor
+            renderer3.stackOffsetMultiplier = capturedMultiplier
+            renderer3.minGapFraction        = capturedMinGap
+            renderer3.titleTemplate         = capturedTemplate
+            renderer3.titleTokens           = capturedTokens
+            renderer3.legendPoint           = capturedState3.legendPoint?.cgPoint
+            renderer3.titleOverride         = capturedState3.titleOverride
+            renderer3.xLabelOverride        = capturedState3.xLabelOverride
+            renderer3.yLabelOverride        = capturedState3.yLabelOverride
+            renderer3.seriesLabelOverrides  = toIndexedOverrides(capturedState3.seriesLabelOverrides, series: labelMapSeries)
+            let result3 = renderer3.renderR3omega(sweeps: ingestion.fieldSweeps, device: ingestion.device, seriesOrder: capturedFieldSweepSeriesOrder)
+
             await MainActor.run { [weak self] in
                 guard let self else { return }
-                let m1 = self.tabs.output(for: .fieldSweep1omega).manifestPayload
-                self.tabs.setOutput(TabRenderOutput(imageData: r1.0, layout: r1.1, manifestPayload: m1), for: .fieldSweep1omega)
-                let m3 = self.tabs.output(for: .fieldSweep3omega).manifestPayload
-                self.tabs.setOutput(TabRenderOutput(imageData: r3.0, layout: r3.1, manifestPayload: m3), for: .fieldSweep3omega)
+                let s1 = self.tabs.state(for: .fieldSweep1omega)
+                let m1: WorkbenchPlotPayload? = {
+                    guard var p = self.tabs.output(for: .fieldSweep1omega).manifestPayload else { return nil }
+                    if !s1.titleOverride.isEmpty { p.title = s1.titleOverride }
+                    if !s1.xLabelOverride.isEmpty { p.axisMapping.xField = s1.xLabelOverride }
+                    if !s1.yLabelOverride.isEmpty { p.axisMapping.yField = s1.yLabelOverride }
+                    if !s1.seriesLabelOverrides.isEmpty {
+                        p.series = p.series.map { series in
+                            guard let sid = series.sampleID, let renamed = s1.seriesLabelOverrides[sid] else { return series }
+                            var copy = series; copy.label = renamed; return copy
+                        }
+                    }
+                    return p
+                }()
+                self.tabs.setOutput(TabRenderOutput(imageData: result1.0, layout: result1.1, manifestPayload: m1), for: .fieldSweep1omega)
+                let s3 = self.tabs.state(for: .fieldSweep3omega)
+                let m3: WorkbenchPlotPayload? = {
+                    guard var p = self.tabs.output(for: .fieldSweep3omega).manifestPayload else { return nil }
+                    if !s3.titleOverride.isEmpty { p.title = s3.titleOverride }
+                    if !s3.xLabelOverride.isEmpty { p.axisMapping.xField = s3.xLabelOverride }
+                    if !s3.yLabelOverride.isEmpty { p.axisMapping.yField = s3.yLabelOverride }
+                    if !s3.seriesLabelOverrides.isEmpty {
+                        p.series = p.series.map { series in
+                            guard let sid = series.sampleID, let renamed = s3.seriesLabelOverrides[sid] else { return series }
+                            var copy = series; copy.label = renamed; return copy
+                        }
+                    }
+                    return p
+                }()
+                self.tabs.setOutput(TabRenderOutput(imageData: result3.0, layout: result3.1, manifestPayload: m3), for: .fieldSweep3omega)
             }
         }
     }
@@ -182,7 +232,25 @@ extension ThreeOmegaWorkspaceStore {
             await MainActor.run { [weak self] in
                 guard let self, self._renderRevision == revision else { return }
                 let existingManifest = self.tabs.output(for: tab).manifestPayload
-                self.tabs.setOutput(TabRenderOutput(imageData: plotData, layout: plotLayout, manifestPayload: existingManifest), for: tab)
+                let updatedManifest: WorkbenchPlotPayload? = {
+                    guard var payload = existingManifest else { return nil }
+                    if !titleOverride.isEmpty { payload.title = titleOverride }
+                    if !xLabelOverride.isEmpty { payload.axisMapping.xField = xLabelOverride }
+                    if !yLabelOverride.isEmpty { payload.axisMapping.yField = yLabelOverride }
+                    if !capturedLabelOverrides.isEmpty {
+                        payload.series = payload.series.map { series in
+                            guard let sampleID = series.sampleID,
+                                  let renamed = capturedLabelOverrides[sampleID] else {
+                                return series
+                            }
+                            var copy = series
+                            copy.label = renamed
+                            return copy
+                        }
+                    }
+                    return payload
+                }()
+                self.tabs.setOutput(TabRenderOutput(imageData: plotData, layout: plotLayout, manifestPayload: updatedManifest), for: tab)
             }
         }
     }
