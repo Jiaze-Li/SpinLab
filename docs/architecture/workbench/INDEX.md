@@ -1,6 +1,6 @@
 # Workbench Architecture — Dispatch Entry
 
-> **Status**: 5.7.2 s3 首发。Workbench 功能区文档结构从「文档类型」维度切换到「功能区 × 层」维度，本目录包含 Workbench 所有层。
+> **Status**: 5.3.7 docs alignment. Architecture model consolidated to Main Board + Layout Host + Modules + Workflow Assembly. Stale Shell/Slot/Workflow Contracts docs removed; module specialized docs reorganized under `modules/`.
 > **Source**: `docs/architecture/INDEX.md` 负责 region 级派发；本文件负责 Workbench region 内层级派发。
 
 ## Directory Layout
@@ -78,7 +78,7 @@ Start with `V310WorkbenchFoundationTests.swift`, `V320WorkflowSearchAcrossDrawer
 
 ## Why Layer Names Differ from Inbox / Library
 
-Inbox core verbs: parse/route/review/apply. Library core verbs: browse/select/edit/sync/preview. Workbench core verbs: **Main Board lifecycle / workflow-independent plot capability / workflow-specific contract / cross-region artifact persistence**. Applying Inbox or Library layer names to Workbench would hide its distinct responsibilities: a shared shell that owns the full two-column layout, a render pipeline that works across all workflows, per-workflow ingestion and pack contracts, and a persistence layer that writes into Library-owned storage.
+Inbox core verbs: parse/route/review/apply. Library core verbs: browse/select/edit/sync/preview. Workbench core verbs: **Main Board lifecycle / workflow-independent plot capability / workflow-specific contract / cross-region artifact persistence**. Applying Inbox or Library layer names to Workbench would hide its distinct responsibilities: Main Board orchestration across all workflows, Layout Host mounting modules into two-column regions, a render pipeline that works across all workflows, per-workflow ingestion and pack contracts, and a persistence layer that writes into Library-owned storage.
 
 ## Cross-Domain Boundaries
 

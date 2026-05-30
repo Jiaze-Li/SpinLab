@@ -250,17 +250,13 @@ Architecture routing and compliance rules (when to consult this doc, how to repo
 - Save must not call `commitRunTrace()` (analysis-side only)
 - Save must not re-trigger analysis or plot re-render
 
-### Known current gaps (tracked for Phase 5E-3)
-
-- **Message field inconsistency**: AHE save guard and save result messages write to `plotMessage`; XY and 3ω write to `analysisMessage`. Target: dedicated `saveMessage` field decoupled from analysis message.
-- **Missing `refreshRelatedCharts()` in AHE**: XY and 3ω call `refreshRelatedCharts()` after save success/partial; AHE does not. This causes the related charts sidebar to not update after saving in AHE.
-
-### Current transition state (Phase 5E-1 checkpoint)
+### Current transition state (Phase 5E-2 checkpoint)
 
 - `persistToLibrary()` remains workflow-local in all three workflow stores
 - `SaveActiveChartToLibraryUseCase` is already a generic, workflow-agnostic write path
-- Phase 5E-2 boundary tests will lock current save-boundary behavior before extraction
-- `saveMessage` field extraction and `refreshRelatedCharts()` gap fix deferred to Phase 5E-3
+- All three workflow stores now use `saveMessage` field; `refreshRelatedCharts()` called after save in all three
+- Phase 5E-2 boundary tests complete
+- Shared save coordinator extraction deferred to Phase 5E-3
 
 Full module contract: [`SHELL_BLOCKS.md` § Save Module](SHELL_BLOCKS.md).
 

@@ -174,7 +174,7 @@ Layout regions:
 
 #### Layout Region Injection
 
-The Layout Host exposes four injectable layout regions where the Workflow Assembly places optional module content via `WorkflowWorkspaceShell`:
+The Main Board passes workflow-specific optional module content declared by the active Workflow Assembly into four injectable regions exposed by the Layout Host:
 
 | Injection point | Region | Example content |
 |---|---|---|
@@ -585,8 +585,8 @@ Current protocol surface for the Save Metadata Provider: `ActiveChartProviding` 
 
 - `persistToLibrary()` still lives in each workflow store (`AHEWorkspaceStore`, `XYRotationWorkspaceStore`, `ThreeOmegaWorkspaceStore+Persistence`).
 - `SaveActiveChartToLibraryUseCase` is already a generic, workflow-agnostic write path.
-- Phase 5E-2 boundary tests will lock current save-boundary behavior before any extraction.
-- Shared save coordinator / `SaveRequest` extraction is deferred until tests are stable (Phase 5E-3+).
+- Phase 5E-2 boundary tests complete.
+- Shared save coordinator / `SaveRequest` extraction is deferred until contract stable (Phase 5E-3).
 
 ### Pack/Restore Module
 
@@ -750,8 +750,8 @@ Boundary tests currently in place:
 
 Pending:
 
-- Save Module boundary — Phase 5E-2 (not yet written)
-- Pack / Restore boundary — Phase 5F (not yet started)
+- Save Module boundary — Phase 5E-2 (complete)
+- Pack / Restore boundary — Phase 5F-3 (complete)
 
 New boundary tests must lock current behavior before extraction begins, not after.
 

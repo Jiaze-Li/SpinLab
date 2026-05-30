@@ -27,8 +27,10 @@ Detailed architecture contracts remain in sibling docs. This file tracks progres
 | Phase 5D-1 | Analysis Lifecycle Module — boundary tests locking cross-module behavior | complete |
 | Phase 5D-2 | Analysis Lifecycle Module — contract documentation | complete |
 | Phase 5E-1 | Save Module — contract documentation | complete |
+| Phase 5E-2 | Save Module — boundary tests locking current save-boundary behavior | complete |
 | Phase 5F-1 | Pack / Restore Module — audit (restore write map, boundary risks, legacy paths, test gaps) | complete |
 | Phase 5F-2 | Pack / Restore Module — contract documentation | complete |
+| Phase 5F-3 | Pack / Restore Module — boundary tests (no-trace-commit, isAllSelected after restore, AHE legacy path) | complete |
 
 ## Current and Next Phases
 
@@ -36,9 +38,7 @@ Detailed architecture contracts remain in sibling docs. This file tracks progres
 |---|---|
 | Phase 5A-3 | Search Read Surface / mirror risk reduction |
 | Phase 5D-3 | Analysis Lifecycle Module — shared runtime extraction (deferred; awaits stable contract + tests) |
-| Phase 5E-2 | Save Module — boundary tests locking current save-boundary behavior |
-| Phase 5E-3 | Save Module — saveMessage field extraction; refreshRelatedCharts gap fix in AHE; shared save coordinator (deferred until tests stable) |
-| Phase 5F-3 | Pack / Restore Module — boundary tests (no-trace-commit, isAllSelected after restore, AHE legacy path) |
+| Phase 5E-3 | Save Module — saveMessage field + refreshRelatedCharts extraction into shared coordinator (deferred until contract stable) |
 | Phase 5F-4 | Pack / Restore Module — implementation extraction (deferred; awaits stable contract + tests) |
 | Phase 6 | Workflow Function Contract |
 | Future | SOT workflow onboarding through shell framework |
