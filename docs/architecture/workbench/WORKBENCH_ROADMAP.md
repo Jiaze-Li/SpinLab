@@ -14,6 +14,46 @@ Use this file to track:
 
 Detailed architecture contracts remain in sibling docs. This file tracks progress, not contract details.
 
+## Phase Taxonomy
+
+Workbench modularization phases fall into three categories:
+
+**Framework / Governance** — architecture language, routing rules, Main Board / Layout Host / Module / Workflow Assembly terminology, docs/index alignment.
+
+**Boundary Stabilization** — module ownership contracts, forbidden mutations, transition read surfaces, regression gates, and guardrails.
+
+**Runtime Extraction** — coordinator extraction and removal of duplicated workflow-local implementations.
+
+5.3.7 completed the first two categories. The third category is post-5.3.7 work.
+
+## 5.3.7 Scope Closure
+
+5.3.7 delivered the **Workbench modularization safety baseline**.
+
+### Completed in 5.3.7
+
+- Architecture language / governance baseline (Main Board, Layout Host, Module, Workflow Assembly terminology; docs/index alignment)
+- Module boundary contracts for Search, Selection, Plot Preservation, Analysis Lifecycle, Save, Pack / Restore
+- Transition read surfaces:
+  - `WorkbenchSearchSnapshot`
+  - `WorkbenchSelectedHitsSnapshot`
+  - `saveMessage`
+- Boundary regression gates for: Search, Selection, Plot Preservation, Analysis Lifecycle, Save, Pack / Restore, Workflow state
+- App bundle and web export guardrails
+
+Search Module read-surface extraction began in 5.3.7; runtime ownership cleanup remains post-5.3.7.
+
+### Not completed in 5.3.7
+
+- Full Main Board cleanup
+- Full runtime module extraction
+- Complete `cachedSearchResults` removal
+- `SaveCoordinator` extraction
+- `PackRestoreCoordinator` extraction
+- `AnalysisLifecycleCoordinator` extraction
+- Workflow Function Contract
+- SOT workflow onboarding
+
 ## Completed Phases
 
 | Phase | Scope | Status |
@@ -32,11 +72,13 @@ Detailed architecture contracts remain in sibling docs. This file tracks progres
 | Phase 5F-2 | Pack / Restore Module — contract documentation | complete |
 | Phase 5F-3 | Pack / Restore Module — boundary tests (no-trace-commit, isAllSelected after restore, AHE legacy path) | complete |
 
-## Current and Next Phases
+## Post-5.3.7 Phases
+
+All phases below are post-5.3.7 runtime extraction work. None were in scope for the 5.3.7 safety baseline.
 
 | Phase | Scope |
 |---|---|
-| Phase 5A-3 | Search Read Surface / mirror risk reduction |
+| Phase 5A-3 | Search Read Surface / mirror risk reduction (runtime ownership cleanup) |
 | Phase 5D-3 | Analysis Lifecycle Module — shared runtime extraction (deferred; awaits stable contract + tests) |
 | Phase 5E-3 | Save Module — saveMessage field + refreshRelatedCharts extraction into shared coordinator (deferred until contract stable) |
 | Phase 5F-4 | Pack / Restore Module — implementation extraction (deferred; awaits stable contract + tests) |
