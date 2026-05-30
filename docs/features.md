@@ -106,7 +106,7 @@ Behavior details: `docs/architecture/workbench/INDEX.md`
 ### Measurement Search
 - Workbench fields must use sidecar condition names, never invent new variable names.
 - Search returns file list only; no auto-loading of artifacts or auto-analysis on search completion.
-- Details: [`MEASUREMENT_SEARCH.md`](architecture/workbench/MEASUREMENT_SEARCH.md)
+- Details: [`MEASUREMENT_SEARCH.md`](architecture/workbench/modules/MEASUREMENT_SEARCH.md)
 
 ### Plot Canvas (all workflows)
 - Plot canvas is a workflow-independent shell — legend, edit, interaction behaviors apply uniformly.
@@ -114,13 +114,19 @@ Behavior details: `docs/architecture/workbench/INDEX.md`
 - Curve drag-to-reorder is opt-in via `seriesReorderable` payload flag (currently: 3ω stacked charts only).
 - Inline plot editors auto-focus the text field on open, and outside clicks dismiss the editor cleanly.
 - Tests: `V531SeriesRenderModeTests`, `V534LegendDimensionResolverTests`, `V535PointLabelVisibilityTests`, `V535CopyPNGScaleMenuTests`, `V536CurveDragOrderTests`
-- Details: [`PLOT_CANVAS.md`](architecture/workbench/PLOT_CANVAS.md)
+- Details: [`PLOT_SYSTEM.md`](architecture/workbench/modules/PLOT_SYSTEM.md)
+
+### Tab State Override Survival (Phase 4, all workflows)
+- Per-tab text overrides (title, axis labels, series labels) in `TabRenderState` survive all rerender paths — style change, pack restore, scaling run, field-sweep rerender.
+- Only `clearPlot()` may wipe text overrides. `runAnalysis()` must never call `clearStates()`.
+- AHE: single-tab, override preserved through `clearOutputs()` + rerender. XY: per-tab, each tab isolated; `clearStates()` call removed in 5.3.7. 3ω: `_refreshManifestPayloads()` applies tabState overrides to rebuilt manifests.
+- Tests: `V537WorkflowShellPhase4Tests` (AHE + XY), `V563WorkflowStateBoundaryTests` (TabRenderManager + 3ω)
 
 ### Workflow Contracts (3-Omega AHE / AMR-PHE / XY Rotation)
 - 3ω: fit ranges are part of scaling chart semantic identity — different fit configs produce separate chart entries, not overwrites.
 - AMR/PHE: tag normalization AMR → R_xx, PHE → R_xy.
 - XY Rotation: tag normalization XY_90shift → workflow=XY + angle_shift=+90deg.
-- Details: [`WORKFLOW_CONTRACTS.md`](architecture/workbench/WORKFLOW_CONTRACTS.md), [`THREE_OMEGA_PHYSICS.md`](architecture/workbench/THREE_OMEGA_PHYSICS.md)
+- Details: [`THREE_OMEGA_PHYSICS.md`](architecture/workbench/workflows/three-omega/THREE_OMEGA_PHYSICS.md), [`modules/PACK_RESTORE.md`](architecture/workbench/modules/PACK_RESTORE.md)
 
 ### Extension System
 - Extensions must NOT import Features/ or App/ modules.
