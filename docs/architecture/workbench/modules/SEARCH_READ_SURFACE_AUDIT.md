@@ -93,10 +93,10 @@ Current runtime reads:
 
 - `AHEWorkspaceStore._rerenderActiveTab`
 - `ThreeOmegaWorkspaceStore+Rendering._rerenderActiveTab`
-- `XYRotationWorkspaceStore` pack restore title-token setup
-- `AHEWorkspaceStore` pack restore title-token setup
-- `ThreeOmegaWorkspaceStore` pack restore title-token setup
-- `XYRotationWorkspaceStore` pack restore title-token setup
+- pack-restore title-token setup in:
+  - `AHEWorkspaceStore`
+  - `XYRotationWorkspaceStore`
+  - `ThreeOmegaWorkspaceStore`
 
 Why it stays:
 
