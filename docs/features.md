@@ -18,6 +18,7 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `docs/architecture/inbox/`
 - Duplicate filenames in queue: append sequence, never silently overwrite
 - Sample IDs may be extracted from glued filename tokens when the token contains a valid `PN/PT/SL` prefix plus digits, e.g. `20260430140313PN80` → `PN80`
 - Sample/substrate tokenization preserves whitespace delimiters; spaced numeric units are compacted only for condition parsing
+- Folder-derived conditions honor the configured filename tokenization sources; excluded folder levels do not contribute condition values
 - Test: extensive unit tests on parse/route/match/evaluate stages
 
 ### Confirm & Apply

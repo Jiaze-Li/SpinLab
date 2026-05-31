@@ -174,7 +174,7 @@ Persist both raw and normalized values in archive metadata.
 ## Code Map
 
 - `Sources/SpinLabApp/Import/ImportPipeline.swift` — entry point; orchestrates the 5-stage pipeline
-- `Sources/SpinLabApp/Import/Parse/FilenameRuleParser.swift` — tokenization and semantic extraction
+- `Sources/SpinLabApp/Import/Parse/FilenameRuleParser.swift` — tokenization and source-filtered semantic extraction
 - `Sources/SpinLabApp/Import/Parse/SampleKeyNormalizer.swift` — sample key normalization for drawer matching
 - `Sources/SpinLabApp/Import/Parse/SampleSemanticDescriptor.swift` — semantic descriptor model for parsed fields
 - `Sources/SpinLabApp/Import/Parse/SampleTokenization.swift` — token-set construction for coverage matching

@@ -371,6 +371,20 @@ struct V210ImportAndParseTests {
         #expect(parsed.temperature == "80K")
     }
 
+    @Test("parser respects configured folder sources when evaluating folder conditions")
+    func parserRespectsConfiguredFolderSourcesForConditions() throws {
+        var ruleSet = try loadBundledRuleSetForTests()
+        ruleSet.sources = [.file, .parent]
+        ruleSet.loadWarnings = ruleSet.compile()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/80K/PN76 111/RT_run/sample.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.defaultSampleKey == "PN76")
+        #expect(parsed.temperature == nil)
+    }
+
     @Test("parser rounds field values to nearest half-step and removes trailing .0")
     func parserRoundsFieldToHalfStep() throws {
         let ruleSet = try loadBundledRuleSetForTests()
