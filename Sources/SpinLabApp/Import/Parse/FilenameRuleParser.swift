@@ -46,7 +46,6 @@ struct FilenameRuleParser {
         let parentTokens = tokenize(parentName)
         let grandparentTokens = tokenize(grandparentName)
         let conditionFileTokens = conditionTokens(from: fileTokens)
-        let conditionFolderTokens = conditionTokens(from: parentTokens + grandparentTokens)
 
         // Scoped context: pre-channel file tokens + folder tokens.
         // Used for sample ID, measurement name, substrate tags — avoids pulling
@@ -61,6 +60,7 @@ struct FilenameRuleParser {
             parentTokens: parentTokens,
             grandparentTokens: grandparentTokens
         )
+        let conditionFolderTokens = conditionTokens(from: folderContextTokens)
 
         // Full context: all file tokens + folder tokens.
         // Conditions (temperature, field, current, …) are experiment-global values
