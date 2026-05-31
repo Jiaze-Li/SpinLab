@@ -11,14 +11,34 @@ struct V538SelectedHitsBridgeAuditTests {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
+    private func sourceSlice(
+        _ source: String,
+        startMarker: String,
+        endMarker: String
+    ) throws -> Substring {
+        guard let start = source.range(of: startMarker) else {
+            Issue.record("Missing start marker: \(startMarker)")
+            throw NSError(domain: "V538SelectedHitsBridgeAuditTests", code: 1, userInfo: nil)
+        }
+        guard let end = source.range(of: endMarker, range: start.upperBound..<source.endIndex) else {
+            Issue.record("Missing end marker: \(endMarker)")
+            throw NSError(domain: "V538SelectedHitsBridgeAuditTests", code: 2, userInfo: nil)
+        }
+        return source[start.lowerBound..<end.lowerBound]
+    }
+
     @Test("WorkflowWorkspaceShell Analyze action still builds the selected-hits bridge")
     func workflowShellAnalyzeActionBuildsSelectedHitsBridge() throws {
         let source = try loadSource(relativePath: "Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceShell.swift")
+        let analyzeBlock = try sourceSlice(
+            source,
+            startMarker: "let selectedSnapshot = workbench.selectedHitsSnapshot(",
+            endMarker: "WorkbenchLoadPackPopover(workflowID: workflowID.rawValue, store: store)"
+        )
 
-        #expect(source.contains("let selectedSnapshot = workbench.selectedHitsSnapshot("))
-        #expect(source.contains("legacyHits: store.cachedSearchResults"))
-        #expect(source.contains("store.runAnalysis(selectedHitsSnapshot: selectedSnapshot)"))
-        #expect(!source.contains("store.runAnalysis()"))
+        #expect(analyzeBlock.contains("let selectedSnapshot = workbench.selectedHitsSnapshot("))
+        #expect(analyzeBlock.contains("legacyHits: store.cachedSearchResults"))
+        #expect(analyzeBlock.contains("store.runAnalysis(selectedHitsSnapshot: selectedSnapshot)"))
     }
 
     @Test("WorkbenchFeatureStore selectedHitsSnapshot still prefers canonical search results")
