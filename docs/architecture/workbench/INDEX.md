@@ -20,6 +20,7 @@
 | File | Role | Scope |
 |---|---|---|
 | `modules/MEASUREMENT_SEARCH.md` | Search module details | Sidecar 字段消费、condition projection、workflow ID alias、search 返回 file list 语义 |
+| `modules/SELECTION_DENOMINATOR_AUDIT.md` | Selection denominator audit | `isAllSelected` / `selectAll` 的当前 denominator 归属、ownership split、migration decision |
 | `modules/PLOT_SYSTEM.md` | Plot System Module Group details | Workflow-independent plot shell、style params、legend、Copy PNG、point label、curve reorder contract |
 | `modules/PACK_RESTORE.md` | Pack/Restore module details | AnalysisPack/AnalysisVault、workspace vs Library save、restore as cross-module op、per-workflow pack contracts |
 
@@ -38,9 +39,10 @@ Base module ownership rules, forbidden mutations, and transition state live in [
 3. **MODULE_BOUNDARIES.md** — module ownership boundaries and forbidden mutations enforceable by tests
 4. **WORKBENCH_ROADMAP.md** — canonical shell migration phase status and completion rules
 5. **modules/MEASUREMENT_SEARCH.md** — search semantics, condition projection, workflow ID aliases
-6. **modules/PLOT_SYSTEM.md** — plot capabilities, style, legend, series reorder contract
-7. **modules/PACK_RESTORE.md** — pack/restore lifecycle, workspace persistence, per-workflow pack contracts
-8. **workflows/three-omega/THREE_OMEGA_PHYSICS.md** — 3ω physical model, Scaling Law, RAHE derivation
+6. **modules/SELECTION_DENOMINATOR_AUDIT.md** — selection denominator ownership and migration decision
+7. **modules/PLOT_SYSTEM.md** — plot capabilities, style, legend, series reorder contract
+8. **modules/PACK_RESTORE.md** — pack/restore lifecycle, workspace persistence, per-workflow pack contracts
+9. **workflows/three-omega/THREE_OMEGA_PHYSICS.md** — 3ω physical model, Scaling Law, RAHE derivation
 
 ## Architecture Usage Rules
 
