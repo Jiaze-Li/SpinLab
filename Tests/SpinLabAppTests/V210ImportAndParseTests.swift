@@ -357,6 +357,20 @@ struct V210ImportAndParseTests {
         #expect(parsed.current == "1mA")
     }
 
+    @Test("parser keeps whitespace-delimited sample tokens while compacting spaced condition units")
+    func parserKeepsWhitespaceDelimitedSampleTokensWhileCompactingSpacedConditionUnits() throws {
+        let ruleSet = try loadBundledRuleSetForTests()
+        let parser = FilenameRuleParser(ruleSet: ruleSet)
+        let fileURL = URL(fileURLWithPath: "/tmp/PN76 111/RT_run/RT_1 mA_80 K.dat")
+
+        let parsed = parser.parse(from: fileURL)
+
+        #expect(parsed.sampleName == "PN76 111")
+        #expect(parsed.defaultSampleKey == "PN76")
+        #expect(parsed.current == "1mA")
+        #expect(parsed.temperature == "80K")
+    }
+
     @Test("parser rounds field values to nearest half-step and removes trailing .0")
     func parserRoundsFieldToHalfStep() throws {
         let ruleSet = try loadBundledRuleSetForTests()
