@@ -79,18 +79,56 @@ One Main Board is preferred because:
 
 The goal is reuse by module, not by centralizing every workflow behavior behind one orchestrator.
 
-## Main Board Lifecycle
+## Main Board Readiness
 
-The Main Board drives a 6-stage lifecycle that is uniform across all workflows:
+The Main Board does not store a separate lifecycle state. Instead, it derives a readiness summary from module-owned state and uses that derived summary for shell decisions.
 
-| Stage | Main Board action | Store call |
+### Readiness Ladder
+
+```
+Empty
+→ Found Data
+→ Selected Data
+→ Running
+→ Result Ready
+→ Saved
+```
+
+Readiness is a derived board-level projection, not a persisted source of truth and not a replacement for module ownership. The Main Board may observe the same module state through multiple read surfaces, but it must not store readiness as an additional canonical state variable.
+
+### Meaning of Each Level
+
+| Level | Derived meaning | Primary state sources |
 |---|---|---|
-| Search | Renders search bar + action bar; executes search | `WorkbenchFeatureStore.runWorkflowMeasurementSearch()` |
-| Select | User selects results from list | (selection state in store) |
-| Analyze | Renders Analyze button | `store.runAnalysis()` → ingests + renders + calls `commitRunTrace()` |
-| Save | Renders Save to Library button | `store.persistToLibrary()` |
-| Pack load | Renders Load Pack popover | `store.restoreFromPack()` → uses `_rerenderActiveTab()` / `_rerenderAllTabs()` |
-| Clear | Renders Clear / Clear Plot buttons | `store.clearResults()` / `store.clearPlot()` |
+| Empty | No usable workflow search result or analysis output is present. | Search results empty; selection empty; no active plot output; no saved pack identity |
+| Found Data | Search has produced at least one usable hit list. | `WorkbenchFeatureStore.searchResults[wf]` / workflow-local cached search mirror |
+| Selected Data | The user has selected one or more search hits. | workflow store `selectedSearchResultIDs` |
+| Running | Search or analysis/render work is in flight. | `WorkbenchFeatureStore.searchRunning[wf]`; workflow store `isAnalyzing` / `isPlotRendering` / task handles |
+| Result Ready | The workflow has active render output available for display or save. | `TabRenderManager.activeImageData`, `activeLayout`, `activeManifestPayload` projected through the workflow store |
+| Saved | The current analysis has an associated save outcome or active saved pack reference. | workflow store `persistenceOutcome`, `saveMessage`, `activePackID`; durable packs in `AnalysisVault` |
+
+### Board Authority
+
+- Modules own their state and capabilities.
+- The Main Board derives readiness from module-owned state.
+- Readiness is not persisted and must not become a second source of truth.
+- Earlier actions remain available after later readiness levels are reached.
+- Workflow-specific physics differences stay inside the Running / Physics Function boundary.
+
+### Intended Consumers
+
+- Button gating
+- Status messaging
+- Preflight checks
+- Future tests
+
+### Current Implementation Status
+
+The current implementation is still a shared UI shell with partial board authority. It already composes the shared workflow workspace UI, but the full legality model is still split across the shell and workflow stores rather than centralized in a dedicated readiness projection.
+
+### Roadmap Note
+
+Future code step: add a read-only `WorkbenchReadinessProjection` before making lifecycle authority stronger in docs or code.
 
 ## Core Definitions
 

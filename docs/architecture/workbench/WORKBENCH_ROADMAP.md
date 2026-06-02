@@ -42,6 +42,7 @@ Workbench modularization phases fall into three categories:
 - App bundle and web export guardrails
 
 Search Module read-surface extraction began in 5.3.7; runtime ownership cleanup remains post-5.3.7.
+Derived Workbench readiness projection is still a docs-first target; the code step remains to add a read-only `WorkbenchReadinessProjection`.
 
 ### Not completed in 5.3.7
 

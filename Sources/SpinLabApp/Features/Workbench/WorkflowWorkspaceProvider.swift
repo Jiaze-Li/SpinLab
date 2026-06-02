@@ -120,6 +120,10 @@ protocol WorkbenchWorkspaceProviding: WorkbenchPlottingStore, AnalysisPackProvid
     /// Nil when no save has occurred, after `clearPlot()`, or when analysis starts.
     /// Preferred by the shell over `analysisMessage` when non-nil.
     var saveMessage: String? { get }
+
+    /// Save outcome produced by the most recent `persistToLibrary()` call.
+    /// Nil means the current analysis has not been saved yet.
+    var persistenceOutcome: PersistenceOutcome? { get }
 }
 
 
