@@ -33,19 +33,165 @@ The current task is Gate 1.
 
 | Gate | Status | Scope |
 |---|---|---|
-| Gate 1 | current | Record Architecture Decisions |
-| Gate 2 | planned | Workflow Assembly Audit |
-| Gate 3 | planned | Module Audit |
+| Gate 1 | current | Record Architecture Decisions / Finalize Gate Plan |
+| Gate 2 | planned | Workflow Assembly Audit & Contract Validation |
+| Gate 3 | planned | Module Audit & Contract Validation |
 | Gate 4 | planned | Layout Audit |
 | Gate 5 | planned | Layout Refactor |
 | Gate 6 | planned | Readiness Consumption |
-| Gate 7 | planned | Search Module Extraction |
-| Gate 8 | planned | Selection Module Extraction |
-| Gate 9 | planned | Analyze Module Extraction |
-| Gate 10 | planned | Save / Pack Module Extraction |
-| Gate 11 | planned | New Workflow Dry Run |
+| Gate 7 | planned | Module Extraction Program |
+| Gate 8 | planned | New Workflow Dry Run |
 
-Gates 2 through 11 are planned future work. They are not completed by this documentation update.
+Gate 1 remains current for this roadmap-finalization PR. Gates 2 through 8 are planned future work. Gate 7 is a container gate. Its extraction sequence is determined after Gate 3.
+
+### Gate 2 - Workflow Assembly Audit & Contract Validation
+
+Reference:
+
+- [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md)
+
+Purpose:
+
+- Audit current AHE / XY Rotation / 3ω workflows
+- Extract actual workflow assemblies
+- Validate the Assembly Contract
+
+Clarify:
+
+If real workflows cannot be described cleanly by the current contract:
+
+- Update `WORKFLOW_ASSEMBLY.md`
+
+Do not force workflows into an incorrect contract.
+
+Acceptance:
+
+- Every workflow has an Assembly Record
+- Every Assembly Record maps to real implementation files
+- Every Assembly Record explains how the workflow operates
+- Assembly Contract has no obvious missing sections
+- Assembly Contract has no known invalid assumptions
+
+Result:
+
+- Assembly Contract v1.0
+
+### Gate 3 - Module Audit & Contract Validation
+
+Reference:
+
+- [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md)
+
+Purpose:
+
+- Determine actual module inventory
+- Validate module ownership rules
+- Validate module boundaries
+
+Clarify:
+
+If current modules contradict the contract:
+
+- Update `MODULE_BOUNDARIES.md`
+
+Do not force modules into an incorrect contract.
+
+Examples of rules to validate:
+
+- ownership
+- canonical state
+- capability boundaries
+- read surfaces
+- forbidden mutation
+- sibling isolation
+
+Acceptance:
+
+- Actual module inventory identified
+- Ownership defined
+- State ownership defined
+- Capability ownership defined
+- Known exceptions documented
+- Contract updated if necessary
+
+Result:
+
+- Module Contract v1.0
+- Module Inventory v1.0
+
+### Gate 4 - Layout Audit
+
+Purpose:
+
+- Validate current `WorkflowWorkspaceShell` layout
+- Distinguish Layout vs Module vs Assembly Contribution
+
+### Gate 5 - Layout Refactor
+
+Purpose:
+
+- Refactor layout only
+- No behavior changes
+
+### Gate 6 - Readiness Consumption
+
+Purpose:
+
+- Connect `WorkbenchReadinessProjection` to:
+  - button gating
+  - status display
+  - preflight checks
+
+### Gate 7 - Module Extraction Program
+
+Important:
+
+- Gate 7 is a container gate.
+- Do not hardcode specific modules here.
+- The actual extraction sequence will be determined after Gate 3.
+
+### Gate 7.1+ - Tentative Examples Only
+
+These are placeholders.
+
+- Search Extraction
+- Selection Extraction
+- Analyze Lifecycle Extraction
+- Save Extraction
+- Pack Extraction
+- Plot Extraction
+- Trace / Warning / Status Extraction
+
+Clarify:
+
+Gate 3 may:
+
+- merge modules
+- split modules
+- change extraction order
+- redefine boundaries
+- remove planned extraction steps
+
+Do not present 7.1+ as fixed.
+
+### Gate 8 - New Workflow Dry Run
+
+Purpose:
+
+- Validate the architecture
+
+Acceptance:
+
+- Create a new workflow (for example SOT)
+- The workflow should be added primarily through a new Workflow Assembly
+- Verify that Main Board does not require modification
+- Verify that Layout does not require modification
+- Verify that existing Modules do not require modification
+- Document any remaining friction points
+
+Result:
+
+- New workflow onboarding remains assembly-led
 
 ## 5.3.7 Scope Closure
 
