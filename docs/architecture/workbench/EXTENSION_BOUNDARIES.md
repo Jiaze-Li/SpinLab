@@ -1,67 +1,67 @@
-# Workbench — Extension Boundaries
+# Workbench - Extension Boundaries
 
-> Extension layer: Adding-a-new-workflow checklist (Workflow Assembly → implementation), extension import rules, Domain / ExtensionPoints dependency boundaries.
+> Extension guide for adding workflows and modules, plus the routing rules that keep ownership boundaries explicit.
 
 ## Adding a New Workflow
 
-### Step 0 — Define the Workflow Assembly (design phase)
+### Step 0 - Define the Workflow Assembly contract
 
-Before writing any code, define the Workflow Assembly. See [`SHELL_BLOCKS.md` § New Workflow Onboarding](SHELL_BLOCKS.md) for the full design sequence. Key decisions:
+Before writing any code, define the Workflow Assembly. See [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) for the stable contract fields and ownership boundaries. Key decisions:
 
-- **Workflow Identity**: stable workflow ID registered in `WorkbenchWorkflowID` (implementation step 1).
-- **Physics Function**: physical model, measurement inputs, expected outputs — confirm with user.
-- **Optional Modules**: which optional modules the workflow needs beyond the default set (e.g., Scaling, Overlay, Multi-tab, Shift).
-- **Plot Defaults**: how this workflow's result should be displayed by default.
-- **Save Metadata Provider**: how a saved chart should be interpreted later.
-- **Pack Metadata Provider**: how the full workspace should be restored later.
-- **Required Tests**: regression gates the workflow must pass.
+- Workflow Identity: stable workflow ID registered in `WorkbenchWorkflowID`
+- Physics Function: scientific model, measurement inputs, expected outputs
+- Optional Panels / optional contributions: which additional workflow-specific content the workflow needs beyond the default set
+- Plot Defaults: how this workflow's result should be displayed by default
+- Save Metadata Provider: how a saved chart should be interpreted later
+- Pack Metadata Provider: how the full workspace should be restored later
+- Required Tests: regression gates the workflow must pass
 
-Default modules (Search, Selection, Analyze Lifecycle, Result Header, Plot Display, Plot Controls, Plot Preservation, Save, Pack/Restore, Trace, Warning, Status) attach automatically — do not redeclare them in the Workflow Assembly.
+Default modules attach automatically. Do not redeclare them in the Workflow Assembly.
 
-### Step 1–8 — Implementation checklist
+### Step 1-8 - Implementation checklist
 
 1. Register workflow ID in `WorkbenchWorkflowID` enum (`Workflow/WorkflowID.swift`).
-2. Create `<Name>IngestionContracts.swift` — domain result struct (`Codable`, `Hashable`, `Sendable`).
-3. Create `Ingest<Name>SelectionsUseCase.swift` — stateless ingestion from search hits to result (Physics Function core).
-4. Create `<Name>PackContracts.swift` — `PackConfig` (UI state snapshot) + `PackResult` (must include `ingestionResult`). This is the Pack Metadata Provider implementation.
-5. Create `<Name>WorkspaceStore.swift` — `@MainActor @Observable final class` conforming `WorkbenchWorkspaceProviding`.
-6. Create `<Name>WorkspaceView.swift` — thin view wrapping `WorkflowWorkspaceShell` with workflow-specific optional module content.
+2. Create `<Name>IngestionContracts.swift` - domain result struct (`Codable`, `Hashable`, `Sendable`).
+3. Create `Ingest<Name>SelectionsUseCase.swift` - stateless ingestion from search hits to result.
+4. Create `<Name>PackContracts.swift` - `PackConfig` (UI state snapshot) + `PackResult` (must include `ingestionResult`). This is the Pack Metadata Provider implementation.
+5. Create `<Name>WorkspaceStore.swift` - `@MainActor @Observable final class` conforming `WorkbenchWorkspaceProviding`.
+6. Create `<Name>WorkspaceView.swift` - thin view wrapping `WorkflowWorkspaceShell` with workflow-specific optional panel or contribution content.
 7. Register store in `WorkbenchFeatureStore` and view in `WorkflowWorkspaceRegistry`.
 8. Add search case in `WorkbenchFeatureStore.runWorkflowMeasurementSearch()`.
 
 ## Adding a New Module
 
-### Step 0 — Classify and define (design phase)
+### Step 0 - Classify and define
 
-Before writing any code, classify the module and define its boundaries. See [`SHELL_BLOCKS.md` § Module](SHELL_BLOCKS.md) for the full module definition model. Key decisions:
+Before writing any code, classify the module and define its boundaries. See [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md) for ownership authority and [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md) for the current implementation-level injection points. Key decisions:
 
-- **Default or Optional**: does this module apply to all workflows (Default Module, always loaded) or only one workflow (Optional Module, declared in a specific Workflow Assembly)? See [`SHELL_BLOCKS.md` § Plot Controls Module vs Workflow-specific Optional Modules](SHELL_BLOCKS.md) for the classification rule.
-- **Single responsibility**: name the one capability this module owns. If you cannot state it in one sentence, split into two modules.
-- **Owned state**: list which fields this module owns exclusively. No sibling module may write them directly.
-- **Inputs / outputs**: what does this module consume (from which modules, snapshots, or protocols), and what does it produce for other modules?
-- **UI metadata**: declare all five — `defaultRegion`, `order`, `exclusive`, `layoutMode`, `sizePolicy`. See [`SHELL_BLOCKS.md` § Layout Host](SHELL_BLOCKS.md) for available layout regions.
-- **Exclusive conflict**: if `exclusive: true`, verify no other module in the target region uses `exclusive`. The Main Board detects and reports mounting conflicts.
-- **Cross-module handoff**: define how this module receives inputs and exposes outputs without directly accessing sibling module state. All cross-module coordination must flow through Main Board orchestration, explicit snapshots, or provider protocols. See [`SHELL_BLOCKS.md` § Canonical Communication Surfaces](SHELL_BLOCKS.md).
+- Default or Optional: does this module apply to all workflows or only one workflow? Workflow-specific optional panels / contributions live in [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md).
+- Single responsibility: name the one capability this module owns. If you cannot state it in one sentence, split it into two modules.
+- Owned state: list which fields this module owns exclusively. No sibling module may write them directly.
+- Inputs / outputs: what does this module consume, and what does it produce for other modules?
+- UI metadata: declare all five - `defaultRegion`, `order`, `exclusive`, `layoutMode`, `sizePolicy`.
+- Exclusive conflict: if `exclusive: true`, verify no other module in the target area uses `exclusive`. The Main Board detects and reports mounting conflicts.
+- Cross-module handoff: define how this module receives inputs and exposes outputs without directly accessing sibling module state. All cross-module coordination must flow through Main Board orchestration, explicit snapshots, or provider protocols.
 
-### Step 1–5 — Implementation checklist
+### Step 1-5 - Implementation checklist
 
-1. Write owned state and responsibility contract into [`MODULE_BOUNDARIES.md`](MODULE_BOUNDARIES.md) — a new section following the existing boundary section format.
-2. Declare layout metadata and verify no exclusive conflict with existing modules in the target region.
+1. Write owned state and responsibility contract into [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md).
+2. Declare layout metadata and verify no exclusive conflict with existing modules in the target area.
 3. Write boundary tests locking current behavior before introducing or extracting the module. New boundary tests must lock current behavior before extraction begins, not after.
 4. Implement the module. Do not directly read or write sibling module state; use canonical communication surfaces only.
-5. Update architecture docs: add module to `SHELL_BLOCKS.md` Module Inventory; update Module Groups table if the module belongs to a Module Group; update relevant specialized docs if needed.
+5. Update architecture docs: add or update the module boundary section in [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md); update specialized docs if needed.
 
 ### Module Extraction Notes
 
 When extracting existing behavior from a workflow store or the Main Board into a new module:
 
-1. **Identify source logic**: locate the behavior and map its current state ownership.
-2. **Decide scope**: sibling Default Module, Optional Module, or remains internal to an existing module?
-3. **Define owned state before extraction**: state ownership must be explicit in [`MODULE_BOUNDARIES.md`](MODULE_BOUNDARIES.md) before any code moves.
-4. **Define handoff**: how will the extracted module receive inputs and expose outputs? Choose the correct communication surface (Main Board orchestration, explicit snapshot, provider protocol). For Plot System modules, `TabRenderManager` projections are the correct output surface — direct `TabRenderState` writes are owned exclusively by Plot Preservation Module.
-5. **Lock current behavior first**: write boundary tests that pass against the pre-extraction implementation. Extraction is complete only when the locked tests pass after extraction.
+1. Identify source logic: locate the behavior and map its current state ownership.
+2. Decide scope: sibling Default Module, Optional Module, or remains internal to an existing module.
+3. Define owned state before extraction: state ownership must be explicit in [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md) before any code moves.
+4. Define handoff: how will the extracted module receive inputs and expose outputs? Choose the correct communication surface (Main Board orchestration, explicit snapshot, provider protocol). For plot system modules, `TabRenderManager` projections are the correct output surface.
+5. Lock current behavior first: write boundary tests that pass against the pre-extraction implementation. Extraction is complete only when the locked tests pass after extraction.
 
-## [HARD] Main Board Invariants (applies to all workflows)
+## [HARD] Main Board Invariants
 
 These invariants are enforced at the Main Board level; all steps above must respect them:
 
@@ -71,14 +71,12 @@ These invariants are enforced at the Main Board level; all steps above must resp
 - Main Board-triggered analysis entry must consume `WorkbenchSearchSnapshot` as canonical search input.
 - Workflow analysis entry should consume a run-scoped selected-hit snapshot and must not use workflow-local `cachedSearchResults` as primary selection input.
 - New workflow implementations must not treat workflow-local `cachedSearchResults` mirrors as canonical search state.
-- The Physics Function must not own running / message / warning / trace state — those belong to the Analysis Lifecycle Module. The Physics Function outputs ingestion result and computed payloads; the Analysis Lifecycle Module owns all surrounding run lifecycle state.
-- Analysis must not mutate Search Module state, Selection Module state, or tab override state (owned by Plot Preservation Module).
+- The Physics Function must not own running / message / warning / trace state. Those belong to the Analysis Lifecycle Module.
+- Analysis must not mutate Search Module state, Selection Module state, or tab override state.
 
-Full Analysis Lifecycle Module contract: [`SHELL_BLOCKS.md` § Analyze Lifecycle Module](SHELL_BLOCKS.md).
+Full workflow contract: [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md)
 
-Full shell contract: [`SHELL_BLOCKS.md`](SHELL_BLOCKS.md)
-
-Current phase status is tracked only in [`WORKBENCH_ROADMAP.md`](WORKBENCH_ROADMAP.md).
+Current phase status is tracked only in [WORKBENCH_ROADMAP.md](WORKBENCH_ROADMAP.md).
 
 ## Workbench Intake Pipeline
 
@@ -92,15 +90,15 @@ Use this pipeline to classify new requests before implementation.
 
 2. Default Module
 - The request changes shared Main Board behavior reused across all workflows.
-- Route to: [`SHELL_BLOCKS.md`](SHELL_BLOCKS.md).
+- Route to: [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md) and [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md).
 
-3. New Workflow / Workflow Assembly / Optional Module
-- Adding an entirely new workflow, or adding/modifying controls specific to one workflow (i.e., an optional module or Workflow Assembly configuration point).
-- Route to: [`SHELL_BLOCKS.md` § New Workflow Onboarding](SHELL_BLOCKS.md) for the design sequence; [`EXTENSION_BOUNDARIES.md` § Adding a New Workflow](#adding-a-new-workflow) for the implementation checklist; [`SHELL_BLOCKS.md` § Workflow Assembly](SHELL_BLOCKS.md) for the configuration model.
+3. New Workflow / Workflow Assembly / Optional Panel or Contribution
+- Adding an entirely new workflow, or adding/modifying controls specific to one workflow.
+- Route to: [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) for the contract model; [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md) for the implementation checklist.
 
 4. Regression Patch / Boundary Gate
 - The request fixes or hardens a known boundary contract.
-- Route to: boundary doc for the contract (`MODULE_BOUNDARIES.md`, `modules/MEASUREMENT_SEARCH.md`) and add/extend regression tests.
+- Route to: boundary doc for the contract (`MODULE_BOUNDARIES.md`, `modules/MEASUREMENT_SEARCH.md`) and add or extend regression tests.
 
 5. Persistence / Export Change
 - The request changes save/load packs, artifact write paths, stale detection, or export-related artifact contracts.
@@ -108,7 +106,7 @@ Use this pipeline to classify new requests before implementation.
 
 6. New Module / Module Extraction
 - Adding a new module to the Main Board or extracting existing behavior into a module.
-- Route to: [`SHELL_BLOCKS.md`](SHELL_BLOCKS.md) for module definition and isolation rules; [`MODULE_BOUNDARIES.md`](MODULE_BOUNDARIES.md) for boundary documentation; [`EXTENSION_BOUNDARIES.md` § Adding a New Module](#adding-a-new-module) for the implementation checklist.
+- Route to: [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md) for boundary documentation; [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md) for injection points; [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md) for the implementation checklist.
 
 ### Intake Routing Rule
 
@@ -124,11 +122,11 @@ Do not merge these concerns into one mixed contract section.
 
 ### Architecture Routing Rule
 
-Before any non-trivial change, classify the task and consult the relevant architecture docs. Record a minimal routing note — proportional to change size; omit for typo/comment-only changes.
+Before any non-trivial change, classify the task and consult the relevant architecture docs. Record a minimal routing note - proportional to change size; omit for typo/comment-only changes.
 
 **Routing note format:**
 
-```
+```text
 Type:
 Docs to check:
 Boundary risk:
@@ -138,11 +136,11 @@ Boundary risk:
 
 | Task | Docs to check |
 |---|---|
-| New workflow | `SHELL_BLOCKS.md`, `EXTENSION_BOUNDARIES.md`, `MODULE_BOUNDARIES.md`, relevant `modules/*.md` if touched |
-| New module / module extraction | `SHELL_BLOCKS.md`, `EXTENSION_BOUNDARIES.md`, `MODULE_BOUNDARIES.md` |
-| Pack / Restore change | `SHELL_BLOCKS.md`, `MODULE_BOUNDARIES.md`, `modules/PACK_RESTORE.md` |
-| Plot change | `SHELL_BLOCKS.md`, `MODULE_BOUNDARIES.md`, `modules/PLOT_SYSTEM.md` |
-| Search / Selection change | `SHELL_BLOCKS.md`, `MODULE_BOUNDARIES.md`, `modules/MEASUREMENT_SEARCH.md` |
+| New workflow | `WORKFLOW_ASSEMBLY.md`, `EXTENSION_BOUNDARIES.md`, `MODULE_BOUNDARIES.md`, relevant `modules/*.md` if touched |
+| New module / module extraction | `MODULE_BOUNDARIES.md`, `MAIN_BOARD_LAYOUT.md`, `EXTENSION_BOUNDARIES.md` |
+| Pack / Restore change | `MODULE_BOUNDARIES.md`, `modules/PACK_RESTORE.md` |
+| Plot change | `MODULE_BOUNDARIES.md`, `modules/PLOT_SYSTEM.md` |
+| Search / Selection change | `MODULE_BOUNDARIES.md`, `modules/MEASUREMENT_SEARCH.md` |
 
 ### Architecture Compliance Rule
 
@@ -164,12 +162,12 @@ If a change modifies a module contract, module boundary, data flow, extension pr
 | Search / Selection input-chain | `modules/MEASUREMENT_SEARCH.md` |
 | Plot module group behavior | `modules/PLOT_SYSTEM.md` |
 | Generic module rule | `MODULE_BOUNDARIES.md` |
-| Main Board / Layout Host / Assembly | `SHELL_BLOCKS.md` |
+| Main Board / Layout / Assembly | `MAIN_BOARD_READINESS.md`, `MAIN_BOARD_LAYOUT.md`, `WORKFLOW_ASSEMBLY.md` |
 | New workflow/module process | `EXTENSION_BOUNDARIES.md` (this file) |
 
 ### Deviation Rule
 
-If a planned implementation conflicts with `SHELL_BLOCKS.md` or `MODULE_BOUNDARIES.md`, stop and report the conflict before implementing.
+If a planned implementation conflicts with `WORKFLOW_ASSEMBLY.md` or `MODULE_BOUNDARIES.md`, stop and report the conflict before implementing.
 
 ### Scope
 
@@ -177,7 +175,7 @@ This is a routing and check rule, not a long approval form. Small typo or commen
 
 ## Extension Module Import Rules
 
-- Extension modules must **NOT** import `Features/` or `App/` modules.
+- Extension modules must NOT import `Features/` or `App/` modules.
 - Extensions may only depend on:
   - `Domain/` types
   - Protocol contracts in `Extensions/ExtensionPoints.swift`
@@ -198,15 +196,16 @@ This is a routing and check rule, not a long approval form. Small typo or commen
 ## Cross-Links
 
 - [Shell Blocks](SHELL_BLOCKS.md)
+- [Workflow Assembly](WORKFLOW_ASSEMBLY.md)
 - [Module Boundaries](MODULE_BOUNDARIES.md)
 - [Pack/Restore](modules/PACK_RESTORE.md)
 - [Workbench Roadmap](WORKBENCH_ROADMAP.md)
 
 ## Code Map
 
-- `Sources/SpinLabApp/Domain/Workflow/WorkflowID.swift` — Tier 1 canonical workflow identity enum with alias normalization; cross-region contract <!-- legitimate_cross_cutting -->
-- `Sources/SpinLabApp/Domain/Workflow/WorkflowDefinitionProviding.swift` — capability protocol for loading workflow definitions; WorkflowDefinitionStore conforms
-- `Sources/SpinLabApp/Workflow/WorkflowDefinition.swift` — defines the workflow registration contract (ID, metadata, capabilities)
-- `Sources/SpinLabApp/Extensions/ExtensionPoints.swift` — declares extension points for workflow opt-in capabilities
-- `Sources/SpinLabApp/Workflow/WorkflowDefinitionStore.swift` — stores registered workflow definitions; populated at app startup
-- `Sources/SpinLabApp/Workflow/WorkflowRegistry.swift` — global registry mapping workflow IDs to their definitions and capabilities
+- `Sources/SpinLabApp/Domain/Workflow/WorkflowID.swift` - Tier 1 canonical workflow identity enum with alias normalization; cross-region contract <!-- legitimate_cross_cutting -->
+- `Sources/SpinLabApp/Domain/Workflow/WorkflowDefinitionProviding.swift` - capability protocol for loading workflow definitions; WorkflowDefinitionStore conforms
+- `Sources/SpinLabApp/Workflow/WorkflowDefinition.swift` - defines the workflow registration contract (ID, metadata, capabilities)
+- `Sources/SpinLabApp/Extensions/ExtensionPoints.swift` - declares extension points for workflow opt-in capabilities
+- `Sources/SpinLabApp/Workflow/WorkflowDefinitionStore.swift` - stores registered workflow definitions; populated at app startup
+- `Sources/SpinLabApp/Workflow/WorkflowRegistry.swift` - global registry mapping workflow IDs to their definitions and capabilities
