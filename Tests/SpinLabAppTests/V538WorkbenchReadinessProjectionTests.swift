@@ -91,6 +91,22 @@ struct V538WorkbenchReadinessProjectionTests {
         #expect(projection.hasSaved)
     }
 
+    @Test("Failed persistence outcome does not count as saved")
+    func failedPersistenceDoesNotCountAsSaved() {
+        #expect(WorkbenchReadinessProjection.hasSavedPersistenceOutcome(.failure("boom")) == false)
+
+        let projection = WorkbenchReadinessProjection(
+            searchResultCount: 0,
+            selectedCount: 0,
+            isRunning: false,
+            hasResultReady: false,
+            hasSaved: WorkbenchReadinessProjection.hasSavedPersistenceOutcome(.failure("boom"))
+        )
+
+        #expect(projection.readiness == .empty)
+        #expect(projection.hasSaved == false)
+    }
+
     @Test("Readiness is derived from inputs and not stored state")
     func readinessIsDerivedFromInputs() {
         var inputs = (

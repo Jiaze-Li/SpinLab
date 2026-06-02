@@ -84,6 +84,16 @@ struct WorkbenchReadinessProjection: Sendable, Hashable {
 
     var hasFoundData: Bool { searchResultCount > 0 }
     var hasSelectedData: Bool { selectedCount > 0 }
+
+    static func hasSavedPersistenceOutcome(_ outcome: PersistenceOutcome?) -> Bool {
+        guard let outcome else { return false }
+        switch outcome {
+        case .success, .partial:
+            return true
+        case .failure:
+            return false
+        }
+    }
 }
 
 extension WorkbenchReadinessProjection {
@@ -98,7 +108,7 @@ extension WorkbenchReadinessProjection {
             selectedCount: store.selectedSearchResultIDs.count,
             isRunning: workbench.isSearchRunning(for: workflowID) || store.isAnalyzing,
             hasResultReady: store.activeChartPNG != nil && store.activeChartManifestPayload != nil,
-            hasSaved: store.persistenceOutcome != nil
+            hasSaved: Self.hasSavedPersistenceOutcome(store.persistenceOutcome)
         )
     }
 }
