@@ -1,4 +1,4 @@
-# Workbench — Shell Migration Roadmap
+# Workbench - Shell Migration Roadmap
 
 > Canonical phase progress and migration sequence for Workbench shell architecture.
 
@@ -11,6 +11,7 @@ Use this file to track:
 - completed phases
 - current and upcoming phases
 - completion criteria per phase
+- the current gate plan
 
 Detailed architecture contracts remain in sibling docs. This file tracks progress, not contract details.
 
@@ -18,7 +19,7 @@ Detailed architecture contracts remain in sibling docs. This file tracks progres
 
 Workbench modularization phases fall into three categories:
 
-**Framework / Governance** — architecture language, routing rules, Main Board / Layout Host / Module / Workflow Assembly terminology, docs/index alignment.
+**Framework / Governance** — architecture language, routing rules, Workflow / Workflow Assembly / Main Board / Modules terminology, docs/index alignment.
 
 **Boundary Stabilization** — module ownership contracts, forbidden mutations, transition read surfaces, regression gates, and guardrails.
 
@@ -26,13 +27,33 @@ Workbench modularization phases fall into three categories:
 
 5.3.7 completed the first two categories. The third category is post-5.3.7 work.
 
+## Gate Plan
+
+The current task is Gate 1.
+
+| Gate | Status | Scope |
+|---|---|---|
+| Gate 1 | current | Record Architecture Decisions |
+| Gate 2 | planned | Workflow Assembly Audit |
+| Gate 3 | planned | Module Audit |
+| Gate 4 | planned | Layout Audit |
+| Gate 5 | planned | Layout Refactor |
+| Gate 6 | planned | Readiness Consumption |
+| Gate 7 | planned | Search Module Extraction |
+| Gate 8 | planned | Selection Module Extraction |
+| Gate 9 | planned | Analyze Module Extraction |
+| Gate 10 | planned | Save / Pack Module Extraction |
+| Gate 11 | planned | New Workflow Dry Run |
+
+Gates 2 through 11 are planned future work. They are not completed by this documentation update.
+
 ## 5.3.7 Scope Closure
 
 5.3.7 delivered the **Workbench modularization safety baseline**.
 
 ### Completed in 5.3.7
 
-- Architecture language / governance baseline (Main Board, Layout Host, Module, Workflow Assembly terminology; docs/index alignment)
+- Architecture language / governance baseline (Workflow, Workflow Assembly, Main Board, Modules terminology; docs/index alignment)
 - Module boundary contracts for Search, Selection, Plot Preservation, Analysis Lifecycle, Save, Pack / Restore
 - Transition read surfaces:
   - `WorkbenchSearchSnapshot`
@@ -42,7 +63,7 @@ Workbench modularization phases fall into three categories:
 - App bundle and web export guardrails
 
 Search Module read-surface extraction began in 5.3.7; runtime ownership cleanup remains post-5.3.7.
-Derived Workbench readiness projection is still a docs-first target; the code step remains to add a read-only `WorkbenchReadinessProjection`.
+`WorkbenchReadinessProjection` has been implemented. Consumption by shell and result-header gating remains future work.
 
 ### Not completed in 5.3.7
 
@@ -63,7 +84,7 @@ Derived Workbench readiness projection is still a docs-first target; the code st
 | Phase 3B | web export chart asset regression tests | complete |
 | Phase 4 | Plot Preservation Module | complete |
 | Phase 5A | Search Module Contract + boundary tests | complete |
-| Phase 5B | Main Board / Layout Host / Module / Module Group / Workflow Assembly architecture docs | complete |
+| Phase 5B | Workflow / Workflow Assembly / Main Board / Module / Module Group architecture docs | complete |
 | Phase 5C | Selection Module Contract + `WorkbenchSelectedHitsSnapshot` run-scoped read surface | complete |
 | Phase 5D-1 | Analysis Lifecycle Module — boundary tests locking cross-module behavior | complete |
 | Phase 5D-2 | Analysis Lifecycle Module — contract documentation | complete |

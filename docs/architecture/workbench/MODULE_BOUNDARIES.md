@@ -1,8 +1,40 @@
 # Workbench Module Boundaries
 
-This document makes the current module ownership boundaries explicit so they can be enforced by tests and assertions. Each section names one module's canonical state, what it does not own, and the forbidden mutations other modules must not perform against it.
+This document is the ownership authority for Workbench modules. A module owns concrete capability and state. The Main Board mounts and calls modules, and sibling modules must not mutate each other's canonical state. This is not a process guide.
 
-Architecture routing and compliance rules (when to consult this doc, how to report compliance, what to do on a boundary conflict): [`EXTENSION_BOUNDARIES.md` § Architecture Usage Rules](EXTENSION_BOUNDARIES.md#architecture-usage-rules).
+## Module Concepts
+
+### What is a Module?
+
+A Module is a reusable Workbench capability mounted and called by the Main Board. It owns its own canonical state and exposes explicit read surfaces to the Main Board and sibling modules.
+
+### Default Module
+
+A Default Module is always loaded by the Main Board, regardless of the active workflow.
+
+### Optional Module
+
+An Optional Module is declared by the active Workflow Assembly and mounted only when that workflow is active.
+
+### Module Group
+
+A Module Group is an organizational grouping of related modules. It has no state ownership and no behavioral authority.
+
+### Ownership Rule
+
+Each module owns its canonical state. Other modules may read only through explicit read surfaces or projections.
+
+### Forbidden Mutation Rule
+
+Sibling modules must not write each other's canonical state directly. Cross-module changes must flow through the Main Board, explicit snapshots, or provider protocols.
+
+### Read Surface Rule
+
+Read surfaces must be explicit. If a module needs another module's state, the dependency must be named as a snapshot, projection, or provider contract rather than implied through shared mutable state.
+
+### Module-Specific Boundaries
+
+The sections below document the current boundary contracts for each module and module group.
 
 ## Search Boundary
 
@@ -258,8 +290,6 @@ Architecture routing and compliance rules (when to consult this doc, how to repo
 - Phase 5E-2 boundary tests complete
 - Shared save coordinator extraction deferred to Phase 5E-3
 
-Full module contract: [`SHELL_BLOCKS.md` § Save Module](SHELL_BLOCKS.md).
-
 ## Pack / Restore Module Boundary (Phase 5F)
 
 - Target contract owner: Pack/Restore Module
@@ -336,8 +366,6 @@ Series reorder is a Plot Controls Module concern, not a canvas concern.
 Full series reorder contract and review checklist: [`modules/PLOT_SYSTEM.md` § Series Reorder Contract](modules/PLOT_SYSTEM.md).
 
 ## Phase 4: Plot Preservation Module (Plot System Module Group)
-
-The Plot Preservation Module is part of the Plot System Module Group. Full contract: [`SHELL_BLOCKS.md` § Plot Preservation Module](SHELL_BLOCKS.md#plot-preservation-module-phase-4).
 
 Boundary: no module other than Plot Preservation may write `TabRenderState` override fields or call `clearStates()`. `TabRenderManager` is the single owner of override state and render output.
 
