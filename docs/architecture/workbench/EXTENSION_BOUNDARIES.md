@@ -33,7 +33,7 @@ Default modules attach automatically. Do not redeclare them in the Workflow Asse
 
 ### Step 0 - Classify and define
 
-Before writing any code, classify the module and define its boundaries. See [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md) for ownership authority and [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md) for the current implementation-level placement notes. Key decisions:
+Before writing any code, classify the module and define its boundaries. See [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md) for ownership authority and [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md) for the current implementation-level injection points. Key decisions:
 
 - Default or Optional: does this module apply to all workflows or only one workflow? Workflow-specific optional panels / contributions live in [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md).
 - Single responsibility: name the one capability this module owns. If you cannot state it in one sentence, split it into two modules.
@@ -106,7 +106,7 @@ Use this pipeline to classify new requests before implementation.
 
 6. New Module / Module Extraction
 - Adding a new module to the Main Board or extracting existing behavior into a module.
-- Route to: [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md) for boundary documentation; [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md) for placement surfaces; [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md) for the implementation checklist.
+- Route to: [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md) for boundary documentation; [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md) for injection points; [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md) for the implementation checklist.
 
 ### Intake Routing Rule
 

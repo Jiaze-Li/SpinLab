@@ -1,6 +1,7 @@
 # Workbench - Main Board Layout Notes
 
-> Implementation-level placement notes only. Layout names are not formal architecture layers.
+> Implementation-level injection points only. Layout names are not formal architecture layers.
+> Slot / Region / Mount Surface are not part of the stable model.
 
 ## Definitions
 
@@ -16,9 +17,9 @@ An Area is a coarse physical location in the shell. Areas describe where content
 
 Placement names are implementation labels used by the shell to describe what kind of content belongs in an area.
 
-### Mount Surface
+### Injection Point
 
-A Mount Surface is the concrete injection point the Main Board exposes to a workflow or module. It is the implementation-facing surface used to populate a layout area.
+An Injection Point is the concrete hook the current shell exposes to a workflow or module. It is an implementation detail in the current shell, not a formal architecture layer.
 
 ### Area vs Placement Name
 

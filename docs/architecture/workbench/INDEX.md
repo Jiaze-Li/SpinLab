@@ -17,11 +17,11 @@
 | `EXTENSION_BOUNDARIES.md` | Extension guide | Add-workflow and add-module routing/checklists |
 | `WORKBENCH_ROADMAP.md` | Phase tracking | Current Workbench shell migration status |
 
-**Implementation placement notes** - naming used by the live shell implementation, not formal architecture layers:
+**Implementation injection points** - naming used by the live shell implementation, not formal architecture layers:
 
 | File | Role | Scope |
 |---|---|---|
-| `MAIN_BOARD_LAYOUT.md` | Placement notes | Current shell placement names and mount points |
+| `MAIN_BOARD_LAYOUT.md` | Placement notes | Current shell injection points and placement names |
 
 **`modules/`** - specialized docs for complex modules or module groups:
 
@@ -63,7 +63,7 @@ Base module ownership rules, forbidden mutations, and transition state live in [
 - If changing module ownership, read [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md).
 - If adding a workflow, read [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) and [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md).
 - If checking gate status, read [WORKBENCH_ROADMAP.md](WORKBENCH_ROADMAP.md).
-- If changing implementation placement details, read [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md).
+- If changing implementation injection points or placement details, read [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md).
 
 ## Architecture Usage Rules
 
@@ -112,5 +112,5 @@ This directory describes Workbench-internal behavior only. Cross-domain contract
 - `docs/architecture/library/SIDECAR_AND_CONDITIONS.md` - sidecar display in Library view
 - `docs/architecture/library/ARTIFACTS_AND_PREVIEWS.md` - Library view of chart/metric artifacts and preview
 - `docs/architecture/workbench/SHELL_BLOCKS.md` - overview of the Workflow / Workflow Assembly / Main Board / Modules model
-- `docs/architecture/workbench/MAIN_BOARD_LAYOUT.md` - implementation-level placement notes only
+- `docs/architecture/workbench/MAIN_BOARD_LAYOUT.md` - implementation-level injection points only
 - `docs/architecture/workbench/WORKBENCH_ROADMAP.md` - phase progress for Workbench shell migration

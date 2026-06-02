@@ -36,7 +36,7 @@ Adding a workflow means adding a new Workflow Assembly.
 - Save / Pack implementation
 - Plot module internals
 - Default module ownership
-- Scientific workflow logic outside the workflow's own contract
+- Scientific logic belongs inside the workflow's Physics Function contract, not inside the Main Board or default modules.
 
 ## Assembly Boundary
 

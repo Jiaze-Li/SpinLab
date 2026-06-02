@@ -63,7 +63,7 @@ The Main Board is the persistent Workbench shell. It owns only readiness, layout
 
 ## Layout
 
-Layout is pure spatial structure: where things appear. It is implementation-level only. Region, Slot, and Mount Surface are placement names used by the shell implementation, not formal architecture layers.
+Layout is pure spatial structure: where things appear. It is implementation-level only. Injection points are shell implementation details, not formal architecture layers. Slot, Region, and Mount Surface are not part of the stable model.
 
 ## Cross-Links
 
