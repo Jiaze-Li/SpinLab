@@ -161,7 +161,6 @@ Architecture details: `docs/architecture/inbox/RULES_AUTHORING.md`
 - Per-condition standardization (v5.1.9+): optional standard unit + per-row transform expression (implicit-left-value: `*1000` = value×1000, `-273` = value−273) + precision rounding; transform ignored when standard unit is nil
 - v6→v7 migration: adds `standardization` object and `transform: null` to all rules; bootstrapper gate at schema v7
 - Legacy unit normalization (halfStep / trimNoise) fully deleted in v5.1.9
-- Bundled `sample_identification.json` remains the UI-config source of truth, while `FilenameRuleSet.fallback()` still mirrors overlapping substrate defaults for emergency recovery; this branch only restores JSON parity. Future debt: make bundled JSON canonical and reduce fallback to recovery-only, or add parity tests.
 - Test coverage: 36 + 20 + 12 + 3 + 4 + 4 + 44 tests across suites — see `RULES_AUTHORING.md`
 
 ---

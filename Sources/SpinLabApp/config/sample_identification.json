@@ -12,10 +12,6 @@
       {
         "type" : "starts-with",
         "value" : "SL"
-      },
-      {
-        "type" : "starts-with",
-        "value" : "LNO"
       }
     ]
   },
@@ -26,11 +22,7 @@
         "matches" : [
           {
             "type" : "contains",
-            "value" : "STO111"
-          },
-          {
-            "type" : "contains",
-            "value" : "STO001"
+            "value" : "STO"
           }
         ]
       },
@@ -47,7 +39,7 @@
         "displayName" : "MgO",
         "matches" : [
           {
-            "type" : "equals",
+            "type" : "contains",
             "value" : "MGO"
           }
         ]
@@ -67,24 +59,33 @@
           {
             "type" : "equals",
             "value" : "SI"
-          },
-          {
-            "type" : "equals",
-            "value" : "ONSI"
-          }
-        ]
-      },
-      {
-        "displayName" : "poly-SiO2 on Si",
-        "matches" : [
-          {
-            "type" : "equals",
-            "value" : "SIO2"
           }
         ]
       }
     ],
     "orientations" : [
+      {
+        "displayName" : "111",
+        "matches" : [
+          {
+            "type" : "equals",
+            "value" : "111"
+          },
+          {
+            "type" : "equals",
+            "value" : "STO111"
+          }
+        ]
+      },
+      {
+        "displayName" : "110",
+        "matches" : [
+          {
+            "type" : "equals",
+            "value" : "110"
+          }
+        ]
+      },
       {
         "displayName" : "001",
         "matches" : [
@@ -99,28 +100,6 @@
           {
             "type" : "equals",
             "value" : "STO001"
-          }
-        ]
-      },
-      {
-        "displayName" : "111",
-        "matches" : [
-          {
-            "type" : "equals",
-            "value" : "111"
-          },
-          {
-            "type" : "contains",
-            "value" : "STO111"
-          }
-        ]
-      },
-      {
-        "displayName" : "110",
-        "matches" : [
-          {
-            "type" : "equals",
-            "value" : "110"
           }
         ]
       },
@@ -145,20 +124,19 @@
         ]
       },
       {
-        "displayName" : "baked",
-        "matches" : [
-          {
-            "type" : "contains",
-            "value" : "bake"
-          }
-        ]
-      },
-      {
         "displayName" : "b",
         "matches" : [
           {
             "type" : "equals",
             "value" : "b"
+          },
+          {
+            "type" : "contains",
+            "value" : "bake"
+          },
+          {
+            "type" : "contains",
+            "value" : "baked"
           }
         ]
       },
