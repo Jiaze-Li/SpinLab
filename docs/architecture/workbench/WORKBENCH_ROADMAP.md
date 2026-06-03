@@ -34,7 +34,7 @@ The current task is Gate 1.
 | Gate | Status | Scope |
 |---|---|---|
 | Gate 1 | current | Record Architecture Decisions / Finalize Gate Plan |
-| Gate 2 | planned | Workflow Assembly Audit & Contract Validation |
+| Gate 2 | complete | Workflow Assembly Audit & Contract Validation |
 | Gate 3 | planned | Module Audit & Contract Validation |
 | Gate 4 | planned | Layout Audit |
 | Gate 5 | planned | Layout Refactor |
@@ -42,7 +42,7 @@ The current task is Gate 1.
 | Gate 7 | planned | Module Extraction Program |
 | Gate 8 | planned | New Workflow Dry Run |
 
-Gate 1 remains current for this roadmap-finalization PR. Gates 2 through 8 are planned future work. Gate 7 is a container gate. Its extraction sequence is determined after Gate 3.
+Gate 1 remains current for this roadmap-finalization PR. Gate 2 is complete via PR #96. Gates 3 through 8 are planned future work. Gate 7 is a container gate. Its extraction sequence is determined after Gate 3.
 
 ### Gate 2 - Workflow Assembly Audit & Contract Validation
 
@@ -75,6 +75,7 @@ Acceptance:
 Result:
 
 - Assembly Contract v1.0
+- Completed via PR #96 (`docs: record workflow assembly mappings`)
 
 ### Gate 3 - Module Audit & Contract Validation
 
