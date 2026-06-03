@@ -79,11 +79,7 @@
         "matches" : [
           {
             "type" : "equals",
-            "value" : "POLY-SIO2"
-          },
-          {
-            "type" : "equals",
-            "value" : "POLY-SIO2 ON SI"
+            "value" : "SIO2"
           }
         ]
       }
