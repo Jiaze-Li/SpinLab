@@ -161,6 +161,7 @@ Architecture details: `docs/architecture/inbox/RULES_AUTHORING.md`
 - Per-condition standardization (v5.1.9+): optional standard unit + per-row transform expression (implicit-left-value: `*1000` = value×1000, `-273` = value−273) + precision rounding; transform ignored when standard unit is nil
 - v6→v7 migration: adds `standardization` object and `transform: null` to all rules; bootstrapper gate at schema v7
 - Legacy unit normalization (halfStep / trimNoise) fully deleted in v5.1.9
+- Rules authority debt: UI/runtime Rules Panel config under Application Support is the single source of truth target; repo `Sources/SpinLabApp/config` remains mirror/default seed, and `FilenameRuleSet.fallback()` remains emergency recovery only until a future gate defines one authoritative rule source and makes mirroring explicit instead of implicit.
 - Test coverage: 36 + 20 + 12 + 3 + 4 + 4 + 44 tests across suites — see `RULES_AUTHORING.md`
 
 ---
