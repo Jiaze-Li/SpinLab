@@ -8,47 +8,18 @@
 - Runtime display name is loaded from `WorkflowDefinitionStore` / `config/workflow.json`; this record maps the runtime assembly that consumes it.
 - The assembly is the concrete combination of registry dispatch, workspace view, workflow store, typed contracts, parsers, render / fit / scaling helpers, and tests.
 
-## Code Map
+## Contract-Field Audit
 
-- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift` - dispatches `"3w"` to `ThreeOmegaWorkspaceView`.
-- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceShell.swift` - hosts the shared workbench shell for the 3-Omega workspace.
-- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift` - composes the shell, RT search field, plot controls, geometry panel, and scaling result panel.
-- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift` - owns 3-Omega selection, analysis, rendering, scaling, persistence, and pack restore state.
-- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Analysis.swift` - drives 3-Omega ingestion and fit analysis.
-- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Rendering.swift` - builds the 3-Omega render state.
-- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Scaling.swift` - computes the 3-Omega scaling workflow output.
-- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift` - serializes and restores the 3-Omega pack state.
-- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+ManifestCache.swift` - maintains manifest payload caching.
-- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Persistence.swift` - persists 3-Omega charts and metrics to the Library.
-- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Selection.swift` - owns field-sweep selection state.
-- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift` - owns RT selection state.
-- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+FitRanges.swift` - manages scaling fit ranges.
-- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RelatedCharts.swift` - tracks related chart references.
-- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Plotting.swift` - adapts the workflow store to the shared plot shell.
-- `Sources/SpinLabApp/Workbench/Domain/ThreeOmegaIngestionDomain.swift` - defines the 3-Omega ingestion domain types.
-- `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift` - defines the 3-Omega pack config and result snapshots.
-- `Sources/SpinLabApp/Domain/ThreeOmegaFieldSweepResult.swift` - carries the derived field-sweep result model.
-- `Sources/SpinLabApp/Domain/ThreeOmegaGeometry.swift` - carries the geometry contract used by scaling.
-- `Sources/SpinLabApp/Domain/ThreeOmegaScalingResult.swift` - carries the scaling-law result model.
-- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkbenchTab.swift` - defines the 3-Omega tab model.
-- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaRenderedPlots.swift` - defines the rendered-plot projection model.
-- `Sources/SpinLabApp/UseCases/ThreeOmegaLVMParser.swift` - parses 3-Omega LVM inputs.
-- `Sources/SpinLabApp/UseCases/IngestThreeOmegaSelectionsUseCase.swift` - converts selected hits into 3-Omega ingestion output.
-- `Sources/SpinLabApp/UseCases/ThreeOmegaFitUseCase.swift` - fits the 3-Omega AHE and RAHE outputs.
-- `Sources/SpinLabApp/UseCases/ThreeOmegaPlotRenderer.swift` - assembles the active 3-Omega plot payload.
-- `Sources/SpinLabApp/UseCases/ThreeOmegaScalingUseCase.swift` - computes the scaling-law projection.
-- `Sources/SpinLabApp/UseCases/ThreeOmegaStackOffsetUseCase.swift` - derives the stack-offset helper used by the shell.
-- `Tests/SpinLabAppTests/V400ThreeOmegaTests.swift` - covers the baseline 3-Omega workflow path.
-- `Tests/SpinLabAppTests/V4110ThreeOmegaStackOffsetUseCaseTests.swift` - covers stack-offset behavior.
-- `Tests/SpinLabAppTests/V4112ThreeOmegaV3MethodTests.swift` - covers V(3ω) method selection.
-- `Tests/SpinLabAppTests/V4116ThreeOmegaRAHETests.swift` - covers RAHE extraction behavior.
-- `Tests/SpinLabAppTests/V41216ThreeOmegaPlotRendererTests.swift` - covers plot rendering behavior.
-- `Tests/SpinLabAppTests/V41216ThreeOmegaScalingUseCaseTests.swift` - covers scaling-law computation.
-- `Tests/SpinLabAppTests/V413ThreeOmegaFitUseCaseTests.swift` - covers fit behavior.
-- `Tests/SpinLabAppTests/V5115ThreeOmegaWorkspaceStoreCharacterizationTests.swift` - covers store characterization.
-- `Tests/SpinLabAppTests/V537ThreeOmegaSearchSnapshotConsumptionTests.swift` - covers search snapshot consumption.
-- `Tests/SpinLabAppTests/V563ThreeOmegaFieldSweepSeriesOrderTests.swift` - covers field-sweep ordering behavior.
-- `Tests/SpinLabAppTests/V563WorkflowStateBoundaryTests.swift` - covers cross-workflow state boundaries involving 3-Omega.
+| Field | Current real implementation | Files | Explicit or implicit |
+|---|---|---|---|
+| Workflow Identity | Explicit registry key `3w`; also surfaced through `WorkbenchWorkflowID.threeOmega` and workflow definitions loaded from `config/workflow.json`. | `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift`; `Sources/SpinLabApp/App/State/WorkbenchFeatureStore.swift`; `Sources/SpinLabApp/Workflow/WorkflowDefinitionStore.swift`; `Sources/SpinLabApp/Workflow/WorkflowDefinition.swift` | Explicit at registry / workflow-ID level |
+| Physics Function | The physics is documented explicitly in `THREE_OMEGA_PHYSICS.md`, but the runtime implementation is spread across ingestion, fitting, scaling, rendering, and domain types. No single runtime physics-contract object exists. | `docs/architecture/workbench/workflows/three-omega/THREE_OMEGA_PHYSICS.md`; `Sources/SpinLabApp/UseCases/ThreeOmegaLVMParser.swift`; `Sources/SpinLabApp/UseCases/IngestThreeOmegaSelectionsUseCase.swift`; `Sources/SpinLabApp/UseCases/ThreeOmegaFitUseCase.swift`; `Sources/SpinLabApp/UseCases/ThreeOmegaPlotRenderer.swift`; `Sources/SpinLabApp/UseCases/ThreeOmegaScalingUseCase.swift`; `Sources/SpinLabApp/Workbench/Domain/ThreeOmegaIngestionDomain.swift`; `Sources/SpinLabApp/Domain/ThreeOmegaFieldSweepResult.swift`; `Sources/SpinLabApp/Domain/ThreeOmegaGeometry.swift`; `Sources/SpinLabApp/Domain/ThreeOmegaScalingResult.swift` | Explicit in docs, implicit in runtime structure |
+| Workflow Parameters | Geometry, fit ranges, V(3ω) method, RAHE methods, RT selection, title template, stack offset, gap fraction, grid toggle, legend anchor, chart style overrides, and search state are all stored directly on the workflow store / pack config. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+FitRanges.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift`; `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift` | Mostly explicit in store / pack state, not as a dedicated assembly object |
+| Plot Defaults | Default tab, default plot grid, default stack range, and default method / control selections are encoded by store initialization and `TabRenderManager`, not by a dedicated assembly contract. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkbenchTab.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift` | Implicit default behavior |
+| Optional Panels / optional contributions | The view explicitly injects optional shell content: RT search field, geometry panel on the scaling tab, scaling result panel, overlay controls, and overlay chips. There is no separate optional-panel abstraction. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift`; `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceShell.swift` | Explicit in view composition, implicit as contract |
+| Save Metadata Provider | Save metadata is produced inside `ThreeOmegaWorkspaceStore.persistToLibrary()` / pack-save flow from the current render and selection state. No separate provider object exists. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Persistence.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift`; `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift` | Implicit in store methods |
+| Pack Metadata Provider | Pack data is explicit as `ThreeOmegaPackConfig` / `ThreeOmegaPackResult`, and the store implements build/restore directly. There is no dedicated pack-provider layer. | `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift` | Explicit contracts, implicit provider boundary |
+| Required Tests | Workflow-specific regression coverage is explicit, but spread across focused tests rather than a single assembly manifest. | `Tests/SpinLabAppTests/V400ThreeOmegaTests.swift`; `Tests/SpinLabAppTests/V4110ThreeOmegaStackOffsetUseCaseTests.swift`; `Tests/SpinLabAppTests/V4112ThreeOmegaV3MethodTests.swift`; `Tests/SpinLabAppTests/V4116ThreeOmegaRAHETests.swift`; `Tests/SpinLabAppTests/V41216ThreeOmegaPlotRendererTests.swift`; `Tests/SpinLabAppTests/V41216ThreeOmegaScalingUseCaseTests.swift`; `Tests/SpinLabAppTests/V413ThreeOmegaFitUseCaseTests.swift`; `Tests/SpinLabAppTests/V5115ThreeOmegaWorkspaceStoreCharacterizationTests.swift`; `Tests/SpinLabAppTests/V537ThreeOmegaSearchSnapshotConsumptionTests.swift`; `Tests/SpinLabAppTests/V563ThreeOmegaFieldSweepSeriesOrderTests.swift`; `Tests/SpinLabAppTests/V563WorkflowStateBoundaryTests.swift` | Explicit test coverage, implicit manifest |
 
 ## Notes
 

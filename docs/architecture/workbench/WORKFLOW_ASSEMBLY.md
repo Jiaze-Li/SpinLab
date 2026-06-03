@@ -38,9 +38,19 @@ Adding a workflow means adding a new Workflow Assembly.
 - Default module ownership
 - Scientific logic belongs inside the workflow's Physics Function contract, not inside the Main Board or default modules.
 
+## Contract Reality
+
+The contract below is idealized. The current repository implementation splits that contract across registry dispatch, workflow views, workflow stores, typed contracts, use cases, and regression tests.
+
+| Layer | What it means |
+|---|---|
+| Ideal assembly contract | The abstract per-workflow fields listed above. |
+| Current implementation surface | The concrete files that currently realize the workflow: registry, view, store, contracts, use cases, and tests. |
+| Implicit current behavior | Fields that exist only as conventions or distributed behavior, not as a dedicated provider object or single contract type. |
+
 ## Current Implementation Surface
 
-In this repository, the abstract assembly is realized across a small set of files:
+In this repository, the current implementation surface is realized across a small set of files:
 
 - `Sources/SpinLabApp/Workflow/WorkflowDefinitionStore.swift` and `config/workflow.json` provide workflow display names and condition-field definitions.
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift` maps workflow IDs to concrete workspace views.
@@ -50,7 +60,7 @@ In this repository, the abstract assembly is realized across a small set of file
 - `Sources/SpinLabApp/UseCases/*` contains workflow-specific parsing, ingestion, rendering, fitting, and scaling helpers.
 - `Tests/SpinLabAppTests/*` carries the workflow-specific regression coverage.
 
-The per-workflow records under `workflows/*/ASSEMBLY.md` map those surfaces to concrete files.
+The per-workflow records under `workflows/*/ASSEMBLY.md` map those surfaces to concrete files and call out where the contract is explicit versus implicit.
 
 ## Assembly Boundary
 
