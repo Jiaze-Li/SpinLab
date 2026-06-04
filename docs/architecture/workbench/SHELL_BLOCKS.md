@@ -30,18 +30,18 @@ It is not the Main Board and not a module.
 
 ## Workflow Assembly
 
-A Workflow Assembly is the complete content and configuration for one workflow. Adding a workflow means adding a new Workflow Assembly under that workflow's own docs.
+A Workflow Assembly is the workflow-owned semantic contract for one workflow. It declares workflow-specific differences, overrides, contracts, and ownership; common Main Board and default module behavior stay out of Assembly. Adding a workflow means adding a new Workflow Assembly under that workflow's own docs.
 
 It declares:
 
-- Workflow Identity
-- Physics Function
-- Workflow Parameters
-- Plot Defaults
-- Optional Panels / optional contributions
-- Save Metadata Provider
-- Pack Metadata Provider
-- Required Tests
+- Workflow identity / search hints
+- Data / physics mapping
+- Analysis pipeline
+- Optional workflow contributions
+- Plot semantics / overrides
+- Validation / warning policy
+- Persistence / pack-restore metadata
+- Required behavior tests
 
 It does not own:
 

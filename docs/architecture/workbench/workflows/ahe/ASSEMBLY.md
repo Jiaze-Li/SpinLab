@@ -1,27 +1,96 @@
 # AHE Workflow Assembly
 
-> Implementation record for the AHE workflow assembly.
+> Semantic assembly audit for the AHE workflow.
 
 ## Reality Check
 
 - Workflow ID: `ahe`
-- Runtime display name is loaded from `WorkflowDefinitionStore` / `config/workflow.json`; this record maps the runtime assembly that consumes it.
-- The assembly is not a single object. It is the composition of registry dispatch, the workspace view, the workflow store, typed pack / ingestion contracts, and tests.
+- Runtime display name is loaded from `WorkflowDefinitionStore` / `config/workflow.json`.
+- There is no runtime Assembly object. The workflow contract is distributed across registry dispatch, the workspace view/store, parser and use cases, pack contracts, and tests.
+- Common Main Board behavior stays out of this record: search execution, selection mechanics, analyze/save lifecycle, plot-canvas internals, related-chart hover behavior, and default pack button behavior.
 
-## Contract-Field Audit
+## Search Hints
 
-| Field | Current real implementation | Files | Explicit or implicit |
-|---|---|---|---|
-| Workflow Identity | Explicit registry key `ahe`; also surfaced through `WorkbenchWorkflowID.ahe` and workflow definitions loaded from `config/workflow.json`. | `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift`; `Sources/SpinLabApp/App/State/WorkbenchFeatureStore.swift`; `Sources/SpinLabApp/Workflow/WorkflowDefinitionStore.swift`; `Sources/SpinLabApp/Workflow/WorkflowDefinition.swift` | Explicit at registry / workflow-ID level |
-| Physics Function | Distributed across ingestion, axis detection, payload assembly, and metric extraction. No single AHE physics contract object exists in this branch. | `Sources/SpinLabApp/UseCases/AHEAxisDetector.swift`; `Sources/SpinLabApp/UseCases/AHEDataParser.swift`; `Sources/SpinLabApp/UseCases/IngestAHESelectionsUseCase.swift`; `Sources/SpinLabApp/UseCases/BuildAHEPlotPayloadUseCase.swift`; `Sources/SpinLabApp/UseCases/ExtractAHEMetricsUseCase.swift` | Implicit and distributed |
-| Workflow Parameters | Plot axis overrides, title template, grid toggle, metric override candidates, and selection state live directly on the workflow store and its panels. There is no separate parameter contract type. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift`; `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift` | Implicit in store / view state |
-| Plot Defaults | Default tab state, title template, and grid default come from store initialization and `TabRenderManager` defaults, not from a dedicated assembly record. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift`; `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift` | Implicit default behavior |
-| Optional Panels / optional contributions | The view explicitly injects optional panels through shell slots: plot controls, metric override, and RAHE override panels. There is no standalone optional-contribution abstraction. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift`; `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceShell.swift` | Explicit in view composition, implicit as contract |
-| Save Metadata Provider | Save metadata is produced inside `AHEWorkspaceStore.persistToLibrary()` from the active render state and `buildActiveChartMetrics()`. No separate metadata-provider object exists. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift`; `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift`; `Sources/SpinLabApp/Workbench/V3/AHEPackContracts.swift` | Implicit in store methods |
-| Pack Metadata Provider | Pack data is explicit as `AHEPackConfig` / `AHEPackResult`, and restoration is implemented directly on the store. There is no dedicated pack-provider layer. | `Sources/SpinLabApp/Workbench/V3/AHEPackContracts.swift`; `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` | Explicit contracts, implicit provider boundary |
-| Required Tests | Workflow-specific regression coverage is explicit, but the suite is a set of focused tests rather than a single assembly test manifest. | `Tests/SpinLabAppTests/V321AHEIngestionAxisDetectionTests.swift`; `Tests/SpinLabAppTests/V331AHEWorkspaceViewExtractionTests.swift`; `Tests/SpinLabAppTests/V333AHEWorkspaceStoreIsolationTests.swift`; `Tests/SpinLabAppTests/V413AHEMultiSeriesExtractionTests.swift`; `Tests/SpinLabAppTests/V5111ExtractAHEMetricsUseCaseTests.swift`; `Tests/SpinLabAppTests/V5114AHEMetricSourceTests.swift`; `Tests/SpinLabAppTests/V537AHESearchSnapshotConsumptionTests.swift`; `Tests/SpinLabAppTests/V563WorkflowStateBoundaryTests.swift` | Explicit test coverage, implicit manifest |
+| Semantic item | Current behavior | Trace |
+|---|---|---|
+| Workflow match token | Workflow config matches token `AHE`; runtime workflow ID is `ahe`. | `Sources/SpinLabApp/config/workflow.json`; `Sources/SpinLabApp/Workflow/WorkflowDefinitionStore.swift` |
+| Search aliases | Search aliases are `ahe` and `a`; `anomaloushall` participates in canonicalization but not search token aliases. | `Sources/SpinLabApp/Domain/Workflow/WorkflowID.swift`; `Sources/SpinLabApp/UseCases/SearchWorkflowMeasurementsUseCase.swift` |
+| Extra search slots | None. AHE uses the common Workbench search only. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift` |
+| Result mirror | AHE keeps `cachedSearchResults` as the workflow-local mirror for selection denominator, pack state, title context, and legacy restore fallback. This is common bridge behavior, not an AHE-only search module. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift`; `docs/architecture/workbench/modules/MEASUREMENT_SEARCH.md` |
 
-## Notes
+## Data / Physics Mapping Contract
 
-- `AHEWorkspaceStore` currently owns the pack / restore path directly; there is no separate workflow-pack module in this branch.
-- The registry key and the workspace view are the authoritative assembly entry points for this workflow.
+| Semantic item | Current behavior | Trace |
+|---|---|---|
+| Accepted file formats | PPMS `.dat` files in two variants: `[Header]` / `[Data]` followed by `Comment,...` column header, or files starting directly with `Comment,...`. | `Sources/SpinLabApp/UseCases/AHEDataParser.swift`; `Tests/SpinLabAppTests/V321AHEIngestionAxisDetectionTests.swift` |
+| Parser entry point | `AHEDataParser.parse(fileURL:)` returns `PPMSParsedFile` with raw column names, rows, and source ref. | `Sources/SpinLabApp/UseCases/AHEDataParser.swift`; `Sources/SpinLabApp/Domain/PPMSParsedFile.swift` |
+| Field column mapping | Default semantic x is `Magnetic Field (T)`, resolved from raw `Magnetic Field (Oe)` and converted by `× 1e-4`. Default semantic y is `R_H (Ω)`, but no raw `R_H (Ω)` column is required; ingestion resolves it per selected channel to `Bridge N Resistance (Ohms)` or active `Bridge N Resistivity...`. | `Sources/SpinLabApp/UseCases/AHEAxisDetector.swift`; `Sources/SpinLabApp/UseCases/IngestAHESelectionsUseCase.swift`; `Tests/SpinLabAppTests/V321AHEIngestionAxisDetectionTests.swift` |
+| Bridge/channel mapping | `AHEPlotSelectionItem.channel.bridgeIndex` selects Bridge 1/2/3. The selected bridge determines the y column unless the user overrides y to a concrete non-`R_H` column. | `Sources/SpinLabApp/UseCases/IngestAHESelectionsUseCase.swift`; `Sources/SpinLabApp/Workbench/V3/AHEIngestionContracts.swift` |
+| Unit conversion | Magnetic field defaults to tesla display by converting Oe to T. Resistivity fallback is not converted; the warning says no unit conversion was applied. | `Sources/SpinLabApp/UseCases/IngestAHESelectionsUseCase.swift` |
+| Derived metrics | Hc and R_AHE are extracted from rendered series. Hc uses midpoint crossings where possible, otherwise nearest midpoint. R_AHE uses high-field plateau medians when both plateaus exist, otherwise half range. | `Sources/SpinLabApp/UseCases/ExtractAHEMetricsUseCase.swift`; `Tests/SpinLabAppTests/V5111ExtractAHEMetricsUseCaseTests.swift`; `Tests/SpinLabAppTests/V5114AHEMetricSourceTests.swift` |
+| UI overrides | The workflow exposes x/y axis override pickers, title template, grid toggle, Hc override, and R_AHE override. Axis override values are stored on the workflow store. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift`; `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` |
+
+## Analysis Pipeline
+
+| Stage | Current behavior | Trace |
+|---|---|---|
+| Parse | Parse unique selected file paths once into `PPMSParsedFile`. Structural parser failures are captured as warnings by ingestion. | `Sources/SpinLabApp/UseCases/IngestAHESelectionsUseCase.swift` |
+| Ingest | Build one `WorkbenchPlotSeries` per selected sample/channel. Selection order is preserved after unique file parsing. | `Sources/SpinLabApp/UseCases/IngestAHESelectionsUseCase.swift` |
+| Transform | Convert magnetic field to T for default x; resolve y to bridge resistance/resistivity; attach metadata for title/legend resolvers. | `Sources/SpinLabApp/UseCases/IngestAHESelectionsUseCase.swift` |
+| Render payload | Build a single-tab `WorkbenchPlotPayload` with the resolved axis mapping and series; render through the common `WorkbenchRenderPipeline`. | `Sources/SpinLabApp/UseCases/BuildAHEPlotPayloadUseCase.swift`; `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` |
+| Metrics | Extract Hc and R_AHE from active chart series and allow pre-persist manual overrides. | `Sources/SpinLabApp/UseCases/ExtractAHEMetricsUseCase.swift`; `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` |
+| Warnings/failure | Empty selection returns an empty result. Parse failures, unparseable files, inactive bridges, resistivity fallback, and empty paired data become warnings/skips rather than silent fallback. | `Sources/SpinLabApp/UseCases/IngestAHESelectionsUseCase.swift`; `Tests/SpinLabAppTests/V321AHEIngestionAxisDetectionTests.swift` |
+
+## Optional Contributions
+
+| Contribution | Assembly-owned semantics | Trace |
+|---|---|---|
+| AHE plot controls | Axis override, title template, grid, render mode, and style controls are workflow-specific contribution content mounted in the shell. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift` |
+| Hc override panel | AHE allows manual Hc correction before persistence. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift`; `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` |
+| R_AHE override panel | AHE allows manual R_AHE correction before persistence. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift`; `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` |
+
+## Plot Contract / Overrides
+
+| Semantic item | Current behavior | Trace |
+|---|---|---|
+| Common plot behavior | Legend editing, label overrides, render mode, style params, copy PNG, related-chart display, and tab render-state preservation remain common plot shell behavior. | `docs/architecture/workbench/modules/PLOT_SYSTEM.md`; `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift`; `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift` |
+| Workflow-specific default axes | Default x is `Magnetic Field (T)`. Default y is semantic `R_H (Ω)` and resolves to the selected bridge resistance/resistivity data. | `Sources/SpinLabApp/UseCases/AHEAxisDetector.swift`; `Sources/SpinLabApp/UseCases/IngestAHESelectionsUseCase.swift` |
+| Tabs | AHE is a single-tab workflow. | `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift`; `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` |
+| Title default | `#tab #device #sample`, with `#tab` resolved to `AHE`. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` |
+| Metrics/annotations | Hc and R_AHE are workflow metrics saved with chart artifacts; manual overrides are AHE-specific. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift`; `Sources/SpinLabApp/UseCases/ExtractAHEMetricsUseCase.swift` |
+
+## Validation / Warning Policy
+
+- Missing or malformed `.dat` structure throws parser validation errors, which ingestion reports as parse warnings.
+- A selected bridge with no active resistance/resistivity data is skipped with a bridge-specific warning.
+- Resistivity fallback is allowed but explicitly warns that no unit conversion was applied.
+- Empty paired x/y data is skipped with a warning.
+- Metric extraction can fail on missing sample IDs; tests protect label/source behavior, but the workflow currently favors extracted `sampleID` over label parsing.
+
+## Persistence / Pack-Restore Contract
+
+| State | Current persistence behavior | Trace |
+|---|---|---|
+| Axis overrides | Saves `plotAxisXOverride` and `plotAxisYOverride`. | `Sources/SpinLabApp/Workbench/V3/AHEPackContracts.swift`; `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` |
+| Display state | Saves title template, grid flag, and per-tab render states. | `Sources/SpinLabApp/Workbench/V3/AHEPackContracts.swift` |
+| Search/selection state | Saves cached search results, selected IDs, and common search query text for restore bridging. | `Sources/SpinLabApp/Workbench/V3/AHEPackContracts.swift` |
+| Result snapshot | Saves `AHEIngestionResult` so restore can rerender without re-ingestion. | `Sources/SpinLabApp/Workbench/V3/AHEPackContracts.swift` |
+| Metrics | Saved chart metrics are built from active render state at persistence time, including pending Hc/R_AHE overrides if present. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` |
+
+## Required Behavior Tests
+
+| Behavior class | Current coverage | Missing / later consideration |
+|---|---|---|
+| Data mapping | Parser variants, default axis mapping, parse-once, multi-file/multi-channel, inactive bridge skip, stable candidate axis fields. | Add explicit Oe→T numeric conversion assertion if the mapping changes. |
+| Unit conversion | Field conversion is indirectly covered by default-axis behavior; resistivity no-conversion is warning-only. | Add direct warning text coverage before changing resistivity fallback semantics. |
+| Analysis pipeline | Store isolation, view extraction, multi-series extraction, search snapshot consumption, tab-state boundary. | No single Assembly manifest test exists. |
+| Warning/failure | Inactive bridge and parse failure paths have focused coverage. | Missing-column warning text should be locked before changing parser/axis detection. |
+| Pack/restore | Pack contract and workflow state boundary tests cover restored ingestion/result state. | Add round-trip for axis overrides plus metric override candidates if persistence semantics change. |
+| Plot semantics | Single-tab state preservation and metric source tests cover current behavior. | Plot semantic tests should be added if AHE gains workflow-specific plot modes beyond axis overrides. |
+
+## Findings Summary
+
+- Common and out of Assembly: Workbench search execution, selection toggles, analyze/save buttons, plot-canvas internals, related-chart hover, and render pipeline mechanics.
+- Assembly-owned: `ahe` identity/search aliases, `.dat` variants, bridge-to-channel y mapping, Oe→T conversion, AHE metric extraction, AHE override panels, single-tab plot semantics, and pack fields required to rerender/interpret AHE results.
+- Currently implicit/distributed: the semantic `R_H (Ω)` y default is implemented as bridge-column resolution, not a raw column; metric extraction and save metadata are store/use-case behavior, not provider objects.
+- Later Gate 3 / Gate 7 consideration: if module extraction proceeds, preserve the AHE semantic mapping as a workflow-owned contract and do not move bridge resolution or Oe→T conversion into generic plot/search modules.

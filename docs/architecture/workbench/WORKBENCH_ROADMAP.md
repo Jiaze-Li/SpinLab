@@ -34,7 +34,8 @@ The current task is Gate 1.
 | Gate | Status | Scope |
 |---|---|---|
 | Gate 1 | current | Record Architecture Decisions / Finalize Gate Plan |
-| Gate 2 | planned | Workflow Assembly Audit & Contract Validation |
+| Gate 2 | complete | Workflow Assembly Audit & Contract Validation |
+| Gate 2.1 | complete | Workflow Semantic Assembly Audit |
 | Gate 3 | planned | Module Audit & Contract Validation |
 | Gate 4 | planned | Layout Audit |
 | Gate 5 | planned | Layout Refactor |
@@ -42,7 +43,7 @@ The current task is Gate 1.
 | Gate 7 | planned | Module Extraction Program |
 | Gate 8 | planned | New Workflow Dry Run |
 
-Gate 1 remains current for this roadmap-finalization PR. Gates 2 through 8 are planned future work. Gate 7 is a container gate. Its extraction sequence is determined after Gate 3.
+Gate 1 remains current for this roadmap-finalization PR. Gate 2 is complete via PR #96. Gate 2.1 is complete as a documentation-only semantic follow-up. Gates 3 through 8 are planned future work. Gate 7 is a container gate. Its extraction sequence is determined after Gate 3.
 
 ### Gate 2 - Workflow Assembly Audit & Contract Validation
 
@@ -75,6 +76,31 @@ Acceptance:
 Result:
 
 - Assembly Contract v1.0
+- Completed via PR #96 (`docs: record workflow assembly mappings`)
+
+### Gate 2.1 - Workflow Semantic Assembly Audit
+
+Reference:
+
+- [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md)
+- [workflows/ahe/ASSEMBLY.md](workflows/ahe/ASSEMBLY.md)
+- [workflows/xy-rotation/ASSEMBLY.md](workflows/xy-rotation/ASSEMBLY.md)
+- [workflows/three-omega/ASSEMBLY.md](workflows/three-omega/ASSEMBLY.md)
+
+Purpose:
+
+- Refine Assembly from "complete content and configuration" to workflow-owned semantic contract
+- Keep common Main Board and default module behavior out of per-workflow Assembly records
+- Audit AHE / XY Rotation / 3ω for search hints, data/physics mapping, analysis pipeline, optional contributions, plot semantics, validation policy, persistence, and behavior-test obligations
+- Report contradictions instead of forcing code into a runtime Assembly-object model
+
+Result:
+
+- Assembly Contract v1.1
+- Common search, selection, analyze/save lifecycle, plot shell internals, and default module behavior remain outside Assembly
+- Workflow-specific semantics are now mapped to distributed implementation files and behavior-test classes
+- Contradictions captured: AHE `R_H (Ω)` is a semantic default resolved to bridge resistance/resistivity columns, XY is search-tokenized from config rather than a `WorkflowID` case, and 3ω has workflow-specific RT search state that is not a common search module
+- Documentation-only follow-up; no Swift code or runtime extraction
 
 ### Gate 3 - Module Audit & Contract Validation
 
