@@ -7,15 +7,16 @@ struct BuildAHEPlotPayloadUseCase {
         workflowID: String = "AHE",
         workflowDisplayName: String = "AHE",
         title: String,
-        axisMappingOverride: WorkbenchAxisMapping? = nil,
         styleParams: [String: String] = [:]
     ) -> WorkbenchPlotPayload {
-        let axisMapping = axisMappingOverride ?? ingestion.defaultAxisMapping
         return WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: workflowDisplayName,
             title: title,
-            axisMapping: axisMapping,
+            axisMapping: WorkbenchAxisMapping(
+                xField: AHEAxisDetector.semanticXField,
+                yField: AHEAxisDetector.semanticYField
+            ),
             series: ingestion.series,
             styleParams: styleParams
         )

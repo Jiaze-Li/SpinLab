@@ -4,17 +4,14 @@ struct IngestAHESelectionsUseCase {
 
     func execute(
         selections: [AHEPlotSelectionItem],
-        xColumnOverride: String? = nil,
-        yColumnOverride: String? = nil,
         numericDisplayBySample: [String: [String: String]] = [:],
         parseFile: (URL) throws -> PPMSParsedFile = { url in try AHEDataParser().parse(fileURL: url) }
     ) throws -> AHEIngestionResult {
         guard !selections.isEmpty else {
             return AHEIngestionResult(
-                candidateAxisFields: [],
                 defaultAxisMapping: WorkbenchAxisMapping(
-                    xField: "Magnetic Field (Oe)",
-                    yField: "Bridge 1 Resistance (Ohms)"
+                    xField: AHEAxisDetector.semanticXField,
+                    yField: AHEAxisDetector.semanticYField
                 ),
                 series: [],
                 sourceFiles: [],
@@ -43,7 +40,6 @@ struct IngestAHESelectionsUseCase {
         }
 
         let detector = AHEAxisDetector()
-        let allParsed = orderedPaths.compactMap { parsedFiles[$0] }
 
         // Build one WorkbenchPlotSeries per selection
         var series: [WorkbenchPlotSeries] = []
@@ -58,18 +54,11 @@ struct IngestAHESelectionsUseCase {
 
             let bridgeIndex = selection.channel.bridgeIndex
 
-            let isRHRequest = yColumnOverride == "R_H (\u{03A9})"
-            let resolvedYCol: String
-            if let yOverride = yColumnOverride, !isRHRequest {
-                resolvedYCol = yOverride
-            } else {
-                guard let col = detector.yColumnName(from: file, bridgeIndex: bridgeIndex) else {
-                    warnings.append(
-                        "Skipped [\(selection.sampleKey) \(selection.channel.rawValue)]: Bridge \(bridgeIndex) has no data in \(URL(fileURLWithPath: selection.sourceFilePath).lastPathComponent)."
-                    )
-                    continue
-                }
-                resolvedYCol = col
+            guard let resolvedYCol = detector.yColumnName(from: file, bridgeIndex: bridgeIndex) else {
+                warnings.append(
+                    "Skipped [\(selection.sampleKey) \(selection.channel.rawValue)]: Bridge \(bridgeIndex) has no data in \(URL(fileURLWithPath: selection.sourceFilePath).lastPathComponent)."
+                )
+                continue
             }
 
             if resolvedYCol.contains("Resistivity") {
@@ -78,14 +67,12 @@ struct IngestAHESelectionsUseCase {
                 )
             }
 
-            let isTeslaRequest = xColumnOverride == "Magnetic Field (T)" || xColumnOverride == nil
-            let xColumn = isTeslaRequest ? "Magnetic Field (Oe)" : (xColumnOverride ?? "Magnetic Field (Oe)")
             let (rawXs, ys) = detector.pairedValues(
                 from: file,
-                xColumn: xColumn,
+                xColumn: AHEAxisDetector.rawMagneticFieldColumn,
                 yColumn: resolvedYCol
             )
-            let xs = isTeslaRequest ? rawXs.map { $0 * 1e-4 } : rawXs
+            let xs = rawXs.map { $0 * 1e-4 }
 
             guard !xs.isEmpty else {
                 warnings.append(
@@ -132,15 +119,10 @@ struct IngestAHESelectionsUseCase {
             ))
         }
 
-        var candidateAxisFields = detector.candidateAxisFields(from: allParsed)
-        if let oeIndex = candidateAxisFields.firstIndex(of: "Magnetic Field (Oe)") {
-            candidateAxisFields.insert("Magnetic Field (T)", at: oeIndex + 1)
-        }
-        let defaultAxisMapping = detector.defaultAxisMapping(from: allParsed)
+        let defaultAxisMapping = detector.defaultAxisMapping()
         let sourceFiles = orderedPaths.filter { parsedFiles[$0] != nil }
 
         return AHEIngestionResult(
-            candidateAxisFields: candidateAxisFields,
             defaultAxisMapping: defaultAxisMapping,
             series: series,
             sourceFiles: sourceFiles,

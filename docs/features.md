@@ -131,6 +131,7 @@ Behavior details: `docs/architecture/workbench/INDEX.md`
 
 ### Workflow Contracts (3-Omega AHE / AMR-PHE / XY Rotation)
 - 3ω: fit ranges are part of scaling chart semantic identity — different fit configs produce separate chart entries, not overwrites.
+- AHE: plot axes are fixed by workflow semantics: x = `H (T)`, y = `R_H (Ω)`; selected ch1/ch2/ch3 still chooses Bridge 1/2/3 data for `R_H`.
 - AMR/PHE: tag normalization AMR → R_xx, PHE → R_xy.
 - XY Rotation: tag normalization XY_90shift → workflow=XY + angle_shift=+90deg.
 - Details: [`THREE_OMEGA_PHYSICS.md`](architecture/workbench/workflows/three-omega/THREE_OMEGA_PHYSICS.md), [`modules/PACK_RESTORE.md`](architecture/workbench/modules/PACK_RESTORE.md)

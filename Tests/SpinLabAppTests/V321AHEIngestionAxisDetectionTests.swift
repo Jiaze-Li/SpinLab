@@ -38,7 +38,7 @@ struct V321AHEIngestionAxisDetectionTests {
 
     // MARK: - Default axis mapping
 
-    @Test("default x axis is Magnetic Field (T)")
+    @Test("default x axis is H (T)")
     func defaultXAxisIsMagneticField() throws {
         let fixture = try AHEDatFixture()
         defer { fixture.cleanup() }
@@ -49,7 +49,8 @@ struct V321AHEIngestionAxisDetectionTests {
             parseFile: { try AHEDataParser().parse(fileURL: $0) }
         )
 
-        #expect(result.defaultAxisMapping.xField == "Magnetic Field (T)")
+        #expect(result.defaultAxisMapping.xField == "H (T)")
+        #expect(result.series[0].x == [1.0, 0.5, -0.5])
     }
 
     @Test("default y axis is R_H (Ω) when Bridge 1 is active")
@@ -157,7 +158,7 @@ struct V321AHEIngestionAxisDetectionTests {
 
     // MARK: - Stable ordering
 
-    @Test("default axis mapping and candidate fields are stable regardless of selection order")
+    @Test("default axis mapping is stable regardless of selection order")
     func defaultAxisMappingIsStable() throws {
         let fixture = try AHEDatFixture()
         defer { fixture.cleanup() }
@@ -182,28 +183,27 @@ struct V321AHEIngestionAxisDetectionTests {
         )
 
         #expect(resultAB.defaultAxisMapping == resultBA.defaultAxisMapping)
-        #expect(resultAB.candidateAxisFields == resultBA.candidateAxisFields)
     }
 
-    // MARK: - Candidate axis fields completeness
+    // MARK: - Channel-aware bridge selection
 
-    @Test("candidate axis fields include all active bridge resistance columns")
-    func candidateAxisFieldsIncludeActiveBridges() throws {
+    @Test("PN50 ch2-style selected hit uses Bridge 2 data for R_H")
+    func pn50Ch2SelectedHitUsesBridge2Data() throws {
         let fixture = try AHEDatFixture()
         defer { fixture.cleanup() }
 
         let url = try fixture.write(name: "multi.dat", content: Fixtures.variantA_ch1ch2)
         let result = try IngestAHESelectionsUseCase().execute(
             selections: [
-                .init(sampleKey: "PN31|o|STO|111", sourceFilePath: url.path, channel: .ch1),
-                .init(sampleKey: "PN31|b|STO|111", sourceFilePath: url.path, channel: .ch2),
+                .init(sampleKey: "PN50|b|STO|111", sourceFilePath: url.path, channel: .ch2),
             ],
             parseFile: { try AHEDataParser().parse(fileURL: $0) }
         )
 
-        #expect(result.candidateAxisFields.contains("Magnetic Field (Oe)"))
-        #expect(result.candidateAxisFields.contains("Bridge 1 Resistance (Ohms)"))
-        #expect(result.candidateAxisFields.contains("Bridge 2 Resistance (Ohms)"))
+        #expect(result.defaultAxisMapping.yField == "R_H (\u{03A9})")
+        #expect(result.series.count == 1)
+        #expect(result.series[0].sampleID == "PN50|b|STO|111")
+        #expect(result.series[0].y == [2.0, 1.9, 1.8])
     }
 }
 

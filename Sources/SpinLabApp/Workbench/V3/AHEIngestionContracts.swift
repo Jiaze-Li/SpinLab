@@ -40,9 +40,20 @@ struct AHEPlotSelectionItem: Codable, Hashable, Sendable {
 }
 
 struct AHEIngestionResult: Codable, Hashable, Sendable {
-    var candidateAxisFields: [String]
     var defaultAxisMapping: WorkbenchAxisMapping
     var series: [WorkbenchPlotSeries]
     var sourceFiles: [String]?
     var warnings: [String]
+
+    init(
+        defaultAxisMapping: WorkbenchAxisMapping,
+        series: [WorkbenchPlotSeries],
+        sourceFiles: [String]?,
+        warnings: [String]
+    ) {
+        self.defaultAxisMapping = defaultAxisMapping
+        self.series = series
+        self.sourceFiles = sourceFiles
+        self.warnings = warnings
+    }
 }
