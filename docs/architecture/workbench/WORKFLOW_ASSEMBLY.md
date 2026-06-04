@@ -1,15 +1,15 @@
 # Workbench - Workflow Assembly
 
-> Workflow Assembly is the per-workflow integration contract consumed by the Main Board.
+> Workflow Assembly is the workflow-owned semantic contract consumed by the Main Board and implemented across workflow code.
 
 ## Core Principle
 
 Workflow declares the analysis title / analysis type.
 The workflow itself is not the Main Board and not a module.
 
-Workflow Assembly declares the complete content and configuration for one workflow.
-Main Board decides and mounts modules.
-Modules execute the concrete behavior.
+Workflow Assembly declares workflow-specific semantic differences, overrides, contracts, and ownership.
+Main Board stays generic and mounts common modules.
+Common modules execute default shell/module behavior and should not be repeated in every Assembly record.
 
 Adding a workflow means adding a new Workflow Assembly.
 
@@ -17,25 +17,26 @@ Adding a workflow means adding a new Workflow Assembly.
 
 | Contract field | Meaning |
 |---|---|
-| Workflow Identity | Stable workflow registration identity and associated metadata |
-| Physics Function | Scientific model, ingestion, calculation, and result contract |
-| Workflow Parameters | Workflow-specific parameters exposed through the workspace |
-| Plot Defaults | Default plot presentation choices for the workflow |
-| Optional Panels / optional contributions | Additional workflow-specific content declared by the workflow |
-| Save Metadata Provider | Metadata needed to interpret saved results later |
-| Pack Metadata Provider | Metadata needed to restore the workspace later |
-| Required Tests | Regression gates that the workflow must satisfy |
+| Workflow Identity / Search Hints | Stable workflow identity plus workflow-specific search aliases, prefixes, or extra search slots |
+| Data / Physics Mapping | Raw-file formats, parser entry points, required fields, column/index mapping, unit conversion, derived quantities, and invalid-data behavior |
+| Analysis Pipeline | Workflow-specific parse, ingest, transform/fit/scale, render-payload, metric, warning, and failure stages |
+| Optional Contributions | Workflow-specific panels or module contributions mounted by the shell |
+| Plot Semantics / Overrides | Plot meanings that differ from common plot shell behavior: default axes, units, tabs, stacking, normalization, annotations, metrics, titles, and legends |
+| Validation / Warning Policy | Workflow-specific warnings/errors for missing input, skipped series, ambiguous units, and data-quality failures |
+| Persistence / Pack-Restore | Workflow-specific state required to interpret restored workspaces and saved results |
+| Required Behavior Tests | Behavior classes that protect the workflow contract |
 
 ## What It Does Not Own
 
 - Main Board layout
 - Readiness
-- Search logic
+- Common search logic
 - Selection logic
 - Analyze lifecycle logic
 - Save / Pack implementation
 - Plot module internals
 - Default module ownership
+- Common module behavior and default shell behavior
 - Scientific logic belongs inside the workflow's Physics Function contract, not inside the Main Board or default modules.
 
 ## Contract Reality
@@ -64,4 +65,6 @@ The per-workflow records under `workflows/*/ASSEMBLY.md` map those surfaces to c
 
 ## Assembly Boundary
 
-A Workflow Assembly is the contract the Main Board reads when it configures the active workflow. The Main Board uses the resulting declarations to mount or call modules, and the modules execute the behavior that the assembly describes.
+A Workflow Assembly is the workflow-owned semantic contract for the active workflow. The Main Board uses workflow declarations to mount or call modules, but common module behavior remains outside Assembly. Assembly should name only workflow-specific identity/search hints, data mapping, analysis behavior, optional contributions, plot overrides, persistence metadata, validation policy, and required behavior tests.
+
+The current implementation does not have runtime Assembly objects. A valid Assembly record may therefore point to distributed implementation files instead of a single provider type. If code contradicts the ideal model, the record should state the contradiction rather than inventing a framework.
