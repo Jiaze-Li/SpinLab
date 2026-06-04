@@ -315,20 +315,20 @@ struct V537WorkbenchSelectionShellTests {
     // MARK: - 5. selection does not mutate plot/preservation state
 
     @MainActor
-    @Test("Selection operations do not mutate AHE plot title/axis/legend overrides")
+    @Test("Selection operations do not mutate AHE plot title/label/legend overrides")
     func selectionDoesNotMutateAHEPlotOverrides() {
         let store = AHEWorkspaceStore()
         let hit = makeHit(id: "ahe-plot-boundary", workflowID: "ahe", workflowCanonicalID: "ahe")
 
         store.cachedSearchResults = [hit]
         store.updatePlotTitle("Boundary Title")
-        store.plotAxisXOverride = "X Custom"
-        store.plotAxisYOverride = "Y Custom"
+        store.updateXAxisLabel("X Custom")
+        store.updateYAxisLabel("Y Custom")
         store.updateLegendPoint(CGPoint(x: 0.3, y: 0.7))
 
         let titleBefore = store.tabs.activeState.titleOverride
-        let xBefore = store.plotAxisXOverride
-        let yBefore = store.plotAxisYOverride
+        let xBefore = store.tabs.activeState.xLabelOverride
+        let yBefore = store.tabs.activeState.yLabelOverride
         let legendBefore = store.tabs.activeState.legendPoint
 
         store.toggleSearchHitSelection(hit.id)
@@ -336,8 +336,8 @@ struct V537WorkbenchSelectionShellTests {
         store.deselectAll()
 
         #expect(store.tabs.activeState.titleOverride == titleBefore)
-        #expect(store.plotAxisXOverride == xBefore)
-        #expect(store.plotAxisYOverride == yBefore)
+        #expect(store.tabs.activeState.xLabelOverride == xBefore)
+        #expect(store.tabs.activeState.yLabelOverride == yBefore)
         #expect(store.tabs.activeState.legendPoint == legendBefore)
     }
 }

@@ -5,10 +5,6 @@ import Foundation
 /// Everything needed to restore an AHE workbench session.
 struct AHEPackConfig: Codable, Hashable, Sendable {
 
-    // --- Plot axis overrides ---
-    var plotAxisXOverride: String
-    var plotAxisYOverride: String
-
     // --- Display settings ---
     var titleTemplate: String
     var showPlotGrid: Bool
@@ -21,20 +17,31 @@ struct AHEPackConfig: Codable, Hashable, Sendable {
     var selectedSearchResultIDs: [String]
     var searchQueryText: String
 
-    init(plotAxisXOverride: String, plotAxisYOverride: String, titleTemplate: String, showPlotGrid: Bool,
-         tabStates: [String: TabRenderState] = [:], cachedSearchResults: [WorkflowMeasurementSearchHit] = [],
+    init(titleTemplate: String, showPlotGrid: Bool, tabStates: [String: TabRenderState] = [:],
+         cachedSearchResults: [WorkflowMeasurementSearchHit] = [],
          selectedSearchResultIDs: [String] = [], searchQueryText: String = "") {
-        self.plotAxisXOverride = plotAxisXOverride; self.plotAxisYOverride = plotAxisYOverride
         self.titleTemplate = titleTemplate; self.showPlotGrid = showPlotGrid
         self.tabStates = tabStates; self.cachedSearchResults = cachedSearchResults
         self.selectedSearchResultIDs = selectedSearchResultIDs; self.searchQueryText = searchQueryText
     }
 
-    // Backward-compatible decode: fields added after initial release default safely.
+    private enum DeprecatedCodingKeys: String, CodingKey {
+        case plotAxisXOverride
+        case plotAxisYOverride
+    }
+
+    // Decode deliberately rejects packs from the retired AHE axis override module.
     init(from decoder: Decoder) throws {
+        let deprecated = try decoder.container(keyedBy: DeprecatedCodingKeys.self)
+        if deprecated.contains(.plotAxisXOverride) || deprecated.contains(.plotAxisYOverride) {
+            throw DecodingError.dataCorrupted(
+                DecodingError.Context(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "This AHE pack uses deprecated AHE axis overrides. Re-run the AHE analysis with fixed semantic axes H (T) vs R_H (\u{03A9}) and save a new pack."
+                )
+            )
+        }
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        plotAxisXOverride      = try c.decodeIfPresent(String.self, forKey: .plotAxisXOverride) ?? ""
-        plotAxisYOverride      = try c.decodeIfPresent(String.self, forKey: .plotAxisYOverride) ?? ""
         titleTemplate          = try c.decodeIfPresent(String.self, forKey: .titleTemplate) ?? ""
         showPlotGrid           = try c.decodeIfPresent(Bool.self, forKey: .showPlotGrid) ?? true
         tabStates              = try c.decodeIfPresent([String: TabRenderState].self, forKey: .tabStates) ?? [:]

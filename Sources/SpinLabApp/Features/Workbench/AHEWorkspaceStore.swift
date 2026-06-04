@@ -19,7 +19,6 @@ final class AHEWorkspaceStore {
 
     private(set) var isPlotRendering: Bool = false
     var plotMessage: String?
-    private(set) var currentCandidateAxisFields: [String] = []
     var currentRunTrace: WorkbenchRunTraceProjection?
 
     // MARK: - Persistence outcome
@@ -108,11 +107,6 @@ final class AHEWorkspaceStore {
 
     var tabs = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe, showPlotGrid: false)
 
-    // MARK: - Plot controls (bound by AHEPlotControlsPanel)
-
-    var plotAxisXOverride: String = ""
-    var plotAxisYOverride: String = ""
-
     // MARK: - Title template
 
     var titleTemplate: String = "#tab #device #sample"
@@ -188,8 +182,6 @@ final class AHEWorkspaceStore {
     private func _rerenderActiveTab() {
         guard let ingestion = ingestionResult else { return }
 
-        let xOverride = plotAxisXOverride.trimmingCharacters(in: .whitespacesAndNewlines)
-        let yOverride = plotAxisYOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         let tabState = tabs.activeState
         let resolvedTitle: String = {
             if !tabState.titleOverride.isEmpty { return tabState.titleOverride }
@@ -202,12 +194,9 @@ final class AHEWorkspaceStore {
             tokens["tab"] = "AHE"
             return WorkbenchTitleResolver.resolve(template: titleTemplate, tokens: tokens)
         }()
-        let xField = xOverride.isEmpty ? ingestion.defaultAxisMapping.xField : xOverride
-        let yField = yOverride.isEmpty ? ingestion.defaultAxisMapping.yField : yOverride
         let payload = BuildAHEPlotPayloadUseCase().execute(
             ingestion: ingestion,
             title: resolvedTitle,
-            axisMappingOverride: WorkbenchAxisMapping(xField: xField, yField: yField),
             styleParams: [:]
         )
         let input = tabs.buildPipelineInput(payload: payload)
@@ -243,9 +232,6 @@ final class AHEWorkspaceStore {
         isPlotRendering = false
         plotMessage = nil
         saveMessage = nil
-        currentCandidateAxisFields = []
-        plotAxisXOverride = ""
-        plotAxisYOverride = ""
         cachedInputFiles = []
         activePackID = nil
         relatedChartsTask?.cancel()
@@ -487,8 +473,6 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
 
     func buildPackConfig() -> AHEPackConfig {
         AHEPackConfig(
-            plotAxisXOverride: plotAxisXOverride,
-            plotAxisYOverride: plotAxisYOverride,
             titleTemplate: titleTemplate,
             showPlotGrid: tabs.showPlotGrid,
             tabStates: tabs.snapshotStates(keyFor: { $0.rawValue }),
@@ -514,8 +498,6 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
     func restoreFromPack(config: AHEPackConfig, result: AHEPackResult, pack: AnalysisPack,
                          restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void) {
         // Restore plot controls
-        plotAxisXOverride = config.plotAxisXOverride
-        plotAxisYOverride = config.plotAxisYOverride
         titleTemplate = config.titleTemplate
         tabs.showPlotGrid = config.showPlotGrid
 
@@ -587,9 +569,6 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
             plotMessage = "Select at least one AHE measurement to plot."
             return
         }
-        // Capture overrides and context before leaving MainActor
-        let xOverride = plotAxisXOverride.trimmingCharacters(in: .whitespacesAndNewlines)
-        let yOverride = plotAxisYOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         let capturedTemplate = titleTemplate
         let capturedTitleTokens: [String: String] = {
             let sortedHits = selections.sorted(by: { $0.sampleKey < $1.sampleKey })
@@ -634,8 +613,6 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                 let (ingestion, pipelineOutput, extractedMetrics) = try await Task.detached(priority: .userInitiated) {
                     let ingestion = try IngestAHESelectionsUseCase().execute(
                         selections: selections,
-                        xColumnOverride: xOverride.isEmpty ? nil : xOverride,
-                        yColumnOverride: yOverride.isEmpty ? nil : yOverride,
                         numericDisplayBySample: capturedNumericDisplay
                     )
                     let extractedMetrics = try ExtractAHEMetricsUseCase.extractAHEMetricsPerSeries(from: ingestion.series).get()
@@ -645,12 +622,9 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                         tokens["tab"] = "AHE"
                         return WorkbenchTitleResolver.resolve(template: capturedTemplate, tokens: tokens)
                     }()
-                    let xField = xOverride.isEmpty ? ingestion.defaultAxisMapping.xField : xOverride
-                    let yField = yOverride.isEmpty ? ingestion.defaultAxisMapping.yField : yOverride
                     let payload = BuildAHEPlotPayloadUseCase().execute(
                         ingestion: ingestion,
                         title: resolvedTitle,
-                        axisMappingOverride: WorkbenchAxisMapping(xField: xField, yField: yField),
                         styleParams: [:]
                     )
                     let input = capturedPipelineInput(payload)
@@ -666,7 +640,6 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                 for w in ingestion.warnings {
                     self.appendWarning(source: "Ingestion", message: w)
                 }
-                self.currentCandidateAxisFields = ingestion.candidateAxisFields
                 self.lastExtractedMetrics = extractedMetrics
                 self.lastRenderedSampleKeys = snapshotSampleKeys
                 self.lastRenderedConditionsBySampleKey = snapshotConditions
@@ -689,13 +662,14 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
 
     func buildRunTrace() -> WorkbenchRunTraceProjection? {
         guard !cachedInputFiles.isEmpty else { return nil }
-        let xField = plotAxisXOverride.isEmpty ? "Magnetic Field" : plotAxisXOverride
-        let yField = plotAxisYOverride.isEmpty ? "R_H" : plotAxisYOverride
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,
             workflowID: "ahe",
             inputFiles: cachedInputFiles,
-            axisMapping: WorkbenchAxisMapping(xField: xField, yField: yField),
+            axisMapping: WorkbenchAxisMapping(
+                xField: AHEAxisDetector.semanticXField,
+                yField: AHEAxisDetector.semanticYField
+            ),
             semanticParams: ["series": "\(lastRenderedSampleKeys.count)"],
             outputImagePath: "",
             manifestPath: "",

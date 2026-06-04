@@ -18,10 +18,7 @@ struct V333AHEWorkspaceStoreIsolationTests {
         #expect(store.tabs.activeImageData == nil)
         #expect(store.isPlotRendering == false)
         #expect(store.plotMessage == nil)
-        #expect(store.currentCandidateAxisFields.isEmpty)
         #expect(store.currentRunTrace == nil)
-        #expect(store.plotAxisXOverride == "")
-        #expect(store.plotAxisYOverride == "")
         #expect(store.tabs.activeState.titleOverride == "")
         #expect(store.tabs.showPlotGrid == false)
         #expect(store.tabs.legendAnchor == "")
@@ -59,7 +56,6 @@ struct V333AHEWorkspaceStoreIsolationTests {
 
         // Seed some state
         store.toggleSearchHitSelection("id-1")
-        store.plotAxisXOverride = "Temperature (K)"
         store.tabs.updateTitleOverride("My Plot")
         store.tabs.showPlotGrid = true
         store.tabs.legendAnchor = "top-left"
@@ -73,10 +69,7 @@ struct V333AHEWorkspaceStoreIsolationTests {
         #expect(store.tabs.activeImageData == nil)
         #expect(store.isPlotRendering == false)
         #expect(store.plotMessage == nil)
-        #expect(store.currentCandidateAxisFields.isEmpty)
         #expect(store.currentRunTrace == nil)
-        #expect(store.plotAxisXOverride == "")
-        #expect(store.plotAxisYOverride == "")
         #expect(store.tabs.activeState.titleOverride == "")
         #expect(store.tabs.activeState.legendPoint == nil)
         #expect(store.tabs.activeSeriesLabelOverrides.isEmpty)

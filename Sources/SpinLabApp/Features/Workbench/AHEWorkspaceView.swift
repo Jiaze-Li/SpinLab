@@ -28,43 +28,19 @@ struct AHEWorkspaceView: View, WorkflowWorkspaceProvider {
     }
 }
 
-// MARK: - AHE Plot Controls Panel (axis pickers + title + grid)
+// MARK: - AHE Plot Controls Panel (title + grid)
 
 private struct AHEPlotControlsPanel: View {
     @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
         @Bindable var ahe = appState.workbench.aheWorkspace
-        let candidates = ahe.currentCandidateAxisFields.isEmpty
-            ? ["Magnetic Field (Oe)", "Magnetic Field (T)", "Temperature (K)",
-               "R_H (\u{03A9})", "Bridge 1 Resistance (Ohms)", "Bridge 2 Resistance (Ohms)", "Bridge 3 Resistance (Ohms)"]
-            : ahe.currentCandidateAxisFields
 
         WorkbenchPlotControlsPanel(
             seriesRenderMode: $ahe.seriesRenderMode,
             chartStyleOverrides: $ahe.chartStyleOverrides,
             onStyleChange: { ahe.rerenderForStyleChange() }
         ) {
-            HStack(spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("X Axis").font(.caption).foregroundStyle(.secondary)
-                    Picker("X Axis", selection: $ahe.plotAxisXOverride) {
-                        Text("Default").tag("")
-                        ForEach(candidates, id: \.self) { Text($0).tag($0) }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Y Axis").font(.caption).foregroundStyle(.secondary)
-                    Picker("Y Axis", selection: $ahe.plotAxisYOverride) {
-                        Text("Default").tag("")
-                        ForEach(candidates, id: \.self) { Text($0).tag($0) }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity)
-                }
-            }
             HStack(alignment: .top, spacing: 12) {
                 WorkbenchTitleTemplateField(
                     titleTemplate: $ahe.titleTemplate,

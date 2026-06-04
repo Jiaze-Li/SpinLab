@@ -60,7 +60,6 @@ What restore writes, and which module owns the state:
 | `stackOffsetMultiplier`, `minGapFraction` | Plot Controls / Physics | ✓ | — | ✓ |
 | `geometry`, `fitRanges`, `v3Method`, `rahe1omegaMethod`, `rahe3omegaMethod` | 3ω Physics Function | ✓ | — | — |
 | `rtQuery`, `selectedRTHit`; calls `persistRTQuery()` | 3ω RT Module | ✓ | — | — |
-| `plotAxisXOverride`, `plotAxisYOverride` | AHE Plot Controls | — | ✓ | — |
 | `phiOffsetOverrides`, `centerBaseline`, `linearDetrend` | XY Physics Function | — | — | ✓ |
 | `cachedInputFiles` | Pack Module local | ✓ | ✓ | ✓ |
 | `cachedSampleKeys` | Pack Module local | ✓ | — | ✓ |
@@ -246,10 +245,11 @@ Pack/Restore behavior currently lives in each workflow store (`ThreeOmegaWorkspa
 
 ### AMR/PHE
 
-- `AHEPackConfig` — axis overrides, title template, grid, per-tab states, search state
+- `AHEPackConfig` — title template, grid, per-tab states, search state
 - `AHEPackResult` — `ingestionResult` is optional for backward compat; must be non-nil for new packs
 - Tag normalization: AMR → `R_xx`; PHE → `R_xy`
 - Legacy exception: nil `ingestionResult` triggers `runAnalysis()` in restore
+- Packs containing retired AHE axis override fields fail decode with a message telling the user to re-run AHE with fixed semantic axes `H (T)` vs `R_H (Ω)`.
 
 ### XY Rotation
 
@@ -288,7 +288,7 @@ Pack/Restore behavior currently lives in each workflow store (`ThreeOmegaWorkspa
 - `Sources/SpinLabApp/UseCases/IngestThreeOmegaSelectionsUseCase.swift` — ingests selected files into 3ω analysis via LVM parsing and condition mapping
 - `Sources/SpinLabApp/Workbench/V3/AHEPackContracts.swift` — pack config and result contracts for the AHE workflow
 - `Sources/SpinLabApp/Workbench/V3/AHEIngestionContracts.swift` — ingestion input contracts and result types for the AHE workflow
-- `Sources/SpinLabApp/UseCases/IngestAHESelectionsUseCase.swift` — ingests selected files into AHE analysis via data parsing and axis detection
+- `Sources/SpinLabApp/UseCases/IngestAHESelectionsUseCase.swift` — ingests AHE selections with fixed axes and bridge-aware y data
 - `Sources/SpinLabApp/Workbench/V3/XYRotationPackContracts.swift` — pack config and result contracts for the XY Rotation workflow
 - `Sources/SpinLabApp/Workbench/V3/XYRotationIngestionContracts.swift` — ingestion input contracts and result types for the XY Rotation workflow
 - `Sources/SpinLabApp/UseCases/IngestXYRotationSelectionsUseCase.swift` — ingests selected files into XY Rotation analysis via LVM/DAT parsing

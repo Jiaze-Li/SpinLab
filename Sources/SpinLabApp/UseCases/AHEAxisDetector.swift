@@ -2,61 +2,15 @@ import Foundation
 
 struct AHEAxisDetector {
 
-    private static let xPriority = [
-        "Magnetic Field (Oe)",
-        "Temperature (K)",
-        "Sample Position (deg)",
-    ]
-
-    private static let bridgeRange = 1...3
-
-    // MARK: - Candidate axis fields (union across files, fixed priority order)
-
-    func candidateAxisFields(from files: [PPMSParsedFile]) -> [String] {
-        guard !files.isEmpty else { return [] }
-
-        var eligibleNames = Set<String>()
-        for file in files {
-            for (idx, name) in file.columnNames.enumerated() where !name.isEmpty {
-                if file.rows.contains(where: { Double(safeField($0, idx)) != nil }) {
-                    eligibleNames.insert(name)
-                }
-            }
-        }
-
-        var result: [String] = []
-        var seen = Set<String>()
-
-        func add(_ name: String) {
-            guard eligibleNames.contains(name), seen.insert(name).inserted else { return }
-            result.append(name)
-        }
-
-        for field in Self.xPriority { add(field) }
-
-        let rhLabel = "R_H (\u{03A9})"
-        result.append(rhLabel)
-        seen.insert(rhLabel)
-        for n in Self.bridgeRange {
-            add("Bridge \(n) Resistance (Ohms)")
-        }
-        for n in Self.bridgeRange {
-            // Match whichever Resistivity variant the file uses (Ohm or Ohm-m)
-            for file in files {
-                if let name = file.columnNames.first(where: { $0.hasPrefix("Bridge \(n) Resistivity") }) {
-                    add(name)
-                }
-            }
-        }
-
-        return result
-    }
+    static let semanticXField = "H (T)"
+    static let semanticYField = "R_H (\u{03A9})"
+    static let rawMagneticFieldColumn = "Magnetic Field (Oe)"
 
     // MARK: - Default axis mapping
 
-    func defaultAxisMapping(from files: [PPMSParsedFile]) -> WorkbenchAxisMapping {
-        let xField = "Magnetic Field (T)"
-        let yField = "R_H (\u{03A9})"
+    func defaultAxisMapping() -> WorkbenchAxisMapping {
+        let xField = Self.semanticXField
+        let yField = Self.semanticYField
         return WorkbenchAxisMapping(xField: xField, yField: yField)
     }
 

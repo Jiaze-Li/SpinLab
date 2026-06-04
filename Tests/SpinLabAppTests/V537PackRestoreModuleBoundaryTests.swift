@@ -150,8 +150,6 @@ struct V537PackRestoreModuleBoundaryTests {
         ingestionResult: AHEIngestionResult? = nil
     ) throws -> (AHEPackConfig, AHEPackResult, AnalysisPack) {
         let config = AHEPackConfig(
-            plotAxisXOverride: "",
-            plotAxisYOverride: "",
             titleTemplate: "#tab #sample",
             showPlotGrid: false,
             tabStates: [:],
@@ -327,7 +325,6 @@ struct V537PackRestoreModuleBoundaryTests {
                     sampleKey: "PN32|o|STO|111"),
         ]
         let ingestion = AHEIngestionResult(
-            candidateAxisFields: [],
             defaultAxisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
             series: [],
             sourceFiles: nil,
@@ -398,6 +395,43 @@ struct V537PackRestoreModuleBoundaryTests {
         )
     }
 
+    @MainActor
+    @Test("AHE pack with deprecated axis override fields fails restore with clear message")
+    func aheDeprecatedAxisOverridePackFailsWithClearMessage() throws {
+        let store = AHEWorkspaceStore()
+        let vault = AnalysisVault()
+        store.vault = vault
+
+        let configJSON = """
+        {
+          "plotAxisXOverride": "Temperature (K)",
+          "plotAxisYOverride": "Bridge 2 Resistance (Ohms)",
+          "titleTemplate": "#tab #sample",
+          "showPlotGrid": false,
+          "tabStates": {},
+          "cachedSearchResults": [],
+          "selectedSearchResultIDs": [],
+          "searchQueryText": "ahe fixture"
+        }
+        """
+        let result = AHEPackResult(ingestionResult: nil)
+        let resultData = try JSONEncoder().encode(result)
+        let pack = AnalysisPack(
+            label: "Deprecated AHE Axis Pack",
+            workflowID: "ahe",
+            filePaths: [],
+            sampleKeys: [],
+            config: Data(configJSON.utf8),
+            result: resultData
+        )
+        vault.add(pack)
+
+        store.loadPack(id: pack.id) { _, _ in }
+
+        #expect(store.analysisMessage?.contains("deprecated AHE axis overrides") == true)
+        #expect(store.analysisMessage?.contains("fixed semantic axes H (T) vs R_H") == true)
+    }
+
     // MARK: - 5. Session-only fields not written by restore
 
     @MainActor
@@ -436,7 +470,6 @@ struct V537PackRestoreModuleBoundaryTests {
         let store = AHEWorkspaceStore()
         let hits = [makeHit(id: "ahe-session", workflowID: "ahe", workflowCanonicalID: "ahe")]
         let ingestion = AHEIngestionResult(
-            candidateAxisFields: [],
             defaultAxisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
             series: [],
             sourceFiles: nil,

@@ -2,86 +2,58 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
-@Suite("V3.2.3 Plot Parameter Override")
+@Suite("V3.2.3 AHE Fixed Plot Semantics")
 struct V323PlotParameterOverrideTests {
 
-    // MARK: - Axis override in IngestAHESelectionsUseCase
+    // MARK: - Fixed semantic axes
 
-    @Test("xColumnOverride replaces Magnetic Field as x source")
-    func xColumnOverrideReplacesDefaultX() throws {
+    @Test("AHE fixed x axis is H (T) converted from Magnetic Field (Oe)")
+    func fixedXAxisIsHInTesla() throws {
         let fixture = try Fixture323()
         defer { fixture.cleanup() }
 
         let url = try fixture.write(name: "f.dat", content: Fixtures323.variantA_ch1Only)
         let result = try IngestAHESelectionsUseCase().execute(
-            selections: [.init(sampleKey: "S1", sourceFilePath: url.path, channel: .ch1)],
-            xColumnOverride: "Temperature (K)"
+            selections: [.init(sampleKey: "S1", sourceFilePath: url.path, channel: .ch1)]
         )
 
-        // With Temperature as x: series.x values should be temperature, not field
         #expect(result.series.count == 1)
-        // Temperature column has 80.0 for all rows — confirmed in fixture
-        #expect(result.series[0].x.allSatisfy { $0 == 80.0 })
+        #expect(result.defaultAxisMapping.xField == "H (T)")
+        #expect(result.series[0].x == [1.0, 0.5, -0.5])
     }
 
-    @Test("yColumnOverride overrides bridge-based y resolution")
-    func yColumnOverrideReplacesBridgeLookup() throws {
+    @Test("AHE fixed y axis is R_H (Ω)")
+    func fixedYAxisIsRH() throws {
         let fixture = try Fixture323()
         defer { fixture.cleanup() }
 
-        let url = try fixture.write(name: "f.dat", content: Fixtures323.variantA_ch1ch2)
-        // Select ch1 but override y to Bridge 2 Resistance
+        let url = try fixture.write(name: "f.dat", content: Fixtures323.variantA_ch1Only)
         let result = try IngestAHESelectionsUseCase().execute(
-            selections: [.init(sampleKey: "S1", sourceFilePath: url.path, channel: .ch1)],
-            yColumnOverride: "Bridge 2 Resistance (Ohms)"
+            selections: [.init(sampleKey: "S1", sourceFilePath: url.path, channel: .ch1)]
+        )
+
+        #expect(result.defaultAxisMapping.yField == "R_H (\u{03A9})")
+    }
+
+    @Test("selected ch2 uses Bridge 2 data for R_H")
+    func selectedCh2UsesBridge2Data() throws {
+        let fixture = try Fixture323()
+        defer { fixture.cleanup() }
+
+        let url = try fixture.write(name: "PN50_ch2.dat", content: Fixtures323.variantA_ch1ch2)
+        let result = try IngestAHESelectionsUseCase().execute(
+            selections: [.init(sampleKey: "PN50|b|STO|111", sourceFilePath: url.path, channel: .ch2)]
         )
 
         #expect(result.series.count == 1)
-        // Bridge 2 values in fixture: 2.0, 1.9, 1.8
-        #expect(result.series[0].y.first == 2.0)
+        #expect(result.series[0].sampleID == "PN50|b|STO|111")
+        #expect(result.series[0].y == [2.0, 1.9, 1.8])
     }
 
-    @Test("nil xColumnOverride falls back to Magnetic Field (default behavior)")
-    func nilXColumnOverrideFallsBackToDefault() throws {
-        let fixture = try Fixture323()
-        defer { fixture.cleanup() }
+    // MARK: - BuildAHEPlotPayloadUseCase semantics
 
-        let url = try fixture.write(name: "f.dat", content: Fixtures323.variantA_ch1Only)
-        let withOverride = try IngestAHESelectionsUseCase().execute(
-            selections: [.init(sampleKey: "S1", sourceFilePath: url.path, channel: .ch1)],
-            xColumnOverride: nil
-        )
-        let withoutOverride = try IngestAHESelectionsUseCase().execute(
-            selections: [.init(sampleKey: "S1", sourceFilePath: url.path, channel: .ch1)]
-        )
-
-        #expect(withOverride.series[0].x == withoutOverride.series[0].x)
-    }
-
-    // MARK: - BuildAHEPlotPayloadUseCase overrides
-
-    @Test("axisMappingOverride replaces defaultAxisMapping in payload")
-    func axisMappingOverrideReplacesDefault() throws {
-        let fixture = try Fixture323()
-        defer { fixture.cleanup() }
-
-        let url = try fixture.write(name: "f.dat", content: Fixtures323.variantA_ch1Only)
-        let ingestion = try IngestAHESelectionsUseCase().execute(
-            selections: [.init(sampleKey: "S1", sourceFilePath: url.path, channel: .ch1)]
-        )
-        let override = WorkbenchAxisMapping(xField: "Temperature (K)", yField: "Bridge 1 Resistance (Ohms)")
-        let payload = BuildAHEPlotPayloadUseCase().execute(
-            ingestion: ingestion,
-            title: "Test",
-            axisMappingOverride: override
-        )
-
-        #expect(payload.axisMapping.xField == "Temperature (K)")
-        #expect(payload.axisMapping.yField == "Bridge 1 Resistance (Ohms)")
-    }
-
-    @Test("nil axisMappingOverride uses ingestion default mapping")
-    func nilAxisMappingOverrideUsesDefault() throws {
+    @Test("payload uses fixed semantic AHE axes")
+    func payloadUsesFixedSemanticAxes() throws {
         let fixture = try Fixture323()
         defer { fixture.cleanup() }
 
@@ -91,11 +63,33 @@ struct V323PlotParameterOverrideTests {
         )
         let payload = BuildAHEPlotPayloadUseCase().execute(
             ingestion: ingestion,
-            title: "Test",
-            axisMappingOverride: nil
+            title: "Test"
         )
 
-        #expect(payload.axisMapping == ingestion.defaultAxisMapping)
+        #expect(payload.axisMapping.xField == "H (T)")
+        #expect(payload.axisMapping.yField == "R_H (\u{03A9})")
+    }
+
+    @Test("payload ignores stale nonsemantic ingestion axis values")
+    func payloadIgnoresStaleNonsemanticIngestionAxes() throws {
+        let fixture = try Fixture323()
+        defer { fixture.cleanup() }
+
+        let url = try fixture.write(name: "f.dat", content: Fixtures323.variantA_ch1Only)
+        var ingestion = try IngestAHESelectionsUseCase().execute(
+            selections: [.init(sampleKey: "S1", sourceFilePath: url.path, channel: .ch1)]
+        )
+        ingestion.defaultAxisMapping = WorkbenchAxisMapping(
+            xField: "Temperature (K)",
+            yField: "Bridge 1 Resistance (Ohms)"
+        )
+        let payload = BuildAHEPlotPayloadUseCase().execute(
+            ingestion: ingestion,
+            title: "Test"
+        )
+
+        #expect(payload.axisMapping.xField == "H (T)")
+        #expect(payload.axisMapping.yField == "R_H (\u{03A9})")
     }
 
     @Test("styleParams are passed through to payload unchanged")
