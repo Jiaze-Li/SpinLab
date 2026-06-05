@@ -29,7 +29,7 @@ struct V538SelectedHitsBridgeAuditTests {
 
     @Test("WorkflowWorkspaceShell Analyze action still builds the selected-hits bridge")
     func workflowShellAnalyzeActionBuildsSelectedHitsBridge() throws {
-        let source = try loadSource(relativePath: "Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceShell.swift")
+        let source = try loadSource(relativePath: "Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceActionBar.swift")
         let analyzeBlock = try sourceSlice(
             source,
             startMarker: "let selectedSnapshot = workbench.selectedHitsSnapshot(",

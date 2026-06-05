@@ -52,3 +52,15 @@ An Injection Point is the concrete hook the current shell exposes to a workflow 
 ## Current Runtime Note
 
 The placement map is not fully explicit yet. Current runtime still keeps part of the placement logic hard-coded in `WorkflowWorkspaceShell`, so the existing injection points above still bridge the gap between the implementation note and the live shell.
+
+## Code Map
+
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceShell.swift` — thin AppColumnShell wrapper that mounts the shared workbench columns
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceLeftColumn.swift` — composes the shared left workspace column around search, controls, and results
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceSearchSection.swift` — mounts the search field, library-root line, and search-adjacent slot content
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceActionBar.swift` — routes search, selection, analyze, and pack-load actions from the shared action row
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceResultsList.swift` — renders the searchable hit list and empty-state messaging
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRightColumn.swift` — composes the shared right workspace column around results, traces, warnings, and workflow extras
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceResultArea.swift` — wires result header, pack loading, and plot canvas presentation for the shared result stack
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchLoadPackPopover.swift` — presents saved-analysis loading and vault-row editing in the shared pack popover
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchWarningPanel.swift` — renders the shared warning log disclosure and empty-state panel

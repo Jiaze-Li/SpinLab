@@ -78,3 +78,15 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `modules/PLOT_SYSTEM.md`
 - `modules/PACK_RESTORE.md`
 - `workflows/three-omega/THREE_OMEGA_PHYSICS.md`
+
+## Code Map
+
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceShell.swift` — thin AppColumnShell wrapper that mounts the shared workbench columns
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceLeftColumn.swift` — composes the shared left workspace column around search, controls, and results
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceSearchSection.swift` — mounts the search field, library-root line, and search-adjacent slot content
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceActionBar.swift` — routes search, selection, analyze, and pack-load actions from the shared action row
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceResultsList.swift` — renders the searchable hit list and empty-state messaging
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRightColumn.swift` — composes the shared right workspace column around results, traces, warnings, and workflow extras
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceResultArea.swift` — wires result header, pack loading, and plot canvas presentation for the shared result stack
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchLoadPackPopover.swift` — presents saved-analysis loading and vault-row editing in the shared pack popover
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchWarningPanel.swift` — renders the shared warning log disclosure and empty-state panel
