@@ -59,7 +59,7 @@ What restore writes, and which module owns the state:
 | `titleTemplate` | Plot Controls Module | ✓ | ✓ | ✓ |
 | `stackOffsetMultiplier`, `minGapFraction` | Plot Controls / Physics | ✓ | — | ✓ |
 | `geometry`, `fitRanges`, `v3Method`, `rahe1omegaMethod`, `rahe3omegaMethod` | 3ω Physics Function | ✓ | — | — |
-| `rtQuery`, `selectedRTHit`; calls `persistRTQuery()` | Secondary Input Search optional slot (3ω RT instance) | ✓ | — | — |
+| `rtQuery`, `selectedRTHit`, `pendingRTSidecarPath`, `cachedRTFilePath`; calls `persistRTQuery()` | Secondary Input Search optional slot (3ω `rt` instance) | ✓ | — | — |
 | `phiOffsetOverrides`, `centerBaseline`, `linearDetrend` | XY Physics Function | — | — | ✓ |
 | `cachedInputFiles` | Pack Module local | ✓ | ✓ | ✓ |
 | `cachedSampleKeys` | Pack Module local | ✓ | — | ✓ |
@@ -67,6 +67,15 @@ What restore writes, and which module owns the state:
 | `lastLibraryRootPath` (from vault if empty) | Save Module dependency | ✓ | ✓ | ✓ |
 | `overlayPackIDs = []`, `overlaySnapshots = [:]` | 3ω overlay state | ✓ | — | — |
 | `_titleTokens` (rebuilt from restored hits) | Workflow-local title context | ✓ | — | ✓ |
+
+### Secondary Input Slot Restore Rules
+
+- Restore writes only slot-scoped auxiliary query/hit/bridge state for the declared secondary input slot.
+- Restore may rebind the slot from a pending sidecar path or cached file path.
+- Current 3ω restore can accept auxiliary sidecars whose workflow is currently `3w` or `rt`; it does not yet enforce an RT-only whitelist.
+- Restore must not mutate Main Search query, result, running, or message state through the slot bridge.
+- If the slot identity no longer resolves, restore leaves the slot unbound and emits a workflow warning.
+- Slot search results, search message, and running flag remain session-only unless the Workflow Assembly explicitly says otherwise.
 
 **After state restore:** each workflow calls a re-render function to reconstruct plot output from the restored ingestion result and tab states:
 
@@ -241,7 +250,7 @@ Pack/Restore behavior currently lives in each workflow store (`ThreeOmegaWorkspa
 - `ThreeOmegaPackConfig` — analysis params (geometry, fit ranges, method selectors, RT state), display settings (tab, title, grid, legend), per-tab states, chart style, search state
 - `ThreeOmegaPackResult` — must include `ingestionResult`; may include `scalingResult`; restore re-renders without re-ingestion
 - Semantic identity: fit ranges are part of scaling chart semantic identity — different fit configurations produce separate chart entries, not overwrites
-- Secondary Input Search: current pack fields `rtQuery` and `selectedRTHit` are the 3ω instance of a general auxiliary-input search slot. Future workflows may declare multiple auxiliary slots; do not extract this as an RT-only default module.
+- Secondary Input Search: current pack fields `rtQuery`, `selectedRTHit`, `pendingRTSidecarPath`, and `cachedRTFilePath` are the 3ω `rt` slot instance of a general auxiliary-input search slot. The selected RT file identity participates in 3ω pack identity. Current restore/search behavior is still generic, so future strict allowed-kind filtering must add runtime guards and tests first. Future workflows may declare multiple auxiliary slots; do not extract this as an RT-only default module.
 - Physics reference: [`THREE_OMEGA_PHYSICS.md`](../workflows/three-omega/THREE_OMEGA_PHYSICS.md)
 
 ### AMR/PHE
