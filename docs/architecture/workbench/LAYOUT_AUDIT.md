@@ -135,6 +135,7 @@ Layout note:
 Current placement:
 
 - Right column lower stack in `WorkflowWorkspaceShell`
+- `WorkflowWorkspaceStatusBlock` composes the explicit lower-right trace and warning surfaces
 
 Current content:
 
@@ -158,7 +159,7 @@ Layout note:
 Current placement:
 
 - Result header buttons
-- Pack-load popover mounted in both columns
+- Pack-load popover mounted in both columns through `WorkflowWorkspaceLoadPackPlacement`
 
 Current content:
 

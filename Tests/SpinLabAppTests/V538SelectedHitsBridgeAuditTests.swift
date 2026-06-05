@@ -33,7 +33,7 @@ struct V538SelectedHitsBridgeAuditTests {
         let analyzeBlock = try sourceSlice(
             source,
             startMarker: "let selectedSnapshot = workbench.selectedHitsSnapshot(",
-            endMarker: "WorkbenchLoadPackPopover(workflowID: workflowID.rawValue, store: store)"
+            endMarker: "WorkflowWorkspaceLoadPackPlacement("
         )
 
         #expect(analyzeBlock.contains("let selectedSnapshot = workbench.selectedHitsSnapshot("))

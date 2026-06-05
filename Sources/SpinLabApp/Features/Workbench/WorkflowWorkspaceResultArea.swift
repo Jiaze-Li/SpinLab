@@ -30,7 +30,7 @@ struct WorkflowWorkspaceResultArea<Store: WorkbenchWorkspaceProviding>: View {
                 }
             )
 
-            WorkbenchLoadPackPopover(workflowID: workflowID.rawValue, store: store)
+            WorkflowWorkspaceLoadPackPlacement(workflowID: workflowID, store: store)
 
             WorkbenchPlotCanvas(
                 imageData: store.activeImageData,

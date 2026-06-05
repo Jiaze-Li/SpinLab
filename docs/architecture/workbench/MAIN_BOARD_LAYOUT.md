@@ -46,8 +46,8 @@ An Injection Point is the concrete hook the current shell exposes to a workflow 
 | Analyze lifecycle area | Analyze / run lifecycle controls and feedback |
 | Plot area | Plot display content |
 | Plot controls area | Plot control content |
-| Save/Pack area | Save and pack controls |
-| Trace/Warning/Status area | Trace, warning, and status surfaces |
+| Save/Pack area | Save controls plus the explicit load-pack placement helper |
+| Trace/Warning/Status area | The explicit lower-right trace and warning block |
 
 ## Current Runtime Note
 
@@ -62,5 +62,7 @@ The placement map is not fully explicit yet. Current runtime still keeps part of
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceResultsList.swift` — renders the searchable hit list and empty-state messaging
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRightColumn.swift` — composes the shared right workspace column around results, traces, warnings, and workflow extras
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceResultArea.swift` — wires result header, pack loading, and plot canvas presentation for the shared result stack
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceLoadPackPlacement.swift` — centralizes the shared load-pack popover placement for the action and result surfaces
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchLoadPackPopover.swift` — presents saved-analysis loading and vault-row editing in the shared pack popover
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchWarningPanel.swift` — renders the shared warning log disclosure and empty-state panel
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceStatusBlock.swift` — composes the shared lower-right trace and warning block

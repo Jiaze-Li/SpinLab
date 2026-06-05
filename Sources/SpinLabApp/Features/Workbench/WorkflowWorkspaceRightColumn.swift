@@ -16,8 +16,10 @@ struct WorkflowWorkspaceRightColumn<Store: WorkbenchWorkspaceProviding, RightExt
                     workbench: workbench
                 )
                 rightExtra
-                WorkbenchTracePanel(trace: store.currentRunTrace)
-                WorkbenchWarningPanel(entries: store.warningLog.entries)
+                WorkflowWorkspaceStatusBlock(
+                    trace: store.currentRunTrace,
+                    warningEntries: store.warningLog.entries
+                )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, AppSpacing.lg)

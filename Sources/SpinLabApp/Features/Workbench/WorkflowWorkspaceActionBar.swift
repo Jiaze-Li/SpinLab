@@ -40,7 +40,7 @@ struct WorkflowWorkspaceActionBar<Store: WorkbenchWorkspaceProviding>: View {
             .buttonStyle(.bordered)
             .disabled(store.selectedSearchResultIDs.isEmpty || store.isAnalyzing)
 
-            WorkbenchLoadPackPopover(workflowID: workflowID.rawValue, store: store)
+            WorkflowWorkspaceLoadPackPlacement(workflowID: workflowID, store: store)
 
             if workbench.isSearchRunning(for: workflowID) || store.isAnalyzing {
                 ProgressView().controlSize(.small)

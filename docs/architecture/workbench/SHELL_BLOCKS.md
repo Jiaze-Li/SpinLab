@@ -88,8 +88,10 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceResultsList.swift` — renders the searchable hit list and empty-state messaging
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRightColumn.swift` — composes the shared right workspace column around results, traces, warnings, and workflow extras
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceResultArea.swift` — wires result header, pack loading, and plot canvas presentation for the shared result stack
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceLoadPackPlacement.swift` — centralizes the shared load-pack popover placement for the action and result surfaces
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchLoadPackPopover.swift` — presents saved-analysis loading and vault-row editing in the shared pack popover
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchWarningPanel.swift` — renders the shared warning log disclosure and empty-state panel
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceStatusBlock.swift` — composes the shared lower-right trace and warning block
 - `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` — owns AHE selection, plot, warning, pack, and render state
 - `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift` — mounts the AHE workflow shell and workflow-specific panels
 - `Sources/SpinLabApp/Features/Workbench/OverlaySnapshot.swift` — stores decoupled overlay pack data for RAHE rendering
