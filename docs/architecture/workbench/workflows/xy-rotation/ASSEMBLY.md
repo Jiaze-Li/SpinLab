@@ -78,6 +78,20 @@
 | Result snapshot | Saves `XYRotationIngestionResult` so restore can rerender both tabs without re-ingestion. | `Sources/SpinLabApp/Workbench/V3/XYRotationPackContracts.swift`; `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift` |
 | Metadata for saved results | Saves chart artifacts from active tab; no XY metrics are currently emitted. | `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift` |
 
+## Save Metadata / Metric Contract
+
+Target owner: XY Assembly owns the current absence of a saved metric contract. The common Save module owns the generic chart persistence path.
+
+| Concern | Current state |
+|---|---|
+| Metric definitions | None. `buildActiveChartMetrics()` returns `[]` pending future Fourier-fit work. |
+| Current implementation surface | `XYRotationWorkspaceStore.persistToLibrary()` still uses `SaveActiveChartToLibraryUseCase`, but the workflow supplies no metric entries. |
+| Forbidden ownership | Common save code must not invent XY metric names, units, or semantic identity. It may only persist the chart artifact and trace projection. |
+| Pack/restore implications | Restore only needs to rebuild analysis, render state, and library root; there is no metric state to restore or persist. |
+| Tests protecting current behavior | `V420XYRotationTests`, `V4111SaveActiveChartToLibraryUseCaseTests`, `V537SaveModuleBoundaryTests`, `V537PackRestoreModuleBoundaryTests`. |
+| Extraction readiness | Complete for the current sentinel of "no saved metrics". Low for future metric extraction because no explicit contract exists yet. |
+| Exit condition | XY introduces a typed metric contract before any metric records are saved; until then, the common Save module must keep XY as chart-only save. |
+
 ## Required Behavior Tests
 
 | Behavior class | Current coverage | Missing / later consideration |

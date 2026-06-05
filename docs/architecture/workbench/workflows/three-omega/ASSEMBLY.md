@@ -103,6 +103,20 @@
 | Result snapshot | Saves `ThreeOmegaIngestionResult` and optional `ThreeOmegaScalingResult` so restore can rerender without re-ingestion. | `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift` |
 | Restore bridge | Restore reapplies search state, selected auxiliary RT hit or pending RT sidecar/file path, library root, and rerenders manifests. If the bridge does not resolve, the slot stays unbound and the workflow warns. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift` |
 
+## Save Metadata / Metric Contract
+
+Target owner: 3ω Assembly owns alpha, beta, R², and any RAHE/Hc semantics where the workflow exposes them. The common Save module owns the generic write path only.
+
+| Concern | Current state |
+|---|---|
+| Metric definitions | Alpha, beta, and R² are Assembly-owned scaling metrics. RAHE/Hc remain Assembly-owned analysis outputs when present. |
+| Current implementation surface | `ThreeOmegaScalingUseCase` computes `scalingResult`; `ThreeOmegaWorkspaceStore.buildActiveChartMetrics()` emits `PendingMetricEntry` records only for the active scaling tab, currently using record keys `alpha`, `beta`, and `r_squared` plus range/v3method/device conditions. `persistToLibrary()` forwards those entries to `SaveActiveChartToLibraryUseCase`. |
+| Forbidden ownership | Common save code must not infer 3ω physics, units, or when metrics are valid; it may only persist the provided projection. |
+| Pack/restore implications | Geometry, fit ranges, V3/RAHE methods, RT state, and active tab restore so save-after-restore works, but `persistenceOutcome` and saved metric records stay out of pack content. If scaling state is absent, no metrics are emitted. |
+| Tests protecting current behavior | `V413ThreeOmegaFitUseCaseTests`, `V41216ThreeOmegaScalingUseCaseTests`, `V537SaveModuleBoundaryTests`, `V4111SaveActiveChartToLibraryUseCaseTests`, `V537PackRestoreModuleBoundaryTests`. |
+| Extraction readiness | Medium. The workflow already derives the metrics, but the save bridge is still a generic `PendingMetricEntry[]` rather than an explicit save metadata projection. |
+| Exit condition | 3ω exposes a typed save metadata projection for the scaling tab that names metrics, units, conditions, and semantic identity without common save code reading `scalingResult` or deriving physics. |
+
 ## Required Behavior Tests
 
 | Behavior class | Current coverage | Missing / later consideration |

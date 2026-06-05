@@ -76,6 +76,20 @@
 | Result snapshot | Saves `AHEIngestionResult` so restore can rerender without re-ingestion. | `Sources/SpinLabApp/Workbench/V3/AHEPackContracts.swift` |
 | Metrics | Saved chart metrics are built from active render state at persistence time, including pending Hc/R_AHE overrides if present. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` |
 
+## Save Metadata / Metric Contract
+
+Target owner: AHE Assembly owns Hc and R_AHE meaning, extraction semantics, and override policy. The common Save module owns chart/metric writes only.
+
+| Concern | Current state |
+|---|---|
+| Metric definitions | Hc and R_AHE are Assembly-owned. They are extracted from rendered series, not invented by save code. |
+| Current implementation surface | `ExtractAHEMetricsUseCase` fills `lastExtractedMetrics`; `AHEWorkspaceStore.buildActiveChartMetrics()` maps that state to `PendingMetricEntry` values with canonical units `T` and `Ω`, and applies `pendingMetricOverride` / `pendingRAHEOverride` when the active chart is single-sample. `persistToLibrary()` forwards the projection to `SaveActiveChartToLibraryUseCase`. |
+| Forbidden ownership | Common save code must not derive Hc, R_AHE, units, or override meaning; it must not infer AHE semantics from labels or chart payloads. |
+| Pack/restore implications | Override candidates are save-time only. Pack restore may repopulate analysis state and library root so save-after-restore works, but it must not serialize saved metrics, override candidates, or save outcome. |
+| Tests protecting current behavior | `V537SaveModuleBoundaryTests`, `V4111SaveActiveChartToLibraryUseCaseTests`, `V5111ExtractAHEMetricsUseCaseTests`, `V5114AHEMetricSourceTests`, `V537PackRestoreModuleBoundaryTests`. |
+| Extraction readiness | Medium. The workflow already computes and maps metrics, but the save bridge is still a raw `PendingMetricEntry[]` rather than an explicit provider contract. |
+| Exit condition | AHE exposes a typed save metadata projection for Hc and R_AHE, including metric name, unit, conditions, override info, and semantic identity, and the common Save module only persists that projection. |
+
 ## Required Behavior Tests
 
 | Behavior class | Current coverage | Missing / later consideration |
