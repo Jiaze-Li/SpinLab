@@ -177,23 +177,25 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 ### Save to Library
 
 - Classification: Boundary debt.
-- Target owner: split ownership. Save writer is Module-owned — common module. Metric definitions and semantic save fields are Assembly-owned. Mapping workflow metrics into generic save metadata remains the audited boundary.
-- Exit condition: `SaveActiveChartToLibraryUseCase` receives a workflow-provided save metadata projection whose metric names, units, conditions, overrides, and semantic identity are Assembly-owned, while the save writer owns only validation and artifact writes.
+- Target owner: split ownership. Save writer is Module-owned and common. Metric definitions, unit semantics, override policy, and semantic identity are Assembly-owned. The mapping from workflow metrics into generic save metadata remains the audited boundary.
+- Exit condition: `SaveActiveChartToLibraryUseCase` receives an explicit workflow save metadata projection whose metric names, units, conditions, overrides, and semantic identity are already Assembly-owned, while the save writer owns only validation and artifact writes.
 - Current implementation files:
   - `Sources/SpinLabApp/UseCases/SaveActiveChartToLibraryUseCase.swift`
   - `Sources/SpinLabApp/UseCases/PersistChartArtifactUseCase.swift`
   - `Sources/SpinLabApp/UseCases/PersistMeasurementDataUseCase.swift`
   - `Sources/SpinLabApp/UseCases/BackfillMeasurementPlotIndexUseCase.swift`
+  - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift`
   - save methods in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore+Persistence.swift`
+  - save-metadata builders in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore+Plotting.swift`
   - metric/provider contracts in `Sources/SpinLabApp/Workbench/V3/WorkbenchResultContracts.swift`
 - Current consumers: all workflow stores, Library artifact preview/read model, related chart refresh, save boundary tests.
 - Target common save-writer state it would own: save status/message target, `persistenceOutcome`, save-side trace update from `PersistenceOutcome.trace`, and chart/data artifact write orchestration.
-- Target common save-writer state it must not own: search/selection, analysis trigger, ingestion result mutation, tab override state, pack vault state, metric definitions, unit conversions, or workflow semantic identity rules.
-- How workflow-specific semantics enter: workflow Assembly provides active chart PNG/manifest, sample keys, metric records, semantic identity, and library root through an explicit save metadata projection. Save module must not derive physics.
-- Pack/restore implications: restore sets enough library-root and active chart state to allow save after restore, but restore must not persist save outcome or trigger save.
-- Tests currently protecting it: `V537SaveModuleBoundaryTests`, `V343DeleteWorkbenchResultTests`, `V41217MeasurementPlotIndexTests`, `V342WorkbenchResultsReadModelTests`, `V5111ExtractAHEMetricsUseCaseTests`, `V5114AHEMetricSourceTests`.
-- Extraction readiness: medium-high for write orchestration, medium for UI/status because `saveMessage` is still workflow-local.
-- Risks if extracted too early: duplicated save messages, trace update confusion, metric/provider gaps, bypassing `LibraryPathResolver`.
+- Target common save-writer state it must not own: search/selection, analysis trigger, ingestion result mutation, tab override state, pack vault state, metric definitions, unit conversions, workflow semantic identity rules, or any physics/analysis interpretation.
+- How workflow-specific semantics enter: workflow Assembly provides active chart PNG/manifest, sample keys, and a workflow save metadata projection. Today that bridge is the `ActiveChartProviding` protocol plus `buildActiveChartMetrics()`, which returns a generic `PendingMetricEntry` array. Save module must not derive physics.
+- Pack/restore implications: restore sets enough library-root and active chart state to allow save after restore, but restore must not persist save outcome or trigger save. Metric override candidates stay save-time only and must not become pack state.
+- Tests currently protecting it: `V537SaveModuleBoundaryTests`, `V4111SaveActiveChartToLibraryUseCaseTests`, `V343DeleteWorkbenchResultTests`, `V41217MeasurementPlotIndexTests`, `V342WorkbenchResultsReadModelTests`, `V5111ExtractAHEMetricsUseCaseTests`, `V5114AHEMetricSourceTests`, `V41216ThreeOmegaScalingUseCaseTests`, `V413ThreeOmegaFitUseCaseTests`, `V420XYRotationTests`.
+- Extraction readiness: medium-high for write orchestration, medium for UI/status because `saveMessage` is still workflow-local and the save metadata projection is still a raw array bridge.
+- Risks if extracted too early: duplicated save messages, trace update confusion, metric/provider gaps, bypassing `LibraryPathResolver`, or common code learning workflow semantics.
 
 ### Warning Display / Run Trace
 
@@ -238,23 +240,24 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 ### Metric Extraction / Metric Override / Save Metadata
 
 - Classification: Boundary debt.
-- Target owner: split ownership. Metric definitions, extraction semantics, unit conversions, and overrides are Assembly-owned. Generic save metadata envelope and artifact writer are Module-owned — common Save module.
-- Exit condition: AHE Hc / R_AHE extraction, 3ω alpha/beta/r² mapping, XY metric choices, unit conversions, and override rules are exposed through workflow Assembly save projections; the common Save module receives already-semantic metadata and never invents or transforms metric meaning.
+- Target owner: split ownership. Metric definitions, extraction semantics, unit conversions, and overrides are Assembly-owned. Generic save metadata envelope and artifact writer are Module-owned and common. The boundary debt is the projection from workflow metrics into generic save records.
+- Exit condition: AHE Hc / R_AHE extraction, 3ω alpha/beta/R² mapping, XY metric choices, unit conversions, and override rules are exposed through workflow Assembly save projections; the common Save module receives already-semantic metadata and never invents or transforms metric meaning.
 - Current implementation files:
   - `Sources/SpinLabApp/Workbench/V3/WorkbenchResultContracts.swift`
+  - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift`
   - `Sources/SpinLabApp/UseCases/ExtractAHEMetricsUseCase.swift`
   - `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift`
   - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Plotting.swift`
   - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Persistence.swift`
   - `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift`
-- Current consumers: save-to-library use case, Library result index/data artifacts, AHE UI override controls, 3ω scaling save metadata.
-- Target state ownership: no standalone module state yet. Current workflow stores own metric records to save, metric override candidates/info, active chart sample keys, and semantic chart identity metadata. Current AHE owns pending Hc/R_AHE overrides and extracted metrics.
+- Current consumers: save-to-library use case, Library result index/data artifacts, AHE UI override controls, 3ω scaling save metadata, XY chart-only persistence.
+- Target state ownership: no standalone module state yet. Current workflow stores own metric records to save, metric override candidates/info, active chart sample keys, and semantic chart identity metadata. Current AHE owns pending Hc/R_AHE overrides and extracted metrics. Current 3ω owns alpha/beta/R² save inputs when scaling is active. Current XY owns the explicit absence of a saved metric contract.
 - Target state it must not own: plot image/layout generation, search/selection, pack vault state, generic save write mechanics, or any common-module definition of workflow metrics.
-- How workflow-specific semantics enter: each workflow Assembly declares which metrics exist, how to extract them, canonical units, conditions, and whether manual override is allowed.
-- Pack/restore implications: metric override candidates are save-time state and should not become generic pack state unless a workflow explicitly declares restored unsaved overrides. Saved metrics belong to Library artifacts, not AnalysisPack.
-- Tests currently protecting it: `V341ManualOverrideCaptureTests`, `V5111ExtractAHEMetricsUseCaseTests`, `V5114AHEMetricSourceTests`, `V537SaveModuleBoundaryTests`, 3ω scaling/plotting tests for alpha/beta/r² payloads.
-- Extraction readiness: low. Common save metadata shape exists, but workflow metric semantics are not yet a clean Assembly-owned provider contract.
-- Risks if extracted too early: generic code invents metrics, overrides applied to multi-sample results incorrectly, saved metadata diverges from workflow semantics, Library artifacts get wrong canonical units.
+- How workflow-specific semantics enter: each workflow Assembly declares which metrics exist, how to extract them, canonical units, conditions, whether manual override is allowed, and whether the active chart saves chart-only or chart-plus-metrics.
+- Pack/restore implications: metric override candidates are save-time state and should not become generic pack state unless a workflow explicitly declares restored unsaved overrides. Saved metrics belong to Library artifacts, not AnalysisPack. Restore may repopulate enough workflow state and library root to save after restore, but it must never restore metric records or save outcome.
+- Tests currently protecting it: `V341ManualOverrideCaptureTests`, `V4111SaveActiveChartToLibraryUseCaseTests`, `V5111ExtractAHEMetricsUseCaseTests`, `V5114AHEMetricSourceTests`, `V537SaveModuleBoundaryTests`, `V41216ThreeOmegaScalingUseCaseTests`, `V413ThreeOmegaFitUseCaseTests`, `V420XYRotationTests`.
+- Extraction readiness: low-to-medium. The common save envelope exists, but the workflow metric semantics are still bridged through raw `PendingMetricEntry` arrays rather than an explicit provider/projection contract.
+- Risks if extracted too early: generic code invents metrics, overrides are applied to multi-sample results incorrectly, saved metadata diverges from workflow semantics, or Library artifacts get wrong canonical units.
 
 ### Geometry / Fit Range / Scaling Panels
 

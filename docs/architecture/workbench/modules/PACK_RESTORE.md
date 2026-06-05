@@ -6,7 +6,7 @@
 
 The Pack/Restore Module manages workspace state persistence across sessions. It is distinct from saving to Library.
 
-- **Save to Library** — writes chart PNG + metrics into `_spinlab/` under the measurement directory. Managed by the Save Module via `SaveActiveChartToLibraryUseCase`. See "Workbench Write Boundary" below.
+- **Save to Library** — writes chart PNG + metrics into `_spinlab/` under the measurement directory. Managed by the Save Module via `SaveActiveChartToLibraryUseCase`. Workflow Assemblies supply the active-chart save metadata projection; the Save Module must not infer metric names, units, or workflow semantics. See "Workbench Write Boundary" below.
 - **Pack/Restore** — saves and restores the full Workbench workspace state (analysis results, UI state, overlays) to/from `AnalysisVault`. No Library write occurs during pack/restore.
 
 ## Pack Envelope
@@ -193,6 +193,8 @@ Boundary rule `SP-007`: Workbench writes analysis results into `_spinlab/` under
 
 Boundary rule `SP-008`: All artifact path construction must go through `LibraryPathResolver`. No hand-built absolute or relative paths.
 
+Save-to-Library is therefore a write-only persistence boundary. The current workflow bridge is `ActiveChartProviding`, which returns `activeChartPNG`, `activeChartManifestPayload`, `activeChartSampleKeys`, and a generic `PendingMetricEntry` array via `buildActiveChartMetrics()`. That bridge is intentionally temporary: the Save Module may persist it, but it must not derive metric meaning, units, or workflow identity from it.
+
 Library-side view (preview pipeline, stale banner, path resolution ownership): `docs/architecture/library/ARTIFACTS_AND_PREVIEWS.md`.
 
 ## Save Entry Point
@@ -202,6 +204,8 @@ Library-side view (preview pipeline, stale banner, path resolution ownership): `
 1. `PersistChartArtifactUseCase` — writes chart PNG and `_spinlab/` plot index entry
 2. `PersistMeasurementDataUseCase` — writes metric data artifact alongside chart
 3. `BackfillMeasurementPlotIndexUseCase` — backfills the plot index for pre-existing measurements that didn't have one
+
+Workflow metric semantics are not owned here. Pack/Restore may restore enough workflow state for `ActiveChartProviding` to rebuild save metadata after restore, but it must not restore metric records or any save outcome.
 
 ## Written Fields
 
