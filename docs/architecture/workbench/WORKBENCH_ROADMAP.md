@@ -29,21 +29,21 @@ Workbench modularization phases fall into three categories:
 
 ## Gate Plan
 
-The current task is Gate 1.
+Gate 5 is complete. The next step is Gate 6 readiness consumption or Gate 7 module extraction, depending on the chosen direction.
 
 | Gate | Status | Scope |
 |---|---|---|
-| Gate 1 | current | Record Architecture Decisions / Finalize Gate Plan |
+| Gate 1 | complete | Record Architecture Decisions / Finalize Gate Plan |
 | Gate 2 | complete | Workflow Assembly Audit & Contract Validation |
 | Gate 2.1 | complete | Workflow Semantic Assembly Audit |
-| Gate 3 | planned | Module Audit & Contract Validation |
-| Gate 4 | planned | Layout Audit |
-| Gate 5 | planned | Layout Refactor |
+| Gate 3 | complete | Module Audit & Contract Validation |
+| Gate 4 | complete | Layout Audit |
+| Gate 5 | complete | Layout Refactor |
 | Gate 6 | planned | Readiness Consumption |
 | Gate 7 | planned | Module Extraction Program |
 | Gate 8 | planned | New Workflow Dry Run |
 
-Gate 1 remains current for this roadmap-finalization PR. Gate 2 is complete via PR #96. Gate 2.1 is complete as a documentation-only semantic follow-up. Gates 3 through 8 are planned future work. Gate 7 is a container gate. Its extraction sequence is determined after Gate 3.
+Gate 1, Gate 2, Gate 2.1, Gate 3, Gate 4, and Gate 5 are closed out. Gate 6 is the next sequential gate; Gate 7 remains the extraction branch if the next direction skips from readiness work into runtime extraction. Gate 7 is still a container gate. Its extraction sequence is determined after Gate 3. Gate 3 follow-ups remain tracked in `MODULE_BOUNDARIES.md`.
 
 ### Gate 2 - Workflow Assembly Audit & Contract Validation
 
@@ -152,12 +152,36 @@ Purpose:
 - Validate current `WorkflowWorkspaceShell` layout
 - Distinguish Layout vs Module vs Assembly Contribution
 
+Result:
+
+- Complete
+- Detailed layout audit history remains in `LAYOUT_AUDIT.md`
+
 ### Gate 5 - Layout Refactor
 
 Purpose:
 
 - Refactor layout only
 - No behavior changes
+
+Completed substeps:
+
+- Gate 5.1 shell split complete
+- Gate 5.2 pack/status layout cleanup complete
+
+Completion note:
+
+- Shell is thinner.
+- Load Pack placement is explicit.
+- Status / trace / warning layout is explicit.
+- Search / selection / save / pack / warning ownership is unchanged.
+- No module extraction was performed.
+
+Result:
+
+- Complete
+- Layout-only refactor only; no runtime module extraction
+- Detailed placement notes remain in `MAIN_BOARD_LAYOUT.md`
 
 ### Gate 6 - Readiness Consumption
 
