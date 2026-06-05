@@ -114,7 +114,7 @@ A Workflow Assembly may declare optional analysis overlays. Overlays are display
 | Snapshot-to-series mapping | Workflow-owned mapping from overlay result snapshots to plot series, fit lines, or other rendered plot artifacts. |
 | Overlay labels | User-facing labels for overlay chips and series are workflow-owned. |
 | Missing / invalid warnings | Workflow-owned warning policy for absent, invalid, or stale overlay packs. |
-| Saved manifest / sample keys policy | Workflow-owned decision on whether overlays affect saved chart manifests or sample keys. |
+| Saved manifest / sample keys policy | Workflow/tab-specific provenance policy for saved chart artifacts. The Assembly decides whether overlay series or sample provenance participate in the saved artifact/manifest, and future overlay types must declare that policy explicitly before implementation. |
 | Metric persistence policy | Workflow-owned decision on whether overlay-derived metrics are excluded from metric persistence. |
 
 Current 3ω instance: RAHE tabs use the existing "Add Analysis" overlay surface. Target next instance: Scaling Law overlays that draw scaling data points and fit line(s) from saved 3ω packs with `scalingResult`; packs without that result should be disabled or rejected clearly.

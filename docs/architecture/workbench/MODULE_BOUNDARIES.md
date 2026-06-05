@@ -229,7 +229,7 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Current consumers: 3ω RAHE "Add Analysis" overlay today; 3ω Scaling Law overlay target next.
 - Target state it would own: eligible overlay pack list, add/remove overlay actions, overlay IDs and snapshots, overlay chips, and session-only overlay state.
 - Target state it must not own: primary ingestionResult/scalingResult mutation, combined pack creation, saved chart manifest policy, sample-key policy, or metric persistence.
-- How workflow-specific semantics enter: the Workflow Assembly declares which tabs support overlay, which pack/result types are eligible, how overlay snapshots become plot series, the user-facing labels, warning behavior for missing or invalid overlay input, whether overlay changes saved chart manifests or sample keys, and whether overlay metrics are excluded from metric persistence.
+- How workflow-specific semantics enter: the Workflow Assembly declares which tabs support overlay, which pack/result types are eligible, how overlay snapshots become plot series, the user-facing labels, warning behavior for missing or invalid overlay input, the workflow/tab-specific saved-chart provenance policy, and whether overlay metrics are excluded from metric persistence.
 - Pack/restore implications: the first version keeps overlay state session-only; restore clears it and does not serialize it into pack content. Future persistence must be explicitly declared by the Workflow Assembly.
 - Extraction readiness: low-medium.
 - Risks if extracted too early: pack-into-pack ambiguity, overlay state leaking into restore/save paths, or common code learning workflow-specific plot semantics.
