@@ -21,6 +21,7 @@
 
 | File | Role | Scope |
 |---|---|---|
+| `LAYOUT_AUDIT.md` | Gate 4 audit / Gate 5 prep | Current shell layout map, layout debts, and Gate 5-safe refactor targets |
 | `MAIN_BOARD_LAYOUT.md` | Placement notes | Current shell injection points and placement names |
 
 **`modules/`** - specialized docs for complex modules or module groups:
@@ -49,12 +50,13 @@ Base module ownership rules, forbidden mutations, and transition state live in [
 4. [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md) - module ownership boundaries and forbidden mutations
 5. [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md) - workflow/module extension rules and checklists
 6. [WORKBENCH_ROADMAP.md](WORKBENCH_ROADMAP.md) - gate status and completion notes
-7. [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md) - implementation-level placement notes only
-8. [modules/MEASUREMENT_SEARCH.md](modules/MEASUREMENT_SEARCH.md) - search semantics and condition projection
-9. [modules/SELECTION_DENOMINATOR_AUDIT.md](modules/SELECTION_DENOMINATOR_AUDIT.md) - selection denominator ownership
-10. [modules/PLOT_SYSTEM.md](modules/PLOT_SYSTEM.md) - plot capabilities and shared plot shell details
-11. [modules/PACK_RESTORE.md](modules/PACK_RESTORE.md) - pack / restore lifecycle and write boundaries
-12. [workflows/three-omega/THREE_OMEGA_PHYSICS.md](workflows/three-omega/THREE_OMEGA_PHYSICS.md) - 3-Omega physical model
+7. [LAYOUT_AUDIT.md](LAYOUT_AUDIT.md) - Gate 4 layout audit and Gate 5 preparation
+8. [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md) - implementation-level placement notes only
+9. [modules/MEASUREMENT_SEARCH.md](modules/MEASUREMENT_SEARCH.md) - search semantics and condition projection
+10. [modules/SELECTION_DENOMINATOR_AUDIT.md](modules/SELECTION_DENOMINATOR_AUDIT.md) - selection denominator ownership
+11. [modules/PLOT_SYSTEM.md](modules/PLOT_SYSTEM.md) - plot capabilities and shared plot shell details
+12. [modules/PACK_RESTORE.md](modules/PACK_RESTORE.md) - pack / restore lifecycle and write boundaries
+13. [workflows/three-omega/THREE_OMEGA_PHYSICS.md](workflows/three-omega/THREE_OMEGA_PHYSICS.md) - 3-Omega physical model
 
 ## Dispatch Rules
 
@@ -63,7 +65,7 @@ Base module ownership rules, forbidden mutations, and transition state live in [
 - If changing module ownership, read [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md).
 - If adding a workflow, read [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) and [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md).
 - If checking gate status, read [WORKBENCH_ROADMAP.md](WORKBENCH_ROADMAP.md).
-- If changing implementation injection points or placement details, read [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md).
+- If changing implementation injection points or placement details, read [LAYOUT_AUDIT.md](LAYOUT_AUDIT.md) and [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md).
 
 ## Architecture Usage Rules
 
@@ -76,7 +78,7 @@ Full rules (routing note format, task routing table, compliance checklist, docum
 | Task area | Start here | Then inspect |
 |---|---|---|
 | Workbench readiness or shell gating | `MAIN_BOARD_READINESS.md` | `Features/Workbench/WorkbenchView.swift`; `Features/Workbench/WorkbenchResultHeaderShell.swift` |
-| Layout placement details | `MAIN_BOARD_LAYOUT.md` | `Features/Workbench/WorkflowWorkspaceShell.swift`; `Features/Workbench/WorkflowWorkspaceProvider.swift` |
+| Layout placement details | `LAYOUT_AUDIT.md` | `Features/Workbench/WorkflowWorkspaceShell.swift`; `Features/Workbench/WorkflowWorkspaceProvider.swift`; `MAIN_BOARD_LAYOUT.md` |
 | Workflow assembly / registration | `WORKFLOW_ASSEMBLY.md` | `Workflow/WorkflowID.swift`; `Workflow/WorkflowDefinition.swift`; `Workflow/WorkflowRegistry.swift`; `workflows/*/ASSEMBLY.md` |
 | Module ownership or forbidden mutations | `MODULE_BOUNDARIES.md` | `Features/Workbench/WorkflowWorkspaceShell.swift`; relevant workflow store |
 | Search measurements | `UseCases/SearchWorkflowMeasurementsUseCase.swift` | `Domain/WorkflowSearchModels.swift`; `Workflow/WorkflowID.swift`; `Library/SpinLabFileSidecar.swift` |
@@ -112,5 +114,6 @@ This directory describes Workbench-internal behavior only. Cross-domain contract
 - `docs/architecture/library/SIDECAR_AND_CONDITIONS.md` - sidecar display in Library view
 - `docs/architecture/library/ARTIFACTS_AND_PREVIEWS.md` - Library view of chart/metric artifacts and preview
 - `docs/architecture/workbench/SHELL_BLOCKS.md` - overview of the Workflow / Workflow Assembly / Main Board / Modules model
+- `docs/architecture/workbench/LAYOUT_AUDIT.md` - Gate 4 layout audit and Gate 5 preparation
 - `docs/architecture/workbench/MAIN_BOARD_LAYOUT.md` - implementation-level injection points only
 - `docs/architecture/workbench/WORKBENCH_ROADMAP.md` - phase progress for Workbench shell migration
