@@ -65,9 +65,26 @@ The per-workflow records under `workflows/*/ASSEMBLY.md` map those surfaces to c
 
 ## Secondary Input Search Slots
 
-A Workflow Assembly may declare optional secondary input search slots. These are auxiliary file selectors that contribute to analysis but are not the Main Search result set. A slot must declare its semantic purpose, search hints/filter token, selection cardinality, persistence fields, restore bridge, and whether selected auxiliary files contribute to pack fingerprint identity.
+A Workflow Assembly may declare optional secondary input search slots. These are auxiliary file selectors that contribute to analysis but are not the Main Search result set. The slot contract is workflow-owned; the module only owns generic auxiliary slot mechanics and UI.
 
-Current concrete instance: 3ω declares one secondary input slot for Rxx(T) input, implemented with `rtQuery` / `selectedRTHit`. This is not a default RT module. Future workflows such as SOT may declare multiple auxiliary input slots, so common extraction must preserve a general slot model rather than a 3ω-specific name.
+| Contract field | Meaning |
+|---|---|
+| Slot ID | Stable workflow-owned key for the auxiliary slot. The module treats it as an opaque identifier. |
+| Display label | User-facing label owned by the Workflow Assembly. The module must not invent a default semantic label. |
+| Query default / search hint / workflow filter | Workflow-owned query prefix, hint text, and file/workflow filter rules that shape the auxiliary search. |
+| Allowed workflow IDs / file kinds | Explicit whitelist of auxiliary hits the slot may accept. |
+| Selection mode | Single-select or multi-select, as declared by the Workflow Assembly. |
+| Requiredness | Optional by default, or required only for workflow tabs/results that depend on the slot. |
+| Analysis contribution | The selected auxiliary hit contributes input data only. It does not trigger analysis by itself and it does not define physics meaning. |
+| Pack fingerprint | Whether auxiliary file identity participates in pack identity. This is workflow-specific and may be false for purely cosmetic auxiliary inputs. |
+| Persisted fields | The slot may persist query text plus selected hit identity or stable sidecar/file identity. Session-only search results, messages, and running flags remain non-persistent unless the workflow explicitly says otherwise. |
+| Restore bridge behavior | Restore may rebind the slot from a saved sidecar/file bridge. If the identity does not resolve, restore leaves the slot unbound and emits a workflow warning. |
+| Warning behavior | Missing or invalid auxiliary input only warns through dependent workflow surfaces. It must not mutate Main Search state or silently fall back to a different semantic role. |
+| Multiple-slot support | A workflow may declare zero, one, or many auxiliary slots. Each slot must remain independent and slot-scoped. |
+
+Current concrete instance: 3ω declares one slot with `slot ID = rt`, `display label = RT / Rxx(T)`, single selection, and auxiliary RT file identity participation in pack fingerprint. This is the current instance of the general optional Secondary Input Search pattern, not a hard-coded RT default module.
+
+Current implementation surface for the 3ω instance lives in `ThreeOmegaWorkspaceStore.swift`, `ThreeOmegaWorkspaceStore+RTSelection.swift`, `ThreeOmegaWorkspaceView.swift`, `ThreeOmegaPackContracts.swift`, and `ThreeOmegaWorkspaceStore+Pack.swift`. The concrete runtime fields remain `rtQuery`, `rtSearchResults`, `rtSearchMessage`, `isRTSearching`, `selectedRTHit`, `pendingRTSidecarPath`, and `cachedRTFilePath`.
 
 ## Assembly Boundary
 

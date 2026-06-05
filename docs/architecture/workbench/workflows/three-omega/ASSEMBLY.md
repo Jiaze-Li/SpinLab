@@ -16,8 +16,25 @@
 |---|---|---|
 | Workflow match token | Workflow config matches token `3w`; RT is a separate workflow config row matching token `rt`. | `Sources/SpinLabApp/config/workflow.json`; `Sources/SpinLabApp/Workflow/WorkflowDefinitionStore.swift` |
 | Search aliases | `3w` and `3omega` are search aliases; `ω`/`Ω` normalize to `w`. | `Sources/SpinLabApp/Domain/Workflow/WorkflowID.swift`; `Sources/SpinLabApp/UseCases/SearchWorkflowMeasurementsUseCase.swift` |
-| Secondary Input Search slot | 3ω declares one auxiliary search slot for RT/Rxx(T) input. It has independent query/results/selection state, persists `rtQuery`, can select a dedicated auxiliary hit, and can rebuild that hit from a restored sidecar path. This is workflow-specific Assembly state mounted through the general Secondary Input Search pattern. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift` |
+| Secondary Input Search slot | 3ω declares one auxiliary search slot for RT/Rxx(T) input. It has independent query/results/selection state, persists the auxiliary query text, can select a dedicated auxiliary hit, and can rebuild that hit from a restored sidecar/file bridge. This is workflow-specific Assembly state mounted through the general Secondary Input Search pattern. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift` |
 | Result mirror | Main 3w search results use the common `cachedSearchResults` bridge for selection, title context, pack restore, and legacy fallback. The secondary input slot adds separate workflow-local state beyond the common bridge. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift` |
+
+## Secondary Input Search Slot Contract
+
+| Contract field | 3ω instance |
+|---|---|
+| Slot ID | `rt` |
+| Display label | `RT / Rxx(T)` |
+| Query default / search hint / workflow filter | The stored query text is `rtQuery`; the slot hint points the user at RT/Rxx(T) auxiliary files; hits are filtered to the RT sidecar/file-kind set instead of the main 3w search set. |
+| Allowed workflow IDs / file kinds | `rt` file-kind / RT sweep files only. Field-sweep files do not satisfy the slot. |
+| Selection mode | Single-select. |
+| Requiredness | Optional in the workspace, but required for scaling and any RT-dependent result surfaces. |
+| Analysis contribution | The selected auxiliary RT hit supplies the Rxx(T) input used by scaling. It does not mutate Main Search and does not trigger analysis by itself. |
+| Pack fingerprint | Yes. The auxiliary RT file identity participates in 3ω pack identity. |
+| Persisted fields | `rtQuery`, `selectedRTHit`, and the stable bridge fields that recover the selection (`pendingRTSidecarPath`, `cachedRTFilePath`). Search results, message, and running state remain session-only. |
+| Restore bridge behavior | Restore can rebind the slot from a pending sidecar path or cached file path, then rerender from the restored state. If the bridge no longer resolves, restore leaves the slot unbound and warns. |
+| Warning behavior | Missing or invalid RT input warns that Rxx(T)-dependent outputs such as Scaling Law are unavailable. Invalid or ambiguous RT selection must not backfill from Main Search. |
+| Multiple-slot support | 3ω uses one slot today, but the contract must support future workflows such as SOT declaring multiple independent auxiliary slots. |
 
 ## Data / Physics Mapping Contract
 
@@ -47,7 +64,7 @@
 
 | Contribution | Assembly-owned semantics | Trace |
 |---|---|---|
-| Secondary Input Search field/popover | Dedicated RT/Rxx(T) auxiliary selection is required for scaling when that file is not part of the main selection. This is a 3ω-declared optional slot, not a default RT module. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift` |
+| Secondary Input Search field/popover | Dedicated RT/Rxx(T) auxiliary selection is required for scaling when that file is not part of the main selection. This is the `rt` slot instance of the general optional module pattern, not a default RT module. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift` |
 | Geometry panel | Scaling requires Lxx, Lxy, and thickness geometry. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift`; `Sources/SpinLabApp/Domain/ThreeOmegaGeometry.swift` |
 | Fit ranges panel | Scaling can fit full range or independent temperature ranges. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+FitRanges.swift`; `Sources/SpinLabApp/UseCases/ThreeOmegaScalingUseCase.swift` |
 | Scaling result panel | Displays alpha, beta, R², and segment status. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift`; `Sources/SpinLabApp/Domain/ThreeOmegaScalingResult.swift` |
@@ -82,9 +99,9 @@
 |---|---|---|
 | Analysis parameters | Saves device, geometry, fit ranges, V3 method, RAHE 1ω/3ω methods, RT file path, and sample display context. | `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift` |
 | Display state | Saves active tab, title template, stack offset, gap fraction, grid flag, legend anchor, per-tab render states, and chart style overrides. | `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift` |
-| Search/selection state | Saves main cached search results, selected IDs, selected auxiliary RT hit, RT query, and main search query text. | `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift` |
+| Search/selection state | Saves main cached search results, selected IDs, selected auxiliary RT hit, RT query, and main search query text. The auxiliary slot bridge is workflow-local, not Main Search-owned. | `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift` |
 | Result snapshot | Saves `ThreeOmegaIngestionResult` and optional `ThreeOmegaScalingResult` so restore can rerender without re-ingestion. | `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift` |
-| Restore bridge | Restore reapplies search state, selected auxiliary RT hit or pending RT sidecar path, library root, and rerenders manifests. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift` |
+| Restore bridge | Restore reapplies search state, selected auxiliary RT hit or pending RT sidecar/file path, library root, and rerenders manifests. If the bridge does not resolve, the slot stays unbound and the workflow warns. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift` |
 
 ## Required Behavior Tests
 
@@ -100,6 +117,6 @@
 ## Findings Summary
 
 - Common and out of Assembly: common Workbench search, selection, analyze/save lifecycle, plot-canvas internals, common render pipeline, and common pack button mechanics.
-- Assembly-owned: `3w`/`3omega` identity and secondary RT/Rxx(T) input contribution, LVM positional mapping, sidecar-driven file kind/device/temperature mapping, 3ω fitting/scaling formulas, geometry/fit-range/method state, multi-tab plot semantics, RAHE overlays, and auxiliary-input restore metadata.
+- Assembly-owned: `3w`/`3omega` identity and the `rt` secondary RT/Rxx(T) input contribution, LVM positional mapping, sidecar-driven file kind/device/temperature mapping, 3ω fitting/scaling formulas, geometry/fit-range/method state, multi-tab plot semantics, RAHE overlays, and auxiliary-input restore metadata.
 - Currently implicit/distributed: the 3ω Assembly is partly explicit in physics docs but runtime behavior is spread across parser/use cases/store extensions; secondary input search is workflow-local state rather than a formal optional module; scaling availability is warning-driven rather than readiness-gated.
 - Later Gate 3 / Gate 7 consideration: Secondary Input Search may deserve module-boundary treatment, but extraction must preserve the general auxiliary-slot pattern and 3ω Assembly-owned semantics. Scaling warning policy should be locked further before moving analysis or pack/restore behavior into shared coordinators.

@@ -92,6 +92,7 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 ### Secondary Input Search
 
 - Classification: Module-owned — optional module candidate.
+- Ownership rule: the module owns auxiliary slot state and slot UI only; the Workflow Assembly owns the file meaning, analysis contribution, and requiredness policy.
 - Current implementation files:
   - Current instance only: 3ω RT auxiliary input in `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift`
   - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift`
@@ -99,13 +100,31 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
   - `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift`
   - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift`
 - Current consumers: 3ω scaling ingestion/analysis, 3ω view popover, 3ω pack/restore, 3ω search snapshot boundary tests.
-- Target state it would own: auxiliary query text, auxiliary running flag, auxiliary search results, auxiliary search message/status, popover/list UI state, selected auxiliary hit, deferred sidecar-path bridge for restore, persisted auxiliary query default. Current 3ω concrete names are `rtQuery`, `isRTSearching`, `rtSearchResults`, `rtSearchMessage`, `showRTPopover`, `selectedRTHit`, `pendingRTSidecarPath`, and `cachedRTFilePath`.
+- Target state it would own: auxiliary query text, auxiliary running flag, auxiliary search results, auxiliary search message/status, popover/list UI state, selected auxiliary hit, deferred sidecar/file bridge for restore, and persisted auxiliary query default. Current 3ω concrete names are `rtQuery`, `isRTSearching`, `rtSearchResults`, `rtSearchMessage`, `showRTPopover`, `selectedRTHit`, `pendingRTSidecarPath`, and `cachedRTFilePath`.
 - Target state it must not own: main search query/results/running/message, main selected IDs, primary workflow selection, physics calculations, plot output, generic pack vault orchestration.
-- How workflow-specific semantics enter: the Workflow Assembly declares optional secondary search slots, their search token(s), selection cardinality, and how selected auxiliary files contribute to analysis. 3ω RT search is the current RT/Rxx(T) instance of this optional module candidate. The RT/Rxx(T) meaning belongs to the 3ω Assembly, not to the module itself. Future workflows such as SOT may declare multiple auxiliary slots; the default pattern must not be named or shaped as 3ω-only RT search.
-- Pack/restore implications: each declared secondary slot must serialize query text and selected hit or stable sidecar/file identity. Restore may rebuild the selected hit from a sidecar path, but that bridge must stay explicit and slot-scoped. The pack fingerprint may include auxiliary file paths when the workflow says the auxiliary input changes analysis identity.
+- How workflow-specific semantics enter: the Workflow Assembly declares optional secondary search slots, their slot ID, display label, query hint/default, workflow/file-kind filter, selection cardinality, requiredness, analysis contribution, and fingerprint policy. 3ω RT search is the current `rt` instance of this optional module candidate. The RT/Rxx(T) meaning belongs to the 3ω Assembly, not to the module itself. Future workflows such as SOT may declare multiple auxiliary slots; the default pattern must not be named or shaped as 3ω-only RT search.
+- Pack/restore implications: each declared secondary slot must serialize query text plus selected hit identity or stable sidecar/file identity. Restore may rebuild the selected hit from a slot-scoped sidecar bridge, but it must not infer auxiliary meaning from Main Search state. The pack fingerprint may include auxiliary file identity when the Workflow Assembly says that file changes analysis identity.
+- Slot contract:
+  - Slot ID: workflow-owned stable key. Current 3ω slot ID is `rt`.
+  - Display label: workflow-owned user-facing label. Current 3ω label is `RT / Rxx(T)`.
+  - Query default / search hint / workflow filter: workflow-declared search token(s) and filter rules. The module only stores and executes the slot query; it does not invent the token or interpret the file meaning.
+  - Allowed workflow IDs / file kinds: explicit whitelist per slot. The module may only surface hits that match the slot filter.
+  - Selection mode: single or multiple, as declared by the Workflow Assembly. Current 3ω is single-select.
+  - Requiredness: optional by default, or required only for specific tabs/results that depend on the slot. Missing slots may disable only the dependent analysis surfaces.
+  - Analysis contribution: the selected auxiliary hit contributes input data only. The module must not derive physics meaning or trigger analysis by itself.
+  - Pack fingerprint: include auxiliary file identity only when the Workflow Assembly says that auxiliary identity changes analysis identity. Current 3ω includes the auxiliary RT file identity in pack identity.
+  - Persisted fields: query text plus selected hit identity and stable sidecar/file bridge. Search results, search message, and running flag are session state unless the Workflow Assembly explicitly promotes them.
+  - Restore bridge behavior: restore may rebind the slot from a pending sidecar path or cached file path; if the identity no longer resolves, leave the slot unbound and warn.
+  - Warning behavior: missing or invalid auxiliary input must warn only through the dependent workflow surfaces. It must not mutate Main Search, and it must not auto-convert into a primary search result.
+  - Multiple-slot support: the module must support zero, one, or many independently declared auxiliary slots. Each slot owns its own query, result list, selection, persistence bridge, and warning surface.
+- Forbidden behavior:
+  - must not mutate Main Search state
+  - must not own workflow physics meaning
+  - must not trigger analysis by itself
+  - must not be named around RT as a default module
 - Tests currently protecting it: `V537ThreeOmegaSearchSnapshotConsumptionTests`, `V537PackRestoreModuleBoundaryTests`, `V4117AnalysisPackVaultTests`, 3ω ingestion/scaling tests in `V413ThreeOmegaFitUseCaseTests` and `V41216ThreeOmegaScalingUseCaseTests`.
-- Extraction readiness: low-medium. The general module shape is visible, but there is only one concrete instance and it is named around RT.
-- Risks if extracted too early: freezing a one-slot RT-specific API, blocking SOT-style multiple auxiliary inputs, losing restore sidecar bridge behavior, or letting auxiliary search mutate main search/selection state.
+- Extraction readiness: low-medium. The general module shape is visible, but there is only one concrete instance and it is still implemented as workflow-local RT state.
+- Risks if extracted too early: freezing a one-slot RT-specific API, blocking SOT-style multiple auxiliary inputs, losing restore sidecar/file bridge behavior, or letting auxiliary search mutate main search/selection state.
 
 ### Plot System
 
