@@ -179,6 +179,23 @@ Important:
 
 ### Gate 3 Final / Gate 7 Extraction Plan
 
+Summary:
+
+- Common modules are runtime extraction targets.
+- Optional module candidates are workflow-declared capability slots, not one-off workflow features.
+- Boundary debt items are cleanup paths that require explicit bridge and restore coverage before extraction.
+
+| Gate | Module / boundary name | Classification from Gate 3 | Target owner | Notes |
+|---|---|---|---|---|
+| 7.1 | Main Search | Common module | Common Search module | Canonical search state is already centralized; finish runtime extraction while preserving the explicit restore bridge and pack compatibility. |
+| 7.2 | Selection | Boundary debt | Common Selection module | Selected IDs still live in workflow stores; keep the run-scoped selected-hit snapshot and the denominator bridge intact during extraction. |
+| 7.3 | Secondary Input Search | Optional module candidate | Common auxiliary-slot Secondary Input Search module | General auxiliary-slot shape only; 3ω RT is one declared slot, not the module shape. |
+| 7.4 | Analysis Overlay | Optional module candidate | Common Analysis Overlay module | Session-only overlay extraction; 3ω Scaling Law overlay stays a validation case only. |
+| 7.5 | Save to Library / Save Metadata Projection | Boundary debt | Split: common save writer + Assembly-owned semantic projection | Save writer is common; metric meaning, units, overrides, and semantic projection stay Assembly-owned. |
+| 7.6 | Pack / Restore | Boundary debt | Common Pack / Restore module | Explicit restore write map required; include secondary input search and keep restore rerender-only. |
+| 7.7 | Warning Display / Run Trace | Boundary debt | Split: common warning/trace display + Assembly-owned event sources | Centralize warning and trace projections without moving physics meaning into the display module. |
+| 7.8 | Plot System / Title-Style-Legend cleanup | Common module group | Common Plot System plus control modules | Conditional cleanup if needed; preserve tab override survival and keep Assembly-owned physics panels out. |
+
 #### Gate 7.1 - Main Search
 
 - Source Gate 3 audit section: `Main Search`
