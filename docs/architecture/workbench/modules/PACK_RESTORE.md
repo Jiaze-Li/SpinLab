@@ -7,7 +7,7 @@
 The Pack/Restore Module manages workspace state persistence across sessions. It is distinct from saving to Library.
 
 - **Save to Library** — writes chart PNG + metrics into `_spinlab/` under the measurement directory. Managed by the Save Module via `SaveActiveChartToLibraryUseCase`. Workflow Assemblies supply the active-chart save metadata projection; the Save Module must not infer metric names, units, or workflow semantics. See "Workbench Write Boundary" below.
-- **Pack/Restore** — saves and restores the full Workbench workspace state (analysis results, UI state, overlays) to/from `AnalysisVault`. No Library write occurs during pack/restore.
+- **Pack/Restore** — saves and restores the full Workbench workspace state (analysis results, UI state, overlays) to/from `AnalysisVault`. The first analysis-overlay version is session-only and does not enter pack content. No Library write occurs during pack/restore.
 
 ## Pack Envelope
 
@@ -65,7 +65,7 @@ What restore writes, and which module owns the state:
 | `cachedSampleKeys` | Pack Module local | ✓ | — | ✓ |
 | `lastRenderedSampleKeys` | AHE render cache | — | ✓ | — |
 | `lastLibraryRootPath` (from vault if empty) | Save Module dependency | ✓ | ✓ | ✓ |
-| `overlayPackIDs = []`, `overlaySnapshots = [:]` | 3ω overlay state | ✓ | — | — |
+| `overlayPackIDs = []`, `overlaySnapshots = [:]` | Session-only analysis overlay state; restore clears it and does not serialize it into pack content | ✓ | — | — |
 | `_titleTokens` (rebuilt from restored hits) | Workflow-local title context | ✓ | — | ✓ |
 
 ### Secondary Input Slot Restore Rules
@@ -76,6 +76,13 @@ What restore writes, and which module owns the state:
 - Restore must not mutate Main Search query, result, running, or message state through the slot bridge.
 - If the slot identity no longer resolves, restore leaves the slot unbound and emits a workflow warning.
 - Slot search results, search message, and running flag remain session-only unless the Workflow Assembly explicitly says otherwise.
+
+### Analysis Overlay Restore Rules
+
+- Overlay pack IDs and snapshots are session-only in the first version and are not serialized into `AnalysisPack`.
+- Restore clears overlay chips and snapshot lists before rerender so the restored workspace starts without overlay state.
+- Overlay-derived metrics do not enter the current sample's metric table in the first version.
+- If a workflow later declares overlay persistence, that decision must be explicit in the Workflow Assembly and the pack contract.
 
 **After state restore:** each workflow calls a re-render function to reconstruct plot output from the restored ingestion result and tab states:
 
@@ -94,6 +101,7 @@ These fields are explicitly excluded from pack content and must not be written b
 | `analysisMessage` | Session-only; set only by analysis or pack load completion |
 | `currentRunTrace` | Not packed; restore must not commit trace; remains nil until next `runAnalysis()` |
 | `warningLog` | Session-only; cleared on `clearPlot()` |
+| `overlayPackIDs` / `overlaySnapshots` | Session-only analysis overlay state; not serialized into pack content in v1 |
 | `activePackID` | Not in pack content; set by `loadPack()` caller after `restoreFromPack()` returns |
 | Active PNG / manifest / layout output | Not serialized; re-derived by re-render call at end of restore |
 
@@ -158,7 +166,7 @@ These are known side effects of the restore contract, not hidden bugs. Future im
 | Pack workflow ID | `"3w"` | `"ahe"` | `"xy"` |
 | Auxiliary file in fingerprint | ✓ (`packRTFilePath`, current 3ω RT instance) | No | No |
 | `ingestionResult` optional in result | No (required) | Yes (legacy compat) | No (required) |
-| Overlay state in pack | No (cleared on restore) | n/a | n/a |
+| Overlay state in pack | No (session-only; cleared on restore) | n/a | n/a |
 | Post-restore render | `_rerenderAllTabsFromRestoredState()` | `_rerenderActiveTab()` | `_rerenderAllTabs()` |
 | Sample keys field | `cachedSampleKeys` | `lastRenderedSampleKeys` | `cachedSampleKeys` |
 
@@ -194,6 +202,8 @@ Boundary rule `SP-007`: Workbench writes analysis results into `_spinlab/` under
 Boundary rule `SP-008`: All artifact path construction must go through `LibraryPathResolver`. No hand-built absolute or relative paths.
 
 Save-to-Library is therefore a write-only persistence boundary. The current workflow bridge is `ActiveChartProviding`, which returns `activeChartPNG`, `activeChartManifestPayload`, `activeChartSampleKeys`, and a generic `PendingMetricEntry` array via `buildActiveChartMetrics()`. That bridge is intentionally temporary: the Save Module may persist it, but it must not derive metric meaning, units, or workflow identity from it.
+
+Overlay-derived series are display-only. They do not extend `buildActiveChartMetrics()` in the first version and do not write metric rows for the current sample.
 
 Library-side view (preview pipeline, stale banner, path resolution ownership): `docs/architecture/library/ARTIFACTS_AND_PREVIEWS.md`.
 

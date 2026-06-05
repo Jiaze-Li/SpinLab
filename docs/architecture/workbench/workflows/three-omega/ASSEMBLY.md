@@ -8,7 +8,7 @@
 - Runtime display name is loaded from `WorkflowDefinitionStore` / `config/workflow.json`.
 - There is no runtime Assembly object. The workflow contract is distributed across registry dispatch, workspace view/store extensions, parser, fitting/scaling/render use cases, domain contracts, pack contracts, and tests.
 - Common Main Board behavior stays out of this record: default search execution, selection mechanics, analyze/save lifecycle, plot-canvas internals, related-chart hover behavior, and default pack button behavior.
-- 3ω is the only audited workflow with a workflow-specific secondary input search slot: an RT/Rxx(T) auxiliary input for scaling. This is the current instance of the general optional Secondary Input Search pattern, not a hard-coded RT default module.
+- 3ω is the only audited workflow with a workflow-specific secondary input search slot: an RT/Rxx(T) auxiliary input for scaling. It also has a current RAHE "Add Analysis" overlay surface on RAHE tabs, and the next target is a Scaling Law overlay fed by saved 3ω packs with `scalingResult`. These are current instances of the general optional Secondary Input Search / Analysis Overlay patterns, not hard-coded 3ω-only modules.
 
 ## Search Hints
 
@@ -68,7 +68,8 @@
 | Geometry panel | Scaling requires Lxx, Lxy, and thickness geometry. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift`; `Sources/SpinLabApp/Domain/ThreeOmegaGeometry.swift` |
 | Fit ranges panel | Scaling can fit full range or independent temperature ranges. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+FitRanges.swift`; `Sources/SpinLabApp/UseCases/ThreeOmegaScalingUseCase.swift` |
 | Scaling result panel | Displays alpha, beta, R², and segment status. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift`; `Sources/SpinLabApp/Domain/ThreeOmegaScalingResult.swift` |
-| RAHE overlay controls | RAHE tabs can overlay saved packs and choose RAHE extraction method per harmonic. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift`; `Sources/SpinLabApp/UseCases/ThreeOmegaPlotRenderer.swift` |
+| RAHE overlay controls | RAHE tabs can overlay saved packs and choose RAHE extraction method per harmonic. This is the current overlay instance and stays display-only. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift`; `Sources/SpinLabApp/UseCases/ThreeOmegaPlotRenderer.swift` |
+| Scaling Law overlay controls | Scaling Law overlays selected 3ω packs with `scalingResult`, renders scaling data points and fit line(s), disables or rejects packs without `scalingResult`, and never creates a combined pack or mutates the primary scaling result. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift`; `Sources/SpinLabApp/UseCases/ThreeOmegaPlotRenderer.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Scaling.swift` |
 
 ## Plot Contract / Overrides
 
@@ -88,6 +89,7 @@
 - Parse errors are converted to ingestion warnings with file names.
 - Multiple RT files warn and choose the one with most rows unless a dedicated RT hit is selected.
 - Missing RT warns that Rxx(T) and Scaling Law are unavailable.
+- Scaling Law overlay packs without `scalingResult` are disabled or rejected clearly.
 - Mixed device angles warn and switch device metadata to `angle_sweep`.
 - Geometry must be complete and positive for scaling; incomplete geometry returns a warning and no scaling points.
 - Scaling skips points with missing RT interpolation, missing I_rms, invalid rho/E values, non-finite results, or insufficient fit points, and reports why.
@@ -99,7 +101,9 @@
 |---|---|---|
 | Analysis parameters | Saves device, geometry, fit ranges, V3 method, RAHE 1ω/3ω methods, RT file path, and sample display context. | `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift` |
 | Display state | Saves active tab, title template, stack offset, gap fraction, grid flag, legend anchor, per-tab render states, and chart style overrides. | `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift` |
+| Overlay save policy | Session-only in v1; overlay state does not alter saved chart manifests or sample keys. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift`; `Sources/SpinLabApp/UseCases/ThreeOmegaPlotRenderer.swift` |
 | Search/selection state | Saves main cached search results, selected IDs, selected auxiliary RT hit, RT query, and main search query text. The auxiliary slot bridge is workflow-local, not Main Search-owned. | `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift` |
+| Overlay state | Session-only in v1; overlay pack IDs and snapshots are not serialized into pack content and restore clears them before rerender. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift` |
 | Result snapshot | Saves `ThreeOmegaIngestionResult` and optional `ThreeOmegaScalingResult` so restore can rerender without re-ingestion. | `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift` |
 | Restore bridge | Restore reapplies search state, selected auxiliary RT hit or pending RT sidecar/file path, library root, and rerenders manifests. If the bridge does not resolve, the slot stays unbound and the workflow warns. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift` |
 
@@ -110,9 +114,9 @@ Target owner: 3ω Assembly owns alpha, beta, R², and any RAHE/Hc semantics wher
 | Concern | Current state |
 |---|---|
 | Metric definitions | Alpha, beta, and R² are Assembly-owned scaling metrics. RAHE/Hc remain Assembly-owned analysis outputs when present. |
-| Current implementation surface | `ThreeOmegaScalingUseCase` computes `scalingResult`; `ThreeOmegaWorkspaceStore.buildActiveChartMetrics()` emits `PendingMetricEntry` records only for the active scaling tab, currently using record keys `alpha`, `beta`, and `r_squared` plus range/v3method/device conditions. `persistToLibrary()` forwards those entries to `SaveActiveChartToLibraryUseCase`. |
+| Current implementation surface | `ThreeOmegaScalingUseCase` computes `scalingResult`; `ThreeOmegaWorkspaceStore.buildActiveChartMetrics()` emits `PendingMetricEntry` records only for the active scaling tab, currently using record keys `alpha`, `beta`, and `r_squared` plus range/v3method/device conditions. `persistToLibrary()` forwards those entries to `SaveActiveChartToLibraryUseCase`. Overlay-derived metrics stay out of this projection in v1. |
 | Forbidden ownership | Common save code must not infer 3ω physics, units, or when metrics are valid; it may only persist the provided projection. |
-| Pack/restore implications | Geometry, fit ranges, V3/RAHE methods, RT state, and active tab restore so save-after-restore works, but `persistenceOutcome` and saved metric records stay out of pack content. If scaling state is absent, no metrics are emitted. |
+| Pack/restore implications | Geometry, fit ranges, V3/RAHE methods, RT state, and active tab restore so save-after-restore works, but `persistenceOutcome`, saved metric records, and overlay-derived metrics stay out of pack content. If scaling state is absent, no metrics are emitted. |
 | Tests protecting current behavior | `V413ThreeOmegaFitUseCaseTests`, `V41216ThreeOmegaScalingUseCaseTests`, `V537SaveModuleBoundaryTests`, `V4111SaveActiveChartToLibraryUseCaseTests`, `V537PackRestoreModuleBoundaryTests`. |
 | Extraction readiness | Medium. The workflow already derives the metrics, but the save bridge is still a generic `PendingMetricEntry[]` rather than an explicit save metadata projection. |
 | Exit condition | 3ω exposes a typed save metadata projection for the scaling tab that names metrics, units, conditions, and semantic identity without common save code reading `scalingResult` or deriving physics. |
@@ -131,6 +135,6 @@ Target owner: 3ω Assembly owns alpha, beta, R², and any RAHE/Hc semantics wher
 ## Findings Summary
 
 - Common and out of Assembly: common Workbench search, selection, analyze/save lifecycle, plot-canvas internals, common render pipeline, and common pack button mechanics.
-- Assembly-owned: `3w`/`3omega` identity and the `rt` secondary RT/Rxx(T) input contribution, LVM positional mapping, sidecar-driven file kind/device/temperature mapping, 3ω fitting/scaling formulas, geometry/fit-range/method state, multi-tab plot semantics, RAHE overlays, and auxiliary-input restore metadata.
-- Currently implicit/distributed: the 3ω Assembly is partly explicit in physics docs but runtime behavior is spread across parser/use cases/store extensions; secondary input search is workflow-local state rather than a formal optional module; scaling availability is warning-driven rather than readiness-gated.
+- Assembly-owned: `3w`/`3omega` identity and the `rt` secondary RT/Rxx(T) input contribution, LVM positional mapping, sidecar-driven file kind/device/temperature mapping, 3ω fitting/scaling formulas, geometry/fit-range/method state, multi-tab plot semantics, RAHE overlays, Scaling Law overlay eligibility and warnings, and auxiliary-input restore metadata.
+- Currently implicit/distributed: the 3ω Assembly is partly explicit in physics docs but runtime behavior is spread across parser/use cases/store extensions; secondary input search is workflow-local state rather than a formal optional module; overlay eligibility is still assembly-declared rather than module-owned; scaling availability is warning-driven rather than readiness-gated.
 - Later Gate 3 / Gate 7 consideration: Secondary Input Search may deserve module-boundary treatment, but extraction must preserve the general auxiliary-slot pattern and 3ω Assembly-owned semantics. Scaling warning policy should be locked further before moving analysis or pack/restore behavior into shared coordinators.
