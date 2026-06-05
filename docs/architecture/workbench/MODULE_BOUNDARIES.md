@@ -107,8 +107,9 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Slot contract:
   - Slot ID: workflow-owned stable key. Current 3ω slot ID is `rt`.
   - Display label: workflow-owned user-facing label. Current 3ω label is `RT / Rxx(T)`.
-  - Query default / search hint / workflow filter: workflow-declared search token(s) and filter rules. The module only stores and executes the slot query; it does not invent the token or interpret the file meaning.
-  - Allowed workflow IDs / file kinds: explicit whitelist per slot. The module may only surface hits that match the slot filter.
+  - Current behavior: `rtQuery` is passed through the generic `searchWorkflowMeasurements` path, returned hits are assigned to `rtSearchResults` directly, and restore can rebuild or accept auxiliary sidecars whose workflow is currently `3w` or `rt`.
+  - Query default / search hint / workflow filter: workflow-declared search token(s), hints, and filter rules. The module only stores and executes the slot query; it does not invent the token or interpret the file meaning.
+  - Allowed workflow IDs / file kinds: target contract uses an explicit whitelist per slot. Current 3ω runtime does not yet enforce a strict RT-only filter, so any future extraction that depends on strict allowed-kind filtering must add runtime guards and tests first.
   - Selection mode: single or multiple, as declared by the Workflow Assembly. Current 3ω is single-select.
   - Requiredness: optional by default, or required only for specific tabs/results that depend on the slot. Missing slots may disable only the dependent analysis surfaces.
   - Analysis contribution: the selected auxiliary hit contributes input data only. The module must not derive physics meaning or trigger analysis by itself.

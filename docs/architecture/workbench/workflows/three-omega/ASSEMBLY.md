@@ -16,7 +16,7 @@
 |---|---|---|
 | Workflow match token | Workflow config matches token `3w`; RT is a separate workflow config row matching token `rt`. | `Sources/SpinLabApp/config/workflow.json`; `Sources/SpinLabApp/Workflow/WorkflowDefinitionStore.swift` |
 | Search aliases | `3w` and `3omega` are search aliases; `ω`/`Ω` normalize to `w`. | `Sources/SpinLabApp/Domain/Workflow/WorkflowID.swift`; `Sources/SpinLabApp/UseCases/SearchWorkflowMeasurementsUseCase.swift` |
-| Secondary Input Search slot | 3ω declares one auxiliary search slot for RT/Rxx(T) input. It has independent query/results/selection state, persists the auxiliary query text, can select a dedicated auxiliary hit, and can rebuild that hit from a restored sidecar/file bridge. This is workflow-specific Assembly state mounted through the general Secondary Input Search pattern. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift` |
+| Secondary Input Search slot | 3ω declares one auxiliary search slot for RT/Rxx(T) input. It has independent query/results/selection state, persists the auxiliary query text, can select a dedicated auxiliary hit, and can rebuild that hit from a restored sidecar/file bridge. The semantic target is RT/Rxx(T), but the current runtime path is still generic and does not yet enforce an RT-only whitelist. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift` |
 | Result mirror | Main 3w search results use the common `cachedSearchResults` bridge for selection, title context, pack restore, and legacy fallback. The secondary input slot adds separate workflow-local state beyond the common bridge. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift` |
 
 ## Secondary Input Search Slot Contract
@@ -25,14 +25,14 @@
 |---|---|
 | Slot ID | `rt` |
 | Display label | `RT / Rxx(T)` |
-| Query default / search hint / workflow filter | The stored query text is `rtQuery`; the slot hint points the user at RT/Rxx(T) auxiliary files; hits are filtered to the RT sidecar/file-kind set instead of the main 3w search set. |
-| Allowed workflow IDs / file kinds | `rt` file-kind / RT sweep files only. Field-sweep files do not satisfy the slot. |
+| Query default / search hint / workflow filter | The stored query text is `rtQuery`; the slot hint points the user at RT/Rxx(T) auxiliary files. Current runtime behavior still routes through the generic search path and does not enforce an RT-only whitelist. |
+| Allowed workflow IDs / file kinds | Target contract: `rt` file-kind / RT sweep files only. Current runtime: generic hits may still be accepted through the sidecar/search bridge, so this whitelist is not yet fully enforced. |
 | Selection mode | Single-select. |
 | Requiredness | Optional in the workspace, but required for scaling and any RT-dependent result surfaces. |
 | Analysis contribution | The selected auxiliary RT hit supplies the Rxx(T) input used by scaling. It does not mutate Main Search and does not trigger analysis by itself. |
 | Pack fingerprint | Yes. The auxiliary RT file identity participates in 3ω pack identity. |
 | Persisted fields | `rtQuery`, `selectedRTHit`, and the stable bridge fields that recover the selection (`pendingRTSidecarPath`, `cachedRTFilePath`). Search results, message, and running state remain session-only. |
-| Restore bridge behavior | Restore can rebind the slot from a pending sidecar path or cached file path, then rerender from the restored state. If the bridge no longer resolves, restore leaves the slot unbound and warns. |
+| Restore bridge behavior | Restore can rebind the slot from a pending sidecar path or cached file path, then rerender from the restored state. The bridge may accept current `3w` or `rt` auxiliary sidecars, so it is not yet an RT-only validator. |
 | Warning behavior | Missing or invalid RT input warns that Rxx(T)-dependent outputs such as Scaling Law are unavailable. Invalid or ambiguous RT selection must not backfill from Main Search. |
 | Multiple-slot support | 3ω uses one slot today, but the contract must support future workflows such as SOT declaring multiple independent auxiliary slots. |
 

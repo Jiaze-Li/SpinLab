@@ -67,12 +67,22 @@ The per-workflow records under `workflows/*/ASSEMBLY.md` map those surfaces to c
 
 A Workflow Assembly may declare optional secondary input search slots. These are auxiliary file selectors that contribute to analysis but are not the Main Search result set. The slot contract is workflow-owned; the module only owns generic auxiliary slot mechanics and UI.
 
+Current runtime behavior:
+- `rtQuery` is passed through the generic `searchWorkflowMeasurements` path.
+- Returned hits are assigned to `rtSearchResults` directly.
+- Restore can rebuild or accept auxiliary sidecars whose workflow is currently `3w` or `rt`.
+
+Target/future contract:
+- A slot may declare allowed workflow IDs, file kinds, and search hints.
+- The 3ω `rt` slot's semantic target is RT/Rxx(T), but runtime filtering and validation are not yet fully enforced.
+- If future extraction depends on strict allowed-kind filtering, add explicit runtime guards and tests first.
+
 | Contract field | Meaning |
 |---|---|
 | Slot ID | Stable workflow-owned key for the auxiliary slot. The module treats it as an opaque identifier. |
 | Display label | User-facing label owned by the Workflow Assembly. The module must not invent a default semantic label. |
-| Query default / search hint / workflow filter | Workflow-owned query prefix, hint text, and file/workflow filter rules that shape the auxiliary search. |
-| Allowed workflow IDs / file kinds | Explicit whitelist of auxiliary hits the slot may accept. |
+| Query default / search hint / workflow filter | Workflow-owned query prefix, hint text, and file/workflow filter rules that shape the auxiliary search. Current runtime does not yet enforce a strict RT-only whitelist for the 3ω instance. |
+| Allowed workflow IDs / file kinds | Target contract uses an explicit whitelist of auxiliary hits the slot may accept; current 3ω behavior is still generic and must not be described as already RT-only filtered. |
 | Selection mode | Single-select or multi-select, as declared by the Workflow Assembly. |
 | Requiredness | Optional by default, or required only for workflow tabs/results that depend on the slot. |
 | Analysis contribution | The selected auxiliary hit contributes input data only. It does not trigger analysis by itself and it does not define physics meaning. |
@@ -82,7 +92,7 @@ A Workflow Assembly may declare optional secondary input search slots. These are
 | Warning behavior | Missing or invalid auxiliary input only warns through dependent workflow surfaces. It must not mutate Main Search state or silently fall back to a different semantic role. |
 | Multiple-slot support | A workflow may declare zero, one, or many auxiliary slots. Each slot must remain independent and slot-scoped. |
 
-Current concrete instance: 3ω declares one slot with `slot ID = rt`, `display label = RT / Rxx(T)`, single selection, and auxiliary RT file identity participation in pack fingerprint. This is the current instance of the general optional Secondary Input Search pattern, not a hard-coded RT default module.
+Current concrete instance: 3ω declares one slot with `slot ID = rt`, `display label = RT / Rxx(T)`, single selection, and auxiliary RT file identity participation in pack fingerprint. This is the current runtime-compatible instance of the general optional Secondary Input Search pattern; runtime filtering is still generic and not yet an RT-only whitelist.
 
 Current implementation surface for the 3ω instance lives in `ThreeOmegaWorkspaceStore.swift`, `ThreeOmegaWorkspaceStore+RTSelection.swift`, `ThreeOmegaWorkspaceView.swift`, `ThreeOmegaPackContracts.swift`, and `ThreeOmegaWorkspaceStore+Pack.swift`. The concrete runtime fields remain `rtQuery`, `rtSearchResults`, `rtSearchMessage`, `isRTSearching`, `selectedRTHit`, `pendingRTSidecarPath`, and `cachedRTFilePath`.
 
