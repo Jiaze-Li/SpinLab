@@ -172,33 +172,123 @@ Purpose:
 
 Important:
 
-- Gate 7 is a container gate.
-- Do not hardcode specific modules here.
-- The actual extraction sequence will be determined after Gate 3.
+- Gate 7 is still a container gate for runtime extraction.
+- The extraction order below is the Gate 3 Final plan derived from `MODULE_BOUNDARIES.md`.
+- Gate 3 can still revise the plan if `MODULE_BOUNDARIES.md` changes again.
+- 3ω Scaling Law overlay belongs under Analysis Overlay as a Gate 7 validation case only; it is not standalone feature work.
 
-### Gate 7.1+ - Tentative Examples Only
+### Gate 3 Final / Gate 7 Extraction Plan
 
-These are placeholders.
+Summary:
 
-- Search Extraction
-- Selection Extraction
-- Analyze Lifecycle Extraction
-- Save Extraction
-- Pack Extraction
-- Plot Extraction
-- Trace / Warning / Status Extraction
+- Common modules are runtime extraction targets.
+- Optional module candidates are workflow-declared capability slots, not one-off workflow features.
+- Boundary debt items are cleanup paths that require explicit bridge and restore coverage before extraction.
 
-Clarify:
+| Gate | Module / boundary name | Classification from Gate 3 | Target owner | Notes |
+|---|---|---|---|---|
+| 7.1 | Main Search | Common module | Common Search module | Canonical search state is already centralized; finish runtime extraction while preserving the explicit restore bridge and pack compatibility. |
+| 7.2 | Selection | Boundary debt | Common Selection module | Selected IDs still live in workflow stores; keep the run-scoped selected-hit snapshot and the denominator bridge intact during extraction. |
+| 7.3 | Secondary Input Search | Optional module candidate | Common auxiliary-slot Secondary Input Search module | General auxiliary-slot shape only; 3ω RT is one declared slot, not the module shape. |
+| 7.4 | Analysis Overlay | Optional module candidate | Common Analysis Overlay module | Session-only overlay extraction; 3ω Scaling Law overlay stays a validation case only. |
+| 7.5 | Save to Library / Save Metadata Projection | Boundary debt | Split: common save writer + Assembly-owned semantic projection | Save writer is common; metric meaning, units, overrides, and semantic projection stay Assembly-owned. |
+| 7.6 | Pack / Restore | Boundary debt | Common Pack / Restore module | Explicit restore write map required; include secondary input search and keep restore rerender-only. |
+| 7.7 | Warning Display / Run Trace | Boundary debt | Split: common warning/trace display + Assembly-owned event sources | Centralize warning and trace projections without moving physics meaning into the display module. |
+| 7.8 | Plot System / Title-Style-Legend cleanup | Common module group | Common Plot System plus control modules | Conditional cleanup if needed; preserve tab override survival and keep Assembly-owned physics panels out. |
 
-Gate 3 may:
+#### Gate 7.1 - Main Search
 
-- merge modules
-- split modules
-- change extraction order
-- redefine boundaries
-- remove planned extraction steps
+- Source Gate 3 audit section: `Main Search`
+- Classification: `Module-owned — common module`
+- Actual Gate 3 finding: canonical search state is already centralized, but workflow stores still keep mirror state for pack compatibility and the select-all denominator.
+- Target owner: common Search module, with workflow stores reduced to mirrors only where an explicit bridge is still required.
+- Required work: finish runtime extraction of query, result, running, and status state; keep `restoreSearchState` as the explicit canonical restore path; retire workflow-local search ownership once pack and selection bridges are stable.
+- Prerequisite bridges/tests: `WorkbenchSearchSnapshot`, the search mirror bridge, pack restore callback coverage, `V320WorkflowSearchAcrossDrawersTests`, `V537WorkbenchSearchMirrorTests`, and the AHE/XY/3ω search snapshot consumption tests.
+- Extraction risks: stale mirror drift, broken select-all denominator, pack decode/restore regressions, and accidental analysis from canonical results without a selected-hit snapshot.
+- Acceptance criteria: shell and workflows read canonical search state only through `WorkbenchSearchSnapshot`; workflow stores no longer own the canonical search lifecycle; restore still round-trips search state through the explicit restore callback; the existing search snapshot tests remain green.
 
-Do not present 7.1+ as fixed.
+#### Gate 7.2 - Selection
+
+- Source Gate 3 audit section: `Selection`
+- Classification: `Boundary debt`
+- Actual Gate 3 finding: the run-scoped selected-hit read surface exists, but selected IDs still live in workflow stores and the denominator bridge remains tied to workflow-local search mirrors.
+- Target owner: common Selection module.
+- Required work: move selected IDs and selection mutations into a canonical module owner; keep `WorkbenchSelectedHitsSnapshot` as the run-scoped analysis input; preserve the explicit denominator bridge until save/pack cleanup removes the last dependency on the mirror.
+- Prerequisite bridges/tests: `WorkbenchSelectedHitsSnapshot`, the selection mutation API, pack-compatible decode/restore coverage, `V537WorkbenchSelectionShellTests`, `V537WorkbenchSelectedHitsSnapshotTests`, and `V538SelectedHitsBridgeAuditTests`.
+- Extraction risks: select-all denominator mismatch, nil-snapshot restore fallback breakage, and analysis being triggered with stale or unselected hits.
+- Acceptance criteria: selection state and mutations have one canonical owner; analysis consumes the run-scoped selected-hit snapshot; restore writes selected IDs before rerender; any remaining mirror bridge is explicitly documented and pack-compatible.
+
+#### Gate 7.3 - Secondary Input Search
+
+- Source Gate 3 audit section: `Secondary Input Search`
+- Classification: `Module-owned — optional module candidate`
+- Actual Gate 3 finding: the general auxiliary-slot shape is visible, but the only live instance is 3ω RT state and the runtime is still workflow-local, so the module shape must stay general rather than RT-specific.
+- Target owner: common auxiliary-slot Secondary Input Search module declared by the Workflow Assembly.
+- Required work: define a slot contract that covers slot ID, display label, query defaults, workflow/file-kind filter, selection cardinality, requiredness, selected-hit persistence, restore sidecar bridge, and fingerprint contribution; extract workflow-local RT fields into slot instances without moving file meaning into the module.
+- Prerequisite bridges/tests: `ThreeOmegaPackContracts`, the 3ω RT selection bridge, 3ω search snapshot and pack/restore boundary tests, and future multi-slot contract coverage for workflows that declare more than one auxiliary input.
+- Extraction risks: freezing a one-slot RT-specific API, blocking future multi-slot workflows, losing restore sidecar/file bridge behavior, and letting auxiliary search mutate main search or selection state.
+- Acceptance criteria: the module supports zero, one, or many declared slots; no slot mutates Main Search; restore can rebind from a slot-scoped sidecar/file identity; 3ω RT remains one declared slot rather than the module shape itself.
+
+#### Gate 7.4 - Analysis Overlay
+
+- Source Gate 3 audit section: `Analysis Overlay`
+- Classification: `Module-owned — optional module candidate`
+- Actual Gate 3 finding: overlay state is session-only today, the common shell already hosts overlay entry points, and the 3ω Scaling Law overlay belongs here only as a validation case.
+- Target owner: common Analysis Overlay module, with Workflow Assemblies owning eligibility, labels, snapshot-to-series mapping, warning policy, saved-manifest/sample-key policy, and metric-persistence policy.
+- Required work: extract overlay pack IDs, overlay snapshots, overlay chips, and active-tab rerender requests into a common overlay owner; keep the first cut session-only; let future persistence be declared explicitly by the Workflow Assembly.
+- Prerequisite bridges/tests: the existing 3ω RAHE overlay path, 3ω plot-renderer hooks, overlay session-state reset coverage, and Gate 7.4 acceptance tests that include the 3ω Scaling Law overlay validation case without turning it into standalone feature work.
+- Extraction risks: pack-into-pack ambiguity, overlay state leaking into restore or save paths, and common code learning workflow-specific plot semantics.
+- Acceptance criteria: overlay state remains session-only in the first extraction cut; restore clears overlay state; the shell can host both the current RAHE overlay and the 3ω Scaling Law validation case without owning workflow meaning; the validation case is recorded in Gate 7.4 rather than Gate 3 runtime work.
+
+#### Gate 7.5 - Save to Library / Save Metadata Projection
+
+- Source Gate 3 audit section: `Save to Library` plus `Metric Extraction / Metric Override / Save Metadata`
+- Classification: `Boundary debt`
+- Actual Gate 3 finding: the common save writer already exists, but workflow metric semantics still reach it through raw `PendingMetricEntry` arrays and workflow-local save-message / override state.
+- Target owner: split ownership. The save writer is common and module-owned; metric definitions, unit semantics, override policy, and the semantic save projection stay Assembly-owned.
+- Required work: define an explicit workflow save-metadata projection contract; make `SaveActiveChartToLibraryUseCase` consume semantic projection instead of raw arrays; keep metric overrides as save-time state unless a workflow explicitly opts into restoring unsaved overrides; preserve the common writer as validation and artifact-write code only.
+- Prerequisite bridges/tests: `ActiveChartProviding`, `buildActiveChartMetrics()`, save boundary tests, metric override tests, and the AHE / 3ω / XY save-path tests already listed in `MODULE_BOUNDARIES.md`.
+- Extraction risks: generic code inventing metrics, overrides being applied to multi-sample results incorrectly, saved metadata diverging from workflow semantics, and canonical units drifting inside the library artifacts.
+- Acceptance criteria: the save use case receives explicit semantic projection; the common writer does not infer physics; library artifacts match the workflow semantics that the Assembly declared; save status can move out of workflow-local ownership without duplicating messages.
+
+#### Gate 7.6 - Pack / Restore
+
+- Source Gate 3 audit section: `Pack / Restore`
+- Classification: `Boundary debt`
+- Actual Gate 3 finding: restore is the only sanctioned multi-state mutation exception, but pack/restore is still implemented per workflow and needs coverage for every restored field, including secondary input search.
+- Target owner: common Pack / Restore module with an explicit restore write map and a documented exception for workspace restoration.
+- Required work: centralize pack load/save orchestration, `activePackID`, vault access, and restore writes behind the explicit contract; route canonical search restore through the existing callback; keep workflow-specific pack config and result metadata behind `AnalysisPackProviding`; include secondary input search in restore coverage.
+- Prerequisite bridges/tests: `modules/PACK_RESTORE.md` write-map coverage, `RestoreAnalysisPackUseCase`, `AnalysisPackProviding`, `V4117AnalysisPackVaultTests`, `V5114RestoreUseCaseStatelessTests`, `V5114PackRestoreNoTraceCommitTests`, `V537PackRestoreModuleBoundaryTests`, and `V535TabRenderStatePackTests`.
+- Extraction risks: missed restore writes, accidental trace commit, broken legacy AHE nil-ingestion restore, stale search mirrors, and auxiliary-input fingerprint loss.
+- Acceptance criteria: all restore writes are centralized and covered; restore rerenders rather than re-ingests; `activePackID` is still set by the caller after restore returns; secondary input search round-trips through the documented bridge; restore never serializes session-only trace or save fields.
+
+#### Gate 7.7 - Warning Display / Run Trace
+
+- Source Gate 3 audit section: `Warning Display / Run Trace`
+- Classification: `Boundary debt`
+- Actual Gate 3 finding: the warning and trace display surface already exists, but the raw warning and trace fields still live in workflow stores and are mixed across analysis and save paths.
+- Target owner: split ownership. The common module owns warning and trace display / projection; Workflow Assemblies emit typed warning and trace events.
+- Required work: centralize warning-log and run-trace projection; keep session-only warning, analysis, plot, and save message data out of pack formats; separate save-side trace updates from analysis-side trace commits; keep duplicate-warning coalescing intact.
+- Prerequisite bridges/tests: `BuildRunTraceProjectionUseCase`, `WorkbenchStatusArea`, `WorkbenchTracePanel`, `V326RunManifestTraceTests`, `V537AnalysisLifecycleBoundaryTests`, `V537SaveModuleBoundaryTests`, `V5114PackRestoreNoTraceCommitTests`, and `V537PackRestoreModuleBoundaryTests`.
+- Extraction risks: trace being committed on restore, warnings duplicating across reruns, save-side trace being confused with analysis-side trace, and session-only fields being serialized by mistake.
+- Acceptance criteria: warning and trace projections come from one common read/display owner; workflow stores shrink to typed event sources; restore leaves trace nil; duplicate-warning coalescing still behaves as it does now.
+
+#### Gate 7.8 - Plot System / Title-Style-Legend Cleanup if Needed
+
+- Source Gate 3 audit section: `Plot System` plus `Title / Style / Legend Controls`
+- Classification: `Module-owned — common module group within Plot System`
+- Actual Gate 3 finding: Plot System already owns render and preservation state, but workflow stores still host some binding endpoints for title, style, and legend controls; the geometry / fit range / scaling and phi-offset panels remain Assembly-owned and must stay out of this extraction.
+- Target owner: common Plot System plus title/style/legend control modules, with `TabRenderManager` remaining the single owner of render output and override state.
+- Required work: move the remaining workflow-local binding endpoints out of workflow stores; keep the common control modules focused on display overrides; preserve tab override survival; do not absorb Assembly-owned physics panels or default-axis meaning.
+- Prerequisite bridges/tests: `V537WorkflowShellPhase4Tests`, `V563WorkflowStateBoundaryTests`, `V531SeriesRenderModeTests`, `V534LegendDimensionResolverTests`, `V535PointLabelVisibilityTests`, `V535CopyPNGScaleMenuTests`, and `V536CurveDragOrderTests`.
+- Extraction risks: default workflow titles being lost, display overrides leaking into manifest semantics, tab override survival regressing, and curve-reorder identity drifting away from `sourceRef`.
+- Acceptance criteria: workflow stores no longer own the remaining title/style/legend binding endpoints; tab and render output remain single-sourced; plot controls behave uniformly; Geometry / Fit Range / Scaling, AHE Hc / R_AHE extraction, XY phi/detrend/centering, and 3ω scaling semantics remain Assembly-owned and unchanged.
+
+### Gate 7 Non-Candidates Preserved from Gate 3
+
+- Geometry / Fit Range / Scaling Panels remain Assembly-owned and are not Gate 7 extraction targets.
+- AHE Hc / R_AHE extraction, XY phi/detrend/centering, and 3ω scaling semantics remain Assembly-owned.
+- The 3ω Scaling Law overlay is a Gate 7.4 validation case under Analysis Overlay, not standalone feature work.
 
 ### Gate 8 - New Workflow Dry Run
 
