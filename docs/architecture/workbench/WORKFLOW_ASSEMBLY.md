@@ -21,6 +21,7 @@ Adding a workflow means adding a new Workflow Assembly.
 | Data / Physics Mapping | Raw-file formats, parser entry points, required fields, column/index mapping, unit conversion, derived quantities, and invalid-data behavior |
 | Analysis Pipeline | Workflow-specific parse, ingest, transform/fit/scale, render-payload, metric, warning, and failure stages |
 | Optional Contributions | Workflow-specific panels or module contributions mounted by the shell |
+| Analysis Overlay | Workflow-specific display-only overlays from existing saved analysis packs; the workflow declares eligible tabs, pack/result requirements, labels, warnings, and saved-artifact policy |
 | Plot Semantics / Overrides | Plot meanings that differ from common plot shell behavior: default axes, units, tabs, stacking, normalization, annotations, metrics, titles, and legends |
 | Validation / Warning Policy | Workflow-specific warnings/errors for missing input, skipped series, ambiguous units, and data-quality failures |
 | Persistence / Pack-Restore | Workflow-specific state required to interpret restored workspaces and saved results |
@@ -101,3 +102,19 @@ Current implementation surface for the 3ω instance lives in `ThreeOmegaWorkspac
 A Workflow Assembly is the workflow-owned semantic contract for the active workflow. The Main Board uses workflow declarations to mount or call modules, but common module behavior remains outside Assembly. Assembly should name only workflow-specific identity/search hints, data mapping, analysis behavior, optional contributions, plot overrides, persistence metadata, validation policy, and required behavior tests.
 
 The current implementation does not have runtime Assembly objects. A valid Assembly record may therefore point to distributed implementation files instead of a single provider type. If code contradicts the ideal model, the record should state the contradiction rather than inventing a framework.
+
+## Analysis Overlays
+
+A Workflow Assembly may declare optional analysis overlays. Overlays are display-only contributions from existing saved analysis packs. They do not mutate the primary analysis result, do not create a combined pack, and remain session-only in the first version unless the workflow explicitly declares persistence.
+
+| Contract field | Meaning |
+|---|---|
+| Supported tabs | Workflow-owned list of tabs that may show overlay chips or overlay series. |
+| Eligible packs / result requirements | Workflow-owned whitelist of pack workflow IDs and result prerequisites. Packs missing required results are disabled or rejected clearly. |
+| Snapshot-to-series mapping | Workflow-owned mapping from overlay result snapshots to plot series, fit lines, or other rendered plot artifacts. |
+| Overlay labels | User-facing labels for overlay chips and series are workflow-owned. |
+| Missing / invalid warnings | Workflow-owned warning policy for absent, invalid, or stale overlay packs. |
+| Saved manifest / sample keys policy | Workflow/tab-specific provenance policy for saved chart artifacts. The Assembly decides whether overlay series or sample provenance participate in the saved artifact/manifest, and future overlay types must declare that policy explicitly before implementation. |
+| Metric persistence policy | Workflow-owned decision on whether overlay-derived metrics are excluded from metric persistence. |
+
+Current 3ω instance: RAHE tabs use the existing "Add Analysis" overlay surface. Target next instance: Scaling Law overlays that draw scaling data points and fit line(s) from saved 3ω packs with `scalingResult`; packs without that result should be disabled or rejected clearly.
