@@ -81,8 +81,8 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
   - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift`
   - workflow-local selection fields/methods in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore+Selection.swift`
 - Current consumers: `WorkflowWorkspaceShell`, all workflow stores, analysis entry points, pack contracts, restore paths.
-- State it owns: target contract owns selected hit IDs, select/deselect/toggle/select-all actions, selected count, all-selected projection, and run-scoped `WorkbenchSelectedHitsSnapshot`.
-- State it must not own: query text, search execution, search running/message state, ingestion/output, pack vault state, plot output, save state.
+- Target state it would own: selected hit IDs, select/deselect/toggle/select-all actions, selected count, all-selected projection, and run-scoped `WorkbenchSelectedHitsSnapshot`.
+- Target state it must not own: query text, search execution, search running/message state, ingestion/output, pack vault state, plot output, save state.
 - How workflow-specific semantics enter: only through selected hits handed to workflow analysis; selection itself must not infer file meaning.
 - Pack/restore implications: pack configs serialize selected IDs; restore must write selected IDs before rerender and keep denominator mirror aligned.
 - Tests currently protecting it: `V537WorkbenchSelectionShellTests`, `V537WorkbenchSelectedHitsSnapshotTests`, `V538SelectedHitsBridgeAuditTests`, `V537PackRestoreModuleBoundaryTests`, search snapshot consumption tests for AHE/XY/3ω.
@@ -99,8 +99,8 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
   - `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift`
   - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift`
 - Current consumers: 3ω scaling ingestion/analysis, 3ω view popover, 3ω pack/restore, 3ω search snapshot boundary tests.
-- State it owns: auxiliary query text, auxiliary running flag, popover/list UI state, selected auxiliary hit, deferred sidecar-path bridge for restore, persisted auxiliary query default. Current concrete names are `rtQuery`, `isRTSearching`, `showRTPopover`, `selectedRTHit`, `pendingRTSidecarPath`, and `cachedRTFilePath`.
-- State it must not own: main search query/results/running/message, main selected IDs, primary workflow selection, physics calculations, plot output, generic pack vault orchestration.
+- Target state it would own: auxiliary query text, auxiliary running flag, popover/list UI state, selected auxiliary hit, deferred sidecar-path bridge for restore, persisted auxiliary query default. Current 3ω concrete names are `rtQuery`, `isRTSearching`, `showRTPopover`, `selectedRTHit`, `pendingRTSidecarPath`, and `cachedRTFilePath`.
+- Target state it must not own: main search query/results/running/message, main selected IDs, primary workflow selection, physics calculations, plot output, generic pack vault orchestration.
 - How workflow-specific semantics enter: the Workflow Assembly declares optional secondary search slots, their search token(s), selection cardinality, and how selected auxiliary files contribute to analysis. 3ω RT search is the current RT/Rxx(T) instance of this optional module candidate. The RT/Rxx(T) meaning belongs to the 3ω Assembly, not to the module itself. Future workflows such as SOT may declare multiple auxiliary slots; the default pattern must not be named or shaped as 3ω-only RT search.
 - Pack/restore implications: each declared secondary slot must serialize query text and selected hit or stable sidecar/file identity. Restore may rebuild the selected hit from a sidecar path, but that bridge must stay explicit and slot-scoped. The pack fingerprint may include auxiliary file paths when the workflow says the auxiliary input changes analysis identity.
 - Tests currently protecting it: `V537ThreeOmegaSearchSnapshotConsumptionTests`, `V537PackRestoreModuleBoundaryTests`, `V4117AnalysisPackVaultTests`, 3ω ingestion/scaling tests in `V413ThreeOmegaFitUseCaseTests` and `V41216ThreeOmegaScalingUseCaseTests`.
@@ -146,8 +146,8 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
   - `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift`
   - workflow restore/save-pack code in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore+Pack.swift`
 - Current consumers: workflow stores, Workbench shell pack controls, restore use case, save-after-restore paths, tests.
-- State it owns: active pack ID, vault contents, pack load/save orchestration, explicit restore write map.
-- State it must not own: search/selection semantics except documented restore writes, ingestion semantics, plot display behavior, save-to-library outcome, analysis trace commits, workflow-specific persistence meaning.
+- Target state it would own: active pack ID, vault contents, pack load/save orchestration, explicit restore write map.
+- Target state it must not own: search/selection semantics except documented restore writes, ingestion semantics, plot display behavior, save-to-library outcome, analysis trace commits, workflow-specific persistence meaning.
 - How workflow-specific semantics enter: each workflow Assembly supplies `PackConfig`, `PackResult`, pack metadata/fingerprint fields, and restore-time physics parameters through `AnalysisPackProviding`.
 - Pack/restore implications: this is the module itself; restore is allowed to write multiple module states only through the documented write map and must rerender rather than re-ingest.
 - Tests currently protecting it: `V4117AnalysisPackVaultTests`, `V5114RestoreUseCaseStatelessTests`, `V5114PackRestoreNoTraceCommitTests`, `V537PackRestoreModuleBoundaryTests`, `V535TabRenderStatePackTests`.
@@ -167,8 +167,8 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
   - save methods in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore+Persistence.swift`
   - metric/provider contracts in `Sources/SpinLabApp/Workbench/V3/WorkbenchResultContracts.swift`
 - Current consumers: all workflow stores, Library artifact preview/read model, related chart refresh, save boundary tests.
-- State it owns: common save writer state such as save status/message target, `persistenceOutcome`, save-side trace update from `PersistenceOutcome.trace`, and chart/data artifact write orchestration.
-- State it must not own: search/selection, analysis trigger, ingestion result mutation, tab override state, pack vault state, metric definitions, unit conversions, or workflow semantic identity rules.
+- Target common save-writer state it would own: save status/message target, `persistenceOutcome`, save-side trace update from `PersistenceOutcome.trace`, and chart/data artifact write orchestration.
+- Target common save-writer state it must not own: search/selection, analysis trigger, ingestion result mutation, tab override state, pack vault state, metric definitions, unit conversions, or workflow semantic identity rules.
 - How workflow-specific semantics enter: workflow Assembly provides active chart PNG/manifest, sample keys, metric records, semantic identity, and library root through an explicit save metadata projection. Save module must not derive physics.
 - Pack/restore implications: restore sets enough library-root and active chart state to allow save after restore, but restore must not persist save outcome or trigger save.
 - Tests currently protecting it: `V537SaveModuleBoundaryTests`, `V343DeleteWorkbenchResultTests`, `V41217MeasurementPlotIndexTests`, `V342WorkbenchResultsReadModelTests`, `V5111ExtractAHEMetricsUseCaseTests`, `V5114AHEMetricSourceTests`.
@@ -187,8 +187,8 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
   - `Sources/SpinLabApp/Features/Workbench/WorkbenchResultHeaderShell.swift`
   - workflow-local `warningLog`, `currentRunTrace`, `analysisMessage`, `plotMessage`, `saveMessage` fields in all workflow stores
 - Current consumers: workflow views, result header, save/persist paths, analysis lifecycle tests.
-- State it owns: target should own warning log display/projection and run trace display/projection. Current stores own raw warning log and trace fields.
-- State it must not own: search/selection, physics calculations, workflow-specific warning meaning, pack format, save artifact writes, plot override state.
+- Target state it would own: warning log display/projection and run trace display/projection. Current stores own raw warning log and trace fields.
+- Target state it must not own: search/selection, physics calculations, workflow-specific warning meaning, pack format, save artifact writes, plot override state.
 - How workflow-specific semantics enter: workflow analysis/save use cases emit warnings and trace events; common display coalesces and renders them without assigning scientific meaning.
 - Pack/restore implications: `warningLog`, `analysisMessage`, `saveMessage`, and `currentRunTrace` are session-only and must not be packed. Normal restore must leave trace nil.
 - Tests currently protecting it: `V326RunManifestTraceTests`, `V537AnalysisLifecycleBoundaryTests`, `V537SaveModuleBoundaryTests`, `V5114PackRestoreNoTraceCommitTests`, `V537PackRestoreModuleBoundaryTests`.
@@ -228,8 +228,8 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
   - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Persistence.swift`
   - `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift`
 - Current consumers: save-to-library use case, Library result index/data artifacts, AHE UI override controls, 3ω scaling save metadata.
-- State it owns: no standalone module state yet. Current workflow stores own metric records to save, metric override candidates/info, active chart sample keys, and semantic chart identity metadata. Current AHE owns pending Hc/R_AHE overrides and extracted metrics.
-- State it must not own: plot image/layout generation, search/selection, pack vault state, generic save write mechanics, or any common-module definition of workflow metrics.
+- Target state ownership: no standalone module state yet. Current workflow stores own metric records to save, metric override candidates/info, active chart sample keys, and semantic chart identity metadata. Current AHE owns pending Hc/R_AHE overrides and extracted metrics.
+- Target state it must not own: plot image/layout generation, search/selection, pack vault state, generic save write mechanics, or any common-module definition of workflow metrics.
 - How workflow-specific semantics enter: each workflow Assembly declares which metrics exist, how to extract them, canonical units, conditions, and whether manual override is allowed.
 - Pack/restore implications: metric override candidates are save-time state and should not become generic pack state unless a workflow explicitly declares restored unsaved overrides. Saved metrics belong to Library artifacts, not AnalysisPack.
 - Tests currently protecting it: `V341ManualOverrideCaptureTests`, `V5111ExtractAHEMetricsUseCaseTests`, `V5114AHEMetricSourceTests`, `V537SaveModuleBoundaryTests`, 3ω scaling/plotting tests for alpha/beta/r² payloads.
