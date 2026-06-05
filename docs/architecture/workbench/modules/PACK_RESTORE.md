@@ -59,7 +59,7 @@ What restore writes, and which module owns the state:
 | `titleTemplate` | Plot Controls Module | ✓ | ✓ | ✓ |
 | `stackOffsetMultiplier`, `minGapFraction` | Plot Controls / Physics | ✓ | — | ✓ |
 | `geometry`, `fitRanges`, `v3Method`, `rahe1omegaMethod`, `rahe3omegaMethod` | 3ω Physics Function | ✓ | — | — |
-| `rtQuery`, `selectedRTHit`; calls `persistRTQuery()` | 3ω RT Module | ✓ | — | — |
+| `rtQuery`, `selectedRTHit`; calls `persistRTQuery()` | Secondary Input Search optional slot (3ω RT instance) | ✓ | — | — |
 | `phiOffsetOverrides`, `centerBaseline`, `linearDetrend` | XY Physics Function | — | — | ✓ |
 | `cachedInputFiles` | Pack Module local | ✓ | ✓ | ✓ |
 | `cachedSampleKeys` | Pack Module local | ✓ | — | ✓ |
@@ -128,7 +128,7 @@ Restore has two intentional UserDefaults write side effects:
 
 1. **`setSearchQueryText(queryText, for: wf)` inside `restoreSearchState()`** — persists the restored search query text to UserDefaults. On next app launch, the workflow's search box shows the restored query. If a pack stores `searchQueryText = ""` (packs saved before the field was populated), the search box will be set to `""` rather than the workflow default prefix.
 
-2. **`persistRTQuery()` called during 3ω restore** — persists the restored `rtQuery` to UserDefaults. This overwrites whatever RT query the user had typed in the current session.
+2. **`persistRTQuery()` called during 3ω restore** — persists the restored `rtQuery` to UserDefaults. This overwrites whatever RT auxiliary-input query the user had typed in the current session.
 
 These are known side effects of the restore contract, not hidden bugs. Future implementation may introduce non-persisting restore paths if product behavior requires it.
 
@@ -147,7 +147,7 @@ These are known side effects of the restore contract, not hidden bugs. Future im
 | | 3ω | AHE | XY |
 |---|---|---|---|
 | Pack workflow ID | `"3w"` | `"ahe"` | `"xy"` |
-| RT file in fingerprint | ✓ (`packRTFilePath`) | No | No |
+| Auxiliary file in fingerprint | ✓ (`packRTFilePath`, current 3ω RT instance) | No | No |
 | `ingestionResult` optional in result | No (required) | Yes (legacy compat) | No (required) |
 | Overlay state in pack | No (cleared on restore) | n/a | n/a |
 | Post-restore render | `_rerenderAllTabsFromRestoredState()` | `_rerenderActiveTab()` | `_rerenderAllTabs()` |
@@ -241,6 +241,7 @@ Pack/Restore behavior currently lives in each workflow store (`ThreeOmegaWorkspa
 - `ThreeOmegaPackConfig` — analysis params (geometry, fit ranges, method selectors, RT state), display settings (tab, title, grid, legend), per-tab states, chart style, search state
 - `ThreeOmegaPackResult` — must include `ingestionResult`; may include `scalingResult`; restore re-renders without re-ingestion
 - Semantic identity: fit ranges are part of scaling chart semantic identity — different fit configurations produce separate chart entries, not overwrites
+- Secondary Input Search: current pack fields `rtQuery` and `selectedRTHit` are the 3ω instance of a general auxiliary-input search slot. Future workflows may declare multiple auxiliary slots; do not extract this as an RT-only default module.
 - Physics reference: [`THREE_OMEGA_PHYSICS.md`](../workflows/three-omega/THREE_OMEGA_PHYSICS.md)
 
 ### AMR/PHE

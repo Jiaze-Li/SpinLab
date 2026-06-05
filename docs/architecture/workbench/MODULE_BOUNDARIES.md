@@ -36,6 +36,260 @@ Read surfaces must be explicit. If a module needs another module's state, the de
 
 The sections below document the current boundary contracts for each module and module group.
 
+## Gate 3 Module Inventory and Boundary Audit
+
+Status: Gate 3 audit record. This section classifies current Workbench ownership surfaces only; it does not authorize extraction or runtime behavior changes.
+
+Classification vocabulary:
+
+- **Assembly-owned** — workflow-specific semantic contract and implementation surface: data interpretation, physics/analysis logic, plot semantics, metric definitions, unit conversions, workflow-specific warnings, and workflow-specific persistence semantics.
+- **Module-owned** — reusable capability that does not own workflow physics meaning.
+- **Common module** — Module-owned default capability available to all workflows.
+- **Optional module** — Module-owned reusable capability declared by a Workflow Assembly when needed.
+- **Boundary debt** — temporary mixed or unclear ownership state. Every boundary debt item must state its target owner and exit condition.
+
+Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE extraction, XY phi/detrend/centering, and 3ω fitting/scaling stay in Workflow Assembly ownership even when the common shell hosts their controls.
+
+### Main Search
+
+- Classification: Module-owned — common module.
+- Current implementation files:
+  - `Sources/SpinLabApp/App/State/WorkbenchFeatureStore.swift`
+  - `Sources/SpinLabApp/App/State/WorkbenchSearchSnapshot.swift`
+  - `Sources/SpinLabApp/UseCases/SearchWorkflowMeasurementsUseCase.swift`
+  - `Sources/SpinLabApp/Domain/WorkflowSearchModels.swift`
+  - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceShell.swift`
+  - `Sources/SpinLabApp/Features/Workbench/WorkflowHitRow.swift`
+  - workflow-local mirror fields in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore.swift`
+- Current consumers: `WorkflowWorkspaceShell`, all three workflow stores, selection snapshot construction, pack restore callback, title/context builders, tests that inspect `WorkbenchFeatureStore` search lists.
+- State it owns: workflow-keyed query text, result list, running flag, status message, and `WorkbenchSearchSnapshot`.
+- State it must not own: selected IDs, scientific ingestion/output, render output, title/legend/style overrides, pack vault state, save state.
+- How workflow-specific semantics enter: workflow ID, query aliases, condition fields, and search defaults come from workflow/rules configuration; Search returns hits only and does not interpret physics.
+- Pack/restore implications: restore writes canonical search state only through `restoreSearchState`; `cachedSearchResults` remains a persistent mirror for pack compatibility and selection denominator.
+- Tests currently protecting it: `V320WorkflowSearchAcrossDrawersTests`, `V5114SearchUseCaseCapabilityInjectionTests`, `V537WorkbenchSearchMirrorTests`, `V537AHESearchSnapshotConsumptionTests`, `V537XYSearchSnapshotConsumptionTests`, `V537ThreeOmegaSearchSnapshotConsumptionTests`.
+- Extraction readiness: medium. Canonical search state is already centralized, but `cachedSearchResults` remains a required bridge.
+- Risks if extracted too early: stale mirror drift, broken select-all denominator, pack decode/restore regressions, accidental analysis from canonical results without selected-hit snapshot.
+
+### Selection
+
+- Classification: Boundary debt.
+- Target owner: Module-owned — common Selection module.
+- Exit condition: selected IDs, select/deselect actions, select-all denominator, and selected-hit snapshot construction have one canonical Selection owner or a formally documented mirror bridge with pack-compatible decode/restore tests.
+- Current implementation files:
+  - `Sources/SpinLabApp/App/State/WorkbenchSelectedHitsSnapshot.swift`
+  - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceShell.swift`
+  - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift`
+  - workflow-local selection fields/methods in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore+Selection.swift`
+- Current consumers: `WorkflowWorkspaceShell`, all workflow stores, analysis entry points, pack contracts, restore paths.
+- State it owns: target contract owns selected hit IDs, select/deselect/toggle/select-all actions, selected count, all-selected projection, and run-scoped `WorkbenchSelectedHitsSnapshot`.
+- State it must not own: query text, search execution, search running/message state, ingestion/output, pack vault state, plot output, save state.
+- How workflow-specific semantics enter: only through selected hits handed to workflow analysis; selection itself must not infer file meaning.
+- Pack/restore implications: pack configs serialize selected IDs; restore must write selected IDs before rerender and keep denominator mirror aligned.
+- Tests currently protecting it: `V537WorkbenchSelectionShellTests`, `V537WorkbenchSelectedHitsSnapshotTests`, `V538SelectedHitsBridgeAuditTests`, `V537PackRestoreModuleBoundaryTests`, search snapshot consumption tests for AHE/XY/3ω.
+- Extraction readiness: medium-low. Snapshot contract is ready; canonical selected IDs still live in each workflow store.
+- Risks if extracted too early: select-all denominator mismatch, nil-snapshot restore fallback breakage, analysis triggered with unselected or stale hits.
+
+### Secondary Input Search
+
+- Classification: Module-owned — optional module candidate.
+- Current implementation files:
+  - Current instance only: 3ω RT auxiliary input in `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift`
+  - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift`
+  - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift`
+  - `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift`
+  - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift`
+- Current consumers: 3ω scaling ingestion/analysis, 3ω view popover, 3ω pack/restore, 3ω search snapshot boundary tests.
+- State it owns: auxiliary query text, auxiliary running flag, popover/list UI state, selected auxiliary hit, deferred sidecar-path bridge for restore, persisted auxiliary query default. Current concrete names are `rtQuery`, `isRTSearching`, `showRTPopover`, `selectedRTHit`, `pendingRTSidecarPath`, and `cachedRTFilePath`.
+- State it must not own: main search query/results/running/message, main selected IDs, primary workflow selection, physics calculations, plot output, generic pack vault orchestration.
+- How workflow-specific semantics enter: the Workflow Assembly declares optional secondary search slots, their search token(s), selection cardinality, and how selected auxiliary files contribute to analysis. 3ω RT search is the current RT/Rxx(T) instance of this optional module candidate. The RT/Rxx(T) meaning belongs to the 3ω Assembly, not to the module itself. Future workflows such as SOT may declare multiple auxiliary slots; the default pattern must not be named or shaped as 3ω-only RT search.
+- Pack/restore implications: each declared secondary slot must serialize query text and selected hit or stable sidecar/file identity. Restore may rebuild the selected hit from a sidecar path, but that bridge must stay explicit and slot-scoped. The pack fingerprint may include auxiliary file paths when the workflow says the auxiliary input changes analysis identity.
+- Tests currently protecting it: `V537ThreeOmegaSearchSnapshotConsumptionTests`, `V537PackRestoreModuleBoundaryTests`, `V4117AnalysisPackVaultTests`, 3ω ingestion/scaling tests in `V413ThreeOmegaFitUseCaseTests` and `V41216ThreeOmegaScalingUseCaseTests`.
+- Extraction readiness: low-medium. The general module shape is visible, but there is only one concrete instance and it is named around RT.
+- Risks if extracted too early: freezing a one-slot RT-specific API, blocking SOT-style multiple auxiliary inputs, losing restore sidecar bridge behavior, or letting auxiliary search mutate main search/selection state.
+
+### Plot System
+
+- Classification: Module-owned — common module group.
+- Current implementation files:
+  - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift`
+  - `Sources/SpinLabApp/Features/Workbench/PlotCanvasMouseTracker.swift`
+  - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift`
+  - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift`
+  - `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift`
+  - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift`
+  - `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift`
+  - `Sources/SpinLabApp/Workbench/V3/WorkbenchRenderPipeline.swift`
+  - `Sources/SpinLabApp/Workbench/V3/WorkbenchChartRenderer.swift`
+  - `Sources/SpinLabApp/Workbench/V3/WorkbenchChartStyle.swift`
+  - `Sources/SpinLabApp/Workbench/V3/WorkbenchPlotLayout.swift`
+- Current consumers: all workflow views/stores, renderers, save-to-library, pack/restore, plot tests.
+- State it owns: tab render states, tab outputs, active tab, grid flag, legend anchor, chart style overrides, series label/title/axis overrides, point-label visibility, series order where opted in.
+- State it must not own: search/selection state, ingestion result, workflow physics parameters, save/pack vault state, metric extraction semantics.
+- How workflow-specific semantics enter: workflow renderer provides payloads, tabs, axis defaults, style parameters, capability flags such as `seriesReorderable`, and semantic labels. Plot System applies common display and preservation rules.
+- Pack/restore implications: pack configs serialize tab state, active tab, grid, legend/style overrides, point label state, and series order; restore re-renders output from analysis result rather than serializing active image/layout.
+- Tests currently protecting it: `V531SeriesRenderModeTests`, `V532WorkbenchRenderPipelineTests`, `V534LegendDimensionResolverTests`, `V535PointLabelVisibilityTests`, `V535TabRenderStatePackTests`, `V535CopyPNGScaleMenuTests`, `V536CurveDragOrderTests`, `V537WorkflowShellPhase4Tests`, `V563WorkflowStateBoundaryTests`.
+- Extraction readiness: high for display/preservation contracts; medium for controls because workflow stores still host some control state.
+- Risks if extracted too early: moving workflow semantics into common plot code, breaking tab override survival, using sample ID instead of sourceRef for reorder, serializing render output instead of rerendering.
+
+### Pack / Restore
+
+- Classification: Boundary debt.
+- Target owner: Module-owned — common Pack / Restore module with a documented cross-module restore exception.
+- Exit condition: pack load/save orchestration, `activePackID`, vault access, and every restore write are centralized behind the explicit restore contract, while workflow Assemblies provide only workflow-specific pack config/result semantics and restore metadata.
+- Current implementation files:
+  - `Sources/SpinLabApp/App/State/AnalysisVault.swift`
+  - `Sources/SpinLabApp/Domain/AnalysisPack.swift`
+  - `Sources/SpinLabApp/Workbench/V3/AnalysisPackProviding.swift`
+  - `Sources/SpinLabApp/UseCases/RestoreAnalysisPackUseCase.swift`
+  - `Sources/SpinLabApp/Workbench/V3/AHEPackContracts.swift`
+  - `Sources/SpinLabApp/Workbench/V3/XYRotationPackContracts.swift`
+  - `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift`
+  - workflow restore/save-pack code in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore+Pack.swift`
+- Current consumers: workflow stores, Workbench shell pack controls, restore use case, save-after-restore paths, tests.
+- State it owns: active pack ID, vault contents, pack load/save orchestration, explicit restore write map.
+- State it must not own: search/selection semantics except documented restore writes, ingestion semantics, plot display behavior, save-to-library outcome, analysis trace commits, workflow-specific persistence meaning.
+- How workflow-specific semantics enter: each workflow Assembly supplies `PackConfig`, `PackResult`, pack metadata/fingerprint fields, and restore-time physics parameters through `AnalysisPackProviding`.
+- Pack/restore implications: this is the module itself; restore is allowed to write multiple module states only through the documented write map and must rerender rather than re-ingest.
+- Tests currently protecting it: `V4117AnalysisPackVaultTests`, `V5114RestoreUseCaseStatelessTests`, `V5114PackRestoreNoTraceCommitTests`, `V537PackRestoreModuleBoundaryTests`, `V535TabRenderStatePackTests`.
+- Extraction readiness: medium. Contracts are documented; implementation remains per-workflow.
+- Risks if extracted too early: missed restore write, accidental trace commit, broken legacy AHE nil-ingestion restore, stale search mirror, auxiliary input fingerprint loss.
+
+### Save to Library
+
+- Classification: Boundary debt.
+- Target owner: split ownership. Save writer is Module-owned — common module. Metric definitions and semantic save fields are Assembly-owned. Mapping workflow metrics into generic save metadata remains the audited boundary.
+- Exit condition: `SaveActiveChartToLibraryUseCase` receives a workflow-provided save metadata projection whose metric names, units, conditions, overrides, and semantic identity are Assembly-owned, while the save writer owns only validation and artifact writes.
+- Current implementation files:
+  - `Sources/SpinLabApp/UseCases/SaveActiveChartToLibraryUseCase.swift`
+  - `Sources/SpinLabApp/UseCases/PersistChartArtifactUseCase.swift`
+  - `Sources/SpinLabApp/UseCases/PersistMeasurementDataUseCase.swift`
+  - `Sources/SpinLabApp/UseCases/BackfillMeasurementPlotIndexUseCase.swift`
+  - save methods in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore+Persistence.swift`
+  - metric/provider contracts in `Sources/SpinLabApp/Workbench/V3/WorkbenchResultContracts.swift`
+- Current consumers: all workflow stores, Library artifact preview/read model, related chart refresh, save boundary tests.
+- State it owns: common save writer state such as save status/message target, `persistenceOutcome`, save-side trace update from `PersistenceOutcome.trace`, and chart/data artifact write orchestration.
+- State it must not own: search/selection, analysis trigger, ingestion result mutation, tab override state, pack vault state, metric definitions, unit conversions, or workflow semantic identity rules.
+- How workflow-specific semantics enter: workflow Assembly provides active chart PNG/manifest, sample keys, metric records, semantic identity, and library root through an explicit save metadata projection. Save module must not derive physics.
+- Pack/restore implications: restore sets enough library-root and active chart state to allow save after restore, but restore must not persist save outcome or trigger save.
+- Tests currently protecting it: `V537SaveModuleBoundaryTests`, `V343DeleteWorkbenchResultTests`, `V41217MeasurementPlotIndexTests`, `V342WorkbenchResultsReadModelTests`, `V5111ExtractAHEMetricsUseCaseTests`, `V5114AHEMetricSourceTests`.
+- Extraction readiness: medium-high for write orchestration, medium for UI/status because `saveMessage` is still workflow-local.
+- Risks if extracted too early: duplicated save messages, trace update confusion, metric/provider gaps, bypassing `LibraryPathResolver`.
+
+### Warning Display / Run Trace
+
+- Classification: Boundary debt.
+- Target owner: split ownership. Display/projection is Module-owned — common Analysis Lifecycle / Warning Display module. Workflow-specific warning meaning remains Assembly-owned.
+- Exit condition: warnings and trace projections have a common read/display owner, while workflow Assemblies emit typed warnings/trace inputs without the display module interpreting physics.
+- Current implementation files:
+  - `Sources/SpinLabApp/Features/Workbench/WorkbenchStatusArea.swift`
+  - `Sources/SpinLabApp/Features/Workbench/WorkbenchTracePanel.swift`
+  - `Sources/SpinLabApp/UseCases/BuildRunTraceProjectionUseCase.swift`
+  - `Sources/SpinLabApp/Features/Workbench/WorkbenchResultHeaderShell.swift`
+  - workflow-local `warningLog`, `currentRunTrace`, `analysisMessage`, `plotMessage`, `saveMessage` fields in all workflow stores
+- Current consumers: workflow views, result header, save/persist paths, analysis lifecycle tests.
+- State it owns: target should own warning log display/projection and run trace display/projection. Current stores own raw warning log and trace fields.
+- State it must not own: search/selection, physics calculations, workflow-specific warning meaning, pack format, save artifact writes, plot override state.
+- How workflow-specific semantics enter: workflow analysis/save use cases emit warnings and trace events; common display coalesces and renders them without assigning scientific meaning.
+- Pack/restore implications: `warningLog`, `analysisMessage`, `saveMessage`, and `currentRunTrace` are session-only and must not be packed. Normal restore must leave trace nil.
+- Tests currently protecting it: `V326RunManifestTraceTests`, `V537AnalysisLifecycleBoundaryTests`, `V537SaveModuleBoundaryTests`, `V5114PackRestoreNoTraceCommitTests`, `V537PackRestoreModuleBoundaryTests`.
+- Extraction readiness: low-medium. Display components exist; ownership is still distributed across stores and save/analysis paths.
+- Risks if extracted too early: trace committed on restore, warnings duplicated across reruns, save-side trace confused with analysis-side trace, session-only fields accidentally serialized.
+
+### Title / Style / Legend Controls
+
+- Classification: Module-owned — common module group within Plot System.
+- Current implementation files:
+  - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift`
+  - `Sources/SpinLabApp/Features/Workbench/WorkbenchTitleTemplateField.swift`
+  - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift`
+  - `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift`
+  - `Sources/SpinLabApp/Workbench/V3/WorkbenchRenderPipeline.swift`
+  - `Sources/SpinLabApp/UseCases/WorkbenchTitleResolver.swift`
+  - workflow-local `titleTemplate`, grid, legend anchor, and chart style bindings in all workflow stores
+- Current consumers: all workflow views/stores, render pipeline, pack configs, plot canvas editors.
+- State it owns: display override state such as title template/overrides, chart style overrides, grid flag, legend anchor/position, axis and series display label overrides.
+- State it must not own: search/selection, ingestion, workflow metric semantics, geometry/fit/phi physics state, save/pack orchestration, default axis meaning.
+- How workflow-specific semantics enter: workflow Assembly supplies title tokens, default template, tab meanings, default axis labels, and whether legend/order capabilities apply.
+- Pack/restore implications: title template, grid, legend anchor/position, chart style overrides, and tab render states are serialized in pack configs.
+- Tests currently protecting it: `V323PlotParameterOverrideTests`, `V328PlotUXFreezeTests`, `V531SeriesRenderModeTests`, `V534LegendDimensionResolverTests`, `V537WorkflowShellPhase4Tests`, `V563WorkflowStateBoundaryTests`.
+- Extraction readiness: medium-high. Common controls exist; workflow stores still host binding endpoints.
+- Risks if extracted too early: default workflow titles lost, display overrides leaking into manifest semantics, tab override survival regression.
+
+### Metric Extraction / Metric Override / Save Metadata
+
+- Classification: Boundary debt.
+- Target owner: split ownership. Metric definitions, extraction semantics, unit conversions, and overrides are Assembly-owned. Generic save metadata envelope and artifact writer are Module-owned — common Save module.
+- Exit condition: AHE Hc / R_AHE extraction, 3ω alpha/beta/r² mapping, XY metric choices, unit conversions, and override rules are exposed through workflow Assembly save projections; the common Save module receives already-semantic metadata and never invents or transforms metric meaning.
+- Current implementation files:
+  - `Sources/SpinLabApp/Workbench/V3/WorkbenchResultContracts.swift`
+  - `Sources/SpinLabApp/UseCases/ExtractAHEMetricsUseCase.swift`
+  - `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift`
+  - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Plotting.swift`
+  - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Persistence.swift`
+  - `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift`
+- Current consumers: save-to-library use case, Library result index/data artifacts, AHE UI override controls, 3ω scaling save metadata.
+- State it owns: no standalone module state yet. Current workflow stores own metric records to save, metric override candidates/info, active chart sample keys, and semantic chart identity metadata. Current AHE owns pending Hc/R_AHE overrides and extracted metrics.
+- State it must not own: plot image/layout generation, search/selection, pack vault state, generic save write mechanics, or any common-module definition of workflow metrics.
+- How workflow-specific semantics enter: each workflow Assembly declares which metrics exist, how to extract them, canonical units, conditions, and whether manual override is allowed.
+- Pack/restore implications: metric override candidates are save-time state and should not become generic pack state unless a workflow explicitly declares restored unsaved overrides. Saved metrics belong to Library artifacts, not AnalysisPack.
+- Tests currently protecting it: `V341ManualOverrideCaptureTests`, `V5111ExtractAHEMetricsUseCaseTests`, `V5114AHEMetricSourceTests`, `V537SaveModuleBoundaryTests`, 3ω scaling/plotting tests for alpha/beta/r² payloads.
+- Extraction readiness: low. Common save metadata shape exists, but workflow metric semantics are not yet a clean Assembly-owned provider contract.
+- Risks if extracted too early: generic code invents metrics, overrides applied to multi-sample results incorrectly, saved metadata diverges from workflow semantics, Library artifacts get wrong canonical units.
+
+### Geometry / Fit Range / Scaling Panels
+
+- Classification: Assembly-owned. This is not a module candidate.
+- Current implementation files:
+  - `Sources/SpinLabApp/Domain/ThreeOmegaGeometry.swift`
+  - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift`
+  - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+FitRanges.swift`
+  - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Scaling.swift`
+  - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift`
+  - `Sources/SpinLabApp/UseCases/ThreeOmegaScalingUseCase.swift`
+  - `Sources/SpinLabApp/Domain/ThreeOmegaScalingResult.swift`
+- Current consumers: 3ω scaling, 3ω right-side controls, 3ω pack/restore, 3ω save metadata.
+- State it owns: geometry values, fit range list, scaling result, V3/RAHE method choices where used by scaling or field-sweep semantics.
+- State it must not own: common search/selection, generic plot controls, save write orchestration, pack vault mechanics.
+- How workflow-specific semantics enter: directly; these controls are the 3ω physics contract and remain in the 3ω Assembly/Physics Function.
+- Pack/restore implications: geometry, fit ranges, methods, and scaling result are serialized because they are required to interpret restored scaling charts and chart identity.
+- Tests currently protecting it: `V41216ThreeOmegaScalingUseCaseTests`, `V41216ThreeOmegaPlotRendererTests`, `V4112ThreeOmegaV3MethodTests`, `V413ThreeOmegaFitUseCaseTests`, `V4117AnalysisPackVaultTests`.
+- Extraction readiness: not a Gate 7 common-module extraction target. It may be internally cleaned within 3ω Assembly implementation only.
+- Risks if extracted too early: common shell starts owning physics, fit-range identity gets detached from saved chart identity, scaling rerun no longer reflects current geometry/range state.
+
+### Phi Offset Panel
+
+- Classification: Assembly-owned. This is not a module candidate.
+- Current implementation files:
+  - `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift`
+  - `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift`
+  - `Sources/SpinLabApp/Workbench/V3/XYRotationPackContracts.swift`
+  - `Sources/SpinLabApp/UseCases/XYRotationPlotRenderer.swift`
+  - `Sources/SpinLabApp/UseCases/AlignXYSeriesOrderUseCase.swift`
+- Current consumers: XY Rotation view/store, XY renderer, XY pack/restore, XY analysis tests.
+- State it owns: `phiOffsetOverrides`, baseline-centering flag, linear detrend flag, and XY-specific rerender inputs.
+- State it must not own: common title/style/legend controls, search/selection, save write mechanics, generic plot output.
+- How workflow-specific semantics enter: directly; phi offset, detrend, and centering change XY angle alignment and belong to XY Assembly semantics.
+- Pack/restore implications: phi offsets and baseline/detrend flags are serialized in `XYRotationPackConfig` and restored before rerender.
+- Tests currently protecting it: `V420XYRotationTests`, `V5111AlignXYSeriesOrderUseCaseTests`, `V537XYSearchSnapshotConsumptionTests`, `V537PackRestoreModuleBoundaryTests`, `V537WorkflowShellPhase4Tests`.
+- Extraction readiness: not a common-module extraction target. It may be internally cleaned as an XY Assembly-owned panel only.
+- Risks if extracted too early: offset state treated as generic plot style, restored XY packs rerender with wrong angle alignment, future workflows inherit XY-specific assumptions.
+
+## Gate 3 Remaining Debts and Follow-Ups
+
+### Recommended Gate 3.1 follow-ups
+
+- Define the workflow-declared **Secondary Input Search** optional module contract: slot ID, display label, search query defaults, workflow token/filter, selection cardinality, selected-hit persistence, restore sidecar bridge, and fingerprint contribution. Keep auxiliary file meaning in Assembly.
+- Audit whether `cachedSearchResults` can be renamed to `searchResultMirror` with backward-compatible `CodingKeys` across all pack configs.
+- Split warning/run-trace target ownership into a concrete Analysis Lifecycle read surface before moving fields out of workflow stores.
+- Define a save metadata provider contract that separates common save envelope fields from Assembly-owned metric definitions, unit conversions, and manual overrides.
+
+### Recommended Gate 7 prerequisites
+
+- Do not extract Selection until selected IDs have one canonical owner or the local mirror/denominator bridge is formally preserved.
+- Do not extract Pack/Restore until the restore write map has test coverage for every restored field, including secondary input search.
+- Do not extract Secondary Input Search as an RT module. Extract only a general auxiliary-slot module with 3ω RT as one declared slot.
+- Do not extract 3ω fitting/scaling, AHE Hc / R_AHE extraction, or XY phi/detrend/centering into default modules; they are Assembly-owned surfaces unless future workflows prove a real shared semantic contract.
+
 ## Search Boundary
 
 - Canonical owner: `WorkbenchFeatureStore`

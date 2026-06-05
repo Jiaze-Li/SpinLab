@@ -17,7 +17,7 @@ Adding a workflow means adding a new Workflow Assembly.
 
 | Contract field | Meaning |
 |---|---|
-| Workflow Identity / Search Hints | Stable workflow identity plus workflow-specific search aliases, prefixes, or extra search slots |
+| Workflow Identity / Search Hints | Stable workflow identity plus workflow-specific search aliases, prefixes, or optional secondary input search slots |
 | Data / Physics Mapping | Raw-file formats, parser entry points, required fields, column/index mapping, unit conversion, derived quantities, and invalid-data behavior |
 | Analysis Pipeline | Workflow-specific parse, ingest, transform/fit/scale, render-payload, metric, warning, and failure stages |
 | Optional Contributions | Workflow-specific panels or module contributions mounted by the shell |
@@ -62,6 +62,12 @@ In this repository, the current implementation surface is realized across a smal
 - `Tests/SpinLabAppTests/*` carries the workflow-specific regression coverage.
 
 The per-workflow records under `workflows/*/ASSEMBLY.md` map those surfaces to concrete files and call out where the contract is explicit versus implicit.
+
+## Secondary Input Search Slots
+
+A Workflow Assembly may declare optional secondary input search slots. These are auxiliary file selectors that contribute to analysis but are not the Main Search result set. A slot must declare its semantic purpose, search hints/filter token, selection cardinality, persistence fields, restore bridge, and whether selected auxiliary files contribute to pack fingerprint identity.
+
+Current concrete instance: 3ω declares one secondary input slot for Rxx(T) input, implemented with `rtQuery` / `selectedRTHit`. This is not a default RT module. Future workflows such as SOT may declare multiple auxiliary input slots, so common extraction must preserve a general slot model rather than a 3ω-specific name.
 
 ## Assembly Boundary
 
