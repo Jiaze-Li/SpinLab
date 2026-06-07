@@ -218,6 +218,7 @@ final class WorkbenchMainSearchRuntime {
     private func applySearchFailure(_ message: String, workflowID wf: WorkbenchWorkflowID) {
         searchResults[wf] = []
         clearSearchMirrors(for: wf)
+        clearSelectedSearchResults(for: wf)
         setSearchMessage(message, for: wf)
         searchRunning[wf] = false
     }
@@ -227,6 +228,7 @@ final class WorkbenchMainSearchRuntime {
         workflowSearchTask = nil
         searchResults[wf] = []
         clearSearchMirrors(for: wf)
+        clearSelectedSearchResults(for: wf)
         setSearchMessage(message, for: wf)
         searchRunning[wf] = false
     }
