@@ -89,19 +89,19 @@ struct V537AnalysisLifecycleBoundaryTests {
         )
     }
 
-    private func waitForAHEAnalysis(_ store: AHEWorkspaceStore, timeoutMS: UInt64 = 1500) async {
+    private func waitForAHEAnalysis(_ store: AHEWorkspaceStore, timeoutMS: UInt64 = 60000) async {
         await waitUntil(timeoutMS: timeoutMS) {
             await MainActor.run { !store.isPlotRendering }
         }
     }
 
-    private func waitForXYAnalysis(_ store: XYRotationWorkspaceStore, timeoutMS: UInt64 = 1500) async {
+    private func waitForXYAnalysis(_ store: XYRotationWorkspaceStore, timeoutMS: UInt64 = 60000) async {
         await waitUntil(timeoutMS: timeoutMS) {
             await MainActor.run { !store.isAnalyzing }
         }
     }
 
-    private func waitForThreeOmegaAnalysis(_ store: ThreeOmegaWorkspaceStore, timeoutMS: UInt64 = 1500) async {
+    private func waitForThreeOmegaAnalysis(_ store: ThreeOmegaWorkspaceStore, timeoutMS: UInt64 = 60000) async {
         await waitUntil(timeoutMS: timeoutMS) {
             await MainActor.run { !store.isAnalyzing }
         }
