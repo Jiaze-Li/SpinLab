@@ -29,7 +29,7 @@ Workbench modularization phases fall into three categories:
 
 ## Gate Plan
 
-Gate 5 is complete. The next step is Gate 6 readiness consumption or Gate 7 module extraction, depending on the chosen direction.
+Gate 5 is complete. Gate 6 readiness consumption is complete. Gate 7 remains the extraction branch.
 
 | Gate | Status | Scope |
 |---|---|---|
@@ -39,11 +39,11 @@ Gate 5 is complete. The next step is Gate 6 readiness consumption or Gate 7 modu
 | Gate 3 | complete | Module Audit & Contract Validation |
 | Gate 4 | complete | Layout Audit |
 | Gate 5 | complete | Layout Refactor |
-| Gate 6 | planned | Readiness Consumption |
+| Gate 6 | complete | Readiness Consumption |
 | Gate 7 | planned | Module Extraction Program |
 | Gate 8 | planned | New Workflow Dry Run |
 
-Gate 1, Gate 2, Gate 2.1, Gate 3, Gate 4, and Gate 5 are closed out. Gate 6 is the next sequential gate; Gate 7 remains the extraction branch if the next direction skips from readiness work into runtime extraction. Gate 7 is still a container gate. Its extraction sequence is determined after Gate 3. Gate 3 follow-ups remain tracked in `MODULE_BOUNDARIES.md`.
+Gate 1, Gate 2, Gate 2.1, Gate 3, Gate 4, Gate 5, and Gate 6 are closed out. Gate 7 remains the extraction branch. Gate 7 is still a container gate. Its extraction sequence is determined after Gate 3. Gate 3 follow-ups remain tracked in `MODULE_BOUNDARIES.md`.
 
 ### Gate 2 - Workflow Assembly Audit & Contract Validation
 
@@ -192,31 +192,40 @@ Purpose:
   - status display
   - preflight checks
 
+Result:
+
+- Gate 6 complete
+- Gate 6.1 audit recorded the current readiness projection producer, direct consumers, and direct readiness-adjacent checks
+- Gate 6.2 consumed readiness in the action bar for Select All, Analyze, and progress display
+- Gate 6.3 closed out the remaining explicit boundaries without moving pack-state, library-root, or Load Pack logic into readiness
+
 #### Gate 6.1 - Readiness Consumption Audit
 
-- Status: complete (docs-only)
+- Status: complete
 - Scope: record the current readiness projection producer, current direct consumers, direct readiness-adjacent checks, and Gate 6.2 safe replacement candidates.
 - Result: `READINESS_CONSUMPTION_AUDIT.md`
 - Notes:
   - This is audit and discoverability work only.
   - No Swift runtime changes were made.
-  - Gate 6.2 UI consumption and Gate 6.3 closeout remain future work.
+  - The audit now documents the implemented narrow action-bar readiness consumption and the explicit non-readiness result-header and pack-state boundaries.
 
 #### Gate 6.2 - Readiness Consumption UI Wiring
 
-- Status: planned
+- Status: complete
 - Scope: consume `WorkbenchReadinessProjection` in the shell surfaces that already gate result-ready, active-image, and running-style UI state while preserving `matchingVaultPack`, `activePackID`, and analysis-vault pack-state logic.
+- Result: action bar uses readiness for Select All, Analyze, and progress gating while library-root search preflight and direct search-running checks remain explicit.
 
 #### Gate 6.3 - Readiness Closeout
 
-- Status: planned
+- Status: complete
 - Scope: tighten the remaining direct readiness-adjacent checks that stay outside the projection and record the final Gate 6 closeout state.
+- Result: the result header, pack-state logic, library-root preflight, and Load Pack availability remain outside readiness.
 
 ### Gate 7 - Module Extraction Program
 
 Important:
 
-- Gate 7 is still a container gate for runtime extraction.
+- Gate 7 is still a container gate for runtime extraction and remains the next planned branch.
 - The extraction order below is the Gate 3 Final plan derived from `MODULE_BOUNDARIES.md`.
 - Gate 3 can still revise the plan if `MODULE_BOUNDARIES.md` changes again.
 - 3ω Scaling Law overlay belongs under Analysis Overlay as a Gate 7 validation case only; it is not standalone feature work.

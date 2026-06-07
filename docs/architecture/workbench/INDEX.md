@@ -12,7 +12,7 @@
 | `INDEX.md` | Dispatch entry | Start here for routing |
 | `SHELL_BLOCKS.md` | Overview | First-read conceptual model |
 | `MAIN_BOARD_READINESS.md` | Readiness contract | Derived readiness ladder and consumers |
-| `READINESS_CONSUMPTION_AUDIT.md` | Gate 6.1 audit | Readiness consumption audit and closeout linkage |
+| `READINESS_CONSUMPTION_AUDIT.md` | Gate 6 audit | Readiness consumption audit and closeout linkage |
 | `WORKFLOW_ASSEMBLY.md` | Workflow contract | Per-workflow integration contract |
 | `MODULE_BOUNDARIES.md` | Ownership authority | Module ownership, read surfaces, forbidden mutations |
 | `EXTENSION_BOUNDARIES.md` | Extension guide | Add-workflow and add-module routing/checklists |
@@ -47,7 +47,7 @@ Base module ownership rules, forbidden mutations, and transition state live in [
 
 1. [SHELL_BLOCKS.md](SHELL_BLOCKS.md) - first-read overview of the stable architecture model
 2. [MAIN_BOARD_READINESS.md](MAIN_BOARD_READINESS.md) - readiness and gating projection
-3. [READINESS_CONSUMPTION_AUDIT.md](READINESS_CONSUMPTION_AUDIT.md) - Gate 6.1 readiness consumption audit and closeout linkage
+3. [READINESS_CONSUMPTION_AUDIT.md](READINESS_CONSUMPTION_AUDIT.md) - Gate 6 readiness consumption audit and closeout linkage
 4. [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) - per-workflow integration contract
 5. [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md) - module ownership boundaries and forbidden mutations
 6. [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md) - workflow/module extension rules and checklists
@@ -63,7 +63,7 @@ Base module ownership rules, forbidden mutations, and transition state live in [
 ## Dispatch Rules
 
 - If changing readiness, gating, or preflight behavior, read [MAIN_BOARD_READINESS.md](MAIN_BOARD_READINESS.md).
-- If auditing Gate 6.1 readiness consumption or readiness closeout linkage, read [READINESS_CONSUMPTION_AUDIT.md](READINESS_CONSUMPTION_AUDIT.md) after [MAIN_BOARD_READINESS.md](MAIN_BOARD_READINESS.md).
+- If auditing Gate 6 readiness consumption or readiness closeout linkage, read [READINESS_CONSUMPTION_AUDIT.md](READINESS_CONSUMPTION_AUDIT.md) after [MAIN_BOARD_READINESS.md](MAIN_BOARD_READINESS.md).
 - If changing workflow assembly or registration, read [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md). Specific workflow assembly records live at `workflows/*/ASSEMBLY.md`.
 - If changing module ownership, read [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md).
 - If adding a workflow, read [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) and [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md).
