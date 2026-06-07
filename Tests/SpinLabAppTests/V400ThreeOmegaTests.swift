@@ -495,6 +495,7 @@ struct V400PlotRendererTests {
         var renderer = ThreeOmegaPlotRenderer()
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 5.0, device: "0deg",
+            sourceFilePath: "/tmp/test_3w_5K.csv",
             hField: [-100, 0, 100], r1omega: [-1, 0, 1], r3omega: [0, 0, 0],
             iRms: 1e-4,
             rahe1omega: nil, rahe1omegaWA: nil, hc1omega: nil, hc3omega: nil,
@@ -534,6 +535,7 @@ struct V400PlotRendererTests {
         var renderer = ThreeOmegaPlotRenderer()
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 5.0, device: "angle_sweep",
+            sourceFilePath: "/tmp/test_3w_angle_5K.csv",
             hField: [-100, 0, 100], r1omega: [-1, 0, 1], r3omega: [0, 0, 0],
             iRms: 1e-4,
             rahe1omega: nil, rahe1omegaWA: nil, hc1omega: nil, hc3omega: nil,
