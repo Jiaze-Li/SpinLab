@@ -192,6 +192,26 @@ Purpose:
   - status display
   - preflight checks
 
+#### Gate 6.1 - Readiness Consumption Audit
+
+- Status: complete (docs-only, pending commit)
+- Scope: record the current readiness projection producer, current direct consumers, direct readiness-adjacent checks, and Gate 6.2 safe replacement candidates.
+- Result: `READINESS_CONSUMPTION_AUDIT.md`
+- Notes:
+  - This is audit and discoverability work only.
+  - No Swift runtime changes were made.
+  - Gate 6.2 UI consumption and Gate 6.3 closeout remain future work.
+
+#### Gate 6.2 - Readiness Consumption UI Wiring
+
+- Status: planned
+- Scope: consume `WorkbenchReadinessProjection` in the shell surfaces that already gate buttons and result availability.
+
+#### Gate 6.3 - Readiness Closeout
+
+- Status: planned
+- Scope: tighten the remaining direct readiness-adjacent checks that stay outside the projection and record the final Gate 6 closeout state.
+
 ### Gate 7 - Module Extraction Program
 
 Important:

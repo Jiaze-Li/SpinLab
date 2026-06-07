@@ -12,6 +12,7 @@
 | `INDEX.md` | Dispatch entry | Start here for routing |
 | `SHELL_BLOCKS.md` | Overview | First-read conceptual model |
 | `MAIN_BOARD_READINESS.md` | Readiness contract | Derived readiness ladder and consumers |
+| `READINESS_CONSUMPTION_AUDIT.md` | Gate 6.1 audit | Readiness consumption audit and closeout linkage |
 | `WORKFLOW_ASSEMBLY.md` | Workflow contract | Per-workflow integration contract |
 | `MODULE_BOUNDARIES.md` | Ownership authority | Module ownership, read surfaces, forbidden mutations |
 | `EXTENSION_BOUNDARIES.md` | Extension guide | Add-workflow and add-module routing/checklists |
@@ -46,21 +47,23 @@ Base module ownership rules, forbidden mutations, and transition state live in [
 
 1. [SHELL_BLOCKS.md](SHELL_BLOCKS.md) - first-read overview of the stable architecture model
 2. [MAIN_BOARD_READINESS.md](MAIN_BOARD_READINESS.md) - readiness and gating projection
-3. [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) - per-workflow integration contract
-4. [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md) - module ownership boundaries and forbidden mutations
-5. [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md) - workflow/module extension rules and checklists
-6. [WORKBENCH_ROADMAP.md](WORKBENCH_ROADMAP.md) - gate status and completion notes
-7. [LAYOUT_AUDIT.md](LAYOUT_AUDIT.md) - Gate 4 layout audit and Gate 5 preparation
-8. [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md) - implementation-level placement notes only
-9. [modules/MEASUREMENT_SEARCH.md](modules/MEASUREMENT_SEARCH.md) - search semantics and condition projection
-10. [modules/SELECTION_DENOMINATOR_AUDIT.md](modules/SELECTION_DENOMINATOR_AUDIT.md) - selection denominator ownership
-11. [modules/PLOT_SYSTEM.md](modules/PLOT_SYSTEM.md) - plot capabilities and shared plot shell details
-12. [modules/PACK_RESTORE.md](modules/PACK_RESTORE.md) - pack / restore lifecycle and write boundaries
-13. [workflows/three-omega/THREE_OMEGA_PHYSICS.md](workflows/three-omega/THREE_OMEGA_PHYSICS.md) - 3-Omega physical model
+3. [READINESS_CONSUMPTION_AUDIT.md](READINESS_CONSUMPTION_AUDIT.md) - Gate 6.1 readiness consumption audit and closeout linkage
+4. [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) - per-workflow integration contract
+5. [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md) - module ownership boundaries and forbidden mutations
+6. [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md) - workflow/module extension rules and checklists
+7. [WORKBENCH_ROADMAP.md](WORKBENCH_ROADMAP.md) - gate status and completion notes
+8. [LAYOUT_AUDIT.md](LAYOUT_AUDIT.md) - Gate 4 layout audit and Gate 5 preparation
+9. [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md) - implementation-level placement notes only
+10. [modules/MEASUREMENT_SEARCH.md](modules/MEASUREMENT_SEARCH.md) - search semantics and condition projection
+11. [modules/SELECTION_DENOMINATOR_AUDIT.md](modules/SELECTION_DENOMINATOR_AUDIT.md) - selection denominator ownership
+12. [modules/PLOT_SYSTEM.md](modules/PLOT_SYSTEM.md) - plot capabilities and shared plot shell details
+13. [modules/PACK_RESTORE.md](modules/PACK_RESTORE.md) - pack / restore lifecycle and write boundaries
+14. [workflows/three-omega/THREE_OMEGA_PHYSICS.md](workflows/three-omega/THREE_OMEGA_PHYSICS.md) - 3-Omega physical model
 
 ## Dispatch Rules
 
 - If changing readiness, gating, or preflight behavior, read [MAIN_BOARD_READINESS.md](MAIN_BOARD_READINESS.md).
+- If auditing Gate 6.1 readiness consumption or readiness closeout linkage, read [READINESS_CONSUMPTION_AUDIT.md](READINESS_CONSUMPTION_AUDIT.md) after [MAIN_BOARD_READINESS.md](MAIN_BOARD_READINESS.md).
 - If changing workflow assembly or registration, read [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md). Specific workflow assembly records live at `workflows/*/ASSEMBLY.md`.
 - If changing module ownership, read [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md).
 - If adding a workflow, read [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) and [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md).
@@ -77,7 +80,7 @@ Full rules (routing note format, task routing table, compliance checklist, docum
 
 | Task area | Start here | Then inspect |
 |---|---|---|
-| Workbench readiness or shell gating | `MAIN_BOARD_READINESS.md` | `Features/Workbench/WorkbenchView.swift`; `Features/Workbench/WorkbenchResultHeaderShell.swift` |
+| Workbench readiness or shell gating | `MAIN_BOARD_READINESS.md` | `Features/Workbench/WorkbenchView.swift`; `Features/Workbench/WorkbenchResultHeaderShell.swift`; `READINESS_CONSUMPTION_AUDIT.md` |
 | Layout placement details | `LAYOUT_AUDIT.md` | `Features/Workbench/WorkflowWorkspaceShell.swift`; `Features/Workbench/WorkflowWorkspaceProvider.swift`; `MAIN_BOARD_LAYOUT.md` |
 | Workflow assembly / registration | `WORKFLOW_ASSEMBLY.md` | `Workflow/WorkflowID.swift`; `Workflow/WorkflowDefinition.swift`; `Workflow/WorkflowRegistry.swift`; `workflows/*/ASSEMBLY.md` |
 | Module ownership or forbidden mutations | `MODULE_BOUNDARIES.md` | `Features/Workbench/WorkflowWorkspaceShell.swift`; relevant workflow store |
