@@ -8,6 +8,8 @@ struct WorkflowWorkspaceActionBar<Store: WorkbenchWorkspaceProviding>: View {
     let workbench: WorkbenchFeatureStore
 
     var body: some View {
+        let readiness = workbench.readinessProjection(for: workflowID, store: store)
+
         HStack(spacing: AppSpacing.md) {
             Button("Search") {
                 workbench.runWorkflowMeasurementSearch(
@@ -27,7 +29,7 @@ struct WorkflowWorkspaceActionBar<Store: WorkbenchWorkspaceProviding>: View {
                 }
             }
             .buttonStyle(.bordered)
-            .disabled(workbench.searchResultsList(for: workflowID).isEmpty)
+            .disabled(!readiness.hasFoundData)
 
             Button("Analyze") {
                 let selectedSnapshot = workbench.selectedHitsSnapshot(
@@ -38,11 +40,11 @@ struct WorkflowWorkspaceActionBar<Store: WorkbenchWorkspaceProviding>: View {
                 store.runAnalysis(selectedHitsSnapshot: selectedSnapshot)
             }
             .buttonStyle(.bordered)
-            .disabled(store.selectedSearchResultIDs.isEmpty || store.isAnalyzing)
+            .disabled(!readiness.hasSelectedData || store.isAnalyzing)
 
             WorkflowWorkspaceLoadPackPlacement(workflowID: workflowID, store: store)
 
-            if workbench.isSearchRunning(for: workflowID) || store.isAnalyzing {
+            if readiness.isRunning {
                 ProgressView().controlSize(.small)
             }
         }

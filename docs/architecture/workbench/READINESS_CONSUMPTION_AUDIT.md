@@ -32,7 +32,7 @@ The projection currently records these source signals:
 
 ## Current Readiness Producers
 
-There is one projection builder today, and it is not yet consumed by runtime UI code:
+There is one projection builder today, and it is consumed by the runtime shell:
 
 | Producer | Location | Notes |
 |---|---|---|
@@ -41,14 +41,15 @@ There is one projection builder today, and it is not yet consumed by runtime UI 
 
 ## Current Runtime Consumption
 
-No runtime view or action currently calls `readinessProjection(for:store:)` or constructs `WorkbenchReadinessProjection` for UI gating.
+The runtime shell now calls `readinessProjection(for:store:)` in the narrow gating paths that map cleanly onto the existing projection.
 
 The live shell still consumes raw state directly in these places:
 
 | File | Current read surface | What it is doing today |
 |---|---|---|
-| `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceActionBar.swift` | `isSearchRunning`, `searchResultsList`, `selectedSearchResultIDs`, `isAnalyzing`, `library.librarySettings.rootPath` | Gates Search, Select All, Analyze, and progress display with direct checks. |
-| `Sources/SpinLabApp/Features/Workbench/WorkbenchResultHeaderShell.swift` | `hasActiveImageData`, `hasAnalysisResult`, `isAnalyzing`, `matchingVaultPack`, `analysisMessage`, `warningCount` | Gates Clear Plot, Save Analysis / Update Analysis, and Save to Library with direct checks. Pack-state selection remains separate from readiness. |
+| `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceActionBar.swift` | `isSearchRunning`, `library.librarySettings.rootPath`, `readinessProjection(for:store:)` | Gates Search with a direct library-root preflight and uses readiness for Select All, Analyze, and progress display. |
+| `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceResultArea.swift` | `store.hasAnalysisResult`, `activeImageData`, `isAnalyzing` | Keeps pack-analysis availability explicit in the shared header shell while keeping active-image and analyzing state explicit. |
+| `Sources/SpinLabApp/Features/Workbench/WorkbenchResultHeaderShell.swift` | `hasActiveImageData`, `hasAnalysisResult`, `isAnalyzing`, `matchingVaultPack`, `analysisMessage`, `warningCount` | Gates Clear Plot, Save Analysis / Update Analysis, and Save to Library with shell-local checks. Pack-state selection remains separate from readiness. |
 | `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceSearchSection.swift` | `library.librarySettings.rootPath` | Shows the library-root line and submits search from the search bar. |
 | `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceResultsList.swift` | `searchResultsList`, `searchMessage`, `selectedSearchResultIDs`, `cachedSampleNumericDisplay` | Renders hit-list empty states and row selection directly from search state. |
 | `Sources/SpinLabApp/Features/Workbench/WorkbenchLoadPackPopover.swift` | vault pack list, `hasUnsavedAnalysis` | Gates Load Pack availability and unsaved-analysis confirmation directly from vault / workflow state. |
@@ -57,16 +58,16 @@ The live shell still consumes raw state directly in these places:
 
 ## Missing Or Partial Consumers
 
-The following runtime surfaces still rely on scattered direct checks instead of a shared readiness projection:
+The following runtime surfaces either still rely on direct checks or intentionally keep them explicit:
 
 | Surface | Current direct check | Classification |
 |---|---|---|
 | Search button | `isSearchRunning` and `library.librarySettings.rootPath == nil` | Partial. Running is readiness-related; missing library root is not currently modeled by readiness. |
-| Select All button | `searchResultsList(for:).isEmpty` | Safe candidate for Gate 6.2. |
-| Analyze button | `selectedSearchResultIDs.isEmpty || isAnalyzing` | Safe candidate for Gate 6.2. |
-| Progress indicator | `isSearchRunning || isAnalyzing` | Safe candidate for Gate 6.2. |
+| Select All button | `readiness.hasFoundData` | Implemented in Gate 6.2. |
+| Analyze button | `readiness.hasSelectedData || isAnalyzing` | Implemented in Gate 6.2. |
+| Progress indicator | `readiness.isRunning` | Implemented in Gate 6.2. |
 | Clear Plot button | `!hasActiveImageData && !isAnalyzing` | Safe candidate for Gate 6.2, but it currently keys off render output directly rather than readiness. |
-| Save to Library button | `!hasAnalysisResult` | Safe candidate for Gate 6.2. This is result-ready gating, not pack-state gating. |
+| Save to Library button | `!hasAnalysisResult` | Remains explicit in the header shell; Gate 6.2 does not replace it with readiness. |
 | Load Pack button | `allPacks.isEmpty` | Direct workflow-local vault logic; not readiness. |
 | Empty-results messaging | `results.isEmpty` and `searchMessage` | UI messaging, not gating. |
 | Status / warning display | raw message and warning logs | Not readiness; this is a display surface. |
@@ -81,9 +82,9 @@ These are the direct checks that can be replaced by the existing readiness proje
 |---|---|---|
 | No search results | `WorkflowWorkspaceActionBar.swift`, `WorkflowWorkspaceResultsList.swift` | Maps to `foundData` / `empty`. |
 | No selected hits | `WorkflowWorkspaceActionBar.swift` | Maps to `selectedData`. |
-| Analysis running | `WorkflowWorkspaceActionBar.swift`, `WorkbenchResultHeaderShell.swift` | Maps to `running`. |
-| No analysis result | `WorkbenchResultHeaderShell.swift` | Maps to `resultReady` for result-ready gating, including Save to Library availability. |
-| No active image data | `WorkbenchResultHeaderShell.swift` | Can be expressed by the result-ready side of the projection for button gating. |
+| Analysis running | `WorkflowWorkspaceActionBar.swift` | Maps to `running` for the action-bar progress indicator. |
+| No analysis result | `WorkbenchResultHeaderShell.swift` | Remains packed-analysis specific; the header keeps this state explicit. |
+| No active image data | `WorkbenchResultHeaderShell.swift` | Remains explicit for Clear Plot and save preflight logic. |
 
 ### Explicit non-readiness inputs for result-header pack state
 
@@ -133,7 +134,7 @@ These signals do not belong to the readiness ladder and should not be forced int
 
 ## Test Coverage Map
 
-The current tests cover the projection and the state signals feeding it, but not live UI consumption.
+The current tests cover the projection, the state signals feeding it, and source-audit coverage for the shell consumption paths.
 
 | Test file | What it protects |
 |---|---|
@@ -148,15 +149,14 @@ The current tests cover the projection and the state signals feeding it, but not
 | `Tests/SpinLabAppTests/V563WorkflowStateBoundaryTests.swift` | Active-image projection, tab-output ownership, and boundary behavior around shell-facing state remain stable. |
 | `Tests/SpinLabAppTests/V537WorkbenchSearchMirrorTests.swift` | The workflow-local search mirror and `isAllSelected` denominator behavior are still explicit. |
 | `Tests/SpinLabAppTests/V537WorkbenchSelectionShellTests.swift` | Selection shell actions remain isolated from canonical search state. |
+| `Tests/SpinLabAppTests/V538WorkbenchReadinessConsumptionTests.swift` | Source-audit coverage proves the action bar reads the readiness projection while the result header keeps pack-analysis availability explicit. |
 
 ### Coverage gaps for Gate 6.2 / 6.3
 
 | Gap | Why it matters |
 |---|---|
-| No UI integration test asserts that the action bar and result header consume `WorkbenchReadinessProjection` | Gate 6.2 needs proof that the new consumer path exists, not just a unit-tested projection type. |
-| No test covers a live `WorkbenchFeatureStore.readinessProjection(for:store:)` read path in the shell | The helper exists, but nothing exercises it at render time. |
-| No test covers the retained direct preflight checks that are intentionally outside readiness | Library-root, vault availability, and load-pack policy should stay explicit. |
-| No test covers the final mixed case where readiness gates button state but direct preflight still blocks Search | The search button still needs the library-root guard even after readiness consumption. |
+| No live UI integration test asserts that the action bar and result header consume `WorkbenchReadinessProjection` | Gate 6.2 now has source-audit coverage for the action bar; the result header keeps `store.hasAnalysisResult` explicit. |
+| No test covers a live `WorkbenchFeatureStore.readinessProjection(for:store:)` render path | The helper is exercised by source inspection in the action bar, but not yet by a mounted SwiftUI test. |
 
 ## Recommended Gate 6.2 Implementation Plan
 

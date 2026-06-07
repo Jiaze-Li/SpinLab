@@ -33,6 +33,6 @@ Readiness is read-only, derived, and non-persistent. It must not become a second
 ## Current Implementation Status
 
 - `WorkbenchReadinessProjection` is implemented.
-- Shell consumption is pending.
-- Result-header gating consumption is pending.
+- Shell consumption is implemented in the action bar for selection / analysis gating.
+- Result-header gating keeps `store.hasAnalysisResult` explicit for pack-analysis availability while `matchingVaultPack` remains separate.
 - Readiness remains derived from module-owned state rather than stored as canonical board state.
