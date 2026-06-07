@@ -6,42 +6,22 @@ import Testing
 @Suite("V5.1.12 RulesManagementStore setBatchPrefixes", .serialized)
 struct V5112RulesManagementStoreBatchPrefixesTests {
 
-    // MARK: - Isolation (same strategy as V515RulesPanelStoreTests)
+    // MARK: - Isolation
 
-    private static let backupExtension = "v5112-batch-backup"
-
-    private func acquireIsolation() throws -> (dir: URL, backup: URL?) {
-        purgeStaleBackups()
-        let dir = RulesConfigPaths().configDirectoryURL
-        let fm = FileManager.default
-        var backup: URL? = nil
-        if fm.fileExists(atPath: dir.path) {
-            let candidate = dir.appendingPathExtension("\(Self.backupExtension).\(UUID().uuidString)")
-            try fm.moveItem(at: dir, to: candidate)
-            backup = candidate
-        }
-        return (dir, backup)
+    private struct IsolationContext {
+        let dir: URL
+        let paths: RulesConfigPaths
     }
 
-    private func releaseIsolation(dir: URL, backup: URL?) {
-        let fm = FileManager.default
-        if fm.fileExists(atPath: dir.path) {
-            try? fm.removeItem(at: dir)
-        }
-        if let backup, fm.fileExists(atPath: backup.path) {
-            try? fm.moveItem(at: backup, to: dir)
-        }
-        _ = RuleLoader.shared.reloadCached()
+    private func acquireIsolation() throws -> IsolationContext {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SL-batch-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return IsolationContext(dir: dir, paths: RulesConfigPaths(configDirectoryURL: dir))
     }
 
-    private func purgeStaleBackups() {
-        let dir = RulesConfigPaths().configDirectoryURL
-        let parent = dir.deletingLastPathComponent()
-        let prefix = dir.lastPathComponent + "." + Self.backupExtension
-        guard let entries = try? FileManager.default.contentsOfDirectory(atPath: parent.path) else { return }
-        for entry in entries where entry.hasPrefix(prefix) {
-            try? FileManager.default.removeItem(at: parent.appendingPathComponent(entry, isDirectory: true))
-        }
+    private func releaseIsolation(_ ctx: IsolationContext) {
+        try? FileManager.default.removeItem(at: ctx.dir)
     }
 
     private func seedSampleIdentification(at url: URL, prefixes: [String]) throws {
@@ -59,15 +39,12 @@ struct V5112RulesManagementStoreBatchPrefixesTests {
 
     @Test("setBatchPrefixes retains only startsWith specs and discards other types")
     func setBatchPrefixesFiltersToStartsWithOnly() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
 
-        let fm = FileManager.default
-        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        let paths = RulesConfigPaths()
-        try seedSampleIdentification(at: paths.sampleIdentificationURL, prefixes: ["PN", "PT"])
+        try seedSampleIdentification(at: ctx.paths.sampleIdentificationURL, prefixes: ["PN", "PT"])
 
-        let store = RulesManagementStore()
+        let store = RulesManagementStore(rulesBookPaths: ctx.paths)
         store.present()
 
         let mixedSpecs: [FilenameRuleSet.MatchSpec] = [
@@ -87,15 +64,12 @@ struct V5112RulesManagementStoreBatchPrefixesTests {
 
     @Test("setBatchPrefixes marks sampleIdentification section as dirty")
     func setBatchPrefixesMarksDirty() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
 
-        let fm = FileManager.default
-        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        let paths = RulesConfigPaths()
-        try seedSampleIdentification(at: paths.sampleIdentificationURL, prefixes: ["PN"])
+        try seedSampleIdentification(at: ctx.paths.sampleIdentificationURL, prefixes: ["PN"])
 
-        let store = RulesManagementStore()
+        let store = RulesManagementStore(rulesBookPaths: ctx.paths)
         store.present()
 
         store.setBatchPrefixes(from: [FilenameRuleSet.MatchSpec(type: .startsWith, value: "PT")])
@@ -105,15 +79,12 @@ struct V5112RulesManagementStoreBatchPrefixesTests {
 
     @Test("setBatchPrefixes with empty input clears all prefixes")
     func setBatchPrefixesClearsAll() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
 
-        let fm = FileManager.default
-        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        let paths = RulesConfigPaths()
-        try seedSampleIdentification(at: paths.sampleIdentificationURL, prefixes: ["PN", "PT"])
+        try seedSampleIdentification(at: ctx.paths.sampleIdentificationURL, prefixes: ["PN", "PT"])
 
-        let store = RulesManagementStore()
+        let store = RulesManagementStore(rulesBookPaths: ctx.paths)
         store.present()
 
         store.setBatchPrefixes(from: [])

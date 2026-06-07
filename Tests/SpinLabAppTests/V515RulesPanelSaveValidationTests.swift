@@ -6,31 +6,24 @@ import Testing
 @Suite("V5.1.5 RulesPanel Save Validation", .serialized)
 struct V515RulesPanelSaveValidationTests {
 
-    private static let backupExtension = "v515-validation-backup"
-
-    private func acquireIsolation() throws -> (dir: URL, backup: URL?) {
-        let dir = RulesConfigPaths().configDirectoryURL
-        let fm = FileManager.default
-        var backup: URL? = nil
-        if fm.fileExists(atPath: dir.path) {
-            let candidate = dir.appendingPathExtension("\(Self.backupExtension).\(UUID().uuidString)")
-            try fm.moveItem(at: dir, to: candidate)
-            backup = candidate
-        }
-        return (dir, backup)
+    private struct IsolationContext {
+        let dir: URL
+        let paths: RulesConfigPaths
     }
 
-    private func releaseIsolation(dir: URL, backup: URL?) {
-        let fm = FileManager.default
-        try? fm.removeItem(at: dir)
-        if let backup, fm.fileExists(atPath: backup.path) {
-            try? fm.moveItem(at: backup, to: dir)
-        }
-        _ = RuleLoader.shared.reloadCached()
+    private func acquireIsolation() throws -> IsolationContext {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SL-validation-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return IsolationContext(dir: dir, paths: RulesConfigPaths(configDirectoryURL: dir))
     }
 
-    private func makeStore() throws -> (RulesManagementStore, RulesConfigPaths) {
-        let paths = RulesConfigPaths()
+    private func releaseIsolation(_ ctx: IsolationContext) {
+        try? FileManager.default.removeItem(at: ctx.dir)
+    }
+
+    private func makeStore(_ ctx: IsolationContext) throws -> (RulesManagementStore, RulesConfigPaths) {
+        let paths = ctx.paths
         let fm = FileManager.default
         try? fm.removeItem(at: paths.configDirectoryURL)
         try fm.createDirectory(at: paths.configDirectoryURL, withIntermediateDirectories: true)
@@ -55,7 +48,7 @@ struct V515RulesPanelSaveValidationTests {
         {"version":2,"conditionDefinitions":[{"id":"temperature","label":"Temperature","kind":"unit_suffix","unitPattern":"^\\\\d+K$"}]}
         """.data(using: .utf8)!.write(to: paths.measuringConditionURL)
 
-        let store = RulesManagementStore()
+        let store = RulesManagementStore(rulesBookPaths: paths)
         store.present()
         return (store, paths)
     }
@@ -64,9 +57,9 @@ struct V515RulesPanelSaveValidationTests {
 
     @Test("importFilters: extension with space fails")
     func importFiltersSpaceInExtension() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let (store, _) = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let (store, _) = try makeStore(ctx)
 
         var draft = try #require(store.importFiltersDraft)
         draft.config.supportedFileExtensions = ["c sv"]
@@ -81,9 +74,9 @@ struct V515RulesPanelSaveValidationTests {
 
     @Test("importFilters: extension starting with dot fails")
     func importFiltersDotPrefix() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let (store, _) = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let (store, _) = try makeStore(ctx)
 
         var draft = try #require(store.importFiltersDraft)
         draft.config.supportedFileExtensions = [".csv"]
@@ -98,9 +91,9 @@ struct V515RulesPanelSaveValidationTests {
 
     @Test("importFilters: overlap between supported and ignored fails")
     func importFiltersOverlap() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let (store, _) = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let (store, _) = try makeStore(ctx)
 
         var draft = try #require(store.importFiltersDraft)
         draft.config.supportedFileExtensions = ["csv", "txt"]
@@ -116,9 +109,9 @@ struct V515RulesPanelSaveValidationTests {
 
     @Test("importFilters: valid save succeeds")
     func importFiltersValid() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let (store, _) = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let (store, _) = try makeStore(ctx)
 
         var draft = try #require(store.importFiltersDraft)
         draft.config.supportedFileExtensions = ["csv", "dat"]
@@ -135,9 +128,9 @@ struct V515RulesPanelSaveValidationTests {
 
     @Test("filenameTokenization: empty separators fails")
     func tokenizationEmptySeparators() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let (store, _) = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let (store, _) = try makeStore(ctx)
 
         var draft = try #require(store.filenameTokenizationDraft)
         draft.tokenization.separators = ""
@@ -152,9 +145,9 @@ struct V515RulesPanelSaveValidationTests {
 
     @Test("filenameTokenization: unknown source fails")
     func tokenizationUnknownSource() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let (store, _) = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let (store, _) = try makeStore(ctx)
 
         var draft = try #require(store.filenameTokenizationDraft)
         draft.sources = ["file", "unknown_source"]
@@ -169,9 +162,9 @@ struct V515RulesPanelSaveValidationTests {
 
     @Test("filenameTokenization: empty sources fails")
     func tokenizationEmptySources() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let (store, _) = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let (store, _) = try makeStore(ctx)
 
         var draft = try #require(store.filenameTokenizationDraft)
         draft.sources = []
@@ -187,9 +180,9 @@ struct V515RulesPanelSaveValidationTests {
 
     @Test("sampleIdentification: empty material display name fails")
     func sampleIDEmptyMaterialDisplayName() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let (store, _) = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let (store, _) = try makeStore(ctx)
 
         var draft = try #require(store.sampleIdentificationDraft)
         draft.substrate.materials.append(.init(displayName: "", matches: []))
@@ -204,9 +197,9 @@ struct V515RulesPanelSaveValidationTests {
 
     @Test("sampleIdentification: duplicate treatment display name fails")
     func sampleIDDuplicateTreatmentDisplayName() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let (store, _) = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let (store, _) = try makeStore(ctx)
 
         var draft = try #require(store.sampleIdentificationDraft)
         let t1 = SampleIdentificationFileDraft.SubstrateEntry(displayName: "HF", matches: [])
@@ -225,9 +218,9 @@ struct V515RulesPanelSaveValidationTests {
 
     @Test("workflow: empty workflow ID fails")
     func workflowEmptyID() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let (store, _) = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let (store, _) = try makeStore(ctx)
 
         var draft = try #require(store.workflowDraft)
         draft.workflows[0].id = ""
@@ -242,9 +235,9 @@ struct V515RulesPanelSaveValidationTests {
 
     @Test("workflow: duplicate workflow ID fails")
     func workflowDuplicateID() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let (store, _) = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let (store, _) = try makeStore(ctx)
 
         var draft = try #require(store.workflowDraft)
         draft.workflows.append(.init(id: "MR", displayName: "MR2",
@@ -261,9 +254,9 @@ struct V515RulesPanelSaveValidationTests {
 
     @Test("workflow: conditionFieldID not in measuringCondition hard-fails")
     func workflowDanglingConditionFieldID() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let (store, _) = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let (store, _) = try makeStore(ctx)
 
         var draft = try #require(store.workflowDraft)
         draft.workflows[0].conditionFieldIDs = ["temperature", "nonexistent_condition"]
@@ -280,9 +273,9 @@ struct V515RulesPanelSaveValidationTests {
 
     @Test("measuringCondition: duplicate conditionDefinition ID fails")
     func measuringConditionDuplicateID() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let (store, _) = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let (store, _) = try makeStore(ctx)
 
         var draft = try #require(store.measuringConditionDraft)
         draft.conditionDefinitions.append(.init(id: "temperature", displayName: nil,
@@ -298,9 +291,9 @@ struct V515RulesPanelSaveValidationTests {
 
     @Test("measuringCondition: unit_suffix rule saves without regex validation")
     func measuringConditionUnitSuffixSavesWithoutRegexValidation() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let (store, _) = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let (store, _) = try makeStore(ctx)
 
         var draft = try #require(store.measuringConditionDraft)
         draft.conditionDefinitions.append(.init(id: "field", displayName: nil,
@@ -315,9 +308,9 @@ struct V515RulesPanelSaveValidationTests {
 
     @Test("measuringCondition: condition with regex op fails validation")
     func measuringConditionRegexRuleFails() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let (store, _) = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let (store, _) = try makeStore(ctx)
 
         var draft = try #require(store.measuringConditionDraft)
         draft.conditionDefinitions.append(.init(id: "field", displayName: nil,
@@ -333,9 +326,9 @@ struct V515RulesPanelSaveValidationTests {
 
     @Test("measuringCondition: valid condition saves successfully")
     func measuringConditionValidSave() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let (store, _) = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let (store, _) = try makeStore(ctx)
 
         var draft = try #require(store.measuringConditionDraft)
         draft.conditionDefinitions.append(.init(id: "field", displayName: "Field",
@@ -353,9 +346,9 @@ struct V515RulesPanelSaveValidationTests {
 
     @Test("workflow: invalid regex in matchRules fails validation")
     func workflowMatchRulesInvalidRegex() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let (store, _) = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let (store, _) = try makeStore(ctx)
 
         var draft = try #require(store.workflowDraft)
         draft.workflows[0].matchRules = [
@@ -372,9 +365,9 @@ struct V515RulesPanelSaveValidationTests {
 
     @Test("workflow: invalid regex in measurementTagRules fails validation")
     func workflowMeasurementTagRulesInvalidRegex() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let (store, _) = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let (store, _) = try makeStore(ctx)
 
         var draft = try #require(store.workflowDraft)
         draft.measurementTagRules = [

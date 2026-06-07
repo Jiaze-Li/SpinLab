@@ -79,33 +79,20 @@ Each section maps 1:1 to a JSON config file under `RulesConfigPaths`. `RulesPane
 
 ---
 
-## Auto-Sync Engine (v5.1.5 s6)
+## Rules Book Single Source of Truth (rules-book-single-source-of-truth branch)
 
-### Dual-Write on Save
+### Architecture
 
-- Every rule section save writes runtime first, then mirrors to `repositoryConfigDir` from `.repo_pointer.json`.
-- Mirror failure is non-fatal: save succeeds, yellow triangle appears on the affected sidebar section.
-- Mirror write creates parent directories if absent; backs up old mirror content before overwriting.
-- `DualWriteOutcome`: `.runtimeOnly` / `.mirrored` / `.mirrorFailedRuntimeOk(reason:)`.
+- One external Rules Book directory configured by the user is the sole source of truth. No Application Support auto-resolution, no bundle fallback in normal operation, no dual-write mirror to `Sources/SpinLabApp/config/`.
+- `RulesBookSettings` persists the chosen book URL to `~/Library/Application Support/SpinLab/rules_book.json`.
+- `RulesManagementStore` receives `rulesBookPaths: RulesConfigPaths?` at init; nil → `.notConfigured` state.
+- `RuleLoader.configure(bookPaths:internalPaths:)` must be called at startup after `RulesBookSettings` is ready.
 
-### Reverse Sync on Startup
+### Panel States
 
-- On app launch, compares SHA-256 hashes of each of the 5 rule files between mirror and runtime.
-- If mirror differs: decode-check first (H5 guard — rejects corrupt or mismatched schema), then backup runtime and write mirror content.
-- Returns `.healthy` (no diff or all synced) / `.skipped` (no pointer) / `.degraded(failedFiles:reason:)` (one or more files couldn't sync).
-- Degraded state shows a dismissable orange banner in the Rules Panel sidebar; `reloadCached` is called after sync.
-
-### Repository Pointer
-
-- `.repo_pointer.json` in runtime config dir; version==1, `repository_config_dir` + `repo_root` fields required.
-- Identity checks: `repo_root` must exist as a directory containing `.git`; `repository_config_dir` must be under `repo_root`.
-- Auto-write on first cold dev start: walks up 12 levels from Bundle looking for `Sources/SpinLabApp/config` + `.git`.
-- Auto-write is skipped in test environments (`RulesConfigPaths.isRunningTests()`).
-
-### Test Coverage
-
-- 20 engine tests: dual-write, mirror failure stubs, backup behavior, pointer parsing edge cases.
-- 12 startup tests: consistent state, cold start, runtime diff, absent mirror file, H5 decode reject, identity check fail, corrupt JSON.
+- `.notConfigured`: panel shows "Select Rules Book Folder" button; editing is blocked.
+- `.incompleteBook([String])`: configured but missing required files; panel lists them; editing blocked.
+- `.ready`: all 5 required files present; full editor shown.
 
 ---
 
@@ -113,9 +100,9 @@ Each section maps 1:1 to a JSON config file under `RulesConfigPaths`. `RulesPane
 
 ### Bootstrapper
 
-- `RulesBootstrapper.seedMissingRuntimeFilesFromBundleIfNeeded()` runs on every app launch.
-- Per-file atomic seed: only missing files are written; existing files are never touched.
-- Replaces `RulesMigration` (full migration pipeline retired).
+- `RulesBootstrapper.migrateRulesBookIfNeeded(paths:internalPaths:)` runs on first launch with a configured Rules Book.
+- Migration state (`.migration_state.json`, `.migration_failed.json`) stored in `AppInternalPaths` (Application Support), not in the book directory itself.
+- Seed step (`seedMissingRuntimeFilesFromBundleIfNeeded`) deleted; the user is expected to seed from the existing `Sources/SpinLabApp/config/` manually or via the first-run flow.
 
 ### Workflow Registry Retirement
 
@@ -133,7 +120,6 @@ Each section maps 1:1 to a JSON config file under `RulesConfigPaths`. `RulesPane
 
 ### Test Coverage
 
-- 3 bootstrapper tests: seed all, seed partial, idempotent.
 - 4 retirement tests: same-ID merge, registry-only append, decode-failure backup, second-startup no-op.
 - 4 workbench read-only tests: load from JSON, route to workflow, empty file no crash, CRUD absence guard.
 
@@ -141,7 +127,7 @@ Each section maps 1:1 to a JSON config file under `RulesConfigPaths`. `RulesPane
 
 ## Rules Panel Tests (v5.1.5)
 
-36 tests across 5 suites: `V515RulesPanelStoreTests`, `V515RulesPanelSaveValidationTests`, `V515RulesPanelCrossSectionTests`, `V515RulesSaveImmediateEffectTests`, `V515RulesEngineRegressionTests`. Also: `V515RulesBootstrapperMigrationTests`, `V515RulesSyncStartupTests`.
+36 tests across 5 suites: `V515RulesPanelStoreTests`, `V515RulesPanelSaveValidationTests`, `V515RulesPanelCrossSectionTests`, `V515RulesSaveImmediateEffectTests`, `V515RulesEngineRegressionTests`. Also: `V515RulesBootstrapperMigrationTests`.
 
 ---
 
@@ -159,7 +145,8 @@ Each section maps 1:1 to a JSON config file under `RulesConfigPaths`. `RulesPane
 - `Sources/SpinLabApp/Features/RulesPanel/Sections/FilenameTokenizationSection.swift` — Filename Tokenization section UI
 - `Sources/SpinLabApp/Import/Rules/RulesBootstrapper.swift` — type declaration shell for the migration and seed namespace
 - `Sources/SpinLabApp/Import/Rules/RulesBootstrapper+MigrationOrchestration.swift` — coordinates full schema migration: reads runtime JSONs, applies all migration steps, atomic-writes results
-- `Sources/SpinLabApp/Import/Rules/RulesBootstrapper+Seed.swift` — seeds missing runtime rule files from bundled defaults after migration
+- `Sources/SpinLabApp/Storage/AppInternalPaths.swift` — resolves Application Support paths for internal state files (migration state, rules book pointer, rule set version)
+- `Sources/SpinLabApp/Storage/RulesBookSettings.swift` — persists the user-configured Rules Book URL; exposes `rulesBookPaths` and `rulesBookState`
 - `Sources/SpinLabApp/Import/Rules/RulesBootstrapper+MeasuringConditionMigration.swift` — migrates measuring_condition.json from v1 through v7
 - `Sources/SpinLabApp/Import/Rules/RulesBootstrapper+SampleIdentificationMigration.swift` — migrates sample_identification.json from v1 through v5
 - `Sources/SpinLabApp/Import/Rules/RulesBootstrapper+WorkflowMigration.swift` — migrates workflow.json from v1 through v3
@@ -172,7 +159,6 @@ Each section maps 1:1 to a JSON config file under `RulesConfigPaths`. `RulesPane
 - `Sources/SpinLabApp/Import/Rules/RuleCanonicalizer.swift` — rule normalization and compilation
 - `Sources/SpinLabApp/Import/Rules/RulesPersistenceHook.swift` — post-save persistence hook wiring
 - `Sources/SpinLabApp/Import/Rules/RuleRef.swift` — rule reference model
-- `Sources/SpinLabApp/Storage/RulesSyncEngine.swift` — dual-write engine and reverse sync on startup
 - `Sources/SpinLabApp/Domain/Capabilities/RuleProviding.swift` — capability protocol abstracting RuleLoader cache-reload and version-bump operations across regions <!-- legitimate_cross_cutting -->
 - `Sources/SpinLabApp/Domain/Capabilities/AuditLogging.swift` — capability protocol abstracting AuditLogger import and rule-write event logging <!-- legitimate_cross_cutting -->
 - `Sources/SpinLabApp/Domain/Capabilities/AppLogging.swift` — general-purpose injectable logging capability abstracting AppLogger info/warning/error <!-- legitimate_cross_cutting -->

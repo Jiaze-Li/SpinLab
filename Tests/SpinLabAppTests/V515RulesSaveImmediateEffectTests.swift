@@ -11,31 +11,18 @@ import Testing
 @Suite("V5.1.5 Rules Save Immediate Effect (R1)", .serialized)
 struct V515RulesSaveImmediateEffectTests {
 
-    private static let backupExtension = "v515-r1-backup"
-
-    private func acquireIsolation() throws -> (dir: URL, backup: URL?) {
-        let dir = RulesConfigPaths().configDirectoryURL
-        let fm = FileManager.default
-        var backup: URL? = nil
-        if fm.fileExists(atPath: dir.path) {
-            let candidate = dir.appendingPathExtension("\(Self.backupExtension).\(UUID().uuidString)")
-            try fm.moveItem(at: dir, to: candidate)
-            backup = candidate
-        }
-        return (dir, backup)
+    private func acquireIsolation() throws -> (dir: URL, paths: RulesConfigPaths) {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SL-r1-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return (dir, RulesConfigPaths(configDirectoryURL: dir))
     }
 
-    private func releaseIsolation(dir: URL, backup: URL?) {
-        let fm = FileManager.default
-        try? fm.removeItem(at: dir)
-        if let backup, fm.fileExists(atPath: backup.path) {
-            try? fm.moveItem(at: backup, to: dir)
-        }
-        _ = RuleLoader.shared.reloadCached()
+    private func releaseIsolation(dir: URL) {
+        try? FileManager.default.removeItem(at: dir)
     }
 
-    private func writeInitialConfig() throws -> RulesConfigPaths {
-        let paths = RulesConfigPaths()
+    private func writeInitialConfig(paths: RulesConfigPaths) throws -> RulesConfigPaths {
         let fm = FileManager.default
         try? fm.removeItem(at: paths.configDirectoryURL)
         try fm.createDirectory(at: paths.configDirectoryURL, withIntermediateDirectories: true)
@@ -68,9 +55,9 @@ struct V515RulesSaveImmediateEffectTests {
 
     @Test("R1: RuleLoader cache updated immediately after sampleIdentification save")
     func r1SampleIdentificationPatternImmediatelyActive() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        _ = try writeInitialConfig()
+        let (dir, paths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
+        _ = try writeInitialConfig(paths: paths)
 
         var r1Fired = false
         let store = RulesManagementStore(onRulesSaved: {
@@ -78,7 +65,7 @@ struct V515RulesSaveImmediateEffectTests {
             if matches.contains(where: { $0.value == "NEWPATTERN" }) {
                 r1Fired = true
             }
-        })
+        }, rulesBookPaths: paths)
         store.present()
 
         var draft = try #require(store.sampleIdentificationDraft)
@@ -94,9 +81,9 @@ struct V515RulesSaveImmediateEffectTests {
 
     @Test("R1: RuleLoader cache updated immediately after workflow save")
     func r1WorkflowMeasurementTagRuleImmediatelyActive() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        _ = try writeInitialConfig()
+        let (dir, paths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
+        _ = try writeInitialConfig(paths: paths)
 
         var r1Fired = false
         let store = RulesManagementStore(onRulesSaved: {
@@ -104,7 +91,7 @@ struct V515RulesSaveImmediateEffectTests {
             if ruleSet.measurementTagRules.contains(where: { $0.value == "NEWTAG" }) {
                 r1Fired = true
             }
-        })
+        }, rulesBookPaths: paths)
         store.present()
 
         var draft = try #require(store.workflowDraft)
@@ -122,9 +109,9 @@ struct V515RulesSaveImmediateEffectTests {
 
     @Test("R1: conditionDefinitionOptions updated via onRulesSaved callback")
     func r1ConditionDefinitionOptionsRefreshed() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        _ = try writeInitialConfig()
+        let (dir, paths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
+        _ = try writeInitialConfig(paths: paths)
 
         // Simulate the wiring in SpinLabAppState: store calls a closure that refreshes
         // conditionDefinitionOptions on the Workbench side. We verify the options list is stale
@@ -136,7 +123,7 @@ struct V515RulesSaveImmediateEffectTests {
             let ruleSet = RuleLoader.shared.loadCached().ruleSet
             capturedRuleSetLoaded = true
             capturedOptionsAfterSave = ruleSet.conditionDefinitions.map(\.id)
-        })
+        }, rulesBookPaths: paths)
         store.present()
 
         // Initially only "temperature"
@@ -163,11 +150,11 @@ struct V515RulesSaveImmediateEffectTests {
 
     @Test("R1: availableConditionFieldIDs in store refreshes after measuringCondition save")
     func r1AvailableConditionFieldIDsRefreshesOnSave() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        _ = try writeInitialConfig()
+        let (dir, paths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
+        _ = try writeInitialConfig(paths: paths)
 
-        let store = RulesManagementStore()
+        let store = RulesManagementStore(rulesBookPaths: paths)
         store.present()
 
         let before = store.availableConditionFieldIDs

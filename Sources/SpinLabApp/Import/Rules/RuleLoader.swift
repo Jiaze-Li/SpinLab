@@ -5,8 +5,52 @@ struct RuleLoader {
     static let shared = RuleLoader()
     static let currentSchemaVersion = 4
     private static var cached: LoadResult?
+    private static var configuredBookPaths: RulesConfigPaths?
+    private static var configuredInternalPaths: AppInternalPaths = AppInternalPaths()
     private static let cacheLock = NSLock()
     private let logger = AppLogger.shared
+
+    static func configure(bookPaths: RulesConfigPaths?, internalPaths: AppInternalPaths) {
+        withCacheLock {
+            configuredBookPaths = bookPaths
+            configuredInternalPaths = internalPaths
+            cached = nil
+        }
+    }
+
+    static var currentBookPaths: RulesConfigPaths? {
+        withCacheLock { configuredBookPaths }
+    }
+
+    /// Loads from Sources/SpinLabApp/config/ relative to the process working directory.
+    /// For use in tests and dev tooling only — not called in production.
+    func loadFromBundleOnly() -> LoadResult {
+        var warnings: [String] = []
+        let internalPaths = Self.withCacheLock { Self.configuredInternalPaths }
+        let ruleSetVersion = readRuleSetVersion(from: internalPaths.ruleSetStateURL)
+        let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let configDir = cwd.appendingPathComponent("Sources/SpinLabApp/config")
+        let paths = RulesConfigPaths(configDirectoryURL: configDir)
+        if var result = tryLoadFromDirectory(paths, label: "Bundle", warnings: &warnings) {
+            result.ruleSetVersion = ruleSetVersion
+            return result
+        }
+        warnings.append("Dev fixture rules not available at \(configDir.path); using built-in fallback.")
+        var fallback = FilenameRuleSet.fallback()
+        fallback.loadWarnings = warnings
+        return LoadResult(
+            ruleSet: fallback,
+            warnings: warnings,
+            metadata: RuleMetadata(
+                schemaVersion: fallback.version,
+                sourceLabel: "Fallback",
+                sourcePath: "builtin:fallback",
+                contentHash: hashHex(for: Data("fallback".utf8)),
+                loadedAt: Date()
+            ),
+            ruleSetVersion: ruleSetVersion
+        )
+    }
 
     struct RuleMetadata {
         var schemaVersion: Int
@@ -47,22 +91,20 @@ struct RuleLoader {
 
     func load() -> LoadResult {
         var warnings: [String] = []
-        let paths = RulesConfigPaths()
-        let ruleSetVersion = readRuleSetVersion(from: paths.ruleSetStateURL)
+        let bookPaths = Self.withCacheLock { Self.configuredBookPaths }
+        let internalPaths = Self.withCacheLock { Self.configuredInternalPaths }
+        let ruleSetVersion = readRuleSetVersion(from: internalPaths.ruleSetStateURL)
 
-        // Try loading all 5 schema files from runtime first, fall back to bundle
-        if var result = tryLoadFromDirectory(paths.configDirectoryURL, label: "Runtime", warnings: &warnings) {
+        guard let paths = bookPaths else {
+            return notConfiguredResult(ruleSetVersion: ruleSetVersion)
+        }
+
+        if var result = tryLoadFromDirectory(paths, label: "RulesBook", warnings: &warnings) {
             result.ruleSetVersion = ruleSetVersion
             return result
         }
 
-        // Bundle fallback
-        if var result = tryLoadFromBundle(warnings: &warnings) {
-            result.ruleSetVersion = ruleSetVersion
-            return result
-        }
-
-        warnings.append("Rules could not be loaded from runtime or bundle; using built-in fallback.")
+        warnings.append("Rules could not be loaded from Rules Book at \(paths.configDirectoryURL.path).")
         logger.error(.import, "Rule loading failed", metadata: ["reasons": warnings.joined(separator: " | ")])
         var fallback = FilenameRuleSet.fallback()
         fallback.loadWarnings = warnings
@@ -74,6 +116,25 @@ struct RuleLoader {
                 sourceLabel: "Fallback",
                 sourcePath: "builtin:fallback",
                 contentHash: hashHex(for: Data("fallback".utf8)),
+                loadedAt: Date()
+            ),
+            ruleSetVersion: ruleSetVersion
+        )
+    }
+
+    private func notConfiguredResult(ruleSetVersion: Int) -> LoadResult {
+        logger.warning(.import, "RuleLoader: no Rules Book configured")
+        var fallback = FilenameRuleSet.fallback()
+        let warning = "No Rules Book configured."
+        fallback.loadWarnings = [warning]
+        return LoadResult(
+            ruleSet: fallback,
+            warnings: [warning],
+            metadata: RuleMetadata(
+                schemaVersion: fallback.version,
+                sourceLabel: "NotConfigured",
+                sourcePath: "not-configured",
+                contentHash: hashHex(for: Data("not-configured".utf8)),
                 loadedAt: Date()
             ),
             ruleSetVersion: ruleSetVersion
@@ -96,30 +157,6 @@ struct RuleLoader {
         return loaded
     }
 
-    func loadFromBundleOnly() -> LoadResult {
-        var warnings: [String] = []
-        let ruleSetVersion = readRuleSetVersion(from: RulesConfigPaths().ruleSetStateURL)
-        if var result = tryLoadFromBundle(warnings: &warnings) {
-            result.ruleSetVersion = ruleSetVersion
-            return result
-        }
-        warnings.append("Bundle rules not available; using built-in fallback.")
-        var fallback = FilenameRuleSet.fallback()
-        fallback.loadWarnings = warnings
-        return LoadResult(
-            ruleSet: fallback,
-            warnings: warnings,
-            metadata: RuleMetadata(
-                schemaVersion: fallback.version,
-                sourceLabel: "Fallback",
-                sourcePath: "builtin:fallback",
-                contentHash: hashHex(for: Data("fallback".utf8)),
-                loadedAt: Date()
-            ),
-            ruleSetVersion: ruleSetVersion
-        )
-    }
-
     // MARK: - Cache
 
     private static func withCacheLock<T>(_ action: () -> T) -> T {
@@ -130,9 +167,9 @@ struct RuleLoader {
 
     private func shouldReloadCached(_ cached: LoadResult) -> Bool {
         let path = cached.metadata.sourcePath
-        guard !path.hasPrefix("builtin:") else { return false }
+        guard !path.hasPrefix("builtin:") && path != "not-configured" else { return false }
 
-        let paths = RulesConfigPaths()
+        guard let paths = Self.withCacheLock({ Self.configuredBookPaths }) else { return true }
         let hashes = compositeHash(paths: paths)
         let changed = hashes != cached.metadata.contentHash
         if changed {
@@ -145,8 +182,7 @@ struct RuleLoader {
 
     // MARK: - Loading
 
-    private func tryLoadFromDirectory(_ dir: URL, label: String, warnings: inout [String]) -> LoadResult? {
-        let paths = RulesConfigPaths()
+    private func tryLoadFromDirectory(_ paths: RulesConfigPaths, label: String, warnings: inout [String]) -> LoadResult? {
         guard FileManager.default.fileExists(atPath: paths.importFiltersURL.path) else {
             return nil
         }
@@ -176,34 +212,6 @@ struct RuleLoader {
         } catch {
             warnings.append("\(label) rule assembly failed: \(error.localizedDescription)")
             logger.error(.import, "Rule assembly failed", metadata: ["source": label, "reason": error.localizedDescription])
-            return nil
-        }
-    }
-
-    private func tryLoadFromBundle(warnings: inout [String]) -> LoadResult? {
-        let locator = BundleFileLocator()
-        do {
-            var ruleSet = try assembleRuleSetFromBundle(locator: locator, warnings: &warnings)
-            let compileWarnings = ruleSet.compile()
-            if !compileWarnings.isEmpty {
-                warnings.append(contentsOf: compileWarnings.map { "Bundle compile warning: \($0)" })
-            }
-            ruleSet.loadWarnings = warnings
-            let hash = bundleCompositeHash(locator: locator)
-            let metadata = RuleMetadata(
-                schemaVersion: ruleSet.version,
-                sourceLabel: "Bundle",
-                sourcePath: "bundle:import_filters.json",
-                contentHash: hash,
-                loadedAt: Date()
-            )
-            logger.info(.import, "Rules loaded from bundle", metadata: [
-                "sampleIdPrefixCount": "\(ruleSet.sampleId.matches.count)",
-                "ruleVersion": "\(ruleSet.version)"
-            ])
-            return LoadResult(ruleSet: ruleSet, warnings: warnings, metadata: metadata)
-        } catch {
-            warnings.append("Bundle rule assembly failed: \(error.localizedDescription)")
             return nil
         }
     }
@@ -256,45 +264,6 @@ struct RuleLoader {
         return ruleSet
     }
 
-    private func assembleRuleSetFromBundle(locator: BundleFileLocator, warnings: inout [String]) throws -> FilenameRuleSet {
-        let importFiltersData = try requireBundleData(locator: locator, name: "import_filters")
-        let tokenizationData = try requireBundleData(locator: locator, name: "filename_tokenization")
-        let sampleIdentData = try requireBundleData(locator: locator, name: "sample_identification")
-        let workflowData = try requireBundleData(locator: locator, name: "workflow")
-        let conditionData = try requireBundleData(locator: locator, name: "measuring_condition")
-
-        let importFiltersFile = try decodeBundleFile(ImportFiltersFile.self, from: importFiltersData, name: "import_filters.json")
-        let tokenizationFile = try decodeBundleFile(FilenameTokenizationFile.self, from: tokenizationData, name: "filename_tokenization.json")
-        let sampleIdentFile = try decodeBundleFile(SampleIdentificationFile.self, from: sampleIdentData, name: "sample_identification.json")
-        let workflowFile = try decodeBundleFile(WorkflowFile.self, from: workflowData, name: "workflow.json")
-        let conditionFile = try decodeBundleFile(MeasuringConditionFile.self, from: conditionData, name: "measuring_condition.json")
-
-        var ruleSet = FilenameRuleSet(
-            version: sampleIdentFile.version,
-            tokenization: tokenizationFile.tokenization,
-            sources: tokenizationFile.sources,
-            sampleId: sampleIdentFile.sampleId,
-            measurementNameRules: workflowFile.measurementNameRules,
-            measurementTagRules: workflowFile.measurementTagRules,
-            channel: tokenizationFile.channel,
-            conditions: conditionFile.conditions ?? FilenameRuleSet.ConditionRules(),
-            conditionDefinitions: conditionFile.conditionDefinitions,
-            registry: nil,
-            importRules: importFiltersFile.importRules,
-            substrateConfig: sampleIdentFile.substrateConfig
-        )
-
-        // library_import_rules.json: registry only (optional)
-        if let data = try? locator.data(for: "library_import_rules"),
-           let file = try? JSONDecoder().decode(LibraryImportRulesFile.self, from: data) {
-            ruleSet.registry = file.registry
-        }
-
-        let schemaWarnings = migrateRuleSetSchemaIfNeeded(ruleSet: &ruleSet, sourceLabel: "Bundle")
-        warnings.append(contentsOf: schemaWarnings)
-        return ruleSet
-    }
-
     // MARK: - Decode helpers
 
     private func loadAndDecode<T: Decodable>(_ type: T.Type, from url: URL, label: String) throws -> T {
@@ -303,21 +272,6 @@ struct RuleLoader {
             return try JSONDecoder().decode(type, from: data)
         } catch {
             throw NSError(domain: "RuleLoader", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to decode \(url.lastPathComponent) from \(label): \(error.localizedDescription)"])
-        }
-    }
-
-    private func requireBundleData(locator: BundleFileLocator, name: String) throws -> Data {
-        guard let data = try? locator.data(for: name) else {
-            throw NSError(domain: "RuleLoader", code: 2, userInfo: [NSLocalizedDescriptionKey: "Bundle \(name).json missing"])
-        }
-        return data
-    }
-
-    private func decodeBundleFile<T: Decodable>(_ type: T.Type, from data: Data, name: String) throws -> T {
-        do {
-            return try JSONDecoder().decode(type, from: data)
-        } catch {
-            throw NSError(domain: "RuleLoader", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to decode bundle \(name): \(error.localizedDescription)"])
         }
     }
 
@@ -355,17 +309,6 @@ struct RuleLoader {
         return hashHex(for: parts.reduce(into: Data(), { $0.append($1) }))
     }
 
-    private func bundleCompositeHash(locator: BundleFileLocator) -> String {
-        let names = ["import_filters", "filename_tokenization", "sample_identification", "workflow", "measuring_condition"]
-        var combined = Data()
-        for name in names {
-            guard let data = try? locator.data(for: name) else { continue }
-            combined.append(Data(name.utf8))
-            combined.append(data)
-        }
-        return hashHex(for: combined)
-    }
-
     private func hashHex(for data: Data) -> String {
         let digest = SHA256.hash(data: data)
         return digest.map { String(format: "%02x", $0) }.joined()
@@ -399,7 +342,7 @@ struct RuleLoader {
     /// Call after a successful Rules Panel save (single section or Save All).
     @discardableResult
     func bumpRuleSetVersion() -> Result<Int, Error> {
-        let url = RulesConfigPaths().ruleSetStateURL
+        let url = Self.withCacheLock { Self.configuredInternalPaths }.ruleSetStateURL
         var state = readRuleSetState(from: url)
         state.ruleSetVersion += 1
         state.updatedAt = Date()
@@ -591,18 +534,3 @@ struct LibraryImportRulesFile: Decodable {
     }
 }
 
-// MARK: - Bundle locator
-
-struct BundleFileLocator {
-    func data(for resourceName: String) throws -> Data? {
-        if let url = Bundle.module.url(forResource: resourceName, withExtension: "json") {
-            return try Data(contentsOf: url)
-        }
-        let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
-        let devURL = cwd.appendingPathComponent("Sources/SpinLabApp/config/\(resourceName).json")
-        if FileManager.default.fileExists(atPath: devURL.path) {
-            return try Data(contentsOf: devURL)
-        }
-        return nil
-    }
-}

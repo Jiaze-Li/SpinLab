@@ -2,11 +2,11 @@ import Foundation
 
 extension RulesBootstrapper {
 
-    static func migrateRuntimeRulesIfNeeded(paths: RulesConfigPaths = RulesConfigPaths()) {
+    static func migrateRulesBookIfNeeded(paths: RulesConfigPaths, internalPaths: AppInternalPaths) {
         let fm = FileManager.default
         let decoder = JSONDecoder()
-        let stateURL = paths.configDirectoryURL.appendingPathComponent(".migration_state.json")
-        let failedURL = paths.configDirectoryURL.appendingPathComponent(".migration_failed.json")
+        let stateURL = internalPaths.migrationStateURL
+        let failedURL = internalPaths.migrationFailedURL
 
         do {
             try fm.createDirectory(at: paths.configDirectoryURL, withIntermediateDirectories: true)

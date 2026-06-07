@@ -183,11 +183,9 @@ final class SpinLabAppState {
     private let libraryRepository: LibraryRepository
     private let inboxImportFilter: InboxImportFilterService
     private let saveLibrarySampleEditsUseCase = SaveLibrarySampleEditsUseCase()
-    private let repositoryPointer: RepositoryPointer?
-    @ObservationIgnored private var rulesSyncEngine: RulesSyncEngine?
-    @ObservationIgnored private var rulesSyncStartupOutcome: StartupOutcome = .skipped
+    let rulesBookSettings: RulesBookSettings
     private let inboxWorkflowService = InboxWorkflowService()
-    private static let localDevelopmentRepoRootFallback = URL(
+    private static let webLibraryRepoRootURL = URL(
         fileURLWithPath: "/Users/jack/Downloads/scripts/Codex SpinLab/SpinLab-html",
         isDirectory: true
     )
@@ -199,8 +197,7 @@ final class SpinLabAppState {
                 self?.recomputeAllPendingParsedHints()
                 self?.workbenchFeatureStore.reloadWorkflowDefinitionsAfterRulesChange()
             },
-            syncEngine: self.rulesSyncEngine,
-            syncStartupOutcome: self.rulesSyncStartupOutcome
+            rulesBookPaths: self.rulesBookSettings.rulesBookPaths
         )
     }()
 
@@ -233,12 +230,8 @@ final class SpinLabAppState {
             dataActor: environment.dataActor,
             workflowDefinitionStore: environment.workflowDefinitionStore
         )
-        let runtimeConfigPaths = RulesConfigPaths()
-        let syncPointer = RepositoryPointer.load(
-            runtimeConfigDir: runtimeConfigPaths.configDirectoryURL,
-            localDevelopmentRepoRootFallback: Self.localDevelopmentRepoRootFallback
-        )
-        self.repositoryPointer = syncPointer
+        let settings = RulesBookSettings()
+        self.rulesBookSettings = settings
         self.webLibraryPublisher = environment.webLibraryPublisher
         let interactionMemory = InteractionMemoryStore(persistence: environment.persistence)
         self.interactionSnapshotCoordinator = InteractionSnapshotCoordinator(interactionMemory: interactionMemory)
@@ -279,10 +272,11 @@ final class SpinLabAppState {
             }
         )
 
-        // §5.4 startup sequence: pointer → engine → reverseSync → reloadCached → stores
-        let engine = RulesSyncEngine(pointer: syncPointer)
-        self.rulesSyncEngine = engine
-        self.rulesSyncStartupOutcome = engine.reverseSyncOnStartup(runtimePaths: runtimeConfigPaths)
+        WorkflowRegistryRetirementService(paths: settings.rulesBookPaths).runIfNeeded()
+        if let bookPaths = settings.rulesBookPaths {
+            RulesBootstrapper.migrateRulesBookIfNeeded(paths: bookPaths, internalPaths: settings.internalPaths)
+        }
+        RuleLoader.configure(bookPaths: settings.rulesBookPaths, internalPaths: settings.internalPaths)
         _ = RuleLoader.shared.reloadCached()
 
         load()
@@ -344,12 +338,7 @@ final class SpinLabAppState {
         guard !libraryFeatureStore.webLibraryPublishState.isRunning else {
             return
         }
-        guard let repoRootURL = repositoryPointer?.repoRoot else {
-            libraryFeatureStore.failWebLibraryPublish(
-                summary: "SpinLab checkout root is not configured."
-            )
-            return
-        }
+        let repoRootURL = Self.webLibraryRepoRootURL
 
         libraryFeatureStore.beginWebLibraryPublish()
         let publisher = webLibraryPublisher

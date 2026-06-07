@@ -6,58 +6,25 @@ import Testing
 @Suite("V5.1.5 WorkflowRegistryRetirement", .serialized)
 struct V515WorkflowRegistryRetirementTests {
 
-    private static let backupExtension = "v515-retirement-backup"
-
     private struct IsolationContext {
+        let baseDir: URL
         let paths: RulesConfigPaths
-        let configBackup: URL?
         let outerRegistryURL: URL
         let outerRegistryDir: URL
     }
 
     private func acquireIsolation() throws -> IsolationContext {
-        let paths = RulesConfigPaths()
-        let fm = FileManager.default
-
-        var configBackup: URL? = nil
-        if fm.fileExists(atPath: paths.configDirectoryURL.path) {
-            let candidate = paths.configDirectoryURL
-                .appendingPathExtension("\(Self.backupExtension).\(UUID().uuidString)")
-            try fm.moveItem(at: paths.configDirectoryURL, to: candidate)
-            configBackup = candidate
-        }
-        try fm.createDirectory(at: paths.configDirectoryURL, withIntermediateDirectories: true)
-
-        let outerRegistryDir = paths.configDirectoryURL.deletingLastPathComponent()
-        let outerRegistryURL = outerRegistryDir.appendingPathComponent("workflow_registry.json")
-
-        // Remove any leftover outer registry from prior tests
-        try? fm.removeItem(at: outerRegistryURL)
-
-        return IsolationContext(
-            paths: paths,
-            configBackup: configBackup,
-            outerRegistryURL: outerRegistryURL,
-            outerRegistryDir: outerRegistryDir
-        )
+        let baseDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SL-retirement-\(UUID().uuidString)", isDirectory: true)
+        let configDir = baseDir.appendingPathComponent("config", isDirectory: true)
+        try FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
+        let paths = RulesConfigPaths(configDirectoryURL: configDir)
+        let outerRegistryURL = baseDir.appendingPathComponent("workflow_registry.json")
+        return IsolationContext(baseDir: baseDir, paths: paths, outerRegistryURL: outerRegistryURL, outerRegistryDir: baseDir)
     }
 
     private func releaseIsolation(_ ctx: IsolationContext) {
-        let fm = FileManager.default
-        if fm.fileExists(atPath: ctx.paths.configDirectoryURL.path) {
-            try? fm.removeItem(at: ctx.paths.configDirectoryURL)
-        }
-        if let configBackup = ctx.configBackup, fm.fileExists(atPath: configBackup.path) {
-            try? fm.moveItem(at: configBackup, to: ctx.paths.configDirectoryURL)
-        }
-        // Clean up any outer registry remnants
-        try? fm.removeItem(at: ctx.outerRegistryURL)
-        if let items = try? fm.contentsOfDirectory(atPath: ctx.outerRegistryDir.path) {
-            for item in items where item.hasPrefix("workflow_registry.json.backup-") {
-                try? fm.removeItem(at: ctx.outerRegistryDir.appendingPathComponent(item))
-            }
-        }
-        _ = RuleLoader.shared.reloadCached()
+        try? FileManager.default.removeItem(at: ctx.baseDir)
     }
 
     private func makeWorkflowJSON(entries: [(id: String, displayName: String, matchValues: [String], conditionFieldIDs: [String])]) throws -> Data {

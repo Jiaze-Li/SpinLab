@@ -41,15 +41,10 @@ private struct FakeRuleProvider: SpinLabRuleProviding {
 // MARK: - Helpers
 
 private func writeMinimalRulesConfig() throws -> (paths: RulesConfigPaths, cleanup: () -> Void) {
-    let paths = RulesConfigPaths()
-    let fm = FileManager.default
-    var backup: URL?
-    if fm.fileExists(atPath: paths.configDirectoryURL.path) {
-        let b = paths.configDirectoryURL.appendingPathExtension("inv16-backup.\(UUID().uuidString)")
-        try fm.moveItem(at: paths.configDirectoryURL, to: b)
-        backup = b
-    }
-    try fm.createDirectory(at: paths.configDirectoryURL, withIntermediateDirectories: true)
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("SL-inv16-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    let paths = RulesConfigPaths(configDirectoryURL: dir)
     try """
     {"version":1,"import":{"supportedFileExtensions":["dat"],"ignoredFileExtensions":[]}}
     """.data(using: .utf8)!.write(to: paths.importFiltersURL)
@@ -66,11 +61,7 @@ private func writeMinimalRulesConfig() throws -> (paths: RulesConfigPaths, clean
     {"version":2,"conditionDefinitions":[]}
     """.data(using: .utf8)!.write(to: paths.measuringConditionURL)
     let cleanup: () -> Void = {
-        try? fm.removeItem(at: paths.configDirectoryURL)
-        if let backup, fm.fileExists(atPath: backup.path) {
-            try? fm.moveItem(at: backup, to: paths.configDirectoryURL)
-        }
-        _ = RuleLoader.shared.reloadCached()
+        try? FileManager.default.removeItem(at: dir)
     }
     return (paths, cleanup)
 }
@@ -88,7 +79,7 @@ struct V5114SharedSingletonAbsenceTests {
         defer { cleanup() }
 
         let mockLoader = MockRuleLoader()
-        let store = RulesManagementStore(ruleLoader: mockLoader)
+        let store = RulesManagementStore(rulesBookPaths: paths, ruleLoader: mockLoader)
         store.present()
 
         let outcome = store.saveCurrent()
