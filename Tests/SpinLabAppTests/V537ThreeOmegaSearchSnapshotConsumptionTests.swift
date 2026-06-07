@@ -46,7 +46,7 @@ struct V537ThreeOmegaSearchSnapshotConsumptionTests {
         )
     }
 
-    private func waitUntilAnalysisCompletes(_ store: ThreeOmegaWorkspaceStore, timeoutMS: UInt64 = 60000) async {
+    private func waitUntilAnalysisCompletes(_ store: ThreeOmegaWorkspaceStore, timeoutMS: UInt64 = 5000) async {
         let intervalNS: UInt64 = 20_000_000
         let deadline = DispatchTime.now().uptimeNanoseconds + timeoutMS * 1_000_000
         while DispatchTime.now().uptimeNanoseconds < deadline {

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
-@Suite("V5.3.7 Save Module Boundary")
+@Suite("V5.3.7 Save Module Boundary", .serialized)
 struct V537SaveModuleBoundaryTests {
 
     // MARK: - Shared fixtures
