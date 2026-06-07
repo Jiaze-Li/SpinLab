@@ -205,7 +205,7 @@ Purpose:
 #### Gate 6.2 - Readiness Consumption UI Wiring
 
 - Status: planned
-- Scope: consume `WorkbenchReadinessProjection` in the shell surfaces that already gate buttons and result availability.
+- Scope: consume `WorkbenchReadinessProjection` in the shell surfaces that already gate result-ready, active-image, and running-style UI state while preserving `matchingVaultPack`, `activePackID`, and analysis-vault pack-state logic.
 
 #### Gate 6.3 - Readiness Closeout
 

@@ -48,7 +48,7 @@ The live shell still consumes raw state directly in these places:
 | File | Current read surface | What it is doing today |
 |---|---|---|
 | `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceActionBar.swift` | `isSearchRunning`, `searchResultsList`, `selectedSearchResultIDs`, `isAnalyzing`, `library.librarySettings.rootPath` | Gates Search, Select All, Analyze, and progress display with direct checks. |
-| `Sources/SpinLabApp/Features/Workbench/WorkbenchResultHeaderShell.swift` | `hasActiveImageData`, `hasAnalysisResult`, `isAnalyzing`, `matchingVaultPack`, `analysisMessage`, `warningCount` | Gates Clear Plot, Save Analysis / Update Analysis, and Save to Library with direct checks. |
+| `Sources/SpinLabApp/Features/Workbench/WorkbenchResultHeaderShell.swift` | `hasActiveImageData`, `hasAnalysisResult`, `isAnalyzing`, `matchingVaultPack`, `analysisMessage`, `warningCount` | Gates Clear Plot, Save Analysis / Update Analysis, and Save to Library with direct checks. Pack-state selection remains separate from readiness. |
 | `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceSearchSection.swift` | `library.librarySettings.rootPath` | Shows the library-root line and submits search from the search bar. |
 | `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceResultsList.swift` | `searchResultsList`, `searchMessage`, `selectedSearchResultIDs`, `cachedSampleNumericDisplay` | Renders hit-list empty states and row selection directly from search state. |
 | `Sources/SpinLabApp/Features/Workbench/WorkbenchLoadPackPopover.swift` | vault pack list, `hasUnsavedAnalysis` | Gates Load Pack availability and unsaved-analysis confirmation directly from vault / workflow state. |
@@ -66,7 +66,7 @@ The following runtime surfaces still rely on scattered direct checks instead of 
 | Analyze button | `selectedSearchResultIDs.isEmpty || isAnalyzing` | Safe candidate for Gate 6.2. |
 | Progress indicator | `isSearchRunning || isAnalyzing` | Safe candidate for Gate 6.2. |
 | Clear Plot button | `!hasActiveImageData && !isAnalyzing` | Safe candidate for Gate 6.2, but it currently keys off render output directly rather than readiness. |
-| Save Analysis / Update Analysis / Save to Library buttons | `!hasAnalysisResult` | Safe candidate for Gate 6.2. |
+| Save to Library button | `!hasAnalysisResult` | Safe candidate for Gate 6.2. This is result-ready gating, not pack-state gating. |
 | Load Pack button | `allPacks.isEmpty` | Direct workflow-local vault logic; not readiness. |
 | Empty-results messaging | `results.isEmpty` and `searchMessage` | UI messaging, not gating. |
 | Status / warning display | raw message and warning logs | Not readiness; this is a display surface. |
@@ -82,9 +82,19 @@ These are the direct checks that can be replaced by the existing readiness proje
 | No search results | `WorkflowWorkspaceActionBar.swift`, `WorkflowWorkspaceResultsList.swift` | Maps to `foundData` / `empty`. |
 | No selected hits | `WorkflowWorkspaceActionBar.swift` | Maps to `selectedData`. |
 | Analysis running | `WorkflowWorkspaceActionBar.swift`, `WorkbenchResultHeaderShell.swift` | Maps to `running`. |
-| No analysis result | `WorkbenchResultHeaderShell.swift` | Maps to `resultReady` / `saved` availability. |
+| No analysis result | `WorkbenchResultHeaderShell.swift` | Maps to `resultReady` for result-ready gating, including Save to Library availability. |
 | No active image data | `WorkbenchResultHeaderShell.swift` | Can be expressed by the result-ready side of the projection for button gating. |
-| Save / update availability | `WorkbenchResultHeaderShell.swift` | Projection already carries the active-result and saved-state inputs needed for this gate. |
+
+### Explicit non-readiness inputs for result-header pack state
+
+These inputs remain outside readiness even though they are related to save/update UI:
+
+| Input | Current site(s) | Why it stays explicit |
+|---|---|---|
+| `matchingVaultPack` | `WorkbenchResultHeaderShell.swift` | Decides whether the header shows Save Analysis or Update Analysis. This is pack-match state, not readiness. |
+| `activePackID` | `AnalysisVault` / workflow store pack state | Tracks which pack is active after load/save. This is not a readiness signal. |
+| Analysis-vault saved state | `AnalysisVault`, `matchingVaultPack`, `activePackID` | Determines pack identity and update semantics. This is related to save/update behavior but not to readiness itself. |
+| Save Analysis vs Update Analysis label choice | `WorkbenchResultHeaderShell.swift` | Related to saved pack matching, not to readiness. Gate 6.2 must preserve this split. |
 
 ### Should stay as direct workflow-local logic
 
