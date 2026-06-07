@@ -13,6 +13,7 @@
 | `SHELL_BLOCKS.md` | Overview | First-read conceptual model |
 | `MAIN_BOARD_READINESS.md` | Readiness contract | Derived readiness ladder and consumers |
 | `READINESS_CONSUMPTION_AUDIT.md` | Gate 6 audit | Readiness consumption audit and closeout linkage |
+| `GATE7_MAIN_SEARCH_HANDOFF.md` | Gate 7 preflight audit | Main Search extraction readiness, bridge inventory, and forbidden changes |
 | `WORKFLOW_ASSEMBLY.md` | Workflow contract | Per-workflow integration contract |
 | `MODULE_BOUNDARIES.md` | Ownership authority | Module ownership, read surfaces, forbidden mutations |
 | `EXTENSION_BOUNDARIES.md` | Extension guide | Add-workflow and add-module routing/checklists |

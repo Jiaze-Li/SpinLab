@@ -240,6 +240,7 @@ Summary:
 
 | Gate | Module / boundary name | Classification from Gate 3 | Target owner | Notes |
 |---|---|---|---|---|
+| 7.0 | Main Search extraction handoff audit | docs-only | n/a | Completed handoff audit; no runtime extraction started. Gate 7.1A is the next safe runtime step. |
 | 7.1 | Main Search | Common module | Common Search module | Canonical search state is already centralized; finish runtime extraction while preserving the explicit restore bridge and pack compatibility. |
 | 7.2 | Selection | Boundary debt | Common Selection module | Selected IDs still live in workflow stores; keep the run-scoped selected-hit snapshot and the denominator bridge intact during extraction. |
 | 7.3 | Secondary Input Search | Optional module candidate | Common auxiliary-slot Secondary Input Search module | General auxiliary-slot shape only; 3ω RT is one declared slot, not the module shape. |
@@ -248,6 +249,14 @@ Summary:
 | 7.6 | Pack / Restore | Boundary debt | Common Pack / Restore module | Explicit restore write map required; include secondary input search and keep restore rerender-only. |
 | 7.7 | Warning Display / Run Trace | Boundary debt | Split: common warning/trace display + Assembly-owned event sources | Centralize warning and trace projections without moving physics meaning into the display module. |
 | 7.8 | Plot System / Title-Style-Legend cleanup | Common module group | Common Plot System plus control modules | Conditional cleanup if needed; preserve tab override survival and keep Assembly-owned physics panels out. |
+
+#### Gate 7.0 - Main Search extraction handoff audit
+
+- Status: complete, docs-only
+- Source audit file: `docs/architecture/workbench/GATE7_MAIN_SEARCH_HANDOFF.md`
+- Purpose: record the exact canonical Main Search ownership map, workflow-local mirror map, bridge state, restore paths, and test coverage that must remain intact before any runtime extraction begins.
+- Next runtime step: Gate 7.1A, which should stay read-only and boundary-preserving until selection and pack/restore dependencies are stable.
+- Runtime status: Gate 7.1 runtime extraction has not started.
 
 #### Gate 7.1 - Main Search
 
