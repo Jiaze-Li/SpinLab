@@ -101,6 +101,21 @@
           "value" : "xy"
         }
       ]
+    },
+    {
+      "conditionFieldIDs" : [
+        "device",
+        "temperature",
+        "field"
+      ],
+      "displayName" : "IV",
+      "id" : "IV",
+      "matchRules" : [
+        {
+          "type" : "equals",
+          "value" : "IV"
+        }
+      ]
     }
   ]
 }
