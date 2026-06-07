@@ -61,6 +61,29 @@ When extracting existing behavior from a workflow store or the Main Board into a
 4. Define handoff: how will the extracted module receive inputs and expose outputs? Choose the correct communication surface (Main Board orchestration, explicit snapshot, provider protocol). For plot system modules, `TabRenderManager` projections are the correct output surface.
 5. Lock current behavior first: write boundary tests that pass against the pre-extraction implementation. Extraction is complete only when the locked tests pass after extraction.
 
+## Gate 7 Module Extraction Checklist
+
+Use this checklist for every Gate 7+ runtime/module extraction. Each item is a hard gate — do not skip.
+
+**Ownership**
+- [ ] Canonical owner moves into the extracted runtime or module. Anything that was the source of truth must live there; the old location must not retain a parallel copy.
+- [ ] `WorkbenchFeatureStore` becomes a pure facade: search state aggregation, cross-module coordination, and snapshot vending only. It must not gain new canonical state.
+- [ ] Workflow-local copies of shared state (e.g. `cachedSearchResults`, `selectedSearchResultIDs`) are mirror/compatibility caches only — not primary sources. Document each one explicitly in [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md).
+
+**Cleanup**
+- [ ] Scattered workflow-specific logic (branches on workflow ID, per-workflow conditions inside shared code) is cleaned for or relocated to the extracted module before the Gate closes.
+- [ ] Legacy bridges and compatibility shims introduced during extraction are filed in [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md) as named technical debt with a target Gate for removal.
+
+**Tests and Fixtures**
+- [ ] Audit tests and fixtures are updated when ownership or contracts move. A passing test that validates the wrong owner is a false signal.
+- [ ] Full `swift test` failures are classified before fixing: identify whether each failure is a stale expectation, a missing fixture field, a genuine async timing issue, or a test structural problem. Do not adjust timeouts without a diagnosis.
+- [ ] Boundary suites that exercise MainActor-heavy, I/O-heavy, or analysis-heavy async paths use `@Suite(.serialized)` rather than arbitrary timeout bumps. Serialization eliminates concurrency as a variable; a timeout bump just masks it.
+
+**Gate Closeout**
+- [ ] `./scripts/check_required_actions.sh` is clean: if Swift source changed, rebuild is complete; if web library inputs changed, publish is complete.
+- [ ] Architecture docs are updated: [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md) reflects the new ownership map; Code Map entries are accurate.
+- [ ] Do not proceed to the next Gate module until ownership, tests, docs, and required-action status are all clean in this Gate.
+
 ## [HARD] Main Board Invariants
 
 These invariants are enforced at the Main Board level; all steps above must respect them:
