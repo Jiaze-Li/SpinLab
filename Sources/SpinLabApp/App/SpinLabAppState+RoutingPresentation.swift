@@ -169,7 +169,9 @@ extension SpinLabAppState {
               let definition = workflowDefinitions.first(where: {
                   $0.id.caseInsensitiveCompare(workflowID) == .orderedSame
               }) else {
-            return []
+            // A workflow tag is mandatory: an unresolved or unmatched workflow
+            // counts as a missing required tag, never "all good".
+            return ["Workflow"]
         }
 
         return definition.conditionFields.compactMap { field in
