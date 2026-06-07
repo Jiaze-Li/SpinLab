@@ -28,12 +28,18 @@
 
 Canonical base ownership rules (what state Search owns, what it does not own, forbidden mutations) are in [`MODULE_BOUNDARIES.md` § Search Boundary](../MODULE_BOUNDARIES.md#search-boundary). This section covers search-specific semantics: sidecar field consumption, three-layer representation, workflow ID aliasing, and mirror bridge rules.
 
-- Canonical search lifecycle ownership is in `WorkbenchFeatureStore`:
+- Canonical search lifecycle orchestration lives behind the `WorkbenchFeatureStore` facade in `WorkbenchMainSearchRuntime`:
   - query text
   - search results
   - running/loading state
   - status message
   - all keyed by workflow
+- `WorkbenchFeatureStore` remains the public read/write facade for existing views and mirror bridges.
+- `WorkbenchFeatureStore` keeps compatibility mirrors only:
+  - workflow-local `cachedSearchResults`
+  - workflow-local numeric display caches
+  - legacy `searchMessages` bridge for existing tests/callers
+- `WorkbenchMainSearchRuntime` is the canonical owner of search state; the store forwards to it and no longer owns the Main Search orchestration loop.
 - Search state is preserved per workflow on route switch by default.
 - Canonical clear path is `clearSearch`; workflow-local `clearResults` is not canonical search reset.
 - Search does not own selection IDs, workflow scientific analysis, plot payload/layout/image output, title/legend/axis overrides, or rerender preservation state.
@@ -116,6 +122,7 @@ Future test (Save / Pack Module):
 ## Code Map
 
 - `Sources/SpinLabApp/Domain/Capabilities/LibraryAccessCapability.swift` — capability protocol abstracting LibraryStore index reads for workbench search and workspace stores <!-- legitimate_cross_cutting -->
+- `Sources/SpinLabApp/App/State/WorkbenchMainSearchRuntime.swift` — coordinates canonical search execution, restore, clear, and mirror sync behind the WorkbenchFeatureStore facade
 - `Sources/SpinLabApp/UseCases/SearchWorkflowMeasurementsUseCase.swift` — executes measurement search queries against Library using sidecar conditions
 - `Sources/SpinLabApp/Domain/WorkflowSearchModels.swift` — domain models for search query parameters and search result types
 - `Sources/SpinLabApp/Features/Workbench/WorkflowHitRow.swift` — renders a single measurement search result row in the hit list

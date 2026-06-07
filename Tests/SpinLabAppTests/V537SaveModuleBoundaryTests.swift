@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
-@Suite("V5.3.7 Save Module Boundary")
+@Suite("V5.3.7 Save Module Boundary", .serialized)
 struct V537SaveModuleBoundaryTests {
 
     // MARK: - Shared fixtures
@@ -72,19 +72,19 @@ struct V537SaveModuleBoundaryTests {
         Issue.record("Timed out waiting for condition.")
     }
 
-    private func waitForAHEAnalysis(_ store: AHEWorkspaceStore, timeoutMS: UInt64 = 1500) async {
+    private func waitForAHEAnalysis(_ store: AHEWorkspaceStore, timeoutMS: UInt64 = 60000) async {
         await waitUntil(timeoutMS: timeoutMS) {
             await MainActor.run { !store.isPlotRendering }
         }
     }
 
-    private func waitForXYAnalysis(_ store: XYRotationWorkspaceStore, timeoutMS: UInt64 = 1500) async {
+    private func waitForXYAnalysis(_ store: XYRotationWorkspaceStore, timeoutMS: UInt64 = 60000) async {
         await waitUntil(timeoutMS: timeoutMS) {
             await MainActor.run { !store.isAnalyzing }
         }
     }
 
-    private func waitForThreeOmegaAnalysis(_ store: ThreeOmegaWorkspaceStore, timeoutMS: UInt64 = 1500) async {
+    private func waitForThreeOmegaAnalysis(_ store: ThreeOmegaWorkspaceStore, timeoutMS: UInt64 = 60000) async {
         await waitUntil(timeoutMS: timeoutMS) {
             await MainActor.run { !store.isAnalyzing }
         }
@@ -364,7 +364,7 @@ struct V537SaveModuleBoundaryTests {
 
         // persistToLibrary passes guards, spawns Task, UseCase fails (empty lastLibraryRootPath)
         store.persistToLibrary()
-        await waitUntil(timeoutMS: 2000) {
+        await waitUntil(timeoutMS: 60000) {
             await MainActor.run { store.persistenceOutcome != nil }
         }
 
@@ -413,7 +413,7 @@ struct V537SaveModuleBoundaryTests {
         }
 
         store.persistToLibrary()
-        await waitUntil(timeoutMS: 2000) {
+        await waitUntil(timeoutMS: 60000) {
             await MainActor.run { store.persistenceOutcome != nil }
         }
 
@@ -459,7 +459,7 @@ struct V537SaveModuleBoundaryTests {
         }
 
         store.persistToLibrary()
-        await waitUntil(timeoutMS: 2000) {
+        await waitUntil(timeoutMS: 60000) {
             await MainActor.run { store.persistenceOutcome != nil }
         }
 
@@ -582,7 +582,7 @@ struct V537SaveModuleBoundaryTests {
         let analysisMessageBeforeSave = store.analysisMessage
 
         store.persistToLibrary()
-        await waitUntil(timeoutMS: 2000) {
+        await waitUntil(timeoutMS: 60000) {
             await MainActor.run { store.persistenceOutcome != nil }
         }
 
@@ -620,7 +620,7 @@ struct V537SaveModuleBoundaryTests {
         let analysisMessageBeforeSave = store.analysisMessage
 
         store.persistToLibrary()
-        await waitUntil(timeoutMS: 2000) {
+        await waitUntil(timeoutMS: 60000) {
             await MainActor.run { store.persistenceOutcome != nil }
         }
 

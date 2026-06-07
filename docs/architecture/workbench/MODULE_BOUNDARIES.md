@@ -55,6 +55,7 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Classification: Module-owned — common module.
 - Current implementation files:
   - `Sources/SpinLabApp/App/State/WorkbenchFeatureStore.swift`
+  - `Sources/SpinLabApp/App/State/WorkbenchMainSearchRuntime.swift`
   - `Sources/SpinLabApp/App/State/WorkbenchSearchSnapshot.swift`
   - `Sources/SpinLabApp/UseCases/SearchWorkflowMeasurementsUseCase.swift`
   - `Sources/SpinLabApp/Domain/WorkflowSearchModels.swift`
@@ -63,11 +64,12 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
   - workflow-local mirror fields in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore.swift`
 - Current consumers: `WorkflowWorkspaceShell`, all three workflow stores, selection snapshot construction, pack restore callback, title/context builders, tests that inspect `WorkbenchFeatureStore` search lists.
 - State it owns: workflow-keyed query text, result list, running flag, status message, and `WorkbenchSearchSnapshot`.
+- Canonical ownership now lives in `WorkbenchMainSearchRuntime`; `WorkbenchFeatureStore` is the facade plus compatibility bridge holder for `cachedSearchResults`, numeric display caches, and legacy search message mirrors.
 - State it must not own: selected IDs, scientific ingestion/output, render output, title/legend/style overrides, pack vault state, save state.
 - How workflow-specific semantics enter: workflow ID, query aliases, condition fields, and search defaults come from workflow/rules configuration; Search returns hits only and does not interpret physics.
 - Pack/restore implications: restore writes canonical search state only through `restoreSearchState`; `cachedSearchResults` remains a persistent mirror for pack compatibility and selection denominator.
 - Tests currently protecting it: `V320WorkflowSearchAcrossDrawersTests`, `V5114SearchUseCaseCapabilityInjectionTests`, `V537WorkbenchSearchMirrorTests`, `V537AHESearchSnapshotConsumptionTests`, `V537XYSearchSnapshotConsumptionTests`, `V537ThreeOmegaSearchSnapshotConsumptionTests`.
-- Extraction readiness: medium. Canonical search state is already centralized, but `cachedSearchResults` remains a required bridge.
+- Extraction state: runtime orchestration is now extracted into `WorkbenchMainSearchRuntime`; `cachedSearchResults` remains a required bridge.
 - Risks if extracted too early: stale mirror drift, broken select-all denominator, pack decode/restore regressions, accidental analysis from canonical results without selected-hit snapshot.
 
 ### Selection

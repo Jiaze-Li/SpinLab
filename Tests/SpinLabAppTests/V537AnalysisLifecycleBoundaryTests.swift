@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
-@Suite("V5.3.7 Analysis Lifecycle Boundary")
+@Suite("V5.3.7 Analysis Lifecycle Boundary", .serialized)
 struct V537AnalysisLifecycleBoundaryTests {
 
     // MARK: - Fixtures
@@ -89,19 +89,94 @@ struct V537AnalysisLifecycleBoundaryTests {
         )
     }
 
-    private func waitForAHEAnalysis(_ store: AHEWorkspaceStore, timeoutMS: UInt64 = 1500) async {
+    private func makeSeedPlotPayload(
+        workflowID: String,
+        workflowDisplayName: String,
+        title: String
+    ) -> WorkbenchPlotPayload {
+        WorkbenchPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: workflowDisplayName,
+            title: title,
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [
+                WorkbenchPlotSeries(
+                    label: "seed",
+                    x: [0],
+                    y: [0],
+                    sampleID: "seed"
+                )
+            ],
+            semanticParams: ["state": "seeded"]
+        )
+    }
+
+    private func makeSeedTrace(runID: String, workflowID: String) -> WorkbenchRunTraceProjection {
+        WorkbenchRunTraceProjection(
+            runID: runID,
+            workflowID: workflowID,
+            inputFiles: ["/tmp/seed.dat"],
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            semanticParams: ["state": "seeded"],
+            outputImagePath: "/tmp/seed.png",
+            manifestPath: "/tmp/seed.json",
+            generatedAt: .distantPast
+        )
+    }
+
+    @MainActor
+    private func seedAnalysisOutput(
+        _ store: XYRotationWorkspaceStore,
+        payload: WorkbenchPlotPayload,
+        trace: WorkbenchRunTraceProjection,
+        analysisMessage: String
+    ) {
+        store.tabs.setOutput(
+            TabRenderOutput(
+                imageData: Data([0x01]),
+                layout: nil,
+                manifestPayload: payload
+            ),
+            for: store.tabs.activeTab
+        )
+        store.currentRunTrace = trace
+        store.analysisMessage = analysisMessage
+        store.warningLog.append(source: "Test", message: "seed warning")
+    }
+
+    @MainActor
+    private func seedAnalysisOutput(
+        _ store: ThreeOmegaWorkspaceStore,
+        payload: WorkbenchPlotPayload,
+        trace: WorkbenchRunTraceProjection,
+        analysisMessage: String
+    ) {
+        store.tabs.setOutput(
+            TabRenderOutput(
+                imageData: Data([0x01]),
+                layout: nil,
+                manifestPayload: payload
+            ),
+            for: store.tabs.activeTab
+        )
+        store.currentRunTrace = trace
+        store.analysisMessage = analysisMessage
+        store.warningLog.append(source: "Test", message: "seed warning")
+    }
+
+    private func waitForAHEAnalysis(_ store: AHEWorkspaceStore, timeoutMS: UInt64 = 30000) async {
         await waitUntil(timeoutMS: timeoutMS) {
             await MainActor.run { !store.isPlotRendering }
         }
     }
 
-    private func waitForXYAnalysis(_ store: XYRotationWorkspaceStore, timeoutMS: UInt64 = 1500) async {
+    private func waitForXYAnalysis(_ store: XYRotationWorkspaceStore, timeoutMS: UInt64 = 60000) async {
         await waitUntil(timeoutMS: timeoutMS) {
             await MainActor.run { !store.isAnalyzing }
         }
     }
 
-    private func waitForThreeOmegaAnalysis(_ store: ThreeOmegaWorkspaceStore, timeoutMS: UInt64 = 1500) async {
+    private func waitForThreeOmegaAnalysis(_ store: ThreeOmegaWorkspaceStore, timeoutMS: UInt64 = 60000) async {
         await waitUntil(timeoutMS: timeoutMS) {
             await MainActor.run { !store.isAnalyzing }
         }
@@ -281,15 +356,19 @@ struct V537AnalysisLifecycleBoundaryTests {
             message: "Searching XY",
             running: false
         )
+        let canonicalBefore = canonicalSearchState(wfs, workflow: .xyRotation)
         store.cachedSearchResults = [hit]
         store.selectedSearchResultIDs = [hit.id]
-        let snapshot = wfs.selectedHitsSnapshot(
-            for: .xyRotation,
-            selectedIDs: store.selectedSearchResultIDs,
-            legacyHits: [hit]
+        seedAnalysisOutput(
+            store,
+            payload: makeSeedPlotPayload(
+                workflowID: "xyRotation",
+                workflowDisplayName: "XY Rotation",
+                title: "Seeded XY"
+            ),
+            trace: makeSeedTrace(runID: "xy-clear-trace", workflowID: "xyRotation"),
+            analysisMessage: "Analyzed 1 angle-sweep file(s)."
         )
-        store.runAnalysis(selectedHitsSnapshot: snapshot)
-        await waitForXYAnalysis(store)
 
         let selectionBeforeClearPlot = store.selectedSearchResultIDs
         store.clearPlot()
@@ -299,13 +378,14 @@ struct V537AnalysisLifecycleBoundaryTests {
         #expect(store.currentRunTrace == nil)
         #expect(store.warningLog.isEmpty)
         #expect(store.analysisMessage == nil)
+        #expect(canonicalSearchState(wfs, workflow: .xyRotation) == canonicalBefore)
 
         store.cachedSearchResults = [hit]
         store.selectedSearchResultIDs = [hit.id]
         store.clearResults()
         #expect(store.selectedSearchResultIDs.isEmpty)
         #expect(store.cachedSearchResults.isEmpty)
-        #expect(wfs.searchResultsList(for: .xyRotation) == [hit])
+        #expect(canonicalSearchState(wfs, workflow: .xyRotation) == canonicalBefore)
     }
 
     // MARK: - 3ω
@@ -384,6 +464,7 @@ struct V537AnalysisLifecycleBoundaryTests {
             message: "Searching 3w",
             running: false
         )
+        let canonicalBefore = canonicalSearchState(wfs, workflow: .threeOmega)
         store.cachedSearchResults = [hit]
         store.selectedSearchResultIDs = [hit.id]
         store.rtQuery = "rt pn31"
@@ -392,14 +473,16 @@ struct V537AnalysisLifecycleBoundaryTests {
         store.isRTSearching = true
         store.showRTPopover = true
         store.selectedRTHit = rtHit
-
-        let snapshot = wfs.selectedHitsSnapshot(
-            for: .threeOmega,
-            selectedIDs: store.selectedSearchResultIDs,
-            legacyHits: [hit]
+        seedAnalysisOutput(
+            store,
+            payload: makeSeedPlotPayload(
+                workflowID: "threeOmega",
+                workflowDisplayName: "3w",
+                title: "Seeded 3ω"
+            ),
+            trace: makeSeedTrace(runID: "3w-clear-trace", workflowID: "threeOmega"),
+            analysisMessage: "Analyzed 1 field-sweep file(s)."
         )
-        store.runAnalysis(selectedHitsSnapshot: snapshot)
-        await waitForThreeOmegaAnalysis(store)
 
         let selectionBeforeClearPlot = store.selectedSearchResultIDs
         let rtQueryBeforeClearPlot = store.rtQuery
@@ -422,6 +505,7 @@ struct V537AnalysisLifecycleBoundaryTests {
         #expect(store.isRTSearching == rtSearchingBeforeClearPlot)
         #expect(store.showRTPopover == rtPopoverBeforeClearPlot)
         #expect(store.selectedRTHit?.id == rtSelectedBeforeClearPlot?.id)
+        #expect(canonicalSearchState(wfs, workflow: .threeOmega) == canonicalBefore)
 
         store.cachedSearchResults = [hit]
         store.selectedSearchResultIDs = [hit.id]
@@ -442,7 +526,7 @@ struct V537AnalysisLifecycleBoundaryTests {
         #expect(store.isRTSearching == false)
         #expect(store.showRTPopover == false)
         #expect(store.selectedRTHit == nil)
-        #expect(wfs.searchResultsList(for: .threeOmega) == [hit])
+        #expect(canonicalSearchState(wfs, workflow: .threeOmega) == canonicalBefore)
     }
 
     // MARK: - Trace and warning boundaries

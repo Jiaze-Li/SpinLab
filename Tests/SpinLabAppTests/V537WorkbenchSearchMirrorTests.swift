@@ -347,4 +347,121 @@ struct V537WorkbenchSearchMirrorTests {
         #expect(wfs.isSearchRunning(for: .ahe) == runningBefore,
                 "searchSnapshot must not change running flag")
     }
+
+    // MARK: - 7. Search invalidation clears stale selections (PR #111)
+
+    @MainActor
+    private func makeWFSWithFailingActor(failingQuery: String) -> WorkbenchFeatureStore {
+        let actor = V537StubSearchDataActor(failingQuery: failingQuery)
+        let persistence = LocalPersistenceStub(archivedRecords: [], projects: [])
+        return WorkbenchFeatureStore(
+            libraryRepository: LibraryRepository(persistence: persistence),
+            dataActor: actor
+        )
+    }
+
+    @MainActor
+    private func waitForSearchRunning(_ wfs: WorkbenchFeatureStore, wf: WorkbenchWorkflowID) async throws {
+        var attempts = 0
+        while wfs.isSearchRunning(for: wf) && attempts < 40 {
+            try await Task.sleep(nanoseconds: 50_000_000)
+            attempts += 1
+        }
+    }
+
+    @MainActor
+    @Test("empty query clears canonical results, mirror, and selectedSearchResultIDs")
+    func emptyQueryClearsCanonicalMirrorAndSelection() {
+        let wfs = makeWFS()
+        let hit = makeHit(id: "inv-empty")
+
+        wfs.restoreSearchState(results: [hit], queryText: "ahe pn31", for: .ahe)
+        wfs.aheWorkspace.cachedSearchResults = [hit]
+        wfs.aheWorkspace.selectedSearchResultIDs = [hit.id]
+
+        wfs.setSearchQueryText("   ", for: .ahe)
+        wfs.runWorkflowMeasurementSearch(workflowID: .ahe, libraryRootPath: "/tmp/fake-root")
+
+        #expect(wfs.searchResultsList(for: .ahe).isEmpty,
+                "Canonical results must be cleared on empty query")
+        #expect(wfs.aheWorkspace.cachedSearchResults.isEmpty,
+                "Workflow mirror must be cleared on empty query")
+        #expect(wfs.aheWorkspace.selectedSearchResultIDs.isEmpty,
+                "selectedSearchResultIDs must be cleared on empty query")
+    }
+
+    @MainActor
+    @Test("missing library root clears canonical results, mirror, and selectedSearchResultIDs")
+    func missingLibraryRootClearsCanonicalMirrorAndSelection() {
+        let wfs = makeWFS()
+        let hit = makeHit(id: "inv-noroot")
+
+        wfs.restoreSearchState(results: [hit], queryText: "ahe pn31", for: .ahe)
+        wfs.aheWorkspace.cachedSearchResults = [hit]
+        wfs.aheWorkspace.selectedSearchResultIDs = [hit.id]
+
+        wfs.setSearchQueryText("ahe pn31", for: .ahe)
+        wfs.runWorkflowMeasurementSearch(workflowID: .ahe, libraryRootPath: nil)
+
+        #expect(wfs.searchResultsList(for: .ahe).isEmpty,
+                "Canonical results must be cleared on missing library root")
+        #expect(wfs.aheWorkspace.cachedSearchResults.isEmpty,
+                "Workflow mirror must be cleared on missing library root")
+        #expect(wfs.aheWorkspace.selectedSearchResultIDs.isEmpty,
+                "selectedSearchResultIDs must be cleared on missing library root")
+    }
+
+    @MainActor
+    @Test("search failure clears canonical results, mirror, and selectedSearchResultIDs")
+    func searchFailureClearsCanonicalMirrorAndSelection() async throws {
+        let hit = makeHit(id: "inv-fail")
+        let wfs = makeWFSWithFailingActor(failingQuery: "force-fail-inv")
+
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("spinlab-v537-inv-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        wfs.restoreSearchState(results: [hit], queryText: "ahe pn31", for: .ahe)
+        wfs.aheWorkspace.cachedSearchResults = [hit]
+        wfs.aheWorkspace.selectedSearchResultIDs = [hit.id]
+
+        wfs.setSearchQueryText("force-fail-inv", for: .ahe)
+        wfs.runWorkflowMeasurementSearch(workflowID: .ahe, libraryRootPath: tempRoot.path)
+        try await waitForSearchRunning(wfs, wf: .ahe)
+
+        #expect(wfs.searchResultsList(for: .ahe).isEmpty,
+                "Canonical results must be cleared on search failure")
+        #expect(wfs.aheWorkspace.cachedSearchResults.isEmpty,
+                "Workflow mirror must be cleared on search failure")
+        #expect(wfs.aheWorkspace.selectedSearchResultIDs.isEmpty,
+                "selectedSearchResultIDs must be cleared on search failure")
+    }
+}
+
+private actor V537StubSearchDataActor: SpinLabDataActing {
+    let failingQuery: String
+
+    init(failingQuery: String) {
+        self.failingQuery = failingQuery
+    }
+
+    func loadRegistrySnapshot(from xlsxURL: URL, previewRowCount: Int) async throws -> SampleRegistrySnapshot {
+        throw NSError(domain: "V537Stub", code: 1)
+    }
+
+    func parseLibraryPreview(registryPath: String, settings: LibrarySettings) async throws -> LibraryPreviewParseSnapshot {
+        throw NSError(domain: "V537Stub", code: 2)
+    }
+
+    func searchWorkflowMeasurements(settings: LibrarySettings, query: WorkflowSearchQuery, workflowDefinitions: [WorkflowDefinition]) async throws -> [WorkflowMeasurementSearchHit] {
+        if query.rawText == failingQuery {
+            throw NSError(domain: "V537Stub", code: 3, userInfo: [NSLocalizedDescriptionKey: "simulated search failure"])
+        }
+        return []
+    }
+
+    func lookupSampleNumericDisplay(libraryRootPath: String, sampleKey: String) async throws -> [String: String] {
+        return [:]
+    }
 }
