@@ -194,7 +194,7 @@ Purpose:
 
 #### Gate 6.1 - Readiness Consumption Audit
 
-- Status: complete (docs-only, pending commit)
+- Status: complete (docs-only)
 - Scope: record the current readiness projection producer, current direct consumers, direct readiness-adjacent checks, and Gate 6.2 safe replacement candidates.
 - Result: `READINESS_CONSUMPTION_AUDIT.md`
 - Notes:
