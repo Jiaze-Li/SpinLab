@@ -43,7 +43,7 @@ struct V538SelectedHitsBridgeAuditTests {
 
     @Test("WorkbenchFeatureStore selectedHitsSnapshot still prefers canonical search results")
     func selectedHitsSnapshotPrefersCanonicalSearchResults() throws {
-        let source = try loadSource(relativePath: "Sources/SpinLabApp/App/State/WorkbenchFeatureStore.swift")
+        let source = try loadSource(relativePath: "Sources/SpinLabApp/App/State/WorkbenchMainSearchRuntime.swift")
 
         #expect(source.contains("let useLegacy = canonical.results.isEmpty && !legacyHits.isEmpty"))
         #expect(source.contains("let sourceHits = useLegacy ? legacyHits : canonical.results"))
