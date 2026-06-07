@@ -33,6 +33,8 @@ Readiness is read-only, derived, and non-persistent. It must not become a second
 ## Current Implementation Status
 
 - `WorkbenchReadinessProjection` is implemented.
-- Shell consumption is implemented in the action bar for selection / analysis gating.
-- Result-header gating keeps `store.hasAnalysisResult` explicit for pack-analysis availability while `matchingVaultPack` remains separate.
+- Shell consumption is implemented in the action bar for Select All, Analyze, and progress gating.
+- The action bar keeps library-root search preflight and the direct search-running check explicit.
+- Result-header gating keeps `store.hasAnalysisResult` explicit for pack-analysis availability while `matchingVaultPack`, `activePackID`, and analysis-vault saved-state logic remain separate.
+- Load Pack availability and unsaved-analysis prompts remain direct workflow-local vault behavior.
 - Readiness remains derived from module-owned state rather than stored as canonical board state.

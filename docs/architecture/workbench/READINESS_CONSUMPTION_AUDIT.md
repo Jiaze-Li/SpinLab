@@ -1,6 +1,6 @@
 # Workbench Readiness Consumption Audit
 
-Status: Gate 6 readiness audit
+Status: Gate 6 complete
 Scope: read-only audit of `WorkbenchReadinessProjection` generation, current runtime consumption, and direct readiness-adjacent checks in the Workbench shell.
 
 This file documents the current state only. It does not introduce a new readiness architecture, coordinator, store, service, registry, or protocol.
@@ -47,7 +47,7 @@ The live shell still consumes raw state directly in these places:
 
 | File | Current read surface | What it is doing today |
 |---|---|---|
-| `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceActionBar.swift` | `isSearchRunning`, `library.librarySettings.rootPath`, `readinessProjection(for:store:)` | Gates Search with a direct library-root preflight and uses readiness for Select All, Analyze, and progress display. |
+| `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceActionBar.swift` | `isSearchRunning`, `library.librarySettings.rootPath`, `readinessProjection(for:store:)` | Gates Search with a direct library-root preflight and direct search-running check while using readiness for Select All, Analyze, and progress display. |
 | `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceResultArea.swift` | `store.hasAnalysisResult`, `activeImageData`, `isAnalyzing` | Keeps pack-analysis availability explicit in the shared header shell while keeping active-image and analyzing state explicit. |
 | `Sources/SpinLabApp/Features/Workbench/WorkbenchResultHeaderShell.swift` | `hasActiveImageData`, `hasAnalysisResult`, `isAnalyzing`, `matchingVaultPack`, `analysisMessage`, `warningCount` | Gates Clear Plot, Save Analysis / Update Analysis, and Save to Library with shell-local checks. Pack-state selection remains separate from readiness. |
 | `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceSearchSection.swift` | `library.librarySettings.rootPath` | Shows the library-root line and submits search from the search bar. |
@@ -56,18 +56,18 @@ The live shell still consumes raw state directly in these places:
 | `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceStatusBlock.swift` and `Sources/SpinLabApp/Features/Workbench/WorkbenchStatusArea.swift` | trace / warning / status messages | Renders status content directly from workflow-local message and warning state. |
 | `Sources/SpinLabApp/Features/Workbench/WorkbenchView.swift` and `Sources/SpinLabApp/Features/Workbench/WorkflowRegistryView.swift` | route / registry selection | Handles registry routing and workflow selection; this is not readiness gating. |
 
-## Missing Or Partial Consumers
+## Final Consumption Boundaries
 
-The following runtime surfaces either still rely on direct checks or intentionally keep them explicit:
+The following runtime surfaces still rely on direct checks or intentionally keep them explicit:
 
 | Surface | Current direct check | Classification |
 |---|---|---|
 | Search button | `isSearchRunning` and `library.librarySettings.rootPath == nil` | Partial. Running is readiness-related; missing library root is not currently modeled by readiness. |
-| Select All button | `readiness.hasFoundData` | Implemented in Gate 6.2. |
-| Analyze button | `readiness.hasSelectedData || isAnalyzing` | Implemented in Gate 6.2. |
+| Select All button | `readiness.hasFoundData` | Implemented in Gate 6.2 and kept narrow to the action bar. |
+| Analyze button | `readiness.hasSelectedData || isAnalyzing` | Implemented in Gate 6.2; the direct `isAnalyzing` guard still prevents duplicate analysis starts. |
 | Progress indicator | `readiness.isRunning` | Implemented in Gate 6.2. |
-| Clear Plot button | `!hasActiveImageData && !isAnalyzing` | Safe candidate for Gate 6.2, but it currently keys off render output directly rather than readiness. |
-| Save to Library button | `!hasAnalysisResult` | Remains explicit in the header shell; Gate 6.2 does not replace it with readiness. |
+| Clear Plot button | `!hasActiveImageData && !isAnalyzing` | Kept explicit because it keys off render output directly rather than readiness. |
+| Save to Library button | `!hasAnalysisResult` | Remains explicit in the header shell; readiness does not replace this pack-analysis availability check. |
 | Load Pack button | `allPacks.isEmpty` | Direct workflow-local vault logic; not readiness. |
 | Empty-results messaging | `results.isEmpty` and `searchMessage` | UI messaging, not gating. |
 | Status / warning display | raw message and warning logs | Not readiness; this is a display surface. |
@@ -151,31 +151,12 @@ The current tests cover the projection, the state signals feeding it, and source
 | `Tests/SpinLabAppTests/V537WorkbenchSelectionShellTests.swift` | Selection shell actions remain isolated from canonical search state. |
 | `Tests/SpinLabAppTests/V538WorkbenchReadinessConsumptionTests.swift` | Source-audit coverage proves the action bar reads the readiness projection while the result header keeps pack-analysis availability explicit. |
 
-### Coverage gaps for Gate 6.2 / 6.3
+### Closeout Notes
 
-| Gap | Why it matters |
-|---|---|
-| No live UI integration test asserts that the action bar and result header consume `WorkbenchReadinessProjection` | Gate 6.2 now has source-audit coverage for the action bar; the result header keeps `store.hasAnalysisResult` explicit. |
-| No test covers a live `WorkbenchFeatureStore.readinessProjection(for:store:)` render path | The helper is exercised by source inspection in the action bar, but not yet by a mounted SwiftUI test. |
-
-## Recommended Gate 6.2 Implementation Plan
-
-1. Wire the existing readiness projection into the workbench shell surfaces that already make readiness decisions: action bar and result header.
-2. Replace the directly duplicated `foundData` / `selectedData` / `running` / `resultReady` checks with a single projected value per render.
-3. Keep non-readiness preflight checks explicit: library-root availability, vault pack availability, and route selection.
-4. Add integration coverage that proves the shell reads the projection for button gating while preserving the direct preflight checks that are not part of readiness.
-5. Leave search mirroring, selection ownership, warning/trace ownership, save metadata semantics, and pack/restore orchestration for Gate 7.
-
-## Gate 6.2 Forbidden Changes
-
-Do not:
-
-- add a new readiness store, coordinator, service, registry, or protocol
-- expand readiness into library-root, vault, or registry-selection state
-- change search, selection, analysis, save, load, or restore behavior
-- move warning or trace ownership into the readiness projection
-- remove the current direct preflight checks that are not readiness signals
-- treat `WorkbenchReadinessProjection` as canonical lifecycle state
+- No additional UI integration test was added for Gate 6.3. The source-audit test plus the existing boundary suites are sufficient for the narrow readiness closeout.
+- The result header keeps `store.hasAnalysisResult`, `matchingVaultPack`, `activePackID`, and analysis-vault saved-state logic explicit by design.
+- Library-root preflight, direct search-running checks, and Load Pack availability remain outside readiness by design.
+- Gate 7 continues to own search-mirror cleanup, selection ownership, pack/restore orchestration, and the other boundary debts listed above.
 
 ## Related Docs
 
