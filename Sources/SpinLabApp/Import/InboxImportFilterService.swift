@@ -8,7 +8,6 @@ struct ImportedMeasurementFile {
 
 struct InboxImportFilterService: Sendable {
     private let fingerprintService = ContentFingerprintService()
-    private let fileManager = FileManager.default
 
     func importMeasurementFiles(
         from urls: [URL],
@@ -76,14 +75,15 @@ struct InboxImportFilterService: Sendable {
     ) -> [URL] {
         var collected: [URL] = []
 
+        let fm = FileManager.default
         for url in urls {
             var isDirectory: ObjCBool = false
-            guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+            guard fm.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
                 continue
             }
 
             if isDirectory.boolValue {
-                if let enumerator = fileManager.enumerator(
+                if let enumerator = fm.enumerator(
                     at: url,
                     includingPropertiesForKeys: [.isRegularFileKey],
                     options: [.skipsHiddenFiles]

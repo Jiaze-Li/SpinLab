@@ -167,12 +167,12 @@ struct V515RulesPanelStoreTests {
         store.present()
 
         // Dirty all 5 sections
-        if var d = store.importFiltersDraft { store.updateImportFilters(d) }
-        if var d = store.filenameTokenizationDraft { store.updateFilenameTokenization(d) }
-        if var d = store.sampleIdentificationDraft { store.updateSampleIdentification(d) }
-        if var d = store.measuringConditionDraft { store.updateMeasuringCondition(d) }
+        if let d = store.importFiltersDraft { store.updateImportFilters(d) }
+        if let d = store.filenameTokenizationDraft { store.updateFilenameTokenization(d) }
+        if let d = store.sampleIdentificationDraft { store.updateSampleIdentification(d) }
+        if let d = store.measuringConditionDraft { store.updateMeasuringCondition(d) }
         // Workflow depends on measuringCondition, must be after
-        if var d = store.workflowDraft { store.updateWorkflow(d) }
+        if let d = store.workflowDraft { store.updateWorkflow(d) }
 
         // Simulate Save All in allCases order
         for section in RulesPanelSection.allCases where store.dirtySections.contains(section) {

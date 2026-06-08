@@ -148,9 +148,12 @@ struct V515RulesBookStateTests {
                 )
                 let state = SpinLabAppState(
                     environment: AppEnvironment(
-                        persistence: LocalJSONPersistence(),
+                        persistence: NoOpPersistenceForV515(),
                         inboxImportFilter: InboxImportFilterService(),
-                        libraryArchiveScan: LibraryArchiveScanService(),
+                        libraryArchiveScan: LibraryArchiveScanService(
+                            rootURL: FileManager.default.temporaryDirectory
+                                .appendingPathComponent("spinlab-v515-startup-\(UUID().uuidString)", isDirectory: true)
+                        ),
                         sampleRegistry: XLSXPrefixSampleRegistryIndex.fromEnvironment(previewRowCount: 10),
                         registrySubstrateRules: RegistrySubstrateRuleBook(),
                         routingCapabilities: .live,
@@ -198,9 +201,12 @@ struct V515RulesBookStateTests {
 
                     let state = SpinLabAppState(
                         environment: AppEnvironment(
-                            persistence: LocalJSONPersistence(),
+                            persistence: NoOpPersistenceForV515(),
                             inboxImportFilter: InboxImportFilterService(),
-                            libraryArchiveScan: LibraryArchiveScanService(),
+                            libraryArchiveScan: LibraryArchiveScanService(
+                                rootURL: FileManager.default.temporaryDirectory
+                                    .appendingPathComponent("spinlab-v515-switch-\(UUID().uuidString)", isDirectory: true)
+                            ),
                             sampleRegistry: XLSXPrefixSampleRegistryIndex.fromEnvironment(previewRowCount: 10),
                             registrySubstrateRules: RegistrySubstrateRuleBook(),
                             routingCapabilities: .live,
@@ -242,9 +248,12 @@ struct V515RulesBookStateTests {
                     )
                     let state = SpinLabAppState(
                         environment: AppEnvironment(
-                            persistence: LocalJSONPersistence(),
+                            persistence: NoOpPersistenceForV515(),
                             inboxImportFilter: InboxImportFilterService(),
-                            libraryArchiveScan: LibraryArchiveScanService(),
+                            libraryArchiveScan: LibraryArchiveScanService(
+                                rootURL: FileManager.default.temporaryDirectory
+                                    .appendingPathComponent("spinlab-v515-migrate-\(UUID().uuidString)", isDirectory: true)
+                            ),
                             sampleRegistry: XLSXPrefixSampleRegistryIndex.fromEnvironment(previewRowCount: 10),
                             registrySubstrateRules: RegistrySubstrateRuleBook(),
                             routingCapabilities: .live,
@@ -265,4 +274,15 @@ struct V515RulesBookStateTests {
             }
         }
     }
+}
+
+private final class NoOpPersistenceForV515: SpinLabPersistence {
+    func loadPendingImports() -> [SpinLabDomain.PendingImport] { [] }
+    func savePendingImports(_ imports: [SpinLabDomain.PendingImport]) {}
+    func loadArchivedRecords() -> [SpinLabDomain.ArchivedRecord] { [] }
+    func saveArchivedRecords(_ records: [SpinLabDomain.ArchivedRecord]) {}
+    func loadProjects() -> [SpinLabDomain.Project] { [] }
+    func saveProjects(_ projects: [SpinLabDomain.Project]) {}
+    func loadInteractionSnapshot() -> SpinLabInteractionSnapshot { SpinLabInteractionSnapshot() }
+    func saveInteractionSnapshot(_ snapshot: SpinLabInteractionSnapshot) {}
 }

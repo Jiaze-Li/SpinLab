@@ -428,9 +428,10 @@ extension ThreeOmegaWorkspaceStore {
         )
         let capturedRestoredFieldSweeps = ingestion.fieldSweeps
 
-        let lookupHit         = cachedSearchResults.first
-        let lookupLibraryRoot = lastLibraryRootPath
-        let fallbackTokens    = _titleTokens
+        let lookupHit              = cachedSearchResults.first
+        let lookupLibraryRoot      = lastLibraryRootPath
+        let fallbackTokens         = _titleTokens
+        let capturedLibraryAccess  = env.libraryAccess
 
         Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
@@ -441,7 +442,7 @@ extension ThreeOmegaWorkspaceStore {
             var tokens = fallbackTokens
             if let hit = lookupHit, !lookupLibraryRoot.isEmpty {
                 let rootURL = URL(fileURLWithPath: lookupLibraryRoot, isDirectory: true)
-                if let nd = env.libraryAccess.loadIndex(from: rootURL)?
+                if let nd = capturedLibraryAccess.loadIndex(from: rootURL)?
                     .sample(matchingDiskKey: hit.sampleKey)?.numericDisplay,
                    !nd.isEmpty {
                     tokens = ["sample": hit.sampleBatchAndSubstrate]
@@ -501,10 +502,12 @@ extension ThreeOmegaWorkspaceStore {
                 (plots.scaling, _, _) = scR.renderScaling(result: sr, device: capturedDevice, method: method)
             }
 
+            let titleTokens = tokens
+            let renderedPlots = plots
             await MainActor.run { [weak self] in
                 guard let self, self._renderRevision == revision else { return }
-                self._titleTokens = tokens
-                self._applyPlots(plots)
+                self._titleTokens = titleTokens
+                self._applyPlots(renderedPlots)
             }
         }
     }
