@@ -44,7 +44,6 @@ actor SpinLabDataActor: SpinLabDataActing {
             throw AppError.validation("Library root path is required for workflow search.")
         }
         let rootURL = URL(fileURLWithPath: normalizedPath, isDirectory: true)
-        print("[SpinLab][Search] root=\(rootURL.path) exists=\(FileManager.default.fileExists(atPath: rootURL.path)) readable=\(FileManager.default.isReadableFile(atPath: rootURL.path))")
         let useCase = SearchWorkflowMeasurementsUseCase()
         do {
             return try useCase.execute(query: query, settings: settings, libraryRootURL: rootURL, workflowDefinitions: workflowDefinitions)
