@@ -242,7 +242,7 @@ Summary:
 |---|---|---|---|---|
 | 7.0 | Main Search extraction handoff audit | docs-only | n/a | Completed handoff audit; no runtime extraction started. Gate 7.1A is the next safe runtime step. |
 | 7.1 | Main Search | Common module | Common Search module | Canonical search state is already centralized; finish runtime extraction while preserving the explicit restore bridge and pack compatibility. |
-| 7.2 | Selection | Boundary debt | Common Selection module | Selected IDs still live in workflow stores; keep the run-scoped selected-hit snapshot and the denominator bridge intact during extraction. |
+| 7.2 | Selection | Boundary debt → Module-owned | Common Selection module | Complete. `WorkbenchSelectionRuntime` is the canonical owner. Workflow-local selectionReader closures are non-canonical compatibility read surfaces. |
 | 7.3 | Secondary Input Search | Optional module candidate | Common auxiliary-slot Secondary Input Search module | General auxiliary-slot shape only; 3ω RT is one declared slot, not the module shape. |
 | 7.4 | Analysis Overlay | Optional module candidate | Common Analysis Overlay module | Session-only overlay extraction; 3ω Scaling Law overlay stays a validation case only. |
 | 7.5 | Save to Library / Save Metadata Projection | Boundary debt | Split: common save writer + Assembly-owned semantic projection | Save writer is common; metric meaning, units, overrides, and semantic projection stay Assembly-owned. |
@@ -271,14 +271,14 @@ Summary:
 
 #### Gate 7.2 - Selection
 
+- Status: complete.
 - Source Gate 3 audit section: `Selection`
-- Classification: `Boundary debt`
-- Actual Gate 3 finding: the run-scoped selected-hit read surface exists, but selected IDs still live in workflow stores and the denominator bridge remains tied to workflow-local search mirrors.
-- Target owner: common Selection module.
-- Required work: move selected IDs and selection mutations into a canonical module owner; keep `WorkbenchSelectedHitsSnapshot` as the run-scoped analysis input; preserve the explicit denominator bridge until save/pack cleanup removes the last dependency on the mirror.
-- Prerequisite bridges/tests: `WorkbenchSelectedHitsSnapshot`, the selection mutation API, pack-compatible decode/restore coverage, `V537WorkbenchSelectionShellTests`, `V537WorkbenchSelectedHitsSnapshotTests`, and `V538SelectedHitsBridgeAuditTests`.
-- Extraction risks: select-all denominator mismatch, nil-snapshot restore fallback breakage, and analysis being triggered with stale or unselected hits.
-- Acceptance criteria: selection state and mutations have one canonical owner; analysis consumes the run-scoped selected-hit snapshot; restore writes selected IDs before rerender; any remaining mirror bridge is explicitly documented and pack-compatible.
+- Classification: `Boundary debt` → `Module-owned — common module`
+- Gate 3 finding: the run-scoped selected-hit read surface existed, but selected IDs still lived in workflow stores and the denominator bridge remained tied to workflow-local search mirrors.
+- Outcome: `WorkbenchSelectionRuntime` is the canonical owner of selected IDs and all selection mutations. Workflow stores carry only read-only `selectionReader` closures injected by `WorkbenchFeatureStore` — non-canonical compatibility read surfaces for pack serialization and analysis denomination only. Select-all denominator is passed explicitly to `selectAll(for:denominator:)` by the facade. Pack restore writes selected IDs through `seedSelection()` → `seed()`. `WorkbenchSelectedHitsSnapshot` remains the run-scoped analysis input.
+- Prerequisite bridges/tests confirmed green: `V537WorkbenchSelectionShellTests` (7 tests), `V537WorkbenchSelectedHitsSnapshotTests`, `V538SelectedHitsBridgeAuditTests`, `V537WorkbenchSearchMirrorTests`, `V537PackRestoreModuleBoundaryTests`, `V537AnalysisLifecycleBoundaryTests`, `V537SaveModuleBoundaryTests` — 90 targeted tests passed.
+- Full suite closeout: 1114 swift-testing tests passed, 0 failures. `swift test` exit code 1 is a known artifact of the mixed XCTest + Swift Testing runner; `Test Suite 'All tests' passed` was confirmed in output and no `✖` symbols appeared. `check_required_actions.sh` clean.
+- Remaining deferred work: `selectionReader` bridge removal awaits Save / Pack Module (Gate 7.5 / 7.6); `cachedSearchResults` rename deferred until pack `CodingKey` backward-compatibility handling is in place.
 
 #### Gate 7.3 - Secondary Input Search
 
@@ -345,6 +345,12 @@ Summary:
 - Prerequisite bridges/tests: `V537WorkflowShellPhase4Tests`, `V563WorkflowStateBoundaryTests`, `V531SeriesRenderModeTests`, `V534LegendDimensionResolverTests`, `V535PointLabelVisibilityTests`, `V535CopyPNGScaleMenuTests`, and `V536CurveDragOrderTests`.
 - Extraction risks: default workflow titles being lost, display overrides leaking into manifest semantics, tab override survival regressing, and curve-reorder identity drifting away from `sourceRef`.
 - Acceptance criteria: workflow stores no longer own the remaining title/style/legend binding endpoints; tab and render output remain single-sourced; plot controls behave uniformly; Geometry / Fit Range / Scaling, AHE Hc / R_AHE extraction, XY phi/detrend/centering, and 3ω scaling semantics remain Assembly-owned and unchanged.
+
+### Deferred Follow-Ups (not scheduled)
+
+| Item | Recorded in | Notes |
+|---|---|---|
+| Search/Rules integration — workflow alias expansion | `modules/MEASUREMENT_SEARCH.md` § Deferred Boundary Debt | Library/Workbench search alias expansion is hardcoded; Rules Book-defined workflow IDs do not automatically participate in alias resolution. Not blocking Inbox → Library archival. Resolve in a future Search/Rules integration gate. |
 
 ### Gate 7 Non-Candidates Preserved from Gate 3
 

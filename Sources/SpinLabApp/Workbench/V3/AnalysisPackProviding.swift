@@ -56,7 +56,8 @@ protocol AnalysisPackProviding: AnyObject {
     /// Decode pack blobs and restore all workflow state. Called by default `loadPack`.
     /// `activePackID` and `analysisMessage` are set by the caller — do not set them here.
     func restoreFromPack(config: PackConfig, result: PackResult, pack: AnalysisPack,
-                         restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void)
+                         restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void,
+                         seedSelection: @escaping (Set<String>) -> Void)
 
     // MARK: - Warnings
 
@@ -169,7 +170,8 @@ extension AnalysisPackProviding {
     // MARK: - Load
 
     func loadPack(id: AnalysisPack.ID,
-                  restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void) {
+                  restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void,
+                  seedSelection: @escaping (Set<String>) -> Void = { _ in }) {
         cancelInflightWork()
         guard let vault, let pack = vault.get(id: id) else {
             analysisMessage = "Pack not found."
@@ -186,7 +188,8 @@ extension AnalysisPackProviding {
             return
         }
         restoreFromPack(config: config, result: result, pack: pack,
-                        restoreSearchState: restoreSearchState)
+                        restoreSearchState: restoreSearchState,
+                        seedSelection: seedSelection)
         // Re-assign after restore — some workflows clear activePackID inside runAnalysis.
         activePackID = id
         analysisMessage = "Loaded: \(pack.label)"

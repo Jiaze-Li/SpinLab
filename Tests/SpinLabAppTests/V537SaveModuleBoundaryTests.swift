@@ -147,13 +147,11 @@ struct V537SaveModuleBoundaryTests {
         let before = canonicalSearchState(wfs, workflow: .ahe)
 
         store.cachedSearchResults = [hit]
-        store.selectedSearchResultIDs = [hit.id]
 
         // No PNG available — synchronous early return; no Task created
         store.persistToLibrary()
 
         #expect(canonicalSearchState(wfs, workflow: .ahe) == before)
-        #expect(store.selectedSearchResultIDs == [hit.id])
         #expect(store.cachedSearchResults == [hit])
     }
 
@@ -174,12 +172,10 @@ struct V537SaveModuleBoundaryTests {
         let before = canonicalSearchState(wfs, workflow: .xyRotation)
 
         store.cachedSearchResults = [hit]
-        store.selectedSearchResultIDs = [hit.id]
 
         store.persistToLibrary()
 
         #expect(canonicalSearchState(wfs, workflow: .xyRotation) == before)
-        #expect(store.selectedSearchResultIDs == [hit.id])
         #expect(store.cachedSearchResults == [hit])
     }
 
@@ -200,12 +196,10 @@ struct V537SaveModuleBoundaryTests {
         let before = canonicalSearchState(wfs, workflow: .threeOmega)
 
         store.cachedSearchResults = [hit]
-        store.selectedSearchResultIDs = [hit.id]
 
         store.persistToLibrary()
 
         #expect(canonicalSearchState(wfs, workflow: .threeOmega) == before)
-        #expect(store.selectedSearchResultIDs == [hit.id])
         #expect(store.cachedSearchResults == [hit])
     }
 
@@ -216,7 +210,6 @@ struct V537SaveModuleBoundaryTests {
     func ahePersistNilPNGIsContained() {
         let store = AHEWorkspaceStore()
         store.currentRunTrace = sentinelTrace(runID: "sentinel-ahe-png", workflowID: "ahe")
-        store.selectedSearchResultIDs = ["id-ahe"]
 
         store.persistToLibrary()
 
@@ -228,8 +221,6 @@ struct V537SaveModuleBoundaryTests {
         #expect(store.currentRunTrace?.runID == "sentinel-ahe-png")
         // Analysis output untouched
         #expect(store.ingestionResult == nil)
-        // Selection untouched
-        #expect(store.selectedSearchResultIDs == ["id-ahe"])
     }
 
     @MainActor
@@ -237,7 +228,6 @@ struct V537SaveModuleBoundaryTests {
     func xyPersistNilPNGIsContained() {
         let store = XYRotationWorkspaceStore()
         store.currentRunTrace = sentinelTrace(runID: "sentinel-xy-png", workflowID: "xy")
-        store.selectedSearchResultIDs = ["id-xy"]
 
         store.persistToLibrary()
 
@@ -247,7 +237,6 @@ struct V537SaveModuleBoundaryTests {
         #expect(store.persistenceOutcome == nil)
         #expect(store.currentRunTrace?.runID == "sentinel-xy-png")
         #expect(store.ingestionResult == nil)
-        #expect(store.selectedSearchResultIDs == ["id-xy"])
     }
 
     @MainActor
@@ -255,7 +244,6 @@ struct V537SaveModuleBoundaryTests {
     func threeOmegaPersistNilPNGIsContained() {
         let store = ThreeOmegaWorkspaceStore()
         store.currentRunTrace = sentinelTrace(runID: "sentinel-3w-png", workflowID: "3w")
-        store.selectedSearchResultIDs = ["id-3w"]
 
         store.persistToLibrary()
 
@@ -265,7 +253,6 @@ struct V537SaveModuleBoundaryTests {
         #expect(store.persistenceOutcome == nil)
         #expect(store.currentRunTrace?.runID == "sentinel-3w-png")
         #expect(store.ingestionResult == nil)
-        #expect(store.selectedSearchResultIDs == ["id-3w"])
     }
 
     // MARK: - 3: Nil manifest guard — save fields contained
@@ -280,7 +267,6 @@ struct V537SaveModuleBoundaryTests {
             for: .ahe
         )
         store.currentRunTrace = sentinelTrace(runID: "sentinel-ahe-mfst", workflowID: "ahe")
-        store.selectedSearchResultIDs = ["id-ahe-mfst"]
 
         store.persistToLibrary()
 
@@ -289,7 +275,6 @@ struct V537SaveModuleBoundaryTests {
         #expect(store.persistenceOutcome == nil)
         #expect(store.currentRunTrace?.runID == "sentinel-ahe-mfst")
         #expect(store.ingestionResult == nil)
-        #expect(store.selectedSearchResultIDs == ["id-ahe-mfst"])
     }
 
     @MainActor
@@ -301,7 +286,6 @@ struct V537SaveModuleBoundaryTests {
             for: .rxxVsPhi
         )
         store.currentRunTrace = sentinelTrace(runID: "sentinel-xy-mfst", workflowID: "xy")
-        store.selectedSearchResultIDs = ["id-xy-mfst"]
 
         store.persistToLibrary()
 
@@ -310,7 +294,6 @@ struct V537SaveModuleBoundaryTests {
         #expect(store.persistenceOutcome == nil)
         #expect(store.currentRunTrace?.runID == "sentinel-xy-mfst")
         #expect(store.ingestionResult == nil)
-        #expect(store.selectedSearchResultIDs == ["id-xy-mfst"])
     }
 
     @MainActor
@@ -322,7 +305,6 @@ struct V537SaveModuleBoundaryTests {
             for: .fieldSweep1omega
         )
         store.currentRunTrace = sentinelTrace(runID: "sentinel-3w-mfst", workflowID: "3w")
-        store.selectedSearchResultIDs = ["id-3w-mfst"]
 
         store.persistToLibrary()
 
@@ -331,7 +313,6 @@ struct V537SaveModuleBoundaryTests {
         #expect(store.persistenceOutcome == nil)
         #expect(store.currentRunTrace?.runID == "sentinel-3w-mfst")
         #expect(store.ingestionResult == nil)
-        #expect(store.selectedSearchResultIDs == ["id-3w-mfst"])
     }
 
     // MARK: - 4: Analysis output preserved after save failure (async UseCase path)
@@ -346,8 +327,14 @@ struct V537SaveModuleBoundaryTests {
             workflowDisplayName: "AHE",
             workflowCanonicalID: "ahe"
         )
-        let wfs = makeWorkbenchStore()
-        let snapshot = wfs.selectedHitsSnapshot(for: .ahe, selectedIDs: [hit.id], legacyHits: [hit])
+        let snapshot = WorkbenchSelectedHitsSnapshot(
+            workflowID: .ahe,
+            queryText: "",
+            selectedIDs: [hit.id],
+            selectedHits: [hit],
+            sourceHitCount: 1,
+            selectionSource: .canonicalSnapshot
+        )
 
         store.runAnalysis(selectedHitsSnapshot: snapshot)
         await waitForAHEAnalysis(store)
@@ -393,11 +380,13 @@ struct V537SaveModuleBoundaryTests {
             measurementFilePath: "Tests/SpinLabAppTests/TestData/XYRotation/xy_rotation_80K_sample.lvm",
             sourceFilePath: "Tests/SpinLabAppTests/TestData/XYRotation/xy_rotation_80K_sample.lvm"
         )
-        let wfs = makeWorkbenchStore()
-        let snapshot = wfs.selectedHitsSnapshot(
-            for: .xyRotation,
+        let snapshot = WorkbenchSelectedHitsSnapshot(
+            workflowID: .xyRotation,
+            queryText: "",
             selectedIDs: [hit.id],
-            legacyHits: [hit]
+            selectedHits: [hit],
+            sourceHitCount: 1,
+            selectionSource: .canonicalSnapshot
         )
 
         store.runAnalysis(selectedHitsSnapshot: snapshot)
@@ -439,11 +428,13 @@ struct V537SaveModuleBoundaryTests {
             measurementFilePath: "Tests/SpinLabAppTests/TestData/ThreeOmega/3w_0deg_T_4.999 K_Iac_0.001000 A.lvm",
             sourceFilePath: "Tests/SpinLabAppTests/TestData/ThreeOmega/3w_0deg_T_4.999 K_Iac_0.001000 A.lvm"
         )
-        let wfs = makeWorkbenchStore()
-        let snapshot = wfs.selectedHitsSnapshot(
-            for: .threeOmega,
+        let snapshot = WorkbenchSelectedHitsSnapshot(
+            workflowID: .threeOmega,
+            queryText: "",
             selectedIDs: [hit.id],
-            legacyHits: [hit]
+            selectedHits: [hit],
+            sourceHitCount: 1,
+            selectionSource: .canonicalSnapshot
         )
 
         store.runAnalysis(selectedHitsSnapshot: snapshot)
@@ -568,8 +559,14 @@ struct V537SaveModuleBoundaryTests {
             measurementFilePath: "Tests/SpinLabAppTests/TestData/XYRotation/xy_rotation_80K_sample.lvm",
             sourceFilePath: "Tests/SpinLabAppTests/TestData/XYRotation/xy_rotation_80K_sample.lvm"
         )
-        let wfs = makeWorkbenchStore()
-        let snapshot = wfs.selectedHitsSnapshot(for: .xyRotation, selectedIDs: [hit.id], legacyHits: [hit])
+        let snapshot = WorkbenchSelectedHitsSnapshot(
+            workflowID: .xyRotation,
+            queryText: "",
+            selectedIDs: [hit.id],
+            selectedHits: [hit],
+            sourceHitCount: 1,
+            selectionSource: .canonicalSnapshot
+        )
 
         store.runAnalysis(selectedHitsSnapshot: snapshot)
         await waitForXYAnalysis(store)
@@ -606,8 +603,14 @@ struct V537SaveModuleBoundaryTests {
             measurementFilePath: "Tests/SpinLabAppTests/TestData/ThreeOmega/3w_0deg_T_4.999 K_Iac_0.001000 A.lvm",
             sourceFilePath: "Tests/SpinLabAppTests/TestData/ThreeOmega/3w_0deg_T_4.999 K_Iac_0.001000 A.lvm"
         )
-        let wfs = makeWorkbenchStore()
-        let snapshot = wfs.selectedHitsSnapshot(for: .threeOmega, selectedIDs: [hit.id], legacyHits: [hit])
+        let snapshot = WorkbenchSelectedHitsSnapshot(
+            workflowID: .threeOmega,
+            queryText: "",
+            selectedIDs: [hit.id],
+            selectedHits: [hit],
+            sourceHitCount: 1,
+            selectionSource: .canonicalSnapshot
+        )
 
         store.runAnalysis(selectedHitsSnapshot: snapshot)
         await waitForThreeOmegaAnalysis(store)

@@ -159,6 +159,8 @@ final class WorkbenchFeatureStore {
     var searchMessages: [WorkbenchWorkflowID: String] = [:]
     @ObservationIgnored
     private lazy var mainSearchRuntime = WorkbenchMainSearchRuntime(store: self, dataActor: dataActor)
+    @ObservationIgnored
+    private lazy var selectionRuntime = WorkbenchSelectionRuntime()
 
     @ObservationIgnored
     private var archivedRecordsProjectionTask: Task<Void, Never>?
@@ -225,6 +227,10 @@ final class WorkbenchFeatureStore {
         self.threeOmegaWorkspace.vault = analysisVault
         self.xyRotationWorkspace.vault = analysisVault
         self.aheWorkspace.vault = analysisVault
+
+        self.aheWorkspace.selectionReader = { [weak self] in self?.selectionRuntime.selectedIDs(for: .ahe) ?? [] }
+        self.xyRotationWorkspace.selectionReader = { [weak self] in self?.selectionRuntime.selectedIDs(for: .xyRotation) ?? [] }
+        self.threeOmegaWorkspace.selectionReader = { [weak self] in self?.selectionRuntime.selectedIDs(for: .threeOmega) ?? [] }
     }
 
     deinit {
@@ -423,12 +429,53 @@ final class WorkbenchFeatureStore {
         mainSearchRuntime.searchSnapshot(for: wf)
     }
 
-    func selectedHitsSnapshot(
-        for wf: WorkbenchWorkflowID,
-        selectedIDs: Set<String>,
-        legacyHits: [WorkflowMeasurementSearchHit]
-    ) -> WorkbenchSelectedHitsSnapshot {
-        mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: selectedIDs, legacyHits: legacyHits)
+    // MARK: - Selection facade
+
+    func selectedSearchResultIDs(for wf: WorkbenchWorkflowID) -> Set<String> {
+        selectionRuntime.selectedIDs(for: wf)
+    }
+
+    func selectedCount(for wf: WorkbenchWorkflowID) -> Int {
+        selectionRuntime.selectedCount(for: wf)
+    }
+
+    func isAllSelected(for wf: WorkbenchWorkflowID) -> Bool {
+        selectionRuntime.isAllSelected(for: wf, denominator: denominatorHits(for: wf))
+    }
+
+    func toggleSearchHitSelection(_ id: String, for wf: WorkbenchWorkflowID) {
+        selectionRuntime.toggle(id, for: wf)
+    }
+
+    func selectAll(for wf: WorkbenchWorkflowID) {
+        selectionRuntime.selectAll(for: wf, denominator: denominatorHits(for: wf))
+    }
+
+    func deselectAll(for wf: WorkbenchWorkflowID) {
+        selectionRuntime.deselectAll(for: wf)
+    }
+
+    func seedSelection(_ ids: Set<String>, for wf: WorkbenchWorkflowID) {
+        selectionRuntime.seed(ids, for: wf)
+    }
+
+    func selectedHitsSnapshot(for wf: WorkbenchWorkflowID) -> WorkbenchSelectedHitsSnapshot {
+        let ids = selectionRuntime.selectedIDs(for: wf)
+        switch wf {
+        case .ahe:       return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, legacyHits: aheWorkspace.cachedSearchResults)
+        case .threeOmega: return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, legacyHits: threeOmegaWorkspace.cachedSearchResults)
+        case .xyRotation: return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, legacyHits: xyRotationWorkspace.cachedSearchResults)
+        }
+    }
+
+    private func denominatorHits(for wf: WorkbenchWorkflowID) -> [WorkflowMeasurementSearchHit] {
+        let canonical = mainSearchRuntime.searchResultsList(for: wf)
+        if !canonical.isEmpty { return canonical }
+        switch wf {
+        case .ahe:        return aheWorkspace.cachedSearchResults
+        case .threeOmega: return threeOmegaWorkspace.cachedSearchResults
+        case .xyRotation: return xyRotationWorkspace.cachedSearchResults
+        }
     }
 
     func selectedArchivedRecord() -> SpinLabDomain.ArchivedRecord? {

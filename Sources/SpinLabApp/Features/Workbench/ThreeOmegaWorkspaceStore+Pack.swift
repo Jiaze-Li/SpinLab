@@ -58,7 +58,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
             tabStates: tabs.snapshotStates(keyFor: { $0.stableKey }),
             chartStyleOverrides: tabs.chartStyleOverrides,
             cachedSearchResults: cachedSearchResults,
-            selectedSearchResultIDs: Array(selectedSearchResultIDs),
+            selectedSearchResultIDs: Array(selectionReader?() ?? []),
             selectedRTHit: selectedRTHit,
             rtQuery: rtQuery,
             searchQueryText: ""   // filled by caller at WorkbenchFeatureStore level
@@ -97,7 +97,8 @@ func autoPackLabel() -> String { _autoPackLabel() }
 
     func restoreFromPack(config: ThreeOmegaPackConfig, result: ThreeOmegaPackResult,
                          pack: AnalysisPack,
-                         restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void) {
+                         restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void,
+                         seedSelection: @escaping (Set<String>) -> Void) {
         // Restore analysis params
         geometry = config.geometry
         fitRanges = config.fitRanges
@@ -126,7 +127,7 @@ func autoPackLabel() -> String { _autoPackLabel() }
 
         // Restore search selection state
         cachedSearchResults = config.cachedSearchResults
-        selectedSearchResultIDs = Set(config.selectedSearchResultIDs)
+        seedSelection(Set(config.selectedSearchResultIDs))
 
         // Restore results
         ingestionResult = result.ingestionResult

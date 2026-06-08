@@ -65,7 +65,7 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
         XCTAssertTrue(clearPlot.contains("tabs.clearAll()"))
         XCTAssertTrue(clearPlot.contains("activePackID"))
 
-        XCTAssertTrue(clearResults.contains("selectedSearchResultIDs"))
+        XCTAssertFalse(clearResults.contains("selectedSearchResultIDs"))
         XCTAssertTrue(clearResults.contains("cachedSearchResults"))
         XCTAssertTrue(clearResults.contains("selectedRTHit"))
         XCTAssertFalse(clearResults.contains("ingestionResult"))

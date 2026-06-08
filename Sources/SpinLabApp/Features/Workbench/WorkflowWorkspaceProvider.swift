@@ -50,14 +50,9 @@ protocol ActiveChartProviding: AnyObject {
 @MainActor
 protocol WorkbenchWorkspaceProviding: WorkbenchPlottingStore, AnalysisPackProviding, ActiveChartProviding {
 
-    // MARK: Selection
+    // MARK: Search results (legacy mirror — used as snapshot denominator fallback)
 
     var cachedSearchResults: [WorkflowMeasurementSearchHit] { get }
-    var selectedSearchResultIDs: Set<String> { get set }
-    var isAllSelected: Bool { get }
-    func selectAll()
-    func deselectAll()
-    func toggleSearchHitSelection(_ id: String)
 
     // MARK: Execution
 

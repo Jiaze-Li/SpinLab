@@ -172,9 +172,16 @@ struct WorkbenchLoadPackPopover<Store: WorkbenchWorkspaceProviding>: View {
 
     private func load(_ id: AnalysisPack.ID) {
         let wfID: WorkbenchWorkflowID? = WorkbenchWorkflowID(rawValue: workflowID)
-        store.loadPack(id: id) { results, queryText in
-            guard let wfID else { return }
-            appState.workbench.restoreSearchState(results: results, queryText: queryText, for: wfID)
-        }
+        store.loadPack(
+            id: id,
+            restoreSearchState: { results, queryText in
+                guard let wfID else { return }
+                appState.workbench.restoreSearchState(results: results, queryText: queryText, for: wfID)
+            },
+            seedSelection: { ids in
+                guard let wfID else { return }
+                appState.workbench.seedSelection(ids, for: wfID)
+            }
+        )
     }
 }

@@ -10,11 +10,18 @@ import Testing
 struct V333AHEWorkspaceStoreIsolationTests {
 
     @MainActor
+    private func makeWFS() -> WorkbenchFeatureStore {
+        let persistence = LocalPersistenceStub(archivedRecords: [], projects: [])
+        return WorkbenchFeatureStore(libraryRepository: LibraryRepository(persistence: persistence))
+    }
+
+    @MainActor
     @Test("AHEWorkspaceStore initialises with correct zero state")
     func initialStateIsZero() {
-        let store = AHEWorkspaceStore()
+        let wfs = makeWFS()
+        let store = wfs.aheWorkspace
 
-        #expect(store.selectedSearchResultIDs.isEmpty)
+        #expect(wfs.selectedSearchResultIDs(for: .ahe).isEmpty)
         #expect(store.tabs.activeImageData == nil)
         #expect(store.isPlotRendering == false)
         #expect(store.plotMessage == nil)
@@ -37,25 +44,26 @@ struct V333AHEWorkspaceStoreIsolationTests {
     @MainActor
     @Test("toggleSearchHitSelection adds and removes IDs correctly")
     func toggleSelectionRoundTrips() {
-        let store = AHEWorkspaceStore()
+        let wfs = makeWFS()
 
-        store.toggleSearchHitSelection("id-1")
-        #expect(store.selectedSearchResultIDs == ["id-1"])
+        wfs.toggleSearchHitSelection("id-1", for: .ahe)
+        #expect(wfs.selectedSearchResultIDs(for: .ahe) == ["id-1"])
 
-        store.toggleSearchHitSelection("id-2")
-        #expect(store.selectedSearchResultIDs == ["id-1", "id-2"])
+        wfs.toggleSearchHitSelection("id-2", for: .ahe)
+        #expect(wfs.selectedSearchResultIDs(for: .ahe) == ["id-1", "id-2"])
 
-        store.toggleSearchHitSelection("id-1")
-        #expect(store.selectedSearchResultIDs == ["id-2"])
+        wfs.toggleSearchHitSelection("id-1", for: .ahe)
+        #expect(wfs.selectedSearchResultIDs(for: .ahe) == ["id-2"])
     }
 
     @MainActor
     @Test("clearPlot resets plot state; selection and manager-level settings preserved")
     func clearPlotResetsState() {
-        let store = AHEWorkspaceStore()
+        let wfs = makeWFS()
+        let store = wfs.aheWorkspace
 
         // Seed some state
-        store.toggleSearchHitSelection("id-1")
+        wfs.toggleSearchHitSelection("id-1", for: .ahe)
         store.tabs.updateTitleOverride("My Plot")
         store.tabs.showPlotGrid = true
         store.tabs.legendAnchor = "top-left"
@@ -77,8 +85,8 @@ struct V333AHEWorkspaceStoreIsolationTests {
         #expect(store.tabs.activeState.yLabelOverride == "")
         #expect(store.tabs.activeLayout == nil)
 
-        // selection is NOT cleared by clearPlot (clearResults handles that)
-        #expect(!store.selectedSearchResultIDs.isEmpty)
+        // selection lives in the runtime, not cleared by clearPlot
+        #expect(!wfs.selectedSearchResultIDs(for: .ahe).isEmpty)
         // manager-level settings (grid, legendAnchor) persist across clear
         #expect(store.tabs.showPlotGrid == true)
         #expect(store.tabs.legendAnchor == "top-left")

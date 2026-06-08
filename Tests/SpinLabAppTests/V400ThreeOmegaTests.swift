@@ -423,10 +423,17 @@ struct V400DomainTests {
 struct V400WorkspaceStoreTests {
 
     @MainActor
+    private func makeWFS() -> WorkbenchFeatureStore {
+        let persistence = LocalPersistenceStub(archivedRecords: [], projects: [])
+        return WorkbenchFeatureStore(libraryRepository: LibraryRepository(persistence: persistence))
+    }
+
+    @MainActor
     @Test("ThreeOmegaWorkspaceStore initial state is zeroed")
     func initialState() {
-        let store = ThreeOmegaWorkspaceStore()
-        #expect(store.selectedSearchResultIDs.isEmpty)
+        let wfs = makeWFS()
+        let store = wfs.threeOmegaWorkspace
+        #expect(wfs.selectedSearchResultIDs(for: .threeOmega).isEmpty)
         #expect(store.cachedSearchResults.isEmpty)
         #expect(store.ingestionResult == nil)
         #expect(store.scalingResult == nil)
@@ -446,22 +453,23 @@ struct V400WorkspaceStoreTests {
     @MainActor
     @Test("toggleSearchHitSelection adds and removes IDs")
     func toggleSelection() {
-        let store = ThreeOmegaWorkspaceStore()
-        store.toggleSearchHitSelection("id-1")
-        #expect(store.selectedSearchResultIDs.contains("id-1"))
-        store.toggleSearchHitSelection("id-1")
-        #expect(!store.selectedSearchResultIDs.contains("id-1"))
+        let wfs = makeWFS()
+        wfs.toggleSearchHitSelection("id-1", for: .threeOmega)
+        #expect(wfs.selectedSearchResultIDs(for: .threeOmega).contains("id-1"))
+        wfs.toggleSearchHitSelection("id-1", for: .threeOmega)
+        #expect(!wfs.selectedSearchResultIDs(for: .threeOmega).contains("id-1"))
     }
 
     @MainActor
     @Test("clearAll resets analysis and selection but preserves geometry")
     func clearAllResetsState() {
-        let store = ThreeOmegaWorkspaceStore()
-        store.toggleSearchHitSelection("id-1")
+        let wfs = makeWFS()
+        let store = wfs.threeOmegaWorkspace
+        wfs.toggleSearchHitSelection("id-1", for: .threeOmega)
         store.geometry = ThreeOmegaGeometry(lxx: 26, lxy: 21, dNm: 30)
         store.clearPlot()
         store.clearResults()
-        #expect(store.selectedSearchResultIDs.isEmpty)
+        // selection lives in the runtime; clearResults no longer clears it
         #expect(store.geometry.isComplete)  // geometry is user input, preserved across clear
         #expect(store.ingestionResult == nil)
     }

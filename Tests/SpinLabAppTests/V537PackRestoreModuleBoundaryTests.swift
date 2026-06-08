@@ -222,9 +222,9 @@ struct V537PackRestoreModuleBoundaryTests {
         let (config, result, pack) = try makeThreeOmegaPack(hits: hits, selectedIDs: [hits[0].id])
         var callbackFired = false
 
-        store.restoreFromPack(config: config, result: result, pack: pack) { _, _ in
-            callbackFired = true
-        }
+        store.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { _, _ in callbackFired = true },
+            seedSelection: { _ in })
 
         #expect(callbackFired, "restoreSearchState callback must be called during restore")
         #expect(
@@ -241,9 +241,9 @@ struct V537PackRestoreModuleBoundaryTests {
         let (config, result, pack) = try makeXYPack(hits: hits, selectedIDs: [hits[0].id])
         var callbackFired = false
 
-        store.restoreFromPack(config: config, result: result, pack: pack) { _, _ in
-            callbackFired = true
-        }
+        store.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { _, _ in callbackFired = true },
+            seedSelection: { _ in })
 
         #expect(callbackFired, "restoreSearchState callback must be called during restore")
         #expect(
@@ -257,7 +257,7 @@ struct V537PackRestoreModuleBoundaryTests {
     @MainActor
     @Test("3ω restore: isAllSelected true when all 2 hits are selected")
     func threeOmegaRestoreIsAllSelectedAllSelected() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let wfs = makeWFS()
         let hits = [
             makeHit(id: "3w-sel-a", workflowID: "3w", workflowCanonicalID: "threeOmega"),
             makeHit(id: "3w-sel-b", workflowID: "3w", workflowCanonicalID: "threeOmega",
@@ -265,20 +265,22 @@ struct V537PackRestoreModuleBoundaryTests {
         ]
         let (config, result, pack) = try makeThreeOmegaPack(hits: hits, selectedIDs: hits.map(\.id))
 
-        store.restoreFromPack(config: config, result: result, pack: pack) { _, _ in }
+        wfs.threeOmegaWorkspace.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { h, q in wfs.restoreSearchState(results: h, queryText: q, for: .threeOmega) },
+            seedSelection: { ids in wfs.seedSelection(ids, for: .threeOmega) })
 
-        #expect(store.cachedSearchResults.count == 2,
+        #expect(wfs.threeOmegaWorkspace.cachedSearchResults.count == 2,
                 "cachedSearchResults must reflect all restored hits")
-        #expect(store.selectedSearchResultIDs.count == 2,
+        #expect(wfs.selectedSearchResultIDs(for: .threeOmega).count == 2,
                 "selectedSearchResultIDs must reflect all restored selected IDs")
-        #expect(store.isAllSelected,
+        #expect(wfs.isAllSelected(for: .threeOmega),
                 "isAllSelected must be true when all restored hits are selected; regression guard for restore ordering errors")
     }
 
     @MainActor
     @Test("3ω restore: isAllSelected false when only 1 of 2 hits is selected")
     func threeOmegaRestoreIsAllSelectedPartial() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let wfs = makeWFS()
         let hits = [
             makeHit(id: "3w-part-a", workflowID: "3w", workflowCanonicalID: "threeOmega"),
             makeHit(id: "3w-part-b", workflowID: "3w", workflowCanonicalID: "threeOmega",
@@ -288,18 +290,20 @@ struct V537PackRestoreModuleBoundaryTests {
             hits: hits, selectedIDs: [hits[0].id]
         )
 
-        store.restoreFromPack(config: config, result: result, pack: pack) { _, _ in }
+        wfs.threeOmegaWorkspace.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { h, q in wfs.restoreSearchState(results: h, queryText: q, for: .threeOmega) },
+            seedSelection: { ids in wfs.seedSelection(ids, for: .threeOmega) })
 
-        #expect(store.cachedSearchResults.count == 2)
-        #expect(store.selectedSearchResultIDs.count == 1)
-        #expect(!store.isAllSelected,
+        #expect(wfs.threeOmegaWorkspace.cachedSearchResults.count == 2)
+        #expect(wfs.selectedSearchResultIDs(for: .threeOmega).count == 1)
+        #expect(!wfs.isAllSelected(for: .threeOmega),
                 "isAllSelected must be false when only 1 of 2 restored hits is selected")
     }
 
     @MainActor
     @Test("XY restore: isAllSelected true when all 2 hits are selected")
     func xyRestoreIsAllSelectedAllSelected() throws {
-        let store = XYRotationWorkspaceStore()
+        let wfs = makeWFS()
         let hits = [
             makeHit(id: "xy-sel-a", workflowID: "xy", workflowCanonicalID: "xyRotation"),
             makeHit(id: "xy-sel-b", workflowID: "xy", workflowCanonicalID: "xyRotation",
@@ -307,18 +311,20 @@ struct V537PackRestoreModuleBoundaryTests {
         ]
         let (config, result, pack) = try makeXYPack(hits: hits, selectedIDs: hits.map(\.id))
 
-        store.restoreFromPack(config: config, result: result, pack: pack) { _, _ in }
+        wfs.xyRotationWorkspace.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { h, q in wfs.restoreSearchState(results: h, queryText: q, for: .xyRotation) },
+            seedSelection: { ids in wfs.seedSelection(ids, for: .xyRotation) })
 
-        #expect(store.cachedSearchResults.count == 2)
-        #expect(store.selectedSearchResultIDs.count == 2)
-        #expect(store.isAllSelected,
+        #expect(wfs.xyRotationWorkspace.cachedSearchResults.count == 2)
+        #expect(wfs.selectedSearchResultIDs(for: .xyRotation).count == 2)
+        #expect(wfs.isAllSelected(for: .xyRotation),
                 "isAllSelected must be true when all restored hits are selected")
     }
 
     @MainActor
     @Test("AHE restore: isAllSelected true when all 2 hits are selected")
     func aheRestoreIsAllSelectedAllSelected() throws {
-        let store = AHEWorkspaceStore()
+        let wfs = makeWFS()
         let hits = [
             makeHit(id: "ahe-sel-a", workflowID: "ahe", workflowCanonicalID: "ahe"),
             makeHit(id: "ahe-sel-b", workflowID: "ahe", workflowCanonicalID: "ahe",
@@ -334,11 +340,13 @@ struct V537PackRestoreModuleBoundaryTests {
             hits: hits, selectedIDs: hits.map(\.id), ingestionResult: ingestion
         )
 
-        store.restoreFromPack(config: config, result: result, pack: pack) { _, _ in }
+        wfs.aheWorkspace.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { h, q in wfs.restoreSearchState(results: h, queryText: q, for: .ahe) },
+            seedSelection: { ids in wfs.seedSelection(ids, for: .ahe) })
 
-        #expect(store.cachedSearchResults.count == 2)
-        #expect(store.selectedSearchResultIDs.count == 2)
-        #expect(store.isAllSelected,
+        #expect(wfs.aheWorkspace.cachedSearchResults.count == 2)
+        #expect(wfs.selectedSearchResultIDs(for: .ahe).count == 2)
+        #expect(wfs.isAllSelected(for: .ahe),
                 "isAllSelected must be true when all restored hits are selected")
     }
 
@@ -364,10 +372,14 @@ struct V537PackRestoreModuleBoundaryTests {
             ingestionResult: nil
         )
 
-        store.restoreFromPack(config: config, result: result, pack: pack) { hits, query in
-            callbackHits = hits
-            callbackQuery = query
-        }
+        var seededIDs: Set<String> = []
+        store.selectionReader = { seededIDs }
+        store.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { hits, query in
+                callbackHits = hits
+                callbackQuery = query
+            },
+            seedSelection: { ids in seededIDs = ids })
 
         // restoreSearchState callback must have been called with the packed hits before runAnalysis().
         #expect(callbackHits == [hit],
@@ -382,11 +394,11 @@ struct V537PackRestoreModuleBoundaryTests {
             "Legacy path must activate runAnalysis(); the empty-selection guard message confirms it ran"
         )
 
-        // cachedSearchResults and selectedSearchResultIDs were set before runAnalysis().
+        // cachedSearchResults and seeded selection were set before runAnalysis().
         #expect(store.cachedSearchResults == [hit],
                 "cachedSearchResults must be restored from pack before runAnalysis() is called")
-        #expect(store.selectedSearchResultIDs.isEmpty,
-                "selectedSearchResultIDs reflects the packed empty selection")
+        #expect(seededIDs.isEmpty,
+                "seeded selection reflects the packed empty selection")
 
         // No successful analysis completed (guard returned early), so trace was not committed.
         #expect(
@@ -441,7 +453,8 @@ struct V537PackRestoreModuleBoundaryTests {
         let hits = [makeHit(id: "3w-session", workflowID: "3w", workflowCanonicalID: "threeOmega")]
         let (config, result, pack) = try makeThreeOmegaPack(hits: hits, selectedIDs: [hits[0].id])
 
-        store.restoreFromPack(config: config, result: result, pack: pack) { _, _ in }
+        store.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { _, _ in }, seedSelection: { _ in })
 
         #expect(store.persistenceOutcome == nil,
                 "restore must not write persistenceOutcome — it is session-only, owned by Save Module")
@@ -456,7 +469,8 @@ struct V537PackRestoreModuleBoundaryTests {
         let hits = [makeHit(id: "xy-session", workflowID: "xy", workflowCanonicalID: "xyRotation")]
         let (config, result, pack) = try makeXYPack(hits: hits, selectedIDs: [hits[0].id])
 
-        store.restoreFromPack(config: config, result: result, pack: pack) { _, _ in }
+        store.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { _, _ in }, seedSelection: { _ in })
 
         #expect(store.persistenceOutcome == nil,
                 "restore must not write persistenceOutcome — it is session-only, owned by Save Module")
@@ -479,7 +493,8 @@ struct V537PackRestoreModuleBoundaryTests {
             hits: hits, selectedIDs: [hits[0].id], ingestionResult: ingestion
         )
 
-        store.restoreFromPack(config: config, result: result, pack: pack) { _, _ in }
+        store.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { _, _ in }, seedSelection: { _ in })
 
         #expect(store.persistenceOutcome == nil,
                 "restore must not write persistenceOutcome — it is session-only, owned by Save Module")
@@ -510,9 +525,9 @@ struct V537PackRestoreModuleBoundaryTests {
             hits: [threeHit], selectedIDs: [threeHit.id]
         )
 
-        wfs.threeOmegaWorkspace.restoreFromPack(config: config, result: result, pack: pack) { hits, query in
-            wfs.restoreSearchState(results: hits, queryText: query, for: .threeOmega)
-        }
+        wfs.threeOmegaWorkspace.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { hits, query in wfs.restoreSearchState(results: hits, queryText: query, for: .threeOmega) },
+            seedSelection: { _ in })
 
         // AHE canonical must be unchanged by the 3ω restore.
         #expect(wfs.searchQueryText(for: .ahe) == aheQueryBefore,
@@ -548,9 +563,9 @@ struct V537PackRestoreModuleBoundaryTests {
         let xyHit = makeHit(id: "xy-cb", workflowID: "xy", workflowCanonicalID: "xyRotation")
         let (config, result, pack) = try makeXYPack(hits: [xyHit], selectedIDs: [xyHit.id])
 
-        wfs.xyRotationWorkspace.restoreFromPack(config: config, result: result, pack: pack) { hits, query in
-            wfs.restoreSearchState(results: hits, queryText: query, for: .xyRotation)
-        }
+        wfs.xyRotationWorkspace.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { hits, query in wfs.restoreSearchState(results: hits, queryText: query, for: .xyRotation) },
+            seedSelection: { _ in })
 
         // 3ω canonical must be unchanged by the XY restore.
         #expect(wfs.searchQueryText(for: .threeOmega) == threeQueryBefore,
@@ -576,7 +591,8 @@ struct V537PackRestoreModuleBoundaryTests {
         let hits = [makeHit(id: "3w-packid", workflowID: "3w", workflowCanonicalID: "threeOmega")]
         let (config, result, pack) = try makeThreeOmegaPack(hits: hits, selectedIDs: [hits[0].id])
 
-        store.restoreFromPack(config: config, result: result, pack: pack) { _, _ in }
+        store.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { _, _ in }, seedSelection: { _ in })
 
         #expect(
             store.activePackID == nil,
@@ -591,7 +607,8 @@ struct V537PackRestoreModuleBoundaryTests {
         let hits = [makeHit(id: "xy-packid", workflowID: "xy", workflowCanonicalID: "xyRotation")]
         let (config, result, pack) = try makeXYPack(hits: hits, selectedIDs: [hits[0].id])
 
-        store.restoreFromPack(config: config, result: result, pack: pack) { _, _ in }
+        store.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { _, _ in }, seedSelection: { _ in })
 
         #expect(
             store.activePackID == nil,

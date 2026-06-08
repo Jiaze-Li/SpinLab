@@ -22,6 +22,22 @@
 | Condition projection from Rules lives in Workbench store | `coordination_surface` (`SP-002`) | Verify rule reload path when editing condition definitions or Workbench condition options. |
 | Workbench search reads Library sidecars and Import semantics | `coordination_surface` (`SP-009`) | Sample key semantics affect search, ingestion, and drawer matching together. |
 
+## Deferred Boundary Debt
+
+### Library Search — Workflow ID Alias Expansion
+
+> Not blocking Inbox → Library archival. Recorded for future Search/Rules integration gate.
+
+Library and Workbench search currently perform workflow ID alias expansion via hardcoded mappings (e.g. `RT`, `MR`, `IV` → canonical workflow IDs). Rules Book-defined workflow IDs can be stored in Library sidecars, but alias expansion is not driven by the Rules Book — it is resolved in the search layer using a fixed alias table.
+
+**What still works:** raw workflow ID search continues to function correctly. Measurements stored under Rules Book-defined IDs (e.g. `RT`) are findable by that exact ID string.
+
+**What is deferred:** alias resolution that would let search understand workflow ID synonyms as declared by the Rules Book rather than as a hardcoded table. This means a user querying by one alias form may not hit results stored under a different alias form unless both happen to be in the hardcoded table.
+
+**Future gate:** a Search/Rules integration gate should replace the hardcoded workflow alias expansion with Rules Book-driven workflow alias metadata. At that point the alias table becomes a runtime projection from the Rules Book, and new workflow IDs defined in the Rules Book automatically participate in search aliasing without a code change.
+
+**Risk surface:** `coordination_surface` between the Search module and Rules Book. Any Rules Book change that adds or renames workflow IDs does not automatically update search alias expansion until this debt is resolved.
+
 ## Search Module Contract Notes (Phase 5A)
 
 > The Search module is a default Main Board module (formerly referred to as Search Shell).

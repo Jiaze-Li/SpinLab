@@ -24,7 +24,7 @@ struct V331AHEWorkspaceViewExtractionTests {
         let wfs = WorkbenchFeatureStore(
             libraryRepository: LibraryRepository(persistence: persistence)
         )
-        wfs.aheWorkspace.toggleSearchHitSelection("probe")
-        #expect(wfs.aheWorkspace.selectedSearchResultIDs == ["probe"])
+        wfs.toggleSearchHitSelection("probe", for: .ahe)
+        #expect(wfs.selectedSearchResultIDs(for: .ahe) == ["probe"])
     }
 }

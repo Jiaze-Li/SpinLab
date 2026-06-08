@@ -70,7 +70,6 @@ struct V537XYSearchSnapshotConsumptionTests {
 
         // Cache contains stale data only; selected snapshot must win.
         store.cachedSearchResults = [stale]
-        store.selectedSearchResultIDs = [stale.id]
 
         // Snapshot carries selected hits in reverse file-path order.
         let snapshot = makeSelectedHitsSnapshot(selectedHits: [hitB, hitA])
@@ -101,7 +100,6 @@ struct V537XYSearchSnapshotConsumptionTests {
 
         // Cache contains hitB only — the selected hit (hitA) is absent.
         store.cachedSearchResults = [hitB]
-        store.selectedSearchResultIDs = [hitA.id]
 
         // nil snapshot → must fall back to cachedSearchResults → hitA not found → guard fires.
         store.runAnalysis(selectedHitsSnapshot: nil)
@@ -123,7 +121,6 @@ struct V537XYSearchSnapshotConsumptionTests {
 
         // Pack-restore path: cache is populated with the selected hit.
         store.cachedSearchResults = [hitA]
-        store.selectedSearchResultIDs = [hitA.id]
 
         // No-arg call (pack restore, legacy) → runAnalysis(searchSnapshot: nil) → cache used → guard passes.
         store.runAnalysis()
@@ -151,7 +148,6 @@ struct V537XYSearchSnapshotConsumptionTests {
         )
 
         store.cachedSearchResults = []
-        store.selectedSearchResultIDs = [hitA.id]
         store.runAnalysis(searchSnapshot: snapshot)
 
         #expect(store.isAnalyzing == true,

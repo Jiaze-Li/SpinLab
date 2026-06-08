@@ -74,22 +74,22 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 
 ### Selection
 
-- Classification: Boundary debt.
-- Target owner: Module-owned — common Selection module.
-- Exit condition: selected IDs, select/deselect actions, select-all denominator, and selected-hit snapshot construction have one canonical Selection owner or a formally documented mirror bridge with pack-compatible decode/restore tests.
+- Classification: Module-owned — common module.
+- Canonical owner: `WorkbenchSelectionRuntime` (extracted in Gate 7.2).
 - Current implementation files:
+  - `Sources/SpinLabApp/App/State/WorkbenchSelectionRuntime.swift`
   - `Sources/SpinLabApp/App/State/WorkbenchSelectedHitsSnapshot.swift`
   - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceShell.swift`
   - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift`
-  - workflow-local selection fields/methods in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore+Selection.swift`
 - Current consumers: `WorkflowWorkspaceShell`, all workflow stores, analysis entry points, pack contracts, restore paths.
-- Target state it would own: selected hit IDs, select/deselect/toggle/select-all actions, selected count, all-selected projection, and run-scoped `WorkbenchSelectedHitsSnapshot`.
-- Target state it must not own: query text, search execution, search running/message state, ingestion/output, pack vault state, plot output, save state.
+- State it owns: workflow-keyed selected IDs, select/deselect/toggle/selectAll/deselectAll mutations, selectedCount, isAllSelected, and the seed path for pack restore.
+- State it must not own: query text, search execution, search running/message state, ingestion/output, pack vault state, plot output, save state, 3ω RT auxiliary state.
 - How workflow-specific semantics enter: only through selected hits handed to workflow analysis; selection itself must not infer file meaning.
-- Pack/restore implications: pack configs serialize selected IDs; restore must write selected IDs before rerender and keep denominator mirror aligned.
-- Tests currently protecting it: `V537WorkbenchSelectionShellTests`, `V537WorkbenchSelectedHitsSnapshotTests`, `V538SelectedHitsBridgeAuditTests`, `V537PackRestoreModuleBoundaryTests`, search snapshot consumption tests for AHE/XY/3ω.
-- Extraction readiness: medium-low. Snapshot contract is ready; canonical selected IDs still live in each workflow store.
-- Risks if extracted too early: select-all denominator mismatch, nil-snapshot restore fallback breakage, analysis triggered with unselected or stale hits.
+- Workflow-local selectionReader bridges: `AHEWorkspaceStore.selectionReader`, `XYRotationWorkspaceStore.selectionReader`, and `ThreeOmegaWorkspaceStore.selectionReader` are read-only closures injected by `WorkbenchFeatureStore`. They are non-canonical compatibility read surfaces for pack serialization and analysis denomination only. They do not own selection state.
+- Select-all denominator: passed explicitly to `WorkbenchSelectionRuntime.selectAll(for:denominator:)` by the facade; not independently computed per workflow.
+- Pack/restore implications: pack configs serialize selected IDs; restore writes selected IDs through `WorkbenchFeatureStore.seedSelection()` → `WorkbenchSelectionRuntime.seed()`.
+- Tests currently protecting it: `V537WorkbenchSelectionShellTests`, `V537WorkbenchSelectedHitsSnapshotTests`, `V538SelectedHitsBridgeAuditTests`, `V537PackRestoreModuleBoundaryTests`, `V537AnalysisLifecycleBoundaryTests`, `V537SaveModuleBoundaryTests`, search snapshot consumption tests for AHE/XY/3ω.
+- Extraction state: complete (Gate 7.2). `WorkbenchSelectionRuntime` is the canonical selection owner.
 
 ### Secondary Input Search
 
@@ -383,21 +383,21 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Selection Module must not mutate query/results/running/message except through explicit Search Module API
 - Select All denominator must be explicit; current transition denominator is workflow-local `cachedSearchResults`
 
-## Selection Boundary (Phase 5C-1A)
+## Selection Boundary (Gate 7.2 complete)
 
-- Canonical owner (target contract): Selection Module (formerly SelectionShell)
-- Current owner (transition): workflow stores (`AHEWorkspaceStore`, `XYRotationWorkspaceStore`, `ThreeOmegaWorkspaceStore`)
-- Canonical state (contract):
-  - `selectedSearchResultIDs`
-  - selection mutations (`toggle`, `selectAll`, `deselectAll`, `clearSelection`)
-  - `selectedCount` / `isAllSelected`
-  - run-scoped `selectedHitsSnapshot`
-- Current transition state (Phase 5C-3 checkpoint):
-  - `selectedSearchResultIDs` remains workflow-local
-  - `WorkbenchSelectedHitsSnapshot` is now the run-scoped selected-hit read surface (Phase 5C complete)
+- Canonical owner: `WorkbenchSelectionRuntime`
+- Canonical state:
+  - workflow-keyed `selectedIDsByWorkflow` (private; read through `selectedIDs(for:)`)
+  - selection mutations: `toggle(_:for:)`, `selectAll(for:denominator:)`, `deselectAll(for:)`, `seed(_:for:)` (pack restore path)
+  - `selectedCount(for:)` / `isAllSelected(for:denominator:)`
+  - run-scoped `WorkbenchSelectedHitsSnapshot` (built by `WorkbenchMainSearchRuntime`, read from runtime)
+- Gate 7.2 state (closed):
+  - `WorkbenchSelectionRuntime` is the canonical selection owner; selected IDs no longer live in workflow stores
+  - `WorkbenchSelectedHitsSnapshot` is the run-scoped selected-hit read surface (Phase 5C established; Gate 7.2 confirms runtime path)
   - `cachedSearchResults` remains local mirror / selection denominator / pack compatibility
   - `legacyHits` parameter in `WorkbenchSelectedHitsSnapshot` factory is the explicit bridge from mirror to ephemeral snapshot
-  - duplicate-state bridge is intentional and deferred — rename/removal awaits Save / Pack Module work
+  - workflow-local `selectionReader` closures (`AHEWorkspaceStore`, `XYRotationWorkspaceStore`, `ThreeOmegaWorkspaceStore`) are non-canonical read surfaces injected by `WorkbenchFeatureStore`; they do not own selection state
+  - duplicate-state bridge (selectionReader) is intentional and deferred — removal awaits Save / Pack Module work
 
 ### Selection Module does not own
 
@@ -443,12 +443,13 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - workflow functions must not own top-level search query/results/running/message
 - analysis and rerender paths must not mutate Search Module lifecycle state
 
-### Current state and migration direction (Phase 5C-3)
+### Current state and migration direction (Gate 7.2 complete)
 
 - `WorkbenchSearchSnapshot` is the canonical run-scoped search read surface (Phase 5A complete).
-- `WorkbenchSelectedHitsSnapshot` is the run-scoped selected-hit read surface (Phase 5C complete).
+- `WorkbenchSelectedHitsSnapshot` is the run-scoped selected-hit read surface (Phase 5C established; Gate 7.2 confirms runtime path).
+- `WorkbenchSelectionRuntime` is the canonical selected-IDs owner (Gate 7.2 complete).
 - `cachedSearchResults` mirrors canonical search results into workflow-local store; also serves as pack-compat field, selection denominator, and nil-snapshot fallback.
-- No current path incorrectly reads `cachedSearchResults` when a snapshot is available (verified Phase 5C-3 audit).
+- No current path incorrectly reads `cachedSearchResults` when a snapshot is available (verified Phase 5C-3 audit; confirmed Gate 7.2 audit).
 - `cachedSearchResults` will not be renamed until Save / Pack Module work; rename requires pack `CodingKey` backward compatibility handling.
 - Search Module remains canonical query/results/running/message owner.
 
@@ -714,7 +715,7 @@ Tests: `V537WorkflowShellPhase4Tests` (AHE + XY), `V563WorkflowStateBoundaryTest
 - Chart identity:
   - `WorkbenchChartIdentity.makeIdentityKey(from:)` identifies persisted chart artifacts.
 - Remaining duplicate identity surfaces:
-  - `selectedSearchResultIDs` duplicates information already present in `cachedSearchResults`.
+  - `selectionReader` closures in workflow stores duplicate selected-IDs read access already owned by `WorkbenchSelectionRuntime`; deferred until Save / Pack Module work removes the need.
   - legacy Int-string series keys still exist in `TabRenderState` migration paths.
 
 ### Workflow ID Mapping

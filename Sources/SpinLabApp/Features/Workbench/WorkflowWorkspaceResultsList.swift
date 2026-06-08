@@ -41,13 +41,13 @@ struct WorkflowWorkspaceResultsList<Store: WorkbenchWorkspaceProviding>: View {
                             }
                         }
                         ForEach(results) { hit in
-                            let isSelected = store.selectedSearchResultIDs.contains(hit.id)
+                            let isSelected = workbench.selectedSearchResultIDs(for: workflowID).contains(hit.id)
                             WorkflowHitRow(
                                 hit: hit,
                                 isSelected: isSelected,
                                 numericDisplay: store.cachedSampleNumericDisplay[hit.sampleKey] ?? [:]
                             ) {
-                                store.toggleSearchHitSelection(hit.id)
+                                workbench.toggleSearchHitSelection(hit.id, for: workflowID)
                             }
                         }
                     }

@@ -12,14 +12,11 @@ final class ThreeOmegaWorkspaceStore {
 
     @ObservationIgnored let env: WorkbenchEnvironment
 
-    // MARK: - Search / Selection
+    // MARK: - Search / Selection bridge
 
-    var selectedSearchResultIDs: Set<String> = []
     var cachedSearchResults: [WorkflowMeasurementSearchHit] = []
-
-    var isAllSelected: Bool {
-        !cachedSearchResults.isEmpty && selectedSearchResultIDs.count == cachedSearchResults.count
-    }
+    /// Injected by WorkbenchFeatureStore; returns current selected IDs from WorkbenchSelectionRuntime.
+    var selectionReader: (() -> Set<String>)?
 
     // MARK: - RT file search (independent of main 3w search)
 

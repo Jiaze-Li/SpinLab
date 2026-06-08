@@ -218,8 +218,8 @@ struct V537WorkbenchSearchMirrorTests {
     /// Migration direction: once cachedSearchResults is removed and runAnalysis() receives
     /// a snapshot, isAllSelected will derive from the same canonical source as searchResultsList.
     @MainActor
-    @Test("isAllSelected denominator is workflow-local cachedSearchResults, not WFS canonical")
-    func isAllSelectedUsesLocalCacheDenominator() {
+    @Test("isAllSelected denominator prefers WFS canonical searchResults over workflow-local cache")
+    func isAllSelectedUsesCanonicalDenominator() {
         let wfs = makeWFS()
         let hit1 = makeHit(id: "h1")
         let hit2 = makeHit(id: "h2", sampleKey: "PN32|o|STO|111")
@@ -228,16 +228,17 @@ struct V537WorkbenchSearchMirrorTests {
         wfs.restoreSearchState(results: [hit1, hit2], queryText: "ahe pn31", for: .ahe)
         wfs.aheWorkspace.cachedSearchResults = [hit1]
 
-        wfs.aheWorkspace.selectAll()
+        wfs.selectAll(for: .ahe)
 
-        // isAllSelected uses local count (1), selectedIDs now has 1 ID.
-        #expect(wfs.aheWorkspace.isAllSelected,
-                "isAllSelected reflects local cache count (1), so selectAll on 1 hit → isAllSelected")
-        #expect(wfs.aheWorkspace.selectedSearchResultIDs == [hit1.id])
+        // selectAll uses canonical denominator (2 hits) — both are selected.
+        #expect(wfs.isAllSelected(for: .ahe),
+                "isAllSelected true: selectAll selected both canonical hits")
+        #expect(wfs.selectedSearchResultIDs(for: .ahe) == Set([hit1.id, hit2.id]),
+                "Both canonical hits are selected, not just the local-cache hit")
 
-        // WFS canonical still has 2 — isAllSelected ignores this.
+        // WFS canonical still has 2.
         #expect(wfs.searchResultsList(for: .ahe).count == 2,
-                "WFS canonical still has 2 hits; isAllSelected did not consult it")
+                "WFS canonical still has 2 hits")
     }
 
     // MARK: - 5. searchResultsList reads from WFS canonical, not local cache
@@ -377,7 +378,7 @@ struct V537WorkbenchSearchMirrorTests {
 
         wfs.restoreSearchState(results: [hit], queryText: "ahe pn31", for: .ahe)
         wfs.aheWorkspace.cachedSearchResults = [hit]
-        wfs.aheWorkspace.selectedSearchResultIDs = [hit.id]
+        wfs.seedSelection([hit.id], for: .ahe)
 
         wfs.setSearchQueryText("   ", for: .ahe)
         wfs.runWorkflowMeasurementSearch(workflowID: .ahe, libraryRootPath: "/tmp/fake-root")
@@ -386,7 +387,7 @@ struct V537WorkbenchSearchMirrorTests {
                 "Canonical results must be cleared on empty query")
         #expect(wfs.aheWorkspace.cachedSearchResults.isEmpty,
                 "Workflow mirror must be cleared on empty query")
-        #expect(wfs.aheWorkspace.selectedSearchResultIDs.isEmpty,
+        #expect(wfs.selectedSearchResultIDs(for: .ahe).isEmpty,
                 "selectedSearchResultIDs must be cleared on empty query")
     }
 
@@ -398,7 +399,7 @@ struct V537WorkbenchSearchMirrorTests {
 
         wfs.restoreSearchState(results: [hit], queryText: "ahe pn31", for: .ahe)
         wfs.aheWorkspace.cachedSearchResults = [hit]
-        wfs.aheWorkspace.selectedSearchResultIDs = [hit.id]
+        wfs.seedSelection([hit.id], for: .ahe)
 
         wfs.setSearchQueryText("ahe pn31", for: .ahe)
         wfs.runWorkflowMeasurementSearch(workflowID: .ahe, libraryRootPath: nil)
@@ -407,7 +408,7 @@ struct V537WorkbenchSearchMirrorTests {
                 "Canonical results must be cleared on missing library root")
         #expect(wfs.aheWorkspace.cachedSearchResults.isEmpty,
                 "Workflow mirror must be cleared on missing library root")
-        #expect(wfs.aheWorkspace.selectedSearchResultIDs.isEmpty,
+        #expect(wfs.selectedSearchResultIDs(for: .ahe).isEmpty,
                 "selectedSearchResultIDs must be cleared on missing library root")
     }
 
@@ -424,7 +425,7 @@ struct V537WorkbenchSearchMirrorTests {
 
         wfs.restoreSearchState(results: [hit], queryText: "ahe pn31", for: .ahe)
         wfs.aheWorkspace.cachedSearchResults = [hit]
-        wfs.aheWorkspace.selectedSearchResultIDs = [hit.id]
+        wfs.seedSelection([hit.id], for: .ahe)
 
         wfs.setSearchQueryText("force-fail-inv", for: .ahe)
         wfs.runWorkflowMeasurementSearch(workflowID: .ahe, libraryRootPath: tempRoot.path)
@@ -434,7 +435,7 @@ struct V537WorkbenchSearchMirrorTests {
                 "Canonical results must be cleared on search failure")
         #expect(wfs.aheWorkspace.cachedSearchResults.isEmpty,
                 "Workflow mirror must be cleared on search failure")
-        #expect(wfs.aheWorkspace.selectedSearchResultIDs.isEmpty,
+        #expect(wfs.selectedSearchResultIDs(for: .ahe).isEmpty,
                 "selectedSearchResultIDs must be cleared on search failure")
     }
 }
