@@ -346,6 +346,12 @@ Summary:
 - Extraction risks: default workflow titles being lost, display overrides leaking into manifest semantics, tab override survival regressing, and curve-reorder identity drifting away from `sourceRef`.
 - Acceptance criteria: workflow stores no longer own the remaining title/style/legend binding endpoints; tab and render output remain single-sourced; plot controls behave uniformly; Geometry / Fit Range / Scaling, AHE Hc / R_AHE extraction, XY phi/detrend/centering, and 3ω scaling semantics remain Assembly-owned and unchanged.
 
+### Deferred Follow-Ups (not scheduled)
+
+| Item | Recorded in | Notes |
+|---|---|---|
+| Search/Rules integration — workflow alias expansion | `modules/MEASUREMENT_SEARCH.md` § Deferred Boundary Debt | Library/Workbench search alias expansion is hardcoded; Rules Book-defined workflow IDs do not automatically participate in alias resolution. Not blocking Inbox → Library archival. Resolve in a future Search/Rules integration gate. |
+
 ### Gate 7 Non-Candidates Preserved from Gate 3
 
 - Geometry / Fit Range / Scaling Panels remain Assembly-owned and are not Gate 7 extraction targets.
