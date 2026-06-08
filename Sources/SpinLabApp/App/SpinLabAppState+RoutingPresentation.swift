@@ -55,7 +55,8 @@ extension SpinLabAppState {
             registryLookup: registryLookup(for: pending),
             fallbackSampleID: resolvedSampleID
         )
-        draft.workflowID = canonicalWorkflowID(from: draft.workflowID) ?? ""
+        let rawDraftWorkflow = draft.workflowID.trimmingCharacters(in: .whitespacesAndNewlines)
+        draft.workflowID = canonicalWorkflowID(from: rawDraftWorkflow) ?? rawDraftWorkflow
         return draft
     }
 
@@ -111,7 +112,10 @@ extension SpinLabAppState {
             batchName: pending.parsedHints.batchName ?? resolvedSampleID ?? "",
             sampleName: pending.parsedHints.sampleName ?? "",
             measurementName: pending.parsedHints.measurementName ?? pending.fileName,
-            workflowID: canonicalWorkflowID(from: pending.parsedHints.workflowID) ?? "",
+            workflowID: {
+                let raw = pending.parsedHints.workflowID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return canonicalWorkflowID(from: raw) ?? raw
+            }(),
             conditionValues: parsedHintsConditionValues(from: pending.parsedHints),
             selectedExistingProjectName: suggestedProject(for: pending)?.name ?? PendingImportConfirmationDraft.noProjectOption,
             newProjectName: ""
