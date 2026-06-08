@@ -159,12 +159,7 @@ struct RulesPanelView: View {
         panel.message = "Select the folder that contains your SpinLab rules files."
         panel.prompt = "Select"
         if panel.runModal() == .OK, let url = panel.url {
-            appState.rulesBookSettings.configure(url: url)
-            RuleLoader.configure(
-                bookPaths: appState.rulesBookSettings.rulesBookPaths,
-                internalPaths: appState.rulesBookSettings.internalPaths
-            )
-            store.updateRulesBookPaths(appState.rulesBookSettings.rulesBookPaths)
+            appState.configureRulesBook(at: url)
         }
     }
 

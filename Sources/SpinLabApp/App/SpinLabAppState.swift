@@ -193,9 +193,7 @@ final class SpinLabAppState {
     private lazy var rulesPanelStore: RulesManagementStore = {
         RulesManagementStore(
             onRulesSaved: { [weak self] in
-                self?.refreshRoutingRuleMetadata(forceReload: true)
-                self?.recomputeAllPendingParsedHints()
-                self?.workbenchFeatureStore.reloadWorkflowDefinitionsAfterRulesChange()
+                self?.refreshAfterRulesBookChange()
             },
             rulesBookPaths: self.rulesBookSettings.rulesBookPaths
         )
@@ -205,7 +203,8 @@ final class SpinLabAppState {
 
     init(
         workflowBundle: WorkflowBundle = WorkflowRegistry.shared.defaultBundle(),
-        environment: AppEnvironment = .live()
+        environment: AppEnvironment = .live(),
+        rulesBookSettings: RulesBookSettings
     ) {
         self.persistence = environment.persistence
         self.inboxRepository = InboxRepository(persistence: environment.persistence)
@@ -216,8 +215,8 @@ final class SpinLabAppState {
         self.viewExtension = workflowBundle.viewExtension
         self.inboxImportFilter = environment.inboxImportFilter
         self.libraryArchiveScan = environment.libraryArchiveScan
-        self.sampleRegistry = environment.sampleRegistry
         self.archivedRecordResolverService = ArchivedRecordResolverService(registrySubstrateRules: environment.registrySubstrateRules)
+        self.rulesBookSettings = rulesBookSettings
         self.inboxFeatureStore = InboxFeatureStore(
             inboxRepository: self.inboxRepository,
             routingCapabilities: environment.routingCapabilities,
@@ -225,24 +224,33 @@ final class SpinLabAppState {
         )
         self.registryFeatureStore = RegistryFeatureStore()
         self.libraryFeatureStore = LibraryFeatureStore()
+        self.webLibraryPublisher = environment.webLibraryPublisher
+        let interactionMemory = InteractionMemoryStore(persistence: environment.persistence)
+        self.interactionSnapshotCoordinator = InteractionSnapshotCoordinator(interactionMemory: interactionMemory)
+        self.dataActor = environment.dataActor
+
+        var sampleRegistry = environment.sampleRegistry
+
+        if !sampleRegistry.isLoaded, let currentRegistryURL = environment.libraryArchiveScan.currentSampleRegistryFileURL() {
+            sampleRegistry = XLSXPrefixSampleRegistryIndex.fromFileURL(currentRegistryURL, previewRowCount: 10)
+        }
+        self.sampleRegistry = sampleRegistry
+
+        WorkflowRegistryRetirementService(paths: rulesBookSettings.rulesBookPaths).runIfNeeded()
+        if let bookPaths = rulesBookSettings.rulesBookPaths {
+            RulesBootstrapper.migrateRulesBookIfNeeded(paths: bookPaths, internalPaths: rulesBookSettings.internalPaths)
+        }
+        RuleLoader.configure(bookPaths: rulesBookSettings.rulesBookPaths, internalPaths: rulesBookSettings.internalPaths)
+        _ = RuleLoader.shared.reloadCached()
+
         self.workbenchFeatureStore = WorkbenchFeatureStore(
             libraryRepository: self.libraryRepository,
             dataActor: environment.dataActor,
             workflowDefinitionStore: environment.workflowDefinitionStore
         )
-        let settings = RulesBookSettings()
-        self.rulesBookSettings = settings
-        self.webLibraryPublisher = environment.webLibraryPublisher
-        let interactionMemory = InteractionMemoryStore(persistence: environment.persistence)
-        self.interactionSnapshotCoordinator = InteractionSnapshotCoordinator(interactionMemory: interactionMemory)
-        self.dataActor = environment.dataActor
         self.workflowDefinitions = self.workbenchFeatureStore.workflowDefinitions
         self.workbenchFeatureStore.onDefinitionsChanged = { [weak self] definitions in
             self?.workflowDefinitions = definitions
-        }
-
-        if !self.sampleRegistry.isLoaded, let currentRegistryURL = environment.libraryArchiveScan.currentSampleRegistryFileURL() {
-            self.sampleRegistry = XLSXPrefixSampleRegistryIndex.fromFileURL(currentRegistryURL, previewRowCount: 10)
         }
 
         libraryFeatureStore.configureFacade(
@@ -272,13 +280,6 @@ final class SpinLabAppState {
             }
         )
 
-        WorkflowRegistryRetirementService(paths: settings.rulesBookPaths).runIfNeeded()
-        if let bookPaths = settings.rulesBookPaths {
-            RulesBootstrapper.migrateRulesBookIfNeeded(paths: bookPaths, internalPaths: settings.internalPaths)
-        }
-        RuleLoader.configure(bookPaths: settings.rulesBookPaths, internalPaths: settings.internalPaths)
-        _ = RuleLoader.shared.reloadCached()
-
         load()
         if let rootPath = libraryFeatureStore.librarySettings.rootPath, !rootPath.isEmpty {
             workbenchFeatureStore.analysisVault.configurePersistence(libraryRootPath: rootPath)
@@ -301,6 +302,17 @@ final class SpinLabAppState {
         libraryFeatureStore.refreshLibraryBackupMessage(formatSyncDate: { Self.syncStatusTimeFormatter.string(from: $0) })
         interactionSnapshotCoordinator.markReady()
         persistInteractionSnapshotIfReady()
+    }
+
+    convenience init(
+        workflowBundle: WorkflowBundle = WorkflowRegistry.shared.defaultBundle(),
+        environment: AppEnvironment = .live()
+    ) {
+        self.init(
+            workflowBundle: workflowBundle,
+            environment: environment,
+            rulesBookSettings: RulesBookSettings()
+        )
     }
 
     convenience init(
@@ -332,6 +344,23 @@ final class SpinLabAppState {
 
     func bumpAppStateRevision() {
         appStateRevision &+= 1
+    }
+
+    func refreshAfterRulesBookChange() {
+        _ = RuleLoader.shared.reloadCached()
+        refreshRoutingRuleMetadata(forceReload: true)
+        recomputeAllPendingParsedHints()
+        workbenchFeatureStore.reloadWorkflowDefinitionsAfterRulesChange()
+    }
+
+    func configureRulesBook(at url: URL) {
+        rulesBookSettings.configure(url: url)
+        RuleLoader.configure(
+            bookPaths: rulesBookSettings.rulesBookPaths,
+            internalPaths: rulesBookSettings.internalPaths
+        )
+        rulesPanelStore.updateRulesBookPaths(rulesBookSettings.rulesBookPaths)
+        refreshAfterRulesBookChange()
     }
 
     func publishWebLibrary() {

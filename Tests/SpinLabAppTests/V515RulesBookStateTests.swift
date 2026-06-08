@@ -6,6 +6,26 @@ import Testing
 @Suite("V5.1.5 Rules Book State", .serialized)
 struct V515RulesBookStateTests {
 
+    private func makeWorkflowJSON(entries: [(id: String, displayName: String, conditionFieldIDs: [String])]) -> Data {
+        let workflows = entries.map { entry -> [String: Any] in
+            [
+                "id": entry.id,
+                "displayName": entry.displayName,
+                "matchRules": [] as [[String: Any]],
+                "conditionFieldIDs": entry.conditionFieldIDs
+            ]
+        }
+        let json: [String: Any] = ["version": 1, "workflows": workflows, "measurementTagRules": []]
+        return try! JSONSerialization.data(withJSONObject: json, options: .prettyPrinted)
+    }
+
+    private func writeWorkflowJSON(
+        to url: URL,
+        entries: [(id: String, displayName: String, conditionFieldIDs: [String])]
+    ) throws {
+        try makeWorkflowJSON(entries: entries).write(to: url)
+    }
+
     // MARK: - notConfigured
 
     @Test("no paths → state is notConfigured")
@@ -98,11 +118,107 @@ struct V515RulesBookStateTests {
 
     @Test("RuleLoader.load() with no configured paths returns NotConfigured metadata")
     func ruleLoaderNotConfiguredMetadata() throws {
-        try withUnconfiguredRules {
+        withUnconfiguredRules {
             let result = RuleLoader.shared.load()
             #expect(result.metadata.sourceLabel == "NotConfigured")
             #expect(result.metadata.sourcePath == "not-configured")
             #expect(result.warnings.contains(where: { $0.contains("No Rules Book") }))
+        }
+    }
+
+    @Test("saved Rules Book config is applied before workflow definitions load")
+    func startupLoadsConfiguredWorkflowDefinitions() throws {
+        try withTempRulesBook(prefix: "SL-startup-rules") { paths, _ in
+            try writeWorkflowJSON(
+                to: paths.workflowURL,
+                entries: [
+                    (id: "LaunchA", displayName: "Launch A", conditionFieldIDs: ["temperature"]),
+                    (id: "LaunchB", displayName: "Launch B", conditionFieldIDs: ["field"])
+                ]
+            )
+
+            try withTempRulesDirectory(prefix: "SL-startup-support") { supportDir, _ in
+                let savedSettings = RulesBookSettings(
+                    internalPaths: AppInternalPaths(appSupportDirectoryURL: supportDir)
+                )
+                savedSettings.configure(url: paths.configDirectoryURL)
+
+                let loadedSettings = RulesBookSettings(
+                    internalPaths: AppInternalPaths(appSupportDirectoryURL: supportDir)
+                )
+                let state = SpinLabAppState(
+                    environment: AppEnvironment(
+                        persistence: LocalJSONPersistence(),
+                        inboxImportFilter: InboxImportFilterService(),
+                        libraryArchiveScan: LibraryArchiveScanService(),
+                        sampleRegistry: XLSXPrefixSampleRegistryIndex.fromEnvironment(previewRowCount: 10),
+                        registrySubstrateRules: RegistrySubstrateRuleBook(),
+                        routingCapabilities: .live,
+                        ruleRuntime: DefaultRuleRuntimeCapability(),
+                        dataActor: SpinLabDataActor()
+                    ),
+                    rulesBookSettings: loadedSettings
+                )
+
+                #expect(state.workbench.workflowDefinitions.count == 2)
+                #expect(state.workbench.workflowDefinitions.contains { $0.id == "LaunchA" })
+                #expect(state.workbench.workflowDefinitions.contains { $0.id == "LaunchB" })
+                #expect(state.workflowDefinitions.map(\.id) == ["LaunchA", "LaunchB"])
+            }
+        }
+    }
+
+    @Test("switching Rules Book refreshes workflow definitions and app metadata")
+    func switchingRulesBookRefreshesWorkflowDefinitions() throws {
+        try withTempRulesBook(prefix: "SL-switch-start") { startPaths, _ in
+            try writeWorkflowJSON(
+                to: startPaths.workflowURL,
+                entries: [
+                    (id: "StartOnly", displayName: "Start Only", conditionFieldIDs: ["temperature"])
+                ]
+            )
+
+            try withTempRulesBook(prefix: "SL-switch-next") { nextPaths, _ in
+                try writeWorkflowJSON(
+                    to: nextPaths.workflowURL,
+                    entries: [
+                        (id: "NextA", displayName: "Next A", conditionFieldIDs: ["field"]),
+                        (id: "NextB", displayName: "Next B", conditionFieldIDs: ["current"])
+                    ]
+                )
+
+                try withTempRulesDirectory(prefix: "SL-switch-support") { supportDir, _ in
+                    let savedSettings = RulesBookSettings(
+                        internalPaths: AppInternalPaths(appSupportDirectoryURL: supportDir)
+                    )
+                    savedSettings.configure(url: startPaths.configDirectoryURL)
+                    let loadedSettings = RulesBookSettings(
+                        internalPaths: AppInternalPaths(appSupportDirectoryURL: supportDir)
+                    )
+
+                    let state = SpinLabAppState(
+                        environment: AppEnvironment(
+                            persistence: LocalJSONPersistence(),
+                            inboxImportFilter: InboxImportFilterService(),
+                            libraryArchiveScan: LibraryArchiveScanService(),
+                            sampleRegistry: XLSXPrefixSampleRegistryIndex.fromEnvironment(previewRowCount: 10),
+                            registrySubstrateRules: RegistrySubstrateRuleBook(),
+                            routingCapabilities: .live,
+                            ruleRuntime: DefaultRuleRuntimeCapability(),
+                            dataActor: SpinLabDataActor()
+                        ),
+                        rulesBookSettings: loadedSettings
+                    )
+
+                    #expect(state.workbench.workflowDefinitions.map(\.id) == ["StartOnly"])
+
+                    state.configureRulesBook(at: nextPaths.configDirectoryURL)
+
+                    #expect(state.workbench.workflowDefinitions.map(\.id) == ["NextA", "NextB"])
+                    #expect(state.workflowDefinitions.map(\.id) == ["NextA", "NextB"])
+                    #expect(state.inbox.routingRuleSourcePath.contains(nextPaths.configDirectoryURL.path))
+                }
+            }
         }
     }
 }
