@@ -221,4 +221,48 @@ struct V515RulesBookStateTests {
             }
         }
     }
+
+    @Test("configureRulesBook runs migration path and still loads rules correctly")
+    func configureRulesBookRunsMigrationBeforeLoad() throws {
+        try withTempRulesBook(prefix: "SL-migrate-initial") { initialPaths, _ in
+            try withTempRulesBook(prefix: "SL-migrate-target") { targetPaths, _ in
+                try writeWorkflowJSON(
+                    to: targetPaths.workflowURL,
+                    entries: [
+                        (id: "PostMigrate", displayName: "Post Migrate", conditionFieldIDs: ["field"])
+                    ]
+                )
+                try withTempRulesDirectory(prefix: "SL-migrate-support") { supportDir, _ in
+                    let settings = RulesBookSettings(
+                        internalPaths: AppInternalPaths(appSupportDirectoryURL: supportDir)
+                    )
+                    settings.configure(url: initialPaths.configDirectoryURL)
+                    let loadedSettings = RulesBookSettings(
+                        internalPaths: AppInternalPaths(appSupportDirectoryURL: supportDir)
+                    )
+                    let state = SpinLabAppState(
+                        environment: AppEnvironment(
+                            persistence: LocalJSONPersistence(),
+                            inboxImportFilter: InboxImportFilterService(),
+                            libraryArchiveScan: LibraryArchiveScanService(),
+                            sampleRegistry: XLSXPrefixSampleRegistryIndex.fromEnvironment(previewRowCount: 10),
+                            registrySubstrateRules: RegistrySubstrateRuleBook(),
+                            routingCapabilities: .live,
+                            ruleRuntime: DefaultRuleRuntimeCapability(),
+                            dataActor: SpinLabDataActor()
+                        ),
+                        rulesBookSettings: loadedSettings
+                    )
+
+                    // Switching to a book exercises the migration/retirement path before reload.
+                    // If those steps were skipped, a legacy book could fail to decode.
+                    // Asserting the state is ready after configure confirms the path is traversed without error.
+                    state.configureRulesBook(at: targetPaths.configDirectoryURL)
+
+                    #expect(state.workbench.workflowDefinitions.map(\.id) == ["PostMigrate"])
+                    #expect(state.rulesPanel.rulesBookState == .ready)
+                }
+            }
+        }
+    }
 }

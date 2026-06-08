@@ -355,12 +355,20 @@ final class SpinLabAppState {
 
     func configureRulesBook(at url: URL) {
         rulesBookSettings.configure(url: url)
+        prepareConfiguredRulesBookForLoad()
         RuleLoader.configure(
             bookPaths: rulesBookSettings.rulesBookPaths,
             internalPaths: rulesBookSettings.internalPaths
         )
         rulesPanelStore.updateRulesBookPaths(rulesBookSettings.rulesBookPaths)
         refreshAfterRulesBookChange()
+    }
+
+    private func prepareConfiguredRulesBookForLoad() {
+        WorkflowRegistryRetirementService(paths: rulesBookSettings.rulesBookPaths).runIfNeeded()
+        if let bookPaths = rulesBookSettings.rulesBookPaths {
+            RulesBootstrapper.migrateRulesBookIfNeeded(paths: bookPaths, internalPaths: rulesBookSettings.internalPaths)
+        }
     }
 
     func publishWebLibrary() {
