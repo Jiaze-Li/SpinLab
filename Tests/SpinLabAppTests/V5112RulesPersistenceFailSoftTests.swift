@@ -8,40 +8,20 @@ struct V5112RulesPersistenceFailSoftTests {
 
     // MARK: - Isolation
 
-    private static let backupExtension = "v5112-persist-backup"
-
-    private func acquireIsolation() throws -> (dir: URL, backup: URL?) {
-        purgeStaleBackups()
-        let dir = RulesConfigPaths().configDirectoryURL
-        let fm = FileManager.default
-        var backup: URL? = nil
-        if fm.fileExists(atPath: dir.path) {
-            let candidate = dir.appendingPathExtension("\(Self.backupExtension).\(UUID().uuidString)")
-            try fm.moveItem(at: dir, to: candidate)
-            backup = candidate
-        }
-        return (dir, backup)
+    private struct IsolationContext {
+        let dir: URL
+        let paths: RulesConfigPaths
     }
 
-    private func releaseIsolation(dir: URL, backup: URL?) {
-        let fm = FileManager.default
-        if fm.fileExists(atPath: dir.path) {
-            try? fm.removeItem(at: dir)
-        }
-        if let backup, fm.fileExists(atPath: backup.path) {
-            try? fm.moveItem(at: backup, to: dir)
-        }
-        _ = RuleLoader.shared.reloadCached()
+    private func acquireIsolation() throws -> IsolationContext {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SL-persist-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return IsolationContext(dir: dir, paths: RulesConfigPaths(configDirectoryURL: dir))
     }
 
-    private func purgeStaleBackups() {
-        let dir = RulesConfigPaths().configDirectoryURL
-        let parent = dir.deletingLastPathComponent()
-        let prefix = dir.lastPathComponent + "." + Self.backupExtension
-        guard let entries = try? FileManager.default.contentsOfDirectory(atPath: parent.path) else { return }
-        for entry in entries where entry.hasPrefix(prefix) {
-            try? FileManager.default.removeItem(at: parent.appendingPathComponent(entry, isDirectory: true))
-        }
+    private func releaseIsolation(_ ctx: IsolationContext) {
+        try? FileManager.default.removeItem(at: ctx.dir)
     }
 
     // MARK: - Logger helper
@@ -71,15 +51,13 @@ struct V5112RulesPersistenceFailSoftTests {
 
     @Test("corrupt measuring_condition.json returns nil draft and logs decode error")
     func corruptMeasuringConditionReturnsNilAndLogs() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
 
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let paths = RulesConfigPaths()
-        try Data("{ bad json garbage".utf8).write(to: paths.measuringConditionURL)
+        try Data("{ bad json garbage".utf8).write(to: ctx.paths.measuringConditionURL)
 
         let startCount = logLineCount()
-        let store = RulesManagementStore()
+        let store = RulesManagementStore(rulesBookPaths: ctx.paths)
         store.present()
         let newLines = newLogLines(since: startCount)
 
@@ -90,16 +68,14 @@ struct V5112RulesPersistenceFailSoftTests {
 
     @Test("corrupt import_filters.json returns nil draft and logs decode error")
     func corruptImportFiltersReturnsNilAndLogs() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
 
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let paths = RulesConfigPaths()
         // Valid JSON but missing required fields — triggers DecodingError
-        try Data(#"{"unexpected_key": 1}"#.utf8).write(to: paths.importFiltersURL)
+        try Data(#"{"unexpected_key": 1}"#.utf8).write(to: ctx.paths.importFiltersURL)
 
         let startCount = logLineCount()
-        let store = RulesManagementStore()
+        let store = RulesManagementStore(rulesBookPaths: ctx.paths)
         store.present()
         let newLines = newLogLines(since: startCount)
 
@@ -110,12 +86,12 @@ struct V5112RulesPersistenceFailSoftTests {
 
     @Test("missing config files return nil drafts without logging any error")
     func missingFilesReturnSilently() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
 
-        // Config directory absent entirely — all files are absent
+        // Config directory present but files absent — all files are absent
         let startCount = logLineCount()
-        let store = RulesManagementStore()
+        let store = RulesManagementStore(rulesBookPaths: ctx.paths)
         store.present()
         let newLines = newLogLines(since: startCount)
 

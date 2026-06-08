@@ -9,31 +9,23 @@ import Testing
 @Suite("V5.1.5 Substrate v3→v4 Inline Migration", .serialized)
 struct V515SubstrateV4MigrationTests {
 
-    private static let backupExtension = "v515-migration-backup"
-
-    private func acquireIsolation() throws -> (dir: URL, backup: URL?) {
-        let dir = RulesConfigPaths().configDirectoryURL
-        let fm = FileManager.default
-        var backup: URL? = nil
-        if fm.fileExists(atPath: dir.path) {
-            let candidate = dir.appendingPathExtension("\(Self.backupExtension).\(UUID().uuidString)")
-            try fm.moveItem(at: dir, to: candidate)
-            backup = candidate
-        }
-        return (dir, backup)
+    private struct IsolationContext {
+        let dir: URL
+        let paths: RulesConfigPaths
     }
 
-    private func releaseIsolation(dir: URL, backup: URL?) {
-        let fm = FileManager.default
-        try? fm.removeItem(at: dir)
-        if let backup, fm.fileExists(atPath: backup.path) {
-            try? fm.moveItem(at: backup, to: dir)
-        }
-        _ = RuleLoader.shared.reloadCached()
+    private func acquireIsolation() throws -> IsolationContext {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SL-substrate-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return IsolationContext(dir: dir, paths: RulesConfigPaths(configDirectoryURL: dir))
     }
 
-    private func writeConfig(sampleIdentJSON: String) throws -> RuleLoader.LoadResult {
-        let paths = RulesConfigPaths()
+    private func releaseIsolation(_ ctx: IsolationContext) {
+        try? FileManager.default.removeItem(at: ctx.dir)
+    }
+
+    private func writeConfig(sampleIdentJSON: String, paths: RulesConfigPaths) throws -> RuleLoader.LoadResult {
         let fm = FileManager.default
         try? fm.removeItem(at: paths.configDirectoryURL)
         try fm.createDirectory(at: paths.configDirectoryURL, withIntermediateDirectories: true)
@@ -50,6 +42,7 @@ struct V515SubstrateV4MigrationTests {
         try """
         {"version":2,"conditionDefinitions":[]}
         """.data(using: .utf8)!.write(to: paths.measuringConditionURL)
+        RuleLoader.configure(bookPaths: paths, internalPaths: AppInternalPaths())
         return RuleLoader.shared.reloadCached()
     }
 
@@ -80,9 +73,9 @@ struct V515SubstrateV4MigrationTests {
 
     @Test("v3 fixture produces compiled material entries")
     func v3ProducesCompiledMaterials() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let result = try writeConfig(sampleIdentJSON: Self.v3Fixture)
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let result = try writeConfig(sampleIdentJSON: Self.v3Fixture, paths: ctx.paths)
         let materialNames = result.ruleSet.compiled.substrateMaterialEntries.map(\.displayName)
         #expect(materialNames.contains("STO"))
         #expect(materialNames.contains("NGO"))
@@ -90,18 +83,18 @@ struct V515SubstrateV4MigrationTests {
 
     @Test("v3 fixture produces compiled treatment entries")
     func v3ProducesCompiledTreatments() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let result = try writeConfig(sampleIdentJSON: Self.v3Fixture)
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let result = try writeConfig(sampleIdentJSON: Self.v3Fixture, paths: ctx.paths)
         let treatmentNames = result.ruleSet.compiled.substrateTreatmentEntries.map(\.displayName)
         #expect(treatmentNames.contains("HF"))
     }
 
     @Test("v3 fixture produces compiled orientation entries")
     func v3ProducesCompiledOrientations() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let result = try writeConfig(sampleIdentJSON: Self.v3Fixture)
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let result = try writeConfig(sampleIdentJSON: Self.v3Fixture, paths: ctx.paths)
         let orientationNames = result.ruleSet.compiled.substrateOrientationEntries.map(\.displayName)
         #expect(orientationNames.contains("001"))
         #expect(orientationNames.contains("111"))
@@ -109,9 +102,9 @@ struct V515SubstrateV4MigrationTests {
 
     @Test("v3 material tokens become equals probes in compiled entry")
     func v3MaterialTokensBeEqualsProbes() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let result = try writeConfig(sampleIdentJSON: Self.v3Fixture)
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let result = try writeConfig(sampleIdentJSON: Self.v3Fixture, paths: ctx.paths)
         let stoEntry = result.ruleSet.compiled.substrateMaterialEntries.first(where: { $0.displayName == "STO" })
         let equalsKeys = stoEntry?.equalsKeysNormalized ?? []
         #expect(equalsKeys.contains("STO"))
@@ -120,9 +113,9 @@ struct V515SubstrateV4MigrationTests {
 
     @Test("v3 orientation alias 100 maps to 001 as equals probe")
     func v3OrientationAliasConverted() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let result = try writeConfig(sampleIdentJSON: Self.v3Fixture)
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let result = try writeConfig(sampleIdentJSON: Self.v3Fixture, paths: ctx.paths)
         let entry001 = result.ruleSet.compiled.substrateOrientationEntries.first(where: { $0.displayName == "001" })
         let equalsKeys = entry001?.equalsKeysNormalized ?? []
         #expect(equalsKeys.contains("100"), "alias '100' must become an equals probe for '001'")
@@ -130,9 +123,9 @@ struct V515SubstrateV4MigrationTests {
 
     @Test("v3 loading is idempotent across two reloads")
     func v3LoadingIsIdempotent() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let result1 = try writeConfig(sampleIdentJSON: Self.v3Fixture)
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let result1 = try writeConfig(sampleIdentJSON: Self.v3Fixture, paths: ctx.paths)
         let result2 = RuleLoader.shared.reloadCached()
         let names1 = result1.ruleSet.compiled.substrateMaterialEntries.map(\.displayName).sorted()
         let names2 = result2.ruleSet.compiled.substrateMaterialEntries.map(\.displayName).sorted()
@@ -141,12 +134,12 @@ struct V515SubstrateV4MigrationTests {
 
     @Test("v4 fixture loads directly without inline conversion")
     func v4FixtureLoadsDirectly() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
         let v4JSON = """
         {"version":4,"sampleId":{"matches":[{"type":"starts-with","value":"PN"}]},"substrate":{"materials":[{"displayName":"STO","matches":[{"type":"equals","value":"STO"}]}],"treatments":[],"orientations":[]}}
         """
-        let result = try writeConfig(sampleIdentJSON: v4JSON)
+        let result = try writeConfig(sampleIdentJSON: v4JSON, paths: ctx.paths)
         let materialNames = result.ruleSet.compiled.substrateMaterialEntries.map(\.displayName)
         #expect(materialNames.contains("STO"))
         #expect(result.ruleSet.sampleId.matches.contains(where: { $0.value == "PN" }))

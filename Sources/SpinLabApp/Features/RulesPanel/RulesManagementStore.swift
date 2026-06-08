@@ -12,7 +12,6 @@ struct RulesPanelFieldError: Identifiable {
 
 enum RulesPanelSaveOutcome {
     case saved
-    case savedWithMirrorWarning(reason: String)
     case validationFailed([RulesPanelFieldError])
     case externalConflict(externalChecksum: String)
     case ioError(Error)
@@ -283,19 +282,15 @@ final class RulesManagementStore {
     private(set) var measuringConditionDraft: MeasuringConditionFileDraft?
 
     private(set) var availableConditionFieldIDs: [String] = []
+    private(set) var rulesBookState: RulesBookState = .notConfigured
 
     @ObservationIgnored var persistenceHook: RulesPersistenceHook?
     @ObservationIgnored private var openTimeHashes: [RulesPanelSection: String] = [:]
     @ObservationIgnored private let onRulesSaved: () -> Void
     @ObservationIgnored private let ruleLoader: any RuleProviding
 
-    private(set) var syncStartupOutcome: StartupOutcome = .skipped
-    private(set) var mirrorWarningSectionLabel: String?
-    private(set) var mirrorWarningReason: String?
-
-    private let paths = RulesConfigPaths()
+    private var paths: RulesConfigPaths?
     private let atomicWriter = AtomicFileWriter()
-    @ObservationIgnored private var syncEngine: RulesSyncEngine?
 
     private static let jsonEncoder: JSONEncoder = {
         let enc = JSONEncoder()
@@ -306,19 +301,41 @@ final class RulesManagementStore {
 
     init(
         onRulesSaved: @escaping () -> Void = {},
-        syncEngine: RulesSyncEngine? = nil,
-        syncStartupOutcome: StartupOutcome = .skipped,
+        rulesBookPaths: RulesConfigPaths? = nil,
         ruleLoader: (any RuleProviding)? = nil
     ) {
         self.onRulesSaved = onRulesSaved
-        self.syncEngine = syncEngine
-        self.syncStartupOutcome = syncStartupOutcome
+        self.paths = rulesBookPaths
         self.ruleLoader = ruleLoader ?? RuleLoader.shared
+        updateRulesBookState()
+    }
+
+    func updateRulesBookPaths(_ newPaths: RulesConfigPaths?) {
+        paths = newPaths
+        updateRulesBookState()
+        if newPaths != nil {
+            for section in RulesPanelSection.allCases {
+                loadSection(section)
+            }
+        }
+    }
+
+    private func updateRulesBookState() {
+        guard let p = paths else {
+            rulesBookState = .notConfigured
+            return
+        }
+        let missing = p.allSchemaFileURLs
+            .filter { !FileManager.default.fileExists(atPath: $0.path) }
+            .map(\.lastPathComponent)
+        rulesBookState = missing.isEmpty ? .ready : .incompleteBook(missing)
     }
 
     // MARK: - Lifecycle
 
     func present() {
+        updateRulesBookState()
+        guard paths != nil else { return }
         for section in RulesPanelSection.allCases {
             loadSection(section)
         }
@@ -393,22 +410,23 @@ final class RulesManagementStore {
     // MARK: - Loading
 
     private func loadSection(_ section: RulesPanelSection) {
+        guard let p = paths else { return }
         switch section {
         case .importFilters:
             importFiltersDraft = loadWithStrategy(
-                ImportFiltersStrategy(runtimeURL: paths.importFiltersURL), section: section)
+                ImportFiltersStrategy(runtimeURL: p.importFiltersURL), section: section)
         case .filenameTokenization:
             filenameTokenizationDraft = loadWithStrategy(
-                FilenameTokenizationStrategy(runtimeURL: paths.filenameTokenizationURL), section: section)
+                FilenameTokenizationStrategy(runtimeURL: p.filenameTokenizationURL), section: section)
         case .sampleIdentification:
             sampleIdentificationDraft = loadWithStrategy(
-                SampleIdentificationStrategy(runtimeURL: paths.sampleIdentificationURL), section: section)
+                SampleIdentificationStrategy(runtimeURL: p.sampleIdentificationURL), section: section)
         case .workflow:
             workflowDraft = loadWithStrategy(
-                WorkflowStrategy(runtimeURL: paths.workflowURL), section: section)
+                WorkflowStrategy(runtimeURL: p.workflowURL), section: section)
         case .measuringCondition:
             measuringConditionDraft = loadWithStrategy(
-                MeasuringConditionStrategy(runtimeURL: paths.measuringConditionURL), section: section)
+                MeasuringConditionStrategy(runtimeURL: p.measuringConditionURL), section: section)
         }
     }
 
@@ -452,26 +470,29 @@ final class RulesManagementStore {
     // MARK: - Save dispatch
 
     private func saveSection(_ section: RulesPanelSection) -> RulesPanelSaveOutcome {
+        guard let p = paths else {
+            return .ioError(AppError.state("No Rules Book configured"))
+        }
         switch section {
         case .importFilters:
             return saveWithStrategy(
-                ImportFiltersStrategy(runtimeURL: paths.importFiltersURL),
+                ImportFiltersStrategy(runtimeURL: p.importFiltersURL),
                 draft: importFiltersDraft, section: section)
         case .filenameTokenization:
             return saveWithStrategy(
-                FilenameTokenizationStrategy(runtimeURL: paths.filenameTokenizationURL),
+                FilenameTokenizationStrategy(runtimeURL: p.filenameTokenizationURL),
                 draft: filenameTokenizationDraft, section: section)
         case .sampleIdentification:
             return saveWithStrategy(
-                SampleIdentificationStrategy(runtimeURL: paths.sampleIdentificationURL),
+                SampleIdentificationStrategy(runtimeURL: p.sampleIdentificationURL),
                 draft: sampleIdentificationDraft, section: section)
         case .workflow:
             return saveWithStrategy(
-                WorkflowStrategy(runtimeURL: paths.workflowURL),
+                WorkflowStrategy(runtimeURL: p.workflowURL),
                 draft: workflowDraft, section: section)
         case .measuringCondition:
             return saveWithStrategy(
-                MeasuringConditionStrategy(runtimeURL: paths.measuringConditionURL),
+                MeasuringConditionStrategy(runtimeURL: p.measuringConditionURL),
                 draft: measuringConditionDraft, section: section)
         }
     }
@@ -486,10 +507,8 @@ final class RulesManagementStore {
         let errors = strategy.validate(d, context: context)
         if !errors.isEmpty { return .validationFailed(errors) }
         let outcome = persist(section: section, url: strategy.runtimeURL, value: d)
-        switch outcome {
-        case .saved, .savedWithMirrorWarning:
+        if case .saved = outcome {
             strategy.postPersist(d, context: context)
-        default: break
         }
         return outcome
     }
@@ -511,14 +530,8 @@ final class RulesManagementStore {
             }
         }
 
-        let dualWriteOutcome: DualWriteOutcome
         do {
-            if let syncEngine {
-                dualWriteOutcome = try syncEngine.dualWrite(runtimeURL: url, data: data, sectionLabel: section.rawValue)
-            } else {
-                try atomicWriter.write(data, to: url)
-                dualWriteOutcome = .runtimeOnly
-            }
+            try atomicWriter.write(data, to: url)
         } catch {
             return .ioError(error)
         }
@@ -531,19 +544,10 @@ final class RulesManagementStore {
         onRulesSaved()
 
         let version = (value as? any _VersionedSchema)?.version ?? 0
-        persistenceHook?.didPersist?(section.rawValue, url, version, newHash, dualWriteOutcome)
+        persistenceHook?.didPersist?(section.rawValue, url, version, newHash)
 
         dirtySections.remove(section)
-        switch dualWriteOutcome {
-        case .runtimeOnly, .mirrored:
-            mirrorWarningSectionLabel = nil
-            mirrorWarningReason = nil
-            return .saved
-        case .mirrorFailedRuntimeOk(let reason):
-            mirrorWarningSectionLabel = section.rawValue
-            mirrorWarningReason = reason
-            return .savedWithMirrorWarning(reason: reason)
-        }
+        return .saved
     }
 
     // MARK: - Context factory
@@ -553,12 +557,12 @@ final class RulesManagementStore {
             dirtyMeasuringCondition: dirtySections.contains(.measuringCondition) ? measuringConditionDraft : nil,
             dirtyWorkflow: dirtySections.contains(.workflow) ? workflowDraft : nil,
             loadMeasuringConditionFromDisk: { [weak self] in
-                guard let self else { return nil }
-                return self.loadFromDiskOnly(url: self.paths.measuringConditionURL)
+                guard let self, let p = self.paths else { return nil }
+                return self.loadFromDiskOnly(url: p.measuringConditionURL)
             },
             loadWorkflowFromDisk: { [weak self] in
-                guard let self else { return nil }
-                return self.loadFromDiskOnly(url: self.paths.workflowURL)
+                guard let self, let p = self.paths else { return nil }
+                return self.loadFromDiskOnly(url: p.workflowURL)
             }
         )
     }

@@ -10,6 +10,12 @@ struct V5116RecomputeBannerFalsePositiveTests {
     /// （生产里 547 个测量都走这条 — buildDiffItems 全部为 .noChange items）
     @Test("staleCount stays 0 when fingerprint stale but parsed fields equivalent")
     func staleCount_zero_when_parsed_fields_equivalent() throws {
+        let bundledDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Sources/SpinLabApp/config")
+        let savedPaths = RuleLoader.currentBookPaths
+        RuleLoader.configure(bookPaths: RulesConfigPaths(configDirectoryURL: bundledDir), internalPaths: AppInternalPaths())
+        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
+
         let rootURL = makeTempDir()
         defer { try? FileManager.default.removeItem(at: rootURL) }
 
@@ -61,6 +67,12 @@ struct V5116RecomputeBannerFalsePositiveTests {
     /// 反向 case：真有字段需要更新时，横幅 staleCount 必须计入
     @Test("staleCount > 0 when an actionable field diff exists")
     func staleCount_positive_when_actionable_diff() throws {
+        let bundledDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Sources/SpinLabApp/config")
+        let savedPaths = RuleLoader.currentBookPaths
+        RuleLoader.configure(bookPaths: RulesConfigPaths(configDirectoryURL: bundledDir), internalPaths: AppInternalPaths())
+        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
+
         let rootURL = makeTempDir()
         defer { try? FileManager.default.removeItem(at: rootURL) }
 
@@ -113,6 +125,12 @@ struct V5116RecomputeBannerFalsePositiveTests {
     /// "确认重算并应用" 按钮 disabled（按钮只看 group0），仍是假阳性变种。
     @Test("staleCount stays 0 when only manual overrides exist on stale fingerprint")
     func staleCount_zero_when_only_manual_overrides() throws {
+        let bundledDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Sources/SpinLabApp/config")
+        let savedPaths = RuleLoader.currentBookPaths
+        RuleLoader.configure(bookPaths: RulesConfigPaths(configDirectoryURL: bundledDir), internalPaths: AppInternalPaths())
+        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
+
         let rootURL = makeTempDir()
         defer { try? FileManager.default.removeItem(at: rootURL) }
 

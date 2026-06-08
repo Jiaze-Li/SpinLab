@@ -6,28 +6,17 @@ import Testing
 @Suite("V5.1.5 RulesBootstrapper Migration", .serialized)
 struct V515RulesBootstrapperMigrationTests {
 
-    private static let backupExtension = "v515-migration-backup"
-
-    private func acquireIsolation() throws -> (dir: URL, backup: URL?) {
-        let dir = RulesConfigPaths().configDirectoryURL
-        let fm = FileManager.default
-        var backup: URL? = nil
-        if fm.fileExists(atPath: dir.path) {
-            let candidate = dir.appendingPathExtension("\(Self.backupExtension).\(UUID().uuidString)")
-            try fm.moveItem(at: dir, to: candidate)
-            backup = candidate
-        }
-        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        return (dir, backup)
+    private func acquireIsolation() throws -> (dir: URL, paths: RulesConfigPaths, internalPaths: AppInternalPaths) {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SL-migration-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let paths = RulesConfigPaths(configDirectoryURL: dir)
+        let internalPaths = AppInternalPaths(appSupportDirectoryURL: dir)
+        return (dir, paths, internalPaths)
     }
 
-    private func releaseIsolation(dir: URL, backup: URL?) {
-        let fm = FileManager.default
-        try? fm.removeItem(at: dir)
-        if let backup, fm.fileExists(atPath: backup.path) {
-            try? fm.moveItem(at: backup, to: dir)
-        }
-        _ = RuleLoader.shared.reloadCached()
+    private func releaseIsolation(dir: URL) {
+        try? FileManager.default.removeItem(at: dir)
     }
 
     private func seedV1MeasuringCondition(at url: URL, kind: String = "unit_suffix") throws {
@@ -97,15 +86,14 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("v1 → v4→v5 migration writes v5 sample + v4 measuring + state v6 + backup")
     func v1ToFullMigrationProducesExpectedArtifacts() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         try seedV1MeasuringCondition(at: paths.measuringConditionURL)
         try seedV1SampleIdentification(at: paths.sampleIdentificationURL)
         try seedFilenameTokenization(at: paths.filenameTokenizationURL, separators: "_")
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let measuringData = try Data(contentsOf: paths.measuringConditionURL)
         let measuringObj = try JSONSerialization.jsonObject(with: measuringData) as? [String: Any]
@@ -143,22 +131,21 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("migration is idempotent: second call is a no-op")
     func migrationIsIdempotent() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         try seedV1MeasuringCondition(at: paths.measuringConditionURL)
         try seedV1SampleIdentification(at: paths.sampleIdentificationURL)
         try seedFilenameTokenization(at: paths.filenameTokenizationURL, separators: "_")
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let measuringHash1 = try Data(contentsOf: paths.measuringConditionURL)
         let sampleHash1 = try Data(contentsOf: paths.sampleIdentificationURL)
         let contents1 = try FileManager.default.contentsOfDirectory(atPath: dir.path)
         let backupCount1 = contents1.filter { $0.hasPrefix(".backup-") }.count
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let measuringHash2 = try Data(contentsOf: paths.measuringConditionURL)
         let sampleHash2 = try Data(contentsOf: paths.sampleIdentificationURL)
@@ -172,15 +159,14 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("v2 measuring + v3 sample: both migrated to v4/v5, state v6 written, backup created")
     func v2MeasuringV3SampleMigratedToTarget() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         try seedV2MeasuringCondition(at: paths.measuringConditionURL)
         try seedV3SampleIdentification(at: paths.sampleIdentificationURL)
         try seedFilenameTokenization(at: paths.filenameTokenizationURL)
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let stateURL = dir.appendingPathComponent(".migration_state.json")
         #expect(FileManager.default.fileExists(atPath: stateURL.path), "state file must be written")
@@ -203,9 +189,8 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("v2 sample with state v2: re-migrates to v5 (state gate must allow re-entry)")
     func v2SampleWithStateV2ReMigratesToV5() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         try seedV2MeasuringCondition(at: paths.measuringConditionURL)
         try seedV2SampleIdentification(at: paths.sampleIdentificationURL, separators: "_")
@@ -217,7 +202,7 @@ struct V515RulesBootstrapperMigrationTests {
         """
         try staleState.data(using: .utf8)!.write(to: stateURL)
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let sampleData = try Data(contentsOf: paths.sampleIdentificationURL)
         let sampleObj = try JSONSerialization.jsonObject(with: sampleData) as? [String: Any]
@@ -235,15 +220,14 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("v3 full schema → v5: materials/treatments/orientations converted, substrateTagRules discarded, batchPrefixes→matches")
     func v3ToV5FullSchemaMigration() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         try seedV2MeasuringCondition(at: paths.measuringConditionURL)
         try seedV3SampleIdentificationFull(at: paths.sampleIdentificationURL)
         try seedFilenameTokenization(at: paths.filenameTokenizationURL)
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let sampleData = try Data(contentsOf: paths.sampleIdentificationURL)
         let sampleObj = try JSONSerialization.jsonObject(with: sampleData) as? [String: Any]
@@ -294,9 +278,8 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("state gate >= 7: migration is skipped when state=7 and measuring file is already v7")
     func stateGateV7SkipsMigration() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         // Both state and measuring file must be v7 for the gate to skip — the gate
         // checks file version to prevent false-positive skips after partial migrations.
@@ -311,7 +294,7 @@ struct V515RulesBootstrapperMigrationTests {
         try state7.data(using: .utf8)!.write(to: stateURL)
 
         let sampleBefore = try Data(contentsOf: paths.sampleIdentificationURL)
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
         let sampleAfter = try Data(contentsOf: paths.sampleIdentificationURL)
 
         #expect(sampleBefore == sampleAfter, "file must not change when state gate is already v7 and measuring file is v7")
@@ -319,9 +302,8 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("v3→v5: non-standard sampleId.patterns produce warnings and are discarded")
     func nonStandardPatternsDiscarded() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         try seedV2MeasuringCondition(at: paths.measuringConditionURL)
         let json = """
@@ -330,7 +312,7 @@ struct V515RulesBootstrapperMigrationTests {
         try json.data(using: .utf8)!.write(to: paths.sampleIdentificationURL)
         try seedFilenameTokenization(at: paths.filenameTokenizationURL)
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let sampleData = try Data(contentsOf: paths.sampleIdentificationURL)
         let sampleObj = try JSONSerialization.jsonObject(with: sampleData) as? [String: Any]
@@ -351,15 +333,14 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("v2→v3 migration: separator mismatch produces warning")
     func separatorMismatchProducesWarning() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         try seedV2MeasuringCondition(at: paths.measuringConditionURL)
         try seedV2SampleIdentification(at: paths.sampleIdentificationURL, separators: "_")
         try seedFilenameTokenization(at: paths.filenameTokenizationURL, separators: "_- ()")
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let stateURL = dir.appendingPathComponent(".migration_state.json")
         let stateData = try Data(contentsOf: stateURL)
@@ -372,15 +353,14 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("v2→v3 migration: matching separators produce no mismatch warning")
     func matchingSeparatorsProduceNoWarning() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         try seedV2MeasuringCondition(at: paths.measuringConditionURL)
         try seedV2SampleIdentification(at: paths.sampleIdentificationURL, separators: "_- ()")
         try seedFilenameTokenization(at: paths.filenameTokenizationURL, separators: "_- ()")
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let stateURL = dir.appendingPathComponent(".migration_state.json")
         let stateData = try Data(contentsOf: stateURL)
@@ -393,9 +373,8 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("dirty data: kind/binding mismatch produces warning in migration_state")
     func dirtyDataKindBindingMismatchGeneratesWarning() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         let dirtyJSON = """
         {"version":1,"batch":{"preferSampleId":true,"fallbackPatterns":[]},"conditions":{"extraConditions":{},"tokenMapRules":{"temperature":[]},"displayLabels":{}},"conditionDefinitions":[{"id":"temperature","label":"Temperature","kind":"unit_suffix","binding":"conditions.tokenMapRules.temperature"}]}
@@ -404,7 +383,7 @@ struct V515RulesBootstrapperMigrationTests {
         try seedV1SampleIdentification(at: paths.sampleIdentificationURL)
         try seedFilenameTokenization(at: paths.filenameTokenizationURL, separators: "_")
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let stateURL = dir.appendingPathComponent(".migration_state.json")
         let stateData = try Data(contentsOf: stateURL)
@@ -416,15 +395,14 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("backup files are valid JSON after migration")
     func backupFilesAreValidJSON() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         try seedV1MeasuringCondition(at: paths.measuringConditionURL)
         try seedV1SampleIdentification(at: paths.sampleIdentificationURL)
         try seedFilenameTokenization(at: paths.filenameTokenizationURL, separators: "_")
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let contents = try FileManager.default.contentsOfDirectory(atPath: dir.path)
         let backupDirName = try #require(contents.first(where: { $0.hasPrefix(".backup-") }),
@@ -458,15 +436,14 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("measuring_condition v2→v4: label→displayName, tokenMap→matches, unitPattern→matches, version bumped")
     func measuringConditionV2ToV4RoundTrip() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         try seedV2MeasuringConditionWithTokenMap(at: paths.measuringConditionURL)
         try seedV3SampleIdentificationFull(at: paths.sampleIdentificationURL)
         try seedFilenameTokenization(at: paths.filenameTokenizationURL)
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let data = try Data(contentsOf: paths.measuringConditionURL)
         let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -499,16 +476,15 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("workflow v1→v3: scope stripped, matchValues→value, version bumped")
     func workflowV1ToV3RoundTrip() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         try seedV2MeasuringConditionWithTokenMap(at: paths.measuringConditionURL)
         try seedV3SampleIdentificationFull(at: paths.sampleIdentificationURL)
         try seedFilenameTokenization(at: paths.filenameTokenizationURL)
         try seedV1Workflow(at: paths.workflowURL)
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let data = try Data(contentsOf: paths.workflowURL)
         let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -537,16 +513,15 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("workflow absent during migration: state still reaches v6")
     func workflowAbsentDoesNotBlockMigration() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         try seedV2MeasuringConditionWithTokenMap(at: paths.measuringConditionURL)
         try seedV3SampleIdentificationFull(at: paths.sampleIdentificationURL)
         try seedFilenameTokenization(at: paths.filenameTokenizationURL)
         // no workflow.json seeded
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let stateData = try Data(contentsOf: dir.appendingPathComponent(".migration_state.json"))
         let stateObj = try JSONSerialization.jsonObject(with: stateData) as? [String: Any]
@@ -572,9 +547,8 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("workflow v2→v3: equalsAny expands to individual equals rules")
     func equalsAnyExpandsToIndividualEqualsRules() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         try seedV4MeasuringCondition(at: paths.measuringConditionURL)
         try seedV5SampleIdentification(at: paths.sampleIdentificationURL)
@@ -583,7 +557,7 @@ struct V515RulesBootstrapperMigrationTests {
         """
         try workflowJSON.data(using: .utf8)!.write(to: paths.workflowURL)
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let data = try Data(contentsOf: paths.workflowURL)
         let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -602,9 +576,8 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("workflow v2→v3: containsAny expands to individual contains rules")
     func containsAnyExpandsToIndividualContainsRules() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         try seedV4MeasuringCondition(at: paths.measuringConditionURL)
         try seedV5SampleIdentification(at: paths.sampleIdentificationURL)
@@ -613,7 +586,7 @@ struct V515RulesBootstrapperMigrationTests {
         """
         try workflowJSON.data(using: .utf8)!.write(to: paths.workflowURL)
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let data = try Data(contentsOf: paths.workflowURL)
         let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -625,9 +598,8 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("workflow v2→v3: equalsOrContainsAny preserves strict equals-first order")
     func equalsOrContainsAnyPreservesStrictOrder() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         try seedV4MeasuringCondition(at: paths.measuringConditionURL)
         try seedV5SampleIdentification(at: paths.sampleIdentificationURL)
@@ -636,7 +608,7 @@ struct V515RulesBootstrapperMigrationTests {
         """
         try workflowJSON.data(using: .utf8)!.write(to: paths.workflowURL)
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let data = try Data(contentsOf: paths.workflowURL)
         let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -650,9 +622,8 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("workflow v2→v3: regex rule is dropped and warning recorded")
     func regexRuleIsDroppedWithWarning() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         try seedV4MeasuringCondition(at: paths.measuringConditionURL)
         try seedV5SampleIdentification(at: paths.sampleIdentificationURL)
@@ -661,7 +632,7 @@ struct V515RulesBootstrapperMigrationTests {
         """
         try workflowJSON.data(using: .utf8)!.write(to: paths.workflowURL)
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let data = try Data(contentsOf: paths.workflowURL)
         let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -677,9 +648,8 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("workflow v2→v3: scope=joined produces warning and rule is preserved as token-scoped")
     func scopeJoinedGeneratesWarning() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         try seedV4MeasuringCondition(at: paths.measuringConditionURL)
         try seedV5SampleIdentification(at: paths.sampleIdentificationURL)
@@ -688,7 +658,7 @@ struct V515RulesBootstrapperMigrationTests {
         """
         try workflowJSON.data(using: .utf8)!.write(to: paths.workflowURL)
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let data = try Data(contentsOf: paths.workflowURL)
         let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -706,9 +676,8 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("measuring_condition v3→v4: multi-unit unitPattern reverse-parses to unit-suffix matches")
     func unitPatternMultipleUnitsReverseParseToMatches() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         let measuringJSON = """
         {"version":3,"conditionDefinitions":[{"id":"current","kind":"unit_suffix","displayName":"Current","unitPattern":"^-?\\\\d+(?:\\\\.\\\\d+)?(?:mA|A|uA)$"}]}
@@ -716,7 +685,7 @@ struct V515RulesBootstrapperMigrationTests {
         try measuringJSON.data(using: .utf8)!.write(to: paths.measuringConditionURL)
         try seedV5SampleIdentification(at: paths.sampleIdentificationURL)
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let data = try Data(contentsOf: paths.measuringConditionURL)
         let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -741,9 +710,8 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("measuring_condition v3→v4: non-canonical unitPattern produces empty matches and warning")
     func unitPatternNonCanonicalProducesEmptyMatchesWithWarning() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         let measuringJSON = """
         {"version":3,"conditionDefinitions":[{"id":"temperature","kind":"unit_suffix","displayName":"Temperature","unitPattern":"^[0-9]+K$"}]}
@@ -751,7 +719,7 @@ struct V515RulesBootstrapperMigrationTests {
         try measuringJSON.data(using: .utf8)!.write(to: paths.measuringConditionURL)
         try seedV5SampleIdentification(at: paths.sampleIdentificationURL)
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let data = try Data(contentsOf: paths.measuringConditionURL)
         let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -772,9 +740,8 @@ struct V515RulesBootstrapperMigrationTests {
 
     @Test("measuring_condition v3→v4: tokenMap equalsAny expansion replicates output value to all rows")
     func tokenMapEqualsAnyExpansionPreservesOutputValue() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let paths = RulesConfigPaths()
+        let (dir, paths, internalPaths) = try acquireIsolation()
+        defer { releaseIsolation(dir: dir) }
 
         let measuringJSON = """
         {"version":3,"conditionDefinitions":[{"id":"device","kind":"token_map","displayName":"Device","tokenMap":[{"match":{"type":"equalsAny","matchValues":["wafer","chip"]},"value":"semiconductor"}]}]}
@@ -782,7 +749,7 @@ struct V515RulesBootstrapperMigrationTests {
         try measuringJSON.data(using: .utf8)!.write(to: paths.measuringConditionURL)
         try seedV5SampleIdentification(at: paths.sampleIdentificationURL)
 
-        RulesBootstrapper.migrateRuntimeRulesIfNeeded()
+        RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: internalPaths)
 
         let data = try Data(contentsOf: paths.measuringConditionURL)
         let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]

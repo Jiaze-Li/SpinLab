@@ -6,22 +6,74 @@ struct RulesPanelView: View {
 
     @State private var isPresentingCloseAlert = false
     @State private var pendingCloseWindow: NSWindow?
-    @State private var isDegradedBannerDismissed = false
 
     private var store: RulesManagementStore { appState.rulesPanel }
 
     var body: some View {
+        switch store.rulesBookState {
+        case .notConfigured:
+            notConfiguredView
+        case .incompleteBook(let missing):
+            incompleteBookView(missing: missing)
+        case .ready:
+            rulesEditorView
+        }
+    }
+
+    // MARK: - Not Configured
+
+    private var notConfiguredView: some View {
+        VStack(spacing: AppSpacing.lg) {
+            Image(systemName: "folder.badge.questionmark")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+            Text("No Rules Book Selected")
+                .font(.headline)
+            Text("Select a folder that contains your rules files (import_filters.json, etc.).")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+            Button("Select Rules Book Folder…") {
+                selectRulesBookFolder()
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(AppSpacing.xl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Incomplete Book
+
+    private func incompleteBookView(missing: [String]) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            HStack(spacing: AppSpacing.sm) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                Text("Rules Book Incomplete")
+                    .font(.headline)
+            }
+            Text("The configured Rules Book folder is missing the following files:")
+                .foregroundStyle(.secondary)
+            ForEach(missing, id: \.self) { name in
+                Text("• \(name)")
+                    .font(.system(.body, design: .monospaced))
+            }
+            Divider()
+            Button("Select a Different Folder…") {
+                selectRulesBookFolder()
+            }
+        }
+        .padding(AppSpacing.xl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    // MARK: - Rules Editor
+
+    private var rulesEditorView: some View {
         NavigationSplitView {
-            VStack(spacing: 0) {
-                if !isDegradedBannerDismissed,
-                   case .degraded(_, let reason) = store.syncStartupOutcome {
-                    degradedBanner(reason: reason)
-                }
-                List(selection: sectionSelection) {
-                    ForEach(RulesPanelSection.allCases) { section in
-                        sidebarRow(for: section)
-                            .tag(section)
-                    }
+            List(selection: sectionSelection) {
+                ForEach(RulesPanelSection.allCases) { section in
+                    sidebarRow(for: section)
+                        .tag(section)
                 }
             }
             .navigationTitle("Rules")
@@ -77,37 +129,8 @@ struct RulesPanelView: View {
                     .fill(Color.accentColor)
                     .frame(width: 7, height: 7)
             }
-            if store.mirrorWarningSectionLabel == section.rawValue {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                    .imageScale(.small)
-                    .help(store.mirrorWarningReason ?? "Mirror sync warning")
-            }
             Spacer(minLength: 0)
         }
-    }
-
-    @ViewBuilder
-    private func degradedBanner(reason: String) -> some View {
-        HStack(spacing: AppSpacing.sm) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-            Text("Rules sync error — some files may not have loaded correctly.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 0)
-            Button {
-                isDegradedBannerDismissed = true
-            } label: {
-                Image(systemName: "xmark")
-                    .imageScale(.small)
-            }
-            .buttonStyle(.plain)
-            .help(reason)
-        }
-        .padding(.horizontal, AppSpacing.md)
-        .padding(.vertical, AppSpacing.xs)
-        .background(Color.orange.opacity(0.12))
     }
 
     @ViewBuilder
@@ -126,6 +149,22 @@ struct RulesPanelView: View {
         }
     }
 
+    // MARK: - Folder picker
+
+    private func selectRulesBookFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.message = "Select the folder that contains your SpinLab rules files."
+        panel.prompt = "Select"
+        if panel.runModal() == .OK, let url = panel.url {
+            appState.configureRulesBook(at: url)
+        }
+    }
+
+    // MARK: - Save / Discard helpers
+
     private func discardAllDirtySections() {
         let previous = store.currentSection
         for section in RulesPanelSection.allCases where store.dirtySections.contains(section) {
@@ -137,12 +176,11 @@ struct RulesPanelView: View {
 
     private func saveAllDirtySectionsAndCloseIfSuccessful() {
         let previous = store.currentSection
-        // Fixed order per allCases (not Set order) so cross-section deps are deterministic
         for section in RulesPanelSection.allCases where store.dirtySections.contains(section) {
             store.selectSection(section)
             let outcome = store.saveCurrent()
             switch outcome {
-            case .saved, .savedWithMirrorWarning:
+            case .saved:
                 continue
             case .validationFailed, .externalConflict, .ioError:
                 pendingCloseWindow = nil

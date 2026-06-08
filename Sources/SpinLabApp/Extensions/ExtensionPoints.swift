@@ -93,7 +93,11 @@ struct AMRPHEWorkflowExtension: WorkflowExtension {
 
 struct AMRPHEMetadataExtension: MetadataExtension {
     let workflow: SpinLabDomain.WorkflowKind = .amrPhe
-    private let ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared
+    private let ruleProvider: any SpinLabRuleProviding
+
+    init(ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared) {
+        self.ruleProvider = ruleProvider
+    }
 
     func parseFilename(from fileURL: URL) -> SpinLabDomain.ParsedFilenameHints {
         let parser = FilenameRuleParser(ruleSet: ruleProvider.ruleSet())

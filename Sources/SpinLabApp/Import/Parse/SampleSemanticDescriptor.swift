@@ -40,21 +40,42 @@ struct SampleSemanticDescriptor: Hashable {
         processingTokens.sorted().joined(separator: "+")
     }
 
+    // Use when processing tokens are already validated by an external rule provider
+    // (e.g. FileRoutingRuleBook with injected rules) — bypasses the global-singleton
+    // re-validation in init so injected-provider test scenarios work correctly.
+    static func withPrevalidatedTokens(
+        batch: String?,
+        processingTokens: Set<String>,
+        material: String?,
+        orientation: String?
+    ) -> SampleSemanticDescriptor {
+        var d = SampleSemanticDescriptor(batch: batch, processingTokens: [], material: material, orientation: orientation)
+        d.processingTokens = processingTokens
+        return d
+    }
+
     static func fromSampleKey(_ sampleKey: String) -> SampleSemanticDescriptor? {
         let parts = sampleKey.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
         guard parts.count == 4 else {
             return nil
         }
 
-        let processing = parts[1]
+        // Tokens in a canonical sampleKey are already in their canonical form — bypass
+        // normalizedProcessingToken validation so they are preserved regardless of the
+        // current rule set configuration.
+        let rawTokens = parts[1]
             .split(separator: "+", omittingEmptySubsequences: true)
             .map(String.init)
-        return SampleSemanticDescriptor(
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+        var descriptor = SampleSemanticDescriptor(
             batch: parts[0],
-            processingTokens: Set(processing),
+            processingTokens: [],
             material: parts[2],
             orientation: parts[3]
         )
+        descriptor.processingTokens = Set(rawTokens)
+        return descriptor
     }
 
     static func fromLibrarySubstrate(
@@ -111,15 +132,12 @@ struct SampleSemanticDescriptor: Hashable {
         guard !trimmed.isEmpty else { return nil }
 
         let compiled = ruleProvider.ruleSet().compiled
-        if !compiled.substrateTreatmentEntries.isEmpty {
-            let normalized = FilenameRuleSet.normalizeForSubstrate(trimmed)
-            for entry in compiled.substrateTreatmentEntries {
-                if entry.equalsKeysNormalized.contains(normalized)
-                    || entry.containsNeedlesNormalized.contains(where: { normalized.contains($0) }) {
-                    return entry.displayName
-                }
+        let normalized = FilenameRuleSet.normalizeForSubstrate(trimmed)
+        for entry in compiled.substrateTreatmentEntries {
+            if entry.equalsKeysNormalized.contains(normalized)
+                || entry.containsNeedlesNormalized.contains(where: { normalized.contains($0) }) {
+                return entry.displayName
             }
-            return nil
         }
         return nil
     }

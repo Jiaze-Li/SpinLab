@@ -1,17 +1,18 @@
 import Foundation
 
 final class WorkflowDefinitionStore {
-    private let fileURL: URL
+    private let fixedFileURL: URL?
     private let decoder = JSONDecoder()
 
-    init(fileURL: URL = RulesConfigPaths().workflowURL) {
-        self.fileURL = fileURL
+    init(fileURL: URL? = nil) {
+        self.fixedFileURL = fileURL
     }
 
     func load() -> [WorkflowDefinition] {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return [] }
+        guard let url = fixedFileURL ?? RuleLoader.currentBookPaths?.workflowURL,
+              FileManager.default.fileExists(atPath: url.path) else { return [] }
         do {
-            let data = try Data(contentsOf: fileURL)
+            let data = try Data(contentsOf: url)
             let draft = try decoder.decode(WorkflowFileDraft.self, from: data)
             return draft.workflows.map { entry in
                 WorkflowDefinition(

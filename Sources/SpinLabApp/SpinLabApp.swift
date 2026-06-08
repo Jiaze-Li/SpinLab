@@ -6,8 +6,6 @@ struct SpinLabApp: App {
     @State private var appState: SpinLabAppState
 
     init() {
-        RulesBootstrapper.seedMissingRuntimeFilesFromBundleIfNeeded()
-        WorkflowRegistryRetirementService().runIfNeeded()
         let registry = WorkflowRegistry.shared
         let workflow = Self.workflowSelection(from: ProcessInfo.processInfo.environment["SPINLAB_WORKFLOW"])
         let bundle = registry.bundle(for: workflow) ?? registry.defaultBundle()

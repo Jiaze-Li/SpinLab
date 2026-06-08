@@ -1,7 +1,7 @@
 import Foundation
 
 struct WorkflowRegistryRetirementService {
-    private let paths: RulesConfigPaths
+    private let paths: RulesConfigPaths?
     private let fileManager: FileManager
 
     private let encoder: JSONEncoder = {
@@ -12,21 +12,24 @@ struct WorkflowRegistryRetirementService {
 
     private let decoder = JSONDecoder()
 
-    init(paths: RulesConfigPaths = RulesConfigPaths(), fileManager: FileManager = .default) {
+    init(paths: RulesConfigPaths? = nil, fileManager: FileManager = .default) {
         self.paths = paths
         self.fileManager = fileManager
     }
 
-    var outerRegistryURL: URL {
-        paths.configDirectoryURL
-            .deletingLastPathComponent()
-            .appendingPathComponent("workflow_registry.json")
+    var outerRegistryURL: URL? {
+        paths.map {
+            $0.configDirectoryURL
+                .deletingLastPathComponent()
+                .appendingPathComponent("workflow_registry.json")
+        }
     }
 
     func runIfNeeded() {
-        guard fileManager.fileExists(atPath: outerRegistryURL.path) else { return }
+        guard let p = paths, let registryURL = outerRegistryURL,
+              fileManager.fileExists(atPath: registryURL.path) else { return }
         do {
-            try retire()
+            try retire(paths: p, outerRegistryURL: registryURL)
         } catch {
             AppLogger.shared.error(.import, "WorkflowRegistry retirement failed — outer registry left in place", metadata: [
                 "reason": error.localizedDescription
@@ -34,7 +37,7 @@ struct WorkflowRegistryRetirementService {
         }
     }
 
-    private func retire() throws {
+    private func retire(paths: RulesConfigPaths, outerRegistryURL: URL) throws {
         let ts = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
 
         let registryData = try Data(contentsOf: outerRegistryURL)
@@ -90,8 +93,7 @@ struct WorkflowRegistryRetirementService {
         let mergedData = try encoder.encode(draft)
 
         // Backup workflow.json before overwriting
-        let workflowBackupURL = paths.workflowURL
-            .appendingPathExtension("backup-\(ts)")
+        let workflowBackupURL = paths.workflowURL.appendingPathExtension("backup-\(ts)")
         try fileManager.copyItem(at: paths.workflowURL, to: workflowBackupURL)
 
         // Atomic write merged workflow.json

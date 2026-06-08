@@ -4,6 +4,19 @@ struct FileRoutingRuleBook {
     nonisolated(unsafe) private static var semanticRuleCache: (fingerprint: String, rules: FileRoutingSemanticRules)?
     private static let semanticRuleCacheLock = NSLock()
 
+    private let injectedRuleProvider: (any SpinLabRuleProviding)?
+
+    init(ruleProvider: (any SpinLabRuleProviding)? = nil) {
+        self.injectedRuleProvider = ruleProvider
+    }
+
+    private func loadSemanticRules() -> FileRoutingSemanticRules {
+        if let ruleProvider = injectedRuleProvider {
+            return FileRoutingSemanticRules.load(ruleProvider: ruleProvider)
+        }
+        return Self.loadSemanticRulesForCurrentFingerprint()
+    }
+
     func normalizedSampleInput(_ value: String?) -> String? {
         guard let value else {
             return nil
@@ -28,7 +41,7 @@ struct FileRoutingRuleBook {
             ?? SampleSemanticDescriptor(batch: nil, processingTokens: [], material: nil, orientation: nil)
         let substrate = substrateDescriptor(from: sampleTags)
 
-        descriptor = SampleSemanticDescriptor(
+        descriptor = SampleSemanticDescriptor.withPrevalidatedTokens(
             batch: descriptor.batch,
             processingTokens: descriptor.processingTokens.union(substrate.processingTokens),
             material: descriptor.material ?? substrate.material,
@@ -36,7 +49,7 @@ struct FileRoutingRuleBook {
         )
 
         if let fallback {
-            descriptor = SampleSemanticDescriptor(
+            descriptor = SampleSemanticDescriptor.withPrevalidatedTokens(
                 batch: descriptor.batch ?? fallback.batch,
                 processingTokens: descriptor.processingTokens.union(fallback.processingTokens),
                 material: descriptor.material ?? fallback.material,
@@ -109,7 +122,7 @@ struct FileRoutingRuleBook {
             if let token = treatmentToken(from: processingRaw) {
                 processingTokens.insert(token)
             }
-            return SampleSemanticDescriptor(
+            return SampleSemanticDescriptor.withPrevalidatedTokens(
                 batch: batch,
                 processingTokens: processingTokens,
                 material: materialRaw == "UNKNOWN" ? nil : materialRaw,
@@ -123,7 +136,7 @@ struct FileRoutingRuleBook {
                 let batch = cleaned(String(parts[0]))?.uppercased()
                 let substrateRaw = cleaned(String(parts[1]))
                 let substrate = substrateDescriptor(from: substrateTokens(from: substrateRaw ?? ""))
-                return SampleSemanticDescriptor(
+                return SampleSemanticDescriptor.withPrevalidatedTokens(
                     batch: batch,
                     processingTokens: substrate.processingTokens,
                     material: substrate.material,
@@ -137,7 +150,7 @@ struct FileRoutingRuleBook {
            let head = components.first,
            looksLikeBatchToken(head) {
             let substrate = substrateDescriptor(from: Array(components.dropFirst()))
-            return SampleSemanticDescriptor(
+            return SampleSemanticDescriptor.withPrevalidatedTokens(
                 batch: head.uppercased(),
                 processingTokens: substrate.processingTokens,
                 material: substrate.material,
@@ -165,7 +178,7 @@ struct FileRoutingRuleBook {
 
     private func treatmentToken(from normalized: String) -> String? {
         let probe = normalizeSubstrateToken(normalized).uppercased()
-        let semanticRules = Self.loadSemanticRulesForCurrentFingerprint()
+        let semanticRules = loadSemanticRules()
         for (needle, canonical) in semanticRules.treatmentNeedles {
             let normalizedNeedle = needle.uppercased()
             if normalizedNeedle.count <= 1 {
@@ -206,17 +219,22 @@ struct FileRoutingRuleBook {
             }
         }
 
-        return SampleSemanticDescriptor(
+        // treatmentToken() already validated the tokens using this ruleBook's own
+        // ruleProvider — bypass SampleSemanticDescriptor.init's re-validation via
+        // the global singleton so injected-provider scenarios work correctly.
+        var descriptor = SampleSemanticDescriptor(
             batch: nil,
-            processingTokens: processingTokens,
+            processingTokens: [],
             material: material,
             orientation: orientation
         )
+        descriptor.processingTokens = processingTokens
+        return descriptor
     }
 
     private func materialToken(from normalized: String) -> String? {
         let probe = normalized.uppercased()
-        let semanticRules = Self.loadSemanticRulesForCurrentFingerprint()
+        let semanticRules = loadSemanticRules()
         for (needle, canonical) in semanticRules.materialNeedles {
             if probe.contains(needle) {
                 return canonical
@@ -237,7 +255,7 @@ struct FileRoutingRuleBook {
     }
 
     private func orientationToken(from normalized: String) -> String? {
-        let semanticRules = Self.loadSemanticRulesForCurrentFingerprint()
+        let semanticRules = loadSemanticRules()
         for token in semanticRules.orientationNeedles.sorted(by: { $0.count > $1.count }) {
             if normalized.contains(token) {
                 return semanticRules.orientationAliases[token] ?? token

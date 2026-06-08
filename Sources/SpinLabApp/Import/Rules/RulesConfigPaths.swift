@@ -3,32 +3,11 @@ import Foundation
 struct RulesConfigPaths {
     let configDirectoryURL: URL
 
-    /// Test / explicit-injection entry: caller provides the config directory directly.
-    /// Use this from tests with a tempDir to avoid touching the real Application Support.
-    /// Mirror of `LibrarySettingsStore.init(settingsURL:)`; same single-user-app rationale.
+    /// Caller provides the Rules Book directory directly.
+    /// In production, pass the URL from RulesBookSettings.rulesBookURL.
+    /// In tests, pass a tempDir to avoid touching real files.
     init(configDirectoryURL: URL) {
         self.configDirectoryURL = configDirectoryURL
-    }
-
-    init(fileManager: FileManager = .default) {
-        let base = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? URL(fileURLWithPath: NSHomeDirectory())
-                .appendingPathComponent("Library/Application Support", isDirectory: true)
-
-        let bundleID = Bundle.main.bundleIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let isMainAppBundle = bundleID?.caseInsensitiveCompare("com.spinlab.app") == .orderedSame
-        let appFolder: String
-        if !Self.isRunningTests() && isMainAppBundle {
-            appFolder = "SpinLab"
-        } else if let bundleID, !bundleID.isEmpty {
-            appFolder = bundleID
-        } else {
-            appFolder = "com.spinlab.tests.\(ProcessInfo.processInfo.processIdentifier)"
-        }
-
-        configDirectoryURL = base
-            .appendingPathComponent(appFolder, isDirectory: true)
-            .appendingPathComponent("config", isDirectory: true)
     }
 
     // MARK: - New 5-book schema (v3)
@@ -55,11 +34,6 @@ struct RulesConfigPaths {
 
     var libraryImportRulesURL: URL {
         configDirectoryURL.appendingPathComponent("library_import_rules.json")
-    }
-
-    /// NOT included in allSchemaFileURLs; must not enter compositeHash (§1.4 [HARD]).
-    var ruleSetStateURL: URL {
-        configDirectoryURL.appendingPathComponent("rule_set_state.json")
     }
 
     var allSchemaFileURLs: [URL] {

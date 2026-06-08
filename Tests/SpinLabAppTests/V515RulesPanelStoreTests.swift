@@ -6,53 +6,29 @@ import Testing
 @Suite("V5.1.5 RulesPanel Store", .serialized)
 struct V515RulesPanelStoreTests {
 
-    // MARK: - Isolation (same strategy as old V515 tests)
-
-    private static let backupExtension = "v515-store-backup"
+    // MARK: - Isolation
 
     private struct IsolationContext {
         let dir: URL
-        let backup: URL?
+        let paths: RulesConfigPaths
     }
 
     private func acquireIsolation() throws -> IsolationContext {
-        purgeStaleBackups()
-        let dir = RulesConfigPaths().configDirectoryURL
-        let fm = FileManager.default
-        var backup: URL? = nil
-        if fm.fileExists(atPath: dir.path) {
-            let candidate = dir.appendingPathExtension("\(Self.backupExtension).\(UUID().uuidString)")
-            try fm.moveItem(at: dir, to: candidate)
-            backup = candidate
-        }
-        return IsolationContext(dir: dir, backup: backup)
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SL-store-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let paths = RulesConfigPaths(configDirectoryURL: dir)
+        return IsolationContext(dir: dir, paths: paths)
     }
 
     private func releaseIsolation(_ context: IsolationContext) {
-        let fm = FileManager.default
-        if fm.fileExists(atPath: context.dir.path) {
-            try? fm.removeItem(at: context.dir)
-        }
-        if let backup = context.backup, fm.fileExists(atPath: backup.path) {
-            try? fm.moveItem(at: backup, to: context.dir)
-        }
-        _ = RuleLoader.shared.reloadCached()
-    }
-
-    private func purgeStaleBackups() {
-        let dir = RulesConfigPaths().configDirectoryURL
-        let parent = dir.deletingLastPathComponent()
-        let prefix = dir.lastPathComponent + "." + Self.backupExtension
-        guard let entries = try? FileManager.default.contentsOfDirectory(atPath: parent.path) else { return }
-        for entry in entries where entry.hasPrefix(prefix) {
-            try? FileManager.default.removeItem(at: parent.appendingPathComponent(entry, isDirectory: true))
-        }
+        try? FileManager.default.removeItem(at: context.dir)
     }
 
     // MARK: - Seed helpers
 
-    private func seedAll() throws -> RulesConfigPaths {
-        let paths = RulesConfigPaths()
+    private func seedAll(in iso: IsolationContext) throws -> RulesConfigPaths {
+        let paths = iso.paths
         let fm = FileManager.default
         try? fm.removeItem(at: paths.configDirectoryURL)
         try fm.createDirectory(at: paths.configDirectoryURL, withIntermediateDirectories: true)
@@ -101,9 +77,9 @@ struct V515RulesPanelStoreTests {
     func presentLoadsAllDrafts() throws {
         let iso = try acquireIsolation()
         defer { releaseIsolation(iso) }
-        _ = try seedAll()
+        _ = try seedAll(in: iso)
 
-        let store = RulesManagementStore()
+        let store = RulesManagementStore(rulesBookPaths: iso.paths)
         store.present()
 
         #expect(store.importFiltersDraft != nil)
@@ -118,9 +94,9 @@ struct V515RulesPanelStoreTests {
     func availableConditionFieldIDsRefreshes() throws {
         let iso = try acquireIsolation()
         defer { releaseIsolation(iso) }
-        _ = try seedAll()
+        _ = try seedAll(in: iso)
 
-        let store = RulesManagementStore()
+        let store = RulesManagementStore(rulesBookPaths: iso.paths)
         store.present()
 
         let initial = store.availableConditionFieldIDs
@@ -139,9 +115,9 @@ struct V515RulesPanelStoreTests {
     func updateAndDiscard() throws {
         let iso = try acquireIsolation()
         defer { releaseIsolation(iso) }
-        _ = try seedAll()
+        _ = try seedAll(in: iso)
 
-        let store = RulesManagementStore()
+        let store = RulesManagementStore(rulesBookPaths: iso.paths)
         store.present()
 
         var draft = try #require(store.importFiltersDraft)
@@ -159,9 +135,9 @@ struct V515RulesPanelStoreTests {
     func reloadAfterExternalChange() throws {
         let iso = try acquireIsolation()
         defer { releaseIsolation(iso) }
-        let paths = try seedAll()
+        let paths = try seedAll(in: iso)
 
-        let store = RulesManagementStore()
+        let store = RulesManagementStore(rulesBookPaths: iso.paths)
         store.present()
 
         var draft = try #require(store.filenameTokenizationDraft)
@@ -181,11 +157,11 @@ struct V515RulesPanelStoreTests {
     func saveAllOrderIsStable() throws {
         let iso = try acquireIsolation()
         defer { releaseIsolation(iso) }
-        _ = try seedAll()
+        _ = try seedAll(in: iso)
 
         var hookOrder: [String] = []
-        let store = RulesManagementStore(onRulesSaved: {})
-        store.persistenceHook = RulesPersistenceHook(didPersist: { sectionID, _, _, _, _ in
+        let store = RulesManagementStore(onRulesSaved: {}, rulesBookPaths: iso.paths)
+        store.persistenceHook = RulesPersistenceHook(didPersist: { sectionID, _, _, _ in
             hookOrder.append(sectionID)
         })
         store.present()
@@ -214,12 +190,12 @@ struct V515RulesPanelStoreTests {
     func persistFiresHook() throws {
         let iso = try acquireIsolation()
         defer { releaseIsolation(iso) }
-        let paths = try seedAll()
+        let paths = try seedAll(in: iso)
 
-        var hookCalls: [(String, URL, Int, String, DualWriteOutcome)] = []
-        let store = RulesManagementStore()
-        store.persistenceHook = RulesPersistenceHook(didPersist: { s, u, v, c, o in
-            hookCalls.append((s, u, v, c, o))
+        var hookCalls: [(String, URL, Int, String)] = []
+        let store = RulesManagementStore(rulesBookPaths: iso.paths)
+        store.persistenceHook = RulesPersistenceHook(didPersist: { s, u, v, c in
+            hookCalls.append((s, u, v, c))
         })
         store.present()
 
@@ -248,9 +224,9 @@ struct V515RulesPanelStoreTests {
     func hashPreconditionConflict() throws {
         let iso = try acquireIsolation()
         defer { releaseIsolation(iso) }
-        let paths = try seedAll()
+        let paths = try seedAll(in: iso)
 
-        let store = RulesManagementStore()
+        let store = RulesManagementStore(rulesBookPaths: iso.paths)
         store.present()
 
         var draft = try #require(store.importFiltersDraft)
@@ -275,9 +251,9 @@ struct V515RulesPanelStoreTests {
     func overrideAfterConflict() throws {
         let iso = try acquireIsolation()
         defer { releaseIsolation(iso) }
-        let paths = try seedAll()
+        let paths = try seedAll(in: iso)
 
-        let store = RulesManagementStore()
+        let store = RulesManagementStore(rulesBookPaths: iso.paths)
         store.present()
 
         var draft = try #require(store.importFiltersDraft)

@@ -6,31 +6,24 @@ import Testing
 @Suite("V5.1.5 Substrate v2 Validation", .serialized)
 struct V515SharedSubstrateTests {
 
-    private static let backupExtension = "v515-substrate-backup"
-
-    private func acquireIsolation() throws -> (dir: URL, backup: URL?) {
-        let dir = RulesConfigPaths().configDirectoryURL
-        let fm = FileManager.default
-        var backup: URL? = nil
-        if fm.fileExists(atPath: dir.path) {
-            let candidate = dir.appendingPathExtension("\(Self.backupExtension).\(UUID().uuidString)")
-            try fm.moveItem(at: dir, to: candidate)
-            backup = candidate
-        }
-        return (dir, backup)
+    private struct IsolationContext {
+        let dir: URL
+        let paths: RulesConfigPaths
     }
 
-    private func releaseIsolation(dir: URL, backup: URL?) {
-        let fm = FileManager.default
-        try? fm.removeItem(at: dir)
-        if let backup, fm.fileExists(atPath: backup.path) {
-            try? fm.moveItem(at: backup, to: dir)
-        }
-        _ = RuleLoader.shared.reloadCached()
+    private func acquireIsolation() throws -> IsolationContext {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SL-substrate2-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return IsolationContext(dir: dir, paths: RulesConfigPaths(configDirectoryURL: dir))
     }
 
-    private func makeStore(conditionIDs: [String] = ["temperature"]) throws -> RulesManagementStore {
-        let paths = RulesConfigPaths()
+    private func releaseIsolation(_ ctx: IsolationContext) {
+        try? FileManager.default.removeItem(at: ctx.dir)
+    }
+
+    private func makeStore(_ ctx: IsolationContext, conditionIDs: [String] = ["temperature"]) throws -> RulesManagementStore {
+        let paths = ctx.paths
         let fm = FileManager.default
         try? fm.removeItem(at: paths.configDirectoryURL)
         try fm.createDirectory(at: paths.configDirectoryURL, withIntermediateDirectories: true)
@@ -56,7 +49,7 @@ struct V515SharedSubstrateTests {
         {"version":2,"conditionDefinitions":[\(defs)]}
         """.data(using: .utf8)!.write(to: paths.measuringConditionURL)
 
-        let store = RulesManagementStore()
+        let store = RulesManagementStore(rulesBookPaths: paths)
         store.present()
         return store
     }
@@ -65,9 +58,9 @@ struct V515SharedSubstrateTests {
 
     @Test("duplicate material display name fails validation")
     func duplicateMaterialDisplayNameFails() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let store = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let store = try makeStore(ctx)
 
         var draft = try #require(store.sampleIdentificationDraft)
         let extra = SampleIdentificationFileDraft.SubstrateEntry(displayName: "STO", matches: [])
@@ -83,9 +76,9 @@ struct V515SharedSubstrateTests {
 
     @Test("duplicate orientation display name fails validation")
     func duplicateOrientationDisplayNameFails() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let store = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let store = try makeStore(ctx)
 
         var draft = try #require(store.sampleIdentificationDraft)
         let extra = SampleIdentificationFileDraft.SubstrateEntry(displayName: "001", matches: [])
@@ -101,9 +94,9 @@ struct V515SharedSubstrateTests {
 
     @Test("valid substrate config saves successfully")
     func validSubstrateConfigSavesSuccessfully() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let store = try makeStore()
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let store = try makeStore(ctx)
 
         var draft = try #require(store.sampleIdentificationDraft)
         let newMaterial = SampleIdentificationFileDraft.SubstrateEntry(

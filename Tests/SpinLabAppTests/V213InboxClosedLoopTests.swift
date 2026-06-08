@@ -92,6 +92,11 @@ struct V213InboxClosedLoopTests {
         )
         let persistence = MockPersistenceForV213(pendingImports: [stale])
         let appState = makeAppState(persistence: persistence)
+        // SpinLabAppState.init resets RuleLoader — configure bundled rules after init
+        let bundledDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Sources/SpinLabApp/config")
+        RuleLoader.configure(bookPaths: RulesConfigPaths(configDirectoryURL: bundledDir), internalPaths: AppInternalPaths())
+        defer { RuleLoader.configure(bookPaths: nil, internalPaths: AppInternalPaths()) }
 
         appState.recomputeAllPendingParsedHints()
         guard let updated = appState.inbox.pendingImports.first(where: { $0.id == stale.id }) else {
@@ -226,6 +231,12 @@ struct V213InboxClosedLoopTests {
         )
         let persistence = MockPersistenceForV213(pendingImports: [pending])
         let appState = makeAppState(persistence: persistence)
+        // SpinLabAppState.init resets RuleLoader — configure bundled rules after init
+        let bundledDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Sources/SpinLabApp/config")
+        RuleLoader.configure(bookPaths: RulesConfigPaths(configDirectoryURL: bundledDir), internalPaths: AppInternalPaths())
+        defer { RuleLoader.configure(bookPaths: nil, internalPaths: AppInternalPaths()) }
+
         installExistingDrawers(
             sampleDisplayNames: ["PN32 - b STO(111)"],
             into: appState
@@ -265,6 +276,12 @@ struct V213InboxClosedLoopTests {
         )
         let persistence = MockPersistenceForV213(pendingImports: [pending])
         let appState = makeAppState(persistence: persistence)
+        // SpinLabAppState.init resets RuleLoader — configure bundled rules after init
+        let bundledDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Sources/SpinLabApp/config")
+        RuleLoader.configure(bookPaths: RulesConfigPaths(configDirectoryURL: bundledDir), internalPaths: AppInternalPaths())
+        defer { RuleLoader.configure(bookPaths: nil, internalPaths: AppInternalPaths()) }
+
         installExistingDrawers(
             sampleDisplayNames: [
                 "PN32 - o STO(111)",

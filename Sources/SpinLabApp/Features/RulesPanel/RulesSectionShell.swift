@@ -114,7 +114,7 @@ struct RulesSectionShell<Content: View>: View {
 
     private func handleOutcome(_ outcome: RulesPanelSaveOutcome) {
         switch outcome {
-        case .saved, .savedWithMirrorWarning:
+        case .saved:
             saveErrors = []
             if shouldCloseAfterSave {
                 NSApp.keyWindow?.close()

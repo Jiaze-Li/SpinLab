@@ -6,31 +6,24 @@ import Testing
 @Suite("V5.1.5 RulesPanel Cross-Section", .serialized)
 struct V515RulesPanelCrossSectionTests {
 
-    private static let backupExtension = "v515-cross-backup"
-
-    private func acquireIsolation() throws -> (dir: URL, backup: URL?) {
-        let dir = RulesConfigPaths().configDirectoryURL
-        let fm = FileManager.default
-        var backup: URL? = nil
-        if fm.fileExists(atPath: dir.path) {
-            let candidate = dir.appendingPathExtension("\(Self.backupExtension).\(UUID().uuidString)")
-            try fm.moveItem(at: dir, to: candidate)
-            backup = candidate
-        }
-        return (dir, backup)
+    private struct IsolationContext {
+        let dir: URL
+        let paths: RulesConfigPaths
     }
 
-    private func releaseIsolation(dir: URL, backup: URL?) {
-        let fm = FileManager.default
-        try? fm.removeItem(at: dir)
-        if let backup, fm.fileExists(atPath: backup.path) {
-            try? fm.moveItem(at: backup, to: dir)
-        }
-        _ = RuleLoader.shared.reloadCached()
+    private func acquireIsolation() throws -> IsolationContext {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SL-cross-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return IsolationContext(dir: dir, paths: RulesConfigPaths(configDirectoryURL: dir))
     }
 
-    private func setupStore(conditionIDs: [String] = ["temperature", "field"]) throws -> RulesManagementStore {
-        let paths = RulesConfigPaths()
+    private func releaseIsolation(_ ctx: IsolationContext) {
+        try? FileManager.default.removeItem(at: ctx.dir)
+    }
+
+    private func setupStore(_ ctx: IsolationContext, conditionIDs: [String] = ["temperature", "field"]) throws -> RulesManagementStore {
+        let paths = ctx.paths
         let fm = FileManager.default
         try? fm.removeItem(at: paths.configDirectoryURL)
         try fm.createDirectory(at: paths.configDirectoryURL, withIntermediateDirectories: true)
@@ -61,7 +54,7 @@ struct V515RulesPanelCrossSectionTests {
         {"version":2,"conditionDefinitions":[\(defs)]}
         """.data(using: .utf8)!.write(to: paths.measuringConditionURL)
 
-        let store = RulesManagementStore()
+        let store = RulesManagementStore(rulesBookPaths: paths)
         store.present()
         return store
     }
@@ -70,9 +63,9 @@ struct V515RulesPanelCrossSectionTests {
 
     @Test("workflow save uses dirty measuringCondition draft for cross-section validation")
     func workflowSaveUsesDirtyMeasuringCondition() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let store = try setupStore(conditionIDs: ["temperature"])
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let store = try setupStore(ctx, conditionIDs: ["temperature"])
 
         // Add a new condition only in the draft (not yet saved to disk)
         var mcDraft = try #require(store.measuringConditionDraft)
@@ -94,9 +87,9 @@ struct V515RulesPanelCrossSectionTests {
 
     @Test("workflow save fails when conditionFieldID not in disk or draft")
     func workflowSaveFailsForUnknownCondition() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let store = try setupStore(conditionIDs: ["temperature"])
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let store = try setupStore(ctx, conditionIDs: ["temperature"])
 
         var wfDraft = try #require(store.workflowDraft)
         wfDraft.workflows[0].conditionFieldIDs = ["temperature", "completely_unknown"]
@@ -111,12 +104,12 @@ struct V515RulesPanelCrossSectionTests {
 
     @Test("Save All with workflow + measuringCondition both dirty uses allCases order")
     func saveAllOrderWithBothDirty() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let store = try setupStore(conditionIDs: ["temperature"])
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let store = try setupStore(ctx, conditionIDs: ["temperature"])
 
         var hookOrder: [String] = []
-        store.persistenceHook = RulesPersistenceHook(didPersist: { sectionID, _, _, _, _ in
+        store.persistenceHook = RulesPersistenceHook(didPersist: { sectionID, _, _, _ in
             hookOrder.append(sectionID)
         })
 
@@ -142,9 +135,9 @@ struct V515RulesPanelCrossSectionTests {
 
     @Test("workflow conditionFieldIDs cross-validation with measuringCondition dirty draft")
     func crossSectionValidationWithDirtyDraft() throws {
-        let (dir, backup) = try acquireIsolation()
-        defer { releaseIsolation(dir: dir, backup: backup) }
-        let store = try setupStore(conditionIDs: ["temperature"])
+        let ctx = try acquireIsolation()
+        defer { releaseIsolation(ctx) }
+        let store = try setupStore(ctx, conditionIDs: ["temperature"])
 
         // The disk has only "temperature". Add "device" to the dirty draft only.
         var mcDraft = try #require(store.measuringConditionDraft)

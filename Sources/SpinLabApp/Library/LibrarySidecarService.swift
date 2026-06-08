@@ -6,17 +6,20 @@ struct LibrarySidecarService {
     private let logger: any AppLogging
     let reader: any LibrarySidecarReaderCapability
     let writer: any LibrarySidecarWriterCapability
+    private let ruleProvider: any SpinLabRuleProviding
 
     init(
         libraryStore: LibraryStore,
         logger: any AppLogging = AppLogger.shared,
         reader: (any LibrarySidecarReaderCapability)? = nil,
-        writer: (any LibrarySidecarWriterCapability)? = nil
+        writer: (any LibrarySidecarWriterCapability)? = nil,
+        ruleProvider: (any SpinLabRuleProviding)? = nil
     ) {
         self.libraryStore = libraryStore
         self.logger = logger
         self.reader = reader ?? LibrarySidecarReader()
         self.writer = writer ?? LibrarySidecarWriter()
+        self.ruleProvider = ruleProvider ?? SpinLabRuleProvider.shared
     }
 
     // MARK: - Recompute all
@@ -31,7 +34,7 @@ struct LibrarySidecarService {
         var skippedExistingSidecarCount = 0
         var failedSidecarCount = 0
 
-        let loadResult = SpinLabRuleProvider.shared.loadResult()
+        let loadResult = ruleProvider.loadResult()
 
         for batchDirectory in batchDirectories {
             let batchJSONURL = batchDirectory.appending(path: "batch.json")
@@ -67,7 +70,7 @@ struct LibrarySidecarService {
     // MARK: - Dry-run diff
 
     func computeRecomputeDiff(rootURL: URL) -> [RecomputeDiffItem] {
-        let loadResult = SpinLabRuleProvider.shared.loadResult()
+        let loadResult = ruleProvider.loadResult()
         let parser = FilenameRuleParser(ruleSet: loadResult.ruleSet)
         var items: [RecomputeDiffItem] = []
 
@@ -348,7 +351,7 @@ struct LibrarySidecarService {
     // MARK: - Stale count
 
     func computeStaleCount(rootURL: URL, currentFingerprint: String) -> Int {
-        let loadResult = SpinLabRuleProvider.shared.loadResult()
+        let loadResult = ruleProvider.loadResult()
         let parser = FilenameRuleParser(ruleSet: loadResult.ruleSet)
 
         return libraryStore.enumerateAllSidecarURLs(rootURL: rootURL).reduce(into: 0) { count, url in
