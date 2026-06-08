@@ -7,6 +7,12 @@ import Testing
 struct V221DrawerMatchEngineTests {
     @Test("shared semantic descriptor canonicalizes fields consistently")
     func sharedSemanticDescriptorCanonicalizesConsistently() {
+        let bundledDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Sources/SpinLabApp/config")
+        let savedPaths = RuleLoader.currentBookPaths
+        RuleLoader.configure(bookPaths: RulesConfigPaths(configDirectoryURL: bundledDir), internalPaths: AppInternalPaths())
+        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
+
         let descriptor = SampleSemanticDescriptor(
             batch: "pn32",
             processingTokens: ["BAKED", "o", "HF"],

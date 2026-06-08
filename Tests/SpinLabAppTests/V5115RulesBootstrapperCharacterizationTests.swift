@@ -72,7 +72,7 @@ struct V5115RulesBootstrapperCharacterizationTests {
             """
             try state7.data(using: .utf8)!.write(to: stateURL)
 
-            RulesBootstrapper.migrateRuntimeRulesIfNeeded(paths: paths)
+            RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: AppInternalPaths(appSupportDirectoryURL: paths.configDirectoryURL))
 
             let measData = try Data(contentsOf: paths.measuringConditionURL)
             let measObj = try JSONSerialization.jsonObject(with: measData) as? [String: Any]
@@ -98,7 +98,7 @@ struct V5115RulesBootstrapperCharacterizationTests {
             try measuringJSON.data(using: .utf8)!.write(to: paths.measuringConditionURL)
             try self.seedV5SampleIdentification(at: paths.sampleIdentificationURL)
 
-            RulesBootstrapper.migrateRuntimeRulesIfNeeded(paths: paths)
+            RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: AppInternalPaths(appSupportDirectoryURL: paths.configDirectoryURL))
 
             let data = try Data(contentsOf: paths.measuringConditionURL)
             let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -130,7 +130,7 @@ struct V5115RulesBootstrapperCharacterizationTests {
             try measuringJSON.data(using: .utf8)!.write(to: paths.measuringConditionURL)
             try self.seedV5SampleIdentification(at: paths.sampleIdentificationURL)
 
-            RulesBootstrapper.migrateRuntimeRulesIfNeeded(paths: paths)
+            RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: AppInternalPaths(appSupportDirectoryURL: paths.configDirectoryURL))
 
             let data = try Data(contentsOf: paths.measuringConditionURL)
             let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -149,7 +149,7 @@ struct V5115RulesBootstrapperCharacterizationTests {
             try measuringJSON.data(using: .utf8)!.write(to: paths.measuringConditionURL)
             try self.seedV5SampleIdentification(at: paths.sampleIdentificationURL)
 
-            RulesBootstrapper.migrateRuntimeRulesIfNeeded(paths: paths)
+            RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: AppInternalPaths(appSupportDirectoryURL: paths.configDirectoryURL))
 
             let data = try Data(contentsOf: paths.measuringConditionURL)
             let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -169,7 +169,7 @@ struct V5115RulesBootstrapperCharacterizationTests {
             try measuringJSON.data(using: .utf8)!.write(to: paths.measuringConditionURL)
             try self.seedV5SampleIdentification(at: paths.sampleIdentificationURL)
 
-            RulesBootstrapper.migrateRuntimeRulesIfNeeded(paths: paths)
+            RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: AppInternalPaths(appSupportDirectoryURL: paths.configDirectoryURL))
 
             let data = try Data(contentsOf: paths.measuringConditionURL)
             let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -192,7 +192,7 @@ struct V5115RulesBootstrapperCharacterizationTests {
             let measuringBefore = try Data(contentsOf: paths.measuringConditionURL)
             let sampleBefore = try Data(contentsOf: paths.sampleIdentificationURL)
 
-            RulesBootstrapper.migrateRuntimeRulesIfNeeded(paths: paths)
+            RulesBootstrapper.migrateRulesBookIfNeeded(paths: paths, internalPaths: AppInternalPaths(appSupportDirectoryURL: paths.configDirectoryURL))
 
             let failedURL = paths.configDirectoryURL.appendingPathComponent(".migration_failed.json")
             #expect(FileManager.default.fileExists(atPath: failedURL.path), ".migration_failed.json must be written when Codable verify step fails")

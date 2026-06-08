@@ -75,7 +75,7 @@ struct V5114SharedSingletonAbsenceTests {
     // INV-16a: RulesManagementStore save chain routes through injected RuleProviding
     @Test("INV-16a: RulesManagementStore persist calls injected ruleLoader, not RuleLoader.shared directly")
     func rulesSaveChainUsesInjectedLoader() throws {
-        let (_, cleanup) = try writeMinimalRulesConfig()
+        let (paths, cleanup) = try writeMinimalRulesConfig()
         defer { cleanup() }
 
         let mockLoader = MockRuleLoader()

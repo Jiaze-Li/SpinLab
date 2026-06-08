@@ -254,13 +254,18 @@ struct V320WorkflowSearchAcrossDrawersTests {
             conditions: ["temperature": "80K"]
         )
 
-        let useCase = SearchWorkflowMeasurementsUseCase()
+        let bundleRuleProvider = InlineRuleProvider(loadResult: RuleLoader().loadFromBundleOnly())
+        let normalizer = SampleKeyNormalizer(rules: FileRoutingRuleBook(ruleProvider: bundleRuleProvider))
+        let useCase = SearchWorkflowMeasurementsUseCase(sampleKeyNormalizer: normalizer)
         let hits = try useCase.execute(
             query: WorkflowSearchQuery(rawText: "ahe pn31 o sto111"),
             libraryRootURL: fixture.rootURL
         )
 
-        #expect(hits.count == 1)
+        guard hits.count == 1 else {
+            Issue.record("Expected 1 hit but got \(hits.count)")
+            return
+        }
         #expect(hits[0].sampleKey == "PN31|o|STO|111")
         #expect(hits[0].sampleBatchAndSubstrate == "PN31 o STO111")
     }

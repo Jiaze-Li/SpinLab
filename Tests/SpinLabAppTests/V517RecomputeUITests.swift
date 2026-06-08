@@ -2,6 +2,15 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
+private struct BundledRuleProvider: SpinLabRuleProviding {
+    func loadResult() -> RuleLoader.LoadResult { RuleLoader().loadFromBundleOnly() }
+    func reloadResult() -> RuleLoader.LoadResult { RuleLoader().loadFromBundleOnly() }
+    func ruleSet() -> FilenameRuleSet { loadResult().ruleSet }
+    func registryRules() -> FilenameRuleSet.RegistryRules { ruleSet().registry ?? FilenameRuleSet.fallback().registry! }
+    func importRules() -> FilenameRuleSet.ImportRules { ruleSet().importRules ?? FilenameRuleSet.fallback().importRules! }
+    func substrateConfig() -> FilenameRuleSet.SubstrateConfig? { ruleSet().substrateConfig }
+}
+
 @Suite("V5.1.7 Recompute UI — stale count + diff + override write")
 struct V517RecomputeUITests {
 
@@ -16,7 +25,7 @@ struct V517RecomputeUITests {
         writeSidecar(fingerprint: "v4:bbb", to: dir.appending(path: "b.csv.spinlab.json"))
         writeSidecar(fingerprint: "v4:aaa", to: dir.appending(path: "c.csv.spinlab.json"))
 
-        let svc = LibrarySidecarService(libraryStore: LibraryStore())
+        let svc = LibrarySidecarService(libraryStore: LibraryStore(), ruleProvider: BundledRuleProvider())
         let count = svc.computeStaleCount(rootURL: dir, currentFingerprint: "v4:aaa")
         #expect(count == 1)
     }
@@ -29,7 +38,7 @@ struct V517RecomputeUITests {
         writeSidecar(fingerprint: "v4:aaa", to: dir.appending(path: "a.csv.spinlab.json"))
         writeSidecar(fingerprint: "v4:aaa", to: dir.appending(path: "b.csv.spinlab.json"))
 
-        let svc = LibrarySidecarService(libraryStore: LibraryStore())
+        let svc = LibrarySidecarService(libraryStore: LibraryStore(), ruleProvider: BundledRuleProvider())
         #expect(svc.computeStaleCount(rootURL: dir, currentFingerprint: "v4:aaa") == 0)
     }
 

@@ -1,8 +1,12 @@
 import Foundation
 
 struct SearchWorkflowMeasurementsUseCase {
-    private let sampleKeyNormalizer = SampleKeyNormalizer()
+    private let sampleKeyNormalizer: SampleKeyNormalizer
     private let rootAccess = LibraryRootAccess()
+
+    init(sampleKeyNormalizer: SampleKeyNormalizer = SampleKeyNormalizer()) {
+        self.sampleKeyNormalizer = sampleKeyNormalizer
+    }
 
     func execute(
         query: WorkflowSearchQuery,

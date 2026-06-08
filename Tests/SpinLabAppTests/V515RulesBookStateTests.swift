@@ -39,15 +39,6 @@ struct V515RulesBookStateTests {
         #expect(store.rulesBookState == .notConfigured)
     }
 
-    @Test("RuleLoader returns notConfigured metadata when no book configured")
-    func ruleLoaderNotConfiguredMetadata() {
-        RuleLoader.configure(bookPaths: nil, internalPaths: AppInternalPaths())
-        let result = RuleLoader.shared.load()
-        #expect(result.metadata.sourceLabel == "NotConfigured")
-        #expect(result.metadata.sourcePath == "not-configured")
-        #expect(result.warnings.contains(where: { $0.contains("No Rules Book") }))
-    }
-
     // MARK: - incompleteBook
 
     @Test("empty dir → state is incompleteBook with all 5 filenames")
@@ -107,15 +98,23 @@ struct V515RulesBookStateTests {
     }
 
     // MARK: - RuleLoader source isolation
+    //
+    // These tests mutate the global RuleLoader.shared configuration.
+    // Save the current book paths and restore them in a defer to avoid
+    // affecting concurrently-running Swift Testing suites.
 
     @Test("RuleLoader only reads from configured book path")
     func ruleLoaderOnlyReadsFromConfiguredBook() throws {
+        let savedPaths = RuleLoader.currentBookPaths
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("SL-isolation-\(UUID().uuidString)", isDirectory: true)
         let paths = RulesConfigPaths(configDirectoryURL: dir)
         let fm = FileManager.default
         try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        defer { try? fm.removeItem(at: dir) }
+        defer {
+            try? fm.removeItem(at: dir)
+            RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths())
+        }
 
         // Seed a minimal but complete rules book
         try """
@@ -138,9 +137,21 @@ struct V515RulesBookStateTests {
         RuleLoader.configure(bookPaths: paths, internalPaths: internalPaths)
         let result = RuleLoader.shared.reloadCached()
 
-        // Verify the batch prefix unique to this isolated book is present
-        #expect(result.ruleSet.sampleId.matches.contains(where: { $0.value == "ISOLATION" }))
+        // importRules is the cleanest cross-check: "dat" is only in this isolated book, not the bundle
+        #expect(result.ruleSet.importRules?.supportedFileExtensions.contains("dat") == true)
         #expect(result.metadata.sourceLabel == "RulesBook")
         #expect(result.metadata.sourcePath.contains(dir.path))
+    }
+
+    @Test("RuleLoader.load() with no configured paths returns NotConfigured metadata")
+    func ruleLoaderNotConfiguredMetadata() {
+        let savedPaths = RuleLoader.currentBookPaths
+        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
+
+        RuleLoader.configure(bookPaths: nil, internalPaths: AppInternalPaths())
+        let result = RuleLoader.shared.load()
+        #expect(result.metadata.sourceLabel == "NotConfigured")
+        #expect(result.metadata.sourcePath == "not-configured")
+        #expect(result.warnings.contains(where: { $0.contains("No Rules Book") }))
     }
 }

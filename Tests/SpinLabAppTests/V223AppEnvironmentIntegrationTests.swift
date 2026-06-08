@@ -144,7 +144,14 @@ struct V223AppEnvironmentIntegrationTests {
             dataActor: MockDataActor(),
             workflowDefinitionStore: WorkflowDefinitionStore(fileURL: workflowDefURL)
         )
-        let appState = SpinLabAppState(environment: environment)
+        let bundleRuleProvider = InlineRuleProvider(loadResult: RuleLoader().loadFromBundleOnly())
+        let workflowBundle = WorkflowBundle(
+            workflowExtension: AMRPHEWorkflowExtension(),
+            metadataExtension: AMRPHEMetadataExtension(ruleProvider: bundleRuleProvider),
+            analysisModule: AMRPHEAnalysisModuleExtension(),
+            viewExtension: AMRPHEViewExtension()
+        )
+        let appState = SpinLabAppState(workflowBundle: workflowBundle, environment: environment)
 
         appState.importFiles(from: [importURL])
         try await waitUntil(timeoutMS: 120_000) {

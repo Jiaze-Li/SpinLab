@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import SpinLabApp
 
@@ -12,6 +13,12 @@ struct V221RoutingExplanationTests {
 
     @Test("planner resolves channel-only substrate signal without unresolved warnings")
     func plannerResolvesChannelOnlySubstrateSignal() {
+        let bundledDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Sources/SpinLabApp/config")
+        let savedPaths = RuleLoader.currentBookPaths
+        RuleLoader.configure(bookPaths: RulesConfigPaths(configDirectoryURL: bundledDir), internalPaths: AppInternalPaths())
+        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
+
         let parsed = SpinLabDomain.ParsedFilenameHints(
             channelHints: [
                 SpinLabDomain.ParsedChannelHint(channel: "ch1", sampleID: nil, tags: ["HF"], testInfoTags: [])

@@ -58,6 +58,9 @@ struct V515RulesSaveImmediateEffectTests {
         let (dir, paths) = try acquireIsolation()
         defer { releaseIsolation(dir: dir) }
         _ = try writeInitialConfig(paths: paths)
+        let savedPaths = RuleLoader.currentBookPaths
+        RuleLoader.configure(bookPaths: paths, internalPaths: AppInternalPaths())
+        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
 
         var r1Fired = false
         let store = RulesManagementStore(onRulesSaved: {
@@ -84,6 +87,9 @@ struct V515RulesSaveImmediateEffectTests {
         let (dir, paths) = try acquireIsolation()
         defer { releaseIsolation(dir: dir) }
         _ = try writeInitialConfig(paths: paths)
+        let savedPaths = RuleLoader.currentBookPaths
+        RuleLoader.configure(bookPaths: paths, internalPaths: AppInternalPaths())
+        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
 
         var r1Fired = false
         let store = RulesManagementStore(onRulesSaved: {
