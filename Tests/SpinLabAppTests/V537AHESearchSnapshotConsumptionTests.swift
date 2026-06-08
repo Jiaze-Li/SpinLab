@@ -57,8 +57,6 @@ struct V537AHESearchSnapshotConsumptionTests {
 
         // Cache contains hitB only (stale — does NOT include the selected hit)
         store.cachedSearchResults = [hitB]
-        // User has "sidecar-A" selected
-        store.selectedSearchResultIDs = [hitA.id]
 
         // Selected snapshot carries hitA (canonical shell selected-hit surface)
         let snapshot = makeSelectedHitsSnapshot(selectedHits: [hitA])
@@ -83,7 +81,6 @@ struct V537AHESearchSnapshotConsumptionTests {
 
         // Cache contains hitB only — the selected hit (hitA) is absent
         store.cachedSearchResults = [hitB]
-        store.selectedSearchResultIDs = [hitA.id]
 
         // Selected snapshot contains hitA, stale cache must be ignored.
         let snapshot = makeSelectedHitsSnapshot(selectedHits: [hitA])
@@ -105,11 +102,12 @@ struct V537AHESearchSnapshotConsumptionTests {
         let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
         let hitB = makeHit(sidecarPath: "sidecar-B", sampleKey: "PN32|b|STO|111")
 
-        // Cache contains hitB only — selected hitA is absent
+        // Simulate WFS: selectionReader says hitA is selected.
+        store.selectionReader = { [hitA.id] }
+        // Cache contains hitB only — the selected hit (hitA) is absent.
         store.cachedSearchResults = [hitB]
-        store.selectedSearchResultIDs = [hitA.id]
 
-        // nil selected snapshot -> fallback to cache -> hitA missing -> guard fires
+        // nil selected snapshot -> fallback to cache + selectionReader -> hitA not in cache -> guard fires
         store.runAnalysis(selectedHitsSnapshot: nil)
 
         #expect(store.isPlotRendering == false,
@@ -127,7 +125,6 @@ struct V537AHESearchSnapshotConsumptionTests {
 
         let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
         store.cachedSearchResults = [hitA]
-        store.selectedSearchResultIDs = [hitA.id]
         store.runAnalysis()
 
         #expect(store.isPlotRendering == true,

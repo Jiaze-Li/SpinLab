@@ -182,8 +182,9 @@ extension ThreeOmegaWorkspaceStore {
     /// Legacy/restore overload: derives selectedHits from cachedSearchResults.
     /// Used by restoreFromPack(), which writes cachedSearchResults before calling this.
     func _snapshotAndCacheManifestPayloads() {
+        let ids = selectionReader?() ?? []
         let selectedHits = cachedSearchResults
-            .filter { selectedSearchResultIDs.contains($0.id) }
+            .filter { ids.contains($0.id) }
             .sorted(by: { $0.measurementFilePath < $1.measurementFilePath })
         _snapshotAndCacheManifestPayloads(from: selectedHits)
     }

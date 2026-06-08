@@ -11,9 +11,10 @@ import Observation
 @Observable
 final class AHEWorkspaceStore {
 
-    // MARK: - Selection
+    // MARK: - Selection bridge (pack serialization only)
 
-    var selectedSearchResultIDs: Set<String> = []
+    /// Injected by WorkbenchFeatureStore; returns current selected IDs from WorkbenchSelectionRuntime.
+    var selectionReader: (() -> Set<String>)?
 
     // MARK: - Plot output
 
@@ -153,28 +154,6 @@ final class AHEWorkspaceStore {
         relatedChartsTask?.cancel()
     }
 
-    // MARK: - Selection
-
-    var isAllSelected: Bool {
-        !cachedSearchResults.isEmpty && selectedSearchResultIDs.count == cachedSearchResults.count
-    }
-
-    func selectAll() {
-        selectedSearchResultIDs = Set(cachedSearchResults.map(\.id))
-    }
-
-    func deselectAll() {
-        selectedSearchResultIDs = []
-    }
-
-    func toggleSearchHitSelection(_ id: String) {
-        if selectedSearchResultIDs.contains(id) {
-            selectedSearchResultIDs.remove(id)
-        } else {
-            selectedSearchResultIDs.insert(id)
-        }
-    }
-
     // MARK: - Plot
 
     // MARK: - Rerender (style-only, from cached ingestion)
@@ -240,7 +219,6 @@ final class AHEWorkspaceStore {
     }
 
     func clearResults() {
-        selectedSearchResultIDs = []
         cachedSearchResults = []
         cachedSampleNumericDisplay = [:]
     }
@@ -347,7 +325,13 @@ final class AHEWorkspaceStore {
     // MARK: - Private helpers
 
     private func buildAHESelections(from sourceHits: [WorkflowMeasurementSearchHit]) -> [AHEPlotSelectionItem] {
-        let hits = sourceHits.filter { selectedSearchResultIDs.contains($0.id) }
+        let hits: [WorkflowMeasurementSearchHit]
+        if let reader = selectionReader {
+            let ids = reader()
+            hits = ids.isEmpty ? [] : sourceHits.filter { ids.contains($0.id) }
+        } else {
+            hits = sourceHits
+        }
         return buildAHESelections(fromSelectedHits: hits)
     }
 
@@ -477,7 +461,7 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
             showPlotGrid: tabs.showPlotGrid,
             tabStates: tabs.snapshotStates(keyFor: { $0.rawValue }),
             cachedSearchResults: cachedSearchResults,
-            selectedSearchResultIDs: Array(selectedSearchResultIDs),
+            selectedSearchResultIDs: Array(selectionReader?() ?? []),
             searchQueryText: ""
         )
     }
@@ -496,7 +480,8 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
     }
 
     func restoreFromPack(config: AHEPackConfig, result: AHEPackResult, pack: AnalysisPack,
-                         restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void) {
+                         restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void,
+                         seedSelection: @escaping (Set<String>) -> Void) {
         // Restore plot controls
         titleTemplate = config.titleTemplate
         tabs.showPlotGrid = config.showPlotGrid
@@ -506,7 +491,7 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
 
         // Restore search selection
         cachedSearchResults = config.cachedSearchResults
-        selectedSearchResultIDs = Set(config.selectedSearchResultIDs)
+        seedSelection(Set(config.selectedSearchResultIDs))
 
         // Restore results
         ingestionResult = result.ingestionResult

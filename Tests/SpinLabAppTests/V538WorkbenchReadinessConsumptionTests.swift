@@ -20,7 +20,7 @@ struct V538WorkbenchReadinessConsumptionTests {
         #expect(source.contains("let readiness = workbench.readinessProjection(for: workflowID, store: store)"))
         #expect(source.contains(".disabled(!readiness.hasFoundData)"))
         #expect(source.contains(".disabled(!readiness.hasSelectedData || store.isAnalyzing)"))
-        #expect(source.contains("legacyHits: store.cachedSearchResults"))
+        #expect(source.contains("workbench.selectedHitsSnapshot(for: workflowID)"))
     }
 
     @Test("WorkflowWorkspaceResultArea keeps result-header availability on store.hasAnalysisResult")

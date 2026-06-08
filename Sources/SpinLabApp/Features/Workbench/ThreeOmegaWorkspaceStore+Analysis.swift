@@ -14,7 +14,13 @@ extension ThreeOmegaWorkspaceStore {
     /// nil falls back to cachedSearchResults (pack restore, direct calls).
     func runAnalysis(searchSnapshot: WorkbenchSearchSnapshot?) {
         let sourceHits = searchSnapshot?.results ?? cachedSearchResults
-        let selectedHits = _sortedSelectedHits(sourceHits.filter { selectedSearchResultIDs.contains($0.id) })
+        let selectedHits: [WorkflowMeasurementSearchHit]
+        if let reader = selectionReader {
+            let ids = reader()
+            selectedHits = _sortedSelectedHits(sourceHits.filter { ids.contains($0.id) })
+        } else {
+            selectedHits = _sortedSelectedHits(sourceHits)
+        }
         _runAnalysis(selectedHits: selectedHits)
     }
 
@@ -22,8 +28,9 @@ extension ThreeOmegaWorkspaceStore {
         if let selectedHitsSnapshot {
             _runAnalysis(selectedHits: _sortedSelectedHits(selectedHitsSnapshot.selectedHits))
         } else {
+            let ids = selectionReader?() ?? []
             let selectedHits = _sortedSelectedHits(
-                cachedSearchResults.filter { selectedSearchResultIDs.contains($0.id) }
+                cachedSearchResults.filter { ids.contains($0.id) }
             )
             _runAnalysis(selectedHits: selectedHits)
         }

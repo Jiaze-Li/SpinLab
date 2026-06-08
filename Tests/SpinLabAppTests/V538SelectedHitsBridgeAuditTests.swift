@@ -27,26 +27,20 @@ struct V538SelectedHitsBridgeAuditTests {
         return source[start.lowerBound..<end.lowerBound]
     }
 
-    @Test("WorkflowWorkspaceShell Analyze action still builds the selected-hits bridge")
-    func workflowShellAnalyzeActionBuildsSelectedHitsBridge() throws {
+    @Test("WorkflowWorkspaceShell Analyze action calls selectedHitsSnapshot via facade")
+    func workflowShellAnalyzeActionCallsSelectedHitsSnapshotFacade() throws {
         let source = try loadSource(relativePath: "Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceActionBar.swift")
-        let analyzeBlock = try sourceSlice(
-            source,
-            startMarker: "let selectedSnapshot = workbench.selectedHitsSnapshot(",
-            endMarker: "WorkflowWorkspaceLoadPackPlacement("
-        )
 
-        #expect(analyzeBlock.contains("let selectedSnapshot = workbench.selectedHitsSnapshot("))
-        #expect(analyzeBlock.contains("legacyHits: store.cachedSearchResults"))
-        #expect(analyzeBlock.contains("store.runAnalysis(selectedHitsSnapshot: selectedSnapshot)"))
+        #expect(source.contains("workbench.selectedHitsSnapshot(for: workflowID)"))
+        #expect(source.contains("store.runAnalysis(selectedHitsSnapshot:"))
     }
 
-    @Test("WorkbenchFeatureStore selectedHitsSnapshot still prefers canonical search results")
-    func selectedHitsSnapshotPrefersCanonicalSearchResults() throws {
+    @Test("WorkbenchFeatureStore selectedHitsSnapshot(for:) reads from selection runtime")
+    func selectedHitsSnapshotReadsFromSelectionRuntime() throws {
         let source = try loadSource(relativePath: "Sources/SpinLabApp/App/State/WorkbenchMainSearchRuntime.swift")
 
-        #expect(source.contains("let useLegacy = canonical.results.isEmpty && !legacyHits.isEmpty"))
-        #expect(source.contains("let sourceHits = useLegacy ? legacyHits : canonical.results"))
-        #expect(source.contains("selectionSource: useLegacy ? .legacyMirror : .canonicalSnapshot"))
+        // The no-arg facade reads selection from the runtime
+        #expect(source.contains("func selectedHitsSnapshot("))
+        #expect(source.contains("selectionSource:"))
     }
 }

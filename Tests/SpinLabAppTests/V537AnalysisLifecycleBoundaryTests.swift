@@ -220,20 +220,14 @@ struct V537AnalysisLifecycleBoundaryTests {
             running: false
         )
         let before = canonicalSearchState(wfs, workflow: .ahe)
-        store.selectedSearchResultIDs = [hit.id]
 
-        let snapshot = wfs.selectedHitsSnapshot(
-            for: .ahe,
-            selectedIDs: store.selectedSearchResultIDs,
-            legacyHits: [hit]
-        )
+        let snapshot = makeSelectedHitsSnapshot(workflow: .ahe, queryText: "ahe pn31 80k", selectedHits: [hit])
         store.runAnalysis(selectedHitsSnapshot: snapshot)
 
         await waitForAHEAnalysis(store)
 
         let after = canonicalSearchState(wfs, workflow: .ahe)
         #expect(after == before)
-        #expect(store.selectedSearchResultIDs == Set([hit.id]))
         #expect(store.isPlotRendering == false)
         #expect(store.activeImageData != nil)
         #expect(store.activeChartManifestPayload != nil)
@@ -262,18 +256,11 @@ struct V537AnalysisLifecycleBoundaryTests {
             running: false
         )
         store.cachedSearchResults = [hit]
-        store.selectedSearchResultIDs = [hit.id]
-        let snapshot = wfs.selectedHitsSnapshot(
-            for: .ahe,
-            selectedIDs: store.selectedSearchResultIDs,
-            legacyHits: [hit]
-        )
+        let snapshot = makeSelectedHitsSnapshot(workflow: .ahe, queryText: "ahe pn31", selectedHits: [hit])
         store.runAnalysis(selectedHitsSnapshot: snapshot)
         await waitForAHEAnalysis(store)
 
-        let selectionBeforeClearPlot = store.selectedSearchResultIDs
         store.clearPlot()
-        #expect(store.selectedSearchResultIDs == selectionBeforeClearPlot)
         #expect(store.activeImageData == nil)
         #expect(store.activeChartManifestPayload == nil)
         #expect(store.currentRunTrace == nil)
@@ -281,9 +268,7 @@ struct V537AnalysisLifecycleBoundaryTests {
         #expect(store.plotMessage == nil)
 
         store.cachedSearchResults = [hit]
-        store.selectedSearchResultIDs = [hit.id]
         store.clearResults()
-        #expect(store.selectedSearchResultIDs.isEmpty)
         #expect(store.cachedSearchResults.isEmpty)
         #expect(wfs.searchResultsList(for: .ahe) == [hit])
     }
@@ -313,20 +298,14 @@ struct V537AnalysisLifecycleBoundaryTests {
             running: false
         )
         let before = canonicalSearchState(wfs, workflow: .xyRotation)
-        store.selectedSearchResultIDs = [hit.id]
 
-        let snapshot = wfs.selectedHitsSnapshot(
-            for: .xyRotation,
-            selectedIDs: store.selectedSearchResultIDs,
-            legacyHits: [hit]
-        )
+        let snapshot = makeSelectedHitsSnapshot(workflow: .xyRotation, queryText: "xy pn31 80k", selectedHits: [hit])
         store.runAnalysis(selectedHitsSnapshot: snapshot)
 
         await waitForXYAnalysis(store)
 
         let after = canonicalSearchState(wfs, workflow: .xyRotation)
         #expect(after == before)
-        #expect(store.selectedSearchResultIDs == Set([hit.id]))
         #expect(store.isAnalyzing == false)
         #expect(store.activeImageData != nil)
         #expect(store.activeChartManifestPayload != nil)
@@ -358,7 +337,6 @@ struct V537AnalysisLifecycleBoundaryTests {
         )
         let canonicalBefore = canonicalSearchState(wfs, workflow: .xyRotation)
         store.cachedSearchResults = [hit]
-        store.selectedSearchResultIDs = [hit.id]
         seedAnalysisOutput(
             store,
             payload: makeSeedPlotPayload(
@@ -370,9 +348,7 @@ struct V537AnalysisLifecycleBoundaryTests {
             analysisMessage: "Analyzed 1 angle-sweep file(s)."
         )
 
-        let selectionBeforeClearPlot = store.selectedSearchResultIDs
         store.clearPlot()
-        #expect(store.selectedSearchResultIDs == selectionBeforeClearPlot)
         #expect(store.activeImageData == nil)
         #expect(store.activeChartManifestPayload == nil)
         #expect(store.currentRunTrace == nil)
@@ -381,9 +357,7 @@ struct V537AnalysisLifecycleBoundaryTests {
         #expect(canonicalSearchState(wfs, workflow: .xyRotation) == canonicalBefore)
 
         store.cachedSearchResults = [hit]
-        store.selectedSearchResultIDs = [hit.id]
         store.clearResults()
-        #expect(store.selectedSearchResultIDs.isEmpty)
         #expect(store.cachedSearchResults.isEmpty)
         #expect(canonicalSearchState(wfs, workflow: .xyRotation) == canonicalBefore)
     }
@@ -413,20 +387,14 @@ struct V537AnalysisLifecycleBoundaryTests {
             running: false
         )
         let before = canonicalSearchState(wfs, workflow: .threeOmega)
-        store.selectedSearchResultIDs = [hit.id]
 
-        let snapshot = wfs.selectedHitsSnapshot(
-            for: .threeOmega,
-            selectedIDs: store.selectedSearchResultIDs,
-            legacyHits: [hit]
-        )
+        let snapshot = makeSelectedHitsSnapshot(workflow: .threeOmega, queryText: "3w pn31 80k", selectedHits: [hit])
         store.runAnalysis(selectedHitsSnapshot: snapshot)
 
         await waitForThreeOmegaAnalysis(store)
 
         let after = canonicalSearchState(wfs, workflow: .threeOmega)
         #expect(after == before)
-        #expect(store.selectedSearchResultIDs == Set([hit.id]))
         #expect(store.isAnalyzing == false)
         #expect(store.activeImageData != nil)
         #expect(store.activeChartManifestPayload != nil)
@@ -466,7 +434,6 @@ struct V537AnalysisLifecycleBoundaryTests {
         )
         let canonicalBefore = canonicalSearchState(wfs, workflow: .threeOmega)
         store.cachedSearchResults = [hit]
-        store.selectedSearchResultIDs = [hit.id]
         store.rtQuery = "rt pn31"
         store.rtSearchResults = [rtHit]
         store.rtSearchMessage = "RT search message"
@@ -484,7 +451,6 @@ struct V537AnalysisLifecycleBoundaryTests {
             analysisMessage: "Analyzed 1 field-sweep file(s)."
         )
 
-        let selectionBeforeClearPlot = store.selectedSearchResultIDs
         let rtQueryBeforeClearPlot = store.rtQuery
         let rtResultsBeforeClearPlot = store.rtSearchResults
         let rtMessageBeforeClearPlot = store.rtSearchMessage
@@ -493,7 +459,6 @@ struct V537AnalysisLifecycleBoundaryTests {
         let rtSelectedBeforeClearPlot = store.selectedRTHit
 
         store.clearPlot()
-        #expect(store.selectedSearchResultIDs == selectionBeforeClearPlot)
         #expect(store.activeImageData == nil)
         #expect(store.activeChartManifestPayload == nil)
         #expect(store.currentRunTrace == nil)
@@ -508,7 +473,6 @@ struct V537AnalysisLifecycleBoundaryTests {
         #expect(canonicalSearchState(wfs, workflow: .threeOmega) == canonicalBefore)
 
         store.cachedSearchResults = [hit]
-        store.selectedSearchResultIDs = [hit.id]
         store.rtQuery = "rt pn31"
         store.rtSearchResults = [rtHit]
         store.rtSearchMessage = "RT search message"
@@ -517,7 +481,6 @@ struct V537AnalysisLifecycleBoundaryTests {
         store.selectedRTHit = rtHit
 
         store.clearResults()
-        #expect(store.selectedSearchResultIDs.isEmpty)
         #expect(store.cachedSearchResults.isEmpty)
         #expect(store.cachedSampleNumericDisplay.isEmpty)
         #expect(store.rtQuery.isEmpty)

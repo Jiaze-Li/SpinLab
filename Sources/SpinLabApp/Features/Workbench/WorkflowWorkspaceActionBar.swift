@@ -21,23 +21,18 @@ struct WorkflowWorkspaceActionBar<Store: WorkbenchWorkspaceProviding>: View {
             .buttonStyle(.borderedProminent)
             .disabled(workbench.isSearchRunning(for: workflowID) || appState.library.librarySettings.rootPath == nil)
 
-            Button(store.isAllSelected ? "Deselect All" : "Select All") {
-                if store.isAllSelected {
-                    store.deselectAll()
+            Button(workbench.isAllSelected(for: workflowID) ? "Deselect All" : "Select All") {
+                if workbench.isAllSelected(for: workflowID) {
+                    workbench.deselectAll(for: workflowID)
                 } else {
-                    store.selectAll()
+                    workbench.selectAll(for: workflowID)
                 }
             }
             .buttonStyle(.bordered)
             .disabled(!readiness.hasFoundData)
 
             Button("Analyze") {
-                let selectedSnapshot = workbench.selectedHitsSnapshot(
-                    for: workflowID,
-                    selectedIDs: store.selectedSearchResultIDs,
-                    legacyHits: store.cachedSearchResults
-                )
-                store.runAnalysis(selectedHitsSnapshot: selectedSnapshot)
+                store.runAnalysis(selectedHitsSnapshot: workbench.selectedHitsSnapshot(for: workflowID))
             }
             .buttonStyle(.bordered)
             .disabled(!readiness.hasSelectedData || store.isAnalyzing)

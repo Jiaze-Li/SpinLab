@@ -3,13 +3,13 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
-/// V5.3.7 Selection Shell Boundary — Phase 5C-1B
+/// V5.3.7 Selection Shell Boundary — Phase 5C-1B (Gate 7.2 Step 3)
 ///
-/// Locks documented boundaries while workflow-local selection mirror still exists:
-/// - canonical search state lives in WorkbenchFeatureStore
-/// - selection ops mutate workflow-local selection only
-/// - selectAll denominator is workflow-local cachedSearchResults
-/// - clearResults is workflow-specific local cleanup, not canonical search mutation
+/// Locks documented boundaries after WorkbenchSelectionRuntime promotion:
+/// - canonical search state lives in WorkbenchMainSearchRuntime (via WorkbenchFeatureStore facade)
+/// - selection ops go through WorkbenchFeatureStore facade → WorkbenchSelectionRuntime
+/// - selectAll denominator: canonical search results when available, else workflow cachedSearchResults
+/// - clearResults is workflow-specific local cleanup (cache + 3ω RT); selection cleared via facade
 @Suite("V5.3.7 Workbench Selection Shell Boundary")
 struct V537WorkbenchSelectionShellTests {
 
@@ -79,7 +79,7 @@ struct V537WorkbenchSelectionShellTests {
         seedCanonicalState(wfs, workflow: .ahe, query: "ahe q", results: [hit])
 
         let before = canonicalState(wfs, workflow: .ahe)
-        wfs.aheWorkspace.toggleSearchHitSelection(hit.id)
+        wfs.toggleSearchHitSelection(hit.id, for: .ahe)
         let after = canonicalState(wfs, workflow: .ahe)
 
         #expect(before.query == after.query)
@@ -96,7 +96,7 @@ struct V537WorkbenchSelectionShellTests {
         seedCanonicalState(wfs, workflow: .xyRotation, query: "xy q", results: [hit])
 
         let before = canonicalState(wfs, workflow: .xyRotation)
-        wfs.xyRotationWorkspace.toggleSearchHitSelection(hit.id)
+        wfs.toggleSearchHitSelection(hit.id, for: .xyRotation)
         let after = canonicalState(wfs, workflow: .xyRotation)
 
         #expect(before.query == after.query)
@@ -113,7 +113,7 @@ struct V537WorkbenchSelectionShellTests {
         seedCanonicalState(wfs, workflow: .threeOmega, query: "3w q", results: [hit])
 
         let before = canonicalState(wfs, workflow: .threeOmega)
-        wfs.threeOmegaWorkspace.toggleSearchHitSelection(hit.id)
+        wfs.toggleSearchHitSelection(hit.id, for: .threeOmega)
         let after = canonicalState(wfs, workflow: .threeOmega)
 
         #expect(before.query == after.query)
@@ -131,12 +131,12 @@ struct V537WorkbenchSelectionShellTests {
         let hit = makeHit(id: "ahe-deselect", workflowID: "ahe", workflowCanonicalID: "ahe")
         seedCanonicalState(wfs, workflow: .ahe, query: "ahe q", results: [hit])
         wfs.aheWorkspace.cachedSearchResults = [hit]
-        wfs.aheWorkspace.selectedSearchResultIDs = [hit.id]
+        wfs.toggleSearchHitSelection(hit.id, for: .ahe)
         let before = canonicalState(wfs, workflow: .ahe)
 
-        wfs.aheWorkspace.deselectAll()
+        wfs.deselectAll(for: .ahe)
 
-        #expect(wfs.aheWorkspace.selectedSearchResultIDs.isEmpty)
+        #expect(wfs.selectedSearchResultIDs(for: .ahe).isEmpty)
         #expect(wfs.aheWorkspace.cachedSearchResults == [hit])
         #expect(canonicalState(wfs, workflow: .ahe).query == before.query)
         #expect(canonicalState(wfs, workflow: .ahe).results == before.results)
@@ -151,12 +151,12 @@ struct V537WorkbenchSelectionShellTests {
         let hit = makeHit(id: "xy-deselect", workflowID: "xy", workflowCanonicalID: "xyRotation")
         seedCanonicalState(wfs, workflow: .xyRotation, query: "xy q", results: [hit])
         wfs.xyRotationWorkspace.cachedSearchResults = [hit]
-        wfs.xyRotationWorkspace.selectedSearchResultIDs = [hit.id]
+        wfs.toggleSearchHitSelection(hit.id, for: .xyRotation)
         let before = canonicalState(wfs, workflow: .xyRotation)
 
-        wfs.xyRotationWorkspace.deselectAll()
+        wfs.deselectAll(for: .xyRotation)
 
-        #expect(wfs.xyRotationWorkspace.selectedSearchResultIDs.isEmpty)
+        #expect(wfs.selectedSearchResultIDs(for: .xyRotation).isEmpty)
         #expect(wfs.xyRotationWorkspace.cachedSearchResults == [hit])
         #expect(canonicalState(wfs, workflow: .xyRotation).query == before.query)
         #expect(canonicalState(wfs, workflow: .xyRotation).results == before.results)
@@ -171,12 +171,12 @@ struct V537WorkbenchSelectionShellTests {
         let hit = makeHit(id: "3w-deselect", workflowID: "3w", workflowCanonicalID: "threeOmega")
         seedCanonicalState(wfs, workflow: .threeOmega, query: "3w q", results: [hit])
         wfs.threeOmegaWorkspace.cachedSearchResults = [hit]
-        wfs.threeOmegaWorkspace.selectedSearchResultIDs = [hit.id]
+        wfs.toggleSearchHitSelection(hit.id, for: .threeOmega)
         let before = canonicalState(wfs, workflow: .threeOmega)
 
-        wfs.threeOmegaWorkspace.deselectAll()
+        wfs.deselectAll(for: .threeOmega)
 
-        #expect(wfs.threeOmegaWorkspace.selectedSearchResultIDs.isEmpty)
+        #expect(wfs.selectedSearchResultIDs(for: .threeOmega).isEmpty)
         #expect(wfs.threeOmegaWorkspace.cachedSearchResults == [hit])
         #expect(canonicalState(wfs, workflow: .threeOmega).query == before.query)
         #expect(canonicalState(wfs, workflow: .threeOmega).results == before.results)
@@ -184,10 +184,10 @@ struct V537WorkbenchSelectionShellTests {
         #expect(canonicalState(wfs, workflow: .threeOmega).message == before.message)
     }
 
-    // MARK: - 3. selectAll uses local mirror as denominator/source
+    // MARK: - 3. selectAll uses canonical/local denominator
 
     @MainActor
-    @Test("AHE selectAll uses local cachedSearchResults IDs")
+    @Test("AHE selectAll uses cachedSearchResults as denominator when canonical is empty")
     func aheSelectAllUsesLocalMirrorIDs() {
         let wfs = makeWFS()
         let local = [
@@ -195,15 +195,14 @@ struct V537WorkbenchSelectionShellTests {
             makeHit(id: "ahe-local-2", workflowID: "ahe", workflowCanonicalID: "ahe", sampleKey: "PN32|o|STO|111")
         ]
         wfs.aheWorkspace.cachedSearchResults = local
-        wfs.aheWorkspace.selectedSearchResultIDs = []
 
-        wfs.aheWorkspace.selectAll()
+        wfs.selectAll(for: .ahe)
 
-        #expect(wfs.aheWorkspace.selectedSearchResultIDs == Set(local.map(\.id)))
+        #expect(wfs.selectedSearchResultIDs(for: .ahe) == Set(local.map(\.id)))
     }
 
     @MainActor
-    @Test("XY selectAll uses local cachedSearchResults IDs")
+    @Test("XY selectAll uses cachedSearchResults as denominator when canonical is empty")
     func xySelectAllUsesLocalMirrorIDs() {
         let wfs = makeWFS()
         let local = [
@@ -211,15 +210,14 @@ struct V537WorkbenchSelectionShellTests {
             makeHit(id: "xy-local-2", workflowID: "xy", workflowCanonicalID: "xyRotation", sampleKey: "PN32|o|STO|111")
         ]
         wfs.xyRotationWorkspace.cachedSearchResults = local
-        wfs.xyRotationWorkspace.selectedSearchResultIDs = []
 
-        wfs.xyRotationWorkspace.selectAll()
+        wfs.selectAll(for: .xyRotation)
 
-        #expect(wfs.xyRotationWorkspace.selectedSearchResultIDs == Set(local.map(\.id)))
+        #expect(wfs.selectedSearchResultIDs(for: .xyRotation) == Set(local.map(\.id)))
     }
 
     @MainActor
-    @Test("3ω selectAll uses local cachedSearchResults IDs")
+    @Test("3ω selectAll uses cachedSearchResults as denominator when canonical is empty")
     func threeOmegaSelectAllUsesLocalMirrorIDs() {
         let wfs = makeWFS()
         let local = [
@@ -227,29 +225,29 @@ struct V537WorkbenchSelectionShellTests {
             makeHit(id: "3w-local-2", workflowID: "3w", workflowCanonicalID: "threeOmega", sampleKey: "PN32|o|STO|111")
         ]
         wfs.threeOmegaWorkspace.cachedSearchResults = local
-        wfs.threeOmegaWorkspace.selectedSearchResultIDs = []
 
-        wfs.threeOmegaWorkspace.selectAll()
+        wfs.selectAll(for: .threeOmega)
 
-        #expect(wfs.threeOmegaWorkspace.selectedSearchResultIDs == Set(local.map(\.id)))
+        #expect(wfs.selectedSearchResultIDs(for: .threeOmega) == Set(local.map(\.id)))
     }
 
-    // MARK: - 4. clearResults behavior is workflow-local
+    // MARK: - 4. clearResults behavior is workflow-local (cache only, not selection or canonical)
 
     @MainActor
-    @Test("AHE clearResults clears selected IDs and local cache only")
+    @Test("AHE clearResults clears local cache only; selection and canonical unaffected")
     func aheClearResultsIsLocalOnly() {
         let wfs = makeWFS()
         let hit = makeHit(id: "ahe-clear", workflowID: "ahe", workflowCanonicalID: "ahe")
         seedCanonicalState(wfs, workflow: .ahe, query: "ahe clear", results: [hit])
         let before = canonicalState(wfs, workflow: .ahe)
         wfs.aheWorkspace.cachedSearchResults = [hit]
-        wfs.aheWorkspace.selectedSearchResultIDs = [hit.id]
+        wfs.toggleSearchHitSelection(hit.id, for: .ahe)
 
         wfs.aheWorkspace.clearResults()
 
-        #expect(wfs.aheWorkspace.selectedSearchResultIDs.isEmpty)
         #expect(wfs.aheWorkspace.cachedSearchResults.isEmpty)
+        // Selection is NOT cleared by clearResults — it lives in WorkbenchSelectionRuntime
+        #expect(wfs.selectedSearchResultIDs(for: .ahe) == [hit.id])
         #expect(canonicalState(wfs, workflow: .ahe).query == before.query)
         #expect(canonicalState(wfs, workflow: .ahe).results == before.results)
         #expect(canonicalState(wfs, workflow: .ahe).isRunning == before.isRunning)
@@ -257,19 +255,19 @@ struct V537WorkbenchSelectionShellTests {
     }
 
     @MainActor
-    @Test("XY clearResults clears selected IDs and local cache only")
+    @Test("XY clearResults clears local cache only; selection and canonical unaffected")
     func xyClearResultsIsLocalOnly() {
         let wfs = makeWFS()
         let hit = makeHit(id: "xy-clear", workflowID: "xy", workflowCanonicalID: "xyRotation")
         seedCanonicalState(wfs, workflow: .xyRotation, query: "xy clear", results: [hit])
         let before = canonicalState(wfs, workflow: .xyRotation)
         wfs.xyRotationWorkspace.cachedSearchResults = [hit]
-        wfs.xyRotationWorkspace.selectedSearchResultIDs = [hit.id]
+        wfs.toggleSearchHitSelection(hit.id, for: .xyRotation)
 
         wfs.xyRotationWorkspace.clearResults()
 
-        #expect(wfs.xyRotationWorkspace.selectedSearchResultIDs.isEmpty)
         #expect(wfs.xyRotationWorkspace.cachedSearchResults.isEmpty)
+        #expect(wfs.selectedSearchResultIDs(for: .xyRotation) == [hit.id])
         #expect(canonicalState(wfs, workflow: .xyRotation).query == before.query)
         #expect(canonicalState(wfs, workflow: .xyRotation).results == before.results)
         #expect(canonicalState(wfs, workflow: .xyRotation).isRunning == before.isRunning)
@@ -277,7 +275,7 @@ struct V537WorkbenchSelectionShellTests {
     }
 
     @MainActor
-    @Test("3ω clearResults clears selected IDs/local cache and RT local cleanup")
+    @Test("3ω clearResults clears local cache and RT state; selection and canonical unaffected")
     func threeOmegaClearResultsIncludesRTCleanupAndKeepsCanonical() {
         let wfs = makeWFS()
         let hit = makeHit(id: "3w-clear", workflowID: "3w", workflowCanonicalID: "threeOmega")
@@ -287,7 +285,7 @@ struct V537WorkbenchSelectionShellTests {
         let before = canonicalState(wfs, workflow: .threeOmega)
 
         wfs.threeOmegaWorkspace.cachedSearchResults = [hit]
-        wfs.threeOmegaWorkspace.selectedSearchResultIDs = [hit.id]
+        wfs.toggleSearchHitSelection(hit.id, for: .threeOmega)
         wfs.threeOmegaWorkspace.rtQuery = "rt q"
         wfs.threeOmegaWorkspace.rtSearchResults = [rtHit]
         wfs.threeOmegaWorkspace.rtSearchMessage = "rt msg"
@@ -297,14 +295,16 @@ struct V537WorkbenchSelectionShellTests {
 
         wfs.threeOmegaWorkspace.clearResults()
 
-        #expect(wfs.threeOmegaWorkspace.selectedSearchResultIDs.isEmpty)
         #expect(wfs.threeOmegaWorkspace.cachedSearchResults.isEmpty)
+        // RT-side cleanup stays in 3ω workflow store
         #expect(wfs.threeOmegaWorkspace.rtQuery.isEmpty)
         #expect(wfs.threeOmegaWorkspace.rtSearchResults.isEmpty)
         #expect(wfs.threeOmegaWorkspace.rtSearchMessage == nil)
         #expect(wfs.threeOmegaWorkspace.isRTSearching == false)
         #expect(wfs.threeOmegaWorkspace.showRTPopover == false)
         #expect(wfs.threeOmegaWorkspace.selectedRTHit == nil)
+        // Selection NOT cleared by clearResults
+        #expect(wfs.selectedSearchResultIDs(for: .threeOmega) == [hit.id])
 
         #expect(canonicalState(wfs, workflow: .threeOmega).query == before.query)
         #expect(canonicalState(wfs, workflow: .threeOmega).results == before.results)
@@ -312,32 +312,105 @@ struct V537WorkbenchSelectionShellTests {
         #expect(canonicalState(wfs, workflow: .threeOmega).message == before.message)
     }
 
-    // MARK: - 5. selection does not mutate plot/preservation state
+    // MARK: - 5a. toggleSearchHitSelection mutates selectedSearchResultIDs correctly
+
+    @MainActor
+    @Test("AHE toggleSearchHitSelection adds hit ID on first call")
+    func aheToggleAddsID() {
+        let wfs = makeWFS()
+        let hit = makeHit(id: "ahe-toggle-add", workflowID: "ahe", workflowCanonicalID: "ahe")
+        wfs.aheWorkspace.cachedSearchResults = [hit]
+
+        wfs.toggleSearchHitSelection(hit.id, for: .ahe)
+
+        #expect(wfs.selectedSearchResultIDs(for: .ahe) == [hit.id],
+                "toggleSearchHitSelection must add the hit ID when it was not selected")
+    }
+
+    @MainActor
+    @Test("AHE toggleSearchHitSelection removes hit ID on second call")
+    func aheToggleRemovesID() {
+        let wfs = makeWFS()
+        let hit = makeHit(id: "ahe-toggle-remove", workflowID: "ahe", workflowCanonicalID: "ahe")
+        wfs.aheWorkspace.cachedSearchResults = [hit]
+        wfs.toggleSearchHitSelection(hit.id, for: .ahe)
+
+        wfs.toggleSearchHitSelection(hit.id, for: .ahe)
+
+        #expect(wfs.selectedSearchResultIDs(for: .ahe).isEmpty,
+                "toggleSearchHitSelection must remove the hit ID when it was already selected")
+    }
+
+    @MainActor
+    @Test("XY toggleSearchHitSelection adds hit ID on first call")
+    func xyToggleAddsID() {
+        let wfs = makeWFS()
+        let hit = makeHit(id: "xy-toggle-add", workflowID: "xy", workflowCanonicalID: "xyRotation")
+        wfs.xyRotationWorkspace.cachedSearchResults = [hit]
+
+        wfs.toggleSearchHitSelection(hit.id, for: .xyRotation)
+
+        #expect(wfs.selectedSearchResultIDs(for: .xyRotation) == [hit.id],
+                "XY toggleSearchHitSelection must add the hit ID when it was not selected")
+    }
+
+    @MainActor
+    @Test("3ω toggleSearchHitSelection adds hit ID on first call")
+    func threeOmegaToggleAddsID() {
+        let wfs = makeWFS()
+        let hit = makeHit(id: "3w-toggle-add", workflowID: "3w", workflowCanonicalID: "threeOmega")
+        wfs.threeOmegaWorkspace.cachedSearchResults = [hit]
+
+        wfs.toggleSearchHitSelection(hit.id, for: .threeOmega)
+
+        #expect(wfs.selectedSearchResultIDs(for: .threeOmega) == [hit.id],
+                "3ω toggleSearchHitSelection must add the hit ID when it was not selected")
+    }
+
+    // MARK: - 5b. selection isolated across workflows
+
+    @MainActor
+    @Test("Selection for one workflow does not affect other workflows")
+    func selectionIsPerWorkflow() {
+        let wfs = makeWFS()
+        let aheHit = makeHit(id: "ahe-iso", workflowID: "ahe", workflowCanonicalID: "ahe")
+        let xyHit  = makeHit(id: "xy-iso",  workflowID: "xy",  workflowCanonicalID: "xyRotation")
+        wfs.aheWorkspace.cachedSearchResults = [aheHit]
+        wfs.xyRotationWorkspace.cachedSearchResults = [xyHit]
+
+        wfs.toggleSearchHitSelection(aheHit.id, for: .ahe)
+
+        #expect(wfs.selectedSearchResultIDs(for: .ahe) == [aheHit.id])
+        #expect(wfs.selectedSearchResultIDs(for: .xyRotation).isEmpty)
+        #expect(wfs.selectedSearchResultIDs(for: .threeOmega).isEmpty)
+    }
+
+    // MARK: - 6. selection does not mutate plot/preservation state
 
     @MainActor
     @Test("Selection operations do not mutate AHE plot title/label/legend overrides")
     func selectionDoesNotMutateAHEPlotOverrides() {
-        let store = AHEWorkspaceStore()
+        let wfs = makeWFS()
         let hit = makeHit(id: "ahe-plot-boundary", workflowID: "ahe", workflowCanonicalID: "ahe")
 
-        store.cachedSearchResults = [hit]
-        store.updatePlotTitle("Boundary Title")
-        store.updateXAxisLabel("X Custom")
-        store.updateYAxisLabel("Y Custom")
-        store.updateLegendPoint(CGPoint(x: 0.3, y: 0.7))
+        wfs.aheWorkspace.cachedSearchResults = [hit]
+        wfs.aheWorkspace.updatePlotTitle("Boundary Title")
+        wfs.aheWorkspace.updateXAxisLabel("X Custom")
+        wfs.aheWorkspace.updateYAxisLabel("Y Custom")
+        wfs.aheWorkspace.updateLegendPoint(CGPoint(x: 0.3, y: 0.7))
 
-        let titleBefore = store.tabs.activeState.titleOverride
-        let xBefore = store.tabs.activeState.xLabelOverride
-        let yBefore = store.tabs.activeState.yLabelOverride
-        let legendBefore = store.tabs.activeState.legendPoint
+        let titleBefore = wfs.aheWorkspace.tabs.activeState.titleOverride
+        let xBefore = wfs.aheWorkspace.tabs.activeState.xLabelOverride
+        let yBefore = wfs.aheWorkspace.tabs.activeState.yLabelOverride
+        let legendBefore = wfs.aheWorkspace.tabs.activeState.legendPoint
 
-        store.toggleSearchHitSelection(hit.id)
-        store.selectAll()
-        store.deselectAll()
+        wfs.toggleSearchHitSelection(hit.id, for: .ahe)
+        wfs.selectAll(for: .ahe)
+        wfs.deselectAll(for: .ahe)
 
-        #expect(store.tabs.activeState.titleOverride == titleBefore)
-        #expect(store.tabs.activeState.xLabelOverride == xBefore)
-        #expect(store.tabs.activeState.yLabelOverride == yBefore)
-        #expect(store.tabs.activeState.legendPoint == legendBefore)
+        #expect(wfs.aheWorkspace.tabs.activeState.titleOverride == titleBefore)
+        #expect(wfs.aheWorkspace.tabs.activeState.xLabelOverride == xBefore)
+        #expect(wfs.aheWorkspace.tabs.activeState.yLabelOverride == yBefore)
+        #expect(wfs.aheWorkspace.tabs.activeState.legendPoint == legendBefore)
     }
 }

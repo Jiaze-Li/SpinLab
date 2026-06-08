@@ -267,14 +267,7 @@ final class WorkbenchMainSearchRuntime {
     }
 
     private func clearSelectedSearchResults(for wf: WorkbenchWorkflowID) {
-        switch wf {
-        case .ahe:
-            store.aheWorkspace.selectedSearchResultIDs = []
-        case .threeOmega:
-            store.threeOmegaWorkspace.selectedSearchResultIDs = []
-        case .xyRotation:
-            store.xyRotationWorkspace.selectedSearchResultIDs = []
-        }
+        store.deselectAll(for: wf)
     }
 
     private func projectSearchMirrors(

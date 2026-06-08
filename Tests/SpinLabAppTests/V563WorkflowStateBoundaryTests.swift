@@ -751,13 +751,13 @@ struct V563WorkflowStateBoundaryTests {
         wfs.setSearchQueryText("ahe rerender", for: .ahe)
         wfs.restoreSearchState(results: hits, queryText: "ahe rerender", for: .ahe)
         wfs.aheWorkspace.cachedSearchResults = hits
-        wfs.aheWorkspace.selectedSearchResultIDs = [hit.id]
+        wfs.seedSelection([hit.id], for: .ahe)
 
         wfs.aheWorkspace.rerenderForStyleChange()
 
         #expect(wfs.searchQueryText(for: .ahe) == "ahe rerender")
         #expect(wfs.searchResultsList(for: .ahe) == hits)
-        #expect(wfs.aheWorkspace.selectedSearchResultIDs == [hit.id])
+        #expect(wfs.selectedSearchResultIDs(for: .ahe) == [hit.id])
     }
 
     @MainActor
@@ -774,8 +774,8 @@ struct V563WorkflowStateBoundaryTests {
         wfs.restoreSearchState(results: hits, queryText: "ahe selection invariant", for: .ahe)
         wfs.aheWorkspace.cachedSearchResults = hits
 
-        wfs.aheWorkspace.toggleSearchHitSelection(hit.id)
+        wfs.toggleSearchHitSelection(hit.id, for: .ahe)
         #expect(wfs.searchQueryText(for: .ahe) == "ahe selection invariant")
-        #expect(wfs.aheWorkspace.selectedSearchResultIDs.contains(hit.id))
+        #expect(wfs.selectedSearchResultIDs(for: .ahe).contains(hit.id))
     }
 }

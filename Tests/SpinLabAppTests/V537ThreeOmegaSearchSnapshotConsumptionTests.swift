@@ -70,7 +70,6 @@ struct V537ThreeOmegaSearchSnapshotConsumptionTests {
 
         // Cache contains stale data only; selected snapshot must win.
         store.cachedSearchResults = [stale]
-        store.selectedSearchResultIDs = [stale.id]
         store.selectedRTHit = hitB
         store.rtQuery = "PN31 RT"
 
@@ -106,7 +105,6 @@ struct V537ThreeOmegaSearchSnapshotConsumptionTests {
 
         // Cache is intentionally stale and does not match the selected snapshot.
         store.cachedSearchResults = [stale]
-        store.selectedSearchResultIDs = [stale.id]
 
         let snapshot = makeSelectedHitsSnapshot(selectedHits: [hitA])
         store.runAnalysis(selectedHitsSnapshot: snapshot)
@@ -136,7 +134,6 @@ struct V537ThreeOmegaSearchSnapshotConsumptionTests {
 
         // Cache contains hitB only — the selected hit (hitA) is absent.
         store.cachedSearchResults = [hitB]
-        store.selectedSearchResultIDs = [hitA.id]
 
         // nil snapshot -> fallback to cache -> hitA missing -> guard fires.
         store.runAnalysis(selectedHitsSnapshot: nil)
@@ -158,7 +155,6 @@ struct V537ThreeOmegaSearchSnapshotConsumptionTests {
 
         // Pack-restore path: cache is populated with the selected hit.
         store.cachedSearchResults = [hitA]
-        store.selectedSearchResultIDs = [hitA.id]
 
         store.runAnalysis()
 
@@ -185,7 +181,6 @@ struct V537ThreeOmegaSearchSnapshotConsumptionTests {
         )
 
         store.cachedSearchResults = []
-        store.selectedSearchResultIDs = [hitA.id]
         store.runAnalysis(searchSnapshot: snapshot)
 
         #expect(store.isAnalyzing == true,
@@ -205,7 +200,6 @@ struct V537ThreeOmegaSearchSnapshotConsumptionTests {
         let rtHit = makeHit(sidecarPath: "sidecar-RT", sampleKey: "PN31|b|STO|111")
 
         store.cachedSearchResults = [hitA]
-        store.selectedSearchResultIDs = [hitA.id]
         store.selectedRTHit = rtHit
         store.rtQuery = "PN31 RT"
 

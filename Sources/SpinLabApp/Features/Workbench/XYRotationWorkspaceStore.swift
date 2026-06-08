@@ -9,10 +9,11 @@ import Observation
 @Observable
 final class XYRotationWorkspaceStore {
 
-    // MARK: - Search / Selection
+    // MARK: - Search / Selection bridge
 
-    var selectedSearchResultIDs: Set<String> = []
     var cachedSearchResults: [WorkflowMeasurementSearchHit] = []
+    /// Injected by WorkbenchFeatureStore; returns current selected IDs from WorkbenchSelectionRuntime.
+    var selectionReader: (() -> Set<String>)?
 
     // MARK: - Analysis output
 
@@ -178,28 +179,6 @@ final class XYRotationWorkspaceStore {
         }
     }
 
-    // MARK: - Selection helpers
-
-    func toggleSearchHitSelection(_ hitID: String) {
-        if selectedSearchResultIDs.contains(hitID) {
-            selectedSearchResultIDs.remove(hitID)
-        } else {
-            selectedSearchResultIDs.insert(hitID)
-        }
-    }
-
-    var isAllSelected: Bool {
-        !cachedSearchResults.isEmpty && selectedSearchResultIDs.count == cachedSearchResults.count
-    }
-
-    func selectAll() {
-        selectedSearchResultIDs = Set(cachedSearchResults.map(\.id))
-    }
-
-    func deselectAll() {
-        selectedSearchResultIDs = []
-    }
-
     func clearPlot() {
         analysisTask?.cancel()
         analysisTask = nil
@@ -221,7 +200,6 @@ final class XYRotationWorkspaceStore {
     }
 
     func clearResults() {
-        selectedSearchResultIDs = []
         cachedSearchResults = []
         cachedSampleNumericDisplay = [:]
     }
@@ -319,7 +297,7 @@ final class XYRotationWorkspaceStore {
             showPlotGrid: tabs.showPlotGrid,
             tabStates: tabs.snapshotStates(keyFor: { $0.rawValue }),
             cachedSearchResults: cachedSearchResults,
-            selectedSearchResultIDs: Array(selectedSearchResultIDs),
+            selectedSearchResultIDs: Array(selectionReader?() ?? []),
             searchQueryText: ""   // filled by caller at WorkbenchFeatureStore level
         )
     }
@@ -449,7 +427,8 @@ extension XYRotationWorkspaceStore: AnalysisPackProviding {
 
     func restoreFromPack(config: XYRotationPackConfig, result: XYRotationPackResult,
                          pack: AnalysisPack,
-                         restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void) {
+                         restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void,
+                         seedSelection: @escaping (Set<String>) -> Void) {
         // Restore analysis params
         phiOffsetOverrides = config.phiOffsetOverrides
         centerBaseline = config.centerBaseline
@@ -469,7 +448,7 @@ extension XYRotationWorkspaceStore: AnalysisPackProviding {
 
         // Restore search selection state
         cachedSearchResults = config.cachedSearchResults
-        selectedSearchResultIDs = Set(config.selectedSearchResultIDs)
+        seedSelection(Set(config.selectedSearchResultIDs))
 
         // Restore results
         ingestionResult = result.ingestionResult
@@ -508,7 +487,12 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
 
     func runAnalysis(searchSnapshot: WorkbenchSearchSnapshot?) {
         let sourceHits = searchSnapshot?.results ?? cachedSearchResults
-        let selectedHits = _selectedHits(from: sourceHits, selectedIDs: selectedSearchResultIDs)
+        let selectedHits: [WorkflowMeasurementSearchHit]
+        if let reader = selectionReader {
+            selectedHits = _selectedHits(from: sourceHits, selectedIDs: reader())
+        } else {
+            selectedHits = _sortedSelectedHits(sourceHits)
+        }
         _runAnalysis(selectedHits: selectedHits)
     }
 
@@ -516,7 +500,8 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
         if let selectedHitsSnapshot {
             _runAnalysis(selectedHits: _sortedSelectedHits(selectedHitsSnapshot.selectedHits))
         } else {
-            let selectedHits = _selectedHits(from: cachedSearchResults, selectedIDs: selectedSearchResultIDs)
+            let ids = selectionReader?() ?? []
+            let selectedHits = _selectedHits(from: cachedSearchResults, selectedIDs: ids)
             _runAnalysis(selectedHits: selectedHits)
         }
     }
