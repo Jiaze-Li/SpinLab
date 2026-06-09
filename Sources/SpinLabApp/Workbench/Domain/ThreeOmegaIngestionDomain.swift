@@ -91,9 +91,38 @@ struct ThreeOmegaIngestionResult: Codable, Hashable, Sendable {
     var fieldSweeps: [ThreeOmegaFieldSweepResult]   // sorted by temperatureK ascending
     var rtResult: ThreeOmegaRTResult?
     var device: String
-    var deviceMode: String = "single"
-    var devices: [String] = []
+    var deviceMode: String
+    var devices: [String]
     /// I_rms (A) keyed by temperatureK — required for scaling use case.
-    var iRmsValues: [Double: Double] = [:]
-    var warnings: [String] = []
+    var iRmsValues: [Double: Double]
+    var warnings: [String]
+
+    init(
+        fieldSweeps: [ThreeOmegaFieldSweepResult] = [],
+        rtResult: ThreeOmegaRTResult? = nil,
+        device: String,
+        deviceMode: String = "single",
+        devices: [String] = [],
+        iRmsValues: [Double: Double] = [:],
+        warnings: [String] = []
+    ) {
+        self.fieldSweeps = fieldSweeps
+        self.rtResult = rtResult
+        self.device = device
+        self.deviceMode = deviceMode
+        self.devices = devices
+        self.iRmsValues = iRmsValues
+        self.warnings = warnings
+    }
+
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        fieldSweeps = try c.decode([ThreeOmegaFieldSweepResult].self, forKey: .fieldSweeps)
+        rtResult    = try c.decodeIfPresent(ThreeOmegaRTResult.self, forKey: .rtResult)
+        device      = try c.decode(String.self, forKey: .device)
+        deviceMode  = try c.decodeIfPresent(String.self, forKey: .deviceMode) ?? "single"
+        devices     = try c.decodeIfPresent([String].self, forKey: .devices) ?? []
+        iRmsValues  = try c.decodeIfPresent([Double: Double].self, forKey: .iRmsValues) ?? [:]
+        warnings    = try c.decodeIfPresent([String].self, forKey: .warnings) ?? []
+    }
 }
