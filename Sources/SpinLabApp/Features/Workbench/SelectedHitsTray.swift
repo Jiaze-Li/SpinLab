@@ -11,13 +11,16 @@ struct SelectedHitsTray: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center) {
                 Text("Selected (\(count))")
-                    .font(.caption.weight(.semibold))
+                    .font(.callout.weight(.semibold))
                 Spacer()
                 Button("Clear") {
                     workbench.deselectAll(for: workflowID)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.mini)
+                .buttonStyle(.plain)
+                .font(.system(size: 12, weight: .semibold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Color.secondary.opacity(0.12), in: Capsule())
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
@@ -47,19 +50,19 @@ private struct SelectedHitsTrayRow: View {
             // Line 1: sample name left · workflow badge + remove right
             HStack(alignment: .center, spacing: 4) {
                 Text(info.sampleBatchAndSubstrate)
-                    .font(.caption2.weight(.medium))
+                    .font(.callout.weight(.medium))  // 12pt — minimum
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Spacer(minLength: 4)
                 Text(info.workflowDisplayName)
-                    .font(.caption2)
+                    .font(.callout)                  // 12pt — minimum
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
                     .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 3))
                     .foregroundStyle(Color.accentColor)
                 Button(action: onRemove) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(size: 10, weight: .medium))
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
@@ -70,7 +73,7 @@ private struct SelectedHitsTrayRow: View {
                 HStack(spacing: 3) {
                     ForEach(conditionChips, id: \.self) { chip in
                         Text(chip)
-                            .font(.caption2)
+                            .font(.callout)          // 12pt — minimum
                             .padding(.horizontal, 5)
                             .padding(.vertical, 2)
                             .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 3))
