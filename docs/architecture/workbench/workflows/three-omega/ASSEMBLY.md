@@ -16,10 +16,12 @@
 |---|---|---|
 | Workflow match token | Workflow config matches token `3w`; RT is a separate workflow config row matching token `rt`. | `Sources/SpinLabApp/config/workflow.json`; `Sources/SpinLabApp/Workflow/WorkflowDefinitionStore.swift` |
 | Search aliases | `3w` and `3omega` are search aliases; `ω`/`Ω` normalize to `w`. | `Sources/SpinLabApp/Domain/Workflow/WorkflowID.swift`; `Sources/SpinLabApp/UseCases/SearchWorkflowMeasurementsUseCase.swift` |
-| Secondary Input Search slot | 3ω declares one auxiliary search slot for RT/Rxx(T) input. It has independent query/results/selection state, persists the auxiliary query text, can select a dedicated auxiliary hit, and can rebuild that hit from a restored sidecar/file bridge. The semantic target is RT/Rxx(T), but the current runtime path is still generic and does not yet enforce an RT-only whitelist. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift` |
+| Secondary Input Search slot | 3ω declares one auxiliary search slot for RT/Rxx(T) input. It has independent query/results/selection state, persists the auxiliary query text, can select a dedicated auxiliary hit, and can rebuild that hit from a restored sidecar/file bridge. The semantic target is RT/Rxx(T), but the current runtime path is still generic and does not yet enforce an RT-only whitelist. Slot state is owned by `WorkbenchSecondaryInputSearchRuntime` (Gate 7.3); `ThreeOmegaWorkspaceStore` provides forwarding compatibility and workflow semantics. | `Sources/SpinLabApp/App/State/WorkbenchSecondaryInputSearchRuntime.swift` (slot-state owner, Gate 7.3); `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift` (forwarding, workflow semantics); `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift` |
 | Result mirror | Main 3w search results use the common `cachedSearchResults` bridge for selection, title context, pack restore, and legacy fallback. The secondary input slot adds separate workflow-local state beyond the common bridge. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift` |
 
 ## Secondary Input Search Slot Contract
+
+Slot state is owned by `WorkbenchSecondaryInputSearchRuntime` (Gate 7.3). `ThreeOmegaWorkspaceStore` retains workflow semantics, RT eligibility/whitelist policy, analysis contribution, and forwarding compatibility properties.
 
 | Contract field | 3ω instance |
 |---|---|
@@ -31,7 +33,7 @@
 | Requiredness | Optional in the workspace, but required for scaling and any RT-dependent result surfaces. |
 | Analysis contribution | The selected auxiliary RT hit supplies the Rxx(T) input used by scaling. It does not mutate Main Search and does not trigger analysis by itself. |
 | Pack fingerprint | Yes. The auxiliary RT file identity participates in 3ω pack identity. |
-| Persisted fields | `rtQuery`, `selectedRTHit`, and the stable bridge fields that recover the selection (`pendingRTSidecarPath`, `cachedRTFilePath`). Search results, message, and running state remain session-only. |
+| Persisted fields | `rtQuery`, `selectedRTHit`, and the stable sidecar bridge field (`pendingRTSidecarPath`). `cachedRTFilePath` is currently derived output from `selectedRTHit` / manifest snapshot, not a standalone restore input (deferred to Gate 7.6). Search results, message, and running state remain session-only. |
 | Restore bridge behavior | Restore can rebind the slot from a pending sidecar path or cached file path, then rerender from the restored state. The bridge may accept current `3w` or `rt` auxiliary sidecars, so it is not yet an RT-only validator. |
 | Warning behavior | Missing or invalid RT input warns that Rxx(T)-dependent outputs such as Scaling Law are unavailable. Invalid or ambiguous RT selection must not backfill from Main Search. |
 | Multiple-slot support | 3ω uses one slot today, but the contract must support future workflows such as SOT declaring multiple independent auxiliary slots. |
@@ -105,7 +107,7 @@
 | Search/selection state | Saves main cached search results, selected IDs, selected auxiliary RT hit, RT query, and main search query text. The auxiliary slot bridge is workflow-local, not Main Search-owned. | `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift` |
 | Overlay state | Session-only in v1; overlay pack IDs and snapshots are not serialized into pack content and restore clears them before rerender. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift` |
 | Result snapshot | Saves `ThreeOmegaIngestionResult` and optional `ThreeOmegaScalingResult` so restore can rerender without re-ingestion. | `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift` |
-| Restore bridge | Restore reapplies search state, selected auxiliary RT hit or pending RT sidecar/file path, library root, and rerenders manifests. If the bridge does not resolve, the slot stays unbound and the workflow warns. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift` |
+| Restore bridge | Restore reapplies search state, selected auxiliary RT hit or pending RT sidecar/file path, library root, and rerenders manifests. Restore writes through the forwarding/runtime path (`ThreeOmegaWorkspaceStore` forwarding → `WorkbenchSecondaryInputSearchRuntime`). `cachedRTFilePath` is derived output from `selectedRTHit` / manifest snapshot; standalone rebuild from `cachedRTFilePath` alone is not implemented (deferred to Gate 7.6). If the bridge does not resolve, the slot stays unbound and the workflow warns. | `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift`; `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift`; `Sources/SpinLabApp/App/State/WorkbenchSecondaryInputSearchRuntime.swift` |
 
 ## Save Metadata / Metric Contract
 

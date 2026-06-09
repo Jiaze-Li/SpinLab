@@ -96,14 +96,15 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Classification: Module-owned — optional module candidate.
 - Ownership rule: the module owns auxiliary slot state and slot UI only; the Workflow Assembly owns the file meaning, analysis contribution, and requiredness policy.
 - Current implementation files:
-  - Current instance only: 3ω RT auxiliary input in `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift`
+  - `Sources/SpinLabApp/App/State/WorkbenchSecondaryInputSearchRuntime.swift` — canonical slot-state owner (Gate 7.3)
+  - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift` — forwarding compatibility surface; workflow semantics, RT eligibility/whitelist policy, analysis contribution
   - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift`
   - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift`
   - `Sources/SpinLabApp/Workbench/V3/ThreeOmegaPackContracts.swift`
   - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift`
 - Current consumers: 3ω scaling ingestion/analysis, 3ω view popover, 3ω pack/restore, 3ω search snapshot boundary tests.
-- Target state it would own: auxiliary query text, auxiliary running flag, auxiliary search results, auxiliary search message/status, popover/list UI state, selected auxiliary hit, deferred sidecar/file bridge for restore, and persisted auxiliary query default. Current 3ω concrete names are `rtQuery`, `isRTSearching`, `rtSearchResults`, `rtSearchMessage`, `showRTPopover`, `selectedRTHit`, `pendingRTSidecarPath`, and `cachedRTFilePath`.
-- Target state it must not own: main search query/results/running/message, main selected IDs, primary workflow selection, physics calculations, plot output, generic pack vault orchestration.
+- Slot state owned by `WorkbenchSecondaryInputSearchRuntime` (Gate 7.3): `rtQuery`, `rtSearchResults`, `isRTSearching`, `rtSearchMessage`, `showRTPopover`, `selectedRTHit`. Note: `pendingRTSidecarPath` and `cachedRTFilePath` remain in `ThreeOmegaWorkspaceStore`; `cachedRTFilePath` is derived output, not a standalone restore input.
+- State it must not own: main search query/results/running/message, main selected IDs, primary workflow selection, physics calculations, plot output, generic pack vault orchestration.
 - How workflow-specific semantics enter: the Workflow Assembly declares optional secondary search slots, their slot ID, display label, query hint/default, workflow/file-kind filter, selection cardinality, requiredness, analysis contribution, and fingerprint policy. 3ω RT search is the current `rt` instance of this optional module candidate. The RT/Rxx(T) meaning belongs to the 3ω Assembly, not to the module itself. Future workflows such as SOT may declare multiple auxiliary slots; the default pattern must not be named or shaped as 3ω-only RT search.
 - Pack/restore implications: each declared secondary slot must serialize query text plus selected hit identity or stable sidecar/file identity. Restore may rebuild the selected hit from a slot-scoped sidecar bridge, but it must not infer auxiliary meaning from Main Search state. The pack fingerprint may include auxiliary file identity when the Workflow Assembly says that file changes analysis identity.
 - Slot contract:
@@ -126,8 +127,17 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
   - must not trigger analysis by itself
   - must not be named around RT as a default module
 - Tests currently protecting it: `V537ThreeOmegaSearchSnapshotConsumptionTests`, `V537PackRestoreModuleBoundaryTests`, `V4117AnalysisPackVaultTests`, 3ω ingestion/scaling tests in `V413ThreeOmegaFitUseCaseTests` and `V41216ThreeOmegaScalingUseCaseTests`.
-- Extraction readiness: low-medium. The general module shape is visible, but there is only one concrete instance and it is still implemented as workflow-local RT state.
-- Risks if extracted too early: freezing a one-slot RT-specific API, blocking SOT-style multiple auxiliary inputs, losing restore sidecar/file bridge behavior, or letting auxiliary search mutate main search/selection state.
+- Extraction state: runtime slot-state extraction complete (Gate 7.3). `WorkbenchSecondaryInputSearchRuntime` is the canonical owner of all slot state for the `rt` slot. `ThreeOmegaWorkspaceStore` retains workflow semantics, RT eligibility/whitelist policy, analysis contribution, and forwarding compatibility properties.
+- Gate 7.3 closeout state:
+  - Slot state now owned by `WorkbenchSecondaryInputSearchRuntime`: `rtQuery`, `rtSearchResults`, `isRTSearching`, `rtSearchMessage`, `showRTPopover`, `selectedRTHit`.
+  - `ThreeOmegaWorkspaceStore` remaining role: workflow semantics, RT eligibility/whitelist policy, how RT input feeds 3ω scaling/analysis, forwarding compatibility surface.
+  - Explicit boundary: secondary input search does not write Main Search state.
+  - Explicit boundary: `selectedRTHit` is auxiliary-slot selection, not `WorkbenchSelectionRuntime` selection; the two selection models are fully isolated.
+  - Explicit boundary: slot state (`rtQuery`, `rtSearchResults`, `isRTSearching`, `rtSearchMessage`) does not enter `WorkbenchSearchSnapshot`.
+  - Explicit boundary: `selectedRTHit` does not enter `WorkbenchSelectedHitsSnapshot`.
+  - Pack schema: unchanged. `selectedRTHit` serializes under the existing 3ω pack contract; restore writes through forwarding/runtime path.
+  - Deferred debt: `cachedRTFilePath` standalone rebuild is not implemented. `cachedRTFilePath` is currently derived output from `selectedRTHit` / manifest snapshot, not a standalone restore input. Gate 7.6 Pack/Restore extraction should revisit the secondary input restore bridge.
+- Risks if extracted further: freezing a one-slot RT-specific API, blocking SOT-style multiple auxiliary inputs, losing restore sidecar/file bridge behavior, or letting auxiliary search mutate main search/selection state.
 
 ### Plot System
 
