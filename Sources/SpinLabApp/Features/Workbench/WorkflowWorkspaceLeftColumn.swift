@@ -44,7 +44,7 @@ struct WorkflowWorkspaceLeftColumn<
                 if workbench.selectedCount(for: workflowID) > 0 {
                     Divider()
                     SelectedHitsTray(workflowID: workflowID, workbench: workbench)
-                        .frame(minWidth: 210, maxWidth: 210, maxHeight: .infinity)
+                        .frame(minWidth: 250, maxWidth: 250, maxHeight: .infinity)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
