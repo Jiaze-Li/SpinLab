@@ -3,13 +3,16 @@ import Foundation
 /// Runtime that owns session state for secondary-input search slots.
 ///
 /// Each slot represents an independent search channel (query, results, running flag,
-/// message, popover visibility) that is orthogonal to WorkbenchMainSearchRuntime
-/// and must never appear in WorkbenchSearchSnapshot or WorkbenchSelectionRuntime.
+/// message, popover visibility, and selected hit) that is orthogonal to
+/// WorkbenchMainSearchRuntime and must never appear in WorkbenchSearchSnapshot
+/// or WorkbenchSelectionRuntime.
 ///
 /// Gate 7.3 Step 2 registers one slot:
 ///   - id: "rt"  |  display label: "RT / Rxx(T)"  (3ω room-temperature input)
 ///
-/// selectedRTHit remains workflow-owned (ThreeOmegaWorkspaceStore) for this step.
+/// Gate 7.3 Step 3 moves selectedRTHit ownership here.
+/// ThreeOmegaWorkspaceStore.selectedRTHit forwards reads/writes through this runtime
+/// when injected, preserving the same interface for all callers.
 @MainActor
 @Observable
 final class WorkbenchSecondaryInputSearchRuntime {
@@ -36,6 +39,7 @@ final class WorkbenchSecondaryInputSearchRuntime {
     private var running:       [String: Bool]                                = [:]
     private var messages:      [String: String]                              = [:]
     private var popoverVisible:[String: Bool]                                = [:]
+    private var selectedHits:  [String: WorkflowMeasurementSearchHit]       = [:]
 
     @ObservationIgnored private var searchTask: Task<Void, Never>?
 
@@ -83,6 +87,14 @@ final class WorkbenchSecondaryInputSearchRuntime {
 
     func setPopoverVisible(_ visible: Bool, forSlot id: String) {
         popoverVisible[id] = visible
+    }
+
+    func selectedHit(forSlot id: String) -> WorkflowMeasurementSearchHit? {
+        selectedHits[id]
+    }
+
+    func setSelectedHit(_ hit: WorkflowMeasurementSearchHit?, forSlot id: String) {
+        if let hit { selectedHits[id] = hit } else { selectedHits.removeValue(forKey: id) }
     }
 
     func setIsSearching(_ value: Bool, forSlot id: String) {
@@ -159,8 +171,8 @@ final class WorkbenchSecondaryInputSearchRuntime {
 
     // MARK: - Clear
 
-    /// Clears all session state for the slot.
-    /// Does NOT touch selectedRTHit (workflow-owned), main search, or SelectionRuntime.
+    /// Clears search session state (query, results, running, message, popover) for the slot.
+    /// Does NOT clear the selected hit, main search, or SelectionRuntime.
     func clearSlot(_ id: String) {
         searchTask?.cancel()
         searchTask = nil

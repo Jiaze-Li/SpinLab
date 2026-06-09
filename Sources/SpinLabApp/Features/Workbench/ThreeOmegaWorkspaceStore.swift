@@ -72,7 +72,14 @@ final class ThreeOmegaWorkspaceStore {
         }
     }
 
-    var selectedRTHit: WorkflowMeasurementSearchHit?
+    @ObservationIgnored private var _selectedRTHit: WorkflowMeasurementSearchHit? = nil
+    var selectedRTHit: WorkflowMeasurementSearchHit? {
+        get { secondaryInputRuntime?.selectedHit(forSlot: WorkbenchSecondaryInputSearchRuntime.rtSlotID) ?? _selectedRTHit }
+        set {
+            if let rt = secondaryInputRuntime { rt.setSelectedHit(newValue, forSlot: WorkbenchSecondaryInputSearchRuntime.rtSlotID) }
+            else { _selectedRTHit = newValue }
+        }
+    }
 
     /// Set during restore; consumed on first 3w search to rebuild selectedRTHit.
     var pendingRTSidecarPath: String?

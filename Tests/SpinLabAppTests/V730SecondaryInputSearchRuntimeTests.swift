@@ -9,7 +9,7 @@ import Testing
 /// remain fully isolated from WorkbenchMainSearchRuntime, WorkbenchSearchSnapshot,
 /// and WorkbenchSelectionRuntime.
 ///
-/// selectedRTHit remains workflow-owned (ThreeOmegaWorkspaceStore) — not tested here.
+/// selectedRTHit moved to runtime ownership in Gate 7.3 Step 3.
 /// cachedRTFilePath is derived output only — deferred debt, not in scope.
 @Suite("V7.3.0 Secondary Input Search — Runtime Extraction (Gate 7.3 Step 2)")
 struct V730SecondaryInputSearchRuntimeTests {
