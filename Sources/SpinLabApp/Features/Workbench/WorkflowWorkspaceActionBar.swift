@@ -23,7 +23,7 @@ struct WorkflowWorkspaceActionBar<Store: WorkbenchWorkspaceProviding>: View {
 
             Button(workbench.isAllSelected(for: workflowID) ? "Deselect All" : "Select All") {
                 if workbench.isAllSelected(for: workflowID) {
-                    workbench.deselectAll(for: workflowID)
+                    workbench.deselectCurrentResults(for: workflowID)
                 } else {
                     workbench.selectAll(for: workflowID)
                 }

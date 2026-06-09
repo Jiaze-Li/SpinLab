@@ -33,11 +33,20 @@ struct WorkflowWorkspaceLeftColumn<
 
             Divider()
 
-            WorkflowWorkspaceResultsList(
-                workflowID: workflowID,
-                store: store,
-                workbench: workbench
-            )
+            HStack(alignment: .top, spacing: 0) {
+                WorkflowWorkspaceResultsList(
+                    workflowID: workflowID,
+                    store: store,
+                    workbench: workbench
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if workbench.selectedCount(for: workflowID) > 0 {
+                    Divider()
+                    SelectedHitsTray(workflowID: workflowID, workbench: workbench)
+                        .frame(minWidth: 210, maxWidth: 210, maxHeight: .infinity)
+                }
+            }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }

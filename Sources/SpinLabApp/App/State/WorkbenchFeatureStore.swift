@@ -444,15 +444,26 @@ final class WorkbenchFeatureStore {
     }
 
     func toggleSearchHitSelection(_ id: String, for wf: WorkbenchWorkflowID) {
-        selectionRuntime.toggle(id, for: wf)
+        let info = denominatorHits(for: wf).first { $0.id == id }.map { SelectedHitDisplayInfo(from: $0) }
+        selectionRuntime.toggle(id, for: wf, displayInfo: info)
     }
 
     func selectAll(for wf: WorkbenchWorkflowID) {
         selectionRuntime.selectAll(for: wf, denominator: denominatorHits(for: wf))
     }
 
+    /// Removes only the current search result IDs from selection; keeps hits from other searches.
+    func deselectCurrentResults(for wf: WorkbenchWorkflowID) {
+        selectionRuntime.deselectCurrentResults(for: wf, denominator: denominatorHits(for: wf))
+    }
+
+    /// Clears the entire selection basket for the workflow (tray Clear button).
     func deselectAll(for wf: WorkbenchWorkflowID) {
         selectionRuntime.deselectAll(for: wf)
+    }
+
+    func selectedHitDisplayInfos(for wf: WorkbenchWorkflowID) -> [SelectedHitDisplayInfo] {
+        selectionRuntime.selectedHitDisplayInfos(for: wf)
     }
 
     func seedSelection(_ ids: Set<String>, for wf: WorkbenchWorkflowID) {
