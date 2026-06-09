@@ -68,11 +68,11 @@ struct WorkflowWorkspaceLeftColumn<
                 DragGesture(minimumDistance: 1)
                     .onChanged { value in
                         let proposed = trayWidthBase - value.translation.width
-                        trayWidth = proposed.clamped(to: 220...380)
+                        trayWidth = proposed.clamped(to: 210...380)
                     }
                     .onEnded { value in
                         let proposed = trayWidthBase - value.translation.width
-                        trayWidth = proposed.clamped(to: 220...380)
+                        trayWidth = proposed.clamped(to: 210...380)
                         trayWidthBase = trayWidth
                     }
             )

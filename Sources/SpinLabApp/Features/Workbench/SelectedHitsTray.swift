@@ -79,16 +79,16 @@ private struct SelectedHitsTrayRow: View {
                 }
             }
 
-            // Line 3: filename
-            Text(info.shortFilename)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .lineLimit(1)
-                .truncationMode(.middle)
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 5)
         .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
+        .help(tooltipText)
+    }
+
+    private var tooltipText: String {
+        let hasCondition = info.conditionSummary != "-" && !info.conditionSummary.isEmpty
+        return hasCondition ? "\(info.shortFilename)\n\(info.conditionSummary)" : info.shortFilename
     }
 
     /// Parses "key=value, key=value, …" → value strings only, max 3.
