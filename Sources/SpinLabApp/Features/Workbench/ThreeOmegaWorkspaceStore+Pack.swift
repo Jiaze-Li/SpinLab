@@ -98,7 +98,7 @@ func autoPackLabel() -> String { _autoPackLabel() }
     func restoreFromPack(config: ThreeOmegaPackConfig, result: ThreeOmegaPackResult,
                          pack: AnalysisPack,
                          restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void,
-                         seedSelection: @escaping (Set<String>) -> Void) {
+                         seedSelection: @escaping (Set<String>, [WorkflowMeasurementSearchHit]) -> Void) {
         // Restore analysis params
         geometry = config.geometry
         fitRanges = config.fitRanges
@@ -127,7 +127,7 @@ func autoPackLabel() -> String { _autoPackLabel() }
 
         // Restore search selection state
         cachedSearchResults = config.cachedSearchResults
-        seedSelection(Set(config.selectedSearchResultIDs))
+        seedSelection(Set(config.selectedSearchResultIDs), config.cachedSearchResults)
 
         // Restore results
         ingestionResult = result.ingestionResult

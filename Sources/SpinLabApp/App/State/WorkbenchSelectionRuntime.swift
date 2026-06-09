@@ -112,4 +112,19 @@ final class WorkbenchSelectionRuntime {
     func seed(_ ids: Set<String>, for wf: WorkbenchWorkflowID) {
         selectedIDsByWorkflow[wf] = ids
     }
+
+    /// Seed selection from pack restore and hydrate display/hit caches from the provided available hits.
+    /// IDs with no matching hit in availableHits are kept in the selection but remain cache-dark until
+    /// they reappear in a search (graceful degradation — no crash).
+    func seed(ids: Set<String>, for wf: WorkbenchWorkflowID, availableHits: [WorkflowMeasurementSearchHit]) {
+        selectedIDsByWorkflow[wf] = ids
+        var displayCache: [String: SelectedHitDisplayInfo] = [:]
+        var hitCache: [String: WorkflowMeasurementSearchHit] = [:]
+        for hit in availableHits where ids.contains(hit.id) {
+            displayCache[hit.id] = SelectedHitDisplayInfo(from: hit)
+            hitCache[hit.id] = hit
+        }
+        displayCacheByWorkflow[wf] = displayCache
+        hitCacheByWorkflow[wf] = hitCache
+    }
 }

@@ -466,8 +466,8 @@ final class WorkbenchFeatureStore {
         selectionRuntime.selectedHitDisplayInfos(for: wf)
     }
 
-    func seedSelection(_ ids: Set<String>, for wf: WorkbenchWorkflowID) {
-        selectionRuntime.seed(ids, for: wf)
+    func seedSelection(_ ids: Set<String>, hits: [WorkflowMeasurementSearchHit] = [], for wf: WorkbenchWorkflowID) {
+        selectionRuntime.seed(ids: ids, for: wf, availableHits: hits)
     }
 
     func selectedHitsSnapshot(for wf: WorkbenchWorkflowID) -> WorkbenchSelectedHitsSnapshot {
