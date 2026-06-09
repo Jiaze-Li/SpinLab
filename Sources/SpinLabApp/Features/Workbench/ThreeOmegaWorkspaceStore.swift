@@ -27,6 +27,9 @@ final class ThreeOmegaWorkspaceStore {
     /// they fall back to the backing _rt* vars so existing behaviour is unchanged.
     @ObservationIgnored weak var secondaryInputRuntime: WorkbenchSecondaryInputSearchRuntime?
 
+    // Standalone/unwired fallback only. Wired app path reads from the secondary runtime via the
+    // property below. Only used when secondaryInputRuntime is nil (e.g. direct ThreeOmegaWorkspaceStore
+    // construction in tests that do not go through WorkbenchFeatureStore).
     @ObservationIgnored private var _rtQuery: String = ""
     var rtQuery: String {
         get { secondaryInputRuntime?.query(forSlot: WorkbenchSecondaryInputSearchRuntime.rtSlotID) ?? _rtQuery }

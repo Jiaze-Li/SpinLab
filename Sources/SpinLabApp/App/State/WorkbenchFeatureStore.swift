@@ -160,7 +160,7 @@ final class WorkbenchFeatureStore {
     @ObservationIgnored
     private lazy var mainSearchRuntime = WorkbenchMainSearchRuntime(store: self, dataActor: dataActor)
     @ObservationIgnored
-    lazy var secondaryInputRuntime = WorkbenchSecondaryInputSearchRuntime(store: self, dataActor: dataActor)
+    private(set) lazy var secondaryInputRuntime = WorkbenchSecondaryInputSearchRuntime(store: self, dataActor: dataActor)
     @ObservationIgnored
     private lazy var selectionRuntime = WorkbenchSelectionRuntime()
 

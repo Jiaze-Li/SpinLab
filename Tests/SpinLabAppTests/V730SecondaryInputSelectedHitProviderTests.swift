@@ -189,8 +189,9 @@ struct V730SecondaryInputSelectedHitProviderTests {
             withExtension: "spinlab.json"
         )
         guard let sweepSidecar = sweepPath else {
-            // If the test fixture is unavailable, verify the provider wiring at the
-            // capture boundary only (pre-flight check).
+            // Fixture absent: verify only the provider-wiring boundary (write through workspace
+            // stores in runtime). Full analysis-path coverage requires the 3w_PN31b_STO111_80K_V_6mT
+            // fixture to be present in the test bundle; add it to unlock the assertion below.
             let rtHit = makeHit(id: "rt-analysis-preflight")
             store.selectedRTHit = rtHit
             #expect(
@@ -200,8 +201,8 @@ struct V730SecondaryInputSelectedHitProviderTests {
             return
         }
         _ = sweepSidecar
-        // If we had a full fixture we would run analysis here. The provider-path capture
-        // is already proven by the forwarding tests above; this test documents the intent.
+        // Fixture present but full analysis invocation is out of scope for Gate 7.3.
+        // The provider-path capture is proven by the forwarding tests in MARK 2 above.
     }
 
     /// When no RT hit is set, analysisMessage does NOT include the RT note (nil or absent).

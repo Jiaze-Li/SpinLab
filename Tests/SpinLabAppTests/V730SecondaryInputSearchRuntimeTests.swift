@@ -290,4 +290,65 @@ struct V730SecondaryInputSearchRuntimeTests {
         #expect(slot.id == "rt")
         #expect(slot.displayLabel == "RT / Rxx(T)")
     }
+
+    // MARK: - 6. runSearch early-exit paths
+
+    /// runSearch with an empty query clears results, sets the prompt message, and leaves running = false.
+    /// Does not mutate Main Search state.
+    @MainActor
+    @Test("runSearch empty query: clears slot results/message, leaves running false, no main search mutation")
+    func runSearchEmptyQueryClearsSlot() {
+        let wfs = makeWFS()
+        let rt  = wfs.secondaryInputRuntime
+        let slotID = WorkbenchSecondaryInputSearchRuntime.rtSlotID
+        let mainHit = makeHit(id: "main-early-exit")
+
+        // Seed stale slot state so we can verify clearing.
+        rt.setResults([makeHit(id: "stale-rt")], forSlot: slotID)
+        rt.setIsSearching(true, forSlot: slotID)
+        rt.setQuery("", forSlot: slotID)
+
+        // Seed main search so we can confirm it is untouched.
+        wfs.restoreSearchState(results: [mainHit], queryText: "3w main", for: .threeOmega)
+
+        rt.runSearch(forSlot: slotID, libraryRootPath: "/some/root")
+
+        #expect(rt.results(forSlot: slotID).isEmpty,        "Expected stale results cleared on empty query")
+        #expect(rt.message(forSlot: slotID) == "Enter RT search query.", "Expected prompt message set")
+        #expect(rt.isSearching(forSlot: slotID) == false,   "Expected running = false after empty-query early exit")
+
+        // Main search must be untouched.
+        #expect(wfs.searchResultsList(for: .threeOmega).map(\.id) == [mainHit.id],
+                "Expected main search results unaffected by empty-query early exit")
+    }
+
+    /// runSearch with a nil/empty libraryRootPath sets the expected message and leaves running = false.
+    /// Does not mutate Main Search state.
+    @MainActor
+    @Test("runSearch missing libraryRootPath: sets message, leaves running false, no main search mutation")
+    func runSearchMissingLibraryRootPathSetsMessage() {
+        let wfs = makeWFS()
+        let rt  = wfs.secondaryInputRuntime
+        let slotID = WorkbenchSecondaryInputSearchRuntime.rtSlotID
+        let mainHit = makeHit(id: "main-no-root")
+
+        rt.setQuery("PN31 RT scan", forSlot: slotID)
+        rt.setIsSearching(true, forSlot: slotID)
+
+        wfs.restoreSearchState(results: [mainHit], queryText: "3w main", for: .threeOmega)
+
+        // Pass nil libraryRootPath — simulates library not configured yet.
+        rt.runSearch(forSlot: slotID, libraryRootPath: nil)
+
+        #expect(rt.message(forSlot: slotID) == "Set Library Root before searching.",
+                "Expected library-root prompt message")
+        #expect(rt.isSearching(forSlot: slotID) == false,
+                "Expected running = false after missing-root early exit")
+
+        // Main search must be untouched.
+        #expect(wfs.searchResultsList(for: .threeOmega).map(\.id) == [mainHit.id],
+                "Expected main search results unaffected by missing-root early exit")
+        #expect(wfs.searchQueryText(for: .threeOmega) == "3w main",
+                "Expected main search query unaffected by missing-root early exit")
+    }
 }

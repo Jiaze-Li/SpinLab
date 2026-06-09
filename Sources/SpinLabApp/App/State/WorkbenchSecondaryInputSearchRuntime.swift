@@ -42,6 +42,9 @@ final class WorkbenchSecondaryInputSearchRuntime {
     private var selectedHits:  [String: WorkflowMeasurementSearchHit]       = [:]
 
     @ObservationIgnored private var searchTask: Task<Void, Never>?
+    // Per-slot monotonic counter. Incremented on each new runSearch call so that a
+    // cancelled task's completion handler can detect it is stale and skip state writes.
+    @ObservationIgnored private var searchGenerations: [String: UInt] = [:]
 
     // MARK: - Init
 
@@ -116,24 +119,27 @@ final class WorkbenchSecondaryInputSearchRuntime {
         let query = self.query(forSlot: id).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else {
             setResults([], forSlot: id)
-            messages[id] = "Enter RT search query."
-            running[id] = false
+            setMessage("Enter RT search query.", forSlot: id)
+            setIsSearching(false, forSlot: id)
             return
         }
         guard let rootPath = libraryRootPath?.trimmingCharacters(in: .whitespacesAndNewlines),
               !rootPath.isEmpty else {
             setResults([], forSlot: id)
-            messages[id] = "Set Library Root before searching."
-            running[id] = false
+            setMessage("Set Library Root before searching.", forSlot: id)
+            setIsSearching(false, forSlot: id)
             return
         }
 
-        running[id] = true
-        messages.removeValue(forKey: id)
+        searchTask?.cancel()
+        let generation = (searchGenerations[id] ?? 0) &+ 1
+        searchGenerations[id] = generation
+
+        setIsSearching(true, forSlot: id)
+        setMessage(nil, forSlot: id)
         setResults([], forSlot: id)
         setPopoverVisible(true, forSlot: id)
 
-        searchTask?.cancel()
         let workflowDefinitions = store.workflowDefinitions
         searchTask = Task { [weak self] in
             guard let self else { return }
@@ -153,18 +159,23 @@ final class WorkbenchSecondaryInputSearchRuntime {
                     query: WorkflowSearchQuery(rawText: query),
                     workflowDefinitions: workflowDefinitions
                 )
-                guard !Task.isCancelled else { return }
+                guard searchGenerations[id] == generation else { return }
                 setResults(result, forSlot: id)
-                messages[id] = result.isEmpty
-                    ? "No files matched: \(query)"
-                    : "Found \(result.count) file(s)."
-                running[id] = false
+                setMessage(
+                    result.isEmpty ? "No files matched: \(query)" : "Found \(result.count) file(s).",
+                    forSlot: id
+                )
+                setIsSearching(false, forSlot: id)
             } catch is CancellationError {
-                running[id] = false
+                // Only clear the running flag if this generation is still the active one.
+                // A replacement search has already set running=true for the new generation.
+                guard searchGenerations[id] == generation else { return }
+                setIsSearching(false, forSlot: id)
             } catch {
+                guard searchGenerations[id] == generation else { return }
                 setResults([], forSlot: id)
-                messages[id] = "Search failed."
-                running[id] = false
+                setMessage("Search failed.", forSlot: id)
+                setIsSearching(false, forSlot: id)
             }
         }
     }
