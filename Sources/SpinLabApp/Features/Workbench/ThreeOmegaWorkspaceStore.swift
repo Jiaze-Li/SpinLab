@@ -22,19 +22,74 @@ final class ThreeOmegaWorkspaceStore {
 
     static let rtQueryDefaultsKey = "workbench.searchQuery.3w.rt"
 
-    var rtQuery: String = ""
-    var rtSearchResults: [WorkflowMeasurementSearchHit] = []
-    var rtSearchMessage: String?
-    var isRTSearching: Bool = false
-    var showRTPopover: Bool = false
-    var selectedRTHit: WorkflowMeasurementSearchHit?
+    /// Injected by WorkbenchFeatureStore. When set, the five RT session properties
+    /// below forward reads/writes through it. When nil (standalone/test construction),
+    /// they fall back to the backing _rt* vars so existing behaviour is unchanged.
+    @ObservationIgnored weak var secondaryInputRuntime: WorkbenchSecondaryInputSearchRuntime?
+
+    // Standalone/unwired fallback only. Wired app path reads from the secondary runtime via the
+    // property below. Only used when secondaryInputRuntime is nil (e.g. direct ThreeOmegaWorkspaceStore
+    // construction in tests that do not go through WorkbenchFeatureStore).
+    @ObservationIgnored private var _rtQuery: String = ""
+    var rtQuery: String {
+        get { secondaryInputRuntime?.query(forSlot: WorkbenchSecondaryInputSearchRuntime.rtSlotID) ?? _rtQuery }
+        set {
+            if let rt = secondaryInputRuntime { rt.setQuery(newValue, forSlot: WorkbenchSecondaryInputSearchRuntime.rtSlotID) }
+            else { _rtQuery = newValue }
+        }
+    }
+
+    @ObservationIgnored private var _rtSearchResults: [WorkflowMeasurementSearchHit] = []
+    var rtSearchResults: [WorkflowMeasurementSearchHit] {
+        get { secondaryInputRuntime?.results(forSlot: WorkbenchSecondaryInputSearchRuntime.rtSlotID) ?? _rtSearchResults }
+        set {
+            if let rt = secondaryInputRuntime { rt.setResults(newValue, forSlot: WorkbenchSecondaryInputSearchRuntime.rtSlotID) }
+            else { _rtSearchResults = newValue }
+        }
+    }
+
+    @ObservationIgnored private var _rtSearchMessage: String? = nil
+    var rtSearchMessage: String? {
+        get { secondaryInputRuntime?.message(forSlot: WorkbenchSecondaryInputSearchRuntime.rtSlotID) ?? _rtSearchMessage }
+        set {
+            if let rt = secondaryInputRuntime { rt.setMessage(newValue, forSlot: WorkbenchSecondaryInputSearchRuntime.rtSlotID) }
+            else { _rtSearchMessage = newValue }
+        }
+    }
+
+    @ObservationIgnored private var _isRTSearching: Bool = false
+    var isRTSearching: Bool {
+        get { secondaryInputRuntime?.isSearching(forSlot: WorkbenchSecondaryInputSearchRuntime.rtSlotID) ?? _isRTSearching }
+        set {
+            if let rt = secondaryInputRuntime { rt.setIsSearching(newValue, forSlot: WorkbenchSecondaryInputSearchRuntime.rtSlotID) }
+            else { _isRTSearching = newValue }
+        }
+    }
+
+    @ObservationIgnored private var _showRTPopover: Bool = false
+    var showRTPopover: Bool {
+        get { secondaryInputRuntime?.isPopoverVisible(forSlot: WorkbenchSecondaryInputSearchRuntime.rtSlotID) ?? _showRTPopover }
+        set {
+            if let rt = secondaryInputRuntime { rt.setPopoverVisible(newValue, forSlot: WorkbenchSecondaryInputSearchRuntime.rtSlotID) }
+            else { _showRTPopover = newValue }
+        }
+    }
+
+    @ObservationIgnored private var _selectedRTHit: WorkflowMeasurementSearchHit? = nil
+    var selectedRTHit: WorkflowMeasurementSearchHit? {
+        get { secondaryInputRuntime?.selectedHit(forSlot: WorkbenchSecondaryInputSearchRuntime.rtSlotID) ?? _selectedRTHit }
+        set {
+            if let rt = secondaryInputRuntime { rt.setSelectedHit(newValue, forSlot: WorkbenchSecondaryInputSearchRuntime.rtSlotID) }
+            else { _selectedRTHit = newValue }
+        }
+    }
 
     /// Set during restore; consumed on first 3w search to rebuild selectedRTHit.
     var pendingRTSidecarPath: String?
 
     init(env: WorkbenchEnvironment = .live) {
         self.env = env
-        self.rtQuery = UserDefaults.standard.string(forKey: Self.rtQueryDefaultsKey) ?? ""
+        self._rtQuery = UserDefaults.standard.string(forKey: Self.rtQueryDefaultsKey) ?? ""
     }
 
     // MARK: - Geometry (session-only, not persisted)

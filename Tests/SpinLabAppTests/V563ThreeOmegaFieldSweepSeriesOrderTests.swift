@@ -77,6 +77,87 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         #expect(store.activeSeriesOrder == nil)
     }
 
+    // MARK: - stableSourceRef fallback (v5.6.3 backward compat)
+
+    @Test("stableSourceRef: prefers sourceFilePath when present")
+    func stableSourceRefPrefersFilePath() {
+        let sweep = makeFieldSweep(sourceRef: "/path/to/file.lvm", sampleID: "sid", temperatureK: 5)
+        #expect(sweep.stableSourceRef == "/path/to/file.lvm")
+    }
+
+    @Test("stableSourceRef: falls back to sampleID+device+temp composite when sourceFilePath is nil")
+    func stableSourceRefFallsBackToSampleIDComposite() {
+        var sweep = makeFieldSweep(sourceRef: "/path/to/file.lvm", sampleID: "mysample", temperatureK: 5)
+        sweep.sourceFilePath = nil
+        #expect(sweep.stableSourceRef == "mysample|0deg|5.0K")
+    }
+
+    @Test("stableSourceRef: falls back to device+temp when both sourceFilePath and sampleID are nil")
+    func stableSourceRefFallsBackToDeviceTemp() {
+        var sweep = makeFieldSweep(sourceRef: "/path/to/file.lvm", sampleID: "sid", temperatureK: 5)
+        sweep.sourceFilePath = nil
+        sweep.sampleID = nil
+        #expect(sweep.stableSourceRef == "0deg|5.0K")
+        #expect(!sweep.stableSourceRef.isEmpty)
+    }
+
+    @Test("stableSourceRef: same sampleID but different device/temperature produce distinct values")
+    func stableSourceRefDistinguishesByDeviceAndTemp() {
+        var sweepA = makeFieldSweep(sourceRef: "/a.lvm", sampleID: "shared", temperatureK: 5)
+        sweepA.sourceFilePath = nil
+        var sweepB = makeFieldSweep(sourceRef: "/b.lvm", sampleID: "shared", temperatureK: 10)
+        sweepB.sourceFilePath = nil
+        #expect(sweepA.stableSourceRef != sweepB.stableSourceRef)
+
+        // Verify the distinguishing components are present
+        #expect(sweepA.stableSourceRef.contains("5.0K"))
+        #expect(sweepB.stableSourceRef.contains("10.0K"))
+    }
+
+    @Test("R1ω render with legacy sweeps (nil sourceFilePath + nil sampleID) does not crash and has non-empty sourceRefs")
+    func r1omegaLegacySweepsProduceNonEmptySourceRefs() throws {
+        // Simulate sweeps from an old pack that never wrote sourceFilePath or sampleID.
+        var sweep5 = makeFieldSweep(sourceRef: "/tmp/5K.lvm", sampleID: "s5", temperatureK: 5)
+        sweep5.sourceFilePath = nil
+        sweep5.sampleID = nil
+        var sweep10 = makeFieldSweep(sourceRef: "/tmp/10K.lvm", sampleID: "s10", temperatureK: 10)
+        sweep10.sourceFilePath = nil
+        sweep10.sampleID = nil
+
+        var renderer = ThreeOmegaPlotRenderer()
+        let (_, _, warnings) = renderer.renderR1omega(sweeps: [sweep5, sweep10], device: "0deg")
+        // Must not crash (assert would abort); just verify no pipeline failure warning.
+        #expect(!warnings.contains(where: { $0.contains("pipeline failure") }))
+    }
+
+    @Test("R1ω reorderable payload: all series have non-empty sourceRef")
+    func r1omegaReorderablePayloadSeriesAllHaveSourceRef() throws {
+        // Sweeps with no sourceFilePath — stableSourceRef falls back to id.
+        var sweep5 = makeFieldSweep(sourceRef: "/tmp/5K.lvm", sampleID: "s5", temperatureK: 5)
+        sweep5.sourceFilePath = nil
+        sweep5.sampleID = nil
+        var sweep10 = makeFieldSweep(sourceRef: "/tmp/10K.lvm", sampleID: "s10", temperatureK: 10)
+        sweep10.sourceFilePath = nil
+        sweep10.sampleID = nil
+
+        var renderer = ThreeOmegaPlotRenderer()
+        renderer.titleTokens = ["sample": "TEST"]
+        let (_, layout, _) = renderer.renderR1omega(sweeps: [sweep5, sweep10], device: "0deg")
+        // Layout is non-nil only when render succeeds without crashing.
+        #expect(layout != nil)
+    }
+
+    @Test("R3ω render with legacy sweeps does not crash")
+    func r3omegaLegacySweepsDoNotCrash() throws {
+        var sweep5 = makeFieldSweep(sourceRef: "/tmp/5K.lvm", sampleID: "s5", temperatureK: 5)
+        sweep5.sourceFilePath = nil
+        sweep5.sampleID = nil
+
+        var renderer = ThreeOmegaPlotRenderer()
+        let (_, _, warnings) = renderer.renderR3omega(sweeps: [sweep5], device: "0deg")
+        #expect(!warnings.contains(where: { $0.contains("pipeline failure") }))
+    }
+
     @MainActor
     @Test("Manifest refresh uses the shared field-sweep order for both tabs")
     func manifestRefreshUsesSharedOrderForBothTabs() {

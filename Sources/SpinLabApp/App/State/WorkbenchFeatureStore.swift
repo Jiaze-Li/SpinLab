@@ -160,6 +160,8 @@ final class WorkbenchFeatureStore {
     @ObservationIgnored
     private lazy var mainSearchRuntime = WorkbenchMainSearchRuntime(store: self, dataActor: dataActor)
     @ObservationIgnored
+    private(set) lazy var secondaryInputRuntime = WorkbenchSecondaryInputSearchRuntime(store: self, dataActor: dataActor)
+    @ObservationIgnored
     private lazy var selectionRuntime = WorkbenchSelectionRuntime()
 
     @ObservationIgnored
@@ -231,6 +233,10 @@ final class WorkbenchFeatureStore {
         self.aheWorkspace.selectionReader = { [weak self] in self?.selectionRuntime.selectedIDs(for: .ahe) ?? [] }
         self.xyRotationWorkspace.selectionReader = { [weak self] in self?.selectionRuntime.selectedIDs(for: .xyRotation) ?? [] }
         self.threeOmegaWorkspace.selectionReader = { [weak self] in self?.selectionRuntime.selectedIDs(for: .threeOmega) ?? [] }
+
+        // Route 3ω RT session state through the secondary input runtime.
+        // Forces lazy init of secondaryInputRuntime while self is fully constructed.
+        self.threeOmegaWorkspace.secondaryInputRuntime = self.secondaryInputRuntime
     }
 
     deinit {
@@ -614,48 +620,11 @@ final class WorkbenchFeatureStore {
     }
 
     func runThreeOmegaRTSearch(libraryRootPath: String?, librarySettings: LibrarySettings? = nil) {
-        let store = threeOmegaWorkspace
-        let query = store.rtQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else {
-            store.rtSearchResults = []
-            store.rtSearchMessage = "Enter RT search query."
-            store.isRTSearching = false
-            return
-        }
-        guard let libraryRootPath = libraryRootPath?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !libraryRootPath.isEmpty else {
-            store.rtSearchResults = []
-            store.rtSearchMessage = "Set Library Root before searching."
-            store.isRTSearching = false
-            return
-        }
-
-        store.isRTSearching = true
-        store.rtSearchMessage = nil
-        store.rtSearchResults = []
-        store.showRTPopover = true
-
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                let result = try await dataActor.searchWorkflowMeasurements(
-                    settings: librarySettings ?? LibrarySettings(rootPath: libraryRootPath, rootBookmarkData: nil, registryInternalPath: nil, registrySourcePath: nil, backupPath: nil, backupLastSyncedAt: nil, allowedBatchPrefixes: [], lastRefreshAt: nil),
-                    query: WorkflowSearchQuery(rawText: query),
-                    workflowDefinitions: workflowDefinitions
-                )
-                store.rtSearchResults = result
-                store.rtSearchMessage = result.isEmpty
-                    ? "No files matched: \(query)"
-                    : "Found \(result.count) file(s)."
-                store.isRTSearching = false
-            } catch is CancellationError {
-                store.isRTSearching = false
-            } catch {
-                store.rtSearchResults = []
-                store.rtSearchMessage = "Search failed."
-                store.isRTSearching = false
-            }
-        }
+        secondaryInputRuntime.runSearch(
+            forSlot: WorkbenchSecondaryInputSearchRuntime.rtSlotID,
+            libraryRootPath: libraryRootPath,
+            librarySettings: librarySettings
+        )
     }
 
     func clearWorkflowMeasurementSearch(workflowID wf: WorkbenchWorkflowID) {

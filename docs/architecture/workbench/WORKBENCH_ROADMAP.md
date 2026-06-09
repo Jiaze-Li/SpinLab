@@ -243,7 +243,7 @@ Summary:
 | 7.0 | Main Search extraction handoff audit | docs-only | n/a | Completed handoff audit; no runtime extraction started. Gate 7.1A is the next safe runtime step. |
 | 7.1 | Main Search | Common module | Common Search module | Canonical search state is already centralized; finish runtime extraction while preserving the explicit restore bridge and pack compatibility. |
 | 7.2 | Selection | Boundary debt → Module-owned | Common Selection module | Complete. `WorkbenchSelectionRuntime` is the canonical owner. Workflow-local selectionReader closures are non-canonical compatibility read surfaces. |
-| 7.3 | Secondary Input Search | Optional module candidate | Common auxiliary-slot Secondary Input Search module | General auxiliary-slot shape only; 3ω RT is one declared slot, not the module shape. |
+| 7.3 | Secondary Input Search | Optional module candidate | Common auxiliary-slot Secondary Input Search module | Complete. `WorkbenchSecondaryInputSearchRuntime` is the canonical slot-state owner. `ThreeOmegaWorkspaceStore` retains workflow semantics and forwarding compatibility. |
 | 7.4 | Analysis Overlay | Optional module candidate | Common Analysis Overlay module | Session-only overlay extraction; 3ω Scaling Law overlay stays a validation case only. |
 | 7.5 | Save to Library / Save Metadata Projection | Boundary debt | Split: common save writer + Assembly-owned semantic projection | Save writer is common; metric meaning, units, overrides, and semantic projection stay Assembly-owned. |
 | 7.6 | Pack / Restore | Boundary debt | Common Pack / Restore module | Explicit restore write map required; include secondary input search and keep restore rerender-only. |
@@ -282,6 +282,7 @@ Summary:
 
 #### Gate 7.3 - Secondary Input Search
 
+- Status: complete.
 - Source Gate 3 audit section: `Secondary Input Search`
 - Classification: `Module-owned — optional module candidate`
 - Actual Gate 3 finding: the general auxiliary-slot shape is visible, but the only live instance is 3ω RT state and the runtime is still workflow-local, so the module shape must stay general rather than RT-specific.
@@ -290,6 +291,8 @@ Summary:
 - Prerequisite bridges/tests: `ThreeOmegaPackContracts`, the 3ω RT selection bridge, 3ω search snapshot and pack/restore boundary tests, and future multi-slot contract coverage for workflows that declare more than one auxiliary input.
 - Extraction risks: freezing a one-slot RT-specific API, blocking future multi-slot workflows, losing restore sidecar/file bridge behavior, and letting auxiliary search mutate main search or selection state.
 - Acceptance criteria: the module supports zero, one, or many declared slots; no slot mutates Main Search; restore can rebind from a slot-scoped sidecar/file identity; 3ω RT remains one declared slot rather than the module shape itself.
+- Outcome: `WorkbenchSecondaryInputSearchRuntime` is the canonical owner of all slot state for the `rt` slot: `rtQuery`, `rtSearchResults`, `isRTSearching`, `rtSearchMessage`, `showRTPopover`, `selectedRTHit`. `ThreeOmegaWorkspaceStore` retains workflow semantics, RT eligibility/whitelist policy, analysis contribution, and forwarding compatibility properties. Pack schema is unchanged; `selectedRTHit` serializes under the existing 3ω pack contract; restore writes through the forwarding/runtime path. Slot state does not enter `WorkbenchSearchSnapshot` or `WorkbenchSelectedHitsSnapshot`. Main Search and `WorkbenchSelectionRuntime` selection are fully isolated from slot state.
+- Deferred debt: `cachedRTFilePath` standalone rebuild is not implemented. `cachedRTFilePath` is currently derived output from `selectedRTHit` / manifest snapshot, not a standalone restore input. Gate 7.6 Pack/Restore extraction should revisit the secondary input restore bridge.
 
 #### Gate 7.4 - Analysis Overlay
 
