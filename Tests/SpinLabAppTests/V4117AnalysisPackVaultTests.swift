@@ -106,6 +106,42 @@ final class V4117AnalysisPackVaultTests: XCTestCase {
         XCTAssertNil(decodedResult.scalingResult)
     }
 
+    // MARK: - Backward-compatibility: older packs without deviceMode
+
+    func testIngestionResultDecodesWithoutDeviceMode() throws {
+        // Minimal JSON payload as produced by older packs (pre-deviceMode field).
+        let json = """
+        {
+            "fieldSweeps": [],
+            "device": "legacy_dev"
+        }
+        """.data(using: .utf8)!
+        let result = try JSONDecoder().decode(ThreeOmegaIngestionResult.self, from: json)
+        XCTAssertEqual(result.device, "legacy_dev")
+        XCTAssertEqual(result.deviceMode, "single")
+        XCTAssertEqual(result.devices, [])
+        XCTAssertEqual(result.iRmsValues, [:])
+        XCTAssertEqual(result.warnings, [])
+    }
+
+    func testIngestionResultRoundTripPreservesDeviceMode() throws {
+        let original = ThreeOmegaIngestionResult(
+            fieldSweeps: [],
+            rtResult: nil,
+            device: "0deg",
+            deviceMode: "angleSweep",
+            devices: ["0deg", "30deg"],
+            iRmsValues: [100.0: 1e-3],
+            warnings: ["w1"]
+        )
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(ThreeOmegaIngestionResult.self, from: data)
+        XCTAssertEqual(decoded.deviceMode, "angleSweep")
+        XCTAssertEqual(decoded.devices, ["0deg", "30deg"])
+        XCTAssertEqual(decoded.iRmsValues, [100.0: 1e-3])
+        XCTAssertEqual(decoded.warnings, ["w1"])
+    }
+
     // MARK: - Overlay snapshot independence
 
     func testOverlaySnapshotSurvivesVaultDeletion() {
