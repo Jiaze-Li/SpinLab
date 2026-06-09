@@ -444,8 +444,8 @@ final class WorkbenchFeatureStore {
     }
 
     func toggleSearchHitSelection(_ id: String, for wf: WorkbenchWorkflowID) {
-        let info = denominatorHits(for: wf).first { $0.id == id }.map { SelectedHitDisplayInfo(from: $0) }
-        selectionRuntime.toggle(id, for: wf, displayInfo: info)
+        let hit = denominatorHits(for: wf).first { $0.id == id }
+        selectionRuntime.toggle(id, for: wf, hit: hit)
     }
 
     func selectAll(for wf: WorkbenchWorkflowID) {
@@ -472,10 +472,14 @@ final class WorkbenchFeatureStore {
 
     func selectedHitsSnapshot(for wf: WorkbenchWorkflowID) -> WorkbenchSelectedHitsSnapshot {
         let ids = selectionRuntime.selectedIDs(for: wf)
+        let hitCache = selectionRuntime.selectedHitCache(for: wf)
         switch wf {
-        case .ahe:       return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, legacyHits: aheWorkspace.cachedSearchResults)
-        case .threeOmega: return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, legacyHits: threeOmegaWorkspace.cachedSearchResults)
-        case .xyRotation: return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, legacyHits: xyRotationWorkspace.cachedSearchResults)
+        case .ahe:
+            return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, hitCache: hitCache, legacyHits: aheWorkspace.cachedSearchResults)
+        case .threeOmega:
+            return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, hitCache: hitCache, legacyHits: threeOmegaWorkspace.cachedSearchResults)
+        case .xyRotation:
+            return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, hitCache: hitCache, legacyHits: xyRotationWorkspace.cachedSearchResults)
         }
     }
 
