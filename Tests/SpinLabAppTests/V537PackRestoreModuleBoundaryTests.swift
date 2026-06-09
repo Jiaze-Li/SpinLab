@@ -224,7 +224,7 @@ struct V537PackRestoreModuleBoundaryTests {
 
         store.restoreFromPack(config: config, result: result, pack: pack,
             restoreSearchState: { _, _ in callbackFired = true },
-            seedSelection: { _ in })
+            seedSelection: { _, _ in })
 
         #expect(callbackFired, "restoreSearchState callback must be called during restore")
         #expect(
@@ -243,7 +243,7 @@ struct V537PackRestoreModuleBoundaryTests {
 
         store.restoreFromPack(config: config, result: result, pack: pack,
             restoreSearchState: { _, _ in callbackFired = true },
-            seedSelection: { _ in })
+            seedSelection: { _, _ in })
 
         #expect(callbackFired, "restoreSearchState callback must be called during restore")
         #expect(
@@ -267,7 +267,7 @@ struct V537PackRestoreModuleBoundaryTests {
 
         wfs.threeOmegaWorkspace.restoreFromPack(config: config, result: result, pack: pack,
             restoreSearchState: { h, q in wfs.restoreSearchState(results: h, queryText: q, for: .threeOmega) },
-            seedSelection: { ids in wfs.seedSelection(ids, for: .threeOmega) })
+            seedSelection: { ids, hits in wfs.seedSelection(ids, hits: hits, for: .threeOmega) })
 
         #expect(wfs.threeOmegaWorkspace.cachedSearchResults.count == 2,
                 "cachedSearchResults must reflect all restored hits")
@@ -292,7 +292,7 @@ struct V537PackRestoreModuleBoundaryTests {
 
         wfs.threeOmegaWorkspace.restoreFromPack(config: config, result: result, pack: pack,
             restoreSearchState: { h, q in wfs.restoreSearchState(results: h, queryText: q, for: .threeOmega) },
-            seedSelection: { ids in wfs.seedSelection(ids, for: .threeOmega) })
+            seedSelection: { ids, hits in wfs.seedSelection(ids, hits: hits, for: .threeOmega) })
 
         #expect(wfs.threeOmegaWorkspace.cachedSearchResults.count == 2)
         #expect(wfs.selectedSearchResultIDs(for: .threeOmega).count == 1)
@@ -313,7 +313,7 @@ struct V537PackRestoreModuleBoundaryTests {
 
         wfs.xyRotationWorkspace.restoreFromPack(config: config, result: result, pack: pack,
             restoreSearchState: { h, q in wfs.restoreSearchState(results: h, queryText: q, for: .xyRotation) },
-            seedSelection: { ids in wfs.seedSelection(ids, for: .xyRotation) })
+            seedSelection: { ids, hits in wfs.seedSelection(ids, hits: hits, for: .xyRotation) })
 
         #expect(wfs.xyRotationWorkspace.cachedSearchResults.count == 2)
         #expect(wfs.selectedSearchResultIDs(for: .xyRotation).count == 2)
@@ -342,7 +342,7 @@ struct V537PackRestoreModuleBoundaryTests {
 
         wfs.aheWorkspace.restoreFromPack(config: config, result: result, pack: pack,
             restoreSearchState: { h, q in wfs.restoreSearchState(results: h, queryText: q, for: .ahe) },
-            seedSelection: { ids in wfs.seedSelection(ids, for: .ahe) })
+            seedSelection: { ids, hits in wfs.seedSelection(ids, hits: hits, for: .ahe) })
 
         #expect(wfs.aheWorkspace.cachedSearchResults.count == 2)
         #expect(wfs.selectedSearchResultIDs(for: .ahe).count == 2)
@@ -379,7 +379,7 @@ struct V537PackRestoreModuleBoundaryTests {
                 callbackHits = hits
                 callbackQuery = query
             },
-            seedSelection: { ids in seededIDs = ids })
+            seedSelection: { ids, _ in seededIDs = ids })
 
         // restoreSearchState callback must have been called with the packed hits before runAnalysis().
         #expect(callbackHits == [hit],
@@ -454,7 +454,7 @@ struct V537PackRestoreModuleBoundaryTests {
         let (config, result, pack) = try makeThreeOmegaPack(hits: hits, selectedIDs: [hits[0].id])
 
         store.restoreFromPack(config: config, result: result, pack: pack,
-            restoreSearchState: { _, _ in }, seedSelection: { _ in })
+            restoreSearchState: { _, _ in }, seedSelection: { _, _ in })
 
         #expect(store.persistenceOutcome == nil,
                 "restore must not write persistenceOutcome — it is session-only, owned by Save Module")
@@ -470,7 +470,7 @@ struct V537PackRestoreModuleBoundaryTests {
         let (config, result, pack) = try makeXYPack(hits: hits, selectedIDs: [hits[0].id])
 
         store.restoreFromPack(config: config, result: result, pack: pack,
-            restoreSearchState: { _, _ in }, seedSelection: { _ in })
+            restoreSearchState: { _, _ in }, seedSelection: { _, _ in })
 
         #expect(store.persistenceOutcome == nil,
                 "restore must not write persistenceOutcome — it is session-only, owned by Save Module")
@@ -494,7 +494,7 @@ struct V537PackRestoreModuleBoundaryTests {
         )
 
         store.restoreFromPack(config: config, result: result, pack: pack,
-            restoreSearchState: { _, _ in }, seedSelection: { _ in })
+            restoreSearchState: { _, _ in }, seedSelection: { _, _ in })
 
         #expect(store.persistenceOutcome == nil,
                 "restore must not write persistenceOutcome — it is session-only, owned by Save Module")
@@ -527,7 +527,7 @@ struct V537PackRestoreModuleBoundaryTests {
 
         wfs.threeOmegaWorkspace.restoreFromPack(config: config, result: result, pack: pack,
             restoreSearchState: { hits, query in wfs.restoreSearchState(results: hits, queryText: query, for: .threeOmega) },
-            seedSelection: { _ in })
+            seedSelection: { _, _ in })
 
         // AHE canonical must be unchanged by the 3ω restore.
         #expect(wfs.searchQueryText(for: .ahe) == aheQueryBefore,
@@ -565,7 +565,7 @@ struct V537PackRestoreModuleBoundaryTests {
 
         wfs.xyRotationWorkspace.restoreFromPack(config: config, result: result, pack: pack,
             restoreSearchState: { hits, query in wfs.restoreSearchState(results: hits, queryText: query, for: .xyRotation) },
-            seedSelection: { _ in })
+            seedSelection: { _, _ in })
 
         // 3ω canonical must be unchanged by the XY restore.
         #expect(wfs.searchQueryText(for: .threeOmega) == threeQueryBefore,
@@ -592,7 +592,7 @@ struct V537PackRestoreModuleBoundaryTests {
         let (config, result, pack) = try makeThreeOmegaPack(hits: hits, selectedIDs: [hits[0].id])
 
         store.restoreFromPack(config: config, result: result, pack: pack,
-            restoreSearchState: { _, _ in }, seedSelection: { _ in })
+            restoreSearchState: { _, _ in }, seedSelection: { _, _ in })
 
         #expect(
             store.activePackID == nil,
@@ -608,11 +608,100 @@ struct V537PackRestoreModuleBoundaryTests {
         let (config, result, pack) = try makeXYPack(hits: hits, selectedIDs: [hits[0].id])
 
         store.restoreFromPack(config: config, result: result, pack: pack,
-            restoreSearchState: { _, _ in }, seedSelection: { _ in })
+            restoreSearchState: { _, _ in }, seedSelection: { _, _ in })
 
         #expect(
             store.activePackID == nil,
             "activePackID must remain nil after restoreFromPack; loadPack() sets it after restore returns"
         )
+    }
+
+    // MARK: - P2: Tray hydration after pack restore
+
+    @MainActor
+    @Test("3ω restore: tray rows visible immediately for selected IDs that exist in cachedSearchResults")
+    func threeOmegaRestoreTrayRowsHydratedImmediately() throws {
+        let wfs = makeWFS()
+        let hits = [
+            makeHit(id: "3w-tray-a", workflowID: "3w", workflowCanonicalID: "threeOmega"),
+            makeHit(id: "3w-tray-b", workflowID: "3w", workflowCanonicalID: "threeOmega",
+                    sampleKey: "PN32|o|STO|111"),
+        ]
+        let (config, result, pack) = try makeThreeOmegaPack(hits: hits, selectedIDs: [hits[0].id])
+
+        wfs.threeOmegaWorkspace.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { h, q in wfs.restoreSearchState(results: h, queryText: q, for: .threeOmega) },
+            seedSelection: { ids, availHits in wfs.seedSelection(ids, hits: availHits, for: .threeOmega) })
+
+        let infos = wfs.selectedHitDisplayInfos(for: .threeOmega)
+        #expect(infos.count == 1, "tray must show 1 row immediately after restore")
+        #expect(infos.first?.id == hits[0].id, "tray row must correspond to the selected hit")
+    }
+
+    @MainActor
+    @Test("3ω restore: selectedHitsSnapshot includes restored selected hits without waiting for search")
+    func threeOmegaRestoreSnapshotHydratedImmediately() throws {
+        let wfs = makeWFS()
+        let hits = [
+            makeHit(id: "3w-snap-a", workflowID: "3w", workflowCanonicalID: "threeOmega"),
+            makeHit(id: "3w-snap-b", workflowID: "3w", workflowCanonicalID: "threeOmega",
+                    sampleKey: "PN32|o|STO|111"),
+        ]
+        let (config, result, pack) = try makeThreeOmegaPack(hits: hits, selectedIDs: hits.map(\.id))
+
+        wfs.threeOmegaWorkspace.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { h, q in wfs.restoreSearchState(results: h, queryText: q, for: .threeOmega) },
+            seedSelection: { ids, availHits in wfs.seedSelection(ids, hits: availHits, for: .threeOmega) })
+
+        let snapshot = wfs.selectedHitsSnapshot(for: .threeOmega)
+        #expect(snapshot.selectedHits.count == 2,
+                "selectedHitsSnapshot must include both restored hits immediately after restore")
+        #expect(!snapshot.isEmpty, "snapshot must not be empty after restoring 2 selected hits")
+    }
+
+    @MainActor
+    @Test("3ω restore: selected ID with no matching cached hit is kept but does not crash")
+    func threeOmegaRestoreOrphanIDKeptNoCrash() throws {
+        let wfs = makeWFS()
+        let hit = makeHit(id: "3w-orphan-a", workflowID: "3w", workflowCanonicalID: "threeOmega")
+        // selectedIDs contains an ID that is NOT present in cachedSearchResults
+        let (config, result, pack) = try makeThreeOmegaPack(hits: [hit], selectedIDs: [hit.id, "ghost-id"])
+
+        wfs.threeOmegaWorkspace.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { h, q in wfs.restoreSearchState(results: h, queryText: q, for: .threeOmega) },
+            seedSelection: { ids, availHits in wfs.seedSelection(ids, hits: availHits, for: .threeOmega) })
+
+        #expect(wfs.selectedSearchResultIDs(for: .threeOmega).count == 2,
+                "both IDs (real + ghost) must be preserved in the selection set")
+        let infos = wfs.selectedHitDisplayInfos(for: .threeOmega)
+        #expect(infos.count == 1,
+                "tray shows 1 row — only the ID with a matching hit; ghost ID is silently absent")
+    }
+
+    @MainActor
+    @Test("AHE restore: tray rows visible immediately for selected IDs that exist in cachedSearchResults")
+    func aheRestoreTrayRowsHydratedImmediately() throws {
+        let wfs = makeWFS()
+        let hits = [
+            makeHit(id: "ahe-tray-a", workflowID: "ahe", workflowCanonicalID: "ahe"),
+            makeHit(id: "ahe-tray-b", workflowID: "ahe", workflowCanonicalID: "ahe",
+                    sampleKey: "PN32|o|STO|111"),
+        ]
+        let ingestion = AHEIngestionResult(
+            defaultAxisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [],
+            sourceFiles: nil,
+            warnings: []
+        )
+        let (config, result, pack) = try makeAHEPack(
+            hits: hits, selectedIDs: [hits[0].id, hits[1].id], ingestionResult: ingestion
+        )
+
+        wfs.aheWorkspace.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { h, q in wfs.restoreSearchState(results: h, queryText: q, for: .ahe) },
+            seedSelection: { ids, availHits in wfs.seedSelection(ids, hits: availHits, for: .ahe) })
+
+        let infos = wfs.selectedHitDisplayInfos(for: .ahe)
+        #expect(infos.count == 2, "tray must show 2 rows immediately after restore")
     }
 }

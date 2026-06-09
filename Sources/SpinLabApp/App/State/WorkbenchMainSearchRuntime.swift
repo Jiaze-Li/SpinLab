@@ -66,16 +66,32 @@ final class WorkbenchMainSearchRuntime {
     }
 
     /// Builds a run-scoped selected-hit read surface.
-    /// Canonical search results win when non-empty; legacy hits are fallback only when canonical is empty.
+    /// Hit cache is the canonical source for selected hits; current search results supplement for seeds
+    /// (pack-restored IDs that have no cached hit object yet). Current results remain authoritative
+    /// for sourceHitCount and the select-all denominator.
     func selectedHitsSnapshot(
         for wf: WorkbenchWorkflowID,
         selectedIDs: Set<String>,
+        hitCache: [String: WorkflowMeasurementSearchHit],
         legacyHits: [WorkflowMeasurementSearchHit]
     ) -> WorkbenchSelectedHitsSnapshot {
         let canonical = searchSnapshot(for: wf)
         let useLegacy = canonical.results.isEmpty && !legacyHits.isEmpty
         let sourceHits = useLegacy ? legacyHits : canonical.results
-        let selectedHits = sourceHits.filter { selectedIDs.contains($0.id) }
+
+        // Source-ordered hits that are selected and present in current results.
+        var seen = Set<String>()
+        var selectedHits: [WorkflowMeasurementSearchHit] = []
+        for hit in sourceHits where selectedIDs.contains(hit.id) {
+            selectedHits.append(hit)
+            seen.insert(hit.id)
+        }
+        // Cached hits from previous searches, stable-sorted for determinism.
+        for id in selectedIDs.subtracting(seen).sorted() {
+            if let hit = hitCache[id] {
+                selectedHits.append(hit)
+            }
+        }
 
         return WorkbenchSelectedHitsSnapshot(
             workflowID: wf,

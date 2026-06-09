@@ -57,7 +57,7 @@ protocol AnalysisPackProviding: AnyObject {
     /// `activePackID` and `analysisMessage` are set by the caller — do not set them here.
     func restoreFromPack(config: PackConfig, result: PackResult, pack: AnalysisPack,
                          restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void,
-                         seedSelection: @escaping (Set<String>) -> Void)
+                         seedSelection: @escaping (Set<String>, [WorkflowMeasurementSearchHit]) -> Void)
 
     // MARK: - Warnings
 
@@ -171,7 +171,7 @@ extension AnalysisPackProviding {
 
     func loadPack(id: AnalysisPack.ID,
                   restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void,
-                  seedSelection: @escaping (Set<String>) -> Void = { _ in }) {
+                  seedSelection: @escaping (Set<String>, [WorkflowMeasurementSearchHit]) -> Void = { _, _ in }) {
         cancelInflightWork()
         guard let vault, let pack = vault.get(id: id) else {
             analysisMessage = "Pack not found."

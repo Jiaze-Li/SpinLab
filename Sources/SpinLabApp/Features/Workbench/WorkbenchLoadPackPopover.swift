@@ -178,9 +178,9 @@ struct WorkbenchLoadPackPopover<Store: WorkbenchWorkspaceProviding>: View {
                 guard let wfID else { return }
                 appState.workbench.restoreSearchState(results: results, queryText: queryText, for: wfID)
             },
-            seedSelection: { ids in
+            seedSelection: { ids, hits in
                 guard let wfID else { return }
-                appState.workbench.seedSelection(ids, for: wfID)
+                appState.workbench.seedSelection(ids, hits: hits, for: wfID)
             }
         )
     }

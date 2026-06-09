@@ -444,27 +444,42 @@ final class WorkbenchFeatureStore {
     }
 
     func toggleSearchHitSelection(_ id: String, for wf: WorkbenchWorkflowID) {
-        selectionRuntime.toggle(id, for: wf)
+        let hit = denominatorHits(for: wf).first { $0.id == id }
+        selectionRuntime.toggle(id, for: wf, hit: hit)
     }
 
     func selectAll(for wf: WorkbenchWorkflowID) {
         selectionRuntime.selectAll(for: wf, denominator: denominatorHits(for: wf))
     }
 
+    /// Removes only the current search result IDs from selection; keeps hits from other searches.
+    func deselectCurrentResults(for wf: WorkbenchWorkflowID) {
+        selectionRuntime.deselectCurrentResults(for: wf, denominator: denominatorHits(for: wf))
+    }
+
+    /// Clears the entire selection basket for the workflow (tray Clear button).
     func deselectAll(for wf: WorkbenchWorkflowID) {
         selectionRuntime.deselectAll(for: wf)
     }
 
-    func seedSelection(_ ids: Set<String>, for wf: WorkbenchWorkflowID) {
-        selectionRuntime.seed(ids, for: wf)
+    func selectedHitDisplayInfos(for wf: WorkbenchWorkflowID) -> [SelectedHitDisplayInfo] {
+        selectionRuntime.selectedHitDisplayInfos(for: wf)
+    }
+
+    func seedSelection(_ ids: Set<String>, hits: [WorkflowMeasurementSearchHit] = [], for wf: WorkbenchWorkflowID) {
+        selectionRuntime.seed(ids: ids, for: wf, availableHits: hits)
     }
 
     func selectedHitsSnapshot(for wf: WorkbenchWorkflowID) -> WorkbenchSelectedHitsSnapshot {
         let ids = selectionRuntime.selectedIDs(for: wf)
+        let hitCache = selectionRuntime.selectedHitCache(for: wf)
         switch wf {
-        case .ahe:       return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, legacyHits: aheWorkspace.cachedSearchResults)
-        case .threeOmega: return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, legacyHits: threeOmegaWorkspace.cachedSearchResults)
-        case .xyRotation: return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, legacyHits: xyRotationWorkspace.cachedSearchResults)
+        case .ahe:
+            return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, hitCache: hitCache, legacyHits: aheWorkspace.cachedSearchResults)
+        case .threeOmega:
+            return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, hitCache: hitCache, legacyHits: threeOmegaWorkspace.cachedSearchResults)
+        case .xyRotation:
+            return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, hitCache: hitCache, legacyHits: xyRotationWorkspace.cachedSearchResults)
         }
     }
 

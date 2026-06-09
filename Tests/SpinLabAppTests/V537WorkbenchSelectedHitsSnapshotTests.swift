@@ -118,4 +118,92 @@ struct V537WorkbenchSelectedHitsSnapshotTests {
         #expect(wfs.searchMessage(for: .ahe) == beforeMessage)
         #expect(wfs.isSearchRunning(for: .ahe) == beforeRunning)
     }
+
+    // MARK: - Cross-search persistence (PR #116 P1)
+
+    @MainActor
+    @Test("tray shows hit from previous search after search changes")
+    func trayShowsHitFromPreviousSearch() {
+        let wfs = makeWFS()
+        let hitA = makeHit(id: "A")
+        let hitB = makeHit(id: "B")
+
+        wfs.restoreSearchState(results: [hitA], queryText: "ahe 80K", for: .ahe)
+        wfs.toggleSearchHitSelection(hitA.id, for: .ahe)
+
+        // Search B replaces canonical results — A is no longer visible.
+        wfs.restoreSearchState(results: [hitB], queryText: "ahe 300K", for: .ahe)
+
+        let displayInfos = wfs.selectedHitDisplayInfos(for: .ahe)
+        #expect(displayInfos.map(\.id).contains(hitA.id))
+    }
+
+    @MainActor
+    @Test("analyze snapshot includes hit from previous search after search changes")
+    func snapshotIncludesHitFromPreviousSearch() {
+        let wfs = makeWFS()
+        let hitA = makeHit(id: "A")
+        let hitB = makeHit(id: "B")
+
+        wfs.restoreSearchState(results: [hitA], queryText: "ahe A", for: .ahe)
+        wfs.toggleSearchHitSelection(hitA.id, for: .ahe)
+
+        wfs.restoreSearchState(results: [hitB], queryText: "ahe B", for: .ahe)
+
+        let snapshot = wfs.selectedHitsSnapshot(for: .ahe)
+        #expect(snapshot.selectedHits.map(\.id).contains(hitA.id))
+    }
+
+    @MainActor
+    @Test("selectAll B appends B while keeping A; snapshot includes both")
+    func selectAllAppendsWhileKeepingCrossSearchSelection() {
+        let wfs = makeWFS()
+        let hitA = makeHit(id: "A")
+        let hitB = makeHit(id: "B")
+
+        wfs.restoreSearchState(results: [hitA], queryText: "ahe A", for: .ahe)
+        wfs.toggleSearchHitSelection(hitA.id, for: .ahe)
+
+        wfs.restoreSearchState(results: [hitB], queryText: "ahe B", for: .ahe)
+        wfs.selectAll(for: .ahe)
+
+        let snapshot = wfs.selectedHitsSnapshot(for: .ahe)
+        let ids = Set(snapshot.selectedHits.map(\.id))
+        #expect(ids == [hitA.id, hitB.id])
+    }
+
+    @MainActor
+    @Test("cross-search selected count reflects both searches")
+    func crossSearchSelectedCount() {
+        let wfs = makeWFS()
+        let hitA = makeHit(id: "A")
+        let hitB = makeHit(id: "B")
+
+        wfs.restoreSearchState(results: [hitA], queryText: "ahe A", for: .ahe)
+        wfs.toggleSearchHitSelection(hitA.id, for: .ahe)
+
+        wfs.restoreSearchState(results: [hitB], queryText: "ahe B", for: .ahe)
+        wfs.selectAll(for: .ahe)
+
+        #expect(wfs.selectedCount(for: .ahe) == 2)
+    }
+
+    @MainActor
+    @Test("snapshot current-result hits come before cross-search cached hits")
+    func snapshotCurrentResultsBeforeCachedHits() {
+        let wfs = makeWFS()
+        let hitA = makeHit(id: "A")
+        let hitB = makeHit(id: "B")
+
+        wfs.restoreSearchState(results: [hitA], queryText: "ahe A", for: .ahe)
+        wfs.toggleSearchHitSelection(hitA.id, for: .ahe)
+
+        // Search B: B is in current results, A is not.
+        wfs.restoreSearchState(results: [hitB], queryText: "ahe B", for: .ahe)
+        wfs.selectAll(for: .ahe)
+
+        let snapshot = wfs.selectedHitsSnapshot(for: .ahe)
+        // B appears first (current results), A appears after (cross-search cache).
+        #expect(snapshot.selectedHits.map(\.id) == [hitB.id, hitA.id])
+    }
 }

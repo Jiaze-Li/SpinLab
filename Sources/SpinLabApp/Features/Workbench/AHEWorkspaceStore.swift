@@ -481,7 +481,7 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
 
     func restoreFromPack(config: AHEPackConfig, result: AHEPackResult, pack: AnalysisPack,
                          restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void,
-                         seedSelection: @escaping (Set<String>) -> Void) {
+                         seedSelection: @escaping (Set<String>, [WorkflowMeasurementSearchHit]) -> Void) {
         // Restore plot controls
         titleTemplate = config.titleTemplate
         tabs.showPlotGrid = config.showPlotGrid
@@ -491,7 +491,7 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
 
         // Restore search selection
         cachedSearchResults = config.cachedSearchResults
-        seedSelection(Set(config.selectedSearchResultIDs))
+        seedSelection(Set(config.selectedSearchResultIDs), config.cachedSearchResults)
 
         // Restore results
         ingestionResult = result.ingestionResult

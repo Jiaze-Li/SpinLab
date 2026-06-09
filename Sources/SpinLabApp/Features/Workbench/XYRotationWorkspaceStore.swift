@@ -428,7 +428,7 @@ extension XYRotationWorkspaceStore: AnalysisPackProviding {
     func restoreFromPack(config: XYRotationPackConfig, result: XYRotationPackResult,
                          pack: AnalysisPack,
                          restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void,
-                         seedSelection: @escaping (Set<String>) -> Void) {
+                         seedSelection: @escaping (Set<String>, [WorkflowMeasurementSearchHit]) -> Void) {
         // Restore analysis params
         phiOffsetOverrides = config.phiOffsetOverrides
         centerBaseline = config.centerBaseline
@@ -448,7 +448,7 @@ extension XYRotationWorkspaceStore: AnalysisPackProviding {
 
         // Restore search selection state
         cachedSearchResults = config.cachedSearchResults
-        seedSelection(Set(config.selectedSearchResultIDs))
+        seedSelection(Set(config.selectedSearchResultIDs), config.cachedSearchResults)
 
         // Restore results
         ingestionResult = result.ingestionResult
