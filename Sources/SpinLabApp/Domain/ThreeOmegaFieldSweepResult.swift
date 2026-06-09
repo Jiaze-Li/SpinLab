@@ -47,6 +47,19 @@ struct ThreeOmegaFieldSweepResult: Codable, Hashable, Sendable, Identifiable {
     // nil when high-field point count is insufficient for a stable fit.
     var v3omegaFit: Double?         // V  (cross-check; nil = fit failed)
 
+    /// Stable identity key for series ordering.
+    /// Priority:
+    ///   1. sourceFilePath (v5.3.6+) — file-level uniqueness, preferred.
+    ///   2. sampleID + device + temperatureK — sampleID alone is not unique across devices/temperatures.
+    ///   3. device + temperatureK — always present.
+    /// Guarantees a non-empty value so reorderable payloads always satisfy the pipeline invariant.
+    var stableSourceRef: String {
+        if let p = sourceFilePath, !p.isEmpty { return p }
+        let tempTag = String(format: "%.1f", temperatureK)
+        if let s = sampleID, !s.isEmpty { return "\(s)|\(device)|\(tempTag)K" }
+        return "\(device)|\(tempTag)K"
+    }
+
     /// Unified RAHE accessor — hides 1ω/3ω data-source asymmetry.
     /// 1ω: directly from col9 (instrument R). 3ω: derived from V_AHE / iRms.
     /// HFE fallback for 3ω: v3omegaFit ?? v3omegaWindow (aligned with Scaling Law).
