@@ -311,6 +311,7 @@ Summary:
 
 #### Gate 7.5 - Save to Library / Save Metadata Projection
 
+- Status: audit complete, docs-only.
 - Source Gate 3 audit section: `Save to Library` plus `Metric Extraction / Metric Override / Save Metadata`
 - Classification: `Boundary debt`
 - Actual Gate 3 finding: the common save writer already exists, but workflow metric semantics still reach it through raw `PendingMetricEntry` arrays and workflow-local save-message / override state.
@@ -319,6 +320,14 @@ Summary:
 - Prerequisite bridges/tests: `ActiveChartProviding`, `buildActiveChartMetrics()`, save boundary tests, metric override tests, and the AHE / 3ω / XY save-path tests already listed in `MODULE_BOUNDARIES.md`.
 - Extraction risks: generic code inventing metrics, overrides being applied to multi-sample results incorrectly, saved metadata diverging from workflow semantics, and canonical units drifting inside the library artifacts.
 - Acceptance criteria: the save use case receives explicit semantic projection; the common writer does not infer physics; library artifacts match the workflow semantics that the Assembly declared; save status can move out of workflow-local ownership without duplicating messages.
+- Audit result: `GATE7_SAVE_METADATA_AUDIT.md`
+- Audit notes:
+  - Common writer (`SaveActiveChartToLibraryUseCase`) is already clean: validation, artifact writes, condition normalization, trace construction. No physics knowledge.
+  - Metric names, unit strings, unit scaling factors (`* 1e31`, `* 1e20`), condition keys, tab gate, and override policy are all Assembly-owned in `buildActiveChartMetrics()` per workflow.
+  - `saveMessage`, `persistenceOutcome`, `currentRunTrace`, and `refreshRelatedCharts()` are duplicated identically across three `persistToLibrary()` implementations — primary extraction target.
+  - AHE override is single-sample guarded; 3ω has no override; XY has no metrics yet.
+  - Three coverage gaps identified: 3ω metric projection correctness, AHE multi-sample override guard, and `tabKey` read path in `PersistChartArtifactUseCase`.
+  - Runtime extraction not started.
 
 #### Gate 7.6 - Pack / Restore
 
