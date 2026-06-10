@@ -421,7 +421,54 @@ struct V750AHEOverrideGuardTests {
                 "pendingRAHEOverride must be cleared after successful persist")
     }
 
-    // INV-GUARD-5: single-sample behavioral path — override IS propagated for one key
+    // INV-GUARD-5: .partial outcome increments persistCount but preserves pending overrides
+    @MainActor
+    @Test("didCompleteSave(.partial) increments persistCount but does not clear pending overrides")
+    func partialOutcomePreservesOverrides() {
+        let store = AHEWorkspaceStore()
+        store.pendingMetricOverride = WorkbenchMetricOverrideCandidate(
+            proposedValue: 0.05, reason: "test", source: .manual
+        )
+        store.pendingRAHEOverride = WorkbenchMetricOverrideCandidate(
+            proposedValue: 10.0, reason: "test", source: .manual
+        )
+        let before = store.persistCount
+        store.didCompleteSave(outcome: .partial(trace: nil, metricError: "metric extraction failed"))
+        #expect(store.persistCount == before + 1,
+                ".partial must increment persistCount")
+        #expect(store.pendingMetricOverride != nil,
+                ".partial must not clear pendingMetricOverride — overrides survive for next save attempt")
+        #expect(store.pendingRAHEOverride != nil,
+                ".partial must not clear pendingRAHEOverride — overrides survive for next save attempt")
+    }
+
+    // INV-GUARD-6: .success outcome increments persistCount AND clears pending overrides
+    @MainActor
+    @Test("didCompleteSave(.success) increments persistCount and clears pending overrides")
+    func successOutcomeClearsOverrides() {
+        let store = AHEWorkspaceStore()
+        store.pendingMetricOverride = WorkbenchMetricOverrideCandidate(
+            proposedValue: 0.05, reason: "test", source: .manual
+        )
+        store.pendingRAHEOverride = WorkbenchMetricOverrideCandidate(
+            proposedValue: 10.0, reason: "test", source: .manual
+        )
+        let before = store.persistCount
+        let trace = WorkbenchRunTraceProjection(
+            runID: "test-run", workflowID: "ahe",
+            inputFiles: [], axisMapping: WorkbenchAxisMapping(xField: "H", yField: "R"),
+            semanticParams: [:], outputImagePath: "", manifestPath: "", generatedAt: .distantPast
+        )
+        store.didCompleteSave(outcome: .success(trace: trace))
+        #expect(store.persistCount == before + 1,
+                ".success must increment persistCount")
+        #expect(store.pendingMetricOverride == nil,
+                ".success must clear pendingMetricOverride")
+        #expect(store.pendingRAHEOverride == nil,
+                ".success must clear pendingRAHEOverride")
+    }
+
+    // INV-GUARD-7: single-sample behavioral path — override IS propagated for one key
     @MainActor
     @Test("buildActiveChartMetrics returns empty when no sample keys are loaded")
     func emptyStateProducesEmptyEntries() {

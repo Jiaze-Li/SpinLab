@@ -272,9 +272,11 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
 
     func didCompleteSave(outcome: PersistenceOutcome) {
         switch outcome {
-        case .success, .partial:
+        case .success:
             self.pendingMetricOverride = nil
             self.pendingRAHEOverride = nil
+            self.persistCount += 1
+        case .partial:
             self.persistCount += 1
         case .failure:
             break
