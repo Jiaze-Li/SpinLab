@@ -62,7 +62,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Persistence (Save to Library)
 
-    var persistenceOutcome: PersistenceOutcome?
+    private(set) var persistenceOutcome: PersistenceOutcome?
 
     // cachedManifestPayloads now managed by tabs (TabRenderManager)
 
@@ -240,6 +240,10 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
     }
 
     // MARK: - Save to Library
+
+    func applyPersistenceOutcome(_ outcome: PersistenceOutcome) {
+        persistenceOutcome = outcome
+    }
 
     func persistToLibrary(onComplete: (() -> Void)? = nil) {
         guard let png = activeChartPNG else {

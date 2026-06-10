@@ -166,7 +166,11 @@ final class ThreeOmegaWorkspaceStore {
 
     /// Set by WorkbenchFeatureStore during search; required for artifact I/O.
     var lastLibraryRootPath: String = ""
-    var persistenceOutcome: PersistenceOutcome?
+    private(set) var persistenceOutcome: PersistenceOutcome?
+
+    func applyPersistenceOutcome(_ outcome: PersistenceOutcome) {
+        persistenceOutcome = outcome
+    }
 
     var activeChartPNG: Data? { tabs.activeImageData }
 

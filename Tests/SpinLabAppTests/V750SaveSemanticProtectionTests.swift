@@ -487,6 +487,89 @@ struct V750AHEOverrideGuardTests {
     }
 }
 
+// MARK: - Suite 3b: private(set) setter visibility and executeSave ordering
+
+@Suite("V750 SaveCoordinator visibility and ordering invariants")
+struct V750SaveCoordinatorStructureTests {
+
+    private func loadSource(file: String) throws -> String {
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let url = root.appending(path: "Sources/SpinLabApp/Features/Workbench/\(file)")
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    private func extractFunction(_ name: String, from source: String) -> String? {
+        guard let sig = source.range(of: "func \(name)") else { return nil }
+        guard let open = source[sig.lowerBound...].firstIndex(of: "{") else { return nil }
+        var depth = 0
+        var index = open
+        while index < source.endIndex {
+            let c = source[index]
+            if c == "{" { depth += 1 }
+            if c == "}" {
+                depth -= 1
+                if depth == 0 { return String(source[sig.lowerBound...index]) }
+            }
+            index = source.index(after: index)
+        }
+        return nil
+    }
+
+    // VISIBILITY-1: AHE uses private(set) for persistenceOutcome
+    @Test("AHEWorkspaceStore declares persistenceOutcome as private(set)")
+    func ahePersistenceOutcomeIsPrivateSet() throws {
+        let source = try loadSource(file: "AHEWorkspaceStore.swift")
+        #expect(source.contains("private(set) var persistenceOutcome"),
+                "AHEWorkspaceStore must not expose a public setter for persistenceOutcome")
+    }
+
+    // VISIBILITY-2: XY uses private(set) for persistenceOutcome
+    @Test("XYRotationWorkspaceStore declares persistenceOutcome as private(set)")
+    func xyPersistenceOutcomeIsPrivateSet() throws {
+        let source = try loadSource(file: "XYRotationWorkspaceStore.swift")
+        #expect(source.contains("private(set) var persistenceOutcome"),
+                "XYRotationWorkspaceStore must not expose a public setter for persistenceOutcome")
+    }
+
+    // ORDER-1: executeSave calls didCompleteSave before setting saveMessage
+    @Test("executeSave calls didCompleteSave before saveMessage is written")
+    func executeSaveCallsDidCompleteSaveBeforeSaveMessage() throws {
+        let coordinator = try loadSource(file: "WorkbenchSaveCoordinating.swift")
+        let body = try #require(extractFunction("executeSave", from: coordinator),
+                               "executeSave must be present in WorkbenchSaveCoordinating")
+        let didCompleteRange = try #require(body.range(of: "didCompleteSave"),
+                                            "executeSave must call didCompleteSave")
+        let saveMessageRange = try #require(body.range(of: "saveMessage"),
+                                            "executeSave must set saveMessage")
+        #expect(didCompleteRange.lowerBound < saveMessageRange.lowerBound,
+                "didCompleteSave must appear before saveMessage in executeSave — override clearing must precede message write")
+    }
+
+    // ORDER-2: executeSave calls didCompleteSave before refreshRelatedCharts
+    @Test("executeSave calls didCompleteSave before refreshRelatedCharts")
+    func executeSaveCallsDidCompleteSaveBeforeRefreshRelatedCharts() throws {
+        let coordinator = try loadSource(file: "WorkbenchSaveCoordinating.swift")
+        let body = try #require(extractFunction("executeSave", from: coordinator),
+                               "executeSave must be present in WorkbenchSaveCoordinating")
+        let didCompleteRange = try #require(body.range(of: "didCompleteSave"),
+                                            "executeSave must call didCompleteSave")
+        let refreshRange = try #require(body.range(of: "refreshRelatedCharts"),
+                                        "executeSave must call refreshRelatedCharts")
+        #expect(didCompleteRange.lowerBound < refreshRange.lowerBound,
+                "didCompleteSave must appear before refreshRelatedCharts — AHE persistCount must be incremented before related charts load")
+    }
+
+    // ORDER-3: protocol uses applyPersistenceOutcome method, not { get set }
+    @Test("WorkbenchSaveCoordinating protocol requires applyPersistenceOutcome, not a settable persistenceOutcome")
+    func protocolUsesApplyMethod() throws {
+        let coordinator = try loadSource(file: "WorkbenchSaveCoordinating.swift")
+        #expect(coordinator.contains("func applyPersistenceOutcome"),
+                "Protocol must declare applyPersistenceOutcome method")
+        #expect(!coordinator.contains("persistenceOutcome? { get set }"),
+                "Protocol must not require a public setter on persistenceOutcome — use applyPersistenceOutcome instead")
+    }
+}
+
 // MARK: - Suite 3: PersistChartArtifactUseCase semanticParams["tabKey"]
 
 @Suite("V750 PersistChartArtifactUseCase — semanticParams tabKey read path")

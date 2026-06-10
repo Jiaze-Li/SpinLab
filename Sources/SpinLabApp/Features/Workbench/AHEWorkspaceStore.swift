@@ -26,7 +26,7 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
 
     /// Set after each `persistToLibrary()` call.
     /// Nil when no persist has occurred or after `clearPlot()`.
-    var persistenceOutcome: PersistenceOutcome? = nil
+    private(set) var persistenceOutcome: PersistenceOutcome? = nil
 
     /// Incremented every time a persist completes (success or partial).
     /// Use this for `onChange` observation — avoids requiring `PersistenceOutcome: Equatable`.
@@ -268,6 +268,10 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
             ),
             onComplete: onComplete
         )
+    }
+
+    func applyPersistenceOutcome(_ outcome: PersistenceOutcome) {
+        persistenceOutcome = outcome
     }
 
     func didCompleteSave(outcome: PersistenceOutcome) {

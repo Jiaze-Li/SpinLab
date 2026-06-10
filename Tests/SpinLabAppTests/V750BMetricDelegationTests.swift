@@ -61,7 +61,8 @@ struct V750BMetricDelegationTests {
     @Test("Coordinator executeSave owns persistenceOutcome, currentRunTrace, saveMessage, refreshRelatedCharts")
     func coordinatorOwnsMachinery() throws {
         let src = try loadSource(file: "WorkbenchSaveCoordinating.swift")
-        #expect(src.contains("persistenceOutcome = outcome"))
+        #expect(src.contains("applyPersistenceOutcome(outcome)"),
+                "executeSave must delegate outcome write via applyPersistenceOutcome, not set persistenceOutcome directly")
         #expect(src.contains("currentRunTrace = outcome.trace"))
         #expect(src.contains("saveMessage = \"Saved to Library.\""))
         #expect(src.contains("saveMessage = \"Save failed:"))

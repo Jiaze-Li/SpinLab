@@ -11,10 +11,14 @@ import Foundation
 @MainActor
 protocol WorkbenchSaveCoordinating: AnyObject {
     var saveMessage: String? { get set }
-    var persistenceOutcome: PersistenceOutcome? { get set }
+    var persistenceOutcome: PersistenceOutcome? { get }
     var currentRunTrace: WorkbenchRunTraceProjection? { get set }
     func refreshRelatedCharts()
-    /// Called on MainActor after outcome is applied. Default is a no-op.
+    /// Called by `executeSave` to write the outcome. Each conforming type implements
+    /// this to assign its own `private(set) var persistenceOutcome`.
+    func applyPersistenceOutcome(_ outcome: PersistenceOutcome)
+    /// Called on MainActor after outcome is applied but before saveMessage and
+    /// refreshRelatedCharts. Default is a no-op.
     /// AHE overrides to clear pending overrides and increment persistCount.
     func didCompleteSave(outcome: PersistenceOutcome)
 }
@@ -28,8 +32,9 @@ extension WorkbenchSaveCoordinating {
             let outcome = await Task.detached(priority: .userInitiated) {
                 SaveActiveChartToLibraryUseCase().execute(input: input)
             }.value
-            self.persistenceOutcome = outcome
+            self.applyPersistenceOutcome(outcome)
             self.currentRunTrace = outcome.trace
+            self.didCompleteSave(outcome: outcome)
             switch outcome {
             case .success:
                 self.saveMessage = "Saved to Library."
@@ -40,7 +45,6 @@ extension WorkbenchSaveCoordinating {
             case .failure(let err):
                 self.saveMessage = "Save failed: \(err)"
             }
-            self.didCompleteSave(outcome: outcome)
             onComplete?()
         }
     }
