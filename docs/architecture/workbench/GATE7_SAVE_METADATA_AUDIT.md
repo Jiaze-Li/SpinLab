@@ -183,11 +183,17 @@ These condition keys are 3ω physics semantics and must remain Assembly-owned. A
 
 ### Coverage gaps relevant to Gate 7.5
 
-- No test directly asserts that 3ω `buildActiveChartMetrics()` produces the correct metric names, unit strings, or scaling-factor values from a known `scalingResult` fixture. The scaling use case tests verify the `scalingResult` structure but not the projection into `PendingMetricEntry`.
-- No test asserts that 3ω non-scaling tabs produce empty metrics.
-- No test asserts the multi-sample AHE override guard (`isSingleSample` check blocks override application).
-- No test covers `persistenceOutcome` and `saveMessage` state transitions for 3ω specifically (boundary tests use stubs).
-- No test protects the `tabKey` read path (`payload.semanticParams["tabKey"]`) in `PersistChartArtifactUseCase`.
+Gap status updated after Gate 7.5A:
+
+| Gap | Status | Covered by |
+|---|---|---|
+| 3ω `buildActiveChartMetrics()` metric names, unit strings, scaling factors from fixture | **Covered** | `V750SaveSemanticProtectionTests` — Suite 1 (20 tests) |
+| 3ω non-scaling tabs produce empty metrics | **Covered** | `V750SaveSemanticProtectionTests` — "non-scaling tabs return empty entries" |
+| AHE multi-sample override guard (`isSingleSample` blocks override) | **Covered** (source inspection) | `V750SaveSemanticProtectionTests` — Suite 2 (5 tests) |
+| `tabKey` read path in `PersistChartArtifactUseCase` | **Covered** | `V750SaveSemanticProtectionTests` — Suite 3 (6 tests) |
+| `persistenceOutcome` / `saveMessage` state transitions for 3ω | Still open — boundary tests use stubs; full behavioral test requires 3ω analysis round-trip |
+
+The AHE override guard is covered through source inspection rather than a direct behavioral test (because `lastRenderedSampleKeys` is `private(set)` and requires a full analysis round-trip to populate). The source inspection tests are sufficient: they directly assert the structural guard that prevents multi-sample corruption and will fail if the guard is removed or restructured.
 
 ---
 
@@ -203,7 +209,7 @@ These condition keys are 3ω physics semantics and must remain Assembly-owned. A
 | **`currentRunTrace` assignment** | All three `persistToLibrary()` implementations set `self.currentRunTrace = outcome.trace` identically. This is duplicated common behavior. | Can be moved into a common coordinator without touching Assembly code; low risk. |
 | **`refreshRelatedCharts()` duplication** | Called on `.success` and `.partial` in all three implementations. | Low risk to centralize; must not be called on `.failure`. |
 | **Tab-gate for metric production** | 3ω returns `[]` for non-scaling tabs at `buildActiveChartMetrics()` time. A generic save path that always calls a metric builder would need to know about the tab gate. | Tab gate must remain Assembly-dispatched; the projection itself can be empty. |
-| **Missing 3ω metric projection tests** | No test asserts 3ω `buildActiveChartMetrics()` correctness from a fixture. Extraction could silently break unit strings or scaling factors. | Add projection tests before extraction (recommended Gate 7.5 pre-work). |
+| **3ω metric projection tests** | ~~No test asserts 3ω `buildActiveChartMetrics()` correctness from a fixture.~~ Covered by `V750SaveSemanticProtectionTests` Suite 1 (Gate 7.5A). | Projection tests now exist; extraction can verify they stay green. |
 | **`activeChartSampleKeys` policy** | Each workflow determines which sample keys correspond to the active chart. For multi-tab 3ω with overlays, the keys may differ per tab. Moving this into common code risks wrong key sets. | `activeChartSampleKeys` must remain per-workflow `ActiveChartProviding` output. |
 
 ---
