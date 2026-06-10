@@ -2,6 +2,7 @@
 
 **Audit status**: complete (docs-only, 2026-06-10)
 **Gate 7.6A status**: complete (protection tests, 2026-06-10) — 34 tests in `V760PackRestoreProtectionTests.swift`, all pass
+**Gate 7.6B status**: complete (behavior-preserving cleanup, 2026-06-10) — intermediate `cachedRTFilePath = config.rtFilePath` assignment removed from `restoreFromPack`; `cachedRTFilePath` remains derived output only; source inspection test updated to pin the absence; all 34 V760 tests green
 **Branch**: gate7.6
 **Scope**: map current ownership boundary after Gate 7.4 and Gate 7.5; no runtime or schema changes.
 
@@ -18,9 +19,9 @@
 - AHE / XY / 3ω optional field backward-compat all produce correct defaults
 - Wired `WorkbenchAnalysisOverlayRuntime` is cleared on restore (V740 only tested the standalone fallback; now both paths are covered)
 
-**Gate 7.6B recommendation (cachedRTFilePath):**
+**Gate 7.6B result (cachedRTFilePath):**
 
-Treat `cachedRTFilePath` as **derived output only**. The intermediate assignment `cachedRTFilePath = config.rtFilePath` in `restoreFromPack` is overwritten unconditionally by `_snapshotAndCacheManifestPayloads()`. It should be removed: it is noise that could mislead future engineers into thinking `config.rtFilePath` is a standalone restore input. `ThreeOmegaPackConfig.rtFilePath` (the serialized field) is still useful for the pack fingerprint; it does not need to be a restore input.
+The intermediate assignment `cachedRTFilePath = config.rtFilePath` has been removed from `restoreFromPack`. `cachedRTFilePath` is derived output only — set exclusively by `_snapshotAndCacheManifestPayloads()` from `selectedRTHit?.measurementFilePath`. `ThreeOmegaPackConfig.rtFilePath` is retained in the schema for pack fingerprint / compatibility context and is not a restore input. Source inspection test updated to pin the absence of the intermediate write.
 
 **Gate 7.6B recommendation (_overlayPackIDs standalone fallback):**
 
@@ -194,18 +195,18 @@ Tests that protect this: `V537PackRestoreModuleBoundaryTests` §5 (all three wor
 
 1. **Priority 1** — `config.selectedRTHit` non-nil: `restoreFromPack` writes it directly to `store.selectedRTHit`. Most common case.
 2. **Priority 2** — `pendingRTSidecarPath`: NOT set by `restoreFromPack`. This is the interaction-snapshot restore path, orthogonal to pack restore. `applyRestoredRTHit()` / `clearPendingRTRestore()` handle it after search completes.
-3. **Priority 3** — `config.rtFilePath` non-nil but `selectedRTHit` nil: `restoreFromPack` writes `config.rtFilePath` to `cachedRTFilePath`, but `_snapshotAndCacheManifestPayloads()` at the end of restore **overwrites** `cachedRTFilePath` with `selectedRTHit?.measurementFilePath` — which is `nil` when no hit is selected. Net result: **`cachedRTFilePath` is nil after restore** regardless of `config.rtFilePath`. Documented as current behavior in `V730SecondaryInputSearchBaselineTests.priority3_cachedRTFilePathDerivedFromSelectedRTHit`.
+3. **Priority 3** — `config.rtFilePath` non-nil but `selectedRTHit` nil: `_snapshotAndCacheManifestPayloads()` at the end of restore sets `cachedRTFilePath = selectedRTHit?.measurementFilePath` — which is `nil` when no hit is selected. Net result: **`cachedRTFilePath` is nil after restore** regardless of `config.rtFilePath`. `config.rtFilePath` is never directly written to `cachedRTFilePath` (Gate 7.6B cleanup removed that intermediate assignment). Documented in `V730SecondaryInputSearchBaselineTests.priority3_cachedRTFilePathDerivedFromSelectedRTHit`.
 4. **Priority 4** — all nil: slot stays unbound, no crash.
 
-### 3c. cachedRTFilePath: derived output, not restore input
+### 3c. cachedRTFilePath: derived output, not restore input (Gate 7.6B — resolved)
 
-The intermediate assignment `cachedRTFilePath = config.rtFilePath` in `restoreFromPack` (line 155) is effectively a no-op: it is unconditionally overwritten by `_snapshotAndCacheManifestPayloads()` later in the same function. This means:
+The intermediate assignment `cachedRTFilePath = config.rtFilePath` has been **removed** from `restoreFromPack` (Gate 7.6B). `cachedRTFilePath` is set exclusively by `_snapshotAndCacheManifestPayloads()` from `selectedRTHit?.measurementFilePath`. This means:
 
-- `config.rtFilePath` in the pack is a redundant serialization of `cachedRTFilePath` at save time.
+- `config.rtFilePath` in the pack is a fingerprint / compatibility snapshot of `cachedRTFilePath` at save time. It is retained in the schema but is not read during restore.
 - The only effective restore path for RT state is `selectedRTHit`.
 - If a user saves a pack with an RT file selected, the `selectedRTHit` carries the file identity. If the sidecar disappears after save, there is no independent fallback from `rtFilePath`.
 
-**This is the deferred debt noted in Gate 7.3**: "cachedRTFilePath standalone rebuild is not implemented. Gate 7.6 Pack/Restore extraction should revisit the secondary input restore bridge."
+**The deferred debt noted in Gate 7.3** ("cachedRTFilePath standalone rebuild is not implemented") remains open — making `rtFilePath` a standalone fallback input when `selectedRTHit` is nil is a future decision, not implemented here.
 
 ### 3d. What is needed to make RT restore explicit and safe
 
@@ -352,8 +353,8 @@ Tests: `V537SaveModuleBoundaryTests` (Gate 7.5A/B coverage) + `V537PackRestoreMo
 
 ### What is dangerous
 
-1. **`cachedRTFilePath` write-then-overwrite**: the intermediate assignment `cachedRTFilePath = config.rtFilePath` in `restoreFromPack` is overwritten by `_snapshotAndCacheManifestPayloads()`. Any future refactor that removes `_snapshotAndCacheManifestPayloads()` or reorders the post-restore calls could silently promote `config.rtFilePath` to a standalone restore path, changing fingerprint behavior. The current code is correct but brittle.
-2. **No RT round-trip test with non-nil selectedRTHit**: the primary RT restore path (priority 1) has test coverage for the final state (`store.selectedRTHit == rtHit`) but no test that exercises full pack save → pack decode → restore with a non-nil selectedRTHit.
+1. **`cachedRTFilePath` intermediate write** — resolved in Gate 7.6B. The misleading intermediate assignment has been removed; `cachedRTFilePath` derivation is now explicit and pinned by source inspection tests.
+2. **No RT round-trip test with non-nil selectedRTHit**: the primary RT restore path (priority 1) has test coverage for the final state (`store.selectedRTHit == rtHit`) but no test that exercises full pack save → pack decode → restore with a non-nil selectedRTHit. Partially addressed in V760 Group 1 (restore with selectedRTHit fixture); full encode → decode round-trip is still uncovered.
 
 ---
 
@@ -370,13 +371,11 @@ These tests must be in place before any Gate 7.6 runtime extraction begins:
 5. **AHE missing optional fields**: construct an AHE pack JSON with only required-ish fields present, decode, verify default values.
 6. **XY linearDetrend backward-compat**: pack without `linearDetrend` decodes as `false`.
 
-### Gate 7.6B — Extraction / fix (if any)
+### Gate 7.6B — Extraction / fix (completed 2026-06-10)
 
-Possible interventions based on audit (not all required; decide after 7.6A tests pass):
-
-1. **Remove intermediate `cachedRTFilePath` assignment**: if the overwrite is intentional (derived-only), remove `cachedRTFilePath = config.rtFilePath` from `restoreFromPack`. The pack field `rtFilePath` becomes fingerprint-only (it is only used by `makeFingerprint` to derive `sourceFingerprint`). This makes the design explicit.
-2. **OR: promote rtFilePath to standalone restore input**: if RT file path should survive when `selectedRTHit` is nil, guard `_snapshotAndCacheManifestPayloads()` to not overwrite `cachedRTFilePath` when `selectedRTHit` is nil. This is the path needed for full RT restore without a sidecar.
-3. **`_overlayPackIDs` standalone fallback cleanup**: remove after updating V740 tests to use a full-WFS fixture or a protocol-level accessor.
+1. ✅ **Remove intermediate `cachedRTFilePath` assignment**: removed `cachedRTFilePath = config.rtFilePath` from `restoreFromPack`. `config.rtFilePath` is fingerprint-only. Source inspection test updated to pin the absence. Behavior-preserving: no test drift.
+2. ~~OR: promote rtFilePath to standalone restore input~~ — not chosen; deferred to a future gate if RT-without-sidecar becomes a requirement.
+3. **`_overlayPackIDs` standalone fallback cleanup**: deferred — separate scope (`_overlayPackIDs` cleanup), not combined with this gate per Gate 7.6B scope constraints.
 
 ### Deferred debt
 

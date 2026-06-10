@@ -215,27 +215,21 @@ struct V760CachedRTFilePathOverwriteGuardTests {
         )
     }
 
-    /// restoreFromPack writes config.rtFilePath BEFORE calling _snapshotAndCacheManifestPayloads().
-    /// The intermediate write is immediately overwritten. This test pins the order so
-    /// any change to the overwrite sequence is caught immediately.
-    @Test("restoreFromPack intermediate cachedRTFilePath write appears before _snapshotAndCacheManifestPayloads call")
-    func restoreFromPackWritesConfigRTPathBeforeSnapshot() throws {
+    /// Gate 7.6B cleanup: the intermediate assignment `cachedRTFilePath = config.rtFilePath`
+    /// has been removed from restoreFromPack. config.rtFilePath is a fingerprint-context field
+    /// only; cachedRTFilePath is derived exclusively from selectedRTHit?.measurementFilePath
+    /// by _snapshotAndCacheManifestPayloads(). This test pins the absence so the intermediate
+    /// write cannot be re-introduced without failing here.
+    @Test("restoreFromPack does not assign cachedRTFilePath from config.rtFilePath (Gate 7.6B cleanup)")
+    func restoreFromPackDoesNotAssignConfigRTFilePath() throws {
         let source = try loadPackSource()
         let body = try #require(
             extractFunction("restoreFromPack", from: source),
             "restoreFromPack must exist in ThreeOmegaWorkspaceStore+Pack.swift"
         )
-        let intermediateWrite = try #require(
-            body.range(of: "cachedRTFilePath = config.rtFilePath"),
-            "restoreFromPack must contain 'cachedRTFilePath = config.rtFilePath'"
-        )
-        let snapshotCall = try #require(
-            body.range(of: "_snapshotAndCacheManifestPayloads()"),
-            "restoreFromPack must call _snapshotAndCacheManifestPayloads()"
-        )
         #expect(
-            intermediateWrite.lowerBound < snapshotCall.lowerBound,
-            "cachedRTFilePath = config.rtFilePath must appear BEFORE _snapshotAndCacheManifestPayloads() so that the overwrite order is explicit and not accidentally reversed"
+            !body.contains("cachedRTFilePath = config.rtFilePath"),
+            "restoreFromPack must NOT assign cachedRTFilePath from config.rtFilePath — config.rtFilePath is fingerprint context only; cachedRTFilePath is derived by _snapshotAndCacheManifestPayloads()"
         )
     }
 
