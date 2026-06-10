@@ -9,7 +9,7 @@ import Observation
 /// remains in `WorkbenchFeatureStore` after V3.3.3.
 @MainActor
 @Observable
-final class AHEWorkspaceStore {
+final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Selection bridge (pack serialization only)
 
@@ -26,7 +26,7 @@ final class AHEWorkspaceStore {
 
     /// Set after each `persistToLibrary()` call.
     /// Nil when no persist has occurred or after `clearPlot()`.
-    private(set) var persistenceOutcome: PersistenceOutcome? = nil
+    var persistenceOutcome: PersistenceOutcome? = nil
 
     /// Incremented every time a persist completes (success or partial).
     /// Use this for `onChange` observation — avoids requiring `PersistenceOutcome: Equatable`.
@@ -258,40 +258,26 @@ final class AHEWorkspaceStore {
             saveMessage = "No manifest payload available."
             return
         }
-        let libraryRootPath = lastLibraryRootPath
-        let sampleKeys = activeChartSampleKeys
-        let metrics = buildActiveChartMetrics()
-
-        let input = SaveActiveChartInput(
-            png: png,
-            payload: payload,
-            sampleKeys: sampleKeys,
-            libraryRootPath: libraryRootPath,
-            metrics: metrics
+        executeSave(
+            input: SaveActiveChartInput(
+                png: png,
+                payload: payload,
+                sampleKeys: activeChartSampleKeys,
+                libraryRootPath: lastLibraryRootPath,
+                metrics: buildActiveChartMetrics()
+            ),
+            onComplete: onComplete
         )
+    }
 
-        Task { [weak self] in
-            guard let self else { return }
-            let outcome = await Task.detached(priority: .userInitiated) {
-                SaveActiveChartToLibraryUseCase().execute(input: input)
-            }.value
-            self.persistenceOutcome = outcome
-            self.currentRunTrace = outcome.trace
-            switch outcome {
-            case .success:
-                self.pendingMetricOverride = nil
-                self.pendingRAHEOverride = nil
-                self.persistCount += 1
-                self.saveMessage = "Saved to Library."
-                self.refreshRelatedCharts()
-            case .partial(_, let metricError):
-                self.persistCount += 1
-                self.saveMessage = "Chart saved; metric error: \(metricError)"
-                self.refreshRelatedCharts()
-            case .failure(let msg):
-                self.saveMessage = "Save failed: \(msg)"
-            }
-            onComplete?()
+    func didCompleteSave(outcome: PersistenceOutcome) {
+        switch outcome {
+        case .success, .partial:
+            self.pendingMetricOverride = nil
+            self.pendingRAHEOverride = nil
+            self.persistCount += 1
+        case .failure:
+            break
         }
     }
 

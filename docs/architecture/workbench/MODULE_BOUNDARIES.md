@@ -197,6 +197,7 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
   - `Sources/SpinLabApp/UseCases/PersistMeasurementDataUseCase.swift`
   - `Sources/SpinLabApp/UseCases/BackfillMeasurementPlotIndexUseCase.swift`
   - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift`
+  - `Sources/SpinLabApp/Features/Workbench/WorkbenchSaveCoordinating.swift` — shared async save orchestration protocol + extension; owns `executeSave`, outcome/trace/message writes, and `refreshRelatedCharts()` call pattern
   - save methods in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore+Persistence.swift`
   - save-metadata builders in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore+Plotting.swift`
   - metric/provider contracts in `Sources/SpinLabApp/Workbench/V3/WorkbenchResultContracts.swift`

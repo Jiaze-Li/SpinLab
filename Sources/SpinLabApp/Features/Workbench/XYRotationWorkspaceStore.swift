@@ -7,7 +7,7 @@ import Observation
 /// Owned by `WorkbenchFeatureStore`. Views bind directly to this store.
 @MainActor
 @Observable
-final class XYRotationWorkspaceStore {
+final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Search / Selection bridge
 
@@ -62,7 +62,7 @@ final class XYRotationWorkspaceStore {
 
     // MARK: - Persistence (Save to Library)
 
-    private(set) var persistenceOutcome: PersistenceOutcome?
+    var persistenceOutcome: PersistenceOutcome?
 
     // cachedManifestPayloads now managed by tabs (TabRenderManager)
 
@@ -250,37 +250,16 @@ final class XYRotationWorkspaceStore {
             saveMessage = "No manifest payload available for the active tab."
             return
         }
-        let libraryRootPath = lastLibraryRootPath
-        let sampleKeys = activeChartSampleKeys
-        let metrics = buildActiveChartMetrics()
-
-        let input = SaveActiveChartInput(
-            png: png,
-            payload: payload,
-            sampleKeys: sampleKeys,
-            libraryRootPath: libraryRootPath,
-            metrics: metrics
+        executeSave(
+            input: SaveActiveChartInput(
+                png: png,
+                payload: payload,
+                sampleKeys: activeChartSampleKeys,
+                libraryRootPath: lastLibraryRootPath,
+                metrics: buildActiveChartMetrics()
+            ),
+            onComplete: onComplete
         )
-
-        Task { [weak self] in
-            guard let self else { return }
-            let outcome = await Task.detached(priority: .userInitiated) {
-                SaveActiveChartToLibraryUseCase().execute(input: input)
-            }.value
-            self.persistenceOutcome = outcome
-            self.currentRunTrace = outcome.trace
-            switch outcome {
-            case .success:
-                self.saveMessage = "Saved to Library."
-                self.refreshRelatedCharts()
-            case .partial(_, let err):
-                self.saveMessage = "Chart saved; metric error: \(err)"
-                self.refreshRelatedCharts()
-            case .failure(let err):
-                self.saveMessage = "Save failed: \(err)"
-            }
-            onComplete?()
-        }
     }
 
     // MARK: - Pack helpers (private)
