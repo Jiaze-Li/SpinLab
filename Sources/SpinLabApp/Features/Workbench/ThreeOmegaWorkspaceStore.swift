@@ -235,7 +235,14 @@ final class ThreeOmegaWorkspaceStore {
     /// _overlayPackIDs in standalone/test mode.
     var overlayPackIDs: [AnalysisPack.ID] {
         get { overlayRuntime?.overlayIDs ?? _overlayPackIDs }
-        set { if overlayRuntime == nil { _overlayPackIDs = newValue } }
+        set {
+            // When overlayRuntime is wired this assignment is intentionally ignored.
+            // All overlay mutations must go through WorkbenchAnalysisOverlayRuntime
+            // operations (addEntry / removeEntry / clear) so the runtime remains the
+            // single source of truth. Direct assignment is only used in standalone /
+            // test construction where overlayRuntime is nil.
+            if overlayRuntime == nil { _overlayPackIDs = newValue }
+        }
     }
 
     /// Decoupled snapshots of overlay data — survive vault deletion.

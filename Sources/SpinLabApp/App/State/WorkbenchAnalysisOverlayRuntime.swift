@@ -27,7 +27,7 @@ final class WorkbenchAnalysisOverlayRuntime {
 
     /// Register an overlay entry. Called by the workflow after it has successfully
     /// decoded the pack and built its own typed snapshot. Idempotent: a second call
-    /// with the same id is silently ignored.
+    /// with the same id is silently ignored and the existing label is preserved.
     func addEntry(id: AnalysisPack.ID, label: String) {
         guard !overlayIDs.contains(id) else { return }
         overlayIDs.append(id)

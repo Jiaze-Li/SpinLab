@@ -159,7 +159,10 @@ func autoPackLabel() -> String { _autoPackLabel() }
             lastLibraryRootPath = root
         }
 
-        // Clear overlays — delegate to runtime when wired, clear fallback in both cases.
+        // Clear overlays. Both paths run unconditionally:
+        // overlayRuntime?.clear() clears the runtime when wired (wired mode source of truth);
+        // _overlayPackIDs = [] resets the standalone fallback in both modes so it never
+        // drifts out of sync on the next standalone construction.
         overlayRuntime?.clear()
         _overlayPackIDs = []
         overlaySnapshots = [:]
