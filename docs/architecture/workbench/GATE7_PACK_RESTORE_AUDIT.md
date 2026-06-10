@@ -1,9 +1,30 @@
 # Gate 7.6 — Pack / Restore Audit
 
-**Status**: audit complete (docs-only)  
-**Date**: 2026-06-10  
-**Branch**: gate7.6  
+**Audit status**: complete (docs-only, 2026-06-10)
+**Gate 7.6A status**: complete (protection tests, 2026-06-10) — 34 tests in `V760PackRestoreProtectionTests.swift`, all pass
+**Branch**: gate7.6
 **Scope**: map current ownership boundary after Gate 7.4 and Gate 7.5; no runtime or schema changes.
+
+---
+
+## Gate 7.6A Result Summary (2026-06-10)
+
+34 tests added in `V760PackRestoreProtectionTests.swift` across 5 suites. All pass. No behavior drift exposed.
+
+**Key confirmations from running the tests:**
+- `cachedRTFilePath` is derived output: confirmed `selectedRTHit?.measurementFilePath` is the source, not `config.rtFilePath`
+- Overwrite sequence locked: intermediate write `cachedRTFilePath = config.rtFilePath` appears before `_snapshotAndCacheManifestPayloads()`, and no re-assignment appears after — the order is now pinned by source inspection
+- 3ω and XY required fields all throw on missing input — decode failure is clean (no crash)
+- AHE / XY / 3ω optional field backward-compat all produce correct defaults
+- Wired `WorkbenchAnalysisOverlayRuntime` is cleared on restore (V740 only tested the standalone fallback; now both paths are covered)
+
+**Gate 7.6B recommendation (cachedRTFilePath):**
+
+Treat `cachedRTFilePath` as **derived output only**. The intermediate assignment `cachedRTFilePath = config.rtFilePath` in `restoreFromPack` is overwritten unconditionally by `_snapshotAndCacheManifestPayloads()`. It should be removed: it is noise that could mislead future engineers into thinking `config.rtFilePath` is a standalone restore input. `ThreeOmegaPackConfig.rtFilePath` (the serialized field) is still useful for the pack fingerprint; it does not need to be a restore input.
+
+**Gate 7.6B recommendation (_overlayPackIDs standalone fallback):**
+
+Remove `_overlayPackIDs` standalone fallback after updating tests that access `store._overlayPackIDs` or `store.overlayPackIDs` directly. V740 tests currently use this path. The wired-runtime path is now confirmed working (V760 §5).
 
 ---
 
