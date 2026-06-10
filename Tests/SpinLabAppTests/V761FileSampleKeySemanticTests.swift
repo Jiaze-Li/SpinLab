@@ -62,10 +62,8 @@ struct V761FileSampleKeySemanticTests {
         )
 
         #expect(hints.fileSampleKey == "SL134")
-        // Snapshot sampleID should reflect the file-level sample, not a raw channel token.
-        if let sampleIDField = snapshot.fields.sampleID {
-            #expect(sampleIDField.value.contains("SL134"))
-        }
+        let sampleIDField = try #require(snapshot.fields.sampleID)
+        #expect(sampleIDField.value == "SL134")
     }
 
     // MARK: - 2. Multi-channel: no automatic collapse
@@ -81,15 +79,9 @@ struct V761FileSampleKeySemanticTests {
         let ch2 = parsed.channelHints.first(where: { $0.channel == "ch2" })
         #expect(ch1?.sampleID?.contains("SL134") == true)
         #expect(ch2?.sampleID?.contains("SL135") == true)
-        // fileSampleKey must not arbitrarily pick one channel sample.
-        // Acceptable outcomes: nil, or a file-scope-derived value — never a lone channel pick.
-        if let key = parsed.fileSampleKey {
-            // If a key is present it must not be a single channel sample picked from ambiguous channels.
-            let isJustOnChannelSample = (key.contains("SL134") || key.contains("SL135"))
-                && !parsed.sampleIDs.contains(where: { parsed.channelHints.isEmpty || $0 == key })
-            _ = isJustOnChannelSample // result checked via absence of arbitrary-pick behavior
-        }
-        // The two channel hints must both still be intact.
+        // Ambiguous multi-channel: neither channel wins at file level.
+        #expect(parsed.fileSampleKey == nil)
+        // Both channel hints must still be intact.
         #expect(parsed.channelHints.count >= 2)
     }
 

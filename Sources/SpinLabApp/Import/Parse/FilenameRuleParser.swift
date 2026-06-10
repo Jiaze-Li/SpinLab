@@ -165,6 +165,24 @@ struct FilenameRuleParser {
             }
         }
 
+        // Single-channel promotion: fileSampleKey came from channel scope, not file/folder scope.
+        // Neither of the passes above will have set hintSources["sampleID"], so backfill it here
+        // so that buildRuleSnapshot can emit SidecarRuleSnapshot.fields.sampleID.
+        if fileSampleKey != nil, hintSources["sampleID"] == nil,
+           fileSampleIDs.isEmpty, folderSampleIDs.isEmpty, channelHints.count == 1 {
+            var collectedChannelTokens: [String] = []
+            var inChannel = false
+            for token in fileTokens {
+                if ruleSet.normalizeChannel(token) != nil {
+                    inChannel = true
+                    continue
+                }
+                if inChannel { collectedChannelTokens.append(token) }
+            }
+            hintSources["sampleID"] = ruleSet.sampleIDsWithSources(from: collectedChannelTokens).first?.ruleRef
+                ?? "singleChannelPromotion"
+        }
+
         if let measurementWithSource = ruleSet.measurementNameWithSource(from: fileScopeTokens) {
             hintSources["workflowID"] = measurementWithSource.ruleRef
             hintSources["measurementName"] = measurementWithSource.ruleRef
