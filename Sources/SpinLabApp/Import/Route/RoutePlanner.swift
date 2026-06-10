@@ -5,7 +5,7 @@ struct SpinLabRoutePlanner {
 
     func makeRoutePlan(from parsed: SpinLabDomain.ParsedFilenameHints) -> SpinLabDomain.RoutePlan {
         let folderCandidates = uniquePreservingOrder(parsed.folderDerivedSampleKeys)
-        let fallbackFileSampleInput = rules.normalizedSampleInput(parsed.defaultSampleKey)
+        let fallbackFileSampleInput = rules.normalizedSampleInput(parsed.fileSampleKey)
             ?? (folderCandidates.count == 1 ? rules.normalizedSampleInput(folderCandidates[0]) : nil)
         let fileDescriptor = rules.resolvedDescriptor(
             sampleInput: fallbackFileSampleInput,

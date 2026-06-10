@@ -104,7 +104,7 @@ extension PendingImportConfirmationDraft: Codable {
 }
 
 struct PendingRoutingDraft: Codable, Equatable {
-    var defaultSampleKey: String
+    var fileSampleKey: String
     var channelSampleKeyOverrides: [String: String]
 }
 

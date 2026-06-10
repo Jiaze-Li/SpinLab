@@ -17,8 +17,8 @@ enum SidecarCompositionUseCase {
         evaluatedAt: Date
     ) -> SidecarRuleSnapshot {
         let sampleIDField: SourcedValue?
-        if let firstID = hints.sampleIDs.first, let ref = hints.hintSources["sampleID"] {
-            sampleIDField = SourcedValue(value: firstID, source: ref)
+        if let fileSample = hints.fileSampleKey, let ref = hints.hintSources["sampleID"] {
+            sampleIDField = SourcedValue(value: fileSample, source: ref)
         } else {
             sampleIDField = nil
         }

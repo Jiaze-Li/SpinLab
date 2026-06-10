@@ -15,7 +15,7 @@ struct InboxSelectionWorkbenchPanel: View {
         selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
         newProjectName: ""
     )
-    @State private var routingDraft = PendingRoutingDraft(defaultSampleKey: "", channelSampleKeyOverrides: [:])
+    @State private var routingDraft = PendingRoutingDraft(fileSampleKey: "", channelSampleKeyOverrides: [:])
     @State private var localRoutingRefreshTick: Int = 0
     @State private var isPresentingTagsMissingConfirm = false
     private var routingSnapshot: SpinLabDomain.PendingRoutingSnapshot {
@@ -324,9 +324,9 @@ struct InboxSelectionWorkbenchPanel: View {
         var nextRoutingDraft = routingDraft
         let trimmedSample = draft.sampleName.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedSample.isEmpty {
-            nextRoutingDraft.defaultSampleKey = trimmedSample
+            nextRoutingDraft.fileSampleKey = trimmedSample
         } else {
-            nextRoutingDraft.defaultSampleKey = normalizedSampleDisplay(nextRoutingDraft.defaultSampleKey)
+            nextRoutingDraft.fileSampleKey = normalizedSampleDisplay(nextRoutingDraft.fileSampleKey)
         }
         nextRoutingDraft.channelSampleKeyOverrides = nextRoutingDraft.channelSampleKeyOverrides.mapValues {
             normalizedSampleDisplay($0)
@@ -351,7 +351,7 @@ struct InboxSelectionWorkbenchPanel: View {
     }
 
     private func editableSampleForFile() -> String {
-        let draftValue = routingDraft.defaultSampleKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let draftValue = routingDraft.fileSampleKey.trimmingCharacters(in: .whitespacesAndNewlines)
         if !draftValue.isEmpty {
             return displaySampleText(draftValue)
         }
@@ -364,7 +364,7 @@ struct InboxSelectionWorkbenchPanel: View {
 
     private func setEditableSampleForFile(to value: String) {
         let normalized = normalizedSampleDisplay(value)
-        routingDraft.defaultSampleKey = normalized
+        routingDraft.fileSampleKey = normalized
         // Keep draft metadata aligned for legacy consumers still reading sampleName.
         draft.sampleName = normalized
     }

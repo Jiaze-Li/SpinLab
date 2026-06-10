@@ -98,16 +98,16 @@ struct FilenameRuleParser {
             folderEvaluation: folderConditionEvaluation
         )
         let channelHints = channelHints(from: fileTokens)
-        let defaultSampleResolution = resolveDefaultSampleKey(
+        let fileSampleResolution = resolveFileSampleKey(
             fileSampleIDs: fileSampleIDs,
             folderSampleIDs: folderSampleIDs,
             channelHints: channelHints
         )
-        let defaultSampleKey = defaultSampleResolution.key
+        let fileSampleKey = fileSampleResolution.key
         let warnings = uniquePreservingOrder(
             ruleSet.loadWarnings
                 + conditionEvaluation.warnings
-                + defaultSampleResolution.warnings
+                + fileSampleResolution.warnings
                 + conflictWarnings(fileSampleIDs: fileSampleIDs, folderSampleIDs: folderSampleIDs)
         )
         var hintSources: [String: String] = [:]
@@ -172,8 +172,8 @@ struct FilenameRuleParser {
 
         return SpinLabDomain.ParsedFilenameHints(
             batchName: fileSampleIDs.first,
-            sampleName: defaultSampleName(defaultSampleKey: defaultSampleKey, substrateTags: substrateTags),
-            defaultSampleKey: defaultSampleKey,
+            sampleName: sampleName(fileSampleKey: fileSampleKey, substrateTags: substrateTags),
+            fileSampleKey: fileSampleKey,
             folderDerivedSampleKeys: folderSampleIDs,
             measurementName: measurement ?? fileStem,
             workflowID: measurement,
@@ -276,8 +276,8 @@ struct FilenameRuleParser {
             }
 
             let tags = uniquePreservingOrder(ruleSet.substrateTags(from: substrateTokens(from: collected)))
-            let sampleID = defaultSampleName(
-                defaultSampleKey: ruleSet.sampleIDs(from: collected).first,
+            let sampleID = sampleName(
+                fileSampleKey: ruleSet.sampleIDs(from: collected).first,
                 substrateTags: tags
             )
             let rawTestInfo = collected.filter { !isSampleSignalToken($0) }
@@ -302,19 +302,11 @@ struct FilenameRuleParser {
         return !ruleSet.substrateTags(from: [token]).isEmpty
     }
 
-    private func resolveDefaultSampleKey(
+    private func resolveFileSampleKey(
         fileSampleIDs: [String],
         folderSampleIDs: [String],
         channelHints: [SpinLabDomain.ParsedChannelHint]
     ) -> SampleKeyResolution {
-        if channelHints.count == 1,
-           let singleChannelSample = normalized(channelHints[0].sampleID) {
-            return SampleKeyResolution(
-                key: singleChannelSample,
-                warnings: []
-            )
-        }
-
         if fileSampleIDs.count == 1 {
             return SampleKeyResolution(
                 key: fileSampleIDs[0],
@@ -325,6 +317,16 @@ struct FilenameRuleParser {
         if fileSampleIDs.isEmpty, folderSampleIDs.count == 1 {
             return SampleKeyResolution(
                 key: folderSampleIDs[0],
+                warnings: []
+            )
+        }
+
+        // Narrow promotion: only when no file/folder sample was found and exactly one channel has a sample.
+        if fileSampleIDs.isEmpty, folderSampleIDs.isEmpty,
+           channelHints.count == 1,
+           let singleChannelSample = normalized(channelHints[0].sampleID) {
+            return SampleKeyResolution(
+                key: singleChannelSample,
                 warnings: []
             )
         }
@@ -404,14 +406,14 @@ struct FilenameRuleParser {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private func defaultSampleName(defaultSampleKey: String?, substrateTags: [String]) -> String? {
-        guard let defaultSampleKey else {
+    private func sampleName(fileSampleKey: String?, substrateTags: [String]) -> String? {
+        guard let fileSampleKey else {
             return nil
         }
         guard !substrateTags.isEmpty else {
-            return defaultSampleKey
+            return fileSampleKey
         }
-        return "\(defaultSampleKey) \(substrateTags.joined(separator: " "))"
+        return "\(fileSampleKey) \(substrateTags.joined(separator: " "))"
     }
 
     private func conflictWarnings(fileSampleIDs: [String], folderSampleIDs: [String]) -> [String] {

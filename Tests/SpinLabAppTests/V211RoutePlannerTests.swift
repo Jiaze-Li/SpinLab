@@ -8,7 +8,7 @@ struct V211RoutePlannerTests {
     @Test("multi-sample channels are grouped into multiple targets")
     func multiSampleChannelFanOut() {
         let parsed = SpinLabDomain.ParsedFilenameHints(
-            defaultSampleKey: nil,
+            fileSampleKey: nil,
             folderDerivedSampleKeys: [],
             sampleIDs: ["PN36", "PN37"],
             channelHints: [
@@ -31,7 +31,7 @@ struct V211RoutePlannerTests {
     @Test("channel substrate token can resolve without explicit batch token")
     func channelSubstrateTokenResolvesWithoutBatch() {
         let parsed = SpinLabDomain.ParsedFilenameHints(
-            defaultSampleKey: nil,
+            fileSampleKey: nil,
             folderDerivedSampleKeys: ["PN40", "PN41"],
             sampleIDs: ["PN40", "PN41"],
             channelHints: [
@@ -49,7 +49,7 @@ struct V211RoutePlannerTests {
     func fileLevelAllowsSubstrateOnlyToken() {
         let parsed = SpinLabDomain.ParsedFilenameHints(
             batchName: "B2404",
-            defaultSampleKey: nil,
+            fileSampleKey: nil,
             folderDerivedSampleKeys: [],
             sampleIDs: [],
             channelHints: [],
@@ -65,7 +65,7 @@ struct V211RoutePlannerTests {
     @Test("batch token alone is valid filetoken")
     func batchOnlyTokenIsValid() {
         let parsed = SpinLabDomain.ParsedFilenameHints(
-            defaultSampleKey: "PN14",
+            fileSampleKey: "PN14",
             folderDerivedSampleKeys: [],
             sampleIDs: ["PN14"],
             channelHints: [
@@ -82,7 +82,7 @@ struct V211RoutePlannerTests {
     @Test("explicit sample identity input is accepted directly")
     func explicitSampleIdentityInputIsAccepted() {
         let parsed = SpinLabDomain.ParsedFilenameHints(
-            defaultSampleKey: nil,
+            fileSampleKey: nil,
             folderDerivedSampleKeys: [],
             sampleIDs: [],
             channelHints: [
@@ -100,7 +100,7 @@ struct V211RoutePlannerTests {
     @Test("explicit sample identity preserves treatment in sample key and tags")
     func explicitSampleIdentityPreservesTreatment() {
         let parsed = SpinLabDomain.ParsedFilenameHints(
-            defaultSampleKey: nil,
+            fileSampleKey: nil,
             folderDerivedSampleKeys: [],
             sampleIDs: [],
             channelHints: [

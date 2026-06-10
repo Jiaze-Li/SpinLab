@@ -232,7 +232,7 @@ extension SpinLabDomain {
     struct ParsedFilenameHints: Codable, Hashable {
         var batchName: String?
         var sampleName: String?
-        var defaultSampleKey: String?
+        var fileSampleKey: String?
         var folderDerivedSampleKeys: [String] = []
         var measurementName: String?
         var workflowID: String?
@@ -258,7 +258,7 @@ extension SpinLabDomain {
         init(
             batchName: String? = nil,
             sampleName: String? = nil,
-            defaultSampleKey: String? = nil,
+            fileSampleKey: String? = nil,
             folderDerivedSampleKeys: [String] = [],
             measurementName: String? = nil,
             workflowID: String? = nil,
@@ -274,7 +274,7 @@ extension SpinLabDomain {
         ) {
             self.batchName = batchName
             self.sampleName = sampleName
-            self.defaultSampleKey = defaultSampleKey
+            self.fileSampleKey = fileSampleKey
             self.folderDerivedSampleKeys = folderDerivedSampleKeys
             self.measurementName = measurementName
             self.workflowID = workflowID
@@ -292,7 +292,7 @@ extension SpinLabDomain {
         private enum CodingKeys: String, CodingKey {
             case batchName
             case sampleName
-            case defaultSampleKey
+            case fileSampleKey
             case folderDerivedSampleKeys
             case measurementName
             case workflowID
@@ -303,7 +303,8 @@ extension SpinLabDomain {
             case substrateTags
             case growthTemperature
             case conditionValues
-            // Legacy decode keys (pre-v3.5 sidecar format)
+            // Legacy decode keys
+            case defaultSampleKey
             case deviceName
             case temperature
             case current
@@ -317,7 +318,8 @@ extension SpinLabDomain {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             batchName = try container.decodeIfPresent(String.self, forKey: .batchName)
             sampleName = try container.decodeIfPresent(String.self, forKey: .sampleName)
-            defaultSampleKey = try container.decodeIfPresent(String.self, forKey: .defaultSampleKey)
+            fileSampleKey = try container.decodeIfPresent(String.self, forKey: .fileSampleKey)
+                ?? container.decodeIfPresent(String.self, forKey: .defaultSampleKey)
             folderDerivedSampleKeys = try container.decodeIfPresent([String].self, forKey: .folderDerivedSampleKeys) ?? []
             measurementName = try container.decodeIfPresent(String.self, forKey: .measurementName)
             workflowID = try container.decodeIfPresent(String.self, forKey: .workflowID)
@@ -358,7 +360,7 @@ extension SpinLabDomain {
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encodeIfPresent(batchName, forKey: .batchName)
             try container.encodeIfPresent(sampleName, forKey: .sampleName)
-            try container.encodeIfPresent(defaultSampleKey, forKey: .defaultSampleKey)
+            try container.encodeIfPresent(fileSampleKey, forKey: .fileSampleKey)
             try container.encode(folderDerivedSampleKeys, forKey: .folderDerivedSampleKeys)
             try container.encodeIfPresent(measurementName, forKey: .measurementName)
             try container.encodeIfPresent(workflowID, forKey: .workflowID)

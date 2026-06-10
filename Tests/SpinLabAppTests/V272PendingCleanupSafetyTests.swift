@@ -11,7 +11,7 @@ struct V272PendingCleanupSafetyTests {
             fileName: "PN20_RT.dat",
             sourceFilePath: "/tmp/PN20_RT.dat",
             originalFilePath: "/tmp/PN20_RT.dat",
-            parsedHints: .init(defaultSampleKey: "PN20")
+            parsedHints: .init(fileSampleKey: "PN20")
         )
         let persistence = LocalPersistenceStub(
             pendingImports: [pending],

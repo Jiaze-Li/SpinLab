@@ -7,13 +7,13 @@ import Testing
 struct V213InboxClosedLoopTests {
     @Test("editing routing draft without save does not change route plan")
     func unsavedDraftDoesNotMutateRoutePlan() {
-        let pending = makePending(idSeed: "A", fileName: "RT_1mA_ch2_PN41_STO001_AMR.dat", defaultSampleKey: "PN41")
+        let pending = makePending(idSeed: "A", fileName: "RT_1mA_ch2_PN41_STO001_AMR.dat", fileSampleKey: "PN41")
         let persistence = MockPersistenceForV213(pendingImports: [pending])
         let appState = makeAppState(persistence: persistence)
 
         let before = appState.pendingRoutePlan(for: pending)
         var draft = appState.routingDraft(for: pending)
-        draft.defaultSampleKey = "PN40"
+        draft.fileSampleKey = "PN40"
         let after = appState.pendingRoutePlan(for: pending)
 
         #expect(before.targets.first?.sampleId == "PN41||STO|001")
@@ -22,7 +22,7 @@ struct V213InboxClosedLoopTests {
 
     @Test("save routing draft updates route plan and status")
     func saveRoutingDraftUpdatesRoute() {
-        let pending = makePending(idSeed: "A", fileName: "RT_1mA_ch2_PN41_STO001_AMR.dat", defaultSampleKey: "PN41")
+        let pending = makePending(idSeed: "A", fileName: "RT_1mA_ch2_PN41_STO001_AMR.dat", fileSampleKey: "PN41")
         let persistence = MockPersistenceForV213(pendingImports: [pending])
         let appState = makeAppState(persistence: persistence)
         installExistingDrawers(
@@ -31,7 +31,7 @@ struct V213InboxClosedLoopTests {
         )
 
         var draft = appState.routingDraft(for: pending)
-        draft.defaultSampleKey = "PN40"
+        draft.fileSampleKey = "PN40"
         appState.saveRoutingDraft(draft, for: pending.id)
 
         let plan = appState.pendingRoutePlan(for: pending)
@@ -41,13 +41,13 @@ struct V213InboxClosedLoopTests {
 
     @Test("switching pending items keeps routing state isolated")
     func pendingRoutingIsolation() {
-        let pendingA = makePending(idSeed: "A", fileName: "RT_1mA_ch2_PN41_STO001_AMR.dat", defaultSampleKey: "PN41")
-        let pendingB = makePending(idSeed: "B", fileName: "RT_1mA_ch2_PN48_STO111_AMR.dat", defaultSampleKey: "PN48")
+        let pendingA = makePending(idSeed: "A", fileName: "RT_1mA_ch2_PN41_STO001_AMR.dat", fileSampleKey: "PN41")
+        let pendingB = makePending(idSeed: "B", fileName: "RT_1mA_ch2_PN48_STO111_AMR.dat", fileSampleKey: "PN48")
         let persistence = MockPersistenceForV213(pendingImports: [pendingA, pendingB])
         let appState = makeAppState(persistence: persistence)
 
         var draftA = appState.routingDraft(for: pendingA)
-        draftA.defaultSampleKey = "PN40"
+        draftA.fileSampleKey = "PN40"
         appState.saveRoutingDraft(draftA, for: pendingA.id)
 
         let planA = appState.pendingRoutePlan(for: pendingA)
@@ -58,12 +58,12 @@ struct V213InboxClosedLoopTests {
         let sampleIdB = planB.targets.first?.sampleId ?? ""
         #expect(sampleIdB.contains("PN48"))
         #expect(sampleIdB.contains("STO|111"))
-        #expect(draftB.defaultSampleKey == "PN48")
+        #expect(draftB.fileSampleKey == "PN48")
     }
 
     @Test("clear imports only clears pending queue")
     func clearImportsOnlyClearsPending() {
-        let pending = makePending(idSeed: "A", fileName: "RT_1mA_ch2_PN41_STO001_AMR.dat", defaultSampleKey: "PN41")
+        let pending = makePending(idSeed: "A", fileName: "RT_1mA_ch2_PN41_STO001_AMR.dat", fileSampleKey: "PN41")
         let persistence = MockPersistenceForV213(pendingImports: [pending])
         persistence.archivedRecordsValue = [makeArchivedRecord()]
         let appState = makeAppState(persistence: persistence)
@@ -85,7 +85,7 @@ struct V213InboxClosedLoopTests {
             importedAt: .now,
             status: .needsConfirmation,
             parsedHints: SpinLabDomain.ParsedFilenameHints(
-                defaultSampleKey: "PN41",
+                fileSampleKey: "PN41",
                 channelHints: [SpinLabDomain.ParsedChannelHint(channel: "ch2", sampleID: nil, tags: ["STO001"])],
                 substrateTags: ["STO001"]
             )
@@ -105,7 +105,7 @@ struct V213InboxClosedLoopTests {
         }
         let plan = appState.pendingRoutePlan(for: updated)
 
-        #expect(updated.parsedHints.defaultSampleKey != "PN41")
+        #expect(updated.parsedHints.fileSampleKey != "PN41")
         let targetSampleKeys = Set(plan.targets.map(\.sampleId))
         #expect(targetSampleKeys.contains { $0.contains("PN38") || $0.contains("PN40") })
     }
@@ -121,7 +121,7 @@ struct V213InboxClosedLoopTests {
             importedAt: .now,
             status: .needsConfirmation,
             parsedHints: SpinLabDomain.ParsedFilenameHints(
-                defaultSampleKey: "PN41 - STO(001)",
+                fileSampleKey: "PN41 - STO(001)",
                 channelHints: [],
                 substrateTags: []
             )
@@ -147,7 +147,7 @@ struct V213InboxClosedLoopTests {
             importedAt: .now,
             status: .needsConfirmation,
             parsedHints: SpinLabDomain.ParsedFilenameHints(
-                defaultSampleKey: nil,
+                fileSampleKey: nil,
                 channelHints: [
                     SpinLabDomain.ParsedChannelHint(channel: "ch1", sampleID: "PN41 - STO(001)", tags: []),
                     SpinLabDomain.ParsedChannelHint(channel: "ch2", sampleID: "PN42 - STO(001)", tags: [])
@@ -184,7 +184,7 @@ struct V213InboxClosedLoopTests {
             importedAt: .now,
             status: .needsConfirmation,
             parsedHints: SpinLabDomain.ParsedFilenameHints(
-                defaultSampleKey: "PN32 - o STO",
+                fileSampleKey: "PN32 - o STO",
                 channelHints: [
                     SpinLabDomain.ParsedChannelHint(channel: "ch2", sampleID: nil, tags: [], testInfoTags: ["AMR"]),
                     SpinLabDomain.ParsedChannelHint(channel: "ch3", sampleID: nil, tags: [], testInfoTags: ["PHE"])
@@ -222,7 +222,7 @@ struct V213InboxClosedLoopTests {
             status: .needsConfirmation,
             parsedHints: SpinLabDomain.ParsedFilenameHints(
                 sampleName: "PN32 - b STO(111)",
-                defaultSampleKey: "PN32 - b STO(111)",
+                fileSampleKey: "PN32 - b STO(111)",
                 channelHints: [
                     SpinLabDomain.ParsedChannelHint(channel: "ch2", sampleID: nil, tags: ["o", "STO111"])
                 ],
@@ -265,7 +265,7 @@ struct V213InboxClosedLoopTests {
             status: .needsConfirmation,
             parsedHints: SpinLabDomain.ParsedFilenameHints(
                 sampleName: "PN32 - b STO(111)",
-                defaultSampleKey: "PN32",
+                fileSampleKey: "PN32",
                 sampleIDs: ["PN32"],
                 channelHints: [
                     SpinLabDomain.ParsedChannelHint(channel: "ch2", sampleID: nil, tags: [], testInfoTags: ["AMR"]),
@@ -307,7 +307,7 @@ struct V213InboxClosedLoopTests {
             status: .needsConfirmation,
             parsedHints: SpinLabDomain.ParsedFilenameHints(
                 sampleName: "PN32 b STO",
-                defaultSampleKey: "PN32",
+                fileSampleKey: "PN32",
                 sampleIDs: ["PN32"],
                 channelHints: [
                     SpinLabDomain.ParsedChannelHint(channel: "ch2", sampleID: nil, tags: [], testInfoTags: ["AMR"]),
@@ -456,7 +456,7 @@ struct V213InboxClosedLoopTests {
         )
     }
 
-    private func makePending(idSeed: String, fileName: String, defaultSampleKey: String) -> SpinLabDomain.PendingImport {
+    private func makePending(idSeed: String, fileName: String, fileSampleKey: String) -> SpinLabDomain.PendingImport {
         let id: UUID
         switch idSeed {
         case "A":
@@ -477,7 +477,7 @@ struct V213InboxClosedLoopTests {
             importedAt: .now,
             status: .needsConfirmation,
             parsedHints: SpinLabDomain.ParsedFilenameHints(
-                defaultSampleKey: defaultSampleKey,
+                fileSampleKey: fileSampleKey,
                 channelHints: [SpinLabDomain.ParsedChannelHint(channel: "ch2", sampleID: nil, tags: [substrateTag])],
                 substrateTags: [substrateTag]
             )
