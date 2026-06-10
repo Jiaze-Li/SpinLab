@@ -82,13 +82,14 @@ private struct ThreeOmegaPlotControlsPanel: View {
                         .environment(appState)
                 }
 
-                // Active overlays (capsule chips)
-                if !store.overlayPackIDs.isEmpty {
+                // Active overlays (capsule chips) — read from common overlay runtime.
+                let overlayRuntime = appState.workbench.overlayRuntime
+                if !overlayRuntime.overlayIDs.isEmpty {
                     FlowLayout(spacing: 8) {
-                        ForEach(store.overlayPackIDs, id: \.self) { oid in
-                            if let snap = store.overlaySnapshots[oid] {
+                        ForEach(overlayRuntime.overlayIDs, id: \.self) { oid in
+                            if let label = overlayRuntime.displayLabels[oid] {
                                 HStack(spacing: 6) {
-                                    Text(snap.label)
+                                    Text(label)
                                         .font(.subheadline.weight(.medium))
                                         .lineLimit(1)
                                     Button {

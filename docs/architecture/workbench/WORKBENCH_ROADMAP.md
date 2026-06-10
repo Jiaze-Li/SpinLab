@@ -244,7 +244,7 @@ Summary:
 | 7.1 | Main Search | Common module | Common Search module | Canonical search state is already centralized; finish runtime extraction while preserving the explicit restore bridge and pack compatibility. |
 | 7.2 | Selection | Boundary debt → Module-owned | Common Selection module | Complete. `WorkbenchSelectionRuntime` is the canonical owner. Workflow-local selectionReader closures are non-canonical compatibility read surfaces. |
 | 7.3 | Secondary Input Search | Optional module candidate | Common auxiliary-slot Secondary Input Search module | Complete. `WorkbenchSecondaryInputSearchRuntime` is the canonical slot-state owner. `ThreeOmegaWorkspaceStore` retains workflow semantics and forwarding compatibility. |
-| 7.4 | Analysis Overlay | Optional module candidate | Common Analysis Overlay module | Session-only overlay extraction; 3ω Scaling Law overlay stays a validation case only. |
+| 7.4 | Analysis Overlay | Optional module candidate | Common Analysis Overlay module | Complete. `WorkbenchAnalysisOverlayRuntime` owns overlay IDs and chip display labels. `ThreeOmegaWorkspaceStore` retains snapshot content, rendering semantics, and active-tab rerender trigger. |
 | 7.5 | Save to Library / Save Metadata Projection | Boundary debt | Split: common save writer + Assembly-owned semantic projection | Save writer is common; metric meaning, units, overrides, and semantic projection stay Assembly-owned. |
 | 7.6 | Pack / Restore | Boundary debt | Common Pack / Restore module | Explicit restore write map required; include secondary input search and keep restore rerender-only. |
 | 7.7 | Warning Display / Run Trace | Boundary debt | Split: common warning/trace display + Assembly-owned event sources | Centralize warning and trace projections without moving physics meaning into the display module. |
@@ -296,14 +296,18 @@ Summary:
 
 #### Gate 7.4 - Analysis Overlay
 
+- Status: complete.
 - Source Gate 3 audit section: `Analysis Overlay`
 - Classification: `Module-owned — optional module candidate`
 - Actual Gate 3 finding: overlay state is session-only today, the common shell already hosts overlay entry points, and the 3ω Scaling Law overlay belongs here only as a validation case.
 - Target owner: common Analysis Overlay module, with Workflow Assemblies owning eligibility, labels, snapshot-to-series mapping, warning policy, saved-manifest/sample-key policy, and metric-persistence policy.
-- Required work: extract overlay pack IDs, overlay snapshots, overlay chips, and active-tab rerender requests into a common overlay owner; keep the first cut session-only; let future persistence be declared explicitly by the Workflow Assembly.
-- Prerequisite bridges/tests: the existing 3ω RAHE overlay path, 3ω plot-renderer hooks, overlay session-state reset coverage, and Gate 7.4 acceptance tests that include the 3ω Scaling Law overlay validation case without turning it into standalone feature work.
-- Extraction risks: pack-into-pack ambiguity, overlay state leaking into restore or save paths, and common code learning workflow-specific plot semantics.
-- Acceptance criteria: overlay state remains session-only in the first extraction cut; restore clears overlay state; the shell can host both the current RAHE overlay and the 3ω Scaling Law validation case without owning workflow meaning; the validation case is recorded in Gate 7.4 rather than Gate 3 runtime work.
+- Outcome: `WorkbenchAnalysisOverlayRuntime` is the common owner of overlay ID list (`overlayIDs`) and chip display labels (`displayLabels`). `ThreeOmegaWorkspaceStore` delegates overlay ID mutations (addEntry / removeEntry / clear) to the runtime when wired, retains `OverlaySnapshot` content (sweeps, sampleKeys, sourceFiles) for rendering, and keeps all RAHE multi-group rendering semantics. `WorkbenchFeatureStore` owns the runtime instance and injects it into the 3ω workspace. Shell chips read from the runtime rather than from the workspace directly.
+- What moved into common runtime: overlay pack IDs (ordered list), chip display labels. clear / reset operations. The runtime has no knowledge of RAHE, Scaling Law, OverlaySnapshot content, sample-key policy, or metric semantics.
+- What stayed workflow/Assembly-owned: `OverlaySnapshot` struct and content (sweeps, sampleKeys, sourceFiles). `addOverlay` / `availableOverlayPacks` eligibility and vault decode logic. `_renderRAHEWithOverlays` and `_rebuildOverlayManifestPayloads` multi-group rendering. `activeChartSampleKeys` merging. All 3ω RAHE and Scaling Law semantics.
+- Scaling Law overlay: has no live runtime path and was not implemented. Documented as a future validation case only; no overlay render path exists for the `.scaling` tab.
+- Active-tab overlay rerender requests: not moved into the runtime. `addOverlay` and `removeOverlay` call `_renderRAHEWithOverlays()` directly on the workspace. Moving the rerender trigger into the runtime would require the workspace to observe a runtime counter and act — no boundary value justifies that indirection in this cut. Recorded as deferred debt.
+- Deferred debt: (1) Active-tab overlay rerender trigger stays workflow-driven; a future cut may add a runtime-observable rerender token if a second workflow opts into overlay. (2) Scaling Law overlay render path not started; would require a multi-group Scaling renderer plus Assembly-declared eligibility. (3) Overlay persistence / pack-round-trip not in scope; first cut is session-only by design. (4) `_overlayPackIDs` standalone fallback can be removed once the no-WFS construction path is no longer needed in tests (Gate 7.6 or later cleanup).
+- Tests added: `V740AnalysisOverlayBaselineTests` (8 tests, baseline before extraction) and `V740AnalysisOverlayRuntimeTests` (14 tests, runtime extraction validation). All 22 pass. Full suite (all tests) passes with exit code confirming `Test Suite 'All tests' passed`.
 
 #### Gate 7.5 - Save to Library / Save Metadata Projection
 
