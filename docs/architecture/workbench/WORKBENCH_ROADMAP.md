@@ -311,14 +311,32 @@ Summary:
 
 #### Gate 7.5 - Save to Library / Save Metadata Projection
 
+- Status: complete (Gate 7.5 audit → Gate 7.5A semantic tests → Gate 7.5B coordinator extraction).
 - Source Gate 3 audit section: `Save to Library` plus `Metric Extraction / Metric Override / Save Metadata`
 - Classification: `Boundary debt`
 - Actual Gate 3 finding: the common save writer already exists, but workflow metric semantics still reach it through raw `PendingMetricEntry` arrays and workflow-local save-message / override state.
 - Target owner: split ownership. The save writer is common and module-owned; metric definitions, unit semantics, override policy, and the semantic save projection stay Assembly-owned.
-- Required work: define an explicit workflow save-metadata projection contract; make `SaveActiveChartToLibraryUseCase` consume semantic projection instead of raw arrays; keep metric overrides as save-time state unless a workflow explicitly opts into restoring unsaved overrides; preserve the common writer as validation and artifact-write code only.
-- Prerequisite bridges/tests: `ActiveChartProviding`, `buildActiveChartMetrics()`, save boundary tests, metric override tests, and the AHE / 3ω / XY save-path tests already listed in `MODULE_BOUNDARIES.md`.
-- Extraction risks: generic code inventing metrics, overrides being applied to multi-sample results incorrectly, saved metadata diverging from workflow semantics, and canonical units drifting inside the library artifacts.
-- Acceptance criteria: the save use case receives explicit semantic projection; the common writer does not infer physics; library artifacts match the workflow semantics that the Assembly declared; save status can move out of workflow-local ownership without duplicating messages.
+- Audit result: `GATE7_SAVE_METADATA_AUDIT.md`
+- Audit notes:
+  - Common writer (`SaveActiveChartToLibraryUseCase`) is already clean: validation, artifact writes, condition normalization, trace construction. No physics knowledge.
+  - Metric names, unit strings, unit scaling factors (`* 1e31`, `* 1e20`), condition keys, tab gate, and override policy are all Assembly-owned in `buildActiveChartMetrics()` per workflow.
+  - `saveMessage`, `persistenceOutcome`, `currentRunTrace`, and `refreshRelatedCharts()` are duplicated identically across three `persistToLibrary()` implementations — primary extraction target.
+  - AHE override is single-sample guarded; 3ω has no override; XY has no metrics yet.
+- Gate 7.5A outcome:
+  - Added `V750SaveSemanticProtectionTests.swift` (29 tests): 3ω metric projection correctness, AHE multi-sample override guard (source inspection), `PersistChartArtifactUseCase` tabKey read path.
+- Gate 7.5B outcome (coordinator extraction):
+  - Extracted shared async orchestration into `WorkbenchSaveCoordinating` protocol + extension (`executeSave`, `didCompleteSave` hook).
+  - AHE, 3ω, XY each declare `WorkbenchSaveCoordinating` conformance; their `persistToLibrary` now consists only of guards + input construction calling `buildActiveChartMetrics()` + delegation to `executeSave`.
+  - AHE-specific post-save behaviour (override clearing, `persistCount`) isolated in `didCompleteSave` override within `AHEWorkspaceStore.swift`.
+  - `buildActiveChartMetrics()`, all metric names, unit strings, scaling factors, condition keys, tab gates, and override policy remain Assembly-owned and unchanged.
+  - `SaveActiveChartToLibraryUseCase` semantic behaviour unchanged.
+  - Pack/Restore and Analysis Overlay not touched.
+  - Added `V750BMetricDelegationTests.swift` (11 tests): each workflow still calls `buildActiveChartMetrics()` before coordinator; coordinator owns machinery; no physics in coordinator; AHE hook present; 3ω/XY do not override hook.
+  - Updated two V537 source inspection tests (`saveCoordinatorSetsTraceFromOutcome`, `relatedChartsRefreshRouting`) to reflect coordinator ownership.
+- Deferred debt:
+  - `PendingMetricEntry` bridge array is still untyped raw data; a future gate may introduce a typed semantic projection to replace it.
+  - `saveMessage` / `persistenceOutcome` remain workflow-store-owned state; full decoupling deferred to Gate 7.7.
+  - XY `buildActiveChartMetrics()` returns `[]` — no metric extraction implemented yet.
 
 #### Gate 7.6 - Pack / Restore
 

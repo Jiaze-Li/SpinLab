@@ -466,8 +466,12 @@ struct V537SaveModuleBoundaryTests {
 
     // MARK: - 5: Save-side trace (source inspection)
 
-    @Test("persistToLibrary sets currentRunTrace from outcome.trace in all workflows")
-    func persistToLibrarySetsTraceFromOutcome() throws {
+    @Test("save coordinator sets currentRunTrace from outcome.trace; workflow persistToLibrary delegates")
+    func saveCoordinatorSetsTraceFromOutcome() throws {
+        // After Gate 7.5B extraction: trace assignment lives in coordinator, not per-workflow
+        let coordinator = try loadSource(file: "WorkbenchSaveCoordinating.swift")
+        #expect(coordinator.contains("currentRunTrace = outcome.trace"))
+
         let ahe = try loadSource(file: "AHEWorkspaceStore.swift")
         let xy = try loadSource(file: "XYRotationWorkspaceStore.swift")
         let threeOmega = try loadSource(file: "ThreeOmegaWorkspaceStore+Persistence.swift")
@@ -476,9 +480,10 @@ struct V537SaveModuleBoundaryTests {
         let xyPersist = try #require(extractFunction("persistToLibrary", from: xy))
         let threePersist = try #require(extractFunction("persistToLibrary", from: threeOmega))
 
-        #expect(ahePersist.contains("currentRunTrace = outcome.trace"))
-        #expect(xyPersist.contains("currentRunTrace = outcome.trace"))
-        #expect(threePersist.contains("currentRunTrace = outcome.trace"))
+        // Each workflow delegates; does not set currentRunTrace directly
+        #expect(!ahePersist.contains("currentRunTrace"))
+        #expect(!xyPersist.contains("currentRunTrace"))
+        #expect(!threePersist.contains("currentRunTrace"))
     }
 
     @Test("persistToLibrary never calls commitRunTrace() in any workflow")
@@ -521,8 +526,12 @@ struct V537SaveModuleBoundaryTests {
 
     // MARK: - 7: Related charts refresh routing (source inspection, Phase 5E-3 aligned)
 
-    @Test("All three persistToLibrary implementations call refreshRelatedCharts on success/partial; guard paths do not")
+    @Test("coordinator calls refreshRelatedCharts on success/partial; workflow guard paths exit before coordinator")
     func relatedChartsRefreshRouting() throws {
+        // After Gate 7.5B extraction: refreshRelatedCharts lives in coordinator, not per-workflow
+        let coordinator = try loadSource(file: "WorkbenchSaveCoordinating.swift")
+        #expect(coordinator.contains("refreshRelatedCharts()"))
+
         let ahe = try loadSource(file: "AHEWorkspaceStore.swift")
         let xy = try loadSource(file: "XYRotationWorkspaceStore.swift")
         let threeOmega = try loadSource(file: "ThreeOmegaWorkspaceStore+Persistence.swift")
@@ -531,18 +540,15 @@ struct V537SaveModuleBoundaryTests {
         let xyPersist = try #require(extractFunction("persistToLibrary", from: xy))
         let threePersist = try #require(extractFunction("persistToLibrary", from: threeOmega))
 
-        // All three call refreshRelatedCharts after success or partial save
-        #expect(ahePersist.contains("refreshRelatedCharts()"))
-        #expect(xyPersist.contains("refreshRelatedCharts()"))
-        #expect(threePersist.contains("refreshRelatedCharts()"))
-
-        // Guard paths return before the Task spawns — verified structurally:
-        // refreshRelatedCharts() lives inside the Task body which is after both guard returns.
-        // The guard statements above each contain "return", so any path that exits via guard
-        // cannot reach refreshRelatedCharts().
+        // Guard paths return before executeSave is reached — confirmed by guard presence
         #expect(ahePersist.contains("guard let png"))
         #expect(xyPersist.contains("guard let png"))
         #expect(threePersist.contains("guard let png"))
+
+        // No workflow directly calls refreshRelatedCharts — coordinator-owned
+        #expect(!ahePersist.contains("refreshRelatedCharts()"))
+        #expect(!xyPersist.contains("refreshRelatedCharts()"))
+        #expect(!threePersist.contains("refreshRelatedCharts()"))
     }
 
     // MARK: - 8: saveMessage separation from analysisMessage (Phase 5E-3)
