@@ -163,6 +163,8 @@ final class WorkbenchFeatureStore {
     private(set) lazy var secondaryInputRuntime = WorkbenchSecondaryInputSearchRuntime(store: self, dataActor: dataActor)
     @ObservationIgnored
     private lazy var selectionRuntime = WorkbenchSelectionRuntime()
+    @ObservationIgnored
+    let overlayRuntime = WorkbenchAnalysisOverlayRuntime()
 
     @ObservationIgnored
     private var archivedRecordsProjectionTask: Task<Void, Never>?
@@ -237,6 +239,9 @@ final class WorkbenchFeatureStore {
         // Route 3ω RT session state through the secondary input runtime.
         // Forces lazy init of secondaryInputRuntime while self is fully constructed.
         self.threeOmegaWorkspace.secondaryInputRuntime = self.secondaryInputRuntime
+
+        // Route overlay display/control state through the common overlay runtime.
+        self.threeOmegaWorkspace.overlayRuntime = self.overlayRuntime
     }
 
     deinit {

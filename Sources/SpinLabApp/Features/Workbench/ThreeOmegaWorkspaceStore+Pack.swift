@@ -20,21 +20,27 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
         guard let result = try? pack.decodeResult(ThreeOmegaPackResult.self) else { return }
         guard !overlayPackIDs.contains(id) else { return }
 
+        // Snapshot content (sweeps, sampleKeys, sourceFiles) stays workflow-owned.
         overlaySnapshots[id] = OverlaySnapshot(
             label: pack.label,
             sweeps: result.ingestionResult.fieldSweeps,
             sourceFiles: pack.filePaths,
             sampleKeys: pack.sampleKeys
         )
-        overlayPackIDs.append(id)
+
+        // Delegate ID + chip label to the common overlay runtime when wired.
+        if let rt = overlayRuntime { rt.addEntry(id: id, label: pack.label) }
+        else { _overlayPackIDs.append(id) }
+
         _renderRAHEWithOverlays()
     }
 
 
     /// Removes an overlay.
     func removeOverlay(id: AnalysisPack.ID) {
-        overlayPackIDs.removeAll { $0 == id }
         overlaySnapshots.removeValue(forKey: id)
+        if let rt = overlayRuntime { rt.removeEntry(id: id) }
+        else { _overlayPackIDs.removeAll { $0 == id } }
         _renderRAHEWithOverlays()
     }
 
@@ -153,8 +159,9 @@ func autoPackLabel() -> String { _autoPackLabel() }
             lastLibraryRootPath = root
         }
 
-        // Clear overlays
-        overlayPackIDs = []
+        // Clear overlays — delegate to runtime when wired, clear fallback in both cases.
+        overlayRuntime?.clear()
+        _overlayPackIDs = []
         overlaySnapshots = [:]
 
         // Bridge: restore search results into WorkbenchFeatureStore

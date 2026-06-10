@@ -223,10 +223,24 @@ final class ThreeOmegaWorkspaceStore {
     /// ID of the pack that was last saved or loaded. nil = fresh (unsaved) analysis.
     var activePackID: AnalysisPack.ID?
 
-    /// IDs of packs currently overlaid on RAHE tabs.
-    var overlayPackIDs: [AnalysisPack.ID] = []
+    /// Injected by WorkbenchFeatureStore. When set, overlayPackIDs forwards reads through it
+    /// and mutations (addEntry/removeEntry/clear) go to it. When nil (standalone/test
+    /// construction), falls back to _overlayPackIDs so existing behavior is unchanged.
+    @ObservationIgnored weak var overlayRuntime: WorkbenchAnalysisOverlayRuntime?
+
+    /// Standalone fallback for overlayPackIDs. Used only when overlayRuntime is nil.
+    @ObservationIgnored var _overlayPackIDs: [AnalysisPack.ID] = []
+
+    /// Ordered overlay IDs — forwarded from overlayRuntime when wired; backed by
+    /// _overlayPackIDs in standalone/test mode.
+    var overlayPackIDs: [AnalysisPack.ID] {
+        get { overlayRuntime?.overlayIDs ?? _overlayPackIDs }
+        set { if overlayRuntime == nil { _overlayPackIDs = newValue } }
+    }
 
     /// Decoupled snapshots of overlay data — survive vault deletion.
+    /// Workflow-specific content (sweeps, sampleKeys, sourceFiles) stays here,
+    /// never in WorkbenchAnalysisOverlayRuntime.
     @ObservationIgnored var overlaySnapshots: [AnalysisPack.ID: OverlaySnapshot] = [:]
 
     var packWorkflowID: String { "3w" }
