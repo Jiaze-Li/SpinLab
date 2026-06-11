@@ -43,12 +43,13 @@ protocol ActiveChartProviding: AnyObject {
 
 /// Unified capability contract for all workflow workspace stores.
 ///
-/// Inherits canvas interaction (`WorkbenchPlottingStore`), pack save/load
-/// (`AnalysisPackProviding`), and chart data (`ActiveChartProviding`).
+/// Inherits canvas interaction (`WorkbenchPlottingStore`), run-trace read surface
+/// (`WorkbenchRunTraceProviding`), pack save/load (`AnalysisPackProviding`),
+/// and chart data (`ActiveChartProviding`).
 /// The shell view (`WorkflowWorkspaceShell`) renders all shared UI
 /// against this protocol; workflow-specific content goes into ViewBuilder slots.
 @MainActor
-protocol WorkbenchWorkspaceProviding: WorkbenchPlottingStore, AnalysisPackProviding, ActiveChartProviding {
+protocol WorkbenchWorkspaceProviding: WorkbenchPlottingStore, WorkbenchRunTraceProviding, AnalysisPackProviding, ActiveChartProviding {
 
     // MARK: Search results (legacy mirror — used as snapshot denominator fallback)
 
@@ -76,7 +77,7 @@ protocol WorkbenchWorkspaceProviding: WorkbenchPlottingStore, AnalysisPackProvid
 
     var warningLog: WorkbenchWarningLog { get set }
 
-    // MARK: Trace (writable — overrides WorkbenchPlottingStore's get-only)
+    // MARK: Trace (writable — satisfies WorkbenchRunTraceProviding's get-only)
 
     var currentRunTrace: WorkbenchRunTraceProjection? { get set }
 
