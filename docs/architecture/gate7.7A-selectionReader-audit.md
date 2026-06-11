@@ -22,7 +22,7 @@ threeOmegaWorkspace.selectionReader = { [weak self] in self?.selectionRuntime.se
 
 ## 2. Remaining Bridge Surfaces
 
-### 2a. Read sites (12 total)
+### 2a. Read sites (9 total)
 
 | Store | Site | Purpose |
 |---|---|---|
