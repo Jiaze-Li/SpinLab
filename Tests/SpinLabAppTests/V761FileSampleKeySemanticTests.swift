@@ -111,8 +111,8 @@ struct V761FileSampleKeySemanticTests {
 
     // MARK: - 4. Migration/cleanup guard
 
-    @Test("no production code references the defaultSampleKey name")
-    func defaultSampleKeyTermAbsentFromProductionReferences() throws {
+    @Test("ParsedFilenameHints exposes fileSampleKey")
+    func parsedFilenameHintsExposesFileSampleKey() throws {
         // This test is a static contract verified by the rg check in CI.
         // The only allowed references are the legacy Codable decode keys in Models.swift.
         // Here we verify the domain model exposes fileSampleKey, not defaultSampleKey.
