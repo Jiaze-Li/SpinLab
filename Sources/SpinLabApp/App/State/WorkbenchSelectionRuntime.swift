@@ -136,4 +136,5 @@ final class WorkbenchSelectionRuntime {
     }
 }
 
+// selectedIDs(for:) is already defined above; the empty extension only declares protocol conformance.
 extension WorkbenchSelectionRuntime: SelectionReading {}

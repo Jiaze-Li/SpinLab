@@ -379,7 +379,7 @@ struct V537PackRestoreModuleBoundaryTests {
                 callbackHits = hits
                 callbackQuery = query
             },
-            seedSelection: { ids, _ in fake.ids = ids })
+            seedSelection: { ids, _ in fake.idsByWorkflow[.ahe] = ids })
 
         // restoreSearchState callback must have been called with the packed hits before runAnalysis().
         #expect(callbackHits == [hit],
@@ -397,7 +397,7 @@ struct V537PackRestoreModuleBoundaryTests {
         // cachedSearchResults and seeded selection were set before runAnalysis().
         #expect(store.cachedSearchResults == [hit],
                 "cachedSearchResults must be restored from pack before runAnalysis() is called")
-        #expect(fake.ids.isEmpty,
+        #expect(fake.idsByWorkflow[.ahe]?.isEmpty == true,
                 "seeded selection reflects the packed empty selection")
 
         // No successful analysis completed (guard returned early), so trace was not committed.

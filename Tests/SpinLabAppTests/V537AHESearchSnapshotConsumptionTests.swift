@@ -104,7 +104,7 @@ struct V537AHESearchSnapshotConsumptionTests {
 
         // Simulate WFS: selectionReading says hitA is selected.
         let fake = SelectionReadingFake()
-        fake.ids = [hitA.id]
+        fake.idsByWorkflow[.ahe] = [hitA.id]
         store.selectionReading = fake
         // Cache contains hitB only — the selected hit (hitA) is absent.
         store.cachedSearchResults = [hitB]
