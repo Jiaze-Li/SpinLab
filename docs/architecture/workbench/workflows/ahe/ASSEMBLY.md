@@ -45,7 +45,7 @@
 
 | Contribution | Assembly-owned semantics | Trace |
 |---|---|---|
-| AHE plot controls | Title template, grid, render mode, and style controls are workflow-specific contribution content mounted in the shell. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift` |
+| AHE plot controls | Title template, grid, render mode, and style controls are workflow-specific contribution content mounted in the shell. AHE uses a custom `AHEPlotControlsPanel` (defined inline in `AHEWorkspaceView.swift`) rather than `WorkbenchStandardPlotControls`. This is a legitimate specialization: AHE is single-tab with no curve stacking, so the tab picker and stack/gap controls in `WorkbenchStandardPlotControls` do not apply. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift` |
 | Hc override panel | AHE allows manual Hc correction before persistence. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift`; `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` |
 | R_AHE override panel | AHE allows manual R_AHE correction before persistence. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift`; `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` |
 
@@ -56,7 +56,7 @@
 | Common plot behavior | Legend editing, label overrides, render mode, style params, copy PNG, related-chart display, and tab render-state preservation remain common plot shell behavior. | `docs/architecture/workbench/modules/PLOT_SYSTEM.md`; `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift`; `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift` |
 | Workflow-specific axes | Fixed x is `H (T)`. Fixed y is semantic `R_H (Ω)` and resolves internally to the selected bridge resistance/resistivity data. | `Sources/SpinLabApp/UseCases/AHEAxisDetector.swift`; `Sources/SpinLabApp/UseCases/IngestAHESelectionsUseCase.swift` |
 | Tabs | AHE is a single-tab workflow. | `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift`; `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` |
-| Title default | `#tab #device #sample`, with `#tab` resolved to `AHE`. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` |
+| Title default | `#tab #device #sample` (with `#tab` resolved to `AHE`) is the Assembly-owned default title template (Layer 1 of the three-layer title model; see `docs/architecture/workbench/modules/PLOT_SYSTEM.md`). The editable template state (`titleTemplate` on the workspace store) is workflow-store-owned boundary debt; the per-tab inline title override is `TabRenderState.titleOverride` (Plot Preservation-owned). | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` |
 | Metrics/annotations | Hc and R_AHE are workflow metrics saved with chart artifacts; manual overrides are AHE-specific. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift`; `Sources/SpinLabApp/UseCases/ExtractAHEMetricsUseCase.swift` |
 
 ## Validation / Warning Policy
@@ -71,7 +71,7 @@
 
 | State | Current persistence behavior | Trace |
 |---|---|---|
-| Display state | Saves title template, grid flag, and per-tab render states. | `Sources/SpinLabApp/Workbench/V3/AHEPackContracts.swift` |
+| Display state | Saves title template, grid flag, and per-tab render states. `legendAnchor` is not serialized in `AHEPackConfig` — it resets to `""` after pack restore. This is a known coverage gap (documented in `docs/architecture/workbench/modules/PLOT_SYSTEM.md`); no schema change is required at Gate 7.8. | `Sources/SpinLabApp/Workbench/V3/AHEPackContracts.swift` |
 | Search/selection state | Saves cached search results, selected IDs, and common search query text for restore bridging. | `Sources/SpinLabApp/Workbench/V3/AHEPackContracts.swift` |
 | Result snapshot | Saves `AHEIngestionResult` so restore can rerender without re-ingestion. | `Sources/SpinLabApp/Workbench/V3/AHEPackContracts.swift` |
 | Metrics | Saved chart metrics are built from active render state at persistence time, including pending Hc/R_AHE overrides if present. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` |
