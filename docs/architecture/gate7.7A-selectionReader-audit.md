@@ -2,9 +2,9 @@
 
 > **Status**: 7.7A (audit) and 7.7B (typed protocol migration) are both complete and included in PR #124.
 
-## 1. Current Ownership
+## 1. Pre-7.7B Ownership
 
-`selectionReader: (() -> Set<String>)?` is a closure-typed property declared on three workspace stores and assigned by `WorkbenchFeatureStore` at init time. It is the only path by which workspace stores read current selection state.
+Before Gate 7.7B, `selectionReader: (() -> Set<String>)?` was a closure-typed property declared on three workspace stores and assigned by `WorkbenchFeatureStore` at init time. It was the only path by which workspace stores read current selection state.
 
 | Store | File |
 |---|---|
@@ -22,7 +22,7 @@ threeOmegaWorkspace.selectionReader = { [weak self] in self?.selectionRuntime.se
 
 ---
 
-## 2. Remaining Bridge Surfaces
+## 2. Pre-7.7B Bridge Surfaces
 
 ### 2a. Read sites (9 total)
 
@@ -38,7 +38,7 @@ threeOmegaWorkspace.selectionReader = { [weak self] in self?.selectionRuntime.se
 | ThreeOmega | `ThreeOmegaWorkspaceStore+Pack.swift:64` | Pack config serialization |
 | ThreeOmega | `ThreeOmegaWorkspaceStore+ManifestCache.swift:185` | Manifest payload caching post-restore |
 
-All call sites are safe: they use `selectionReader?() ?? []`, treating a nil reader as an empty selection.
+Before migration, all call sites were nil-safe: they used `selectionReader?() ?? []`, treating a nil reader as an empty selection.
 
 ### 2b. Call pattern variants
 
@@ -148,3 +148,16 @@ It removes the untyped closure bridge, makes the selection dependency explicit a
 Option B does **not** fully remove the selection dependency from workspace stores. It converts the dependency from an untyped closure bridge to a typed selection-runtime bridge — the stores still call into selection state at analysis time, pack-build time, and manifest-cache time.
 
 Complete removal of selection coupling from workspace stores would require moving those responsibilities (analysis hit filtering, pack serialization of selected IDs, manifest payload caching with selection context) into a coordinator or use-case layer. That is a significantly larger refactor that touches the analysis, pack, and manifest subsystems and is out of scope for Gate 7.7.
+
+---
+
+## 7. Post-7.7B Closeout
+
+Gate 7.7B completed the migration described in sections 3–6. Current state:
+
+- The `selectionReader` closure bridge has been removed from all production code and tests.
+- Each workspace store now holds `weak var selectionReading: (any SelectionReading)?` in place of the old closure property.
+- `WorkbenchSelectionRuntime` conforms to the `SelectionReading` protocol.
+- `WorkbenchFeatureStore` injects `selectionRuntime` directly into each store at init; the three `[weak self]` closure assignments are gone.
+- Test files replaced closure injection with a `SelectionReadingFake` conformance; observable behavior is unchanged.
+- Workspace stores still depend on selection state through the typed protocol. Full decoupling of selection from workspace stores (Option C in §6c) remains later scope.
