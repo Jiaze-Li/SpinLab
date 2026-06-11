@@ -12,8 +12,8 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
     // MARK: - Search / Selection bridge
 
     var cachedSearchResults: [WorkflowMeasurementSearchHit] = []
-    /// Injected by WorkbenchFeatureStore; returns current selected IDs from WorkbenchSelectionRuntime.
-    var selectionReader: (() -> Set<String>)?
+    /// Injected by WorkbenchFeatureStore; typed protocol reference to WorkbenchSelectionRuntime.
+    @ObservationIgnored weak var selectionReading: (any SelectionReading)?
 
     // MARK: - Analysis output
 
@@ -280,7 +280,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
             showPlotGrid: tabs.showPlotGrid,
             tabStates: tabs.snapshotStates(keyFor: { $0.rawValue }),
             cachedSearchResults: cachedSearchResults,
-            selectedSearchResultIDs: Array(selectionReader?() ?? []),
+            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: .xyRotation) ?? []),
             searchQueryText: ""   // filled by caller at WorkbenchFeatureStore level
         )
     }
@@ -471,8 +471,8 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
     func runAnalysis(searchSnapshot: WorkbenchSearchSnapshot?) {
         let sourceHits = searchSnapshot?.results ?? cachedSearchResults
         let selectedHits: [WorkflowMeasurementSearchHit]
-        if let reader = selectionReader {
-            selectedHits = _selectedHits(from: sourceHits, selectedIDs: reader())
+        if let reading = selectionReading {
+            selectedHits = _selectedHits(from: sourceHits, selectedIDs: reading.selectedIDs(for: .xyRotation))
         } else {
             selectedHits = _sortedSelectedHits(sourceHits)
         }
@@ -483,7 +483,7 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
         if let selectedHitsSnapshot {
             _runAnalysis(selectedHits: _sortedSelectedHits(selectedHitsSnapshot.selectedHits))
         } else {
-            let ids = selectionReader?() ?? []
+            let ids = selectionReading?.selectedIDs(for: .xyRotation) ?? []
             let selectedHits = _selectedHits(from: cachedSearchResults, selectedIDs: ids)
             _runAnalysis(selectedHits: selectedHits)
         }

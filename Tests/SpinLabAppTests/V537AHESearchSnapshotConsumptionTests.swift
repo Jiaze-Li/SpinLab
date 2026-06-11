@@ -102,8 +102,10 @@ struct V537AHESearchSnapshotConsumptionTests {
         let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
         let hitB = makeHit(sidecarPath: "sidecar-B", sampleKey: "PN32|b|STO|111")
 
-        // Simulate WFS: selectionReader says hitA is selected.
-        store.selectionReader = { [hitA.id] }
+        // Simulate WFS: selectionReading says hitA is selected.
+        let fake = SelectionReadingFake()
+        fake.idsByWorkflow[.ahe] = [hitA.id]
+        store.selectionReading = fake
         // Cache contains hitB only — the selected hit (hitA) is absent.
         store.cachedSearchResults = [hitB]
 

@@ -232,9 +232,9 @@ final class WorkbenchFeatureStore {
         self.xyRotationWorkspace.vault = analysisVault
         self.aheWorkspace.vault = analysisVault
 
-        self.aheWorkspace.selectionReader = { [weak self] in self?.selectionRuntime.selectedIDs(for: .ahe) ?? [] }
-        self.xyRotationWorkspace.selectionReader = { [weak self] in self?.selectionRuntime.selectedIDs(for: .xyRotation) ?? [] }
-        self.threeOmegaWorkspace.selectionReader = { [weak self] in self?.selectionRuntime.selectedIDs(for: .threeOmega) ?? [] }
+        self.aheWorkspace.selectionReading = self.selectionRuntime
+        self.xyRotationWorkspace.selectionReading = self.selectionRuntime
+        self.threeOmegaWorkspace.selectionReading = self.selectionRuntime
 
         // Route 3ω RT session state through the secondary input runtime.
         // Forces lazy init of secondaryInputRuntime while self is fully constructed.

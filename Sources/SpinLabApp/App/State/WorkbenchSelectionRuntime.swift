@@ -1,5 +1,12 @@
 import Foundation
 
+/// Read-only surface for querying selection state from workspace stores.
+/// Declared class-constrained so stores can hold a weak reference.
+@MainActor
+protocol SelectionReading: AnyObject {
+    func selectedIDs(for wf: WorkbenchWorkflowID) -> Set<String>
+}
+
 struct SelectedHitDisplayInfo: Sendable {
     let id: String
     let workflowDisplayName: String
@@ -128,3 +135,6 @@ final class WorkbenchSelectionRuntime {
         hitCacheByWorkflow[wf] = hitCache
     }
 }
+
+// selectedIDs(for:) is already defined above; the empty extension only declares protocol conformance.
+extension WorkbenchSelectionRuntime: SelectionReading {}
