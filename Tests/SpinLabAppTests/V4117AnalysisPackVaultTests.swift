@@ -147,6 +147,8 @@ final class V4117AnalysisPackVaultTests: XCTestCase {
     func testOverlaySnapshotSurvivesVaultDeletion() {
         let vault = AnalysisVault()
         let store = ThreeOmegaWorkspaceStore()
+        let rt = WorkbenchAnalysisOverlayRuntime()
+        store.overlayRuntime = rt
         store.vault = vault
 
         let pack = _makePack(label: "Overlay Source")
@@ -160,7 +162,7 @@ final class V4117AnalysisPackVaultTests: XCTestCase {
             sampleKeys: pack.sampleKeys
         )
         store.overlaySnapshots[pack.id] = snapshot
-        store.overlayPackIDs.append(pack.id)
+        rt.addEntry(id: pack.id, label: pack.label)
 
         // Delete pack from vault
         vault.remove(id: pack.id)

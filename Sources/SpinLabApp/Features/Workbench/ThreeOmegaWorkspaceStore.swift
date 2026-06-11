@@ -228,25 +228,13 @@ final class ThreeOmegaWorkspaceStore {
     var activePackID: AnalysisPack.ID?
 
     /// Injected by WorkbenchFeatureStore. When set, overlayPackIDs forwards reads through it
-    /// and mutations (addEntry/removeEntry/clear) go to it. When nil (standalone/test
-    /// construction), falls back to _overlayPackIDs so existing behavior is unchanged.
+    /// and all overlay mutations go through WorkbenchAnalysisOverlayRuntime.
+    /// When nil, overlay state is unavailable and overlayPackIDs returns [].
     @ObservationIgnored weak var overlayRuntime: WorkbenchAnalysisOverlayRuntime?
 
-    /// Standalone fallback for overlayPackIDs. Used only when overlayRuntime is nil.
-    @ObservationIgnored var _overlayPackIDs: [AnalysisPack.ID] = []
-
-    /// Ordered overlay IDs — forwarded from overlayRuntime when wired; backed by
-    /// _overlayPackIDs in standalone/test mode.
+    /// Ordered overlay IDs — forwarded from overlayRuntime when wired; empty when not wired.
     var overlayPackIDs: [AnalysisPack.ID] {
-        get { overlayRuntime?.overlayIDs ?? _overlayPackIDs }
-        set {
-            // When overlayRuntime is wired this assignment is intentionally ignored.
-            // All overlay mutations must go through WorkbenchAnalysisOverlayRuntime
-            // operations (addEntry / removeEntry / clear) so the runtime remains the
-            // single source of truth. Direct assignment is only used in standalone /
-            // test construction where overlayRuntime is nil.
-            if overlayRuntime == nil { _overlayPackIDs = newValue }
-        }
+        overlayRuntime?.overlayIDs ?? []
     }
 
     /// Decoupled snapshots of overlay data — survive vault deletion.
