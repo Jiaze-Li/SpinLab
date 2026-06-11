@@ -98,10 +98,12 @@ struct V740AnalysisOverlayBaselineTests {
     @Test("pack round-trip does not preserve overlay IDs")
     func packRoundTripDoesNotPreserveOverlayIDs() throws {
         let store = ThreeOmegaWorkspaceStore()
+        let rt = WorkbenchAnalysisOverlayRuntime()
+        store.overlayRuntime = rt
         let overlayID = AnalysisPack.ID()
 
         // Simulate an overlay being active in session.
-        store.overlayPackIDs = [overlayID]
+        rt.addEntry(id: overlayID, label: "Round Trip Overlay")
         store.overlaySnapshots[overlayID] = makeOverlaySnapshot()
 
         // Build config as _buildPackConfig would (it never writes overlayPackIDs).
@@ -127,8 +129,10 @@ struct V740AnalysisOverlayBaselineTests {
     @Test("restoreFromPack clears overlayPackIDs")
     func restoreFromPackClearsOverlayPackIDs() throws {
         let store = ThreeOmegaWorkspaceStore()
+        let rt = WorkbenchAnalysisOverlayRuntime()
+        store.overlayRuntime = rt
         let overlayID = AnalysisPack.ID()
-        store.overlayPackIDs = [overlayID]
+        rt.addEntry(id: overlayID, label: "Pre-restore Overlay")
 
         let pack = try makePack()
         store.restoreFromPack(
@@ -148,9 +152,11 @@ struct V740AnalysisOverlayBaselineTests {
     @Test("restoreFromPack clears overlaySnapshots")
     func restoreFromPackClearsOverlaySnapshots() throws {
         let store = ThreeOmegaWorkspaceStore()
+        let rt = WorkbenchAnalysisOverlayRuntime()
+        store.overlayRuntime = rt
         let overlayID = AnalysisPack.ID()
         store.overlaySnapshots[overlayID] = makeOverlaySnapshot()
-        store.overlayPackIDs = [overlayID]
+        rt.addEntry(id: overlayID, label: "Pre-restore Overlay")
 
         let pack = try makePack()
         store.restoreFromPack(
@@ -170,9 +176,12 @@ struct V740AnalysisOverlayBaselineTests {
     @Test("clearPlot clears overlay IDs and snapshots")
     func clearPlotClearsOverlayState() {
         let store = ThreeOmegaWorkspaceStore()
+        let rt = WorkbenchAnalysisOverlayRuntime()
+        store.overlayRuntime = rt
         let idA = AnalysisPack.ID()
         let idB = AnalysisPack.ID()
-        store.overlayPackIDs = [idA, idB]
+        rt.addEntry(id: idA, label: "A")
+        rt.addEntry(id: idB, label: "B")
         store.overlaySnapshots[idA] = makeOverlaySnapshot(label: "A")
         store.overlaySnapshots[idB] = makeOverlaySnapshot(label: "B")
 
@@ -200,10 +209,13 @@ struct V740AnalysisOverlayBaselineTests {
         let pack = try makePack()
         vault.add(pack)
 
+        let rt = WorkbenchAnalysisOverlayRuntime()
+        store.overlayRuntime = rt
+
         // Manually simulate the snapshot capture step from addOverlay.
         let snapshot = makeOverlaySnapshot(label: "Persisted Overlay")
         store.overlaySnapshots[pack.id] = snapshot
-        store.overlayPackIDs = [pack.id]
+        rt.addEntry(id: pack.id, label: "Persisted Overlay")
 
         // Delete the pack from vault (simulates user deleting the saved analysis).
         vault.remove(id: pack.id)
@@ -235,9 +247,11 @@ struct V740AnalysisOverlayBaselineTests {
         // Set active tab to .scaling.
         store.tabs.activeTab = .scaling
 
-        // Overlay is loaded.
+        // Overlay is loaded via wired runtime.
+        let rt = WorkbenchAnalysisOverlayRuntime()
+        store.overlayRuntime = rt
         let oid = AnalysisPack.ID()
-        store.overlayPackIDs = [oid]
+        rt.addEntry(id: oid, label: "Scaling Overlay")
         store.overlaySnapshots[oid] = makeOverlaySnapshot()
 
         // Must not crash. The render path for .scaling never calls _renderRAHEWithOverlays.

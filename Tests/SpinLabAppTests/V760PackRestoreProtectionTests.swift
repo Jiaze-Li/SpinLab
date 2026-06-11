@@ -799,31 +799,4 @@ struct V760OverlayRuntimeClearedOnRestoreTests {
                 "restoreFromPack must call runtime.clear(), leaving displayLabels empty")
     }
 
-    /// When the overlay runtime is wired and cleared, the standalone _overlayPackIDs fallback
-    /// must also be empty after restore. Both cleanup paths must run together.
-    @MainActor
-    @Test("restoreFromPack clears both wired runtime and standalone _overlayPackIDs fallback")
-    func restoreFromPackClearsBothRuntimeAndStandaloneFallback() throws {
-        let store = ThreeOmegaWorkspaceStore()
-        let runtime = WorkbenchAnalysisOverlayRuntime()
-        store.overlayRuntime = runtime
-
-        let id = AnalysisPack.ID()
-        runtime.addEntry(id: id, label: "A")
-        store._overlayPackIDs = [id]
-
-        let pack = try makePack()
-        store.restoreFromPack(
-            config: makeMinimalConfig(),
-            result: makeMinimalResult(),
-            pack: pack,
-            restoreSearchState: { _, _ in },
-            seedSelection: { _, _ in }
-        )
-
-        #expect(runtime.overlayIDs.isEmpty,
-                "wired runtime must be cleared by restore")
-        #expect(store._overlayPackIDs.isEmpty,
-                "standalone _overlayPackIDs fallback must also be cleared by restore")
-    }
 }

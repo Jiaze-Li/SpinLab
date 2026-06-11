@@ -19,7 +19,6 @@ extension ThreeOmegaWorkspaceStore {
         warningLog.clear()
         activePackID             = nil
         overlayRuntime?.clear()
-        _overlayPackIDs          = []
         overlaySnapshots         = [:]
         relatedChartsTask?.cancel()
         relatedChartsTask        = nil

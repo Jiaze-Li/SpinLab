@@ -28,9 +28,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
             sampleKeys: pack.sampleKeys
         )
 
-        // Delegate ID + chip label to the common overlay runtime when wired.
-        if let rt = overlayRuntime { rt.addEntry(id: id, label: pack.label) }
-        else { _overlayPackIDs.append(id) }
+        overlayRuntime?.addEntry(id: id, label: pack.label)
 
         _renderRAHEWithOverlays()
     }
@@ -39,8 +37,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
     /// Removes an overlay.
     func removeOverlay(id: AnalysisPack.ID) {
         overlaySnapshots.removeValue(forKey: id)
-        if let rt = overlayRuntime { rt.removeEntry(id: id) }
-        else { _overlayPackIDs.removeAll { $0 == id } }
+        overlayRuntime?.removeEntry(id: id)
         _renderRAHEWithOverlays()
     }
 
@@ -162,12 +159,7 @@ func autoPackLabel() -> String { _autoPackLabel() }
             lastLibraryRootPath = root
         }
 
-        // Clear overlays. Both paths run unconditionally:
-        // overlayRuntime?.clear() clears the runtime when wired (wired mode source of truth);
-        // _overlayPackIDs = [] resets the standalone fallback in both modes so it never
-        // drifts out of sync on the next standalone construction.
         overlayRuntime?.clear()
-        _overlayPackIDs = []
         overlaySnapshots = [:]
 
         // Bridge: restore search results into WorkbenchFeatureStore

@@ -103,18 +103,6 @@ struct V740AnalysisOverlayRuntimeTests {
     }
 
     @MainActor
-    @Test("overlayPackIDs uses fallback when runtime is not wired")
-    func overlayPackIDsUsesFallbackWhenNotWired() {
-        let store = ThreeOmegaWorkspaceStore()
-        // No overlayRuntime injected — standalone mode.
-        let id = AnalysisPack.ID()
-        store.overlayPackIDs = [id]
-
-        #expect(store.overlayPackIDs == [id],
-                "Expected store.overlayPackIDs to use _overlayPackIDs fallback when not wired")
-    }
-
-    @MainActor
     @Test("removeOverlay delegates to runtime when wired")
     func removeOverlayDelegatesToRuntimeWhenWired() {
         let store = ThreeOmegaWorkspaceStore()
