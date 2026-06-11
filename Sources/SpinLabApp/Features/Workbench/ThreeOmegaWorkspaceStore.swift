@@ -228,8 +228,8 @@ final class ThreeOmegaWorkspaceStore {
     var activePackID: AnalysisPack.ID?
 
     /// Injected by WorkbenchFeatureStore. When set, overlayPackIDs forwards reads through it
-    /// and mutations (addEntry/removeEntry/clear) go to it. When nil (standalone/test
-    /// construction), falls back to _overlayPackIDs so existing behavior is unchanged.
+    /// and all overlay mutations go through WorkbenchAnalysisOverlayRuntime.
+    /// When nil, overlay state is unavailable and overlayPackIDs returns [].
     @ObservationIgnored weak var overlayRuntime: WorkbenchAnalysisOverlayRuntime?
 
     /// Ordered overlay IDs — forwarded from overlayRuntime when wired; empty when not wired.

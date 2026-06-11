@@ -3,6 +3,7 @@
 **Audit status**: complete (docs-only, 2026-06-10)
 **Gate 7.6A status**: complete (protection tests, 2026-06-10) — 34 tests in `V760PackRestoreProtectionTests.swift`, all pass
 **Gate 7.6B status**: complete (behavior-preserving cleanup, 2026-06-10) — intermediate `cachedRTFilePath = config.rtFilePath` assignment removed from `restoreFromPack`; `cachedRTFilePath` remains derived output only; source inspection test updated to pin the absence; all 34 V760 tests green
+**Gate 7.6D status**: complete (_overlayPackIDs standalone fallback cleanup, 2026-06-11) — fallback removed; `WorkbenchAnalysisOverlayRuntime` is the sole owner of overlay session IDs; V740/V760/V4117/V537 affected tests pass.
 **Branch**: gate7.6
 **Scope**: map current ownership boundary after Gate 7.4 and Gate 7.5; no runtime or schema changes.
 
@@ -334,7 +335,7 @@ Tests: `V537SaveModuleBoundaryTests` (Gate 7.5A/B coverage) + `V537PackRestoreMo
 | **XY required-field decode failure** | MEDIUM | Same as above for XY (`phiOffsetOverrides`, `centerBaseline`, `activeTab`). |
 | **AHE showPlotGrid / tabStates missing** | LOW | The backward-compat decode defaults for AHE are implicit in V4117 round-trip tests but there is no test for a pack missing only `showPlotGrid` or only `tabStates`. |
 | **XY linearDetrend backward-compat** | LOW | No test for a pack missing `linearDetrend` decoding as `false`. |
-| **_overlayPackIDs standalone fallback** | LOW | Deferred from Gate 7.4: `_overlayPackIDs` fallback can be removed when no test uses `ThreeOmegaWorkspaceStore` without a wired overlay runtime. Current tests in `V740` use the fallback directly (e.g. `store.overlayPackIDs = [overlayID]`). Removing requires either a full-WFS fixture or a protocol accessor. |
+| **_overlayPackIDs standalone fallback** | ~~LOW~~ | Resolved in Gate 7.6D: fallback removed; `WorkbenchAnalysisOverlayRuntime` is the sole owner of overlay session IDs. |
 | **AHE lastRenderedSampleKeys restore** | LOW | AHE restore sets `lastRenderedSampleKeys = pack.sampleKeys`. This is not the analyzed sample keys (those come from analysis output); it is the pack identity keys. Inconsistency is benign now but undocumented. |
 
 ---
@@ -375,7 +376,7 @@ These tests must be in place before any Gate 7.6 runtime extraction begins:
 
 1. ✅ **Remove intermediate `cachedRTFilePath` assignment**: removed `cachedRTFilePath = config.rtFilePath` from `restoreFromPack`. `config.rtFilePath` is fingerprint-only. Source inspection test updated to pin the absence. Behavior-preserving: no test drift.
 2. ~~OR: promote rtFilePath to standalone restore input~~ — not chosen; deferred to a future gate if RT-without-sidecar becomes a requirement.
-3. **`_overlayPackIDs` standalone fallback cleanup**: deferred — separate scope (`_overlayPackIDs` cleanup), not combined with this gate per Gate 7.6B scope constraints.
+3. ✅ **`_overlayPackIDs` standalone fallback cleanup**: resolved in Gate 7.6D — fallback removed; `WorkbenchAnalysisOverlayRuntime` is the sole owner of overlay session IDs.
 
 ### Deferred debt
 
