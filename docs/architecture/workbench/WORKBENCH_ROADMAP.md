@@ -342,12 +342,21 @@ Summary:
 
 - Source Gate 3 audit section: `Pack / Restore`
 - Classification: `Boundary debt`
+- **Audit status: complete (2026-06-10). Audit doc: `docs/architecture/workbench/GATE7_PACK_RESTORE_AUDIT.md`.**
+- **Gate 7.6A status: complete (2026-06-10). 34 tests in `V760PackRestoreProtectionTests.swift`, all pass. No behavior drift.**
 - Actual Gate 3 finding: restore is the only sanctioned multi-state mutation exception, but pack/restore is still implemented per workflow and needs coverage for every restored field, including secondary input search.
 - Target owner: common Pack / Restore module with an explicit restore write map and a documented exception for workspace restoration.
 - Required work: centralize pack load/save orchestration, `activePackID`, vault access, and restore writes behind the explicit contract; route canonical search restore through the existing callback; keep workflow-specific pack config and result metadata behind `AnalysisPackProviding`; include secondary input search in restore coverage.
-- Prerequisite bridges/tests: `modules/PACK_RESTORE.md` write-map coverage, `RestoreAnalysisPackUseCase`, `AnalysisPackProviding`, `V4117AnalysisPackVaultTests`, `V5114RestoreUseCaseStatelessTests`, `V5114PackRestoreNoTraceCommitTests`, `V537PackRestoreModuleBoundaryTests`, and `V535TabRenderStatePackTests`.
+- Prerequisite bridges/tests: `modules/PACK_RESTORE.md` write-map coverage, `RestoreAnalysisPackUseCase`, `AnalysisPackProviding`, `V4117AnalysisPackVaultTests`, `V5114RestoreUseCaseStatelessTests`, `V5114PackRestoreNoTraceCommitTests`, `V537PackRestoreModuleBoundaryTests`, `V535TabRenderStatePackTests`, and `V760PackRestoreProtectionTests`.
 - Extraction risks: missed restore writes, accidental trace commit, broken legacy AHE nil-ingestion restore, stale search mirrors, and auxiliary-input fingerprint loss.
 - Acceptance criteria: all restore writes are centralized and covered; restore rerenders rather than re-ingests; `activePackID` is still set by the caller after restore returns; secondary input search round-trips through the documented bridge; restore never serializes session-only trace or save fields.
+- **Audit findings (all gaps closed by Gate 7.6A tests)**:
+  - Safe: session-only fields (persistenceOutcome, saveMessage, currentRunTrace) confirmed not serialized and nil after restore. Overlay state confirmed not serialized and cleared on restore (both standalone fallback and wired-runtime path). Save coordinator confirmed not creating pack/restore state. Cross-workflow isolation confirmed. RT slot isolation confirmed.
+  - `cachedRTFilePath` derivation confirmed: `selectedRTHit?.measurementFilePath` is the canonical source; `config.rtFilePath` is fingerprint-only. Overwrite sequence pinned by source-inspection tests.
+- **Gate 7.6B extraction / fix targets**:
+  - Remove intermediate `cachedRTFilePath = config.rtFilePath` assignment from `restoreFromPack` (it is always overwritten; retaining it is misleading).
+  - Remove `_overlayPackIDs` standalone fallback after updating V740 tests to use the wired-runtime path.
+  - See audit doc §8 for full details.
 
 #### Gate 7.7 - Warning Display / Run Trace
 

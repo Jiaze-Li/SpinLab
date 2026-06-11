@@ -88,7 +88,7 @@ struct V210ImportAndParseTests {
         let parsed = parser.parse(from: fileURL)
 
         #expect(parsed.workflowID == "RT")
-        #expect(parsed.defaultSampleKey == "PN40")
+        #expect(parsed.fileSampleKey == "PN40")
         #expect(parsed.folderDerivedSampleKeys == ["PN40"])
         #expect(parsed.temperature == nil)
         #expect(parsed.current == "1mA")
@@ -163,7 +163,7 @@ struct V210ImportAndParseTests {
         let parsed = parser.parse(from: fileURL)
 
         #expect(parsed.sampleIDs.contains("PN80"))
-        #expect(parsed.defaultSampleKey == "PN80")
+        #expect(parsed.fileSampleKey == "PN80")
     }
 
     @Test("parser does not extract sample IDs from embedded letter prefixes")
@@ -175,7 +175,7 @@ struct V210ImportAndParseTests {
         let parsed = parser.parse(from: fileURL)
 
         #expect(!parsed.sampleIDs.contains("PN80"))
-        #expect(parsed.defaultSampleKey == nil)
+        #expect(parsed.fileSampleKey == nil)
     }
 
     @Test("parser score arbitration selects unique winner when no single-source shortcut applies")
@@ -186,7 +186,7 @@ struct V210ImportAndParseTests {
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.defaultSampleKey == "PN40")
+        #expect(parsed.fileSampleKey == "PN40")
         #expect(!parsed.warnings.contains(where: { $0.lowercased().contains("ambiguous") }))
     }
 
@@ -198,7 +198,7 @@ struct V210ImportAndParseTests {
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.defaultSampleKey == nil)
+        #expect(parsed.fileSampleKey == nil)
         #expect(parsed.warnings.contains(where: { $0.lowercased().contains("arbitration is ambiguous") }))
     }
 
@@ -210,7 +210,7 @@ struct V210ImportAndParseTests {
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.defaultSampleKey == "PN40")
+        #expect(parsed.fileSampleKey == "PN40")
         #expect(!parsed.warnings.contains(where: { $0.lowercased().contains("ambiguous") }))
     }
 
@@ -222,7 +222,7 @@ struct V210ImportAndParseTests {
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.defaultSampleKey == "PN40")
+        #expect(parsed.fileSampleKey == "PN40")
         #expect(!parsed.warnings.contains(where: { $0.lowercased().contains("score fallback") }))
     }
 
@@ -234,19 +234,19 @@ struct V210ImportAndParseTests {
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.defaultSampleKey == "PN40")
+        #expect(parsed.fileSampleKey == "PN40")
         #expect(!parsed.warnings.contains(where: { $0.lowercased().contains("score fallback") }))
     }
 
-    @Test("single channel sample shortcut wins before single folder sample shortcut")
-    func parserSingleChannelSampleShortcutWinsBeforeSingleFolderSampleShortcut() throws {
+    @Test("folder-derived sample wins over single-channel promotion when no file-scope sample exists")
+    func parserFolderSampleWinsOverSingleChannelPromotionWithNoFileScope() throws {
         let ruleSet = try loadBundledRuleSetForTests()
         let parser = FilenameRuleParser(ruleSet: ruleSet)
         let fileURL = URL(fileURLWithPath: "/tmp/PN40/RT_run/RT_1mA_ch1_PN41_AMR.dat")
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.defaultSampleKey == "PN41")
+        #expect(parsed.fileSampleKey == "PN40")
     }
 
     @Test("score aggregation lets channel evidence outrank split file and folder evidence")
@@ -257,7 +257,7 @@ struct V210ImportAndParseTests {
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.defaultSampleKey == "PN42")
+        #expect(parsed.fileSampleKey == "PN42")
         #expect(!parsed.warnings.contains(where: { $0.lowercased().contains("ambiguous") }))
     }
 
@@ -283,7 +283,7 @@ struct V210ImportAndParseTests {
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.defaultSampleKey == "PN36")
+        #expect(parsed.fileSampleKey == "PN36")
         #expect(parsed.temperature == "80K")
         #expect(parsed.field == "8T")
         #expect(parsed.current == "1mA")
@@ -348,7 +348,7 @@ struct V210ImportAndParseTests {
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.defaultSampleKey == "PN76")
+        #expect(parsed.fileSampleKey == "PN76")
         #expect(parsed.sampleName == "PN76 111")
         #expect(parsed.sampleIDs.contains("PN76"))
         #expect(!parsed.sampleIDs.contains("PN76111"))
@@ -366,7 +366,7 @@ struct V210ImportAndParseTests {
         let parsed = parser.parse(from: fileURL)
 
         #expect(parsed.sampleName == "PN76 111")
-        #expect(parsed.defaultSampleKey == "PN76")
+        #expect(parsed.fileSampleKey == "PN76")
         #expect(parsed.current == "1mA")
         #expect(parsed.temperature == "80K")
     }
@@ -381,7 +381,7 @@ struct V210ImportAndParseTests {
 
         let parsed = parser.parse(from: fileURL)
 
-        #expect(parsed.defaultSampleKey == "PN76")
+        #expect(parsed.fileSampleKey == "PN76")
         #expect(parsed.temperature == nil)
     }
 

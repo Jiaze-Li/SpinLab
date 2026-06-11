@@ -67,7 +67,7 @@ final class InboxRoutingState {
 
     func isRoutingDraftDirty(_ draft: PendingRoutingDraft, for pending: SpinLabDomain.PendingImport) -> Bool {
         let trimmedCurrent = PendingRoutingDraft(
-            defaultSampleKey: draft.defaultSampleKey.trimmingCharacters(in: .whitespacesAndNewlines),
+            fileSampleKey: draft.fileSampleKey.trimmingCharacters(in: .whitespacesAndNewlines),
             channelSampleKeyOverrides: draft.channelSampleKeyOverrides.mapValues {
                 $0.trimmingCharacters(in: .whitespacesAndNewlines)
             }
@@ -81,7 +81,7 @@ final class InboxRoutingState {
         pendingImports: [SpinLabDomain.PendingImport]
     ) {
         pendingRoutingDraftsByID[pendingID] = PendingRoutingDraft(
-            defaultSampleKey: draft.defaultSampleKey.trimmingCharacters(in: .whitespacesAndNewlines),
+            fileSampleKey: draft.fileSampleKey.trimmingCharacters(in: .whitespacesAndNewlines),
             channelSampleKeyOverrides: draft.channelSampleKeyOverrides.mapValues {
                 $0.trimmingCharacters(in: .whitespacesAndNewlines)
             }
@@ -228,8 +228,8 @@ final class InboxRoutingState {
         }
 
         var parsed = pending.parsedHints
-        let trimmedDefault = draft.defaultSampleKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        parsed.defaultSampleKey = trimmedDefault.isEmpty ? nil : normalizedSampleInput(
+        let trimmedDefault = draft.fileSampleKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        parsed.fileSampleKey = trimmedDefault.isEmpty ? nil : normalizedSampleInput(
             trimmedDefault,
             fallbackBatchID: pending.parsedHints.sampleIDs.first,
             fallbackSampleTags: pending.parsedHints.substrateTags
@@ -267,14 +267,14 @@ final class InboxRoutingState {
             overrides[channel.channel] = resolutionsByChannel[channel.channel]?.sampleId ?? explicitInput ?? ""
         }
 
-        let defaultSampleKey = plan.channelResolutions
+        let fileSampleKey = plan.channelResolutions
             .first(where: { $0.channel == "file" })?
             .sampleId
-            ?? parsed.defaultSampleKey
+            ?? parsed.fileSampleKey
             ?? ""
 
         return PendingRoutingDraft(
-            defaultSampleKey: defaultSampleKey,
+            fileSampleKey: fileSampleKey,
             channelSampleKeyOverrides: overrides
         )
     }

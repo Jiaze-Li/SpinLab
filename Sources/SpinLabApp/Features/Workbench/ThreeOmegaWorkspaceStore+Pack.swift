@@ -149,10 +149,13 @@ func autoPackLabel() -> String { _autoPackLabel() }
             _titleTokens = [:]
         }
 
-        // Restore cached persistence state from pack
+        // Restore cached persistence state from pack.
+        // config.rtFilePath is retained in the pack schema for fingerprint context only —
+        // it is NOT a standalone restore input. selectedRTHit is the canonical RT restore source.
+        // cachedRTFilePath is derived output: _snapshotAndCacheManifestPayloads() below sets it
+        // from selectedRTHit?.measurementFilePath and must not be pre-empted here.
         cachedInputFiles = pack.filePaths
         cachedSampleKeys = pack.sampleKeys
-        cachedRTFilePath = config.rtFilePath
 
         // Restore library root from vault so persistToLibrary works without a prior search
         if lastLibraryRootPath.isEmpty, let root = vault?.libraryRootPath {

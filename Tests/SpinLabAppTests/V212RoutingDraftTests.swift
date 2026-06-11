@@ -18,7 +18,7 @@ struct V212RoutingDraftTests {
         #expect(before.targets.first?.sampleId == "PN41||STO|001")
 
         var draft = appState.routingDraft(for: pending)
-        draft.defaultSampleKey = "PN40"
+        draft.fileSampleKey = "PN40"
         appState.saveRoutingDraft(draft, for: pending.id)
 
         let after = appState.pendingRoutePlan(for: pending)
@@ -35,7 +35,7 @@ struct V212RoutingDraftTests {
         )
 
         var draft = appState.routingDraft(for: pending)
-        draft.defaultSampleKey = "PN40"
+        draft.fileSampleKey = "PN40"
         draft.channelSampleKeyOverrides["ch2"] = "PN14"
         appState.saveRoutingDraft(draft, for: pending.id)
 
@@ -56,7 +56,7 @@ struct V212RoutingDraftTests {
         var draft = appState.routingDraft(for: pending)
         #expect(appState.isRoutingDraftDirty(draft, for: pending) == false)
 
-        draft.defaultSampleKey = "PN40"
+        draft.fileSampleKey = "PN40"
         #expect(appState.isRoutingDraftDirty(draft, for: pending) == true)
 
         appState.saveRoutingDraft(draft, for: pending.id)
@@ -73,7 +73,7 @@ struct V212RoutingDraftTests {
         )
 
         var draft = appState.routingDraft(for: pending)
-        draft.defaultSampleKey = "PN40"
+        draft.fileSampleKey = "PN40"
         appState.saveRoutingDraft(draft, for: pending.id)
         #expect(appState.pendingRoutePlan(for: pending).targets.first?.sampleId == "PN40||STO|001")
 
@@ -98,7 +98,7 @@ struct V212RoutingDraftTests {
             ),
             editableFileContents: "",
             hasEditableFileContents: false,
-            routingDraft: PendingRoutingDraft(defaultSampleKey: "PN40", channelSampleKeyOverrides: ["ch2": ""])
+            routingDraft: PendingRoutingDraft(fileSampleKey: "PN40", channelSampleKeyOverrides: ["ch2": ""])
         )
 
         let appState = SpinLabAppState(
@@ -123,7 +123,7 @@ struct V212RoutingDraftTests {
         #expect(appState.hasSavedRoutingDraft(for: pending) == false)
 
         var draft = appState.routingDraft(for: pending)
-        draft.defaultSampleKey = "PN40"
+        draft.fileSampleKey = "PN40"
         appState.saveRoutingDraft(draft, for: pending.id)
 
         #expect(appState.hasSavedRoutingDraft(for: pending) == true)
@@ -139,7 +139,7 @@ struct V212RoutingDraftTests {
         )
 
         let baseline = appState.routingDraftBaseline(for: pending)
-        #expect(baseline.defaultSampleKey == "PN41")
+        #expect(baseline.fileSampleKey == "PN41")
         #expect(baseline.channelSampleKeyOverrides["ch2"] == "")
     }
 
@@ -150,7 +150,7 @@ struct V212RoutingDraftTests {
             sourceFilePath: "/tmp/RT_1mA_ch1_ch2_ch3_AMR.dat",
             originalFilePath: "/tmp/RT_1mA_ch1_ch2_ch3_AMR.dat",
             parsedHints: SpinLabDomain.ParsedFilenameHints(
-                defaultSampleKey: "PN41|o|STO|111",
+                fileSampleKey: "PN41|o|STO|111",
                 channelHints: [
                     SpinLabDomain.ParsedChannelHint(channel: "ch1", sampleID: "PN41|o|STO|111", tags: ["o", "STO111"]),
                     SpinLabDomain.ParsedChannelHint(channel: "ch2", sampleID: "PN44|o|STO|111", tags: ["o", "STO111"]),
@@ -166,7 +166,7 @@ struct V212RoutingDraftTests {
         )
 
         let baseline = appState.routingDraftBaseline(for: pending)
-        #expect(baseline.defaultSampleKey == "PN41|o|STO|111")
+        #expect(baseline.fileSampleKey == "PN41|o|STO|111")
         #expect(baseline.channelSampleKeyOverrides["ch1"] == "PN41|o|STO|111")
         #expect(baseline.channelSampleKeyOverrides["ch2"] == "PN44|o|STO|111")
         #expect(baseline.channelSampleKeyOverrides["ch3"] == "PN48|o|STO|111")
@@ -187,7 +187,7 @@ struct V212RoutingDraftTests {
             sourceFilePath: "/tmp/RT_1mA_ch2_AMR.dat",
             originalFilePath: "/tmp/RT_1mA_ch2_AMR.dat",
             parsedHints: SpinLabDomain.ParsedFilenameHints(
-                defaultSampleKey: "PN41",
+                fileSampleKey: "PN41",
                 channelHints: [
                     SpinLabDomain.ParsedChannelHint(channel: "ch2", sampleID: nil, tags: ["STO001"])
                 ],
