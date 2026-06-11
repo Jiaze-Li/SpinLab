@@ -1,4 +1,6 @@
-# Gate 7.7A — selectionReader Bridge Audit
+# Gate 7.7A + 7.7B — selectionReader Bridge Audit
+
+> **Status**: 7.7A (audit) and 7.7B (typed protocol migration) are both complete and included in PR #124.
 
 ## 1. Current Ownership
 

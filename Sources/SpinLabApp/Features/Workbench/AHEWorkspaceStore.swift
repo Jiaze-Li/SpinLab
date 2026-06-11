@@ -13,8 +13,8 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Selection bridge (pack serialization only)
 
-    /// Injected by WorkbenchFeatureStore; returns current selected IDs from WorkbenchSelectionRuntime.
-    var selectionReader: (() -> Set<String>)?
+    /// Injected by WorkbenchFeatureStore; typed protocol reference to WorkbenchSelectionRuntime.
+    @ObservationIgnored weak var selectionReading: (any SelectionReading)?
 
     // MARK: - Plot output
 
@@ -318,8 +318,8 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
 
     private func buildAHESelections(from sourceHits: [WorkflowMeasurementSearchHit]) -> [AHEPlotSelectionItem] {
         let hits: [WorkflowMeasurementSearchHit]
-        if let reader = selectionReader {
-            let ids = reader()
+        if let reading = selectionReading {
+            let ids = reading.selectedIDs(for: .ahe)
             hits = ids.isEmpty ? [] : sourceHits.filter { ids.contains($0.id) }
         } else {
             hits = sourceHits
@@ -453,7 +453,7 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
             showPlotGrid: tabs.showPlotGrid,
             tabStates: tabs.snapshotStates(keyFor: { $0.rawValue }),
             cachedSearchResults: cachedSearchResults,
-            selectedSearchResultIDs: Array(selectionReader?() ?? []),
+            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: .ahe) ?? []),
             searchQueryText: ""
         )
     }

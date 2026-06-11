@@ -61,7 +61,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
             tabStates: tabs.snapshotStates(keyFor: { $0.stableKey }),
             chartStyleOverrides: tabs.chartStyleOverrides,
             cachedSearchResults: cachedSearchResults,
-            selectedSearchResultIDs: Array(selectionReader?() ?? []),
+            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: .threeOmega) ?? []),
             selectedRTHit: selectedRTHit,
             rtQuery: rtQuery,
             searchQueryText: ""   // filled by caller at WorkbenchFeatureStore level

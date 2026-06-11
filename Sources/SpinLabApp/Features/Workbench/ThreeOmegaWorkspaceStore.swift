@@ -15,8 +15,8 @@ final class ThreeOmegaWorkspaceStore {
     // MARK: - Search / Selection bridge
 
     var cachedSearchResults: [WorkflowMeasurementSearchHit] = []
-    /// Injected by WorkbenchFeatureStore; returns current selected IDs from WorkbenchSelectionRuntime.
-    var selectionReader: (() -> Set<String>)?
+    /// Injected by WorkbenchFeatureStore; typed protocol reference to WorkbenchSelectionRuntime.
+    @ObservationIgnored weak var selectionReading: (any SelectionReading)?
 
     // MARK: - RT file search (independent of main 3w search)
 
