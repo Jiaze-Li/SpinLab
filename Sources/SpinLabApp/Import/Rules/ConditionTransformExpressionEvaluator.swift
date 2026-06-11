@@ -84,7 +84,7 @@ private struct Parser {
     }
 
     mutating func parseNumber() throws -> Double {
-        var start = pos
+        let start = pos
         if chars[pos] == "-" { pos += 1 }
         guard pos < chars.count, chars[pos].isNumber else {
             pos = start

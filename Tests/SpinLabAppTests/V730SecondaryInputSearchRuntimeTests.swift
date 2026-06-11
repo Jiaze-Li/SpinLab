@@ -284,6 +284,7 @@ struct V730SecondaryInputSearchRuntimeTests {
     // MARK: - 5. Slot metadata
 
     /// Static slot descriptor has expected id and displayLabel.
+    @MainActor
     @Test("rtSlot has id 'rt' and display label 'RT / Rxx(T)'")
     func rtSlotDescriptor() {
         let slot = WorkbenchSecondaryInputSearchRuntime.rtSlot
