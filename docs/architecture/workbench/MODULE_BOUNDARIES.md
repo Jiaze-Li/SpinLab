@@ -506,7 +506,7 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
   - `cachedSampleKeys`
   - `cachedConditionsBySampleKey`
   - `_titleTokens`
-  - `currentRunTrace`
+  - `currentRunTrace` (surfaced via `WorkbenchRunTraceProviding`; removed from `WorkbenchPlottingStore` in Gate 7.8D)
   - `analysisMessage` / `plotMessage`
   - `persistenceOutcome`
 - Forbidden reverse dependencies:
@@ -673,13 +673,23 @@ Phase 5F-3 boundary tests: see [`modules/PACK_RESTORE.md` § Boundary Test Plan]
   - Canvas must not own canonical plot output or ingestion state.
   - Canvas must not mutate search results or library storage state.
 
-### WorkbenchPlottingStore — currentRunTrace Boundary Debt (Gate 7.7)
+### WorkbenchPlottingStore — currentRunTrace (resolved Gate 7.8D)
 
-`WorkbenchPlottingStore` is the canvas interaction protocol. It correctly delegates legend drag, title/axis/label edits, point label toggles, and shared display settings to `TabRenderManager`. One field does not belong here:
+`WorkbenchPlottingStore` is the canvas interaction protocol. It correctly delegates legend drag, title/axis/label edits, point label toggles, and shared display settings to `TabRenderManager`.
 
-- `currentRunTrace: WorkbenchRunTraceProjection?` is present in `WorkbenchPlottingStore` because `WorkflowWorkspaceRightColumn` accesses it through the combined `WorkbenchWorkspaceProviding` protocol. `currentRunTrace` belongs to the Warning Display / Run Trace module (Gate 7.7 target), not to Plot Controls semantics.
+`currentRunTrace` has been removed from `WorkbenchPlottingStore` in Gate 7.8D:
 
-Exit condition: remove `currentRunTrace` from `WorkbenchPlottingStore` and surface it through `WorkbenchWorkspaceProviding` directly. This is a Gate 7.7 cleanup that touches the plot protocol definition but requires no plot behavior change.
+- `currentRunTrace: WorkbenchRunTraceProjection?` now lives exclusively in `WorkbenchRunTraceProviding`, a dedicated read surface for the Warning Display / Run Trace module.
+- `WorkbenchWorkspaceProviding` composes both `WorkbenchPlottingStore` and `WorkbenchRunTraceProviding`, so all workspace consumers that previously accessed `currentRunTrace` through the combined protocol continue to work without change.
+- Plot System no longer exposes run-trace state through the plot protocol.
+
+### Main Board Layout is Outside Plot System
+
+`WorkflowWorkspaceShell`, `WorkflowWorkspaceLeftColumn`, and `WorkflowWorkspaceRightColumn` are Main Board shell files that own left/right column structure and ViewBuilder slots. They are not part of the Plot System module group:
+
+- Shell files pass `plotControls` as a ViewBuilder slot; they do not construct workflow-specific plot controls themselves.
+- Shell files must not import or directly manipulate `TabRenderState` / `TabRenderManager` internals.
+- Slot placement and column structure are Main Board / shell concerns, not Plot System concerns.
 
 ### Series Reorder Boundary
 

@@ -91,9 +91,19 @@ Resolution order: Layer 2 template → `WorkbenchTitleResolver.resolve(template:
 
 `stackOffsetMultiplier` and `minGapFraction` are Workflow Assembly-owned plot semantic parameters. Their defaults and applicability differ per workflow. They are exposed through the common `WorkbenchStandardPlotControls` View via Bindings, but the View does not own the values. These fields must not be reclassified as generic Plot System-owned state without an explicit MODULE_BOUNDARIES.md revision at a future gate.
 
-### WorkbenchPlottingStore — currentRunTrace Debt
+### WorkbenchPlottingStore — currentRunTrace (resolved Gate 7.8D)
 
-`WorkbenchPlottingStore` includes `currentRunTrace: WorkbenchRunTraceProjection?`, which belongs to the Warning Display / Run Trace module (Gate 7.7 target). It was included in the plot protocol only because `WorkflowWorkspaceRightColumn` accesses it through the combined `WorkbenchWorkspaceProviding` protocol. Exit condition: remove from `WorkbenchPlottingStore` at Gate 7.7.
+`currentRunTrace` has been removed from `WorkbenchPlottingStore`. It now lives in `WorkbenchRunTraceProviding`, a dedicated protocol for the Warning Display / Run Trace module. `WorkbenchWorkspaceProviding` composes `WorkbenchPlottingStore` and `WorkbenchRunTraceProviding`, so consumers that access `currentRunTrace` through the workspace-level protocol are unaffected. Plot System no longer exposes run-trace state through the plot protocol.
+
+### Main Board Layout is Outside Plot System
+
+`WorkflowWorkspaceShell`, `WorkflowWorkspaceLeftColumn`, and `WorkflowWorkspaceRightColumn` are Main Board shell files that own column structure and ViewBuilder slot placement. They are not Plot System components:
+
+- `WorkflowWorkspaceShell` passes `plotControls` as a slot; it does not construct workflow-specific plot controls itself.
+- Shell files must not import or directly manipulate `TabRenderState` / `TabRenderManager` internals.
+- `WorkbenchPlotCanvas` is an interaction and display surface, not a canonical state owner. It must not store `TabRenderState`, `TabRenderManager`, `titleOverride`, `legendPoint`, `seriesOrder`, or workflow store types.
+- `TabRenderManager` / `TabRenderState` are Plot Preservation canonical state.
+- `WorkbenchRenderPipeline` and renderers consume input and produce image/layout/manifest output; they must not mutate workflow store state.
 
 ### legendAnchor Pack Coverage Gap
 
