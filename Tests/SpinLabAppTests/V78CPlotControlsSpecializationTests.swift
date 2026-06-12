@@ -29,8 +29,11 @@ import Testing
 // MARK: - Source helpers
 
 private func loadWorkbenchSource(_ filename: String) throws -> String {
-    let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-    let url = root.appending(path: "Sources/SpinLabApp/Features/Workbench/\(filename)")
+    let base = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()   // SpinLabAppTests
+        .deletingLastPathComponent()   // Tests
+        .deletingLastPathComponent()   // repo root
+    let url = base.appendingPathComponent("Sources/SpinLabApp/Features/Workbench/\(filename)")
     return try String(contentsOf: url, encoding: .utf8)
 }
 

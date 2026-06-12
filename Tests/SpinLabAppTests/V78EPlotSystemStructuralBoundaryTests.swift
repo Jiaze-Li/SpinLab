@@ -105,6 +105,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
                 }
             }
         }
+        #expect(inPlottingStore, "protocol WorkbenchPlottingStore was not found — scan never ran")
     }
 
     @Test("WorkbenchRunTraceProviding is a distinct protocol separate from WorkbenchPlottingStore")
@@ -223,30 +224,37 @@ struct V78EPlotSystemStructuralBoundaryTests {
     @Test("WorkbenchPlotCanvas Copy PNG block does not call title/legend/style mutation callbacks")
     func copyPNGBlockDoesNotCallMutationCallbacks() throws {
         let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift")
-        // Locate the onCopyPNG usage region and verify mutation callbacks are not called there.
-        // Strategy: find each line that calls onCopyPNG, then verify the surrounding block
-        // does not invoke the mutation callbacks within the same context-menu closure.
+        // Locate the Copy PNG context menu block (starting at .contextMenu or Menu("Copy PNG"))
+        // and verify that no mutation callbacks are called inside it.
+        // Starting from onCopyPNG stored-property declaration would scan too much of the file;
+        // anchoring to the view-body context menu block is precise.
         let lines = src.components(separatedBy: "\n")
         var inCopyPNGBlock = false
         var copyBraceDepth = 0
-        let mutationCallbacks = ["onEditTitle", "onLegendDrag", "onFontSizeChange"]
+        let mutationCallbacks = [
+            "onEditTitle", "onEditXLabel", "onEditYLabel", "onEditLegendLabel",
+            "onFontSizeChange", "onStyleOverrideChange", "onLegendDrag",
+            "onTogglePointLabelVisibility"
+        ]
 
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if !inCopyPNGBlock && trimmed.contains("onCopyPNG") {
+            // Enter the block at the .contextMenu opening or the Menu("Copy PNG") line.
+            if !inCopyPNGBlock && (trimmed.hasPrefix(".contextMenu") || trimmed.hasPrefix("Menu(\"Copy PNG\")")) {
                 inCopyPNGBlock = true
                 copyBraceDepth = 0
             }
             if inCopyPNGBlock {
                 copyBraceDepth += line.filter { $0 == "{" }.count
                 copyBraceDepth -= line.filter { $0 == "}" }.count
-                // Check for mutation callbacks being called (not just declared as properties)
+                // Detect call sites (not stored-property declarations).
                 for callback in mutationCallbacks {
-                    if trimmed.contains("\(callback)(") || trimmed.contains("\(callback)?.(") {
-                        Issue.record("Copy PNG block must not call \(callback) — found: \(trimmed)")
+                    if trimmed.contains("\(callback)(") || trimmed.contains("\(callback)?(") {
+                        Issue.record("Copy PNG context menu block must not call \(callback) — found: \(trimmed)")
                     }
                 }
-                if copyBraceDepth < 0 {
+                // Exit when brace depth returns to zero (block closed).
+                if copyBraceDepth <= 0 {
                     inCopyPNGBlock = false
                 }
             }
