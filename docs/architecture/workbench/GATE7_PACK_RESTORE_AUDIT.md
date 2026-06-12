@@ -380,7 +380,7 @@ These tests must be in place before any Gate 7.6 runtime extraction begins:
 
 ### Deferred debt
 
-- `selectionReader` bridge removal (Gate 7.2 deferred) — awaits this gate.
+- `selectionReading` typed bridge removal (Gate 7.7B migrated from raw `selectionReader` closure to typed `SelectionReading` protocol; removal still deferred) — awaits Save / Pack Module cleanup.
 - XY `buildActiveChartMetrics()` returns `[]` — no metric extraction. Deferred post-7.6.
 - Scaling Law overlay render path — Gate 7.4 deferred.
 - Active-tab overlay rerender trigger into runtime — Gate 7.4 deferred.

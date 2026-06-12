@@ -238,9 +238,9 @@ Summary:
 
 | Gate | Module / boundary name | Classification from Gate 3 | Target owner | Notes |
 |---|---|---|---|---|
-| 7.0 | Main Search extraction handoff audit | docs-only | n/a | Completed handoff audit; no runtime extraction started. Gate 7.1A is the next safe runtime step. |
+| 7.0 | Main Search extraction handoff audit | docs-only | n/a | Completed handoff audit; no runtime extraction. Gate 7.1 is complete. |
 | 7.1 | Main Search | Common module | Common Search module | Canonical search state is already centralized; finish runtime extraction while preserving the explicit restore bridge and pack compatibility. |
-| 7.2 | Selection | Boundary debt → Module-owned | Common Selection module | Complete. `WorkbenchSelectionRuntime` is the canonical owner. Workflow-local selectionReader closures are non-canonical compatibility read surfaces. |
+| 7.2 | Selection | Boundary debt → Module-owned | Common Selection module | Complete. `WorkbenchSelectionRuntime` is the canonical owner. Workflow-local `selectionReading` typed bridge is the non-canonical compatibility read surface (migrated from raw closure to typed `SelectionReading` protocol in Gate 7.7B). |
 | 7.3 | Secondary Input Search | Optional module candidate | Common auxiliary-slot Secondary Input Search module | Complete. `WorkbenchSecondaryInputSearchRuntime` is the canonical slot-state owner. `ThreeOmegaWorkspaceStore` retains workflow semantics and forwarding compatibility. |
 | 7.4 | Analysis Overlay | Optional module candidate | Common Analysis Overlay module | Complete. `WorkbenchAnalysisOverlayRuntime` owns overlay IDs and chip display labels. `ThreeOmegaWorkspaceStore` retains snapshot content, rendering semantics, and active-tab rerender trigger. |
 | 7.5 | Save to Library / Save Metadata Projection | Boundary debt | Split: common save writer + Assembly-owned semantic projection | Save writer is common; metric meaning, units, overrides, and semantic projection stay Assembly-owned. |
@@ -254,8 +254,7 @@ Summary:
 - Status: complete, docs-only
 - Source audit file: `docs/architecture/workbench/GATE7_MAIN_SEARCH_HANDOFF.md`
 - Purpose: record the exact canonical Main Search ownership map, workflow-local mirror map, bridge state, restore paths, and test coverage that must remain intact before any runtime extraction begins.
-- Next runtime step: Gate 7.1A, which should stay read-only and boundary-preserving until selection and pack/restore dependencies are stable.
-- Runtime status: Gate 7.1 runtime extraction has not started.
+- Gate 7.1 is complete.
 
 #### Gate 7.1 - Main Search
 
@@ -274,10 +273,10 @@ Summary:
 - Source Gate 3 audit section: `Selection`
 - Classification: `Boundary debt` → `Module-owned — common module`
 - Gate 3 finding: the run-scoped selected-hit read surface existed, but selected IDs still lived in workflow stores and the denominator bridge remained tied to workflow-local search mirrors.
-- Outcome: `WorkbenchSelectionRuntime` is the canonical owner of selected IDs and all selection mutations. Workflow stores carry only read-only `selectionReader` closures injected by `WorkbenchFeatureStore` — non-canonical compatibility read surfaces for pack serialization and analysis denomination only. Select-all denominator is passed explicitly to `selectAll(for:denominator:)` by the facade. Pack restore writes selected IDs through `seedSelection()` → `seed()`. `WorkbenchSelectedHitsSnapshot` remains the run-scoped analysis input.
+- Outcome: `WorkbenchSelectionRuntime` is the canonical owner of selected IDs and all selection mutations. Workflow stores hold a `weak var selectionReading: (any SelectionReading)?` bridge injected by `WorkbenchFeatureStore` — a non-canonical typed read surface for pack serialization and analysis denomination only. (Gate 7.7B migrated this from a raw `selectionReader: (() -> Set<String>)?` closure to the typed `SelectionReading` protocol.) Select-all denominator is passed explicitly to `selectAll(for:denominator:)` by the facade. Pack restore writes selected IDs through `seedSelection()` → `seed()`. `WorkbenchSelectedHitsSnapshot` remains the run-scoped analysis input.
 - Prerequisite bridges/tests confirmed green: `V537WorkbenchSelectionShellTests` (7 tests), `V537WorkbenchSelectedHitsSnapshotTests`, `V538SelectedHitsBridgeAuditTests`, `V537WorkbenchSearchMirrorTests`, `V537PackRestoreModuleBoundaryTests`, `V537AnalysisLifecycleBoundaryTests`, `V537SaveModuleBoundaryTests` — 90 targeted tests passed.
 - Full suite closeout: 1114 swift-testing tests passed, 0 failures. `swift test` exit code 1 is a known artifact of the mixed XCTest + Swift Testing runner; `Test Suite 'All tests' passed` was confirmed in output and no `✖` symbols appeared. `check_required_actions.sh` clean.
-- Remaining deferred work: `selectionReader` bridge removal awaits Save / Pack Module (Gate 7.5 / 7.6); `cachedSearchResults` rename deferred until pack `CodingKey` backward-compatibility handling is in place.
+- Remaining deferred work: `selectionReading` typed bridge removal awaits Save / Pack Module cleanup; `cachedSearchResults` rename deferred until pack `CodingKey` backward-compatibility handling is in place.
 
 #### Gate 7.3 - Secondary Input Search
 

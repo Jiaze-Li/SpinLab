@@ -16,7 +16,7 @@ Future work after Gate 7.9 should be runtime validation or bug fix unless a new 
 |---|---|---|---|
 | Main Board Layout | `WorkflowWorkspaceShell`, left/right column views | Shell — outside all module groups | Stable. Shell passes plot controls as a ViewBuilder slot; does not own module state. |
 | Main Search | `WorkbenchMainSearchRuntime` via `WorkbenchFeatureStore` facade | Common module | Runtime extracted. `cachedSearchResults` retained as compatibility bridge. |
-| Selection | `WorkbenchSelectionRuntime` | Common module | Runtime extracted (Gate 7.2). Workflow-local `selectionReader` closures are non-canonical read surfaces. |
+| Selection | `WorkbenchSelectionRuntime` | Common module | Runtime extracted (Gate 7.2). Workflow-local `selectionReading` typed bridge is a non-canonical read surface (migrated from closure to typed protocol in Gate 7.7B). |
 | Secondary Input Search | `WorkbenchSecondaryInputSearchRuntime` (slot state), `ThreeOmegaWorkspaceStore` (workflow semantics) | Optional module candidate | Runtime extracted (Gate 7.3). Current live instance: 3ω `rt` slot. |
 | Analysis Overlay | `WorkbenchAnalysisOverlayRuntime` (overlay IDs, chip labels), `ThreeOmegaWorkspaceStore` (snapshot content, rendering) | Optional module candidate | Runtime extracted (Gate 7.4). Session-only; no pack persistence. |
 | Save to Library | `WorkbenchSaveCoordinating` (coordinator), workflow stores (metric projection) | Boundary debt — save writer common, semantics Assembly-owned | Coordinator extracted (Gate 7.5). Raw `PendingMetricEntry` bridge retained. |
@@ -33,7 +33,7 @@ Future work after Gate 7.9 should be runtime validation or bug fix unless a new 
 |---|---|---|
 | 7.0 | Main Search extraction handoff audit | Docs-only. Bridge inventory and forbidden-change map recorded. |
 | 7.1 | Main Search | `WorkbenchMainSearchRuntime` is canonical owner. `cachedSearchResults` retained as compatibility bridge. |
-| 7.2 | Selection | `WorkbenchSelectionRuntime` is canonical owner. `selectionReader` closures are non-canonical read surfaces. |
+| 7.2 | Selection | `WorkbenchSelectionRuntime` is canonical owner. Workflow-local `selectionReading` typed bridge (`weak var selectionReading: (any SelectionReading)?`) is the non-canonical read surface. |
 | 7.3 | Secondary Input Search | `WorkbenchSecondaryInputSearchRuntime` owns all slot state for the `rt` slot. `ThreeOmegaWorkspaceStore` retains workflow semantics. |
 | 7.4 | Analysis Overlay | `WorkbenchAnalysisOverlayRuntime` owns overlay IDs and chip display labels. Workflow retains snapshot content and rendering semantics. |
 | 7.5 | Save to Library / Save Metadata Projection | `WorkbenchSaveCoordinating` protocol extracts shared async orchestration. Metric definitions and override policy remain Assembly-owned. |
@@ -50,7 +50,7 @@ These are intentionally retained. They are not debt to eliminate before Gate 8.
 | Bridge | Location | Why retained |
 |---|---|---|
 | `cachedSearchResults` mirror | Workflow stores | Selection denominator; pack compatibility. Rename deferred pending `CodingKey` handling. |
-| Workflow-local `selectionReader` closures | AHE / XY / 3ω workspace stores | Non-canonical read surfaces for pack serialization and analysis denomination. Removal awaits Save / Pack Module cleanup. |
+| Workflow-local `selectionReading` typed bridge | AHE / XY / 3ω workspace stores | `weak var selectionReading: (any SelectionReading)?` injected by `WorkbenchFeatureStore`; `WorkbenchSelectionRuntime` conforms to `SelectionReading`. Non-canonical read surface for pack serialization and analysis denomination. Removal awaits Save / Pack Module cleanup. |
 | Workflow-local Assembly-owned plot binding endpoints | Workflow stores (title defaults, `stackOffsetMultiplier`, `minGapFraction`, AHE controls) | Assembly-owned semantics intentionally in workflow stores per Gate 7.8 audit. |
 | Raw `PendingMetricEntry` save metadata bridge | `buildActiveChartMetrics()` per workflow | Untyped bridge to common save writer. Typed projection is the deferred target. |
 | Secondary input restore bridge (`cachedRTFilePath` derivation) | `ThreeOmegaWorkspaceStore` restore path | Derived from `selectedRTHit`; standalone rebuild not implemented; restore path confirmed correct. |
