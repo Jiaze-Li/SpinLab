@@ -1,5 +1,15 @@
 import SwiftUI
 
+// MARK: - WorkbenchRunTraceProviding
+
+/// Read surface for the most recent run trace.
+/// Not part of the Plot System — compose into workspace-level protocols only.
+@MainActor
+protocol WorkbenchRunTraceProviding: AnyObject {
+    /// 最近一次运行的 trace（nil = 尚未运行）。
+    var currentRunTrace: WorkbenchRunTraceProjection? { get }
+}
+
 // MARK: - WorkbenchPlottingStore
 
 /// 所有 workflow workspace store 必须实现的 canvas 交互合约。
@@ -12,8 +22,6 @@ protocol WorkbenchPlottingStore: AnyObject {
     var seriesRenderMode: SeriesRenderMode { get set }
     /// Chart style overrides (font sizes, tick density).
     var chartStyleOverrides: [String: String] { get set }
-    /// 最近一次运行的 trace（nil = 尚未运行）。
-    var currentRunTrace: WorkbenchRunTraceProjection? { get }
     /// 用户拖拽图例后回调，point 为 plot 归一化坐标（x,y ∈ [0,1]，Y-up）。
     func updateLegendPoint(_ point: CGPoint)
     /// 用户行内编辑图表标题后回调。

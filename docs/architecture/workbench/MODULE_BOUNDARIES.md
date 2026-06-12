@@ -162,6 +162,10 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Tests currently protecting it: `V531SeriesRenderModeTests`, `V532WorkbenchRenderPipelineTests`, `V534LegendDimensionResolverTests`, `V535PointLabelVisibilityTests`, `V535TabRenderStatePackTests`, `V535CopyPNGScaleMenuTests`, `V536CurveDragOrderTests`, `V537WorkflowShellPhase4Tests`, `V563WorkflowStateBoundaryTests`.
 - Extraction readiness: high for display/preservation contracts; medium for controls because workflow stores still host some control state.
 - Risks if extracted too early: moving workflow semantics into common plot code, breaking tab override survival, using sample ID instead of sourceRef for reorder, serializing render output instead of rerendering.
+- Sub-module structure (Gate 7.8 audit): Plot System is a module group with three distinct sub-modules:
+  - **Plot Display**: render output (`tabOutputs`, projections `activeImageData` / `activeLayout` / `activeManifestPayload`), active tab switching, and shared display settings (`showPlotGrid`, `seriesRenderMode`, `chartStyleOverrides`, `legendAnchor`). Canonical owner: `TabRenderManager`.
+  - **Plot Controls**: user-facing display override input components. `WorkbenchPlotControlsPanel` is the common container View. `WorkbenchStandardPlotControls` is the shared two-row layout for multi-tab stacking workflows (XY Rotation, 3ω). `WorkbenchTitleTemplateField` is the shared title input. AHE uses a workflow-local `AHEPlotControlsPanel` — a legitimate specialization for a single-tab workflow with no stacking. Binding targets are either `TabRenderManager`-owned (Plot Preservation) or workflow-store-owned (Assembly-owned display parameters).
+  - **Plot Preservation**: per-tab display overrides and pack round-trip. `TabRenderState` stores legend position, title/axis/label overrides, series order, and point label visibility. Canonical owner: `TabRenderManager`. `TabRenderManager` is the **existing extracted** Plot Preservation owner — no new top-level module is introduced by Gate 7.8.
 
 ### Pack / Restore
 
@@ -266,6 +270,13 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Tests currently protecting it: `V323PlotParameterOverrideTests`, `V328PlotUXFreezeTests`, `V531SeriesRenderModeTests`, `V534LegendDimensionResolverTests`, `V537WorkflowShellPhase4Tests`, `V563WorkflowStateBoundaryTests`.
 - Extraction readiness: medium-high. Common controls exist; workflow stores still host binding endpoints.
 - Risks if extracted too early: default workflow titles lost, display overrides leaking into manifest semantics, tab override survival regression.
+- Title template — three-layer split (Gate 7.8 audit):
+  - **Layer 1 — default title template**: Workflow Assembly-owned. Each workflow declares its own token set reflecting which metadata fields are meaningful. AHE/XY default: `#tab #device #sample`; 3ω default: `#tab #method #device #sample #氧壓 #能量`. These defaults must not migrate into common Plot Controls without a corresponding Assembly declaration contract.
+  - **Layer 2 — editable title template state**: Boundary debt; candidate for future common Plot Controls module ownership. Current location: `titleTemplate: String` on each workflow store, serialized in all three pack configs. Extraction gate: (1) boundary tests proving title template changes do not mutate search/selection/ingestion state; (2) backward-compatible `CodingKeys` in all three pack configs. No code moves until both gates are met.
+  - **Layer 3 — inline title override**: `TabRenderState.titleOverride`. Per-tab canvas-edit result. Plot Preservation-owned by `TabRenderManager`. Already correctly owned. Resolution order: Layer 2 template → `WorkbenchTitleResolver.resolve(template:tokens:)` → Layer 3 `titleOverride` per tab.
+- `stackOffsetMultiplier` / `minGapFraction` — ownership (Gate 7.8 audit): These are **Workflow Assembly-owned plot semantic parameters** exposed through common control UI. Their defaults, applicability, and numeric meaning are workflow-specific: AHE declares `stackOffsetMultiplier = 0.0` (no stacking) and does not expose these controls; XY and 3ω declare non-zero defaults matched to their data ranges. This document must not classify these as generic Plot System-owned state unless a future gate explicitly revises this claim. `WorkbenchStandardPlotControls` is a common View that accepts Bindings to these Assembly-owned fields; it does not own the values.
+- Control-path specialization (Gate 7.8 audit): AHE uses a workflow-local `AHEPlotControlsPanel` (defined in `AHEWorkspaceView.swift`); XY Rotation and 3ω use `WorkbenchStandardPlotControls`. This is a **legitimate specialization**: AHE is single-tab with no stacking, so the tab picker and stack/gap controls do not apply. Rule: workflows without multi-tab stacking declare a custom plot controls panel; workflows with multi-tab stacking use `WorkbenchStandardPlotControls`.
+- `legendAnchor` pack coverage gap (Gate 7.8 audit): `legendAnchor` is stored in `TabRenderManager.legendAnchor` and serialized only in `ThreeOmegaPackConfig` (`plotLegendAnchor`). `AHEPackConfig` and `XYRotationPackConfig` do not include it, so `legendAnchor` resets to `""` after pack restore for AHE and XY. This is a **documentation and coverage gap only** — no pack schema change is required at Gate 7.8.
 
 ### Metric Extraction / Metric Override / Save Metadata
 
@@ -495,7 +506,7 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
   - `cachedSampleKeys`
   - `cachedConditionsBySampleKey`
   - `_titleTokens`
-  - `currentRunTrace`
+  - `currentRunTrace` (surfaced via `WorkbenchRunTraceProviding`; removed from `WorkbenchPlottingStore` in Gate 7.8D)
   - `analysisMessage` / `plotMessage`
   - `persistenceOutcome`
 - Forbidden reverse dependencies:
@@ -661,6 +672,24 @@ Phase 5F-3 boundary tests: see [`modules/PACK_RESTORE.md` § Boundary Test Plan]
 - Forbidden reverse dependencies:
   - Canvas must not own canonical plot output or ingestion state.
   - Canvas must not mutate search results or library storage state.
+
+### WorkbenchPlottingStore — currentRunTrace (resolved Gate 7.8D)
+
+`WorkbenchPlottingStore` is the canvas interaction protocol. It correctly delegates legend drag, title/axis/label edits, point label toggles, and shared display settings to `TabRenderManager`.
+
+`currentRunTrace` has been removed from `WorkbenchPlottingStore` in Gate 7.8D:
+
+- `currentRunTrace: WorkbenchRunTraceProjection?` now lives exclusively in `WorkbenchRunTraceProviding`, a dedicated read surface for the Warning Display / Run Trace module.
+- `WorkbenchWorkspaceProviding` composes both `WorkbenchPlottingStore` and `WorkbenchRunTraceProviding`, so all workspace consumers that previously accessed `currentRunTrace` through the combined protocol continue to work without change.
+- Plot System no longer exposes run-trace state through the plot protocol.
+
+### Main Board Layout is Outside Plot System
+
+`WorkflowWorkspaceShell`, `WorkflowWorkspaceLeftColumn`, and `WorkflowWorkspaceRightColumn` are Main Board shell files that own left/right column structure and ViewBuilder slots. They are not part of the Plot System module group:
+
+- Shell files pass `plotControls` as a ViewBuilder slot; they do not construct workflow-specific plot controls themselves.
+- Shell files must not import or directly manipulate `TabRenderState` / `TabRenderManager` internals.
+- Slot placement and column structure are Main Board / shell concerns, not Plot System concerns.
 
 ### Series Reorder Boundary
 
