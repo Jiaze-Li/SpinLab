@@ -33,8 +33,8 @@ struct WorkbenchPlotCanvas: View {
     @State private var canvasSize: CGSize = .zero
     /// Screen-space bounding rect of the legend drag preview box (nil when not dragging).
     @State private var dragPreviewLegendBoxScreenRect: CGRect? = nil
-    /// Normalized offset (plot-space, Y-up) from legend origin to cursor at drag start.
-    @State private var dragGrabOffsetNorm: CGSize? = nil
+    /// CG-space offset from legend origin to cursor at drag start.
+    @State private var dragGrabOffsetCG: CGSize? = nil
     /// Last valid adjusted normalized point during an active drag.
     @State private var lastValidDragNorm: CGPoint? = nil
     /// Pixel size of the current rendered PNG used for coordinate conversion.
@@ -71,9 +71,9 @@ struct WorkbenchPlotCanvas: View {
                                 start: start,
                                 current: current,
                                 fittedRect: fitted,
-                                existingGrabOffset: dragGrabOffsetNorm
+                                existingGrabOffset: dragGrabOffsetCG
                             ) else { return }
-                            dragGrabOffsetNorm = step.grabOffset
+                            dragGrabOffsetCG = step.grabOffset
                             lastValidDragNorm = step.adjustedNorm
                             dragPreviewLegendBoxScreenRect = step.previewRect
                         },
@@ -81,7 +81,7 @@ struct WorkbenchPlotCanvas: View {
                             if dragPreviewLegendBoxScreenRect != nil {
                                 let last = lastValidDragNorm
                                 dragPreviewLegendBoxScreenRect = nil
-                                dragGrabOffsetNorm = nil
+                                dragGrabOffsetCG = nil
                                 lastValidDragNorm  = nil
                                 if let callback = onLegendDrag, let finalNorm = last {
                                     callback(finalNorm)
@@ -141,30 +141,60 @@ struct WorkbenchPlotCanvas: View {
         start: CGPoint,
         current: CGPoint,
         fittedRect: CGRect,
-        existingGrabOffset: CGSize?
+        existingGrabOffset: CGSize?   // CG-space offset: cursor minus legend origin at drag start
     ) -> LegendDragStep? {
-        guard let cursorNorm = plotNormalized(location: current, fittedRect: fittedRect) else { return nil }
+        guard let layout, let cgBox = layout.legendBoxRect else { return nil }
+
+        let cursorCG = screenToCG(current, fittedRect: fittedRect)
         let grab: CGSize
         if let existingGrabOffset {
             grab = existingGrabOffset
         } else {
-            let startNorm = plotNormalized(location: start, fittedRect: fittedRect) ?? cursorNorm
-            let origin = currentLegendOriginNorm()
-            grab = CGSize(
-                width: startNorm.x - origin.x,
-                height: startNorm.y - origin.y
-            )
+            let startCG  = screenToCG(start, fittedRect: fittedRect)
+            let originCG = currentLegendOriginCG()
+            grab = CGSize(width: startCG.x - originCG.x, height: startCG.y - originCG.y)
         }
-        let adjusted = CGPoint(
-            x: min(max(cursorNorm.x - grab.width,  0), 1),
-            y: min(max(cursorNorm.y - grab.height, 0), 1)
+
+        let rawOriginCG = CGPoint(x: cursorCG.x - grab.width, y: cursorCG.y - grab.height)
+
+        // Clamp so the translated legendBoxRect stays within plotRect.
+        // Compute fixed offsets from current origin to box edges, then invert to get origin bounds.
+        let currentOriginCG = currentLegendOriginCG()
+        let boundary = layout.plotRect
+        let clampedOriginCG = CGPoint(
+            x: min(max(rawOriginCG.x, boundary.minX - (cgBox.minX - currentOriginCG.x)),
+                                      boundary.maxX - (cgBox.maxX - currentOriginCG.x)),
+            y: min(max(rawOriginCG.y, boundary.minY - (cgBox.minY - currentOriginCG.y)),
+                                      boundary.maxY - (cgBox.maxY - currentOriginCG.y))
         )
-        guard let previewRect = translatedLegendBoxRect(for: adjusted, fittedRect: fittedRect) else { return nil }
-        return LegendDragStep(
-            grabOffset: grab,
-            adjustedNorm: adjusted,
-            previewRect: previewRect
+
+        let dx = clampedOriginCG.x - currentOriginCG.x
+        let dy = clampedOriginCG.y - currentOriginCG.y
+        let translatedBoxCG = cgBox.offsetBy(dx: dx, dy: dy)
+
+        let previewRect = WorkbenchPlotLayout.cgToScreen(
+            translatedBoxCG, fittedIn: fittedRect,
+            rendererWidth: layout.rendererSize.width, rendererHeight: layout.rendererSize.height
         )
+
+        // Convert clamped CG origin back to normalized for persistence
+        let pr = layout.plotRect
+        let adjustedNorm = CGPoint(
+            x: (clampedOriginCG.x - pr.minX) / pr.width,
+            y: (clampedOriginCG.y - pr.minY) / pr.height
+        )
+
+        return LegendDragStep(grabOffset: grab, adjustedNorm: adjustedNorm, previewRect: previewRect)
+    }
+
+    // Converts a screen point to CG renderer space (origin bottom-left, Y up).
+    private func screenToCG(_ point: CGPoint, fittedRect: CGRect) -> CGPoint {
+        guard let layout, fittedRect.width > 0, fittedRect.height > 0 else { return .zero }
+        let scaleX = fittedRect.width  / layout.rendererSize.width
+        let scaleY = fittedRect.height / layout.rendererSize.height
+        let cgX = (point.x - fittedRect.minX) / scaleX
+        let cgY = layout.rendererSize.height - (point.y - fittedRect.minY) / scaleY
+        return CGPoint(x: cgX, y: cgY)
     }
 
     @ViewBuilder
@@ -189,53 +219,12 @@ struct WorkbenchPlotCanvas: View {
         return screenRect.contains(location)
     }
 
-    private func currentLegendOriginNorm() -> CGPoint {
-        guard let layout, !layout.legendRows.isEmpty else {
-            return CGPoint(x: 0.5, y: 0.5)
-        }
-        let pr = layout.plotRect
-        let row0 = layout.legendRows[0]
-        let nx = (row0.cgOriginX - pr.minX) / pr.width
-        let cgOriginY = row0.cgRowY + WorkbenchPlotLayout.legendRowH * 0.4
-        let ny = (cgOriginY - pr.minY) / pr.height
-        return CGPoint(x: min(max(nx, 0), 1), y: min(max(ny, 0), 1))
-    }
-
-    // MARK: - Legend box translation helpers
+    // MARK: - Legend origin helpers
 
     func currentLegendOriginCG() -> CGPoint {
         guard let layout, !layout.legendRows.isEmpty else { return .zero }
         let row0 = layout.legendRows[0]
         return CGPoint(x: row0.cgOriginX, y: row0.cgRowY + WorkbenchPlotLayout.legendRowH * 0.4)
-    }
-
-    func legendOriginCG(for normalized: CGPoint) -> CGPoint {
-        let pr: CGRect
-        if let layout {
-            pr = layout.plotRect
-        } else {
-            let opts = WorkbenchChartRenderer.Options()
-            let rSize = rendererPixelSize
-            pr = CGRect(
-                x: opts.paddingLeft, y: opts.paddingBottom,
-                width: rSize.width - opts.paddingLeft - opts.paddingRight,
-                height: rSize.height - opts.paddingTop - opts.paddingBottom
-            )
-        }
-        return CGPoint(x: pr.minX + normalized.x * pr.width, y: pr.minY + normalized.y * pr.height)
-    }
-
-    func translatedLegendBoxRect(for target: CGPoint, fittedRect: CGRect) -> CGRect? {
-        guard let layout, let cgBox = layout.legendBoxRect else { return nil }
-        let currentOrigin = currentLegendOriginCG()
-        let targetOrigin  = legendOriginCG(for: target)
-        let dx = targetOrigin.x - currentOrigin.x
-        let dy = targetOrigin.y - currentOrigin.y
-        let translatedCG = cgBox.offsetBy(dx: dx, dy: dy)
-        return WorkbenchPlotLayout.cgToScreen(
-            translatedCG, fittedIn: fittedRect,
-            rendererWidth: layout.rendererSize.width, rendererHeight: layout.rendererSize.height
-        )
     }
 
     // MARK: - Tap hit-testing (point dot toggle only)

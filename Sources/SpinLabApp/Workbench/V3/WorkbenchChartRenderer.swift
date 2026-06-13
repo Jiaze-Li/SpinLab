@@ -53,7 +53,7 @@ struct WorkbenchChartRenderer {
 
     // MARK: - Public
 
-    func renderPNG(payload: WorkbenchPlotPayload, options: Options = .init(), style: WorkbenchChartStyle = .init()) throws -> Data {
+    func renderPNG(payload: WorkbenchPlotPayload, options: Options = .init(), style: WorkbenchChartStyle = .init(), layout: WorkbenchPlotLayout? = nil) throws -> Data {
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
         let scale = max(options.pixelScale, 1)
@@ -70,7 +70,7 @@ struct WorkbenchChartRenderer {
         ) else { throw RendererError.contextCreationFailed }
 
         ctx.scaleBy(x: scale, y: scale)
-        drawCanvas(in: ctx, payload: payload, options: options, style: style)
+        drawCanvas(in: ctx, payload: payload, options: options, style: style, externalLayout: layout)
 
         guard let cgImage = ctx.makeImage() else { throw RendererError.imageCreationFailed }
 
@@ -114,7 +114,7 @@ struct WorkbenchChartRenderer {
 
     // MARK: - Canvas layout
 
-    private func drawCanvas(in ctx: CGContext, payload: WorkbenchPlotPayload, options: Options, style: WorkbenchChartStyle) {
+    private func drawCanvas(in ctx: CGContext, payload: WorkbenchPlotPayload, options: Options, style: WorkbenchChartStyle, externalLayout: WorkbenchPlotLayout? = nil) {
         let opts = resolvedOptions(payload: payload, base: options, style: style)
         let w = CGFloat(opts.width)
         let h = CGFloat(opts.height)
@@ -130,15 +130,21 @@ struct WorkbenchChartRenderer {
         ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
         ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
 
-        // Compute layout — single source of truth for all text-element positions
-        var legendNormalizedPoint: CGPoint? = nil
-        if let lxStr = payload.styleParams["legendX"], let lyStr = payload.styleParams["legendY"],
-           let lx = Double(lxStr), let ly = Double(lyStr) {
-            legendNormalizedPoint = CGPoint(x: lx, y: ly)
+        // Use the pipeline-provided layout when available so PNG and canvas share the same
+        // legend geometry. Fall back to local computation only when called standalone.
+        let layout: WorkbenchPlotLayout
+        if let externalLayout {
+            layout = externalLayout
+        } else {
+            var legendNormalizedPoint: CGPoint? = nil
+            if let lxStr = payload.styleParams["legendX"], let lyStr = payload.styleParams["legendY"],
+               let lx = Double(lxStr), let ly = Double(lyStr) {
+                legendNormalizedPoint = CGPoint(x: lx, y: ly)
+            }
+            layout = WorkbenchPlotLayout.compute(
+                options: opts, payload: payload, legendPoint: legendNormalizedPoint, style: style
+            )
         }
-        let layout = WorkbenchPlotLayout.compute(
-            options: opts, payload: payload, legendPoint: legendNormalizedPoint, style: style
-        )
 
         // Title
         let title = payload.title.isEmpty ? payload.workflowDisplayName : payload.title

@@ -148,7 +148,7 @@ enum WorkbenchRenderPipeline {
         // 10. Render PNG
         var optsWithHidden = opts
         optsWithHidden.hiddenPointLabelsBySeries = input.hiddenPointLabelsBySeries
-        let imageData = try renderer.renderPNG(payload: payload, options: optsWithHidden, style: chartStyle)
+        let imageData = try renderer.renderPNG(payload: payload, options: optsWithHidden, style: chartStyle, layout: layout)
 
         // 11. Build manifest payload with original data-column axis mapping
         var manifestPayload = payload

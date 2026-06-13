@@ -133,7 +133,9 @@ final class V4412LegendDragMathTests: XCTestCase {
             reverseSeriesForLegend: true,
             seriesReorderable: false
         )
-        let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: nil)
+        // Free-position at center so the legend can move in both X and Y without hitting
+        // the right-edge clamp that an anchor-mode top-right legend would immediately trigger.
+        let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: CGPoint(x: 0.5, y: 0.5))
         let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
 
         let start = CGPoint(x: 180, y: 160)
@@ -167,8 +169,9 @@ final class V4412LegendDragMathTests: XCTestCase {
 
     // MARK: - previewRect position correctness
 
-    /// Long label, top-right anchor: previewRect from legendDragStep must match
-    /// translatedLegendBoxRect computed independently via cgToScreen.
+    /// Long label, top-right anchor: previewRect from legendDragStep must match the
+    /// clamped-and-translated legendBoxRect computed independently via cgToScreen.
+    /// A very long label fills the plot horizontally; the clamp prevents overflow.
     func testPreviewRect_longLabel_topRight_matchesTranslatedBoxRect() {
         let label = "Very Long Label That Exceeds Default Legend Width Estimate Significantly"
         let series = [WorkbenchPlotSeries(label: label, x: [0.0, 1.0], y: [0.0, 1.0],
@@ -188,16 +191,24 @@ final class V4412LegendDragMathTests: XCTestCase {
         let row0 = layout.legendRows[0]
         let pr   = layout.plotRect
 
-        // Drag to (0.5, 0.5) in normalized space
+        // Drag to (0.5, 0.5). The label is wide enough that X is clamped — expected value
+        // must mirror the CG-space clamp that legendDragStep applies.
         let targetNorm = CGPoint(x: 0.5, y: 0.5)
         let currentOriginCG = CGPoint(x: row0.cgOriginX, y: row0.cgRowY + WorkbenchPlotLayout.legendRowH * 0.4)
-        let targetOriginCG  = CGPoint(x: pr.minX + targetNorm.x * pr.width,
+        let rawTargetCG     = CGPoint(x: pr.minX + targetNorm.x * pr.width,
                                        y: pr.minY + targetNorm.y * pr.height)
-        let dx = targetOriginCG.x - currentOriginCG.x
-        let dy = targetOriginCG.y - currentOriginCG.y
-        let translatedCG = cgBox.offsetBy(dx: dx, dy: dy)
+        let dxBoxMin = cgBox.minX - currentOriginCG.x
+        let dxBoxMax = cgBox.maxX - currentOriginCG.x
+        let dyBoxMin = cgBox.minY - currentOriginCG.y
+        let dyBoxMax = cgBox.maxY - currentOriginCG.y
+        let clampedCG = CGPoint(
+            x: min(max(rawTargetCG.x, pr.minX - dxBoxMin), pr.maxX - dxBoxMax),
+            y: min(max(rawTargetCG.y, pr.minY - dyBoxMin), pr.maxY - dyBoxMax)
+        )
+        let dx = clampedCG.x - currentOriginCG.x
+        let dy = clampedCG.y - currentOriginCG.y
         let expectedRect = WorkbenchPlotLayout.cgToScreen(
-            translatedCG, fittedIn: fitted,
+            cgBox.offsetBy(dx: dx, dy: dy), fittedIn: fitted,
             rendererWidth: layout.rendererSize.width, rendererHeight: layout.rendererSize.height
         )
 
@@ -205,7 +216,7 @@ final class V4412LegendDragMathTests: XCTestCase {
             start: startPointForNorm(targetNorm, layout: layout),
             current: startPointForNorm(targetNorm, layout: layout),
             fittedRect: fitted,
-            existingGrabOffset: CGSize(width: 0, height: 0)  // zero grab offset = cursor == legend origin
+            existingGrabOffset: CGSize(width: 0, height: 0)
         ) else {
             XCTFail("legendDragStep returned nil"); return
         }
