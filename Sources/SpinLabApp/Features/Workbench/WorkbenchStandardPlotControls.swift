@@ -96,7 +96,6 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
 
                 Text("Gap")
                     .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
                 TextField("0.15", value: $minGapFraction, format: .number)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 48)
@@ -130,7 +129,7 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
 
     @ViewBuilder
     private var labelOverrideRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 16) {
             if let cb = onTitleOverride {
                 LabelOverrideField(label: "Title", renderedDefault: renderedTitle, currentValue: activeTitleOverride, onCommit: { cb($0); onChange?() }, fieldMaxWidth: 200)
             }
@@ -230,7 +229,7 @@ struct LabelOverrideField: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Text(label).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize()
+            Text(label).font(.system(size: 12)).fixedSize()
             TextField("", text: $editText)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 12))
