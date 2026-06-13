@@ -29,7 +29,7 @@ Workbench modularization phases fall into three categories:
 
 ## Gate Plan
 
-Gate 5 is complete. Gate 6 readiness consumption is complete. Gate 7 remains the extraction branch.
+Gates 1 through 7 are complete. Gate 7.9 is the architecture closeout. Gate 8 remains the next planned validation dry run.
 
 | Gate | Status | Scope |
 |---|---|---|
@@ -40,10 +40,11 @@ Gate 5 is complete. Gate 6 readiness consumption is complete. Gate 7 remains the
 | Gate 4 | complete | Layout Audit |
 | Gate 5 | complete | Layout Refactor |
 | Gate 6 | complete | Readiness Consumption |
-| Gate 7 | planned | Module Extraction Program |
+| Gate 7 | complete | Module Extraction Program |
+| Gate 7.9 | complete | Workbench Architecture Closeout (docs) |
 | Gate 8 | planned | New Workflow Dry Run |
 
-Gate 1, Gate 2, Gate 2.1, Gate 3, Gate 4, Gate 5, and Gate 6 are closed out. Gate 7 remains the extraction branch. Gate 7 is still a container gate. Its extraction sequence is determined after Gate 3. Gate 3 follow-ups remain tracked in `MODULE_BOUNDARIES.md`.
+Gates 1 through 7 are closed out. Gate 7 completed the module extraction program across sub-gates 7.1–7.8. Gate 7.9 closes out the architecture documentation. Deferred runtime cleanup items and non-candidates are classified in `MODULE_BOUNDARIES.md` and `GATE7_WORKBENCH_ARCHITECTURE_CLOSEOUT.md`.
 
 ### Gate 2 - Workflow Assembly Audit & Contract Validation
 
@@ -223,12 +224,9 @@ Result:
 
 ### Gate 7 - Module Extraction Program
 
-Important:
+Status: complete (sub-gates 7.0–7.8 closed; Gate 7.9 docs closeout).
 
-- Gate 7 is still a container gate for runtime extraction and remains the next planned branch.
-- The extraction order below is the Gate 3 Final plan derived from `MODULE_BOUNDARIES.md`.
-- Gate 3 can still revise the plan if `MODULE_BOUNDARIES.md` changes again.
-- 3ω Scaling Law overlay belongs under Analysis Overlay as a Gate 7 validation case only; it is not standalone feature work.
+The extraction order below is the Gate 3 Final plan; all sub-gates are now closed. Deferred runtime cleanup items and non-candidates are recorded in `MODULE_BOUNDARIES.md` and `GATE7_WORKBENCH_ARCHITECTURE_CLOSEOUT.md`.
 
 ### Gate 3 Final / Gate 7 Extraction Plan
 
@@ -240,23 +238,23 @@ Summary:
 
 | Gate | Module / boundary name | Classification from Gate 3 | Target owner | Notes |
 |---|---|---|---|---|
-| 7.0 | Main Search extraction handoff audit | docs-only | n/a | Completed handoff audit; no runtime extraction started. Gate 7.1A is the next safe runtime step. |
+| 7.0 | Main Search extraction handoff audit | docs-only | n/a | Completed handoff audit; no runtime extraction. Gate 7.1 is complete. |
 | 7.1 | Main Search | Common module | Common Search module | Canonical search state is already centralized; finish runtime extraction while preserving the explicit restore bridge and pack compatibility. |
-| 7.2 | Selection | Boundary debt → Module-owned | Common Selection module | Complete. `WorkbenchSelectionRuntime` is the canonical owner. Workflow-local selectionReader closures are non-canonical compatibility read surfaces. |
+| 7.2 | Selection | Boundary debt → Module-owned | Common Selection module | Complete. `WorkbenchSelectionRuntime` is the canonical owner. Workflow-local `selectionReading` typed bridge is the non-canonical compatibility read surface (migrated from raw closure to typed `SelectionReading` protocol in Gate 7.7B). |
 | 7.3 | Secondary Input Search | Optional module candidate | Common auxiliary-slot Secondary Input Search module | Complete. `WorkbenchSecondaryInputSearchRuntime` is the canonical slot-state owner. `ThreeOmegaWorkspaceStore` retains workflow semantics and forwarding compatibility. |
 | 7.4 | Analysis Overlay | Optional module candidate | Common Analysis Overlay module | Complete. `WorkbenchAnalysisOverlayRuntime` owns overlay IDs and chip display labels. `ThreeOmegaWorkspaceStore` retains snapshot content, rendering semantics, and active-tab rerender trigger. |
 | 7.5 | Save to Library / Save Metadata Projection | Boundary debt | Split: common save writer + Assembly-owned semantic projection | Save writer is common; metric meaning, units, overrides, and semantic projection stay Assembly-owned. |
 | 7.6 | Pack / Restore | Boundary debt | Common Pack / Restore module | Explicit restore write map required; include secondary input search and keep restore rerender-only. |
 | 7.7 | Warning Display / Run Trace | Boundary debt | Split: common warning/trace display + Assembly-owned event sources | Centralize warning and trace projections without moving physics meaning into the display module. |
-| 7.8 | Plot System / Title-Style-Legend cleanup | Common module group | Common Plot System plus control modules | Conditional cleanup if needed; preserve tab override survival and keep Assembly-owned physics panels out. |
+| 7.8 | Plot System module group audit and structural guards | Common module group | Common Plot System plus control modules | Complete. Boundaries clarified; `currentRunTrace` removed from plot protocol; Main Board layout confirmed outside Plot System; structural guards added. |
+| 7.9 | Workbench Architecture Closeout | Docs | n/a | Complete. Roadmap updated; module boundary authority reframed; Gate 3 follow-ups classified; closeout doc added. |
 
 #### Gate 7.0 - Main Search extraction handoff audit
 
 - Status: complete, docs-only
 - Source audit file: `docs/architecture/workbench/GATE7_MAIN_SEARCH_HANDOFF.md`
 - Purpose: record the exact canonical Main Search ownership map, workflow-local mirror map, bridge state, restore paths, and test coverage that must remain intact before any runtime extraction begins.
-- Next runtime step: Gate 7.1A, which should stay read-only and boundary-preserving until selection and pack/restore dependencies are stable.
-- Runtime status: Gate 7.1 runtime extraction has not started.
+- Gate 7.1 is complete.
 
 #### Gate 7.1 - Main Search
 
@@ -275,10 +273,10 @@ Summary:
 - Source Gate 3 audit section: `Selection`
 - Classification: `Boundary debt` → `Module-owned — common module`
 - Gate 3 finding: the run-scoped selected-hit read surface existed, but selected IDs still lived in workflow stores and the denominator bridge remained tied to workflow-local search mirrors.
-- Outcome: `WorkbenchSelectionRuntime` is the canonical owner of selected IDs and all selection mutations. Workflow stores carry only read-only `selectionReader` closures injected by `WorkbenchFeatureStore` — non-canonical compatibility read surfaces for pack serialization and analysis denomination only. Select-all denominator is passed explicitly to `selectAll(for:denominator:)` by the facade. Pack restore writes selected IDs through `seedSelection()` → `seed()`. `WorkbenchSelectedHitsSnapshot` remains the run-scoped analysis input.
+- Outcome: `WorkbenchSelectionRuntime` is the canonical owner of selected IDs and all selection mutations. Workflow stores hold a `weak var selectionReading: (any SelectionReading)?` bridge injected by `WorkbenchFeatureStore` — a non-canonical typed read surface for pack serialization and analysis denomination only. (Gate 7.7B migrated this from a raw `selectionReader: (() -> Set<String>)?` closure to the typed `SelectionReading` protocol.) Select-all denominator is passed explicitly to `selectAll(for:denominator:)` by the facade. Pack restore writes selected IDs through `seedSelection()` → `seed()`. `WorkbenchSelectedHitsSnapshot` remains the run-scoped analysis input.
 - Prerequisite bridges/tests confirmed green: `V537WorkbenchSelectionShellTests` (7 tests), `V537WorkbenchSelectedHitsSnapshotTests`, `V538SelectedHitsBridgeAuditTests`, `V537WorkbenchSearchMirrorTests`, `V537PackRestoreModuleBoundaryTests`, `V537AnalysisLifecycleBoundaryTests`, `V537SaveModuleBoundaryTests` — 90 targeted tests passed.
 - Full suite closeout: 1114 swift-testing tests passed, 0 failures. `swift test` exit code 1 is a known artifact of the mixed XCTest + Swift Testing runner; `Test Suite 'All tests' passed` was confirmed in output and no `✖` symbols appeared. `check_required_actions.sh` clean.
-- Remaining deferred work: `selectionReader` bridge removal awaits Save / Pack Module (Gate 7.5 / 7.6); `cachedSearchResults` rename deferred until pack `CodingKey` backward-compatibility handling is in place.
+- Remaining deferred work: `selectionReading` typed bridge removal awaits Save / Pack Module cleanup; `cachedSearchResults` rename deferred until pack `CodingKey` backward-compatibility handling is in place.
 
 #### Gate 7.3 - Secondary Input Search
 
@@ -369,16 +367,20 @@ Summary:
 - Extraction risks: trace being committed on restore, warnings duplicating across reruns, save-side trace being confused with analysis-side trace, and session-only fields being serialized by mistake.
 - Acceptance criteria: warning and trace projections come from one common read/display owner; workflow stores shrink to typed event sources; restore leaves trace nil; duplicate-warning coalescing still behaves as it does now.
 
-#### Gate 7.8 - Plot System / Title-Style-Legend Cleanup if Needed
+#### Gate 7.8 - Plot System Module Group Audit and Structural Guards
 
+- Status: complete (7.8A–7.8E).
 - Source Gate 3 audit section: `Plot System` plus `Title / Style / Legend Controls`
 - Classification: `Module-owned — common module group within Plot System`
-- Actual Gate 3 finding: Plot System already owns render and preservation state, but workflow stores still host some binding endpoints for title, style, and legend controls; the geometry / fit range / scaling and phi-offset panels remain Assembly-owned and must stay out of this extraction.
-- Target owner: common Plot System plus title/style/legend control modules, with `TabRenderManager` remaining the single owner of render output and override state.
-- Required work: move the remaining workflow-local binding endpoints out of workflow stores; keep the common control modules focused on display overrides; preserve tab override survival; do not absorb Assembly-owned physics panels or default-axis meaning.
-- Prerequisite bridges/tests: `V537WorkflowShellPhase4Tests`, `V563WorkflowStateBoundaryTests`, `V531SeriesRenderModeTests`, `V534LegendDimensionResolverTests`, `V535PointLabelVisibilityTests`, `V535CopyPNGScaleMenuTests`, and `V536CurveDragOrderTests`.
-- Extraction risks: default workflow titles being lost, display overrides leaking into manifest semantics, tab override survival regressing, and curve-reorder identity drifting away from `sourceRef`.
-- Acceptance criteria: workflow stores no longer own the remaining title/style/legend binding endpoints; tab and render output remain single-sourced; plot controls behave uniformly; Geometry / Fit Range / Scaling, AHE Hc / R_AHE extraction, XY phi/detrend/centering, and 3ω scaling semantics remain Assembly-owned and unchanged.
+- Outcome:
+  - Plot System module group boundaries clarified: Plot Display, Plot Controls, and Plot Preservation are distinct sub-modules; `TabRenderManager` / `TabRenderState` own Plot Preservation state.
+  - Main Board layout (`WorkflowWorkspaceShell`, left/right column files) is outside the Plot System module group. Shell files pass plot controls as a ViewBuilder slot and must not manipulate `TabRenderState` / `TabRenderManager` internals.
+  - `WorkbenchPlotCanvas` is the interaction and display surface only; it does not own canonical plot output or ingestion state.
+  - Workflow / Assembly-owned display semantics (title token defaults, `stackOffsetMultiplier`, `minGapFraction`, AHE single-tab specialization, `legendAnchor` gap for AHE/XY) may remain in workflow stores where the semantics are workflow-owned.
+  - `currentRunTrace` removed from `WorkbenchPlottingStore` (Gate 7.8D); now lives exclusively in `WorkbenchRunTraceProviding`.
+  - Structural boundary tests added (7.8E): enforce Main Board / Plot System separation and canvas interaction rules.
+- Tests added or updated: `V780PlotSystemBoundaryTests`, related `V537WorkflowShellPhase4Tests` and `V563WorkflowStateBoundaryTests` remain green.
+- Deferred: `legendAnchor` pack coverage gap (AHE/XY packs do not serialize it); title template extraction gates; `titleTemplate` field still workflow-store-owned pending backward-compatible `CodingKeys`.
 
 ### Deferred Follow-Ups (not scheduled)
 
@@ -391,6 +393,16 @@ Summary:
 - Geometry / Fit Range / Scaling Panels remain Assembly-owned and are not Gate 7 extraction targets.
 - AHE Hc / R_AHE extraction, XY phi/detrend/centering, and 3ω scaling semantics remain Assembly-owned.
 - The 3ω Scaling Law overlay is a Gate 7.4 validation case under Analysis Overlay, not standalone feature work.
+
+#### Gate 7.9 - Workbench Architecture Closeout
+
+- Status: complete (docs-only).
+- Scope: close out Workbench architecture documentation after Gate 7.1–7.8 so docs no longer read as stale process audits.
+- Outcome:
+  - `WORKBENCH_ROADMAP.md` updated: Gate 7 marked complete; sub-gate table updated; stale Gate 7.8 wording replaced with actual outcomes.
+  - `MODULE_BOUNDARIES.md` reframed as current ownership authority (origin: Gate 3, updated through Gate 7.9); Gate 3 follow-ups section replaced by Boundary Closeout Status section.
+  - `GATE7_WORKBENCH_ARCHITECTURE_CLOSEOUT.md` added: final module map, Gates 7.1–7.8 outcome summary, accepted bridges, deferred cleanup, non-candidates, and closeout rule.
+- Production Swift: unchanged. Tests: unchanged. Rebuild/publish: not required.
 
 ### Gate 8 - New Workflow Dry Run
 

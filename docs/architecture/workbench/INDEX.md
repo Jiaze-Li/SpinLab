@@ -13,6 +13,7 @@
 | `SHELL_BLOCKS.md` | Overview | First-read conceptual model |
 | `MAIN_BOARD_READINESS.md` | Readiness contract | Derived readiness ladder and consumers |
 | `READINESS_CONSUMPTION_AUDIT.md` | Gate 6 audit | Readiness consumption audit and closeout linkage |
+| `GATE7_WORKBENCH_ARCHITECTURE_CLOSEOUT.md` | Gate 7.9 closeout | Final module map, Gates 7.1–7.8 outcomes, accepted bridges, deferred cleanup, non-candidates, and closeout rule |
 | `GATE7_MAIN_SEARCH_HANDOFF.md` | Gate 7 preflight audit | Main Search extraction readiness, bridge inventory, and forbidden changes |
 | `GATE7_PACK_RESTORE_AUDIT.md` | Gate 7.6 pack/restore audit | Schema, restore ownership, RT path, overlay, save interaction, test gaps |
 | `WORKFLOW_ASSEMBLY.md` | Workflow contract | Per-workflow integration contract |

@@ -36,9 +36,9 @@ Read surfaces must be explicit. If a module needs another module's state, the de
 
 The sections below document the current boundary contracts for each module and module group.
 
-## Gate 3 Module Inventory and Boundary Audit
+## Module Inventory and Boundary Authority
 
-Status: Gate 3 audit record. This section classifies current Workbench ownership surfaces only; it does not authorize extraction or runtime behavior changes.
+Status: current module ownership authority. Originally established as the Gate 3 audit; updated through Gate 7.9. This section classifies current Workbench ownership surfaces; it does not authorize extraction or runtime behavior changes beyond what is already complete.
 
 Classification vocabulary:
 
@@ -85,7 +85,7 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - State it owns: workflow-keyed selected IDs, select/deselect/toggle/selectAll/deselectAll mutations, selectedCount, isAllSelected, and the seed path for pack restore.
 - State it must not own: query text, search execution, search running/message state, ingestion/output, pack vault state, plot output, save state, 3ω RT auxiliary state.
 - How workflow-specific semantics enter: only through selected hits handed to workflow analysis; selection itself must not infer file meaning.
-- Workflow-local selectionReader bridges: `AHEWorkspaceStore.selectionReader`, `XYRotationWorkspaceStore.selectionReader`, and `ThreeOmegaWorkspaceStore.selectionReader` are read-only closures injected by `WorkbenchFeatureStore`. They are non-canonical compatibility read surfaces for pack serialization and analysis denomination only. They do not own selection state.
+- Workflow-local `selectionReading` typed bridge: `AHEWorkspaceStore`, `XYRotationWorkspaceStore`, and `ThreeOmegaWorkspaceStore` each hold `weak var selectionReading: (any SelectionReading)?`, injected by `WorkbenchFeatureStore`. `WorkbenchSelectionRuntime` conforms to `SelectionReading`. These are non-canonical compatibility read surfaces for pack serialization and analysis denomination only. (Gate 7.7B migrated from raw `selectionReader: (() -> Set<String>)?` closures to this typed protocol bridge.) They do not own selection state.
 - Select-all denominator: passed explicitly to `WorkbenchSelectionRuntime.selectAll(for:denominator:)` by the facade; not independently computed per workflow.
 - Pack/restore implications: pack configs serialize selected IDs; restore writes selected IDs through `WorkbenchFeatureStore.seedSelection()` → `WorkbenchSelectionRuntime.seed()`.
 - Tests currently protecting it: `V537WorkbenchSelectionShellTests`, `V537WorkbenchSelectedHitsSnapshotTests`, `V538SelectedHitsBridgeAuditTests`, `V537PackRestoreModuleBoundaryTests`, `V537AnalysisLifecycleBoundaryTests`, `V537SaveModuleBoundaryTests`, search snapshot consumption tests for AHE/XY/3ω.
@@ -338,21 +338,44 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Extraction readiness: not a common-module extraction target. It may be internally cleaned as an XY Assembly-owned panel only.
 - Risks if extracted too early: offset state treated as generic plot style, restored XY packs rerender with wrong angle alignment, future workflows inherit XY-specific assumptions.
 
-## Gate 3 Remaining Debts and Follow-Ups
+## Boundary Closeout Status (Gate 7.9)
 
-### Recommended Gate 3.1 follow-ups
+This section replaces the Gate 3 follow-up list. Items are classified as resolved, accepted compatibility bridge, deferred runtime cleanup, or non-candidate.
 
-- Define the workflow-declared **Secondary Input Search** optional module contract: slot ID, display label, search query defaults, workflow token/filter, selection cardinality, selected-hit persistence, restore sidecar bridge, and fingerprint contribution. Keep auxiliary file meaning in Assembly.
-- Audit whether `cachedSearchResults` can be renamed to `searchResultMirror` with backward-compatible `CodingKeys` across all pack configs.
-- Split warning/run-trace target ownership into a concrete Analysis Lifecycle read surface before moving fields out of workflow stores.
-- Define a save metadata provider contract that separates common save envelope fields from Assembly-owned metric definitions, unit conversions, and manual overrides.
+### Resolved by Gate 7
 
-### Recommended Gate 7 prerequisites
+- **Selection canonical owner**: `WorkbenchSelectionRuntime` is the canonical owner. Workflow-local `selectionReading` typed bridge (`weak var selectionReading: (any SelectionReading)?`) is the non-canonical compatibility read surface (Gate 7.2 extracted; Gate 7.7B migrated from raw closure to typed `SelectionReading` protocol).
+- **Secondary Input Search slot runtime**: `WorkbenchSecondaryInputSearchRuntime` owns all slot state for the `rt` slot (Gate 7.3).
+- **Save coordinator extraction**: `WorkbenchSaveCoordinating` protocol owns shared async orchestration; workflow stores own metric definitions and override policy (Gate 7.5).
+- **Pack/Restore audit and protection tests**: `V760PackRestoreProtectionTests` (34 tests) cover every restored field; `_overlayPackIDs` standalone fallback removed; `cachedRTFilePath` intermediate overwrite removed (Gate 7.6).
+- **Plot System structural guards**: Main Board layout confirmed outside Plot System; `WorkbenchPlotCanvas` is interaction/display surface only; structural boundary tests added (Gate 7.8).
+- **`currentRunTrace` removed from plot protocol**: now lives exclusively in `WorkbenchRunTraceProviding`; `WorkbenchPlottingStore` no longer exposes run-trace state (Gate 7.8D).
 
-- Do not extract Selection until selected IDs have one canonical owner or the local mirror/denominator bridge is formally preserved.
-- Do not extract Pack/Restore until the restore write map has test coverage for every restored field, including secondary input search.
-- Do not extract Secondary Input Search as an RT module. Extract only a general auxiliary-slot module with 3ω RT as one declared slot.
-- Do not extract 3ω fitting/scaling, AHE Hc / R_AHE extraction, or XY phi/detrend/centering into default modules; they are Assembly-owned surfaces unless future workflows prove a real shared semantic contract.
+### Accepted Compatibility Bridges
+
+- `cachedSearchResults` mirror: selection denominator and pack compatibility bridge. Intentionally retained; rename to `searchResultMirror` deferred until pack `CodingKey` backward-compatibility handling is in place.
+- Workflow-local `selectionReading` typed bridge (`AHEWorkspaceStore`, `XYRotationWorkspaceStore`, `ThreeOmegaWorkspaceStore`): `weak var selectionReading: (any SelectionReading)?` non-canonical read surface for pack serialization and analysis denomination. Removal awaits Save / Pack Module cleanup.
+- Workflow-local Assembly-owned plot binding endpoints where semantics are workflow-owned (title token defaults, `stackOffsetMultiplier`, `minGapFraction`, AHE single-tab controls): intentionally retained per Gate 7.8 audit.
+- Raw `PendingMetricEntry` save metadata bridge: untyped bridge from workflow metric builder to common save writer. Intentionally retained pending typed projection contract.
+- Secondary input restore bridge (`cachedRTFilePath` derivation from `selectedRTHit`): restore path confirmed correct; standalone rebuild not implemented. Retained as documented bridge.
+
+### Deferred Runtime Cleanup
+
+- Full Pack/Restore coordinator extraction: contracts and tests are in place; per-workflow restore implementation remains. Awaits explicit coordinator extraction gate.
+- Full Warning Display / Run Trace runtime extraction: display components exist; ownership still distributed across workflow stores and save/analysis paths. Awaits explicit coordinator gate.
+- Typed save metadata projection replacing raw `PendingMetricEntry`: common save writer currently receives a raw array; a typed semantic projection is the deferred target.
+- Search/Rules alias integration: Library/Workbench search alias expansion is hardcoded; Rules Book-defined workflow IDs do not automatically participate. Not blocking; resolve in a future Search/Rules integration gate.
+- `legendAnchor` pack coverage gap: `AHEPackConfig` and `XYRotationPackConfig` do not serialize `legendAnchor`; resets to `""` after restore for those workflows. Documentation gap only; no pack schema change required now.
+- `titleTemplate` extraction: candidate for common Plot Controls ownership; blocked on boundary tests and backward-compatible `CodingKeys` in all three pack configs.
+
+### Non-Candidates
+
+The following surfaces are Assembly-owned and are not module extraction targets:
+
+- AHE Hc / R_AHE extraction as a common module.
+- XY phi offset / detrend / centering as a common module.
+- 3ω geometry / fit range / scaling as a common module.
+- Workflow physics panels becoming common Plot System controls.
 
 ## Search Boundary
 
@@ -418,8 +441,8 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
   - `WorkbenchSelectedHitsSnapshot` is the run-scoped selected-hit read surface (Phase 5C established; Gate 7.2 confirms runtime path)
   - `cachedSearchResults` remains local mirror / selection denominator / pack compatibility
   - `legacyHits` parameter in `WorkbenchSelectedHitsSnapshot` factory is the explicit bridge from mirror to ephemeral snapshot
-  - workflow-local `selectionReader` closures (`AHEWorkspaceStore`, `XYRotationWorkspaceStore`, `ThreeOmegaWorkspaceStore`) are non-canonical read surfaces injected by `WorkbenchFeatureStore`; they do not own selection state
-  - duplicate-state bridge (selectionReader) is intentional and deferred — removal awaits Save / Pack Module work
+  - workflow-local `selectionReading` typed bridge (`weak var selectionReading: (any SelectionReading)?` on each workflow store, injected by `WorkbenchFeatureStore`) is a non-canonical read surface; it does not own selection state. `WorkbenchSelectionRuntime` conforms to `SelectionReading`. (Gate 7.7B migrated from raw `selectionReader` closure to typed protocol.)
+  - the typed `selectionReading` bridge is intentional and deferred — removal awaits Save / Pack Module work
 
 ### Selection Module does not own
 
@@ -755,7 +778,7 @@ Tests: `V537WorkflowShellPhase4Tests` (AHE + XY), `V563WorkflowStateBoundaryTest
 - Chart identity:
   - `WorkbenchChartIdentity.makeIdentityKey(from:)` identifies persisted chart artifacts.
 - Remaining duplicate identity surfaces:
-  - `selectionReader` closures in workflow stores duplicate selected-IDs read access already owned by `WorkbenchSelectionRuntime`; deferred until Save / Pack Module work removes the need.
+  - `selectionReading` typed bridge (`weak var selectionReading: (any SelectionReading)?`) in workflow stores duplicates selected-IDs read access already owned by `WorkbenchSelectionRuntime`; deferred until Save / Pack Module work removes the need.
   - legacy Int-string series keys still exist in `TabRenderState` migration paths.
 
 ### Workflow ID Mapping
