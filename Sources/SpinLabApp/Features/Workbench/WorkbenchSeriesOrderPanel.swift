@@ -30,7 +30,7 @@ struct WorkbenchSeriesOrderPanel: View {
             VStack(alignment: .leading, spacing: 0) {
                 if displayedRows.isEmpty {
                     Text("No reorderable series")
-                        .font(.caption)
+                        .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 4)
@@ -103,7 +103,7 @@ struct WorkbenchSeriesOrderPanel: View {
             if isEditing {
                 TextField("", text: $editChipText)
                     .textFieldStyle(.roundedBorder)
-                    .font(.caption)
+                    .font(.system(size: 12))
                     .frame(minWidth: 60, maxWidth: 140)
                     .focused($chipEditorFocused)
                     .onSubmit { commitChipRename(row: row, labelKey: labelKey) }
@@ -115,7 +115,7 @@ struct WorkbenchSeriesOrderPanel: View {
                     .controlSize(.mini)
             } else {
                 Text(displayLabel)
-                    .font(.caption)
+                    .font(.system(size: 12))
                     .fontWeight(.medium)
                     .lineLimit(1)
                     .truncationMode(.middle)

@@ -21,7 +21,7 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
                 content()
                 // Shell-level: render mode + tick density in one row
                 HStack(spacing: 8) {
-                    Text("Draw").font(.caption).foregroundStyle(.secondary)
+                    Text("Draw").font(.system(size: 12)).foregroundStyle(.secondary)
                     Picker("", selection: $seriesRenderMode) {
                         Text("Line").tag(SeriesRenderMode.line)
                         Text("Scatter").tag(SeriesRenderMode.scatter)
@@ -31,7 +31,7 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
                     .pickerStyle(.segmented)
                     .onChange(of: seriesRenderMode) { _, _ in onStyleChange?() }
                     Spacer(minLength: 8)
-                    Text("Ticks").font(.caption).foregroundStyle(.secondary).fixedSize()
+                    Text("Ticks").font(.system(size: 12)).foregroundStyle(.secondary).fixedSize()
                     tickDensityStepper(label: "X", key: "tickTargetX", fallback: 6)
                     tickDensityStepper(label: "Y", key: "tickTargetY", fallback: 5)
                 }
@@ -46,7 +46,7 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
     @ViewBuilder
     private var fontSizeRow: some View {
         HStack(spacing: 10) {
-            Text("Size").font(.caption).foregroundStyle(.secondary).fixedSize()
+            Text("Size").font(.system(size: 12)).foregroundStyle(.secondary).fixedSize()
             ForEach([
                 ("Title", "titleFontSize"),
                 ("Axis",  "axisTitleFontSize"),
@@ -63,7 +63,7 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
         let defaultSize: CGFloat = WorkbenchChartStyle()[keyPath: Self.fontSizeKeyPath(key)]
         let current = chartStyleOverrides[key].flatMap { Double($0).map { CGFloat($0) } } ?? defaultSize
         HStack(spacing: 2) {
-            Text(label).font(.caption).foregroundStyle(.secondary).fixedSize()
+            Text(label).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize()
             Picker("", selection: Binding<CGFloat>(
                 get: { current },
                 set: { newVal in
@@ -84,7 +84,7 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
     private func tickDensityStepper(label: String, key: String, fallback: Int) -> some View {
         let current = chartStyleOverrides[key].flatMap { Int($0) } ?? fallback
         HStack(spacing: 4) {
-            Text(label).font(.caption).foregroundStyle(.secondary).fixedSize()
+            Text(label).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize()
             Stepper(
                 value: Binding<Int>(
                     get: { current },
@@ -95,7 +95,7 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
                 ),
                 in: 2...20
             ) {
-                Text("\(current)").font(.caption).frame(width: 20)
+                Text("\(current)").font(.system(size: 12)).frame(width: 20)
             }
             .frame(width: 90)
         }

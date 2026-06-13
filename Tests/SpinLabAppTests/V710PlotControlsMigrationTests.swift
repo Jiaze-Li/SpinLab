@@ -619,6 +619,38 @@ struct V710UIDensityGuards {
                 "Series Order GroupBox title must be removed — chips shown directly")
     }
 
+    // MARK: No .caption font modifier
+
+    @Test("WorkbenchPlotControlsPanel uses no .caption font modifier")
+    func plotControlsPanelNoCaption() throws {
+        let src = try String(contentsOf: sourceURL(for: "WorkbenchPlotControlsPanel.swift"), encoding: .utf8)
+        #expect(!src.contains(".font(.caption)"),
+                "WorkbenchPlotControlsPanel must not use .font(.caption) — use .font(.system(size: 12)) or larger")
+    }
+
+    @Test("WorkbenchStandardPlotControls uses no .caption font modifier")
+    func standardPlotControlsNoCaption() throws {
+        let src = try String(contentsOf: sourceURL(for: "WorkbenchStandardPlotControls.swift"), encoding: .utf8)
+        #expect(!src.contains(".font(.caption)"),
+                "WorkbenchStandardPlotControls must not use .font(.caption) — use .font(.system(size: 12)) or larger")
+    }
+
+    @Test("WorkbenchSeriesOrderPanel uses no .caption font modifier")
+    func seriesOrderPanelNoCaption() throws {
+        let src = try String(contentsOf: sourceURL(for: "WorkbenchSeriesOrderPanel.swift"), encoding: .utf8)
+        #expect(!src.contains(".font(.caption)"),
+                "WorkbenchSeriesOrderPanel must not use .font(.caption) — use .font(.system(size: 12)) or larger")
+    }
+
+    // MARK: LabelOverrideField TextField must use primary color unconditionally
+
+    @Test("LabelOverrideField TextField does not use conditional secondary foreground color")
+    func labelOverrideFieldTextFieldNoPrimarySecondaryConditional() throws {
+        let src = try String(contentsOf: sourceURL(for: "WorkbenchStandardPlotControls.swift"), encoding: .utf8)
+        #expect(!src.contains("hasOverride ? Color.primary : Color.secondary"),
+                "LabelOverrideField TextField must use Color.primary unconditionally — secondary color must not be applied to the input field")
+    }
+
     // MARK: Structural: ticks inline with Draw row
 
     @Test("WorkbenchPlotControlsPanel tick density steppers are in the same row as the render mode picker")

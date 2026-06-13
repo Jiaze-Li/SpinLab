@@ -90,17 +90,17 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
                 Slider(value: $stackOffset, in: stackRange, step: 0.1)
                     .onChange(of: stackOffset) { _, _ in onChange?() }
                 Text(String(format: "%.1f×", stackOffset))
-                    .font(.caption)
+                    .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .frame(width: 28, alignment: .trailing)
 
                 Text("Gap")
-                    .font(.caption)
+                    .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                 TextField("0.15", value: $minGapFraction, format: .number)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 48)
-                    .font(.caption)
+                    .font(.system(size: 12))
                     .onSubmit { onChange?() }
             }
 
@@ -230,11 +230,11 @@ struct LabelOverrideField: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Text(label).font(.caption).foregroundStyle(.secondary).fixedSize()
+            Text(label).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize()
             TextField("", text: $editText)
                 .textFieldStyle(.roundedBorder)
-                .font(.caption)
-                .foregroundStyle(hasOverride ? Color.primary : Color.secondary)
+                .font(.system(size: 12))
+                .foregroundStyle(Color.primary)
                 .frame(minWidth: 40, maxWidth: fieldMaxWidth)
                 .focused($focused)
                 .onSubmit { commitIfDirty() }
