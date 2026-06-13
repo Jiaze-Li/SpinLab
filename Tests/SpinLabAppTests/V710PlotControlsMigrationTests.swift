@@ -406,3 +406,110 @@ struct V710CanvasStructuralGuards {
         #expect(src.contains("tickTargetY"), "controls panel must contain Y tick density key")
     }
 }
+
+// MARK: - Suite 6: Label display semantics + series order mechanisms
+
+@Suite("V7.10 Label display and order mechanisms")
+struct V710LabelDisplayAndOrderTests {
+
+    private enum TestTab: String, Hashable, Sendable { case main }
+
+    // MARK: Label display — model-layer invariants
+
+    @MainActor
+    @Test("Layout exposes rendered default title/x/y when overrides are empty")
+    func renderedDefaultsAvailableWhenOverridesEmpty() throws {
+        let manager = TabRenderManager<TestTab>(defaultTab: .main)
+        let payload = makeMinimalPayload()
+        let output = try makeMinimalPipelineOutput(payload: payload)
+        manager.applyPipelineOutput(output, for: .main)
+
+        let state = manager.state(for: .main)
+        let layout = manager.tabOutputs[.main]?.layout
+
+        #expect(state.titleOverride.isEmpty, "titleOverride must be empty when no edit has occurred")
+        #expect(state.xLabelOverride.isEmpty)
+        #expect(state.yLabelOverride.isEmpty)
+        #expect(layout?.chartTitle == "Test", "layout.chartTitle is the rendered default title")
+        #expect(layout?.xAxisLabel == "H (T)", "layout.xAxisLabel is the rendered default x label")
+        #expect(layout?.yAxisLabel == "R (Ω)", "layout.yAxisLabel is the rendered default y label")
+    }
+
+    @MainActor
+    @Test("Override values are reflected in state after edit")
+    func overrideValuesReflectedAfterEdit() throws {
+        let manager = TabRenderManager<TestTab>(defaultTab: .main)
+        let payload = makeMinimalPayload()
+        let output = try makeMinimalPipelineOutput(payload: payload)
+        manager.applyPipelineOutput(output, for: .main)
+
+        manager.updateTitleOverride("Custom Title")
+        manager.updateXLabelOverride("My X")
+        manager.updateYLabelOverride("My Y")
+
+        let state = manager.state(for: .main)
+        #expect(state.titleOverride == "Custom Title")
+        #expect(state.xLabelOverride == "My X")
+        #expect(state.yLabelOverride == "My Y")
+    }
+
+    @MainActor
+    @Test("Reset clears override; layout rendered default is unchanged")
+    func resetClearsOverrideAndLayoutRetainsDefault() throws {
+        let manager = TabRenderManager<TestTab>(defaultTab: .main)
+        let payload = makeMinimalPayload()
+        let output = try makeMinimalPipelineOutput(payload: payload)
+        manager.applyPipelineOutput(output, for: .main)
+
+        manager.updateTitleOverride("Temporary Title")
+        #expect(manager.state(for: .main).titleOverride == "Temporary Title")
+
+        manager.updateTitleOverride("")
+
+        let state = manager.state(for: .main)
+        let layout = manager.tabOutputs[.main]?.layout
+        #expect(state.titleOverride.isEmpty, "override cleared after reset commit")
+        #expect(layout?.chartTitle == "Test", "rendered default unchanged after override reset")
+    }
+
+    // MARK: Series order mechanisms
+
+    @Test("Drag reorder and arrow reorder produce same key sequence for a basic move")
+    func dragAndArrowProduceSameOrder() {
+        let rowA = SeriesOrderRow(identityKey: "key-a", sampleID: "a", sourceRef: "/a", label: "A", originalIndex: 0)
+        let rowB = SeriesOrderRow(identityKey: "key-b", sampleID: "b", sourceRef: "/b", label: "B", originalIndex: 1)
+        let presented = [rowB, rowA]  // presentedRows reverses internal order
+
+        // Arrow: move index 0 (B) to index 1
+        var arrowResult = presented
+        let moved = arrowResult.remove(at: 0)
+        arrowResult.insert(moved, at: 1)
+
+        // Drag: drop B onto A past the midpoint (dropLocationX >= 0.5 → insert after A)
+        let dragResult = WorkbenchSeriesOrderPanel.reorderedRows(
+            presented,
+            draggedKey: "key-b",
+            targetKey: "key-a",
+            dropLocationX: 0.7
+        )
+
+        #expect(arrowResult.map(\.identityKey) == dragResult.map(\.identityKey),
+                "drag and arrow reorder must produce identical key order")
+    }
+
+    @Test("WorkbenchSeriesOrderPanel source declares both drag and arrow order mechanisms")
+    func seriesOrderPanelHasBothDragAndArrow() throws {
+        let base = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let url = base.appendingPathComponent(
+            "Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift"
+        )
+        let src = try String(contentsOf: url, encoding: .utf8)
+        #expect(src.contains(".draggable("), "chip must use .draggable for drag reorder")
+        #expect(src.contains(".dropDestination("), "chip must use .dropDestination to accept drops")
+        #expect(src.contains("arrow.up"), "chip must retain arrow.up button as fallback reorder")
+        #expect(src.contains("arrow.down"), "chip must retain arrow.down button as fallback reorder")
+    }
+}

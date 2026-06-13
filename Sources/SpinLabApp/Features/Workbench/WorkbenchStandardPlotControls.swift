@@ -33,6 +33,12 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     var activeXLabelOverride: String = ""
     /// Current Y-axis label override for the active tab.
     var activeYLabelOverride: String = ""
+    /// Rendered default title from the active layout (shown in the field when no override is set).
+    var renderedTitle: String = ""
+    /// Rendered default X-axis label from the active layout.
+    var renderedXLabel: String = ""
+    /// Rendered default Y-axis label from the active layout.
+    var renderedYLabel: String = ""
     /// Called when the user commits a title/axis override change; triggers rerender.
     var onTitleOverride: ((String) -> Void)? = nil
     var onXLabelOverride: ((String) -> Void)? = nil
@@ -126,13 +132,13 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     private var labelOverrideRow: some View {
         HStack(spacing: 10) {
             if let cb = onTitleOverride {
-                LabelOverrideField(label: "Title", currentValue: activeTitleOverride, onCommit: { cb($0); onChange?() })
+                LabelOverrideField(label: "Title", renderedDefault: renderedTitle, currentValue: activeTitleOverride, onCommit: { cb($0); onChange?() })
             }
             if let cb = onXLabelOverride {
-                LabelOverrideField(label: "X", currentValue: activeXLabelOverride, onCommit: { cb($0); onChange?() })
+                LabelOverrideField(label: "X", renderedDefault: renderedXLabel, currentValue: activeXLabelOverride, onCommit: { cb($0); onChange?() })
             }
             if let cb = onYLabelOverride {
-                LabelOverrideField(label: "Y", currentValue: activeYLabelOverride, onCommit: { cb($0); onChange?() })
+                LabelOverrideField(label: "Y", renderedDefault: renderedYLabel, currentValue: activeYLabelOverride, onCommit: { cb($0); onChange?() })
             }
         }
     }
@@ -158,6 +164,9 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         activeTitleOverride: String = "",
         activeXLabelOverride: String = "",
         activeYLabelOverride: String = "",
+        renderedTitle: String = "",
+        renderedXLabel: String = "",
+        renderedYLabel: String = "",
         onTitleOverride: ((String) -> Void)? = nil,
         onXLabelOverride: ((String) -> Void)? = nil,
         onYLabelOverride: ((String) -> Void)? = nil,
@@ -182,6 +191,9 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         self.activeTitleOverride = activeTitleOverride
         self.activeXLabelOverride = activeXLabelOverride
         self.activeYLabelOverride = activeYLabelOverride
+        self.renderedTitle = renderedTitle
+        self.renderedXLabel = renderedXLabel
+        self.renderedYLabel = renderedYLabel
         self.onTitleOverride = onTitleOverride
         self.onXLabelOverride = onXLabelOverride
         self.onYLabelOverride = onYLabelOverride
@@ -193,31 +205,67 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
 
 // MARK: - LabelOverrideField
 
-/// Compact commit-on-submit text field for title/axis label overrides.
-/// Does not fire on every keystroke — only on Return or focus-loss commit.
+/// Compact text field for title/axis label overrides.
+///
+/// Displays the rendered default (from layout) when no override is set; switches to
+/// primary styling when an override is active. Commits only when the user has actually
+/// edited the field (isDirty gate prevents spurious focus-loss commits). A clear button
+/// removes the override when one is active.
 struct LabelOverrideField: View {
     let label: String
+    /// Text currently rendered on the chart — shown (dimmed) when no override is set.
+    let renderedDefault: String
+    /// Active override value (empty = no override).
     let currentValue: String
     let onCommit: (String) -> Void
 
     @State private var editText: String = ""
+    @State private var isDirty: Bool = false
     @FocusState private var focused: Bool
+
+    private var hasOverride: Bool { !currentValue.isEmpty }
+    private var displayValue: String { currentValue.isEmpty ? renderedDefault : currentValue }
 
     var body: some View {
         HStack(spacing: 4) {
             Text(label).font(.caption).foregroundStyle(.secondary).fixedSize()
-            TextField(label, text: $editText)
+            TextField("", text: $editText)
                 .textFieldStyle(.roundedBorder)
                 .font(.caption)
+                .foregroundStyle(hasOverride ? Color.primary : Color.secondary)
                 .frame(minWidth: 60, maxWidth: 140)
                 .focused($focused)
-                .onSubmit { onCommit(editText) }
+                .onSubmit { commitIfDirty() }
+                .onChange(of: editText) { _, _ in isDirty = true }
                 .onChange(of: focused) { _, isFocused in
-                    if !isFocused { onCommit(editText) }
+                    if !isFocused { commitIfDirty() }
                 }
+            if hasOverride {
+                Button {
+                    onCommit("")
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.mini)
+            }
         }
-        .task(id: currentValue) {
-            if !focused { editText = currentValue }
+        .task(id: displayValue) {
+            if !focused {
+                editText = displayValue
+                isDirty = false
+            }
         }
+    }
+
+    private func commitIfDirty() {
+        guard isDirty else { return }
+        isDirty = false
+        let trimmed = editText.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Typing the rendered default back is treated as clearing the override
+        let toCommit = trimmed == renderedDefault ? "" : trimmed
+        onCommit(toCommit)
     }
 }

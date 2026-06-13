@@ -57,16 +57,19 @@ private struct AHEPlotControlsPanel: View {
             HStack(spacing: 10) {
                 LabelOverrideField(
                     label: "Title",
+                    renderedDefault: ahe.tabs.activeLayout?.chartTitle ?? "",
                     currentValue: ahe.tabs.activeState.titleOverride,
                     onCommit: { ahe.updatePlotTitle($0) }
                 )
                 LabelOverrideField(
                     label: "X",
+                    renderedDefault: ahe.tabs.activeLayout?.xAxisLabel ?? "",
                     currentValue: ahe.tabs.activeState.xLabelOverride,
                     onCommit: { ahe.updateXAxisLabel($0) }
                 )
                 LabelOverrideField(
                     label: "Y",
+                    renderedDefault: ahe.tabs.activeLayout?.yAxisLabel ?? "",
                     currentValue: ahe.tabs.activeState.yLabelOverride,
                     onCommit: { ahe.updateYAxisLabel($0) }
                 )
