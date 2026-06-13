@@ -301,7 +301,7 @@ struct WorkbenchPlotLayout: Sendable {
         }
         let maxMeasuredW = measuredWidths.max() ?? legendEstLabelW
 
-        return series.enumerated().map { i, s in
+        let rawRows: [LegendRow] = series.enumerated().map { i, s in
             let cgRowY:    CGFloat
             let cgOriginX: CGFloat
             let measuredW = measuredWidths[i]
@@ -342,6 +342,41 @@ struct WorkbenchPlotLayout: Sendable {
                 cgRowY:             cgRowY,
                 cgOriginX:          cgOriginX,
                 measuredLabelWidth: measuredW
+            )
+        }
+
+        // Final box clamp: shift all rows uniformly so the full legendBoxRect stays inside plotRect.
+        // This corrects free-position origins near edges (where the box extends beyond the boundary)
+        // and acts as a safety net for anchor mode. Applied after all per-row positions are set.
+        return clampRowsToPlotRect(rawRows, plotRect: plotRect)
+    }
+
+    /// Computes dx/dy needed to keep the bounding box of `rows` inside `plotRect`, then offsets
+    /// every row by that amount. Uses the same box formula as `legendBoxRect`.
+    private static func clampRowsToPlotRect(_ rows: [LegendRow], plotRect: CGRect) -> [LegendRow] {
+        guard !rows.isEmpty else { return rows }
+        let boxPad: CGFloat = 6
+        let rowH = legendRowH
+        let rawMinX = rows.map(\.cgOriginX).min()! - boxPad
+        let rawMaxX = rows.map { $0.labelAnchor.x + $0.measuredLabelWidth }.max()! + boxPad
+        let rawMinY = rows.map(\.cgRowY).min()! - rowH * 0.5 - boxPad
+        let rawMaxY = rows.map(\.cgRowY).max()! + rowH * 0.5 + boxPad
+
+        var dx: CGFloat = 0
+        var dy: CGFloat = 0
+        if rawMaxX > plotRect.maxX { dx = plotRect.maxX - rawMaxX }
+        if rawMinX + dx < plotRect.minX { dx = plotRect.minX - rawMinX }
+        if rawMaxY > plotRect.maxY { dy = plotRect.maxY - rawMaxY }
+        if rawMinY + dy < plotRect.minY { dy = plotRect.minY - rawMinY }
+
+        guard dx != 0 || dy != 0 else { return rows }
+        return rows.map {
+            LegendRow(
+                seriesIndex:        $0.seriesIndex,
+                originalLabel:      $0.originalLabel,
+                cgRowY:             $0.cgRowY + dy,
+                cgOriginX:          $0.cgOriginX + dx,
+                measuredLabelWidth: $0.measuredLabelWidth
             )
         }
     }
