@@ -34,24 +34,42 @@ private struct AHEPlotControlsPanel: View {
     @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
-        @Bindable var ahe = appState.workbench.aheWorkspace
+        let ahe = appState.workbench.aheWorkspace
+        @Bindable var bindableAhe = appState.workbench.aheWorkspace
 
         WorkbenchPlotControlsPanel(
-            seriesRenderMode: $ahe.seriesRenderMode,
-            chartStyleOverrides: $ahe.chartStyleOverrides,
+            seriesRenderMode: $bindableAhe.seriesRenderMode,
+            chartStyleOverrides: $bindableAhe.chartStyleOverrides,
             onStyleChange: { ahe.rerenderForStyleChange() }
         ) {
             HStack(alignment: .top, spacing: 12) {
                 WorkbenchTitleTemplateField(
-                    titleTemplate: $ahe.titleTemplate,
+                    titleTemplate: $bindableAhe.titleTemplate,
                     numericDisplayCache: ahe.cachedSampleNumericDisplay,
                     onChange: {
                         appState.flushInteractionSnapshotNow()
                     }
                 )
-                Toggle("Grid", isOn: $ahe.showPlotGrid)
+                Toggle("Grid", isOn: $bindableAhe.showPlotGrid)
                     .toggleStyle(.checkbox)
                     .padding(.top, 2)
+            }
+            HStack(spacing: 10) {
+                LabelOverrideField(
+                    label: "Title",
+                    currentValue: ahe.tabs.activeState.titleOverride,
+                    onCommit: { ahe.updatePlotTitle($0) }
+                )
+                LabelOverrideField(
+                    label: "X",
+                    currentValue: ahe.tabs.activeState.xLabelOverride,
+                    onCommit: { ahe.updateXAxisLabel($0) }
+                )
+                LabelOverrideField(
+                    label: "Y",
+                    currentValue: ahe.tabs.activeState.yLabelOverride,
+                    onCommit: { ahe.updateYAxisLabel($0) }
+                )
             }
         }
     }
