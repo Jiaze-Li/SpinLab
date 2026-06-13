@@ -284,7 +284,7 @@ struct WorkbenchChartRenderer {
                       xMin: xMin, xSpan: xSpan, yMin: yMin, ySpan: ySpan)
 
         // Axis field name labels (markup: _X renders X as subscript)
-        let axisColor = CGColor(red: 0.25, green: 0.25, blue: 0.25, alpha: 1)
+        let axisColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
         drawCenteredMarkup(ctx, text: payload.axisMapping.xField,
                            at: layout.xLabelCenter, size: style.axisTitleFontSize, color: axisColor)
         drawRotated90Markup(ctx, text: payload.axisMapping.yField,
