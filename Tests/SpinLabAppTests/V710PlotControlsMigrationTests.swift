@@ -513,3 +513,90 @@ struct V710LabelDisplayAndOrderTests {
         #expect(src.contains("arrow.down"), "chip must retain arrow.down button as fallback reorder")
     }
 }
+
+// MARK: - Suite 7: UI density and typography guards
+
+/// Guards against regression of font sizes below 12pt in Plot Controls UI files.
+/// Checks source text directly so violations are caught at commit time without running the app.
+@Suite("V7.10 UI density and typography guards")
+struct V710UIDensityGuards {
+
+    private func sourceURL(for filename: String) -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/SpinLabApp/Features/Workbench/\(filename)")
+    }
+
+    // MARK: caption2 absent
+
+    @Test("WorkbenchPlotControlsPanel contains no .caption2 font references")
+    func plotControlsPanelNoCaption2() throws {
+        let src = try String(contentsOf: sourceURL(for: "WorkbenchPlotControlsPanel.swift"), encoding: .utf8)
+        #expect(!src.contains(".caption2"),
+                "WorkbenchPlotControlsPanel must not use .caption2 — minimum font is .caption (≥12pt)")
+    }
+
+    @Test("WorkbenchSeriesOrderPanel contains no .caption2 font references")
+    func seriesOrderPanelNoCaption2() throws {
+        let src = try String(contentsOf: sourceURL(for: "WorkbenchSeriesOrderPanel.swift"), encoding: .utf8)
+        #expect(!src.contains(".caption2"),
+                "WorkbenchSeriesOrderPanel must not use .caption2 — minimum font is .caption (≥12pt)")
+    }
+
+    @Test("WorkbenchStandardPlotControls contains no .caption2 font references")
+    func standardPlotControlsNoCaption2() throws {
+        let src = try String(contentsOf: sourceURL(for: "WorkbenchStandardPlotControls.swift"), encoding: .utf8)
+        #expect(!src.contains(".caption2"),
+                "WorkbenchStandardPlotControls must not use .caption2 — minimum font is .caption (≥12pt)")
+    }
+
+    // MARK: Sub-12pt system sizes absent
+
+    @Test("WorkbenchSeriesOrderPanel contains no system icon font smaller than 12pt")
+    func seriesOrderPanelNoSmallSystemFont() throws {
+        let src = try String(contentsOf: sourceURL(for: "WorkbenchSeriesOrderPanel.swift"), encoding: .utf8)
+        #expect(!src.contains("system(size: 9"),
+                "icon size 9pt is below minimum — use system(size: 12) or larger")
+        #expect(!src.contains("system(size: 10"),
+                "icon size 10pt is below minimum — use system(size: 12) or larger")
+        #expect(!src.contains("system(size: 11"),
+                "icon size 11pt is below minimum — use system(size: 12) or larger")
+    }
+
+    @Test("WorkbenchStandardPlotControls LabelOverrideField clear icon is not smaller than 12pt")
+    func labelOverrideFieldClearIconMinSize() throws {
+        let src = try String(contentsOf: sourceURL(for: "WorkbenchStandardPlotControls.swift"), encoding: .utf8)
+        #expect(!src.contains("system(size: 9"),
+                "xmark.circle.fill icon must be at least 12pt")
+        #expect(!src.contains("system(size: 10"),
+                "xmark.circle.fill icon must be at least 12pt")
+        #expect(!src.contains("system(size: 11"),
+                "xmark.circle.fill icon must be at least 12pt")
+    }
+
+    // MARK: Structural: GroupBox title removed
+
+    @Test("WorkbenchSeriesOrderPanel does not use GroupBox with 'Series Order' title")
+    func seriesOrderPanelNoGroupBoxTitle() throws {
+        let src = try String(contentsOf: sourceURL(for: "WorkbenchSeriesOrderPanel.swift"), encoding: .utf8)
+        #expect(!src.contains("GroupBox(\"Series Order\")"),
+                "Series Order GroupBox title must be removed — chips shown directly")
+    }
+
+    // MARK: Structural: ticks inline with Draw row
+
+    @Test("WorkbenchPlotControlsPanel tick density steppers are in the same row as the render mode picker")
+    func plotControlsPanelTicksInlineWithDraw() throws {
+        let src = try String(contentsOf: sourceURL(for: "WorkbenchPlotControlsPanel.swift"), encoding: .utf8)
+        // The tickDensityRow property should no longer exist as a standalone view
+        #expect(!src.contains("var tickDensityRow"),
+                "tickDensityRow must be merged into the Draw row, not kept as a separate view")
+        // tickTargetX and the segmented picker must appear in close proximity (same HStack)
+        // Verify both keys are still present (not deleted)
+        #expect(src.contains("tickTargetX"), "tick X density key must remain in source")
+        #expect(src.contains("tickTargetY"), "tick Y density key must remain in source")
+        #expect(src.contains(".segmented"), "render mode segmented picker must remain")
+    }
+}

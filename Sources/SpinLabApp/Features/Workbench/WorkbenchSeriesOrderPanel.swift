@@ -24,8 +24,8 @@ struct WorkbenchSeriesOrderPanel: View {
 
     var body: some View {
         if isVisible {
-            GroupBox("Series Order") {
-                let displayedRows = Self.presentedRows(from: rows)
+            let displayedRows = Self.presentedRows(from: rows)
+            VStack(alignment: .leading, spacing: 0) {
                 if displayedRows.isEmpty {
                     Text("No reorderable series")
                         .font(.caption)
@@ -115,8 +115,8 @@ struct WorkbenchSeriesOrderPanel: View {
                         chipEditorFocused = true
                     } label: {
                         Image(systemName: "pencil")
-                            .font(.system(size: 9, weight: .regular))
-                            .frame(width: 12, height: 12)
+                            .font(.system(size: 12, weight: .regular))
+                            .frame(width: 14, height: 14)
                     }
                     .buttonStyle(.borderless)
                     .controlSize(.mini)
@@ -126,8 +126,8 @@ struct WorkbenchSeriesOrderPanel: View {
                     moveDisplayedRow(from: index, to: index - 1)
                 } label: {
                     Image(systemName: "arrow.up")
-                        .font(.system(size: 10, weight: .semibold))
-                        .frame(width: 10, height: 10)
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 14, height: 14)
                 }
                 .buttonStyle(.borderless)
                 .controlSize(.mini)
@@ -137,8 +137,8 @@ struct WorkbenchSeriesOrderPanel: View {
                     moveDisplayedRow(from: index, to: index + 1)
                 } label: {
                     Image(systemName: "arrow.down")
-                        .font(.system(size: 10, weight: .semibold))
-                        .frame(width: 10, height: 10)
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 14, height: 14)
                 }
                 .buttonStyle(.borderless)
                 .controlSize(.mini)

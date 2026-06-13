@@ -19,7 +19,7 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
         GroupBox("Plot Controls") {
             VStack(alignment: .leading, spacing: 8) {
                 content()
-                // Shell-level control: render mode
+                // Shell-level: render mode + tick density in one row
                 HStack(spacing: 8) {
                     Text("Draw").font(.caption).foregroundStyle(.secondary)
                     Picker("", selection: $seriesRenderMode) {
@@ -30,11 +30,13 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
                     .labelsHidden()
                     .pickerStyle(.segmented)
                     .onChange(of: seriesRenderMode) { _, _ in onStyleChange?() }
+                    Spacer(minLength: 8)
+                    Text("Ticks").font(.caption).foregroundStyle(.secondary).fixedSize()
+                    tickDensityStepper(label: "X", key: "tickTargetX", fallback: 6)
+                    tickDensityStepper(label: "Y", key: "tickTargetY", fallback: 5)
                 }
                 // Shell-level controls: font sizes
                 fontSizeRow
-                // Shell-level controls: tick density
-                tickDensityRow
                 supplementalContent()
             }
             .padding(.vertical, 4)
@@ -61,7 +63,7 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
         let defaultSize: CGFloat = WorkbenchChartStyle()[keyPath: Self.fontSizeKeyPath(key)]
         let current = chartStyleOverrides[key].flatMap { Double($0).map { CGFloat($0) } } ?? defaultSize
         HStack(spacing: 2) {
-            Text(label).font(.caption2).foregroundStyle(.secondary).fixedSize()
+            Text(label).font(.caption).foregroundStyle(.secondary).fixedSize()
             Picker("", selection: Binding<CGFloat>(
                 get: { current },
                 set: { newVal in
@@ -79,19 +81,10 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
     }
 
     @ViewBuilder
-    private var tickDensityRow: some View {
-        HStack(spacing: 10) {
-            Text("Ticks").font(.caption).foregroundStyle(.secondary).fixedSize()
-            tickDensityStepper(label: "X", key: "tickTargetX", fallback: 6)
-            tickDensityStepper(label: "Y", key: "tickTargetY", fallback: 5)
-        }
-    }
-
-    @ViewBuilder
     private func tickDensityStepper(label: String, key: String, fallback: Int) -> some View {
         let current = chartStyleOverrides[key].flatMap { Int($0) } ?? fallback
         HStack(spacing: 4) {
-            Text(label).font(.caption2).foregroundStyle(.secondary).fixedSize()
+            Text(label).font(.caption).foregroundStyle(.secondary).fixedSize()
             Stepper(
                 value: Binding<Int>(
                     get: { current },

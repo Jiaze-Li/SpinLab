@@ -132,13 +132,13 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     private var labelOverrideRow: some View {
         HStack(spacing: 10) {
             if let cb = onTitleOverride {
-                LabelOverrideField(label: "Title", renderedDefault: renderedTitle, currentValue: activeTitleOverride, onCommit: { cb($0); onChange?() })
+                LabelOverrideField(label: "Title", renderedDefault: renderedTitle, currentValue: activeTitleOverride, onCommit: { cb($0); onChange?() }, fieldMaxWidth: 200)
             }
             if let cb = onXLabelOverride {
-                LabelOverrideField(label: "X", renderedDefault: renderedXLabel, currentValue: activeXLabelOverride, onCommit: { cb($0); onChange?() })
+                LabelOverrideField(label: "X", renderedDefault: renderedXLabel, currentValue: activeXLabelOverride, onCommit: { cb($0); onChange?() }, fieldMaxWidth: 80)
             }
             if let cb = onYLabelOverride {
-                LabelOverrideField(label: "Y", renderedDefault: renderedYLabel, currentValue: activeYLabelOverride, onCommit: { cb($0); onChange?() })
+                LabelOverrideField(label: "Y", renderedDefault: renderedYLabel, currentValue: activeYLabelOverride, onCommit: { cb($0); onChange?() }, fieldMaxWidth: 80)
             }
         }
     }
@@ -218,6 +218,8 @@ struct LabelOverrideField: View {
     /// Active override value (empty = no override).
     let currentValue: String
     let onCommit: (String) -> Void
+    /// Maximum width for the text input field. Title uses a wider value than X/Y axis fields.
+    var fieldMaxWidth: CGFloat = 120
 
     @State private var editText: String = ""
     @State private var isDirty: Bool = false
@@ -233,7 +235,7 @@ struct LabelOverrideField: View {
                 .textFieldStyle(.roundedBorder)
                 .font(.caption)
                 .foregroundStyle(hasOverride ? Color.primary : Color.secondary)
-                .frame(minWidth: 60, maxWidth: 140)
+                .frame(minWidth: 40, maxWidth: fieldMaxWidth)
                 .focused($focused)
                 .onSubmit { commitIfDirty() }
                 .onChange(of: editText) { _, _ in isDirty = true }
@@ -245,7 +247,7 @@ struct LabelOverrideField: View {
                     onCommit("")
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 10))
+                        .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.borderless)
