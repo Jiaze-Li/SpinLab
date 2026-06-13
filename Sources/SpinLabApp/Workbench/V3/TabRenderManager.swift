@@ -135,6 +135,10 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
 
     var tabOutputs: [Tab: TabRenderOutput] = [:]
 
+    // Tracks the last rendered chart identity key per tab for stale-override detection.
+    // Not persisted — only live session state.
+    private var tabChartIdentityKeys: [Tab: String] = [:]
+
     // MARK: - Init
 
     init(
@@ -237,12 +241,32 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     }
 
     /// Convenience: apply a WorkbenchRenderPipeline.Output to a tab.
+    ///
+    /// When the chart identity changes (different files, axis mapping, or semantic params),
+    /// text overrides (title, axis labels, series labels) are cleared automatically while
+    /// legendPoint and seriesOrder are preserved.
     func applyPipelineOutput(_ pipelineOutput: WorkbenchRenderPipeline.Output, for tab: Tab) {
+        let newKey = WorkbenchChartIdentity.makeIdentityKey(from: pipelineOutput.manifestPayload)
+        if let oldKey = tabChartIdentityKeys[tab], oldKey != newKey {
+            clearStatesForTab(tab)
+        }
+        tabChartIdentityKeys[tab] = newKey
         tabOutputs[tab] = TabRenderOutput(
             imageData: pipelineOutput.imageData,
             layout: pipelineOutput.layout,
             manifestPayload: pipelineOutput.manifestPayload
         )
+    }
+
+    /// Clears per-tab text overrides for a single tab while preserving legendPoint and seriesOrder.
+    func clearStatesForTab(_ tab: Tab) {
+        let lp = tabStates[tab]?.legendPoint
+        let so = tabStates[tab]?.seriesOrder
+        if lp != nil || so != nil {
+            tabStates[tab] = TabRenderState(legendPoint: lp, seriesOrder: so)
+        } else {
+            tabStates[tab] = nil
+        }
     }
 
     // MARK: - Pipeline bridge
