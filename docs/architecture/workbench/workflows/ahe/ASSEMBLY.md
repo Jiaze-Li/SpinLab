@@ -18,6 +18,25 @@
 | Extra search slots | None. AHE uses the common Workbench search only. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift` |
 | Result mirror | AHE keeps `cachedSearchResults` as the workflow-local mirror for selection denominator, pack state, title context, and legacy restore fallback. This is common bridge behavior, not an AHE-only search module. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift`; `docs/architecture/workbench/modules/MEASUREMENT_SEARCH.md` |
 
+## Input Adapter Surface
+
+The AHE Input Adapter converts raw PPMS `.dat` files into the `AHEIngestionResult` workflow-domain dataset. All downstream stages (fit, render, save) consume `AHEIngestionResult` only.
+
+| Field | Current state |
+|---|---|
+| Accepted file formats | PPMS `.dat` files in two structural variants: (1) `[Header]` / `[Data]` section, then `Comment,...` column header; (2) file starts directly with `Comment,...`. Both produce the same `PPMSParsedFile` output. |
+| Parser entry point | `AHEDataParser.parse(fileURL:) throws -> PPMSParsedFile`. Structural failures throw `AppError.io` or `AppError.validation`; ingestion catches and converts to adapter warnings. |
+| Column mapping | Adapter-owned via `AHEAxisDetector`. Raw `Magnetic Field (Oe)` → semantic `H (T)` (multiplied by `1e-4`). Raw `Bridge N Resistance (Ohms)` or `Bridge N Resistivity…` → semantic `R_H (Ω)` for the selected bridge/channel. Column mapping is resolved at adapter time; no downstream stage re-reads raw column names. |
+| Unit conversion | Oe → T at adapter boundary (×1e-4). Resistivity fallback carries no unit conversion and must warn explicitly. |
+| Sidecar condition injection | No sidecar temperature override in AHE. Bridge/channel selection comes from `AHEPlotSelectionItem.channel.bridgeIndex`, which is user-selection state, not a sidecar field. |
+| Adapter output type | `AHEIngestionResult` (via `IngestAHESelectionsUseCase`). Contains per-series `WorkbenchPlotSeries` values with semantic x/y in declared units. |
+| Warning policy | Parse failures → adapter warning per file. Inactive bridge (no resistance/resistivity column) → per-bridge skip warning. Resistivity fallback → explicit "no unit conversion applied" warning. Empty paired x/y after column resolution → skip warning. No silent fallback to a different semantic column. |
+
+**Invariant check:**
+- Main Board does not call `AHEDataParser` or `AHEAxisDetector`. ✅
+- Common plot/save modules consume `AHEIngestionResult`-derived series only. ✅
+- Column mapping (bridge → column name) is not re-derived inside `BuildAHEPlotPayloadUseCase`. ✅
+
 ## Data / Physics Mapping Contract
 
 | Semantic item | Current behavior | Trace |

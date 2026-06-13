@@ -18,6 +18,7 @@ Adding a workflow means adding a new Workflow Assembly.
 | Contract field | Meaning |
 |---|---|
 | Workflow Identity / Search Hints | Stable workflow identity plus workflow-specific search aliases, prefixes, or optional secondary input search slots |
+| **Input Adapter Contract** | **The adapter surface that converts raw instrument files into the workflow-domain dataset consumed by analysis. See Input Adapter Contract section below.** |
 | Data / Physics Mapping | Raw-file formats, parser entry points, required fields, column/index mapping, unit conversion, derived quantities, and invalid-data behavior |
 | Analysis Pipeline | Workflow-specific parse, ingest, transform/fit/scale, render-payload, metric, warning, and failure stages |
 | Optional Contributions | Workflow-specific panels or module contributions mounted by the shell |
@@ -39,6 +40,66 @@ Adding a workflow means adding a new Workflow Assembly.
 - Default module ownership
 - Common module behavior and default shell behavior
 - Scientific logic belongs inside the workflow's Physics Function contract, not inside the Main Board or default modules.
+- **Raw file parsing** — the Main Board does not own raw file parsing. It mounts a workflow whose adapter handles file format differences before any common module or analysis pipeline stage sees the data.
+- **Lab-specific column mapping** — instrument-specific column names, positional column indices, unit prefixes, and lab conventions must not leak into the Main Board, common plot shell, or common save module. All such mapping belongs inside the workflow's Input Adapter surface.
+
+## Input Adapter Contract
+
+Every Workflow Assembly must declare an Input Adapter surface. The adapter is the boundary between raw instrument files and the workflow-domain dataset. Workflow analysis (fit, scale, render, save) must only consume the adapter's output — not raw file bytes, raw column names, or instrument-specific units.
+
+### Adapter Surface Fields
+
+| Field | Meaning |
+|---|---|
+| Accepted file formats | File extensions and format variants the adapter recognizes. Unrecognized formats produce adapter warnings, not silent fallback. |
+| Parser entry point | The parser type and function signature that converts a raw file to a typed parsed-file value. |
+| Column / index mapping | How raw column names or positional indices map to workflow-domain semantic names. This mapping is adapter-owned. It must not be re-derived inside the ingestion use case or analysis stages. |
+| Unit conversion | Unit transforms applied at the adapter boundary (e.g. Oe → T, nm → m). The workflow-domain dataset carries post-conversion values in declared units. Common plot and save modules must not perform or assume any additional unit transform. |
+| Sidecar condition injection | How sidecar metadata (temperature override, file-kind override, shift, device) is applied at ingestion, before the workflow-domain dataset is finalized. |
+| Adapter output type | The typed workflow-domain dataset produced by the adapter. This is the contract value consumed by all downstream analysis stages. |
+| Warning policy | How parse errors, ambiguous columns, missing required fields, and fallback paths are surfaced. Adapter warnings must not silently succeed; they must reach the workflow's warning surface. |
+
+### Invariants
+
+1. **Main Board does not parse.** The Main Board mounts an assembly; it never reads raw instrument file bytes.
+2. **Common modules consume adapter output only.** Common plot, common save, and common pack modules consume the workflow-domain dataset, not the parsed file or intermediate adapter state.
+3. **Column mapping is adapter-owned.** The adapter declares the column mapping once. No other stage re-derives column names from raw headers.
+4. **Unit conversion is adapter-owned.** The adapter emits values in declared workflow-domain units. Downstream stages must not re-apply or assume conversion.
+5. **Warning policy is complete.** Every adapter failure path either produces a typed warning or throws a parse error; silent fallback to a different semantic meaning is forbidden.
+
+### Adding a New Workflow
+
+Adding a new workflow means adding an Input Adapter Contract section to its ASSEMBLY.md before any code is written. The adapter output type (the workflow-domain dataset struct) must be named and described in the ASSEMBLY.md before the parser file exists.
+
+---
+
+## RSM Workflow Architecture Rules
+
+These rules apply to the future RSM (Raman Spectral Mapping or equivalent multi-instrument mapping) workflow and any workflow that ingests multi-lab or multi-instrument file formats.
+
+### Adapter Rules
+
+1. **All lab-specific and instrument-specific column mapping belongs in the RSM Input Adapter.** This includes: lab-specific column naming conventions, positional vs. named column schemes for different instruments, and unit prefixes that differ by instrument vendor.
+2. **The RSM Input Adapter produces a `CanonicalRSMDataset`.** The dataset is the typed contract consumed by RSM analysis, RSM plot rendering, and RSM save. Its fields are in declared, stable workflow-domain units.
+3. **Lab-specific column mapping must not enter the Main Board.** The Main Board mounts the RSM assembly; it does not branch on lab name, instrument vendor, or column variant.
+4. **Lab-specific column mapping must not enter common plot modules.** Common plot shell, common legend, and common axis labels consume `CanonicalRSMDataset` field names and units, not raw instrument column names.
+5. **Lab-specific column mapping must not enter common save modules.** Common save persists chart artifacts and the metric projection provided by the RSM Assembly; it must not read raw column names or infer RSM semantics.
+6. **Multi-instrument format dispatch belongs inside the RSM Input Adapter.** If the RSM workflow accepts files from multiple instrument vendors, the adapter selects the appropriate parser based on file format signals (extension, header, sidecar kind). This dispatch is adapter-internal.
+
+### CanonicalRSMDataset Contract (Target)
+
+The `CanonicalRSMDataset` does not yet exist. Before any RSM parser is written, the Assembly must declare:
+
+| Field | Meaning |
+|---|---|
+| Accepted file formats | RSM-specific formats per instrument vendor. |
+| Parser entry points | One parser type per format variant; the adapter selects the appropriate parser. |
+| Column / index mapping | Per-instrument mapping to canonical dataset fields. |
+| Canonical field names and units | Declared stable names and units in `CanonicalRSMDataset`. |
+| Adapter output type | `CanonicalRSMDataset` |
+| Warning policy | Missing columns, unknown instrument format, ambiguous units — all surfaced as adapter warnings. |
+
+---
 
 ## Contract Reality
 

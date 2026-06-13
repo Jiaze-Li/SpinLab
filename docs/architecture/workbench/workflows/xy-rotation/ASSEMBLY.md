@@ -18,6 +18,27 @@
 | Extra search slots | None. XY uses the common Workbench search only. | `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift` |
 | Result routing/cache | The workflow-local `cachedSearchResults` mirror supports selection denominator, pack restore, title context, and legacy fallback. This is the common search bridge, not XY-specific search logic. | `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift`; `docs/architecture/workbench/modules/MEASUREMENT_SEARCH.md` |
 
+## Input Adapter Surface
+
+The XY Rotation Input Adapter converts raw Zurich Instruments `.lvm` files and PPMS `.dat` files into `XYRotationAngleSweep` values, which are then assembled into the `XYRotationIngestionResult` workflow-domain dataset. All downstream stages (transform, render, save) consume `XYRotationIngestionResult` only.
+
+| Field | Current state |
+|---|---|
+| Accepted file formats | `.lvm` (Zurich Instruments angle sweeps) and PPMS `.dat` files. Files with any other extension are skipped with an adapter warning. |
+| Parser entry points | `XYRotationLVMParser` for `.lvm`; `XYRotationDATParser` for `.dat`. Both are dispatched by `IngestXYRotationSelectionsUseCase` based on file extension. Format dispatch is adapter-internal. |
+| LVM column mapping | Positional mapping (adapter-owned): col 0 → angle (deg), col 1 → V1ω_X, col 5 → V2ω_X for Rxy derivation, col 9 → R_H for Rxx and I_rms derivation. `I_rms = mean(col1 / col9)` over leading rows. `Rxy = col5 / I_rms`. These indices must not be re-derived in any downstream stage. |
+| DAT column mapping | Named mapping (adapter-owned): `Sample Position (deg)` → angle, Bridge 2 resistance/resistivity → Rxx, Bridge 3 resistance/resistivity → optional Rxy. `Temperature (K)` column mean or filename → temperature when no sidecar override. Named column lookup is adapter-internal. |
+| Unit conversion | LVM: Rxy is derived from V/I at adapter time; no subsequent resistance unit conversion. DAT: stored resistance/resistivity values used as-is; no conversion. Angle remains degrees throughout. |
+| Sidecar condition injection | Sidecar `temperature` overrides parser-derived temperature. Sidecar `shift` leading number becomes the per-sweep default φ offset (applied at adapter→ingest boundary). Sidecar `device` provides device metadata and participates in mixed-device warnings. |
+| Adapter output type | `[XYRotationAngleSweep]` (one sweep per file) assembled into `XYRotationIngestionResult` by `IngestXYRotationSelectionsUseCase`. Each sweep carries semantic angle, Rxx, optional Rxy, and temperature in declared units. |
+| Warning policy | LVM parser throws on: absent data rows, unresolvable temperature, undeducible `I_rms`. DAT parser throws on: absent angle/Rxx columns, absent valid rows, unresolvable temperature. All parser throws are caught at adapter boundary and converted to per-file skip warnings. Unsupported extensions → skip warning (not a throw). Mixed device values → warn and use first sorted device. Rxy-absent files → Rxy silently absent in sweep (current gap: no explicit user-facing warning; see Required Behavior Tests). |
+
+**Invariant check:**
+- Main Board does not call `XYRotationLVMParser` or `XYRotationDATParser`. ✅
+- Common plot/save modules consume `XYRotationIngestionResult`-derived series only. ✅
+- Positional column indices for LVM are not re-read in `XYRotationPlotRenderer` or the workspace store. ✅
+- Named DAT column lookup is not repeated outside `XYRotationDATParser`. ✅
+
 ## Data / Physics Mapping Contract
 
 | Semantic item | Current behavior | Trace |

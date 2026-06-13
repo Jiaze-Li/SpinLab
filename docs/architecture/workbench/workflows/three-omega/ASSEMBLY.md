@@ -38,6 +38,29 @@ Slot state is owned by `WorkbenchSecondaryInputSearchRuntime` (Gate 7.3). `Three
 | Warning behavior | Missing or invalid RT input warns that Rxx(T)-dependent outputs such as Scaling Law are unavailable. Invalid or ambiguous RT selection must not backfill from Main Search. |
 | Multiple-slot support | 3ω uses one slot today, but the contract must support future workflows such as SOT declaring multiple independent auxiliary slots. |
 
+## Input Adapter Surface
+
+The 3ω Input Adapter converts raw Zurich Instruments `.lvm` files (both field-sweep and RT variants) into `ThreeOmegaLVMFile` values, then into the `ThreeOmegaIngestionResult` workflow-domain dataset. All downstream stages (fit, scale, render, overlay, save) consume `ThreeOmegaIngestionResult` only. The RT auxiliary input follows the same adapter path under the secondary input slot.
+
+| Field | Current state |
+|---|---|
+| Accepted file formats | Zurich Instruments `.lvm` files only. Field sweeps and RT sweeps share the same parser; file kind is resolved at adapter time via sidecar or filename heuristic. |
+| Parser entry point | `ThreeOmegaLVMParser.parse(fileURL:temperatureOverride:kindOverride:) throws -> ThreeOmegaLVMFile`. All positional column resolution and file-kind classification happen inside this call. |
+| File-kind mapping | Adapter-owned resolution order: (1) `kindOverride` from sidecar canonical workflow ID (`rt` → RT, `3w` → field sweep); (2) filename heuristic (`_RT_` or `RT_` prefix → RT; otherwise field sweep). This dispatch is adapter-internal and must not be re-evaluated in ingestion or analysis stages. |
+| Field-sweep column mapping | Positional mapping (adapter-owned): col 0 → H (Oe), col 1 → V1ω_X, col 5 → V3ω_X, col 9 → R_H. `I_rms = mean(col1 / col9)` over available rows. Minimum 10 columns required. These indices must not be re-referenced outside `ThreeOmegaLVMParser`. |
+| RT-sweep column mapping | Positional mapping (adapter-owned): col 0 → T (K), col 9 → Rxx. RT files do not have a single field-sweep temperature. |
+| Unit conversion | H (Oe) is carried as raw Oe in `ThreeOmegaLVMFile`; the renderer converts Oe → T (÷10000) for R(1ω)/R(3ω) plot axes. Scaling converts geometry units (nm/μm → m) and derives display units for σ and Y inside `ThreeOmegaScalingUseCase`. No unit conversion is performed by common plot or save modules. |
+| Sidecar condition injection | Sidecar canonical workflow ID → file-kind override. `temperatureOverride` from sidecar temperature field → replaces filename-derived temperature. Device is resolved from filename convention inside the parser (`_device(from:)`). |
+| Adapter output type | `ThreeOmegaLVMFile` (per file) → `ThreeOmegaIngestionResult` (assembled by `IngestThreeOmegaSelectionsUseCase`). Field sweeps and RT results are typed separately within `ThreeOmegaIngestionResult`. Fit results (`ThreeOmegaFieldSweepResult`) and scaling results (`ThreeOmegaScalingResult`) are produced by downstream analysis stages, not by the adapter. |
+| Warning policy | `ThreeOmegaLVMParser.ParseError` covers: `markerNotFound`, `insufficientColumns`, `noDataRows`, `iRmsDerivationFailed`, `temperatureNotFound`. Parser throws are caught at the ingestion boundary and converted to per-file warnings in `ThreeOmegaIngestionResult.warnings`. Multiple RT files → warn and select by row count (unless a dedicated RT hit is selected via the secondary input slot). The adapter does not silently fall back to a different column set on parse failure. |
+
+**Invariant check:**
+- Main Board does not call `ThreeOmegaLVMParser`. ✅
+- Common plot/save/overlay modules consume `ThreeOmegaIngestionResult`-derived values only. ✅
+- Positional column indices are not re-referenced outside `ThreeOmegaLVMParser`. ✅
+- Oe → T unit conversion is renderer-stage, not common-shell-stage. ✅
+- Secondary RT input follows the same adapter path; slot state is workflow-local (`WorkbenchSecondaryInputSearchRuntime`), not Main Board state. ✅
+
 ## Data / Physics Mapping Contract
 
 | Semantic item | Current behavior | Trace |
