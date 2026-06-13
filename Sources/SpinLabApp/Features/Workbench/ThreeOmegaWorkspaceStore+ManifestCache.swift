@@ -145,14 +145,14 @@ extension ThreeOmegaWorkspaceStore {
         }
     }
 
-    /// Returns the field-sweep series in final render order for manifest caching.
-    /// Reorderable stacked plots are rendered top-to-bottom, so the cached manifest must
-    /// mirror that order instead of preserving the raw input sweep sequence.
+    /// Returns the field-sweep series in bottom-to-top render order for manifest caching.
+    /// Matches the committed series order so that activeManifestPayload.series.map(sourceRef)
+    /// equals the bottom-to-top order committed by the panel.
     nonisolated static func manifestOrderedFieldSweeps(
         _ fieldSweeps: [ThreeOmegaFieldSweepResult],
         seriesOrder: [String]?
     ) -> [ThreeOmegaFieldSweepResult] {
-        Array(_applySeriesOrder(seriesOrder, to: fieldSweeps).reversed())
+        _applySeriesOrder(seriesOrder, to: fieldSweeps)
     }
 
 

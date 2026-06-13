@@ -21,6 +21,8 @@ struct WorkbenchSeriesOrderPanel: View {
     @State private var editingChipKey: String? = nil
     @State private var editChipText: String = ""
     @FocusState private var chipEditorFocused: Bool
+    @State private var dragTargetKey: String? = nil
+    @State private var dropIsRight: Bool = false
 
     var body: some View {
         if isVisible {
@@ -43,7 +45,19 @@ struct WorkbenchSeriesOrderPanel: View {
                                     let normalizedDropLocationX = width > 0 ? location.x / width : 0.5
                                     moveDisplayedRow(withDraggedKey: draggedKey, onto: row.identityKey, dropLocationX: normalizedDropLocationX)
                                     return true
-                                } isTargeted: { _ in }
+                                } isTargeted: { isOver in
+                                    if isOver {
+                                        dragTargetKey = row.identityKey
+                                    } else if dragTargetKey == row.identityKey {
+                                        dragTargetKey = nil
+                                    }
+                                }
+                                .onContinuousHover { phase in
+                                    if case .active(let location) = phase {
+                                        let width = chipWidths[row.identityKey] ?? 100
+                                        dropIsRight = width > 0 ? location.x / width >= 0.5 : false
+                                    }
+                                }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -114,7 +128,7 @@ struct WorkbenchSeriesOrderPanel: View {
                         editingChipKey = row.identityKey
                         chipEditorFocused = true
                     } label: {
-                        Image(systemName: "pencil")
+                        Image(systemName: "square.and.pencil")
                             .font(.system(size: 12, weight: .regular))
                             .frame(width: 14, height: 14)
                     }
@@ -160,6 +174,14 @@ struct WorkbenchSeriesOrderPanel: View {
             Capsule(style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         )
+        .overlay(alignment: dropIsRight ? .trailing : .leading) {
+            if dragTargetKey == row.identityKey {
+                Rectangle()
+                    .fill(Color.accentColor)
+                    .frame(width: 2)
+                    .clipShape(Capsule(style: .continuous))
+            }
+        }
     }
 
     private func commitChipRename(row: SeriesOrderRow, labelKey: String) {
@@ -264,7 +286,7 @@ struct WorkbenchSeriesOrderPanel: View {
             )
         }
         let lookup = Dictionary(uniqueKeysWithValues: rows.map { ($0.identityKey, $0) })
-        let defaultOrder = rows.reversed().map(\.identityKey)
+        let defaultOrder = rows.map(\.identityKey)
         let baseOrder = resolveOrderKeys(currentSeriesOrder, rows: rows, defaultOrder: defaultOrder)
         return baseOrder.compactMap { lookup[$0] }
     }

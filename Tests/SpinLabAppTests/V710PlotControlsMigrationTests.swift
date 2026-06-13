@@ -512,6 +512,40 @@ struct V710LabelDisplayAndOrderTests {
         #expect(src.contains("arrow.up"), "chip must retain arrow.up button as fallback reorder")
         #expect(src.contains("arrow.down"), "chip must retain arrow.down button as fallback reorder")
     }
+
+    @Test("Rename button uses square.and.pencil, not bare pencil icon")
+    func renameIconUsesSquareAndPencil() throws {
+        let base = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let url = base.appendingPathComponent(
+            "Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift"
+        )
+        let src = try String(contentsOf: url, encoding: .utf8)
+        #expect(src.contains("\"square.and.pencil\""),
+                "rename button must use square.and.pencil for clarity")
+        #expect(!src.contains("\"pencil\""),
+                "bare pencil icon must be replaced by square.and.pencil")
+    }
+
+    @Test("WorkbenchSeriesOrderPanel declares drop indicator state")
+    func seriesOrderPanelHasDropIndicatorState() throws {
+        let base = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let url = base.appendingPathComponent(
+            "Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift"
+        )
+        let src = try String(contentsOf: url, encoding: .utf8)
+        #expect(src.contains("dragTargetKey"),
+                "panel must declare dragTargetKey state for the drop indicator")
+        #expect(src.contains("dropIsRight"),
+                "panel must declare dropIsRight state to track indicator side")
+        #expect(src.contains("Color.accentColor"),
+                "panel must render the drop indicator using accentColor (blue)")
+    }
 }
 
 // MARK: - Suite 7: UI density and typography guards

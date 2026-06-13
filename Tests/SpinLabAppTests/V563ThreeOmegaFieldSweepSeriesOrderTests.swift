@@ -173,7 +173,94 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         let r1 = store.tabs.output(for: .fieldSweep1omega).manifestPayload?.series.compactMap(\.sourceRef)
         let r3 = store.tabs.output(for: .fieldSweep3omega).manifestPayload?.series.compactMap(\.sourceRef)
 
-        #expect(r1 == ["/tmp/top.csv", "/tmp/bottom.csv"])
-        #expect(r3 == ["/tmp/top.csv", "/tmp/bottom.csv"])
+        // manifest is bottom-to-top (matches committed order) after PR127 fix
+        #expect(r1 == ["/tmp/bottom.csv", "/tmp/top.csv"])
+        #expect(r3 == ["/tmp/bottom.csv", "/tmp/top.csv"])
+    }
+
+    // MARK: - PR127 behavioral tests
+
+    @MainActor
+    @Test("After updateSeriesOrder, activeManifestPayload series matches the committed order")
+    func activeManifestPayloadMatchesCommittedOrder() {
+        let store = ThreeOmegaWorkspaceStore()
+        store.ingestionResult = makeIngestionResult()
+        store.cachedInputFiles = ["/tmp/bottom.csv", "/tmp/top.csv"]
+        store.tabs.activeTab = .fieldSweep1omega
+
+        let committed = ["/tmp/bottom.csv", "/tmp/top.csv"]
+        store.updateSeriesOrder(committed)
+        store._refreshManifestPayloads()
+
+        let manifest1 = store.tabs.output(for: .fieldSweep1omega).manifestPayload?.series.compactMap(\.sourceRef)
+        let manifest3 = store.tabs.output(for: .fieldSweep3omega).manifestPayload?.series.compactMap(\.sourceRef)
+        #expect(manifest1 == committed)
+        #expect(manifest3 == committed)
+    }
+
+    @MainActor
+    @Test("Panel displayed rows after updateSeriesOrder show visual top-to-bottom order")
+    func panelDisplayedRowsReflectSeriesOrder() {
+        let store = ThreeOmegaWorkspaceStore()
+        store.ingestionResult = makeIngestionResult()
+        store.cachedInputFiles = ["/tmp/bottom.csv", "/tmp/top.csv"]
+        store.tabs.activeTab = .fieldSweep1omega
+
+        // committed = [bottom, top] → bottom at visual bottom, top at visual top
+        let committed = ["/tmp/bottom.csv", "/tmp/top.csv"]
+        store.updateSeriesOrder(committed)
+        store._refreshManifestPayloads()
+
+        let manifest = store.tabs.output(for: .fieldSweep1omega).manifestPayload
+        let internalRows = WorkbenchSeriesOrderPanel.makeRows(
+            payload: manifest,
+            currentSeriesOrder: store.activeSeriesOrder
+        )
+        let displayed = WorkbenchSeriesOrderPanel.presentedRows(from: internalRows)
+        // Visual top (displayed index 0) must be the last committed key (= top series)
+        #expect(displayed.first?.identityKey == "/tmp/top.csv")
+        #expect(displayed.last?.identityKey == "/tmp/bottom.csv")
+    }
+
+    @Test("Arrow reorder and drag reorder produce identical committed order")
+    func arrowAndDragReorderProduceIdenticalCommittedOrder() {
+        // Construct a 3-series manifest in bottom-to-top format
+        let payload = WorkbenchPlotPayload(
+            workflowID: "3w",
+            workflowDisplayName: "3w",
+            title: "T",
+            axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R(1ω) (Ω)"),
+            series: [
+                WorkbenchPlotSeries(label: "A", x: [0], y: [0], sourceRef: "/tmp/a.csv", sampleID: "a"),
+                WorkbenchPlotSeries(label: "B", x: [0], y: [0], sourceRef: "/tmp/b.csv", sampleID: "b"),
+                WorkbenchPlotSeries(label: "C", x: [0], y: [0], sourceRef: "/tmp/c.csv", sampleID: "c")
+            ],
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+        // internal = [a, b, c] (a=bottom, c=top); displayed = [c, b, a]
+
+        let internalRows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        let displayedRows = WorkbenchSeriesOrderPanel.presentedRows(from: internalRows)
+        // displayed[0]=c, displayed[1]=b, displayed[2]=a
+
+        // Arrow: move c (display pos 0) one step down → display pos 1
+        var arrowDisplayed = displayedRows
+        let moved = arrowDisplayed.remove(at: 0)
+        arrowDisplayed.insert(moved, at: 1)
+        let arrowCommitted = WorkbenchSeriesOrderPanel.internalRows(fromPresentedRows: arrowDisplayed).map(\.identityKey)
+        // arrowDisplayed=[b,c,a] → internal=[a,c,b]
+
+        // Drag: drop c after b (dropLocationX=0.8 on b at display pos 1)
+        let dragDisplayed = WorkbenchSeriesOrderPanel.reorderedRows(
+            displayedRows,
+            draggedKey: "/tmp/c.csv",
+            targetKey: "/tmp/b.csv",
+            dropLocationX: 0.8
+        )
+        let dragCommitted = WorkbenchSeriesOrderPanel.internalRows(fromPresentedRows: dragDisplayed).map(\.identityKey)
+
+        #expect(arrowCommitted == dragCommitted)
+        #expect(arrowCommitted == ["/tmp/a.csv", "/tmp/c.csv", "/tmp/b.csv"])
     }
 }
