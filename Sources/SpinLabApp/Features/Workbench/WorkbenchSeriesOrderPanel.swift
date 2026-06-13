@@ -1,17 +1,26 @@
 import SwiftUI
 
-/// Series reordering control for stacked charts.
+/// Series reordering and per-chip label rename control for stacked charts.
 ///
 /// Displays the current stack order and commits bottom-to-top per-series keys.
+/// Each chip shows a pencil button for inline legend label renaming.
 struct WorkbenchSeriesOrderPanel: View {
     let payload: WorkbenchPlotPayload?
     let currentSeriesOrder: [String]?
     let isVisible: Bool
     let onCommit: ([String]) -> Void
+    /// Current series label overrides keyed by sampleID (or Int-string fallback).
+    var seriesLabelOverrides: [String: String] = [:]
+    /// Called with (labelKey, newLabel) when the user renames a chip; key matches
+    /// TabRenderManager.updateSeriesLabel sampleID parameter.
+    var onRenameLabel: ((String, String) -> Void)? = nil
 
     @State private var rows: [SeriesOrderRow] = []
     @State private var lastCommittedSignature: String = ""
     @State private var chipWidths: [String: CGFloat] = [:]
+    @State private var editingChipKey: String? = nil
+    @State private var editChipText: String = ""
+    @FocusState private var chipEditorFocused: Bool
 
     var body: some View {
         if isVisible {
@@ -72,36 +81,69 @@ struct WorkbenchSeriesOrderPanel: View {
     }
 
     private func seriesChip(_ row: SeriesOrderRow, index: Int) -> some View {
-        HStack(spacing: 6) {
-            Text(row.label)
-                .font(.caption)
-                .fontWeight(.medium)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: 120, alignment: .leading)
-                .accessibilityIdentifier("series-order-row-\(row.identityKey)")
+        let labelKey = row.sampleID ?? String(row.originalIndex)
+        let displayLabel = seriesLabelOverrides[labelKey] ?? row.label
+        let isEditing = editingChipKey == row.identityKey
 
-            Button {
-                moveDisplayedRow(from: index, to: index - 1)
-            } label: {
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 10, weight: .semibold))
-                    .frame(width: 10, height: 10)
-            }
-            .buttonStyle(.borderless)
-            .controlSize(.mini)
-            .disabled(index == 0)
+        return HStack(spacing: 6) {
+            if isEditing {
+                TextField("", text: $editChipText)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.caption)
+                    .frame(minWidth: 60, maxWidth: 140)
+                    .focused($chipEditorFocused)
+                    .onSubmit { commitChipRename(row: row, labelKey: labelKey) }
+                Button("OK") { commitChipRename(row: row, labelKey: labelKey) }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.mini)
+                Button("Cancel") { editingChipKey = nil }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+            } else {
+                Text(displayLabel)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 120, alignment: .leading)
+                    .accessibilityIdentifier("series-order-row-\(row.identityKey)")
 
-            Button {
-                moveDisplayedRow(from: index, to: index + 1)
-            } label: {
-                Image(systemName: "arrow.down")
-                    .font(.system(size: 10, weight: .semibold))
-                    .frame(width: 10, height: 10)
+                if onRenameLabel != nil {
+                    Button {
+                        editChipText = displayLabel
+                        editingChipKey = row.identityKey
+                        chipEditorFocused = true
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 9, weight: .regular))
+                            .frame(width: 12, height: 12)
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.mini)
+                }
+
+                Button {
+                    moveDisplayedRow(from: index, to: index - 1)
+                } label: {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(width: 10, height: 10)
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.mini)
+                .disabled(index == 0)
+
+                Button {
+                    moveDisplayedRow(from: index, to: index + 1)
+                } label: {
+                    Image(systemName: "arrow.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(width: 10, height: 10)
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.mini)
+                .disabled(index == Self.presentedRows(from: rows).count - 1)
             }
-            .buttonStyle(.borderless)
-            .controlSize(.mini)
-            .disabled(index == Self.presentedRows(from: rows).count - 1)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -118,6 +160,14 @@ struct WorkbenchSeriesOrderPanel: View {
             Capsule(style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         )
+    }
+
+    private func commitChipRename(row: SeriesOrderRow, labelKey: String) {
+        let trimmed = editChipText.trimmingCharacters(in: .whitespacesAndNewlines)
+        onRenameLabel?(labelKey, trimmed)
+        editingChipKey = nil
+        editChipText = ""
+        chipEditorFocused = false
     }
 
     private func syncRows() {
