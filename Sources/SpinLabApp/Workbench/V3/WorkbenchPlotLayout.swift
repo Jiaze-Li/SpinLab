@@ -87,6 +87,21 @@ struct WorkbenchPlotLayout: Sendable {
     let yTickHitRect:   CGRect
 
     let legendRows:     [LegendRow]
+
+    /// Bounding box of the rendered legend in CG renderer pixel space (origin bottom-left).
+    /// Single source of truth for both the renderer box and canvas drag preview geometry.
+    /// `nil` when there are no legend rows.
+    var legendBoxRect: CGRect? {
+        guard !legendRows.isEmpty else { return nil }
+        let boxPad: CGFloat = 6
+        let rowH = WorkbenchPlotLayout.legendRowH
+        let minX = legendRows.map(\.cgOriginX).min()! - boxPad
+        let maxX = legendRows.map { $0.labelAnchor.x + $0.measuredLabelWidth }.max()! + boxPad
+        let minY = legendRows.map(\.cgRowY).min()! - rowH * 0.5 - boxPad
+        let maxY = legendRows.map(\.cgRowY).max()! + rowH * 0.5 + boxPad
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+
     let pointDotHitTargets:   [PointHitTarget]
     let pointLabelHitTargets: [PointHitTarget]
 
@@ -278,34 +293,38 @@ struct WorkbenchPlotLayout: Sendable {
         legendFontSize: CGFloat = 18,
         labelOverrides: [Int: String] = [:]
     ) -> [LegendRow] {
-        series.enumerated().map { i, s in
-            let cgRowY:      CGFloat
-            let cgOriginX:   CGFloat
-            let isLeftAligned: Bool
-            let displayLabel = labelOverrides[i] ?? s.label
-            let measuredW = measureLabelWidth(displayLabel, fontSize: legendFontSize)
+        guard !series.isEmpty else { return [] }
+
+        // Pre-measure all display labels so right-anchor uses actual max width, not the estimate.
+        let measuredWidths: [CGFloat] = series.enumerated().map { i, s in
+            measureLabelWidth(labelOverrides[i] ?? s.label, fontSize: legendFontSize)
+        }
+        let maxMeasuredW = measuredWidths.max() ?? legendEstLabelW
+
+        return series.enumerated().map { i, s in
+            let cgRowY:    CGFloat
+            let cgOriginX: CGFloat
+            let measuredW = measuredWidths[i]
 
             if let np = legendPoint {
                 // Free-position mode — mirrors drawLegend free-position math exactly
                 let cx = min(max(np.x, 0), 1)
                 let cy = min(max(np.y, 0), 1)
-                cgOriginX    = plotRect.minX + cx * plotRect.width
-                let originY  = plotRect.minY + cy * plotRect.height
-                cgRowY       = originY - CGFloat(i) * legendRowH - legendRowH * 0.4
-                isLeftAligned = true
+                cgOriginX = plotRect.minX + cx * plotRect.width
+                let originY = plotRect.minY + cy * plotRect.height
+                cgRowY = originY - CGFloat(i) * legendRowH - legendRowH * 0.4
             } else {
                 // Anchor mode — mirrors drawLegend anchor math exactly
-                let anchor    = styleParams["legendAnchor"] ?? "top-right"
-                isLeftAligned = anchor == "top-left"  || anchor == "bottom-left"
-                let isBottom  = anchor == "bottom-right" || anchor == "bottom-left"
-                let rowIndex  = CGFloat(i + 1)
+                let anchor   = styleParams["legendAnchor"] ?? "top-right"
+                let isLeft   = anchor == "top-left" || anchor == "bottom-left"
+                let isBottom = anchor == "bottom-right" || anchor == "bottom-left"
+                let rowIndex = CGFloat(i + 1)
                 cgRowY = isBottom
                     ? plotRect.minY + rowIndex * legendRowH - legendRowH * 0.6
                     : plotRect.maxY - rowIndex * legendRowH + legendRowH * 0.4
-                // For all anchors, text appears to the RIGHT of the color line.
-                // Right-anchor entries are shifted left so [line][gap][text] fits within the plot.
-                let blockW = legendLineLen + legendGap + legendEstLabelW
-                cgOriginX = isLeftAligned
+                // Right-anchor: shift block left by actual max label width so text stays inside plot.
+                let blockW = legendLineLen + legendGap + maxMeasuredW
+                cgOriginX = isLeft
                     ? plotRect.minX + legendMargin
                     : plotRect.maxX - legendMargin - blockW
             }

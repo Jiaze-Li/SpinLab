@@ -168,21 +168,14 @@ struct WorkbenchPlotCanvas: View {
 
     @ViewBuilder
     private var legendDragPreview: some View {
-        if let pt = dragPreviewPt {
+        if let pt = dragPreviewPt, let layout, let cgBox = layout.legendBoxRect {
             let fitted = fittedRect(in: canvasSize)
             if fitted.width > 0 && fitted.height > 0 {
-                let rSize = layout?.rendererSize ?? rendererPixelSize
-                let scaleX  = fitted.width  / rSize.width
-                let scaleY  = fitted.height / rSize.height
+                let scaleX = fitted.width  / layout.rendererSize.width
+                let scaleY = fitted.height / layout.rendererSize.height
                 let boxPad: CGFloat = 6
-                let rowCount = CGFloat(layout?.legendRows.count ?? 1)
-                let maxLabelW = layout?.legendRows.map(\.measuredLabelWidth).max()
-                              ?? WorkbenchPlotLayout.legendEstLabelW
-                let boxW = (WorkbenchPlotLayout.legendLineLen
-                          + WorkbenchPlotLayout.legendGap
-                          + maxLabelW
-                          + 2 * boxPad) * scaleX
-                let boxH = (rowCount * WorkbenchPlotLayout.legendRowH + 2 * boxPad) * scaleY
+                let boxW = cgBox.width  * scaleX
+                let boxH = cgBox.height * scaleY
                 let topLeftX = pt.x - boxPad * scaleX
                 let topLeftY = pt.y - (WorkbenchPlotLayout.legendRowH * 0.1 + boxPad) * scaleY
                 Rectangle()

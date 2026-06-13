@@ -435,13 +435,9 @@ struct WorkbenchChartRenderer {
         let boxPad: CGFloat = 6
         let fontSize = style.legendFontSize
 
-        // Bounding box — use measured label widths so the box always encloses the text
-        let measuredLabelWidths: [CGFloat] = series.map { s in
-            let line = makeLine(text: s.label, size: fontSize, bold: false, color: labelColor)
-            return CTLineGetBoundsWithOptions(line, []).width
-        }
+        // Bounding box — use pre-computed measured widths from layout rows (same font, same display label).
         let minX = rows.map(\.cgOriginX).min()! - boxPad
-        let maxX = zip(rows, measuredLabelWidths).map { row, w in row.labelAnchor.x + w }.max()! + boxPad
+        let maxX = rows.map { $0.labelAnchor.x + $0.measuredLabelWidth }.max()! + boxPad
         let minY = rows.map(\.cgRowY).min()! - rowH * 0.5 - boxPad
         let maxY = rows.map(\.cgRowY).max()! + rowH * 0.5 + boxPad
         let boxRect = CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
