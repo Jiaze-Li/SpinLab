@@ -290,8 +290,10 @@ struct WorkbenchChartRenderer {
         drawRotated90Markup(ctx, text: payload.axisMapping.yField,
                             at: layout.yLabelCenter, size: style.axisTitleFontSize, color: axisColor)
 
-        // Legend — positions come from layout (same math, no duplication)
-        drawLegend(ctx, rows: layout.legendRows, series: payload.series, style: style)
+        // Legend — box rect from layout (single source of truth, no local duplication)
+        if let boxRect = layout.legendBoxRect {
+            drawLegend(ctx, rows: layout.legendRows, boxRect: boxRect, series: payload.series, style: style)
+        }
     }
 
     // MARK: - Tick computation
@@ -427,20 +429,12 @@ struct WorkbenchChartRenderer {
     /// All position math lives in WorkbenchPlotLayout — no duplication here.
     private func drawLegend(_ ctx: CGContext,
                              rows: [WorkbenchPlotLayout.LegendRow],
+                             boxRect: CGRect,
                              series: [WorkbenchPlotSeries],
                              style: WorkbenchChartStyle) {
         guard !rows.isEmpty else { return }
         let labelColor = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
-        let rowH   = WorkbenchPlotLayout.legendRowH
-        let boxPad: CGFloat = 6
         let fontSize = style.legendFontSize
-
-        // Bounding box — use pre-computed measured widths from layout rows (same font, same display label).
-        let minX = rows.map(\.cgOriginX).min()! - boxPad
-        let maxX = rows.map { $0.labelAnchor.x + $0.measuredLabelWidth }.max()! + boxPad
-        let minY = rows.map(\.cgRowY).min()! - rowH * 0.5 - boxPad
-        let maxY = rows.map(\.cgRowY).max()! + rowH * 0.5 + boxPad
-        let boxRect = CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
 
         // White fill + light border
         ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 0.92))

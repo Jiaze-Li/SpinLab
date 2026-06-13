@@ -31,8 +31,8 @@ struct WorkbenchPlotCanvas: View {
     var minHeight: CGFloat = 360
 
     @State private var canvasSize: CGSize = .zero
-    /// Screen-space point of an in-progress legend drag (nil when not dragging).
-    @State private var dragPreviewPt: CGPoint? = nil
+    /// Screen-space bounding rect of the legend drag preview box (nil when not dragging).
+    @State private var dragPreviewLegendBoxScreenRect: CGRect? = nil
     /// Normalized offset (plot-space, Y-up) from legend origin to cursor at drag start.
     @State private var dragGrabOffsetNorm: CGSize? = nil
     /// Last valid adjusted normalized point during an active drag.
@@ -75,12 +75,12 @@ struct WorkbenchPlotCanvas: View {
                             ) else { return }
                             dragGrabOffsetNorm = step.grabOffset
                             lastValidDragNorm = step.adjustedNorm
-                            dragPreviewPt = step.previewPoint
+                            dragPreviewLegendBoxScreenRect = step.previewRect
                         },
                         onDragEnded: { _, _ in
-                            if dragPreviewPt != nil {
+                            if dragPreviewLegendBoxScreenRect != nil {
                                 let last = lastValidDragNorm
-                                dragPreviewPt      = nil
+                                dragPreviewLegendBoxScreenRect = nil
                                 dragGrabOffsetNorm = nil
                                 lastValidDragNorm  = nil
                                 if let callback = onLegendDrag, let finalNorm = last {
@@ -110,7 +110,7 @@ struct WorkbenchPlotCanvas: View {
                     showDelay: .seconds(1),
                     dismissDelay: .milliseconds(500),
                     arrowEdge: .trailing,
-                    isEnabled: relatedCharts?.isEmpty == false && dragPreviewPt == nil
+                    isEnabled: relatedCharts?.isEmpty == false && dragPreviewLegendBoxScreenRect == nil
                 ) { onHoverChanged, onDialogActiveChanged in
                     MeasurementPlotPreviewPanel(
                         references: relatedCharts ?? [],
@@ -134,7 +134,7 @@ struct WorkbenchPlotCanvas: View {
     struct LegendDragStep {
         let grabOffset: CGSize
         let adjustedNorm: CGPoint
-        let previewPoint: CGPoint
+        let previewRect: CGRect
     }
 
     func legendDragStep(
@@ -159,47 +159,34 @@ struct WorkbenchPlotCanvas: View {
             x: min(max(cursorNorm.x - grab.width,  0), 1),
             y: min(max(cursorNorm.y - grab.height, 0), 1)
         )
+        guard let previewRect = translatedLegendBoxRect(for: adjusted, fittedRect: fittedRect) else { return nil }
         return LegendDragStep(
             grabOffset: grab,
             adjustedNorm: adjusted,
-            previewPoint: legendScreenOrigin(normalized: adjusted, fittedRect: fittedRect)
+            previewRect: previewRect
         )
     }
 
     @ViewBuilder
     private var legendDragPreview: some View {
-        if let pt = dragPreviewPt, let layout, let cgBox = layout.legendBoxRect {
-            let fitted = fittedRect(in: canvasSize)
-            if fitted.width > 0 && fitted.height > 0 {
-                let scaleX = fitted.width  / layout.rendererSize.width
-                let scaleY = fitted.height / layout.rendererSize.height
-                let boxPad: CGFloat = 6
-                let boxW = cgBox.width  * scaleX
-                let boxH = cgBox.height * scaleY
-                let topLeftX = pt.x - boxPad * scaleX
-                let topLeftY = pt.y - (WorkbenchPlotLayout.legendRowH * 0.1 + boxPad) * scaleY
-                Rectangle()
-                    .strokeBorder(
-                        Color.accentColor.opacity(0.85),
-                        style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])
-                    )
-                    .frame(width: boxW, height: boxH)
-                    .position(x: topLeftX + boxW / 2, y: topLeftY + boxH / 2)
-            }
+        if let rect = dragPreviewLegendBoxScreenRect {
+            Rectangle()
+                .strokeBorder(
+                    Color.accentColor.opacity(0.85),
+                    style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])
+                )
+                .frame(width: rect.width, height: rect.height)
+                .position(x: rect.midX, y: rect.midY)
         }
     }
 
-    private func _isInLegendFrame(_ location: CGPoint, fittedRect: CGRect) -> Bool {
-        guard let l = layout else { return false }
-        var frame: CGRect?
-        for row in l.legendRows {
-            let screenRect = WorkbenchPlotLayout.cgToScreen(
-                row.hitRect, fittedIn: fittedRect,
-                rendererWidth: l.rendererSize.width, rendererHeight: l.rendererSize.height
-            )
-            frame = frame.map { $0.union(screenRect) } ?? screenRect
-        }
-        return frame?.contains(location) ?? false
+    func _isInLegendFrame(_ location: CGPoint, fittedRect: CGRect) -> Bool {
+        guard let l = layout, let cgBox = l.legendBoxRect else { return false }
+        let screenRect = WorkbenchPlotLayout.cgToScreen(
+            cgBox, fittedIn: fittedRect,
+            rendererWidth: l.rendererSize.width, rendererHeight: l.rendererSize.height
+        )
+        return screenRect.contains(location)
     }
 
     private func currentLegendOriginNorm() -> CGPoint {
@@ -212,6 +199,43 @@ struct WorkbenchPlotCanvas: View {
         let cgOriginY = row0.cgRowY + WorkbenchPlotLayout.legendRowH * 0.4
         let ny = (cgOriginY - pr.minY) / pr.height
         return CGPoint(x: min(max(nx, 0), 1), y: min(max(ny, 0), 1))
+    }
+
+    // MARK: - Legend box translation helpers
+
+    func currentLegendOriginCG() -> CGPoint {
+        guard let layout, !layout.legendRows.isEmpty else { return .zero }
+        let row0 = layout.legendRows[0]
+        return CGPoint(x: row0.cgOriginX, y: row0.cgRowY + WorkbenchPlotLayout.legendRowH * 0.4)
+    }
+
+    func legendOriginCG(for normalized: CGPoint) -> CGPoint {
+        let pr: CGRect
+        if let layout {
+            pr = layout.plotRect
+        } else {
+            let opts = WorkbenchChartRenderer.Options()
+            let rSize = rendererPixelSize
+            pr = CGRect(
+                x: opts.paddingLeft, y: opts.paddingBottom,
+                width: rSize.width - opts.paddingLeft - opts.paddingRight,
+                height: rSize.height - opts.paddingTop - opts.paddingBottom
+            )
+        }
+        return CGPoint(x: pr.minX + normalized.x * pr.width, y: pr.minY + normalized.y * pr.height)
+    }
+
+    func translatedLegendBoxRect(for target: CGPoint, fittedRect: CGRect) -> CGRect? {
+        guard let layout, let cgBox = layout.legendBoxRect else { return nil }
+        let currentOrigin = currentLegendOriginCG()
+        let targetOrigin  = legendOriginCG(for: target)
+        let dx = targetOrigin.x - currentOrigin.x
+        let dy = targetOrigin.y - currentOrigin.y
+        let translatedCG = cgBox.offsetBy(dx: dx, dy: dy)
+        return WorkbenchPlotLayout.cgToScreen(
+            translatedCG, fittedIn: fittedRect,
+            rendererWidth: layout.rendererSize.width, rendererHeight: layout.rendererSize.height
+        )
     }
 
     // MARK: - Tap hit-testing (point dot toggle only)
@@ -280,23 +304,5 @@ struct WorkbenchPlotCanvas: View {
         return CGPoint(x: min(max(nx, 0), 1), y: min(max(ny, 0), 1))
     }
 
-    private func legendScreenOrigin(normalized: CGPoint, fittedRect: CGRect) -> CGPoint {
-        let rSize = layout?.rendererSize ?? rendererPixelSize
-        let pr = layout?.plotRect ?? {
-            let opts = WorkbenchChartRenderer.Options()
-            return CGRect(
-                x: opts.paddingLeft, y: opts.paddingBottom,
-                width: rSize.width - opts.paddingLeft - opts.paddingRight,
-                height: rSize.height - opts.paddingTop - opts.paddingBottom
-            )
-        }()
-        let cgOriginX = pr.minX + normalized.x * pr.width
-        let cgOriginY = pr.minY + normalized.y * pr.height
-        let pngX = cgOriginX
-        let pngY = rSize.height - cgOriginY
-        return CGPoint(
-            x: fittedRect.minX + pngX / rSize.width  * fittedRect.width,
-            y: fittedRect.minY + pngY / rSize.height * fittedRect.height
-        )
-    }
 }
+
