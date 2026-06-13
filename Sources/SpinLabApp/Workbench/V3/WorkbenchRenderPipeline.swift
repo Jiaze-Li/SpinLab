@@ -129,9 +129,12 @@ enum WorkbenchRenderPipeline {
         if let scale = input.pixelScaleOverride { effectiveBase.pixelScale = scale }
         let opts = renderer.resolvedOptions(payload: payload, base: effectiveBase, style: chartStyle)
 
-        // 8. Compute layout BEFORE series label overrides (legendRow.originalLabel must be stable)
+        // 8. Compute layout BEFORE series label overrides (legendRow.originalLabel must be stable).
+        //    Pass label overrides so measuredLabelWidth reflects the display (renamed) label,
+        //    keeping drag-preview geometry correct for long-renamed series.
         let layout = WorkbenchPlotLayout.compute(
-            options: opts, payload: payload, legendPoint: input.legendPoint, style: chartStyle
+            options: opts, payload: payload, legendPoint: input.legendPoint, style: chartStyle,
+            seriesLabelOverrides: input.seriesLabelOverrides
         )
 
         // 9. Apply series label overrides

@@ -110,7 +110,8 @@ struct WorkbenchPlotLayout: Sendable {
         options: WorkbenchChartRenderer.Options,
         payload: WorkbenchPlotPayload,
         legendPoint: CGPoint?,
-        style: WorkbenchChartStyle = .init()
+        style: WorkbenchChartStyle = .init(),
+        seriesLabelOverrides: [Int: String] = [:]
     ) -> WorkbenchPlotLayout {
         let w = CGFloat(options.width)
         let h = CGFloat(options.height)
@@ -168,11 +169,12 @@ struct WorkbenchPlotLayout: Sendable {
 
         // Legend rows
         let legendRows = computeLegendRows(
-            series:      payload.series,
-            plotRect:    plotRect,
-            legendPoint: legendPoint,
-            styleParams: payload.styleParams,
-            legendFontSize: style.legendFontSize
+            series:             payload.series,
+            plotRect:           plotRect,
+            legendPoint:        legendPoint,
+            styleParams:        payload.styleParams,
+            legendFontSize:     style.legendFontSize,
+            labelOverrides:     seriesLabelOverrides
         )
 
         // Axis range — mirrors WorkbenchChartRenderer axis computation exactly.
@@ -269,17 +271,19 @@ struct WorkbenchPlotLayout: Sendable {
     }
 
     private static func computeLegendRows(
-        series:      [WorkbenchPlotSeries],
-        plotRect:    CGRect,
-        legendPoint: CGPoint?,
-        styleParams: [String: String],
-        legendFontSize: CGFloat = 18
+        series:         [WorkbenchPlotSeries],
+        plotRect:       CGRect,
+        legendPoint:    CGPoint?,
+        styleParams:    [String: String],
+        legendFontSize: CGFloat = 18,
+        labelOverrides: [Int: String] = [:]
     ) -> [LegendRow] {
         series.enumerated().map { i, s in
             let cgRowY:      CGFloat
             let cgOriginX:   CGFloat
             let isLeftAligned: Bool
-            let measuredW = measureLabelWidth(s.label, fontSize: legendFontSize)
+            let displayLabel = labelOverrides[i] ?? s.label
+            let measuredW = measureLabelWidth(displayLabel, fontSize: legendFontSize)
 
             if let np = legendPoint {
                 // Free-position mode — mirrors drawLegend free-position math exactly
