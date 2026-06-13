@@ -314,14 +314,21 @@ struct WorkbenchPlotLayout: Sendable {
                 let originY = plotRect.minY + cy * plotRect.height
                 cgRowY = originY - CGFloat(i) * legendRowH - legendRowH * 0.4
             } else {
-                // Anchor mode — mirrors drawLegend anchor math exactly
+                // Anchor mode — row0 is placed so legendBoxRect stays inside plotRect.
+                // boxPad must match the constant in legendBoxRect.
                 let anchor   = styleParams["legendAnchor"] ?? "top-right"
                 let isLeft   = anchor == "top-left" || anchor == "bottom-left"
                 let isBottom = anchor == "bottom-right" || anchor == "bottom-left"
-                let rowIndex = CGFloat(i + 1)
-                cgRowY = isBottom
-                    ? plotRect.minY + rowIndex * legendRowH - legendRowH * 0.6
-                    : plotRect.maxY - rowIndex * legendRowH + legendRowH * 0.4
+                let boxPad: CGFloat = 6
+                if isBottom {
+                    // row0 at bottom: legendBoxRect.minY = row0Y - rowH*0.5 - boxPad = plotRect.minY + legendMargin
+                    let row0Y = plotRect.minY + legendMargin + boxPad + legendRowH * 0.5
+                    cgRowY = row0Y + CGFloat(i) * legendRowH
+                } else {
+                    // row0 at top: legendBoxRect.maxY = row0Y + rowH*0.5 + boxPad = plotRect.maxY - legendMargin
+                    let row0Y = plotRect.maxY - legendMargin - boxPad - legendRowH * 0.5
+                    cgRowY = row0Y - CGFloat(i) * legendRowH
+                }
                 // Right-anchor: shift block left by actual max label width so text stays inside plot.
                 let blockW = legendLineLen + legendGap + maxMeasuredW
                 cgOriginX = isLeft

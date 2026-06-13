@@ -200,8 +200,11 @@ struct WorkbenchPlotCanvas: View {
     @ViewBuilder
     private var legendDragPreview: some View {
         if let rect = dragPreviewLegendBoxScreenRect {
+            // stroke draws centered on the rect boundary (half outside, half inside),
+            // matching the CoreGraphics legend border. strokeBorder was inset-only, making
+            // the preview visually smaller than the rendered box.
             Rectangle()
-                .strokeBorder(
+                .stroke(
                     Color.accentColor.opacity(0.85),
                     style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])
                 )

@@ -222,6 +222,108 @@ final class V7110LegendDragCGClampTests: XCTestCase {
             "Clamping must not change box height")
     }
 
+    // MARK: - 5. Anchor placement: legendBoxRect stays inside plotRect
+
+    func testAnchor_topRight_legendBoxMaxY_withinPlotRect() {
+        let layout = makeLayout(labels: ["Series A", "Series B"], anchor: "top-right")
+        let pr = layout.plotRect
+        guard let box = layout.legendBoxRect else { XCTFail("legendBoxRect nil"); return }
+        XCTAssertLessThanOrEqual(box.maxY, pr.maxY + 0.5,
+            "Top-right anchor: legendBoxRect.maxY must be within plotRect.maxY")
+    }
+
+    func testAnchor_topLeft_legendBoxMaxY_withinPlotRect() {
+        let layout = makeLayout(labels: ["Series A", "Series B"], anchor: "top-left")
+        let pr = layout.plotRect
+        guard let box = layout.legendBoxRect else { XCTFail("legendBoxRect nil"); return }
+        XCTAssertLessThanOrEqual(box.maxY, pr.maxY + 0.5,
+            "Top-left anchor: legendBoxRect.maxY must be within plotRect.maxY")
+    }
+
+    func testAnchor_bottomRight_legendBoxMinY_withinPlotRect() {
+        let layout = makeLayout(labels: ["Series A", "Series B"], anchor: "bottom-right")
+        let pr = layout.plotRect
+        guard let box = layout.legendBoxRect else { XCTFail("legendBoxRect nil"); return }
+        XCTAssertGreaterThanOrEqual(box.minY, pr.minY - 0.5,
+            "Bottom-right anchor: legendBoxRect.minY must be within plotRect.minY")
+    }
+
+    func testAnchor_bottomLeft_legendBoxMinY_withinPlotRect() {
+        let layout = makeLayout(labels: ["Series A", "Series B"], anchor: "bottom-left")
+        let pr = layout.plotRect
+        guard let box = layout.legendBoxRect else { XCTFail("legendBoxRect nil"); return }
+        XCTAssertGreaterThanOrEqual(box.minY, pr.minY - 0.5,
+            "Bottom-left anchor: legendBoxRect.minY must be within plotRect.minY")
+    }
+
+    // MARK: - 6. Dragging top-right anchor upward never moves preview lower than initial boundary
+
+    func testDrag_topRight_upward_previewNotBelowInitialTopBoundary() {
+        let layout = makeLayout(labels: ["S1"], anchor: "top-right")
+        let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+        guard let cgBox = layout.legendBoxRect else { XCTFail("legendBoxRect nil"); return }
+        let pr  = layout.plotRect
+        let rSz = layout.rendererSize
+
+        // Initial top of the legend box in screen space
+        let initialBoxTopPng    = rSz.height - cgBox.maxY
+        let initialBoxTopScreen = fitted.minY + initialBoxTopPng / rSz.height * fitted.height
+
+        // Drag far above the plot
+        let farAboveCG     = CGPoint(x: pr.midX, y: pr.maxY + 500)
+        let farAbovePngY   = rSz.height - farAboveCG.y
+        let farAboveScreen = CGPoint(
+            x: fitted.minX + farAboveCG.x / rSz.width  * fitted.width,
+            y: fitted.minY + farAbovePngY  / rSz.height * fitted.height
+        )
+
+        guard let step = canvas.legendDragStep(
+            start: farAboveScreen, current: farAboveScreen,
+            fittedRect: fitted,
+            existingGrabOffset: CGSize(width: 0, height: 0)
+        ) else { XCTFail("legendDragStep returned nil"); return }
+
+        // Preview top edge must not be below (larger screen Y than) where the legend started
+        XCTAssertLessThanOrEqual(step.previewRect.minY, initialBoxTopScreen + 1.0,
+            "Dragging top-right legend upward must not push preview below its initial top-boundary position")
+    }
+
+    // MARK: - 7. Preview rect matches screen projection of legendBoxRect (not smaller)
+
+    func testPreviewRect_withZeroDrag_matchesScreenProjectionOfLegendBoxRect() {
+        let layout = makeLayout(labels: ["Series A"], anchor: "top-right")
+        let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+        guard let cgBox = layout.legendBoxRect else { XCTFail("legendBoxRect nil"); return }
+        let rSz = layout.rendererSize
+
+        let originCG = canvas.currentLegendOriginCG()
+        let pngY = rSz.height - originCG.y
+        let originScreen = CGPoint(
+            x: fitted.minX + originCG.x / rSz.width  * fitted.width,
+            y: fitted.minY + pngY        / rSz.height * fitted.height
+        )
+
+        guard let step = canvas.legendDragStep(
+            start: originScreen, current: originScreen,
+            fittedRect: fitted,
+            existingGrabOffset: CGSize(width: 0, height: 0)
+        ) else { XCTFail("legendDragStep returned nil"); return }
+
+        let expected = WorkbenchPlotLayout.cgToScreen(
+            cgBox, fittedIn: fitted,
+            rendererWidth: rSz.width, rendererHeight: rSz.height
+        )
+
+        XCTAssertEqual(step.previewRect.width,  expected.width,  accuracy: 1.0,
+            "Preview width must match legendBoxRect screen projection")
+        XCTAssertEqual(step.previewRect.height, expected.height, accuracy: 1.0,
+            "Preview height must match legendBoxRect screen projection")
+        XCTAssertEqual(step.previewRect.midX,   expected.midX,   accuracy: 1.0,
+            "Preview midX must match legendBoxRect screen projection")
+        XCTAssertEqual(step.previewRect.midY,   expected.midY,   accuracy: 1.0,
+            "Preview midY must match legendBoxRect screen projection")
+    }
+
     func testClamping_preventsDragBeyondBottomBoundary() {
         let layout = makeLayout(labels: ["S1"], legendPoint: CGPoint(x: 0.5, y: 0.5))
         let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
