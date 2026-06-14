@@ -412,7 +412,8 @@ struct WorkbenchPlotLayout: Sendable {
     private static func clampRowsToPlotRect(_ rows: [LegendRow], plotRect: CGRect) -> [LegendRow] {
         guard !rows.isEmpty else { return rows }
         let style = rows[0].style
-        guard let rawBox = style.boxRect(for: rows) else { return rows }
+        // `rows` is non-empty, so the legend box geometry must be computable here.
+        let rawBox = style.boxRect(for: rows)!
 
         var dx: CGFloat = 0
         var dy: CGFloat = 0

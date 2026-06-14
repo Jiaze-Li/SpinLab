@@ -79,6 +79,18 @@ final class V712PointLabelGeometryParityTests: XCTestCase {
         assertPoint(geometry.drawAnchor, CGPoint(x: 20, y: 67.5))
     }
 
+    func testNearRightAndNearTopPlacement_prefersLeft() {
+        let geometry = WorkbenchPlotLayout.pointLabelGeometry(
+            center: CGPoint(x: 90, y: 95),
+            plotRect: plotRect
+        )
+
+        XCTAssertEqual(geometry.placement, .left)
+        assertRect(geometry.pointLabelHitRect, CGRect(x: 32.5, y: 85, width: 50, height: 20))
+        assertRect(geometry.pointDotHitRect, CGRect(x: 83, y: 88, width: 14, height: 14))
+        assertPoint(geometry.drawAnchor, CGPoint(x: 82.5, y: 95))
+    }
+
     func testNormalPlacement_staysRightSide() {
         let geometry = WorkbenchPlotLayout.pointLabelGeometry(
             center: CGPoint(x: 20, y: 50),
