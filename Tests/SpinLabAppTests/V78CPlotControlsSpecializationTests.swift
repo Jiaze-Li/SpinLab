@@ -166,6 +166,14 @@ struct V78CXYPlotControlsPathTests {
                 "XY must pass chartStyleOverrides binding to WorkbenchStandardPlotControls")
     }
 
+    // INV-XY-7b: XY flushes the interaction snapshot when controls change
+    @Test("XYRotationWorkspaceView.swift flushes interaction snapshot after control changes")
+    func xyFlushesInteractionSnapshot() throws {
+        let source = try loadWorkbenchSource("XYRotationWorkspaceView.swift")
+        #expect(source.contains("flushInteractionSnapshotNow()"),
+                "XY must flush the interaction snapshot after control changes so overrides persist promptly")
+    }
+
     // INV-XY-7: XY exposes stackOffsetMultiplier through the standard controls path
     @Test("XYRotationWorkspaceView.swift binds stackOffsetMultiplier through standard controls")
     func xyBindsStackOffset() throws {

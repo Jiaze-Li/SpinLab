@@ -29,7 +29,10 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                     currentSeriesOrder: store.activeSeriesOrder,
                     canReorderSeries: store.canReorderSeries,
                     onSeriesOrderCommit: { order in store.updateSeriesOrder(order) },
-                    onChange: { store.rerenderForStyleChange() },
+                    onChange: {
+                        store.rerenderForStyleChange()
+                        appState.flushInteractionSnapshotNow()
+                    },
                     activeTitleOverride: store.tabs.activeState.titleOverride,
                     activeXLabelOverride: store.tabs.activeState.xLabelOverride,
                     activeYLabelOverride: store.tabs.activeState.yLabelOverride,
