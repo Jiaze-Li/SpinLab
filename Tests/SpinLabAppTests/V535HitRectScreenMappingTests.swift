@@ -103,4 +103,24 @@ final class V535HitRectScreenMappingTests: XCTestCase {
         XCTAssertEqual(narrow.displayRect.height / narrow.displayRect.width, 0.75, accuracy: 0.0001)
         XCTAssertEqual(wide.displayRect.height / wide.displayRect.width, 0.75, accuracy: 0.0001)
     }
+
+    func testCoordinateContextIgnoresExtraContainerHeightAndStartsAtOrigin() {
+        let rendererSize = CGSize(width: 800, height: 600)
+        let imageSize = CGSize(width: 800, height: 600)
+
+        let container = CGSize(width: 500, height: 900)
+        guard let context = CoordinateContext(
+            rendererSize: rendererSize,
+            imageSize: imageSize,
+            containerSize: container
+        ) else {
+            XCTFail("Expected coordinate context")
+            return
+        }
+
+        XCTAssertEqual(context.displayRect.minX, 0, accuracy: 0.01)
+        XCTAssertEqual(context.displayRect.minY, 0, accuracy: 0.01)
+        XCTAssertEqual(context.displayRect.width, container.width, accuracy: 0.01)
+        XCTAssertEqual(context.displayRect.height, 375, accuracy: 0.01)
+    }
 }

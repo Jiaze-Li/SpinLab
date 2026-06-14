@@ -36,63 +36,74 @@ struct WorkbenchPlotCanvas: View {
     @State private var dragGrabOffsetCG: CGSize? = nil
     /// Last valid adjusted normalized point during an active drag.
     @State private var lastValidDragNorm: CGPoint? = nil
+    /// Measured container width, used to derive the height that matches the image aspect ratio.
+    @State private var measuredContainerWidth: CGFloat = 0
 
     static let copyPNGScales: [CGFloat] = [1, 2, 3]
 
     var body: some View {
         if let imageData, let nsImage = NSImage(data: imageData) {
-            // GeometryReader provides the container size so we can compute the exact rect
-            // where SwiftUI places the displayed image. All overlays use this same rect —
-            // no independent guess of the display bounds.
+            let displayHeight = resolvedDisplayHeight(for: nsImage.size)
             GeometryReader { geo in
-                let containerSize = geo.size
-                if let layout, let coordinateContext = CoordinateContext(
-                    rendererSize: layout.rendererSize,
-                    imageSize: nsImage.size,
-                    containerSize: containerSize
-                ) {
-                    ZStack(alignment: .topLeading) {
-                        Image(nsImage: nsImage)
-                            .resizable()
-                            .frame(width: coordinateContext.displayRect.width, height: coordinateContext.displayRect.height)
-                            .position(x: coordinateContext.displayRect.midX, y: coordinateContext.displayRect.midY)
-                        legendDragPreview()
-                        PlotCanvasMouseTracker(
-                            isEnabled: true,
-                            onTap: { handleTap(at: $0, coordinateContext: coordinateContext) },
-                            onDragChanged: { start, current in
-                                if !_isInLegendFrame(start, coordinateContext: coordinateContext) { return }
-                                guard onLegendDrag != nil else { return }
-                                guard let step = legendDragStep(
-                                    start: start,
-                                    current: current,
-                                    coordinateContext: coordinateContext,
-                                    existingGrabOffset: dragGrabOffsetCG
-                                ) else { return }
-                                dragGrabOffsetCG = step.grabOffset
-                                lastValidDragNorm = step.adjustedNorm
-                                dragPreviewLegendBoxScreenRect = step.previewRect
-                            },
-                            onDragEnded: { _, _ in
-                                if dragPreviewLegendBoxScreenRect != nil {
-                                    let last = lastValidDragNorm
-                                    dragPreviewLegendBoxScreenRect = nil
-                                    dragGrabOffsetCG = nil
-                                    lastValidDragNorm = nil
-                                    if let callback = onLegendDrag, let finalNorm = last {
-                                        callback(finalNorm)
+                let containerSize = CGSize(width: geo.size.width, height: displayHeight)
+                if let layout {
+                    let coordinateContext = CoordinateContext(
+                        rendererSize: layout.rendererSize,
+                        displayRect: CGRect(origin: .zero, size: containerSize)
+                    )
+                        ZStack(alignment: .topLeading) {
+                            Image(nsImage: nsImage)
+                                .resizable()
+                                .frame(width: coordinateContext.displayRect.width, height: coordinateContext.displayRect.height)
+                                .position(x: coordinateContext.displayRect.midX, y: coordinateContext.displayRect.midY)
+                            legendDragPreview()
+                            PlotCanvasMouseTracker(
+                                isEnabled: true,
+                                onTap: { handleTap(at: $0, coordinateContext: coordinateContext) },
+                                onDragChanged: { start, current in
+                                    if !_isInLegendFrame(start, coordinateContext: coordinateContext) { return }
+                                    guard onLegendDrag != nil else { return }
+                                    guard let step = legendDragStep(
+                                        start: start,
+                                        current: current,
+                                        coordinateContext: coordinateContext,
+                                        existingGrabOffset: dragGrabOffsetCG
+                                    ) else { return }
+                                    dragGrabOffsetCG = step.grabOffset
+                                    lastValidDragNorm = step.adjustedNorm
+                                    dragPreviewLegendBoxScreenRect = step.previewRect
+                                },
+                                onDragEnded: { _, _ in
+                                    if dragPreviewLegendBoxScreenRect != nil {
+                                        let last = lastValidDragNorm
+                                        dragPreviewLegendBoxScreenRect = nil
+                                        dragGrabOffsetCG = nil
+                                        lastValidDragNorm = nil
+                                        if let callback = onLegendDrag, let finalNorm = last {
+                                            callback(finalNorm)
+                                        }
                                     }
                                 }
-                            }
-                        )
-                    }
-                    .frame(width: containerSize.width, height: containerSize.height)
+                            )
+                        }
+                        .frame(width: containerSize.width, height: containerSize.height, alignment: .topLeading)
                 } else {
                     Color.clear
                         .frame(width: containerSize.width, height: containerSize.height)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: minHeight)
+            .frame(maxWidth: .infinity, minHeight: displayHeight, idealHeight: displayHeight, maxHeight: displayHeight, alignment: .topLeading)
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear {
+                            measuredContainerWidth = geo.size.width
+                        }
+                        .onChange(of: geo.size.width) { _, newWidth in
+                            measuredContainerWidth = newWidth
+                        }
+                }
+            )
             .background(
                 .background,
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -130,6 +141,13 @@ struct WorkbenchPlotCanvas: View {
             )
             .frame(maxWidth: .infinity, minHeight: minHeight)
         }
+    }
+
+    private func resolvedDisplayHeight(for imageSize: CGSize) -> CGFloat {
+        guard measuredContainerWidth > 0, imageSize.width > 0, imageSize.height > 0 else {
+            return minHeight
+        }
+        return max(minHeight, measuredContainerWidth * (imageSize.height / imageSize.width))
     }
 
     // MARK: - Legend drag preview

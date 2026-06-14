@@ -69,11 +69,6 @@ struct CoordinateContext: Sendable {
         let imageAspect = imageSize.width / imageSize.height
         let w = container.width
         let h = w / imageAspect
-        return CGRect(
-            x: (container.width - w) / 2,
-            y: (container.height - h) / 2,
-            width: w,
-            height: h
-        )
+        return CGRect(x: 0, y: 0, width: w, height: h)
     }
 }
