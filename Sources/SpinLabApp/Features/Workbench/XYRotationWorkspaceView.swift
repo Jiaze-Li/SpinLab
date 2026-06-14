@@ -29,7 +29,22 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                     currentSeriesOrder: store.activeSeriesOrder,
                     canReorderSeries: store.canReorderSeries,
                     onSeriesOrderCommit: { order in store.updateSeriesOrder(order) },
-                    onChange: { store.rerenderForStyleChange() }
+                    onChange: {
+                        store.rerenderForStyleChange()
+                        appState.flushInteractionSnapshotNow()
+                    },
+                    activeTitleOverride: store.tabs.activeState.titleOverride,
+                    activeXLabelOverride: store.tabs.activeState.xLabelOverride,
+                    activeYLabelOverride: store.tabs.activeState.yLabelOverride,
+                    renderedTitle: store.tabs.activeLayout?.chartTitle ?? "",
+                    renderedXLabel: store.tabs.activeLayout?.xAxisLabel ?? "",
+                    renderedYLabel: store.tabs.activeLayout?.yAxisLabel ?? "",
+                    sourceResetToken: store.tabs.activeSourceIdentityKey,
+                    onTitleOverride: { store.updatePlotTitle($0) },
+                    onXLabelOverride: { store.updateXAxisLabel($0) },
+                    onYLabelOverride: { store.updateYAxisLabel($0) },
+                    activeSeriesLabelOverrides: store.seriesLabelOverrides,
+                    onRenameSeriesLabel: { key, label in store.updateSeriesLabel(sampleID: key, newLabel: label) }
                 ) {
                     HStack(spacing: 12) {
                         Toggle("Center", isOn: $bindableStore.centerBaseline)

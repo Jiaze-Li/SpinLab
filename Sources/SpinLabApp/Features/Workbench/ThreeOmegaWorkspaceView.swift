@@ -61,7 +61,19 @@ private struct ThreeOmegaPlotControlsPanel: View {
             onChange: {
                 store.rerenderForStyleChange()
                 appState.flushInteractionSnapshotNow()
-            }
+            },
+            activeTitleOverride: store.tabs.activeState.titleOverride,
+            activeXLabelOverride: store.tabs.activeState.xLabelOverride,
+            activeYLabelOverride: store.tabs.activeState.yLabelOverride,
+            renderedTitle: store.tabs.activeLayout?.chartTitle ?? "",
+            renderedXLabel: store.tabs.activeLayout?.xAxisLabel ?? "",
+            renderedYLabel: store.tabs.activeLayout?.yAxisLabel ?? "",
+            sourceResetToken: store.tabs.activeSourceIdentityKey,
+            onTitleOverride: { store.updatePlotTitle($0) },
+            onXLabelOverride: { store.updateXAxisLabel($0) },
+            onYLabelOverride: { store.updateYAxisLabel($0) },
+            activeSeriesLabelOverrides: store.seriesLabelOverrides,
+            onRenameSeriesLabel: { key, label in store.updateSeriesLabel(sampleID: key, newLabel: label) }
         ) {
             // Row 3: RAHE method picker + Add Analysis (visible on RAHE tabs only)
             if store.tabs.activeTab == .rahe1omegaVsT || store.tabs.activeTab == .rahe3omegaVsT {

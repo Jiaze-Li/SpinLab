@@ -129,9 +129,12 @@ enum WorkbenchRenderPipeline {
         if let scale = input.pixelScaleOverride { effectiveBase.pixelScale = scale }
         let opts = renderer.resolvedOptions(payload: payload, base: effectiveBase, style: chartStyle)
 
-        // 8. Compute layout BEFORE series label overrides (legendRow.originalLabel must be stable)
+        // 8. Compute layout BEFORE series label overrides (legendRow.originalLabel must be stable).
+        //    Pass label overrides so measuredLabelWidth reflects the display (renamed) label,
+        //    keeping drag-preview geometry correct for long-renamed series.
         let layout = WorkbenchPlotLayout.compute(
-            options: opts, payload: payload, legendPoint: input.legendPoint, style: chartStyle
+            options: opts, payload: payload, legendPoint: input.legendPoint, style: chartStyle,
+            seriesLabelOverrides: input.seriesLabelOverrides
         )
 
         // 9. Apply series label overrides
@@ -145,7 +148,7 @@ enum WorkbenchRenderPipeline {
         // 10. Render PNG
         var optsWithHidden = opts
         optsWithHidden.hiddenPointLabelsBySeries = input.hiddenPointLabelsBySeries
-        let imageData = try renderer.renderPNG(payload: payload, options: optsWithHidden, style: chartStyle)
+        let imageData = try renderer.renderPNG(payload: payload, options: optsWithHidden, style: chartStyle, layout: layout)
 
         // 11. Build manifest payload with original data-column axis mapping
         var manifestPayload = payload

@@ -132,15 +132,6 @@ struct V563WorkflowStateBoundaryTests {
         #expect(!labels.contains(where: { $0.localizedCaseInsensitiveContains("reorder") }))
     }
 
-    @Test("WorkbenchPlotCanvas editor ownership disables the mouse tracker")
-    func plotCanvasEditorOwnershipGatesTrackerAndDismissLayer() {
-        #expect(WorkbenchPlotCanvas.shouldInstallMouseTracker(isEditing: false))
-        #expect(!WorkbenchPlotCanvas.shouldInstallEditorDismissLayer(isEditing: false))
-
-        #expect(!WorkbenchPlotCanvas.shouldInstallMouseTracker(isEditing: true))
-        #expect(WorkbenchPlotCanvas.shouldInstallEditorDismissLayer(isEditing: true))
-    }
-
     @Test("Reorderable payloads require sourceRef identity")
     func reorderablePayloadRequiresSourceRefIdentity() {
         let payload = WorkbenchPlotPayload(

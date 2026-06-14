@@ -5,39 +5,21 @@ import AppKit
 
 /// 通用图像显示组件。
 /// 有数据时显示渲染好的 PNG，无数据时显示占位符。
-/// Supports display-only interaction: legend drag, inline edits, copy PNG.
-/// Series order is owned by the workflow shell and plot controls, not the canvas.
-///
-/// ## 自定义提示
-/// - `minHeight` 控制最小显示高度
-/// - 占位符图标和文字可按需修改
+/// Supports display-only interaction: legend drag, point dot toggle, Copy PNG, hover preview.
+/// Text/style editing (title, axis, legend labels, font sizes, tick density) lives in Plot Controls.
 struct WorkbenchPlotCanvas: View {
     let imageData: Data?
-    /// Layout from the most recent render. Nil = hit-testing and editing disabled.
+    /// Layout from the most recent render. Nil = hit-testing disabled.
     var layout: WorkbenchPlotLayout? = nil
-    /// Current series label overrides keyed by sampleID (or Int-string for no-identity workflows).
-    var seriesLabelOverrides: [String: String] = [:]
 
     /// Called with a plotRect-normalized point (x,y ∈ [0,1], y=0 bottom, y=1 top)
     /// when the user finishes a drag over the plot area. Nil = drag disabled.
     var onLegendDrag: ((CGPoint) -> Void)? = nil
-    /// Inline edit callbacks — nil means that element is not editable.
-    var onEditTitle:       ((String) -> Void)?               = nil
-    var onEditXLabel:      ((String) -> Void)?               = nil
-    var onEditYLabel:      ((String) -> Void)?               = nil
-    /// (key, newLabel) — key is sampleID or Int-string fallback
-    var onEditLegendLabel: ((String, String) -> Void)?       = nil
-    /// Font size change callback: (styleParamsKey, newSize). Triggers re-render.
-    var onFontSizeChange:  ((String, CGFloat) -> Void)?      = nil
     /// Point-dot toggle callback: (key, pointIndex) — key is sampleID or Int-string fallback.
     var onTogglePointLabelVisibility: ((String, Int) -> Void)? = nil
     /// Copy PNG at a given pixel scale; returns PNG data or nil if unavailable.
     var onCopyPNG: ((CGFloat) -> Data?)? = nil
-    /// Style override change callback: (styleParamsKey, stringValue). Triggers re-render.
-    var onStyleOverrideChange: ((String, String) -> Void)?   = nil
-    /// Current chart style overrides — used to show current font size / tick density in edit panel.
-    var chartStyleOverrides: [String: String] = [:]
-    /// Manifest payload for the active chart; used for point-label and legend edit metadata.
+    /// Manifest payload for the active chart; used for point-label hit metadata.
     var seriesPayload: WorkbenchPlotPayload? = nil
 
     /// Related charts for hover popover (nil or empty = no popover).
@@ -48,166 +30,109 @@ struct WorkbenchPlotCanvas: View {
     // TODO(用户设计): 调整最小高度、背景样式、空状态文字
     var minHeight: CGFloat = 360
 
-    @State private var canvasSize: CGSize = .zero
-    /// Screen-space point of an in-progress legend drag (nil when not dragging).
-    @State private var dragPreviewPt: CGPoint? = nil
-    /// Normalized offset (plot-space, Y-up) from legend origin to cursor at drag start.
-    /// Captured on the first onChanged frame; nil = not dragging.
-    @State private var dragGrabOffsetNorm: CGSize? = nil
+    /// Screen-space bounding rect of the legend drag preview box (nil when not dragging).
+    @State private var dragPreviewLegendBoxScreenRect: CGRect? = nil
+    /// CG-space offset from legend origin to cursor at drag start.
+    @State private var dragGrabOffsetCG: CGSize? = nil
     /// Last valid adjusted normalized point during an active drag.
-    /// Used by onEnded as fallback when cursor lands in padding area (plotNormalized → nil).
     @State private var lastValidDragNorm: CGPoint? = nil
+    /// Measured container width, used to derive the height that matches the image aspect ratio.
+    @State private var measuredContainerWidth: CGFloat = 0
 
-    /// Which chart element is currently being edited.
-    @State private var editingElement: EditTarget? = nil
-    /// Live text for the active edit field.
-    @State private var editText: String = ""
-    /// Screen-space rect of the element being edited, used to position the edit panel.
-    @State private var editTargetScreenRect: CGRect = .zero
-    /// Focus ownership for the inline editor text field.
-    @FocusState private var editorFieldFocused: Bool
-    /// Pixel size of the current rendered PNG used for coordinate conversion.
-    /// Falls back to 800x600 until image metadata is available.
-    @State private var rendererPixelSize: CGSize = CGSize(width: 800, height: 600)
-    // Related charts hover popover state is managed by HoverPopoverModifier.
-
-    private static let defaultRendererSize = CGSize(width: 800, height: 600)
     static let copyPNGScales: [CGFloat] = [1, 2, 3]
-
-    private enum EditTarget: Equatable {
-        case title
-        case xLabel
-        case yLabel
-        case legend(key: String, originalLabel: String)
-        case xTickLabel
-        case yTickLabel
-        case pointLabel(seriesIndex: Int, pointIndex: Int)
-        case pointDot(seriesIndex: Int, pointIndex: Int)
-    }
-
-    /// The styleParams key for the font size of the currently editing element.
-    private var editFontSizeKey: String? {
-        switch editingElement {
-        case .title:       return "titleFontSize"
-        case .xLabel:      return "axisTitleFontSize"
-        case .yLabel:      return "axisTitleFontSize"
-        case .legend:        return "legendFontSize"
-        case .xTickLabel:         return "tickLabelFontSize"
-        case .yTickLabel:         return "tickLabelFontSize"
-        case .pointLabel:         return "pointLabelFontSize"
-        case .pointDot:           return nil
-        case nil:                 return nil
-        }
-    }
-
-    private static let fontSizeOptions: [CGFloat] = [12, 14, 16, 18, 19, 20, 22, 24, 25, 28, 32]
-
-    static func shouldInstallEditorDismissLayer(isEditing: Bool) -> Bool {
-        isEditing
-    }
-
-    static func shouldInstallMouseTracker(isEditing: Bool) -> Bool {
-        !isEditing
-    }
-
-    /// The styleParams key for tick density of the currently editing element (nil if not a tick element).
-    private var editTickDensityKey: String? {
-        switch editingElement {
-        case .xTickLabel: return "tickTargetX"
-        case .yTickLabel: return "tickTargetY"
-        default:          return nil
-        }
-    }
 
     var body: some View {
         if let imageData, let nsImage = NSImage(data: imageData) {
-            Image(nsImage: nsImage)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(maxWidth: .infinity, minHeight: minHeight)
-                .background(
-                    GeometryReader { geo in
-                        Color.clear.task(id: geo.size) { canvasSize = geo.size }
-                    }
-                )
-                .overlay { legendDragPreview }
-                .overlay {
-                    if Self.shouldInstallEditorDismissLayer(isEditing: editingElement != nil) {
-                        editorDismissLayer
-                    }
-                }
-                .overlay {
-                    if let elem = editingElement {
-                        editPanel(for: elem)
-                    }
-                }
-                .overlay {
-                    if Self.shouldInstallMouseTracker(isEditing: editingElement != nil) {
-                        // AppKit-level mouse handler: bypasses SwiftUI gesture system blocked by NSScrollView.
-                        PlotCanvasMouseTracker(
-                            isEnabled: true,
-                            onTap: { handleTap(at: $0) },
-                            onDragChanged: { start, current in
-                                let fitted = fittedRect(in: canvasSize)
-                                if _isInLegendFrame(start, fittedRect: fitted) {
+            let displayHeight = resolvedDisplayHeight(for: nsImage.size)
+            GeometryReader { geo in
+                let containerSize = CGSize(width: geo.size.width, height: displayHeight)
+                if let layout {
+                    let coordinateContext = CoordinateContext(
+                        rendererSize: layout.rendererSize,
+                        displayRect: CGRect(origin: .zero, size: containerSize)
+                    )
+                        ZStack(alignment: .topLeading) {
+                            Image(nsImage: nsImage)
+                                .resizable()
+                                .frame(width: coordinateContext.displayRect.width, height: coordinateContext.displayRect.height)
+                                .position(x: coordinateContext.displayRect.midX, y: coordinateContext.displayRect.midY)
+                            legendDragPreview()
+                            PlotCanvasMouseTracker(
+                                isEnabled: true,
+                                onTap: { handleTap(at: $0, coordinateContext: coordinateContext) },
+                                onDragChanged: { start, current in
+                                    if !_isInLegendFrame(start, coordinateContext: coordinateContext) { return }
                                     guard onLegendDrag != nil else { return }
-                                } else {
-                                    return
-                                }
-                                guard onLegendDrag != nil else { return }
-                                guard let step = legendDragStep(
-                                    start: start,
-                                    current: current,
-                                    fittedRect: fitted,
-                                    existingGrabOffset: dragGrabOffsetNorm
-                                ) else { return }
-                                dragGrabOffsetNorm = step.grabOffset
-                                lastValidDragNorm = step.adjustedNorm
-                                dragPreviewPt = step.previewPoint
-                            },
-                            onDragEnded: { _, _ in
-                                if dragPreviewPt != nil {
-                                    let last = lastValidDragNorm
-                                    dragPreviewPt      = nil
-                                    dragGrabOffsetNorm = nil
-                                    lastValidDragNorm  = nil
-                                    if let callback = onLegendDrag, let finalNorm = last {
-                                        callback(finalNorm)
+                                    guard let step = legendDragStep(
+                                        start: start,
+                                        current: current,
+                                        coordinateContext: coordinateContext,
+                                        existingGrabOffset: dragGrabOffsetCG
+                                    ) else { return }
+                                    dragGrabOffsetCG = step.grabOffset
+                                    lastValidDragNorm = step.adjustedNorm
+                                    dragPreviewLegendBoxScreenRect = step.previewRect
+                                },
+                                onDragEnded: { _, _ in
+                                    if dragPreviewLegendBoxScreenRect != nil {
+                                        let last = lastValidDragNorm
+                                        dragPreviewLegendBoxScreenRect = nil
+                                        dragGrabOffsetCG = nil
+                                        lastValidDragNorm = nil
+                                        if let callback = onLegendDrag, let finalNorm = last {
+                                            callback(finalNorm)
+                                        }
                                     }
                                 }
-                            }
-                        )
-                    }
+                            )
+                        }
+                        .frame(width: containerSize.width, height: containerSize.height, alignment: .topLeading)
+                } else {
+                    Color.clear
+                        .frame(width: containerSize.width, height: containerSize.height)
                 }
-                .background(
-                    .background,
-                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-                )
-                .contextMenu {
-                    Menu("Copy PNG") {
-                        ForEach(Self.copyPNGScales, id: \.self) { s in
-                            Button("\(Int(s))x") {
-                                let d = onCopyPNG?(s) ?? imageData
-                                let pb = NSPasteboard.general
-                                pb.clearContents()
-                                pb.setData(d, forType: .png)
-                            }
+            }
+            .frame(maxWidth: .infinity, minHeight: displayHeight, idealHeight: displayHeight, maxHeight: displayHeight, alignment: .topLeading)
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear {
+                            measuredContainerWidth = geo.size.width
+                        }
+                        .onChange(of: geo.size.width) { _, newWidth in
+                            measuredContainerWidth = newWidth
+                        }
+                }
+            )
+            .background(
+                .background,
+                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            )
+            .contextMenu {
+                Menu("Copy PNG") {
+                    ForEach(Self.copyPNGScales, id: \.self) { s in
+                        Button("\(Int(s))x") {
+                            let d = onCopyPNG?(s) ?? imageData
+                            let pb = NSPasteboard.general
+                            pb.clearContents()
+                            pb.setData(d, forType: .png)
                         }
                     }
                 }
-                .hoverPopover(
-                    showDelay: .seconds(1),
-                    dismissDelay: .milliseconds(500),
-                    arrowEdge: .trailing,
-                    isEnabled: relatedCharts?.isEmpty == false && dragPreviewPt == nil
-                ) { onHoverChanged, onDialogActiveChanged in
-                    MeasurementPlotPreviewPanel(
-                        references: relatedCharts ?? [],
-                        libraryRootURL: libraryRootURL,
-                        onHoverChanged: onHoverChanged,
-                        onDialogActiveChanged: onDialogActiveChanged
-                    )
-                }
+            }
+            .hoverPopover(
+                showDelay: .seconds(1),
+                dismissDelay: .milliseconds(500),
+                arrowEdge: .trailing,
+                isEnabled: relatedCharts?.isEmpty == false && dragPreviewLegendBoxScreenRect == nil
+            ) { onHoverChanged, onDialogActiveChanged in
+                MeasurementPlotPreviewPanel(
+                    references: relatedCharts ?? [],
+                    libraryRootURL: libraryRootURL,
+                    onHoverChanged: onHoverChanged,
+                    onDialogActiveChanged: onDialogActiveChanged
+                )
+            }
         } else {
             ContentUnavailableView(
                 "No Plot",
@@ -218,317 +143,122 @@ struct WorkbenchPlotCanvas: View {
         }
     }
 
+    private func resolvedDisplayHeight(for imageSize: CGSize) -> CGFloat {
+        guard measuredContainerWidth > 0, imageSize.width > 0, imageSize.height > 0 else {
+            return minHeight
+        }
+        return max(minHeight, measuredContainerWidth * (imageSize.height / imageSize.width))
+    }
+
     // MARK: - Legend drag preview
 
     struct LegendDragStep {
         let grabOffset: CGSize
         let adjustedNorm: CGPoint
-        let previewPoint: CGPoint
+        let previewRect: CGRect
     }
 
-    /// Computes the next legend-drag preview point and normalized legend origin.
-    /// The grab offset is captured once, then reused across subsequent drag events.
     func legendDragStep(
         start: CGPoint,
         current: CGPoint,
         fittedRect: CGRect,
-        existingGrabOffset: CGSize?
+        existingGrabOffset: CGSize?   // CG-space offset: cursor minus legend origin at drag start
     ) -> LegendDragStep? {
-        guard let cursorNorm = plotNormalized(location: current, fittedRect: fittedRect) else { return nil }
+        guard let layout else { return nil }
+        let context = CoordinateContext(rendererSize: layout.rendererSize, displayRect: fittedRect)
+        return legendDragStep(start: start, current: current, coordinateContext: context, existingGrabOffset: existingGrabOffset)
+    }
+
+    func legendDragStep(
+        start: CGPoint,
+        current: CGPoint,
+        coordinateContext: CoordinateContext,
+        existingGrabOffset: CGSize?   // CG-space offset: cursor minus legend origin at drag start
+    ) -> LegendDragStep? {
+        guard let layout, let cgBox = layout.legendBoxRect else { return nil }
+
+        let cursorCG = coordinateContext.screenToRenderer(current)
         let grab: CGSize
         if let existingGrabOffset {
             grab = existingGrabOffset
         } else {
-            let startNorm = plotNormalized(location: start, fittedRect: fittedRect) ?? cursorNorm
-            let origin = currentLegendOriginNorm()
-            grab = CGSize(
-                width: startNorm.x - origin.x,
-                height: startNorm.y - origin.y
-            )
+            let startCG  = coordinateContext.screenToRenderer(start)
+            let originCG = currentLegendOriginCG()
+            grab = CGSize(width: startCG.x - originCG.x, height: startCG.y - originCG.y)
         }
-        let adjusted = CGPoint(
-            x: min(max(cursorNorm.x - grab.width,  0), 1),
-            y: min(max(cursorNorm.y - grab.height, 0), 1)
+
+        let rawOriginCG = CGPoint(x: cursorCG.x - grab.width, y: cursorCG.y - grab.height)
+
+        // Clamp so the translated legendBoxRect stays within plotRect.
+        // Compute fixed offsets from current origin to box edges, then invert to get origin bounds.
+        let currentOriginCG = currentLegendOriginCG()
+        let boundary = layout.plotRect
+        let clampedOriginCG = CGPoint(
+            x: min(max(rawOriginCG.x, boundary.minX - (cgBox.minX - currentOriginCG.x)),
+                                      boundary.maxX - (cgBox.maxX - currentOriginCG.x)),
+            y: min(max(rawOriginCG.y, boundary.minY - (cgBox.minY - currentOriginCG.y)),
+                                      boundary.maxY - (cgBox.maxY - currentOriginCG.y))
         )
-        return LegendDragStep(
-            grabOffset: grab,
-            adjustedNorm: adjusted,
-            previewPoint: legendScreenOrigin(normalized: adjusted, fittedRect: fittedRect)
-        )
-    }
 
-    @ViewBuilder
-    private var legendDragPreview: some View {
-        if let pt = dragPreviewPt {
-            let fitted = fittedRect(in: canvasSize)
-            if fitted.width > 0 && fitted.height > 0 {
-                // Legend geometry is authored in layout's logical CG space, not image pixels.
-                let rSize = layout?.rendererSize ?? rendererPixelSize
-                let scaleX  = fitted.width  / rSize.width
-                let scaleY  = fitted.height / rSize.height
-                let boxPad: CGFloat = 6
-                let rowCount = CGFloat(layout?.legendRows.count ?? 1)
-                // Use the CoreText-measured max label width so the preview box matches the
-                // rendered legend box exactly (same formula as drawLegend).
-                let maxLabelW = layout?.legendRows.map(\.measuredLabelWidth).max()
-                              ?? WorkbenchPlotLayout.legendEstLabelW
-                let boxW = (WorkbenchPlotLayout.legendLineLen
-                          + WorkbenchPlotLayout.legendGap
-                          + maxLabelW
-                          + 2 * boxPad) * scaleX
-                let boxH = (rowCount * WorkbenchPlotLayout.legendRowH + 2 * boxPad) * scaleY
-                // pt is screen position of (cgOriginX, originY).
-                // Legend box top-left is offset by (-boxPad, -(0.1*rowH + boxPad)) in renderer space.
-                let topLeftX = pt.x - boxPad * scaleX
-                let topLeftY = pt.y - (WorkbenchPlotLayout.legendRowH * 0.1 + boxPad) * scaleY
-                Rectangle()
-                    .strokeBorder(
-                        Color.accentColor.opacity(0.85),
-                        style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])
-                    )
-                    .frame(width: boxW, height: boxH)
-                    .position(x: topLeftX + boxW / 2, y: topLeftY + boxH / 2)
-            }
-        }
-    }
+        let dx = clampedOriginCG.x - currentOriginCG.x
+        let dy = clampedOriginCG.y - currentOriginCG.y
+        let translatedBoxCG = cgBox.offsetBy(dx: dx, dy: dy)
 
-    private func _isInLegendFrame(_ location: CGPoint, fittedRect: CGRect) -> Bool {
-        guard let l = layout else { return false }
-        var frame: CGRect?
-        for row in l.legendRows {
-            let screenRect = WorkbenchPlotLayout.cgToScreen(
-                row.hitRect, fittedIn: fittedRect,
-                rendererWidth: l.rendererSize.width, rendererHeight: l.rendererSize.height
-            )
-            frame = frame.map { $0.union(screenRect) } ?? screenRect
-        }
-        return frame?.contains(location) ?? false
-    }
+        let previewRect = coordinateContext.rendererToScreen(translatedBoxCG)
 
-    /// Returns the current legend origin as a normalized plot point (x,y ∈ [0,1], Y-up).
-    /// Derived from legendRows[0] by reversing the renderer's free-position math.
-    /// Falls back to (0.5, 0.5) when layout is unavailable.
-    private func currentLegendOriginNorm() -> CGPoint {
-        guard let layout, !layout.legendRows.isEmpty else {
-            return CGPoint(x: 0.5, y: 0.5)
-        }
+        // Convert clamped CG origin back to normalized for persistence
         let pr = layout.plotRect
+        let adjustedNorm = CGPoint(
+            x: (clampedOriginCG.x - pr.minX) / pr.width,
+            y: (clampedOriginCG.y - pr.minY) / pr.height
+        )
+
+        return LegendDragStep(grabOffset: grab, adjustedNorm: adjustedNorm, previewRect: previewRect)
+    }
+
+    @ViewBuilder
+    private func legendDragPreview() -> some View {
+        if let rect = dragPreviewLegendBoxScreenRect {
+            // stroke draws centered on the rect boundary (half outside, half inside),
+            // matching the CoreGraphics legend border. strokeBorder was inset-only, making
+            // the preview visually smaller than the rendered box.
+            Rectangle()
+                .stroke(
+                    Color.accentColor.opacity(0.85),
+                    style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])
+                )
+                .frame(width: rect.width, height: rect.height)
+                .position(x: rect.midX, y: rect.midY)
+        }
+    }
+
+    func _isInLegendFrame(_ location: CGPoint, fittedRect: CGRect) -> Bool {
+        guard let layout else { return false }
+        let context = CoordinateContext(rendererSize: layout.rendererSize, displayRect: fittedRect)
+        return _isInLegendFrame(location, coordinateContext: context)
+    }
+
+    func _isInLegendFrame(_ location: CGPoint, coordinateContext: CoordinateContext) -> Bool {
+        guard let l = layout, let cgBox = l.legendBoxRect else { return false }
+        let screenRect = coordinateContext.rendererToScreen(cgBox)
+        return screenRect.contains(location)
+    }
+
+    // MARK: - Legend origin helpers
+
+    func currentLegendOriginCG() -> CGPoint {
+        guard let layout, !layout.legendRows.isEmpty else { return .zero }
         let row0 = layout.legendRows[0]
-        let nx = (row0.cgOriginX - pr.minX) / pr.width
-        // Reverse: originY = cgRowY + legendRowH * 0.4  (from computeLegendRows, i=0)
-        let cgOriginY = row0.cgRowY + WorkbenchPlotLayout.legendRowH * 0.4
-        let ny = (cgOriginY - pr.minY) / pr.height
-        return CGPoint(x: min(max(nx, 0), 1), y: min(max(ny, 0), 1))
+        return CGPoint(x: row0.cgOriginX, y: row0.cgRowY + row0.style.rowHeight * 0.4)
     }
 
-    // MARK: - Inline edit panel
+    // MARK: - Tap hit-testing (point dot toggle only)
 
-    // Estimated panel dimensions for positioning (actual may vary slightly).
-    private static let panelW: CGFloat = 340
-    private static let panelH: CGFloat = 38
-
-    @ViewBuilder
-    private func editPanel(for elem: EditTarget) -> some View {
-        let label: String = {
-            switch elem {
-            case .title:            return "Title"
-            case .xLabel:           return "X Label"
-            case .yLabel:           return "Y Label"
-            case .legend(_, let orig):  return "Legend · \(orig)"
-            case .xTickLabel:       return "X Tick"
-            case .yTickLabel:       return "Y Tick"
-            case .pointLabel:       return "Point Label"
-            case .pointDot:         return ""
-            }
-        }()
-        let hasTextField: Bool = {
-            switch elem {
-            case .xTickLabel, .yTickLabel, .pointLabel, .pointDot: return false
-            default: return true
-            }
-        }()
-        let pos = editPanelPosition()
-        HStack(spacing: 6) {
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                    if hasTextField {
-                        TextField("", text: $editText)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(minWidth: 100, maxWidth: 180)
-                            .focused($editorFieldFocused)
-                            .onSubmit { commitEdit() }
-                            .task { editorFieldFocused = true }
-                    }
-                    if let key = editFontSizeKey, onFontSizeChange != nil {
-                        fontSizePicker(key: key)
-            }
-            if let densityKey = editTickDensityKey {
-                tickDensityStepper(key: densityKey)
-            }
-            if hasTextField {
-                Button("OK")     { commitEdit() }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                if case .title = elem {
-                    Button("Default") {
-                        editText = ""
-                        commitEdit()
-                    }
-                    .controlSize(.small)
-                }
-            } else {
-                Button("OK") { editingElement = nil }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-            }
-            Button("Cancel") { editingElement = nil }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .frame(minWidth: Self.panelW)
-        .fixedSize()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-        .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
-        .position(pos)
-        .onExitCommand { dismissEditing() }
-    }
-
-    @ViewBuilder
-    private var editorDismissLayer: some View {
-        Rectangle()
-            .fill(Color.clear)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                dismissEditing()
-            }
-    }
-
-    @ViewBuilder
-    private func fontSizePicker(key: String) -> some View {
-        let defaultSize: CGFloat = WorkbenchChartStyle()[keyPath: Self.fontSizeKeyPath(key)]
-        let current = chartStyleOverrides[key].flatMap { Double($0).map { CGFloat($0) } } ?? defaultSize
-        Picker("", selection: Binding<CGFloat>(
-            get: { current },
-            set: { newVal in
-                onFontSizeChange?(key, newVal)
-            }
-        )) {
-            ForEach(Self.fontSizeOptions, id: \.self) { s in
-                Text("\(Int(s))pt").tag(s)
-            }
-        }
-        .labelsHidden()
-        .frame(width: 72)
-    }
-
-    @ViewBuilder
-    private func tickDensityStepper(key: String) -> some View {
-        let fallback = key == "tickTargetX" ? 6 : 5
-        let current = chartStyleOverrides[key].flatMap { Int($0) } ?? fallback
-        HStack(spacing: 4) {
-            Text("Density").font(.caption2).foregroundStyle(.secondary).fixedSize()
-            Stepper(
-                value: Binding<Int>(
-                    get: { current },
-                    set: { newVal in
-                        onStyleOverrideChange?(key, "\(newVal)")
-                    }
-                ),
-                in: 2...20
-            ) {
-                Text("\(current)").font(.caption).frame(width: 20)
-            }
-            .frame(width: 90)
-        }
-    }
-
-    private static func fontSizeKeyPath(_ key: String) -> KeyPath<WorkbenchChartStyle, CGFloat> {
-        switch key {
-        case "titleFontSize":     return \.titleFontSize
-        case "axisTitleFontSize": return \.axisTitleFontSize
-        case "tickLabelFontSize": return \.tickLabelFontSize
-        case "legendFontSize":        return \.legendFontSize
-        case "pointLabelFontSize":    return \.pointLabelFontSize
-        default:                      return \.titleFontSize
-        }
-    }
-
-    /// Returns the `.position` (center point) for the edit panel, keeping it within the canvas.
-    private func editPanelPosition() -> CGPoint {
-        let halfW = Self.panelW / 2
-        let halfH = Self.panelH / 2
-        let gap: CGFloat = 6
-        let r = editTargetScreenRect
-
-        // Prefer above the element; fall back to below when there's not enough room.
-        let yAbove = r.minY - gap - halfH
-        let yBelow = r.maxY + gap + halfH
-        let preferY = yAbove >= halfH + 4 ? yAbove : yBelow
-
-        let clampedX = min(max(r.midX, halfW + 8), canvasSize.width  - halfW - 8)
-        let clampedY = min(max(preferY, halfH + 4), canvasSize.height - halfH - 4)
-        return CGPoint(x: clampedX, y: clampedY)
-    }
-
-    // MARK: - Tap hit-testing
-
-    private func handleTap(at location: CGPoint) {
+    private func handleTap(at location: CGPoint, coordinateContext: CoordinateContext) {
         guard let layout else { return }
-        let fitted = fittedRect(in: canvasSize)
-        // Hit rects are produced in layout's logical CG space (options.width × options.height).
-        // The on-screen image is rendered at pixelScale (default 2x), so its pixel size differs.
-        // Use layout.rendererSize for the screen mapping; rendererPixelSize is image-pixel space.
-        let rW = layout.rendererSize.width
-        let rH = layout.rendererSize.height
-
-        func toScreen(_ cr: CGRect) -> CGRect {
-            WorkbenchPlotLayout.cgToScreen(cr, fittedIn: fitted,
-                                           rendererWidth: rW, rendererHeight: rH)
-        }
-
-        if onEditTitle != nil, toScreen(layout.titleHitRect).contains(location) {
-            editText = layout.chartTitle
-            editTargetScreenRect = toScreen(layout.titleHitRect)
-            editingElement = .title
-            return
-        }
-        if onEditXLabel != nil, toScreen(layout.xLabelHitRect).contains(location) {
-            editText = layout.xAxisLabel
-            editTargetScreenRect = toScreen(layout.xLabelHitRect)
-            editingElement = .xLabel
-            return
-        }
-        if onEditYLabel != nil, toScreen(layout.yLabelHitRect).contains(location) {
-            editText = layout.yAxisLabel
-            editTargetScreenRect = toScreen(layout.yLabelHitRect)
-            editingElement = .yLabel
-            return
-        }
-        if onEditLegendLabel != nil {
-            for row in layout.legendRows {
-                let sr = toScreen(row.hitRect)
-                if sr.contains(location) {
-                    let key: String
-                    if let sid = seriesPayload?.series[safe: row.seriesIndex]?.sampleID {
-                        key = sid
-                    } else {
-                        key = String(row.seriesIndex)
-                    }
-                    editText = seriesLabelOverrides[key] ?? row.originalLabel
-                    editTargetScreenRect = sr
-                    editingElement = .legend(key: key, originalLabel: row.originalLabel)
-                    return
-                }
-            }
-        }
-        // Point dot hit-test -> toggle visibility (higher priority than tick-label regions)
         if onTogglePointLabelVisibility != nil, !layout.pointDotHitTargets.isEmpty {
             for target in layout.pointDotHitTargets {
-                if toScreen(target.hitRect).contains(location) {
+                if coordinateContext.rendererToScreen(target.hitRect).contains(location) {
                     let key: String
                     if let sid = seriesPayload?.series[safe: target.seriesIndex]?.sampleID {
                         key = sid
@@ -540,127 +270,7 @@ struct WorkbenchPlotCanvas: View {
                 }
             }
         }
-        // Point label hit-test -> open point-label font-size editor
-        if onFontSizeChange != nil, !layout.pointLabelHitTargets.isEmpty {
-            for target in layout.pointLabelHitTargets {
-                if toScreen(target.hitRect).contains(location) {
-                    editTargetScreenRect = toScreen(target.hitRect)
-                    editingElement = .pointLabel(seriesIndex: target.seriesIndex, pointIndex: target.pointIndex)
-                    return
-                }
-            }
-        }
-        if onFontSizeChange != nil {
-            if toScreen(layout.xTickHitRect).contains(location) {
-                editTargetScreenRect = toScreen(layout.xTickHitRect)
-                editingElement = .xTickLabel
-                return
-            }
-            if toScreen(layout.yTickHitRect).contains(location) {
-                editTargetScreenRect = toScreen(layout.yTickHitRect)
-                editingElement = .yTickLabel
-                return
-            }
-        }
-        // Tap outside any editable element — dismiss active editor
-        if editingElement != nil { editingElement = nil }
-    }
-
-    private func commitEdit() {
-        guard let elem = editingElement else { return }
-        let text = editText.trimmingCharacters(in: .whitespacesAndNewlines)
-        switch elem {
-        case .title:              onEditTitle?(text)
-        case .xLabel:             onEditXLabel?(text)
-        case .yLabel:             onEditYLabel?(text)
-        case .legend(let key, _): onEditLegendLabel?(key, text)
-        case .xTickLabel, .yTickLabel, .pointLabel, .pointDot: break
-        }
-        editingElement = nil
-        editText = ""
-        editorFieldFocused = false
-    }
-
-    private func dismissEditing() {
-        editingElement = nil
-        editText = ""
-        editorFieldFocused = false
     }
 
     // MARK: - Geometry helpers
-
-    private func fittedRect(in size: CGSize) -> CGRect {
-        guard size.width > 0, size.height > 0 else { return .zero }
-        let imageAspect = rendererPixelSize.width / rendererPixelSize.height
-        let containerAspect = size.width / size.height
-        let w: CGFloat
-        let h: CGFloat
-        if containerAspect > imageAspect {
-            h = size.height; w = h * imageAspect
-        } else {
-            w = size.width; h = w / imageAspect
-        }
-        return CGRect(x: (size.width - w) / 2, y: (size.height - h) / 2, width: w, height: h)
-    }
-
-    private func plotNormalized(location: CGPoint, fittedRect: CGRect) -> CGPoint? {
-        guard !fittedRect.isEmpty else { return nil }
-        let rSize = layout?.rendererSize ?? rendererPixelSize
-        let pr = layout?.plotRect ?? {
-            let opts = WorkbenchChartRenderer.Options()
-            return CGRect(
-                x: opts.paddingLeft, y: opts.paddingBottom,
-                width: rSize.width - opts.paddingLeft - opts.paddingRight,
-                height: rSize.height - opts.paddingTop - opts.paddingBottom
-            )
-        }()
-        // Clamp cursor to fittedRect before projecting so dragging outside the image
-        // (or into any padding margin) stays responsive with no invisible air wall.
-        let cx = min(max(location.x, fittedRect.minX), fittedRect.maxX)
-        let cy = min(max(location.y, fittedRect.minY), fittedRect.maxY)
-        let px = (cx - fittedRect.minX) / fittedRect.width  * rSize.width
-        let py = (cy - fittedRect.minY) / fittedRect.height * rSize.height
-        // CG layout: plotRect origin is bottom-left, but in PNG space Y is inverted.
-        // pr.minX = paddingLeft, pr.minY = paddingBottom (CG), but in PNG space
-        // the top of the plot is at paddingTop from the top of the image.
-        let plotMinX = pr.minX
-        let plotMinY = rSize.height - pr.maxY   // PNG-space top of plot area
-        let nx = (px - plotMinX) / pr.width
-        let ny = 1.0 - (py - plotMinY) / pr.height
-        return CGPoint(x: min(max(nx, 0), 1), y: min(max(ny, 0), 1))
-    }
-
-    /// Converts a normalized legend point (0-1, Y-up) back to the screen-space top-left of the
-    /// legend block — the same position the renderer will place cgOriginX / originY.
-    /// This is the inverse of `plotNormalized`, ensuring the preview anchors exactly to the
-    /// rendered legend origin rather than the raw drag location.
-    private func legendScreenOrigin(normalized: CGPoint, fittedRect: CGRect) -> CGPoint {
-        let rSize = layout?.rendererSize ?? rendererPixelSize
-        let pr = layout?.plotRect ?? {
-            let opts = WorkbenchChartRenderer.Options()
-            return CGRect(
-                x: opts.paddingLeft, y: opts.paddingBottom,
-                width: rSize.width - opts.paddingLeft - opts.paddingRight,
-                height: rSize.height - opts.paddingTop - opts.paddingBottom
-            )
-        }()
-        // Renderer CG space (Y-up)
-        let cgOriginX = pr.minX + normalized.x * pr.width
-        let cgOriginY = pr.minY + normalized.y * pr.height
-        // PNG space (Y-down, same as screen)
-        let pngX = cgOriginX
-        let pngY = rSize.height - cgOriginY
-        return CGPoint(
-            x: fittedRect.minX + pngX / rSize.width  * fittedRect.width,
-            y: fittedRect.minY + pngY / rSize.height * fittedRect.height
-        )
-    }
-
-    private static func extractRendererPixelSize(from image: NSImage) -> CGSize? {
-        for rep in image.representations {
-            let size = CGSize(width: CGFloat(rep.pixelsWide), height: CGFloat(rep.pixelsHigh))
-            if size.width > 0, size.height > 0 { return size }
-        }
-        return nil
-    }
 }

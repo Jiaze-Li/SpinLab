@@ -34,25 +34,63 @@ private struct AHEPlotControlsPanel: View {
     @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
-        @Bindable var ahe = appState.workbench.aheWorkspace
+        let ahe = appState.workbench.aheWorkspace
+        @Bindable var bindableAhe = appState.workbench.aheWorkspace
 
         WorkbenchPlotControlsPanel(
-            seriesRenderMode: $ahe.seriesRenderMode,
-            chartStyleOverrides: $ahe.chartStyleOverrides,
+            seriesRenderMode: $bindableAhe.seriesRenderMode,
+            chartStyleOverrides: $bindableAhe.chartStyleOverrides,
             onStyleChange: { ahe.rerenderForStyleChange() }
         ) {
             HStack(alignment: .top, spacing: 12) {
                 WorkbenchTitleTemplateField(
-                    titleTemplate: $ahe.titleTemplate,
+                    titleTemplate: $bindableAhe.titleTemplate,
                     numericDisplayCache: ahe.cachedSampleNumericDisplay,
                     onChange: {
                         appState.flushInteractionSnapshotNow()
                     }
                 )
-                Toggle("Grid", isOn: $ahe.showPlotGrid)
+                Toggle("Grid", isOn: $bindableAhe.showPlotGrid)
                     .toggleStyle(.checkbox)
                     .padding(.top, 2)
             }
+            HStack(spacing: 10) {
+                LabelOverrideField(
+                    label: "Title",
+                    renderedDefault: ahe.tabs.activeLayout?.chartTitle ?? "",
+                    currentValue: ahe.tabs.activeState.titleOverride,
+                    sourceResetToken: ahe.tabs.activeSourceIdentityKey,
+                    onCommit: { ahe.updatePlotTitle($0) },
+                    fieldMaxWidth: 200
+                )
+                LabelOverrideField(
+                    label: "X",
+                    renderedDefault: ahe.tabs.activeLayout?.xAxisLabel ?? "",
+                    currentValue: ahe.tabs.activeState.xLabelOverride,
+                    sourceResetToken: ahe.tabs.activeSourceIdentityKey,
+                    onCommit: { ahe.updateXAxisLabel($0) },
+                    fieldMaxWidth: 80
+                )
+                LabelOverrideField(
+                    label: "Y",
+                    renderedDefault: ahe.tabs.activeLayout?.yAxisLabel ?? "",
+                    currentValue: ahe.tabs.activeState.yLabelOverride,
+                    sourceResetToken: ahe.tabs.activeSourceIdentityKey,
+                    onCommit: { ahe.updateYAxisLabel($0) },
+                    fieldMaxWidth: 80
+                )
+            }
+            WorkbenchSeriesOrderPanel(
+                payload: ahe.tabs.activeManifestPayload,
+                currentSeriesOrder: ahe.tabs.activeState.seriesOrder,
+                isVisible: ahe.tabs.activeManifestPayload != nil,
+                onCommit: { _ in },
+                allowsReordering: false,
+                seriesLabelOverrides: ahe.tabs.activeSeriesLabelOverrides,
+                onRenameLabel: { key, label in
+                    ahe.updateSeriesLabel(sampleID: key, newLabel: label)
+                }
+            )
         }
     }
 }

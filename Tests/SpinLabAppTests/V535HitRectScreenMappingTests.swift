@@ -74,4 +74,53 @@ final class V535HitRectScreenMappingTests: XCTestCase {
         XCTAssertLessThan(titleScreen.minY, 60)
         XCTAssertGreaterThan(titleScreen.width, 400)
     }
+
+    func testCoordinateContextUsesContainerWidthForDisplayRect() {
+        let rendererSize = CGSize(width: 800, height: 600)
+        let imageSize = CGSize(width: 800, height: 600)
+
+        let narrowContainer = CGSize(width: 400, height: 400)
+        let wideContainer = CGSize(width: 600, height: 400)
+
+        guard let narrow = CoordinateContext(
+            rendererSize: rendererSize,
+            imageSize: imageSize,
+            containerSize: narrowContainer
+        ) else {
+            XCTFail("Expected narrow context"); return
+        }
+        guard let wide = CoordinateContext(
+            rendererSize: rendererSize,
+            imageSize: imageSize,
+            containerSize: wideContainer
+        ) else {
+            XCTFail("Expected wide context"); return
+        }
+
+        XCTAssertEqual(narrow.displayRect.width, narrowContainer.width, accuracy: 0.01)
+        XCTAssertEqual(wide.displayRect.width, wideContainer.width, accuracy: 0.01)
+        XCTAssertGreaterThan(wide.displayRect.width, narrow.displayRect.width)
+        XCTAssertEqual(narrow.displayRect.height / narrow.displayRect.width, 0.75, accuracy: 0.0001)
+        XCTAssertEqual(wide.displayRect.height / wide.displayRect.width, 0.75, accuracy: 0.0001)
+    }
+
+    func testCoordinateContextIgnoresExtraContainerHeightAndStartsAtOrigin() {
+        let rendererSize = CGSize(width: 800, height: 600)
+        let imageSize = CGSize(width: 800, height: 600)
+
+        let container = CGSize(width: 500, height: 900)
+        guard let context = CoordinateContext(
+            rendererSize: rendererSize,
+            imageSize: imageSize,
+            containerSize: container
+        ) else {
+            XCTFail("Expected coordinate context")
+            return
+        }
+
+        XCTAssertEqual(context.displayRect.minX, 0, accuracy: 0.01)
+        XCTAssertEqual(context.displayRect.minY, 0, accuracy: 0.01)
+        XCTAssertEqual(context.displayRect.width, container.width, accuracy: 0.01)
+        XCTAssertEqual(context.displayRect.height, 375, accuracy: 0.01)
+    }
 }

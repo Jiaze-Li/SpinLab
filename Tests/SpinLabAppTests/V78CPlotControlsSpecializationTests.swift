@@ -84,7 +84,19 @@ struct V78CAHEPlotControlsPathTests {
                 "AHE custom path must use WorkbenchPlotControlsPanel as its common container")
     }
 
-    // INV-AHE-6: AHE does not expose stack offset (no stacking in single-tab workflow)
+    // INV-AHE-6: AHE custom path exposes a legend rename UI path
+    @Test("AHEWorkspaceView.swift exposes WorkbenchSeriesOrderPanel rename path")
+    func aheCustomPathBindsSeriesRename() throws {
+        let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
+        #expect(source.contains("WorkbenchSeriesOrderPanel"),
+                "AHE custom path must expose a reachable series rename UI path")
+        #expect(source.contains("allowsReordering: false"),
+                "AHE rename path must not imply drag-reordering controls")
+        #expect(source.contains("updateSeriesLabel"),
+                "AHE rename path must call through to updateSeriesLabel")
+    }
+
+    // INV-AHE-7: AHE does not expose stack offset (no stacking in single-tab workflow)
     @Test("AHEWorkspaceView.swift does not bind stackOffsetMultiplier")
     func aheDoesNotExposeStackOffset() throws {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
@@ -92,7 +104,7 @@ struct V78CAHEPlotControlsPathTests {
                 "AHE must not expose stackOffsetMultiplier — AHE is single-tab and has no curve stacking")
     }
 
-    // INV-AHE-7: AHE does not expose min gap fraction (no stacking in single-tab workflow)
+    // INV-AHE-8: AHE does not expose min gap fraction (no stacking in single-tab workflow)
     @Test("AHEWorkspaceView.swift does not bind minGapFraction")
     func aheDoesNotExposeMinGapFraction() throws {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
@@ -152,6 +164,14 @@ struct V78CXYPlotControlsPathTests {
         let source = try loadWorkbenchSource("XYRotationWorkspaceView.swift")
         #expect(source.contains("chartStyleOverrides: $bindableStore.tabs.chartStyleOverrides"),
                 "XY must pass chartStyleOverrides binding to WorkbenchStandardPlotControls")
+    }
+
+    // INV-XY-7b: XY flushes the interaction snapshot when controls change
+    @Test("XYRotationWorkspaceView.swift flushes interaction snapshot after control changes")
+    func xyFlushesInteractionSnapshot() throws {
+        let source = try loadWorkbenchSource("XYRotationWorkspaceView.swift")
+        #expect(source.contains("flushInteractionSnapshotNow()"),
+                "XY must flush the interaction snapshot after control changes so overrides persist promptly")
     }
 
     // INV-XY-7: XY exposes stackOffsetMultiplier through the standard controls path

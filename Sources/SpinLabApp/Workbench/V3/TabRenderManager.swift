@@ -135,6 +135,10 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
 
     var tabOutputs: [Tab: TabRenderOutput] = [:]
 
+    // Tracks the last analyzed source identity per tab so title resets only when
+    // the underlying input changes.
+    private var tabTitleSourceIdentityKeys: [Tab: String] = [:]
+
     // MARK: - Init
 
     init(
@@ -169,6 +173,10 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
 
     /// Active tab's manifest payload (for Save to Library).
     var activeManifestPayload: WorkbenchPlotPayload? { activeOutput.manifestPayload }
+
+    /// Source identity token for the active tab's most recently analyzed input.
+    /// Plot Controls uses this to reset inline editor state when a new source replaces the old one.
+    var activeSourceIdentityKey: String { tabTitleSourceIdentityKeys[activeTab] ?? "" }
 
     /// Active tab's series label overrides (convenience for canvas).
     var activeSeriesLabelOverrides: [String: String] {
@@ -233,16 +241,32 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     // MARK: - Render output management
 
     func setOutput(_ output: TabRenderOutput, for tab: Tab) {
+        updateTitleSourceIdentity(from: output.manifestPayload, for: tab)
         tabOutputs[tab] = output
     }
 
     /// Convenience: apply a WorkbenchRenderPipeline.Output to a tab.
+    ///
+    /// Text-scoped overrides are cleared only when the analyzed source identity changes.
+    /// Legend position and series order are preserved.
     func applyPipelineOutput(_ pipelineOutput: WorkbenchRenderPipeline.Output, for tab: Tab) {
+        updateTitleSourceIdentity(from: pipelineOutput.manifestPayload, for: tab)
         tabOutputs[tab] = TabRenderOutput(
             imageData: pipelineOutput.imageData,
             layout: pipelineOutput.layout,
             manifestPayload: pipelineOutput.manifestPayload
         )
+    }
+
+    /// Clears per-tab text overrides for a single tab while preserving legendPoint and seriesOrder.
+    func clearStatesForTab(_ tab: Tab) {
+        let lp = tabStates[tab]?.legendPoint
+        let so = tabStates[tab]?.seriesOrder
+        if lp != nil || so != nil {
+            tabStates[tab] = TabRenderState(legendPoint: lp, seriesOrder: so)
+        } else {
+            tabStates[tab] = nil
+        }
     }
 
     // MARK: - Pipeline bridge
@@ -259,7 +283,8 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         for tab: Tab? = nil
     ) -> WorkbenchRenderPipeline.Input {
         let targetTab = tab ?? activeTab
-        let s = tabStates[targetTab] ?? TabRenderState()
+        let sourceIdentityKey = WorkbenchChartIdentity.makeSourceIdentityKey(from: payload)
+        let s = preparedState(for: targetTab, sourceIdentityKey: sourceIdentityKey)
         var patch = extraStyleParams
         if showPlotGrid { patch["showGrid"] = "true" }
         if !legendAnchor.isEmpty, s.legendPoint == nil {
@@ -285,6 +310,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
 
     func clearOutputs() {
         tabOutputs = [:]
+        tabTitleSourceIdentityKeys = [:]
     }
 
     /// Clears per-tab display overrides (title, axis, series labels) but preserves
@@ -317,6 +343,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     func clearAll() {
         clearStates()
         tabOutputs = [:]
+        tabTitleSourceIdentityKeys = [:]
     }
 
     // MARK: - Pack persistence
@@ -378,5 +405,33 @@ func migrateStateIfNeeded(_ state: inout TabRenderState, series: [WorkbenchPlotS
             }
         }
         state.hiddenPointLabelIndicesBySeries = migrated
+    }
+}
+
+private extension TabRenderManager {
+    func preparedState(for tab: Tab, sourceIdentityKey: String) -> TabRenderState {
+        var state = tabStates[tab] ?? TabRenderState()
+        if let previousKey = tabTitleSourceIdentityKeys[tab], previousKey != sourceIdentityKey {
+            clearSourceScopedOverrides(&state)
+            tabStates[tab] = state
+        }
+        tabTitleSourceIdentityKeys[tab] = sourceIdentityKey
+        return state
+    }
+
+    func updateTitleSourceIdentity(from payload: WorkbenchPlotPayload?, for tab: Tab) {
+        guard let payload else { return }
+        let newKey = WorkbenchChartIdentity.makeSourceIdentityKey(from: payload)
+        if let oldKey = tabTitleSourceIdentityKeys[tab], oldKey != newKey {
+            clearSourceScopedOverrides(&tabStates[tab, default: TabRenderState()])
+        }
+        tabTitleSourceIdentityKeys[tab] = newKey
+    }
+
+    func clearSourceScopedOverrides(_ state: inout TabRenderState) {
+        state.titleOverride = ""
+        state.xLabelOverride = ""
+        state.yLabelOverride = ""
+        state.seriesLabelOverrides = [:]
     }
 }

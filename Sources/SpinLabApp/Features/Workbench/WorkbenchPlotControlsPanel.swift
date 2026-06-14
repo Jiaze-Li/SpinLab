@@ -1,12 +1,13 @@
 import SwiftUI
 
+private let _plotControlsFontSizeOptions: [CGFloat] = [12, 14, 16, 18, 19, 20, 22, 24, 25, 28, 32]
+
 // MARK: - WorkbenchPlotControlsPanel
 
 /// 通用 Plot Controls 容器。
 /// 提供统一的 GroupBox 标题、内部 VStack 间距和 padding。
 /// 所有 workflow 的 PlotControlsPanel 必须以此为容器，workflow 专属控件通过 ViewBuilder 注入。
-/// Shell 级控件（绘图模式、tick 密度）自动附加在底部。
-/// 字号通过点击图上元素调整，不在此面板。
+/// Shell 级控件（绘图模式、字号、tick 密度）自动附加在底部。
 struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
     @Binding var seriesRenderMode: SeriesRenderMode
     @Binding var chartStyleOverrides: [String: String]
@@ -18,9 +19,9 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
         GroupBox("Plot Controls") {
             VStack(alignment: .leading, spacing: 8) {
                 content()
-                // Shell-level control: render mode
+                // Shell-level: render mode + tick density in one row
                 HStack(spacing: 8) {
-                    Text("Draw").font(.caption).foregroundStyle(.secondary)
+                    Text("Draw").font(.system(size: 12))
                     Picker("", selection: $seriesRenderMode) {
                         Text("Line").tag(SeriesRenderMode.line)
                         Text("Scatter").tag(SeriesRenderMode.scatter)
@@ -29,13 +30,88 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
                     .labelsHidden()
                     .pickerStyle(.segmented)
                     .onChange(of: seriesRenderMode) { _, _ in onStyleChange?() }
+                    Spacer(minLength: 8)
+                    Text("Ticks").font(.system(size: 12)).fixedSize()
+                    tickDensityStepper(label: "X", key: "tickTargetX", fallback: 6)
+                    tickDensityStepper(label: "Y", key: "tickTargetY", fallback: 5)
                 }
+                // Shell-level controls: font sizes
+                fontSizeRow
                 supplementalContent()
             }
             .padding(.vertical, 4)
         }
     }
 
+    @ViewBuilder
+    private var fontSizeRow: some View {
+        HStack(spacing: 10) {
+            Text("Size").font(.system(size: 12)).fixedSize()
+            ForEach([
+                ("Title", "titleFontSize"),
+                ("Axis",  "axisTitleFontSize"),
+                ("Ticks", "tickLabelFontSize"),
+                ("Legend","legendFontSize"),
+                ("Point", "pointLabelFontSize"),
+            ], id: \.1) { label, key in
+                fontSizePicker(label: label, key: key)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func fontSizePicker(label: String, key: String) -> some View {
+        let defaultSize: CGFloat = WorkbenchChartStyle()[keyPath: Self.fontSizeKeyPath(key)]
+        let current = chartStyleOverrides[key].flatMap { Double($0).map { CGFloat($0) } } ?? defaultSize
+        HStack(spacing: 2) {
+            Text(label).font(.system(size: 12)).fixedSize()
+            Picker("", selection: Binding<CGFloat>(
+                get: { current },
+                set: { newVal in
+                    chartStyleOverrides[key] = "\(Int(newVal))"
+                    onStyleChange?()
+                }
+            )) {
+                ForEach(_plotControlsFontSizeOptions, id: \.self) { s in
+                    Text("\(Int(s))").tag(s)
+                }
+            }
+            .labelsHidden()
+            .frame(width: 58)
+        }
+    }
+
+    @ViewBuilder
+    private func tickDensityStepper(label: String, key: String, fallback: Int) -> some View {
+        let current = chartStyleOverrides[key].flatMap { Int($0) } ?? fallback
+        HStack(spacing: 4) {
+            Text(label).font(.system(size: 12)).fixedSize()
+            Stepper(
+                value: Binding<Int>(
+                    get: { current },
+                    set: { newVal in
+                        chartStyleOverrides[key] = "\(newVal)"
+                        onStyleChange?()
+                    }
+                ),
+                in: 2...20
+            ) {
+                Text("\(current)").font(.system(size: 12)).frame(width: 20)
+            }
+            .frame(width: 90)
+        }
+    }
+
+    private static func fontSizeKeyPath(_ key: String) -> KeyPath<WorkbenchChartStyle, CGFloat> {
+        switch key {
+        case "titleFontSize":     return \.titleFontSize
+        case "axisTitleFontSize": return \.axisTitleFontSize
+        case "tickLabelFontSize": return \.tickLabelFontSize
+        case "legendFontSize":    return \.legendFontSize
+        case "pointLabelFontSize": return \.pointLabelFontSize
+        default:                  return \.titleFontSize
+        }
+    }
 }
 
 extension WorkbenchPlotControlsPanel where Supplemental == EmptyView {

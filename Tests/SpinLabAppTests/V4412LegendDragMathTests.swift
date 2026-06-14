@@ -3,9 +3,11 @@ import XCTest
 
 /// Tests for legend drag coordinate math in WorkbenchPlotCanvas.
 ///
-/// Verifies two invariants:
+/// Verifies invariants:
 ///   1. plotNormalized clamps smoothly everywhere — no air wall inside or outside fittedRect.
-///   2. legendScreenOrigin is the exact inverse of plotNormalized, so preview position == landing position.
+///   2. plotNormalized ↔ legendOriginCG round-trip is exact (no intermediate screen coordinate skew).
+///   3. previewRect matches translated legendBoxRect converted to screen — position-correct, not just sized correctly.
+///   4. _isInLegendFrame uses legendBoxRect screen conversion (not row.hitRect union).
 final class V4412LegendDragMathTests: XCTestCase {
 
     // MARK: - Shared geometry
@@ -62,10 +64,10 @@ final class V4412LegendDragMathTests: XCTestCase {
         XCTAssertEqual(result!.y, 0.0, accuracy: 0.01)
     }
 
-    // MARK: - Round-trip: plotNormalized ↔ legendScreenOrigin
+    // MARK: - Round-trip: plotNormalized ↔ legendOriginCG
 
-    /// For any normalized point p, legendScreenOrigin(p) → screen pt,
-    /// then plotNormalized(screen pt) should recover p (within 1e-4).
+    /// For any normalized point p, legendOriginCG(p) maps into CG space, and
+    /// normalizing that CG point back recovers p (within 1e-4).
     func testRoundTrip_normalizedToScreenAndBack() {
         let testPoints: [CGPoint] = [
             CGPoint(x: 0.0, y: 0.0),   // bottom-left
@@ -74,8 +76,20 @@ final class V4412LegendDragMathTests: XCTestCase {
             CGPoint(x: 0.1, y: 0.9),   // near top-left
             CGPoint(x: 0.85, y: 0.15), // near bottom-right
         ]
+        let plotW = CGFloat(opts.width)  - opts.paddingLeft - opts.paddingRight
+        let plotH = CGFloat(opts.height) - opts.paddingTop  - opts.paddingBottom
         for p in testPoints {
-            let screenPt = legendScreenOriginForTest(normalized: p)
+            // legendOriginCG: CG-space inverse of currentLegendOriginNorm
+            let cgX = opts.paddingLeft   + p.x * plotW
+            let cgY = opts.paddingBottom + p.y * plotH
+            // normalize back: map through screen then plotNormalized
+            let rendW: CGFloat = 800, rendH: CGFloat = 600
+            let pngX = cgX
+            let pngY = rendH - cgY
+            let screenPt = CGPoint(
+                x: fitted.minX + pngX / rendW * fitted.width,
+                y: fitted.minY + pngY / rendH * fitted.height
+            )
             let recovered = plotNormalizedForTest(location: screenPt)
             XCTAssertNotNil(recovered, "Round-trip failed for \(p)")
             XCTAssertEqual(recovered!.x, p.x, accuracy: 1e-4,
@@ -85,38 +99,23 @@ final class V4412LegendDragMathTests: XCTestCase {
         }
     }
 
-    /// Preview position == landing position:
-    /// the normalized point stored in lastValidDragNorm (= adjusted, already clamped)
-    /// when passed to legendScreenOrigin gives the same screen point as dragPreviewPt.
+    /// Grab offset locks cursor to its original position within the legend box.
     func testPreviewMatchesLanding_clampedAdjustedRoundTrips() {
-        // Simulate: legend origin at (0.8, 0.9).
-        // User clicks the bottom-left of the legend: startLocation → (0.75, 0.82).
-        // grab = startNorm - origin = (0.75 - 0.8, 0.82 - 0.9) = (-0.05, -0.08)
-        // After minimumDistance threshold, first onChanged cursor is at (0.74, 0.84).
-        // adjusted = clamp(cursor - grab) = clamp(0.74+0.05, 0.84+0.08) = (0.79, 0.92) ≈ origin + delta
         let origin    = CGPoint(x: 0.8,  y: 0.9)
-        let startNorm = CGPoint(x: 0.75, y: 0.82)  // where user actually clicked
-        let cursor    = CGPoint(x: 0.6,  y: 0.7)   // where cursor is mid-drag
+        let startNorm = CGPoint(x: 0.75, y: 0.82)
+        let cursor    = CGPoint(x: 0.6,  y: 0.7)
 
-        let grabW = startNorm.x - origin.x   // -0.05
-        let grabH = startNorm.y - origin.y   // -0.08
+        let grabW = startNorm.x - origin.x
+        let grabH = startNorm.y - origin.y
 
         let rawX     = cursor.x - grabW
         let rawY     = cursor.y - grabH
         let adjusted = CGPoint(x: min(max(rawX, 0), 1), y: min(max(rawY, 0), 1))
 
-        // The cursor should remain at startNorm's offset within the legend box.
-        // adjusted.y - cursor.y == origin.y - startNorm.y (legend moved by delta)
         XCTAssertEqual(adjusted.x - cursor.x, origin.x - startNorm.x, accuracy: 1e-6,
                        "Grab offset should lock cursor to original click position (X)")
         XCTAssertEqual(adjusted.y - cursor.y, origin.y - startNorm.y, accuracy: 1e-6,
                        "Grab offset should lock cursor to original click position (Y)")
-
-        // preview and landing must agree.
-        let previewScreen = legendScreenOriginForTest(normalized: adjusted)
-        let recoveredNorm = plotNormalizedForTest(location: previewScreen)!
-        XCTAssertEqual(recoveredNorm.x, adjusted.x, accuracy: 1e-4)
-        XCTAssertEqual(recoveredNorm.y, adjusted.y, accuracy: 1e-4)
     }
 
     /// Repeated drag updates must keep advancing the legend preview.
@@ -134,7 +133,9 @@ final class V4412LegendDragMathTests: XCTestCase {
             reverseSeriesForLegend: true,
             seriesReorderable: false
         )
-        let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: nil)
+        // Free-position at center so the legend can move in both X and Y without hitting
+        // the right-edge clamp that an anchor-mode top-right legend would immediately trigger.
+        let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: CGPoint(x: 0.5, y: 0.5))
         let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
 
         let start = CGPoint(x: 180, y: 160)
@@ -162,11 +163,167 @@ final class V4412LegendDragMathTests: XCTestCase {
 
         XCTAssertNotEqual(first.adjustedNorm.x, second.adjustedNorm.x, accuracy: 1e-6)
         XCTAssertNotEqual(first.adjustedNorm.y, second.adjustedNorm.y, accuracy: 1e-6)
-        XCTAssertNotEqual(first.previewPoint.x, second.previewPoint.x, accuracy: 1e-6)
-        XCTAssertNotEqual(first.previewPoint.y, second.previewPoint.y, accuracy: 1e-6)
+        XCTAssertNotEqual(first.previewRect.midX, second.previewRect.midX, accuracy: 1e-6)
+        XCTAssertNotEqual(first.previewRect.midY, second.previewRect.midY, accuracy: 1e-6)
     }
 
-    // MARK: - Helpers (mirrors WorkbenchPlotCanvas private methods)
+    // MARK: - previewRect position correctness
+
+    /// Long label, top-right anchor: previewRect from legendDragStep must match the
+    /// clamped-and-translated legendBoxRect computed independently via cgToScreen.
+    /// A very long label fills the plot horizontally; the clamp prevents overflow.
+    func testPreviewRect_longLabel_topRight_matchesTranslatedBoxRect() {
+        let label = "Very Long Label That Exceeds Default Legend Width Estimate Significantly"
+        let series = [WorkbenchPlotSeries(label: label, x: [0.0, 1.0], y: [0.0, 1.0],
+                                          sourceRef: "/tmp/s0.csv", sampleID: "s0")]
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test", workflowDisplayName: "Test", title: "T",
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: series,
+            styleParams: ["legendAnchor": "top-right"]
+        )
+        let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: nil)
+        let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+
+        guard let cgBox = layout.legendBoxRect else {
+            XCTFail("legendBoxRect must not be nil"); return
+        }
+        let row0 = layout.legendRows[0]
+        let pr   = layout.plotRect
+        let rowHeight = row0.style.rowHeight
+
+        // Drag to (0.5, 0.5). The label is wide enough that X is clamped — expected value
+        // must mirror the CG-space clamp that legendDragStep applies.
+        let targetNorm = CGPoint(x: 0.5, y: 0.5)
+        let currentOriginCG = CGPoint(x: row0.cgOriginX, y: row0.cgRowY + rowHeight * 0.4)
+        let rawTargetCG     = CGPoint(x: pr.minX + targetNorm.x * pr.width,
+                                       y: pr.minY + targetNorm.y * pr.height)
+        let dxBoxMin = cgBox.minX - currentOriginCG.x
+        let dxBoxMax = cgBox.maxX - currentOriginCG.x
+        let dyBoxMin = cgBox.minY - currentOriginCG.y
+        let dyBoxMax = cgBox.maxY - currentOriginCG.y
+        let clampedCG = CGPoint(
+            x: min(max(rawTargetCG.x, pr.minX - dxBoxMin), pr.maxX - dxBoxMax),
+            y: min(max(rawTargetCG.y, pr.minY - dyBoxMin), pr.maxY - dyBoxMax)
+        )
+        let dx = clampedCG.x - currentOriginCG.x
+        let dy = clampedCG.y - currentOriginCG.y
+        let expectedRect = WorkbenchPlotLayout.cgToScreen(
+            cgBox.offsetBy(dx: dx, dy: dy), fittedIn: fitted,
+            rendererWidth: layout.rendererSize.width, rendererHeight: layout.rendererSize.height
+        )
+
+        guard let step = canvas.legendDragStep(
+            start: startPointForNorm(targetNorm, layout: layout),
+            current: startPointForNorm(targetNorm, layout: layout),
+            fittedRect: fitted,
+            existingGrabOffset: CGSize(width: 0, height: 0)
+        ) else {
+            XCTFail("legendDragStep returned nil"); return
+        }
+
+        XCTAssertEqual(step.previewRect.minX, expectedRect.minX, accuracy: 1.0)
+        XCTAssertEqual(step.previewRect.minY, expectedRect.minY, accuracy: 1.0)
+        XCTAssertEqual(step.previewRect.maxX, expectedRect.maxX, accuracy: 1.0)
+        XCTAssertEqual(step.previewRect.maxY, expectedRect.maxY, accuracy: 1.0)
+    }
+
+    /// Free-position drag: previewRect equals translatedLegendBoxRect at the adjusted norm.
+    func testPreviewRect_freePosition_equalsTranslatedBoxRect() {
+        let label = "Free Legend"
+        let series = [WorkbenchPlotSeries(label: label, x: [0.0, 1.0], y: [0.0, 1.0],
+                                          sourceRef: "/tmp/s0.csv", sampleID: "s0")]
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test", workflowDisplayName: "Test", title: "T",
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: series
+        )
+        let layout = WorkbenchPlotLayout.compute(
+            options: opts, payload: payload, legendPoint: CGPoint(x: 0.3, y: 0.7)
+        )
+        let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+        let rowHeight = layout.legendRows[0].style.rowHeight
+
+        guard let cgBox = layout.legendBoxRect else {
+            XCTFail("legendBoxRect must not be nil"); return
+        }
+        let row0 = layout.legendRows[0]
+        let pr   = layout.plotRect
+        let targetNorm = CGPoint(x: 0.6, y: 0.4)
+
+        let currentOriginCG = CGPoint(x: row0.cgOriginX, y: row0.cgRowY + rowHeight * 0.4)
+        let targetOriginCG  = CGPoint(x: pr.minX + targetNorm.x * pr.width,
+                                       y: pr.minY + targetNorm.y * pr.height)
+        let dx = targetOriginCG.x - currentOriginCG.x
+        let dy = targetOriginCG.y - currentOriginCG.y
+        let translatedCG = cgBox.offsetBy(dx: dx, dy: dy)
+        let expectedRect = WorkbenchPlotLayout.cgToScreen(
+            translatedCG, fittedIn: fitted,
+            rendererWidth: layout.rendererSize.width, rendererHeight: layout.rendererSize.height
+        )
+
+        guard let step = canvas.legendDragStep(
+            start: startPointForNorm(targetNorm, layout: layout),
+            current: startPointForNorm(targetNorm, layout: layout),
+            fittedRect: fitted,
+            existingGrabOffset: CGSize(width: 0, height: 0)
+        ) else {
+            XCTFail("legendDragStep returned nil"); return
+        }
+
+        XCTAssertEqual(step.previewRect.minX, expectedRect.minX, accuracy: 1.0)
+        XCTAssertEqual(step.previewRect.minY, expectedRect.minY, accuracy: 1.0)
+        XCTAssertEqual(step.previewRect.maxX, expectedRect.maxX, accuracy: 1.0)
+        XCTAssertEqual(step.previewRect.maxY, expectedRect.maxY, accuracy: 1.0)
+    }
+
+    // MARK: - Hit-test frame uses legendBoxRect
+
+    /// _isInLegendFrame must accept points inside legendBoxRect screen rect and reject points outside.
+    func testIsInLegendFrame_usesLegendBoxRect() {
+        let series = [WorkbenchPlotSeries(label: "S1", x: [0.0, 1.0], y: [0.0, 1.0],
+                                          sourceRef: "/tmp/s0.csv", sampleID: "s0")]
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test", workflowDisplayName: "Test", title: "T",
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: series,
+            styleParams: ["legendAnchor": "top-right"]
+        )
+        let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: nil)
+        let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+
+        guard let cgBox = layout.legendBoxRect else {
+            XCTFail("legendBoxRect must not be nil"); return
+        }
+        let screenBox = WorkbenchPlotLayout.cgToScreen(
+            cgBox, fittedIn: fitted,
+            rendererWidth: layout.rendererSize.width, rendererHeight: layout.rendererSize.height
+        )
+
+        // Point at the center of legendBoxRect screen rect must be inside.
+        XCTAssertTrue(canvas._isInLegendFrame(CGPoint(x: screenBox.midX, y: screenBox.midY), fittedRect: fitted),
+                      "Center of legendBoxRect screen rect must be inside legend frame")
+
+        // Point well outside legendBoxRect screen rect must be outside.
+        let outside = CGPoint(x: screenBox.minX - 20, y: screenBox.midY)
+        XCTAssertFalse(canvas._isInLegendFrame(outside, fittedRect: fitted),
+                       "Point outside legendBoxRect screen rect must not be in legend frame")
+    }
+
+    // MARK: - Helpers
+
+    /// Converts a normalized plot point to a screen coordinate (for use as a drag start/current point).
+    private func startPointForNorm(_ norm: CGPoint, layout: WorkbenchPlotLayout) -> CGPoint {
+        let pr    = layout.plotRect
+        let rSize = layout.rendererSize
+        let cgX   = pr.minX + norm.x * pr.width
+        let cgY   = pr.minY + norm.y * pr.height
+        let pngY  = rSize.height - cgY
+        return CGPoint(
+            x: fitted.minX + cgX / rSize.width  * fitted.width,
+            y: fitted.minY + pngY / rSize.height * fitted.height
+        )
+    }
 
     private func plotNormalizedForTest(location: CGPoint) -> CGPoint? {
         guard !fitted.isEmpty else { return nil }
@@ -180,19 +337,5 @@ final class V4412LegendDragMathTests: XCTestCase {
         let nx = (px - opts.paddingLeft) / plotW
         let ny = 1.0 - (py - opts.paddingTop) / plotH
         return CGPoint(x: min(max(nx, 0), 1), y: min(max(ny, 0), 1))
-    }
-
-    private func legendScreenOriginForTest(normalized: CGPoint) -> CGPoint {
-        let plotW = CGFloat(opts.width)  - opts.paddingLeft - opts.paddingRight
-        let plotH = CGFloat(opts.height) - opts.paddingTop  - opts.paddingBottom
-        let rendW: CGFloat = 800; let rendH: CGFloat = 600
-        let cgOriginX = opts.paddingLeft   + normalized.x * plotW
-        let cgOriginY = opts.paddingBottom + normalized.y * plotH
-        let pngX = cgOriginX
-        let pngY = rendH - cgOriginY
-        return CGPoint(
-            x: fitted.minX + pngX / rendW * fitted.width,
-            y: fitted.minY + pngY / rendH * fitted.height
-        )
     }
 }

@@ -53,7 +53,7 @@ struct WorkbenchChartRenderer {
 
     // MARK: - Public
 
-    func renderPNG(payload: WorkbenchPlotPayload, options: Options = .init(), style: WorkbenchChartStyle = .init()) throws -> Data {
+    func renderPNG(payload: WorkbenchPlotPayload, options: Options = .init(), style: WorkbenchChartStyle = .init(), layout: WorkbenchPlotLayout? = nil) throws -> Data {
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
         let scale = max(options.pixelScale, 1)
@@ -70,7 +70,7 @@ struct WorkbenchChartRenderer {
         ) else { throw RendererError.contextCreationFailed }
 
         ctx.scaleBy(x: scale, y: scale)
-        drawCanvas(in: ctx, payload: payload, options: options, style: style)
+        drawCanvas(in: ctx, payload: payload, options: options, style: style, externalLayout: layout)
 
         guard let cgImage = ctx.makeImage() else { throw RendererError.imageCreationFailed }
 
@@ -114,7 +114,7 @@ struct WorkbenchChartRenderer {
 
     // MARK: - Canvas layout
 
-    private func drawCanvas(in ctx: CGContext, payload: WorkbenchPlotPayload, options: Options, style: WorkbenchChartStyle) {
+    private func drawCanvas(in ctx: CGContext, payload: WorkbenchPlotPayload, options: Options, style: WorkbenchChartStyle, externalLayout: WorkbenchPlotLayout? = nil) {
         let opts = resolvedOptions(payload: payload, base: options, style: style)
         let w = CGFloat(opts.width)
         let h = CGFloat(opts.height)
@@ -130,15 +130,21 @@ struct WorkbenchChartRenderer {
         ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
         ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
 
-        // Compute layout — single source of truth for all text-element positions
-        var legendNormalizedPoint: CGPoint? = nil
-        if let lxStr = payload.styleParams["legendX"], let lyStr = payload.styleParams["legendY"],
-           let lx = Double(lxStr), let ly = Double(lyStr) {
-            legendNormalizedPoint = CGPoint(x: lx, y: ly)
+        // Use the pipeline-provided layout when available so PNG and canvas share the same
+        // legend geometry. Fall back to local computation only when called standalone.
+        let layout: WorkbenchPlotLayout
+        if let externalLayout {
+            layout = externalLayout
+        } else {
+            var legendNormalizedPoint: CGPoint? = nil
+            if let lxStr = payload.styleParams["legendX"], let lyStr = payload.styleParams["legendY"],
+               let lx = Double(lxStr), let ly = Double(lyStr) {
+                legendNormalizedPoint = CGPoint(x: lx, y: ly)
+            }
+            layout = WorkbenchPlotLayout.compute(
+                options: opts, payload: payload, legendPoint: legendNormalizedPoint, style: style
+            )
         }
-        let layout = WorkbenchPlotLayout.compute(
-            options: opts, payload: payload, legendPoint: legendNormalizedPoint, style: style
-        )
 
         // Title
         let title = payload.title.isEmpty ? payload.workflowDisplayName : payload.title
@@ -284,14 +290,16 @@ struct WorkbenchChartRenderer {
                       xMin: xMin, xSpan: xSpan, yMin: yMin, ySpan: ySpan)
 
         // Axis field name labels (markup: _X renders X as subscript)
-        let axisColor = CGColor(red: 0.25, green: 0.25, blue: 0.25, alpha: 1)
+        let axisColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
         drawCenteredMarkup(ctx, text: payload.axisMapping.xField,
                            at: layout.xLabelCenter, size: style.axisTitleFontSize, color: axisColor)
         drawRotated90Markup(ctx, text: payload.axisMapping.yField,
                             at: layout.yLabelCenter, size: style.axisTitleFontSize, color: axisColor)
 
-        // Legend — positions come from layout (same math, no duplication)
-        drawLegend(ctx, rows: layout.legendRows, series: payload.series, style: style)
+        // Legend — box rect from layout (single source of truth, no local duplication)
+        if let boxRect = layout.legendBoxRect {
+            drawLegend(ctx, rows: layout.legendRows, boxRect: boxRect, series: payload.series, style: style)
+        }
     }
 
     // MARK: - Tick computation
@@ -427,24 +435,12 @@ struct WorkbenchChartRenderer {
     /// All position math lives in WorkbenchPlotLayout — no duplication here.
     private func drawLegend(_ ctx: CGContext,
                              rows: [WorkbenchPlotLayout.LegendRow],
+                             boxRect: CGRect,
                              series: [WorkbenchPlotSeries],
                              style: WorkbenchChartStyle) {
         guard !rows.isEmpty else { return }
         let labelColor = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
-        let rowH   = WorkbenchPlotLayout.legendRowH
-        let boxPad: CGFloat = 6
         let fontSize = style.legendFontSize
-
-        // Bounding box — use measured label widths so the box always encloses the text
-        let measuredLabelWidths: [CGFloat] = series.map { s in
-            let line = makeLine(text: s.label, size: fontSize, bold: false, color: labelColor)
-            return CTLineGetBoundsWithOptions(line, []).width
-        }
-        let minX = rows.map(\.cgOriginX).min()! - boxPad
-        let maxX = zip(rows, measuredLabelWidths).map { row, w in row.labelAnchor.x + w }.max()! + boxPad
-        let minY = rows.map(\.cgRowY).min()! - rowH * 0.5 - boxPad
-        let maxY = rows.map(\.cgRowY).max()! + rowH * 0.5 + boxPad
-        let boxRect = CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
 
         // White fill + light border
         ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 0.92))

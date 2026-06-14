@@ -315,15 +315,16 @@ struct V536CurveDragOrderTests {
 
     @Test("Series Order panel keys duplicate sampleIDs by sourceRef")
     func seriesOrderPanelKeysDuplicateSampleIDsBySourceRef() {
+        // payload in bottom-to-top order (matches manifest format after PR127 fix)
         let payload = WorkbenchPlotPayload(
             workflowID: "test",
             workflowDisplayName: "test",
             title: "T",
             axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
             series: [
-                WorkbenchPlotSeries(label: "Top curve", x: [0], y: [0], sourceRef: "/tmp/top.csv", sampleID: "sample-1"),
+                WorkbenchPlotSeries(label: "Bottom curve", x: [0], y: [0], sourceRef: "/tmp/bottom.csv", sampleID: "sample-2"),
                 WorkbenchPlotSeries(label: "Middle curve", x: [0], y: [0], sourceRef: "/tmp/middle.csv", sampleID: "sample-1"),
-                WorkbenchPlotSeries(label: "Bottom curve", x: [0], y: [0], sourceRef: "/tmp/bottom.csv", sampleID: "sample-2")
+                WorkbenchPlotSeries(label: "Top curve", x: [0], y: [0], sourceRef: "/tmp/top.csv", sampleID: "sample-1")
             ],
             reverseSeriesForLegend: true,
             seriesReorderable: true
@@ -338,15 +339,16 @@ struct V536CurveDragOrderTests {
 
     @Test("Series Order panel commits sourceRef keys")
     func seriesOrderPanelCommitsSourceRefKeys() {
+        // payload in bottom-to-top order (matches manifest format after PR127 fix)
         let payload = WorkbenchPlotPayload(
             workflowID: "test",
             workflowDisplayName: "test",
             title: "T",
             axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
             series: [
-                WorkbenchPlotSeries(label: "Top curve", x: [0], y: [0], sourceRef: "/tmp/top.csv", sampleID: "sample-1"),
+                WorkbenchPlotSeries(label: "Bottom curve", x: [0], y: [0], sourceRef: "/tmp/bottom.csv", sampleID: "sample-2"),
                 WorkbenchPlotSeries(label: "Middle curve", x: [0], y: [0], sourceRef: "/tmp/middle.csv", sampleID: "sample-1"),
-                WorkbenchPlotSeries(label: "Bottom curve", x: [0], y: [0], sourceRef: "/tmp/bottom.csv", sampleID: "sample-2")
+                WorkbenchPlotSeries(label: "Top curve", x: [0], y: [0], sourceRef: "/tmp/top.csv", sampleID: "sample-1")
             ],
             reverseSeriesForLegend: true,
             seriesReorderable: true
@@ -419,9 +421,12 @@ struct V536CurveDragOrderTests {
             seriesReorderable: true
         )
 
-        let rows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        // reorderedRows operates on the displayed (visual top-to-bottom) rows — match production usage
+        let internalRows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        let displayedRows = WorkbenchSeriesOrderPanel.presentedRows(from: internalRows)
+
         let dragged = WorkbenchSeriesOrderPanel.reorderedRows(
-            rows,
+            displayedRows,
             draggedKey: "/tmp/top.csv",
             targetKey: "/tmp/bottom.csv",
             dropLocationX: 0.2
@@ -429,7 +434,7 @@ struct V536CurveDragOrderTests {
         #expect(dragged.map(\.identityKey) == ["/tmp/middle.csv", "/tmp/top.csv", "/tmp/bottom.csv"])
 
         let after = WorkbenchSeriesOrderPanel.reorderedRows(
-            rows,
+            displayedRows,
             draggedKey: "/tmp/top.csv",
             targetKey: "/tmp/bottom.csv",
             dropLocationX: 0.8
@@ -488,8 +493,8 @@ struct V536CurveDragOrderTests {
         #expect(output.manifestPayload.series.map(\.sourceRef) == ["/tmp/top.csv", "/tmp/middle.csv"])
     }
 
-    @Test("Manifest cache orders reorderable field sweeps to match rendered legend order")
-    func manifestCacheOrdersFieldSweepsToLegendOrder() {
+    @Test("Manifest cache orders reorderable field sweeps to match committed bottom-to-top order")
+    func manifestCacheOrdersFieldSweepsToCommittedOrder() {
         let sweeps = [
             makeSweep(sampleID: "sample-1", temperatureK: 0,   r1omega: [0, 1], sourceFilePath: "/tmp/0.csv"),
             makeSweep(sampleID: "sample-1", temperatureK: 30,  r1omega: [1, 2], sourceFilePath: "/tmp/30.csv"),
@@ -503,7 +508,8 @@ struct V536CurveDragOrderTests {
             seriesOrder: ["/tmp/0.csv", "/tmp/30.csv", "/tmp/90.csv", "/tmp/120.csv", "/tmp/180.csv"]
         )
 
-        #expect(ordered.map(\.sourceFilePath) == ["/tmp/180.csv", "/tmp/120.csv", "/tmp/90.csv", "/tmp/30.csv", "/tmp/0.csv"])
+        // manifest = committed bottom-to-top order (not reversed)
+        #expect(ordered.map(\.sourceFilePath) == ["/tmp/0.csv", "/tmp/30.csv", "/tmp/90.csv", "/tmp/120.csv", "/tmp/180.csv"])
     }
 
     @MainActor

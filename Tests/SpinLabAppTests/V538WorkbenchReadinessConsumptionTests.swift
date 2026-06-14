@@ -48,10 +48,15 @@ struct V538WorkbenchReadinessConsumptionTests {
         let actionBarSource = try loadSource(
             relativePath: "Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceActionBar.swift"
         )
+        let resultAreaSource = try loadSource(
+            relativePath: "Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceResultArea.swift"
+        )
         let loadPackSource = try loadSource(
             relativePath: "Sources/SpinLabApp/Features/Workbench/WorkbenchLoadPackPopover.swift"
         )
 
+        #expect(actionBarSource.contains("WorkflowWorkspaceLoadPackPlacement(workflowID: workflowID, store: store)"))
+        #expect(!resultAreaSource.contains("WorkflowWorkspaceLoadPackPlacement(workflowID: workflowID, store: store)"))
         #expect(actionBarSource.contains("appState.library.librarySettings.rootPath == nil"))
         #expect(loadPackSource.contains(".disabled(allPacks.isEmpty)"))
         #expect(loadPackSource.contains("store.hasUnsavedAnalysis"))

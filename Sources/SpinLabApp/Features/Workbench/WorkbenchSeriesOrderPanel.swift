@@ -1,40 +1,69 @@
 import SwiftUI
 
-/// Series reordering control for stacked charts.
+/// Series reordering and per-chip label rename control for stacked charts.
 ///
 /// Displays the current stack order and commits bottom-to-top per-series keys.
+/// Each chip shows a pencil button for inline legend label renaming.
 struct WorkbenchSeriesOrderPanel: View {
     let payload: WorkbenchPlotPayload?
     let currentSeriesOrder: [String]?
     let isVisible: Bool
     let onCommit: ([String]) -> Void
+    /// When false, the panel keeps rename chips but hides drag and arrow reorder UI.
+    var allowsReordering: Bool = true
+    /// Current series label overrides keyed by sampleID (or Int-string fallback).
+    var seriesLabelOverrides: [String: String] = [:]
+    /// Called with (labelKey, newLabel) when the user renames a chip; key matches
+    /// TabRenderManager.updateSeriesLabel sampleID parameter.
+    var onRenameLabel: ((String, String) -> Void)? = nil
 
     @State private var rows: [SeriesOrderRow] = []
     @State private var lastCommittedSignature: String = ""
     @State private var chipWidths: [String: CGFloat] = [:]
+    @State private var editingChipKey: String? = nil
+    @State private var editChipText: String = ""
+    @FocusState private var chipEditorFocused: Bool
+    @State private var dragTargetKey: String? = nil
+    @State private var dropIsRight: Bool = false
 
     var body: some View {
         if isVisible {
-            GroupBox("Series Order") {
-                let displayedRows = Self.presentedRows(from: rows)
+            let displayedRows = Self.presentedRows(from: rows)
+            VStack(alignment: .leading, spacing: 0) {
                 if displayedRows.isEmpty {
                     Text("No reorderable series")
-                        .font(.caption)
+                        .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 4)
                 } else {
                     FlowLayout(spacing: 6) {
                         ForEach(Array(displayedRows.enumerated()), id: \.element.identityKey) { index, row in
-                            seriesChip(row, index: index)
-                                .draggable(row.identityKey)
-                                .dropDestination(for: String.self) { items, location in
-                                    guard let draggedKey = items.first else { return false }
-                                    let width = chipWidths[row.identityKey] ?? 0
-                                    let normalizedDropLocationX = width > 0 ? location.x / width : 0.5
-                                    moveDisplayedRow(withDraggedKey: draggedKey, onto: row.identityKey, dropLocationX: normalizedDropLocationX)
-                                    return true
-                                } isTargeted: { _ in }
+                            if allowsReordering {
+                                seriesChip(row, index: index, showsReorderControls: true)
+                                    .draggable(row.identityKey)
+                                    .dropDestination(for: String.self) { items, location in
+                                        guard let draggedKey = items.first else { return false }
+                                        let width = chipWidths[row.identityKey] ?? 0
+                                        let normalizedDropLocationX = width > 0 ? location.x / width : 0.5
+                                        moveDisplayedRow(withDraggedKey: draggedKey, onto: row.identityKey, dropLocationX: normalizedDropLocationX)
+                                        return true
+                                    } isTargeted: { isOver in
+                                        if isOver {
+                                            dragTargetKey = row.identityKey
+                                        } else if dragTargetKey == row.identityKey {
+                                            dragTargetKey = nil
+                                        }
+                                    }
+                                    .onContinuousHover { phase in
+                                        if case .active(let location) = phase {
+                                            let width = chipWidths[row.identityKey] ?? 100
+                                            dropIsRight = width > 0 ? location.x / width >= 0.5 : false
+                                        }
+                                    }
+                            } else {
+                                seriesChip(row, index: index, showsReorderControls: false)
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -71,37 +100,72 @@ struct WorkbenchSeriesOrderPanel: View {
         return "payload:\(payloadSignature)"
     }
 
-    private func seriesChip(_ row: SeriesOrderRow, index: Int) -> some View {
-        HStack(spacing: 6) {
-            Text(row.label)
-                .font(.caption)
-                .fontWeight(.medium)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: 120, alignment: .leading)
-                .accessibilityIdentifier("series-order-row-\(row.identityKey)")
+    private func seriesChip(_ row: SeriesOrderRow, index: Int, showsReorderControls: Bool) -> some View {
+        let labelKey = row.sampleID ?? String(row.originalIndex)
+        let displayLabel = seriesLabelOverrides[labelKey] ?? row.label
+        let isEditing = editingChipKey == row.identityKey
 
-            Button {
-                moveDisplayedRow(from: index, to: index - 1)
-            } label: {
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 10, weight: .semibold))
-                    .frame(width: 10, height: 10)
-            }
-            .buttonStyle(.borderless)
-            .controlSize(.mini)
-            .disabled(index == 0)
+        return HStack(spacing: 6) {
+            if isEditing {
+                TextField("", text: $editChipText)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+                    .frame(minWidth: 60, maxWidth: 140)
+                    .focused($chipEditorFocused)
+                    .onSubmit { commitChipRename(row: row, labelKey: labelKey) }
+                Button("OK") { commitChipRename(row: row, labelKey: labelKey) }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.mini)
+                Button("Cancel") { editingChipKey = nil }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+            } else {
+                Text(displayLabel)
+                    .font(.system(size: 12))
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 120, alignment: .leading)
+                    .accessibilityIdentifier("series-order-row-\(row.identityKey)")
 
-            Button {
-                moveDisplayedRow(from: index, to: index + 1)
-            } label: {
-                Image(systemName: "arrow.down")
-                    .font(.system(size: 10, weight: .semibold))
-                    .frame(width: 10, height: 10)
+                if onRenameLabel != nil {
+                    Button {
+                        editChipText = displayLabel
+                        editingChipKey = row.identityKey
+                        chipEditorFocused = true
+                    } label: {
+                        Image(systemName: "square.and.pencil")
+                            .font(.system(size: 12, weight: .regular))
+                            .frame(width: 14, height: 14)
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.mini)
+                }
+
+                if showsReorderControls {
+                    Button {
+                        moveDisplayedRow(from: index, to: index - 1)
+                    } label: {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 12, weight: .semibold))
+                            .frame(width: 14, height: 14)
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.mini)
+                    .disabled(index == 0)
+
+                    Button {
+                        moveDisplayedRow(from: index, to: index + 1)
+                    } label: {
+                        Image(systemName: "arrow.down")
+                            .font(.system(size: 12, weight: .semibold))
+                            .frame(width: 14, height: 14)
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.mini)
+                    .disabled(index == Self.presentedRows(from: rows).count - 1)
+                }
             }
-            .buttonStyle(.borderless)
-            .controlSize(.mini)
-            .disabled(index == Self.presentedRows(from: rows).count - 1)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -118,6 +182,22 @@ struct WorkbenchSeriesOrderPanel: View {
             Capsule(style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         )
+        .overlay(alignment: dropIsRight ? .trailing : .leading) {
+            if dragTargetKey == row.identityKey {
+                Rectangle()
+                    .fill(Color.accentColor)
+                    .frame(width: 2)
+                    .clipShape(Capsule(style: .continuous))
+            }
+        }
+    }
+
+    private func commitChipRename(row: SeriesOrderRow, labelKey: String) {
+        let trimmed = editChipText.trimmingCharacters(in: .whitespacesAndNewlines)
+        onRenameLabel?(labelKey, trimmed)
+        editingChipKey = nil
+        editChipText = ""
+        chipEditorFocused = false
     }
 
     private func syncRows() {
@@ -214,7 +294,7 @@ struct WorkbenchSeriesOrderPanel: View {
             )
         }
         let lookup = Dictionary(uniqueKeysWithValues: rows.map { ($0.identityKey, $0) })
-        let defaultOrder = rows.reversed().map(\.identityKey)
+        let defaultOrder = rows.map(\.identityKey)
         let baseOrder = resolveOrderKeys(currentSeriesOrder, rows: rows, defaultOrder: defaultOrder)
         return baseOrder.compactMap { lookup[$0] }
     }
