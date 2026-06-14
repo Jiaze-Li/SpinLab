@@ -119,13 +119,6 @@ struct WorkbenchChartRenderer {
         let w = CGFloat(opts.width)
         let h = CGFloat(opts.height)
 
-        let plotRect = CGRect(
-            x: opts.paddingLeft,
-            y: opts.paddingBottom,
-            width: w - opts.paddingLeft - opts.paddingRight,
-            height: h - opts.paddingTop - opts.paddingBottom
-        )
-
         // White background
         ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
         ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
@@ -159,9 +152,9 @@ struct WorkbenchChartRenderer {
         guard !allX.isEmpty else {
             ctx.setStrokeColor(CGColor(red: 0.7, green: 0.7, blue: 0.7, alpha: 1))
             ctx.setLineWidth(1)
-            ctx.stroke(plotRect)
+            ctx.stroke(layout.plotRect)
             drawCentered(ctx, text: "No Data",
-                         at: CGPoint(x: plotRect.midX, y: plotRect.midY),
+                         at: CGPoint(x: layout.plotRect.midX, y: layout.plotRect.midY),
                          size: 12, bold: false,
                          color: CGColor(red: 0.6, green: 0.6, blue: 0.6, alpha: 1))
             return
@@ -182,8 +175,8 @@ struct WorkbenchChartRenderer {
 
         func pt(_ x: Double, _ y: Double) -> CGPoint {
             CGPoint(
-                x: plotRect.minX + CGFloat((x - xMin) / xSpan) * plotRect.width,
-                y: plotRect.minY + CGFloat((y - yMin) / ySpan) * plotRect.height
+                x: layout.plotRect.minX + CGFloat((x - xMin) / xSpan) * layout.plotRect.width,
+                y: layout.plotRect.minY + CGFloat((y - yMin) / ySpan) * layout.plotRect.height
             )
         }
 
@@ -194,7 +187,7 @@ struct WorkbenchChartRenderer {
 
         // Grid lines aligned with ticks (opt-in via styleParams["showGrid"] = "true")
         if payload.styleParams["showGrid"] == "true" {
-            drawGrid(ctx, plotRect: plotRect,
+            drawGrid(ctx, plotRect: layout.plotRect,
                      xTicks: xTicks, yTicks: yTicks,
                      xMin: xMin, xSpan: xSpan, yMin: yMin, ySpan: ySpan)
         }
@@ -202,12 +195,12 @@ struct WorkbenchChartRenderer {
         // Auxiliary vertical line (e.g. x=180 for XY Rotation)
         if let auxXStr = payload.styleParams["auxVerticalX"], let auxX = Double(auxXStr),
            auxX > xMin, auxX < xMax {
-            let screenX = plotRect.minX + CGFloat((auxX - xMin) / xSpan) * plotRect.width
+            let screenX = layout.plotRect.minX + CGFloat((auxX - xMin) / xSpan) * layout.plotRect.width
             ctx.setStrokeColor(CGColor(red: 0.6, green: 0.6, blue: 0.6, alpha: 1))
             ctx.setLineWidth(1.0)
             ctx.setLineDash(phase: 0, lengths: [5, 4])
-            ctx.move(to: CGPoint(x: screenX, y: plotRect.minY))
-            ctx.addLine(to: CGPoint(x: screenX, y: plotRect.maxY))
+            ctx.move(to: CGPoint(x: screenX, y: layout.plotRect.minY))
+            ctx.addLine(to: CGPoint(x: screenX, y: layout.plotRect.maxY))
             ctx.strokePath()
             ctx.setLineDash(phase: 0, lengths: [])
         }
@@ -215,14 +208,14 @@ struct WorkbenchChartRenderer {
         // Axis box
         ctx.setStrokeColor(CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1))
         ctx.setLineWidth(1.2)
-        ctx.stroke(plotRect)
+        ctx.stroke(layout.plotRect)
 
         // Series lines/scatter — dots and lines clipped to plot area;
         // point labels collected here and drawn after restoreGState so they are never clipped.
         var pendingLabels: [(text: String, center: CGPoint, color: CGColor)] = []
 
         ctx.saveGState()
-        ctx.clip(to: plotRect)
+        ctx.clip(to: layout.plotRect)
         for (i, series) in payload.series.enumerated() {
             guard series.x.count == series.y.count, !series.x.isEmpty else { continue }
             let color = Self.seriesColors[i % Self.seriesColors.count]
@@ -266,8 +259,8 @@ struct WorkbenchChartRenderer {
         let labelColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
         for (text, center, _) in pendingLabels {
             // Flip to left when too close to right edge; flip to below when too close to top
-            let nearRight = center.x + r + gap + approxLabelW > plotRect.maxX
-            let nearTop   = center.y + approxLabelH * 0.5 > plotRect.maxY
+            let nearRight = center.x + r + gap + approxLabelW > layout.plotRect.maxX
+            let nearTop   = center.y + approxLabelH * 0.5 > layout.plotRect.maxY
             if nearRight {
                 let labelPt = CGPoint(x: center.x - r - gap, y: center.y)
                 drawRightAligned(ctx, text: text, rightEdge: labelPt,
@@ -284,7 +277,7 @@ struct WorkbenchChartRenderer {
         }
 
         // Tick marks + numeric labels on both axes
-        drawAxisTicks(ctx, plotRect: plotRect, options: opts, style: style,
+        drawAxisTicks(ctx, plotRect: layout.plotRect, options: opts, style: style,
                       xTicks: xTicks, xStep: xStep,
                       yTicks: yTicks, yStep: yStep,
                       xMin: xMin, xSpan: xSpan, yMin: yMin, ySpan: ySpan)
