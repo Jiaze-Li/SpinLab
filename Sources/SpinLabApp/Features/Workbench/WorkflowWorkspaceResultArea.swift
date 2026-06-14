@@ -30,8 +30,6 @@ struct WorkflowWorkspaceResultArea<Store: WorkbenchWorkspaceProviding>: View {
                 }
             )
 
-            WorkflowWorkspaceLoadPackPlacement(workflowID: workflowID, store: store)
-
             WorkbenchPlotCanvas(
                 imageData: store.activeImageData,
                 layout: store.activeLayout,
