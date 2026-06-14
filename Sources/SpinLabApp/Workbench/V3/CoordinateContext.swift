@@ -3,7 +3,7 @@ import CoreGraphics
 /// Shared coordinate bridge between renderer space and screen space.
 ///
 /// Renderer space uses the chart renderer's logical pixel grid with origin at bottom-left.
-/// Screen space uses the fitted PNG rect inside the container with origin at top-left.
+/// Screen space uses the displayed PNG rect inside the container with origin at top-left.
 struct CoordinateContext: Sendable {
     let rendererSize: CGSize
     let displayRect: CGRect
@@ -15,7 +15,7 @@ struct CoordinateContext: Sendable {
 
     init?(rendererSize: CGSize, imageSize: CGSize, containerSize: CGSize) {
         guard rendererSize.width > 0, rendererSize.height > 0 else { return nil }
-        guard let fitted = Self.aspectFitRect(imageSize, in: containerSize) else { return nil }
+        guard let fitted = Self.widthDrivenDisplayRect(imageSize, in: containerSize) else { return nil }
         self.rendererSize = rendererSize
         self.displayRect = fitted
     }
@@ -60,20 +60,15 @@ struct CoordinateContext: Sendable {
         )
     }
 
-    private static func aspectFitRect(_ imageSize: CGSize, in container: CGSize) -> CGRect? {
+    /// Uses the available container width as the primary driver for display size.
+    /// This preserves aspect ratio while letting the plot grow smoothly as the
+    /// plot column widens.
+    private static func widthDrivenDisplayRect(_ imageSize: CGSize, in container: CGSize) -> CGRect? {
         guard container.width > 0, container.height > 0,
               imageSize.width > 0, imageSize.height > 0 else { return nil }
         let imageAspect = imageSize.width / imageSize.height
-        let containerAspect = container.width / container.height
-        let w: CGFloat
-        let h: CGFloat
-        if containerAspect > imageAspect {
-            h = container.height
-            w = h * imageAspect
-        } else {
-            w = container.width
-            h = w / imageAspect
-        }
+        let w = container.width
+        let h = w / imageAspect
         return CGRect(
             x: (container.width - w) / 2,
             y: (container.height - h) / 2,

@@ -42,7 +42,7 @@ struct WorkbenchPlotCanvas: View {
     var body: some View {
         if let imageData, let nsImage = NSImage(data: imageData) {
             // GeometryReader provides the container size so we can compute the exact rect
-            // where SwiftUI places the aspect-fit image. All overlays use this same rect —
+            // where SwiftUI places the displayed image. All overlays use this same rect —
             // no independent guess of the display bounds.
             GeometryReader { geo in
                 let containerSize = geo.size
