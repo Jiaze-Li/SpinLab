@@ -177,6 +177,32 @@ struct WorkbenchPlotCanvas: View {
             rendererWidth: layout.rendererSize.width, rendererHeight: layout.rendererSize.height
         )
 
+        // TEMP DEBUG — remove after height mismatch is diagnosed
+        let debugLegendGeometry = true
+        if debugLegendGeometry {
+            let scaleY = fittedRect.height / layout.rendererSize.height
+            let expectedPreviewHeight = cgBox.height * scaleY
+            print("""
+[LegendGeometry]
+  legendRows.count       = \(layout.legendRows.count)
+  legendRowH             = \(WorkbenchPlotLayout.legendRowH)
+  boxPad                 = 6  (hard-coded in legendBoxRect)
+  legendBoxRect.height   = \(cgBox.height)
+  translatedBoxCG.height = \(translatedBoxCG.height)
+  previewRect.height     = \(previewRect.height)
+  fittedRect.height      = \(fittedRect.height)
+  rendererSize.height    = \(layout.rendererSize.height)
+  scaleY                 = \(scaleY)
+  expectedPreviewHeight  = \(expectedPreviewHeight)
+  legendBoxRect  minY/maxY = \(cgBox.minY) / \(cgBox.maxY)
+  translatedBoxCG minY/maxY = \(translatedBoxCG.minY) / \(translatedBoxCG.maxY)
+  previewRect    minY/maxY = \(previewRect.minY) / \(previewRect.maxY)
+  plotRect       minY/maxY = \(layout.plotRect.minY) / \(layout.plotRect.maxY)
+  rawOriginCG.y            = \(rawOriginCG.y)
+  clampedOriginCG.y        = \(clampedOriginCG.y)
+""")
+        }
+
         // Convert clamped CG origin back to normalized for persistence
         let pr = layout.plotRect
         let adjustedNorm = CGPoint(
