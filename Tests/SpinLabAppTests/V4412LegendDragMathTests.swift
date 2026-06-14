@@ -190,11 +190,12 @@ final class V4412LegendDragMathTests: XCTestCase {
         }
         let row0 = layout.legendRows[0]
         let pr   = layout.plotRect
+        let rowHeight = row0.style.rowHeight
 
         // Drag to (0.5, 0.5). The label is wide enough that X is clamped — expected value
         // must mirror the CG-space clamp that legendDragStep applies.
         let targetNorm = CGPoint(x: 0.5, y: 0.5)
-        let currentOriginCG = CGPoint(x: row0.cgOriginX, y: row0.cgRowY + WorkbenchPlotLayout.legendRowH * 0.4)
+        let currentOriginCG = CGPoint(x: row0.cgOriginX, y: row0.cgRowY + rowHeight * 0.4)
         let rawTargetCG     = CGPoint(x: pr.minX + targetNorm.x * pr.width,
                                        y: pr.minY + targetNorm.y * pr.height)
         let dxBoxMin = cgBox.minX - currentOriginCG.x
@@ -241,6 +242,7 @@ final class V4412LegendDragMathTests: XCTestCase {
             options: opts, payload: payload, legendPoint: CGPoint(x: 0.3, y: 0.7)
         )
         let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+        let rowHeight = layout.legendRows[0].style.rowHeight
 
         guard let cgBox = layout.legendBoxRect else {
             XCTFail("legendBoxRect must not be nil"); return
@@ -249,7 +251,7 @@ final class V4412LegendDragMathTests: XCTestCase {
         let pr   = layout.plotRect
         let targetNorm = CGPoint(x: 0.6, y: 0.4)
 
-        let currentOriginCG = CGPoint(x: row0.cgOriginX, y: row0.cgRowY + WorkbenchPlotLayout.legendRowH * 0.4)
+        let currentOriginCG = CGPoint(x: row0.cgOriginX, y: row0.cgRowY + rowHeight * 0.4)
         let targetOriginCG  = CGPoint(x: pr.minX + targetNorm.x * pr.width,
                                        y: pr.minY + targetNorm.y * pr.height)
         let dx = targetOriginCG.x - currentOriginCG.x

@@ -231,7 +231,7 @@ struct WorkbenchPlotCanvas: View {
     func currentLegendOriginCG() -> CGPoint {
         guard let layout, !layout.legendRows.isEmpty else { return .zero }
         let row0 = layout.legendRows[0]
-        return CGPoint(x: row0.cgOriginX, y: row0.cgRowY + WorkbenchPlotLayout.legendRowH * 0.4)
+        return CGPoint(x: row0.cgOriginX, y: row0.cgRowY + row0.style.rowHeight * 0.4)
     }
 
     // MARK: - Tap hit-testing (point dot toggle only)

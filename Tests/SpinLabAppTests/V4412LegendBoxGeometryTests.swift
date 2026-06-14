@@ -5,15 +5,15 @@ import XCTest
 ///
 /// Invariants:
 ///   1. `legendBoxRect` width covers the full measured label width, not the 110pt estimate.
-///   2. Right-anchor `cgOriginX` uses actual max measured width, not `legendEstLabelW`.
+///   2. Right-anchor `cgOriginX` uses actual max measured width, not `legendStyle.estimatedLabelWidth`.
 ///   3. `hitRect` width covers the full measured label width.
 ///   4. Canvas drag preview dimensions come from `legendBoxRect` (same width/height as rendered box).
 ///   5. Free-position legend box size is position-independent.
+///   6. `legendBoxRect.height == rows.count * rowHeight + 2 * boxPadding`.
 final class V4412LegendBoxGeometryTests: XCTestCase {
 
     private let opts    = WorkbenchChartRenderer.Options()
     private let fitted  = CGRect(x: 40, y: 20, width: 640, height: 480)
-    private let boxPad: CGFloat = 6
 
     private func makeLayout(
         labels: [String],
@@ -60,10 +60,10 @@ final class V4412LegendBoxGeometryTests: XCTestCase {
             XCTFail("legendBoxRect must not be nil"); return
         }
         let row = layout.legendRows[0]
-        let expectedMinWidth = WorkbenchPlotLayout.legendLineLen
-                             + WorkbenchPlotLayout.legendGap
+        let expectedMinWidth = layout.legendStyle.symbolWidth
+                             + layout.legendStyle.symbolLabelGap
                              + row.measuredLabelWidth
-                             + 2 * boxPad
+                             + 2 * layout.legendStyle.boxPadding
         XCTAssertGreaterThanOrEqual(box.width, expectedMinWidth - 0.1,
             "legendBoxRect.width must be at least line+gap+measuredLabelWidth+2*boxPad")
     }
@@ -71,24 +71,24 @@ final class V4412LegendBoxGeometryTests: XCTestCase {
     // MARK: - Right-anchor cgOriginX uses actual measured width, not estimate
 
     func testRightAnchorOriginX_longLabel_usesActualWidth() {
-        // A label far wider than legendEstLabelW = 110
+        // A label far wider than legendStyle.estimatedLabelWidth = 110
         let longLabel = "Super Long Label Far Exceeding One Hundred And Ten Points Width"
         let layout = makeLayout(labels: [longLabel], anchor: "top-right")
         let row = layout.legendRows[0]
         let pr  = layout.plotRect
 
-        let expectedBlockW = WorkbenchPlotLayout.legendLineLen
-                           + WorkbenchPlotLayout.legendGap
+        let expectedBlockW = layout.legendStyle.symbolWidth
+                           + layout.legendStyle.symbolLabelGap
                            + row.measuredLabelWidth
-        let expectedOriginX = pr.maxX - WorkbenchPlotLayout.legendMargin - expectedBlockW
+        let expectedOriginX = pr.maxX - layout.legendStyle.edgeInset - expectedBlockW
         XCTAssertEqual(row.cgOriginX, expectedOriginX, accuracy: 0.5,
             "Right-anchor cgOriginX must use actual measured label width")
 
         // Confirm the estimate would have given a different (too-far-right) value
-        let estimateOriginX = pr.maxX - WorkbenchPlotLayout.legendMargin
-                            - WorkbenchPlotLayout.legendLineLen
-                            - WorkbenchPlotLayout.legendGap
-                            - WorkbenchPlotLayout.legendEstLabelW
+        let estimateOriginX = pr.maxX - layout.legendStyle.edgeInset
+                            - layout.legendStyle.symbolWidth
+                            - layout.legendStyle.symbolLabelGap
+                            - layout.legendStyle.estimatedLabelWidth
         XCTAssertNotEqual(row.cgOriginX, estimateOriginX, accuracy: 0.5,
             "A label wider than 110pt must push cgOriginX left of the estimate position")
     }
@@ -99,8 +99,8 @@ final class V4412LegendBoxGeometryTests: XCTestCase {
         let longLabel = "Much Much Longer Label For Hit Test"
         let layout = makeLayout(labels: [longLabel])
         let row = layout.legendRows[0]
-        let expectedMinWidth = WorkbenchPlotLayout.legendLineLen
-                             + WorkbenchPlotLayout.legendGap
+        let expectedMinWidth = layout.legendStyle.symbolWidth
+                             + layout.legendStyle.symbolLabelGap
                              + row.measuredLabelWidth
         XCTAssertGreaterThanOrEqual(row.hitRect.width, expectedMinWidth - 0.1,
             "hitRect.width must cover line+gap+measuredLabelWidth")
@@ -123,10 +123,10 @@ final class V4412LegendBoxGeometryTests: XCTestCase {
         XCTAssertGreaterThan(expectedH, 0)
 
         // Width must exceed what the 110pt estimate would have produced
-        let estimateW = (WorkbenchPlotLayout.legendLineLen
-                       + WorkbenchPlotLayout.legendGap
-                       + WorkbenchPlotLayout.legendEstLabelW
-                       + 2 * boxPad) * scaleX
+        let estimateW = (layout.legendStyle.symbolWidth
+                       + layout.legendStyle.symbolLabelGap
+                       + layout.legendStyle.estimatedLabelWidth
+                       + 2 * layout.legendStyle.boxPadding) * scaleX
         XCTAssertGreaterThan(expectedW, estimateW,
             "Long label must produce a wider scaled box than the 110pt estimate")
     }
@@ -146,5 +146,16 @@ final class V4412LegendBoxGeometryTests: XCTestCase {
             "Free-position legend box width must be the same regardless of position")
         XCTAssertEqual(boxLeft.height, boxRight.height, accuracy: 0.5,
             "Free-position legend box height must be the same regardless of position")
+    }
+
+    func testLegendBoxRect_height_matchesRowGeometry() {
+        let layout = makeLayout(labels: ["A", "B", "C"])
+        guard let box = layout.legendBoxRect else {
+            XCTFail("legendBoxRect must not be nil"); return
+        }
+        let expectedHeight = CGFloat(layout.legendRows.count) * layout.legendStyle.rowHeight
+                          + 2 * layout.legendStyle.boxPadding
+        XCTAssertEqual(box.height, expectedHeight, accuracy: 0.5,
+            "legendBoxRect.height must equal rows.count * rowHeight + 2 * boxPadding")
     }
 }
