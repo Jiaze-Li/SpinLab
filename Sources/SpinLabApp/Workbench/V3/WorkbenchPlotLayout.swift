@@ -412,17 +412,14 @@ struct WorkbenchPlotLayout: Sendable {
     private static func clampRowsToPlotRect(_ rows: [LegendRow], plotRect: CGRect) -> [LegendRow] {
         guard !rows.isEmpty else { return rows }
         let style = rows[0].style
-        let rawMinX = rows.map(\.cgOriginX).min()! - style.boxPadding
-        let rawMaxX = rows.map { $0.labelAnchor.x + $0.measuredLabelWidth }.max()! + style.boxPadding
-        let rawMinY = rows.map(\.cgRowY).min()! - style.rowHeight * 0.5 - style.boxPadding
-        let rawMaxY = rows.map(\.cgRowY).max()! + style.rowHeight * 0.5 + style.boxPadding
+        guard let rawBox = style.boxRect(for: rows) else { return rows }
 
         var dx: CGFloat = 0
         var dy: CGFloat = 0
-        if rawMaxX > plotRect.maxX { dx = plotRect.maxX - rawMaxX }
-        if rawMinX + dx < plotRect.minX { dx = plotRect.minX - rawMinX }
-        if rawMaxY > plotRect.maxY { dy = plotRect.maxY - rawMaxY }
-        if rawMinY + dy < plotRect.minY { dy = plotRect.minY - rawMinY }
+        if rawBox.maxX > plotRect.maxX { dx = plotRect.maxX - rawBox.maxX }
+        if rawBox.minX + dx < plotRect.minX { dx = plotRect.minX - rawBox.minX }
+        if rawBox.maxY > plotRect.maxY { dy = plotRect.maxY - rawBox.maxY }
+        if rawBox.minY + dy < plotRect.minY { dy = plotRect.minY - rawBox.minY }
 
         guard dx != 0 || dy != 0 else { return rows }
         return rows.map {
