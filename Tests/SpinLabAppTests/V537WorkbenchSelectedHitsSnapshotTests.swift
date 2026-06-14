@@ -401,6 +401,9 @@ struct V711CPackRestoreProofTests {
         // Before Gate 7.11C-2: legacyMirror would have fired here.
         // After Gate 7.11C-2: canonical is empty, so selectedHits is empty — no fallback.
         wfs.seedSelection([hit.id], hits: [hit], for: .ahe)
+        // Mirrors the old legacyHits path that read cachedSearchResults directly.
+        // After Gate 7.11C-2, selectedHitsSnapshot no longer reads this field —
+        // the test verifies that the fallback path is gone and the result stays empty.
         wfs.aheWorkspace.cachedSearchResults = [hit]
 
         let snapshot = wfs.selectedHitsSnapshot(for: .ahe)
