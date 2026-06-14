@@ -287,7 +287,7 @@ struct ThreeOmegaPlotRenderer {
         let tempLabels = result.points.map { "\(Int($0.temperatureK.rounded())) K" }
         var series: [WorkbenchPlotSeries] = [
             WorkbenchPlotSeries(label: "Experiment Data", x: xs, y: ys,
-                                isScatter: true, pointLabels: tempLabels)
+                                renderMode: .scatter, pointLabels: tempLabels)
         ]
 
         let isSingleFull = result.isSingleFullRange()

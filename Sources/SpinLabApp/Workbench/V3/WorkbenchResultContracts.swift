@@ -55,25 +55,6 @@ struct WorkbenchPlotSeries: Hashable, Sendable {
         self.metadata = metadata
     }
 
-    /// Convenience initializer preserving old `isScatter` call sites during migration.
-    init(
-        label: String,
-        x: [Double],
-        y: [Double],
-        sourceRef: String? = nil,
-        isScatter: Bool,
-        pointLabels: [String] = [],
-        lineWidth: Double = 2.0,
-        metadata: [String: String] = [:]
-    ) {
-        self.init(
-            label: label, x: x, y: y, sourceRef: sourceRef,
-            renderMode: isScatter ? .scatter : .line,
-            renderModeLocked: false,
-            pointLabels: pointLabels, lineWidth: lineWidth,
-            metadata: metadata
-        )
-    }
 }
 
 // MARK: - Codable migration (isScatter → renderMode)

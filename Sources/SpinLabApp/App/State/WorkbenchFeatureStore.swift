@@ -484,14 +484,7 @@ final class WorkbenchFeatureStore {
     func selectedHitsSnapshot(for wf: WorkbenchWorkflowID) -> WorkbenchSelectedHitsSnapshot {
         let ids = selectionRuntime.selectedIDs(for: wf)
         let hitCache = selectionRuntime.selectedHitCache(for: wf)
-        switch wf {
-        case .ahe:
-            return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, hitCache: hitCache, legacyHits: aheWorkspace.cachedSearchResults)
-        case .threeOmega:
-            return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, hitCache: hitCache, legacyHits: threeOmegaWorkspace.cachedSearchResults)
-        case .xyRotation:
-            return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, hitCache: hitCache, legacyHits: xyRotationWorkspace.cachedSearchResults)
-        }
+        return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, hitCache: hitCache)
     }
 
     private func denominatorHits(for wf: WorkbenchWorkflowID) -> [WorkflowMeasurementSearchHit] {

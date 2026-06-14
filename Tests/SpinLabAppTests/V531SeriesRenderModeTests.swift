@@ -58,15 +58,15 @@ final class V531SeriesRenderModeTests: XCTestCase {
         XCTAssertNil(dict["isScatter"], "isScatter must not appear in encoded output")
     }
 
-    // MARK: - Convenience init (isScatter: Bool)
+    // MARK: - renderMode primary init
 
     func testConvenienceInit_isScatterTrue_mapsToScatter() {
-        let s = WorkbenchPlotSeries(label: "F", x: [], y: [], isScatter: true)
+        let s = WorkbenchPlotSeries(label: "F", x: [], y: [], renderMode: .scatter)
         XCTAssertEqual(s.renderMode, .scatter)
     }
 
     func testConvenienceInit_isScatterFalse_mapsToLine() {
-        let s = WorkbenchPlotSeries(label: "G", x: [], y: [], isScatter: false)
+        let s = WorkbenchPlotSeries(label: "G", x: [], y: [], renderMode: .line)
         XCTAssertEqual(s.renderMode, .line)
     }
 

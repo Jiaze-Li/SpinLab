@@ -1,11 +1,9 @@
 import Foundation
 
 /// Read surface for workflow-selected hits.
-/// Chooses either canonical SearchShell results or legacy workflow mirror hits.
 struct WorkbenchSelectedHitsSnapshot: Sendable {
     enum SelectionSource: Sendable {
         case canonicalSnapshot
-        case legacyMirror
     }
 
     let workflowID: WorkbenchWorkflowID

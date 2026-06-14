@@ -72,12 +72,10 @@ final class WorkbenchMainSearchRuntime {
     func selectedHitsSnapshot(
         for wf: WorkbenchWorkflowID,
         selectedIDs: Set<String>,
-        hitCache: [String: WorkflowMeasurementSearchHit],
-        legacyHits: [WorkflowMeasurementSearchHit]
+        hitCache: [String: WorkflowMeasurementSearchHit]
     ) -> WorkbenchSelectedHitsSnapshot {
         let canonical = searchSnapshot(for: wf)
-        let useLegacy = canonical.results.isEmpty && !legacyHits.isEmpty
-        let sourceHits = useLegacy ? legacyHits : canonical.results
+        let sourceHits = canonical.results
 
         // Source-ordered hits that are selected and present in current results.
         var seen = Set<String>()
@@ -99,7 +97,7 @@ final class WorkbenchMainSearchRuntime {
             selectedIDs: selectedIDs,
             selectedHits: selectedHits,
             sourceHitCount: sourceHits.count,
-            selectionSource: useLegacy ? .legacyMirror : .canonicalSnapshot
+            selectionSource: .canonicalSnapshot
         )
     }
 
