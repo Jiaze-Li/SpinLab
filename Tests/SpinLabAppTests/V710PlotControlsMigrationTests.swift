@@ -75,8 +75,8 @@ struct V710StaleOverrideResetTests {
     private enum TestTab: String, Hashable, Sendable { case main }
 
     @MainActor
-    @Test("Text overrides clear when chart identity changes")
-    func textOverridesClearOnIdentityChange() throws {
+    @Test("Title override clears when source identity changes")
+    func titleOverrideClearsOnSourceIdentityChange() throws {
         let manager = TabRenderManager<TestTab>(defaultTab: .main)
 
         // Set up initial overrides on .main
@@ -93,6 +93,7 @@ struct V710StaleOverrideResetTests {
         // Confirm overrides survived the first apply (identity established, no prior key)
         #expect(manager.state(for: .main).titleOverride == "My Title")
         #expect(manager.state(for: .main).xLabelOverride == "My X")
+        #expect(manager.state(for: .main).yLabelOverride == "My Y")
         #expect(manager.state(for: .main).seriesLabelOverrides["sample-a"] == "Renamed A")
 
         // Now apply a render with a different identity (temperature changed)
@@ -100,11 +101,11 @@ struct V710StaleOverrideResetTests {
         let outputB = try makeMinimalPipelineOutput(payload: payloadB)
         manager.applyPipelineOutput(outputB, for: .main)
 
-        // Text overrides must be cleared
+        // Title resets to the new source's default, but other display-only overrides remain.
         #expect(manager.state(for: .main).titleOverride == "")
-        #expect(manager.state(for: .main).xLabelOverride == "")
-        #expect(manager.state(for: .main).yLabelOverride == "")
-        #expect(manager.state(for: .main).seriesLabelOverrides.isEmpty)
+        #expect(manager.state(for: .main).xLabelOverride == "My X")
+        #expect(manager.state(for: .main).yLabelOverride == "My Y")
+        #expect(manager.state(for: .main).seriesLabelOverrides["sample-a"] == "Renamed A")
     }
 
     @MainActor

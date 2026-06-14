@@ -30,6 +30,18 @@ struct V324ChartIdentityOverwriteTests {
                 WorkbenchChartIdentity.makeIdentityKey(from: retitled))
     }
 
+    @Test("source identity key ignores title and axis label display changes")
+    func sourceIdentityIgnoresDisplayChanges() {
+        let base = makePayload(workflowID: "AHE", sourceRef: "a.dat",
+                               xField: "X", yField: "Y", title: "Old Title")
+        let retitled = makePayload(workflowID: "AHE", sourceRef: "a.dat",
+                                   xField: "Temperature", yField: "Resistance",
+                                   title: "New Title")
+
+        #expect(WorkbenchChartIdentity.makeSourceIdentityKey(from: base) ==
+                WorkbenchChartIdentity.makeSourceIdentityKey(from: retitled))
+    }
+
     // MARK: - Identity: semantic changes produce new key
 
     @Test("axisMapping change produces distinct identity key")

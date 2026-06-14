@@ -8,6 +8,12 @@ private struct CanonicalChartIdentityPayload: Codable {
     var semanticParams: [String: String]
 }
 
+private struct CanonicalChartSourceIdentityPayload: Codable {
+    var workflowID: String
+    var inputFiles: [String]
+    var semanticParams: [String: String]
+}
+
 private struct CanonicalMetricIdentityPayload: Codable {
     var sampleKey: String
     var workflowID: String
@@ -16,6 +22,29 @@ private struct CanonicalMetricIdentityPayload: Codable {
 }
 
 enum WorkbenchChartIdentity {
+    /// Identity of the analyzed source input, independent of display-only axis labels.
+    static func makeSourceIdentityKey(from payload: WorkbenchPlotPayload) -> String {
+        let sourceFiles = payload.series.compactMap(\.sourceRef)
+        return makeSourceIdentityKey(
+            workflowID: payload.workflowID,
+            inputFiles: sourceFiles,
+            semanticParams: payload.semanticParams
+        )
+    }
+
+    static func makeSourceIdentityKey(
+        workflowID: String,
+        inputFiles: [String],
+        semanticParams: [String: String]
+    ) -> String {
+        let canonicalInput = CanonicalChartSourceIdentityPayload(
+            workflowID: normalizeToken(workflowID),
+            inputFiles: normalizePaths(inputFiles),
+            semanticParams: normalizeDictionary(semanticParams)
+        )
+        return "source_\(hashHex(for: canonicalInput))"
+    }
+
     static func makeIdentityKey(from payload: WorkbenchPlotPayload) -> String {
         let sourceFiles = payload.series.compactMap(\.sourceRef)
         return makeIdentityKey(
