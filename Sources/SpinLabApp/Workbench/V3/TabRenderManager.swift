@@ -174,6 +174,10 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     /// Active tab's manifest payload (for Save to Library).
     var activeManifestPayload: WorkbenchPlotPayload? { activeOutput.manifestPayload }
 
+    /// Source identity token for the active tab's most recently analyzed input.
+    /// Plot Controls uses this to reset inline editor state when a new source replaces the old one.
+    var activeSourceIdentityKey: String { tabTitleSourceIdentityKeys[activeTab] ?? "" }
+
     /// Active tab's series label overrides (convenience for canvas).
     var activeSeriesLabelOverrides: [String: String] {
         activeState.seriesLabelOverrides

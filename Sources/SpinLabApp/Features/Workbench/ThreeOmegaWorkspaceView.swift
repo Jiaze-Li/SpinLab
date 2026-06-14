@@ -68,6 +68,7 @@ private struct ThreeOmegaPlotControlsPanel: View {
             renderedTitle: store.tabs.activeLayout?.chartTitle ?? "",
             renderedXLabel: store.tabs.activeLayout?.xAxisLabel ?? "",
             renderedYLabel: store.tabs.activeLayout?.yAxisLabel ?? "",
+            sourceResetToken: store.tabs.activeSourceIdentityKey,
             onTitleOverride: { store.updatePlotTitle($0) },
             onXLabelOverride: { store.updateXAxisLabel($0) },
             onYLabelOverride: { store.updateYAxisLabel($0) },

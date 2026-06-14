@@ -34,19 +34,24 @@ import Testing
 
 // MARK: - Helpers
 
-private func makeMinimalPayload(workflowID: String = "ahe", semanticParams: [String: String] = [:]) -> WorkbenchPlotPayload {
+private func makeMinimalPayload(
+    workflowID: String = "ahe",
+    title: String = "Test",
+    sourceRef: String = "/tmp/sample-a.dat",
+    semanticParams: [String: String] = [:]
+) -> WorkbenchPlotPayload {
     WorkbenchPlotPayload(
         schemaVersion: 1,
         workflowID: workflowID,
         workflowDisplayName: workflowID.uppercased(),
-        title: "Test",
+        title: title,
         axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R (Ω)"),
         series: [
             WorkbenchPlotSeries(
                 label: "Sample A",
                 x: [0, 1, 2],
                 y: [0, 1, 0],
-                sourceRef: "/tmp/sample-a.dat",
+                sourceRef: sourceRef,
                 sampleID: "sample-a",
                 renderMode: .line,
                 renderModeLocked: false,
@@ -128,6 +133,42 @@ struct V710StaleOverrideResetTests {
         #expect(manager.state(for: .main).seriesLabelOverrides.isEmpty)
         #expect(manager.state(for: .main).legendPoint?.cgPoint == CGPoint(x: 0.25, y: 0.75))
         #expect(manager.state(for: .main).seriesOrder == ["key-b", "key-a"])
+    }
+
+    @MainActor
+    @Test("Legend drag rerender does not resurrect a cleared title override")
+    func legendDragDoesNotResurrectClearedTitleOverride() throws {
+        let manager = TabRenderManager<TestTab>(defaultTab: .main)
+
+        let payloadA = makeMinimalPayload(
+            title: "Source A",
+            sourceRef: "/tmp/source-a.dat",
+            semanticParams: ["temperature": "80K"]
+        )
+        let outputA = try makeMinimalPipelineOutput(payload: payloadA)
+        manager.applyPipelineOutput(outputA, for: .main)
+        manager.updateTitleOverride("test")
+
+        let payloadB = makeMinimalPayload(
+            title: "Source B default",
+            sourceRef: "/tmp/source-b.dat",
+            semanticParams: ["temperature": "200K"]
+        )
+
+        let inputB = manager.buildPipelineInput(payload: payloadB, for: .main)
+        #expect(inputB.titleOverride.isEmpty, "source identity change must clear stale title override before render")
+
+        let outputB = try WorkbenchRenderPipeline.render(inputB)
+        manager.applyPipelineOutput(outputB, for: .main)
+        #expect(manager.state(for: .main).titleOverride.isEmpty)
+
+        manager.updateLegendPoint(CGPoint(x: 0.25, y: 0.75))
+        let rerenderInput = manager.buildPipelineInput(payload: payloadB, for: .main)
+        #expect(rerenderInput.titleOverride.isEmpty, "legend drag rerender must not resurrect a cleared override")
+
+        let rerenderOutput = try WorkbenchRenderPipeline.render(rerenderInput)
+        #expect(rerenderOutput.manifestPayload.title == payloadB.title)
+        #expect(manager.state(for: .main).titleOverride.isEmpty)
     }
 
     @MainActor
@@ -569,6 +610,57 @@ struct V710LabelDisplayAndOrderTests {
                 "panel must declare dropIsRight state to track indicator side")
         #expect(src.contains("Color.accentColor"),
                 "panel must render the drop indicator using accentColor (blue)")
+    }
+}
+
+// MARK: - Suite 7: LabelOverrideField sync behavior
+
+@Suite("V7.10 LabelOverrideField sync behavior")
+struct V710LabelOverrideFieldSyncTests {
+
+    @Test("Source reset clears stale dirty edit state and blocks commit")
+    func sourceResetClearsDirtyState() {
+        var editText = "test"
+        var isDirty = true
+        var focused = true
+
+        LabelOverrideFieldSync.applySourceReset(
+            editText: &editText,
+            isDirty: &isDirty,
+            focused: &focused,
+            displayValue: "Source B default"
+        )
+
+        #expect(editText == "Source B default")
+        #expect(!isDirty)
+        #expect(!focused)
+
+        var commits: [String] = []
+        LabelOverrideFieldSync.commitIfDirty(
+            editText: editText,
+            isDirty: &isDirty,
+            renderedDefault: "Source B default"
+        ) { value in
+            commits.append(value)
+        }
+
+        #expect(commits.isEmpty, "a reset field must not commit stale text on focus loss")
+    }
+
+    @Test("Focused typing survives same-source display rerenders")
+    func focusedTypingSurvivesDisplayRerender() {
+        var editText = "te"
+        var isDirty = true
+
+        LabelOverrideFieldSync.applyDisplayValueChange(
+            editText: &editText,
+            isDirty: &isDirty,
+            focused: true,
+            displayValue: "Source B default"
+        )
+
+        #expect(editText == "te", "same-source rerenders must not overwrite in-flight typing")
+        #expect(isDirty, "typing should remain dirty while focused")
     }
 }
 

@@ -39,6 +39,9 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     var renderedXLabel: String = ""
     /// Rendered default Y-axis label from the active layout.
     var renderedYLabel: String = ""
+    /// Identity token for the analyzed source backing the active tab.
+    /// When this changes, inline text fields must discard stale local edit state.
+    var sourceResetToken: String = ""
     /// Called when the user commits a title/axis override change; triggers rerender.
     var onTitleOverride: ((String) -> Void)? = nil
     var onXLabelOverride: ((String) -> Void)? = nil
@@ -131,13 +134,13 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     private var labelOverrideRow: some View {
         HStack(spacing: 16) {
             if let cb = onTitleOverride {
-                LabelOverrideField(label: "Title", renderedDefault: renderedTitle, currentValue: activeTitleOverride, onCommit: { cb($0); onChange?() }, fieldMaxWidth: 200)
+                LabelOverrideField(label: "Title", renderedDefault: renderedTitle, currentValue: activeTitleOverride, sourceResetToken: sourceResetToken, onCommit: { cb($0); onChange?() }, fieldMaxWidth: 200)
             }
             if let cb = onXLabelOverride {
-                LabelOverrideField(label: "X", renderedDefault: renderedXLabel, currentValue: activeXLabelOverride, onCommit: { cb($0); onChange?() }, fieldMaxWidth: 80)
+                LabelOverrideField(label: "X", renderedDefault: renderedXLabel, currentValue: activeXLabelOverride, sourceResetToken: sourceResetToken, onCommit: { cb($0); onChange?() }, fieldMaxWidth: 80)
             }
             if let cb = onYLabelOverride {
-                LabelOverrideField(label: "Y", renderedDefault: renderedYLabel, currentValue: activeYLabelOverride, onCommit: { cb($0); onChange?() }, fieldMaxWidth: 80)
+                LabelOverrideField(label: "Y", renderedDefault: renderedYLabel, currentValue: activeYLabelOverride, sourceResetToken: sourceResetToken, onCommit: { cb($0); onChange?() }, fieldMaxWidth: 80)
             }
         }
     }
@@ -166,6 +169,7 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         renderedTitle: String = "",
         renderedXLabel: String = "",
         renderedYLabel: String = "",
+        sourceResetToken: String = "",
         onTitleOverride: ((String) -> Void)? = nil,
         onXLabelOverride: ((String) -> Void)? = nil,
         onYLabelOverride: ((String) -> Void)? = nil,
@@ -193,6 +197,7 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         self.renderedTitle = renderedTitle
         self.renderedXLabel = renderedXLabel
         self.renderedYLabel = renderedYLabel
+        self.sourceResetToken = sourceResetToken
         self.onTitleOverride = onTitleOverride
         self.onXLabelOverride = onXLabelOverride
         self.onYLabelOverride = onYLabelOverride
@@ -216,6 +221,9 @@ struct LabelOverrideField: View {
     let renderedDefault: String
     /// Active override value (empty = no override).
     let currentValue: String
+    /// Token that changes when the analyzed source backing the field changes.
+    /// This forces stale edit state to reset before any focus-loss commit can fire.
+    let sourceResetToken: String
     let onCommit: (String) -> Void
     /// Maximum width for the text input field. Title uses a wider value than X/Y axis fields.
     var fieldMaxWidth: CGFloat = 120
@@ -226,18 +234,26 @@ struct LabelOverrideField: View {
 
     private var hasOverride: Bool { !currentValue.isEmpty }
     private var displayValue: String { currentValue.isEmpty ? renderedDefault : currentValue }
+    private var committedTextBinding: Binding<String> {
+        Binding(
+            get: { editText },
+            set: { newValue in
+                editText = newValue
+                isDirty = true
+            }
+        )
+    }
 
     var body: some View {
         HStack(spacing: 4) {
             Text(label).font(.system(size: 12)).fixedSize()
-            TextField("", text: $editText)
+            TextField("", text: committedTextBinding)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 12))
                 .foregroundStyle(Color.primary)
                 .frame(minWidth: 40, maxWidth: fieldMaxWidth)
                 .focused($focused)
                 .onSubmit { commitIfDirty() }
-                .onChange(of: editText) { _, _ in isDirty = true }
                 .onChange(of: focused) { _, isFocused in
                     if !isFocused { commitIfDirty() }
                 }
@@ -254,10 +270,20 @@ struct LabelOverrideField: View {
             }
         }
         .task(id: displayValue) {
-            if !focused {
-                editText = displayValue
-                isDirty = false
-            }
+            LabelOverrideFieldSync.applyDisplayValueChange(
+                editText: &editText,
+                isDirty: &isDirty,
+                focused: focused,
+                displayValue: displayValue
+            )
+        }
+        .task(id: sourceResetToken) {
+            LabelOverrideFieldSync.applySourceReset(
+                editText: &editText,
+                isDirty: &isDirty,
+                focused: &focused,
+                displayValue: displayValue
+            )
         }
     }
 
@@ -266,6 +292,43 @@ struct LabelOverrideField: View {
         isDirty = false
         let trimmed = editText.trimmingCharacters(in: .whitespacesAndNewlines)
         // Typing the rendered default back is treated as clearing the override
+        let toCommit = trimmed == renderedDefault ? "" : trimmed
+        onCommit(toCommit)
+    }
+}
+
+enum LabelOverrideFieldSync {
+    static func applyDisplayValueChange(
+        editText: inout String,
+        isDirty: inout Bool,
+        focused: Bool,
+        displayValue: String
+    ) {
+        guard !focused else { return }
+        editText = displayValue
+        isDirty = false
+    }
+
+    static func applySourceReset(
+        editText: inout String,
+        isDirty: inout Bool,
+        focused: inout Bool,
+        displayValue: String
+    ) {
+        editText = displayValue
+        isDirty = false
+        focused = false
+    }
+
+    static func commitIfDirty(
+        editText: String,
+        isDirty: inout Bool,
+        renderedDefault: String,
+        onCommit: (String) -> Void
+    ) {
+        guard isDirty else { return }
+        isDirty = false
+        let trimmed = editText.trimmingCharacters(in: .whitespacesAndNewlines)
         let toCommit = trimmed == renderedDefault ? "" : trimmed
         onCommit(toCommit)
     }

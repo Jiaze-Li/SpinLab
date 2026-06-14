@@ -59,6 +59,7 @@ private struct AHEPlotControlsPanel: View {
                     label: "Title",
                     renderedDefault: ahe.tabs.activeLayout?.chartTitle ?? "",
                     currentValue: ahe.tabs.activeState.titleOverride,
+                    sourceResetToken: ahe.tabs.activeSourceIdentityKey,
                     onCommit: { ahe.updatePlotTitle($0) },
                     fieldMaxWidth: 200
                 )
@@ -66,6 +67,7 @@ private struct AHEPlotControlsPanel: View {
                     label: "X",
                     renderedDefault: ahe.tabs.activeLayout?.xAxisLabel ?? "",
                     currentValue: ahe.tabs.activeState.xLabelOverride,
+                    sourceResetToken: ahe.tabs.activeSourceIdentityKey,
                     onCommit: { ahe.updateXAxisLabel($0) },
                     fieldMaxWidth: 80
                 )
@@ -73,6 +75,7 @@ private struct AHEPlotControlsPanel: View {
                     label: "Y",
                     renderedDefault: ahe.tabs.activeLayout?.yAxisLabel ?? "",
                     currentValue: ahe.tabs.activeState.yLabelOverride,
+                    sourceResetToken: ahe.tabs.activeSourceIdentityKey,
                     onCommit: { ahe.updateYAxisLabel($0) },
                     fieldMaxWidth: 80
                 )
