@@ -7,7 +7,7 @@ import CoreText
 /// Both `WorkbenchChartRenderer` (drawing) and `WorkbenchPlotCanvas` (hit-testing) derive
 /// their positions from `WorkbenchPlotLayout.compute(...)` — no duplicate constants.
 ///
-/// Use `cgToScreen(_:fittedIn:rendererSize:)` to convert hit rects to SwiftUI screen coords.
+/// Use `CoordinateContext` to convert hit rects to SwiftUI screen coords.
 struct WorkbenchPlotLayout: Sendable {
 
     // MARK: - Shared legend geometry constants
@@ -401,15 +401,11 @@ struct WorkbenchPlotLayout: Sendable {
         rendererWidth:  CGFloat,
         rendererHeight: CGFloat
     ) -> CGRect {
-        let scaleX = fitted.width  / rendererWidth
-        let scaleY = fitted.height / rendererHeight
-        let pngMinY = rendererHeight - cgRect.maxY   // flip Y
-        return CGRect(
-            x:      fitted.minX + cgRect.minX * scaleX,
-            y:      fitted.minY + pngMinY     * scaleY,
-            width:  cgRect.width  * scaleX,
-            height: cgRect.height * scaleY
+        let context = CoordinateContext(
+            rendererSize: CGSize(width: rendererWidth, height: rendererHeight),
+            displayRect: fitted
         )
+        return context.rendererToScreen(cgRect)
     }
 }
 
@@ -431,6 +427,7 @@ extension WorkbenchPlotLayout {
         let series = payload.series
         guard !series.isEmpty else { return nil }
         guard !series.flatMap(\.x).isEmpty else { return nil }
+        let context = CoordinateContext(rendererSize: rendererSize, displayRect: fittedRect)
 
         let xMin = axisXMin, xMax = axisXMax
         let yMin = axisYMin, yMax = axisYMax
@@ -438,16 +435,10 @@ extension WorkbenchPlotLayout {
         let ySpan = yMax - yMin
         guard xSpan > 0, ySpan > 0 else { return nil }
 
-        let scaleX = fittedRect.width  / rendererSize.width
-        let scaleY = fittedRect.height / rendererSize.height
-
         func dataToScreen(_ x: Double, _ y: Double) -> CGPoint {
             let cgX = plotRect.minX + CGFloat((x - xMin) / xSpan) * plotRect.width
             let cgY = plotRect.minY + CGFloat((y - yMin) / ySpan) * plotRect.height
-            return CGPoint(
-                x: fittedRect.minX + cgX * scaleX,
-                y: fittedRect.minY + (rendererSize.height - cgY) * scaleY
-            )
+            return context.rendererToScreen(CGPoint(x: cgX, y: cgY))
         }
 
         func screenDistance(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
