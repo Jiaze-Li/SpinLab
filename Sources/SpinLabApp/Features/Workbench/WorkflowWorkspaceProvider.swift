@@ -51,7 +51,7 @@ protocol ActiveChartProviding: AnyObject {
 @MainActor
 protocol WorkbenchWorkspaceProviding: WorkbenchPlottingStore, WorkbenchRunTraceProviding, AnalysisPackProviding, ActiveChartProviding {
 
-    // MARK: Search results (legacy mirror — used as snapshot denominator fallback)
+    // MARK: Search results (cachedSearchResults is a workflow/search compatibility cache used only where the current UI still needs search-result context; it is not a selected-hit fallback and must not drive restored selection identity.)
 
     var cachedSearchResults: [WorkflowMeasurementSearchHit] { get }
 

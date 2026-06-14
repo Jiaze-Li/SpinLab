@@ -3,9 +3,8 @@ import SwiftUI
 /// Central dispatch table: `workflowID` → workspace view.
 ///
 /// ## Adding a new workflow
-/// 1. Create `<Name>WorkspaceView` conforming to `WorkflowWorkspaceProvider`.
-/// 2. Add a `case "<id>":` branch below.
-/// No other file needs to change.
+/// This is one of five registration surfaces that must all be updated.
+/// See `docs/architecture/workbench/ADDING_WORKFLOW.md` for the full checklist.
 enum WorkflowWorkspaceRegistry {
 
     @ViewBuilder

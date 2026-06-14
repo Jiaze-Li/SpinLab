@@ -18,6 +18,7 @@
 | `GATE7_PACK_RESTORE_AUDIT.md` | Gate 7.6 pack/restore audit | Schema, restore ownership, RT path, overlay, save interaction, test gaps |
 | `WORKFLOW_ASSEMBLY.md` | Workflow contract | Per-workflow integration contract |
 | `MODULE_BOUNDARIES.md` | Ownership authority | Module ownership, read surfaces, forbidden mutations |
+| `ADDING_WORKFLOW.md` | Add-workflow entry | Conceptual model + abbreviated checklist; links to EXTENSION_BOUNDARIES.md |
 | `EXTENSION_BOUNDARIES.md` | Extension guide | Add-workflow and add-module routing/checklists |
 | `WORKBENCH_ROADMAP.md` | Phase tracking | Current Workbench shell migration status |
 
@@ -69,7 +70,7 @@ Base module ownership rules, forbidden mutations, and transition state live in [
 - If auditing Gate 6 readiness consumption or readiness closeout linkage, read [READINESS_CONSUMPTION_AUDIT.md](READINESS_CONSUMPTION_AUDIT.md) after [MAIN_BOARD_READINESS.md](MAIN_BOARD_READINESS.md).
 - If changing workflow assembly or registration, read [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md). Specific workflow assembly records live at `workflows/*/ASSEMBLY.md`.
 - If changing module ownership, read [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md).
-- If adding a workflow, read [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) and [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md).
+- If adding a workflow, start with [ADDING_WORKFLOW.md](ADDING_WORKFLOW.md), then [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) and [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md).
 - If checking gate status, read [WORKBENCH_ROADMAP.md](WORKBENCH_ROADMAP.md).
 - If changing implementation injection points or placement details, read [LAYOUT_AUDIT.md](LAYOUT_AUDIT.md) and [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md).
 
