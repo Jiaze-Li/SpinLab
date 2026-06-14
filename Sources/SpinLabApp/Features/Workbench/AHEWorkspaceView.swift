@@ -77,6 +77,17 @@ private struct AHEPlotControlsPanel: View {
                     fieldMaxWidth: 80
                 )
             }
+            WorkbenchSeriesOrderPanel(
+                payload: ahe.tabs.activeManifestPayload,
+                currentSeriesOrder: ahe.tabs.activeState.seriesOrder,
+                isVisible: ahe.tabs.activeManifestPayload != nil,
+                onCommit: { _ in },
+                allowsReordering: false,
+                seriesLabelOverrides: ahe.tabs.activeSeriesLabelOverrides,
+                onRenameLabel: { key, label in
+                    ahe.updateSeriesLabel(sampleID: key, newLabel: label)
+                }
+            )
         }
     }
 }

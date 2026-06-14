@@ -243,7 +243,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
 
     /// Convenience: apply a WorkbenchRenderPipeline.Output to a tab.
     ///
-    /// The title override is cleared only when the analyzed source identity changes.
+    /// Text-scoped overrides are cleared only when the analyzed source identity changes.
     /// Legend position and series order are preserved.
     func applyPipelineOutput(_ pipelineOutput: WorkbenchRenderPipeline.Output, for tab: Tab) {
         updateTitleSourceIdentity(from: pipelineOutput.manifestPayload, for: tab)
@@ -279,7 +279,8 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         for tab: Tab? = nil
     ) -> WorkbenchRenderPipeline.Input {
         let targetTab = tab ?? activeTab
-        let s = tabStates[targetTab] ?? TabRenderState()
+        let sourceIdentityKey = WorkbenchChartIdentity.makeSourceIdentityKey(from: payload)
+        let s = preparedState(for: targetTab, sourceIdentityKey: sourceIdentityKey)
         var patch = extraStyleParams
         if showPlotGrid { patch["showGrid"] = "true" }
         if !legendAnchor.isEmpty, s.legendPoint == nil {
@@ -404,12 +405,29 @@ func migrateStateIfNeeded(_ state: inout TabRenderState, series: [WorkbenchPlotS
 }
 
 private extension TabRenderManager {
+    func preparedState(for tab: Tab, sourceIdentityKey: String) -> TabRenderState {
+        var state = tabStates[tab] ?? TabRenderState()
+        if let previousKey = tabTitleSourceIdentityKeys[tab], previousKey != sourceIdentityKey {
+            clearSourceScopedOverrides(&state)
+            tabStates[tab] = state
+        }
+        tabTitleSourceIdentityKeys[tab] = sourceIdentityKey
+        return state
+    }
+
     func updateTitleSourceIdentity(from payload: WorkbenchPlotPayload?, for tab: Tab) {
         guard let payload else { return }
         let newKey = WorkbenchChartIdentity.makeSourceIdentityKey(from: payload)
         if let oldKey = tabTitleSourceIdentityKeys[tab], oldKey != newKey {
-            tabStates[tab, default: TabRenderState()].titleOverride = ""
+            clearSourceScopedOverrides(&tabStates[tab, default: TabRenderState()])
         }
         tabTitleSourceIdentityKeys[tab] = newKey
+    }
+
+    func clearSourceScopedOverrides(_ state: inout TabRenderState) {
+        state.titleOverride = ""
+        state.xLabelOverride = ""
+        state.yLabelOverride = ""
+        state.seriesLabelOverrides = [:]
     }
 }

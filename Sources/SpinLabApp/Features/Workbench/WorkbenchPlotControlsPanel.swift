@@ -52,6 +52,7 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
                 ("Axis",  "axisTitleFontSize"),
                 ("Ticks", "tickLabelFontSize"),
                 ("Legend","legendFontSize"),
+                ("Point", "pointLabelFontSize"),
             ], id: \.1) { label, key in
                 fontSizePicker(label: label, key: key)
             }
@@ -107,6 +108,7 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
         case "axisTitleFontSize": return \.axisTitleFontSize
         case "tickLabelFontSize": return \.tickLabelFontSize
         case "legendFontSize":    return \.legendFontSize
+        case "pointLabelFontSize": return \.pointLabelFontSize
         default:                  return \.titleFontSize
         }
     }

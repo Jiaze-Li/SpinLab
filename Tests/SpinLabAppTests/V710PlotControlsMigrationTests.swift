@@ -7,9 +7,10 @@ import Testing
 ///
 /// Invariants tested:
 ///
-///   1. Stale text overrides (title, axis, series labels) auto-reset when the
-///      chart identity changes on applyPipelineOutput; legendPoint and
-///      seriesOrder are preserved across the reset.
+///   1. Stale text overrides (title, axis, series labels) auto-reset before
+///      buildPipelineInput creates the next render input when the chart
+///      identity changes; legendPoint and seriesOrder are preserved across the
+///      reset.
 ///
 ///   2. Style-only rerenders (same identity) do NOT clear text overrides.
 ///
@@ -75,37 +76,58 @@ struct V710StaleOverrideResetTests {
     private enum TestTab: String, Hashable, Sendable { case main }
 
     @MainActor
-    @Test("Title override clears when source identity changes")
-    func titleOverrideClearsOnSourceIdentityChange() throws {
+    @Test("Source identity change clears stale text overrides before render input is built")
+    func staleTextOverridesClearBeforeRenderInputBuild() throws {
         let manager = TabRenderManager<TestTab>(defaultTab: .main)
-
-        // Set up initial overrides on .main
-        manager.updateTitleOverride("My Title")
-        manager.updateXLabelOverride("My X")
-        manager.updateYLabelOverride("My Y")
-        manager.updateSeriesLabel(sampleID: "sample-a", newLabel: "Renamed A")
 
         // Apply first render with payload A
         let payloadA = makeMinimalPayload(semanticParams: ["temperature": "80K"])
-        let outputA = try makeMinimalPipelineOutput(payload: payloadA)
+        let payloadATitled = WorkbenchPlotPayload(
+            schemaVersion: payloadA.schemaVersion,
+            workflowID: payloadA.workflowID,
+            workflowDisplayName: payloadA.workflowDisplayName,
+            title: "Source A",
+            axisMapping: payloadA.axisMapping,
+            series: payloadA.series,
+            semanticParams: payloadA.semanticParams,
+            styleParams: payloadA.styleParams,
+            legendDimension: payloadA.legendDimension,
+            reverseSeriesForLegend: payloadA.reverseSeriesForLegend,
+            seriesReorderable: payloadA.seriesReorderable
+        )
+        let outputA = try makeMinimalPipelineOutput(payload: payloadATitled)
         manager.applyPipelineOutput(outputA, for: .main)
 
-        // Confirm overrides survived the first apply (identity established, no prior key)
-        #expect(manager.state(for: .main).titleOverride == "My Title")
-        #expect(manager.state(for: .main).xLabelOverride == "My X")
-        #expect(manager.state(for: .main).yLabelOverride == "My Y")
-        #expect(manager.state(for: .main).seriesLabelOverrides["sample-a"] == "Renamed A")
+        manager.tabStates[.main] = TabRenderState(
+            legendPoint: CGPointCodable(CGPoint(x: 0.25, y: 0.75)),
+            titleOverride: "My Title",
+            xLabelOverride: "My X",
+            yLabelOverride: "My Y",
+            seriesLabelOverrides: ["sample-a": "Renamed A"],
+            seriesOrder: ["key-b", "key-a"]
+        )
 
         // Now apply a render with a different identity (temperature changed)
         let payloadB = makeMinimalPayload(semanticParams: ["temperature": "200K"])
-        let outputB = try makeMinimalPipelineOutput(payload: payloadB)
-        manager.applyPipelineOutput(outputB, for: .main)
+        let inputB = manager.buildPipelineInput(payload: payloadB, for: .main)
 
-        // Title resets to the new source's default, but other display-only overrides remain.
+        #expect(inputB.titleOverride == "")
+        #expect(inputB.xLabelOverride == "")
+        #expect(inputB.yLabelOverride == "")
+        #expect(inputB.seriesLabelOverrides.isEmpty)
+        #expect(inputB.legendPoint?.x == 0.25)
+        #expect(inputB.legendPoint?.y == 0.75)
+        #expect(inputB.seriesOrder == ["key-b", "key-a"])
+
+        let outputB = try WorkbenchRenderPipeline.render(inputB)
+
+        #expect(outputB.manifestPayload.title == payloadB.title)
         #expect(manager.state(for: .main).titleOverride == "")
-        #expect(manager.state(for: .main).xLabelOverride == "My X")
-        #expect(manager.state(for: .main).yLabelOverride == "My Y")
-        #expect(manager.state(for: .main).seriesLabelOverrides["sample-a"] == "Renamed A")
+        #expect(manager.state(for: .main).xLabelOverride == "")
+        #expect(manager.state(for: .main).yLabelOverride == "")
+        #expect(manager.state(for: .main).seriesLabelOverrides.isEmpty)
+        #expect(manager.state(for: .main).legendPoint?.cgPoint == CGPoint(x: 0.25, y: 0.75))
+        #expect(manager.state(for: .main).seriesOrder == ["key-b", "key-a"])
     }
 
     @MainActor
@@ -398,6 +420,7 @@ struct V710CanvasStructuralGuards {
         #expect(src.contains("titleFontSize"), "controls panel must contain font size key for title")
         #expect(src.contains("axisTitleFontSize"), "controls panel must contain font size key for axis")
         #expect(src.contains("legendFontSize"), "controls panel must contain font size key for legend")
+        #expect(src.contains("pointLabelFontSize"), "controls panel must contain font size key for point labels")
     }
 
     @Test("PlotControlsPanel declares tick density controls")

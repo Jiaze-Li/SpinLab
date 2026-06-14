@@ -9,6 +9,8 @@ struct WorkbenchSeriesOrderPanel: View {
     let currentSeriesOrder: [String]?
     let isVisible: Bool
     let onCommit: ([String]) -> Void
+    /// When false, the panel keeps rename chips but hides drag and arrow reorder UI.
+    var allowsReordering: Bool = true
     /// Current series label overrides keyed by sampleID (or Int-string fallback).
     var seriesLabelOverrides: [String: String] = [:]
     /// Called with (labelKey, newLabel) when the user renames a chip; key matches
@@ -37,27 +39,31 @@ struct WorkbenchSeriesOrderPanel: View {
                 } else {
                     FlowLayout(spacing: 6) {
                         ForEach(Array(displayedRows.enumerated()), id: \.element.identityKey) { index, row in
-                            seriesChip(row, index: index)
-                                .draggable(row.identityKey)
-                                .dropDestination(for: String.self) { items, location in
-                                    guard let draggedKey = items.first else { return false }
-                                    let width = chipWidths[row.identityKey] ?? 0
-                                    let normalizedDropLocationX = width > 0 ? location.x / width : 0.5
-                                    moveDisplayedRow(withDraggedKey: draggedKey, onto: row.identityKey, dropLocationX: normalizedDropLocationX)
-                                    return true
-                                } isTargeted: { isOver in
-                                    if isOver {
-                                        dragTargetKey = row.identityKey
-                                    } else if dragTargetKey == row.identityKey {
-                                        dragTargetKey = nil
+                            if allowsReordering {
+                                seriesChip(row, index: index, showsReorderControls: true)
+                                    .draggable(row.identityKey)
+                                    .dropDestination(for: String.self) { items, location in
+                                        guard let draggedKey = items.first else { return false }
+                                        let width = chipWidths[row.identityKey] ?? 0
+                                        let normalizedDropLocationX = width > 0 ? location.x / width : 0.5
+                                        moveDisplayedRow(withDraggedKey: draggedKey, onto: row.identityKey, dropLocationX: normalizedDropLocationX)
+                                        return true
+                                    } isTargeted: { isOver in
+                                        if isOver {
+                                            dragTargetKey = row.identityKey
+                                        } else if dragTargetKey == row.identityKey {
+                                            dragTargetKey = nil
+                                        }
                                     }
-                                }
-                                .onContinuousHover { phase in
-                                    if case .active(let location) = phase {
-                                        let width = chipWidths[row.identityKey] ?? 100
-                                        dropIsRight = width > 0 ? location.x / width >= 0.5 : false
+                                    .onContinuousHover { phase in
+                                        if case .active(let location) = phase {
+                                            let width = chipWidths[row.identityKey] ?? 100
+                                            dropIsRight = width > 0 ? location.x / width >= 0.5 : false
+                                        }
                                     }
-                                }
+                            } else {
+                                seriesChip(row, index: index, showsReorderControls: false)
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -94,7 +100,7 @@ struct WorkbenchSeriesOrderPanel: View {
         return "payload:\(payloadSignature)"
     }
 
-    private func seriesChip(_ row: SeriesOrderRow, index: Int) -> some View {
+    private func seriesChip(_ row: SeriesOrderRow, index: Int, showsReorderControls: Bool) -> some View {
         let labelKey = row.sampleID ?? String(row.originalIndex)
         let displayLabel = seriesLabelOverrides[labelKey] ?? row.label
         let isEditing = editingChipKey == row.identityKey
@@ -136,27 +142,29 @@ struct WorkbenchSeriesOrderPanel: View {
                     .controlSize(.mini)
                 }
 
-                Button {
-                    moveDisplayedRow(from: index, to: index - 1)
-                } label: {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 12, weight: .semibold))
-                        .frame(width: 14, height: 14)
-                }
-                .buttonStyle(.borderless)
-                .controlSize(.mini)
-                .disabled(index == 0)
+                if showsReorderControls {
+                    Button {
+                        moveDisplayedRow(from: index, to: index - 1)
+                    } label: {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 12, weight: .semibold))
+                            .frame(width: 14, height: 14)
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.mini)
+                    .disabled(index == 0)
 
-                Button {
-                    moveDisplayedRow(from: index, to: index + 1)
-                } label: {
-                    Image(systemName: "arrow.down")
-                        .font(.system(size: 12, weight: .semibold))
-                        .frame(width: 14, height: 14)
+                    Button {
+                        moveDisplayedRow(from: index, to: index + 1)
+                    } label: {
+                        Image(systemName: "arrow.down")
+                            .font(.system(size: 12, weight: .semibold))
+                            .frame(width: 14, height: 14)
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.mini)
+                    .disabled(index == Self.presentedRows(from: rows).count - 1)
                 }
-                .buttonStyle(.borderless)
-                .controlSize(.mini)
-                .disabled(index == Self.presentedRows(from: rows).count - 1)
             }
         }
         .padding(.horizontal, 10)
