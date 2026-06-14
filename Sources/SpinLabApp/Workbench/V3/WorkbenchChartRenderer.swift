@@ -258,20 +258,24 @@ struct WorkbenchChartRenderer {
         let approxLabelH: CGFloat = 20
         let labelColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
         for (text, center, _) in pendingLabels {
-            // Flip to left when too close to right edge; flip to below when too close to top
-            let nearRight = center.x + r + gap + approxLabelW > layout.plotRect.maxX
-            let nearTop   = center.y + approxLabelH * 0.5 > layout.plotRect.maxY
-            if nearRight {
-                let labelPt = CGPoint(x: center.x - r - gap, y: center.y)
-                drawRightAligned(ctx, text: text, rightEdge: labelPt,
+            let geometry = WorkbenchPlotLayout.pointLabelGeometry(
+                center: center,
+                plotRect: layout.plotRect,
+                dotHitRadius: 7.0,
+                dotDrawRadius: r,
+                labelWidth: approxLabelW,
+                labelHeight: approxLabelH,
+                gap: gap
+            )
+            switch geometry.placement {
+            case .left:
+                drawRightAligned(ctx, text: text, rightEdge: geometry.drawAnchor,
                                  size: labelFont, bold: false, color: labelColor)
-            } else if nearTop {
-                let labelPt = CGPoint(x: center.x, y: center.y - r - gap - approxLabelH)
-                drawCentered(ctx, text: text, at: labelPt,
+            case .below:
+                drawCentered(ctx, text: text, at: geometry.drawAnchor,
                              size: labelFont, bold: false, color: labelColor)
-            } else {
-                let labelPt = CGPoint(x: center.x + r + gap, y: center.y)
-                drawLeftAligned(ctx, text: text, leftEdge: labelPt,
+            case .right:
+                drawLeftAligned(ctx, text: text, leftEdge: geometry.drawAnchor,
                                 size: labelFont, bold: false, color: labelColor)
             }
         }

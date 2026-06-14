@@ -123,6 +123,19 @@ struct WorkbenchPlotLayout: Sendable {
         let hitRect:     CGRect
     }
 
+    struct PointLabelGeometry: Sendable {
+        enum Placement: Sendable {
+            case right
+            case left
+            case below
+        }
+
+        let placement: Placement
+        let pointDotHitRect: CGRect
+        let pointLabelHitRect: CGRect
+        let drawAnchor: CGPoint
+    }
+
     // MARK: - Layout properties
 
     /// The plot drawing area in renderer pixel space (CG origin bottom-left).
@@ -280,33 +293,19 @@ struct WorkbenchPlotLayout: Sendable {
             for (si, series) in payload.series.enumerated() {
                 guard !series.pointLabels.isEmpty,
                       series.x.count == series.y.count else { continue }
-                let dotR: CGFloat = 7.0
-                let labelW: CGFloat = 50
-                let labelH: CGFloat = 20
-                let gap: CGFloat = 4
-                let dotRDraw: CGFloat = 3.5
                 for k in 0..<series.x.count {
                     let cx = plotRect.minX + CGFloat((series.x[k] - xMinH) / xSpanH) * plotRect.width
                     let cy = plotRect.minY + CGFloat((series.y[k] - yMinH) / ySpanH) * plotRect.height
+                    let geometry = pointLabelGeometry(center: CGPoint(x: cx, y: cy), plotRect: plotRect)
                     pointDotHitTargets.append(PointHitTarget(
                         seriesIndex: si,
                         pointIndex: k,
-                        hitRect: CGRect(x: cx - dotR, y: cy - dotR, width: dotR * 2, height: dotR * 2)
+                        hitRect: geometry.pointDotHitRect
                     ))
-                    let nearRight = cx + dotRDraw + gap + labelW > plotRect.maxX
-                    let nearTop   = cy + labelH * 0.5 > plotRect.maxY
-                    let labelRect: CGRect
-                    if nearRight {
-                        labelRect = CGRect(x: cx - dotRDraw - gap - labelW, y: cy - labelH / 2, width: labelW, height: labelH)
-                    } else if nearTop {
-                        labelRect = CGRect(x: cx - labelW / 2, y: cy - dotRDraw - gap - labelH, width: labelW, height: labelH)
-                    } else {
-                        labelRect = CGRect(x: cx + dotRDraw + gap, y: cy - labelH / 2, width: labelW, height: labelH)
-                    }
                     pointLabelHitTargets.append(PointHitTarget(
                         seriesIndex: si,
                         pointIndex: k,
-                        hitRect: labelRect
+                        hitRect: geometry.pointLabelHitRect
                     ))
                 }
             }
@@ -446,6 +445,65 @@ struct WorkbenchPlotLayout: Sendable {
         let line = CTLineCreateWithAttributedString(attrStr)
         let w = CTLineGetBoundsWithOptions(line, []).width
         return w > 0 ? w : LegendStyle.default(fontSize: fontSize).estimatedLabelWidth
+    }
+
+    static func pointLabelGeometry(
+        center: CGPoint,
+        plotRect: CGRect,
+        dotHitRadius: CGFloat = 7.0,
+        dotDrawRadius: CGFloat = 3.5,
+        labelWidth: CGFloat = 50,
+        labelHeight: CGFloat = 20,
+        gap: CGFloat = 4
+    ) -> PointLabelGeometry {
+        let pointDotHitRect = CGRect(
+            x: center.x - dotHitRadius,
+            y: center.y - dotHitRadius,
+            width: dotHitRadius * 2,
+            height: dotHitRadius * 2
+        )
+        let nearRight = center.x + dotDrawRadius + gap + labelWidth > plotRect.maxX
+        let nearTop = center.y + labelHeight * 0.5 > plotRect.maxY
+
+        if nearRight {
+            return PointLabelGeometry(
+                placement: .left,
+                pointDotHitRect: pointDotHitRect,
+                pointLabelHitRect: CGRect(
+                    x: center.x - dotDrawRadius - gap - labelWidth,
+                    y: center.y - labelHeight / 2,
+                    width: labelWidth,
+                    height: labelHeight
+                ),
+                drawAnchor: CGPoint(x: center.x - dotDrawRadius - gap, y: center.y)
+            )
+        }
+
+        if nearTop {
+            return PointLabelGeometry(
+                placement: .below,
+                pointDotHitRect: pointDotHitRect,
+                pointLabelHitRect: CGRect(
+                    x: center.x - labelWidth / 2,
+                    y: center.y - dotDrawRadius - gap - labelHeight,
+                    width: labelWidth,
+                    height: labelHeight
+                ),
+                drawAnchor: CGPoint(x: center.x, y: center.y - dotDrawRadius - gap - labelHeight)
+            )
+        }
+
+        return PointLabelGeometry(
+            placement: .right,
+            pointDotHitRect: pointDotHitRect,
+            pointLabelHitRect: CGRect(
+                x: center.x + dotDrawRadius + gap,
+                y: center.y - labelHeight / 2,
+                width: labelWidth,
+                height: labelHeight
+            ),
+            drawAnchor: CGPoint(x: center.x + dotDrawRadius + gap, y: center.y)
+        )
     }
 
     // MARK: - Coordinate conversion
