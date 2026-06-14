@@ -38,7 +38,7 @@ The sections below document the current boundary contracts for each module and m
 
 ## Module Inventory and Boundary Authority
 
-Status: current module ownership authority. Originally established as the Gate 3 audit; updated through Gate 7.9. This section classifies current Workbench ownership surfaces; it does not authorize extraction or runtime behavior changes beyond what is already complete.
+Status: current module ownership authority. Originally established as the Gate 3 audit; updated through Gate 7.12. This section classifies current Workbench ownership surfaces; it does not authorize extraction or runtime behavior changes beyond what is already complete.
 
 Classification vocabulary:
 
@@ -67,7 +67,7 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Canonical ownership now lives in `WorkbenchMainSearchRuntime`; `WorkbenchFeatureStore` is the facade plus compatibility bridge holder for `cachedSearchResults`, numeric display caches, and legacy search message mirrors.
 - State it must not own: selected IDs, scientific ingestion/output, render output, title/legend/style overrides, pack vault state, save state.
 - How workflow-specific semantics enter: workflow ID, query aliases, condition fields, and search defaults come from workflow/rules configuration; Search returns hits only and does not interpret physics.
-- Pack/restore implications: restore writes canonical search state only through `restoreSearchState`; `cachedSearchResults` remains a persistent mirror for pack compatibility and selection denominator.
+- Pack/restore implications: restore writes canonical search state only through `restoreSearchState`; `cachedSearchResults` remains a persistent mirror for pack compatibility and selection denominator. It is not a selected-hit fallback path.
 - Tests currently protecting it: `V320WorkflowSearchAcrossDrawersTests`, `V5114SearchUseCaseCapabilityInjectionTests`, `V537WorkbenchSearchMirrorTests`, `V537AHESearchSnapshotConsumptionTests`, `V537XYSearchSnapshotConsumptionTests`, `V537ThreeOmegaSearchSnapshotConsumptionTests`.
 - Extraction state: runtime orchestration is now extracted into `WorkbenchMainSearchRuntime`; `cachedSearchResults` remains a required bridge.
 - Risks if extracted too early: stale mirror drift, broken select-all denominator, pack decode/restore regressions, accidental analysis from canonical results without selected-hit snapshot.
@@ -338,9 +338,15 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Extraction readiness: not a common-module extraction target. It may be internally cleaned as an XY Assembly-owned panel only.
 - Risks if extracted too early: offset state treated as generic plot style, restored XY packs rerender with wrong angle alignment, future workflows inherit XY-specific assumptions.
 
-## Boundary Closeout Status (Gate 7.9)
+## Boundary Closeout Status (Gate 7.12)
 
 This section replaces the Gate 3 follow-up list. Items are classified as resolved, accepted compatibility bridge, deferred runtime cleanup, or non-candidate.
+
+### Removed by Gate 7.11
+
+- `legacyHits` is removed from selected-hit construction.
+- `legacyMirror` is removed from selected-hit construction.
+- Selected-hit fallback paths are removed from workflow shell analysis entry paths.
 
 ### Resolved by Gate 7
 
@@ -353,11 +359,15 @@ This section replaces the Gate 3 follow-up list. Items are classified as resolve
 
 ### Accepted Compatibility Bridges
 
-- `cachedSearchResults` mirror: selection denominator and pack compatibility bridge. Intentionally retained; rename to `searchResultMirror` deferred until pack `CodingKey` backward-compatibility handling is in place.
+- `cachedSearchResults` mirror: `cachedSearchResults` is a workflow/search compatibility cache used only where the current UI still needs search-result context; it is not a selected-hit fallback and must not drive restored selection identity. Rename to `searchResultMirror` deferred until pack `CodingKey` backward-compatibility handling is in place.
 - Workflow-local `selectionReading` typed bridge (`AHEWorkspaceStore`, `XYRotationWorkspaceStore`, `ThreeOmegaWorkspaceStore`): `weak var selectionReading: (any SelectionReading)?` non-canonical read surface for pack serialization and analysis denomination. Removal awaits Save / Pack Module cleanup.
 - Workflow-local Assembly-owned plot binding endpoints where semantics are workflow-owned (title token defaults, `stackOffsetMultiplier`, `minGapFraction`, AHE single-tab controls): intentionally retained per Gate 7.8 audit.
 - Raw `PendingMetricEntry` save metadata bridge: untyped bridge from workflow metric builder to common save writer. Intentionally retained pending typed projection contract.
 - Secondary input restore bridge (`cachedRTFilePath` derivation from `selectedRTHit`): restore path confirmed correct; standalone rebuild not implemented. Retained as documented bridge.
+
+### Compatibility Boundary Rule
+
+Retained bridges are compatibility boundaries, not architecture debt, unless they leak into Main Board logic. Future workflow additions must not delete compatibility bridges unless a migration/removal plan and tests exist for the old path, the new path, and any pack decode compatibility they affect.
 
 ### Deferred Runtime Cleanup
 
@@ -439,8 +449,7 @@ The following surfaces are Assembly-owned and are not module extraction targets:
 - Gate 7.2 state (closed):
   - `WorkbenchSelectionRuntime` is the canonical selection owner; selected IDs no longer live in workflow stores
   - `WorkbenchSelectedHitsSnapshot` is the run-scoped selected-hit read surface (Phase 5C established; Gate 7.2 confirms runtime path)
-  - `cachedSearchResults` remains local mirror / selection denominator / pack compatibility
-  - `legacyHits` parameter in `WorkbenchSelectedHitsSnapshot` factory is the explicit bridge from mirror to ephemeral snapshot
+- `cachedSearchResults` remains local mirror / selection denominator / pack compatibility
   - workflow-local `selectionReading` typed bridge (`weak var selectionReading: (any SelectionReading)?` on each workflow store, injected by `WorkbenchFeatureStore`) is a non-canonical read surface; it does not own selection state. `WorkbenchSelectionRuntime` conforms to `SelectionReading`. (Gate 7.7B migrated from raw `selectionReader` closure to typed protocol.)
   - the typed `selectionReading` bridge is intentional and deferred — removal awaits Save / Pack Module work
 
@@ -493,7 +502,7 @@ The following surfaces are Assembly-owned and are not module extraction targets:
 - `WorkbenchSearchSnapshot` is the canonical run-scoped search read surface (Phase 5A complete).
 - `WorkbenchSelectedHitsSnapshot` is the run-scoped selected-hit read surface (Phase 5C established; Gate 7.2 confirms runtime path).
 - `WorkbenchSelectionRuntime` is the canonical selected-IDs owner (Gate 7.2 complete).
-- `cachedSearchResults` mirrors canonical search results into workflow-local store; also serves as pack-compat field, selection denominator, and nil-snapshot fallback.
+- `cachedSearchResults` mirrors canonical search results into workflow-local store; also serves as pack-compat field, selection denominator, and nil-snapshot compatibility for direct analysis entry. It does not participate in selected-hit fallback.
 - No current path incorrectly reads `cachedSearchResults` when a snapshot is available (verified Phase 5C-3 audit; confirmed Gate 7.2 audit).
 - `cachedSearchResults` will not be renamed until Save / Pack Module work; rename requires pack `CodingKey` backward compatibility handling.
 - Search Module remains canonical query/results/running/message owner.
@@ -501,8 +510,8 @@ The following surfaces are Assembly-owned and are not module extraction targets:
 ### Current shell invocation note
 
 - AHE / XY / 3ω analysis consumes `WorkbenchSelectedHitsSnapshot` when called from `WorkflowWorkspaceShell` (Phase 5C complete).
-- `WorkbenchSelectedHitsSnapshot` is built from `WorkbenchSearchSnapshot` (canonical) with `cachedSearchResults` as `legacyHits` fallback.
-- Nil-snapshot `runAnalysis()` is legacy/restore compatibility only.
+- `WorkbenchSelectedHitsSnapshot` is built from `WorkbenchSearchSnapshot` (canonical) with selected IDs only. It does not fall back to `cachedSearchResults`.
+- Nil-snapshot `runAnalysis()` is legacy/restore compatibility only, but it is not a selected-hit fallback path.
 
 ### Phase 5A test plan
 

@@ -32,6 +32,7 @@ Pack restore is allowed to write multiple module states simultaneously because r
 - restore may write analysis result, selection state, preservation state (tab overrides), search mirror, and physics parameters simultaneously via the restore contract
 - restore may write canonical `WorkbenchFeatureStore` search state through the explicit `restoreSearchState` callback
 - restore calls `_rerenderActiveTab()` / `_rerenderAllTabs()` / `_rerenderAllTabsFromRestoredState()` to reconstruct plot output from the restored state
+- restore may decode older pack schemas and migrate stored fields during decode when the path is explicitly backward compatible
 
 **Forbidden:**
 - restore must not call `runAnalysis()` or `commitRunTrace()` (except AHE legacy exception; see below)
@@ -73,6 +74,7 @@ What restore writes, and which module owns the state:
 - Restore writes only slot-scoped auxiliary query/hit/bridge state for the declared secondary input slot.
 - Restore may rebind the slot from a pending sidecar path or cached file path.
 - Current 3ω restore can accept auxiliary sidecars whose workflow is currently `3w` or `rt`; it does not yet enforce an RT-only whitelist.
+- This 3ω auxiliary-input path is a compatibility boundary, not a selected-hit fallback.
 - Restore must not mutate Main Search query, result, running, or message state through the slot bridge.
 - If the slot identity no longer resolves, restore leaves the slot unbound and emits a workflow warning.
 - Slot search results, search message, and running flag remain session-only unless the Workflow Assembly explicitly says otherwise.
@@ -135,9 +137,13 @@ It serves four responsibilities in the current implementation:
 3. **Auto-label/title context** — restores `_titleTokens` from first hit
 4. **Nil-snapshot analysis fallback** — legacy `runAnalysis()` path uses it when no snapshot is available
 
-After restore, canonical `WorkbenchFeatureStore.searchResults[wf]` is also populated via the `restoreSearchState` callback. `WorkbenchSelectedHitsSnapshot` uses canonical results first; `cachedSearchResults` activates as `legacyHits` fallback only when canonical is empty.
+After restore, canonical `WorkbenchFeatureStore.searchResults[wf]` is also populated via the `restoreSearchState` callback. `cachedSearchResults` is still the workflow/search cache and selection denominator, but it no longer feeds selected-hit construction as a fallback. Selected-hit snapshots are derived from canonical results plus selected IDs only.
 
 **Rename decision:** `cachedSearchResults` will not be renamed now. Possible future name: `searchResultMirror`. Any rename must be paired with `CodingKeys` backward compatibility in all three pack config structs (`ThreeOmegaPackConfig`, `AHEPackConfig`, `XYRotationPackConfig`) to decode both old and new key names from persisted pack data. This is a single atomic change, deferred to Pack Module extraction.
+
+### Pack Decode Compatibility
+
+The pack contracts keep backward-compatible decode paths for older persisted data. This includes optional-field defaults, `cachedSearchResults` coding key compatibility, and the 3ω `sampleID` migration path for older tab-state keys. These paths are compatibility boundaries, not architecture debt.
 
 ## UserDefaults Side Effects
 

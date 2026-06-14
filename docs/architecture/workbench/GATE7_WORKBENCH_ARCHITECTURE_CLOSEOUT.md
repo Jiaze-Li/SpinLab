@@ -1,12 +1,12 @@
-# Gate 7.9: Workbench Architecture Closeout
+# Gate 7.12: Workbench Architecture Closeout
 
-> Verdict: the Workbench architecture refactor is closed after Gate 7.9. Remaining work is runtime validation and stabilization, not new module extraction.
+> Verdict: the Workbench architecture refactor is closed after Gate 7.12. Remaining work is runtime validation and stabilization, not new module extraction.
 
 ## What This Document Is
 
-A point-in-time record of the state of the Workbench architecture after Gates 7.1–7.8. It captures the final module map, extraction outcomes, accepted compatibility bridges, deferred runtime cleanup, and explicit non-candidates.
+A point-in-time record of the state of the Workbench architecture after Gates 7.1–7.11. It captures the final module map, extraction outcomes, bridge removals, retained compatibility boundaries, deferred runtime cleanup, and explicit non-candidates.
 
-Future work after Gate 7.9 should be runtime validation or bug fix unless a new workflow proves a real shared-module need that cannot be served by the existing module contracts.
+Future work after Gate 7.12 should be runtime validation or bug fix unless a new workflow proves a real shared-module need that cannot be served by the existing module contracts.
 
 ---
 
@@ -40,21 +40,40 @@ Future work after Gate 7.9 should be runtime validation or bug fix unless a new 
 | 7.6 | Pack / Restore | Restore write map audited and protected (34 tests). `_overlayPackIDs` standalone fallback removed. `cachedRTFilePath` overwrite sequence pinned. |
 | 7.7 | Warning Display / Run Trace | Boundary debt documented. `currentRunTrace` now surfaced exclusively through `WorkbenchRunTraceProviding`. Full runtime extraction deferred. |
 | 7.8 | Plot System module group audit and structural guards | Module group boundaries clarified. Main Board layout confirmed outside Plot System. `WorkbenchPlotCanvas` is interaction/display surface only. `TabRenderManager` / `TabRenderState` own Plot Preservation. `currentRunTrace` removed from `WorkbenchPlottingStore`. Structural boundary tests added. Assembly-owned display semantics (title defaults, stacking parameters, AHE single-tab specialization) remain in workflow stores. |
+| 7.11 | Bridge cleanup | `legacyHits`, `legacyMirror`, and selected-hit fallback paths removed. Canonical selected-hit construction is now snapshot-only. |
 
 ---
 
-## Accepted Compatibility Bridges
+## Bridge Inventory
 
-These are intentionally retained. They are not debt to eliminate before Gate 8.
+### Removed by Gate 7.11
+
+These bridges are gone and must not be reintroduced as a shortcut around the current module contracts.
+
+| Removed bridge | Removal scope | Notes |
+|---|---|---|
+| `legacyHits` | Selected-hit snapshot construction | Removed with the selected-hit fallback cleanup. Canonical search results are now the only source for selected-hit snapshots. |
+| `legacyMirror` | Selected-hit snapshot construction | Removed with the selected-hit fallback cleanup. The mirror is no longer part of selected-hit derivation. |
+| Selected-hit fallback paths | Workflow shell analysis entry paths | Removed by Gate 7.11. `WorkbenchSelectedHitsSnapshot` no longer falls back to workflow-local mirrors. |
+
+### Retained by Design
+
+These bridges remain intentionally retained. They are compatibility boundaries, not architecture debt, unless they leak into Main Board logic.
 
 | Bridge | Location | Why retained |
 |---|---|---|
-| `cachedSearchResults` mirror | Workflow stores | Selection denominator; pack compatibility. Rename deferred pending `CodingKey` handling. |
-| Workflow-local `selectionReading` typed bridge | AHE / XY / 3ω workspace stores | `weak var selectionReading: (any SelectionReading)?` injected by `WorkbenchFeatureStore`; `WorkbenchSelectionRuntime` conforms to `SelectionReading`. Non-canonical read surface for pack serialization and analysis denomination. Removal awaits Save / Pack Module cleanup. |
-| Workflow-local Assembly-owned plot binding endpoints | Workflow stores (title defaults, `stackOffsetMultiplier`, `minGapFraction`, AHE controls) | Assembly-owned semantics intentionally in workflow stores per Gate 7.8 audit. |
+| `cachedSearchResults` mirror | Workflow stores | `cachedSearchResults` is a workflow/search compatibility cache used only where the current UI still needs search-result context; it is not a selected-hit fallback and must not drive restored selection identity. |
+| Int-string `sampleID` migration | 3ω pack restore / tab state decode | Backward-compatible decode path for older packs that stored tab-series keys as integers. |
+| Pack/restore compatibility decode paths | `AHEPackContracts`, `XYRotationPackContracts`, `ThreeOmegaPackContracts` | Required to decode older persisted packs without changing runtime behavior. |
+| 3ω RT auxiliary input / sidecar restore bridge | `ThreeOmegaWorkspaceStore` restore path | `selectedRTHit`, `pendingRTSidecarPath`, and `cachedRTFilePath` remain the active compatibility bridge for RT restore. |
+| Workflow-local `selectionReading` typed bridge | AHE / XY / 3ω workspace stores | `weak var selectionReading: (any SelectionReading)?` is still a non-canonical compatibility read surface for pack serialization and analysis denomination. |
+| Workflow-local Assembly-owned plot binding endpoints | Workflow stores (title defaults, `stackOffsetMultiplier`, `minGapFraction`, AHE controls) | Assembly-owned semantics intentionally stay in workflow stores per Gate 7.8 audit. |
 | Raw `PendingMetricEntry` save metadata bridge | `buildActiveChartMetrics()` per workflow | Untyped bridge to common save writer. Typed projection is the deferred target. |
-| Secondary input restore bridge (`cachedRTFilePath` derivation) | `ThreeOmegaWorkspaceStore` restore path | Derived from `selectedRTHit`; standalone rebuild not implemented; restore path confirmed correct. |
 | Active-tab overlay rerender trigger (workflow-driven) | `ThreeOmegaWorkspaceStore.addOverlay` / `removeOverlay` | Moving trigger into runtime would require observable counter; no boundary value justifies the indirection in the current cut. |
+
+### Future Workflow Rule
+
+Future workflow additions must not delete retained compatibility bridges unless they also provide a migration/removal plan and tests that cover the old and new paths. Bridges are removable only when the migration is explicit, the decode path is preserved or retired on purpose, and the closeout docs are updated with the new boundary.
 
 ---
 
@@ -86,4 +105,4 @@ The following surfaces are Assembly-owned. They must not be extracted into commo
 
 ## Closeout Rule
 
-> **Future work after Gate 7.9 should be runtime validation or bug fix.** New module extraction is only justified when a new workflow (e.g., SOT) demonstrates a real shared-module need that cannot be served by the existing module contracts. Do not extract for its own sake.
+> **Future work after Gate 7.12 should be runtime validation or bug fix.** New module extraction is only justified when a new workflow (e.g., SOT) demonstrates a real shared-module need that cannot be served by the existing module contracts. Do not extract for its own sake.
