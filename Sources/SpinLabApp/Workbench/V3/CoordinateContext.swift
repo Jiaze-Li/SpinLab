@@ -63,7 +63,7 @@ struct CoordinateContext: Sendable {
     /// Uses the available container width as the primary driver for display size.
     /// This preserves aspect ratio while letting the plot grow smoothly as the
     /// plot column widens.
-    private static func widthDrivenDisplayRect(_ imageSize: CGSize, in container: CGSize) -> CGRect? {
+    static func widthDrivenDisplayRect(_ imageSize: CGSize, in container: CGSize) -> CGRect? {
         guard container.width > 0, container.height > 0,
               imageSize.width > 0, imageSize.height > 0 else { return nil }
         let imageAspect = imageSize.width / imageSize.height

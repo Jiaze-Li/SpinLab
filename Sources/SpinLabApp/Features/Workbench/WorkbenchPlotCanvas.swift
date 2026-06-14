@@ -43,7 +43,11 @@ struct WorkbenchPlotCanvas: View {
 
     var body: some View {
         if let imageData, let nsImage = NSImage(data: imageData) {
-            let displayHeight = resolvedDisplayHeight(for: nsImage.size)
+            let displayHeight = Self.displayHeight(
+                imageSize: nsImage.size,
+                measuredContainerWidth: measuredContainerWidth,
+                minHeight: minHeight
+            )
             GeometryReader { geo in
                 let containerSize = CGSize(width: geo.size.width, height: displayHeight)
                 if let layout {
@@ -143,11 +147,17 @@ struct WorkbenchPlotCanvas: View {
         }
     }
 
-    private func resolvedDisplayHeight(for imageSize: CGSize) -> CGFloat {
-        guard measuredContainerWidth > 0, imageSize.width > 0, imageSize.height > 0 else {
-            return minHeight
-        }
-        return max(minHeight, measuredContainerWidth * (imageSize.height / imageSize.width))
+    private static func displayHeight(
+        imageSize: CGSize,
+        measuredContainerWidth: CGFloat,
+        minHeight: CGFloat
+    ) -> CGFloat {
+        guard measuredContainerWidth > 0 else { return minHeight }
+        let fitted = CoordinateContext.widthDrivenDisplayRect(
+            imageSize,
+            in: CGSize(width: measuredContainerWidth, height: minHeight)
+        )
+        return max(minHeight, fitted?.height ?? minHeight)
     }
 
     // MARK: - Legend drag preview
