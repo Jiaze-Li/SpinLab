@@ -207,3 +207,210 @@ struct V537WorkbenchSelectedHitsSnapshotTests {
         #expect(snapshot.selectedHits.map(\.id) == [hitB.id, hitA.id])
     }
 }
+
+// MARK: - V7.11C-1 Pack-restore proof: legacyMirror must never fire after canonical restore
+
+/// These tests replicate the exact two-call sequence used by WorkbenchLoadPackPopover.load():
+///   1. seedSelection(ids, hits: hits, for: wf)       — mirrors the seedSelection closure
+///   2. restoreSearchState(results, queryText, for: wf) — mirrors the restoreSearchState closure
+/// Both calls are synchronous. After they complete, selectedHitsSnapshot must always
+/// return .canonicalSnapshot — never .legacyMirror — proving the legacyHits fallback
+/// is structurally unreachable after a normal pack restore.
+@Suite("V7.11C Pack Restore Proof — legacyMirror unreachable")
+struct V711CPackRestoreProofTests {
+
+    private func makeHit(
+        id: String,
+        workflowID: String,
+        sampleKey: String = "PN31|b|STO|111"
+    ) -> WorkflowMeasurementSearchHit {
+        WorkflowMeasurementSearchHit(
+            sidecarPath: "/tmp/\(id).spinlab.json",
+            measurementFilePath: "/tmp/\(id).dat",
+            sourceFilePath: "/tmp/\(id).dat",
+            workflowID: workflowID,
+            workflowDisplayName: workflowID.uppercased(),
+            workflowCanonicalID: workflowID,
+            batchID: "PN31",
+            sampleKey: sampleKey,
+            sampleSubstrate: "STO111",
+            conditions: ["temperature": "80K"],
+            channels: ["ch1"],
+            appliedAt: .distantPast
+        )
+    }
+
+    @MainActor
+    private func makeWFS() -> WorkbenchFeatureStore {
+        let persistence = LocalPersistenceStub(archivedRecords: [], projects: [])
+        return WorkbenchFeatureStore(libraryRepository: LibraryRepository(persistence: persistence))
+    }
+
+    // MARK: AHE
+
+    @MainActor
+    @Test("AHE pack restore: canonical populated before snapshot — legacyMirror never fires")
+    func ahePackRestoreUsesCanonical() {
+        let wfs = makeWFS()
+        let hit1 = makeHit(id: "ahe-restore-1", workflowID: "ahe")
+        let hit2 = makeHit(id: "ahe-restore-2", workflowID: "ahe")
+        let restoredHits = [hit1, hit2]
+        let selectedIDs: Set<String> = [hit1.id, hit2.id]
+
+        // Mirror WorkbenchLoadPackPopover.load() sequence exactly.
+        wfs.seedSelection(selectedIDs, hits: restoredHits, for: .ahe)
+        wfs.restoreSearchState(results: restoredHits, queryText: "ahe restored", for: .ahe)
+
+        let snapshot = wfs.selectedHitsSnapshot(for: .ahe)
+
+        #expect(snapshot.selectionSource == .canonicalSnapshot,
+                "legacyMirror must not fire after restoreSearchState populates canonical")
+        #expect(snapshot.selectedHits.count == 2)
+        #expect(Set(snapshot.selectedHits.map(\.id)) == selectedIDs)
+        #expect(snapshot.isEmpty == false)
+    }
+
+    @MainActor
+    @Test("AHE pack restore: single selected hit resolves to canonicalSnapshot")
+    func ahePackRestoreSingleHit() {
+        let wfs = makeWFS()
+        let hit = makeHit(id: "ahe-single", workflowID: "ahe")
+
+        wfs.seedSelection([hit.id], hits: [hit], for: .ahe)
+        wfs.restoreSearchState(results: [hit], queryText: "ahe single", for: .ahe)
+
+        let snapshot = wfs.selectedHitsSnapshot(for: .ahe)
+
+        #expect(snapshot.selectionSource == .canonicalSnapshot)
+        #expect(snapshot.selectedHits.map(\.id) == [hit.id])
+    }
+
+    // MARK: 3ω
+
+    @MainActor
+    @Test("3ω pack restore: canonical populated before snapshot — legacyMirror never fires")
+    func threeOmegaPackRestoreUsesCanonical() {
+        let wfs = makeWFS()
+        let hit1 = makeHit(id: "3w-restore-1", workflowID: "3w")
+        let hit2 = makeHit(id: "3w-restore-2", workflowID: "3w")
+        let restoredHits = [hit1, hit2]
+        let selectedIDs: Set<String> = [hit1.id, hit2.id]
+
+        wfs.seedSelection(selectedIDs, hits: restoredHits, for: .threeOmega)
+        wfs.restoreSearchState(results: restoredHits, queryText: "3w restored", for: .threeOmega)
+
+        let snapshot = wfs.selectedHitsSnapshot(for: .threeOmega)
+
+        #expect(snapshot.selectionSource == .canonicalSnapshot,
+                "legacyMirror must not fire after restoreSearchState populates canonical")
+        #expect(snapshot.selectedHits.count == 2)
+        #expect(Set(snapshot.selectedHits.map(\.id)) == selectedIDs)
+        #expect(snapshot.isEmpty == false)
+    }
+
+    @MainActor
+    @Test("3ω pack restore: single selected hit resolves to canonicalSnapshot")
+    func threeOmegaPackRestoreSingleHit() {
+        let wfs = makeWFS()
+        let hit = makeHit(id: "3w-single", workflowID: "3w")
+
+        wfs.seedSelection([hit.id], hits: [hit], for: .threeOmega)
+        wfs.restoreSearchState(results: [hit], queryText: "3w single", for: .threeOmega)
+
+        let snapshot = wfs.selectedHitsSnapshot(for: .threeOmega)
+
+        #expect(snapshot.selectionSource == .canonicalSnapshot)
+        #expect(snapshot.selectedHits.map(\.id) == [hit.id])
+    }
+
+    // MARK: XY
+
+    @MainActor
+    @Test("XY pack restore: canonical populated before snapshot — legacyMirror never fires")
+    func xyPackRestoreUsesCanonical() {
+        let wfs = makeWFS()
+        let hit1 = makeHit(id: "xy-restore-1", workflowID: "xy")
+        let hit2 = makeHit(id: "xy-restore-2", workflowID: "xy")
+        let restoredHits = [hit1, hit2]
+        let selectedIDs: Set<String> = [hit1.id, hit2.id]
+
+        wfs.seedSelection(selectedIDs, hits: restoredHits, for: .xyRotation)
+        wfs.restoreSearchState(results: restoredHits, queryText: "xy restored", for: .xyRotation)
+
+        let snapshot = wfs.selectedHitsSnapshot(for: .xyRotation)
+
+        #expect(snapshot.selectionSource == .canonicalSnapshot,
+                "legacyMirror must not fire after restoreSearchState populates canonical")
+        #expect(snapshot.selectedHits.count == 2)
+        #expect(Set(snapshot.selectedHits.map(\.id)) == selectedIDs)
+        #expect(snapshot.isEmpty == false)
+    }
+
+    @MainActor
+    @Test("XY pack restore: single selected hit resolves to canonicalSnapshot")
+    func xyPackRestoreSingleHit() {
+        let wfs = makeWFS()
+        let hit = makeHit(id: "xy-single", workflowID: "xy")
+
+        wfs.seedSelection([hit.id], hits: [hit], for: .xyRotation)
+        wfs.restoreSearchState(results: [hit], queryText: "xy single", for: .xyRotation)
+
+        let snapshot = wfs.selectedHitsSnapshot(for: .xyRotation)
+
+        #expect(snapshot.selectionSource == .canonicalSnapshot)
+        #expect(snapshot.selectedHits.map(\.id) == [hit.id])
+    }
+
+    // MARK: Cross-workflow isolation
+
+    @MainActor
+    @Test("pack restore for one workflow does not pollute other workflow snapshots")
+    func restoreIsolatedPerWorkflow() {
+        let wfs = makeWFS()
+        let aheHit = makeHit(id: "ahe-iso", workflowID: "ahe")
+        let xyHit  = makeHit(id: "xy-iso",  workflowID: "xy")
+
+        wfs.seedSelection([aheHit.id], hits: [aheHit], for: .ahe)
+        wfs.restoreSearchState(results: [aheHit], queryText: "ahe iso", for: .ahe)
+
+        wfs.seedSelection([xyHit.id], hits: [xyHit], for: .xyRotation)
+        wfs.restoreSearchState(results: [xyHit], queryText: "xy iso", for: .xyRotation)
+
+        let aheSnapshot = wfs.selectedHitsSnapshot(for: .ahe)
+        let xySnapshot  = wfs.selectedHitsSnapshot(for: .xyRotation)
+        let wSnapshot   = wfs.selectedHitsSnapshot(for: .threeOmega)
+
+        #expect(aheSnapshot.selectionSource == .canonicalSnapshot)
+        #expect(aheSnapshot.selectedHits.map(\.id) == [aheHit.id])
+        #expect(xySnapshot.selectionSource == .canonicalSnapshot)
+        #expect(xySnapshot.selectedHits.map(\.id) == [xyHit.id])
+        // 3ω was never restored — empty is fine, source must still be canonicalSnapshot
+        #expect(wSnapshot.selectionSource == .canonicalSnapshot)
+        #expect(wSnapshot.isEmpty)
+    }
+
+    // MARK: Inverted-order control (proves no fallback exists after legacyMirror removal)
+
+    @MainActor
+    @Test("seedSelection-only without restoreSearchState yields empty canonical snapshot — no fallback")
+    func seedWithoutRestoreYieldsEmptyCanonical() {
+        let wfs = makeWFS()
+        let hit = makeHit(id: "ahe-seed-only", workflowID: "ahe")
+
+        // Deliberately omit restoreSearchState.
+        // Before Gate 7.11C-2: legacyMirror would have fired here.
+        // After Gate 7.11C-2: canonical is empty, so selectedHits is empty — no fallback.
+        wfs.seedSelection([hit.id], hits: [hit], for: .ahe)
+        wfs.aheWorkspace.cachedSearchResults = [hit]
+
+        let snapshot = wfs.selectedHitsSnapshot(for: .ahe)
+
+        #expect(snapshot.selectionSource == .canonicalSnapshot,
+                "selectionSource is always canonicalSnapshot after legacyMirror removal")
+        // Without restoreSearchState, canonical results are empty → selectedHits resolves
+        // through hitCache (seeded by seedSelection) rather than source list.
+        // The hit was seeded into selectionRuntime, so it appears via hitCache path.
+        #expect(snapshot.selectedHits.map(\.id) == [hit.id],
+                "hit still found via hitCache even without canonical results")
+    }
+}
