@@ -699,84 +699,12 @@ struct FilenameRuleSet: Decodable {
                     matches: []
                 )
             ],
-            registry: RegistryRules(
-                sampleHeaderAliases: ["sampleid", "sample", "编号", "样品编号"],
-                excludedSheetNames: ["实验大纲"],
-                sampleCellSeparators: "/／,，;；|",
-                batchHeaderAliases: ["编号", "Batch", "BatchID", "Batch Id"],
-                substrateHeaderAliases: ["substrate", "Substrate", "衬底"],
-                numericKeyAliases: [
-                    "厚度": ["预打", "生长次数"],
-                    "温度": ["温度", "temperature"],
-                    "氧压": ["氧压", "pressure"],
-                    "能量": ["能量", "energy"],
-                    "电压": ["电压", "kv"],
-                    "磁场": ["磁场", "field"],
-                    "电阻": ["电阻", "current"]
-                ],
-                metadataLookupAliases: [
-                    "batch": ["Batch", "BatchID", "Batch Name", "编号"],
-                    "sample": ["Sample", "SampleID", "Sample Name", "样品"],
-                    "measurement": ["Measurement", "MeasurementName", "Measurement Name"],
-                    "device": ["Device", "DeviceName", "Device Name"],
-                    "temperature": ["Temperature", "Temp", "T"],
-                    "project": ["Project", "ProjectName", "Project Name"]
-                ]
-            ),
+            registry: nil,
             importRules: ImportRules(
                 supportedFileExtensions: ["csv", "txt", "dat", "lvm"],
                 ignoredFileExtensions: ["gph"]
             ),
-            substrateConfig: SubstrateConfig(
-                materials: [
-                    SubstrateEntry(displayName: "STO", matches: [
-                        MatchSpec(type: .contains, value: "STO111"),
-                        MatchSpec(type: .contains, value: "STO001")
-                    ]),
-                    SubstrateEntry(displayName: "NGO", matches: []),
-                    SubstrateEntry(displayName: "MAO", matches: []),
-                    SubstrateEntry(displayName: "MgO", matches: [
-                        MatchSpec(type: .equals, value: "MGO")
-                    ]),
-                    SubstrateEntry(displayName: "Al2O3", matches: [
-                        MatchSpec(type: .equals, value: "AL2O3")
-                    ]),
-                    SubstrateEntry(displayName: "Si", matches: [
-                        MatchSpec(type: .equals, value: "SI"),
-                        MatchSpec(type: .equals, value: "ONSI")
-                    ]),
-                    SubstrateEntry(displayName: "poly-SiO2 on Si", matches: [
-                        MatchSpec(type: .equals, value: "POLY-SIO2"),
-                        MatchSpec(type: .equals, value: "POLY-SIO2 ON SI")
-                    ])
-                ],
-                treatments: [
-                    SubstrateEntry(displayName: "HF", matches: [
-                        MatchSpec(type: .contains, value: "hf")
-                    ]),
-                    SubstrateEntry(displayName: "baked", matches: [
-                        MatchSpec(type: .contains, value: "bake")
-                    ]),
-                    SubstrateEntry(displayName: "b", matches: [
-                        MatchSpec(type: .equals, value: "b")
-                    ]),
-                    SubstrateEntry(displayName: "o", matches: [
-                        MatchSpec(type: .contains, value: "origin"),
-                        MatchSpec(type: .contains, value: "original")
-                    ])
-                ],
-                orientations: [
-                    SubstrateEntry(displayName: "001", matches: [
-                        MatchSpec(type: .equals, value: "100"),
-                        MatchSpec(type: .contains, value: "STO001")
-                    ]),
-                    SubstrateEntry(displayName: "111", matches: [
-                        MatchSpec(type: .contains, value: "STO111")
-                    ]),
-                    SubstrateEntry(displayName: "110", matches: []),
-                    SubstrateEntry(displayName: "0001", matches: [])
-                ]
-            )
+            substrateConfig: nil
         )
     }
 }

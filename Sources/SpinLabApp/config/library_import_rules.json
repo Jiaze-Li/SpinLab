@@ -55,31 +55,6 @@
         "current"
       ]
     },
-    "substrateMaterialTokens": [
-      "STO",
-      "NGO",
-      "MAO",
-      "MGO",
-      "AL2O3",
-      "SI",
-      "POLY-SIO2 ON SI",
-      "POLY-SIO2"
-    ],
-    "substrateProcessingKeywords": {
-      "HF": [
-        "HF"
-      ],
-      "b": [
-        "B",
-        "BAKE",
-        "BAKED"
-      ],
-      "o": [
-        "ORIGINAL",
-        "ORIGIN",
-        " O "
-      ]
-    },
     "metadataLookupAliases": {
       "batch": [
         "Batch",
