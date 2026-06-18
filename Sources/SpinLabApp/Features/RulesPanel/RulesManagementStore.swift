@@ -225,6 +225,22 @@ struct WorkflowFileDraft: Codable {
     }
 }
 
+// library_import_rules.json (registry segment only; import segment dropped on save — it is not consumed)
+struct LibraryRegistryFileDraft: Codable {
+    var version: Int
+    var registry: RegistryDraft
+
+    struct RegistryDraft: Codable {
+        var sampleHeaderAliases: [String]
+        var batchHeaderAliases: [String]
+        var substrateHeaderAliases: [String]
+        var excludedSheetNames: [String]
+        var sampleCellSeparators: String
+        var numericKeyAliases: [String: [String]]
+        var metadataLookupAliases: [String: [String]]
+    }
+}
+
 // measuring_condition.json
 struct MeasuringConditionFileDraft: Codable {
     var version: Int
@@ -280,6 +296,7 @@ final class RulesManagementStore {
     private(set) var sampleIdentificationDraft: SampleIdentificationFileDraft?
     private(set) var workflowDraft: WorkflowFileDraft?
     private(set) var measuringConditionDraft: MeasuringConditionFileDraft?
+    private(set) var libraryRegistryDraft: LibraryRegistryFileDraft?
 
     private(set) var availableConditionFieldIDs: [String] = []
     private(set) var rulesBookState: RulesBookState = .notConfigured
@@ -375,6 +392,11 @@ final class RulesManagementStore {
         dirtySections.insert(.measuringCondition)
     }
 
+    func updateLibraryRegistry(_ draft: LibraryRegistryFileDraft) {
+        libraryRegistryDraft = draft
+        dirtySections.insert(.libraryRegistry)
+    }
+
     func setBatchPrefixes(from specs: [FilenameRuleSet.MatchSpec]) {
         guard var draft = sampleIdentificationDraft else { return }
         draft.sampleId.batchPrefixes = specs.filter { $0.type == .startsWith }.map(\.value)
@@ -427,6 +449,9 @@ final class RulesManagementStore {
         case .measuringCondition:
             measuringConditionDraft = loadWithStrategy(
                 MeasuringConditionStrategy(runtimeURL: p.measuringConditionURL), section: section)
+        case .libraryRegistry:
+            libraryRegistryDraft = loadWithStrategy(
+                LibraryRegistryStrategy(runtimeURL: p.libraryImportRulesURL), section: section)
         }
     }
 
@@ -494,6 +519,10 @@ final class RulesManagementStore {
             return saveWithStrategy(
                 MeasuringConditionStrategy(runtimeURL: p.measuringConditionURL),
                 draft: measuringConditionDraft, section: section)
+        case .libraryRegistry:
+            return saveWithStrategy(
+                LibraryRegistryStrategy(runtimeURL: p.libraryImportRulesURL),
+                draft: libraryRegistryDraft, section: section)
         }
     }
 
@@ -611,3 +640,4 @@ extension FilenameTokenizationFileDraft: _VersionedSchema {}
 extension SampleIdentificationFileDraft: _VersionedSchema {}
 extension WorkflowFileDraft: _VersionedSchema {}
 extension MeasuringConditionFileDraft: _VersionedSchema {}
+extension LibraryRegistryFileDraft: _VersionedSchema {}
