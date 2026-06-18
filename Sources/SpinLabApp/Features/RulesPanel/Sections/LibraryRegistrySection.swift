@@ -7,16 +7,54 @@ struct LibraryRegistrySection: View {
 
     private var store: RulesManagementStore { appState.rulesPanel }
 
+    @State private var repairError: String?
+    @State private var showRepairConfirm = false
+
+    private var loadState: LibraryRegistryLoadState { store.libraryRegistryLoadState }
+
     var body: some View {
         RulesSectionShell(
             section: .libraryRegistry,
             isDraftAvailable: draft != nil,
             versionLabel: draft.map { "Schema version \($0.version)" },
-            onSync: syncFromStore
+            onSync: syncFromStore,
+            onCreateFromDefaults: loadState == .corrupt ? { showRepairConfirm = true } : nil,
+            createFromDefaultsLabel: "Repair from legacy defaults",
+            emptyStateTitle: loadState == .corrupt
+                ? "Registry import rules are damaged"
+                : "Registry import rules are missing",
+            emptyStateMessage: loadState == .corrupt
+                ? "The file exists but could not be read. Repair it to restore the previous default aliases."
+                : "Restart the app or reconfigure the Rules Book to seed defaults automatically."
         ) { $saveErrors in
             if let d = draft {
                 scrollContent(d, saveErrors: $saveErrors)
             }
+        }
+        .confirmationDialog("Repair from legacy defaults?",
+                            isPresented: $showRepairConfirm,
+                            titleVisibility: .visible) {
+            Button("Repair", role: .destructive) { performRepair() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The existing file will be backed up and replaced with the pre-5.4.1 default aliases.")
+        }
+        .alert("Repair failed", isPresented: Binding(
+            get: { repairError != nil },
+            set: { if !$0 { repairError = nil } }
+        )) {
+            Button("OK", role: .cancel) { repairError = nil }
+        } message: {
+            Text(repairError ?? "")
+        }
+    }
+
+    private func performRepair() {
+        switch store.repairLibraryRegistryFromLegacyDefaults() {
+        case .success:
+            syncFromStore()
+        case .failure(let error):
+            repairError = error.localizedDescription
         }
     }
 
