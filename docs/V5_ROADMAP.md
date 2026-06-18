@@ -90,13 +90,13 @@ s2 完成后回顾发现：原 6 类清单（按 schema 文件机械切分）与
 - `WorkflowDefinition.parentID` 字段 + 现有 XY workflow 的 `parentID="Rotation"`（**带向后兼容解码**：旧数据含该字段仍可解码不崩，新写出文件不含；防 Jack 已有 runtime 数据首启炸）
 - `filename_parse_rules.json.rotationHintRules`（90shift → "+90deg for I parallel B" 那条文案）—— 归显示层硬编码，不再作为可编辑规则。Codex review 裁决理由：当前只一条稳定映射，本质是注释文案不是业务策略，留在 schema 会污染"解析规则"与"显示文案"边界
 
-**C. 推迟到 Library 专项做的项**（**过渡期受控例外**，必须在 Library 专项时一并退役 fallback）
+**C. 推迟到 Library 专项做的项**（**✅ 已在 5.4.1 全部退役**）
 
-`library_import_rules.json` 的 `registry` 段全部不进本期 5 本子面板，包括：`sampleHeaderAliases` / `batchHeaderAliases` / `substrateHeaderAliases` / `excludedSheetNames` / `sampleCellSeparators` / `numericKeyAliases` / `substrateMaterialTokens` / `substrateProcessingKeywords` / `metadataLookupAliases`。这些消费方都在 Library / Registry 解析路径，与 inbox 测试文件读取无关。
+~~`library_import_rules.json` 的 `registry` 段全部不进本期 5 本子面板~~：**5.4.1b** 已将 7 个有效字段（`sampleHeaderAliases` / `batchHeaderAliases` / `substrateHeaderAliases` / `excludedSheetNames` / `sampleCellSeparators` / `numericKeyAliases` / `metadataLookupAliases`）上面板。死字段 `substrateMaterialTokens` / `substrateProcessingKeywords` 在 **5.4.1c** 从 JSON bundle 删除（从未有对应 Swift 结构体字段，decoder 一直静默忽略）。
 
-衬底材料清单当前在 `substrate_normalization_rules.json` 与 `library_import_rules.json` 各有一份字面相同的副本，本期保留两份不合并；Library 专项时合并。
+~~衬底材料清单当前在 `substrate_normalization_rules.json` 与 `library_import_rules.json` 各有一份副本~~：**5.4.1c** 已删除 `FilenameRuleSet.fallback()` 内的硬编码 substrate 副本；`sample_identification.json` 是唯一真相；`library_import_rules.json` 的 substrate 字段从未映射到 Swift struct（已是死字段）。
 
-`Extensions/ExtensionPoints.swift` 的 `RegistryMetadataAliasBook.fallbackAliases` 是代码内默认值（用户 UI 暂不可见），是顶层原则"看见即唯一规则"的**已知例外**。Library 专项验收必须包含"删除 fallback + 别名表上面板"。
+~~`RegistryMetadataAliasBook.fallbackAliases` 是已知例外~~：**5.4.1c** 已删除；`aliases(for:)` 在 registry 未配置时返回 `[]`，不再有静默默认值。
 
 **D. UI 架构（与原方案保持）**
 
@@ -121,7 +121,7 @@ R1 —— 工作流 ID 策略相关规则保存后立刻生效，App 内不存�
 - ❌ 把 5 本子拆回 6 / 7 本子 —— Workflow Matching + Workflow Condition 合并成一本 Workflow，让"匹配规则 + condition 需求 + 子标签"在每个 workflow 一行内同时摊开操作连贯
 - ❌ 恢复父 workflow 概念 —— Jack 原话："未来就一个一个维护，如果有相似的就直接 copy 工作流程然后微调"
 - ❌ 保留 workflow_id_policy 自动分配 —— Jack 原话："这个要求一次确定之后未来不改了，不要变动不然机器会误解，title 可以反复改给用户看的"
-- ❌ Library 侧规则（registry 段）放进本期 5 本子 —— Jack 拍板分两期，本期 inbox 侧，Library 专项一次性做完 + 合并衬底重叠 + 退役 fallback
+- ❌ Library 侧规则（registry 段）放进本期 5 本子 —— Jack 拍板分两期，本期 inbox 侧，Library 专项一次性做完 + 合并衬底重叠 + 退役 fallback（**已在 5.4.1 完成**）
 - ❌ rotationHintRules 留作可编辑规则 —— Codex review 裁决归显示层硬编码
 - ❌ 子标签 schema 改成每 workflow 自带清单 —— UI 上挂在 workflow 下展示是组织方式；数据模型保持全局表，避免 5.1.5 内做 schema 大重构
 - ❌ 手动同步按钮 —— Jack 原话："我不想我按一下同步，我要自动同步"
@@ -548,12 +548,22 @@ _(预留)_
 - [x] P4: 简化 ViewModel，View 直接读 appState.library `[来源: LIBRARY_ARCHITECTURE_AUDIT]`
 - [x] P5: 拆分 LibraryView（1252行）为 4-5 个聚焦组件 `[来源: LIBRARY_ARCHITECTURE_AUDIT]`
 
-### 5.4.1 — Library Registry Rules Unification（清理 5.1.5 §C 推迟债）
+### 5.4.1 — Library Registry Rules Unification（清理 5.1.5 §C 推迟债）✅
 - [x] 5.4.1a: Audit/design — 消费者 + owner + 迁移边界（本文档）
 - [x] 5.4.1b: Registry Import Rules UI + config persistence（7 个字段上面板，写入 library_import_rules.json）
 - [x] 5.4.1c: 删除 fallback + substrate 单一真相 + tests
 
 **❌ 边界**：不改 Workbench / Inbox routing / 行列选中态 / Web Library export / 不新增 Library 功能
+
+**完成摘要（2026-06-18）**：
+- Rules Panel 升为 6 分区，新增「Registry Import」（第 6 节）：7 个字段全部可见可编辑可保存至 `library_import_rules.json`
+- `SpinLabRuleProviding.registryRules()` 返回 `Optional`；无配置 → nil，不再有静默默认值
+- `FilenameRuleSet.fallback()` registry = nil、substrateConfig = nil；`sample_identification.json` 是 substrate 唯一真相
+- `RegistryMetadataAliasBook.fallbackAliases`（6 个字段的硬编码别名集）已删除
+- `RegistryLookupRuleBook` init 内联 `??` 硬编码 fallback 全部删除（sampleHeaderAliases / excludedSheetNames / sampleCellSeparators）
+- bundle `library_import_rules.json` 死字段 `substrateMaterialTokens` / `substrateProcessingKeywords` 删除
+- 44/44 targeted tests（V541a/b/c + V515 + V517 + V5114）+ xcodebuild BUILD SUCCEEDED
+- 执行纪要：[history/v541_library_registry_rules_unification.md](history/v541_library_registry_rules_unification.md)
 
 ---
 
