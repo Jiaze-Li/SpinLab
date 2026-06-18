@@ -32,10 +32,17 @@ extension RulesBootstrapper {
         }
 
         let existingData: Data
-        let existing: LibraryRegistryFileDraft
+        let bundleDraft: LibraryRegistryFileDraft
+        let existingPartial: PartialLibraryRegistryFileDraft
         do {
             existingData = try Data(contentsOf: url)
-            existing = try decoder.decode(LibraryRegistryFileDraft.self, from: existingData)
+            existingPartial = try decoder.decode(PartialLibraryRegistryFileDraft.self, from: existingData)
+            guard let loadedBundleDraft = loadDraftFromBundle() else {
+                AppLogger.shared.error(.import,
+                    "RulesBootstrapper: bundled library_import_rules.json not found — cannot fill missing fields")
+                return
+            }
+            bundleDraft = loadedBundleDraft
         } catch {
             // Corrupt — do not touch, let the UI offer a repair flow
             AppLogger.shared.warning(.import,
@@ -44,20 +51,24 @@ extension RulesBootstrapper {
             return
         }
 
-        guard LegacyRegistryImportRulesDefaults.hasEmptyFields(existing) else { return }
-
-        guard let bundleDraft = loadDraftFromBundle() else {
-            AppLogger.shared.error(.import,
-                "RulesBootstrapper: bundled library_import_rules.json not found — cannot fill missing fields")
-            return
-        }
+        let mergedExisting = existingPartial.materialized(using: bundleDraft)
+        let needsFieldFill = existingPartial.hasMissingFields || LegacyRegistryImportRulesDefaults.hasEmptyFields(mergedExisting)
+        guard needsFieldFill else { return }
 
         // Backup then merge missing fields from bundle
         let backupURL = url.deletingLastPathComponent()
             .appendingPathComponent("library_import_rules_backup_\(migrationTimestamp()).json")
         do {
             try existingData.write(to: backupURL)
-            let merged = LegacyRegistryImportRulesDefaults.fillMissing(from: bundleDraft, into: existing)
+        } catch {
+            AppLogger.shared.error(.import,
+                "RulesBootstrapper: failed to back up library_import_rules.json before merge",
+                metadata: ["error": error.localizedDescription])
+            return
+        }
+
+        do {
+            let merged = LegacyRegistryImportRulesDefaults.fillMissing(from: bundleDraft, into: mergedExisting)
             let newData = try encoder.encode(merged)
             try newData.write(to: url)
             AppLogger.shared.info(.import,
@@ -77,6 +88,49 @@ extension RulesBootstrapper {
             return nil
         }
         return try? JSONDecoder().decode(LibraryRegistryFileDraft.self, from: Data(contentsOf: bundleURL))
+    }
+
+    private struct PartialLibraryRegistryFileDraft: Decodable {
+        var version: Int?
+        var registry: RegistryDraft?
+
+        struct RegistryDraft: Decodable {
+            var sampleHeaderAliases: [String]?
+            var batchHeaderAliases: [String]?
+            var substrateHeaderAliases: [String]?
+            var excludedSheetNames: [String]?
+            var sampleCellSeparators: String?
+            var numericKeyAliases: [String: [String]]?
+            var metadataLookupAliases: [String: [String]]?
+        }
+
+        var hasMissingFields: Bool {
+            guard let registry else { return true }
+            return version == nil
+                || registry.sampleHeaderAliases == nil
+                || registry.batchHeaderAliases == nil
+                || registry.substrateHeaderAliases == nil
+                || registry.excludedSheetNames == nil
+                || registry.sampleCellSeparators == nil
+                || registry.numericKeyAliases == nil
+                || registry.metadataLookupAliases == nil
+        }
+
+        func materialized(using defaults: LibraryRegistryFileDraft) -> LibraryRegistryFileDraft {
+            let registry = registry ?? RegistryDraft()
+            return LibraryRegistryFileDraft(
+                version: version ?? defaults.version,
+                registry: LibraryRegistryFileDraft.RegistryDraft(
+                    sampleHeaderAliases: registry.sampleHeaderAliases ?? defaults.registry.sampleHeaderAliases,
+                    batchHeaderAliases: registry.batchHeaderAliases ?? defaults.registry.batchHeaderAliases,
+                    substrateHeaderAliases: registry.substrateHeaderAliases ?? defaults.registry.substrateHeaderAliases,
+                    excludedSheetNames: registry.excludedSheetNames ?? defaults.registry.excludedSheetNames,
+                    sampleCellSeparators: registry.sampleCellSeparators ?? defaults.registry.sampleCellSeparators,
+                    numericKeyAliases: registry.numericKeyAliases ?? defaults.registry.numericKeyAliases,
+                    metadataLookupAliases: registry.metadataLookupAliases ?? defaults.registry.metadataLookupAliases
+                )
+            )
+        }
     }
 
     private static func jsonEncoder() -> JSONEncoder {
