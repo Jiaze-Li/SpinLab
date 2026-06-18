@@ -548,6 +548,13 @@ _(预留)_
 - [x] P4: 简化 ViewModel，View 直接读 appState.library `[来源: LIBRARY_ARCHITECTURE_AUDIT]`
 - [x] P5: 拆分 LibraryView（1252行）为 4-5 个聚焦组件 `[来源: LIBRARY_ARCHITECTURE_AUDIT]`
 
+### 5.4.1 — Library Registry Rules Unification（清理 5.1.5 §C 推迟债）
+- [ ] 5.4.1a: Audit/design — 消费者 + owner + 迁移边界（本文档）
+- [ ] 5.4.1b: Registry Import Rules UI + config persistence（7 个字段上面板，写入 library_import_rules.json）
+- [ ] 5.4.1c: 删除 fallback + substrate 单一真相 + tests
+
+**❌ 边界**：不改 Workbench / Inbox routing / 行列选中态 / Web Library export / 不新增 Library 功能
+
 ---
 
 ## 5.5.x — 全区域 UI 统一优化
