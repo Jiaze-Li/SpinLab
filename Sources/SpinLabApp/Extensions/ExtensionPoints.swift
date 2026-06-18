@@ -12,21 +12,8 @@ private enum RegistryMetadataField: String {
 private enum RegistryMetadataAliasBook {
     private static let ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared
 
-    private static let fallbackAliases: [RegistryMetadataField: [String]] = [
-        .batch: ["Batch", "BatchID", "Batch Name", "编号"],
-        .sample: ["Sample", "SampleID", "Sample Name", "样品"],
-        .measurement: ["Measurement", "MeasurementName", "Measurement Name"],
-        .device: ["Device", "DeviceName", "Device Name"],
-        .temperature: ["Temperature", "Temp", "T"],
-        .project: ["Project", "ProjectName", "Project Name"]
-    ]
-
     static func aliases(for field: RegistryMetadataField) -> [String] {
-        if let configured = ruleProvider.ruleSet().registry?.metadataLookupAliases[field.rawValue],
-           !configured.isEmpty {
-            return configured
-        }
-        return fallbackAliases[field] ?? []
+        ruleProvider.ruleSet().registry?.metadataLookupAliases[field.rawValue] ?? []
     }
 }
 
