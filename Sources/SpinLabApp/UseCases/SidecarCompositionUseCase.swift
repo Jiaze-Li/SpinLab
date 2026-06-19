@@ -2,6 +2,7 @@ import Foundation
 
 struct SidecarCompositionBase {
     var workflow: String
+    var autoDetectedWorkflow: String
     var workflowDisplayName: String
     var channels: [String]
     var sourceFilePath: String
@@ -59,6 +60,9 @@ enum SidecarCompositionUseCase {
             : .empty
         return SpinLabFileSidecar(
             workflow: base.workflow,
+            autoDetectedWorkflow: base.autoDetectedWorkflow,
+            workflowOverride: base.existingSidecar?.workflowOverride,
+            workflowSource: base.existingSidecar?.workflowSource,
             workflowDisplayName: base.workflowDisplayName,
             channels: base.channels,
             sourceFilePath: base.sourceFilePath,
