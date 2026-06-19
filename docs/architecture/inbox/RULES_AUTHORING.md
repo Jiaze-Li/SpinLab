@@ -4,13 +4,11 @@ Rules Panel is the user-facing configuration surface for Inbox routing. It owns 
 
 ---
 
-## 6-Section Structure (v5.4.1b+)
+## 5-Section Structure
 
-Sections: Import Filters / Filename Tokenization / Sample Identification / Workflow / Measuring Condition / Registry Import.
+Sections: Import Filters / Filename Tokenization / Sample Identification / Workflow / Measuring Condition.
 
-The first 5 sections each map 1:1 to a required JSON config file under `RulesConfigPaths`. `RulesPanelSection.allCases` order is the canonical Save All iteration order — never use Set iteration.
-
-The 6th section — **Registry Import** — reads/writes `library_import_rules.json` (optional file). Its URL is resolved via `RulesConfigPaths.libraryImportRulesURL`, which is **not** in `allSchemaFileURLs`. Absent file → `libraryRegistryDraft == nil` → section shows ContentUnavailableView; this is not an incompleteBook condition. The 5 core Inbox sections are unaffected by whether this file exists.
+Each section maps 1:1 to a JSON config file under `RulesConfigPaths`. `RulesPanelSection.allCases` order is the canonical Save All iteration order — never use Set iteration.
 
 ---
 
@@ -81,20 +79,6 @@ The 6th section — **Registry Import** — reads/writes `library_import_rules.j
 
 ---
 
-## Registry Rules — No-Fallback Invariant (v5.4.1c+)
-
-`SpinLabRuleProviding.registryRules()` returns `FilenameRuleSet.RegistryRules?`:
-- Present → rules came from `library_import_rules.json`
-- Nil → file is absent or has no `registry` key; callers must produce empty results, not silent defaults
-
-`FilenameRuleSet.fallback()` has `registry: nil` and `substrateConfig: nil`. Any hardcoded registry or substrate aliases in `fallback()` are a bug, not a feature.
-
-`RegistryMetadataAliasBook.fallbackAliases` was deleted in 5.4.1c. `aliases(for:)` returns `[]` when registry is nil.
-
-`sample_identification.json` is the sole substrate configuration source. No other file or Swift struct should duplicate or override substrate materials/treatments/orientations.
-
----
-
 ## Rules Book Single Source of Truth (rules-book-single-source-of-truth branch)
 
 ### Architecture
@@ -108,7 +92,7 @@ The 6th section — **Registry Import** — reads/writes `library_import_rules.j
 
 - `.notConfigured`: panel shows "Select Rules Book Folder" button; editing is blocked.
 - `.incompleteBook([String])`: configured but missing required files; panel lists them; editing blocked.
-- `.ready`: all 5 required files present; full editor shown. The optional 6th file (`library_import_rules.json`) is shown when present, hidden when absent — does not affect this state.
+- `.ready`: all 5 required files present; full editor shown.
 
 ---
 
@@ -141,11 +125,9 @@ The 6th section — **Registry Import** — reads/writes `library_import_rules.j
 
 ---
 
-## Rules Panel Tests
+## Rules Panel Tests (v5.1.5)
 
-- **v5.1.5** (36 tests): `V515RulesPanelStoreTests`, `V515RulesPanelSaveValidationTests`, `V515RulesPanelCrossSectionTests`, `V515RulesSaveImmediateEffectTests`, `V515RulesEngineRegressionTests`, `V515RulesBootstrapperMigrationTests`
-- **v5.4.1b** (12 tests): `V541LibraryRegistryRulesPanelTests` — Registry Import panel: load, nil-when-absent, store state, dirty/discard, save round-trip, rules reload, hash conflict, override, validation, dead fields dropped
-- **v5.4.1c** (15 tests): `V541LibraryRegistryFallbackRemovalTests` — Optional registryRules(), fallback() nil invariants, RegistryMetadataAliasBook empty-when-absent, RegistryLookupRuleBook no inline fallback, LibraryRegistryParser nil-safe init, substrate single-source assertions, dead JSON fields absent from bundle
+36 tests across 5 suites: `V515RulesPanelStoreTests`, `V515RulesPanelSaveValidationTests`, `V515RulesPanelCrossSectionTests`, `V515RulesSaveImmediateEffectTests`, `V515RulesEngineRegressionTests`. Also: `V515RulesBootstrapperMigrationTests`.
 
 ---
 
@@ -161,7 +143,6 @@ The 6th section — **Registry Import** — reads/writes `library_import_rules.j
 - `Sources/SpinLabApp/Features/RulesPanel/Sections/SampleIdentificationSection.swift` — Sample Identification section UI; v4 substrate schema editor
 - `Sources/SpinLabApp/Features/RulesPanel/Sections/ImportFiltersSection.swift` — Import Filters section UI
 - `Sources/SpinLabApp/Features/RulesPanel/Sections/FilenameTokenizationSection.swift` — Filename Tokenization section UI
-- `Sources/SpinLabApp/Features/RulesPanel/Sections/LibraryRegistrySection.swift` — Registry Import section UI; 7-field editor; shows ContentUnavailableView when draft is nil (file absent)
 - `Sources/SpinLabApp/Import/Rules/RulesBootstrapper.swift` — type declaration shell for the migration and seed namespace
 - `Sources/SpinLabApp/Import/Rules/RulesBootstrapper+MigrationOrchestration.swift` — coordinates full schema migration: reads runtime JSONs, applies all migration steps, atomic-writes results
 - `Sources/SpinLabApp/Storage/AppInternalPaths.swift` — resolves Application Support paths for internal state files (migration state, rules book pointer, rule set version)

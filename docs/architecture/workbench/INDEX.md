@@ -21,6 +21,8 @@
 | `ADDING_WORKFLOW.md` | Add-workflow entry | Conceptual model + abbreviated checklist; links to EXTENSION_BOUNDARIES.md |
 | `EXTENSION_BOUNDARIES.md` | Extension guide | Add-workflow and add-module routing/checklists |
 | `WORKBENCH_ROADMAP.md` | Phase tracking | Current Workbench shell migration status |
+| `STATE_OWNERSHIP.md` | Ownership contract | Shared plot defaults, per-tab state, packs, sidecar, and measurement set ownership |
+| `WORKFLOW_EXTENSION.md` | Workflow extension contract | Plot System responsibilities, persistence rules, tick wording, and finalization rule |
 
 **Implementation injection points** - naming used by the live shell implementation, not formal architecture layers:
 
@@ -62,7 +64,9 @@ Base module ownership rules, forbidden mutations, and transition state live in [
 11. [modules/SELECTION_DENOMINATOR_AUDIT.md](modules/SELECTION_DENOMINATOR_AUDIT.md) - selection denominator ownership
 12. [modules/PLOT_SYSTEM.md](modules/PLOT_SYSTEM.md) - plot capabilities and shared plot shell details
 13. [modules/PACK_RESTORE.md](modules/PACK_RESTORE.md) - pack / restore lifecycle and write boundaries
-14. [workflows/three-omega/THREE_OMEGA_PHYSICS.md](workflows/three-omega/THREE_OMEGA_PHYSICS.md) - 3-Omega physical model
+14. [STATE_OWNERSHIP.md](STATE_OWNERSHIP.md) - state ownership contract for plot defaults, tabs, packs, sidecars, and measurement sets
+15. [WORKFLOW_EXTENSION.md](WORKFLOW_EXTENSION.md) - workflow extension boundaries, persistence rules, tick wording, and finalization
+16. [workflows/three-omega/THREE_OMEGA_PHYSICS.md](workflows/three-omega/THREE_OMEGA_PHYSICS.md) - 3-Omega physical model
 
 ## Dispatch Rules
 

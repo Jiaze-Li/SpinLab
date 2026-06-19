@@ -42,9 +42,11 @@ Gates 1 through 7 are complete. Gate 7.9 is the architecture closeout. Gate 8 re
 | Gate 6 | complete | Readiness Consumption |
 | Gate 7 | complete | Module Extraction Program |
 | Gate 7.9 | complete | Workbench Architecture Closeout (docs) |
-| Gate 8 | planned | New Workflow Dry Run |
+| Gate 8 | in progress | New Workflow Dry Run |
 
 Gates 1 through 7 are closed out. Gate 7 completed the module extraction program across sub-gates 7.1–7.8. Gate 7.9 closes out the architecture documentation. Deferred runtime cleanup items and non-candidates are classified in `MODULE_BOUNDARIES.md` and `GATE7_WORKBENCH_ARCHITECTURE_CLOSEOUT.md`.
+
+Gate 8.1 (IV workflow phase A+B): IV workflow scaffolded — `WorkbenchWorkflowID.iv`, `IVIngestionContracts`, `IngestIVSelectionsUseCase`, `IVPackContracts`, `IVWorkspaceStore`, `IVWorkspaceView`, all five registration surfaces wired. Main Board unmodified. No existing module state touched. Physics rendering deferred (stub); file format not yet specified. Assembly record: `docs/architecture/workbench/workflows/iv/ASSEMBLY.md`.
 
 ### Gate 2 - Workflow Assembly Audit & Contract Validation
 
