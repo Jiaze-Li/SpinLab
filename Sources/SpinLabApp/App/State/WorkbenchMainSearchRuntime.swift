@@ -263,6 +263,8 @@ final class WorkbenchMainSearchRuntime {
             store.threeOmegaWorkspace.cachedSearchResults = result
         case .xyRotation:
             store.xyRotationWorkspace.cachedSearchResults = result
+        case .iv:
+            store.ivWorkspace.cachedSearchResults = result
         }
     }
 
@@ -277,6 +279,9 @@ final class WorkbenchMainSearchRuntime {
         case .xyRotation:
             store.xyRotationWorkspace.cachedSearchResults = []
             store.xyRotationWorkspace.cachedSampleNumericDisplay = [:]
+        case .iv:
+            store.ivWorkspace.cachedSearchResults = []
+            store.ivWorkspace.cachedSampleNumericDisplay = [:]
         }
     }
 
@@ -307,6 +312,13 @@ final class WorkbenchMainSearchRuntime {
         case .xyRotation:
             store.xyRotationWorkspace.lastLibraryRootPath = libraryRootPath ?? ""
             store.xyRotationWorkspace.cachedSampleNumericDisplay = await buildNumericDisplayCache(
+                from: result,
+                libraryRootPath: libraryRootPath,
+                dataActor: dataActor
+            )
+        case .iv:
+            store.ivWorkspace.lastLibraryRootPath = libraryRootPath ?? ""
+            store.ivWorkspace.cachedSampleNumericDisplay = await buildNumericDisplayCache(
                 from: result,
                 libraryRootPath: libraryRootPath,
                 dataActor: dataActor

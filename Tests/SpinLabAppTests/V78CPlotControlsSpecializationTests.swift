@@ -14,17 +14,24 @@ import Testing
 ///      title template, grid, and render mode but withholds tab picker, stack
 ///      offset, and min-gap controls (not applicable for a single-tab workflow).
 ///
-///   2. XYRotationWorkspaceView uses WorkbenchStandardPlotControls, binding
-///      activeTab, titleTemplate, showPlotGrid, seriesRenderMode,
-///      chartStyleOverrides, stackOffsetMultiplier, and minGapFraction through
-///      it. Workflow-specific controls (centerBaseline, linearDetrend,
-///      showAuxiliaryLine180, phiOffsetOverrides) are present in the view file
-///      but are NOT parameters of WorkbenchStandardPlotControls.
+    ///   2. XYRotationWorkspaceView uses WorkbenchStandardPlotControls, binding
+    ///      activeTab, titleTemplate, showPlotGrid, seriesRenderMode,
+    ///      globalPlotDefaults, chartStyleOverrides, stackOffsetMultiplier, and
+    ///      minGapFraction through it. Workflow-specific controls
+    ///      (centerBaseline, linearDetrend, showAuxiliaryLine180,
+    ///      phiOffsetOverrides) are present in the view file but are NOT
+    ///      parameters of WorkbenchStandardPlotControls.
 ///
-///   3. ThreeOmegaWorkspaceView uses WorkbenchStandardPlotControls, binding
-///      the same shared set of controls. Workflow-specific controls (geometry,
-///      fitRanges, v3Method, RAHE method, overlays) are present in the view
-///      file but are NOT parameters of WorkbenchStandardPlotControls.
+    ///   3. ThreeOmegaWorkspaceView uses WorkbenchStandardPlotControls, binding
+    ///      the same shared set of controls plus globalPlotDefaults.
+    ///      Workflow-specific controls (geometry, fitRanges, v3Method, RAHE
+    ///      method, overlays) are present in the view file but are NOT
+    ///      parameters of WorkbenchStandardPlotControls.
+///
+    ///   4. IVWorkspaceView uses WorkbenchStandardPlotControls, binding the same
+    ///      shared controls path instead of the reduced panel. IV-specific channel
+    ///      pickers remain workflow-local extra content, while globalPlotDefaults
+    ///      carries the shared font defaults.
 
 // MARK: - Source helpers
 
@@ -82,6 +89,14 @@ struct V78CAHEPlotControlsPathTests {
                 "AHE custom path must expose seriesRenderMode through WorkbenchPlotControlsPanel")
         #expect(source.contains("WorkbenchPlotControlsPanel"),
                 "AHE custom path must use WorkbenchPlotControlsPanel as its common container")
+    }
+
+    // INV-AHE-5b: AHE custom path exposes global plot defaults
+    @Test("AHEWorkspaceView.swift custom path binds globalPlotDefaults")
+    func aheCustomPathBindsGlobalPlotDefaults() throws {
+        let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
+        #expect(source.contains("globalPlotDefaults: $workbench.globalPlotDefaults"),
+                "AHE custom plot controls path must bind the shared globalPlotDefaults")
     }
 
     // INV-AHE-6: AHE custom path exposes a legend rename UI path
@@ -164,6 +179,14 @@ struct V78CXYPlotControlsPathTests {
         let source = try loadWorkbenchSource("XYRotationWorkspaceView.swift")
         #expect(source.contains("chartStyleOverrides: $bindableStore.tabs.chartStyleOverrides"),
                 "XY must pass chartStyleOverrides binding to WorkbenchStandardPlotControls")
+    }
+
+    // INV-XY-6b: XY binds global plot defaults through the standard controls path
+    @Test("XYRotationWorkspaceView.swift binds globalPlotDefaults through standard controls")
+    func xyBindsGlobalPlotDefaults() throws {
+        let source = try loadWorkbenchSource("XYRotationWorkspaceView.swift")
+        #expect(source.contains("globalPlotDefaults: $bindableWorkbench.globalPlotDefaults"),
+                "XY must pass globalPlotDefaults binding to WorkbenchStandardPlotControls")
     }
 
     // INV-XY-7b: XY flushes the interaction snapshot when controls change
@@ -289,6 +312,13 @@ struct V78C3OmegaPlotControlsPathTests {
                 "3ω must pass chartStyleOverrides binding to WorkbenchStandardPlotControls")
     }
 
+    @Test("ThreeOmegaWorkspaceView.swift binds globalPlotDefaults through standard controls")
+    func threeOmegaBindsGlobalPlotDefaults() throws {
+        let source = try loadWorkbenchSource("ThreeOmegaWorkspaceView.swift")
+        #expect(source.contains("globalPlotDefaults: $workbench.globalPlotDefaults"),
+                "3ω must pass globalPlotDefaults binding to WorkbenchStandardPlotControls")
+    }
+
     // INV-3W-7: 3ω exposes stackOffsetMultiplier through the standard controls path
     @Test("ThreeOmegaWorkspaceView.swift binds stackOffsetMultiplier through standard controls")
     func threeOmegaBindsStackOffset() throws {
@@ -363,5 +393,105 @@ struct V78C3OmegaPlotControlsPathTests {
         let source = try loadWorkbenchSource("WorkbenchStandardPlotControls.swift")
         #expect(!source.contains("fitRanges"),
                 "fitRanges must not appear inside WorkbenchStandardPlotControls — it is 3ω Assembly-owned, not Plot Controls-owned")
+    }
+}
+
+// MARK: - Suite 4: IV uses WorkbenchStandardPlotControls
+
+@Suite("V7.8C IV standard plot controls path")
+struct V78CIVPlotControlsPathTests {
+
+    @Test("IVWorkspaceView.swift uses WorkbenchStandardPlotControls")
+    func ivUsesStandardPlotControls() throws {
+        let source = try loadWorkbenchSource("IVWorkspaceView.swift")
+        #expect(source.contains("WorkbenchStandardPlotControls"),
+                "IV must use WorkbenchStandardPlotControls instead of a reduced custom panel")
+    }
+
+    @Test("IVWorkspaceView.swift binds activeTab through standard controls")
+    func ivBindsActiveTab() throws {
+        let source = try loadWorkbenchSource("IVWorkspaceView.swift")
+        #expect(source.contains("activeTab: $store.tabs.activeTab"),
+                "IV must pass activeTab binding to WorkbenchStandardPlotControls")
+    }
+
+    @Test("IVWorkspaceView.swift binds titleTemplate through standard controls")
+    func ivBindsTitleTemplate() throws {
+        let source = try loadWorkbenchSource("IVWorkspaceView.swift")
+        #expect(source.contains("titleTemplate: $store.titleTemplate"),
+                "IV must pass titleTemplate binding to WorkbenchStandardPlotControls")
+    }
+
+    @Test("IVWorkspaceView.swift binds showPlotGrid through standard controls")
+    func ivBindsShowPlotGrid() throws {
+        let source = try loadWorkbenchSource("IVWorkspaceView.swift")
+        #expect(source.contains("showGrid"),
+                "IV must pass showGrid binding to WorkbenchStandardPlotControls")
+    }
+
+    @Test("IVWorkspaceView.swift binds style controls through standard controls")
+    func ivBindsStyleControls() throws {
+        let source = try loadWorkbenchSource("IVWorkspaceView.swift")
+        #expect(source.contains("seriesRenderMode: $store.tabs.seriesRenderMode"),
+                "IV must pass seriesRenderMode binding to WorkbenchStandardPlotControls")
+        #expect(source.contains("chartStyleOverrides: $store.tabs.chartStyleOverrides"),
+                "IV must pass chartStyleOverrides binding to WorkbenchStandardPlotControls")
+    }
+
+    @Test("IVWorkspaceView.swift binds globalPlotDefaults through standard controls")
+    func ivBindsGlobalPlotDefaults() throws {
+        let source = try loadWorkbenchSource("IVWorkspaceView.swift")
+        #expect(source.contains("globalPlotDefaults: $workbench.globalPlotDefaults"),
+                "IV must pass globalPlotDefaults binding to WorkbenchStandardPlotControls")
+    }
+
+    @Test("IVWorkspaceView.swift binds label override callbacks through standard controls")
+    func ivBindsLabelOverrides() throws {
+        let source = try loadWorkbenchSource("IVWorkspaceView.swift")
+        #expect(source.contains("onTitleOverride"),
+                "IV must pass title override callback to WorkbenchStandardPlotControls")
+        #expect(source.contains("onXLabelOverride"),
+                "IV must pass X label override callback to WorkbenchStandardPlotControls")
+        #expect(source.contains("onYLabelOverride"),
+                "IV must pass Y label override callback to WorkbenchStandardPlotControls")
+        #expect(source.contains("activeSeriesLabelOverrides"),
+                "IV must pass the active series label overrides to WorkbenchStandardPlotControls")
+        #expect(source.contains("onRenameSeriesLabel"),
+                "IV must pass the series rename callback to WorkbenchStandardPlotControls")
+    }
+
+    @Test("IVWorkspaceView.swift keeps channel pickers as workflow-specific extra content")
+    func ivKeepsChannelPickersWorkflowLocal() throws {
+        let source = try loadWorkbenchSource("IVWorkspaceView.swift")
+        #expect(source.contains("IVChannelPicker"),
+                "IV-specific channel picker controls must remain in the view file as extra content")
+        #expect(source.contains("IVCurrentBasisPicker"),
+                "IV-specific current-basis control must remain in the view file as extra content")
+    }
+
+    @Test("IVWorkspaceStore.swift renders through TabRenderManager buildPipelineInput")
+    func ivStoreUsesBuildPipelineInput() throws {
+        let source = try loadWorkbenchSource("IVWorkspaceStore.swift")
+        #expect(source.contains("tabs.buildPipelineInput(payload: payload, globalPlotDefaults: globalPlotDefaults, for: tab)"),
+                "IV rerender must route payloads through TabRenderManager.buildPipelineInput")
+        #expect(source.contains("tabs.applyPipelineOutput(output, for: tab)"),
+                "IV rerender must apply the pipeline output back through TabRenderManager")
+    }
+
+    @Test("IVWorkspaceStore.swift exposes standard plot binding state")
+    func ivStoreExposesStandardPlotBindingState() throws {
+        let source = try loadWorkbenchSource("IVWorkspaceStore.swift")
+        #expect(source.contains("stackOffsetMultiplier"),
+                "IV store must expose stackOffsetMultiplier for WorkbenchStandardPlotControls")
+        #expect(source.contains("minGapFraction"),
+                "IV store must expose minGapFraction for WorkbenchStandardPlotControls")
+        #expect(source.contains("xCurrentBasis"),
+                "IV store must expose xCurrentBasis for the IV basis selector")
+        #expect(source.contains("updateTitleOverride"),
+                "IV store must expose title override mutation through TabRenderManager")
+        #expect(source.contains("updateXLabelOverride"),
+                "IV store must expose X label override mutation through TabRenderManager")
+        #expect(source.contains("updateYLabelOverride"),
+                "IV store must expose Y label override mutation through TabRenderManager")
     }
 }

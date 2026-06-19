@@ -1,244 +1,167 @@
-# IV Workflow Assembly
+# IV Workflow — Assembly Record
 
-> Gate 8.1 new-workflow dry run. This record defines the real IV workflow contract while validating whether the Workbench Main Board can accept a new workflow without common-shell edits.
+> Gate 8 dry-run workflow. Purpose: validate that the architecture can accommodate a new workflow using only the Workflow Assembly extension path, without modifying the Main Board or any default module.
 
-## Reality Check
+---
 
-- Workflow ID: `iv`
-- Runtime display name: `IV`
-- Current config status: `config/workflow.json` already contains an `IV` workflow entry, but Workbench runtime support still requires explicit store/view/search registration.
-- Runtime model: no runtime Assembly object exists. The workflow is realized through this Assembly record plus workflow-owned Swift files and explicit Workbench registration surfaces.
-- Gate scope: chart-only IV workflow with Save to Library and analysis pack restore. Metric persistence, fitting, threshold extraction, and derivative conductance are deferred.
+## Workflow Identity
 
-## Main Board Contract
+| Field | Value |
+|---|---|
+| Workflow ID | `IV` |
+| Display name | `IV` |
+| `WorkbenchWorkflowID` case | `.iv` |
+| Search prefix | `IV ` |
+| Condition fields | `device`, `temperature`, `field` |
 
-IV must use the existing Main Board path:
-
-- `IVWorkspaceView` wraps `WorkflowWorkspaceShell`.
-- `IVWorkspaceStore` conforms to `WorkbenchWorkspaceProviding`.
-- Search, selected-hit tray, Analyze button, plot canvas, copy PNG, warnings, run trace, Save to Library, Save Analysis, and Load Pack are provided by common Workbench modules.
-- IV must not modify `WorkflowWorkspaceShell`, `WorkbenchPlotCanvas`, `SaveActiveChartToLibraryUseCase`, or `AnalysisPackProviding` default save/load behavior unless the change is separately classified as a Main Board boundary finding.
-
-## Workflow Identity / Search Hints
-
-- Canonical runtime ID: `iv`
-- Display name: `IV`
-- Search prefix: `iv `
-- Suggested aliases: `iv`, `i-v`, `currentvoltage`
-- Workflow definition condition fields: `device`, `temperature`, `field`
-
-Search should continue to use the common Workbench search module. Search results are projected into `IVWorkspaceStore.cachedSearchResults` only as a compatibility mirror; selected-hit snapshots remain the canonical analysis input.
+---
 
 ## Input Adapter Contract
 
-### Accepted files
+| Field | Detail |
+|---|---|
+| Accepted file formats | Zurich Instruments `.lvm` (same container as XY Rotation) |
+| Parser entry point | `IVLVMParser.parse(fileURL:temperatureOverride:fieldOverride:)` |
+| Column layout | Col 0: Current (A, peak); Col 1: 1st X (V); Col 2: 1st Y (V); Col 5: 2nd X (V); Col 6: 2nd Y (V) |
+| Raw data preserved | `ch1X`, `ch1Y`, `ch2X`, `ch2Y`, `firstR`, `firstTheta`, `secondR`, `secondTheta`, `firstRH`, `frequencyAfter` — component selection deferred to store; raw `1st R_H` is retained as an audit/reference column |
+| Unit conversion | Current in A (peak); voltage in V |
+| Sidecar condition injection | `temperature` → `IVSweep.temperatureK`; `field` → `IVSweep.fieldT`; `device` → `IVIngestionResult.device` |
+| Adapter output type | `IVIngestionResult` (sweeps, device, warnings, ch1State, ch2State) |
+| Warning policy | Parse failures per file → warning, file skipped. Mixed devices → warning. No files → "No files selected." |
 
-- `.lvm` files produced by the current IV measurement workflow.
+---
 
-### Parser entry point
+## Channel Mapping
 
-- `IVLVMParser`
-- `IngestIVSelectionsUseCase`
+Auto-detection runs during ingestion in `IngestIVSelectionsUseCase`:
 
-### Raw file structure
+| Step | Detail |
+|---|---|
+| Score | `scoreX = median(abs(ch1X across all sweeps))`, same for Y |
+| Selection | `autoComponent = scoreX >= scoreY ? .x : .y` |
+| Confidence | `max(scoreX, scoreY) / min(scoreX, scoreY)`; 1.0 when indeterminate |
+| Store state | `ch1Component` / `ch2Component` — auto-filled after analysis; user can override via dropdown |
+| Override effect | Triggers `rerenderForStyleChange()`, not re-parse |
 
-The parser finds the `Tableau:` line and reads the following tab-separated numeric block.
+`1st R_H` is preserved only for audit/reference. It validates the ch1 relation
+`1st R_H ≈ 1st X * sqrt(2) / Current_peak`, but it is not the canonical selected-
+resistance calculation for arbitrary channel/component mapping.
 
-Expected columns:
+---
 
-1. `Current`
-2. `1st X`
-3. `1st Y`
-4. `1st R`
-5. `1st Theta`
-6. `2nd X`
-7. `2nd Y`
-8. `2nd R`
-9. `2nd Theta`
-10. `1st R_H`
-11. `Frequency_after`
+## Physics Function
 
-### Adapter output
+Two tabs:
 
-- `IVIngestionResult`
-- Each parsed file becomes an `IVTrace`.
-- The parser preserves raw channel data. It must not permanently choose X or Y.
+| Tab | Key | X-axis | Y-axis |
+|---|---|---|---|
+| `voltage` | "V vs I" | Current (A, peak) | V (V) — selected component |
+| `resistance` | "R vs I" | Current (A, peak) | R (Ω) = V / (I_peak / √2) |
 
-### Metadata extraction
+Each tab renders 2 series per sweep: ch1 and ch2, using the currently selected component.
 
-Filename and sidecar metadata are both part of the adapter surface.
+Series label: `"{temp} K ch1"` and `"{temp} K ch2"`.
 
-Filename examples include:
+---
 
-- sample/batch: `PN80`, `PN74`
-- angle: `150deg`, `60deg`, `120deg`
-- harmonic hints: `IV_1w`, `IV_3w`, `IV_dc_ac`
-- field: `H_25000 Oe`, `H_0 Oe`
-- temperature: `T_50 K`
+## Optional Contributions
 
-Sidecar conditions may override filename-derived metadata where present.
+None. IV uses the default shell with no optional panels or secondary input search.
 
-### Unit convention
+---
 
-- `Current` is peak current.
-- RMS current is `Current / sqrt(2)`.
-- A selected voltage component converted to resistance-like output uses `R = V_selected / I_rms`.
-- Existing `1st R_H` values in the raw file are reference data and should be preserved, but the workflow's selected-signal resistance must be derived from the user-confirmed channel/component mapping.
+## Plot Semantics
 
-### Warning policy
+| Field | Value |
+|---|---|
+| Default tab | `.voltage` ("V vs I") |
+| Default title template | `#tab #device #sample` |
+| Stacking | Not applicable |
+| Legend | Default position |
+| Tab picker | Rendered by `WorkflowWorkspaceShell` (two-tab workflow) |
 
-The adapter must warn and continue when possible for:
+Plot controls panel (`IVPlotControlsPanel`): title template field, grid toggle, ch1 component picker (X/Y + confidence), ch2 component picker.
 
-- unsupported extension
-- missing `Tableau:` section
-- missing or malformed column header
-- numeric row with wrong column count
-- empty parsed trace
-- missing filename metadata that is not recoverable from sidecar conditions
+IV uses the shared Plot System render path for legend and series-order behavior:
 
-## IV-Specific Interpretation Module
+- `IVPlotRenderer` must route through `WorkbenchRenderPipeline.render(...)`.
+- `IVPlotRenderer` must pass `metadata: sweep.sampleMetadata ?? [:]` into every `WorkbenchPlotSeries`.
+- `WorkbenchRenderPipeline` owns legend auto-resolution for IV through `LegendDimensionResolver` when `legendDimension` is nil.
+- `IVSweep` ingestion must populate `sampleMetadata` so the shared resolver can infer temperature, field, harmonic, device, substrate, thickness, and related labels.
+- IV uses the shared series order and rename controls in `WorkbenchStandardPlotControls` / `WorkbenchSeriesOrderPanel`; IV must not define workflow-local reorder or legend-guessing logic.
 
-IV has one workflow-specific optional plot-control module: channel/component mapping.
+---
 
-### Responsibility
+## Validation / Warning Policy
 
-The module decides how raw X/Y lock-in channels become plotted voltage and resistance-like series.
+- No files selected → `IVIngestionResult(warnings: ["No files selected."])`.
+- File parse failure → warning per file; file is skipped.
+- Mixed devices → warning; first device used.
+- Shared legend inference is required: IV must not pre-set `payload.legendDimension`, and any legend choice must come from the shared Plot System path.
 
-### Auto-detection
-
-For each channel:
-
-- compare a robust magnitude score for X and Y, preferably `median(abs(component))`
-- selected component defaults to the larger component
-- confidence is `max(scoreX, scoreY) / min(scoreX, scoreY)` when denominator is nonzero
-- the auto-detected selection is written back into store state so the UI shows what was inferred
-
-### User override
-
-The plot-control module must allow the user to override:
-
-- channel: `1st` / `2nd`
-- selected component: `X` / `Y`
-- harmonic label: `1ω` / `2ω` / `3ω` / `dc/ac` / custom or unknown
-
-Override behavior:
-
-- override triggers rerender only
-- override must not reparse raw files
-- override must not mutate search or selection state
-- override must be persisted in pack config
-
-### Default physical convention
-
-- Odd harmonic responses usually use X.
-- Even harmonic responses may use Y.
-- The software should use measured X/Y dominance as the default, not hard-code harmonic parity as the only rule.
-
-## Analysis Pipeline
-
-1. Main Board provides selected-hit snapshot.
-2. `IVWorkspaceStore.runAnalysis(selectedHitsSnapshot:)` consumes selected hits.
-3. `IngestIVSelectionsUseCase` parses selected `.lvm` files into `IVIngestionResult`.
-4. IV mapping state is auto-filled from parsed traces when no user override exists.
-5. `IVPlotRenderer` builds `WorkbenchPlotPayload` for the active tab.
-6. Common render pipeline produces PNG/layout/manifest payload.
-7. Store applies output to `TabRenderManager` and commits run trace after analysis.
-
-Rerender paths must reuse `IVIngestionResult` and mapping state; they must not commit run trace.
-
-## Plot Contract
-
-Initial Gate 8.1 tabs:
-
-- `Selected V vs Current`
-  - x: peak current from `Current`
-  - y: selected voltage component from channel mapping
-- `Selected R vs Current`
-  - x: peak current from `Current`
-  - y: `selected voltage / (Current / sqrt(2))`
-
-Suggested labels:
-
-- x-axis: `Current (A, peak)`
-- selected-voltage y-axis: `Selected V (V RMS)`
-- selected-resistance y-axis: `Selected R (Ω)`
-
-Suggested series label tokens:
-
-- sample/batch
-- angle
-- harmonic label
-- field, preferably displayed in T when derived from Oe
-- temperature
+---
 
 ## Persistence / Pack-Restore
 
-### Pack config owns
+| Contract type | Swift type |
+|---|---|
+| `PackConfig` | `IVPackConfig` |
+| `PackResult` | `IVPackResult` |
+| `packWorkflowID` | `"IV"` |
 
-- active tab
-- title template
-- plot grid flag
-- tab render states
-- chart style overrides if supported by store
-- cached search results mirror
-- selected search result IDs
-- search query text
-- auto-detected channel/component mapping
-- user override channel/component mapping
-- harmonic labels
+`IVPackConfig` carries: `activeTab`, `titleTemplate`, `showPlotGrid`, `seriesRenderMode`, `chartStyleOverrides`, `ch1Component`, `ch2Component`, `tabStates`, `cachedSearchResults`, `selectedSearchResultIDs`, `searchQueryText`.
 
-### Pack result owns
+`IVPackResult` carries: `ingestionResult: IVIngestionResult`.
 
-- `IVIngestionResult`
+Restore re-applies all config fields, restores channel components, and re-renders all tabs through the shared `WorkbenchRenderPipeline`.
 
-### Restore contract
+Save-to-Library is chart-only for IV: the shared active-chart export path persists the rendered PNG plus manifest payload, and IV does not emit metric records.
 
-- Restore search mirror and selection through provided callbacks.
-- Restore `IVIngestionResult` from pack result.
-- Restore mapping state from pack config.
-- Rerender from restored ingestion result.
-- Do not reparse raw files during normal restore.
-- Do not commit run trace directly from restore.
-
-## Save Metadata / Metric Contract
-
-Gate 8.1 is chart-only.
-
-- `buildActiveChartMetrics()` returns `[]`.
-- Metric persistence for resistance slope, thresholds, nonlinear coefficients, or conductance is deferred.
+---
 
 ## Required Behavior Tests
 
-Minimum targeted tests:
+| Test | File |
+|---|---|
+| LVM parser extracts all channel columns | `V81IVParserChannelMappingTests.swift` |
+| Channel mapping selects dominant component | `V81IVParserChannelMappingTests.swift` |
+| Channel mapping confidence = max/min ratio | `V81IVParserChannelMappingTests.swift` |
+| Tie-break / empty-array edge cases | `V81IVParserChannelMappingTests.swift` |
 
-- `IVLVMParserTests`
-  - parses `Tableau:` block
-  - extracts 11 expected numeric columns
-  - verifies RMS relation on fixture data where appropriate
-- `IngestIVSelectionsUseCaseTests`
-  - parses selected hits
-  - injects filename/sidecar metadata
-  - warns on unsupported files
-- `IVChannelMappingTests`
-  - auto-selects X when X dominates Y
-  - auto-selects Y when Y dominates X
-  - preserves user override after rerender
-- `IVPackRoundTripTests`
-  - config/result encode and decode
-  - `IVPackResult` includes `IVIngestionResult`
-- `IVWorkspaceStoreRunAnalysisTests`
-  - consumes selected-hit snapshot
-  - does not use cached search results as primary selected-hit source
-- `IVRestoreBoundaryTests`
-  - restore does not commit run trace directly
-  - restore rerenders from pack result without reparsing raw files
+Future tests (when Pack/Restore is implemented):
+- Restore round-trips `activeTab`, `ch1Component`, `ch2Component`, `seriesRenderMode`, and chart style overrides correctly.
+- Restore preserves per-tab title / axis / series-order overrides and re-renders through `WorkbenchRenderPipeline`.
+- `runAnalysis(selectedHitsSnapshot:)` consumes snapshot, not `cachedSearchResults`.
+- Save-to-Library writes only chart artifacts, not metric records.
 
-## Boundary Findings to Feed Back into EXTENSION_BOUNDARIES
+---
 
-This dry run has already clarified these extension requirements:
+## Implementation Surface
 
-- `EXTENSION_BOUNDARIES.md` must list `WorkbenchMainSearchRuntime.swift` as a required registration surface.
-- `WorkbenchFeatureStore.swift` currently lives under `Sources/SpinLabApp/App/State/`, not under `Features/Workbench/`.
-- New workflow config entries do not automatically imply Workbench runtime support.
-- Workflow-specific plot controls are optional modules mounted through `WorkflowWorkspaceShell` slots, not Main Board edits.
-- Parser and physics interpretation are separate ownership surfaces for IV.
+| Layer | File |
+|---|---|
+| Ingestion contracts | `Sources/SpinLabApp/Workbench/V3/IVIngestionContracts.swift` |
+| LVM parser | `Sources/SpinLabApp/UseCases/IVLVMParser.swift` |
+| Ingestion use case | `Sources/SpinLabApp/UseCases/IngestIVSelectionsUseCase.swift` |
+| Plot renderer | `Sources/SpinLabApp/UseCases/IVPlotRenderer.swift` |
+| Pack contracts | `Sources/SpinLabApp/Workbench/V3/IVPackContracts.swift` |
+| Workspace store | `Sources/SpinLabApp/Features/Workbench/IVWorkspaceStore.swift` |
+| Workspace view | `Sources/SpinLabApp/Features/Workbench/IVWorkspaceView.swift` |
+| Workflow ID registration | `WorkbenchWorkflowID.iv` in `WorkbenchFeatureStore.swift` |
+| View dispatch | `WorkflowWorkspaceRegistry.swift` case `"iv"` |
+| Search / mirror wiring | `WorkbenchMainSearchRuntime.swift` three switch cases |
+- Shared plot controls / order / legend path | `WorkbenchStandardPlotControls.swift`, `WorkbenchSeriesOrderPanel.swift`, `WorkbenchRenderPipeline.swift`, `LegendDimensionResolver.swift`, `WorkbenchSeriesOrderKeyResolver.swift` |
+
+## Code Map
+
+- `Sources/SpinLabApp/Features/Workbench/IVWorkspaceStore.swift` - IV workflow workspace store owning IV analysis, pack, and render state
+- `Sources/SpinLabApp/Features/Workbench/IVWorkspaceView.swift` - IV workflow shell view and workflow-specific control content
+- `Sources/SpinLabApp/UseCases/IVLVMParser.swift` - IV LVM parser that preserves raw channels and audit columns
+- `Sources/SpinLabApp/UseCases/IVPlotRenderer.swift` - IV workflow renderer that builds plot payloads from IV sweeps
+- `Sources/SpinLabApp/UseCases/IngestIVSelectionsUseCase.swift` - IV ingestion use case that derives `IVIngestionResult` from selected hits
+- `Sources/SpinLabApp/Workbench/V3/IVIngestionContracts.swift` - IV ingestion result and sweep contracts
+- `Sources/SpinLabApp/Workbench/V3/IVPackContracts.swift` - IV pack config and pack result contracts
+- `Sources/SpinLabApp/App/State/WorkbenchFeatureStore.swift` - workflow registration, routing, and shared search/plot ownership for IV
+- `Sources/SpinLabApp/App/State/WorkbenchMainSearchRuntime.swift` - main search orchestration and IV search mirror sync
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift` - dispatches `IVWorkspaceView` for `iv`
+- `Sources/SpinLabApp/UI/WorkbenchUIStyle.swift` - shared compact Workbench control styling tokens used by IV controls

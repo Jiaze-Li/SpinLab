@@ -8,78 +8,26 @@
 
 Before writing any code, define the Workflow Assembly. See [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) for the stable contract fields and ownership boundaries. Key decisions:
 
-- Workflow Identity: stable runtime workflow ID registered in `WorkbenchWorkflowID`; optionally add `WorkflowID` aliases when the workflow should participate in canonical cross-region identity normalization.
-- Physics Function: scientific model, measurement inputs, expected outputs, and workflow-specific interpretation rules.
-- Input Adapter: accepted raw file formats, parser entry point, column mapping, unit conversion, sidecar/filename metadata injection, warning policy.
-- Optional Panels / optional contributions: which additional workflow-specific content the workflow needs beyond the default set.
-- Plot Defaults: how this workflow's result should be displayed by default.
-- Save Metadata Provider: how a saved chart should be interpreted later.
-- Pack Metadata Provider: how the full workspace should be restored later.
-- Required Tests: regression gates the workflow must pass.
+- Workflow Identity: stable workflow ID registered in `WorkbenchWorkflowID`
+- Physics Function: scientific model, measurement inputs, expected outputs
+- Optional Panels / optional contributions: which additional workflow-specific content the workflow needs beyond the default set
+- Plot Defaults: how this workflow's result should be displayed by default
+- Save Metadata Provider: how a saved chart should be interpreted later
+- Pack Metadata Provider: how the full workspace should be restored later
+- Required Tests: regression gates the workflow must pass
 
 Default modules attach automatically. Do not redeclare them in the Workflow Assembly.
 
-### Runtime reality note
+### Step 1-8 - Implementation checklist
 
-There is no single runtime `WorkflowAssembly` object. A new workflow is currently realized by one Assembly document plus distributed Swift registration and workflow-owned files. This file is the implementation checklist for that real surface, not a promise of plugin-style zero-touch registration.
-
-Expected reusable Main Board behavior:
-
-- workflow search box and search button
-- search results list
-- select all / selected hits tray
-- analyze button
-- plot canvas, legend drag, copy PNG
-- title / axis-label overrides
-- series label rename and point-label visibility where supported by payload
-- warning and run-trace display
-- Save to Library button
-- Save Analysis / Load Pack shell
-
-New workflows must provide only workflow-specific data interpretation, analysis, plot payload construction, optional controls, and pack restore semantics. If a new workflow requires edits to `WorkflowWorkspaceShell`, `WorkbenchPlotCanvas`, `SaveActiveChartToLibraryUseCase`, or `AnalysisPackProviding` default behavior, classify that as a Main Board boundary finding before continuing.
-
-### Step 1-10 - Implementation checklist
-
-1. Write `docs/architecture/workbench/workflows/<name>/ASSEMBLY.md` before runtime code.
-2. Register runtime workflow identity in `WorkbenchWorkflowID` (`Sources/SpinLabApp/App/State/WorkbenchFeatureStore.swift`). Add `WorkflowID` aliases (`Sources/SpinLabApp/Domain/Workflow/WorkflowID.swift`) only when canonical search/alias behavior should recognize the workflow globally.
-3. Ensure rules/config expose the workflow definition in `Sources/SpinLabApp/config/workflow.json` or the runtime rules book. Existing config entries are not enough: they make the workflow visible in registry metadata, not supported by Workbench runtime.
-4. Create `<Name>IngestionContracts.swift` - domain result structs (`Codable`, `Hashable`, `Sendable`) and tab identifiers.
-5. Create parser / adapter files and `Ingest<Name>SelectionsUseCase.swift` - stateless ingestion from selected search hits to the workflow result. Parser code owns raw column mapping and unit conversion.
-6. Create `<Name>PackContracts.swift` - `PackConfig` (UI state snapshot) + `PackResult` (must include `ingestionResult`). This is the Pack Metadata Provider implementation.
-7. Create `<Name>WorkspaceStore.swift` - `@MainActor @Observable final class` conforming `WorkbenchWorkspaceProviding`; use workflow-local cached search results only as compatibility mirrors, not as canonical selected-hit input.
-8. Create `<Name>WorkspaceView.swift` - thin view wrapping `WorkflowWorkspaceShell` with workflow-specific optional panel or contribution content.
-9. Register the concrete store and view:
-   - store ownership / vault / selection injection in `Sources/SpinLabApp/App/State/WorkbenchFeatureStore.swift`
-   - view dispatch in `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift`
-   - search result projection, clear mirrors, numeric-display cache, and library-root propagation in `Sources/SpinLabApp/App/State/WorkbenchMainSearchRuntime.swift`
-10. Add targeted tests, then run required actions:
-   - parser / ingestion tests for raw fixtures
-   - selected-hit snapshot consumption test
-   - pack config/result round trip
-   - restore boundary test: restore must not commit run trace directly
-   - registry routing smoke test when feasible
-   - `./scripts/check_required_actions.sh`
-
-### Gate 8.1 IV dry-run findings
-
-The IV workflow dry run is the current calibration case for this document. It records real extension surfaces while adding a real workflow.
-
-Current IV decisions:
-
-- Workflow ID: `iv`
-- Display name: `IV`
-- Input format: `.lvm` files with `Tableau:` numeric block.
-- Raw columns: `Current`, `1st X`, `1st Y`, `1st R`, `1st Theta`, `2nd X`, `2nd Y`, `2nd R`, `2nd Theta`, `1st R_H`, `Frequency_after`.
-- Current column is peak current. RMS current is `Current / sqrt(2)`.
-- Parser stores raw channel data; it must not permanently choose X or Y.
-- IV-specific plot control module owns channel interpretation:
-  - auto-detect dominant component per channel by comparing robust magnitude of X and Y, preferably `median(abs(component))`
-  - auto-fill selected component and confidence
-  - allow user override via workflow-specific plot controls
-  - rerender after override without reparsing files
-- Resistance-like plots use selected voltage divided by RMS current.
-- Pack config must persist auto-detected mapping and user overrides; pack result must persist `IVIngestionResult`.
-- Gate 8.1 scope is chart-only plus pack/restore; metric persistence is intentionally deferred.
+1. Register workflow ID in `WorkbenchWorkflowID` enum (`Workflow/WorkflowID.swift`).
+2. Create `<Name>IngestionContracts.swift` - domain result struct (`Codable`, `Hashable`, `Sendable`).
+3. Create `Ingest<Name>SelectionsUseCase.swift` - stateless ingestion from search hits to result.
+4. Create `<Name>PackContracts.swift` - `PackConfig` (UI state snapshot) + `PackResult` (must include `ingestionResult`). This is the Pack Metadata Provider implementation.
+5. Create `<Name>WorkspaceStore.swift` - `@MainActor @Observable final class` conforming `WorkbenchWorkspaceProviding`.
+6. Create `<Name>WorkspaceView.swift` - thin view wrapping `WorkflowWorkspaceShell` with workflow-specific optional panel or contribution content.
+7. Register store in `WorkbenchFeatureStore` and view in `WorkflowWorkspaceRegistry`.
+8. Add search case in `WorkbenchFeatureStore.runWorkflowMeasurementSearch()`.
 
 ## Adding a New Module
 
@@ -146,7 +94,6 @@ These invariants are enforced at the Main Board level; all steps above must resp
 - Main Board-triggered analysis entry must consume `WorkbenchSearchSnapshot` as canonical search input.
 - Workflow analysis entry should consume a run-scoped selected-hit snapshot and must not use workflow-local `cachedSearchResults` as primary selection input.
 - New workflow implementations must not treat workflow-local `cachedSearchResults` mirrors as canonical search state.
-- Parser / input adapter code must preserve raw measurement data and metadata. Workflow-specific interpretation modules may derive plotting series from the raw result.
 - The Physics Function must not own running / message / warning / trace state. Those belong to the Analysis Lifecycle Module.
 - Analysis must not mutate Search Module state, Selection Module state, or tab override state.
 
@@ -251,8 +198,6 @@ This is a routing and check rule, not a long approval form. Small typo or commen
 
 ## Extension Module Import Rules
 
-The old extension-protocol rules below describe the legacy extension system, not the current Workbench Main Board workflow path. New Workbench workflows currently follow the `WorkflowWorkspaceShell` / `WorkbenchWorkspaceProviding` path above.
-
 - Extension modules must NOT import `Features/` or `App/` modules.
 - Extensions may only depend on:
   - `Domain/` types
@@ -265,19 +210,11 @@ The old extension-protocol rules below describe the legacy extension system, not
 
 | Artifact | Destination |
 |---|---|
-| New workflow assembly record | `docs/architecture/workbench/workflows/<name>/ASSEMBLY.md` |
 | New workflow workspace store | `Sources/SpinLabApp/Features/Workbench/<Name>WorkspaceStore.swift` conforming `WorkbenchWorkspaceProviding` |
 | New workflow workspace view | `Sources/SpinLabApp/Features/Workbench/<Name>WorkspaceView.swift` wrapping `WorkflowWorkspaceShell` |
-| New workflow parser / adapter | `Sources/SpinLabApp/UseCases/<Name>*Parser.swift` or equivalent workflow-owned adapter file |
 | New workflow ingestion UseCase | `Sources/SpinLabApp/UseCases/Ingest<Name>SelectionsUseCase.swift` |
-| New workflow plot payload builder / renderer | `Sources/SpinLabApp/UseCases/<Name>PlotRenderer.swift` or equivalent workflow-owned payload builder |
 | New workflow pack contracts | `Sources/SpinLabApp/Workbench/V3/<Name>PackContracts.swift` (`PackConfig` + `PackResult`) |
 | New workflow ingestion contracts | `Sources/SpinLabApp/Workbench/V3/<Name>IngestionContracts.swift` |
-| Runtime workflow ID | `Sources/SpinLabApp/App/State/WorkbenchFeatureStore.swift` (`WorkbenchWorkflowID`) |
-| Workspace view dispatch | `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift` |
-| Search runtime mirror projection | `Sources/SpinLabApp/App/State/WorkbenchMainSearchRuntime.swift` |
-| Canonical workflow alias, if needed | `Sources/SpinLabApp/Domain/Workflow/WorkflowID.swift` |
-| Rules/config workflow definition, if needed | `Sources/SpinLabApp/config/workflow.json` or runtime rules book |
 
 ## Cross-Links
 
@@ -289,14 +226,15 @@ The old extension-protocol rules below describe the legacy extension system, not
 
 ## Code Map
 
-- `Sources/SpinLabApp/App/State/WorkbenchFeatureStore.swift` - current Workbench runtime workflow identity enum, concrete workspace store ownership, vault/selection injection, denominator projection <!-- legitimate_cross_cutting -->
-- `Sources/SpinLabApp/App/State/WorkbenchMainSearchRuntime.swift` - current Workbench main-search runtime; owns per-workflow search state and projects result mirrors into concrete workspace stores <!-- legitimate_cross_cutting -->
-- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift` - concrete workspace view dispatch for supported workflow IDs
-- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceShell.swift` - shared Main Board workspace shell used by new workflow views
-- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift` - `WorkbenchWorkspaceProviding`, `ActiveChartProviding`, and related shell-facing workflow store contracts
-- `Sources/SpinLabApp/Domain/Workflow/WorkflowID.swift` - Tier 1 canonical workflow identity enum with alias normalization; cross-region contract when opted in <!-- legitimate_cross_cutting -->
-- `Sources/SpinLabApp/Domain/WorkflowSearchModels.swift` - shared workflow search query and search-hit model
-- `Sources/SpinLabApp/Workflow/WorkflowDefinition.swift` - defines the workflow registration contract (ID, display name, condition fields)
+- `Sources/SpinLabApp/Domain/Workflow/WorkflowID.swift` - Tier 1 canonical workflow identity enum with alias normalization; cross-region contract <!-- legitimate_cross_cutting -->
+- `Sources/SpinLabApp/Domain/Workflow/WorkflowDefinitionProviding.swift` - capability protocol for loading workflow definitions; WorkflowDefinitionStore conforms
+- `Sources/SpinLabApp/Workflow/WorkflowDefinition.swift` - defines the workflow registration contract (ID, metadata, capabilities)
+- `Sources/SpinLabApp/Extensions/ExtensionPoints.swift` - declares extension points for workflow opt-in capabilities
 - `Sources/SpinLabApp/Workflow/WorkflowDefinitionStore.swift` - stores registered workflow definitions; populated at app startup
-- `Sources/SpinLabApp/Workflow/WorkflowRegistry.swift` - legacy/global registry mapping workflow IDs to definitions and capabilities
-- `Sources/SpinLabApp/Extensions/ExtensionPoints.swift` - legacy extension points; do not confuse with the current Workbench Main Board workflow path
+- `Sources/SpinLabApp/Workflow/WorkflowRegistry.swift` - global registry mapping workflow IDs to their definitions and capabilities
+- `Sources/SpinLabApp/Workbench/V3/IVIngestionContracts.swift` - IV domain result types: IVSweep, IVIngestionResult, IVWorkbenchTab <!-- gate8.1 -->
+- `Sources/SpinLabApp/UseCases/IngestIVSelectionsUseCase.swift` - stateless ingestion from search hits to IVIngestionResult (Gate 8 stub) <!-- gate8.1 -->
+- `Sources/SpinLabApp/Workbench/V3/IVPackContracts.swift` - IVPackConfig + IVPackResult for IV workspace pack/restore <!-- gate8.1 -->
+- `Sources/SpinLabApp/Features/Workbench/IVWorkspaceStore.swift` - WorkbenchWorkspaceProviding conformance for IV workflow <!-- gate8.1 -->
+- `Sources/SpinLabApp/Features/Workbench/IVWorkspaceView.swift` - IV workspace view wrapping WorkflowWorkspaceShell <!-- gate8.1 -->
+- Gate 8 finding: common series-order key resolution had been hidden in `ThreeOmegaWorkspaceStore.seriesOrderKey`; it is now extracted to `WorkbenchSeriesOrderKeyResolver`, which is owned by the Plot System and consumed by the shared series-order/rename path. <!-- gate8.1 -->
