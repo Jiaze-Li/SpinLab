@@ -96,6 +96,8 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` — owns AHE selection, plot, warning, pack, and render state
 - `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift` — mounts the AHE workflow shell and workflow-specific panels
 - `Sources/SpinLabApp/Features/Workbench/OverlaySnapshot.swift` — stores decoupled overlay pack data for RAHE rendering
+- `Sources/SpinLabApp/Features/Workbench/IVWorkspaceStore.swift` — owns IV analysis, pack, and render state for the IV workflow assembly
+- `Sources/SpinLabApp/Features/Workbench/IVWorkspaceView.swift` — mounts the IV workflow shell and workflow-specific control content
 - `Sources/SpinLabApp/Features/Workbench/PlotCanvasMouseTracker.swift` — bridges mouse events into plot-canvas drag and tap tracking
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaRenderedPlots.swift` — carries rendered 3ω plot images, layouts, and pipeline warnings
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkbenchTab.swift` — defines 3ω tab identities and stable persistence keys
