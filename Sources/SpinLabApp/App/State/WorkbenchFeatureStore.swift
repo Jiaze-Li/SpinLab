@@ -242,6 +242,8 @@ final class WorkbenchFeatureStore {
 
         // Route overlay display/control state through the common overlay runtime.
         self.threeOmegaWorkspace.overlayRuntime = self.overlayRuntime
+
+        syncGlobalPlotDefaultsToWorkspaces()
     }
 
     deinit {
@@ -304,6 +306,7 @@ final class WorkbenchFeatureStore {
         xyRotationCenterBaseline: Bool? = nil,
         xyRotationLinearDetrend: Bool? = nil,
         xyRotationPlotLegendPoints: [String: [Double]]? = nil,
+        workbenchPlotDefaults: [String: String]? = nil,
         workbenchChartStyleOverrides: [String: String]? = nil
     ) {
         if let selectedArchivedRecordID,
@@ -509,6 +512,13 @@ final class WorkbenchFeatureStore {
             return workflowDefinitions.first
         }
         return workflowDefinitions.first { $0.id.caseInsensitiveCompare(selectedWorkflowID) == .orderedSame }
+    }
+
+    private func syncGlobalPlotDefaultsToWorkspaces() {
+        aheWorkspace.globalPlotDefaults = globalPlotDefaults
+        xyRotationWorkspace.globalPlotDefaults = globalPlotDefaults
+        threeOmegaWorkspace.globalPlotDefaults = globalPlotDefaults
+        ivWorkspace.globalPlotDefaults = globalPlotDefaults
     }
 
     func selectWorkflow(_ id: String?) {

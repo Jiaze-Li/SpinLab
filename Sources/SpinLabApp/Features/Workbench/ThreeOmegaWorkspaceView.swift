@@ -42,6 +42,7 @@ private struct ThreeOmegaPlotControlsPanel: View {
 
     var body: some View {
         @Bindable var store = appState.workbench.threeOmegaWorkspace
+        @Bindable var workbench = appState.workbench
 
         WorkbenchStandardPlotControls(
             activeTab: $store.tabs.activeTab,
@@ -53,6 +54,7 @@ private struct ThreeOmegaPlotControlsPanel: View {
             titleTemplate: $store.titleTemplate,
             numericDisplayCache: store.cachedSampleNumericDisplay,
             seriesRenderMode: $store.tabs.seriesRenderMode,
+            globalPlotDefaults: $workbench.globalPlotDefaults,
             chartStyleOverrides: $store.tabs.chartStyleOverrides,
             seriesOrderPayload: store.activeChartManifestPayload,
             currentSeriesOrder: store.activeSeriesOrder,

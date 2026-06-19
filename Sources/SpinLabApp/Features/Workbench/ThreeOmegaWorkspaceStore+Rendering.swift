@@ -35,6 +35,7 @@ extension ThreeOmegaWorkspaceStore {
         let capturedFieldSweepSeriesOrder = fieldSweepSeriesOrder
         let capturedState1     = tabs.state(for: .fieldSweep1omega)
         let capturedState3     = tabs.state(for: .fieldSweep3omega)
+        let capturedGlobalPlotDefaults = globalPlotDefaults
 
         Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
@@ -47,6 +48,7 @@ extension ThreeOmegaWorkspaceStore {
             renderer1.showGrid              = capturedGrid
             renderer1.seriesRenderMode      = capturedRenderMode
             renderer1.chartStyleOverrides   = capturedStyleOverrides
+            renderer1.globalPlotDefaults    = capturedGlobalPlotDefaults
             renderer1.legendAnchor          = capturedAnchor
             renderer1.stackOffsetMultiplier = capturedMultiplier
             renderer1.minGapFraction        = capturedMinGap
@@ -63,6 +65,7 @@ extension ThreeOmegaWorkspaceStore {
             renderer3.showGrid              = capturedGrid
             renderer3.seriesRenderMode      = capturedRenderMode
             renderer3.chartStyleOverrides   = capturedStyleOverrides
+            renderer3.globalPlotDefaults    = capturedGlobalPlotDefaults
             renderer3.legendAnchor          = capturedAnchor
             renderer3.stackOffsetMultiplier = capturedMultiplier
             renderer3.minGapFraction        = capturedMinGap
@@ -171,6 +174,7 @@ extension ThreeOmegaWorkspaceStore {
         let capturedV3Method = v3Method
         let capturedRAHE1Method = rahe1omegaMethod
         let capturedRAHE3Method = rahe3omegaMethod
+        let capturedGlobalPlotDefaults = globalPlotDefaults
 
         _renderRevision &+= 1
         let revision = _renderRevision
@@ -183,6 +187,7 @@ extension ThreeOmegaWorkspaceStore {
             r.showGrid              = capturedGrid
             r.seriesRenderMode      = capturedRenderMode
             r.chartStyleOverrides   = capturedStyleOverrides
+            r.globalPlotDefaults    = capturedGlobalPlotDefaults
             r.legendAnchor          = capturedAnchor
             r.legendPoint           = capturedLegend
             r.hiddenPointLabelsBySeries = toIndexedOverrides(capturedHiddenLabels, series: fakeSeries).mapValues { Set($0) }
@@ -291,6 +296,7 @@ extension ThreeOmegaWorkspaceStore {
         let capturedSeriesOverrides1 = state1.seriesLabelOverrides
         let capturedSeriesOverrides3 = state3.seriesLabelOverrides
         let capturedRAHEFieldSweeps = ingestion.fieldSweeps
+        let capturedGlobalPlotDefaults = globalPlotDefaults
 
         _renderRevision &+= 1
         let revision = _renderRevision
@@ -301,6 +307,7 @@ extension ThreeOmegaWorkspaceStore {
             r1.showGrid = capturedGrid
             r1.seriesRenderMode = capturedRenderMode
             r1.chartStyleOverrides = capturedStyleOverrides
+            r1.globalPlotDefaults = capturedGlobalPlotDefaults
             r1.legendAnchor = capturedAnchor
             r1.legendPoint = capturedLegend1
             r1.titleOverride = titleOverride1
@@ -315,6 +322,7 @@ extension ThreeOmegaWorkspaceStore {
             r3.showGrid = capturedGrid
             r3.seriesRenderMode = capturedRenderMode
             r3.chartStyleOverrides = capturedStyleOverrides
+            r3.globalPlotDefaults = capturedGlobalPlotDefaults
             r3.legendAnchor = capturedAnchor
             r3.legendPoint = capturedLegend3
             r3.titleOverride = titleOverride3
@@ -353,11 +361,13 @@ extension ThreeOmegaWorkspaceStore {
         let capturedTokens     = _titleTokens
         let capturedRAHE1Method = rahe1omegaMethod
         let capturedRAHE3Method = rahe3omegaMethod
+        let capturedGlobalPlotDefaults = globalPlotDefaults
         Task.detached(priority: .userInitiated) { [weak self, ingestion] in
             var renderer = ThreeOmegaPlotRenderer()
             renderer.showGrid              = capturedGrid
             renderer.seriesRenderMode      = capturedRenderMode
             renderer.chartStyleOverrides   = capturedStyleOverrides
+            renderer.globalPlotDefaults    = capturedGlobalPlotDefaults
             renderer.legendAnchor          = capturedAnchor
             renderer.stackOffsetMultiplier = capturedMultiplier
             renderer.minGapFraction        = capturedMinGap
@@ -402,6 +412,7 @@ extension ThreeOmegaWorkspaceStore {
         let capturedV3Method      = v3Method
         let capturedDevice        = ingestion.device
         let capturedFieldSweepSeriesOrder = fieldSweepSeriesOrder
+        let capturedGlobalPlotDefaults = globalPlotDefaults
 
         struct PerTabSnap: Sendable {
             let titleOverride: String
@@ -458,6 +469,7 @@ extension ThreeOmegaWorkspaceStore {
                 r.showGrid                   = capturedGrid
                 r.seriesRenderMode           = capturedRenderMode
                 r.chartStyleOverrides        = capturedStyleOverrides
+                r.globalPlotDefaults         = capturedGlobalPlotDefaults
                 r.legendAnchor               = capturedAnchor
                 r.legendPoint                = s.legendPoint
                 r.hiddenPointLabelsBySeries  = toIndexedOverrides(s.hiddenPointLabelsBySeries, series: fakeSeries).mapValues { Set($0) }

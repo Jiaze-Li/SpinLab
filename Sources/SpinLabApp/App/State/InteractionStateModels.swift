@@ -371,6 +371,9 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     /// Per-tab legend positions keyed by XYRotationWorkbenchTab.rawValue.
     var xyRotationPlotLegendPoints: [String: [Double]]?
 
-    // Chart style overrides (font sizes, tick density) — shared across workflows
+    // Shared plot defaults (font families, font sizes) across workflows.
+    var workbenchPlotDefaults: [String: String]?
+
+    // Legacy chart style overrides (tick density and other workflow-local display state).
     var workbenchChartStyleOverrides: [String: String]?
 }

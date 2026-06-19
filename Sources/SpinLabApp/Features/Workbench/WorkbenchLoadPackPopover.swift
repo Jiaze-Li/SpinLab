@@ -183,5 +183,6 @@ struct WorkbenchLoadPackPopover<Store: WorkbenchWorkspaceProviding>: View {
                 appState.workbench.seedSelection(ids, hits: hits, for: wfID)
             }
         )
+        appState.workbench.globalPlotDefaults = store.globalPlotDefaults
     }
 }

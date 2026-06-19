@@ -10,6 +10,7 @@ private let _plotControlsFontSizeOptions: [CGFloat] = [12, 14, 16, 18, 19, 20, 2
 /// Shell 级控件（绘图模式、字号、tick 密度）自动附加在底部。
 struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
     @Binding var seriesRenderMode: SeriesRenderMode
+    @Binding var globalPlotDefaults: [String: String]
     @Binding var chartStyleOverrides: [String: String]
     var onStyleChange: (() -> Void)? = nil
     @ViewBuilder var supplementalContent: () -> Supplemental
@@ -61,14 +62,15 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
 
     @ViewBuilder
     private func fontSizePicker(label: String, key: String) -> some View {
-        let defaultSize: CGFloat = WorkbenchChartStyle()[keyPath: Self.fontSizeKeyPath(key)]
-        let current = chartStyleOverrides[key].flatMap { Double($0).map { CGFloat($0) } } ?? defaultSize
+        let style = WorkbenchChartStyle.from(styleParams: globalPlotDefaults)
+        let current = globalPlotDefaults[key].flatMap { Double($0).map { CGFloat($0) } }
+            ?? style[keyPath: Self.fontSizeKeyPath(key)]
         HStack(spacing: 2) {
             Text(label).font(.system(size: 12)).fixedSize()
             Picker("", selection: Binding<CGFloat>(
                 get: { current },
                 set: { newVal in
-                    chartStyleOverrides[key] = "\(Int(newVal))"
+                    globalPlotDefaults[key] = "\(Int(newVal))"
                     onStyleChange?()
                 }
             )) {
@@ -117,11 +119,13 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
 extension WorkbenchPlotControlsPanel where Supplemental == EmptyView {
     init(
         seriesRenderMode: Binding<SeriesRenderMode>,
+        globalPlotDefaults: Binding<[String: String]>,
         chartStyleOverrides: Binding<[String: String]>,
         onStyleChange: (() -> Void)? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self._seriesRenderMode = seriesRenderMode
+        self._globalPlotDefaults = globalPlotDefaults
         self._chartStyleOverrides = chartStyleOverrides
         self.onStyleChange = onStyleChange
         self.supplementalContent = { EmptyView() }

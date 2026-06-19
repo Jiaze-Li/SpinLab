@@ -21,6 +21,7 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     @Binding var titleTemplate: String
     let numericDisplayCache: [String: [String: String]]
     @Binding var seriesRenderMode: SeriesRenderMode
+    @Binding var globalPlotDefaults: [String: String]
     @Binding var chartStyleOverrides: [String: String]
     var seriesOrderPayload: WorkbenchPlotPayload? = nil
     var currentSeriesOrder: [String]? = nil
@@ -55,6 +56,7 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     var body: some View {
         WorkbenchPlotControlsPanel(
             seriesRenderMode: $seriesRenderMode,
+            globalPlotDefaults: $globalPlotDefaults,
             chartStyleOverrides: $chartStyleOverrides,
             onStyleChange: onChange,
             supplementalContent: {
@@ -157,6 +159,7 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         titleTemplate: Binding<String>,
         numericDisplayCache: [String: [String: String]],
         seriesRenderMode: Binding<SeriesRenderMode>,
+        globalPlotDefaults: Binding<[String: String]>,
         chartStyleOverrides: Binding<[String: String]>,
         seriesOrderPayload: WorkbenchPlotPayload? = nil,
         currentSeriesOrder: [String]? = nil,
@@ -185,6 +188,7 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         self._titleTemplate = titleTemplate
         self.numericDisplayCache = numericDisplayCache
         self._seriesRenderMode = seriesRenderMode
+        self._globalPlotDefaults = globalPlotDefaults
         self._chartStyleOverrides = chartStyleOverrides
         self.seriesOrderPayload = seriesOrderPayload
         self.currentSeriesOrder = currentSeriesOrder

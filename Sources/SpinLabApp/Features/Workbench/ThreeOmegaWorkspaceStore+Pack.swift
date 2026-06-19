@@ -43,6 +43,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
 
 
     func _buildPackConfig() -> ThreeOmegaPackConfig {
+        let splitOverrides = WorkbenchChartStyle.splitGlobalPlotDefaults(from: tabs.chartStyleOverrides)
         return ThreeOmegaPackConfig(
             device: ingestionResult?.device ?? "",
             geometry: geometry,
@@ -59,7 +60,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
             showPlotGrid: tabs.showPlotGrid,
             plotLegendAnchor: tabs.legendAnchor,
             tabStates: tabs.snapshotStates(keyFor: { $0.stableKey }),
-            chartStyleOverrides: tabs.chartStyleOverrides,
+            chartStyleOverrides: splitOverrides.local,
             cachedSearchResults: cachedSearchResults,
             selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: .threeOmega) ?? []),
             selectedRTHit: selectedRTHit,
@@ -126,7 +127,11 @@ func autoPackLabel() -> String { _autoPackLabel() }
         tabs.restoreStates(config.tabStates) { key in
             ThreeOmegaWorkbenchTab.allCases.first { $0.stableKey == key }
         }
-        tabs.chartStyleOverrides = config.chartStyleOverrides
+        let splitOverrides = WorkbenchChartStyle.splitGlobalPlotDefaults(from: config.chartStyleOverrides)
+        if !splitOverrides.global.isEmpty {
+            globalPlotDefaults = splitOverrides.global
+        }
+        tabs.chartStyleOverrides = splitOverrides.local
 
         // Restore search selection state
         cachedSearchResults = config.cachedSearchResults

@@ -30,6 +30,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
     // MARK: - Multi-tab render state (shell capability)
 
     var tabs = TabRenderManager<XYRotationWorkbenchTab>(defaultTab: .rxxVsPhi)
+    var globalPlotDefaults: [String: String] = [:]
 
     // MARK: - Rendered plot (non-tab state)
 
@@ -109,6 +110,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
         r.linearDetrend = linearDetrend
         r.showAuxiliaryLine180 = showAuxiliaryLine180
         r.seriesRenderMode = tabs.seriesRenderMode
+        r.globalPlotDefaults = globalPlotDefaults
         r.chartStyleOverrides = tabs.chartStyleOverrides
         r.titleTemplate = titleTemplate
         r.titleTokens = _titleTokens

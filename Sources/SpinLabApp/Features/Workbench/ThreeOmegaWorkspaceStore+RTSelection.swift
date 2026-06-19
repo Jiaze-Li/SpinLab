@@ -54,14 +54,14 @@ extension ThreeOmegaWorkspaceStore {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: sidecarPath)),
               let sidecar = try? decoder.decode(SpinLabFileSidecar.self, from: data) else { return nil }
 
-        let wfID = sidecar.workflow.lowercased()
+        let wfID = sidecar.resolvedWorkflow.lowercased()
         guard wfID == "3w" || wfID == "rt" else { return nil }
 
         return WorkflowMeasurementSearchHit(
             sidecarPath: sidecarPath,
             measurementFilePath: baseName,
             sourceFilePath: sidecar.sourceFilePath,
-            workflowID: sidecar.workflow,
+            workflowID: sidecar.resolvedWorkflow,
             workflowDisplayName: sidecar.workflowDisplayName,
             workflowCanonicalID: wfID,
             batchID: "",
