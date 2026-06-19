@@ -12,6 +12,8 @@ struct IVPlotRenderer {
     var titleTemplate: String = "#tab #device #sample"
     var titleTokens: [String: String] = [:]
     var seriesOrder: [String]? = nil
+    var stackOffsetMultiplier: Double = 0.0
+    var minGapFraction: Double = 0.15
 
     /// Which component of ch1 to use when building series.
     var ch1Component: IVSignalComponent = .x
@@ -43,6 +45,7 @@ struct IVPlotRenderer {
             ))
         }
         series = _applySeriesOrder(series, currentSeriesOrder: seriesOrder)
+        series = _applyStackOffsets(series, yExtractor: { $0.y })
 
         return WorkbenchPlotPayload(
             workflowID: "IV",
@@ -95,6 +98,7 @@ struct IVPlotRenderer {
             ))
         }
         series = _applySeriesOrder(series, currentSeriesOrder: seriesOrder)
+        series = _applyStackOffsets(series, yExtractor: { $0.y })
 
         return WorkbenchPlotPayload(
             workflowID: "IV",
@@ -140,6 +144,24 @@ struct IVPlotRenderer {
     private func _adjustedCurrent(_ values: [Double]) -> [Double] {
         return values.map { current_A in
             current_A * xCurrentBasis.scaleFactor
+        }
+    }
+
+    private func _applyStackOffsets(
+        _ series: [WorkbenchPlotSeries],
+        yExtractor: (WorkbenchPlotSeries) -> [Double]
+    ) -> [WorkbenchPlotSeries] {
+        guard stackOffsetMultiplier != 0 || minGapFraction != 0 else { return series }
+        let offsets = ThreeOmegaStackOffsetUseCase().execute(
+            yValues: series.map(yExtractor),
+            multiplier: stackOffsetMultiplier,
+            minGapFraction: minGapFraction
+        )
+        return zip(series, offsets).map { s, offset in
+            guard offset != 0 else { return s }
+            var shifted = s
+            shifted.y = s.y.map { $0 + offset }
+            return shifted
         }
     }
 

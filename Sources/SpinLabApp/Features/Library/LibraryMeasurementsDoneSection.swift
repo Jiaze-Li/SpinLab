@@ -16,6 +16,7 @@ struct LibraryMeasurementsDoneSection: View {
     var onAddToSet: ((_ setID: String, _ fileName: String) -> Void)? = nil
     var onRenameSet: ((_ setID: String, _ newName: String) -> Void)? = nil
     var onDeleteSet: ((_ setID: String) -> Void)? = nil
+    var onRemoveFromSet: ((_ setID: String, _ fileName: String) -> Void)? = nil
     var onSetWorkflowOverride: ((_ measurement: AppliedMeasurement, _ workflowID: String) -> Void)? = nil
     var onRevertWorkflowToAuto: ((_ measurement: AppliedMeasurement) -> Void)? = nil
     var onShowConditionDetail: ((AppliedMeasurement) -> Void)? = nil
@@ -402,7 +403,7 @@ struct LibraryMeasurementsDoneSection: View {
             } else {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(members) { m in
-                        measurementRow(m, workflowID: workflowID)
+                        measurementRow(m, workflowID: workflowID, setID: set.id)
                     }
                 }
                 .padding(.leading, 12)
@@ -443,7 +444,7 @@ struct LibraryMeasurementsDoneSection: View {
     }
 
     @ViewBuilder
-    private func measurementRow(_ measurement: AppliedMeasurement, workflowID: String) -> some View {
+    private func measurementRow(_ measurement: AppliedMeasurement, workflowID: String, setID: String? = nil) -> some View {
         let conditionOrder = workflowConditionOrderByID[workflowID]
             ?? workflowConditionOrderByID.first(where: {
                 $0.key.caseInsensitiveCompare(workflowID) == .orderedSame
@@ -483,7 +484,7 @@ struct LibraryMeasurementsDoneSection: View {
         )
         .textSelection(.enabled)
         .contextMenu {
-            measurementContextMenu(measurement)
+            measurementContextMenu(measurement, setID: setID)
         }
         .hoverPopover(
             arrowEdge: .leading,
@@ -505,7 +506,7 @@ struct LibraryMeasurementsDoneSection: View {
     // MARK: - Context menu
 
     @ViewBuilder
-    private func measurementContextMenu(_ measurement: AppliedMeasurement) -> some View {
+    private func measurementContextMenu(_ measurement: AppliedMeasurement, setID: String? = nil) -> some View {
         ForEach(workflowMenuGroups, id: \.workflowID) { group in
             Menu("Add to \(group.title)") {
                 ForEach(Self.workflowOverrideMenuItems(for: group.workflowID, measurementSets: measurementSets)) { item in
@@ -525,6 +526,12 @@ struct LibraryMeasurementsDoneSection: View {
                         }
                     }
                 }
+            }
+        }
+        if let setID, onRemoveFromSet != nil {
+            Divider()
+            Button("Remove from Set") {
+                onRemoveFromSet?(setID, measurement.sourceFileName)
             }
         }
         Divider()

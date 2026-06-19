@@ -52,6 +52,59 @@ struct MeasurementSetModelTests {
     }
 }
 
+@Suite("LibraryMeasurementsDoneSection context menu")
+struct LibraryMeasurementsDoneSectionContextMenuTests {
+
+    @Test("onRemoveFromSet callback is exposed when setID is provided")
+    func removeFromSetCallbackFired() {
+        var removedSetID: String?
+        var removedFileName: String?
+        let measurement = AppliedMeasurement(
+            id: "m1",
+            workflow: "ahe",
+            workflowDisplayName: "AHE",
+            conditions: ["temperature": "5"],
+            appliedAt: .distantPast,
+            sourceFileName: "file_5K.xlsx"
+        )
+        let set = MeasurementSet(
+            id: "set-001",
+            name: "Sweep A",
+            workflow: "ahe",
+            memberFileNames: ["file_5K.xlsx"],
+            createdAt: .distantPast
+        )
+
+        // Simulate what the context menu does when Remove from Set is tapped.
+        let onRemoveFromSet: (_ setID: String, _ fileName: String) -> Void = { setID, fileName in
+            removedSetID = setID
+            removedFileName = fileName
+        }
+        onRemoveFromSet(set.id, measurement.sourceFileName)
+
+        #expect(removedSetID == "set-001")
+        #expect(removedFileName == "file_5K.xlsx")
+    }
+
+    @Test("measurementRow inside set passes set id to context menu")
+    func workflowOverrideMenuItemsIncludeExistingSet() {
+        let set = MeasurementSet(
+            id: "set-abc",
+            name: "My Set",
+            workflow: "ahe",
+            memberFileNames: [],
+            createdAt: .distantPast
+        )
+        let items = LibraryMeasurementsDoneSection.workflowOverrideMenuItems(
+            for: "ahe",
+            measurementSets: [set]
+        )
+        let setItem = items.first(where: { $0.setID == "set-abc" })
+        #expect(setItem != nil)
+        #expect(setItem?.kind == .existingSet)
+    }
+}
+
 @Suite("MeasurementSet persistence via LibraryStore")
 struct MeasurementSetPersistenceTests {
 

@@ -93,6 +93,7 @@ extension LibraryView {
                                 onAddToSet: { setID, fileName in appState.library.addToMeasurementSet(setID: setID, fileName: fileName) },
                                 onRenameSet: { setID, newName in appState.library.renameMeasurementSet(setID: setID, newName: newName) },
                                 onDeleteSet: { setID in appState.library.deleteMeasurementSet(setID: setID) },
+                                onRemoveFromSet: { setID, fileName in appState.library.removeFromMeasurementSet(setID: setID, fileName: fileName) },
                                 onSetWorkflowOverride: { measurement, workflowID in appState.library.saveWorkflowOverride(measurement: measurement, workflowOverride: workflowID) },
                                 onRevertWorkflowToAuto: { measurement in appState.library.clearWorkflowOverride(measurement: measurement) },
                                 onShowConditionDetail: { m in conditionDetailMeasurement = m },

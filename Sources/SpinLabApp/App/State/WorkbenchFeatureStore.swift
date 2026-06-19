@@ -316,6 +316,8 @@ final class WorkbenchFeatureStore {
         xyRotationCenterBaseline: Bool? = nil,
         xyRotationLinearDetrend: Bool? = nil,
         xyRotationPlotLegendPoints: [String: [Double]]? = nil,
+        ivStackOffsetMultiplier: Double? = nil,
+        ivMinGapFraction: Double? = nil,
         workbenchPlotDefaults: [String: String]? = nil,
         workbenchChartStyleOverrides: [String: String]? = nil
     ) {
@@ -373,6 +375,10 @@ final class WorkbenchFeatureStore {
             globalPlotDefaults = splitLegacy.global
         }
 
+        // IV workspace plot controls.
+        if let v = ivStackOffsetMultiplier { ivWorkspace.stackOffsetMultiplier = v }
+        if let v = ivMinGapFraction { ivWorkspace.minGapFraction = v }
+
         let localOverrides = workbenchPlotDefaults == nil
             ? splitLegacy.local
             : legacyOverrides.filter { !WorkbenchChartStyle.isGlobalPlotDefaultKey($0.key) }
@@ -380,6 +386,7 @@ final class WorkbenchFeatureStore {
             threeOmegaWorkspace.tabs.chartStyleOverrides = localOverrides
             xyRotationWorkspace.tabs.chartStyleOverrides = localOverrides
             aheWorkspace.tabs.chartStyleOverrides = localOverrides
+            ivWorkspace.tabs.chartStyleOverrides = localOverrides
         }
     }
 
@@ -426,6 +433,10 @@ final class WorkbenchFeatureStore {
             }
             if !legendMap.isEmpty { snapshot.xyRotationPlotLegendPoints = legendMap }
         }
+        // IV workspace plot controls.
+        snapshot.ivStackOffsetMultiplier = ivWorkspace.stackOffsetMultiplier
+        snapshot.ivMinGapFraction = ivWorkspace.minGapFraction
+
         snapshot.workbenchPlotDefaults = globalPlotDefaults.isEmpty ? nil : globalPlotDefaults
 
         // Chart style overrides remain workflow-local for non-global keys.
@@ -439,6 +450,10 @@ final class WorkbenchFeatureStore {
             overrides[k] = v
         }
         for (k, v) in aheWorkspace.tabs.chartStyleOverrides
+            where !WorkbenchChartStyle.isGlobalPlotDefaultKey(k) {
+            overrides[k] = v
+        }
+        for (k, v) in ivWorkspace.tabs.chartStyleOverrides
             where !WorkbenchChartStyle.isGlobalPlotDefaultKey(k) {
             overrides[k] = v
         }

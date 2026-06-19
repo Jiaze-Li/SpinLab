@@ -733,3 +733,109 @@ struct V81IVParserChannelMappingTests {
         Issue.record("Timed out waiting for condition.")
     }
 }
+
+// MARK: - IV Stack Offset tests
+
+@Suite("IV Stack Offset")
+struct IVStackOffsetTests {
+
+    private func makeSweep(id: String, temperatureK: Double, yValue: Double, count: Int = 5) -> IVSweep {
+        let current = Array(repeating: 0.001, count: count)
+        let ch1X = Array(repeating: yValue, count: count)
+        let ch1Y = Array(repeating: 0.0, count: count)
+        let ch2X = Array(repeating: yValue * 2, count: count)
+        let ch2Y = Array(repeating: 0.0, count: count)
+        return IVSweep(
+            stem: id,
+            temperatureK: temperatureK,
+            fieldT: 0,
+            current: current,
+            ch1X: ch1X,
+            ch1Y: ch1Y,
+            ch2X: ch2X,
+            ch2Y: ch2Y,
+            measurementFilePath: nil
+        )
+    }
+
+    @Test("Multiple IV sweeps receive distinct y offsets when stackOffsetMultiplier is non-zero")
+    func multipleIVSweepsStackWhenMultiplierNonZero() {
+        // Use sweeps with a non-trivial range so the stack offset algorithm produces non-zero offsets.
+        // ch1X values vary between 0 and yValue, giving each sweep a peak-to-peak of yValue.
+        var renderer = IVPlotRenderer()
+        renderer.stackOffsetMultiplier = 1.2
+        renderer.minGapFraction = 0.15
+
+        let count = 5
+        func makeSweepVaried(id: String, temperatureK: Double) -> IVSweep {
+            let current = Array(repeating: 0.001, count: count)
+            // ch1X swings from 0 to 1, giving peak-to-peak of 1 for offset calculation
+            let ch1X = stride(from: 0.0, through: 1.0, by: 1.0 / Double(count - 1)).map { $0 }
+            return IVSweep(
+                stem: id,
+                temperatureK: temperatureK,
+                fieldT: 0,
+                current: current,
+                ch1X: ch1X,
+                ch1Y: Array(repeating: 0.0, count: count),
+                ch2X: Array(repeating: 0.0, count: count),
+                ch2Y: Array(repeating: 0.0, count: count),
+                measurementFilePath: nil
+            )
+        }
+
+        let sweeps = [
+            makeSweepVaried(id: "5K", temperatureK: 5),
+            makeSweepVaried(id: "10K", temperatureK: 10),
+            makeSweepVaried(id: "20K", temperatureK: 20),
+        ]
+
+        guard let payload = renderer.makeFirstHarmonicPayload(sweeps: sweeps, device: "D1") else {
+            Issue.record("payload should not be nil")
+            return
+        }
+
+        let yMins = payload.series.map { s in s.y.min() ?? 0 }
+        // With stacking applied, the minimum y of each successive series should be higher.
+        #expect(yMins[1] > yMins[0], "Second sweep should be shifted above first; got \(yMins)")
+        #expect(yMins[2] > yMins[1], "Third sweep should be shifted above second; got \(yMins)")
+    }
+
+    @Test("Single IV sweep has zero offset regardless of stackOffsetMultiplier")
+    func singleIVSweepHasNoOffset() {
+        let sweep = makeSweep(id: "5K", temperatureK: 5, yValue: 2.0)
+        var renderer = IVPlotRenderer()
+        renderer.stackOffsetMultiplier = 1.6
+        renderer.minGapFraction = 0.15
+
+        guard let payload = renderer.makeFirstHarmonicPayload(sweeps: [sweep], device: "D1") else {
+            Issue.record("payload should not be nil")
+            return
+        }
+
+        #expect(payload.series.count == 1)
+        let yMean = payload.series[0].y.reduce(0, +) / Double(payload.series[0].y.count)
+        #expect(abs(yMean - 2.0) < 1e-9, "Single sweep should not be shifted; got \(yMean)")
+    }
+
+    @Test("Zero stackOffsetMultiplier leaves IV y values unchanged")
+    func zeroMultiplierLeavesYUnchanged() {
+        let sweeps = [
+            makeSweep(id: "5K", temperatureK: 5, yValue: 1.5),
+            makeSweep(id: "10K", temperatureK: 10, yValue: 1.5),
+        ]
+        var renderer = IVPlotRenderer()
+        renderer.stackOffsetMultiplier = 0.0
+
+        guard let payload = renderer.makeFirstHarmonicPayload(sweeps: sweeps, device: "D1") else {
+            Issue.record("payload should not be nil")
+            return
+        }
+
+        for series in payload.series {
+            for y in series.y {
+                #expect(abs(y - 1.5) < 1e-9)
+            }
+        }
+    }
+}

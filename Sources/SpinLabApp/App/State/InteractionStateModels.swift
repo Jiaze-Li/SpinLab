@@ -371,6 +371,10 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     /// Per-tab legend positions keyed by XYRotationWorkbenchTab.rawValue.
     var xyRotationPlotLegendPoints: [String: [Double]]?
 
+    // IV workspace plot controls.
+    var ivStackOffsetMultiplier: Double?
+    var ivMinGapFraction: Double?
+
     // Shared plot defaults (font families, font sizes) across workflows.
     var workbenchPlotDefaults: [String: String]?
 

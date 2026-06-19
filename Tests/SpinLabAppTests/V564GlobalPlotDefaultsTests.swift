@@ -122,6 +122,56 @@ struct V564GlobalPlotDefaultsTests {
         #expect(rebuilt.chartStyleOverrides == ["tickTargetX": "7"])
     }
 
+    @Test("SpinLabInteractionSnapshot round-trips IV stackOffset and chartStyleOverrides")
+    func interactionSnapshotRoundTripsIVControls() throws {
+        var snapshot = SpinLabInteractionSnapshot()
+        snapshot.ivStackOffsetMultiplier = 1.4
+        snapshot.ivMinGapFraction = 0.20
+        snapshot.workbenchChartStyleOverrides = ["tickTargetX": "5"]
+
+        let data = try JSONEncoder().encode(snapshot)
+        let restored = try JSONDecoder().decode(SpinLabInteractionSnapshot.self, from: data)
+
+        #expect(restored.ivStackOffsetMultiplier == 1.4)
+        #expect(restored.ivMinGapFraction == 0.20)
+        #expect(restored.workbenchChartStyleOverrides == ["tickTargetX": "5"])
+    }
+
+    @Test("WorkbenchFeatureStore restoreInteraction applies IV stack controls")
+    func restoreInteractionAppliesIVStackControls() {
+        let store = makeWorkbenchStore()
+        store.restoreInteraction(
+            selectedArchivedRecordID: nil,
+            workbenchResultDraft: "",
+            ivStackOffsetMultiplier: 1.6,
+            ivMinGapFraction: 0.25
+        )
+        #expect(store.ivWorkspace.stackOffsetMultiplier == 1.6)
+        #expect(store.ivWorkspace.minGapFraction == 0.25)
+    }
+
+    @Test("captureInteraction includes IV chartStyleOverrides in workbenchChartStyleOverrides")
+    func captureInteractionIncludesIVChartStyleOverrides() {
+        let store = makeWorkbenchStore()
+        store.ivWorkspace.tabs.chartStyleOverrides = ["tickTargetX": "7"]
+
+        var snapshot = SpinLabInteractionSnapshot()
+        store.captureInteraction(into: &snapshot)
+
+        #expect(snapshot.workbenchChartStyleOverrides?["tickTargetX"] == "7")
+    }
+
+    @Test("restoreInteraction mirrors chartStyleOverrides into IV workspace")
+    func restoreInteractionMirrorsOverridesToIVWorkspace() {
+        let store = makeWorkbenchStore()
+        store.restoreInteraction(
+            selectedArchivedRecordID: nil,
+            workbenchResultDraft: "",
+            workbenchChartStyleOverrides: ["tickTargetY": "6"]
+        )
+        #expect(store.ivWorkspace.tabs.chartStyleOverrides["tickTargetY"] == "6")
+    }
+
     @Test("SpinLabInteractionSnapshot round-trips shared plot defaults")
     func interactionSnapshotRoundTripsGlobalPlotDefaults() throws {
         var snapshot = SpinLabInteractionSnapshot()

@@ -202,6 +202,8 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         r.ch2Component = ch2Component
         r.xCurrentBasis = xCurrentBasis
         r.titleTokens = _titleTokens
+        r.stackOffsetMultiplier = stackOffsetMultiplier
+        r.minGapFraction = minGapFraction
         return r
     }
 
