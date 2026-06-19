@@ -159,11 +159,6 @@ struct V515RulesPanelStoreTests {
         defer { releaseIsolation(iso) }
         _ = try seedAll(in: iso)
 
-        // Also seed library_import_rules.json so libraryRegistry draft is available
-        try """
-        {"version":1,"registry":{"sampleHeaderAliases":["s"],"batchHeaderAliases":["b"],"substrateHeaderAliases":["sub"],"excludedSheetNames":[],"sampleCellSeparators":"/","numericKeyAliases":{},"metadataLookupAliases":{}}}
-        """.data(using: .utf8)!.write(to: iso.paths.libraryImportRulesURL)
-
         var hookOrder: [String] = []
         let store = RulesManagementStore(onRulesSaved: {}, rulesBookPaths: iso.paths)
         store.persistenceHook = RulesPersistenceHook(didPersist: { sectionID, _, _, _ in
@@ -171,14 +166,13 @@ struct V515RulesPanelStoreTests {
         })
         store.present()
 
-        // Dirty all 6 sections
+        // Dirty all 5 sections
         if let d = store.importFiltersDraft { store.updateImportFilters(d) }
         if let d = store.filenameTokenizationDraft { store.updateFilenameTokenization(d) }
         if let d = store.sampleIdentificationDraft { store.updateSampleIdentification(d) }
         if let d = store.measuringConditionDraft { store.updateMeasuringCondition(d) }
         // Workflow depends on measuringCondition, must be after
         if let d = store.workflowDraft { store.updateWorkflow(d) }
-        if let d = store.libraryRegistryDraft { store.updateLibraryRegistry(d) }
 
         // Simulate Save All in allCases order
         for section in RulesPanelSection.allCases where store.dirtySections.contains(section) {

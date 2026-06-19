@@ -239,7 +239,6 @@ final class SpinLabAppState {
         WorkflowRegistryRetirementService(paths: rulesBookSettings.rulesBookPaths).runIfNeeded()
         if let bookPaths = rulesBookSettings.rulesBookPaths {
             RulesBootstrapper.migrateRulesBookIfNeeded(paths: bookPaths, internalPaths: rulesBookSettings.internalPaths)
-            RulesBootstrapper.seedLibraryImportRulesIfNeeded(paths: bookPaths)
         }
         RuleLoader.configure(bookPaths: rulesBookSettings.rulesBookPaths, internalPaths: rulesBookSettings.internalPaths)
         _ = RuleLoader.shared.reloadCached()
@@ -369,7 +368,6 @@ final class SpinLabAppState {
         WorkflowRegistryRetirementService(paths: rulesBookSettings.rulesBookPaths).runIfNeeded()
         if let bookPaths = rulesBookSettings.rulesBookPaths {
             RulesBootstrapper.migrateRulesBookIfNeeded(paths: bookPaths, internalPaths: rulesBookSettings.internalPaths)
-            RulesBootstrapper.seedLibraryImportRulesIfNeeded(paths: bookPaths)
         }
     }
 

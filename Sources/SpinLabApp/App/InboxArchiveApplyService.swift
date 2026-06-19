@@ -275,6 +275,7 @@ struct InboxArchiveApplyService {
         var sidecar = SidecarCompositionUseCase.composeSidecarV2(
             base: SidecarCompositionBase(
                 workflow: workflow,
+                autoDetectedWorkflow: pending.parsedHints.workflowID?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? workflow,
                 workflowDisplayName: workflowDisplayName,
                 channels: target.channels,
                 sourceFilePath: pending.sourceFilePath,

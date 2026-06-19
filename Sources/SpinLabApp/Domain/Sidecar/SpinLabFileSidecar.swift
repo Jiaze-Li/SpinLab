@@ -13,6 +13,11 @@ struct ManualValueOverride: Codable, Hashable, Sendable {
     var at: Date
 }
 
+enum WorkflowSource: String, Codable, Hashable, Sendable {
+    case auto
+    case manual
+}
+
 // MARK: - Composite sidecar types
 
 struct SidecarUserOverrides: Codable, Hashable, Sendable {
@@ -38,6 +43,9 @@ struct SidecarRuleSnapshot: Codable, Hashable, Sendable {
 struct SpinLabFileSidecar: Codable, Hashable, Sendable {
     var version: Int                            // = 2
     var workflow: String
+    var autoDetectedWorkflow: String
+    var workflowOverride: String?
+    var workflowSource: WorkflowSource
     var workflowDisplayName: String
     var channels: [String]
     var sourceFilePath: String
@@ -47,6 +55,9 @@ struct SpinLabFileSidecar: Codable, Hashable, Sendable {
 
     init(
         workflow: String,
+        autoDetectedWorkflow: String? = nil,
+        workflowOverride: String? = nil,
+        workflowSource: WorkflowSource? = nil,
         workflowDisplayName: String,
         channels: [String],
         sourceFilePath: String,
@@ -56,6 +67,15 @@ struct SpinLabFileSidecar: Codable, Hashable, Sendable {
     ) {
         self.version = 2
         self.workflow = workflow
+        self.autoDetectedWorkflow = Self.trimmedNonEmpty(autoDetectedWorkflow) ?? workflow
+        self.workflowOverride = Self.trimmedNonEmpty(workflowOverride)
+        if let workflowSource {
+            self.workflowSource = workflowSource
+        } else if self.workflowOverride != nil || self.workflow != self.autoDetectedWorkflow {
+            self.workflowSource = .manual
+        } else {
+            self.workflowSource = .auto
+        }
         self.workflowDisplayName = workflowDisplayName
         self.channels = channels
         self.sourceFilePath = sourceFilePath
@@ -67,7 +87,7 @@ struct SpinLabFileSidecar: Codable, Hashable, Sendable {
     // MARK: Custom Codable — handles v1 → v2 migration on decode
 
     private enum CodingKeys: String, CodingKey {
-        case version, workflow, workflowDisplayName, channels, sourceFilePath, appliedAt
+        case version, workflow, autoDetectedWorkflow, workflowOverride, workflowSource, workflowDisplayName, channels, sourceFilePath, appliedAt
         case ruleSnapshot, userOverrides
         case v1Conditions = "conditions"        // v1-only key; not emitted on encode
     }
@@ -76,6 +96,10 @@ struct SpinLabFileSidecar: Codable, Hashable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let detectedVersion = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
         workflow = try c.decodeIfPresent(String.self, forKey: .workflow) ?? ""
+        autoDetectedWorkflow = Self.trimmedNonEmpty(try c.decodeIfPresent(String.self, forKey: .autoDetectedWorkflow)) ?? workflow
+        workflowOverride = Self.trimmedNonEmpty(try c.decodeIfPresent(String.self, forKey: .workflowOverride))
+        workflowSource = try c.decodeIfPresent(WorkflowSource.self, forKey: .workflowSource)
+            ?? (workflowOverride != nil ? .manual : .auto)
         workflowDisplayName = try c.decodeIfPresent(String.self, forKey: .workflowDisplayName) ?? workflow
         channels = try c.decodeIfPresent([String].self, forKey: .channels) ?? []
         sourceFilePath = try c.decodeIfPresent(String.self, forKey: .sourceFilePath) ?? ""
@@ -88,6 +112,9 @@ struct SpinLabFileSidecar: Codable, Hashable, Sendable {
         } else {
             // v1 → v2 in-memory migration; caller is responsible for atomic write-back.
             version = 2
+            autoDetectedWorkflow = workflow
+            workflowOverride = nil
+            workflowSource = .auto
             let v1Conditions = try c.decodeIfPresent([String: String].self, forKey: .v1Conditions) ?? [:]
             let migratedConditions: [String: SourcedValue] = v1Conditions.reduce(into: [:]) { acc, pair in
                 acc[pair.key] = SourcedValue(
@@ -113,6 +140,9 @@ struct SpinLabFileSidecar: Codable, Hashable, Sendable {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(version, forKey: .version)
         try c.encode(workflow, forKey: .workflow)
+        try c.encode(autoDetectedWorkflow, forKey: .autoDetectedWorkflow)
+        try c.encodeIfPresent(workflowOverride, forKey: .workflowOverride)
+        try c.encode(workflowSource, forKey: .workflowSource)
         try c.encode(workflowDisplayName, forKey: .workflowDisplayName)
         try c.encode(channels, forKey: .channels)
         try c.encode(sourceFilePath, forKey: .sourceFilePath)
@@ -126,6 +156,13 @@ struct SpinLabFileSidecar: Codable, Hashable, Sendable {
 // MARK: - Effective value accessors
 
 extension SpinLabFileSidecar {
+    var resolvedWorkflow: String {
+        Self.trimmedNonEmpty(workflowOverride)
+        ?? Self.trimmedNonEmpty(autoDetectedWorkflow)
+        ?? Self.trimmedNonEmpty(workflow)
+        ?? ""
+    }
+
     /// userOverrides.conditions layered on top of ruleSnapshot.fields.conditions.
     var effectiveConditions: [String: String] {
         var result = ruleSnapshot.fields.conditions.mapValues(\.value)
@@ -152,4 +189,10 @@ extension SpinLabFileSidecar {
 
     var effectiveSampleID: String? { ruleSnapshot.fields.sampleID?.value }
     var effectiveSubstrateTags: [String] { ruleSnapshot.fields.substrateTags.map(\.value) }
+
+    private static func trimmedNonEmpty(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
 }

@@ -14,9 +14,10 @@ struct LibraryMeasurementsDoneSection: View {
     // v4.1.5 — measurement set callbacks
     var onCreateSet: ((_ name: String, _ workflow: String, _ initialMember: String?) -> Void)? = nil
     var onAddToSet: ((_ setID: String, _ fileName: String) -> Void)? = nil
-    var onRemoveFromSet: ((_ setID: String, _ fileName: String) -> Void)? = nil
     var onRenameSet: ((_ setID: String, _ newName: String) -> Void)? = nil
     var onDeleteSet: ((_ setID: String) -> Void)? = nil
+    var onSetWorkflowOverride: ((_ measurement: AppliedMeasurement, _ workflowID: String) -> Void)? = nil
+    var onRevertWorkflowToAuto: ((_ measurement: AppliedMeasurement) -> Void)? = nil
     var onShowConditionDetail: ((AppliedMeasurement) -> Void)? = nil
 
     @State private var isExpanded = true
@@ -25,7 +26,7 @@ struct LibraryMeasurementsDoneSection: View {
     @State private var newSetAlertShown = false
     @State private var newSetName = ""
     @State private var newSetWorkflow = ""
-    @State private var newSetInitialMember: String? = nil
+    @State private var newSetPendingMeasurement: AppliedMeasurement? = nil
     @State private var renameSetAlertShown = false
     @State private var renameSetName = ""
     @State private var renameSetID = ""
@@ -96,11 +97,138 @@ struct LibraryMeasurementsDoneSection: View {
         return (ordered + remaining).map { "\($0.0)=\($0.1)" }.joined(separator: ",")
     }
 
-    private func setsForWorkflow(_ workflowID: String) -> [MeasurementSet] {
+    private struct WorkflowMenuGroup {
+        let workflowID: String
+        let title: String
+    }
+
+    struct WorkflowOverrideMenuItem: Identifiable, Hashable {
+        enum Kind: Hashable {
+            case fallback
+            case existingSet
+            case newSet
+        }
+
+        let id: String
+        let title: String
+        let kind: Kind
+        let setID: String?
+    }
+
+    private var workflowMenuGroups: [WorkflowMenuGroup] {
+        [
+            WorkflowMenuGroup(workflowID: "3w", title: "3ω"),
+            WorkflowMenuGroup(workflowID: "IV", title: "IV"),
+            WorkflowMenuGroup(workflowID: "XY", title: "XY Rotation")
+        ]
+    }
+
+    static func workflowOverrideMenuItems(
+        for workflowID: String,
+        measurementSets: [MeasurementSet]
+    ) -> [WorkflowOverrideMenuItem] {
+        let sets = sortedSetsForWorkflow(workflowID, measurementSets: measurementSets)
+        return [
+            WorkflowOverrideMenuItem(
+                id: "\(workflowID)-fallback",
+                title: "Uncategorized",
+                kind: .fallback,
+                setID: nil
+            )
+        ] + sets.enumerated().map { index, set in
+            WorkflowOverrideMenuItem(
+                id: "\(workflowID)-set-\(index)",
+                title: set.name,
+                kind: .existingSet,
+                setID: set.id
+            )
+        } + [
+            WorkflowOverrideMenuItem(
+                id: "\(workflowID)-new-set",
+                title: "New Set\u{2026}",
+                kind: .newSet,
+                setID: nil
+            )
+        ]
+    }
+
+    static func sortedSetsForWorkflow(
+        _ workflowID: String,
+        measurementSets: [MeasurementSet]
+    ) -> [MeasurementSet] {
         measurementSets.filter {
             $0.workflow.trimmingCharacters(in: .whitespacesAndNewlines)
                 .caseInsensitiveCompare(workflowID) == .orderedSame
-        }.sorted { $0.createdAt < $1.createdAt }
+        }.sorted { lhs, rhs in
+            compareMeasurementSets(lhs, rhs)
+        }
+    }
+
+    static func handleWorkflowOverrideMenuSelection(
+        _ item: WorkflowOverrideMenuItem,
+        measurement: AppliedMeasurement,
+        workflowID: String,
+        onSetWorkflowOverride: ((_ measurement: AppliedMeasurement, _ workflowID: String) -> Void)?,
+        onAddToSet: ((_ setID: String, _ fileName: String) -> Void)? = nil
+    ) {
+        switch item.kind {
+        case .fallback:
+            onSetWorkflowOverride?(measurement, workflowID)
+        case .existingSet:
+            onSetWorkflowOverride?(measurement, workflowID)
+            if let setID = item.setID {
+                onAddToSet?(setID, measurement.sourceFileName)
+            }
+        case .newSet:
+            break
+        }
+    }
+
+    static func handleNewSetCreation(
+        name: String,
+        workflowID: String,
+        measurement: AppliedMeasurement,
+        onCreateSet: ((_ name: String, _ workflow: String, _ initialMember: String?) -> Void)?,
+        onSetWorkflowOverride: ((_ measurement: AppliedMeasurement, _ workflowID: String) -> Void)?
+    ) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+        onCreateSet?(trimmedName, workflowID, measurement.sourceFileName)
+        onSetWorkflowOverride?(measurement, workflowID)
+    }
+
+    private func setsForWorkflow(_ workflowID: String) -> [MeasurementSet] {
+        Self.sortedSetsForWorkflow(workflowID, measurementSets: measurementSets)
+    }
+
+    private static func compareMeasurementSets(_ lhs: MeasurementSet, _ rhs: MeasurementSet) -> Bool {
+        let lhsAngle = semanticAngleValue(for: lhs.name)
+        let rhsAngle = semanticAngleValue(for: rhs.name)
+        if let lhsAngle, let rhsAngle, lhsAngle != rhsAngle {
+            return lhsAngle < rhsAngle
+        }
+
+        let nameComparison = lhs.name.localizedStandardCompare(rhs.name)
+        if nameComparison != .orderedSame {
+            return nameComparison == .orderedAscending
+        }
+
+        return lhs.createdAt < rhs.createdAt
+    }
+
+    private static func semanticAngleValue(for name: String) -> Double? {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"(-?\d+(?:\.\d+)?)\s*deg\b"#,
+            options: [.caseInsensitive]
+        ) else {
+            return nil
+        }
+        let range = NSRange(name.startIndex..., in: name)
+        guard let match = regex.firstMatch(in: name, options: [], range: range),
+              let tokenRange = Range(match.range(at: 1), in: name) else {
+            return nil
+        }
+        return Double(name[tokenRange])
     }
 
     private func uncategorizedMeasurements(
@@ -160,11 +288,23 @@ struct LibraryMeasurementsDoneSection: View {
         .alert("New Measurement Set", isPresented: $newSetAlertShown) {
             TextField("Set name", text: $newSetName)
             Button("Create") {
+                let measurement = newSetPendingMeasurement
+                newSetPendingMeasurement = nil
                 let name = newSetName.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !name.isEmpty else { return }
-                onCreateSet?(name, newSetWorkflow, newSetInitialMember)
+                if let measurement {
+                    Self.handleNewSetCreation(
+                        name: name,
+                        workflowID: newSetWorkflow,
+                        measurement: measurement,
+                        onCreateSet: onCreateSet,
+                        onSetWorkflowOverride: onSetWorkflowOverride
+                    )
+                }
             }
-            Button("Cancel", role: .cancel) {}
+            Button("Cancel", role: .cancel) {
+                newSetPendingMeasurement = nil
+            }
         }
         .alert("Rename Set", isPresented: $renameSetAlertShown) {
             TextField("New name", text: $renameSetName)
@@ -204,7 +344,7 @@ struct LibraryMeasurementsDoneSection: View {
                 // No sets — flat measurement list (two-level)
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(group.measurements) { m in
-                        measurementRow(m, workflowID: group.workflowID, setID: nil)
+                        measurementRow(m, workflowID: group.workflowID)
                     }
                 }
                 .padding(.leading, 12)
@@ -219,7 +359,7 @@ struct LibraryMeasurementsDoneSection: View {
                         DisclosureGroup(isExpanded: toggleBinding(for: group.workflowID, in: $expandedUncategorized)) {
                             VStack(alignment: .leading, spacing: 4) {
                                 ForEach(uncategorized) { m in
-                                    measurementRow(m, workflowID: group.workflowID, setID: nil)
+                                    measurementRow(m, workflowID: group.workflowID)
                                 }
                             }
                             .padding(.leading, 12)
@@ -262,7 +402,7 @@ struct LibraryMeasurementsDoneSection: View {
             } else {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(members) { m in
-                        measurementRow(m, workflowID: workflowID, setID: set.id)
+                        measurementRow(m, workflowID: workflowID)
                     }
                 }
                 .padding(.leading, 12)
@@ -303,7 +443,7 @@ struct LibraryMeasurementsDoneSection: View {
     }
 
     @ViewBuilder
-    private func measurementRow(_ measurement: AppliedMeasurement, workflowID: String, setID: String?) -> some View {
+    private func measurementRow(_ measurement: AppliedMeasurement, workflowID: String) -> some View {
         let conditionOrder = workflowConditionOrderByID[workflowID]
             ?? workflowConditionOrderByID.first(where: {
                 $0.key.caseInsensitiveCompare(workflowID) == .orderedSame
@@ -343,7 +483,7 @@ struct LibraryMeasurementsDoneSection: View {
         )
         .textSelection(.enabled)
         .contextMenu {
-            measurementContextMenu(measurement, workflowID: workflowID, setID: setID)
+            measurementContextMenu(measurement)
         }
         .hoverPopover(
             arrowEdge: .leading,
@@ -365,24 +505,31 @@ struct LibraryMeasurementsDoneSection: View {
     // MARK: - Context menu
 
     @ViewBuilder
-    private func measurementContextMenu(_ measurement: AppliedMeasurement, workflowID: String, setID: String?) -> some View {
-        let sets = setsForWorkflow(workflowID)
-        ForEach(sets) { set in
-            Button("Add to: \(set.name)") {
-                onAddToSet?(set.id, measurement.sourceFileName)
+    private func measurementContextMenu(_ measurement: AppliedMeasurement) -> some View {
+        ForEach(workflowMenuGroups, id: \.workflowID) { group in
+            Menu("Add to \(group.title)") {
+                ForEach(Self.workflowOverrideMenuItems(for: group.workflowID, measurementSets: measurementSets)) { item in
+                    Button(item.title) {
+                        Self.handleWorkflowOverrideMenuSelection(
+                            item,
+                            measurement: measurement,
+                            workflowID: group.workflowID,
+                            onSetWorkflowOverride: onSetWorkflowOverride,
+                            onAddToSet: onAddToSet
+                        )
+                        if item.kind == .newSet {
+                            newSetWorkflow = group.workflowID
+                            newSetPendingMeasurement = measurement
+                            newSetName = ""
+                            newSetAlertShown = true
+                        }
+                    }
+                }
             }
         }
-        Button("New Set...") {
-            newSetWorkflow = workflowID
-            newSetInitialMember = measurement.sourceFileName
-            newSetName = ""
-            newSetAlertShown = true
-        }
-        if let setID {
-            Divider()
-            Button("Remove from Set") {
-                onRemoveFromSet?(setID, measurement.sourceFileName)
-            }
+        Divider()
+        Button("Revert to Auto Workflow") {
+            onRevertWorkflowToAuto?(measurement)
         }
         if onShowConditionDetail != nil {
             Divider()

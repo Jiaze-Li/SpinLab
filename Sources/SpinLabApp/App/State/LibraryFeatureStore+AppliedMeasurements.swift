@@ -92,6 +92,25 @@ import Foundation
         }
     }
 
+    func saveWorkflowOverride(measurement: AppliedMeasurement, workflowOverride: String) {
+        let updated = librarySidecarService.saveWorkflowOverride(
+            sidecarPath: measurement.id,
+            workflowOverride: workflowOverride
+        )
+        if updated {
+            appliedMeasurementsCacheBySampleID.removeAll()
+            refreshSelectedDrawerAppliedMeasurementsIfNeeded()
+        }
+    }
+
+    func clearWorkflowOverride(measurement: AppliedMeasurement) {
+        let updated = librarySidecarService.clearWorkflowOverride(sidecarPath: measurement.id)
+        if updated {
+            appliedMeasurementsCacheBySampleID.removeAll()
+            refreshSelectedDrawerAppliedMeasurementsIfNeeded()
+        }
+    }
+
     private func updateSampleAppliedMeasurements(
         prefix: String,
         batchId: String,

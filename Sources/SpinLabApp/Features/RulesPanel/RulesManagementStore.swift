@@ -225,22 +225,6 @@ struct WorkflowFileDraft: Codable {
     }
 }
 
-// library_import_rules.json (registry segment only; import segment dropped on save — it is not consumed)
-struct LibraryRegistryFileDraft: Codable {
-    var version: Int
-    var registry: RegistryDraft
-
-    struct RegistryDraft: Codable {
-        var sampleHeaderAliases: [String]
-        var batchHeaderAliases: [String]
-        var substrateHeaderAliases: [String]
-        var excludedSheetNames: [String]
-        var sampleCellSeparators: String
-        var numericKeyAliases: [String: [String]]
-        var metadataLookupAliases: [String: [String]]
-    }
-}
-
 // measuring_condition.json
 struct MeasuringConditionFileDraft: Codable {
     var version: Int
@@ -283,15 +267,6 @@ struct MeasuringConditionFileDraft: Codable {
     }
 }
 
-// MARK: - Library registry load state
-
-enum LibraryRegistryLoadState: Equatable {
-    case notConfigured
-    case missing
-    case loaded
-    case corrupt
-}
-
 // MARK: - Store
 
 @MainActor @Observable
@@ -305,8 +280,6 @@ final class RulesManagementStore {
     private(set) var sampleIdentificationDraft: SampleIdentificationFileDraft?
     private(set) var workflowDraft: WorkflowFileDraft?
     private(set) var measuringConditionDraft: MeasuringConditionFileDraft?
-    private(set) var libraryRegistryDraft: LibraryRegistryFileDraft?
-    private(set) var libraryRegistryLoadState: LibraryRegistryLoadState = .notConfigured
 
     private(set) var availableConditionFieldIDs: [String] = []
     private(set) var rulesBookState: RulesBookState = .notConfigured
@@ -337,38 +310,6 @@ final class RulesManagementStore {
         updateRulesBookState()
     }
 
-    func repairLibraryRegistryFromLegacyDefaults() -> Result<Void, Error> {
-        guard let p = paths else {
-            return .failure(AppError.state("No Rules Book configured"))
-        }
-        let url = p.libraryImportRulesURL
-        // Backup existing corrupt/empty file before overwriting
-        if FileManager.default.fileExists(atPath: url.path) {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyyMMdd-HHmmss"
-            let ts = formatter.string(from: Date())
-            let backupURL = url.deletingLastPathComponent()
-                .appendingPathComponent("library_import_rules_backup_\(ts).json")
-            do {
-                let existing = try Data(contentsOf: url)
-                try existing.write(to: backupURL)
-            } catch {
-                return .failure(error)
-            }
-        }
-        guard let bundleURL = Bundle.module.url(forResource: "library_import_rules", withExtension: "json") else {
-            return .failure(AppError.io("Bundled library_import_rules.json not found"))
-        }
-        do {
-            let data = try Data(contentsOf: bundleURL)
-            try atomicWriter.write(data, to: url)
-            loadSection(.libraryRegistry)
-            return .success(())
-        } catch {
-            return .failure(error)
-        }
-    }
-
     func updateRulesBookPaths(_ newPaths: RulesConfigPaths?) {
         paths = newPaths
         updateRulesBookState()
@@ -376,8 +317,6 @@ final class RulesManagementStore {
             for section in RulesPanelSection.allCases {
                 loadSection(section)
             }
-        } else {
-            libraryRegistryLoadState = .notConfigured
         }
     }
 
@@ -436,11 +375,6 @@ final class RulesManagementStore {
         dirtySections.insert(.measuringCondition)
     }
 
-    func updateLibraryRegistry(_ draft: LibraryRegistryFileDraft) {
-        libraryRegistryDraft = draft
-        dirtySections.insert(.libraryRegistry)
-    }
-
     func setBatchPrefixes(from specs: [FilenameRuleSet.MatchSpec]) {
         guard var draft = sampleIdentificationDraft else { return }
         draft.sampleId.batchPrefixes = specs.filter { $0.type == .startsWith }.map(\.value)
@@ -493,16 +427,6 @@ final class RulesManagementStore {
         case .measuringCondition:
             measuringConditionDraft = loadWithStrategy(
                 MeasuringConditionStrategy(runtimeURL: p.measuringConditionURL), section: section)
-        case .libraryRegistry:
-            let lrURL = p.libraryImportRulesURL
-            if !FileManager.default.fileExists(atPath: lrURL.path) {
-                libraryRegistryDraft = nil
-                libraryRegistryLoadState = .missing
-            } else {
-                libraryRegistryDraft = loadWithStrategy(
-                    LibraryRegistryStrategy(runtimeURL: lrURL), section: section)
-                libraryRegistryLoadState = libraryRegistryDraft != nil ? .loaded : .corrupt
-            }
         }
     }
 
@@ -570,10 +494,6 @@ final class RulesManagementStore {
             return saveWithStrategy(
                 MeasuringConditionStrategy(runtimeURL: p.measuringConditionURL),
                 draft: measuringConditionDraft, section: section)
-        case .libraryRegistry:
-            return saveWithStrategy(
-                LibraryRegistryStrategy(runtimeURL: p.libraryImportRulesURL),
-                draft: libraryRegistryDraft, section: section)
         }
     }
 
@@ -691,4 +611,3 @@ extension FilenameTokenizationFileDraft: _VersionedSchema {}
 extension SampleIdentificationFileDraft: _VersionedSchema {}
 extension WorkflowFileDraft: _VersionedSchema {}
 extension MeasuringConditionFileDraft: _VersionedSchema {}
-extension LibraryRegistryFileDraft: _VersionedSchema {}

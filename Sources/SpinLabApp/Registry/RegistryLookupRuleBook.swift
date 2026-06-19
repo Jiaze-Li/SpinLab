@@ -16,12 +16,14 @@ struct RegistryLookupRuleBook: RegistryLookupRuleProviding {
     init(ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared) {
         let ruleSet = ruleProvider.ruleSet()
         let registryRules = ruleSet.registry
-        sampleHeaderKeys = Set((registryRules?.sampleHeaderAliases ?? []).map(Self.normalizedHeader))
+        let headerAliases = registryRules?.sampleHeaderAliases
+            ?? ["sampleid", "sample", "编号", "样品编号"]
+        sampleHeaderKeys = Set(headerAliases.map(Self.normalizedHeader))
 
-        excludedSheetNames = Set(registryRules?.excludedSheetNames ?? [])
+        excludedSheetNames = Set(registryRules?.excludedSheetNames ?? ["实验大纲"])
 
         let separatorString = ruleSet.tokenization.separators
-            + (registryRules?.sampleCellSeparators ?? "")
+            + (registryRules?.sampleCellSeparators ?? "/／,，;；|")
         sampleTokenSeparators = CharacterSet(charactersIn: separatorString)
         parseSampleIDsFromTokens = ruleSet.sampleIDs(from:)
     }
