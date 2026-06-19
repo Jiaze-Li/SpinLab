@@ -53,10 +53,12 @@ struct LegendDimensionResolver {
     // MARK: - Default chain
 
     /// Built-in priority chain matching the user-defined ordering:
-    ///   temperature > device = substrate = energy = pressure = growthTemperature > thickness
+    ///   temperature > field = device = harmonic = substrate = energy = pressure = growthTemperature > thickness
     static let defaultChain: [DimensionEntry] = [
         DimensionEntry(key: "temperature",       displayName: "Temperature (K)",        tier: 0),
+        DimensionEntry(key: "field",             displayName: "Field (T)",              tier: 1),
         DimensionEntry(key: "device",             displayName: "Device",                 tier: 1),
+        DimensionEntry(key: "harmonic",           displayName: "Harmonic",               tier: 1),
         DimensionEntry(key: "substrate",          displayName: "Substrate",              tier: 1),
         DimensionEntry(key: "energy",             displayName: "Energy",                 tier: 1),
         DimensionEntry(key: "pressure",           displayName: "Pressure",               tier: 1),

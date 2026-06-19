@@ -45,6 +45,36 @@ struct V534LegendDimensionResolverTests {
         #expect(values == ["1.5", "2.0"])
     }
 
+    @Test("Field varies, temperature same → resolved as field")
+    func fieldVaries() {
+        let meta: [[String: String]] = [
+            ["temperature": "80", "field": "0T", "device": "0deg"],
+            ["temperature": "80", "field": "2.5T", "device": "0deg"],
+        ]
+        let result = resolver.resolve(seriesMetadata: meta)
+        guard case .resolved(let dim, let values) = result else {
+            Issue.record("Expected .resolved, got \(result)")
+            return
+        }
+        #expect(dim.key == "field")
+        #expect(values == ["0T", "2.5T"])
+    }
+
+    @Test("Harmonic varies, temperature and field same → resolved as harmonic")
+    func harmonicVaries() {
+        let meta: [[String: String]] = [
+            ["temperature": "80", "field": "0T", "harmonic": "1w"],
+            ["temperature": "80", "field": "0T", "harmonic": "3w"],
+        ]
+        let result = resolver.resolve(seriesMetadata: meta)
+        guard case .resolved(let dim, let values) = result else {
+            Issue.record("Expected .resolved, got \(result)")
+            return
+        }
+        #expect(dim.key == "harmonic")
+        #expect(values == ["1w", "3w"])
+    }
+
     @Test("Substrate varies, temperature same → resolved as substrate")
     func substrateVaries() {
         let meta: [[String: String]] = [

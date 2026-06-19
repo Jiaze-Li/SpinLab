@@ -802,6 +802,17 @@ struct V536CurveDragOrderTests {
         #expect(result == [0: "CustomA", 1: "CustomB"])
     }
 
+    @Test("WorkbenchSeriesOrderKeyResolver prefers sourceRef, then sampleID, then index")
+    func seriesOrderKeyResolverPrefersSourceRefThenSampleIDThenIndex() {
+        let sourceRefSeries = WorkbenchPlotSeries(label: "", x: [], y: [], sourceRef: "/tmp/a.csv", sampleID: "sample-a")
+        let sampleIDSeries = WorkbenchPlotSeries(label: "", x: [], y: [], sampleID: "sample-b")
+        let indexSeries = WorkbenchPlotSeries(label: "", x: [], y: [])
+
+        #expect(WorkbenchSeriesOrderKeyResolver.resolve(for: sourceRefSeries, originalIndex: 7) == "/tmp/a.csv")
+        #expect(WorkbenchSeriesOrderKeyResolver.resolve(for: sampleIDSeries, originalIndex: 7) == "sample-b")
+        #expect(WorkbenchSeriesOrderKeyResolver.resolve(for: indexSeries, originalIndex: 7) == "7")
+    }
+
     @Test("migrateStateIfNeeded converts Int-string keys to sampleID")
     func migrateStateConvertsIntKeysToSampleID() {
         var state = TabRenderState(seriesLabelOverrides: ["0": "Custom"])
@@ -824,6 +835,27 @@ struct V536CurveDragOrderTests {
         let series = [WorkbenchPlotSeries(label: "", x: [], y: [], sampleID: nil)]
         migrateStateIfNeeded(&state, series: series)
         #expect(state.seriesLabelOverrides.isEmpty)
+    }
+
+    @Test("IVPlotRenderer applies reordered series by sourceRef")
+    func ivPlotRendererAppliesSeriesOrderBySourceRef() {
+        var renderer = IVPlotRenderer()
+        renderer.seriesOrder = [
+            "/tmp/b.lvm",
+            "/tmp/a.lvm"
+        ]
+
+        let sweeps = [
+            makeIVSweep(stem: "a", filePath: "/tmp/a.lvm", temperatureK: 100),
+            makeIVSweep(stem: "b", filePath: "/tmp/b.lvm", temperatureK: 200)
+        ]
+
+        let (_, _, payload, warnings) = renderer.renderFirstHarmonicVsCurrent(sweeps: sweeps, device: "test")
+        #expect(warnings.isEmpty)
+        #expect(payload?.series.map(\.sourceRef) == [
+            "/tmp/b.lvm",
+            "/tmp/a.lvm"
+        ])
     }
 
     // MARK: - Helpers
@@ -855,6 +887,31 @@ struct V536CurveDragOrderTests {
             hc3omega: nil,
             v3omegaWindow: 0.0,
             v3omegaFit: nil
+        )
+    }
+
+    private func makeIVSweep(
+        stem: String,
+        filePath: String,
+        temperatureK: Double
+    ) -> IVSweep {
+        IVSweep(
+            stem: stem,
+            temperatureK: temperatureK,
+            fieldT: 0.5,
+            current: [0.0, 1.0],
+            ch1X: [1.0, 2.0],
+            ch1Y: [2.0, 3.0],
+            ch2X: [3.0, 4.0],
+            ch2Y: [4.0, 5.0],
+            firstR: nil,
+            firstTheta: nil,
+            secondR: nil,
+            secondTheta: nil,
+            firstRH: nil,
+            frequencyAfter: nil,
+            measurementFilePath: filePath,
+            sampleMetadata: nil
         )
     }
 }

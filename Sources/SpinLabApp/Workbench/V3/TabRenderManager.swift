@@ -279,6 +279,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     func buildPipelineInput(
         payload: WorkbenchPlotPayload,
         baseOptions: WorkbenchChartRenderer.Options = .init(),
+        globalPlotDefaults: [String: String] = [:],
         extraStyleParams: [String: String] = [:],
         for tab: Tab? = nil
     ) -> WorkbenchRenderPipeline.Input {
@@ -294,6 +295,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             payload: payload,
             baseOptions: baseOptions,
             legendPoint: s.legendPoint?.cgPoint,
+            globalPlotDefaults: globalPlotDefaults,
             seriesRenderMode: seriesRenderMode,
             chartStyleOverrides: chartStyleOverrides,
             seriesLabelOverrides: toIndexedOverrides(s.seriesLabelOverrides, series: payload.series),
