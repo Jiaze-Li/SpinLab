@@ -1,6 +1,6 @@
 # Adding a New Workflow — Checklist
 
-> Start here before writing any code. Read [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) for the contract model, then [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md) for the full implementation checklist.
+> Start here before writing any code. Read [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) for the contract model, then [WORKFLOW_EXTENSION.md](WORKFLOW_EXTENSION.md) for the full implementation checklist.
 
 ---
 
@@ -53,7 +53,7 @@ Adding a workflow is a content addition, not an architecture change. The followi
 - Save / export shell artifact path logic or metric persistence structure
 - Any module boundary in [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md)
 
-If the new workflow seems to require a change to common architecture, stop and classify the request using the Intake Pipeline in [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md). The change belongs either in the workflow's Assembly (workflow-owned content) or in a separate architecture Gate (new module or shell extension). Do not merge workflow content into shared mechanism.
+If the new workflow seems to require a change to common architecture, stop and classify the request using the Dispatch Rules in the Workbench [INDEX.md](INDEX.md). The change belongs either in the workflow's Assembly (workflow-owned content) or in a separate architecture Gate (new module or shell extension). Do not merge workflow content into shared mechanism.
 
 ---
 
@@ -75,7 +75,7 @@ These are five distinct files. There is no plugin or single-file registration me
 
 ## Implementation Checklist (Abbreviated)
 
-Full checklist with file-placement table: [EXTENSION_BOUNDARIES.md §Adding a New Workflow](EXTENSION_BOUNDARIES.md).
+Full checklist with file-placement table: [WORKFLOW_EXTENSION.md §Adding a New Workflow](WORKFLOW_EXTENSION.md).
 
 1. **Write the Assembly first.** Create `docs/architecture/workbench/workflows/<name>/ASSEMBLY.md` before any code. Declare the Input Adapter Contract (adapter output type must be named before the parser file exists).
 2. Register the workflow ID (`WorkflowID.swift`).
@@ -93,6 +93,6 @@ Full checklist with file-placement table: [EXTENSION_BOUNDARIES.md §Adding a Ne
 ## Cross-Links
 
 - [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) — contract model and field definitions
-- [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md) — full implementation checklist, intake pipeline, code placement table
+- [WORKFLOW_EXTENSION.md](WORKFLOW_EXTENSION.md) — full implementation checklist, code placement table, persistence rules
 - [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md) — common module ownership and forbidden mutations
 - `workflows/*/ASSEMBLY.md` — per-workflow Assembly records (AHE, 3ω, XY-Rotation)

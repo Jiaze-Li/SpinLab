@@ -9,7 +9,7 @@ This document names the stable top-level model. Detailed contracts live in:
 - [MAIN_BOARD_READINESS.md](MAIN_BOARD_READINESS.md)
 - [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md)
 - [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md)
-- [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md)
+- [WORKFLOW_EXTENSION.md](WORKFLOW_EXTENSION.md)
 - [WORKBENCH_ROADMAP.md](WORKBENCH_ROADMAP.md)
 - [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md) - implementation-level placement notes only
 - `modules/`
@@ -70,7 +70,7 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - [Main Board Readiness](MAIN_BOARD_READINESS.md)
 - [Module Boundaries](MODULE_BOUNDARIES.md)
 - [Workflow Assembly](WORKFLOW_ASSEMBLY.md)
-- [Extension Boundaries](EXTENSION_BOUNDARIES.md)
+- [Workflow Extension](WORKFLOW_EXTENSION.md)
 - [Workbench Roadmap](WORKBENCH_ROADMAP.md)
 - [Main Board layout notes](MAIN_BOARD_LAYOUT.md)
 - `modules/MEASUREMENT_SEARCH.md`

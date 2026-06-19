@@ -18,11 +18,11 @@
 | `GATE7_PACK_RESTORE_AUDIT.md` | Gate 7.6 pack/restore audit | Schema, restore ownership, RT path, overlay, save interaction, test gaps |
 | `WORKFLOW_ASSEMBLY.md` | Workflow contract | Per-workflow integration contract |
 | `MODULE_BOUNDARIES.md` | Ownership authority | Module ownership, read surfaces, forbidden mutations |
-| `ADDING_WORKFLOW.md` | Add-workflow entry | Conceptual model + abbreviated checklist; links to EXTENSION_BOUNDARIES.md |
-| `EXTENSION_BOUNDARIES.md` | Extension guide | Add-workflow and add-module routing/checklists |
+| `ADDING_WORKFLOW.md` | Add-workflow entry | Conceptual model + abbreviated checklist; links to WORKFLOW_EXTENSION.md |
+| `WORKFLOW_EXTENSION.md` | Workflow extension contract | Canonical workflow extension contract: implementation checklist, code placement, Plot System responsibilities, persistence rules, tick wording, finalization rule |
+| `EXTENSION_BOUNDARIES.md` | Extension module import rules (superseded stub) | Extension module import constraints and code map; workflow checklist moved to WORKFLOW_EXTENSION.md |
 | `WORKBENCH_ROADMAP.md` | Phase tracking | Current Workbench shell migration status |
 | `STATE_OWNERSHIP.md` | Ownership contract | Shared plot defaults, per-tab state, packs, sidecar, and measurement set ownership |
-| `WORKFLOW_EXTENSION.md` | Workflow extension contract | Plot System responsibilities, persistence rules, tick wording, and finalization rule |
 
 **Implementation injection points** - naming used by the live shell implementation, not formal architecture layers:
 
@@ -56,7 +56,7 @@ Base module ownership rules, forbidden mutations, and transition state live in [
 3. [READINESS_CONSUMPTION_AUDIT.md](READINESS_CONSUMPTION_AUDIT.md) - Gate 6 readiness consumption audit and closeout linkage
 4. [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) - per-workflow integration contract
 5. [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md) - module ownership boundaries and forbidden mutations
-6. [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md) - workflow/module extension rules and checklists
+6. [WORKFLOW_EXTENSION.md](WORKFLOW_EXTENSION.md) - canonical workflow extension contract: implementation checklist, code placement, and rules
 7. [WORKBENCH_ROADMAP.md](WORKBENCH_ROADMAP.md) - gate status and completion notes
 8. [LAYOUT_AUDIT.md](LAYOUT_AUDIT.md) - Gate 4 layout audit and Gate 5 preparation
 9. [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md) - implementation-level placement notes only
@@ -65,8 +65,7 @@ Base module ownership rules, forbidden mutations, and transition state live in [
 12. [modules/PLOT_SYSTEM.md](modules/PLOT_SYSTEM.md) - plot capabilities and shared plot shell details
 13. [modules/PACK_RESTORE.md](modules/PACK_RESTORE.md) - pack / restore lifecycle and write boundaries
 14. [STATE_OWNERSHIP.md](STATE_OWNERSHIP.md) - state ownership contract for plot defaults, tabs, packs, sidecars, and measurement sets
-15. [WORKFLOW_EXTENSION.md](WORKFLOW_EXTENSION.md) - workflow extension boundaries, persistence rules, tick wording, and finalization
-16. [workflows/three-omega/THREE_OMEGA_PHYSICS.md](workflows/three-omega/THREE_OMEGA_PHYSICS.md) - 3-Omega physical model
+15. [workflows/three-omega/THREE_OMEGA_PHYSICS.md](workflows/three-omega/THREE_OMEGA_PHYSICS.md) - 3-Omega physical model
 
 ## Dispatch Rules
 
@@ -74,7 +73,7 @@ Base module ownership rules, forbidden mutations, and transition state live in [
 - If auditing Gate 6 readiness consumption or readiness closeout linkage, read [READINESS_CONSUMPTION_AUDIT.md](READINESS_CONSUMPTION_AUDIT.md) after [MAIN_BOARD_READINESS.md](MAIN_BOARD_READINESS.md).
 - If changing workflow assembly or registration, read [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md). Specific workflow assembly records live at `workflows/*/ASSEMBLY.md`.
 - If changing module ownership, read [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md).
-- If adding a workflow, start with [ADDING_WORKFLOW.md](ADDING_WORKFLOW.md), then [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) and [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md).
+- If adding a workflow, start with [ADDING_WORKFLOW.md](ADDING_WORKFLOW.md), then [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) and [WORKFLOW_EXTENSION.md](WORKFLOW_EXTENSION.md).
 - If checking gate status, read [WORKBENCH_ROADMAP.md](WORKBENCH_ROADMAP.md).
 - If changing implementation injection points or placement details, read [LAYOUT_AUDIT.md](LAYOUT_AUDIT.md) and [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md).
 
@@ -82,7 +81,7 @@ Base module ownership rules, forbidden mutations, and transition state live in [
 
 Before any non-trivial change, classify the task, record a routing note, and consult the relevant docs above. After implementation, report compliance briefly. If a planned change conflicts with `MAIN_BOARD_READINESS.md`, `WORKFLOW_ASSEMBLY.md`, or `MODULE_BOUNDARIES.md`, stop and report before implementing.
 
-Full rules (routing note format, task routing table, compliance checklist, documentation sync table, deviation rule): [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md#architecture-usage-rules).
+Full rules (routing note format, task routing table, compliance checklist, documentation sync table, deviation rule): see the Architecture Usage Rules section in any workflow doc; the canonical task routing table now lives inline in [WORKFLOW_EXTENSION.md](WORKFLOW_EXTENSION.md).
 
 ## First-Read Files
 

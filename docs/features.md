@@ -139,7 +139,7 @@ Behavior details: `docs/architecture/workbench/INDEX.md`
 ### Extension System
 - Extensions must NOT import Features/ or App/ modules.
 - Extensions depend only on Domain types and ExtensionPoints protocol contracts.
-- Details: [`EXTENSION_BOUNDARIES.md`](architecture/workbench/EXTENSION_BOUNDARIES.md)
+- Details: [`WORKFLOW_EXTENSION.md`](architecture/workbench/WORKFLOW_EXTENSION.md)
 
 ---
 

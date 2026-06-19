@@ -498,5 +498,5 @@ A phase is complete only when all checks pass:
 ## Cross-Links
 
 - [Shell Blocks](SHELL_BLOCKS.md)
-- [Extension Boundaries](EXTENSION_BOUNDARIES.md)
+- [Workflow Extension](WORKFLOW_EXTENSION.md)
 - [Module Boundaries](MODULE_BOUNDARIES.md)
