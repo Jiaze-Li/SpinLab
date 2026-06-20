@@ -1,7 +1,7 @@
 import CoreGraphics
 
 /// Intensity normalization mode for the heatmap color scale.
-enum HeatmapColorScaleMode: Sendable {
+enum HeatmapColorScaleMode: String, Codable, Sendable {
     case linear
     /// Log10 normalization. Zero and negative Z values are clamped to a safe floor.
     case log10

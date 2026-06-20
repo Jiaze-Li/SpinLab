@@ -338,27 +338,119 @@ private func makePayload(
 
 // MARK: - HeatmapTabRenderState Codable
 
+private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throws -> [String] {
+    let data = try JSONEncoder().encode(state)
+    let object = try JSONSerialization.jsonObject(with: data)
+    let dictionary = try #require(object as? [String: Any])
+    return Array(dictionary.keys)
+}
+
 @Test func heatmapTabRenderStateRoundTrip() throws {
     let state = HeatmapTabRenderState(
+        schemaVersion: 3,
         titleOverride:  "My Title",
         xLabelOverride: "My X",
         yLabelOverride: "My Y",
-        zLabelOverride: "My Z"
+        zLabelOverride: "My Z",
+        colorScaleMode: .log10,
+        colormapKey: "inferno",
+        zRangeOverrideMin: 1.5,
+        zRangeOverrideMax: 9.5
     )
     let data    = try JSONEncoder().encode(state)
     let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: data)
+    #expect(decoded.schemaVersion == 3)
     #expect(decoded.titleOverride  == "My Title")
     #expect(decoded.xLabelOverride == "My X")
     #expect(decoded.yLabelOverride == "My Y")
     #expect(decoded.zLabelOverride == "My Z")
+    #expect(decoded.colorScaleMode == .log10)
+    #expect(decoded.colormapKey == "inferno")
+    #expect(decoded.zRangeOverrideMin == 1.5)
+    #expect(decoded.zRangeOverrideMax == 9.5)
 }
 
-@Test func heatmapTabRenderStateDefaultsRoundTrip() throws {
-    let state   = HeatmapTabRenderState()
-    let data    = try JSONEncoder().encode(state)
-    let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: data)
-    #expect(decoded.titleOverride.isEmpty)
-    #expect(decoded.zLabelOverride.isEmpty)
+@Test func heatmapTabRenderStateDefaultDecodeMigration() throws {
+    let legacyJSON = """
+    {
+      "titleOverride": "Saved Title",
+      "xLabelOverride": "Saved X",
+      "yLabelOverride": "Saved Y",
+      "zLabelOverride": "Saved Z"
+    }
+    """
+    let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: Data(legacyJSON.utf8))
+    #expect(decoded.schemaVersion == HeatmapTabRenderState.currentSchemaVersion)
+    #expect(decoded.titleOverride == "Saved Title")
+    #expect(decoded.xLabelOverride == "Saved X")
+    #expect(decoded.yLabelOverride == "Saved Y")
+    #expect(decoded.zLabelOverride == "Saved Z")
+    #expect(decoded.colorScaleMode == .linear)
+    #expect(decoded.colormapKey == "viridis")
+    #expect(decoded.zRangeOverrideMin == 0)
+    #expect(decoded.zRangeOverrideMax == 0)
+}
+
+@Test func heatmapTabRenderStateZLabelOverrideRoundTrip() throws {
+    let state = HeatmapTabRenderState(zLabelOverride: "κ (W/m·K)")
+    let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: JSONEncoder().encode(state))
+    #expect(decoded.zLabelOverride == "κ (W/m·K)")
+}
+
+@Test func heatmapTabRenderStateColorScaleModeRoundTrip() throws {
+    let state = HeatmapTabRenderState(colorScaleMode: .log10)
+    let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: JSONEncoder().encode(state))
+    #expect(decoded.colorScaleMode == .log10)
+}
+
+@Test func heatmapTabRenderStateColormapKeyRoundTrip() throws {
+    let state = HeatmapTabRenderState(colormapKey: "magma")
+    let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: JSONEncoder().encode(state))
+    #expect(decoded.colormapKey == "magma")
+}
+
+@Test func heatmapTabRenderStateZRangeOverrideRoundTrip() throws {
+    let state = HeatmapTabRenderState(zRangeOverrideMin: 0.25, zRangeOverrideMax: 0.75)
+    let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: JSONEncoder().encode(state))
+    #expect(decoded.zRangeOverrideMin == 0.25)
+    #expect(decoded.zRangeOverrideMax == 0.75)
+}
+
+@Test func heatmapTabRenderStateEncodedJSONOmitsRSMOwnedFields() throws {
+    let state = HeatmapTabRenderState()
+    let jsonString = String(data: try JSONEncoder().encode(state), encoding: .utf8) ?? ""
+    #expect(!jsonString.contains("sourceFileIdentity"))
+    #expect(!jsonString.contains("detectorColumnName"))
+    #expect(!jsonString.contains("activeView"))
+    #expect(!jsonString.contains("view"))
+    #expect(!jsonString.contains("plotLayout"))
+    #expect(!jsonString.contains("HeatmapPlotLayout"))
+    #expect(!jsonString.contains("HeatmapPlotPayload"))
+    #expect(!jsonString.contains("renderedPNG"))
+}
+
+@Test func heatmapTabRenderStateEncodedJSONOmitsCartesianXYFields() throws {
+    let state = HeatmapTabRenderState()
+    let jsonString = String(data: try JSONEncoder().encode(state), encoding: .utf8) ?? ""
+    #expect(!jsonString.contains("legendPoint"))
+    #expect(!jsonString.contains("legendAnchor"))
+    #expect(!jsonString.contains("seriesOrder"))
+    #expect(!jsonString.contains("seriesLabelOverrides"))
+    #expect(!jsonString.contains("hiddenPointLabelIndicesBySeries"))
+}
+
+@Test func heatmapTabRenderStateEncodedJSONContainsRequiredFields() throws {
+    let state = HeatmapTabRenderState()
+    let keys = try heatmapTabRenderStateJSONKeys(state)
+    #expect(keys.contains("schemaVersion"))
+    #expect(keys.contains("titleOverride"))
+    #expect(keys.contains("xLabelOverride"))
+    #expect(keys.contains("yLabelOverride"))
+    #expect(keys.contains("zLabelOverride"))
+    #expect(keys.contains("colorScaleMode"))
+    #expect(keys.contains("colormapKey"))
+    #expect(keys.contains("zRangeOverrideMin"))
+    #expect(keys.contains("zRangeOverrideMax"))
 }
 
 // MARK: - XY regression: existing XY render path is unmodified
