@@ -73,6 +73,7 @@ extension ThreeOmegaWorkspaceStore {
         let capturedTokens     = _titleTokens
         let capturedRAHE1MethodForPlots = rahe1omegaMethod
         let capturedRAHE3MethodForPlots = rahe3omegaMethod
+        let capturedGlobalPlotDefaults = globalPlotDefaults
 
         let capturedRTHit = selectedRTHit
         let capturedNumericDisplay: [String: [String: String]] = cachedSampleNumericDisplay
@@ -88,6 +89,7 @@ extension ThreeOmegaWorkspaceStore {
                 renderer.showGrid              = capturedGrid
                 renderer.seriesRenderMode      = capturedRenderMode
                 renderer.chartStyleOverrides   = capturedStyleOverrides
+                renderer.globalPlotDefaults    = capturedGlobalPlotDefaults
                 renderer.legendAnchor          = capturedAnchor
                 renderer.stackOffsetMultiplier = capturedMultiplier
                 renderer.minGapFraction        = capturedMinGap

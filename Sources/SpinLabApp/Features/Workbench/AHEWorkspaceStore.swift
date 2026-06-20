@@ -107,6 +107,7 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
     // MARK: - Multi-tab render state (shell capability)
 
     var tabs = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe, showPlotGrid: false)
+    var globalPlotDefaults: [String: String] = [:]
 
     // MARK: - Title template
 
@@ -178,7 +179,7 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
             title: resolvedTitle,
             styleParams: [:]
         )
-        let input = tabs.buildPipelineInput(payload: payload)
+        let input = tabs.buildPipelineInput(payload: payload, globalPlotDefaults: globalPlotDefaults)
 
         plotTask?.cancel()
         plotTask = Task { [weak self] in
@@ -557,8 +558,9 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
             return tokens
         }()
         let capturedTabState = tabs.activeState
+        let capturedGlobalPlotDefaults = globalPlotDefaults
         let capturedPipelineInput: (WorkbenchPlotPayload) -> WorkbenchRenderPipeline.Input = { [tabs] payload in
-            tabs.buildPipelineInput(payload: payload)
+            tabs.buildPipelineInput(payload: payload, globalPlotDefaults: capturedGlobalPlotDefaults)
         }
 
         let snapshotSampleKeys: [String] = {

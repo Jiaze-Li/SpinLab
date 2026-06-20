@@ -25,10 +25,33 @@ struct V515RulesEngineRegressionTests {
 
     @Test("3w filename routes to 3w")
     func routing3w() throws {
-        let ruleSet = try loadBundledRuleSet()
-        let parser = FilenameRuleParser(ruleSet: ruleSet)
-        let hints = parser.parse(from: URL(fileURLWithPath: "/data/PN20_3w.dat"))
-        #expect(hints.measurementName == "3w")
+        withBundledRules { provider in
+            let parser = FilenameRuleParser(ruleSet: provider.ruleSet())
+            let hints = parser.parse(from: URL(fileURLWithPath: "/data/PN20_3w.dat"))
+            #expect(hints.measurementName == "3w")
+        }
+    }
+
+    @Test("IV_1w filename routes to IV with harmonic metadata")
+    func routingIV1w() throws {
+        withBundledRules { provider in
+            let parser = FilenameRuleParser(ruleSet: provider.ruleSet())
+            let hints = parser.parse(from: URL(fileURLWithPath: "/data/20260616214105_PN80_001_150deg_IV_1w_0T_sample.lvm"))
+            #expect(hints.measurementName == "IV")
+            #expect(hints.workflowID == "IV")
+            #expect(hints.conditionValues["harmonic"] == "1w")
+        }
+    }
+
+    @Test("IV_3w filename routes to IV with harmonic metadata")
+    func routingIV3w() throws {
+        withBundledRules { provider in
+            let parser = FilenameRuleParser(ruleSet: provider.ruleSet())
+            let hints = parser.parse(from: URL(fileURLWithPath: "/data/20260616214105_PN80_001_150deg_IV_3w_0T_sample.lvm"))
+            #expect(hints.measurementName == "IV")
+            #expect(hints.workflowID == "IV")
+            #expect(hints.conditionValues["harmonic"] == "3w")
+        }
     }
 
     @Test("RT filename routes to RT")

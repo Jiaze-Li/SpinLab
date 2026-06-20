@@ -40,13 +40,15 @@ struct WorkbenchPlotLayout: Sendable {
         let fontMetrics: FontMetrics
         /// Estimated label width used when a measured width is unavailable.
         let estimatedLabelWidth: CGFloat
+        /// Font name used to measure and draw legend labels.
+        let fontName: String
 
         var rowHeight: CGFloat {
             fontMetrics.lineHeight + rowVerticalPadding * 2
         }
 
-        static func `default`(fontSize: CGFloat) -> LegendStyle {
-            let font = CTFontCreateWithName("ArialMT" as CFString, fontSize, nil)
+        static func `default`(fontSize: CGFloat, fontName: String) -> LegendStyle {
+            let font = CTFontCreateWithName(fontName as CFString, fontSize, nil)
             let metrics = FontMetrics(
                 ascent: CTFontGetAscent(font),
                 descent: CTFontGetDescent(font),
@@ -62,7 +64,8 @@ struct WorkbenchPlotLayout: Sendable {
                 symbolLabelGap: 6,
                 fontSize: fontSize,
                 fontMetrics: metrics,
-                estimatedLabelWidth: 110
+                estimatedLabelWidth: 110,
+                fontName: fontName
             )
         }
 
@@ -250,7 +253,7 @@ struct WorkbenchPlotLayout: Sendable {
         )
 
         // Legend rows
-        let legendStyle = LegendStyle.default(fontSize: style.legendFontSize)
+        let legendStyle = LegendStyle.default(fontSize: style.legendFontSize, fontName: style.fontName)
         let legendRows = computeLegendRows(
             series:             payload.series,
             plotRect:           plotRect,
@@ -352,7 +355,7 @@ struct WorkbenchPlotLayout: Sendable {
 
         // Pre-measure all display labels so right-anchor uses actual max width, not the estimate.
         let measuredWidths: [CGFloat] = series.enumerated().map { i, s in
-            measureLabelWidth(labelOverrides[i] ?? s.label, fontSize: legendStyle.fontSize)
+            measureLabelWidth(labelOverrides[i] ?? s.label, fontSize: legendStyle.fontSize, fontName: legendStyle.fontName)
         }
         let maxMeasuredW = measuredWidths.max() ?? legendStyle.estimatedLabelWidth
 
@@ -436,13 +439,13 @@ struct WorkbenchPlotLayout: Sendable {
     }
 
     /// Measures label text width in renderer coordinates using the same font as drawLegend.
-    private static func measureLabelWidth(_ text: String, fontSize: CGFloat = 18) -> CGFloat {
-        let font = CTFontCreateWithName("ArialMT" as CFString, fontSize, nil)
+    private static func measureLabelWidth(_ text: String, fontSize: CGFloat = 18, fontName: String = "TimesNewRomanPSMT") -> CGFloat {
+        let font = CTFontCreateWithName(fontName as CFString, fontSize, nil)
         let attrs: [CFString: Any] = [kCTFontAttributeName: font]
         let attrStr = CFAttributedStringCreate(kCFAllocatorDefault, text as CFString, attrs as CFDictionary)!
         let line = CTLineCreateWithAttributedString(attrStr)
         let w = CTLineGetBoundsWithOptions(line, []).width
-        return w > 0 ? w : LegendStyle.default(fontSize: fontSize).estimatedLabelWidth
+        return w > 0 ? w : LegendStyle.default(fontSize: fontSize, fontName: fontName).estimatedLabelWidth
     }
 
     static func pointLabelGeometry(

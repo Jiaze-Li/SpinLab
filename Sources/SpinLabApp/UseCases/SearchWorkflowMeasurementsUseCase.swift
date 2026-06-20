@@ -90,7 +90,7 @@ struct SearchWorkflowMeasurementsUseCase {
 
     private func buildHit(sidecar: SpinLabFileSidecar, sidecarURL: URL, displayNameByID: [String: String]) -> WorkflowMeasurementSearchHit {
         let pathInfo = parsePathInfo(sidecarURL: sidecarURL)
-        let workflowID = firstNonEmpty(sidecar.workflow, pathInfo.workflowFolder) ?? ""
+        let workflowID = firstNonEmpty(sidecar.resolvedWorkflow, pathInfo.workflowFolder) ?? ""
         let workflowCanonicalID = canonicalWorkflowID(from: workflowID, displayName: sidecar.workflowDisplayName)
         let workflowDisplayName = preferredWorkflowDisplayName(
             sidecarDisplayName: sidecar.workflowDisplayName,
@@ -121,16 +121,16 @@ struct SearchWorkflowMeasurementsUseCase {
         canonicalID: String,
         displayNameByID: [String: String]
     ) -> String {
-        let trimmedSidecar = sidecarDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedSidecar.isEmpty {
-            return trimmedSidecar
-        }
-
         // Look up from registry definitions (case-insensitive via lowercased key).
         if let registryName = displayNameByID[workflowID.lowercased()]
             ?? displayNameByID[canonicalID.lowercased()],
            !registryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return registryName
+        }
+
+        let trimmedSidecar = sidecarDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedSidecar.isEmpty {
+            return trimmedSidecar
         }
 
         let trimmedID = workflowID.trimmingCharacters(in: .whitespacesAndNewlines)

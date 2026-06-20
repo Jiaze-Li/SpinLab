@@ -7,6 +7,7 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
     var body: some View {
         let store = appState.workbench.xyRotationWorkspace
         @Bindable var bindableStore = appState.workbench.xyRotationWorkspace
+        @Bindable var bindableWorkbench = appState.workbench
 
         WorkflowWorkspaceShell(
             workflowID: .xyRotation,
@@ -24,6 +25,7 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                     titleTemplate: $bindableStore.titleTemplate,
                     numericDisplayCache: store.cachedSampleNumericDisplay,
                     seriesRenderMode: $bindableStore.tabs.seriesRenderMode,
+                    globalPlotDefaults: $bindableWorkbench.globalPlotDefaults,
                     chartStyleOverrides: $bindableStore.tabs.chartStyleOverrides,
                     seriesOrderPayload: store.activeChartManifestPayload,
                     currentSeriesOrder: store.activeSeriesOrder,

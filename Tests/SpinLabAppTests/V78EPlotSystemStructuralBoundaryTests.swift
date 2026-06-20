@@ -17,7 +17,8 @@ import Testing
 ///      WorkbenchRunTraceProviding is separate;
 ///      WorkbenchWorkspaceProviding composes both.
 ///   4. TabRenderState owns the per-tab override fields;
-///      TabRenderManager owns the shared display and preservation state.
+///      TabRenderManager owns the shared display and preservation state;
+///      WorkbenchPlottingStore exposes shared global plot defaults.
 ///   5. Render pipeline stays one-way: no workflow store state in pipeline files.
 ///   6. WorkbenchStandardPlotControls is free of workflow-specific semantics.
 ///   7. Copy PNG context menu block does not call mutation callbacks.
@@ -74,8 +75,8 @@ struct V78EPlotSystemStructuralBoundaryTests {
     func canvasExposesCallbacks() throws {
         let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift")
         // Canvas must expose the canonical interaction callbacks
-        #expect(src.contains("onEditTitle"), "Canvas must expose onEditTitle callback")
         #expect(src.contains("onLegendDrag"), "Canvas must expose onLegendDrag callback")
+        #expect(src.contains("onTogglePointLabelVisibility"), "Canvas must expose onTogglePointLabelVisibility callback")
         #expect(src.contains("onCopyPNG"), "Canvas must expose onCopyPNG callback")
     }
 
@@ -156,6 +157,12 @@ struct V78EPlotSystemStructuralBoundaryTests {
         #expect(src.contains("var legendAnchor"), "TabRenderManager must own legendAnchor")
         #expect(src.contains("var tabStates"), "TabRenderManager must own tabStates")
         #expect(src.contains("var tabOutputs"), "TabRenderManager must own tabOutputs")
+    }
+
+    @Test("WorkbenchPlottingStore exposes globalPlotDefaults as shared plot defaults")
+    func plottingStoreExposesGlobalPlotDefaults() throws {
+        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift")
+        #expect(src.contains("var globalPlotDefaults"), "WorkbenchPlottingStore must expose shared globalPlotDefaults")
     }
 
     @Test("WorkbenchPlotCanvas does not redeclare canonical TabRenderState fields as stored properties")

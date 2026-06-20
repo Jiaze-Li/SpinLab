@@ -15,6 +15,8 @@ private final class FakeLibrarySidecarCapability: LibrarySidecarCapability {
 
     func saveConditionOverride(sidecarPath: String, conditionId: String, value: String) -> Bool { false }
     func removeConditionOverride(sidecarPath: String, conditionId: String) -> Bool { false }
+    func saveWorkflowOverride(sidecarPath: String, workflowOverride: String) -> Bool { false }
+    func clearWorkflowOverride(sidecarPath: String) -> Bool { false }
     func recomputeAllMeasurementSidecars(rootURL: URL) -> LibraryStore.BackfillSidecarsResult {
         LibraryStore.BackfillSidecarsResult(
             scannedSampleCount: 0,

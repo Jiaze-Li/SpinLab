@@ -79,7 +79,7 @@ struct WorkbenchSeriesOrderPanel: View {
     private var payloadSignature: String {
         guard let payload else { return "nil" }
         return payload.series.enumerated().map { index, series in
-            "\(ThreeOmegaWorkspaceStore.seriesOrderKey(for: series, index: index)):\(series.label)"
+            "\(WorkbenchSeriesOrderKeyResolver.resolve(for: series, originalIndex: index)):\(series.label)"
         }.joined(separator: "|")
     }
 
@@ -87,7 +87,7 @@ struct WorkbenchSeriesOrderPanel: View {
     private var payloadIdentitySignature: String {
         guard let payload else { return "nil" }
         return payload.series.enumerated().map { index, series in
-            "\(ThreeOmegaWorkspaceStore.seriesOrderKey(for: series, index: index)):\(series.label)"
+            "\(WorkbenchSeriesOrderKeyResolver.resolve(for: series, originalIndex: index)):\(series.label)"
         }
         .sorted()
         .joined(separator: "|")
@@ -286,7 +286,7 @@ struct WorkbenchSeriesOrderPanel: View {
         guard let payload else { return [] }
         let rows = payload.series.enumerated().map { index, series in
             SeriesOrderRow(
-                identityKey: ThreeOmegaWorkspaceStore.seriesOrderKey(for: series, index: index),
+                identityKey: WorkbenchSeriesOrderKeyResolver.resolve(for: series, originalIndex: index),
                 sampleID: series.sampleID,
                 sourceRef: series.sourceRef,
                 label: series.label,
@@ -294,45 +294,8 @@ struct WorkbenchSeriesOrderPanel: View {
             )
         }
         let lookup = Dictionary(uniqueKeysWithValues: rows.map { ($0.identityKey, $0) })
-        let defaultOrder = rows.map(\.identityKey)
-        let baseOrder = resolveOrderKeys(currentSeriesOrder, rows: rows, defaultOrder: defaultOrder)
+        let baseOrder = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(currentSeriesOrder, series: payload.series)
         return baseOrder.compactMap { lookup[$0] }
-    }
-
-    private static func resolveOrderKeys(
-        _ currentSeriesOrder: [String]?,
-        rows: [SeriesOrderRow],
-        defaultOrder: [String]
-    ) -> [String] {
-        guard let currentSeriesOrder, !currentSeriesOrder.isEmpty else { return defaultOrder }
-
-        let lookup = Dictionary(uniqueKeysWithValues: rows.map { ($0.identityKey, $0) })
-        let sampleIDLookup = Dictionary(grouping: rows, by: { $0.sampleID ?? "" })
-        var orderedKeys: [String] = []
-        var consumed = Set<String>()
-
-        func append(_ key: String) {
-            guard consumed.insert(key).inserted else { return }
-            orderedKeys.append(key)
-        }
-
-        for token in currentSeriesOrder {
-            if lookup[token] != nil {
-                append(token)
-                continue
-            }
-            // Legacy migration only: old persisted orders may still use sampleID tokens.
-            if let matches = sampleIDLookup[token], !matches.isEmpty {
-                for row in matches.sorted(by: { $0.originalIndex < $1.originalIndex }) {
-                    append(row.identityKey)
-                }
-            }
-        }
-
-        for key in defaultOrder where !consumed.contains(key) {
-            append(key)
-        }
-        return orderedKeys
     }
 }
 

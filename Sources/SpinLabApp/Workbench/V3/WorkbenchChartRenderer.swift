@@ -101,7 +101,7 @@ struct WorkbenchChartRenderer {
         let black = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
         let maxYLabelW = preYTicks.map { tick -> CGFloat in
             let label = formatTick(tick, step: preYStep)
-            let line = makeLine(text: label, size: style.tickLabelFontSize, bold: false, color: black)
+            let line = makeLine(text: label, size: style.tickLabelFontSize, bold: false, color: black, style: style)
             return CTLineGetBoundsWithOptions(line, []).width
         }.max() ?? 0
 
@@ -144,7 +144,8 @@ struct WorkbenchChartRenderer {
         drawCentered(ctx, text: title,
                      at: layout.titleCenter,
                      size: style.titleFontSize, bold: style.titleBold,
-                     color: CGColor(red: 0, green: 0, blue: 0, alpha: 1))
+                     color: CGColor(red: 0, green: 0, blue: 0, alpha: 1),
+                     style: style)
 
         let allX = payload.series.flatMap(\.x)
         let allY = payload.series.flatMap(\.y)
@@ -156,7 +157,8 @@ struct WorkbenchChartRenderer {
             drawCentered(ctx, text: "No Data",
                          at: CGPoint(x: layout.plotRect.midX, y: layout.plotRect.midY),
                          size: 12, bold: false,
-                         color: CGColor(red: 0.6, green: 0.6, blue: 0.6, alpha: 1))
+                         color: CGColor(red: 0.6, green: 0.6, blue: 0.6, alpha: 1),
+                         style: style)
             return
         }
 
@@ -180,8 +182,7 @@ struct WorkbenchChartRenderer {
             )
         }
 
-        let (xTicks, xStep) = style.xTickStep.map { fixedTicks(min: xMin, max: xMax, step: $0) }
-            ?? niceTicks(min: xMin, max: xMax, targetCount: style.tickTargetX)
+        let (xTicks, xStep, _) = resolvedXTicks(min: xMin, max: xMax, plotRect: layout.plotRect, style: style)
         let (yTicks, yStep) = style.yTickStep.map { fixedTicks(min: yMin, max: yMax, step: $0) }
             ?? niceTicks(min: yMin, max: yMax, targetCount: style.tickTargetY)
 
@@ -270,13 +271,15 @@ struct WorkbenchChartRenderer {
             switch geometry.placement {
             case .left:
                 drawRightAligned(ctx, text: text, rightEdge: geometry.drawAnchor,
-                                 size: labelFont, bold: false, color: labelColor)
+                                 size: labelFont, bold: false, color: labelColor, style: style)
             case .below:
                 drawCentered(ctx, text: text, at: geometry.drawAnchor,
-                             size: labelFont, bold: false, color: labelColor)
+                             size: labelFont, bold: false, color: labelColor,
+                             style: style)
             case .right:
                 drawLeftAligned(ctx, text: text, leftEdge: geometry.drawAnchor,
-                                size: labelFont, bold: false, color: labelColor)
+                                size: labelFont, bold: false, color: labelColor,
+                                style: style)
             }
         }
 
@@ -289,9 +292,9 @@ struct WorkbenchChartRenderer {
         // Axis field name labels (markup: _X renders X as subscript)
         let axisColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
         drawCenteredMarkup(ctx, text: payload.axisMapping.xField,
-                           at: layout.xLabelCenter, size: style.axisTitleFontSize, color: axisColor)
+                           at: layout.xLabelCenter, size: style.axisTitleFontSize, color: axisColor, style: style)
         drawRotated90Markup(ctx, text: payload.axisMapping.yField,
-                            at: layout.yLabelCenter, size: style.axisTitleFontSize, color: axisColor)
+                            at: layout.yLabelCenter, size: style.axisTitleFontSize, color: axisColor, style: style)
 
         // Legend — box rect from layout (single source of truth, no local duplication)
         if let boxRect = layout.legendBoxRect {
@@ -339,7 +342,45 @@ struct WorkbenchChartRenderer {
         return (ticks, step)
     }
 
-    private func formatTick(_ value: Double, step: Double) -> String {
+    func resolvedXTicks(
+        min: Double,
+        max: Double,
+        plotRect: CGRect,
+        style: WorkbenchChartStyle = .init()
+    ) -> (ticks: [Double], step: Double, targetCount: Int) {
+        if let step = style.xTickStep {
+            let fixed = fixedTicks(min: min, max: max, step: step)
+            return (fixed.ticks, fixed.step, Swift.max(style.tickTargetX, 3))
+        }
+
+        let targetStart = Swift.max(style.tickTargetX, 3)
+        guard max > min else { return ([min, max], max - min, targetStart) }
+
+        for target in stride(from: targetStart, through: 3, by: -1) {
+            let result = niceTicks(min: min, max: max, targetCount: target)
+            if xTickLabelsFit(
+                ticks: result.ticks,
+                step: result.step,
+                min: min,
+                max: max,
+                plotWidth: plotRect.width,
+                fontSize: style.tickLabelFontSize,
+                style: style
+            ) || target == 3 {
+                return (result.ticks, result.step, target)
+            }
+        }
+
+        let fallback = niceTicks(min: min, max: max, targetCount: targetStart)
+        return (fallback.ticks, fallback.step, targetStart)
+    }
+
+    func measureTextWidth(_ text: String, size: CGFloat, bold: Bool = false, style: WorkbenchChartStyle = .init()) -> CGFloat {
+        let line = makeLine(text: text, size: size, bold: bold, color: CGColor(red: 0, green: 0, blue: 0, alpha: 1), style: style)
+        return CTLineGetBoundsWithOptions(line, []).width
+    }
+
+    func formatTick(_ value: Double, step: Double) -> String {
         if abs(value) < step * 1e-9 { return "0" }
         // k-notation for large steps
         if step >= 500 && abs(value.truncatingRemainder(dividingBy: 1000)) < 0.5 {
@@ -354,7 +395,65 @@ struct WorkbenchChartRenderer {
         if step >= 0.1  { return String(format: "%.1f", value) }
         if step >= 0.01 { return String(format: "%.2f", value) }
         if step >= 0.001 { return String(format: "%.3f", value) }
-        return String(format: "%.2e", value)
+        return compactScientificString(value)
+    }
+
+    private func xTickLabelsFit(
+        ticks: [Double],
+        step: Double,
+        min: Double,
+        max: Double,
+        plotWidth: CGFloat,
+        fontSize: CGFloat,
+        style: WorkbenchChartStyle
+    ) -> Bool {
+        guard max > min, plotWidth > 0, ticks.count > 1 else { return true }
+        let span = max - min
+        var previousRightEdge: CGFloat?
+
+        for tick in ticks {
+            let label = formatTick(tick, step: step)
+            let width = measureTextWidth(label, size: fontSize, style: style)
+            let centerX = CGFloat((tick - min) / span) * plotWidth
+            let leftEdge = centerX - width / 2
+            if let previousRightEdge, previousRightEdge > leftEdge {
+                return false
+            }
+            previousRightEdge = centerX + width / 2
+        }
+        return true
+    }
+
+    private func compactScientificString(_ value: Double) -> String {
+        let raw = String(format: "%.2e", locale: Locale(identifier: "en_US_POSIX"), value)
+        let normalized = raw.replacingOccurrences(of: "E", with: "e")
+        guard let exponentIndex = normalized.firstIndex(of: "e") else { return normalized }
+
+        var mantissa = String(normalized[..<exponentIndex])
+        var exponent = String(normalized[normalized.index(after: exponentIndex)...])
+
+        while mantissa.last == "0" {
+            mantissa.removeLast()
+        }
+        if mantissa.last == "." {
+            mantissa.removeLast()
+        }
+
+        if exponent.hasPrefix("+") {
+            exponent.removeFirst()
+        } else if exponent.hasPrefix("-") {
+            let sign = exponent.removeFirst()
+            while exponent.count > 1 && exponent.first == "0" {
+                exponent.removeFirst()
+            }
+            exponent = String(sign) + exponent
+            return mantissa + "e" + exponent
+        }
+
+        while exponent.count > 1 && exponent.first == "0" {
+            exponent.removeFirst()
+        }
+        return mantissa + "e" + exponent
     }
 
     // MARK: - Axis tick marks + numeric labels
@@ -385,7 +484,7 @@ struct WorkbenchChartRenderer {
             let labelY = plotRect.minY - labelGap - 6
             drawCentered(ctx, text: label,
                          at: CGPoint(x: cx, y: labelY),
-                         size: labelSize, bold: false, color: labelColor)
+                         size: labelSize, bold: false, color: labelColor, style: style)
         }
 
         // Y-axis ticks (left, inward)
@@ -398,7 +497,7 @@ struct WorkbenchChartRenderer {
             let labelX = plotRect.minX - labelGap
             drawRightAligned(ctx, text: label,
                              rightEdge: CGPoint(x: labelX, y: cy),
-                             size: labelSize, bold: false, color: labelColor)
+                             size: labelSize, bold: false, color: labelColor, style: style)
         }
     }
 
@@ -465,15 +564,15 @@ struct WorkbenchChartRenderer {
                                            width: r * 2, height: r * 2))
             }
             drawLeftAligned(ctx, text: s.label, leftEdge: row.labelAnchor,
-                            size: fontSize, bold: false, color: labelColor)
+                            size: fontSize, bold: false, color: labelColor, style: style)
         }
     }
 
     // MARK: - CoreText text drawing (no AppKit)
 
     private func drawCentered(_ ctx: CGContext, text: String, at center: CGPoint,
-                               size: CGFloat, bold: Bool, color: CGColor) {
-        let line = makeLine(text: text, size: size, bold: bold, color: color)
+                               size: CGFloat, bold: Bool, color: CGColor, style: WorkbenchChartStyle) {
+        let line = makeLine(text: text, size: size, bold: bold, color: color, style: style)
         let bounds = CTLineGetBoundsWithOptions(line, [])
         ctx.textPosition = CGPoint(
             x: center.x - bounds.width / 2 - bounds.minX,
@@ -483,8 +582,8 @@ struct WorkbenchChartRenderer {
     }
 
     private func drawLeftAligned(_ ctx: CGContext, text: String, leftEdge: CGPoint,
-                                  size: CGFloat, bold: Bool, color: CGColor) {
-        let line = makeLine(text: text, size: size, bold: bold, color: color)
+                                  size: CGFloat, bold: Bool, color: CGColor, style: WorkbenchChartStyle) {
+        let line = makeLine(text: text, size: size, bold: bold, color: color, style: style)
         let bounds = CTLineGetBoundsWithOptions(line, [])
         ctx.textPosition = CGPoint(
             x: leftEdge.x - bounds.minX,
@@ -494,8 +593,8 @@ struct WorkbenchChartRenderer {
     }
 
     private func drawRightAligned(_ ctx: CGContext, text: String, rightEdge: CGPoint,
-                                   size: CGFloat, bold: Bool, color: CGColor) {
-        let line = makeLine(text: text, size: size, bold: bold, color: color)
+                                   size: CGFloat, bold: Bool, color: CGColor, style: WorkbenchChartStyle) {
+        let line = makeLine(text: text, size: size, bold: bold, color: color, style: style)
         let bounds = CTLineGetBoundsWithOptions(line, [])
         ctx.textPosition = CGPoint(
             x: rightEdge.x - bounds.width - bounds.minX,
@@ -505,8 +604,8 @@ struct WorkbenchChartRenderer {
     }
 
     private func drawRotated90(_ ctx: CGContext, text: String, at center: CGPoint,
-                                size: CGFloat, color: CGColor) {
-        let line = makeLine(text: text, size: size, bold: false, color: color)
+                                size: CGFloat, color: CGColor, style: WorkbenchChartStyle) {
+        let line = makeLine(text: text, size: size, bold: false, color: color, style: style)
         let bounds = CTLineGetBoundsWithOptions(line, [])
         ctx.saveGState()
         ctx.translateBy(x: center.x, y: center.y)
@@ -521,13 +620,13 @@ struct WorkbenchChartRenderer {
 
     /// Renders text where `_X` draws X as a subscript and `^X` draws X as a superscript.
     /// Falls back to plain rendering when neither marker is present.
-    private func makeMarkupLine(text: String, size: CGFloat, color: CGColor) -> CTLine {
+    private func makeMarkupLine(text: String, size: CGFloat, color: CGColor, style: WorkbenchChartStyle) -> CTLine {
         guard text.contains("_") || text.contains("^") else {
-            return makeLine(text: text, size: size, bold: false, color: color)
+            return makeLine(text: text, size: size, bold: false, color: color, style: style)
         }
-        let font    = CTFontCreateWithName("ArialMT" as CFString, size, nil)
-        let subFont = CTFontCreateWithName("ArialMT" as CFString, size * 0.65, nil)
-        let supFont = CTFontCreateWithName("ArialMT" as CFString, size * 0.65, nil)
+        let font    = style.ctFont(size: size, bold: false)
+        let subFont = style.ctFont(size: size * 0.65, bold: false)
+        let supFont = style.ctFont(size: size * 0.65, bold: false)
         let baseAttrs: [NSAttributedString.Key: Any] = [
             NSAttributedString.Key(rawValue: kCTFontAttributeName as String): font,
             NSAttributedString.Key(rawValue: kCTForegroundColorAttributeName as String): color,
@@ -557,8 +656,8 @@ struct WorkbenchChartRenderer {
     }
 
     private func drawCenteredMarkup(_ ctx: CGContext, text: String, at center: CGPoint,
-                                    size: CGFloat, color: CGColor) {
-        let line = makeMarkupLine(text: text, size: size, color: color)
+                                    size: CGFloat, color: CGColor, style: WorkbenchChartStyle) {
+        let line = makeMarkupLine(text: text, size: size, color: color, style: style)
         let bounds = CTLineGetBoundsWithOptions(line, [])
         ctx.textPosition = CGPoint(
             x: center.x - bounds.width / 2 - bounds.minX,
@@ -568,8 +667,8 @@ struct WorkbenchChartRenderer {
     }
 
     private func drawRotated90Markup(_ ctx: CGContext, text: String, at center: CGPoint,
-                                     size: CGFloat, color: CGColor) {
-        let line = makeMarkupLine(text: text, size: size, color: color)
+                                     size: CGFloat, color: CGColor, style: WorkbenchChartStyle) {
+        let line = makeMarkupLine(text: text, size: size, color: color, style: style)
         let bounds = CTLineGetBoundsWithOptions(line, [])
         ctx.saveGState()
         ctx.translateBy(x: center.x, y: center.y)
@@ -582,9 +681,8 @@ struct WorkbenchChartRenderer {
         ctx.restoreGState()
     }
 
-    private func makeLine(text: String, size: CGFloat, bold: Bool, color: CGColor) -> CTLine {
-        let fontName: CFString = bold ? "Arial-BoldMT" as CFString : "ArialMT" as CFString
-        let font = CTFontCreateWithName(fontName, size, nil)
+    private func makeLine(text: String, size: CGFloat, bold: Bool, color: CGColor, style: WorkbenchChartStyle) -> CTLine {
+        let font = style.ctFont(size: size, bold: bold)
         let attrs: [CFString: Any] = [
             kCTFontAttributeName: font,
             kCTForegroundColorAttributeName: color,

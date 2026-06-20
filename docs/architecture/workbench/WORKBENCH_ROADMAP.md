@@ -42,9 +42,12 @@ Gates 1 through 7 are complete. Gate 7.9 is the architecture closeout. Gate 8 re
 | Gate 6 | complete | Readiness Consumption |
 | Gate 7 | complete | Module Extraction Program |
 | Gate 7.9 | complete | Workbench Architecture Closeout (docs) |
-| Gate 8 | planned | New Workflow Dry Run |
+| Gate 8 | in progress | New Workflow Dry Run |
+| Gate 8.1 | complete / PR #131 | IV Workflow — Phase A+B |
 
-Gates 1 through 7 are closed out. Gate 7 completed the module extraction program across sub-gates 7.1–7.8. Gate 7.9 closes out the architecture documentation. Deferred runtime cleanup items and non-candidates are classified in `MODULE_BOUNDARIES.md` and `GATE7_WORKBENCH_ARCHITECTURE_CLOSEOUT.md`.
+Gates 1 through 7 are closed out. Gate 7 completed the module extraction program across sub-gates 7.1–7.8. Gate 7.9 closes out the architecture documentation. Gate 8.1 (IV workflow) is complete as of PR #131. Deferred runtime cleanup items and non-candidates are classified in `MODULE_BOUNDARIES.md` and `history/gate7/GATE7_WORKBENCH_ARCHITECTURE_CLOSEOUT.md`.
+
+Gate 8.1 (IV workflow — complete, PR #131): Full IV workflow wired across all five registration surfaces. V vs I and R vs I physics rendering live. X-axis displays in mA with Peak/RMS basis selectable via `xCurrentBasis`. Stacking supported via `stackOffsetMultiplier` / `minGapFraction`. Pack/restore round-trips all IV workspace state. Main Board unmodified. No existing module state touched. Assembly record: `docs/architecture/workbench/workflows/iv/ASSEMBLY.md`.
 
 ### Gate 2 - Workflow Assembly Audit & Contract Validation
 
@@ -156,7 +159,7 @@ Purpose:
 Result:
 
 - Complete
-- Detailed layout audit history remains in `LAYOUT_AUDIT.md`
+- Detailed layout audit history remains in `history/gate4/LAYOUT_AUDIT.md`
 
 ### Gate 5 - Layout Refactor
 
@@ -204,7 +207,7 @@ Result:
 
 - Status: complete
 - Scope: record the current readiness projection producer, current direct consumers, direct readiness-adjacent checks, and Gate 6.2 safe replacement candidates.
-- Result: `READINESS_CONSUMPTION_AUDIT.md`
+- Result: `history/gate6/READINESS_CONSUMPTION_AUDIT.md`
 - Notes:
   - This is audit and discoverability work only.
   - No Swift runtime changes were made.
@@ -226,7 +229,7 @@ Result:
 
 Status: complete (sub-gates 7.0–7.8 closed; Gate 7.9 docs closeout).
 
-The extraction order below is the Gate 3 Final plan; all sub-gates are now closed. Deferred runtime cleanup items and non-candidates are recorded in `MODULE_BOUNDARIES.md` and `GATE7_WORKBENCH_ARCHITECTURE_CLOSEOUT.md`.
+The extraction order below is the Gate 3 Final plan; all sub-gates are now closed. Deferred runtime cleanup items and non-candidates are recorded in `MODULE_BOUNDARIES.md` and `history/gate7/GATE7_WORKBENCH_ARCHITECTURE_CLOSEOUT.md`.
 
 ### Gate 3 Final / Gate 7 Extraction Plan
 
@@ -252,7 +255,7 @@ Summary:
 #### Gate 7.0 - Main Search extraction handoff audit
 
 - Status: complete, docs-only
-- Source audit file: `docs/architecture/workbench/GATE7_MAIN_SEARCH_HANDOFF.md`
+- Source audit file: `docs/architecture/workbench/history/gate7/GATE7_MAIN_SEARCH_HANDOFF.md`
 - Purpose: record the exact canonical Main Search ownership map, workflow-local mirror map, bridge state, restore paths, and test coverage that must remain intact before any runtime extraction begins.
 - Gate 7.1 is complete.
 
@@ -340,7 +343,7 @@ Summary:
 
 - Source Gate 3 audit section: `Pack / Restore`
 - Classification: `Boundary debt`
-- **Audit status: complete (2026-06-10). Audit doc: `docs/architecture/workbench/GATE7_PACK_RESTORE_AUDIT.md`.**
+- **Audit status: complete (2026-06-10). Audit doc: `docs/architecture/workbench/history/gate7/GATE7_PACK_RESTORE_AUDIT.md`.**
 - **Gate 7.6A status: complete (2026-06-10). 34 tests in `V760PackRestoreProtectionTests.swift`, all pass. No behavior drift.**
 - Actual Gate 3 finding: restore is the only sanctioned multi-state mutation exception, but pack/restore is still implemented per workflow and needs coverage for every restored field, including secondary input search.
 - Target owner: common Pack / Restore module with an explicit restore write map and a documented exception for workspace restoration.
@@ -401,7 +404,7 @@ Summary:
 - Outcome:
   - `WORKBENCH_ROADMAP.md` updated: Gate 7 marked complete; sub-gate table updated; stale Gate 7.8 wording replaced with actual outcomes.
   - `MODULE_BOUNDARIES.md` reframed as current ownership authority (origin: Gate 3, updated through Gate 7.9); Gate 3 follow-ups section replaced by Boundary Closeout Status section.
-  - `GATE7_WORKBENCH_ARCHITECTURE_CLOSEOUT.md` added: final module map, Gates 7.1–7.8 outcome summary, accepted bridges, deferred cleanup, non-candidates, and closeout rule.
+  - `history/gate7/GATE7_WORKBENCH_ARCHITECTURE_CLOSEOUT.md` added: final module map, Gates 7.1–7.8 outcome summary, accepted bridges, deferred cleanup, non-candidates, and closeout rule.
 - Production Swift: unchanged. Tests: unchanged. Rebuild/publish: not required.
 
 ### Gate 8 - New Workflow Dry Run
@@ -422,6 +425,12 @@ Acceptance:
 Result:
 
 - New workflow onboarding remains assembly-led
+
+#### Gate 8.1 - IV Workflow
+
+- Status: complete (PR #131).
+- Scope: IV workflow Phase A+B — full physics rendering, mA display with Peak/RMS basis, stacking, and pack/restore.
+- Outcome: Main Board unmodified. Layout unmodified. No existing module state touched. IV onboarded entirely through Workflow Assembly extension path. Assembly record: `docs/architecture/workbench/workflows/iv/ASSEMBLY.md`.
 
 ## 5.3.7 Scope Closure
 
@@ -496,5 +505,5 @@ A phase is complete only when all checks pass:
 ## Cross-Links
 
 - [Shell Blocks](SHELL_BLOCKS.md)
-- [Extension Boundaries](EXTENSION_BOUNDARIES.md)
+- [Workflow Extension](WORKFLOW_EXTENSION.md)
 - [Module Boundaries](MODULE_BOUNDARIES.md)

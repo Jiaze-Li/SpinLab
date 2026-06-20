@@ -47,5 +47,5 @@ No new regression test is needed in this PR because the denominator contract is 
 ## References
 
 - `docs/architecture/workbench/modules/MEASUREMENT_SEARCH.md`
-- `docs/architecture/workbench/modules/SEARCH_READ_SURFACE_AUDIT.md`
+- `docs/architecture/workbench/history/gate7/SEARCH_READ_SURFACE_AUDIT.md`
 - `docs/architecture/workbench/MODULE_BOUNDARIES.md`

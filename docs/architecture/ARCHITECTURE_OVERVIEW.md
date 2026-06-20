@@ -186,4 +186,4 @@ Details: `docs/architecture/inbox/ROUTING_PIPELINE.md`
 ## Related docs
 
 - Routing pipeline: `docs/architecture/inbox/ROUTING_PIPELINE.md`
-- Workbench shell and adding new workflows: `docs/architecture/workbench/EXTENSION_BOUNDARIES.md`
+- Workbench shell and adding new workflows: `docs/architecture/workbench/WORKFLOW_EXTENSION.md`

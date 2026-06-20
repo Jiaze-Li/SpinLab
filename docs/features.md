@@ -30,8 +30,6 @@ Behavior details: `specs/01_PRODUCT_RULES.md`, `docs/architecture/inbox/`
 ### Registry
 - Prefix-to-sheet mapping is display metadata only, not the lookup routing key
 - Registry lookup rules live in dedicated rulebook layer, not mixed with routing
-- Registry rules (`registryRules()`) return `Optional` (v5.4.1c+): no library_import_rules.json → nil; callers must handle nil as "no configuration" and produce empty results, never silent defaults
-- `sample_identification.json` is the sole substrate truth (v5.4.1c+): `FilenameRuleSet.fallback()` has no hardcoded substrate; any substrate data must come from the JSON config
 
 ### Queue Management
 - Clear Imports must never touch files already archived into Library drawers
@@ -141,7 +139,7 @@ Behavior details: `docs/architecture/workbench/INDEX.md`
 ### Extension System
 - Extensions must NOT import Features/ or App/ modules.
 - Extensions depend only on Domain types and ExtensionPoints protocol contracts.
-- Details: [`EXTENSION_BOUNDARIES.md`](architecture/workbench/EXTENSION_BOUNDARIES.md)
+- Details: [`WORKFLOW_EXTENSION.md`](architecture/workbench/WORKFLOW_EXTENSION.md)
 
 ---
 
@@ -151,8 +149,7 @@ Architecture details: `docs/architecture/inbox/RULES_AUTHORING.md`
 
 ### Key Invariants
 - Entry: "Rules" button in Inbox Operations header → opens separate window via `openWindow(id: "spin-rules")`
-- 6 sections: Import Filters / Filename Tokenization / Sample Identification / Workflow / Measuring Condition / Registry Import
-- Registry Import (6th section, v5.4.1b+): 7 fields from `library_import_rules.json` (`sampleHeaderAliases`, `batchHeaderAliases`, `substrateHeaderAliases`, `excludedSheetNames`, `sampleCellSeparators`, `numericKeyAliases`, `metadataLookupAliases`). Section is shown only when `library_import_rules.json` is present in the Rules Book; absent file → ContentUnavailableView (not an incompleteBook error — the file is optional, not required for the 5 core Inbox sections).
+- 5 sections: Import Filters / Filename Tokenization / Sample Identification / Workflow / Measuring Condition
 - **R1**: rules changes are live in `RuleLoader.shared` before `onRulesSaved` fires — no restart needed
 - Hash precondition on save: external file modification → `externalConflict`; user must Reload or Override
 - Closing with unsaved edits → 3-option alert: Discard Changes / Cancel / Save All
@@ -166,9 +163,7 @@ Architecture details: `docs/architecture/inbox/RULES_AUTHORING.md`
 - Per-condition standardization (v5.1.9+): optional standard unit + per-row transform expression (implicit-left-value: `*1000` = value×1000, `-273` = value−273) + precision rounding; transform ignored when standard unit is nil
 - v6→v7 migration: adds `standardization` object and `transform: null` to all rules; bootstrapper gate at schema v7
 - Legacy unit normalization (halfStep / trimNoise) fully deleted in v5.1.9
-- Test coverage: 36 + 20 + 12 + 3 + 4 + 4 + 44 + 12 + 15 tests across suites — see `RULES_AUTHORING.md`
-  - 12: `V541LibraryRegistryRulesPanelTests` (5.4.1b, Registry Import panel lifecycle)
-  - 15: `V541LibraryRegistryFallbackRemovalTests` (5.4.1c, fallback removal + substrate single source)
+- Test coverage: 36 + 20 + 12 + 3 + 4 + 4 + 44 tests across suites — see `RULES_AUTHORING.md`
 
 ---
 

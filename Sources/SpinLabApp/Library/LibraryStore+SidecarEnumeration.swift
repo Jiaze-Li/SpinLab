@@ -47,14 +47,15 @@ extension LibraryStore {
             } else {
                 sourceFileName = normalizedSourceFileName
             }
-            // For sidecars written before workflowDisplayName was added, fall back to id.
+            let resolvedWorkflow = sidecar.resolvedWorkflow
+            // For sidecars written before workflowDisplayName was added, fall back to the resolved id.
             let displayName = sidecar.workflowDisplayName.isEmpty
-                ? sidecar.workflow
+                ? resolvedWorkflow
                 : sidecar.workflowDisplayName
             results.append(
                 AppliedMeasurement(
                     id: url.path,
-                    workflow: sidecar.workflow,
+                    workflow: resolvedWorkflow,
                     workflowDisplayName: displayName,
                     conditions: sidecar.effectiveConditions,
                     appliedAt: sidecar.appliedAt,

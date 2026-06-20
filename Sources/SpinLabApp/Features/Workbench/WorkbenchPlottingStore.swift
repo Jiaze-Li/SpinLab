@@ -20,6 +20,8 @@ protocol WorkbenchPlottingStore: AnyObject {
     var showPlotGrid: Bool { get set }
     /// 全局序列渲染模式覆盖。
     var seriesRenderMode: SeriesRenderMode { get set }
+    /// Shared plot appearance defaults across workflows.
+    var globalPlotDefaults: [String: String] { get set }
     /// Chart style overrides (font sizes, tick density).
     var chartStyleOverrides: [String: String] { get set }
     /// 用户拖拽图例后回调，point 为 plot 归一化坐标（x,y ∈ [0,1]，Y-up）。

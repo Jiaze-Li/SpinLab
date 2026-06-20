@@ -18,6 +18,7 @@ enum WorkbenchWorkflowID: String, CaseIterable, Hashable {
     case ahe
     case threeOmega = "3w"
     case xyRotation = "xy"
+    case iv = "IV"
 
     /// Default search prefix pre-filled into the search box.
     var searchPrefix: String {
@@ -25,6 +26,7 @@ enum WorkbenchWorkflowID: String, CaseIterable, Hashable {
         case .ahe:        return "ahe "
         case .threeOmega: return "3w "
         case .xyRotation: return "xy "
+        case .iv:         return "IV "
         }
     }
 }
@@ -155,8 +157,14 @@ final class WorkbenchFeatureStore {
     let analysisVault = AnalysisVault()
     /// XY Rotation workspace state. Angle-dependent resistance R(φ), dual parser (LVM + DAT).
     let xyRotationWorkspace = XYRotationWorkspaceStore()
+    /// IV workspace state. Current-voltage measurement workflow.
+    let ivWorkspace = IVWorkspaceStore()
     /// Legacy search status bridge retained for compatibility with existing callers/tests.
     var searchMessages: [WorkbenchWorkflowID: String] = [:]
+    /// Shared plot appearance defaults across workflows.
+    var globalPlotDefaults: [String: String] = [:] {
+        didSet { syncGlobalPlotDefaultsToWorkspaces() }
+    }
     @ObservationIgnored
     private lazy var mainSearchRuntime = WorkbenchMainSearchRuntime(store: self, dataActor: dataActor)
     @ObservationIgnored
@@ -231,10 +239,12 @@ final class WorkbenchFeatureStore {
         self.threeOmegaWorkspace.vault = analysisVault
         self.xyRotationWorkspace.vault = analysisVault
         self.aheWorkspace.vault = analysisVault
+        self.ivWorkspace.vault = analysisVault
 
         self.aheWorkspace.selectionReading = self.selectionRuntime
         self.xyRotationWorkspace.selectionReading = self.selectionRuntime
         self.threeOmegaWorkspace.selectionReading = self.selectionRuntime
+        self.ivWorkspace.selectionReading = self.selectionRuntime
 
         // Route 3ω RT session state through the secondary input runtime.
         // Forces lazy init of secondaryInputRuntime while self is fully constructed.
@@ -242,6 +252,8 @@ final class WorkbenchFeatureStore {
 
         // Route overlay display/control state through the common overlay runtime.
         self.threeOmegaWorkspace.overlayRuntime = self.overlayRuntime
+
+        syncGlobalPlotDefaultsToWorkspaces()
     }
 
     deinit {
@@ -304,6 +316,10 @@ final class WorkbenchFeatureStore {
         xyRotationCenterBaseline: Bool? = nil,
         xyRotationLinearDetrend: Bool? = nil,
         xyRotationPlotLegendPoints: [String: [Double]]? = nil,
+        ivTitleTemplate: String? = nil,
+        ivStackOffsetMultiplier: Double? = nil,
+        ivMinGapFraction: Double? = nil,
+        workbenchPlotDefaults: [String: String]? = nil,
         workbenchChartStyleOverrides: [String: String]? = nil
     ) {
         if let selectedArchivedRecordID,
@@ -352,11 +368,27 @@ final class WorkbenchFeatureStore {
                 }
             }
         }
-        // Chart style overrides (font sizes) — apply to all three workflows
-        if let overrides = workbenchChartStyleOverrides, !overrides.isEmpty {
-            threeOmegaWorkspace.tabs.chartStyleOverrides = overrides
-            xyRotationWorkspace.tabs.chartStyleOverrides = overrides
-            aheWorkspace.tabs.chartStyleOverrides = overrides
+        let legacyOverrides = workbenchChartStyleOverrides ?? [:]
+        let splitLegacy = WorkbenchChartStyle.splitGlobalPlotDefaults(from: legacyOverrides)
+        if let defaults = workbenchPlotDefaults, !defaults.isEmpty {
+            globalPlotDefaults = defaults
+        } else if !splitLegacy.global.isEmpty {
+            globalPlotDefaults = splitLegacy.global
+        }
+
+        // IV workspace plot controls.
+        if let t = ivTitleTemplate { ivWorkspace.titleTemplate = t }
+        if let v = ivStackOffsetMultiplier { ivWorkspace.stackOffsetMultiplier = v }
+        if let v = ivMinGapFraction { ivWorkspace.minGapFraction = v }
+
+        let localOverrides = workbenchPlotDefaults == nil
+            ? splitLegacy.local
+            : legacyOverrides.filter { !WorkbenchChartStyle.isGlobalPlotDefaultKey($0.key) }
+        if !localOverrides.isEmpty {
+            threeOmegaWorkspace.tabs.chartStyleOverrides = localOverrides
+            xyRotationWorkspace.tabs.chartStyleOverrides = localOverrides
+            aheWorkspace.tabs.chartStyleOverrides = localOverrides
+            ivWorkspace.tabs.chartStyleOverrides = localOverrides
         }
     }
 
@@ -403,11 +435,31 @@ final class WorkbenchFeatureStore {
             }
             if !legendMap.isEmpty { snapshot.xyRotationPlotLegendPoints = legendMap }
         }
-        // Chart style overrides — merge from all workflows (user may edit in any one)
+        // IV workspace plot controls.
+        snapshot.ivTitleTemplate = ivWorkspace.titleTemplate
+        snapshot.ivStackOffsetMultiplier = ivWorkspace.stackOffsetMultiplier
+        snapshot.ivMinGapFraction = ivWorkspace.minGapFraction
+
+        snapshot.workbenchPlotDefaults = globalPlotDefaults.isEmpty ? nil : globalPlotDefaults
+
+        // Chart style overrides remain workflow-local for non-global keys.
         var overrides: [String: String] = [:]
-        for (k, v) in threeOmegaWorkspace.tabs.chartStyleOverrides { overrides[k] = v }
-        for (k, v) in xyRotationWorkspace.tabs.chartStyleOverrides { overrides[k] = v }
-        for (k, v) in aheWorkspace.tabs.chartStyleOverrides { overrides[k] = v }
+        for (k, v) in threeOmegaWorkspace.tabs.chartStyleOverrides
+            where !WorkbenchChartStyle.isGlobalPlotDefaultKey(k) {
+            overrides[k] = v
+        }
+        for (k, v) in xyRotationWorkspace.tabs.chartStyleOverrides
+            where !WorkbenchChartStyle.isGlobalPlotDefaultKey(k) {
+            overrides[k] = v
+        }
+        for (k, v) in aheWorkspace.tabs.chartStyleOverrides
+            where !WorkbenchChartStyle.isGlobalPlotDefaultKey(k) {
+            overrides[k] = v
+        }
+        for (k, v) in ivWorkspace.tabs.chartStyleOverrides
+            where !WorkbenchChartStyle.isGlobalPlotDefaultKey(k) {
+            overrides[k] = v
+        }
         snapshot.workbenchChartStyleOverrides = overrides.isEmpty ? nil : overrides
     }
 
@@ -494,6 +546,7 @@ final class WorkbenchFeatureStore {
         case .ahe:        return aheWorkspace.cachedSearchResults
         case .threeOmega: return threeOmegaWorkspace.cachedSearchResults
         case .xyRotation: return xyRotationWorkspace.cachedSearchResults
+        case .iv:         return ivWorkspace.cachedSearchResults
         }
     }
 
@@ -509,6 +562,13 @@ final class WorkbenchFeatureStore {
             return workflowDefinitions.first
         }
         return workflowDefinitions.first { $0.id.caseInsensitiveCompare(selectedWorkflowID) == .orderedSame }
+    }
+
+    private func syncGlobalPlotDefaultsToWorkspaces() {
+        aheWorkspace.globalPlotDefaults = globalPlotDefaults
+        xyRotationWorkspace.globalPlotDefaults = globalPlotDefaults
+        threeOmegaWorkspace.globalPlotDefaults = globalPlotDefaults
+        ivWorkspace.globalPlotDefaults = globalPlotDefaults
     }
 
     func selectWorkflow(_ id: String?) {

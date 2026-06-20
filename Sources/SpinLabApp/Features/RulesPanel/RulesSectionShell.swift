@@ -8,10 +8,6 @@ struct RulesSectionShell<Content: View>: View {
     let isDraftAvailable: Bool
     let versionLabel: String?
     let onSync: () -> Void
-    let onCreateFromDefaults: (() -> Void)?
-    let createFromDefaultsLabel: String
-    let emptyStateTitle: String?
-    let emptyStateMessage: String?
     let content: (Binding<[RulesPanelFieldError]>) -> Content
 
     @State private var saveErrors: [RulesPanelFieldError] = []
@@ -26,20 +22,12 @@ struct RulesSectionShell<Content: View>: View {
         isDraftAvailable: Bool,
         versionLabel: String?,
         onSync: @escaping () -> Void,
-        onCreateFromDefaults: (() -> Void)? = nil,
-        createFromDefaultsLabel: String = "Create from defaults",
-        emptyStateTitle: String? = nil,
-        emptyStateMessage: String? = nil,
         @ViewBuilder content: @escaping (Binding<[RulesPanelFieldError]>) -> Content
     ) {
         self.section = section
         self.isDraftAvailable = isDraftAvailable
         self.versionLabel = versionLabel
         self.onSync = onSync
-        self.onCreateFromDefaults = onCreateFromDefaults
-        self.createFromDefaultsLabel = createFromDefaultsLabel
-        self.emptyStateTitle = emptyStateTitle
-        self.emptyStateMessage = emptyStateMessage
         self.content = content
     }
 
@@ -54,19 +42,9 @@ struct RulesSectionShell<Content: View>: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(AppSpacing.xl)
                     }
-                } else if let onCreate = onCreateFromDefaults {
-                    ContentUnavailableView {
-                        Label(emptyStateTitle ?? "No \(section.displayName.lowercased()) rules loaded",
-                              systemImage: "doc.questionmark")
-                    } description: {
-                        if let msg = emptyStateMessage { Text(msg) }
-                    } actions: {
-                        Button(createFromDefaultsLabel) { onCreate() }
-                            .buttonStyle(.borderedProminent)
-                    }
                 } else {
                     ContentUnavailableView(
-                        emptyStateTitle ?? "No \(section.displayName.lowercased()) rules loaded",
+                        "No \(section.displayName.lowercased()) rules loaded",
                         systemImage: "doc.questionmark"
                     )
                 }

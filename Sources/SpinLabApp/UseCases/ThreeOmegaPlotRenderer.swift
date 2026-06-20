@@ -23,6 +23,7 @@ struct ThreeOmegaPlotRenderer {
     var seriesLabelOverrides: [Int: String] = [:]
     var seriesRenderMode: SeriesRenderMode = .line
     var chartStyleOverrides: [String: String] = [:]
+    var globalPlotDefaults: [String: String] = [:]
     var hiddenPointLabelsBySeries: [Int: Set<Int>] = [:]
 
     private let defaultOptions = WorkbenchChartRenderer.Options()
@@ -364,6 +365,7 @@ struct ThreeOmegaPlotRenderer {
             payload: payload,
             baseOptions: options ?? defaultOptions,
             legendPoint: legendPoint,
+            globalPlotDefaults: globalPlotDefaults,
             seriesRenderMode: seriesRenderMode,
             chartStyleOverrides: chartStyleOverrides,
             seriesLabelOverrides: seriesLabelOverrides,

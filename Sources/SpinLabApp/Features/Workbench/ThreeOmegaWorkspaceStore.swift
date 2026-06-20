@@ -135,6 +135,7 @@ final class ThreeOmegaWorkspaceStore {
     // MARK: - Multi-tab render state (shell capability)
 
     var tabs = TabRenderManager<ThreeOmegaWorkbenchTab>(defaultTab: .fieldSweep1omega)
+    var globalPlotDefaults: [String: String] = [:]
 
     // MARK: - Plot controls (workflow-specific)
 

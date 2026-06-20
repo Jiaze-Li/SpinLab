@@ -16,15 +16,6 @@ final class LibraryRegistryParser {
 
     init(ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared) {
         let registryRules = ruleProvider.registryRules()
-        if registryRules == nil {
-            AppLogger.shared.error(.import, "LibraryRegistryParser: registry rules unavailable — library_import_rules.json required")
-        }
-
-        excludedSheetNames = Set(registryRules?.excludedSheetNames ?? [])
-        batchHeaderAliases = Set(registryRules?.batchHeaderAliases ?? [])
-        substrateHeaderAliases = Set(registryRules?.substrateHeaderAliases ?? [])
-        numericKeyAliases = registryRules?.numericKeyAliases ?? [:]
-
         guard let config = ruleProvider.substrateConfig() else {
             AppLogger.shared.error(.import, "LibraryRegistryParser: substrateConfig unavailable — v4 schema required")
             substrateParser = LibrarySubstrateParser(
@@ -34,6 +25,10 @@ final class LibraryRegistryParser {
                 orientationAliases: [:],
                 materialDisplayNames: [:]
             )
+            excludedSheetNames = Set(registryRules.excludedSheetNames)
+            batchHeaderAliases = Set(registryRules.batchHeaderAliases)
+            substrateHeaderAliases = Set(registryRules.substrateHeaderAliases)
+            numericKeyAliases = registryRules.numericKeyAliases
             return
         }
         substrateParser = LibrarySubstrateParser(
@@ -62,6 +57,10 @@ final class LibraryRegistryParser {
                 }
             }
         )
+        excludedSheetNames = Set(registryRules.excludedSheetNames)
+        batchHeaderAliases = Set(registryRules.batchHeaderAliases)
+        substrateHeaderAliases = Set(registryRules.substrateHeaderAliases)
+        numericKeyAliases = registryRules.numericKeyAliases
     }
 
     convenience init(ruleLoadResult: RuleLoader.LoadResult) {
@@ -306,7 +305,7 @@ final class LibraryRegistryParser {
     }
 
     static func normalizeNumericKey(_ key: String) -> String? {
-        normalizeNumericKey(key, aliases: Self.ruleProvider.registryRules()?.numericKeyAliases ?? [:])
+        normalizeNumericKey(key, aliases: Self.ruleProvider.registryRules().numericKeyAliases)
     }
 
     static func normalizeNumericKey(_ key: String, aliases: [String: [String]]) -> String? {

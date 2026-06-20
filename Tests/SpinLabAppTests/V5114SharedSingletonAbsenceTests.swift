@@ -33,7 +33,7 @@ private struct FakeRuleProvider: SpinLabRuleProviding {
     func loadResult() -> RuleLoader.LoadResult { RuleLoader().loadFromBundleOnly() }
     func reloadResult() -> RuleLoader.LoadResult { RuleLoader().loadFromBundleOnly() }
     func ruleSet() -> FilenameRuleSet { loadResult().ruleSet }
-    func registryRules() -> FilenameRuleSet.RegistryRules? { ruleSet().registry }
+    func registryRules() -> FilenameRuleSet.RegistryRules { ruleSet().registry ?? FilenameRuleSet.fallback().registry! }
     func importRules() -> FilenameRuleSet.ImportRules { ruleSet().importRules ?? FilenameRuleSet.fallback().importRules! }
     func substrateConfig() -> FilenameRuleSet.SubstrateConfig? { nil }
 }

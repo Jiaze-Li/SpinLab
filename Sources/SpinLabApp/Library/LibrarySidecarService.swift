@@ -147,6 +147,7 @@ struct LibrarySidecarService {
                 let updated = SidecarCompositionUseCase.composeSidecarV2(
                     base: SidecarCompositionBase(
                         workflow: existing.workflow,
+                        autoDetectedWorkflow: existing.autoDetectedWorkflow,
                         workflowDisplayName: existing.workflowDisplayName,
                         channels: existing.channels,
                         sourceFilePath: existing.sourceFilePath,
@@ -169,6 +170,7 @@ struct LibrarySidecarService {
                 let sidecar = SidecarCompositionUseCase.composeSidecarV2(
                     base: SidecarCompositionBase(
                         workflow: workflow,
+                        autoDetectedWorkflow: workflow,
                         workflowDisplayName: workflow,
                         channels: [],
                         sourceFilePath: url.path,
@@ -396,6 +398,30 @@ struct LibrarySidecarService {
         guard var sidecar = reader.loadSidecar(at: url) else { return false }
         guard sidecar.userOverrides.conditions[conditionId] != nil else { return true }
         sidecar.userOverrides.conditions.removeValue(forKey: conditionId)
+        return writer.saveSidecar(sidecar, at: url)
+    }
+
+    // MARK: - Workflow override write-back
+
+    @discardableResult
+    func saveWorkflowOverride(sidecarPath: String, workflowOverride: String) -> Bool {
+        let url = URL(fileURLWithPath: sidecarPath)
+        guard var sidecar = reader.loadSidecar(at: url) else { return false }
+        let normalized = workflowOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else {
+            return clearWorkflowOverride(sidecarPath: sidecarPath)
+        }
+        sidecar.workflowOverride = normalized
+        sidecar.workflowSource = .manual
+        return writer.saveSidecar(sidecar, at: url)
+    }
+
+    @discardableResult
+    func clearWorkflowOverride(sidecarPath: String) -> Bool {
+        let url = URL(fileURLWithPath: sidecarPath)
+        guard var sidecar = reader.loadSidecar(at: url) else { return false }
+        sidecar.workflowOverride = nil
+        sidecar.workflowSource = .auto
         return writer.saveSidecar(sidecar, at: url)
     }
 }

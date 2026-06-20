@@ -9,7 +9,7 @@ This document names the stable top-level model. Detailed contracts live in:
 - [MAIN_BOARD_READINESS.md](MAIN_BOARD_READINESS.md)
 - [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md)
 - [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md)
-- [EXTENSION_BOUNDARIES.md](EXTENSION_BOUNDARIES.md)
+- [WORKFLOW_EXTENSION.md](WORKFLOW_EXTENSION.md)
 - [WORKBENCH_ROADMAP.md](WORKBENCH_ROADMAP.md)
 - [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md) - implementation-level placement notes only
 - `modules/`
@@ -70,11 +70,11 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - [Main Board Readiness](MAIN_BOARD_READINESS.md)
 - [Module Boundaries](MODULE_BOUNDARIES.md)
 - [Workflow Assembly](WORKFLOW_ASSEMBLY.md)
-- [Extension Boundaries](EXTENSION_BOUNDARIES.md)
+- [Workflow Extension](WORKFLOW_EXTENSION.md)
 - [Workbench Roadmap](WORKBENCH_ROADMAP.md)
 - [Main Board layout notes](MAIN_BOARD_LAYOUT.md)
 - `modules/MEASUREMENT_SEARCH.md`
-- `modules/SELECTION_DENOMINATOR_AUDIT.md`
+- `history/gate7/SELECTION_DENOMINATOR_AUDIT.md`
 - `modules/PLOT_SYSTEM.md`
 - `modules/PACK_RESTORE.md`
 - `workflows/three-omega/THREE_OMEGA_PHYSICS.md`
@@ -96,6 +96,8 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` — owns AHE selection, plot, warning, pack, and render state
 - `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift` — mounts the AHE workflow shell and workflow-specific panels
 - `Sources/SpinLabApp/Features/Workbench/OverlaySnapshot.swift` — stores decoupled overlay pack data for RAHE rendering
+- `Sources/SpinLabApp/Features/Workbench/IVWorkspaceStore.swift` — owns IV analysis, pack, and render state for the IV workflow assembly
+- `Sources/SpinLabApp/Features/Workbench/IVWorkspaceView.swift` — mounts the IV workflow shell and workflow-specific control content
 - `Sources/SpinLabApp/Features/Workbench/PlotCanvasMouseTracker.swift` — bridges mouse events into plot-canvas drag and tap tracking
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaRenderedPlots.swift` — carries rendered 3ω plot images, layouts, and pipeline warnings
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkbenchTab.swift` — defines 3ω tab identities and stable persistence keys

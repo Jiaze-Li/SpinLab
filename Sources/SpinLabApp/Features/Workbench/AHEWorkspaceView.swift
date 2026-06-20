@@ -35,10 +35,12 @@ private struct AHEPlotControlsPanel: View {
 
     var body: some View {
         let ahe = appState.workbench.aheWorkspace
+        @Bindable var workbench = appState.workbench
         @Bindable var bindableAhe = appState.workbench.aheWorkspace
 
         WorkbenchPlotControlsPanel(
             seriesRenderMode: $bindableAhe.seriesRenderMode,
+            globalPlotDefaults: $workbench.globalPlotDefaults,
             chartStyleOverrides: $bindableAhe.chartStyleOverrides,
             onStyleChange: { ahe.rerenderForStyleChange() }
         ) {

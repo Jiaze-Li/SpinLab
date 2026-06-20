@@ -36,6 +36,20 @@ Read surfaces must be explicit. If a module needs another module's state, the de
 
 The sections below document the current boundary contracts for each module and module group.
 
+## Code Map
+
+- `Sources/SpinLabApp/Features/Workbench/IVWorkspaceStore.swift` - IV workflow workspace store owning IV analysis, pack, and render state
+- `Sources/SpinLabApp/Features/Workbench/IVWorkspaceView.swift` - IV workflow shell view and workflow-specific control content
+- `Sources/SpinLabApp/UseCases/IVLVMParser.swift` - IV LVM parser that preserves raw channels and audit columns
+- `Sources/SpinLabApp/UseCases/IVPlotRenderer.swift` - IV workflow renderer that builds plot payloads from IV sweeps
+- `Sources/SpinLabApp/UseCases/IngestIVSelectionsUseCase.swift` - IV ingestion use case that derives `IVIngestionResult` from selected hits
+- `Sources/SpinLabApp/Workbench/V3/IVIngestionContracts.swift` - IV ingestion result and sweep contracts
+- `Sources/SpinLabApp/Workbench/V3/IVPackContracts.swift` - IV pack config and pack result contracts
+- `Sources/SpinLabApp/App/State/WorkbenchFeatureStore.swift` - IV registration and shared Workbench state facade wiring
+- `Sources/SpinLabApp/App/State/WorkbenchMainSearchRuntime.swift` - main search orchestration and IV search mirror sync
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift` - dispatches `IVWorkspaceView` for `iv`
+- `Sources/SpinLabApp/UI/WorkbenchUIStyle.swift` - shared compact Workbench control styling tokens used by IV controls
+
 ## Module Inventory and Boundary Authority
 
 Status: current module ownership authority. Originally established as the Gate 3 audit; updated through Gate 7.12. This section classifies current Workbench ownership surfaces; it does not authorize extraction or runtime behavior changes beyond what is already complete.
@@ -158,13 +172,18 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - State it owns: tab render states, tab outputs, active tab, grid flag, legend anchor, chart style overrides, series label/title/axis overrides, point-label visibility, series order where opted in.
 - State it must not own: search/selection state, ingestion result, workflow physics parameters, save/pack vault state, metric extraction semantics.
 - How workflow-specific semantics enter: workflow renderer provides payloads, tabs, axis defaults, style parameters, capability flags such as `seriesReorderable`, and semantic labels. Plot System applies common display and preservation rules.
+- Series order identity resolution is owned by the shared Plot System resolver (`WorkbenchSeriesOrderKeyResolver`). It provides stable identity keys for series reordering and restore. `WorkbenchSeriesOrderPanel` and `WorkbenchRenderPipeline` consume it automatically. Workflow stores must not keep separate key-generation logic for the same plot surface.
+- Legend auto-resolution is owned by the shared Plot System resolver (`LegendDimensionResolver`). It resolves legend labels from `WorkbenchPlotSeries.metadata` when the payload leaves `legendDimension` nil. `WorkbenchRenderPipeline` invokes it automatically. Workflow renderers must populate metadata such as `temperature`, `field`, `harmonic`, `device`, `substrate`, and `thickness`; workflow-local legend guessing is forbidden.
+- `WorkbenchRenderPipeline` is the common Plot System post-processing path. It applies legend auto-resolution, series-order mismatch detection, and other shared render-time adjustments. Workflow renderers should route through the pipeline unless an exception is explicitly documented.
 - Pack/restore implications: pack configs serialize tab state, active tab, grid, legend/style overrides, point label state, and series order; restore re-renders output from analysis result rather than serializing active image/layout.
 - Tests currently protecting it: `V531SeriesRenderModeTests`, `V532WorkbenchRenderPipelineTests`, `V534LegendDimensionResolverTests`, `V535PointLabelVisibilityTests`, `V535TabRenderStatePackTests`, `V535CopyPNGScaleMenuTests`, `V536CurveDragOrderTests`, `V537WorkflowShellPhase4Tests`, `V563WorkflowStateBoundaryTests`.
 - Extraction readiness: high for display/preservation contracts; medium for controls because workflow stores still host some control state.
 - Risks if extracted too early: moving workflow semantics into common plot code, breaking tab override survival, using sample ID instead of sourceRef for reorder, serializing render output instead of rerendering.
 - Sub-module structure (Gate 7.8 audit): Plot System is a module group with three distinct sub-modules:
   - **Plot Display**: render output (`tabOutputs`, projections `activeImageData` / `activeLayout` / `activeManifestPayload`), active tab switching, and shared display settings (`showPlotGrid`, `seriesRenderMode`, `chartStyleOverrides`, `legendAnchor`). Canonical owner: `TabRenderManager`.
-  - **Plot Controls**: user-facing display override input components. `WorkbenchPlotControlsPanel` is the common container View. `WorkbenchStandardPlotControls` is the shared two-row layout for multi-tab stacking workflows (XY Rotation, 3ω). `WorkbenchTitleTemplateField` is the shared title input. AHE uses a workflow-local `AHEPlotControlsPanel` — a legitimate specialization for a single-tab workflow with no stacking. Binding targets are either `TabRenderManager`-owned (Plot Preservation) or workflow-store-owned (Assembly-owned display parameters).
+- **Plot Controls**: user-facing display override input components. `WorkbenchPlotControlsPanel` is the common container View. `WorkbenchStandardPlotControls` is the shared two-row layout for multi-tab stacking workflows (XY Rotation, 3ω). `WorkbenchTitleTemplateField` is the shared title input. AHE uses a workflow-local `AHEPlotControlsPanel` — a legitimate specialization for a single-tab workflow with no stacking. Binding targets are either `TabRenderManager`-owned (Plot Preservation) or workflow-store-owned (Assembly-owned display parameters).
+
+- **Workbench control styling**: `WorkbenchUIStyle` owns the compact control visual tokens used by Workbench control surfaces. It composes `AppSpacing` and `AppFontScale`; those base layers remain the source of truth for spacing and typography scale values.
   - **Plot Preservation**: per-tab display overrides and pack round-trip. `TabRenderState` stores legend position, title/axis/label overrides, series order, and point label visibility. Canonical owner: `TabRenderManager`. `TabRenderManager` is the **existing extracted** Plot Preservation owner — no new top-level module is introduced by Gate 7.8.
 
 ### Pack / Restore
@@ -261,6 +280,8 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
   - `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift`
   - `Sources/SpinLabApp/Workbench/V3/WorkbenchRenderPipeline.swift`
   - `Sources/SpinLabApp/UseCases/WorkbenchTitleResolver.swift`
+  - `Sources/SpinLabApp/Workbench/V3/WorkbenchSeriesOrderKeyResolver.swift`
+  - `Sources/SpinLabApp/UseCases/LegendDimensionResolver.swift`
   - workflow-local `titleTemplate`, grid, legend anchor, and chart style bindings in all workflow stores
 - Current consumers: all workflow views/stores, render pipeline, pack configs, plot canvas editors.
 - State it owns: display override state such as title template/overrides, chart style overrides, grid flag, legend anchor/position, axis and series display label overrides.
@@ -338,9 +359,11 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Extraction readiness: not a common-module extraction target. It may be internally cleaned as an XY Assembly-owned panel only.
 - Risks if extracted too early: offset state treated as generic plot style, restored XY packs rerender with wrong angle alignment, future workflows inherit XY-specific assumptions.
 
-## Boundary Closeout Status (Gate 7.12)
+## Historical Notes
 
-This section replaces the Gate 3 follow-up list. Items are classified as resolved, accepted compatibility bridge, deferred runtime cleanup, or non-candidate.
+### Boundary Closeout Status (Gate 7.12)
+
+This section is a historical record of Gate 7 extraction outcomes. Items are classified as resolved, accepted compatibility bridge, deferred runtime cleanup, or non-candidate. Do not update this section; track new boundary changes in the current ownership sections above.
 
 ### Removed by Gate 7.11
 

@@ -22,6 +22,7 @@ struct XYRotationPlotRenderer {
     var linearDetrend: Bool = false
     var showAuxiliaryLine180: Bool = false
     var seriesRenderMode: SeriesRenderMode = .line
+    var globalPlotDefaults: [String: String] = [:]
     var chartStyleOverrides: [String: String] = [:]
 
     private let defaultOptions = WorkbenchChartRenderer.Options()
@@ -187,6 +188,7 @@ struct XYRotationPlotRenderer {
             payload: payload,
             baseOptions: options ?? defaultOptions,
             legendPoint: legendPoint,
+            globalPlotDefaults: globalPlotDefaults,
             seriesRenderMode: seriesRenderMode,
             chartStyleOverrides: chartStyleOverrides,
             seriesLabelOverrides: seriesLabelOverrides,

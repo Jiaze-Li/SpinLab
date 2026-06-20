@@ -20,6 +20,8 @@ enum WorkbenchRenderPipeline {
 
         // ── Shell-level overrides (same for all workflows) ──────────
 
+        /// Shared plot defaults across workflows.
+        var globalPlotDefaults: [String: String] = [:]
         /// Global series render mode override.
         var seriesRenderMode: SeriesRenderMode = .line
         /// Chart style key-value overrides (font sizes, tick density, etc.).
@@ -66,7 +68,10 @@ enum WorkbenchRenderPipeline {
         // 1. Preserve original data-column axis mapping for manifest
         let originalAxisMapping = payload.axisMapping
 
-        // 2. Apply styleParams patches (grid, legendAnchor, auxVerticalX, legend position)
+        // 2. Apply shared plot defaults and styleParams patches.
+        for (k, v) in input.globalPlotDefaults {
+            payload.styleParams[k] = v
+        }
         for (k, v) in input.styleParamsPatch {
             payload.styleParams[k] = v
         }
@@ -117,6 +122,7 @@ enum WorkbenchRenderPipeline {
 
         // 5. Merge chart style overrides into styleParams
         for (k, v) in input.chartStyleOverrides {
+            guard !WorkbenchChartStyle.isGlobalPlotDefaultKey(k) else { continue }
             payload.styleParams[k] = v
         }
 
@@ -198,7 +204,11 @@ enum WorkbenchRenderPipeline {
     /// does not match `expected` order (filtered to those in `series`). Returns nil when consistent.
     static func detectSeriesOrderMismatch(_ series: [WorkbenchPlotSeries], expected: [String]) -> String? {
         let actual = series.enumerated().map { index, series in
-            (key: seriesOrderKey(for: series, index: index), sampleID: series.sampleID ?? "", index: index)
+            (
+                key: WorkbenchSeriesOrderKeyResolver.resolve(for: series, originalIndex: index),
+                sampleID: series.sampleID ?? "",
+                index: index
+            )
         }
         let actualKeys = actual.map(\.key)
         let resolvedExpected = resolveSeriesOrder(expected, actual: actual)
@@ -207,13 +217,6 @@ enum WorkbenchRenderPipeline {
         guard expectedFiltered != actualFiltered else { return nil }
         return "seriesOrder mismatch: renderer produced \(actualFiltered) but expected \(expectedFiltered). " +
                "Stack offsets are likely incorrect — fix the renderer to honor input.seriesOrder."
-    }
-
-    private static func seriesOrderKey(for series: WorkbenchPlotSeries, index: Int) -> String {
-        if let sourceRef = series.sourceRef, !sourceRef.isEmpty {
-            return sourceRef
-        }
-        return "series#\(index)"
     }
 
     private static func resolveSeriesOrder(

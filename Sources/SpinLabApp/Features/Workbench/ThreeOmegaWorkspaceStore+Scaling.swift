@@ -27,6 +27,7 @@ extension ThreeOmegaWorkspaceStore {
         let capturedTokens   = _titleTokens
         let capturedDevice   = result.device
         let capturedV3Method = v3Method
+        let capturedGlobalPlotDefaults = globalPlotDefaults
 
         scalingTask?.cancel()
         scalingTask = Task { [weak self] in
@@ -45,6 +46,7 @@ extension ThreeOmegaWorkspaceStore {
                 renderer.showGrid     = capturedGrid
                 renderer.seriesRenderMode = capturedRenderMode
                 renderer.chartStyleOverrides = capturedStyleOverrides
+                renderer.globalPlotDefaults = capturedGlobalPlotDefaults
                 renderer.legendAnchor = capturedAnchor
                 renderer.legendPoint    = capturedLegend
                 renderer.titleOverride  = capturedScalingState.titleOverride

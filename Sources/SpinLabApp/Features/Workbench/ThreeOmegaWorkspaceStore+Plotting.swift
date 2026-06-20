@@ -6,7 +6,7 @@ extension ThreeOmegaWorkspaceStore {
     // MARK: - Series order management
 
     func updateSeriesOrder(_ order: [String]) {
-        // Order keys are per-series sourceRef identities; legacy sampleID tokens are only tolerated during alignment.
+        // Order keys use the shared Plot System resolver; legacy sampleID tokens are only tolerated during alignment.
         setFieldSweepSeriesOrder(order.isEmpty ? nil : order)
         _rerenderActiveTab()
         _refreshManifestPayloads()
@@ -20,22 +20,6 @@ extension ThreeOmegaWorkspaceStore {
     }
 
 
-    nonisolated static func seriesOrderKey(for series: WorkbenchPlotSeries, index: Int) -> String {
-        if let sourceRef = series.sourceRef, !sourceRef.isEmpty {
-            return sourceRef
-        }
-        return "series#\(index)"
-    }
-
-
-    nonisolated static func seriesOrderKey(for sweep: ThreeOmegaFieldSweepResult, index: Int) -> String {
-        if let sourceRef = sweep.sourceFilePath, !sourceRef.isEmpty {
-            return sourceRef
-        }
-        return "series#\(index)"
-    }
-
-
     /// Applies a bottom-to-top per-series order to fieldSweeps, producing the render order.
     nonisolated static func _applySeriesOrder(
         _ order: [String]?,
@@ -43,7 +27,19 @@ extension ThreeOmegaWorkspaceStore {
     ) -> [ThreeOmegaFieldSweepResult] {
         guard let order, !order.isEmpty else { return sweeps }
         let keyedSweeps = sweeps.enumerated().map { index, sweep in
-            (key: seriesOrderKey(for: sweep, index: index), sweep: sweep)
+            (
+                key: WorkbenchSeriesOrderKeyResolver.resolve(
+                    for: WorkbenchPlotSeries(
+                        label: "",
+                        x: [],
+                        y: [],
+                        sourceRef: sweep.sourceFilePath,
+                        sampleID: sweep.sampleID
+                    ),
+                    originalIndex: index
+                ),
+                sweep: sweep
+            )
         }
         let byKey = Dictionary(uniqueKeysWithValues: keyedSweeps.map { ($0.key, $0.sweep) })
         let bySampleID = Dictionary(grouping: keyedSweeps, by: { $0.sweep.sampleID ?? "" })
@@ -111,12 +107,34 @@ extension ThreeOmegaWorkspaceStore {
     nonisolated static func alignSeriesOrder(old: [String]?, fieldSweeps: [ThreeOmegaFieldSweepResult]) -> [String]? {
         guard let old, !old.isEmpty else { return nil }
         let defaultKeys = fieldSweeps.enumerated().map { index, sweep in
-            seriesOrderKey(for: sweep, index: index)
+            WorkbenchSeriesOrderKeyResolver.resolve(
+                for: WorkbenchPlotSeries(
+                    label: "",
+                    x: [],
+                    y: [],
+                    sourceRef: sweep.sourceFilePath,
+                    sampleID: sweep.sampleID
+                ),
+                originalIndex: index
+            )
         }
         guard !defaultKeys.isEmpty else { return nil }
 
         let keyedSweeps = fieldSweeps.enumerated().map { index, sweep in
-            (key: seriesOrderKey(for: sweep, index: index), sampleID: sweep.sampleID ?? "", index: index)
+            (
+                key: WorkbenchSeriesOrderKeyResolver.resolve(
+                    for: WorkbenchPlotSeries(
+                        label: "",
+                        x: [],
+                        y: [],
+                        sourceRef: sweep.sourceFilePath,
+                        sampleID: sweep.sampleID
+                    ),
+                    originalIndex: index
+                ),
+                sampleID: sweep.sampleID ?? "",
+                index: index
+            )
         }
         let byKey = Dictionary(uniqueKeysWithValues: keyedSweeps.map { ($0.key, $0.index) })
         let bySampleID = Dictionary(grouping: keyedSweeps, by: { $0.sampleID })
@@ -196,7 +214,7 @@ extension ThreeOmegaWorkspaceStore: WorkbenchPlottingStore {
         var patch: [String: String] = [:]
         if tabs.showPlotGrid { patch["showGrid"] = "true" }
         if !tabs.legendAnchor.isEmpty { patch["legendAnchor"] = tabs.legendAnchor }
-        var input = WorkbenchRenderPipeline.Input(payload: payload)
+        var input = WorkbenchRenderPipeline.Input(payload: payload, globalPlotDefaults: globalPlotDefaults)
         input.pixelScaleOverride = scale
         input.legendPoint = tabState.legendPoint?.cgPoint
         input.seriesRenderMode = tabs.seriesRenderMode
