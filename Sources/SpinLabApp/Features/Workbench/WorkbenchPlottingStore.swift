@@ -16,14 +16,6 @@ protocol WorkbenchRunTraceProviding: AnyObject {
 /// 确保任何新 workflow 都能接入 WorkbenchPlotCanvas 的拖拽、行内编辑等交互。
 @MainActor
 protocol WorkbenchPlottingStore: AnyObject {
-    /// 是否显示网格线。
-    var showPlotGrid: Bool { get set }
-    /// 全局序列渲染模式覆盖。
-    var seriesRenderMode: SeriesRenderMode { get set }
-    /// Shared plot appearance defaults across workflows.
-    var globalPlotDefaults: [String: String] { get set }
-    /// Chart style overrides (font sizes, tick density).
-    var chartStyleOverrides: [String: String] { get set }
     /// 用户拖拽图例后回调，point 为 plot 归一化坐标（x,y ∈ [0,1]，Y-up）。
     func updateLegendPoint(_ point: CGPoint)
     /// 用户行内编辑图表标题后回调。
@@ -40,7 +32,34 @@ protocol WorkbenchPlottingStore: AnyObject {
     func renderPNGAtScale(_ scale: CGFloat) -> Data?
 }
 
+/// Shared plot defaults used by the Cartesian render path.
+/// Heatmap workflows do not need to own this state.
+@MainActor
+protocol WorkbenchGlobalPlotDefaultsProviding: AnyObject {
+    var globalPlotDefaults: [String: String] { get set }
+}
+
+/// Cartesian XY-specific shared plot state.
+///
+/// Heatmap workflows should not conform to this protocol. It exists so the
+/// shell-level XY controls stay tied to the Cartesian render path rather than
+/// the generic workbench surface.
+@MainActor
+protocol WorkbenchCartesianXYPlottingStore: WorkbenchPlottingStore, WorkbenchGlobalPlotDefaultsProviding {
+    /// 是否显示网格线。
+    var showPlotGrid: Bool { get set }
+    /// 全局序列渲染模式覆盖。
+    var seriesRenderMode: SeriesRenderMode { get set }
+    /// Chart style overrides (font sizes, tick density).
+    var chartStyleOverrides: [String: String] { get set }
+}
+
 extension WorkbenchPlottingStore {
+    func updateLegendPoint(_ point: CGPoint) {}
+    func updatePlotTitle(_ title: String) {}
+    func updateXAxisLabel(_ label: String) {}
+    func updateYAxisLabel(_ label: String) {}
+    func updateSeriesLabel(sampleID: String, newLabel: String) {}
     func togglePointLabelVisibility(sampleID: String, pointIndex: Int) {}
     func renderPNGAtScale(_ scale: CGFloat) -> Data? { nil }
 }

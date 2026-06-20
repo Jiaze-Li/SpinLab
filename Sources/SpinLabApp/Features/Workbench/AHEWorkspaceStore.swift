@@ -354,9 +354,9 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
 
 }
 
-// MARK: - WorkbenchPlottingStore conformance
+// MARK: - WorkbenchCartesianXYPlottingStore conformance
 
-extension AHEWorkspaceStore: WorkbenchPlottingStore {
+extension AHEWorkspaceStore: WorkbenchCartesianXYPlottingStore {
     var showPlotGrid: Bool {
         get { tabs.showPlotGrid }
         set { tabs.showPlotGrid = newValue }

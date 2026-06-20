@@ -38,6 +38,14 @@ H     K     L     Intensity
 
 @Suite("RSM workflow wiring (Gate G)")
 struct V820RSMWorkflowWiringTests {
+    private static func source(at relativePath: String) throws -> String {
+        let base = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // SpinLabAppTests
+            .deletingLastPathComponent()   // Tests
+            .deletingLastPathComponent()   // repo root
+        let url = base.appendingPathComponent(relativePath)
+        return try String(contentsOf: url, encoding: .utf8)
+    }
 
     // MARK: Full pipeline
 
@@ -96,6 +104,14 @@ struct V820RSMWorkflowWiringTests {
         // WorkbenchPlotCanvas receives layout: nil for heatmaps (no XY hit-testing).
         let store = RSMWorkspaceStore()
         #expect(store.activeLayout == nil)
+    }
+
+    @Test func rsmWorkspaceStoreDoesNotOwnCartesianXYCompatibilityFields() throws {
+        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/RSMWorkspaceStore.swift")
+        #expect(!src.contains("showPlotGrid"), "RSMWorkspaceStore must not own showPlotGrid")
+        #expect(!src.contains("seriesRenderMode"), "RSMWorkspaceStore must not own seriesRenderMode")
+        #expect(!src.contains("globalPlotDefaults"), "RSMWorkspaceStore must not own globalPlotDefaults")
+        #expect(!src.contains("chartStyleOverrides"), "RSMWorkspaceStore must not own chartStyleOverrides")
     }
 
     // MARK: KL and HK views

@@ -576,7 +576,6 @@ final class WorkbenchFeatureStore {
         xyRotationWorkspace.globalPlotDefaults = globalPlotDefaults
         threeOmegaWorkspace.globalPlotDefaults = globalPlotDefaults
         ivWorkspace.globalPlotDefaults = globalPlotDefaults
-        rsmWorkspace.globalPlotDefaults = globalPlotDefaults
     }
 
     func selectWorkflow(_ id: String?) {

@@ -15,10 +15,11 @@ import Testing
 ///   2. WorkbenchPlotCanvas is an interaction dispatcher, not a state owner.
 ///   3. WorkbenchPlottingStore does not contain currentRunTrace;
 ///      WorkbenchRunTraceProviding is separate;
-///      WorkbenchWorkspaceProviding composes both.
+///      WorkbenchWorkspaceProviding composes the interaction surface only;
+///      Cartesian XY shared state lives in WorkbenchCartesianXYPlottingStore.
 ///   4. TabRenderState owns the per-tab override fields;
 ///      TabRenderManager owns the shared display and preservation state;
-///      WorkbenchPlottingStore exposes shared global plot defaults.
+///      Cartesian XY workflow stores own the shared plot defaults.
 ///   5. Render pipeline stays one-way: no workflow store state in pipeline files.
 ///   6. WorkbenchStandardPlotControls is free of workflow-specific semantics.
 ///   7. Copy PNG context menu block does not call mutation callbacks.
@@ -132,6 +133,21 @@ struct V78EPlotSystemStructuralBoundaryTests {
         #expect(declLine.contains("WorkbenchRunTraceProviding"), "WorkbenchWorkspaceProviding must inherit WorkbenchRunTraceProviding")
     }
 
+    @Test("WorkbenchCartesianXYPlottingStore owns the Cartesian XY-only shared state")
+    func cartesianXYPlottingStoreOwnsSharedState() throws {
+        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift")
+        guard let declLine = src.components(separatedBy: "\n").first(where: { $0.contains("protocol WorkbenchCartesianXYPlottingStore") }) else {
+            Issue.record("WorkbenchCartesianXYPlottingStore declaration not found")
+            return
+        }
+        #expect(declLine.contains("WorkbenchPlottingStore"), "Cartesian XY protocol must compose WorkbenchPlottingStore")
+        #expect(declLine.contains("WorkbenchGlobalPlotDefaultsProviding"), "Cartesian XY protocol must compose WorkbenchGlobalPlotDefaultsProviding")
+        #expect(src.contains("var showPlotGrid"), "Cartesian XY protocol must own showPlotGrid")
+        #expect(src.contains("var seriesRenderMode"), "Cartesian XY protocol must own seriesRenderMode")
+        #expect(src.contains("var chartStyleOverrides"), "Cartesian XY protocol must own chartStyleOverrides")
+        #expect(src.contains("var globalPlotDefaults"), "WorkbenchGlobalPlotDefaultsProviding must own globalPlotDefaults")
+    }
+
     // MARK: - 4. TabRenderState and TabRenderManager own canonical preservation state
 
     @Test("TabRenderState contains the per-tab override fields")
@@ -159,10 +175,29 @@ struct V78EPlotSystemStructuralBoundaryTests {
         #expect(src.contains("var tabOutputs"), "TabRenderManager must own tabOutputs")
     }
 
-    @Test("WorkbenchPlottingStore exposes globalPlotDefaults as shared plot defaults")
-    func plottingStoreExposesGlobalPlotDefaults() throws {
+    @Test("WorkbenchPlottingStore remains interaction-only")
+    func plottingStoreIsInteractionOnly() throws {
         let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift")
-        #expect(src.contains("var globalPlotDefaults"), "WorkbenchPlottingStore must expose shared globalPlotDefaults")
+        let lines = src.components(separatedBy: "\n")
+        var inPlottingStore = false
+        var braceDepth = 0
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("protocol WorkbenchPlottingStore") {
+                inPlottingStore = true
+            }
+            if inPlottingStore {
+                braceDepth += line.filter { $0 == "{" }.count
+                braceDepth -= line.filter { $0 == "}" }.count
+                #expect(!trimmed.contains("globalPlotDefaults"), "WorkbenchPlottingStore must not expose globalPlotDefaults")
+                #expect(!trimmed.contains("showPlotGrid"), "WorkbenchPlottingStore must not expose showPlotGrid")
+                #expect(!trimmed.contains("seriesRenderMode"), "WorkbenchPlottingStore must not expose seriesRenderMode")
+                #expect(!trimmed.contains("chartStyleOverrides"), "WorkbenchPlottingStore must not expose chartStyleOverrides")
+                if braceDepth <= 0 && trimmed.contains("}") {
+                    break
+                }
+            }
+        }
     }
 
     @Test("WorkbenchPlotCanvas does not redeclare canonical TabRenderState fields as stored properties")

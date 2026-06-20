@@ -52,13 +52,6 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
 
     var heatmapDisplayState: HeatmapTabRenderState = .init()
 
-    // MARK: - Plot controls (minimal — heatmap controls forbidden in Gate G)
-
-    var showPlotGrid: Bool = false
-    var seriesRenderMode: SeriesRenderMode = .line
-    var globalPlotDefaults: [String: String] = [:]
-    var chartStyleOverrides: [String: String] = [:]
-
     // MARK: - Pack / persistence stubs
 
     @ObservationIgnored var vault: AnalysisVault?
@@ -265,16 +258,6 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
     var libraryRootURL: URL? {
         lastLibraryRootPath.isEmpty ? nil : URL(fileURLWithPath: lastLibraryRootPath)
     }
-}
-
-// MARK: - WorkbenchPlottingStore
-
-extension RSMWorkspaceStore: WorkbenchPlottingStore {
-    func updateLegendPoint(_ point: CGPoint) {}
-    func updatePlotTitle(_ title: String) {}
-    func updateXAxisLabel(_ label: String) {}
-    func updateYAxisLabel(_ label: String) {}
-    func updateSeriesLabel(sampleID: String, newLabel: String) {}
 }
 
 // MARK: - ActiveChartProviding

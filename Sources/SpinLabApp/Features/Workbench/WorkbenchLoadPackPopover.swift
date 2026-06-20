@@ -183,6 +183,8 @@ struct WorkbenchLoadPackPopover<Store: WorkbenchWorkspaceProviding>: View {
                 appState.workbench.seedSelection(ids, hits: hits, for: wfID)
             }
         )
-        appState.workbench.globalPlotDefaults = store.globalPlotDefaults
+        if let plotDefaultsStore = store as? any WorkbenchGlobalPlotDefaultsProviding {
+            appState.workbench.globalPlotDefaults = plotDefaultsStore.globalPlotDefaults
+        }
     }
 }

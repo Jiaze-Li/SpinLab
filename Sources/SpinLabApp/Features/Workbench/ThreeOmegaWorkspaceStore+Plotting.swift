@@ -167,7 +167,7 @@ extension ThreeOmegaWorkspaceStore {
 }
 
 @MainActor
-extension ThreeOmegaWorkspaceStore: WorkbenchPlottingStore {
+extension ThreeOmegaWorkspaceStore: WorkbenchCartesianXYPlottingStore {
 
     func updateLegendPoint(_ point: CGPoint) {
         tabs.updateLegendPoint(point)

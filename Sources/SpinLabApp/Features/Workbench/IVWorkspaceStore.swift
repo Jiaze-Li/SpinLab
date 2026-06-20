@@ -316,9 +316,9 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
     }
 }
 
-// MARK: - WorkbenchPlottingStore
+// MARK: - WorkbenchCartesianXYPlottingStore
 
-extension IVWorkspaceStore: WorkbenchPlottingStore {
+extension IVWorkspaceStore: WorkbenchCartesianXYPlottingStore {
     var showPlotGrid: Bool {
         get { tabs.showPlotGrid }
         set { tabs.showPlotGrid = newValue }

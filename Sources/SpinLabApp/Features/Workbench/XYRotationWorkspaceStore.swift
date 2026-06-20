@@ -332,9 +332,9 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
     }
 }
 
-// MARK: - WorkbenchPlottingStore
+// MARK: - WorkbenchCartesianXYPlottingStore
 
-extension XYRotationWorkspaceStore: WorkbenchPlottingStore {
+extension XYRotationWorkspaceStore: WorkbenchCartesianXYPlottingStore {
     var showPlotGrid: Bool {
         get { tabs.showPlotGrid }
         set { tabs.showPlotGrid = newValue }
