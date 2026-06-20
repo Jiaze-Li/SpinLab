@@ -43,10 +43,11 @@ Gates 1 through 7 are complete. Gate 7.9 is the architecture closeout. Gate 8 re
 | Gate 7 | complete | Module Extraction Program |
 | Gate 7.9 | complete | Workbench Architecture Closeout (docs) |
 | Gate 8 | in progress | New Workflow Dry Run |
+| Gate 8.1 | complete / PR #131 | IV Workflow — Phase A+B |
 
-Gates 1 through 7 are closed out. Gate 7 completed the module extraction program across sub-gates 7.1–7.8. Gate 7.9 closes out the architecture documentation. Deferred runtime cleanup items and non-candidates are classified in `MODULE_BOUNDARIES.md` and `GATE7_WORKBENCH_ARCHITECTURE_CLOSEOUT.md`.
+Gates 1 through 7 are closed out. Gate 7 completed the module extraction program across sub-gates 7.1–7.8. Gate 7.9 closes out the architecture documentation. Gate 8.1 (IV workflow) is complete as of PR #131. Deferred runtime cleanup items and non-candidates are classified in `MODULE_BOUNDARIES.md` and `GATE7_WORKBENCH_ARCHITECTURE_CLOSEOUT.md`.
 
-Gate 8.1 (IV workflow phase A+B): IV workflow scaffolded — `WorkbenchWorkflowID.iv`, `IVIngestionContracts`, `IngestIVSelectionsUseCase`, `IVPackContracts`, `IVWorkspaceStore`, `IVWorkspaceView`, all five registration surfaces wired. Main Board unmodified. No existing module state touched. Physics rendering deferred (stub); file format not yet specified. Assembly record: `docs/architecture/workbench/workflows/iv/ASSEMBLY.md`.
+Gate 8.1 (IV workflow — complete, PR #131): Full IV workflow wired across all five registration surfaces. V vs I and R vs I physics rendering live. X-axis displays in mA with Peak/RMS basis selectable via `xCurrentBasis`. Stacking supported via `stackOffsetMultiplier` / `minGapFraction`. Pack/restore round-trips all IV workspace state. Main Board unmodified. No existing module state touched. Assembly record: `docs/architecture/workbench/workflows/iv/ASSEMBLY.md`.
 
 ### Gate 2 - Workflow Assembly Audit & Contract Validation
 
@@ -424,6 +425,12 @@ Acceptance:
 Result:
 
 - New workflow onboarding remains assembly-led
+
+#### Gate 8.1 - IV Workflow
+
+- Status: complete (PR #131).
+- Scope: IV workflow Phase A+B — full physics rendering, mA display with Peak/RMS basis, stacking, and pack/restore.
+- Outcome: Main Board unmodified. Layout unmodified. No existing module state touched. IV onboarded entirely through Workflow Assembly extension path. Assembly record: `docs/architecture/workbench/workflows/iv/ASSEMBLY.md`.
 
 ## 5.3.7 Scope Closure
 

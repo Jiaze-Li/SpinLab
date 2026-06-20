@@ -44,30 +44,32 @@ Pack restore is allowed to write multiple module states simultaneously because r
 
 What restore writes, and which module owns the state:
 
-| Restored state | Module owner | 3ω | AHE | XY |
-|---|---|:---:|:---:|:---:|
-| `cachedSearchResults` | Selection/Search mirror | ✓ | ✓ | ✓ |
-| `selectedSearchResultIDs` | Selection Module | ✓ | ✓ | ✓ |
-| `WorkbenchFeatureStore.searchResults[wf]` (via callback) | Search Module canonical | ✓ | ✓ | ✓ |
-| `WorkbenchFeatureStore.searchQueryTexts[wf]` (via callback) | Search Module canonical | ✓ | ✓ | ✓ |
-| `ingestionResult` | Analysis Lifecycle Module | ✓ | ✓ (optional) | ✓ |
-| `scalingResult` | Analysis Lifecycle Module | ✓ | — | — |
-| `tabs.activeTab` | Plot Preservation Module | ✓ | — | ✓ |
-| `tabs.restoreStates(tabStates)` | Plot Preservation Module | ✓ | ✓ | ✓ |
-| `tabs.chartStyleOverrides` | Plot Preservation Module | ✓ | — | — |
-| `tabs.showPlotGrid` | Plot System | ✓ | ✓ | ✓ |
-| `tabs.legendAnchor` | Plot System (3ω) | ✓ | — | — |
-| `titleTemplate` | Plot Controls Module | ✓ | ✓ | ✓ |
-| `stackOffsetMultiplier`, `minGapFraction` | Plot Controls / Physics | ✓ | — | ✓ |
-| `geometry`, `fitRanges`, `v3Method`, `rahe1omegaMethod`, `rahe3omegaMethod` | 3ω Physics Function | ✓ | — | — |
-| `rtQuery`, `selectedRTHit`, `pendingRTSidecarPath`, `cachedRTFilePath`; calls `persistRTQuery()` | Secondary Input Search optional slot (3ω `rt` instance) | ✓ | — | — |
-| `phiOffsetOverrides`, `centerBaseline`, `linearDetrend` | XY Physics Function | — | — | ✓ |
-| `cachedInputFiles` | Pack Module local | ✓ | ✓ | ✓ |
-| `cachedSampleKeys` | Pack Module local | ✓ | — | ✓ |
-| `lastRenderedSampleKeys` | AHE render cache | — | ✓ | — |
-| `lastLibraryRootPath` (from vault if empty) | Save Module dependency | ✓ | ✓ | ✓ |
-| `overlayPackIDs = []`, `overlaySnapshots = [:]` | Session-only analysis overlay state; restore clears it and does not serialize it into pack content | ✓ | — | — |
-| `_titleTokens` (rebuilt from restored hits) | Workflow-local title context | ✓ | — | ✓ |
+| Restored state | Module owner | 3ω | AHE | XY | IV |
+|---|---|:---:|:---:|:---:|:---:|
+| `cachedSearchResults` | Selection/Search mirror | ✓ | ✓ | ✓ | ✓ |
+| `selectedSearchResultIDs` | Selection Module | ✓ | ✓ | ✓ | ✓ |
+| `WorkbenchFeatureStore.searchResults[wf]` (via callback) | Search Module canonical | ✓ | ✓ | ✓ | ✓ |
+| `WorkbenchFeatureStore.searchQueryTexts[wf]` (via callback) | Search Module canonical | ✓ | ✓ | ✓ | ✓ |
+| `ingestionResult` | Analysis Lifecycle Module | ✓ | ✓ (optional) | ✓ | ✓ |
+| `scalingResult` | Analysis Lifecycle Module | ✓ | — | — | — |
+| `tabs.activeTab` | Plot Preservation Module | ✓ | — | ✓ | ✓ |
+| `tabs.restoreStates(tabStates)` | Plot Preservation Module | ✓ | ✓ | ✓ | ✓ |
+| `tabs.chartStyleOverrides` | Plot Preservation Module | ✓ | — | — | ✓ |
+| `tabs.showPlotGrid` | Plot System | ✓ | ✓ | ✓ | ✓ |
+| `tabs.legendAnchor` | Plot System (3ω) | ✓ | — | — | — |
+| `titleTemplate` | Plot Controls Module | ✓ | ✓ | ✓ | ✓ |
+| `stackOffsetMultiplier`, `minGapFraction` | Plot Controls / Physics | ✓ | — | ✓ | ✓ |
+| `xCurrentBasis` | IV Physics Function | — | — | — | ✓ |
+| `ch1Component`, `ch2Component` | IV channel state | — | — | — | ✓ |
+| `geometry`, `fitRanges`, `v3Method`, `rahe1omegaMethod`, `rahe3omegaMethod` | 3ω Physics Function | ✓ | — | — | — |
+| `rtQuery`, `selectedRTHit`, `pendingRTSidecarPath`, `cachedRTFilePath`; calls `persistRTQuery()` | Secondary Input Search optional slot (3ω `rt` instance) | ✓ | — | — | — |
+| `phiOffsetOverrides`, `centerBaseline`, `linearDetrend` | XY Physics Function | — | — | ✓ | — |
+| `cachedInputFiles` | Pack Module local | ✓ | ✓ | ✓ | ✓ |
+| `cachedSampleKeys` | Pack Module local | ✓ | — | ✓ | ✓ |
+| `lastRenderedSampleKeys` | AHE render cache | — | ✓ | — | — |
+| `lastLibraryRootPath` (from vault if empty) | Save Module dependency | ✓ | ✓ | ✓ | ✓ |
+| `overlayPackIDs = []`, `overlaySnapshots = [:]` | Session-only analysis overlay state; restore clears it and does not serialize it into pack content | ✓ | — | — | — |
+| `_titleTokens` (rebuilt from restored hits) | Workflow-local title context | ✓ | — | ✓ | ✓ |
 
 ### Secondary Input Slot Restore Rules
 
@@ -91,6 +93,7 @@ What restore writes, and which module owns the state:
 - 3ω: `_rerenderAllTabsFromRestoredState()` then `_snapshotAndCacheManifestPayloads()` then `refreshRelatedCharts()`
 - AHE: `_rerenderActiveTab()` (or `runAnalysis()` for legacy path) then `refreshRelatedCharts()`
 - XY: `_rerenderAllTabs()` then `refreshRelatedCharts()`
+- IV: `_rerenderAllTabs()` then `refreshRelatedCharts()`
 
 ## What Restore Must Not Persist
 
@@ -167,14 +170,14 @@ These are known side effects of the restore contract, not hidden bugs. Future im
 
 ## Workflow-Specific Differences
 
-| | 3ω | AHE | XY |
-|---|---|---|---|
-| Pack workflow ID | `"3w"` | `"ahe"` | `"xy"` |
-| Auxiliary file in fingerprint | ✓ (`packRTFilePath`, current 3ω RT instance) | No | No |
-| `ingestionResult` optional in result | No (required) | Yes (legacy compat) | No (required) |
-| Overlay state in pack | No (session-only; cleared on restore) | n/a | n/a |
-| Post-restore render | `_rerenderAllTabsFromRestoredState()` | `_rerenderActiveTab()` | `_rerenderAllTabs()` |
-| Sample keys field | `cachedSampleKeys` | `lastRenderedSampleKeys` | `cachedSampleKeys` |
+| | 3ω | AHE | XY | IV |
+|---|---|---|---|---|
+| Pack workflow ID | `"3w"` | `"ahe"` | `"xy"` | `"IV"` |
+| Auxiliary file in fingerprint | ✓ (`packRTFilePath`, current 3ω RT instance) | No | No | No |
+| `ingestionResult` optional in result | No (required) | Yes (legacy compat) | No (required) | No (required) |
+| Overlay state in pack | No (session-only; cleared on restore) | n/a | n/a | n/a |
+| Post-restore render | `_rerenderAllTabsFromRestoredState()` | `_rerenderActiveTab()` | `_rerenderAllTabs()` | `_rerenderAllTabs()` |
+| Sample keys field | `cachedSampleKeys` | `lastRenderedSampleKeys` | `cachedSampleKeys` | `cachedSampleKeys` |
 
 **AHE sample keys asymmetry:** AHE restore writes `lastRenderedSampleKeys = pack.sampleKeys`, while XY and 3ω write `cachedSampleKeys = pack.sampleKeys`. Each workflow's `activeChartSampleKeys` implementation reads from the correct field, so post-restore `persistToLibrary()` works. Do not normalize across workflows without testing all three save-after-restore paths.
 
@@ -287,6 +290,15 @@ Pack/Restore behavior currently lives in each workflow store (`ThreeOmegaWorkspa
 - `XYRotationPackResult` — must include `ingestionResult`
 - Tag normalization: `XY_90shift` → workflow=XY + angle_shift=+90deg
 - Semantic identity: default y-axis titles: Rxx tab → `"Rxx (Ω)"`, Rxy tab → `"Rxy (Ω)"`
+
+### IV
+
+- `IVPackConfig` — channel component selections (`ch1Component`, `ch2Component`), x-axis current basis (`xCurrentBasis`: Peak or RMS), stacking parameters (`stackOffsetMultiplier`, `minGapFraction`), display settings (`activeTab`, `titleTemplate`, `showPlotGrid`, `seriesRenderMode`, `chartStyleOverrides`), per-tab states (`tabStates`), search state (`cachedSearchResults`, `selectedSearchResultIDs`, `searchQueryText`)
+- `IVPackResult` — must include `ingestionResult` (non-optional; required for rerender without re-ingestion)
+- Pack workflow ID: `"IV"`
+- Restore re-applies channel components and `xCurrentBasis` before rerender so that the correct mA conversion is applied to the restored ingestion result
+- Post-restore render: `_rerenderAllTabs()` then `refreshRelatedCharts()`
+- No auxiliary input fingerprint; no overlay state; no secondary search slot
 
 ## Invariants
 

@@ -55,8 +55,13 @@ Two tabs:
 
 | Tab | Key | X-axis | Y-axis |
 |---|---|---|---|
-| `voltage` | "V vs I" | Current (A, peak) | V (V) — selected component |
-| `resistance` | "R vs I" | Current (A, peak) | R (Ω) = V / (I_peak / √2) |
+| `voltage` | "V vs I" | Current (mA, display) | V (V) — selected component |
+| `resistance` | "R vs I" | Current (mA, display) | R (Ω) = V / (I_peak / √2) |
+
+Raw current is stored in A (peak). X-axis display converts to mA depending on `xCurrentBasis`:
+
+- **Peak**: `x_mA = current_A × 1000`
+- **RMS**: `x_mA = current_A / √2 × 1000`
 
 Each tab renders 2 series per sweep: ch1 and ch2, using the currently selected component.
 
@@ -76,11 +81,12 @@ None. IV uses the default shell with no optional panels or secondary input searc
 |---|---|
 | Default tab | `.voltage` ("V vs I") |
 | Default title template | `#tab #device #sample` |
-| Stacking | Not applicable |
+| Stacking | Supported: `stackOffsetMultiplier` / `minGapFraction` — Workflow Assembly-owned parameters exposed via `WorkbenchStandardPlotControls` |
+| X-axis basis | `xCurrentBasis` — selectable: Peak or RMS; controls mA conversion applied before render |
 | Legend | Default position |
 | Tab picker | Rendered by `WorkflowWorkspaceShell` (two-tab workflow) |
 
-Plot controls panel (`IVPlotControlsPanel`): title template field, grid toggle, ch1 component picker (X/Y + confidence), ch2 component picker.
+Plot controls panel (`IVPlotControlsPanel`): title template field, grid toggle, ch1 component picker (X/Y + confidence), ch2 component picker, xCurrentBasis picker (Peak / RMS), stack offset and gap controls.
 
 IV uses the shared Plot System render path for legend and series-order behavior:
 
@@ -109,7 +115,7 @@ IV uses the shared Plot System render path for legend and series-order behavior:
 | `PackResult` | `IVPackResult` |
 | `packWorkflowID` | `"IV"` |
 
-`IVPackConfig` carries: `activeTab`, `titleTemplate`, `showPlotGrid`, `seriesRenderMode`, `chartStyleOverrides`, `ch1Component`, `ch2Component`, `tabStates`, `cachedSearchResults`, `selectedSearchResultIDs`, `searchQueryText`.
+`IVPackConfig` carries: `activeTab`, `titleTemplate`, `showPlotGrid`, `seriesRenderMode`, `chartStyleOverrides`, `ch1Component`, `ch2Component`, `xCurrentBasis`, `stackOffsetMultiplier`, `minGapFraction`, `tabStates`, `cachedSearchResults`, `selectedSearchResultIDs`, `searchQueryText`.
 
 `IVPackResult` carries: `ingestionResult: IVIngestionResult`.
 
@@ -127,12 +133,12 @@ Save-to-Library is chart-only for IV: the shared active-chart export path persis
 | Channel mapping selects dominant component | `V81IVParserChannelMappingTests.swift` |
 | Channel mapping confidence = max/min ratio | `V81IVParserChannelMappingTests.swift` |
 | Tie-break / empty-array edge cases | `V81IVParserChannelMappingTests.swift` |
-
-Future tests (when Pack/Restore is implemented):
-- Restore round-trips `activeTab`, `ch1Component`, `ch2Component`, `seriesRenderMode`, and chart style overrides correctly.
-- Restore preserves per-tab title / axis / series-order overrides and re-renders through `WorkbenchRenderPipeline`.
-- `runAnalysis(selectedHitsSnapshot:)` consumes snapshot, not `cachedSearchResults`.
-- Save-to-Library writes only chart artifacts, not metric records.
+| Restore round-trips `activeTab`, `ch1Component`, `ch2Component`, `seriesRenderMode`, `xCurrentBasis`, `stackOffsetMultiplier`, `minGapFraction`, and chart style overrides | IV pack/restore tests |
+| Restore preserves per-tab title / axis / series-order overrides and re-renders through `WorkbenchRenderPipeline` | IV pack/restore tests |
+| Peak/RMS x-axis basis toggles produce correct mA conversion before render | IV current-basis tests |
+| Stack offset and gap controls change rendered curve spacing correctly | IV stacking tests |
+| `runAnalysis(selectedHitsSnapshot:)` consumes snapshot, not `cachedSearchResults` | IV analysis boundary tests |
+| Save-to-Library writes only chart artifacts, not metric records | IV save tests |
 
 ---
 

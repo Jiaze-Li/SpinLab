@@ -359,9 +359,11 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Extraction readiness: not a common-module extraction target. It may be internally cleaned as an XY Assembly-owned panel only.
 - Risks if extracted too early: offset state treated as generic plot style, restored XY packs rerender with wrong angle alignment, future workflows inherit XY-specific assumptions.
 
-## Boundary Closeout Status (Gate 7.12)
+## Historical Notes
 
-This section replaces the Gate 3 follow-up list. Items are classified as resolved, accepted compatibility bridge, deferred runtime cleanup, or non-candidate.
+### Boundary Closeout Status (Gate 7.12)
+
+This section is a historical record of Gate 7 extraction outcomes. Items are classified as resolved, accepted compatibility bridge, deferred runtime cleanup, or non-candidate. Do not update this section; track new boundary changes in the current ownership sections above.
 
 ### Removed by Gate 7.11
 

@@ -66,21 +66,6 @@ Rules:
 - They are persisted at the app/workbench level, not in workflow pack config.
 - When present in legacy workflow overrides, they must be treated as shared defaults and removed from workflow-local chart-style state.
 
-### Canvas Inline Edit Callbacks — Removed (Gate 7.10)
-
-The following canvas callbacks and their `EditTarget` machinery have been **removed in Gate 7.10** as part of the controls-first migration. Plot Controls now owns all text and style editing surfaces.
-
-| Removed callback | Previous mechanism | Current owner |
-|---|---|---|
-| `onEditTitle` | Click on `layout.titleHitRect` → `EditTarget.title` → inline text field | Plot Controls (`LabelOverrideField`) |
-| `onEditXLabel` | Click on `layout.xLabelHitRect` → `EditTarget.xLabel` → inline text field | Plot Controls (`LabelOverrideField`) |
-| `onEditYLabel` | Click on `layout.yLabelHitRect` → `EditTarget.yLabel` → inline text field | Plot Controls (`LabelOverrideField`) |
-| `onEditLegendLabel` | Click on legend row hit-target → `EditTarget.legend` → inline text field | Plot Controls (per-chip rename in `WorkbenchSeriesOrderPanel`) |
-| `onFontSizeChange` (title/axis/tick) | Click on title/axis/tick-label hit-target → `fontSizePicker` popover | Plot Controls (font size pickers in `WorkbenchPlotControlsPanel`) |
-| Tick density stepper in canvas | `tickDensityStepper` inside the inline `editPanel` | Plot Controls (tick density steppers in `WorkbenchPlotControlsPanel`) |
-| `onStyleOverrideChange` via canvas | Style override written from canvas-local `editPanel` | Plot Controls (`onStyleChange` callback in `WorkbenchPlotControlsPanel`) |
-
-The `EditTarget` enum, `editingElement` state, `editPanel`, `fontSizePicker`, `tickDensityStepper`, `editorDismissLayer`, and all associated hit-rect handling were removed from `WorkbenchPlotCanvas`. `WorkflowWorkspaceResultArea` no longer passes these callbacks.
 
 ## Universal Rules (all workflows)
 
@@ -96,7 +81,7 @@ The `EditTarget` enum, `editingElement` state, `editPanel`, `fontSizePicker`, `t
 
 ## Point Labels (scatter series)
 
-- Font size configurable via tap on label.
+- Font size configurable via the font size picker in Plot Controls.
 - Tap on dot toggles label visibility per-point; persists across Pack save/load.
 - Current scope: 3ω Scaling Law tab (the only tab using point labels). Other workflows opt in at zero cost.
 
@@ -149,59 +134,6 @@ Full contract: [`SHELL_BLOCKS.md` § Plot Preservation Module](../SHELL_BLOCKS.m
 
 Boundary: no module other than Plot Preservation may write `TabRenderState` override fields or call `clearStates()`. Other Plot System modules consume plot output through `TabRenderManager` projections only.
 
-## Boundary Notes (Gate 7.8)
-
-### Title Template — Three-Layer Model
-
-The chart title is resolved through three independent layers with distinct owners:
-
-1. **Default title template** (Layer 1): Workflow Assembly-owned. Each workflow declares its own token set that reflects which metadata fields are meaningful for that physics context. Layer 1 defaults must not migrate into common Plot Controls.
-2. **Editable title template state** (Layer 2): Currently workflow-store-owned (`titleTemplate: String` on each store, serialized in each pack config). Candidate boundary debt for future common Plot Controls module ownership. Extraction gate: backward-compatible `CodingKeys` in all three pack configs plus boundary tests proving title template changes do not mutate search/selection/ingestion state. No code moves until both gates are met.
-3. **Inline title override** (Layer 3): `TabRenderState.titleOverride`. Per-tab canvas-edit override. Already correctly owned by Plot Preservation / `TabRenderManager`.
-
-Resolution order: Layer 2 template → `WorkbenchTitleResolver.resolve(template:tokens:)` → Layer 3 `titleOverride` per tab.
-
-### stackOffsetMultiplier / minGapFraction
-
-`stackOffsetMultiplier` and `minGapFraction` are Workflow Assembly-owned plot semantic parameters. Their defaults and applicability differ per workflow. They are exposed through the common `WorkbenchStandardPlotControls` View via Bindings, but the View does not own the values. These fields must not be reclassified as generic Plot System-owned state without an explicit MODULE_BOUNDARIES.md revision at a future gate.
-
-### WorkbenchPlottingStore — currentRunTrace (resolved Gate 7.8D)
-
-`currentRunTrace` has been removed from `WorkbenchPlottingStore`. It now lives in `WorkbenchRunTraceProviding`, a dedicated protocol for the Warning Display / Run Trace module. `WorkbenchWorkspaceProviding` composes `WorkbenchPlottingStore` and `WorkbenchRunTraceProviding`, so consumers that access `currentRunTrace` through the workspace-level protocol are unaffected. Plot System no longer exposes run-trace state through the plot protocol.
-
-### Main Board Layout is Outside Plot System
-
-`WorkflowWorkspaceShell`, `WorkflowWorkspaceLeftColumn`, and `WorkflowWorkspaceRightColumn` are Main Board shell files that own column structure and ViewBuilder slot placement. They are not Plot System components:
-
-- `WorkflowWorkspaceShell` passes `plotControls` as a slot; it does not construct workflow-specific plot controls itself.
-- Shell files must not import or directly manipulate `TabRenderState` / `TabRenderManager` internals.
-- `WorkbenchPlotCanvas` is an interaction and display surface, not a canonical state owner. It must not store `TabRenderState`, `TabRenderManager`, `titleOverride`, `legendPoint`, `seriesOrder`, or workflow store types.
-- `WorkbenchPlotCanvas` must not be extended with new text editing, font picking, or style override panels. Any new editing capability goes into Plot Controls. See Interaction Split and Canvas Controls Migration (Gate 7.10) above.
-- `TabRenderManager` / `TabRenderState` are Plot Preservation canonical state.
-- `WorkbenchRenderPipeline` and renderers consume input and produce image/layout/manifest output; they must not mutate workflow store state.
-
-### legendAnchor Pack Coverage Gap
-
-`legendAnchor` is stored in `TabRenderManager.legendAnchor` and is serialized by 3ω (`ThreeOmegaPackConfig.plotLegendAnchor`) but not by AHE or XY. This means `legendAnchor` resets to `""` after pack restore for AHE and XY. This is a documentation gap only — no pack schema change is required at Gate 7.8.
-
-## Canvas Controls Migration — Completed (Gate 7.10)
-
-The controls-first migration was completed in Gate 7.10. All editing surfaces have been moved from the canvas to Plot Controls. The migration order that was followed:
-
-1. ✅ Font size pickers and tick density steppers moved to `WorkbenchPlotControlsPanel` (shared across all workflows).
-2. ✅ Title / x-axis / y-axis label override fields added as `LabelOverrideField` widgets in `WorkbenchStandardPlotControls` (3ω and XY) and `AHEPlotControlsPanel` (AHE).
-3. ✅ Per-series legend label rename added as inline pencil-button + `TextField` per chip in `WorkbenchSeriesOrderPanel`.
-4. ✅ All legacy `onEditTitle`, `onEditXLabel`, `onEditYLabel`, `onEditLegendLabel`, `onFontSizeChange`, `onStyleOverrideChange` callbacks removed from `WorkbenchPlotCanvas` and `WorkflowWorkspaceResultArea`.
-5. ✅ `EditTarget` enum, `editingElement` state, inline `editPanel`, `fontSizePicker`, `tickDensityStepper`, and `editorDismissLayer` removed from `WorkbenchPlotCanvas`.
-6. ✅ Stale text override auto-reset: `TabRenderManager.applyPipelineOutput` detects chart identity change and clears title/axis/seriesLabel overrides while preserving `legendPoint` and `seriesOrder`.
-7. ✅ Legend label width regression fixed: `WorkbenchPlotLayout` now measures display (renamed) label width for drag preview geometry.
-8. ✅ Axis label color fix: renderer now emits black axis labels instead of gray.
-9. ✅ Gate 7.10 targeted tests added: `V710PlotControlsMigrationTests` (20 tests covering stale override reset, legend rename/order coexistence, pack round-trip, layout width, and canvas structural guards).
-
-**Do not**: remove `onLegendDrag`, `onTogglePointLabelVisibility`, `onCopyPNG`, or hover preview — these are canonical canvas interactions and must remain.
-
-**Do not**: change `TabRenderState` schema, `TabRenderManager` update methods, or pack `CodingKeys` as part of this migration. The state model is unchanged; only the input surface moved from canvas to controls.
-
 ## Tests
 
 - `V531SeriesRenderModeTests` — Codable migration, ChartStyle parsing, axis alignment
@@ -227,3 +159,69 @@ The controls-first migration was completed in Gate 7.10. All editing surfaces ha
 - `Sources/SpinLabApp/Workbench/V3/WorkbenchPlotLayout.swift` — layout parameters for plot canvas regions (margins, axes, legend areas)
 - `Sources/SpinLabApp/Workbench/V3/WorkbenchRenderPipeline.swift` — render pipeline coordinating chart layers from workflow analysis results
 - `Sources/SpinLabApp/Workbench/V3/WorkbenchSeriesOrderKeyResolver.swift` — shared series identity key resolver for stable reorder/restore identity
+
+## Historical Notes
+
+### Title Template — Three-Layer Model (Gate 7.8 audit)
+
+The chart title is resolved through three independent layers with distinct owners:
+
+1. **Default title template** (Layer 1): Workflow Assembly-owned. Each workflow declares its own token set that reflects which metadata fields are meaningful for that physics context. Layer 1 defaults must not migrate into common Plot Controls.
+2. **Editable title template state** (Layer 2): Currently workflow-store-owned (`titleTemplate: String` on each store, serialized in each pack config). Candidate boundary debt for future common Plot Controls module ownership. Extraction gate: backward-compatible `CodingKeys` in all three pack configs plus boundary tests proving title template changes do not mutate search/selection/ingestion state. No code moves until both gates are met.
+3. **Inline title override** (Layer 3): `TabRenderState.titleOverride`. Per-tab canvas-edit override. Already correctly owned by Plot Preservation / `TabRenderManager`.
+
+Resolution order: Layer 2 template → `WorkbenchTitleResolver.resolve(template:tokens:)` → Layer 3 `titleOverride` per tab.
+
+### stackOffsetMultiplier / minGapFraction (Gate 7.8 audit)
+
+`stackOffsetMultiplier` and `minGapFraction` are Workflow Assembly-owned plot semantic parameters. Their defaults and applicability differ per workflow. They are exposed through the common `WorkbenchStandardPlotControls` View via Bindings, but the View does not own the values. These fields must not be reclassified as generic Plot System-owned state without an explicit MODULE_BOUNDARIES.md revision at a future gate.
+
+### WorkbenchPlottingStore — currentRunTrace (resolved Gate 7.8D)
+
+`currentRunTrace` has been removed from `WorkbenchPlottingStore`. It now lives in `WorkbenchRunTraceProviding`, a dedicated protocol for the Warning Display / Run Trace module. `WorkbenchWorkspaceProviding` composes `WorkbenchPlottingStore` and `WorkbenchRunTraceProviding`, so consumers that access `currentRunTrace` through the workspace-level protocol are unaffected. Plot System no longer exposes run-trace state through the plot protocol.
+
+### Main Board Layout is Outside Plot System (Gate 7.8 audit)
+
+`WorkflowWorkspaceShell`, `WorkflowWorkspaceLeftColumn`, and `WorkflowWorkspaceRightColumn` are Main Board shell files that own column structure and ViewBuilder slot placement. They are not Plot System components:
+
+- Shell files pass `plotControls` as a slot; they do not construct workflow-specific plot controls themselves.
+- Shell files must not import or directly manipulate `TabRenderState` / `TabRenderManager` internals.
+- `WorkbenchPlotCanvas` is an interaction and display surface, not a canonical state owner. It must not store `TabRenderState`, `TabRenderManager`, `titleOverride`, `legendPoint`, `seriesOrder`, or workflow store types.
+- Any new editing capability goes into Plot Controls, not the canvas.
+- `WorkbenchRenderPipeline` and renderers consume input and produce image/layout/manifest output; they must not mutate workflow store state.
+
+### legendAnchor Pack Coverage Gap (Gate 7.8 audit)
+
+`legendAnchor` is stored in `TabRenderManager.legendAnchor` and is serialized by 3ω (`ThreeOmegaPackConfig.plotLegendAnchor`) but not by AHE or XY. This means `legendAnchor` resets to `""` after pack restore for AHE and XY. This is a documentation gap only — no pack schema change is required at Gate 7.8.
+
+### Canvas Inline Edit Callbacks — Removed (Gate 7.10)
+
+The following canvas callbacks and their `EditTarget` machinery were removed in Gate 7.10 as part of the controls-first migration. Plot Controls now owns all text and style editing surfaces.
+
+| Removed callback | Previous mechanism | Current owner |
+|---|---|---|
+| `onEditTitle` | Click on `layout.titleHitRect` → `EditTarget.title` → inline text field | Plot Controls (`LabelOverrideField`) |
+| `onEditXLabel` | Click on `layout.xLabelHitRect` → `EditTarget.xLabel` → inline text field | Plot Controls (`LabelOverrideField`) |
+| `onEditYLabel` | Click on `layout.yLabelHitRect` → `EditTarget.yLabel` → inline text field | Plot Controls (`LabelOverrideField`) |
+| `onEditLegendLabel` | Click on legend row hit-target → `EditTarget.legend` → inline text field | Plot Controls (per-chip rename in `WorkbenchSeriesOrderPanel`) |
+| `onFontSizeChange` (title/axis/tick) | Click on title/axis/tick-label hit-target → `fontSizePicker` popover | Plot Controls (font size pickers in `WorkbenchPlotControlsPanel`) |
+| Tick density stepper in canvas | `tickDensityStepper` inside the inline `editPanel` | Plot Controls (tick density steppers in `WorkbenchPlotControlsPanel`) |
+| `onStyleOverrideChange` via canvas | Style override written from canvas-local `editPanel` | Plot Controls (`onStyleChange` callback in `WorkbenchPlotControlsPanel`) |
+
+The `EditTarget` enum, `editingElement` state, `editPanel`, `fontSizePicker`, `tickDensityStepper`, `editorDismissLayer`, and all associated hit-rect handling were removed from `WorkbenchPlotCanvas`. `WorkflowWorkspaceResultArea` no longer passes these callbacks.
+
+Canonical canvas interactions that must remain: `onLegendDrag`, `onTogglePointLabelVisibility`, `onCopyPNG`, hover preview.
+
+### Canvas Controls Migration — Completed (Gate 7.10)
+
+The controls-first migration was completed in Gate 7.10:
+
+1. ✅ Font size pickers and tick density steppers moved to `WorkbenchPlotControlsPanel`.
+2. ✅ Title / x-axis / y-axis label override fields added as `LabelOverrideField` widgets.
+3. ✅ Per-series legend label rename added as inline pencil-button + `TextField` per chip in `WorkbenchSeriesOrderPanel`.
+4. ✅ All legacy canvas editing callbacks removed from `WorkbenchPlotCanvas` and `WorkflowWorkspaceResultArea`.
+5. ✅ `EditTarget` enum, `editingElement` state, and all inline edit panel machinery removed from `WorkbenchPlotCanvas`.
+6. ✅ Stale text override auto-reset: `TabRenderManager.applyPipelineOutput` detects chart identity change and clears title/axis/seriesLabel overrides while preserving `legendPoint` and `seriesOrder`.
+7. ✅ Legend label width regression fixed: `WorkbenchPlotLayout` now measures display (renamed) label width for drag preview geometry.
+8. ✅ Axis label color fix: renderer now emits black axis labels instead of gray.
+9. ✅ Gate 7.10 targeted tests added: `V710PlotControlsMigrationTests` (20 tests).
