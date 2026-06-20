@@ -372,6 +372,7 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var xyRotationPlotLegendPoints: [String: [Double]]?
 
     // IV workspace plot controls.
+    var ivTitleTemplate: String?
     var ivStackOffsetMultiplier: Double?
     var ivMinGapFraction: Double?
 

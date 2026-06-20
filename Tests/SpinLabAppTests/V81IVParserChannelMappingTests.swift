@@ -818,6 +818,39 @@ struct IVStackOffsetTests {
         #expect(abs(yMean - 2.0) < 1e-9, "Single sweep should not be shifted; got \(yMean)")
     }
 
+    @Test("IVSweep.id uses stable file path, not hashValue")
+    func iVSweepIDIsStableFilePath() {
+        var sweep = IVSweep(
+            stem: "sweep_stem",
+            temperatureK: 10,
+            fieldT: 0,
+            current: [],
+            ch1X: [],
+            ch1Y: [],
+            ch2X: [],
+            ch2Y: [],
+            measurementFilePath: nil
+        )
+        sweep.measurementFilePath = "/data/batch/sweep.lvm"
+        #expect(sweep.id == "/data/batch/sweep.lvm")
+    }
+
+    @Test("IVSweep.id falls back to stem when path is absent")
+    func iVSweepIDFallsBackToStemWhenPathAbsent() {
+        let sweep = IVSweep(
+            stem: "fallback_stem",
+            temperatureK: 10,
+            fieldT: 0,
+            current: [],
+            ch1X: [],
+            ch1Y: [],
+            ch2X: [],
+            ch2Y: [],
+            measurementFilePath: nil
+        )
+        #expect(sweep.id == "fallback_stem")
+    }
+
     @Test("Zero stackOffsetMultiplier leaves IV y values unchanged")
     func zeroMultiplierLeavesYUnchanged() {
         let sweeps = [

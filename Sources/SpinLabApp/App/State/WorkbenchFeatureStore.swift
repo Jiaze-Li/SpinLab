@@ -316,6 +316,7 @@ final class WorkbenchFeatureStore {
         xyRotationCenterBaseline: Bool? = nil,
         xyRotationLinearDetrend: Bool? = nil,
         xyRotationPlotLegendPoints: [String: [Double]]? = nil,
+        ivTitleTemplate: String? = nil,
         ivStackOffsetMultiplier: Double? = nil,
         ivMinGapFraction: Double? = nil,
         workbenchPlotDefaults: [String: String]? = nil,
@@ -376,6 +377,7 @@ final class WorkbenchFeatureStore {
         }
 
         // IV workspace plot controls.
+        if let t = ivTitleTemplate { ivWorkspace.titleTemplate = t }
         if let v = ivStackOffsetMultiplier { ivWorkspace.stackOffsetMultiplier = v }
         if let v = ivMinGapFraction { ivWorkspace.minGapFraction = v }
 
@@ -434,6 +436,7 @@ final class WorkbenchFeatureStore {
             if !legendMap.isEmpty { snapshot.xyRotationPlotLegendPoints = legendMap }
         }
         // IV workspace plot controls.
+        snapshot.ivTitleTemplate = ivWorkspace.titleTemplate
         snapshot.ivStackOffsetMultiplier = ivWorkspace.stackOffsetMultiplier
         snapshot.ivMinGapFraction = ivWorkspace.minGapFraction
 

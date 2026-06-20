@@ -161,6 +161,35 @@ struct V564GlobalPlotDefaultsTests {
         #expect(snapshot.workbenchChartStyleOverrides?["tickTargetX"] == "7")
     }
 
+    @Test("SpinLabInteractionSnapshot round-trips IV titleTemplate")
+    func interactionSnapshotRoundTripsIVTitleTemplate() throws {
+        var snapshot = SpinLabInteractionSnapshot()
+        snapshot.ivTitleTemplate = "#tab #sample"
+
+        let data = try JSONEncoder().encode(snapshot)
+        let restored = try JSONDecoder().decode(SpinLabInteractionSnapshot.self, from: data)
+
+        #expect(restored.ivTitleTemplate == "#tab #sample")
+    }
+
+    @Test("captureInteraction and restoreInteraction round-trip IV titleTemplate through store")
+    func captureRestoreRoundTripsIVTitleTemplate() {
+        let store = makeWorkbenchStore()
+        store.ivWorkspace.titleTemplate = "#tab #device"
+
+        var snapshot = SpinLabInteractionSnapshot()
+        store.captureInteraction(into: &snapshot)
+        #expect(snapshot.ivTitleTemplate == "#tab #device")
+
+        let store2 = makeWorkbenchStore()
+        store2.restoreInteraction(
+            selectedArchivedRecordID: nil,
+            workbenchResultDraft: "",
+            ivTitleTemplate: snapshot.ivTitleTemplate
+        )
+        #expect(store2.ivWorkspace.titleTemplate == "#tab #device")
+    }
+
     @Test("restoreInteraction mirrors chartStyleOverrides into IV workspace")
     func restoreInteractionMirrorsOverridesToIVWorkspace() {
         let store = makeWorkbenchStore()

@@ -73,7 +73,7 @@ struct IVChannelState: Codable, Hashable, Sendable {
 struct IVSweep: Codable, Hashable, Sendable, Identifiable {
     var id: String {
         let path = measurementFilePath ?? ""
-        return path.isEmpty ? stem : String(path.hashValue)
+        return path.isEmpty ? stem : path
     }
 
     var stem: String
