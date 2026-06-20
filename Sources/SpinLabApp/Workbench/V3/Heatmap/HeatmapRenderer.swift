@@ -34,7 +34,7 @@ struct HeatmapRenderer {
     ) throws -> Data {
         guard payload.grid.isValid else { throw RendererError.invalidGrid }
 
-        let layout = HeatmapPlotLayout.compute(payload: payload, options: options)
+        let layout = HeatmapPlotLayout.compute(payload: payload, options: options, colorScaleMode: colorScaleMode)
         let colorScale = HeatmapColorScale(
             zMin:       layout.zMin,
             zMax:       layout.zMax,

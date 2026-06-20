@@ -14,6 +14,16 @@ struct HeatmapGrid: Codable, Hashable, Sendable {
     var nY: Int { yValues.count }
 
     /// True iff matrix dimensions are consistent with axis label counts.
+    ///
+    /// V1 validation policy:
+    /// - Checks only that nX > 0, nY > 0, and zMatrix is nY × nX.
+    /// - Does NOT reject NaN or Inf Z values. HeatmapColorScale clamps them:
+    ///   NaN → minimum color (t=0); +Inf → maximum color (t=1); -Inf → minimum color (t=0).
+    /// - Does NOT reject non-monotonic axis values. Cells are always drawn in
+    ///   array row/column order. For the scientific convention (lower y value
+    ///   appears lower on the plot) to hold, yValues must be strictly ascending.
+    ///   Passing descending or non-monotonic yValues renders cells correctly by
+    ///   array index but visual tick-label alignment will be inverted or arbitrary.
     var isValid: Bool {
         guard nX > 0, nY > 0 else { return false }
         return zMatrix.count == nY && zMatrix.allSatisfy { $0.count == nX }

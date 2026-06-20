@@ -25,9 +25,14 @@ struct HeatmapColorScale: Sendable {
     }
 
     /// Normalizes z to [0, 1]. Clamped — never returns NaN.
+    ///
+    /// Edge-case behavior (both modes):
+    /// - NaN  → 0.0 (minimum color)
+    /// - +Inf → 1.0 (maximum color); −Inf → 0.0 (minimum color)
     func normalizedValue(for z: Double) -> Double {
         switch mode {
         case .linear:
+            guard !z.isNaN else { return 0 }
             let span = zMax - zMin
             guard span > 0 else { return 0 }
             return min(max((z - zMin) / span, 0), 1)
@@ -35,6 +40,8 @@ struct HeatmapColorScale: Sendable {
         case .log10:
             // Use a safe positive floor so log10(0) and negative values don't produce -inf or NaN.
             // The floor is chosen relative to zMax so it doesn't visually affect the scale.
+            // NaN guard: Swift max(NaN, x) propagates NaN when NaN is the first argument.
+            guard !z.isNaN else { return 0 }
             let safeMin: Double
             if zMin > 0 {
                 safeMin = zMin

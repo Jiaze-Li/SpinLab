@@ -30,14 +30,19 @@ struct HeatmapPlotLayout: Sendable {
     /// Center for the Z-axis (colorbar) label, rotated 90°.
     let colorbarLabelCenter: CGPoint
     /// Colorbar tick marks: (cgY position, formatted label string).
-    /// Tick Y positions use linear normalization within colorbarRect.
+    /// Tick Y positions match the active color scale mode (linear or log10),
+    /// so marks align with the actual color gradient in the colorbar.
     let colorbarTicks: [(y: CGFloat, label: String)]
     let zMin: Double
     let zMax: Double
 
     // MARK: - Factory
 
-    static func compute(payload: HeatmapPlotPayload, options: Options = .init()) -> HeatmapPlotLayout {
+    static func compute(
+        payload: HeatmapPlotPayload,
+        options: Options = .init(),
+        colorScaleMode: HeatmapColorScaleMode = .linear
+    ) -> HeatmapPlotLayout {
         let w = CGFloat(options.width)
         let h = CGFloat(options.height)
 
@@ -66,7 +71,7 @@ struct HeatmapPlotLayout: Sendable {
         // Z range
         let zMin: Double
         let zMax: Double
-        if let lo = payload.zRangeClampMin, let hi = payload.zRangeClampMax, lo <= hi {
+        if let lo = payload.zRangeClampMin, let hi = payload.zRangeClampMax, lo < hi {
             zMin = lo; zMax = hi
         } else {
             let allZ = payload.grid.zMatrix.flatMap { $0 }
@@ -76,8 +81,12 @@ struct HeatmapPlotLayout: Sendable {
 
         let tickValues = niceTicks(min: zMin, max: zMax, targetCount: 5)
         let span = zMax - zMin
+        // Tick Y positions use a temporary HeatmapColorScale so that log10 ticks
+        // align with the actual rendered color gradient rather than sitting at
+        // linearly-spaced positions.
+        let tickScale = HeatmapColorScale(zMin: zMin, zMax: zMax, mode: colorScaleMode, colormapKey: "viridis")
         let colorbarTicks: [(y: CGFloat, label: String)] = tickValues.map { z in
-            let t = span > 0 ? (z - zMin) / span : 0
+            let t = tickScale.normalizedValue(for: z)
             let y = colorbarRect.minY + CGFloat(t) * colorbarRect.height
             return (y, formatTickValue(z, range: span))
         }

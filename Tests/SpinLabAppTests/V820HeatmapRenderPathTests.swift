@@ -391,6 +391,166 @@ private func makePayload(
     #expect(output.layout.plotRect.height > 0)
 }
 
+// MARK: - Coordinate orientation
+
+@Test func coordinateOrientationYValues0AtVisualBottom() {
+    // V1 convention: row 0 (yValues[0]) is drawn at gridRect.minY in CG space.
+    // CG space is Y-up (minY < maxY; minY is the visual bottom of the image).
+    // For ascending yValues this means the smallest y value appears at the bottom.
+    let grid = HeatmapGrid(
+        xValues: [0.0, 1.0],
+        yValues: [0.0, 10.0, 20.0],    // ascending
+        zMatrix: [[0.0, 0.0], [0.5, 0.5], [1.0, 1.0]]
+    )
+    let payload = HeatmapPlotPayload(
+        workflowID: "test", title: "", xLabel: "", yLabel: "", zLabel: "", grid: grid
+    )
+    let layout = HeatmapPlotLayout.compute(payload: payload)
+    let nY = grid.nY
+    let cellH = layout.gridRect.height / CGFloat(nY)
+
+    // CG Y-up: minY < maxY confirms the grid has positive height
+    #expect(layout.gridRect.minY < layout.gridRect.maxY)
+
+    // Cell center for row 0 (yValues[0] = 0.0) — visual bottom
+    let bottomCenter = layout.gridRect.minY + 0.5 * cellH
+    // Cell center for row 2 (yValues[2] = 20.0) — visual top
+    let topCenter = layout.gridRect.minY + CGFloat(nY - 1) * cellH + 0.5 * cellH
+
+    // row 0 is at a lower CG Y than row nY-1: yValues[0] is visually below yValues[nY-1]
+    #expect(bottomCenter < topCenter)
+    // Gap is exactly 2 cell heights (row 0 center to row 2 center)
+    #expect(abs(Double(topCenter - bottomCenter - 2.0 * cellH)) < 1e-6)
+}
+
+@Test func coordinateOrientationNonMonotonicAxesAccepted() throws {
+    // V1 policy: non-monotonic yValues are accepted without error.
+    // Cells render in array row order; tick labels may not align with scientific convention.
+    let grid = HeatmapGrid(
+        xValues: [0.0, 1.0],
+        yValues: [20.0, 10.0, 0.0],    // descending — accepted in V1
+        zMatrix: [[0.0, 0.0], [0.5, 0.5], [1.0, 1.0]]
+    )
+    let payload = HeatmapPlotPayload(
+        workflowID: "test", title: "", xLabel: "", yLabel: "", zLabel: "", grid: grid
+    )
+    let data = try HeatmapRenderer().renderPNG(payload: payload)
+    #expect(data.count > 0)
+}
+
+// MARK: - Color scale edge cases (NaN / Infinity)
+
+@Test func colorScaleNaNHandling() {
+    // NaN Z values → minimum color (t = 0), never produce NaN output.
+    let linearScale = HeatmapColorScale(zMin: 0, zMax: 10, mode: .linear, colormapKey: "viridis")
+    let tNaN = linearScale.normalizedValue(for: .nan)
+    #expect(!tNaN.isNaN)
+    #expect(tNaN == 0.0)
+
+    let logScale = HeatmapColorScale(zMin: 1, zMax: 100, mode: .log10, colormapKey: "viridis")
+    let tNaNLog = logScale.normalizedValue(for: .nan)
+    #expect(!tNaNLog.isNaN)
+    #expect(tNaNLog == 0.0)
+
+    // color(for: NaN) must return all-finite components
+    let c = linearScale.color(for: .nan)
+    #expect(c.components != nil)
+    for comp in c.components! {
+        #expect(!comp.isNaN)
+    }
+}
+
+@Test func colorScaleInfinityHandling() {
+    let scale = HeatmapColorScale(zMin: 0, zMax: 10, mode: .linear, colormapKey: "viridis")
+    // +Inf → maximum color (t = 1)
+    #expect(scale.normalizedValue(for: .infinity) == 1.0)
+    // -Inf → minimum color (t = 0)
+    #expect(scale.normalizedValue(for: -.infinity) == 0.0)
+}
+
+// MARK: - Z-range clamp validation
+
+@Test func invalidZRangeClampThrows() {
+    // lo == hi (zero span): must throw
+    var payload = makePayload()
+    payload.zRangeClampMin = 5.0
+    payload.zRangeClampMax = 5.0
+    let input = HeatmapRenderPipeline.Input(payload: payload)
+    #expect(throws: HeatmapRenderError.self) {
+        try HeatmapRenderPipeline.render(input)
+    }
+
+    // lo > hi (inverted range): must throw
+    var payload2 = makePayload()
+    payload2.zRangeClampMin = 10.0
+    payload2.zRangeClampMax = 2.0
+    let input2 = HeatmapRenderPipeline.Input(payload: payload2)
+    #expect(throws: HeatmapRenderError.self) {
+        try HeatmapRenderPipeline.render(input2)
+    }
+}
+
+@Test func partialZRangeClampFallsBackToAuto() throws {
+    // Only zRangeClampMin set, no max → silently ignored, uses data auto-range.
+    var payload = makePayload(grid: make4x3Grid())   // data Z in [0, 1.25]
+    payload.zRangeClampMin = 0.5
+    let output = try HeatmapRenderPipeline.render(.init(payload: payload))
+    #expect(abs(output.layout.zMin - 0.0)  < 1e-10)
+    #expect(abs(output.layout.zMax - 1.25) < 1e-10)
+
+    // Only zRangeClampMax set, no min → also silently ignored.
+    var payload2 = makePayload(grid: make4x3Grid())
+    payload2.zRangeClampMax = 0.8
+    let output2 = try HeatmapRenderPipeline.render(.init(payload: payload2))
+    #expect(abs(output2.layout.zMin - 0.0)  < 1e-10)
+    #expect(abs(output2.layout.zMax - 1.25) < 1e-10)
+}
+
+// MARK: - Log10 colorbar tick alignment
+
+@Test func colorbarTicksAlignWithLogScale() {
+    // For log10 scale, tick Y positions must match log-normalized positions in
+    // the colorbar, not linear positions. Z=50 in [0,100] log scale maps to
+    // t ≈ 0.95 (near top), not t = 0.5 (middle) as it would for linear.
+    let grid = HeatmapGrid(
+        xValues: [0.0, 1.0],
+        yValues: [0.0, 1.0],
+        zMatrix: [[0.0, 50.0], [50.0, 100.0]]
+    )
+    let payload = HeatmapPlotPayload(
+        workflowID: "test", title: "", xLabel: "", yLabel: "", zLabel: "", grid: grid
+    )
+    let linearLayout = HeatmapPlotLayout.compute(payload: payload, colorScaleMode: .linear)
+    let logLayout    = HeatmapPlotLayout.compute(payload: payload, colorScaleMode: .log10)
+
+    // Both share the same colorbarRect geometry
+    #expect(linearLayout.colorbarRect == logLayout.colorbarRect)
+
+    // Log-scale tick Y values must be monotonically non-decreasing (ascending Z → ascending Y)
+    let logYs = logLayout.colorbarTicks.map(\.y)
+    let isSortedAsc = zip(logYs, logYs.dropFirst()).allSatisfy { $0 <= $1 }
+    #expect(isSortedAsc)
+
+    // For each tick, find the one whose label parses closest to z=50
+    func nearestTickY(in layout: HeatmapPlotLayout, to z: Double) -> CGFloat? {
+        layout.colorbarTicks
+            .compactMap { (y, label) -> (CGFloat, Double)? in
+                guard let v = Double(label) else { return nil }
+                return (y, abs(v - z))
+            }
+            .min(by: { $0.1 < $1.1 })
+            .map(\.0)
+    }
+
+    if let linearY = nearestTickY(in: linearLayout, to: 50),
+       let logY    = nearestTickY(in: logLayout,    to: 50) {
+        // On log scale z=50 out of [0,100] maps to t ≈ 0.95 → tick near top (large Y)
+        // On linear scale z=50 out of [0,100] maps to t = 0.5 → tick at middle
+        // So the log tick must be at a higher CG Y than the linear tick
+        #expect(logY > linearY)
+    }
+}
+
 // MARK: - Boundary: HeatmapTabRenderState does not pollute TabRenderState
 
 @Test func preservationStateDoesNotPollutXYTabRenderState() throws {
