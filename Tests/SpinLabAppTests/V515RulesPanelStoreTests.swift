@@ -71,6 +71,25 @@ struct V515RulesPanelStoreTests {
         """.data(using: .utf8)!.write(to: url)
     }
 
+    private func seedWorkflowOrder(at url: URL, ids: [String]) throws {
+        let workflows = ids.map { id -> [String: Any] in
+            [
+                "id": id,
+                "displayName": id,
+                "matchRules": [
+                    [
+                        "type": "equals",
+                        "value": id
+                    ]
+                ],
+                "conditionFieldIDs": []
+            ]
+        }
+        let json: [String: Any] = ["version": 1, "workflows": workflows, "measurementTagRules": []]
+        let data = try JSONSerialization.data(withJSONObject: json, options: .prettyPrinted)
+        try data.write(to: url)
+    }
+
     // MARK: - Tests: load
 
     @Test("present() loads all 5 section drafts")
@@ -218,6 +237,37 @@ struct V515RulesPanelStoreTests {
             from: Data(contentsOf: paths.importFiltersURL)
         )
         #expect(onDisk.config.supportedFileExtensions.contains("txt"))
+    }
+
+    @Test("workflow order persists when reordered and saved")
+    func workflowOrderPersistsWhenReorderedAndSaved() throws {
+        let iso = try acquireIsolation()
+        defer { releaseIsolation(iso) }
+        let paths = try seedAll(in: iso)
+        try seedWorkflowOrder(at: paths.workflowURL, ids: ["3w", "IV"])
+
+        let store = RulesManagementStore(rulesBookPaths: iso.paths)
+        store.present()
+
+        guard var draft = store.workflowDraft else {
+            Issue.record("Expected workflow draft to be loaded")
+            return
+        }
+
+        draft.workflows.swapAt(0, 1)
+        store.updateWorkflow(draft)
+        store.selectSection(.workflow)
+
+        guard case .saved = store.saveCurrent() else {
+            Issue.record("Expected workflow save to succeed")
+            return
+        }
+
+        let saved = try JSONDecoder().decode(
+            WorkflowFileDraft.self,
+            from: Data(contentsOf: paths.workflowURL)
+        )
+        #expect(saved.workflows.map(\.id) == ["IV", "3w"])
     }
 
     @Test("hash precondition: external mutation triggers externalConflict")

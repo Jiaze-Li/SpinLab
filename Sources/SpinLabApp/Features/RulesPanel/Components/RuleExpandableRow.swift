@@ -6,6 +6,8 @@ struct RuleExpandableRow<Detail: View>: View {
     let isExpanded: Bool
     let rowHasError: Bool
     let deleteAccessibilityLabel: String
+    let onMoveUp: (() -> Void)?
+    let onMoveDown: (() -> Void)?
     let onToggle: () -> Void
     let onDelete: () -> Void
     @ViewBuilder let detail: () -> Detail
@@ -16,6 +18,8 @@ struct RuleExpandableRow<Detail: View>: View {
         isExpanded: Bool,
         rowHasError: Bool,
         deleteAccessibilityLabel: String = "Delete",
+        onMoveUp: (() -> Void)? = nil,
+        onMoveDown: (() -> Void)? = nil,
         onToggle: @escaping () -> Void,
         onDelete: @escaping () -> Void,
         @ViewBuilder detail: @escaping () -> Detail
@@ -25,6 +29,8 @@ struct RuleExpandableRow<Detail: View>: View {
         self.isExpanded = isExpanded
         self.rowHasError = rowHasError
         self.deleteAccessibilityLabel = deleteAccessibilityLabel
+        self.onMoveUp = onMoveUp
+        self.onMoveDown = onMoveDown
         self.onToggle = onToggle
         self.onDelete = onDelete
         self.detail = detail
@@ -35,26 +41,43 @@ struct RuleExpandableRow<Detail: View>: View {
             Button {
                 withAnimation(.easeInOut(duration: 0.15)) { onToggle() }
             } label: {
-                HStack(spacing: AppSpacing.md) {
+                HStack(spacing: AppSpacing.sm) {
                     Text(title)
-                        .font(.callout.weight(.semibold).monospaced())
+                        .font(.body.weight(.semibold).monospaced())
                         .foregroundStyle(rowHasError ? Color.red : .primary)
                     if let subtitle {
                         Text(subtitle)
-                            .font(.caption)
+                            .font(.callout)
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
+                    if let onMoveUp {
+                        Button(action: onMoveUp) {
+                            Image(systemName: "arrow.up")
+                        }
+                        .buttonStyle(.borderless)
+                        .controlSize(.small)
+                        .accessibilityLabel("Move \(title) up")
+                    }
+                    if let onMoveDown {
+                        Button(action: onMoveDown) {
+                            Image(systemName: "arrow.down")
+                        }
+                        .buttonStyle(.borderless)
+                        .controlSize(.small)
+                        .accessibilityLabel("Move \(title) down")
+                    }
                     Button(role: .destructive, action: onDelete) {
                         Image(systemName: "minus.circle")
                     }
                     .buttonStyle(.borderless)
+                    .controlSize(.small)
                     .accessibilityLabel(deleteAccessibilityLabel)
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                .padding(.vertical, 10)
+                .padding(.vertical, AppSpacing.lg)
                 .padding(.horizontal, AppSpacing.xs)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .overlay(alignment: .bottom) {
