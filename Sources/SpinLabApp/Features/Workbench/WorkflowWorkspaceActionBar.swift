@@ -31,6 +31,12 @@ struct WorkflowWorkspaceActionBar<Store: WorkbenchWorkspaceProviding>: View {
             .buttonStyle(.bordered)
             .disabled(!readiness.hasFoundData)
 
+            Button("Clear Selected") {
+                workbench.deselectAll(for: workflowID)
+            }
+            .buttonStyle(.bordered)
+            .disabled(workbench.selectedCount(for: workflowID) == 0)
+
             Button("Analyze") {
                 store.runAnalysis(selectedHitsSnapshot: workbench.selectedHitsSnapshot(for: workflowID))
             }
