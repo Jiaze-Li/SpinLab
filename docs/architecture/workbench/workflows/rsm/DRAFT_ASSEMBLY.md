@@ -1,6 +1,6 @@
 # RSM Workflow — Draft Assembly Record
 
-> **Status: draft / partially implemented.** This file captures the adapter rules and CanonicalRSMDataset contract target that must be satisfied before any RSM implementation begins. Gate H1 now has a Swift pack-state model; full restore remains deferred.
+> **Status: partially implemented (Gates H1–H5 complete).** This file captures adapter rules, the `CanonicalRSMDataset` contract, the heatmap save/pack/restore boundary plan (Gate H0), and the implemented pipeline. Gates H1 (RSM pack state), H2 (HeatmapTabRenderState codec), H3/H3.5 (restore integration tests), H4 (pack/restore runtime integration), and H5 (save-to-library) are complete.
 
 ---
 
@@ -29,6 +29,51 @@ The `CanonicalRSMDataset` does not yet exist. Before any RSM parser is written, 
 | Canonical field names and units | Declared stable names and units in `CanonicalRSMDataset`. |
 | Adapter output type | `CanonicalRSMDataset` |
 | Warning policy | Missing columns, unknown instrument format, ambiguous units — all surfaced as adapter warnings. |
+
+---
+
+## Implemented Pipeline (Gates H1–H5)
+
+The following pipeline is fully wired and runtime-verified through restore integration tests:
+
+```
+Selected hit (WorkflowMeasurementSearchHit)
+→ RSMDataParser               [RSM Assembly — parses raw source file]
+→ CanonicalRSMDataset         [RSM Assembly — typed domain contract; H/K/L/intensity]
+→ RSMHeatmapPayloadBuilder    [RSM Assembly — assembles HeatmapPlotPayload from canonical dataset + activeView]
+→ HeatmapPlotPayload          [Plot System contract — grid data, axis labels, colormap hint]
+→ HeatmapRenderPipeline       [Plot System — display overrides, colormap, Z-range, colorbar]
+→ PNG Data (imageData)        [stored as RSMWorkspaceStore.renderedImageData]
+→ WorkbenchPlotCanvas         [workflow-independent PNG display shell; layout: nil]
+→ Save path (Gate H5):
+    RSMWorkspaceStore.buildSaveProjection()
+    → RSMSaveProjection         [RSM Assembly-owned; carries title, view, column name, semantic params]
+    → SaveRSMChartToLibraryUseCase
+```
+
+### Pack / Restore (Gate H4)
+
+`RSMWorkspaceStore.restoreFromPack()` writes:
+
+| Field | Source |
+|---|---|
+| `activeView` | `config.packState.activeView` |
+| `heatmapDisplayState` | `config.displayState` (`HeatmapTabRenderState`) |
+| `cachedInputFiles` | `pack.filePaths` |
+| `cachedSampleKeys` | `pack.sampleKeys` |
+| canonical search state | `restoreSearchState` callback |
+| `renderedImageData` | produced by re-parse + `HeatmapRenderPipeline` after restore |
+
+`activeLayout` is never written — it remains nil. `WorkbenchPlotCanvas` receives `imageData` and `layout: nil`.
+
+### Save-to-Library (Gate H5)
+
+RSM uses a dedicated save path:
+
+- **`RSMSaveProjection`** — RSM Assembly-owned metadata: workflow ID, title, active view, detector column name, axis labels, source file identity, semantic params dictionary.
+- **`SaveRSMChartToLibraryUseCase`** — RSM-specific save use case. Receives the PNG and `RSMSaveProjection`; writes chart artifact and save metadata without touching the Cartesian XY save path.
+- **`SaveActiveChartToLibraryUseCase`** (Cartesian XY) — not used by RSM. RSM does not produce a `WorkbenchPlotPayload` and does not conform to the Cartesian XY `ActiveChartProviding` contract.
+- The Save Module does not infer RSM semantic identity, metric names, or units — these are supplied entirely by `RSMSaveProjection`.
 
 ---
 
@@ -225,9 +270,14 @@ Restore and re-render failures must be explicit and non-silent:
 - Heatmap display state must not serialize RSM scientific semantics such as adapter logic, detector resolution, or view-selection policy.
 - Cartesian XY render path state and XY `TabRenderState` must not be reused for heatmap.
 
-### 7. Next Implementation Gates
+### 7. Implementation Gate Status
 
-- Gate H1: RSM pack state model.
-- Gate H2: `HeatmapTabRenderState` pack codec.
-- Gate H3: restore integration tests.
-- Gate H4: save-to-library bridge if needed.
+| Gate | Description | Status |
+|---|---|---|
+| H1 | RSM pack state model (`RSMPackState`) | ✅ Complete |
+| H2 | `HeatmapTabRenderState` pack codec | ✅ Complete |
+| H3 | Restore integration tests | ✅ Complete |
+| H3.5 | Additional restore integration coverage | ✅ Complete |
+| H4 | RSM pack/restore runtime integration | ✅ Complete |
+| H5 | RSM save-to-library (`RSMSaveProjection` + `SaveRSMChartToLibraryUseCase`) | ✅ Complete |
+| H6 | Architecture docs sync | In progress |

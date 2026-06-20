@@ -38,6 +38,11 @@ The sections below document the current boundary contracts for each module and m
 
 ## Code Map
 
+- `Sources/SpinLabApp/Features/Workbench/RSMWorkspaceStore.swift` — RSM workflow store: parse, view selection, heatmap render, pack/restore, save bridge; conforms to `WorkbenchPlottingStore` (not `WorkbenchCartesianXYPlottingStore`)
+- `Sources/SpinLabApp/Workbench/V3/Heatmap/RSM/RSMPackState.swift` — RSM-owned pack state (source file identity, detector column name, active view); no renderer or XY fields
+- `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapTabRenderState.swift` — Plot System-owned heatmap display override state; parallel type to `TabRenderState`
+- `Sources/SpinLabApp/Workbench/V3/Heatmap/RSM/RSMSaveProjection.swift` — RSM Assembly save metadata projection; used exclusively by `SaveRSMChartToLibraryUseCase`
+- `Sources/SpinLabApp/UseCases/SaveRSMChartToLibraryUseCase.swift` — RSM-specific save use case; does not call Cartesian XY save path
 - `Sources/SpinLabApp/Features/Workbench/IVWorkspaceStore.swift` - IV workflow workspace store owning IV analysis, pack, and render state
 - `Sources/SpinLabApp/Features/Workbench/IVWorkspaceView.swift` - IV workflow shell view and workflow-specific control content
 - `Sources/SpinLabApp/UseCases/IVLVMParser.swift` - IV LVM parser that preserves raw channels and audit columns
@@ -157,24 +162,31 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 
 - Classification: Module-owned — common module group.
 - Current implementation files:
-  - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift`
-  - `Sources/SpinLabApp/Features/Workbench/PlotCanvasMouseTracker.swift`
-  - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift`
-  - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift`
-  - `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift`
-  - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift`
-  - `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift`
-  - `Sources/SpinLabApp/Workbench/V3/WorkbenchRenderPipeline.swift`
-  - `Sources/SpinLabApp/Workbench/V3/WorkbenchChartRenderer.swift`
-  - `Sources/SpinLabApp/Workbench/V3/WorkbenchChartStyle.swift`
-  - `Sources/SpinLabApp/Workbench/V3/WorkbenchPlotLayout.swift`
+  - Cartesian XY render path:
+    - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift` — workflow-independent PNG display shell; reused by heatmap with `layout: nil`
+    - `Sources/SpinLabApp/Features/Workbench/PlotCanvasMouseTracker.swift`
+    - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift`
+    - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift`
+    - `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift`
+    - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift` — defines `WorkbenchPlottingStore` (interaction-only), `WorkbenchCartesianXYPlottingStore` (Cartesian XY state), `WorkbenchGlobalPlotDefaultsProviding` (shared font defaults)
+    - `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift`
+    - `Sources/SpinLabApp/Workbench/V3/WorkbenchRenderPipeline.swift`
+    - `Sources/SpinLabApp/Workbench/V3/WorkbenchChartRenderer.swift`
+    - `Sources/SpinLabApp/Workbench/V3/WorkbenchChartStyle.swift`
+    - `Sources/SpinLabApp/Workbench/V3/WorkbenchPlotLayout.swift`
+  - Heatmap render path:
+    - `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapRenderPipeline.swift`
+    - `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapRenderer.swift`
+    - `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapTabRenderState.swift` — per-tab heatmap display override state; parallel to `TabRenderState`
 - Current consumers: all workflow views/stores, renderers, save-to-library, pack/restore, plot tests.
 - State it owns: tab render states, tab outputs, active tab, grid flag, legend anchor, chart style overrides, series label/title/axis overrides, point-label visibility, series order where opted in.
 - State it must not own: search/selection state, ingestion result, workflow physics parameters, save/pack vault state, metric extraction semantics.
 - How workflow-specific semantics enter: workflow renderer provides payloads, tabs, axis defaults, style parameters, capability flags such as `seriesReorderable`, and semantic labels. Plot System applies common display and preservation rules.
 - **Boundary rule**: Workflow Assembly owns scientific semantics — it interprets measurement data and turns analysis results into a plot input payload (series arrays, axis labels, legend metadata, style hints). Plot System owns generic rendering mechanics, layout geometry, color/legend/colorbar mechanics, canvas display, Copy PNG, and save/restore plot representation. Plot System must not derive or interpret workflow physics; Workflow Assembly must not own rendering, layout, or display state.
 - **Terminology rule (Gate 8.2)**: "XY Rotation" names the angle-sweep measurement *workflow*. "Cartesian XY render path" (or "XY render path") names the Plot System series renderer (`WorkbenchRenderPipeline` / `WorkbenchChartRenderer`). Do not write "XY workflow" when you mean the render path — that phrase is ambiguous and forbidden in architecture docs.
-- **Heatmap render path ownership (Gate 8.2)**: Heatmap is a Plot System-owned render path. RSM Assembly is the first consumer and is responsible only for producing a `HeatmapPlotPayload`; the heatmap renderer, color scale, colorbar, heatmap layout, heatmap controls, and heatmap tab state are all Plot System-owned. RSM must not implement colormap logic or colorbar geometry. See [`modules/PLOT_SYSTEM.md` § Heatmap Render Path](modules/PLOT_SYSTEM.md#heatmap-render-path-gate-82-architecture).
+- **Protocol split (Gate H4)**: `WorkbenchPlottingStore` is now interaction-only — canvas callbacks with no state. `WorkbenchCartesianXYPlottingStore` (extends `WorkbenchPlottingStore`) adds Cartesian XY-specific state (`showPlotGrid`, `seriesRenderMode`, `chartStyleOverrides`). `WorkbenchGlobalPlotDefaultsProviding` adds shared font/style defaults. Heatmap workflows must not conform to `WorkbenchCartesianXYPlottingStore` or `WorkbenchGlobalPlotDefaultsProviding`.
+- **Heatmap render path ownership (Gates 8.2 / H1–H5 implemented)**: Heatmap is a Plot System-owned render path. RSM Assembly is the first consumer and is responsible only for scientific semantics — parsing `CanonicalRSMDataset` and building `HeatmapPlotPayload` via `RSMHeatmapPayloadBuilder`. The heatmap renderer (`HeatmapRenderPipeline`, `HeatmapRenderer`), colormap, colorbar, and `HeatmapTabRenderState` are all Plot System-owned. RSM must not implement colormap logic or colorbar geometry. `HeatmapTabRenderState` is the implemented heatmap tab state type (Gate H2 — standalone struct, not an extension of `TabRenderState`). See [`modules/PLOT_SYSTEM.md` § Heatmap Render Path](modules/PLOT_SYSTEM.md#heatmap-render-path-gate-82-architecture).
+- **RSM workflow ownership**: RSM Assembly (`RSMWorkspaceStore`, `RSMDataParser`, `RSMHeatmapPayloadBuilder`) is workflow-owned assembly, not a Plot System module. It produces `HeatmapPlotPayload` as its boundary output. Heatmap rendering itself is Plot System-owned. Do not classify RSM files as Plot System files.
 - Series order identity resolution is owned by the shared Plot System resolver (`WorkbenchSeriesOrderKeyResolver`). It provides stable identity keys for series reordering and restore. `WorkbenchSeriesOrderPanel` and `WorkbenchRenderPipeline` consume it automatically. Workflow stores must not keep separate key-generation logic for the same plot surface.
 - Legend auto-resolution is owned by the shared Plot System resolver (`LegendDimensionResolver`). It resolves legend labels from `WorkbenchPlotSeries.metadata` when the payload leaves `legendDimension` nil. `WorkbenchRenderPipeline` invokes it automatically. Workflow renderers must populate metadata such as `temperature`, `field`, `harmonic`, `device`, `substrate`, and `thickness`; workflow-local legend guessing is forbidden.
 - `WorkbenchRenderPipeline` is the common Plot System post-processing path. It applies legend auto-resolution, series-order mismatch detection, and other shared render-time adjustments. Workflow renderers should route through the pipeline unless an exception is explicitly documented.
@@ -218,19 +230,24 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Target owner: split ownership. Save writer is Module-owned and common. Metric definitions, unit semantics, override policy, and semantic identity are Assembly-owned. The mapping from workflow metrics into generic save metadata remains the audited boundary.
 - Exit condition: `SaveActiveChartToLibraryUseCase` receives an explicit workflow save metadata projection whose metric names, units, conditions, overrides, and semantic identity are already Assembly-owned, while the save writer owns only validation and artifact writes.
 - Current implementation files:
-  - `Sources/SpinLabApp/UseCases/SaveActiveChartToLibraryUseCase.swift`
-  - `Sources/SpinLabApp/UseCases/PersistChartArtifactUseCase.swift`
-  - `Sources/SpinLabApp/UseCases/PersistMeasurementDataUseCase.swift`
-  - `Sources/SpinLabApp/UseCases/BackfillMeasurementPlotIndexUseCase.swift`
-  - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift`
-  - `Sources/SpinLabApp/Features/Workbench/WorkbenchSaveCoordinating.swift` — shared async save orchestration protocol + extension; owns `executeSave`, outcome/trace/message writes, and `refreshRelatedCharts()` call pattern
-  - save methods in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore+Persistence.swift`
-  - save-metadata builders in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore+Plotting.swift`
-  - metric/provider contracts in `Sources/SpinLabApp/Workbench/V3/WorkbenchResultContracts.swift`
+  - Cartesian XY save path (AHE, XY Rotation, 3ω, IV):
+    - `Sources/SpinLabApp/UseCases/SaveActiveChartToLibraryUseCase.swift`
+    - `Sources/SpinLabApp/UseCases/PersistChartArtifactUseCase.swift`
+    - `Sources/SpinLabApp/UseCases/PersistMeasurementDataUseCase.swift`
+    - `Sources/SpinLabApp/UseCases/BackfillMeasurementPlotIndexUseCase.swift`
+    - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift`
+    - `Sources/SpinLabApp/Features/Workbench/WorkbenchSaveCoordinating.swift` — shared async save orchestration protocol + extension; owns `executeSave`, outcome/trace/message writes, and `refreshRelatedCharts()` call pattern
+    - save methods in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore+Persistence.swift`
+    - save-metadata builders in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore+Plotting.swift`
+    - metric/provider contracts in `Sources/SpinLabApp/Workbench/V3/WorkbenchResultContracts.swift`
+  - RSM heatmap save path (Gate H5):
+    - `Sources/SpinLabApp/UseCases/SaveRSMChartToLibraryUseCase.swift` — RSM-specific save use case; parallel to `SaveActiveChartToLibraryUseCase`; receives RSMSaveProjection directly
+    - `Sources/SpinLabApp/Workbench/V3/Heatmap/RSM/RSMSaveProjection.swift` — RSM Assembly-owned save metadata: title, active view, axis labels, source file identity, semantic params
 - Current consumers: all workflow stores, Library artifact preview/read model, related chart refresh, save boundary tests.
 - Target common save-writer state it would own: save status/message target, `persistenceOutcome`, save-side trace update from `PersistenceOutcome.trace`, and chart/data artifact write orchestration.
 - Target common save-writer state it must not own: search/selection, analysis trigger, ingestion result mutation, tab override state, pack vault state, metric definitions, unit conversions, workflow semantic identity rules, or any physics/analysis interpretation.
-- How workflow-specific semantics enter: workflow Assembly provides active chart PNG/manifest, sample keys, and a workflow save metadata projection. Today that bridge is the `ActiveChartProviding` protocol plus `buildActiveChartMetrics()`, which returns a generic `PendingMetricEntry` array. Save module must not derive physics.
+- How workflow-specific semantics enter: workflow Assembly provides active chart PNG/manifest, sample keys, and a workflow save metadata projection. Today that bridge is the `ActiveChartProviding` protocol plus `buildActiveChartMetrics()`, which returns a generic `PendingMetricEntry` array. Save module must not derive physics. **RSM exception (Gate H5)**: RSM uses `SaveRSMChartToLibraryUseCase` + `RSMSaveProjection` instead of `ActiveChartProviding`. The Save Module does not infer RSM metric names or view identity. `PersistChartArtifactUseCase` is not called for RSM.
+- **Cartesian XY vs RSM save boundary**: The `SaveActiveChartToLibraryUseCase` / `WorkbenchPlotPayload` path is for Cartesian XY workflows only. RSM uses `SaveRSMChartToLibraryUseCase` / `RSMSaveProjection`. These two paths must not be merged. Future heatmap workflows that are not RSM must evaluate which save path applies to them before implementation.
 - Pack/restore implications: restore sets enough library-root and active chart state to allow save after restore, but restore must not persist save outcome or trigger save. Metric override candidates stay save-time only and must not become pack state.
 - Tests currently protecting it: `V537SaveModuleBoundaryTests`, `V4111SaveActiveChartToLibraryUseCaseTests`, `V343DeleteWorkbenchResultTests`, `V41217MeasurementPlotIndexTests`, `V342WorkbenchResultsReadModelTests`, `V5111ExtractAHEMetricsUseCaseTests`, `V5114AHEMetricSourceTests`, `V41216ThreeOmegaScalingUseCaseTests`, `V413ThreeOmegaFitUseCaseTests`, `V420XYRotationTests`.
 - Extraction readiness: medium-high for write orchestration, medium for UI/status because `saveMessage` is still workflow-local and the save metadata projection is still a raw array bridge.

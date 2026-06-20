@@ -60,7 +60,9 @@ Workflow analysis result
 | `WorkbenchPlotControlsPanel` | **Shared controls container** — render mode picker, font sizes, tick density; workflow content injected via ViewBuilder |
 | `WorkbenchStandardPlotControls` | **XY-specific controls** — tab picker, stack offset, gap, title template, grid, label overrides for multi-tab stacking workflows |
 | `LegendDimensionResolver` | **Distributed legend capability** — auto-infers legend dimension from series metadata; invoked by the render pipeline |
-| `WorkbenchPlottingStore` | **Save/canvas bridge protocol** — canvas interaction callbacks wired into workflow store and `TabRenderManager` |
+| `WorkbenchPlottingStore` | **Interaction-only protocol** — canvas interaction callbacks (legend drag, title/axis/label edit, point label toggle, Copy PNG re-render). No plot display state. All workflows must conform; heatmap workflows conform without implementing XY-specific callbacks via the default no-op extension. |
+| `WorkbenchCartesianXYPlottingStore` | **Cartesian XY-specific state protocol** — extends `WorkbenchPlottingStore` with `showPlotGrid`, `seriesRenderMode`, and `chartStyleOverrides`. Heatmap workflows must not conform to this protocol. |
+| `WorkbenchGlobalPlotDefaultsProviding` | **Cartesian XY global defaults capability** — owns `globalPlotDefaults` (font sizes, font names shared across Cartesian XY workflows). Composed into `WorkbenchCartesianXYPlottingStore`. Heatmap workflows do not need this capability. |
 
 ### XY Render Path — Currently Implicit
 
@@ -199,29 +201,25 @@ These controls must not be shown when the active tab is a heatmap render path. T
 
 These fields must **not** be reused or extended for heatmap tabs.
 
-**V1 boundary (established before code):**
+**V1 boundary (implemented Gate H2):**
 
-Heatmap tab state V1 minimum fields:
+`HeatmapTabRenderState` is a standalone struct (Option A) — a parallel type to `TabRenderState`. It is not a subclass, variant enum, or extension of `TabRenderState`. `RSMWorkspaceStore` owns the single `heatmapDisplayState: HeatmapTabRenderState` field and is responsible for restoring and persisting it via pack/restore. `TabRenderManager` is not involved in heatmap tab state ownership in V1.
+
+Implemented fields (Gate H2):
 - `titleOverride`
 - `xLabelOverride`
 - `yLabelOverride`
 - `zLabelOverride` (colorbar label)
-- Color scale range override (if user-adjustable range is in V1 scope)
+- `colorScaleMode` (`HeatmapColorScaleMode`: linear or log)
+- `colormapKey` (default `"viridis"`)
+- `zRangeOverrideMin`, `zRangeOverrideMax`
 
-`TabRenderManager` must eventually support heatmap tab state as a parallel structure to `TabRenderState`. Implementation options (to be decided at the implementation gate):
+**Pack/restore boundary for heatmap (implemented Gate H4):**
 
-- **Option A**: `HeatmapTabRenderState` — a parallel type owned by `TabRenderManager`, stored separately from `TabRenderState`.
-- **Option B**: A variant enum `TabRenderStateKind { case xy(TabRenderState); case heatmap(HeatmapTabRenderState) }` indexed by tab key.
-- **Option C**: A shared base type with render-path-specific extension fields.
-
-No option is selected at Gate 8.2. Selecting the approach is an implementation-gate deliverable.
-
-**Pack/restore boundary for heatmap:**
-
-- Heatmap pack state serializes: colormap key, Z-range override if user-set, title/axis/colorbar label overrides.
-- Heatmap pack state must **not** serialize the rendered PNG or `HeatmapPlotLayout` — re-derived on restore.
-- RSM Assembly pack config owns the analysis parameters needed to re-derive the heatmap grid. Plot System heatmap tab state owns display overrides. The boundary between them is `HeatmapPlotPayload` — RSM writes it, Plot System reads it.
-- Gate H0 in `workflows/rsm/DRAFT_ASSEMBLY.md` tightens the restore contract further: restore may persist workflow provenance and display overrides, but renderer/layout/canvas internals remain re-derived or transient.
+- `HeatmapTabRenderState` serializes display overrides: colormap key, Z-range override, title/axis/colorbar label overrides, color scale mode.
+- `HeatmapTabRenderState` must **not** serialize the rendered PNG or `HeatmapPlotLayout` — re-derived on restore.
+- `RSMPackState` owns the analysis parameters needed to re-derive the heatmap grid (source file identity, detector column name, active view). Plot System `HeatmapTabRenderState` owns display overrides. The boundary between them is `HeatmapPlotPayload` — RSM Assembly writes it, the Heatmap render path reads it.
+- On restore: `activeLayout` remains nil; `renderedImageData` is produced by re-running the full heatmap render pipeline after dataset re-parse.
 
 ### Boundary: RSM Assembly vs Plot System Heatmap Path
 
@@ -238,13 +236,13 @@ No option is selected at Gate 8.2. Selecting the approach is an implementation-g
 
 RSM must not implement colormap logic, colorbar geometry, or Z-value-to-color mapping. Plot System must not interpret RSM's surface fit parameters or derive Z values from raw measurement data.
 
-## Heatmap V1 Implementation Plan
+## Heatmap V1 Implementation Record
 
-This section is the **authoritative implementation plan** for Heatmap V1. It translates the Gate 8.2 Architecture decisions above into a concrete list of new types to create, existing types to leave unchanged, and hard rules to enforce during implementation. No Swift code is changed or created until the implementation gate; this section is documentation only.
+This section records the **implemented V1 architecture** for the Heatmap render path, as shipped through Gates H1–H5. The rules below reflect implemented boundaries, not future plans. Swift code exists for all items unless explicitly marked deferred.
 
-### 1. New Types Required
+### 1. New Types (Implemented)
 
-All new types are owned by Plot System. None of them may live in RSM workflow files.
+All new types are owned by Plot System. None of them live in RSM workflow files.
 
 | Type | Role |
 |---|---|
@@ -254,7 +252,7 @@ All new types are owned by Plot System. None of them may live in RSM workflow fi
 | `HeatmapRenderer` | Pure CoreGraphics renderer. Rasterises 2D color grid + colorbar with tick labels + axis labels + title to PNG. No SwiftUI or AppKit. Parallel to `WorkbenchChartRenderer`; must not extend it. |
 | `HeatmapPlotLayout` | Geometry type: gridRect, colorbarRect, title position, X/Y axis label positions, colorbar tick label positions. Must not extend or inherit `WorkbenchPlotLayout`. |
 | `HeatmapColorScale` | Color scale computation. V1 minimum: one perceptually-uniform colormap (viridis). Maps a normalised Z value in [0, 1] to a `CGColor`. Lookup is keyed by colormap hint string; unknown hint falls back to viridis. |
-| `HeatmapTabRenderState` (or equivalent variant) | Per-tab heatmap display override state. V1 minimum fields: `titleOverride`, `xLabelOverride`, `yLabelOverride`, `zLabelOverride` (colorbar label). Must be a parallel structure to `TabRenderState` — not an extension of it. Whether the final form is a standalone struct, a `TabRenderStateKind` enum variant, or a shared-base approach is an implementation-gate decision (see § Plot Preservation — Heatmap Tab State Boundary above). |
+| `HeatmapTabRenderState` | Per-tab heatmap display override state (implemented Gate H2). Fields: `titleOverride`, `xLabelOverride`, `yLabelOverride`, `zLabelOverride`, `colorScaleMode`, `colormapKey`, `zRangeOverrideMin/Max`. Standalone struct — parallel to `TabRenderState`, not an extension of it. Owned and persisted by `RSMWorkspaceStore.heatmapDisplayState` in V1. |
 
 ### 2. Existing Types That Must Remain XY-Only in V1
 
@@ -290,18 +288,16 @@ Do not add heatmap controls to `WorkbenchStandardPlotControls` or `WorkbenchPlot
 
 Do not extend `TabRenderState` with heatmap-only fields. `TabRenderState` is XY-specific: its `seriesLabelOverrides`, `seriesOrder`, `legendPoint`, `legendAnchor`, and `hiddenPointLabelIndicesBySeries` fields have no meaning for a heatmap tab. Heatmap tab state must live in a parallel state type (`HeatmapTabRenderState` or a `TabRenderStateKind` enum variant). `TabRenderManager` must never write heatmap override fields into a `TabRenderState` slot, and heatmap state must never be decoded from or encoded into a `TabRenderState` Codable envelope.
 
-### 7. Save/Pack Rule
+### 7. Save/Pack Rule (Implemented Gates H4–H5)
 
-Full heatmap save/pack compatibility is required for workflow support, but may be staged after initial render tests pass. The boundary is defined now:
+- **What serializes**: `HeatmapTabRenderState` (colormap key, Z-range override, title/axis/colorbar label overrides, color scale mode). Owned by RSM workflow as `heatmapDisplayState`.
+- **What does not serialize**: rendered PNG bytes, `HeatmapPlotLayout`. Re-derived on restore by re-parsing source and re-running `HeatmapRenderPipeline`.
+- **RSM pack boundary**: `RSMPackState` serializes analysis provenance (source file identity, detector column name, active view). `HeatmapTabRenderState` serializes display overrides only. The re-entry point between them is `HeatmapPlotPayload` — `RSMHeatmapPayloadBuilder` writes it, `HeatmapRenderPipeline` reads it.
+- **RSM save-to-library**: implemented via `RSMSaveProjection` + `SaveRSMChartToLibraryUseCase`. RSM does not use `WorkbenchPlotPayload` for save. The Save Module does not infer RSM semantics — metric names, units, and view identity are supplied by the projection. See PACK_RESTORE.md § RSM.
 
-- **What serializes**: colormap key, Z-range override (if user-set), title/axis/colorbar label overrides. Owned by Plot System heatmap tab state.
-- **What does not serialize**: rendered PNG, `HeatmapPlotLayout`. These are re-derived on restore from `HeatmapPlotPayload`.
-- **Boundary**: RSM Assembly pack config serializes the analysis parameters needed to re-derive the heatmap grid. Plot System heatmap tab state serializes display overrides only. The re-entry point between them is `HeatmapPlotPayload` — RSM writes it, Plot System reads it.
-- **Implementation gate**: pack/restore codec and `TabRenderManager` restore path for heatmap tab state may be implemented after initial render tests confirm the renderer produces correct output. The boundary above must be respected when that gate opens.
+### 8. Test Plan (Gate H3 / H3.5)
 
-### 8. Test Plan
-
-The following tests are required **before implementation**. They define the acceptance criteria for the V1 render path. No test may be skipped or deferred unless explicitly marked deferred.
+The following tests define acceptance criteria for the V1 render path. Gates H3 and H3.5 added restore integration tests.
 
 | Test | What it verifies |
 |---|---|
@@ -318,7 +314,7 @@ The following tests are required **before implementation**. They define the acce
 
 The following capabilities are **out of scope** for Heatmap V1. Implementing any of them before the gate that specifically authorizes them is a scope violation.
 
-- RSM workflow code — no RSM Swift files are created or modified in V1.
+- Q-space, line cut, contour, peak fitting, or heatmap controls panels.
 - Cell hit-testing — no click-to-read-Z-value interaction.
 - Contour overlays.
 - Line cuts (1D profile extraction from a 2D grid).
@@ -466,20 +462,27 @@ Boundary: no module other than Plot Preservation may write `TabRenderState` over
 
 ## Code Map
 
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift` — workflow-independent plot shell; interaction, hit-test, legend overlay, Copy PNG
+### Cartesian XY Render Path
+
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift` — workflow-independent PNG display shell; interaction, hit-test, legend overlay, Copy PNG; reused by heatmap with `layout: nil`
 - `Sources/SpinLabApp/Features/Workbench/PlotCanvasMouseTracker.swift` — tracks mouse position and computes hit-test results on the plot canvas
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift` — sidebar controls panel for plot display settings (style, ranges, offsets)
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift` — standard plot control bindings and default implementations shared across workflows
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift` — sidebar controls panel for plot display settings (Cartesian XY-specific controls)
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift` — standard plot control bindings shared across Cartesian XY multi-tab stacking workflows
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift` — reorders stacked series from plot controls by per-series identity keys
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift` — interaction-only canvas protocol (`WorkbenchPlottingStore`); also defines `WorkbenchCartesianXYPlottingStore` (Cartesian XY state) and `WorkbenchGlobalPlotDefaultsProviding` (shared font/style defaults)
 - `Sources/SpinLabApp/Workbench/V3/WorkbenchSeriesOrderKeyResolver.swift` — shared series identity key resolver for order persistence and compatibility
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift` — observable store for plot display state (style params, visibility, range overrides)
-- `Sources/SpinLabApp/Workbench/V3/WorkbenchChartRenderer.swift` — shared chart renderer producing plot layer output from workflow analysis data
-- `Sources/SpinLabApp/UseCases/LegendDimensionResolver.swift` — resolves legend item dimensions for auto-sizing the plot legend overlay
-- `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift` — manages tab-based rendering pipeline switching in the plot canvas
-- `Sources/SpinLabApp/Workbench/V3/WorkbenchChartStyle.swift` — chart style parameters (colors, line widths, markers) shared across all workflows
-- `Sources/SpinLabApp/Workbench/V3/WorkbenchPlotLayout.swift` — layout parameters for plot canvas regions (margins, axes, legend areas)
-- `Sources/SpinLabApp/Workbench/V3/WorkbenchRenderPipeline.swift` — render pipeline coordinating chart layers from workflow analysis results
-- `Sources/SpinLabApp/Workbench/V3/WorkbenchSeriesOrderKeyResolver.swift` — shared series identity key resolver for stable reorder/restore identity
+- `Sources/SpinLabApp/Workbench/V3/WorkbenchChartRenderer.swift` — CoreGraphics renderer for Cartesian XY line/scatter charts
+- `Sources/SpinLabApp/UseCases/LegendDimensionResolver.swift` — auto-resolves legend dimension from series metadata
+- `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift` — owns per-tab Cartesian XY render state (`TabRenderState`), tab outputs, active tab, shared display settings
+- `Sources/SpinLabApp/Workbench/V3/WorkbenchChartStyle.swift` — chart style parameters (colors, line widths, markers) for Cartesian XY renderer
+- `Sources/SpinLabApp/Workbench/V3/WorkbenchPlotLayout.swift` — geometry for Cartesian XY axes, legend rows, tick hit-rects, point hit-rects
+- `Sources/SpinLabApp/Workbench/V3/WorkbenchRenderPipeline.swift` — Cartesian XY render pipeline: legend auto-resolution, style merge, series order, PNG output
+
+### Heatmap Render Path
+
+- `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapRenderPipeline.swift` — heatmap render pipeline: display overrides → colormap → Z-range → PNG output
+- `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapRenderer.swift` — pure CoreGraphics renderer for 2D color grid + colorbar
+- `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapTabRenderState.swift` — per-tab heatmap display override state; parallel to `TabRenderState`; not an extension of it
 
 ## Historical Notes
 

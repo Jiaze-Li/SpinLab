@@ -44,32 +44,36 @@ Pack restore is allowed to write multiple module states simultaneously because r
 
 What restore writes, and which module owns the state:
 
-| Restored state | Module owner | 3ω | AHE | XY | IV |
-|---|---|:---:|:---:|:---:|:---:|
-| `cachedSearchResults` | Selection/Search mirror | ✓ | ✓ | ✓ | ✓ |
-| `selectedSearchResultIDs` | Selection Module | ✓ | ✓ | ✓ | ✓ |
-| `WorkbenchFeatureStore.searchResults[wf]` (via callback) | Search Module canonical | ✓ | ✓ | ✓ | ✓ |
-| `WorkbenchFeatureStore.searchQueryTexts[wf]` (via callback) | Search Module canonical | ✓ | ✓ | ✓ | ✓ |
-| `ingestionResult` | Analysis Lifecycle Module | ✓ | ✓ (optional) | ✓ | ✓ |
-| `scalingResult` | Analysis Lifecycle Module | ✓ | — | — | — |
-| `tabs.activeTab` | Plot Preservation Module | ✓ | — | ✓ | ✓ |
-| `tabs.restoreStates(tabStates)` | Plot Preservation Module | ✓ | ✓ | ✓ | ✓ |
-| `tabs.chartStyleOverrides` | Plot Preservation Module | ✓ | — | — | ✓ |
-| `tabs.showPlotGrid` | Plot System | ✓ | ✓ | ✓ | ✓ |
-| `tabs.legendAnchor` | Plot System (3ω) | ✓ | — | — | — |
-| `titleTemplate` | Plot Controls Module | ✓ | ✓ | ✓ | ✓ |
-| `stackOffsetMultiplier`, `minGapFraction` | Plot Controls / Physics | ✓ | — | ✓ | ✓ |
-| `xCurrentBasis` | IV Physics Function | — | — | — | ✓ |
-| `ch1Component`, `ch2Component` | IV channel state | — | — | — | ✓ |
-| `geometry`, `fitRanges`, `v3Method`, `rahe1omegaMethod`, `rahe3omegaMethod` | 3ω Physics Function | ✓ | — | — | — |
-| `rtQuery`, `selectedRTHit`, `pendingRTSidecarPath`, `cachedRTFilePath`; calls `persistRTQuery()` | Secondary Input Search optional slot (3ω `rt` instance) | ✓ | — | — | — |
-| `phiOffsetOverrides`, `centerBaseline`, `linearDetrend` | XY Physics Function | — | — | ✓ | — |
-| `cachedInputFiles` | Pack Module local | ✓ | ✓ | ✓ | ✓ |
-| `cachedSampleKeys` | Pack Module local | ✓ | — | ✓ | ✓ |
-| `lastRenderedSampleKeys` | AHE render cache | — | ✓ | — | — |
-| `lastLibraryRootPath` (from vault if empty) | Save Module dependency | ✓ | ✓ | ✓ | ✓ |
-| `overlayPackIDs = []`, `overlaySnapshots = [:]` | Session-only analysis overlay state; restore clears it and does not serialize it into pack content | ✓ | — | — | — |
-| `_titleTokens` (rebuilt from restored hits) | Workflow-local title context | ✓ | — | ✓ | ✓ |
+| Restored state | Module owner | 3ω | AHE | XY | IV | RSM |
+|---|---|:---:|:---:|:---:|:---:|:---:|
+| `cachedSearchResults` | Selection/Search mirror | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `selectedSearchResultIDs` | Selection Module | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `WorkbenchFeatureStore.searchResults[wf]` (via callback) | Search Module canonical | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `WorkbenchFeatureStore.searchQueryTexts[wf]` (via callback) | Search Module canonical | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `ingestionResult` | Analysis Lifecycle Module | ✓ | ✓ (optional) | ✓ | ✓ | — |
+| `scalingResult` | Analysis Lifecycle Module | ✓ | — | — | — | — |
+| `tabs.activeTab` | Plot Preservation Module | ✓ | — | ✓ | ✓ | — |
+| `tabs.restoreStates(tabStates)` | Plot Preservation Module | ✓ | ✓ | ✓ | ✓ | — |
+| `tabs.chartStyleOverrides` | Plot Preservation Module | ✓ | — | — | ✓ | — |
+| `tabs.showPlotGrid` | Plot System | ✓ | ✓ | ✓ | ✓ | — |
+| `tabs.legendAnchor` | Plot System (3ω) | ✓ | — | — | — | — |
+| `titleTemplate` | Plot Controls Module | ✓ | ✓ | ✓ | ✓ | — |
+| `stackOffsetMultiplier`, `minGapFraction` | Plot Controls / Physics | ✓ | — | ✓ | ✓ | — |
+| `xCurrentBasis` | IV Physics Function | — | — | — | ✓ | — |
+| `ch1Component`, `ch2Component` | IV channel state | — | — | — | ✓ | — |
+| `geometry`, `fitRanges`, `v3Method`, `rahe1omegaMethod`, `rahe3omegaMethod` | 3ω Physics Function | ✓ | — | — | — | — |
+| `rtQuery`, `selectedRTHit`, `pendingRTSidecarPath`, `cachedRTFilePath`; calls `persistRTQuery()` | Secondary Input Search optional slot (3ω `rt` instance) | ✓ | — | — | — | — |
+| `phiOffsetOverrides`, `centerBaseline`, `linearDetrend` | XY Physics Function | — | — | ✓ | — | — |
+| `cachedInputFiles` | Pack Module local | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `cachedSampleKeys` | Pack Module local | ✓ | — | ✓ | ✓ | ✓ |
+| `lastRenderedSampleKeys` | AHE render cache | — | ✓ | — | — | — |
+| `lastLibraryRootPath` (from vault if empty) | Save Module dependency | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `overlayPackIDs = []`, `overlaySnapshots = [:]` | Session-only analysis overlay state; restore clears it and does not serialize it into pack content | ✓ | — | — | — | — |
+| `_titleTokens` (rebuilt from restored hits) | Workflow-local title context | ✓ | — | ✓ | ✓ | — |
+| `activeView` | RSM Physics / View Function | — | — | — | — | ✓ |
+| `heatmapDisplayState` (`HeatmapTabRenderState`) | Plot System Heatmap tab state | — | — | — | — | ✓ |
+| `renderedImageData` (re-derived after restore) | RSM render output | — | — | — | — | ✓ |
+| `activeLayout` | Not written — remains nil | — | — | — | — | — |
 
 ### Secondary Input Slot Restore Rules
 
@@ -109,6 +113,10 @@ These fields are explicitly excluded from pack content and must not be written b
 | `overlayPackIDs` / `overlaySnapshots` | Session-only analysis overlay state; not serialized into pack content in v1 |
 | `activePackID` | Not in pack content; set by `loadPack()` caller after `restoreFromPack()` returns |
 | Active PNG / manifest / layout output | Not serialized; re-derived by re-render call at end of restore |
+| RSM: rendered PNG bytes | Not serialized; re-derived by re-running `HeatmapRenderPipeline` after re-parse |
+| RSM: `HeatmapPlotLayout` | Not serialized; `activeLayout` is nil for heatmap in V1 |
+| RSM: CoreGraphics render artifacts | Never serialized |
+| RSM: XY `TabRenderState` fields | RSM is heatmap-only; XY-specific state must not enter RSM pack |
 
 **`activePackID` ownership rule:** `restoreFromPack()` must not write `activePackID`. The `loadPack()` protocol extension sets `activePackID = id` after `restoreFromPack()` returns. This ordering ensures `activePackID` reflects the correct loaded pack ID even when `restoreFromPack()` triggers `runAnalysis()` (legacy AHE path), which may temporarily clear `activePackID`.
 
@@ -170,14 +178,16 @@ These are known side effects of the restore contract, not hidden bugs. Future im
 
 ## Workflow-Specific Differences
 
-| | 3ω | AHE | XY | IV |
-|---|---|---|---|---|
-| Pack workflow ID | `"3w"` | `"ahe"` | `"xy"` | `"IV"` |
-| Auxiliary file in fingerprint | ✓ (`packRTFilePath`, current 3ω RT instance) | No | No | No |
-| `ingestionResult` optional in result | No (required) | Yes (legacy compat) | No (required) | No (required) |
-| Overlay state in pack | No (session-only; cleared on restore) | n/a | n/a | n/a |
-| Post-restore render | `_rerenderAllTabsFromRestoredState()` | `_rerenderActiveTab()` | `_rerenderAllTabs()` | `_rerenderAllTabs()` |
-| Sample keys field | `cachedSampleKeys` | `lastRenderedSampleKeys` | `cachedSampleKeys` | `cachedSampleKeys` |
+| | 3ω | AHE | XY | IV | RSM |
+|---|---|---|---|---|---|
+| Pack workflow ID | `"3w"` | `"ahe"` | `"xy"` | `"IV"` | `"rsm"` |
+| Auxiliary file in fingerprint | ✓ (`packRTFilePath`) | No | No | No | No |
+| `ingestionResult` optional in result | No (required) | Yes (legacy compat) | No (required) | No (required) | n/a — RSM has no `ingestionResult`; re-parses source on restore |
+| Overlay state in pack | No (session-only) | n/a | n/a | n/a | n/a |
+| Post-restore render | `_rerenderAllTabsFromRestoredState()` | `_rerenderActiveTab()` | `_rerenderAllTabs()` | `_rerenderAllTabs()` | `restoreFromPack` re-parses source → `HeatmapRenderPipeline` → `renderedImageData` |
+| Sample keys field | `cachedSampleKeys` | `lastRenderedSampleKeys` | `cachedSampleKeys` | `cachedSampleKeys` | `cachedSampleKeys` |
+| Heatmap display state | — | — | — | — | `heatmapDisplayState` (`HeatmapTabRenderState`) |
+| Active layout in pack | — | — | — | — | Never; `activeLayout` remains nil |
 
 **AHE sample keys asymmetry:** AHE restore writes `lastRenderedSampleKeys = pack.sampleKeys`, while XY and 3ω write `cachedSampleKeys = pack.sampleKeys`. Each workflow's `activeChartSampleKeys` implementation reads from the correct field, so post-restore `persistToLibrary()` works. Do not normalize across workflows without testing all three save-after-restore paths.
 
@@ -216,15 +226,27 @@ Overlay-derived series are display-only. They do not extend `buildActiveChartMet
 
 Library-side view (preview pipeline, stale banner, path resolution ownership): `docs/architecture/library/ARTIFACTS_AND_PREVIEWS.md`.
 
-## Save Entry Point
+## Save Entry Points
 
-`SaveActiveChartToLibraryUseCase` is the sole save entry point for Workbench. It orchestrates:
+Two save entry points exist, distinguished by render path:
+
+**Cartesian XY workflows (AHE, XY Rotation, 3ω, IV):**
+
+`SaveActiveChartToLibraryUseCase` is the save entry point. It orchestrates:
 
 1. `PersistChartArtifactUseCase` — writes chart PNG and `_spinlab/` plot index entry
 2. `PersistMeasurementDataUseCase` — writes metric data artifact alongside chart
 3. `BackfillMeasurementPlotIndexUseCase` — backfills the plot index for pre-existing measurements that didn't have one
 
 Workflow metric semantics are not owned here. Pack/Restore may restore enough workflow state for `ActiveChartProviding` to rebuild save metadata after restore, but it must not restore metric records or any save outcome.
+
+**RSM heatmap workflow:**
+
+`SaveRSMChartToLibraryUseCase` is the RSM-specific save entry point. It receives:
+- The rendered PNG (`Data`)
+- An `RSMSaveProjection` carrying title, active view, axis labels, source file identity, and semantic params
+
+`SaveRSMChartToLibraryUseCase` does not call `SaveActiveChartToLibraryUseCase`. `PersistChartArtifactUseCase` is not used for RSM — the RSM use case owns its own artifact write path. The common `_spinlab/` namespace is still used. Save Module must not infer RSM metric names, units, or view identity — all are supplied by the projection.
 
 ## Written Fields
 
@@ -300,6 +322,21 @@ Pack/Restore behavior currently lives in each workflow store (`ThreeOmegaWorkspa
 - Post-restore render: `_rerenderAllTabs()` then `refreshRelatedCharts()`
 - No auxiliary input fingerprint; no overlay state; no secondary search slot
 
+### RSM (Reciprocal Space Mapping)
+
+- `RSMPackState` — RSM workflow-owned scientific/provenance state: `schemaVersion`, `sourceFileIdentity` (stable file reference), `detectorColumnName`, `activeView` (one of `HL`, `KL`, `HK`). Intentionally omits rendered PNG, `HeatmapPlotLayout`, heatmap display overrides, and any XY `TabRenderState` fields.
+- `HeatmapTabRenderState` — Plot System-owned display override state: title/axis/colorbar label overrides, `colorScaleMode`, `colormapKey`, `zRangeOverrideMin/Max`. Owned by `RSMWorkspaceStore.heatmapDisplayState` in V1.
+- Pack workflow ID: `"rsm"`
+- Restore sequence:
+  1. Write `activeView` and `heatmapDisplayState` from pack.
+  2. Write `cachedInputFiles` and `cachedSampleKeys` from pack.
+  3. Restore canonical search state via `restoreSearchState` callback.
+  4. Re-parse source file via `RSMDataParser` → `CanonicalRSMDataset`.
+  5. Build `HeatmapPlotPayload` via `RSMHeatmapPayloadBuilder`.
+  6. Run `HeatmapRenderPipeline` with `heatmapDisplayState` overrides.
+  7. Store result as `renderedImageData`. `activeLayout` remains nil.
+- Save-to-library path: `RSMWorkspaceStore.buildSaveProjection()` → `RSMSaveProjection` → `SaveRSMChartToLibraryUseCase`. This path is parallel to and independent of `SaveActiveChartToLibraryUseCase` (Cartesian XY). RSM does not use `WorkbenchPlotPayload` or conform to `ActiveChartProviding` for save.
+
 ## Invariants
 
 - Workbench never reads Library preview artifacts directly — it reads raw measurement files and re-ingests.
@@ -334,3 +371,8 @@ Pack/Restore behavior currently lives in each workflow store (`ThreeOmegaWorkspa
 - `Sources/SpinLabApp/Workbench/V3/XYRotationPackContracts.swift` — pack config and result contracts for the XY Rotation workflow
 - `Sources/SpinLabApp/Workbench/V3/XYRotationIngestionContracts.swift` — ingestion input contracts and result types for the XY Rotation workflow
 - `Sources/SpinLabApp/UseCases/IngestXYRotationSelectionsUseCase.swift` — ingests selected files into XY Rotation analysis via LVM/DAT parsing
+- `Sources/SpinLabApp/Features/Workbench/RSMWorkspaceStore.swift` — RSM workflow store: analysis, pack/restore, render state, save bridge
+- `Sources/SpinLabApp/Workbench/V3/Heatmap/RSM/RSMPackState.swift` — RSM-owned pack state: source file identity, detector column name, active view
+- `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapTabRenderState.swift` — Plot System-owned heatmap display override state: title/axis/colorbar overrides, colormap, Z-range
+- `Sources/SpinLabApp/Workbench/V3/Heatmap/RSM/RSMSaveProjection.swift` — RSM Assembly save metadata projection: title, view, labels, semantic params
+- `Sources/SpinLabApp/UseCases/SaveRSMChartToLibraryUseCase.swift` — RSM-specific save use case; does not use Cartesian XY save path
