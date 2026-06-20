@@ -135,3 +135,5 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift` — dispatches workflow IDs to workspace views
 - `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift` — owns XY Rotation search, analysis, and render state
 - `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift` — mounts the XY Rotation workflow shell and offset panel
+- `Sources/SpinLabApp/Features/Workbench/RSMWorkspaceStore.swift` — owns RSM search, file parsing, heatmap payload build, and render state; passes nil layout to canvas
+- `Sources/SpinLabApp/Features/Workbench/RSMWorkspaceView.swift` — mounts the RSM workflow shell with HL/KL/HK view selector

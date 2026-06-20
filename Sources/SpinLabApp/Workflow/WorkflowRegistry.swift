@@ -89,6 +89,14 @@ final class WorkflowRegistry {
         )
         register(
             WorkflowBundle(
+                workflowExtension: RSMWorkflowExtension(),
+                metadataExtension: RSMMetadataExtension(),
+                analysisModule: RSMAnalysisModuleExtension(),
+                viewExtension: RSMViewExtension()
+            )
+        )
+        register(
+            WorkflowBundle(
                 workflowExtension: DummyWorkflowExtension(),
                 metadataExtension: DummyMetadataExtension(),
                 analysisModule: DummyAnalysisModuleExtension(),

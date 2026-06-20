@@ -265,6 +265,8 @@ final class WorkbenchMainSearchRuntime {
             store.xyRotationWorkspace.cachedSearchResults = result
         case .iv:
             store.ivWorkspace.cachedSearchResults = result
+        case .rsm:
+            store.rsmWorkspace.cachedSearchResults = result
         }
     }
 
@@ -282,6 +284,9 @@ final class WorkbenchMainSearchRuntime {
         case .iv:
             store.ivWorkspace.cachedSearchResults = []
             store.ivWorkspace.cachedSampleNumericDisplay = [:]
+        case .rsm:
+            store.rsmWorkspace.cachedSearchResults = []
+            store.rsmWorkspace.cachedSampleNumericDisplay = [:]
         }
     }
 
@@ -319,6 +324,13 @@ final class WorkbenchMainSearchRuntime {
         case .iv:
             store.ivWorkspace.lastLibraryRootPath = libraryRootPath ?? ""
             store.ivWorkspace.cachedSampleNumericDisplay = await buildNumericDisplayCache(
+                from: result,
+                libraryRootPath: libraryRootPath,
+                dataActor: dataActor
+            )
+        case .rsm:
+            store.rsmWorkspace.lastLibraryRootPath = libraryRootPath ?? ""
+            store.rsmWorkspace.cachedSampleNumericDisplay = await buildNumericDisplayCache(
                 from: result,
                 libraryRootPath: libraryRootPath,
                 dataActor: dataActor
