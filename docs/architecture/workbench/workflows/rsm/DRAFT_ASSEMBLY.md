@@ -1,6 +1,6 @@
 # RSM Workflow — Draft Assembly Record
 
-> **Status: future / not yet implemented.** This file captures the adapter rules and CanonicalRSMDataset contract target that must be satisfied before any RSM implementation begins. No RSM Swift code exists yet.
+> **Status: draft / partially implemented.** This file captures the adapter rules and CanonicalRSMDataset contract target that must be satisfied before any RSM implementation begins. Gate H1 now has a Swift pack-state model; full restore remains deferred.
 
 ---
 
@@ -121,6 +121,15 @@ The `CanonicalRSMDataset` is the sole output type. No adapter may produce an int
 This gate documents the boundary plan for saving, packing, and restoring the RSM heatmap workflow. It is docs-only and does not authorize Swift changes.
 
 ### 1. RSM Workflow-Owned Pack State
+
+Gate H1 is implemented in `Sources/SpinLabApp/Workbench/V3/Heatmap/RSM/RSMPackState.swift`. The model carries only:
+
+- `schemaVersion`
+- `sourceFileIdentity` / `importedFileReference`
+- `detectorColumnName`
+- `activeView`
+
+It intentionally omits renderer internals, layout, PNG bytes, heatmap tab overrides, and XY `TabRenderState` fields.
 
 RSM owns the following persisted workflow state:
 
