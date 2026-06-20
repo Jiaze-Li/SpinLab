@@ -39,6 +39,49 @@ struct V213InboxClosedLoopTests {
         #expect(plan.targets.first?.sampleId == "PN40||STO|001")
     }
 
+    @Test("manual sample preview updates drawer match before save")
+    func manualSamplePreviewUpdatesDrawerMatchBeforeSave() {
+        let pending = SpinLabDomain.PendingImport(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000021")!,
+            workflow: .amrPhe,
+            fileName: "RT_preview_manual_sample.dat",
+            sourceFilePath: "/tmp/RT_preview_manual_sample.dat",
+            originalFilePath: nil,
+            importedAt: .now,
+            status: .needsConfirmation,
+            parsedHints: SpinLabDomain.ParsedFilenameHints(
+                fileSampleKey: nil,
+                channelHints: [],
+                substrateTags: []
+            )
+        )
+        let persistence = MockPersistenceForV213(pendingImports: [pending])
+        let appState = makeAppState(persistence: persistence)
+        installExistingDrawers(
+            sampleDisplayNames: ["PN40 - STO(001)"],
+            into: appState
+        )
+
+        var draft = appState.routingDraft(for: pending)
+        draft.fileSampleKey = "PN40 - STO(001)"
+
+        let preview = appState.pendingRoutingPreviewSnapshot(
+            for: pending,
+            routingDraft: draft,
+            sampleName: "PN40 - STO(001)"
+        )
+
+        #expect(pending.parsedHints.fileSampleKey == nil)
+        #expect(appState.pendingRouteStatus(for: pending) == .reviewRequired)
+        #expect(preview.verdict == .libraryMatched)
+        #expect(preview.scopes.first?.sampleId == "PN40||STO|001")
+        #expect(preview.scopes.first?.matchedDrawer == "PN40||STO|001")
+
+        appState.saveRoutingDraft(draft, for: pending.id)
+        #expect(appState.pendingRouteStatus(for: pending) == .libraryMatched)
+        #expect(appState.routingDraft(for: pending).fileSampleKey == "PN40 - STO(001)")
+    }
+
     @Test("switching pending items keeps routing state isolated")
     func pendingRoutingIsolation() {
         let pendingA = makePending(idSeed: "A", fileName: "RT_1mA_ch2_PN41_STO001_AMR.dat", fileSampleKey: "PN41")
@@ -171,6 +214,46 @@ struct V213InboxClosedLoopTests {
             into: fullState
         )
         #expect(fullState.pendingDrawerMatchByID[pending.id] == true)
+    }
+
+    @Test("manual channel override preview updates drawer match before save")
+    func manualChannelOverridePreviewUpdatesDrawerMatchBeforeSave() {
+        let pending = SpinLabDomain.PendingImport(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000022")!,
+            workflow: .amrPhe,
+            fileName: "RT_ch2_manual_override.dat",
+            sourceFilePath: "/tmp/RT_ch2_manual_override.dat",
+            originalFilePath: nil,
+            importedAt: .now,
+            status: .needsConfirmation,
+            parsedHints: SpinLabDomain.ParsedFilenameHints(
+                fileSampleKey: nil,
+                channelHints: [
+                    SpinLabDomain.ParsedChannelHint(channel: "ch2", sampleID: nil, tags: ["STO001"])
+                ],
+                substrateTags: ["STO001"]
+            )
+        )
+        let persistence = MockPersistenceForV213(pendingImports: [pending])
+        let appState = makeAppState(persistence: persistence)
+        installExistingDrawers(
+            sampleDisplayNames: ["PN14 - STO(001)"],
+            into: appState
+        )
+
+        var draft = appState.routingDraft(for: pending)
+        draft.channelSampleKeyOverrides["ch2"] = "PN14 - STO(001)"
+
+        let preview = appState.pendingRoutingPreviewSnapshot(
+            for: pending,
+            routingDraft: draft,
+            sampleName: ""
+        )
+
+        #expect(preview.scopes.first?.scope == "ch2")
+        #expect(preview.scopes.first?.sampleId == "PN14||STO|001")
+        #expect(preview.scopes.first?.matchedDrawer == "PN14||STO|001")
+        #expect(appState.pendingRouteStatus(for: pending) == .reviewRequired)
     }
 
     @Test("single-sample multi-channel routing collapses to file-level and remains library matched")

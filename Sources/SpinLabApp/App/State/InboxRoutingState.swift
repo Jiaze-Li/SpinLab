@@ -109,6 +109,24 @@ final class InboxRoutingState {
         )
     }
 
+    func previewPendingRoutePresentation(
+        for pending: SpinLabDomain.PendingImport,
+        routingDraft: PendingRoutingDraft,
+        sampleName: String,
+        substrateWarning: String?
+    ) -> PendingRoutePresentation {
+        let routingSnapshot = previewPendingRoutingSnapshot(
+            for: pending,
+            routingDraft: routingDraft,
+            sampleName: sampleName
+        )
+        return pendingRoutePresentationBuilder.build(
+            pending: pending,
+            routingSnapshot: routingSnapshot,
+            substrateWarning: substrateWarning
+        )
+    }
+
     func pendingRoutePresentationByID(
         pendingImports: [SpinLabDomain.PendingImport],
         substrateWarning: (SpinLabDomain.PendingImport) -> String?
@@ -146,6 +164,18 @@ final class InboxRoutingState {
             return cached
         }
         return evaluatePendingRoutingSnapshot(for: pending)
+    }
+
+    func previewPendingRoutingSnapshot(
+        for pending: SpinLabDomain.PendingImport,
+        routingDraft: PendingRoutingDraft,
+        sampleName: String
+    ) -> SpinLabDomain.PendingRoutingSnapshot {
+        evaluatePendingRoutingSnapshot(
+            for: pending,
+            routingDraft: routingDraft,
+            sampleName: sampleName
+        )
     }
 
     func matchedExistingLibraryDrawer(sampleInput: String) -> String? {
@@ -190,9 +220,15 @@ final class InboxRoutingState {
     }
 
     private func evaluatePendingRoutingSnapshot(
-        for pending: SpinLabDomain.PendingImport
+        for pending: SpinLabDomain.PendingImport,
+        routingDraft: PendingRoutingDraft? = nil,
+        sampleName: String? = nil
     ) -> SpinLabDomain.PendingRoutingSnapshot {
-        let parsed = parsedHintsApplyingRoutingDraft(for: pending)
+        let parsed = parsedHintsApplyingRoutingDraft(
+            for: pending,
+            routingDraft: routingDraft,
+            sampleName: sampleName
+        )
         let routePlan = routingCapabilities.planner.makeRoutePlan(from: parsed)
         var snapshot = routingCapabilities.evaluator.makeSnapshot(
             routePlan: routePlan,
@@ -222,18 +258,34 @@ final class InboxRoutingState {
         return nil
     }
 
-    private func parsedHintsApplyingRoutingDraft(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.ParsedFilenameHints {
-        guard let draft = pendingRoutingDraftsByID[pending.id] else {
+    private func parsedHintsApplyingRoutingDraft(
+        for pending: SpinLabDomain.PendingImport,
+        routingDraft override: PendingRoutingDraft? = nil,
+        sampleName: String? = nil
+    ) -> SpinLabDomain.ParsedFilenameHints {
+        let draft = override ?? pendingRoutingDraftsByID[pending.id]
+        guard let draft else {
             return pending.parsedHints
         }
 
         var parsed = pending.parsedHints
         let trimmedDefault = draft.fileSampleKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        parsed.fileSampleKey = trimmedDefault.isEmpty ? nil : normalizedSampleInput(
-            trimmedDefault,
-            fallbackBatchID: pending.parsedHints.sampleIDs.first,
-            fallbackSampleTags: pending.parsedHints.substrateTags
-        )
+        if !trimmedDefault.isEmpty {
+            parsed.fileSampleKey = normalizedSampleInput(
+                trimmedDefault,
+                fallbackBatchID: pending.parsedHints.sampleIDs.first,
+                fallbackSampleTags: pending.parsedHints.substrateTags
+            )
+        } else if parsed.fileSampleKey == nil, let sampleName {
+            let trimmedSampleName = sampleName.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedSampleName.isEmpty {
+                parsed.fileSampleKey = normalizedSampleInput(
+                    trimmedSampleName,
+                    fallbackBatchID: pending.parsedHints.sampleIDs.first,
+                    fallbackSampleTags: pending.parsedHints.substrateTags
+                )
+            }
+        }
 
         var channelHints = parsed.channelHints
         for index in channelHints.indices {
