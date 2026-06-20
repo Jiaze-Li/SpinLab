@@ -30,7 +30,8 @@ struct HeatmapRenderer {
     func renderPNG(
         payload: HeatmapPlotPayload,
         colorScaleMode: HeatmapColorScaleMode = .linear,
-        options: HeatmapPlotLayout.Options = .init()
+        options: HeatmapPlotLayout.Options = .init(),
+        chartStyle: WorkbenchChartStyle = .init()
     ) throws -> Data {
         guard payload.grid.isValid else { throw RendererError.invalidGrid }
 
@@ -55,7 +56,7 @@ struct HeatmapRenderer {
         ) else { throw RendererError.contextCreationFailed }
 
         ctx.scaleBy(x: scale, y: scale)
-        drawCanvas(ctx: ctx, payload: payload, layout: layout, colorScale: colorScale)
+        drawCanvas(ctx: ctx, payload: payload, layout: layout, colorScale: colorScale, chartStyle: chartStyle)
 
         guard let cgImage = ctx.makeImage() else { throw RendererError.imageCreationFailed }
 
@@ -74,7 +75,8 @@ struct HeatmapRenderer {
         ctx: CGContext,
         payload: HeatmapPlotPayload,
         layout: HeatmapPlotLayout,
-        colorScale: HeatmapColorScale
+        colorScale: HeatmapColorScale,
+        chartStyle: WorkbenchChartStyle
     ) {
         let w = layout.rendererSize.width
         let h = layout.rendererSize.height
@@ -88,7 +90,8 @@ struct HeatmapRenderer {
         // Title
         if !payload.title.isEmpty {
             drawCentered(ctx, text: payload.title, at: layout.titleCenter,
-                         size: 22, bold: false, color: black)
+                         size: chartStyle.titleFontSize, bold: chartStyle.titleBold, color: black,
+                         fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
         }
 
         // Heatmap grid cells
@@ -100,22 +103,26 @@ struct HeatmapRenderer {
         ctx.stroke(layout.gridRect)
 
         // Axis ticks and labels
-        drawXAxis(ctx: ctx, payload: payload, layout: layout)
-        drawYAxis(ctx: ctx, payload: payload, layout: layout)
+        drawXAxis(ctx: ctx, payload: payload, layout: layout, chartStyle: chartStyle)
+        drawYAxis(ctx: ctx, payload: payload, layout: layout, chartStyle: chartStyle)
 
         // Axis name labels
         drawCentered(ctx, text: payload.xLabel,
-                     at: layout.xLabelCenter, size: 18, bold: false, color: black)
+                     at: layout.xLabelCenter, size: chartStyle.axisTitleFontSize, bold: false, color: black,
+                     fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
         drawRotated90(ctx, text: payload.yLabel,
-                      at: layout.yLabelCenter, size: 18, color: black)
+                      at: layout.yLabelCenter, size: chartStyle.axisTitleFontSize, color: black,
+                      fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
 
         // Colorbar
-        drawColorbar(ctx: ctx, layout: layout, colorScale: colorScale)
+        drawColorbar(ctx: ctx, layout: layout, colorScale: colorScale, chartStyle: chartStyle)
 
         // Colorbar (Z-axis) label
         if !payload.zLabel.isEmpty {
-            drawRotated90(ctx, text: payload.zLabel,
-                          at: layout.colorbarLabelCenter, size: 16, color: black)
+            let zLabel = colorScale.mode == .log10 ? "\(payload.zLabel) (log10)" : payload.zLabel
+            drawRotated90(ctx, text: zLabel,
+                          at: layout.colorbarLabelCenter, size: chartStyle.axisTitleFontSize, color: black,
+                          fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
         }
     }
 
@@ -155,7 +162,8 @@ struct HeatmapRenderer {
     private func drawXAxis(
         ctx: CGContext,
         payload: HeatmapPlotPayload,
-        layout: HeatmapPlotLayout
+        layout: HeatmapPlotLayout,
+        chartStyle: WorkbenchChartStyle
     ) {
         let grid = payload.grid
         let nX   = grid.nX
@@ -180,14 +188,16 @@ struct HeatmapRenderer {
             let label = formatAxisValue(grid.xValues[col])
             drawCentered(ctx, text: label,
                          at: CGPoint(x: cx, y: rect.minY - tickLen - labelGap - 8),
-                         size: 13, bold: false, color: labelColor)
+                         size: chartStyle.tickLabelFontSize, bold: false, color: labelColor,
+                         fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
         }
     }
 
     private func drawYAxis(
         ctx: CGContext,
         payload: HeatmapPlotPayload,
-        layout: HeatmapPlotLayout
+        layout: HeatmapPlotLayout,
+        chartStyle: WorkbenchChartStyle
     ) {
         let grid = payload.grid
         let nY   = grid.nY
@@ -211,7 +221,8 @@ struct HeatmapRenderer {
             let label = formatAxisValue(grid.yValues[row])
             drawRightAligned(ctx, text: label,
                              rightEdge: CGPoint(x: rect.minX - tickLen - labelGap, y: cy),
-                             size: 13, bold: false, color: labelColor)
+                             size: chartStyle.tickLabelFontSize, bold: false, color: labelColor,
+                             fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
         }
     }
 
@@ -220,7 +231,8 @@ struct HeatmapRenderer {
     private func drawColorbar(
         ctx: CGContext,
         layout: HeatmapPlotLayout,
-        colorScale: HeatmapColorScale
+        colorScale: HeatmapColorScale,
+        chartStyle: WorkbenchChartStyle
     ) {
         let cbRect = layout.colorbarRect
         guard cbRect.height > 0, cbRect.width > 0 else { return }
@@ -253,15 +265,23 @@ struct HeatmapRenderer {
             ctx.strokePath()
             drawLeftAligned(ctx, text: label,
                             leftEdge: CGPoint(x: cbRect.maxX + tickLen + 3, y: y),
-                            size: 13, bold: false, color: labelColor)
+                            size: chartStyle.tickLabelFontSize, bold: false, color: labelColor,
+                            fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
         }
     }
 
     // MARK: - CoreText text drawing (no AppKit)
 
-    private func makeLine(text: String, size: CGFloat, bold: Bool, color: CGColor) -> CTLine {
-        let fontName = bold ? "TimesNewRomanPS-BoldMT" : "TimesNewRomanPSMT"
-        let font = CTFontCreateWithName(fontName as CFString, size, nil)
+    private func makeLine(
+        text: String,
+        size: CGFloat,
+        bold: Bool,
+        color: CGColor,
+        fontName: String,
+        boldFontName: String
+    ) -> CTLine {
+        let resolvedFontName = bold ? boldFontName : fontName
+        let font = CTFontCreateWithName(resolvedFontName as CFString, size, nil)
         let attrs: [CFString: Any] = [
             kCTFontAttributeName:            font,
             kCTForegroundColorAttributeName: color,
@@ -273,8 +293,9 @@ struct HeatmapRenderer {
     }
 
     private func drawCentered(_ ctx: CGContext, text: String, at center: CGPoint,
-                               size: CGFloat, bold: Bool, color: CGColor) {
-        let line   = makeLine(text: text, size: size, bold: bold, color: color)
+                               size: CGFloat, bold: Bool, color: CGColor,
+                               fontName: String, boldFontName: String) {
+        let line   = makeLine(text: text, size: size, bold: bold, color: color, fontName: fontName, boldFontName: boldFontName)
         let bounds = CTLineGetBoundsWithOptions(line, [])
         ctx.textPosition = CGPoint(
             x: center.x - bounds.width / 2 - bounds.minX,
@@ -284,8 +305,9 @@ struct HeatmapRenderer {
     }
 
     private func drawLeftAligned(_ ctx: CGContext, text: String, leftEdge: CGPoint,
-                                  size: CGFloat, bold: Bool, color: CGColor) {
-        let line   = makeLine(text: text, size: size, bold: bold, color: color)
+                                  size: CGFloat, bold: Bool, color: CGColor,
+                                  fontName: String, boldFontName: String) {
+        let line   = makeLine(text: text, size: size, bold: bold, color: color, fontName: fontName, boldFontName: boldFontName)
         let bounds = CTLineGetBoundsWithOptions(line, [])
         ctx.textPosition = CGPoint(
             x: leftEdge.x - bounds.minX,
@@ -295,8 +317,9 @@ struct HeatmapRenderer {
     }
 
     private func drawRightAligned(_ ctx: CGContext, text: String, rightEdge: CGPoint,
-                                   size: CGFloat, bold: Bool, color: CGColor) {
-        let line   = makeLine(text: text, size: size, bold: bold, color: color)
+                                   size: CGFloat, bold: Bool, color: CGColor,
+                                   fontName: String, boldFontName: String) {
+        let line   = makeLine(text: text, size: size, bold: bold, color: color, fontName: fontName, boldFontName: boldFontName)
         let bounds = CTLineGetBoundsWithOptions(line, [])
         ctx.textPosition = CGPoint(
             x: rightEdge.x - bounds.width - bounds.minX,
@@ -306,8 +329,9 @@ struct HeatmapRenderer {
     }
 
     private func drawRotated90(_ ctx: CGContext, text: String, at center: CGPoint,
-                                size: CGFloat, color: CGColor) {
-        let line   = makeLine(text: text, size: size, bold: false, color: color)
+                                size: CGFloat, color: CGColor,
+                                fontName: String, boldFontName: String) {
+        let line   = makeLine(text: text, size: size, bold: false, color: color, fontName: fontName, boldFontName: boldFontName)
         let bounds = CTLineGetBoundsWithOptions(line, [])
         ctx.saveGState()
         ctx.translateBy(x: center.x, y: center.y)

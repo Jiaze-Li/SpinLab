@@ -79,16 +79,38 @@ struct HeatmapPlotLayout: Sendable {
             zMax = allZ.max() ?? 1
         }
 
-        let tickValues = niceTicks(min: zMin, max: zMax, targetCount: 5)
-        let span = zMax - zMin
-        // Tick Y positions use a temporary HeatmapColorScale so that log10 ticks
-        // align with the actual rendered color gradient rather than sitting at
-        // linearly-spaced positions.
         let tickScale = HeatmapColorScale(zMin: zMin, zMax: zMax, mode: colorScaleMode, colormapKey: "viridis")
-        let colorbarTicks: [(y: CGFloat, label: String)] = tickValues.map { z in
-            let t = tickScale.normalizedValue(for: z)
-            let y = colorbarRect.minY + CGFloat(t) * colorbarRect.height
-            return (y, formatTickValue(z, range: span))
+        let colorbarTicks: [(y: CGFloat, label: String)]
+        switch colorScaleMode {
+        case .linear:
+            let tickValues = niceTicks(min: zMin, max: zMax, targetCount: 5)
+            let span = zMax - zMin
+            colorbarTicks = tickValues.map { z in
+                let t = tickScale.normalizedValue(for: z)
+                let y = colorbarRect.minY + CGFloat(t) * colorbarRect.height
+                return (y, formatLinearTickValue(z, range: span))
+            }
+
+        case .log10:
+            if let domain = HeatmapColorScale.log10Domain(zMin: zMin, zMax: zMax) {
+                let logMin = Darwin.log10(domain.min)
+                let logMax = Darwin.log10(domain.max)
+                let expTicks = niceTicks(min: logMin, max: logMax, targetCount: 5)
+                colorbarTicks = expTicks.map { exponent in
+                    let z = pow(10.0, exponent)
+                    let t = tickScale.normalizedValue(for: z)
+                    let y = colorbarRect.minY + CGFloat(t) * colorbarRect.height
+                    return (y, formatLogTickValue(z))
+                }
+            } else {
+                let tickValues = niceTicks(min: zMin, max: zMax, targetCount: 5)
+                let span = zMax - zMin
+                colorbarTicks = tickValues.map { z in
+                    let t = tickScale.normalizedValue(for: z)
+                    let y = colorbarRect.minY + CGFloat(t) * colorbarRect.height
+                    return (y, formatLinearTickValue(z, range: span))
+                }
+            }
         }
 
         return HeatmapPlotLayout(
@@ -131,7 +153,7 @@ struct HeatmapPlotLayout: Sendable {
         return ticks
     }
 
-    static func formatTickValue(_ value: Double, range: Double) -> String {
+    static func formatLinearTickValue(_ value: Double, range: Double) -> String {
         if abs(value) < 1e-15 { return "0" }
         if range == 0 { return String(format: "%.3g", value) }
         if range >= 1e4 || (range < 0.01 && range > 0) {
@@ -141,5 +163,16 @@ struct HeatmapPlotLayout: Sendable {
         else if range >= 1     { return String(format: "%.2f", value) }
         else if range >= 0.1   { return String(format: "%.3f", value) }
         else                   { return String(format: "%.2g", value) }
+    }
+
+    static func formatLogTickValue(_ value: Double) -> String {
+        guard value > 0 else { return "0" }
+        let exponent = floor(Darwin.log10(value))
+        let mantissa = value / pow(10.0, exponent)
+        let expInt = Int(exponent)
+        if abs(mantissa - 1.0) < 1e-6 {
+            return "10^\(expInt)"
+        }
+        return String(format: "%.2gx10^%d", mantissa, expInt)
     }
 }

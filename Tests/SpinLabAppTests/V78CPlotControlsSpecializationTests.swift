@@ -495,3 +495,59 @@ struct V78CIVPlotControlsPathTests {
                 "IV store must expose Y label override mutation through TabRenderManager")
     }
 }
+
+// MARK: - Suite 5: RSM uses a dedicated heatmap plot controls surface
+
+@Suite("V7.8C RSM heatmap plot controls path")
+struct V78CRSMPlotControlsPathTests {
+
+    @Test("RSMWorkspaceView.swift defines RSMHeatmapPlotControlsPanel")
+    func rsmDefinesHeatmapPanel() throws {
+        let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
+        #expect(source.contains("RSMHeatmapPlotControlsPanel"),
+                "RSM must define a dedicated heatmap plot controls panel")
+    }
+
+    @Test("RSMWorkspaceView.swift does not use WorkbenchStandardPlotControls")
+    func rsmDoesNotUseStandardPlotControls() throws {
+        let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
+        #expect(!source.contains("WorkbenchStandardPlotControls"),
+                "RSM must not use the XY-specific WorkbenchStandardPlotControls container")
+    }
+
+    @Test("RSMWorkspaceView.swift exposes heatmap color scale and shared label overrides")
+    func rsmExposesHeatmapControls() throws {
+        let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
+        #expect(source.contains("Text(\"Color Scale\")"),
+                "RSM heatmap controls must expose a Color Scale picker")
+        #expect(source.contains("LabelOverrideField(\n                    label: \"Title\""),
+                "RSM heatmap controls must expose title override input")
+        #expect(source.contains("LabelOverrideField(\n                    label: \"X\""),
+                "RSM heatmap controls must expose X label override input")
+        #expect(source.contains("LabelOverrideField(\n                    label: \"Y\""),
+                "RSM heatmap controls must expose Y label override input")
+        #expect(source.contains("LabelOverrideField(\n                    label: \"Z\""),
+                "RSM heatmap controls must expose Z/colorbar label override input")
+        #expect(source.contains("titleFontSize"),
+                "RSM heatmap controls must expose shared title font size controls")
+        #expect(source.contains("axisTitleFontSize"),
+                "RSM heatmap controls must expose shared axis font size controls")
+        #expect(source.contains("tickLabelFontSize"),
+                "RSM heatmap controls must expose shared tick font size controls")
+    }
+
+    @Test("RSMWorkspaceView.swift does not expose XY-only controls")
+    func rsmDoesNotExposeXYOnlyControls() throws {
+        let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
+        #expect(!source.contains("seriesRenderMode"),
+                "RSM must not expose line/scatter render mode")
+        #expect(!source.contains("seriesOrder"),
+                "RSM must not expose series order controls")
+        #expect(!source.contains("legendLabel"),
+                "RSM must not expose legend label override controls")
+        #expect(!source.contains("pointLabel"),
+                "RSM must not expose point label controls")
+        #expect(!source.contains("stackOffset"),
+                "RSM must not expose stack offset controls")
+    }
+}

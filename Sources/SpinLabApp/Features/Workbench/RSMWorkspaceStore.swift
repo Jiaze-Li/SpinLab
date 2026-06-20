@@ -51,6 +51,8 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
     // MARK: - Heatmap display state (Plot System-owned, persisted in pack)
 
     var heatmapDisplayState: HeatmapTabRenderState = .init()
+    /// Shared font defaults mirrored from the workbench. Not part of pack state.
+    var globalPlotDefaults: [String: String] = [:]
 
     // MARK: - Pack / persistence stubs
 
@@ -89,6 +91,36 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
     func rerenderForStyleChange() {
         guard let dataset = parsedDataset else { return }
         _rerenderHeatmap(dataset: dataset)
+    }
+
+    func updateHeatmapColorScaleMode(_ mode: HeatmapColorScaleMode) {
+        guard heatmapDisplayState.colorScaleMode != mode else { return }
+        heatmapDisplayState.colorScaleMode = mode
+        rerenderForStyleChange()
+    }
+
+    func updateHeatmapTitle(_ title: String) {
+        guard heatmapDisplayState.titleOverride != title else { return }
+        heatmapDisplayState.titleOverride = title
+        rerenderForStyleChange()
+    }
+
+    func updateHeatmapXAxisLabel(_ label: String) {
+        guard heatmapDisplayState.xLabelOverride != label else { return }
+        heatmapDisplayState.xLabelOverride = label
+        rerenderForStyleChange()
+    }
+
+    func updateHeatmapYAxisLabel(_ label: String) {
+        guard heatmapDisplayState.yLabelOverride != label else { return }
+        heatmapDisplayState.yLabelOverride = label
+        rerenderForStyleChange()
+    }
+
+    func updateHeatmapZLabel(_ label: String) {
+        guard heatmapDisplayState.zLabelOverride != label else { return }
+        heatmapDisplayState.zLabelOverride = label
+        rerenderForStyleChange()
     }
 
     func clearPlot() {
@@ -157,15 +189,25 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
 
     private func _rerenderHeatmap(dataset: CanonicalRSMDataset) {
         let view = activeView
+        let displayState = heatmapDisplayState
+        let styleDefaults = globalPlotDefaults
         _renderRevision &+= 1
         let revision = _renderRevision
 
-        Task.detached(priority: .userInitiated) { [weak self] in
+        Task.detached(priority: .userInitiated) {
             let result: Result<Data, Error>
             do {
-                let options = RSMHeatmapPayloadBuilder.Options(view: view, title: dataset.title)
-                let payload = try RSMHeatmapPayloadBuilder.build(from: dataset, options: options)
-                let output = try HeatmapRenderPipeline.render(HeatmapRenderPipeline.Input(payload: payload))
+                let payload = try Self.buildHeatmapPayload(
+                    from: dataset,
+                    view: view,
+                    displayState: displayState,
+                    title: dataset.title
+                )
+                let output = try Self.renderHeatmap(
+                    payload: payload,
+                    displayState: displayState,
+                    globalPlotDefaults: styleDefaults
+                )
                 result = .success(output.imageData)
             } catch {
                 result = .failure(error)
@@ -218,6 +260,8 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
         let filePath = hit.measurementFilePath
         let title = hit.sampleBatchAndSubstrate
         let view = activeView
+        let displayState = heatmapDisplayState
+        let styleDefaults = globalPlotDefaults
 
         analysisTask?.cancel()
         isAnalyzing = true
@@ -234,9 +278,17 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
                 do {
                     let text = try String(contentsOfFile: filePath, encoding: .utf8)
                     let dataset = try RSMDataParser.parse(text: text, title: title, sourceRef: filePath)
-                    let options = RSMHeatmapPayloadBuilder.Options(view: view, title: title)
-                    let payload = try RSMHeatmapPayloadBuilder.build(from: dataset, options: options)
-                    let output = try HeatmapRenderPipeline.render(HeatmapRenderPipeline.Input(payload: payload))
+                    let payload = try Self.buildHeatmapPayload(
+                        from: dataset,
+                        view: view,
+                        displayState: displayState,
+                        title: title
+                    )
+                    let output = try Self.renderHeatmap(
+                        payload: payload,
+                        displayState: displayState,
+                        globalPlotDefaults: styleDefaults
+                    )
                     return .success((dataset, output.imageData))
                 } catch {
                     return .failure(error)
@@ -353,6 +405,7 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
 
         let packState = config.packState
         let displayState = config.displayState
+        let styleDefaults = globalPlotDefaults
         let title = config.cachedSearchResults.first?.sampleBatchAndSubstrate ?? pack.label
 
         analysisTask?.cancel()
@@ -368,29 +421,17 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
                 do {
                     let text = try String(contentsOfFile: sourceIdentity, encoding: .utf8)
                     let dataset = try RSMDataParser.parse(text: text, title: title, sourceRef: sourceIdentity)
-
-                    var payload = try RSMHeatmapPayloadBuilder.build(
+                    let payload = try Self.buildHeatmapPayload(
                         from: dataset,
-                        options: .init(
-                            view: packState.activeView,
-                            title: displayState.titleOverride.isEmpty ? dataset.title : displayState.titleOverride,
-                            zLabel: displayState.zLabelOverride.isEmpty ? dataset.detectorColumnName : displayState.zLabelOverride
-                        )
+                        view: packState.activeView,
+                        displayState: displayState,
+                        title: title
                     )
-
-                    if !displayState.xLabelOverride.isEmpty { payload.xLabel = displayState.xLabelOverride }
-                    if !displayState.yLabelOverride.isEmpty { payload.yLabel = displayState.yLabelOverride }
-                    if !displayState.colormapKey.isEmpty { payload.colormapKey = displayState.colormapKey }
-
-                    if displayState.zRangeOverrideMin != 0 || displayState.zRangeOverrideMax != 0 {
-                        payload.zRangeClampMin = displayState.zRangeOverrideMin
-                        payload.zRangeClampMax = displayState.zRangeOverrideMax
-                    }
-
-                    let output = try HeatmapRenderPipeline.render(.init(
+                    let output = try Self.renderHeatmap(
                         payload: payload,
-                        colorScaleMode: displayState.colorScaleMode
-                    ))
+                        displayState: displayState,
+                        globalPlotDefaults: styleDefaults
+                    )
                     return .success((dataset, output.imageData))
                 } catch {
                     return .failure(error)
@@ -412,5 +453,47 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
                 self.isAnalyzing = false
             }
         }
+    }
+
+    nonisolated private static func buildHeatmapPayload(
+        from dataset: CanonicalRSMDataset,
+        view: RSMView,
+        displayState: HeatmapTabRenderState,
+        title: String
+    ) throws -> HeatmapPlotPayload {
+        var payload = try RSMHeatmapPayloadBuilder.build(
+            from: dataset,
+            options: .init(
+                view: view,
+                title: displayState.titleOverride.isEmpty ? title : displayState.titleOverride,
+                zLabel: displayState.zLabelOverride.isEmpty ? dataset.detectorColumnName : displayState.zLabelOverride
+            )
+        )
+
+        if !displayState.xLabelOverride.isEmpty { payload.xLabel = displayState.xLabelOverride }
+        if !displayState.yLabelOverride.isEmpty { payload.yLabel = displayState.yLabelOverride }
+        if !displayState.colormapKey.isEmpty { payload.colormapKey = displayState.colormapKey }
+
+        if displayState.zRangeOverrideMin != 0 || displayState.zRangeOverrideMax != 0 {
+            guard displayState.zRangeOverrideMin < displayState.zRangeOverrideMax else {
+                throw HeatmapRenderError.invalidZRangeClamp(min: displayState.zRangeOverrideMin, max: displayState.zRangeOverrideMax)
+            }
+            payload.zRangeClampMin = displayState.zRangeOverrideMin
+            payload.zRangeClampMax = displayState.zRangeOverrideMax
+        }
+
+        return payload
+    }
+
+    nonisolated private static func renderHeatmap(
+        payload: HeatmapPlotPayload,
+        displayState: HeatmapTabRenderState,
+        globalPlotDefaults: [String: String]
+    ) throws -> HeatmapRenderPipeline.Output {
+        return try HeatmapRenderPipeline.render(.init(
+            payload: payload,
+            colorScaleMode: displayState.colorScaleMode,
+            chartStyle: WorkbenchChartStyle.from(styleParams: globalPlotDefaults)
+        ))
     }
 }

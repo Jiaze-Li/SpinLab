@@ -24,6 +24,21 @@ struct HeatmapColorScale: Sendable {
         return viridisColor(t: t)
     }
 
+    /// Returns the effective positive domain used by log10 normalization.
+    /// Nil means log10 cannot be applied meaningfully for the current range.
+    static func log10Domain(zMin: Double, zMax: Double) -> (min: Double, max: Double)? {
+        guard zMax > 0 else { return nil }
+        let safeMin: Double
+        if zMin > 0 {
+            safeMin = zMin
+        } else {
+            safeMin = zMax * 1e-6
+        }
+        let safeMax = max(zMax, safeMin * 10)
+        guard safeMin > 0, safeMax > safeMin else { return nil }
+        return (safeMin, safeMax)
+    }
+
     /// Normalizes z to [0, 1]. Clamped — never returns NaN.
     ///
     /// Edge-case behavior (both modes):
@@ -42,19 +57,12 @@ struct HeatmapColorScale: Sendable {
             // The floor is chosen relative to zMax so it doesn't visually affect the scale.
             // NaN guard: Swift max(NaN, x) propagates NaN when NaN is the first argument.
             guard !z.isNaN else { return 0 }
-            let safeMin: Double
-            if zMin > 0 {
-                safeMin = zMin
-            } else if zMax > 0 {
-                safeMin = zMax * 1e-6
-            } else {
-                return 0
-            }
-            let lo = Darwin.log10(safeMin)
-            let hi = Darwin.log10(max(zMax, safeMin * 10))
+            guard let domain = Self.log10Domain(zMin: zMin, zMax: zMax) else { return 0 }
+            let lo = Darwin.log10(domain.min)
+            let hi = Darwin.log10(domain.max)
             let span = hi - lo
             guard span > 0 else { return 0 }
-            let lz = Darwin.log10(max(z, safeMin))
+            let lz = Darwin.log10(max(z, domain.min))
             return min(max((lz - lo) / span, 0), 1)
         }
     }

@@ -22,6 +22,8 @@ enum HeatmapRenderPipeline {
         var payload: HeatmapPlotPayload
         var colorScaleMode: HeatmapColorScaleMode = .linear
         var options: HeatmapPlotLayout.Options = .init()
+        /// Shared text styling defaults used by heatmap labels and tick marks.
+        var chartStyle: WorkbenchChartStyle = .init()
         /// Override chart title. Empty = use payload title.
         var titleOverride: String = ""
         /// Override X-axis label. Empty = use payload xLabel.
@@ -57,7 +59,8 @@ enum HeatmapRenderPipeline {
         let imageData = try HeatmapRenderer().renderPNG(
             payload:        payload,
             colorScaleMode: input.colorScaleMode,
-            options:        input.options
+            options:        input.options,
+            chartStyle:     input.chartStyle
         )
 
         return Output(imageData: imageData, layout: layout)

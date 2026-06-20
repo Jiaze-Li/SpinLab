@@ -289,6 +289,39 @@ private func makePayload(
     #expect([UInt8](data.prefix(8)) == pngSignature)
 }
 
+@Test func rendererLogScaleHandlesZeroAndNegativeValues() throws {
+    let payload = makePayload(
+        grid: HeatmapGrid(
+            xValues: [0.0, 1.0, 2.0],
+            yValues: [0.0, 1.0],
+            zMatrix: [
+                [-10.0, 0.0, 1.0],
+                [2.0, 10.0, 100.0]
+            ]
+        )
+    )
+    let data = try HeatmapRenderer().renderPNG(payload: payload, colorScaleMode: .log10)
+    #expect(data.count > 0)
+    #expect([UInt8](data.prefix(8)) == [137, 80, 78, 71, 13, 10, 26, 10])
+}
+
+@Test func rendererLinearAndLogOutputsDiffer() throws {
+    let payload = makePayload(
+        grid: HeatmapGrid(
+            xValues: [0.0, 1.0, 2.0],
+            yValues: [0.0, 1.0, 2.0],
+            zMatrix: [
+                [1.0, 10.0, 100.0],
+                [2.0, 20.0, 200.0],
+                [3.0, 30.0, 300.0],
+            ]
+        )
+    )
+    let linear = try HeatmapRenderer().renderPNG(payload: payload, colorScaleMode: .linear)
+    let log = try HeatmapRenderer().renderPNG(payload: payload, colorScaleMode: .log10)
+    #expect(linear != log)
+}
+
 @Test func rendererInvalidGridThrows() throws {
     let badGrid = HeatmapGrid(
         xValues: [0.0, 1.0],
@@ -334,6 +367,38 @@ private func makePayload(
     let output = try HeatmapRenderPipeline.render(input)
     #expect(abs(output.layout.zMin - 0.2) < 1e-10)
     #expect(abs(output.layout.zMax - 0.8) < 1e-10)
+}
+
+@Test func heatmapRenderPipelineLogTicksAreClearlyLogarithmic() throws {
+    let payload = HeatmapPlotPayload(
+        workflowID: "rsm",
+        title: "Log ticks",
+        xLabel: "", yLabel: "", zLabel: "Detector",
+        grid: HeatmapGrid(
+            xValues: [0.0, 1.0, 2.0],
+            yValues: [0.0, 1.0],
+            zMatrix: [
+                [1.0, 10.0, 100.0],
+                [2.0, 20.0, 200.0]
+            ]
+        )
+    )
+    let output = try HeatmapRenderPipeline.render(.init(payload: payload, colorScaleMode: .log10))
+    #expect(output.layout.colorbarTicks.contains { $0.label.contains("10^") || $0.label.contains("x10^") })
+    #expect(output.layout.colorbarTicks.count >= 2)
+}
+
+@Test func heatmapRenderPipelineFontSizeOverridesAffectPNG() throws {
+    let payload = makePayload(grid: make4x3Grid())
+    var style = WorkbenchChartStyle()
+    style.titleFontSize = 32
+    style.axisTitleFontSize = 28
+    style.tickLabelFontSize = 26
+
+    let defaultPNG = try HeatmapRenderer().renderPNG(payload: payload)
+    let styledPNG = try HeatmapRenderer().renderPNG(payload: payload, chartStyle: style)
+
+    #expect(defaultPNG != styledPNG)
 }
 
 // MARK: - HeatmapTabRenderState Codable
