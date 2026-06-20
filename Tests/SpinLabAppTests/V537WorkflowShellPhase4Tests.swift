@@ -50,7 +50,7 @@ struct V537WorkflowShellPhase4Tests {
     @Test("AHE updateSeriesLabel writes to active tab state")
     func aheUpdateSeriesLabelWritesToActiveTabState() {
         let store = AHEWorkspaceStore()
-        store.updateSeriesLabel(sampleID: "sample-a", newLabel: "Renamed A")
+        store.updateSeriesLabel(identityKey: "sample-a", newLabel: "Renamed A")
         let state = store.tabs.state(for: .ahe)
         #expect(state.seriesLabelOverrides["sample-a"] == "Renamed A")
     }

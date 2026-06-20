@@ -290,8 +290,8 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Plot label / position overrides (delegate to TabRenderManager)
 
-    func updateSeriesLabel(sampleID: String, newLabel: String) {
-        tabs.updateSeriesLabel(sampleID: sampleID, newLabel: newLabel)
+    func updateSeriesLabel(identityKey: String, newLabel: String) {
+        tabs.updateSeriesLabel(identityKey: identityKey, newLabel: newLabel)
         _rerenderActiveTab()
     }
 

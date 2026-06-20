@@ -777,11 +777,11 @@ struct V536CurveDragOrderTests {
 
     // MARK: - Test case 8: Series identity storage
 
-    @Test("updateSeriesLabel stores override by sampleID key")
+    @Test("updateSeriesLabel stores override by stable identity key")
     @MainActor
-    func updateSeriesLabelStoresBySampleID() {
+    func updateSeriesLabelStoresByIdentityKey() {
         let manager = TabRenderManager(defaultTab: "tab1")
-        manager.updateSeriesLabel(sampleID: "A#300", newLabel: "Custom")
+        manager.updateSeriesLabel(identityKey: "A#300", newLabel: "Custom")
         #expect(manager.tabStates["tab1"]?.seriesLabelOverrides["A#300"] == "Custom")
     }
 

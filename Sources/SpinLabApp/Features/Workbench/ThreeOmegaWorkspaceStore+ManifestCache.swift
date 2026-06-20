@@ -232,19 +232,13 @@ extension ThreeOmegaWorkspaceStore {
                 if !s.xLabelOverride.isEmpty { p.axisMapping.xField = s.xLabelOverride }
                 if !s.yLabelOverride.isEmpty { p.axisMapping.yField = s.yLabelOverride }
                 if !s.seriesLabelOverrides.isEmpty {
-                    p.series = p.series.map { series in
-                        guard let sid = series.sampleID,
-                              let renamed = s.seriesLabelOverrides[sid] else { return series }
-                        var copy = series
-                        copy.label = renamed
-                        return copy
-                    }
+                    p.series = applySeriesLabelOverrides(s.seriesLabelOverrides, to: p.series)
                 }
                 return p
             }()
             var existing = tabs.tabOutputs[tab] ?? TabRenderOutput()
             existing.manifestPayload = payload
-            tabs.tabOutputs[tab] = existing
+            tabs.setOutput(existing, for: tab)
         }
     }
 
@@ -312,16 +306,10 @@ extension ThreeOmegaWorkspaceStore {
                 existing.manifestPayload?.axisMapping.yField = tabState.yLabelOverride
             }
             if !tabState.seriesLabelOverrides.isEmpty, var p = existing.manifestPayload {
-                p.series = p.series.map { series in
-                    guard let sid = series.sampleID,
-                          let renamed = tabState.seriesLabelOverrides[sid] else { return series }
-                    var copy = series
-                    copy.label = renamed
-                    return copy
-                }
+                p.series = applySeriesLabelOverrides(tabState.seriesLabelOverrides, to: p.series)
                 existing.manifestPayload = p
             }
-            tabs.tabOutputs[tab] = existing
+            tabs.setOutput(existing, for: tab)
             }
         }
     }

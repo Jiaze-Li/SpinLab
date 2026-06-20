@@ -29,6 +29,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
     var titleOverride: String = ""
     var xLabelOverride: String = ""
     var yLabelOverride: String = ""
+    /// Stable-series-keyed legend label overrides.
     var seriesLabelOverrides: [String: String] = [:]
     var hiddenPointLabelIndicesBySeries: [String: [Int]] = [:]
     // TODO(boundary): remove legacy Int-string key migration once all persisted packs are migrated to sampleID keys.
@@ -211,12 +212,12 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         tabStates[activeTab, default: TabRenderState()].yLabelOverride = label
     }
 
-    func updateSeriesLabel(sampleID: String, newLabel: String) {
+    func updateSeriesLabel(identityKey: String, newLabel: String) {
         let trimmed = newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            tabStates[activeTab, default: TabRenderState()].seriesLabelOverrides.removeValue(forKey: sampleID)
+            tabStates[activeTab, default: TabRenderState()].seriesLabelOverrides.removeValue(forKey: identityKey)
         } else {
-            tabStates[activeTab, default: TabRenderState()].seriesLabelOverrides[sampleID] = trimmed
+            tabStates[activeTab, default: TabRenderState()].seriesLabelOverrides[identityKey] = trimmed
         }
     }
 
@@ -243,6 +244,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     func setOutput(_ output: TabRenderOutput, for tab: Tab) {
         updateTitleSourceIdentity(from: output.manifestPayload, for: tab)
         tabOutputs[tab] = output
+        pruneSeriesLabelOverrides(using: output.manifestPayload, for: tab)
     }
 
     /// Convenience: apply a WorkbenchRenderPipeline.Output to a tab.
@@ -250,12 +252,11 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     /// Text-scoped overrides are cleared only when the analyzed source identity changes.
     /// Legend position and series order are preserved.
     func applyPipelineOutput(_ pipelineOutput: WorkbenchRenderPipeline.Output, for tab: Tab) {
-        updateTitleSourceIdentity(from: pipelineOutput.manifestPayload, for: tab)
-        tabOutputs[tab] = TabRenderOutput(
+        setOutput(TabRenderOutput(
             imageData: pipelineOutput.imageData,
             layout: pipelineOutput.layout,
             manifestPayload: pipelineOutput.manifestPayload
-        )
+        ), for: tab)
     }
 
     /// Clears per-tab text overrides for a single tab while preserving legendPoint and seriesOrder.
@@ -298,7 +299,10 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             globalPlotDefaults: globalPlotDefaults,
             seriesRenderMode: seriesRenderMode,
             chartStyleOverrides: chartStyleOverrides,
-            seriesLabelOverrides: toIndexedOverrides(s.seriesLabelOverrides, series: payload.series),
+            seriesLabelOverrides: toIndexedOverrides(
+                normalizedSeriesLabelOverrides(s.seriesLabelOverrides, series: payload.series),
+                series: payload.series
+            ),
             titleOverride: s.titleOverride,
             xLabelOverride: s.xLabelOverride,
             yLabelOverride: s.yLabelOverride,
@@ -370,19 +374,73 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
 
 // MARK: - Translation helpers
 
-/// Translates a sampleID-keyed or Int-string-keyed dictionary to index-keyed.
-/// - Int-parseable key → direct index (AHE/XY fallback path)
-/// - Otherwise → first index in series where sampleID matches (3ω path)
+/// Translates a stable-series-keyed or legacy Int-string-keyed dictionary to index-keyed.
+/// - Exact stable key match (`sourceRef` / `sampleID` / resolver key) wins
+/// - Otherwise, sampleID or sourceRef fallback
+/// - Otherwise, Int-string fallback for pre-stable data
 func toIndexedOverrides<V>(_ stringKeyed: [String: V], series: [WorkbenchPlotSeries]) -> [Int: V] {
+    let identities = indexedSeriesIdentities(series)
     var result: [Int: V] = [:]
     for (key, value) in stringKeyed {
-        if let idx = Int(key) {
+        if let idx = identities.firstIndex(where: { $0.identityKey == key }) {
             result[idx] = value
-        } else if let idx = series.firstIndex(where: { $0.sampleID == key }) {
+        } else if let idx = identities.firstIndex(where: { $0.sampleID == key || $0.sourceRef == key }) {
+            result[idx] = value
+        } else if let idx = Int(key), idx >= 0, (identities.isEmpty || identities.indices.contains(idx)) {
             result[idx] = value
         }
     }
     return result
+}
+
+func normalizedSeriesLabelOverrides(
+    _ stringKeyed: [String: String],
+    series: [WorkbenchPlotSeries]
+) -> [String: String] {
+    let identities = indexedSeriesIdentities(series)
+    guard !stringKeyed.isEmpty, !identities.isEmpty else { return [:] }
+
+    var result: [String: String] = [:]
+    for (key, value) in stringKeyed {
+        if identities.contains(where: { $0.identityKey == key }) {
+            result[key] = value
+        } else if let match = identities.first(where: { $0.sampleID == key || $0.sourceRef == key }) {
+            result[match.identityKey] = value
+        } else if let idx = Int(key), identities.indices.contains(idx) {
+            result[identities[idx].identityKey] = value
+        }
+    }
+    return result
+}
+
+func applySeriesLabelOverrides(
+    _ overrides: [String: String],
+    to series: [WorkbenchPlotSeries]
+) -> [WorkbenchPlotSeries] {
+    let indexed = toIndexedOverrides(overrides, series: series)
+    guard !indexed.isEmpty else { return series }
+    return series.enumerated().map { index, item in
+        guard let label = indexed[index] else { return item }
+        var copy = item
+        copy.label = label
+        return copy
+    }
+}
+
+private struct IndexedSeriesIdentity {
+    let identityKey: String
+    let sampleID: String?
+    let sourceRef: String?
+}
+
+private func indexedSeriesIdentities(_ series: [WorkbenchPlotSeries]) -> [IndexedSeriesIdentity] {
+    series.enumerated().map { index, series in
+        IndexedSeriesIdentity(
+            identityKey: WorkbenchSeriesOrderKeyResolver.resolve(for: series, originalIndex: index),
+            sampleID: series.sampleID,
+            sourceRef: series.sourceRef
+        )
+    }
 }
 
 /// Migrates TabRenderState from Int-string keys (5.3.5 and earlier) to sampleID keys.
@@ -434,6 +492,13 @@ private extension TabRenderManager {
         state.titleOverride = ""
         state.xLabelOverride = ""
         state.yLabelOverride = ""
-        state.seriesLabelOverrides = [:]
+    }
+
+    func pruneSeriesLabelOverrides(using payload: WorkbenchPlotPayload?, for tab: Tab) {
+        guard let payload, !payload.series.isEmpty, var state = tabStates[tab] else { return }
+        let normalized = normalizedSeriesLabelOverrides(state.seriesLabelOverrides, series: payload.series)
+        guard normalized != state.seriesLabelOverrides else { return }
+        state.seriesLabelOverrides = normalized
+        tabStates[tab] = state
     }
 }

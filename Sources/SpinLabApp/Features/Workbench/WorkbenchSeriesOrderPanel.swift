@@ -11,10 +11,9 @@ struct WorkbenchSeriesOrderPanel: View {
     let onCommit: ([String]) -> Void
     /// When false, the panel keeps rename chips but hides drag and arrow reorder UI.
     var allowsReordering: Bool = true
-    /// Current series label overrides keyed by sampleID (or Int-string fallback).
+    /// Current series label overrides keyed by stable series identity.
     var seriesLabelOverrides: [String: String] = [:]
-    /// Called with (labelKey, newLabel) when the user renames a chip; key matches
-    /// TabRenderManager.updateSeriesLabel sampleID parameter.
+    /// Called with (identityKey, newLabel) when the user renames a chip.
     var onRenameLabel: ((String, String) -> Void)? = nil
 
     @State private var rows: [SeriesOrderRow] = []
@@ -101,8 +100,7 @@ struct WorkbenchSeriesOrderPanel: View {
     }
 
     private func seriesChip(_ row: SeriesOrderRow, index: Int, showsReorderControls: Bool) -> some View {
-        let labelKey = row.sampleID ?? String(row.originalIndex)
-        let displayLabel = seriesLabelOverrides[labelKey] ?? row.label
+        let displayLabel = seriesLabelOverrides[row.identityKey] ?? row.label
         let isEditing = editingChipKey == row.identityKey
 
         return HStack(spacing: 6) {
@@ -112,8 +110,8 @@ struct WorkbenchSeriesOrderPanel: View {
                     .font(.system(size: 12))
                     .frame(minWidth: 60, maxWidth: 140)
                     .focused($chipEditorFocused)
-                    .onSubmit { commitChipRename(row: row, labelKey: labelKey) }
-                Button("OK") { commitChipRename(row: row, labelKey: labelKey) }
+                    .onSubmit { commitChipRename(row: row) }
+                Button("OK") { commitChipRename(row: row) }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.mini)
                 Button("Cancel") { editingChipKey = nil }
@@ -192,9 +190,9 @@ struct WorkbenchSeriesOrderPanel: View {
         }
     }
 
-    private func commitChipRename(row: SeriesOrderRow, labelKey: String) {
+    private func commitChipRename(row: SeriesOrderRow) {
         let trimmed = editChipText.trimmingCharacters(in: .whitespacesAndNewlines)
-        onRenameLabel?(labelKey, trimmed)
+        onRenameLabel?(row.identityKey, trimmed)
         editingChipKey = nil
         editChipText = ""
         chipEditorFocused = false

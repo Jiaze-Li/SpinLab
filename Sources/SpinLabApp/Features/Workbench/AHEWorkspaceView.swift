@@ -90,7 +90,7 @@ private struct AHEPlotControlsPanel: View {
                 allowsReordering: false,
                 seriesLabelOverrides: ahe.tabs.activeSeriesLabelOverrides,
                 onRenameLabel: { key, label in
-                    ahe.updateSeriesLabel(sampleID: key, newLabel: label)
+                    ahe.updateSeriesLabel(identityKey: key, newLabel: label)
                 }
             )
         }
