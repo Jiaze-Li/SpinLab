@@ -122,7 +122,6 @@ enum WorkbenchRenderPipeline {
 
         // 5. Merge chart style overrides into styleParams
         for (k, v) in input.chartStyleOverrides {
-            guard !WorkbenchChartStyle.isGlobalPlotDefaultKey(k) else { continue }
             payload.styleParams[k] = v
         }
 
