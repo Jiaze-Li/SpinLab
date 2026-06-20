@@ -113,8 +113,44 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
     }
 
     func persistToLibrary(onComplete: (() -> Void)? = nil) {
-        saveMessage = "Save to Library is not supported for RSM in this release."
-        onComplete?()
+        guard let png = renderedImageData else {
+            saveMessage = "No chart to save. Run analysis first."
+            return
+        }
+        guard !cachedSampleKeys.isEmpty else {
+            saveMessage = "No sample keys. Run analysis first."
+            return
+        }
+        let view = activeView
+        let displayState = heatmapDisplayState
+        let title = displayState.titleOverride.isEmpty
+            ? (parsedDataset?.title ?? view.rawValue.uppercased())
+            : displayState.titleOverride
+        let xLabel = displayState.xLabelOverride.isEmpty ? view.xLabel : displayState.xLabelOverride
+        let yLabel = displayState.yLabelOverride.isEmpty ? view.yLabel : displayState.yLabelOverride
+        let zLabel = displayState.zLabelOverride.isEmpty
+            ? (parsedDataset?.detectorColumnName ?? "")
+            : displayState.zLabelOverride
+        let projection = RSMSaveProjection(
+            workflowID: "rsm",
+            title: title,
+            activeView: view,
+            detectorColumnName: parsedDataset?.detectorColumnName ?? "",
+            xLabel: xLabel,
+            yLabel: yLabel,
+            zLabel: zLabel,
+            sourceFileIdentity: cachedInputFiles.first,
+            semanticParams: ["view": view.rawValue]
+        )
+        executeRSMSave(
+            input: SaveRSMChartInput(
+                png: png,
+                projection: projection,
+                sampleKeys: cachedSampleKeys,
+                libraryRootPath: lastLibraryRootPath
+            ),
+            onComplete: onComplete
+        )
     }
 
     // MARK: - Private render
