@@ -2,6 +2,16 @@
 
 > **Module Group**: groups Plot Display, Plot Controls, and Plot Preservation modules within the Main Board. This document covers Plot System Module Group capabilities: workflow-independent plot shell、style params、legend dimension auto-inference、Copy PNG 倍率、point label、curve reorder opt-in。
 
+## Terminology
+
+| Term | Meaning |
+|---|---|
+| **XY Rotation** | A Workbench *workflow* — the angle-sweep resistance measurement workflow (`XYRotationWorkspaceStore`, `XYRotationPlotRenderer`). Not a render path. |
+| **Cartesian XY render path** (also "XY render path") | The Plot System series renderer: `WorkbenchRenderPipeline` → `WorkbenchChartRenderer` → `WorkbenchPlotLayout`. Renders cartesian line/scatter charts from `WorkbenchPlotPayload`. |
+| **XY workflow** | **Ambiguous — do not use.** Use "Cartesian XY render path" for the renderer and "XY Rotation workflow" for the measurement workflow. |
+
+Workflows that currently use the Cartesian XY render path: AHE, XY Rotation, 3ω, IV.
+
 ## Module Group Structure
 
 Plot System is a module group with three sub-modules:
@@ -258,7 +268,7 @@ The following types are XY-specific. They must not be extended, subclassed, or m
 
 ### 3. Compatibility Rule
 
-Existing XY workflows (AHE, XY Rotation, 3ω) must continue to render through the existing XY path **unchanged**. The heatmap render path runs in parallel and must not alter any shared state or shared type that the XY path depends on. Introducing `HeatmapRenderPipeline` must not add any conditional branch, property, or override field to `WorkbenchRenderPipeline`, `WorkbenchChartRenderer`, or `WorkbenchPlotLayout`.
+Existing workflows that use the Cartesian XY render path (AHE, XY Rotation, 3ω) must continue to render through that path **unchanged**. The heatmap render path runs in parallel and must not alter any shared state or shared type that the XY path depends on. Introducing `HeatmapRenderPipeline` must not add any conditional branch, property, or override field to `WorkbenchRenderPipeline`, `WorkbenchChartRenderer`, or `WorkbenchPlotLayout`.
 
 ### 4. Canvas Rule
 
