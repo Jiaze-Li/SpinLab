@@ -293,6 +293,33 @@ struct V710StaleOverrideResetTests {
     }
 
     @MainActor
+    @Test("Duplicate sampleIDs keep rename overrides isolated by stable sourceRef identity")
+    func duplicateSampleIDsKeepRenameOverridesIsolated() throws {
+        let manager = TabRenderManager<TestTab>(defaultTab: .main)
+        let payload = makeSeriesPayload(series: [
+            WorkbenchPlotSeries(label: "Top", x: [0], y: [0], sourceRef: "/tmp/top.csv", sampleID: "sample-1"),
+            WorkbenchPlotSeries(label: "Bottom", x: [0], y: [0], sourceRef: "/tmp/bottom.csv", sampleID: "sample-1")
+        ], semanticParams: ["temperature": "80K"])
+
+        let rows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        #expect(rows.map(\.identityKey) == ["/tmp/top.csv", "/tmp/bottom.csv"])
+        #expect(rows.allSatisfy { $0.sampleID == "sample-1" })
+
+        manager.tabStates[.main] = TabRenderState(
+            seriesLabelOverrides: ["/tmp/top.csv": "Top renamed"]
+        )
+
+        let input = manager.buildPipelineInput(payload: payload, for: .main)
+        #expect(input.seriesLabelOverrides == [0: "Top renamed"])
+        #expect(input.payload.series.map(\.label) == ["Top", "Bottom"], "payload input itself must remain untouched")
+
+        let output = try WorkbenchRenderPipeline.render(input)
+        #expect(output.manifestPayload.series.map(\.label) == ["Top renamed", "Bottom"])
+        #expect(manager.state(for: .main).seriesLabelOverrides == ["/tmp/top.csv": "Top renamed"])
+        #expect(manager.state(for: .main).seriesLabelOverrides["/tmp/bottom.csv"] == nil)
+    }
+
+    @MainActor
     @Test("Style-only rerender preserves text overrides (same identity)")
     func styleOnlyRerenderPreservesOverrides() throws {
         let manager = TabRenderManager<TestTab>(defaultTab: .main)
