@@ -113,3 +113,112 @@ Every RSM Input Adapter must:
 5. Dispatch on file schema (column names, header structure, file extension) — not on instrument vendor name.
 
 The `CanonicalRSMDataset` is the sole output type. No adapter may produce an intermediate or vendor-specific representation for consumption by downstream layers.
+
+---
+
+## Gate H0 - RSM Heatmap Save/Pack/Restore Boundary Plan
+
+This gate documents the boundary plan for saving, packing, and restoring the RSM heatmap workflow. It is docs-only and does not authorize Swift changes.
+
+### 1. RSM Workflow-Owned Pack State
+
+RSM owns the following persisted workflow state:
+
+- `sourceFileIdentity` or `importedFileReference`
+  - Opaque provenance for the source that produced the canonical dataset.
+  - May be a filesystem identity, imported file reference, or other stable lookup token.
+  - Pack stores the reference, not the file contents, parsed rows, or rendered output.
+- `detectorColumnName`
+  - The raw detector column name used by the adapter for the active schema.
+  - This is persisted so restore can validate that the source schema still matches the saved workflow intent.
+- `activeView`
+  - One of `HL`, `KL`, or `HK`.
+  - Default is `HL`.
+  - The saved view determines which fixed index is restored for the heatmap projection.
+- `parseOptions`
+  - Any future RSM-specific parse knobs that affect adapter output.
+  - V1 has no additional parse options beyond the schema contract above.
+- `canonicalDatasetRestoreStrategy`
+  - Restore must recover the canonical dataset by reopening the source or imported reference and re-running the RSM input adapter.
+  - The canonical dataset itself is not the primary persisted artifact when it can be derived again.
+  - If the source cannot be reopened, restore fails rather than inventing a replacement dataset.
+- `rsmSpecificWarningsAndErrors`
+  - Persist only normalized, workflow-owned restore diagnostics that explain why a pack restore may have degraded or failed.
+  - Do not persist renderer exceptions, stack traces, or transient UI messages.
+  - These diagnostics are informational only and must not alter renderer behavior.
+
+### 2. Plot System Heatmap-Owned Display State
+
+Heatmap display state is owned by Plot System and should live in a dedicated heatmap tab state, not in RSM semantics:
+
+- `titleOverride`
+- `xLabelOverride`
+- `yLabelOverride`
+- `zLabelOverride`
+- `colorScaleMode`
+- `colormapKey`
+- `zRangeOverride`
+
+These fields are display overrides only. They may be serialized for pack/restore, but they must not carry scientific meaning, file provenance, or adapter behavior.
+
+### 3. Forbidden Persisted State
+
+The following state must not be persisted for RSM heatmap save/pack/restore:
+
+- Rendered PNG bytes.
+- `HeatmapPlotLayout`.
+- Any `CGContext` or other CoreGraphics render artifact.
+- `WorkbenchPlotCanvas` transient UI state.
+- XY `TabRenderState` fields.
+- Duplicate copies of derived state unless a field is explicitly justified as primary workflow state.
+
+If a value can be re-derived from the source file or canonical dataset, it should be re-derived on restore instead of duplicated in the pack.
+
+### 4. Restore Sequence
+
+Restore must follow this order:
+
+1. Restore the RSM workflow state.
+2. Recover or re-parse the canonical dataset from the saved source reference.
+3. Rebuild `HeatmapPlotPayload`.
+4. Apply `HeatmapTabRenderState` display overrides.
+5. Call `HeatmapRenderPipeline`.
+6. Produce `imageData`.
+7. Show the result in `WorkbenchPlotCanvas` with `layout: nil`.
+
+This sequence keeps scientific semantics in the workflow layer and display semantics in Plot System while ensuring the canvas remains a PNG shell only.
+
+### 5. Failure Behavior
+
+Restore and re-render failures must be explicit and non-silent:
+
+- Missing source file
+  - Fail restore with a clear missing-source error.
+  - Do not synthesize placeholder data or a placeholder heatmap.
+- Incompatible RSM file schema
+  - Surface a schema mismatch warning or error.
+  - Do not coerce the file into the saved view.
+- Irregular grid after restore
+  - Reject the restore result if the recovered data no longer forms a valid rectangular heatmap grid.
+  - Surface a validation warning and do not render a partial grid.
+- Invalid color scale or z-range
+  - Ignore invalid display overrides.
+  - Fall back to the default colormap and auto-derived z-range.
+  - If the override cannot be normalized safely, fail only the heatmap render for that tab and surface a warning.
+- Unsupported saved view
+  - Treat the saved view as invalid if it is not one of `HL`, `KL`, or `HK`.
+  - Fall back to `HL` only when the recovered dataset can still be projected safely.
+  - Otherwise fail restore with a view-compatibility warning.
+
+### 6. Ownership Rule
+
+- RSM workflow must not serialize heatmap renderer internals, layout internals, or canvas internals.
+- Heatmap display state must not serialize RSM scientific semantics such as adapter logic, detector resolution, or view-selection policy.
+- Cartesian XY render path state and XY `TabRenderState` must not be reused for heatmap.
+
+### 7. Next Implementation Gates
+
+- Gate H1: RSM pack state model.
+- Gate H2: `HeatmapTabRenderState` pack codec.
+- Gate H3: restore integration tests.
+- Gate H4: save-to-library bridge if needed.

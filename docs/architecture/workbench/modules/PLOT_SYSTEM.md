@@ -221,6 +221,7 @@ No option is selected at Gate 8.2. Selecting the approach is an implementation-g
 - Heatmap pack state serializes: colormap key, Z-range override if user-set, title/axis/colorbar label overrides.
 - Heatmap pack state must **not** serialize the rendered PNG or `HeatmapPlotLayout` — re-derived on restore.
 - RSM Assembly pack config owns the analysis parameters needed to re-derive the heatmap grid. Plot System heatmap tab state owns display overrides. The boundary between them is `HeatmapPlotPayload` — RSM writes it, Plot System reads it.
+- Gate H0 in `workflows/rsm/DRAFT_ASSEMBLY.md` tightens the restore contract further: restore may persist workflow provenance and display overrides, but renderer/layout/canvas internals remain re-derived or transient.
 
 ### Boundary: RSM Assembly vs Plot System Heatmap Path
 
