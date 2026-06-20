@@ -2,6 +2,8 @@
 
 This document is the ownership authority for Workbench modules. A module owns concrete capability and state. The Main Board mounts and calls modules, and sibling modules must not mutate each other's canonical state. This is not a process guide.
 
+> For the lifecycle used when a new workflow introduces new module capability, see [WORKFLOW_EXTENSION_PROTOCOL.md](WORKFLOW_EXTENSION_PROTOCOL.md) — in particular the **Reusable Capability Rule** (Phase 0) and **Module Readiness** (Phase 1).
+
 ## Module Concepts
 
 ### What is a Module?

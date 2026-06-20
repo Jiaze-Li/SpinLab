@@ -1,6 +1,6 @@
 # RSM Workflow — Draft Assembly Record
 
-> **Status: partially implemented (Gates H1–H5 complete).** This file captures adapter rules, the `CanonicalRSMDataset` contract, the heatmap save/pack/restore boundary plan (Gate H0), and the implemented pipeline. Gates H1 (RSM pack state), H2 (HeatmapTabRenderState codec), H3/H3.5 (restore integration tests), H4 (pack/restore runtime integration), and H5 (save-to-library) are complete.
+> **Status: Gates H1–H6 complete; H7 (protocol formalization) complete.** This file captures adapter rules, the `CanonicalRSMDataset` contract, the heatmap save/pack/restore boundary plan (Gate H0), and the implemented pipeline. RSM is the **first completed validation of the [Workflow Extension Protocol](../../WORKFLOW_EXTENSION_PROTOCOL.md)** for a non-Cartesian render path. See that document for the full conditional lifecycle this workflow traced through.
 
 ---
 
@@ -280,4 +280,5 @@ Restore and re-render failures must be explicit and non-silent:
 | H3.5 | Additional restore integration coverage | ✅ Complete |
 | H4 | RSM pack/restore runtime integration | ✅ Complete |
 | H5 | RSM save-to-library (`RSMSaveProjection` + `SaveRSMChartToLibraryUseCase`) | ✅ Complete |
-| H6 | Architecture docs sync | In progress |
+| H6 | Architecture docs sync | ✅ Complete |
+| H7 | Workflow Extension Protocol formalization | ✅ Complete |

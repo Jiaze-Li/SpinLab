@@ -2,6 +2,8 @@
 
 > Workflow Assembly is the workflow-owned semantic contract consumed by the Main Board and implemented across workflow code.
 
+> For the full lifecycle of adding or extending a workflow — capability classification, module readiness, minimal pipeline, pack/restore, save-to-library, and docs closeout — see [WORKFLOW_EXTENSION_PROTOCOL.md](WORKFLOW_EXTENSION_PROTOCOL.md).
+
 ## Core Principle
 
 Workflow declares the analysis title / analysis type.
