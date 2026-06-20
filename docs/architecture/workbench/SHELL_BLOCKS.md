@@ -74,7 +74,7 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - [Workbench Roadmap](WORKBENCH_ROADMAP.md)
 - [Main Board layout notes](MAIN_BOARD_LAYOUT.md)
 - `modules/MEASUREMENT_SEARCH.md`
-- `modules/SELECTION_DENOMINATOR_AUDIT.md`
+- `history/gate7/SELECTION_DENOMINATOR_AUDIT.md`
 - `modules/PLOT_SYSTEM.md`
 - `modules/PACK_RESTORE.md`
 - `workflows/three-omega/THREE_OMEGA_PHYSICS.md`

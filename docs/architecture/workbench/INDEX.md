@@ -5,7 +5,7 @@
 
 ## Directory Layout
 
-### Current Contracts
+### Current Core Contracts
 
 Active architecture contracts that must be read before making non-trivial changes.
 
@@ -16,14 +16,21 @@ Active architecture contracts that must be read before making non-trivial change
 | `MAIN_BOARD_READINESS.md` | Readiness contract | Derived readiness ladder and consumers |
 | `WORKFLOW_ASSEMBLY.md` | Workflow contract | Per-workflow integration contract |
 | `MODULE_BOUNDARIES.md` | Ownership authority | Module ownership, read surfaces, forbidden mutations |
-| `ADDING_WORKFLOW.md` | Add-workflow entry | Conceptual model + abbreviated checklist; links to WORKFLOW_EXTENSION.md |
+| `ADDING_WORKFLOW.md` | Add-workflow entry | One-sentence model, do-not-change warning, five registration surfaces; links to WORKFLOW_EXTENSION.md for full checklist |
 | `WORKFLOW_EXTENSION.md` | Workflow extension contract | Canonical workflow extension contract: implementation checklist, code placement, Plot System responsibilities, persistence rules, finalization rule |
 | `STATE_OWNERSHIP.md` | Ownership contract | Shared plot defaults, per-tab state, packs, sidecar, and measurement set ownership |
+
+Base module ownership rules, forbidden mutations, and transition state live in [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md). Specialized module docs supplement, not replace, `MODULE_BOUNDARIES.md`.
+
+### Current Module Contracts
+
+Active per-module contracts that supplement `MODULE_BOUNDARIES.md`.
+
+| File | Role | Scope |
+|---|---|---|
 | `modules/MEASUREMENT_SEARCH.md` | Search module details | Sidecar field consumption, condition projection, workflow ID aliases, search result semantics |
 | `modules/PLOT_SYSTEM.md` | Plot system details | Workflow-independent plot shell, style params, legend, copy PNG, point label, curve reorder contract |
 | `modules/PACK_RESTORE.md` | Pack / restore details | AnalysisPack / AnalysisVault, workspace vs Library save, restore as cross-module op, per-workflow pack contracts |
-
-Base module ownership rules, forbidden mutations, and transition state live in [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md). Specialized module docs supplement, not replace, `MODULE_BOUNDARIES.md`.
 
 ### Current References
 
@@ -53,13 +60,13 @@ Completed gate audits and closeout records. Do not update these; they are read-o
 
 | File | Role | Scope |
 |---|---|---|
-| `GATE7_WORKBENCH_ARCHITECTURE_CLOSEOUT.md` | Gate 7.9 closeout | Final module map, Gates 7.1–7.8 outcomes, accepted bridges, deferred cleanup, non-candidates, and closeout rule |
-| `GATE7_MAIN_SEARCH_HANDOFF.md` | Gate 7 preflight audit | Main Search extraction readiness, bridge inventory, and forbidden changes |
-| `GATE7_PACK_RESTORE_AUDIT.md` | Gate 7.6 pack/restore audit | Schema, restore ownership, RT path, overlay, save interaction, test gaps |
-| `READINESS_CONSUMPTION_AUDIT.md` | Gate 6 audit | Readiness consumption audit and closeout linkage |
-| `LAYOUT_AUDIT.md` | Gate 4 audit / Gate 5 prep | Shell layout map, layout debts, and Gate 5-safe refactor targets |
-| `modules/SELECTION_DENOMINATOR_AUDIT.md` | Selection denominator audit | `isAllSelected` / `selectAll` ownership split and migration decision |
-| `modules/SEARCH_READ_SURFACE_AUDIT.md` | Search read surface audit | Phase 5A-3 audit of `cachedSearchResults` mirror usage |
+| `history/gate7/GATE7_WORKBENCH_ARCHITECTURE_CLOSEOUT.md` | Gate 7.9 closeout | Final module map, Gates 7.1–7.8 outcomes, accepted bridges, deferred cleanup, non-candidates, and closeout rule |
+| `history/gate7/GATE7_MAIN_SEARCH_HANDOFF.md` | Gate 7 preflight audit | Main Search extraction readiness, bridge inventory, and forbidden changes |
+| `history/gate7/GATE7_PACK_RESTORE_AUDIT.md` | Gate 7.6 pack/restore audit | Schema, restore ownership, RT path, overlay, save interaction, test gaps |
+| `history/gate7/SELECTION_DENOMINATOR_AUDIT.md` | Selection denominator audit | `isAllSelected` / `selectAll` ownership split and migration decision |
+| `history/gate7/SEARCH_READ_SURFACE_AUDIT.md` | Search read surface audit | Phase 5A-3 audit of `cachedSearchResults` mirror usage |
+| `history/gate6/READINESS_CONSUMPTION_AUDIT.md` | Gate 6 audit | Readiness consumption audit and closeout linkage |
+| `history/gate4/LAYOUT_AUDIT.md` | Gate 4 audit / Gate 5 prep | Shell layout map, layout debts, and Gate 5-safe refactor targets |
 
 ### Superseded Stubs
 
@@ -67,7 +74,7 @@ Docs that have been replaced by a canonical successor. Kept for historical refer
 
 | File | Status | Replaced by |
 |---|---|---|
-| `EXTENSION_BOUNDARIES.md` | Superseded stub | Workflow checklist moved to `WORKFLOW_EXTENSION.md`; module import rules no longer apply |
+| `EXTENSION_BOUNDARIES.md` | Superseded stub | Workflow extension checklist moved to `WORKFLOW_EXTENSION.md`; module ownership rules moved to `MODULE_BOUNDARIES.md`; legacy extension-module import rules retained here |
 
 ## Reading Order
 
@@ -88,12 +95,12 @@ Covers current contracts and references only. For historical audit records, see 
 ## Dispatch Rules
 
 - If changing readiness, gating, or preflight behavior, read [MAIN_BOARD_READINESS.md](MAIN_BOARD_READINESS.md).
-- If reviewing the Gate 6 readiness closeout history, see `READINESS_CONSUMPTION_AUDIT.md` (historical audit record).
+- If reviewing the Gate 6 readiness closeout history, see `history/gate6/READINESS_CONSUMPTION_AUDIT.md` (historical audit record).
 - If changing workflow assembly or registration, read [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md). Specific workflow assembly records live at `workflows/*/ASSEMBLY.md`.
 - If changing module ownership, read [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md).
 - If adding a workflow, start with [ADDING_WORKFLOW.md](ADDING_WORKFLOW.md), then [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) and [WORKFLOW_EXTENSION.md](WORKFLOW_EXTENSION.md).
 - If checking gate status, read [WORKBENCH_ROADMAP.md](WORKBENCH_ROADMAP.md).
-- If changing implementation injection points or placement details, read [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md). For historical Gate 4/5 layout audit, see `LAYOUT_AUDIT.md`.
+- If changing implementation injection points or placement details, read [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md). For historical Gate 4/5 layout audit, see `history/gate4/LAYOUT_AUDIT.md`.
 
 ## Architecture Usage Rules
 
@@ -144,4 +151,4 @@ This directory describes Workbench-internal behavior only. Cross-domain contract
 - `docs/architecture/workbench/SHELL_BLOCKS.md` - overview of the Workflow / Workflow Assembly / Main Board / Modules model
 - `docs/architecture/workbench/MAIN_BOARD_LAYOUT.md` - implementation-level injection points only
 - `docs/architecture/workbench/WORKBENCH_ROADMAP.md` - phase progress for Workbench shell migration
-- `docs/architecture/workbench/LAYOUT_AUDIT.md` - historical: Gate 4 layout audit and Gate 5 preparation
+- `docs/architecture/workbench/history/gate4/LAYOUT_AUDIT.md` - historical: Gate 4 layout audit and Gate 5 preparation

@@ -10,38 +10,6 @@ The **Workflow Assembly** is the workflow's contract: it declares what this work
 
 ---
 
-## What Each Side Owns
-
-### Common modules own mechanism
-
-The shell, search, plot, pack/restore, and save modules are workflow-independent. They implement the mechanism once and apply it uniformly across all workflows. They must not be changed to accommodate a new workflow.
-
-| Common shell / module | What it owns |
-|---|---|
-| Main Board shell (`WorkflowWorkspaceShell`) | Two-column layout, readiness gating, Analysis Lifecycle, module mounting |
-| Search module | File search, sidecar query, result list, selection state |
-| Plot shell | Canvas, legend, copy-PNG, point labels, tab switching, style params |
-| Pack / restore shell | AnalysisPack identity, vault write/read, workspace snapshot lifecycle |
-| Save / export shell | Chart artifact write, metric persistence, Library artifact path |
-
-### Workflow Assembly owns content
-
-The Assembly is the workflow's declaration of what it contributes to each shell. It does not redeclare any mechanism the shell already provides.
-
-| Assembly field | What the workflow declares |
-|---|---|
-| Workflow Identity / Search Hints | Stable workflow ID, search aliases, optional secondary input slots |
-| Input Adapter Contract | File formats accepted, parser entry point, column/index mapping, unit conversion, adapter output type |
-| Data / Physics Mapping | Domain dataset fields, derived quantities, invalid-data behavior |
-| Analysis Pipeline | Fit, scale, render-payload, metric, warning, and failure stages |
-| Plot Semantics / Overrides | Default axes, units, tabs, stacking, normalization, annotations, metrics, legends that differ from the shell default |
-| Optional Contributions | Workflow-specific panels or content slots mounted by the shell |
-| Persistence / Pack-Restore | Workflow-specific `PackConfig` (UI state) and `PackResult` (must include `ingestionResult`) |
-| Validation / Warning Policy | Warnings for missing input, skipped series, ambiguous units, data-quality failures |
-| Required Behavior Tests | Regression suites that protect the workflow contract |
-
----
-
 ## Do Not Change Common Workbench Architecture for a New Workflow
 
 Adding a workflow is a content addition, not an architecture change. The following must not change when adding a workflow:
@@ -73,20 +41,9 @@ These are five distinct files. There is no plugin or single-file registration me
 
 ---
 
-## Implementation Checklist (Abbreviated)
+## Implementation Checklist
 
-Full checklist with file-placement table: [WORKFLOW_EXTENSION.md §Adding a New Workflow](WORKFLOW_EXTENSION.md).
-
-1. **Write the Assembly first.** Create `docs/architecture/workbench/workflows/<name>/ASSEMBLY.md` before any code. Declare the Input Adapter Contract (adapter output type must be named before the parser file exists).
-2. Register the workflow ID (`WorkflowID.swift`).
-3. Create ingestion contracts (`<Name>IngestionContracts.swift`).
-4. Create ingestion use case (`Ingest<Name>SelectionsUseCase.swift`).
-5. Create pack contracts (`<Name>PackContracts.swift` — `PackConfig` + `PackResult` including `ingestionResult`).
-6. Create workspace store (`<Name>WorkspaceStore.swift`) conforming to `WorkbenchWorkspaceProviding`.
-7. Create workspace view (`<Name>WorkspaceView.swift`) wrapping `WorkflowWorkspaceShell`.
-8. Register view in `WorkflowWorkspaceRegistry` and store + search dispatch in `WorkbenchFeatureStore`.
-9. Add required behavior tests declared in the Assembly.
-10. Run `./scripts/check_required_actions.sh` — must be clean before commit.
+Full checklist with file-placement table and persistence rules: [WORKFLOW_EXTENSION.md](WORKFLOW_EXTENSION.md).
 
 ---
 
