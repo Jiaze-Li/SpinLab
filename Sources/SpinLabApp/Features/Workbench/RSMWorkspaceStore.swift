@@ -1,10 +1,11 @@
 import Foundation
 import Observation
 
-// MARK: - Pack stubs (save/restore not implemented in Gate G)
+// MARK: - Pack types (Gate H4: RSM pack/restore runtime integration)
 
 struct RSMPackConfig: Codable, SearchQueryTextInjectable {
-    var view: String = "hl"
+    var packState: RSMPackState
+    var displayState: HeatmapTabRenderState
     var cachedSearchResults: [WorkflowMeasurementSearchHit] = []
     var searchQueryText: String = ""
 }
@@ -46,6 +47,10 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
 
     var warningLog: WorkbenchWarningLog = WorkbenchWarningLog()
     var currentRunTrace: WorkbenchRunTraceProjection?
+
+    // MARK: - Heatmap display state (Plot System-owned, persisted in pack)
+
+    var heatmapDisplayState: HeatmapTabRenderState = .init()
 
     // MARK: - Plot controls (minimal — heatmap controls forbidden in Gate G)
 
@@ -290,11 +295,20 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
     var packWorkflowID: String { "rsm" }
     var packInputFiles: [String] { cachedInputFiles }
     var packSampleKeys: [String] { cachedSampleKeys }
-    var hasAnalysisResult: Bool { false }
+    var hasAnalysisResult: Bool { renderedImageData != nil }
 
     func buildPackConfig() -> RSMPackConfig {
-        RSMPackConfig(view: activeView.rawValue, cachedSearchResults: cachedSearchResults)
+        RSMPackConfig(
+            packState: RSMPackState(
+                sourceFileIdentity: cachedInputFiles.first,
+                detectorColumnName: parsedDataset?.detectorColumnName ?? "",
+                activeView: activeView
+            ),
+            displayState: heatmapDisplayState,
+            cachedSearchResults: cachedSearchResults
+        )
     }
+
     func buildPackResult() -> RSMPackResult { RSMPackResult() }
     func autoPackLabel() -> String { cachedSearchResults.first?.sampleBatchAndSubstrate ?? "RSM" }
 
@@ -304,5 +318,80 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
         pack: AnalysisPack,
         restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void,
         seedSelection: @escaping (Set<String>, [WorkflowMeasurementSearchHit]) -> Void
-    ) {}
+    ) {
+        activeView = config.packState.activeView
+        heatmapDisplayState = config.displayState
+        cachedSearchResults = config.cachedSearchResults
+        cachedInputFiles = pack.filePaths
+        cachedSampleKeys = pack.sampleKeys
+
+        seedSelection([], config.cachedSearchResults)
+        restoreSearchState(config.cachedSearchResults, config.searchQueryText)
+
+        guard let sourceIdentity = config.packState.sourceFileIdentity, !sourceIdentity.isEmpty else {
+            return
+        }
+
+        let packState = config.packState
+        let displayState = config.displayState
+        let title = config.cachedSearchResults.first?.sampleBatchAndSubstrate ?? pack.label
+
+        analysisTask?.cancel()
+        isAnalyzing = true
+        renderedImageData = nil
+        _renderRevision &+= 1
+        let revision = _renderRevision
+        warningLog.clear()
+
+        analysisTask = Task { [weak self] in
+            let parsed = await Task.detached(priority: .userInitiated) {
+                () -> Result<(CanonicalRSMDataset, Data), Error> in
+                do {
+                    let text = try String(contentsOfFile: sourceIdentity, encoding: .utf8)
+                    let dataset = try RSMDataParser.parse(text: text, title: title, sourceRef: sourceIdentity)
+
+                    var payload = try RSMHeatmapPayloadBuilder.build(
+                        from: dataset,
+                        options: .init(
+                            view: packState.activeView,
+                            title: displayState.titleOverride.isEmpty ? dataset.title : displayState.titleOverride,
+                            zLabel: displayState.zLabelOverride.isEmpty ? dataset.detectorColumnName : displayState.zLabelOverride
+                        )
+                    )
+
+                    if !displayState.xLabelOverride.isEmpty { payload.xLabel = displayState.xLabelOverride }
+                    if !displayState.yLabelOverride.isEmpty { payload.yLabel = displayState.yLabelOverride }
+                    if !displayState.colormapKey.isEmpty { payload.colormapKey = displayState.colormapKey }
+
+                    if displayState.zRangeOverrideMin != 0 || displayState.zRangeOverrideMax != 0 {
+                        payload.zRangeClampMin = displayState.zRangeOverrideMin
+                        payload.zRangeClampMax = displayState.zRangeOverrideMax
+                    }
+
+                    let output = try HeatmapRenderPipeline.render(.init(
+                        payload: payload,
+                        colorScaleMode: displayState.colorScaleMode
+                    ))
+                    return .success((dataset, output.imageData))
+                } catch {
+                    return .failure(error)
+                }
+            }.value
+
+            guard let self, !Task.isCancelled, self._renderRevision == revision else { return }
+
+            switch parsed {
+            case .success(let (dataset, imageData)):
+                self.parsedDataset = dataset
+                self.renderedImageData = imageData
+                self.isAnalyzing = false
+                self.commitRunTrace()
+            case .failure(let error):
+                self.parsedDataset = nil
+                self.renderedImageData = nil
+                self.appendWarning(source: "RSM Restore", message: error.localizedDescription)
+                self.isAnalyzing = false
+            }
+        }
+    }
 }
