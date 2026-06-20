@@ -35,7 +35,7 @@ struct HeatmapRenderer {
     ) throws -> Data {
         guard payload.grid.isValid else { throw RendererError.invalidGrid }
 
-        let layout = HeatmapPlotLayout.compute(payload: payload, options: options, colorScaleMode: colorScaleMode)
+        let layout = HeatmapPlotLayout.compute(payload: payload, options: options, colorScaleMode: colorScaleMode, chartStyle: chartStyle)
         let colorScale = HeatmapColorScale(
             zMin:       layout.zMin,
             zMax:       layout.zMax,
@@ -119,7 +119,7 @@ struct HeatmapRenderer {
 
         // Colorbar (Z-axis) label
         if !payload.zLabel.isEmpty {
-            let zLabel = colorScale.mode == .log10 ? "\(payload.zLabel) (log10)" : payload.zLabel
+            let zLabel = Self.renderedZLabel(payload.zLabel, mode: colorScale.mode)
             drawRotated90(ctx, text: zLabel,
                           at: layout.colorbarLabelCenter, size: chartStyle.axisTitleFontSize, color: black,
                           fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
@@ -342,6 +342,15 @@ struct HeatmapRenderer {
         )
         CTLineDraw(line, ctx)
         ctx.restoreGState()
+    }
+
+    // MARK: - Z-axis label mode formatting
+
+    /// Returns the colorbar label for the given raw label and color scale mode.
+    /// Log mode prepends "log₁₀ " (Unicode subscripts). Linear mode returns label unchanged.
+    /// Factored out so unit tests can verify label behavior without rendering a PNG.
+    static func renderedZLabel(_ label: String, mode: HeatmapColorScaleMode) -> String {
+        mode == .log10 ? "log\u{2081}\u{2080} \(label)" : label
     }
 
     // MARK: - Axis value formatter

@@ -161,7 +161,7 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
         let xLabel = displayState.xLabelOverride.isEmpty ? view.xLabel : displayState.xLabelOverride
         let yLabel = displayState.yLabelOverride.isEmpty ? view.yLabel : displayState.yLabelOverride
         let zLabel = displayState.zLabelOverride.isEmpty
-            ? (parsedDataset?.detectorColumnName ?? "")
+            ? Self.publicationZLabel(for: parsedDataset?.detectorColumnName ?? "")
             : displayState.zLabelOverride
         let projection = RSMSaveProjection(
             workflowID: "rsm",
@@ -274,13 +274,15 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
 
         analysisTask = Task { [weak self] in
             let parsed = await Task.detached(priority: .userInitiated) {
-                () -> Result<(CanonicalRSMDataset, Data), Error> in
+                () -> Result<(CanonicalRSMDataset, Data, RSMView), Error> in
                 do {
                     let text = try String(contentsOfFile: filePath, encoding: .utf8)
                     let dataset = try RSMDataParser.parse(text: text, title: title, sourceRef: filePath)
+                    // Auto-correct view if the data's fixed axis conflicts with the chosen view.
+                    let effectiveView = dataset.isViewCompatible(view) ? view : dataset.recommendedView
                     let payload = try Self.buildHeatmapPayload(
                         from: dataset,
-                        view: view,
+                        view: effectiveView,
                         displayState: displayState,
                         title: title
                     )
@@ -289,7 +291,7 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
                         displayState: displayState,
                         globalPlotDefaults: styleDefaults
                     )
-                    return .success((dataset, output.imageData))
+                    return .success((dataset, output.imageData, effectiveView))
                 } catch {
                     return .failure(error)
                 }
@@ -298,10 +300,15 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
             guard let self, !Task.isCancelled, self._renderRevision == revision else { return }
 
             switch parsed {
-            case .success(let (dataset, imageData)):
+            case .success(let (dataset, imageData, usedView)):
                 self.parsedDataset = dataset
                 self.renderedImageData = imageData
-                self.analysisMessage = "Rendered \(view.rawValue.uppercased()) heatmap."
+                if usedView != view {
+                    self.activeView = usedView
+                    self.analysisMessage = "Auto-selected \(usedView.rawValue.uppercased()) view (data is a \(usedView.rawValue.uppercased())-plane scan)."
+                } else {
+                    self.analysisMessage = "Rendered \(view.rawValue.uppercased()) heatmap."
+                }
                 self.cachedInputFiles = [filePath]
                 self.cachedSampleKeys = [hit.sampleKey]
                 self.commitRunTrace()
@@ -455,18 +462,32 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
         }
     }
 
+    /// Maps a raw detector column name to a publication-standard default label.
+    /// "Detector" (case-insensitive) and empty strings map to "Intensity (counts)";
+    /// all other names are preserved as-is.
+    nonisolated static func publicationZLabel(for detectorColumnName: String) -> String {
+        let lower = detectorColumnName.lowercased()
+        if lower == "detector" || lower.isEmpty {
+            return "Intensity (counts)"
+        }
+        return detectorColumnName
+    }
+
     nonisolated private static func buildHeatmapPayload(
         from dataset: CanonicalRSMDataset,
         view: RSMView,
         displayState: HeatmapTabRenderState,
         title: String
     ) throws -> HeatmapPlotPayload {
+        let baseZLabel = displayState.zLabelOverride.isEmpty
+            ? Self.publicationZLabel(for: dataset.detectorColumnName)
+            : displayState.zLabelOverride
         var payload = try RSMHeatmapPayloadBuilder.build(
             from: dataset,
             options: .init(
                 view: view,
                 title: displayState.titleOverride.isEmpty ? title : displayState.titleOverride,
-                zLabel: displayState.zLabelOverride.isEmpty ? dataset.detectorColumnName : displayState.zLabelOverride
+                zLabel: baseZLabel
             )
         )
 

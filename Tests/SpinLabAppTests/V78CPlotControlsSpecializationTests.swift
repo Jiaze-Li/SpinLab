@@ -1,5 +1,7 @@
+import CoreGraphics
 import Foundation
 import Testing
+@testable import SpinLabApp
 
 /// Gate 7.8C — Plot Controls specialization baseline (source-inspection).
 ///
@@ -520,13 +522,15 @@ struct V78CRSMPlotControlsPathTests {
         let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
         #expect(source.contains("Text(\"Color Scale\")"),
                 "RSM heatmap controls must expose a Color Scale picker")
-        #expect(source.contains("LabelOverrideField(\n                    label: \"Title\""),
+        // Check for LabelOverrideField presence without brittle indentation matching;
+        // the 2:1:1 layout nests X/Y in a sub-HStack at deeper indentation.
+        #expect(source.contains("label: \"Title\""),
                 "RSM heatmap controls must expose title override input")
-        #expect(source.contains("LabelOverrideField(\n                    label: \"X\""),
+        #expect(source.contains("label: \"X\""),
                 "RSM heatmap controls must expose X label override input")
-        #expect(source.contains("LabelOverrideField(\n                    label: \"Y\""),
+        #expect(source.contains("label: \"Y\""),
                 "RSM heatmap controls must expose Y label override input")
-        #expect(source.contains("LabelOverrideField(\n                    label: \"Z\""),
+        #expect(source.contains("label: \"Z\""),
                 "RSM heatmap controls must expose Z/colorbar label override input")
         #expect(source.contains("titleFontSize"),
                 "RSM heatmap controls must expose shared title font size controls")
@@ -534,6 +538,151 @@ struct V78CRSMPlotControlsPathTests {
                 "RSM heatmap controls must expose shared axis font size controls")
         #expect(source.contains("tickLabelFontSize"),
                 "RSM heatmap controls must expose shared tick font size controls")
+    }
+
+    // INV-RSM-PL-1: GroupBox fills available width
+    @Test("RSMWorkspaceView.swift Plot Controls GroupBox fills available width")
+    func rsmGroupBoxFillsWidth() throws {
+        let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
+        #expect(source.contains(".frame(maxWidth: .infinity)"),
+                "RSMHeatmapPlotControlsPanel must apply .frame(maxWidth: .infinity) so the box fills the row")
+    }
+
+    // INV-RSM-PL-2: 2:1:1 proportional layout (Title gets double share of X/Y)
+    @Test("RSMWorkspaceView.swift uses nested HStack for 2:1:1 Title/X/Y proportions")
+    func rsmProportionalTitleLayout() throws {
+        let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
+        // The 2:1:1 implementation wraps X and Y in a sub-HStack that shares the row with Title
+        #expect(source.contains("fieldMaxWidth: .infinity"),
+                "Label override fields must use flexible widths (fieldMaxWidth: .infinity) for proportional layout")
+    }
+
+    // INV-RSM-PL-3: Color Scale label uses primary foreground (not secondary)
+    @Test("RSMWorkspaceView.swift Color Scale label uses primary text color")
+    func rsmColorScaleLabelIsPrimary() throws {
+        let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
+        // Must not use .secondary for the Color Scale label
+        #expect(!source.contains("\"Color Scale\")\n                .font(.system(size: 12))\n                .foregroundStyle(.secondary)"),
+                "Color Scale label must not use .secondary foreground — control labels must be primary")
+        #expect(source.contains(".foregroundStyle(.primary)"),
+                "RSM controls must use .foregroundStyle(.primary) for at least one active control label")
+    }
+
+    // INV-RSM-PL-4: Default Z label for "Detector" column normalizes to publication standard
+    @Test("publicationZLabel maps Detector to Intensity (counts)")
+    func rsmPublicationZLabelNormalizesDetector() {
+        #expect(RSMWorkspaceStore.publicationZLabel(for: "Detector") == "Intensity (counts)",
+                "Generic 'Detector' column must normalize to 'Intensity (counts)' for publication use")
+        #expect(RSMWorkspaceStore.publicationZLabel(for: "detector") == "Intensity (counts)",
+                "Case-insensitive match: 'detector' must also normalize")
+        #expect(RSMWorkspaceStore.publicationZLabel(for: "") == "Intensity (counts)",
+                "Empty column name must also produce publication default")
+    }
+
+    // INV-RSM-PL-5: Custom column names are preserved
+    @Test("publicationZLabel preserves custom non-standard column names")
+    func rsmPublicationZLabelPreservesCustomNames() {
+        #expect(RSMWorkspaceStore.publicationZLabel(for: "Intensity") == "Intensity",
+                "Non-generic column name 'Intensity' must pass through unchanged")
+        #expect(RSMWorkspaceStore.publicationZLabel(for: "κ (W/m·K)") == "κ (W/m·K)",
+                "Custom column name must be preserved as-is")
+    }
+
+    // INV-RSM-PL-5b: Log mode prepends log₁₀ prefix to z-label
+    @Test("HeatmapRenderer.renderedZLabel prepends log₁₀ in log10 mode")
+    func rsmLogModeZLabelPrefix() {
+        #expect(HeatmapRenderer.renderedZLabel("Intensity (counts)", mode: .linear) == "Intensity (counts)",
+                "Linear mode must return label unchanged")
+        let logLabel = HeatmapRenderer.renderedZLabel("Intensity (counts)", mode: .log10)
+        #expect(logLabel == "log\u{2081}\u{2080} Intensity (counts)",
+                "Log10 mode must prepend log₁₀ (Unicode subscripts) to the label")
+        // Custom user override in log mode also gets the prefix (display transform)
+        let customLog = HeatmapRenderer.renderedZLabel("My Custom", mode: .log10)
+        #expect(customLog.hasPrefix("log"),
+                "Log10 mode always prepends log prefix even for custom labels")
+    }
+
+    // INV-RSM-PL-7: Large font sizes produce sufficient left padding to avoid y-axis overlap
+    @Test("HeatmapPlotLayout large fonts produce non-overlapping y-axis geometry")
+    func rsmLargeFontsYAxisNoOverlap() {
+        var style = WorkbenchChartStyle()
+        style.titleFontSize = 28
+        style.axisTitleFontSize = 24
+        style.tickLabelFontSize = 22
+
+        let grid = HeatmapGrid(
+            xValues: [0.0, 1.0],
+            yValues: [0.0, 1.0],
+            zMatrix: [[0.0, 1.0], [1.0, 2.0]]
+        )
+        let payload = HeatmapPlotPayload(
+            workflowID: "rsm", title: "Large font test",
+            xLabel: "H (r.l.u.)", yLabel: "L (r.l.u.)", zLabel: "Intensity (counts)",
+            grid: grid
+        )
+        let layout = HeatmapPlotLayout.compute(payload: payload, chartStyle: style)
+
+        // gridRect.minX == dynamically computed paddingLeft
+        let paddingLeft = layout.gridRect.minX
+        #expect(paddingLeft >= 120,
+                "At tick=22pt / axis=24pt, paddingLeft must be ≥ 120 to prevent y-axis overlap")
+
+        // y-axis title center must be well clear of tick label area
+        // (right edge of title ≈ yLabelCenterX + axisTitleFontSize/2 must be < gridRect.minX - 50)
+        let titleRightEdge = layout.yLabelCenter.x + style.axisTitleFontSize / 2
+        #expect(titleRightEdge < paddingLeft - 50,
+                "Y-axis title right edge must be at least 50pt left of gridRect.minX to avoid tick overlap")
+    }
+
+    // INV-RSM-PL-8: Fixed-H data recommends KL view
+    @Test("CanonicalRSMDataset recommends KL view for fixed-H data")
+    func rsmFixedHRecommendsKL() throws {
+        let rsmTextFixedH = """
+H     K     L     Detector
+0.0   0.0   1.0   10.0
+0.0   0.5   1.0   20.0
+0.0   0.0   2.0   30.0
+0.0   0.5   2.0   40.0
+"""
+        let dataset = try RSMDataParser.parse(text: rsmTextFixedH, title: "KL scan")
+        #expect(dataset.recommendedView == .kl,
+                "When H is fixed, recommended view must be KL")
+        #expect(dataset.isViewCompatible(.kl),
+                "KL view must be compatible when H is fixed")
+        #expect(!dataset.isViewCompatible(.hl),
+                "HL view must be incompatible when H is fixed — H doesn't vary")
+        #expect(!dataset.isViewCompatible(.hk),
+                "HK view must be incompatible when H is fixed")
+    }
+
+    // INV-RSM-PL-8b: Fixed-K data recommends HL view
+    @Test("CanonicalRSMDataset recommends HL view for fixed-K data")
+    func rsmFixedKRecommendsHL() throws {
+        let rsmTextFixedK = """
+H     K     L     Detector
+-1.0  0.0   1.0   100.0
+ 0.0  0.0   1.0   200.0
+ 1.0  0.0   1.0   150.0
+-1.0  0.0   1.5   110.0
+ 0.0  0.0   1.5   250.0
+ 1.0  0.0   1.5   180.0
+"""
+        let dataset = try RSMDataParser.parse(text: rsmTextFixedK, title: "HL scan")
+        #expect(dataset.recommendedView == .hl,
+                "When K is fixed, recommended view must be HL")
+        #expect(dataset.isViewCompatible(.hl))
+        #expect(!dataset.isViewCompatible(.kl))
+        #expect(!dataset.isViewCompatible(.hk))
+    }
+
+    // INV-RSM-PL-9: View picker shows warning icon for incompatible view
+    @Test("RSMWorkspaceView.swift shows warning icon when view is incompatible with data")
+    func rsmShowsViewCompatibilityWarning() throws {
+        let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
+        #expect(source.contains("isViewCompatible"),
+                "View picker must check isViewCompatible to show compatibility warning")
+        #expect(source.contains("exclamationmark.triangle") || source.contains("exclamationmark"),
+                "View picker must show a warning symbol when the selected view is incompatible")
     }
 
     @Test("RSMWorkspaceView.swift does not expose XY-only controls")

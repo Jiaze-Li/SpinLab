@@ -41,30 +41,48 @@ struct HeatmapPlotLayout: Sendable {
     static func compute(
         payload: HeatmapPlotPayload,
         options: Options = .init(),
-        colorScaleMode: HeatmapColorScaleMode = .linear
+        colorScaleMode: HeatmapColorScaleMode = .linear,
+        chartStyle: WorkbenchChartStyle? = nil
     ) -> HeatmapPlotLayout {
-        let w = CGFloat(options.width)
-        let h = CGFloat(options.height)
+        var opts = options
+        if let style = chartStyle {
+            // Ensure left padding is wide enough to fit rotated y-axis title + tick labels
+            // without overlap at any supported font size.
+            let estimatedTickWidth = style.tickLabelFontSize * 4.5
+            let axisTitleRoom = style.axisTitleFontSize * 1.5
+            opts.paddingLeft = max(options.paddingLeft, estimatedTickWidth + axisTitleRoom + 14)
+        }
+
+        let w = CGFloat(opts.width)
+        let h = CGFloat(opts.height)
 
         let gridRect = CGRect(
-            x: options.paddingLeft,
-            y: options.paddingBottom,
-            width:  w - options.paddingLeft - options.paddingRight,
-            height: h - options.paddingTop  - options.paddingBottom
+            x: opts.paddingLeft,
+            y: opts.paddingBottom,
+            width:  w - opts.paddingLeft - opts.paddingRight,
+            height: h - opts.paddingTop  - opts.paddingBottom
         )
 
         let colorbarRect = CGRect(
-            x: gridRect.maxX + options.colorbarGap,
+            x: gridRect.maxX + opts.colorbarGap,
             y: gridRect.minY,
-            width:  options.colorbarWidth,
+            width:  opts.colorbarWidth,
             height: gridRect.height
         )
 
-        let titleCenter = CGPoint(x: gridRect.midX, y: h - options.paddingTop * 0.45)
-        let xLabelCenter = CGPoint(x: gridRect.midX, y: options.paddingBottom * 0.35)
-        let yLabelCenter = CGPoint(x: options.paddingLeft * 0.28, y: gridRect.midY)
+        let titleCenter = CGPoint(x: gridRect.midX, y: h - opts.paddingTop * 0.45)
+        let xLabelCenter = CGPoint(x: gridRect.midX, y: opts.paddingBottom * 0.35)
+        // Y-axis title (rotated 90°): position based on axis font size when known,
+        // otherwise use a fixed fraction of paddingLeft.
+        let yLabelCenterX: CGFloat
+        if let style = chartStyle {
+            yLabelCenterX = style.axisTitleFontSize * 0.75 + 2
+        } else {
+            yLabelCenterX = opts.paddingLeft * 0.28
+        }
+        let yLabelCenter = CGPoint(x: yLabelCenterX, y: gridRect.midY)
         let colorbarLabelCenter = CGPoint(
-            x: colorbarRect.maxX + options.colorbarTickArea * 0.80,
+            x: colorbarRect.maxX + opts.colorbarTickArea * 0.80,
             y: gridRect.midY
         )
 

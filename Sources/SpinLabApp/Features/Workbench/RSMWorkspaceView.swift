@@ -19,7 +19,7 @@ struct RSMWorkspaceView: View, WorkflowWorkspaceProvider {
                     HStack(spacing: 8) {
                         Text("View")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.primary)
                         Picker("", selection: $bindableStore.activeView) {
                             ForEach(RSMView.allCases, id: \.self) { view in
                                 Text(view.rawValue.uppercased()).tag(view)
@@ -30,6 +30,11 @@ struct RSMWorkspaceView: View, WorkflowWorkspaceProvider {
                         .onChange(of: store.activeView) { _, _ in
                             store.rerenderForStyleChange()
                             appState.flushInteractionSnapshotNow()
+                        }
+                        if let dataset = store.parsedDataset, !dataset.isViewCompatible(store.activeView) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                                .help("This view is not valid for the loaded data. Recommended: \(dataset.recommendedView.rawValue.uppercased())")
                         }
                     }
 
@@ -43,7 +48,9 @@ struct RSMWorkspaceView: View, WorkflowWorkspaceProvider {
                         renderedTitle: bindableStore.parsedDataset?.title ?? "",
                         renderedXLabel: bindableStore.activeView.xLabel,
                         renderedYLabel: bindableStore.activeView.yLabel,
-                        renderedZLabel: bindableStore.parsedDataset?.detectorColumnName ?? "",
+                        renderedZLabel: bindableStore.parsedDataset
+                            .map { RSMWorkspaceStore.publicationZLabel(for: $0.detectorColumnName) }
+                            ?? "",
                         sourceResetToken: "\(bindableStore.cachedInputFiles.first ?? "")|\(bindableStore.activeView.rawValue)",
                         onColorScaleModeChange: { store.updateHeatmapColorScaleMode($0) },
                         onTitleOverride: { store.updateHeatmapTitle($0) },
@@ -93,13 +100,14 @@ private struct RSMHeatmapPlotControlsPanel: View {
             }
             .padding(.vertical, 4)
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var colorScaleRow: some View {
         HStack(spacing: 8) {
             Text("Color Scale")
                 .font(.system(size: 12))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.primary)
             Picker("", selection: Binding<HeatmapColorScaleMode>(
                 get: { colorScaleMode },
                 set: { onColorScaleModeChange($0) }
@@ -115,6 +123,9 @@ private struct RSMHeatmapPlotControlsPanel: View {
 
     private var labelOverridesRow: some View {
         VStack(alignment: .leading, spacing: 6) {
+            // Title (2 units) | X+Y group (2 units → each 1 unit). Achieved by
+            // making Title and the X/Y container each take half the row, then
+            // X and Y share that half equally: 2:1:1.
             HStack(spacing: 12) {
                 LabelOverrideField(
                     label: "Title",
@@ -122,35 +133,40 @@ private struct RSMHeatmapPlotControlsPanel: View {
                     currentValue: titleOverride,
                     sourceResetToken: sourceResetToken,
                     onCommit: { onTitleOverride($0) },
-                    fieldMaxWidth: 220
+                    fieldMaxWidth: .infinity
                 )
-                LabelOverrideField(
-                    label: "X",
-                    renderedDefault: renderedXLabel,
-                    currentValue: xLabelOverride,
-                    sourceResetToken: sourceResetToken,
-                    onCommit: { onXLabelOverride($0) },
-                    fieldMaxWidth: 90
-                )
-                LabelOverrideField(
-                    label: "Y",
-                    renderedDefault: renderedYLabel,
-                    currentValue: yLabelOverride,
-                    sourceResetToken: sourceResetToken,
-                    onCommit: { onYLabelOverride($0) },
-                    fieldMaxWidth: 90
-                )
+                .frame(maxWidth: .infinity)
+                HStack(spacing: 8) {
+                    LabelOverrideField(
+                        label: "X",
+                        renderedDefault: renderedXLabel,
+                        currentValue: xLabelOverride,
+                        sourceResetToken: sourceResetToken,
+                        onCommit: { onXLabelOverride($0) },
+                        fieldMaxWidth: .infinity
+                    )
+                    .frame(maxWidth: .infinity)
+                    LabelOverrideField(
+                        label: "Y",
+                        renderedDefault: renderedYLabel,
+                        currentValue: yLabelOverride,
+                        sourceResetToken: sourceResetToken,
+                        onCommit: { onYLabelOverride($0) },
+                        fieldMaxWidth: .infinity
+                    )
+                    .frame(maxWidth: .infinity)
+                }
+                .frame(maxWidth: .infinity)
             }
-            HStack(spacing: 12) {
-                LabelOverrideField(
-                    label: "Z",
-                    renderedDefault: renderedZLabel,
-                    currentValue: zLabelOverride,
-                    sourceResetToken: sourceResetToken,
-                    onCommit: { onZLabelOverride($0) },
-                    fieldMaxWidth: 220
-                )
-            }
+            LabelOverrideField(
+                label: "Z",
+                renderedDefault: renderedZLabel,
+                currentValue: zLabelOverride,
+                sourceResetToken: sourceResetToken,
+                onCommit: { onZLabelOverride($0) },
+                fieldMaxWidth: .infinity
+            )
+            .frame(maxWidth: .infinity)
         }
     }
 
