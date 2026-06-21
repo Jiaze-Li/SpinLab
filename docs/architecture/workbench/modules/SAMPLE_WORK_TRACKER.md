@@ -95,7 +95,7 @@ Status is derived from two counts per `(sampleKey, workflowCanonicalID)`:
 | Term | Definition |
 |------|-----------|
 | `fileCount` | Distinct `sourceFilePath` values among hits for this `(sampleKey, workflowCanonicalID)` pair |
-| `chartLinkedFileCount` | Number of those source files that appear in `MeasurementPlotIndex.entries` for this `sampleKey` |
+| `chartLinkedFileCount` | Count of source-file basenames for this `sampleKey × workflowID` that appear as keys in `MeasurementPlotIndex.entries` |
 
 Status rules (evaluated top-to-bottom, first match wins):
 
@@ -115,10 +115,13 @@ means no chart has been saved yet.
 
 **Chart key enumeration:** `MeasurementPlotIndex.entries` maps source file name →
 `[chartIdentityKey]`. The tracker does not need the chart identity keys themselves in the
-MVP; it only needs to know whether a source file appears as a key in `entries`. Do not
-call `allChartKeys()` if it does not already exist on the type. Compute
-`chartLinkedFileCount` as `entries.keys.count` (after normalising file name to match
-`hit.sourceFilePath` basename).
+MVP; it only needs to know whether a source file appears as a key in `entries`.
+
+**Scoping requirement:** filter `entries` to only the basenames that belong to this
+`(sampleKey, workflowID)` pair before counting. Do **not** use `entries.keys.count`
+directly — a sample can have multiple workflows, and the plot index may contain
+chart-linked files from other workflows for the same `sampleKey`. Only count basenames
+that also appear in the `fileCount` set for this specific `workflowID`.
 
 ---
 
@@ -181,13 +184,17 @@ The tracker must never:
 
 ## UI Mount Point
 
-The tracker UI replaces the existing empty Measurements placeholder in the Workbench
-main board layout. It does not invent a new navigation shell or app window.
+The tracker UI mounts in the Workbench root Measurements section, switched by
+`WorkbenchView`, replacing the existing Measurements placeholder. It is a Workbench
+root/common panel — **not** an injection into `WorkflowWorkspaceShell`. It does not
+invent a new navigation shell or app window.
 
-The panel lives in `WorkflowWorkspaceShell`'s Measurements injection point (or whichever
-named slot `MAIN_BOARD_LAYOUT.md` designates for common capability panels). It must use
-`WorkbenchUIStyle` tokens for spacing, typography, and colour — no custom design
-language.
+If a later implementation explicitly relocates the panel into a workspace shell injection
+point, update this section at that time. Until then, `WorkflowWorkspaceShell` is not
+the mount host.
+
+The panel must use `WorkbenchUIStyle` tokens for spacing, typography, and colour — no
+custom design language.
 
 ---
 
@@ -197,16 +204,18 @@ The tracker is a **Workbench common read-model module**, independent of any sing
 workflow search panel. It refreshes from all Library sidecars, not from a per-workflow
 search result set.
 
-Refresh is triggered by:
+Refresh is triggered by (MVP):
 
-1. **Manual user action** — "Refresh" button in the tracker panel (primary MVP trigger)
-2. **After chart save** — when a chart is saved to Library, the tracker is notified via
-   the existing save-completion path and recomputes the affected `sampleKey × workflowID`
-   status cell
-3. **On module mount** — when the Measurements panel first becomes visible
+1. **On module mount** — when the Measurements panel first becomes visible
+2. **Manual user action** — "Refresh" button in the tracker panel
 
 The tracker does **not** auto-refresh on every search query in the workflow panels. Those
 panels have independent state; their completion is not a tracker trigger.
+
+Post-chart-save affected-cell refresh is **deferred to phase 2**. It requires hooking
+into the workflow save-completion notification path; that integration should only be
+added when an existing clean notification can be reused without touching workflow save
+internals.
 
 ---
 
@@ -237,7 +246,7 @@ The tracker must not:
   + refresh state, wired into `WorkbenchFeatureStore` as a lazy private var)
 - UI: `WorkbenchMeasurementsPanel` (summary table; rows = samples, columns = workflow
   definitions; status badge + file count per cell)
-- Refresh: manual refresh button + post-chart-save notification
+- Refresh: on module mount + manual refresh button
 - Unknown workflow warning annotation on sample rows
 - Unknown sampleKey / empty-key bucket row
 
@@ -249,6 +258,7 @@ The tracker must not:
   `sampleKey::workflowID`; file-level overrides only for exceptions. Not in MVP.
 - **Drilldown**: tapping a sample row expands to show per-workflow file list.
 - **Analyze selected bridge**: full implementation (UI + Main Board handoff method).
+- **Post-chart-save affected-cell refresh**: hook into save-completion notification; deferred until a clean notification path exists without touching workflow save internals.
 - **Auto-refresh on Library file-system changes**: FSEvent-based invalidation.
 - **Per-cell chart thumbnail preview**: once drilldown exists.
 - **Export / reporting**: out of scope indefinitely until explicitly requested.
