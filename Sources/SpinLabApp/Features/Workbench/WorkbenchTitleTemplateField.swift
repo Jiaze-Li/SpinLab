@@ -13,10 +13,11 @@ struct WorkbenchTitleTemplateField: View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 4) {
                 Text("Title")
-                    .font(.body)
+                    .font(WorkbenchUIStyle.controlLabelFont)
+                    .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
                 TextField("#tab #device #sample", text: $titleTemplate)
                     .textFieldStyle(.roundedBorder)
-                    .font(.body)
+                    .font(WorkbenchUIStyle.controlValueFont)
                     .onChange(of: titleTemplate) { _, _ in
                         onChange?()
                     }

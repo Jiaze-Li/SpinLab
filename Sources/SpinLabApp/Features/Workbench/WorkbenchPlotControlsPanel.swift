@@ -22,7 +22,9 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
                 content()
                 // Shell-level: render mode + tick density in one row
                 HStack(spacing: 8) {
-                    Text("Draw").font(.system(size: 12))
+                    Text("Draw")
+                        .font(WorkbenchUIStyle.controlLabelFont)
+                        .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
                     Picker("", selection: $seriesRenderMode) {
                         Text("Line").tag(SeriesRenderMode.line)
                         Text("Scatter").tag(SeriesRenderMode.scatter)
@@ -32,7 +34,10 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
                     .pickerStyle(.segmented)
                     .onChange(of: seriesRenderMode) { _, _ in onStyleChange?() }
                     Spacer(minLength: 8)
-                    Text("Ticks").font(.system(size: 12)).fixedSize()
+                    Text("Ticks")
+                        .font(WorkbenchUIStyle.controlLabelFont)
+                        .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                        .fixedSize()
                     tickDensityStepper(label: "X", key: "tickTargetX", fallback: 6)
                     tickDensityStepper(label: "Y", key: "tickTargetY", fallback: 5)
                 }
@@ -47,16 +52,12 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
     @ViewBuilder
     private var fontSizeRow: some View {
         HStack(spacing: 10) {
-            Text("Size").font(.system(size: 12)).fixedSize()
-            ForEach([
-                ("Title", "titleFontSize"),
-                ("Axis",  "axisTitleFontSize"),
-                ("Ticks", "tickLabelFontSize"),
-                ("Legend","legendFontSize"),
-                ("Point", "pointLabelFontSize"),
-            ], id: \.1) { label, key in
-                fontSizePicker(label: label, key: key)
-            }
+            SharedPlotFontSizeControls(
+                globalPlotDefaults: $globalPlotDefaults,
+                onStyleChange: onStyleChange
+            )
+            fontSizePicker(label: "Legend", key: "legendFontSize")
+            fontSizePicker(label: "Point", key: "pointLabelFontSize")
         }
     }
 
@@ -87,7 +88,10 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
     private func tickDensityStepper(label: String, key: String, fallback: Int) -> some View {
         let current = chartStyleOverrides[key].flatMap { Int($0) } ?? fallback
         HStack(spacing: 4) {
-            Text(label).font(.system(size: 12)).fixedSize()
+            Text(label)
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                .fixedSize()
             Stepper(
                 value: Binding<Int>(
                     get: { current },
@@ -98,7 +102,9 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
                 ),
                 in: 2...20
             ) {
-                Text("\(current)").font(.system(size: 12)).frame(width: 20)
+                Text("\(current)")
+                    .font(WorkbenchUIStyle.controlValueFont)
+                    .frame(width: 20)
             }
             .frame(width: 90)
         }

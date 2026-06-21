@@ -46,6 +46,43 @@ private func loadWorkbenchSource(_ filename: String) throws -> String {
     return try String(contentsOf: url, encoding: .utf8)
 }
 
+// MARK: - Suite 0: Shared plot text controls are reusable
+
+@Suite("V7.8C shared plot text controls")
+struct V78CSharedPlotTextControlsTests {
+
+    @Test("SharedPlotTextControls.swift defines Title/X/Y fields")
+    func sharedTextControlsDefinesFields() throws {
+        let source = try loadWorkbenchSource("SharedPlotTextControls.swift")
+        #expect(source.contains("label: \"Title\""))
+        #expect(source.contains("label: \"X\""))
+        #expect(source.contains("label: \"Y\""))
+    }
+
+    @Test("SharedPlotTextControls.swift uses proportional 3:1:1 weights")
+    func sharedTextControlsUsesProportions() throws {
+        let source = try loadWorkbenchSource("SharedPlotTextControls.swift")
+        #expect(source.contains("plotControlWeight(3)"))
+        #expect(source.contains("plotControlWeight(1)"))
+        #expect(source.contains(".frame(maxWidth: .infinity)"))
+    }
+
+    @Test("SharedPlotFontSizeControls.swift owns title/axis/tick font sizes")
+    func sharedFontSizeControlsOwnsSharedSizes() throws {
+        let source = try loadWorkbenchSource("SharedPlotFontSizeControls.swift")
+        #expect(source.contains("titleFontSize"))
+        #expect(source.contains("axisTitleFontSize"))
+        #expect(source.contains("tickLabelFontSize"))
+    }
+
+    @Test("SharedPlotTextControls.swift defines OptionalPlotZLabelControl")
+    func optionalZLabelControlExists() throws {
+        let source = try loadWorkbenchSource("SharedPlotTextControls.swift")
+        #expect(source.contains("OptionalPlotZLabelControl"))
+        #expect(source.contains("label: \"Z\""))
+    }
+}
+
 // MARK: - Suite 1: AHE uses custom plot controls path
 
 @Suite("V7.8C AHE custom plot controls path")
@@ -99,6 +136,13 @@ struct V78CAHEPlotControlsPathTests {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
         #expect(source.contains("globalPlotDefaults: $workbench.globalPlotDefaults"),
                 "AHE custom plot controls path must bind the shared globalPlotDefaults")
+    }
+
+    @Test("AHEWorkspaceView.swift uses SharedPlotTextControls")
+    func aheUsesSharedTextControls() throws {
+        let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
+        #expect(source.contains("SharedPlotTextControls"),
+                "AHE must reuse the shared title/X/Y row rather than owning a separate layout")
     }
 
     // INV-AHE-6: AHE custom path exposes a legend rename UI path
@@ -213,6 +257,22 @@ struct V78CXYPlotControlsPathTests {
         let source = try loadWorkbenchSource("XYRotationWorkspaceView.swift")
         #expect(source.contains("minGapFraction: $bindableStore.minGapFraction"),
                 "XY must pass minGapFraction binding to WorkbenchStandardPlotControls (min-gap field)")
+    }
+
+    @Test("WorkbenchStandardPlotControls.swift uses SharedPlotTextControls")
+    func standardControlsUsesSharedTextControls() throws {
+        let source = try loadWorkbenchSource("WorkbenchStandardPlotControls.swift")
+        #expect(source.contains("SharedPlotTextControls"),
+                "The standard workflow controls must reuse the shared title/X/Y component")
+    }
+
+    @Test("WorkbenchStandardPlotControls.swift does not show heatmap-only Z/colorbar controls")
+    func standardControlsDoesNotShowZControls() throws {
+        let source = try loadWorkbenchSource("WorkbenchStandardPlotControls.swift")
+        #expect(!source.contains("OptionalPlotZLabelControl"),
+                "Ordinary Cartesian XY controls must not mount the optional Z/colorbar label control")
+        #expect(!source.contains("Color Scale"),
+                "Ordinary Cartesian XY controls must not expose heatmap color scale controls")
     }
 
     // INV-XY-9..11: XY workflow-specific controls are present in the view file
@@ -517,27 +577,17 @@ struct V78CRSMPlotControlsPathTests {
                 "RSM must not use the XY-specific WorkbenchStandardPlotControls container")
     }
 
-    @Test("RSMWorkspaceView.swift exposes heatmap color scale and shared label overrides")
+    @Test("RSMWorkspaceView.swift composes shared and optional plot controls")
     func rsmExposesHeatmapControls() throws {
         let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
         #expect(source.contains("Text(\"Color Scale\")"),
                 "RSM heatmap controls must expose a Color Scale picker")
-        // Check for LabelOverrideField presence without brittle indentation matching;
-        // the 2:1:1 layout nests X/Y in a sub-HStack at deeper indentation.
-        #expect(source.contains("label: \"Title\""),
-                "RSM heatmap controls must expose title override input")
-        #expect(source.contains("label: \"X\""),
-                "RSM heatmap controls must expose X label override input")
-        #expect(source.contains("label: \"Y\""),
-                "RSM heatmap controls must expose Y label override input")
-        #expect(source.contains("label: \"Z\""),
-                "RSM heatmap controls must expose Z/colorbar label override input")
-        #expect(source.contains("titleFontSize"),
-                "RSM heatmap controls must expose shared title font size controls")
-        #expect(source.contains("axisTitleFontSize"),
-                "RSM heatmap controls must expose shared axis font size controls")
-        #expect(source.contains("tickLabelFontSize"),
-                "RSM heatmap controls must expose shared tick font size controls")
+        #expect(source.contains("SharedPlotTextControls"),
+                "RSM heatmap controls must use the shared title/X/Y component")
+        #expect(source.contains("OptionalPlotZLabelControl"),
+                "RSM heatmap controls must mount the optional Z/colorbar label control")
+        #expect(source.contains("SharedPlotFontSizeControls"),
+                "RSM heatmap controls must use the shared title/axis/tick font controls")
     }
 
     // INV-RSM-PL-1: GroupBox fills available width
@@ -548,13 +598,23 @@ struct V78CRSMPlotControlsPathTests {
                 "RSMHeatmapPlotControlsPanel must apply .frame(maxWidth: .infinity) so the box fills the row")
     }
 
-    // INV-RSM-PL-2: 2:1:1 proportional layout (Title gets double share of X/Y)
-    @Test("RSMWorkspaceView.swift uses nested HStack for 2:1:1 Title/X/Y proportions")
+    // INV-RSM-PL-2: Shared text layout owns 3:1:1 proportions
+    @Test("SharedPlotTextControls.swift uses weighted 3:1:1 Title/X/Y proportions")
     func rsmProportionalTitleLayout() throws {
+        let source = try loadWorkbenchSource("SharedPlotTextControls.swift")
+        #expect(source.contains("plotControlWeight(3)"),
+                "Title must receive the larger weight in the shared text row")
+        #expect(source.contains("plotControlWeight(1)"),
+                "X/Y must each receive the same unit weight in the shared text row")
+    }
+
+    @Test("RSMWorkspaceView.swift no longer hardcodes Title/X/Y field widths")
+    func rsmDoesNotHardcodeTextFieldWidths() throws {
         let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
-        // The 2:1:1 implementation wraps X and Y in a sub-HStack that shares the row with Title
-        #expect(source.contains("fieldMaxWidth: .infinity"),
-                "Label override fields must use flexible widths (fieldMaxWidth: .infinity) for proportional layout")
+        #expect(!source.contains("fieldMaxWidth: 200"),
+                "RSM heatmap controls must not hardcode a wider Title field")
+        #expect(!source.contains("fieldMaxWidth: 80"),
+                "RSM heatmap controls must not hardcode narrower X/Y fields")
     }
 
     // INV-RSM-PL-3: Color Scale label uses primary foreground (not secondary)
@@ -564,8 +624,8 @@ struct V78CRSMPlotControlsPathTests {
         // Must not use .secondary for the Color Scale label
         #expect(!source.contains("\"Color Scale\")\n                .font(.system(size: 12))\n                .foregroundStyle(.secondary)"),
                 "Color Scale label must not use .secondary foreground — control labels must be primary")
-        #expect(source.contains(".foregroundStyle(.primary)"),
-                "RSM controls must use .foregroundStyle(.primary) for at least one active control label")
+        #expect(source.contains("WorkbenchUIStyle.primaryTextColor"),
+                "RSM controls must use primary text styling for active control labels")
     }
 
     // INV-RSM-PL-4: Default Z label for "Detector" column normalizes to publication standard

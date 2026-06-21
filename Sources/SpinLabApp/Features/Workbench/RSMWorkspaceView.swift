@@ -18,8 +18,8 @@ struct RSMWorkspaceView: View, WorkflowWorkspaceProvider {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
                         Text("View")
-                            .font(.caption)
-                            .foregroundStyle(.primary)
+                            .font(WorkbenchUIStyle.controlLabelFont)
+                            .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
                         Picker("", selection: $bindableStore.activeView) {
                             ForEach(RSMView.allCases, id: \.self) { view in
                                 Text(view.rawValue.uppercased()).tag(view)
@@ -95,8 +95,28 @@ private struct RSMHeatmapPlotControlsPanel: View {
         GroupBox("Plot Controls") {
             VStack(alignment: .leading, spacing: 8) {
                 colorScaleRow
-                labelOverridesRow
-                fontSizeRow
+                SharedPlotTextControls(
+                    titleOverride: titleOverride,
+                    xLabelOverride: xLabelOverride,
+                    yLabelOverride: yLabelOverride,
+                    renderedTitle: renderedTitle,
+                    renderedXLabel: renderedXLabel,
+                    renderedYLabel: renderedYLabel,
+                    sourceResetToken: sourceResetToken,
+                    onTitleOverride: onTitleOverride,
+                    onXLabelOverride: onXLabelOverride,
+                    onYLabelOverride: onYLabelOverride
+                )
+                OptionalPlotZLabelControl(
+                    renderedDefault: renderedZLabel,
+                    currentValue: zLabelOverride,
+                    sourceResetToken: sourceResetToken,
+                    onCommit: onZLabelOverride
+                )
+                SharedPlotFontSizeControls(
+                    globalPlotDefaults: $globalPlotDefaults,
+                    onStyleChange: onStyleChange
+                )
             }
             .padding(.vertical, 4)
         }
@@ -106,8 +126,8 @@ private struct RSMHeatmapPlotControlsPanel: View {
     private var colorScaleRow: some View {
         HStack(spacing: 8) {
             Text("Color Scale")
-                .font(.system(size: 12))
-                .foregroundStyle(.primary)
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
             Picker("", selection: Binding<HeatmapColorScaleMode>(
                 get: { colorScaleMode },
                 set: { onColorScaleModeChange($0) }
@@ -118,90 +138,6 @@ private struct RSMHeatmapPlotControlsPanel: View {
             .labelsHidden()
             .pickerStyle(.segmented)
             .frame(maxWidth: 160)
-        }
-    }
-
-    private var labelOverridesRow: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // Title (2 units) | X+Y group (2 units → each 1 unit). Achieved by
-            // making Title and the X/Y container each take half the row, then
-            // X and Y share that half equally: 2:1:1.
-            HStack(spacing: 12) {
-                LabelOverrideField(
-                    label: "Title",
-                    renderedDefault: renderedTitle,
-                    currentValue: titleOverride,
-                    sourceResetToken: sourceResetToken,
-                    onCommit: { onTitleOverride($0) },
-                    fieldMaxWidth: .infinity
-                )
-                .frame(maxWidth: .infinity)
-                HStack(spacing: 8) {
-                    LabelOverrideField(
-                        label: "X",
-                        renderedDefault: renderedXLabel,
-                        currentValue: xLabelOverride,
-                        sourceResetToken: sourceResetToken,
-                        onCommit: { onXLabelOverride($0) },
-                        fieldMaxWidth: .infinity
-                    )
-                    .frame(maxWidth: .infinity)
-                    LabelOverrideField(
-                        label: "Y",
-                        renderedDefault: renderedYLabel,
-                        currentValue: yLabelOverride,
-                        sourceResetToken: sourceResetToken,
-                        onCommit: { onYLabelOverride($0) },
-                        fieldMaxWidth: .infinity
-                    )
-                    .frame(maxWidth: .infinity)
-                }
-                .frame(maxWidth: .infinity)
-            }
-            LabelOverrideField(
-                label: "Z",
-                renderedDefault: renderedZLabel,
-                currentValue: zLabelOverride,
-                sourceResetToken: sourceResetToken,
-                onCommit: { onZLabelOverride($0) },
-                fieldMaxWidth: .infinity
-            )
-            .frame(maxWidth: .infinity)
-        }
-    }
-
-    private var fontSizeRow: some View {
-        let style = WorkbenchChartStyle.from(styleParams: globalPlotDefaults)
-        return HStack(spacing: 10) {
-            Text("Size")
-                .font(.system(size: 12))
-                .fixedSize()
-            heatmapFontSizePicker(label: "Title", key: "titleFontSize", current: style.titleFontSize)
-            heatmapFontSizePicker(label: "Axis", key: "axisTitleFontSize", current: style.axisTitleFontSize)
-            heatmapFontSizePicker(label: "Ticks", key: "tickLabelFontSize", current: style.tickLabelFontSize)
-        }
-    }
-
-    @ViewBuilder
-    private func heatmapFontSizePicker(label: String, key: String, current: CGFloat) -> some View {
-        let options: [CGFloat] = [12, 14, 16, 18, 19, 20, 22, 24, 25, 28, 32]
-        HStack(spacing: 2) {
-            Text(label)
-                .font(.system(size: 12))
-                .fixedSize()
-            Picker("", selection: Binding<CGFloat>(
-                get: { globalPlotDefaults[key].flatMap { Double($0).map { CGFloat($0) } } ?? current },
-                set: { newValue in
-                    globalPlotDefaults[key] = "\(Int(newValue))"
-                    onStyleChange()
-                }
-            )) {
-                ForEach(options, id: \.self) { value in
-                    Text("\(Int(value))").tag(value)
-                }
-            }
-            .labelsHidden()
-            .frame(width: 58)
         }
     }
 }

@@ -169,6 +169,8 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
     - `Sources/SpinLabApp/Features/Workbench/PlotCanvasMouseTracker.swift`
     - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift`
     - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift`
+    - `Sources/SpinLabApp/Features/Workbench/SharedPlotTextControls.swift`
+    - `Sources/SpinLabApp/Features/Workbench/SharedPlotFontSizeControls.swift`
     - `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift`
     - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift` — defines `WorkbenchPlottingStore` (interaction-only), `WorkbenchCartesianXYPlottingStore` (Cartesian XY state), `WorkbenchGlobalPlotDefaultsProviding` (shared font defaults)
     - `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift`
@@ -299,6 +301,8 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
   - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift`
   - `Sources/SpinLabApp/Features/Workbench/WorkbenchTitleTemplateField.swift`
   - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift`
+  - `Sources/SpinLabApp/Features/Workbench/SharedPlotTextControls.swift`
+  - `Sources/SpinLabApp/Features/Workbench/SharedPlotFontSizeControls.swift`
   - `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift`
   - `Sources/SpinLabApp/Workbench/V3/WorkbenchRenderPipeline.swift`
   - `Sources/SpinLabApp/UseCases/WorkbenchTitleResolver.swift`
