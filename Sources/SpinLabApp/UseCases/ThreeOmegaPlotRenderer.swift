@@ -8,6 +8,11 @@ import Foundation
 
 struct ThreeOmegaPlotRenderer {
 
+    // MARK: - Scaling-law axis labels
+
+    static let scalingXAxisLabel = #"latex:\sigma_{xx}^{2}\;(10^{7}\,\mathrm{S}^{2}/\mathrm{cm}^{2})"#
+    static let scalingYAxisLabel = #"latex:\frac{E_{\mathrm{AHE}}^{(3\omega)}}{E_{xx}^{3}\cdot\sigma_{xx}}\times10^{2};(\Omega\cdot\mu\mathrm{m}^{3}\cdot\mathrm{V}^{-2})"#
+
     var showGrid: Bool = true
     var legendAnchor: String = ""           // "" = top-right (default)
     var legendPoint: CGPoint? = nil         // normalized free-position; overrides anchor
@@ -339,8 +344,8 @@ struct ThreeOmegaPlotRenderer {
             // Formula: Y = E^(3ω)_AHE / (E_xx³ × σ_xx) = α·σ²_xx + β
             // β → Q_xxz Berry curvature quadrupole; E_xx³ = E_xx to the power 3
             axisMapping: WorkbenchAxisMapping(
-                xField: "latex:\\sigma_{xx}^{2}\\;(10^{7}\\,\\mathrm{S}^{2}/\\mathrm{cm}^{2})",
-                yField: "latex:\\frac{E_{\\mathrm{AHE}}^{(3\\omega)}}{E_{xx}^{3}\\cdot\\sigma_{xx}}\\times10^{2}\\;(\\Omega\\cdot\\mu\\mathrm{m}^{3}\\cdot\\mathrm{V}^{-2})"
+                xField: Self.scalingXAxisLabel,
+                yField: Self.scalingYAxisLabel
             ),
             series: series
         )
