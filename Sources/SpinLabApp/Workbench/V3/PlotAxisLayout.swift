@@ -60,6 +60,23 @@ struct PlotTextMeasurer {
         return CTFontGetCapHeight(font)
     }
 
+    static func measuredMathMarkupHeight(
+        _ text: String,
+        fontSize: CGFloat,
+        fontName: String
+    ) -> CGFloat {
+        guard !text.isEmpty else { return 0 }
+        var style = WorkbenchChartStyle()
+        style.fontName = fontName
+        let line = MathMarkupRenderer.makeLine(
+            text: text,
+            size: fontSize,
+            color: CGColor(red: 0, green: 0, blue: 0, alpha: 1),
+            style: style
+        )
+        return max(0, CTLineGetBoundsWithOptions(line, []).height)
+    }
+
     static func maxTickLabelWidth(
         _ tickLabels: [String],
         fontSize: CGFloat,
@@ -163,7 +180,8 @@ struct PlotAxisSpacingCalculator {
         tickToPlotGap: CGFloat,
         baseLeftPadding: CGFloat,
         maxSideInset: CGFloat? = nil,
-        titleCenterBias: CGFloat = 0.38
+        titleCenterBias: CGFloat = 0.38,
+        mathLabelSizeOverride: CGSize? = nil
     ) -> PlotYAxisLaneLayout {
         let axisTitleTextWidth = PlotTextMeasurer.measuredWidth(
             axisTitleText,
@@ -173,15 +191,23 @@ struct PlotAxisSpacingCalculator {
             boldFontName: axisTitleBoldFontName
         )
         // The Y-axis title is drawn rotated 90°. Its horizontal footprint equals
-        // the font line height, not the unrotated label width.
-        let axisTitleRotatedHorizontalFootprint = axisTitleText.isEmpty
-            ? 0
-            : PlotTextMeasurer.measuredLineHeight(
+        // the label's rendered height (which becomes the horizontal dimension after rotation).
+        // For math markup, measure the rendered math line height; otherwise use font line height.
+        let axisTitleRotatedHorizontalFootprint: CGFloat
+        if axisTitleText.isEmpty {
+            axisTitleRotatedHorizontalFootprint = 0
+        } else if MathMarkupRenderer.isMathLabel(axisTitleText) {
+            let mathText = MathMarkupRenderer.extractMathMarkup(axisTitleText)
+            axisTitleRotatedHorizontalFootprint = mathLabelSizeOverride?.height ??
+                PlotTextMeasurer.measuredMathMarkupHeight(mathText, fontSize: axisTitleFontSize, fontName: axisTitleFontName)
+        } else {
+            axisTitleRotatedHorizontalFootprint = PlotTextMeasurer.measuredLineHeight(
                 fontSize: axisTitleFontSize,
                 fontName: axisTitleFontName,
                 bold: axisTitleBold,
                 boldFontName: axisTitleBoldFontName
             )
+        }
         let axisTitleLaneWidth = axisTitleTextWidth > 0
             ? max(axisTitleRotatedHorizontalFootprint, minimumAxisTitleLane)
             : 0
@@ -231,7 +257,8 @@ struct PlotAxisSpacingCalculator {
         tickToPlotGap: CGFloat,
         baseBottomPadding: CGFloat,
         maxSideInset: CGFloat? = nil,
-        titleCenterBias: CGFloat = 0.58
+        titleCenterBias: CGFloat = 0.58,
+        mathLabelSizeOverride: CGSize? = nil
     ) -> PlotXAxisLaneLayout {
         let maxTickLabelWidth = PlotTextMeasurer.maxTickLabelWidth(
             tickLabels,
@@ -247,10 +274,17 @@ struct PlotAxisSpacingCalculator {
             bold: axisTitleBold,
             boldFontName: axisTitleBoldFontName
         )
-        // The X-axis title lane height equals the font line height for text/markup labels.
+        // For math markup and text labels it equals the rendered text height.
         let axisTitleLaneHeight: CGFloat
         if axisTitleText.isEmpty {
             axisTitleLaneHeight = 0
+        } else if MathMarkupRenderer.isMathLabel(axisTitleText) {
+            let mathText = MathMarkupRenderer.extractMathMarkup(axisTitleText)
+            axisTitleLaneHeight = max(
+                mathLabelSizeOverride?.height ??
+                    PlotTextMeasurer.measuredMathMarkupHeight(mathText, fontSize: axisTitleFontSize, fontName: axisTitleFontName),
+                minimumAxisTitleLane
+            )
         } else {
             axisTitleLaneHeight = max(PlotTextMeasurer.measuredLineHeight(
                 fontSize: axisTitleFontSize,

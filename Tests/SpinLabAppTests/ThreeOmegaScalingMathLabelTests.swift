@@ -12,7 +12,6 @@ struct ThreeOmegaScalingMathLabelTests {
     func scalingLawXLabelUsesMathPrefix() {
         let fullLabel = ThreeOmegaPlotRenderer.scalingXAxisLabel
         #expect(MathMarkupRenderer.isMathLabel(fullLabel))
-        #expect(!LatexAxisLabelRenderer.isLatexLabel(fullLabel))
         #expect(MathMarkupRenderer.extractMathMarkup(fullLabel) == expectedScalingXLabel)
     }
 
@@ -20,14 +19,13 @@ struct ThreeOmegaScalingMathLabelTests {
     func scalingLawYLabelUsesMathPrefix() {
         let fullLabel = ThreeOmegaPlotRenderer.scalingYAxisLabel
         #expect(MathMarkupRenderer.isMathLabel(fullLabel))
-        #expect(!LatexAxisLabelRenderer.isLatexLabel(fullLabel))
         #expect(MathMarkupRenderer.extractMathMarkup(fullLabel) == expectedScalingYLabel)
         #expect(!fullLabel.contains("(3ω)"))
         #expect(!fullLabel.contains("\\frac"))
     }
 
-    @Test("Scaling-law render path does not require LatexRenderService")
-    func renderScalingDoesNotRequireLatexService() {
+    @Test("Scaling-law render path still produces output")
+    func renderScalingProducesOutput() {
         let result = ThreeOmegaScalingResult(
             points: [
                 ThreeOmegaScalingPoint(

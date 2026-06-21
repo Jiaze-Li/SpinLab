@@ -88,7 +88,7 @@ final class V400WorkbenchPlotRendererTests: XCTestCase {
         XCTAssertEqual(layout.legendStyle.fontName, style.fontName)
     }
 
-    func testMathAxisLabelsRenderThroughMarkupPath() throws {
+    func testMathAxisLabelsRenderThroughMathMarkup() throws {
         let renderer = WorkbenchChartRenderer()
         let payload = WorkbenchPlotPayload(
             workflowID: "test",
@@ -103,8 +103,8 @@ final class V400WorkbenchPlotRendererTests: XCTestCase {
             ]
         )
 
-        _ = try renderer.renderPNG(payload: payload)
-
+        let data = try renderer.renderPNG(payload: payload)
+        XCTAssertFalse(data.isEmpty)
         XCTAssertEqual(
             PlotTextMeasurer.measuredWidth(
                 ThreeOmegaPlotRenderer.scalingXAxisLabel,
@@ -129,5 +129,19 @@ final class V400WorkbenchPlotRendererTests: XCTestCase {
                 fontName: WorkbenchChartStyle().fontName
             )
         )
+    }
+
+    func testWorkbenchChartRendererLatexBranchDoesNotFallbackToRawSource() throws {
+        let src = try String(
+            contentsOf: v400PlotRendererRepoRoot()
+                .appendingPathComponent("Sources/SpinLabApp/Workbench/V3/WorkbenchChartRenderer.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertFalse(src.contains("LatexAxisLabelRenderer"))
+        XCTAssertFalse(src.contains("LatexAxisLabelRendering"))
+        XCTAssertFalse(src.contains("raw LaTeX suppressed"))
+        XCTAssertFalse(src.contains("[LatexAxisLabel]"))
+        XCTAssertFalse(src.contains("latexAxisLabelRenderer"))
     }
 }
