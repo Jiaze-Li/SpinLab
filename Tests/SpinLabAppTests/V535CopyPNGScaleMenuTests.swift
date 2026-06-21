@@ -46,18 +46,18 @@ final class V535CopyPNGScaleMenuTests: XCTestCase {
         XCTAssertEqual(w3, base.width * 3)
     }
 
-    // MARK: - 2x fast path: same bytes as cached
+    // MARK: - Deterministic render output
 
-    func testTwoXFastPathMatchesCachedData() throws {
+    func testRenderPipelineIsDeterministicForIdenticalInput() throws {
         let payload = makePayload()
         var input = WorkbenchRenderPipeline.Input(payload: payload)
         input.pixelScaleOverride = 2
-        let cached = try WorkbenchRenderPipeline.render(input).imageData
+        let first = try WorkbenchRenderPipeline.render(input).imageData
 
-        // Simulate fast path: same pipeline at 2x should produce identical bytes.
-        let again = try WorkbenchRenderPipeline.render(input).imageData
-        XCTAssertEqual(cached, again,
-            "2x renders with identical input must produce deterministic bytes for fast-path caching.")
+        // Identical render input should produce identical PNG bytes.
+        let second = try WorkbenchRenderPipeline.render(input).imageData
+        XCTAssertEqual(first, second,
+            "Renders with identical input must produce deterministic PNG bytes.")
     }
 
     // MARK: - 1x and 3x produce different dims than 2x
