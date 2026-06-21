@@ -161,6 +161,11 @@ struct WorkbenchPlotLayout: Sendable {
     /// Hit rect for y-axis tick label area (left padding, between y-axis title and plot).
     let yTickHitRect:   CGRect
 
+    /// Shared X-axis ticks derived from PlotAxisLayoutPlan.
+    let xTicks:         [PlotAxisTick]
+    /// Shared Y-axis ticks derived from PlotAxisLayoutPlan.
+    let yTicks:         [PlotAxisTick]
+
     /// Explicit legend sizing and font metrics.
     let legendStyle:    LegendStyle
     let legendRows:     [LegendRow]
@@ -200,63 +205,16 @@ struct WorkbenchPlotLayout: Sendable {
     ) -> WorkbenchPlotLayout {
         let w = CGFloat(options.width)
         let h = CGFloat(options.height)
-        let plotRect = CGRect(
-            x: options.paddingLeft,
-            y: options.paddingBottom,
-            width:  w - options.paddingLeft - options.paddingRight,
-            height: h - options.paddingTop  - options.paddingBottom
-        )
-
-        // Title — centered on plot area (not whole image)
-        let titleCenter  = CGPoint(x: plotRect.midX, y: h - options.paddingTop * 0.45)
-        let titleHitRect = CGRect(
-            x: options.paddingLeft, y: h - options.paddingTop,
-            width: plotRect.width,  height: options.paddingTop * 0.9
-        )
-
-        // X axis label — centered on plot area (not whole image)
-        let xLabelCenter  = CGPoint(x: plotRect.midX, y: options.paddingBottom * 0.58)
-        let xLabelHitRect = CGRect(
-            x: options.paddingLeft, y: xLabelCenter.y - 14,
-            width: plotRect.width,  height: 28
-        )
-
-        // Y axis label (rotated 90°) — shared lane spacing primitive.
-        let yAxisLane = PlotAxisSpacingCalculator.yAxisLane(
-            maxTickLabelWidth: options.maxYTickLabelWidth,
-            axisTitleText: payload.axisMapping.yField,
-            axisTitleFontSize: style.axisTitleFontSize,
-            axisTitleFontName: style.fontName,
-            axisTitleBold: false,
-            axisTitleBoldFontName: style.boldFontName,
-            minimumAxisTitleLane: max(style.axisTitleFontSize * 1.25, 24),
-            titleToTickGap: 4,
-            tickToPlotGap: 5,
-            baseLeftPadding: options.paddingLeft,
-            maxSideInset: nil,
-            titleCenterBias: 0.38
-        )
-        let yLabelCenter  = CGPoint(x: yAxisLane.titleCenterX, y: plotRect.midY)
-        let hitWidth: CGFloat = 36  // fixed band around title center
-        let yLabelHitRect = CGRect(
-            x: max(0, yAxisLane.titleCenterX - hitWidth / 2), y: plotRect.minY,
-            width:  hitWidth,
-            height: plotRect.height
-        )
-
-        // Tick label hit rects — strip between axis edge and axis title
-        let xTickHitRect = CGRect(
-            x: plotRect.minX,
-            y: xLabelCenter.y + 14,    // above x-axis title
-            width: plotRect.width,
-            height: plotRect.minY - (xLabelCenter.y + 14)
-        )
-        let yTickHitRect = CGRect(
-            x: yAxisLane.titleCenterX + hitWidth / 2,  // right of y-axis title
-            y: plotRect.minY,
-            width: max(0, plotRect.minX - (yAxisLane.titleCenterX + hitWidth / 2)),
-            height: plotRect.height
-        )
+        let plan = PlotAxisLayoutPlan.compute(options: options, payload: payload, style: style)
+        let plotRect = plan.plotRect
+        let titleCenter = plan.titleCenter
+        let titleHitRect = plan.titleHitRect
+        let xLabelCenter = plan.xLabelCenter
+        let xLabelHitRect = plan.xLabelHitRect
+        let yLabelCenter = plan.yLabelCenter
+        let yLabelHitRect = plan.yLabelHitRect
+        let xTickHitRect = plan.xTickHitRect
+        let yTickHitRect = plan.yTickHitRect
 
         // Legend rows
         let legendStyle = LegendStyle.default(fontSize: style.legendFontSize, fontName: style.fontName)
@@ -335,6 +293,8 @@ struct WorkbenchPlotLayout: Sendable {
             yLabelHitRect: yLabelHitRect,
             xTickHitRect:  xTickHitRect,
             yTickHitRect:  yTickHitRect,
+            xTicks:        plan.xTicks,
+            yTicks:        plan.yTicks,
             legendStyle:   legendStyle,
             legendRows:    legendRows,
             pointDotHitTargets: pointDotHitTargets,

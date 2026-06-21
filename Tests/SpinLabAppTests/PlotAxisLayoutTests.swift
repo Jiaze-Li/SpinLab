@@ -238,7 +238,7 @@ struct PlotAxisLayoutTests {
         let preYMax = yRawMax + yRawSpan * 0.05
         let (preYTicks, preYStep) = testNiceTicks(min: preYMin, max: preYMax, targetCount: style.tickTargetY)
         let expectedMax = PlotTextMeasurer.maxTickLabelWidth(
-            preYTicks.map { renderer.formatTick($0, step: preYStep) },
+            preYTicks.map { PlotAxisSpacingCalculator.formatTick($0, step: preYStep) },
             fontSize: style.tickLabelFontSize,
             fontName: style.fontName,
             boldFontName: style.boldFontName
@@ -247,9 +247,84 @@ struct PlotAxisLayoutTests {
         #expect(layout.plotRect.width > 0)
         #expect(layout.plotRect.height > 0)
         #expect(layout.yLabelCenter.x < layout.yTickHitRect.minX || layout.yTickHitRect.width == 0)
+        #expect(!layout.xTicks.isEmpty)
+        #expect(!layout.yTicks.isEmpty)
+        #expect(layout.xTicks.first?.tickPoint.y == layout.plotRect.minY)
+        #expect(layout.xTicks[0].labelPoint.y < layout.plotRect.minY)
         #expect(layout.legendRows.count == payload.series.count)
         #expect(layout.pointDotHitTargets.count == payload.series[0].x.count)
         #expect(layout.pointLabelHitTargets.count == payload.series[0].x.count)
+    }
+
+    @Test("X-axis lane spacing responds to tick label width")
+    func xAxisLaneSpacingRespondsToTickLabelWidth() {
+        let style = WorkbenchChartStyle()
+        let short = PlotAxisSpacingCalculator.xAxisLane(
+            axisTitleText: "X",
+            tickLabels: ["1", "2"],
+            axisTitleFontSize: style.axisTitleFontSize,
+            axisTitleFontName: style.fontName,
+            axisTitleBold: false,
+            axisTitleBoldFontName: style.boldFontName,
+            tickLabelFontSize: style.tickLabelFontSize,
+            tickLabelFontName: style.fontName,
+            tickLabelBold: false,
+            tickLabelBoldFontName: style.boldFontName,
+            minimumAxisTitleLane: 24,
+            titleToTickGap: 4,
+            tickToPlotGap: 5,
+            baseBottomPadding: 88,
+            maxSideInset: 220
+        )
+        let long = PlotAxisSpacingCalculator.xAxisLane(
+            axisTitleText: "X",
+            tickLabels: ["12345", "678901234"],
+            axisTitleFontSize: style.axisTitleFontSize,
+            axisTitleFontName: style.fontName,
+            axisTitleBold: false,
+            axisTitleBoldFontName: style.boldFontName,
+            tickLabelFontSize: style.tickLabelFontSize,
+            tickLabelFontName: style.fontName,
+            tickLabelBold: false,
+            tickLabelBoldFontName: style.boldFontName,
+            minimumAxisTitleLane: 24,
+            titleToTickGap: 4,
+            tickToPlotGap: 5,
+            baseBottomPadding: 88,
+            maxSideInset: 220
+        )
+
+        #expect(short.maxTickLabelWidth < long.maxTickLabelWidth)
+        #expect(short.requiredBottomPadding >= 88)
+        #expect(short.titleCenterY < short.tickLabelCenterY)
+        #expect(long.titleCenterY < long.tickLabelCenterY)
+        #expect(short.tickLabelTopY <= short.requiredBottomPadding)
+    }
+
+    @Test("PlotAxisLayoutPlan exposes shared x and y ticks")
+    func plotAxisLayoutPlanExposesSharedTicks() {
+        let style = WorkbenchChartStyle()
+        let payload = WorkbenchPlotPayload(
+            workflowID: "plan",
+            workflowDisplayName: "Plan",
+            title: "Plan",
+            axisMapping: WorkbenchAxisMapping(xField: "X", yField: "Y"),
+            series: [
+                WorkbenchPlotSeries(label: "S", x: [0, 1, 2, 3], y: [1, 2, 1, 3])
+            ]
+        )
+        let opts = WorkbenchChartRenderer.Options()
+        let resolved = WorkbenchChartRenderer().resolvedOptions(payload: payload, base: opts, style: style)
+        let plan = PlotAxisLayoutPlan.compute(options: resolved, payload: payload, style: style)
+
+        #expect(plan.plotRect.width > 0)
+        #expect(plan.plotRect.height > 0)
+        #expect(plan.xTicks.count > 0)
+        #expect(plan.yTicks.count > 0)
+        #expect(plan.xTicks.allSatisfy { !$0.label.isEmpty })
+        #expect(plan.yTicks.allSatisfy { !$0.label.isEmpty })
+        #expect(plan.xTickHitRect.minY < plan.plotRect.minY)
+        #expect(plan.yTickHitRect.minX < plan.plotRect.minX || plan.yTickHitRect.width == 0)
     }
 
     @Test("Shared axis-spacing logic stays out of RSM-owned sources")
@@ -271,12 +346,16 @@ struct PlotAxisLayoutTests {
 
     @Test("Source uses the shared helper from both render paths")
     func sourceUsesSharedHelper() throws {
+        let plotAxisSource = try loadPlotAxisSource("Sources/SpinLabApp/Workbench/V3/PlotAxisLayout.swift")
         let xyRendererSource = try loadPlotAxisSource("Sources/SpinLabApp/Workbench/V3/WorkbenchChartRenderer.swift")
         let xyLayoutSource = try loadPlotAxisSource("Sources/SpinLabApp/Workbench/V3/WorkbenchPlotLayout.swift")
         let heatmapLayoutSource = try loadPlotAxisSource("Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapPlotLayout.swift")
 
         #expect(xyRendererSource.contains("PlotTextMeasurer.maxTickLabelWidth"))
-        #expect(xyLayoutSource.contains("PlotAxisSpacingCalculator.yAxisLane"))
+        #expect(plotAxisSource.contains("PlotAxisSpacingCalculator.yAxisLane"))
+        #expect(plotAxisSource.contains("PlotAxisSpacingCalculator.xAxisLane"))
+        #expect(plotAxisSource.contains("struct PlotAxisLayoutPlan"))
+        #expect(xyLayoutSource.contains("PlotAxisLayoutPlan.compute"))
         #expect(heatmapLayoutSource.contains("PlotAxisSpacingCalculator.yAxisLane"))
         #expect(heatmapLayoutSource.contains("PlotTextMeasurer.measuredWidth"))
         #expect(!heatmapLayoutSource.contains("CTLineCreateWithAttributedString"))
