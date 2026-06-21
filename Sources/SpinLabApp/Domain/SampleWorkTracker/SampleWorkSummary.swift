@@ -1,22 +1,23 @@
 import Foundation
 
 struct SampleWorkSummary: Hashable, Sendable, Identifiable {
-    let id: UUID
     let sampleKey: String
     let displayTitle: String
     let workflowRows: [WorkflowWorkSummary]
     let unknownWorkflowIDs: [String]
     let lastRefreshedAt: Date
 
+    var id: String {
+        sampleKey.isEmpty ? "__unknown_sample__" : sampleKey
+    }
+
     init(
-        id: UUID = UUID(),
         sampleKey: String,
         displayTitle: String,
         workflowRows: [WorkflowWorkSummary],
         unknownWorkflowIDs: [String],
         lastRefreshedAt: Date
     ) {
-        self.id = id
         self.sampleKey = sampleKey
         self.displayTitle = displayTitle
         self.workflowRows = workflowRows
@@ -26,7 +27,6 @@ struct SampleWorkSummary: Hashable, Sendable, Identifiable {
 }
 
 struct WorkflowWorkSummary: Hashable, Sendable, Identifiable {
-    let id: UUID
     let sampleKey: String
     let workflowID: String
     let workflowDisplayName: String
@@ -34,8 +34,11 @@ struct WorkflowWorkSummary: Hashable, Sendable, Identifiable {
     let chartLinkedFileCount: Int
     let status: SampleWorkStatus
 
+    var id: String {
+        "\(sampleKey.isEmpty ? "__unknown_sample__" : sampleKey)::\(workflowID)"
+    }
+
     init(
-        id: UUID = UUID(),
         sampleKey: String,
         workflowID: String,
         workflowDisplayName: String,
@@ -43,7 +46,6 @@ struct WorkflowWorkSummary: Hashable, Sendable, Identifiable {
         chartLinkedFileCount: Int,
         status: SampleWorkStatus
     ) {
-        self.id = id
         self.sampleKey = sampleKey
         self.workflowID = workflowID
         self.workflowDisplayName = workflowDisplayName
