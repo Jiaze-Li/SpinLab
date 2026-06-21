@@ -230,20 +230,6 @@ struct PlotAxisLayoutTests {
             style: style
         )
 
-        let allY = payload.series.flatMap(\.y)
-        let yRawMin = allY.min() ?? 0
-        let yRawMax = allY.max() ?? 0
-        let yRawSpan = yRawMax == yRawMin ? 1.0 : yRawMax - yRawMin
-        let preYMin = yRawMin - yRawSpan * 0.05
-        let preYMax = yRawMax + yRawSpan * 0.05
-        let (preYTicks, preYStep) = testNiceTicks(min: preYMin, max: preYMax, targetCount: style.tickTargetY)
-        let expectedMax = PlotTextMeasurer.maxTickLabelWidth(
-            preYTicks.map { PlotAxisSpacingCalculator.formatTick($0, step: preYStep) },
-            fontSize: style.tickLabelFontSize,
-            fontName: style.fontName,
-            boldFontName: style.boldFontName
-        )
-        #expect(abs(resolved.maxYTickLabelWidth - expectedMax) < 0.0001)
         #expect(layout.plotRect.width > 0)
         #expect(layout.plotRect.height > 0)
         #expect(layout.yLabelCenter.x < layout.yTickHitRect.minX || layout.yTickHitRect.width == 0)
@@ -327,6 +313,28 @@ struct PlotAxisLayoutTests {
         #expect(plan.yTickHitRect.minX < plan.plotRect.minX || plan.yTickHitRect.width == 0)
     }
 
+    @Test("PlotAxisLayoutPlan.compute determines plotRect.minX from axis lane, not raw paddingLeft")
+    func plotAxisLayoutPlanDeterminesPlotRectFromAxisLane() {
+        var opts = WorkbenchChartRenderer.Options()
+        opts.paddingLeft = 10  // intentionally small to force the computed lane to dominate
+
+        let payload = WorkbenchPlotPayload(
+            workflowID: "plan",
+            workflowDisplayName: "Plan",
+            title: "AxisLaneOwnership",
+            axisMapping: WorkbenchAxisMapping(xField: "X", yField: "Y"),
+            series: [
+                WorkbenchPlotSeries(label: "S", x: [0, 1], y: [2.0e-4, 2.5e-4])
+            ]
+        )
+        let plan = PlotAxisLayoutPlan.compute(options: opts, payload: payload)
+
+        // The Y-lane must expand beyond paddingLeft=10 to accommodate tick labels + axis title.
+        #expect(plan.plotRect.minX > opts.paddingLeft,
+                "plotRect.minX must come from the computed Y axis lane, not from raw paddingLeft")
+        #expect(plan.yAxisLane.requiredLeftPadding == plan.plotRect.minX)
+    }
+
     @Test("Shared axis-spacing logic stays out of RSM-owned sources")
     func axisSpacingLogicStaysOutOfRSM() throws {
         let rsmDirectory = plotAxisLayoutRepoRoot()
@@ -351,7 +359,9 @@ struct PlotAxisLayoutTests {
         let xyLayoutSource = try loadPlotAxisSource("Sources/SpinLabApp/Workbench/V3/WorkbenchPlotLayout.swift")
         let heatmapLayoutSource = try loadPlotAxisSource("Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapPlotLayout.swift")
 
-        #expect(xyRendererSource.contains("PlotTextMeasurer.maxTickLabelWidth"))
+        // Axis spacing is owned by PlotAxisLayout, not by the renderer.
+        #expect(!xyRendererSource.contains("maxYTickLabelWidth"))
+        #expect(plotAxisSource.contains("PlotTextMeasurer.maxTickLabelWidth"))
         #expect(plotAxisSource.contains("PlotAxisSpacingCalculator.yAxisLane"))
         #expect(plotAxisSource.contains("PlotAxisSpacingCalculator.xAxisLane"))
         #expect(plotAxisSource.contains("struct PlotAxisLayoutPlan"))

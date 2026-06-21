@@ -14,8 +14,6 @@ struct WorkbenchChartRenderer {
         var paddingBottom: CGFloat = 88   // space for x tick labels + field label
         var paddingLeft: CGFloat = 96     // space for y tick labels + field label
         var paddingRight: CGFloat = 30
-        /// Widest y-tick label in points — filled by resolvedOptions, used by layout for y-title placement.
-        var maxYTickLabelWidth: CGFloat = 0
         /// When set, locks the x-axis range instead of auto-fitting to data extents.
         var fixedXMin: Double? = nil
         var fixedXMax: Double? = nil
@@ -85,33 +83,10 @@ struct WorkbenchChartRenderer {
 
     // MARK: - Shared options resolution (pure function)
 
-    /// Measures y-tick label widths and adjusts paddingLeft + maxYTickLabelWidth.
-    /// Pure function: depends only on payload + base + style, no side effects.
-    /// Returns base unchanged when data is empty.
+    /// Returns base options unchanged.
+    /// Axis spacing (paddingLeft, requiredLeftPadding) is owned exclusively by PlotAxisLayoutPlan.compute.
     func resolvedOptions(payload: WorkbenchPlotPayload, base: Options, style: WorkbenchChartStyle = .init()) -> Options {
-        var opts = base
-        let allY = payload.series.flatMap(\.y)
-        guard !allY.isEmpty else { return opts }
-
-        let yRawMin = allY.min()!, yRawMax = allY.max()!
-        let yRawSpan = yRawMax == yRawMin ? 1.0 : yRawMax - yRawMin
-        let preYMin = yRawMin - yRawSpan * 0.05
-        let preYMax = yRawMax + yRawSpan * 0.05
-        let (preYTicks, preYStep) = PlotAxisSpacingCalculator.niceTicks(min: preYMin, max: preYMax, targetCount: style.tickTargetY)
-        let tickLabels = preYTicks.map { PlotAxisSpacingCalculator.formatTick($0, step: preYStep) }
-        let maxYLabelW = PlotTextMeasurer.maxTickLabelWidth(
-            tickLabels,
-            fontSize: style.tickLabelFontSize,
-            fontName: style.fontName,
-            bold: false,
-            boldFontName: style.boldFontName
-        )
-
-        opts.maxYTickLabelWidth = maxYLabelW
-        // labelGap(5) + maxLabel + gap(10) + rotated title height(~24) + margin(5)
-        let needed = maxYLabelW + 44
-        opts.paddingLeft = max(base.paddingLeft, needed)
-        return opts
+        return base
     }
 
     // MARK: - Canvas layout

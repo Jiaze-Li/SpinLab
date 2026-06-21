@@ -31,11 +31,13 @@ final class V400WorkbenchPlotRendererTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(result.ticks.count, 3)
     }
 
-    func testYAxisPaddingUsesCompactScientificWidth() {
+    func testResolvedOptionsDoesNotMutatePaddingLeftForAxisSpacing() {
         let renderer = WorkbenchChartRenderer()
         var style = WorkbenchChartStyle()
         style.tickLabelFontSize = 19
 
+        // Scientific-notation Y values produce wide tick labels — the old renderer-side
+        // padding formula would inflate paddingLeft here. Verify it no longer does.
         let payload = WorkbenchPlotPayload(
             workflowID: "test",
             workflowDisplayName: "Test",
@@ -52,13 +54,8 @@ final class V400WorkbenchPlotRendererTests: XCTestCase {
         let base = WorkbenchChartRenderer.Options()
         let resolved = renderer.resolvedOptions(payload: payload, base: base, style: style)
 
-        let expectedTicks: [Double] = [2.0e-4, 2.2e-4, 2.4e-4, 2.6e-4]
-        let expectedMaxWidth = expectedTicks.map { tick -> CGFloat in
-            renderer.measureTextWidth(renderer.formatTick(tick, step: 2.0e-5), size: style.tickLabelFontSize)
-        }.max() ?? 0
-
-        XCTAssertEqual(resolved.maxYTickLabelWidth, expectedMaxWidth, accuracy: 0.001)
-        XCTAssertEqual(resolved.paddingLeft, max(base.paddingLeft, expectedMaxWidth + 44), accuracy: 0.001)
+        // Axis spacing is owned exclusively by PlotAxisLayoutPlan; resolvedOptions must be a pass-through.
+        XCTAssertEqual(resolved.paddingLeft, base.paddingLeft, accuracy: 0.001)
     }
 
     func testPlotFontOverridesFlowThroughStyleAndLegendLayout() {
