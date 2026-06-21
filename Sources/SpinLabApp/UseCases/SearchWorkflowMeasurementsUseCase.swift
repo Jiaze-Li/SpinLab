@@ -77,9 +77,9 @@ struct SearchWorkflowMeasurementsUseCase {
         for sidecarURL in sidecarURLs {
             let data = try Data(contentsOf: sidecarURL, options: [.mappedIfSafe])
             let sidecar = try decoder.decode(SpinLabFileSidecar.self, from: data)
-            let hit = buildHit(sidecar: sidecar, sidecarURL: sidecarURL, displayNameByID: displayNameByID)
+            let (hit, resolvedWorkflowID) = buildHit(sidecar: sidecar, sidecarURL: sidecarURL, displayNameByID: displayNameByID)
             let sampleNumericTags = numericTagsBySampleKey[hit.sampleKey] ?? [:]
-            if matches(hit: hit, textTokens: parsed.textTokens, numericTerms: parsed.numericTerms, sampleNumericTags: sampleNumericTags) {
+            if matches(hit: hit, resolvedWorkflowID: resolvedWorkflowID, textTokens: parsed.textTokens, numericTerms: parsed.numericTerms, sampleNumericTags: sampleNumericTags) {
                 hits.append(hit)
             }
         }
@@ -88,8 +88,11 @@ struct SearchWorkflowMeasurementsUseCase {
         return hits.sorted(by: compareHit)
     }
 
-    private func buildHit(sidecar: SpinLabFileSidecar, sidecarURL: URL, displayNameByID: [String: String]) -> WorkflowMeasurementSearchHit {
+    private func buildHit(sidecar: SpinLabFileSidecar, sidecarURL: URL, displayNameByID: [String: String]) -> (hit: WorkflowMeasurementSearchHit, resolvedWorkflowID: String) {
         let pathInfo = parsePathInfo(sidecarURL: sidecarURL)
+        // resolvedWorkflowID: from sidecar only — never falls back to folder path.
+        // workflowID: may fall back to folder for display purposes only.
+        let resolvedWorkflowID = sidecar.resolvedWorkflow
         let workflowID = firstNonEmpty(sidecar.resolvedWorkflow, pathInfo.workflowFolder) ?? ""
         let workflowCanonicalID = canonicalWorkflowID(from: workflowID, displayName: sidecar.workflowDisplayName)
         let workflowDisplayName = preferredWorkflowDisplayName(
@@ -99,7 +102,7 @@ struct SearchWorkflowMeasurementsUseCase {
             displayNameByID: displayNameByID
         )
 
-        return WorkflowMeasurementSearchHit(
+        let hit = WorkflowMeasurementSearchHit(
             sidecarPath: sidecarURL.path,
             measurementFilePath: measurementFilePath(fromSidecarURL: sidecarURL),
             sourceFilePath: sidecar.sourceFilePath,
@@ -113,6 +116,7 @@ struct SearchWorkflowMeasurementsUseCase {
             channels: sidecar.channels,
             appliedAt: sidecar.appliedAt
         )
+        return (hit: hit, resolvedWorkflowID: resolvedWorkflowID)
     }
 
     private func preferredWorkflowDisplayName(
@@ -148,13 +152,14 @@ struct SearchWorkflowMeasurementsUseCase {
 
     private func matches(
         hit: WorkflowMeasurementSearchHit,
+        resolvedWorkflowID: String,
         textTokens: [String],
         numericTerms: [(value: Double, field: String, fallbackToken: String)],
         sampleNumericTags: [String: Double]
     ) -> Bool {
         if textTokens.isEmpty && numericTerms.isEmpty { return true }
 
-        let searchableTokens = searchTokens(for: hit)
+        let searchableTokens = searchTokens(for: hit, resolvedWorkflowID: resolvedWorkflowID)
 
         // Text tokens: all must match (existing logic)
         let textOK = textTokens.allSatisfy { searchableTokens.contains($0) }
@@ -176,16 +181,23 @@ struct SearchWorkflowMeasurementsUseCase {
         return true
     }
 
-    private func searchTokens(for hit: WorkflowMeasurementSearchHit) -> Set<String> {
-        let workflowTokens = workflowAliases(
-            canonicalID: hit.workflowCanonicalID,
-            workflowID: hit.workflowID,
-            workflowDisplayName: hit.workflowDisplayName
-        )
-        let baseValues: [String] = [
-            hit.workflowID,
-            hit.workflowDisplayName,
-            hit.workflowCanonicalID,
+    private func searchTokens(for hit: WorkflowMeasurementSearchHit, resolvedWorkflowID: String) -> Set<String> {
+        // Workflow tokens are only included when the workflow identity comes from sidecar metadata.
+        // pathInfo.workflowFolder (path-derived) is intentionally excluded to prevent folder names
+        // from matching queries that should only match real workflow identities.
+        var workflowValues: [String] = []
+        var workflowTokens: [String] = []
+        if !resolvedWorkflowID.isEmpty {
+            let resolvedCanonical = canonicalWorkflowID(from: resolvedWorkflowID, displayName: hit.workflowDisplayName)
+            workflowValues = [resolvedWorkflowID, hit.workflowDisplayName, resolvedCanonical]
+            workflowTokens = workflowAliases(
+                canonicalID: resolvedCanonical,
+                workflowID: resolvedWorkflowID,
+                workflowDisplayName: hit.workflowDisplayName
+            )
+        }
+
+        let baseValues: [String] = workflowValues + [
             hit.batchID,
             hit.sampleKey,
             hit.sampleSubstrate,
