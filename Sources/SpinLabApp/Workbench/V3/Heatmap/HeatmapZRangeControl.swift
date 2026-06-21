@@ -52,6 +52,13 @@ struct HeatmapZRangeControl: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear(perform: normalizeCustomPercentilePresetIfNeeded)
+        .onChange(of: zDomainState.mode) { _, _ in
+            normalizeCustomPercentilePresetIfNeeded()
+        }
+        .onChange(of: zDomainState.percentilePreset) { _, _ in
+            normalizeCustomPercentilePresetIfNeeded()
+        }
     }
 
     private var manualControls: some View {
@@ -84,20 +91,29 @@ struct HeatmapZRangeControl: View {
                 .fixedSize()
 
             Picker("", selection: Binding<HeatmapPercentilePreset>(
-                get: { zDomainState.percentilePreset },
+                get: { zDomainState.percentilePreset == .custom ? .p1_99 : zDomainState.percentilePreset },
                 set: { newPreset in
                     var next = zDomainState
                     next.percentilePreset = newPreset
                     onZDomainStateChange(next)
                 }
             )) {
-                ForEach(HeatmapPercentilePreset.allCases, id: \.self) { preset in
+                ForEach(HeatmapPercentilePreset.visiblePresets, id: \.self) { preset in
                     Text(preset.displayTitle).tag(preset)
                 }
             }
             .labelsHidden()
             .frame(maxWidth: 240)
         }
+    }
+
+    private func normalizeCustomPercentilePresetIfNeeded() {
+        guard zDomainState.mode == .percentile, zDomainState.percentilePreset == .custom else {
+            return
+        }
+        var next = zDomainState
+        next.percentilePreset = .p1_99
+        onZDomainStateChange(next)
     }
 
     private func labeledField(label: String, text: Binding<String>) -> some View {
@@ -112,4 +128,3 @@ struct HeatmapZRangeControl: View {
         }
     }
 }
-

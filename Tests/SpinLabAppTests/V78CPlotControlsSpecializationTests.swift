@@ -697,6 +697,14 @@ struct V78CRSMPlotControlsPathTests {
         #expect(zRangeSource.contains("HeatmapZDomainState"))
     }
 
+    @Test("HeatmapZRangeControl hides Custom from the percentile picker")
+    func heatmapZRangeControlHidesCustomPreset() throws {
+        let source = try loadHeatmapSource("HeatmapZRangeControl.swift")
+        #expect(source.contains("ForEach(HeatmapPercentilePreset.visiblePresets"))
+        #expect(source.contains("get: { zDomainState.percentilePreset == .custom ? .p1_99 : zDomainState.percentilePreset }"))
+        #expect(!source.contains("HeatmapPercentilePreset.allCases"))
+    }
+
     @Test("HeatmapColorScaleControls.swift is a heatmap module component")
     func heatmapColorScaleControlsIsModuleOwned() throws {
         let source = try loadHeatmapSource("HeatmapColorScaleControls.swift")

@@ -99,6 +99,17 @@ struct HeatmapZDomainTests {
         #expect(state.resolve(rawValues: values) == .resolved(lowerBound: 5.0, upperBound: 95.0))
     }
 
+    @Test("Supported percentile presets remain visible and custom stays hidden")
+    func visiblePercentilePresetsExcludeCustom() {
+        #expect(HeatmapPercentilePreset.visiblePresets == [
+            .p0_5_99_5,
+            .p1_99,
+            .p2_98,
+            .p5_95
+        ])
+        #expect(!HeatmapPercentilePreset.visiblePresets.contains(.custom))
+    }
+
     @Test("Percentile invalid or collapsed domain falls back safely")
     func percentileInvalidOrCollapsedDomainFallsBackSafely() {
         let invalidClamp = HeatmapZDomainState(
@@ -112,6 +123,25 @@ struct HeatmapZDomainTests {
         )
         #expect(invalidClamp.validationIssue() == .percentileInvalidClamp)
         #expect(collapsed.resolve(rawValues: [5, 5, 5]) == .fallbackToAuto(reason: HeatmapZDomainValidationIssue.percentileCollapsedDomain.message))
+    }
+
+    @Test("Restored custom percentile state still resolves using stored clamp")
+    func customPercentileStateResolvesUsingStoredClamp() throws {
+        let state = HeatmapZDomainState(
+            mode: .percentile,
+            percentilePreset: .custom,
+            percentileClamp: .init(lowerPercent: 2, upperPercent: 98)
+        )
+        let output = try HeatmapRenderPipeline.render(.init(
+            payload: makePayload(values: [
+                [0.0, 10.0, 20.0],
+                [30.0, 40.0, 100.0]
+            ]),
+            colorScaleMode: .linear,
+            zDomainState: state
+        ))
+        #expect(output.layout.zMin > 0.0)
+        #expect(output.layout.zMax < 100.0)
     }
 
     @Test("Linear plus percentile works")

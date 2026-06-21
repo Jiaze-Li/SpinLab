@@ -41,6 +41,13 @@ enum HeatmapPercentilePreset: String, Codable, CaseIterable, Sendable {
     case p5_95
     case custom
 
+    static let visiblePresets: [HeatmapPercentilePreset] = [
+        .p0_5_99_5,
+        .p1_99,
+        .p2_98,
+        .p5_95
+    ]
+
     var displayTitle: String {
         switch self {
         case .p0_5_99_5: return "0.5% - 99.5%"
@@ -278,4 +285,3 @@ struct HeatmapZDomainState: Codable, Hashable, Sendable {
         return lowerValue + (upperValue - lowerValue) * fraction
     }
 }
-
