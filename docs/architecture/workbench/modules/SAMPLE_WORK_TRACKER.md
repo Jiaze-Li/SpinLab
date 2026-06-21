@@ -293,25 +293,28 @@ condition resolution. Do not run full `swift test` until all targeted tests pass
 
 ---
 
-## Code Map Placeholders
+## Code Map
 
 ```
-Domain/SampleWorkTracker/
-  SampleWorkSummary.swift              — SampleWorkSummary, WorkflowWorkSummary structs
-  SampleWorkStatus.swift               — SampleWorkStatus enum + derivation logic
+Sources/SpinLabApp/Domain/SampleWorkTracker/
+  SampleWorkSummary.swift              — SampleWorkSummary, WorkflowWorkSummary structs (created Step 2)
+  SampleWorkStatus.swift               — SampleWorkStatus enum + derivation logic (created Step 2)
+
+Tests/SpinLabAppTests/SampleWorkTracker/
+  SampleWorkStatusTests.swift          — full derivation truth table + malformed-input guards (created Step 2)
 
 UseCases/
-  BuildSampleWorkSummariesUseCase.swift  — groups hits, loads plot indices, derives status
-  LoadSampleWorkSummaryUseCase.swift     — per-sample refresh (post-chart-save path)
+  BuildSampleWorkSummariesUseCase.swift  — groups hits, loads plot indices, derives status (Step 3)
+  LoadSampleWorkSummaryUseCase.swift     — per-sample refresh (post-chart-save path) (deferred)
 
 App/State/
   WorkbenchSampleWorkTrackerRuntime.swift  — @MainActor @Observable runtime, lazy var in
-                                            WorkbenchFeatureStore
+                                            WorkbenchFeatureStore (deferred)
 
 Features/Workbench/
-  WorkbenchMeasurementsPanel.swift         — replaces current Measurements placeholder
-  WorkbenchMeasurementsSampleRow.swift     — one sample row (title + workflow cells)
-  WorkbenchMeasurementsWorkflowCell.swift  — one status badge + count cell
+  WorkbenchMeasurementsPanel.swift         — replaces current Measurements placeholder (deferred)
+  WorkbenchMeasurementsSampleRow.swift     — one sample row (title + workflow cells) (deferred)
+  WorkbenchMeasurementsWorkflowCell.swift  — one status badge + count cell (deferred)
 
 docs/architecture/workbench/modules/
   SAMPLE_WORK_TRACKER.md               — this file
@@ -319,5 +322,5 @@ docs/architecture/workbench/modules/
 
 ---
 
-No Swift code changed.  
-Recommended next task: Step 2 — domain models (`SampleWorkSummary`, `WorkflowWorkSummary`, `SampleWorkStatus`).
+Step 2 complete — domain models created and all 12 SampleWorkStatusTests pass.  
+Recommended next task: Step 3 — BuildSampleWorkSummariesUseCase.
