@@ -16,10 +16,8 @@ struct HeatmapPlotLayout: Sendable {
         var paddingRight: CGFloat = 80
         var colorbarGap: CGFloat = 30
         var colorbarWidth: CGFloat = 20
-        /// Target X-axis tick count (clamped to 2…20).
-        var xTickCount: Int = 5
-        /// Target Y-axis tick count (clamped to 2…20).
-        var yTickCount: Int = 5
+        /// Shared tick count configuration for X and Y axes.
+        var tickConfiguration: PlotTickConfiguration = .defaultValue
     }
 
     let rendererSize: CGSize
@@ -69,8 +67,8 @@ struct HeatmapPlotLayout: Sendable {
         }
 
         // X/Y tick entries driven by tick count options
-        let xTickEntries = Self.sampledXAxisTickEntries(for: payload.grid, targetCount: opts.xTickCount)
-        let yTickEntries = Self.sampledYAxisTickEntries(for: payload.grid, targetCount: opts.yTickCount)
+        let xTickEntries = Self.sampledXAxisTickEntries(for: payload.grid, targetCount: opts.tickConfiguration.xTargetCount)
+        let yTickEntries = Self.sampledYAxisTickEntries(for: payload.grid, targetCount: opts.tickConfiguration.yTargetCount)
 
         // Always compute colorbar ticks for stable gridRect sizing (even when colorbar is hidden).
         let colorbarTickEntriesForMeasure = Self.makeColorbarTickEntries(

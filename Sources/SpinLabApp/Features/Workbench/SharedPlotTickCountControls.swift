@@ -3,15 +3,15 @@ import SwiftUI
 /// Shared X/Y axis tick-count stepper controls.
 ///
 /// Displays "Ticks X [n] Y [n]" and calls back when either count changes.
-/// Reused by HeatmapPlotControlsPanel (and any future workflow that controls
-/// tick density via strongly-typed state rather than chartStyleOverrides).
+/// Reused by any plot workflow that controls tick density via strongly-typed
+/// state. Valid range and clamping delegate to PlotTickConfiguration.
 struct SharedPlotTickCountControls: View {
     let xTickCount: Int
     let yTickCount: Int
     let onXTickCountChange: (Int) -> Void
     let onYTickCountChange: (Int) -> Void
 
-    static let tickRange = 2...20
+    static let tickRange = PlotTickConfiguration.validRange
 
     var body: some View {
         HStack(spacing: 8) {

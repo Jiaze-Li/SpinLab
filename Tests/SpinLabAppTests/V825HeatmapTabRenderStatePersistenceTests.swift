@@ -379,6 +379,87 @@ struct V825HeatmapTabRenderStatePersistenceTests {
         #expect([UInt8](output.imageData.prefix(4)) == [0x89, 0x50, 0x4E, 0x47])
     }
 
+    // Test C11: tickConfiguration encodes and decodes via HeatmapTabRenderState
+    @Test("C11. tickConfiguration encodes and decodes correctly")
+    func tickConfigurationEncodesAndDecodes() throws {
+        let state = HeatmapTabRenderState(xTickCount: 9, yTickCount: 14)
+        let data = try JSONEncoder().encode(state)
+        let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: data)
+
+        #expect(decoded.tickConfiguration.xTargetCount == 9,
+                "tickConfiguration.xTargetCount must survive encode → decode")
+        #expect(decoded.tickConfiguration.yTargetCount == 14,
+                "tickConfiguration.yTargetCount must survive encode → decode")
+    }
+
+    // Test C12: Legacy xTickCount/yTickCount JSON decodes into tickConfiguration
+    @Test("C12. Legacy xTickCount/yTickCount JSON decodes into tickConfiguration")
+    func legacyXYTickCountDecodesIntoTickConfiguration() throws {
+        let json = """
+        {
+          "schemaVersion": 2,
+          "xTickCount": 8,
+          "yTickCount": 3,
+          "colorScaleMode": "linear"
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: json)
+
+        #expect(decoded.tickConfiguration.xTargetCount == 8,
+                "Legacy xTickCount must decode into tickConfiguration.xTargetCount")
+        #expect(decoded.tickConfiguration.yTargetCount == 3,
+                "Legacy yTickCount must decode into tickConfiguration.yTargetCount")
+    }
+
+    // Test C13: Missing tick fields default to PlotTickConfiguration.defaultValue
+    @Test("C13. Missing tick fields default to PlotTickConfiguration.defaultValue")
+    func missingTickFieldsDefaultToPlotTickConfigurationDefault() throws {
+        let json = """
+        {
+          "schemaVersion": 1,
+          "titleOverride": "",
+          "colorScaleMode": "linear"
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: json)
+
+        #expect(decoded.tickConfiguration == PlotTickConfiguration.defaultValue,
+                "Missing tick fields must default to PlotTickConfiguration.defaultValue")
+        #expect(decoded.tickConfiguration.xTargetCount == 5,
+                "Default xTargetCount must be 5")
+        #expect(decoded.tickConfiguration.yTargetCount == 5,
+                "Default yTargetCount must be 5")
+    }
+
+    // Test C14: RSM pack/restore preserves tickConfiguration
+    @Test("C14. RSM pack/restore preserves tickConfiguration")
+    func packRestorePreservesTickConfiguration() throws {
+        let config = makePackConfig(displayState: HeatmapTabRenderState(xTickCount: 11, yTickCount: 7))
+        let roundTripped = try JSONDecoder().decode(RSMPackConfig.self, from: JSONEncoder().encode(config))
+
+        #expect(roundTripped.displayState.tickConfiguration.xTargetCount == 11,
+                "tickConfiguration.xTargetCount must survive JSON pack/restore round-trip")
+        #expect(roundTripped.displayState.tickConfiguration.yTargetCount == 7,
+                "tickConfiguration.yTargetCount must survive JSON pack/restore round-trip")
+    }
+
+    // Test C16: HeatmapPlotLayout.Options uses tickConfiguration target counts
+    @Test("C16. HeatmapPlotLayout uses tickConfiguration target counts")
+    func heatmapPlotLayoutUsesTickConfiguration() throws {
+        let src = try String(contentsOfFile: #filePath.replacingOccurrences(
+            of: "Tests/SpinLabAppTests/V825HeatmapTabRenderStatePersistenceTests.swift",
+            with: "Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapPlotLayout.swift"
+        ), encoding: .utf8)
+        #expect(src.contains("tickConfiguration"),
+                "HeatmapPlotLayout must reference tickConfiguration")
+        #expect(src.contains("xTargetCount"),
+                "HeatmapPlotLayout must read xTargetCount from tickConfiguration")
+        #expect(src.contains("yTargetCount"),
+                "HeatmapPlotLayout must read yTargetCount from tickConfiguration")
+    }
+
     // Test 15: Existing XY render tests still pass (regression guard)
     @Test("15. Existing XY render path is unaffected by heatmap persistence changes")
     func existingXYRenderPathUnaffected() throws {

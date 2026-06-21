@@ -488,11 +488,15 @@ Boundary: no module other than Plot Preservation may write `TabRenderState` over
 - `Sources/SpinLabApp/Workbench/V3/WorkbenchPlotLayout.swift` — geometry for Cartesian XY axes, legend rows, tick hit-rects, point hit-rects
 - `Sources/SpinLabApp/Workbench/V3/WorkbenchRenderPipeline.swift` — Cartesian XY render pipeline: legend auto-resolution, style merge, series order, PNG output
 
+### Shared Plot Types
+
+- `Sources/SpinLabApp/Workbench/V3/PlotTickConfiguration.swift` — shared X/Y tick count configuration (default, valid range 2…20, clamping) used by both Heatmap and XY render paths
+
 ### Heatmap Render Path
 
 - `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapRenderPipeline.swift` — heatmap render pipeline: display overrides → colormap → Z-range → PNG output
 - `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapRenderer.swift` — pure CoreGraphics renderer for 2D color grid + colorbar
-- `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapTabRenderState.swift` — per-tab heatmap display override state; parallel to `TabRenderState`; not an extension of it
+- `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapTabRenderState.swift` — per-tab heatmap display override state; parallel to `TabRenderState`; not an extension of it; stores tick counts via `PlotTickConfiguration`
 
 ## Historical Notes
 

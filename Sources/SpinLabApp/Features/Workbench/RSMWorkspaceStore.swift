@@ -130,14 +130,14 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
     }
 
     func updateHeatmapXTickCount(_ count: Int) {
-        let clamped = max(2, min(20, count))
+        let clamped = PlotTickConfiguration.clamp(count)
         guard heatmapDisplayState.xTickCount != clamped else { return }
         heatmapDisplayState.xTickCount = clamped
         rerenderForStyleChange()
     }
 
     func updateHeatmapYTickCount(_ count: Int) {
-        let clamped = max(2, min(20, count))
+        let clamped = PlotTickConfiguration.clamp(count)
         guard heatmapDisplayState.yTickCount != clamped else { return }
         heatmapDisplayState.yTickCount = clamped
         rerenderForStyleChange()

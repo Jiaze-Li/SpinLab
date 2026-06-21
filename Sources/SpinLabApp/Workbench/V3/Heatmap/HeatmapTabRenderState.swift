@@ -18,10 +18,20 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
     var colorScaleMode: HeatmapColorScaleMode = .linear
     var colormapKey: String = "viridis"
     var zDomainState: HeatmapZDomainState = .init()
-    /// Target X-axis tick count. Clamped to 2…20 on decode.
-    var xTickCount: Int = 5
-    /// Target Y-axis tick count. Clamped to 2…20 on decode.
-    var yTickCount: Int = 5
+    /// Shared tick count configuration for X and Y axes.
+    var tickConfiguration: PlotTickConfiguration = .defaultValue
+
+    /// Backward-compatible accessor for the X-axis target tick count.
+    var xTickCount: Int {
+        get { tickConfiguration.xTargetCount }
+        set { tickConfiguration.xTargetCount = PlotTickConfiguration.clamp(newValue) }
+    }
+
+    /// Backward-compatible accessor for the Y-axis target tick count.
+    var yTickCount: Int {
+        get { tickConfiguration.yTargetCount }
+        set { tickConfiguration.yTargetCount = PlotTickConfiguration.clamp(newValue) }
+    }
 
     init(
         schemaVersion: Int = Self.currentSchemaVersion,
@@ -45,8 +55,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         self.colorScaleMode = colorScaleMode
         self.colormapKey = colormapKey
         self.zDomainState = zDomainState
-        self.xTickCount = xTickCount
-        self.yTickCount = yTickCount
+        self.tickConfiguration = PlotTickConfiguration(xTargetCount: xTickCount, yTargetCount: yTickCount)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -60,8 +69,9 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         case colorScaleMode
         case colormapKey
         case zDomainState
-        case xTickCount
-        case yTickCount
+        case tickConfiguration
+        case xTickCount       // legacy key — decoded only, not encoded
+        case yTickCount       // legacy key — decoded only, not encoded
         case zRangeOverrideMin
         case zRangeOverrideMax
     }
@@ -86,8 +96,15 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         colorScaleMode = try c.decodeIfPresent(HeatmapColorScaleMode.self, forKey: .colorScaleMode) ?? .linear
         colormapKey = try c.decodeIfPresent(String.self, forKey: .colormapKey) ?? "viridis"
 
-        xTickCount = max(2, min(20, try c.decodeIfPresent(Int.self, forKey: .xTickCount) ?? 5))
-        yTickCount = max(2, min(20, try c.decodeIfPresent(Int.self, forKey: .yTickCount) ?? 5))
+        // New packs encode tickConfiguration directly; old packs use legacy xTickCount/yTickCount keys.
+        if let tc = try c.decodeIfPresent(PlotTickConfiguration.self, forKey: .tickConfiguration) {
+            tickConfiguration = tc
+        } else {
+            tickConfiguration = PlotTickConfiguration(
+                xTargetCount: try c.decodeIfPresent(Int.self, forKey: .xTickCount) ?? PlotTickConfiguration.defaultValue.xTargetCount,
+                yTargetCount: try c.decodeIfPresent(Int.self, forKey: .yTickCount) ?? PlotTickConfiguration.defaultValue.yTargetCount
+            )
+        }
 
         if let decodedDomain = try c.decodeIfPresent(HeatmapZDomainState.self, forKey: .zDomainState) {
             zDomainState = decodedDomain
@@ -118,8 +135,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         try c.encode(colorScaleMode, forKey: .colorScaleMode)
         try c.encode(colormapKey, forKey: .colormapKey)
         try c.encode(zDomainState, forKey: .zDomainState)
-        try c.encode(xTickCount, forKey: .xTickCount)
-        try c.encode(yTickCount, forKey: .yTickCount)
+        try c.encode(tickConfiguration, forKey: .tickConfiguration)
 
         if zDomainState.mode == .manual,
            let resolved = zDomainState.resolve(rawValues: []).resolvedBounds {

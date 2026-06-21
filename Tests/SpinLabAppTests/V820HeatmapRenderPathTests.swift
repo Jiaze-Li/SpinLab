@@ -698,8 +698,9 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     #expect(keys.contains("zLabelOverride"))
     #expect(keys.contains("showColorbar"))
     #expect(!keys.contains("showZLabel"))
-    #expect(keys.contains("xTickCount"))
-    #expect(keys.contains("yTickCount"))
+    #expect(!keys.contains("xTickCount"), "xTickCount must not be in new encoding (migrated to tickConfiguration)")
+    #expect(!keys.contains("yTickCount"), "yTickCount must not be in new encoding (migrated to tickConfiguration)")
+    #expect(keys.contains("tickConfiguration"), "tickConfiguration key must be present in new encoding")
     #expect(keys.contains("colorScaleMode"))
     #expect(keys.contains("colormapKey"))
     #expect(keys.contains("zDomainState"))
@@ -1125,8 +1126,8 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
         zMatrix: [[Double]](repeating: Array(repeating: 1.0, count: 21), count: 2)
     )
     let payload = HeatmapPlotPayload(workflowID: "rsm", title: "", xLabel: "X", yLabel: "Y", zLabel: "Z", grid: grid)
-    let layout4 = HeatmapPlotLayout.compute(payload: payload, options: .init(xTickCount: 4))
-    let layout10 = HeatmapPlotLayout.compute(payload: payload, options: .init(xTickCount: 10))
+    let layout4 = HeatmapPlotLayout.compute(payload: payload, options: .init(tickConfiguration: PlotTickConfiguration(xTargetCount: 4)))
+    let layout10 = HeatmapPlotLayout.compute(payload: payload, options: .init(tickConfiguration: PlotTickConfiguration(xTargetCount: 10)))
     // Sampler uses integer stride so entry count approximates the target (within 2x)
     #expect(layout4.xTickEntries.count >= 1)
     #expect(layout10.xTickEntries.count >= 1)
@@ -1141,8 +1142,8 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
         zMatrix: [[Double]](repeating: [0.0, 1.0], count: 21)
     )
     let payload = HeatmapPlotPayload(workflowID: "rsm", title: "", xLabel: "X", yLabel: "Y", zLabel: "Z", grid: grid)
-    let layout3 = HeatmapPlotLayout.compute(payload: payload, options: .init(yTickCount: 3))
-    let layout8 = HeatmapPlotLayout.compute(payload: payload, options: .init(yTickCount: 8))
+    let layout3 = HeatmapPlotLayout.compute(payload: payload, options: .init(tickConfiguration: PlotTickConfiguration(yTargetCount: 3)))
+    let layout8 = HeatmapPlotLayout.compute(payload: payload, options: .init(tickConfiguration: PlotTickConfiguration(yTargetCount: 8)))
     #expect(layout3.yTickEntries.count >= 1)
     #expect(layout8.yTickEntries.count >= 1)
     #expect(layout8.yTickEntries.count > layout3.yTickEntries.count,
@@ -1165,7 +1166,7 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
 @Test func heatmapLayoutMinTickCountClampedAtTwo() {
     let payload = HeatmapPlotPayload(workflowID: "rsm", title: "", xLabel: "X", yLabel: "Y", zLabel: "Z",
                                      grid: make4x3Grid())
-    let layout = HeatmapPlotLayout.compute(payload: payload, options: .init(xTickCount: 0, yTickCount: 1))
+    let layout = HeatmapPlotLayout.compute(payload: payload, options: .init(tickConfiguration: PlotTickConfiguration(xTargetCount: 0, yTargetCount: 1)))
     #expect(layout.xTickEntries.count >= 1, "Clamped minimum tick count must still produce at least one entry")
     #expect(layout.yTickEntries.count >= 1)
 }

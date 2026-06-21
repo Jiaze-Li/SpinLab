@@ -72,8 +72,7 @@ enum HeatmapRenderPipeline {
         if !input.zLabelOverride.isEmpty { payload.zLabel = input.zLabelOverride }
 
         var options = input.options
-        options.xTickCount = max(2, min(20, input.xTickCount))
-        options.yTickCount = max(2, min(20, input.yTickCount))
+        options.tickConfiguration = PlotTickConfiguration(xTargetCount: input.xTickCount, yTargetCount: input.yTickCount)
 
         let layout = HeatmapPlotLayout.compute(
             payload: payload,
