@@ -16,6 +16,13 @@ struct PlotTextMeasurer {
         boldFontName: String? = nil
     ) -> CGFloat {
         guard !text.isEmpty else { return 0 }
+        if LatexAxisLabelRenderer.isLatexLabel(text) {
+            let latex = LatexAxisLabelRenderer.extractLatex(text)
+            if let size = LatexAxisLabelRenderer.shared.labelSize(latex: latex, fontSize: fontSize) {
+                return size.width
+            }
+            return fontSize * 8  // rough fallback when LaTeX unavailable — non-zero so lane is created
+        }
         if MathMarkupRenderer.containsMarkup(text) {
             return MathMarkupRenderer.measuredWidth(text: text, size: fontSize, fontName: fontName)
         }
@@ -156,7 +163,8 @@ struct PlotAxisSpacingCalculator {
         tickToPlotGap: CGFloat,
         baseLeftPadding: CGFloat,
         maxSideInset: CGFloat? = nil,
-        titleCenterBias: CGFloat = 0.38
+        titleCenterBias: CGFloat = 0.38,
+        latexLabelSizeOverride: CGSize? = nil
     ) -> PlotYAxisLaneLayout {
         let axisTitleTextWidth = PlotTextMeasurer.measuredWidth(
             axisTitleText,
@@ -165,14 +173,29 @@ struct PlotAxisSpacingCalculator {
             bold: axisTitleBold,
             boldFontName: axisTitleBoldFontName
         )
-        // The Y-axis title is drawn rotated 90°. Its horizontal footprint is
-        // the font's line height, not the full (unrotated) text width.
-        let axisTitleRotatedHorizontalFootprint = PlotTextMeasurer.measuredLineHeight(
-            fontSize: axisTitleFontSize,
-            fontName: axisTitleFontName,
-            bold: axisTitleBold,
-            boldFontName: axisTitleBoldFontName
-        )
+        // The Y-axis title is drawn rotated 90°. Its horizontal footprint equals
+        // the label's rendered height (which becomes the horizontal dimension after rotation).
+        // For LaTeX labels, use the rendered PDF height; for text/markup, use the font line height.
+        let axisTitleRotatedHorizontalFootprint: CGFloat
+        if LatexAxisLabelRenderer.isLatexLabel(axisTitleText) {
+            let latex = LatexAxisLabelRenderer.extractLatex(axisTitleText)
+            let latexSize = latexLabelSizeOverride ??
+                LatexAxisLabelRenderer.shared.labelSize(latex: latex, fontSize: axisTitleFontSize)
+            axisTitleRotatedHorizontalFootprint = latexSize?.height ??
+                PlotTextMeasurer.measuredLineHeight(
+                    fontSize: axisTitleFontSize,
+                    fontName: axisTitleFontName,
+                    bold: axisTitleBold,
+                    boldFontName: axisTitleBoldFontName
+                )
+        } else {
+            axisTitleRotatedHorizontalFootprint = PlotTextMeasurer.measuredLineHeight(
+                fontSize: axisTitleFontSize,
+                fontName: axisTitleFontName,
+                bold: axisTitleBold,
+                boldFontName: axisTitleBoldFontName
+            )
+        }
         let axisTitleLaneWidth = axisTitleTextWidth > 0
             ? max(axisTitleRotatedHorizontalFootprint, minimumAxisTitleLane)
             : 0
@@ -222,7 +245,8 @@ struct PlotAxisSpacingCalculator {
         tickToPlotGap: CGFloat,
         baseBottomPadding: CGFloat,
         maxSideInset: CGFloat? = nil,
-        titleCenterBias: CGFloat = 0.58
+        titleCenterBias: CGFloat = 0.58,
+        latexLabelSizeOverride: CGSize? = nil
     ) -> PlotXAxisLaneLayout {
         let maxTickLabelWidth = PlotTextMeasurer.maxTickLabelWidth(
             tickLabels,
@@ -238,14 +262,32 @@ struct PlotAxisSpacingCalculator {
             bold: axisTitleBold,
             boldFontName: axisTitleBoldFontName
         )
-        let axisTitleLaneHeight = axisTitleText.isEmpty
-            ? 0
-            : max(PlotTextMeasurer.measuredLineHeight(
+        // For LaTeX labels the lane height equals the rendered PDF height at the target font size.
+        // For text/markup labels it equals the font line height.
+        let axisTitleLaneHeight: CGFloat
+        if axisTitleText.isEmpty {
+            axisTitleLaneHeight = 0
+        } else if LatexAxisLabelRenderer.isLatexLabel(axisTitleText) {
+            let latex = LatexAxisLabelRenderer.extractLatex(axisTitleText)
+            let latexSize = latexLabelSizeOverride ??
+                LatexAxisLabelRenderer.shared.labelSize(latex: latex, fontSize: axisTitleFontSize)
+            axisTitleLaneHeight = max(
+                latexSize?.height ?? PlotTextMeasurer.measuredLineHeight(
+                    fontSize: axisTitleFontSize,
+                    fontName: axisTitleFontName,
+                    bold: axisTitleBold,
+                    boldFontName: axisTitleBoldFontName
+                ),
+                minimumAxisTitleLane
+            )
+        } else {
+            axisTitleLaneHeight = max(PlotTextMeasurer.measuredLineHeight(
                 fontSize: axisTitleFontSize,
                 fontName: axisTitleFontName,
                 bold: axisTitleBold,
                 boldFontName: axisTitleBoldFontName
             ), minimumAxisTitleLane)
+        }
         let tickLabelFootprint = PlotTextMeasurer.measuredCapHeight(
             fontSize: tickLabelFontSize,
             fontName: tickLabelFontName,

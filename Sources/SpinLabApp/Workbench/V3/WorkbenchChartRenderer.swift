@@ -458,6 +458,24 @@ struct WorkbenchChartRenderer {
 
     private func drawCenteredMarkup(_ ctx: CGContext, text: String, at center: CGPoint,
                                     size: CGFloat, color: CGColor, style: WorkbenchChartStyle) {
+        if LatexAxisLabelRenderer.isLatexLabel(text) {
+            let latex = LatexAxisLabelRenderer.extractLatex(text)
+            let rendered = LatexAxisLabelRenderer.shared.draw(
+                ctx: ctx, latex: latex, fontSize: size, color: color,
+                at: center, orientation: .horizontal
+            )
+            if rendered { return }
+            // LaTeX not available — fall back with stripped prefix as plain/markup text
+            let fallback = latex
+            let line = makeMarkupLine(text: fallback, size: size, color: color, style: style)
+            let bounds = CTLineGetBoundsWithOptions(line, [])
+            ctx.textPosition = CGPoint(
+                x: center.x - bounds.width / 2 - bounds.minX,
+                y: center.y - bounds.height / 2 - bounds.minY
+            )
+            CTLineDraw(line, ctx)
+            return
+        }
         let line = makeMarkupLine(text: text, size: size, color: color, style: style)
         let bounds = CTLineGetBoundsWithOptions(line, [])
         ctx.textPosition = CGPoint(
@@ -469,6 +487,28 @@ struct WorkbenchChartRenderer {
 
     private func drawRotated90Markup(_ ctx: CGContext, text: String, at center: CGPoint,
                                      size: CGFloat, color: CGColor, style: WorkbenchChartStyle) {
+        if LatexAxisLabelRenderer.isLatexLabel(text) {
+            let latex = LatexAxisLabelRenderer.extractLatex(text)
+            let rendered = LatexAxisLabelRenderer.shared.draw(
+                ctx: ctx, latex: latex, fontSize: size, color: color,
+                at: center, orientation: .rotated90
+            )
+            if rendered { return }
+            // LaTeX not available — fall back with stripped prefix as plain/markup text
+            let fallback = latex
+            let line = makeMarkupLine(text: fallback, size: size, color: color, style: style)
+            let bounds = CTLineGetBoundsWithOptions(line, [])
+            ctx.saveGState()
+            ctx.translateBy(x: center.x, y: center.y)
+            ctx.rotate(by: .pi / 2)
+            ctx.textPosition = CGPoint(
+                x: -bounds.width / 2 - bounds.minX,
+                y: -bounds.height / 2 - bounds.minY
+            )
+            CTLineDraw(line, ctx)
+            ctx.restoreGState()
+            return
+        }
         let line = makeMarkupLine(text: text, size: size, color: color, style: style)
         let bounds = CTLineGetBoundsWithOptions(line, [])
         ctx.saveGState()

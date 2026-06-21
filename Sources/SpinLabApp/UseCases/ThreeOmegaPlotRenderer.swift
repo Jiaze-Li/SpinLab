@@ -339,8 +339,8 @@ struct ThreeOmegaPlotRenderer {
             // Formula: Y = E^(3ω)_AHE / (E_xx³ × σ_xx) = α·σ²_xx + β
             // β → Q_xxz Berry curvature quadrupole; E_xx³ = E_xx to the power 3
             axisMapping: WorkbenchAxisMapping(
-                xField: "σ²_x_x (10⁷ S²/cm²)",
-                yField: "E^(^3^ω)_A_H_E / (E³_x_x · σ_x_x) × 10² (Ω·μm³·V⁻²)"
+                xField: "latex:\\sigma_{xx}^{2}\\;(10^{7}\\,\\mathrm{S}^{2}/\\mathrm{cm}^{2})",
+                yField: "latex:\\frac{E_{\\mathrm{AHE}}^{(3\\omega)}}{E_{xx}^{3}\\cdot\\sigma_{xx}}\\times10^{2}\\;(\\Omega\\cdot\\mu\\mathrm{m}^{3}\\cdot\\mathrm{V}^{-2})"
             ),
             series: series
         )
