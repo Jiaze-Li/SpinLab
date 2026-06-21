@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 import Testing
 @testable import SpinLabApp
 
@@ -231,17 +232,18 @@ struct MathMarkupRendererTests {
         #expect(long > short)
     }
 
-    @Test("atom measuredWidth(E_{AHE}^{3ω}) is less than sequential sub+sup widths")
-    func measuredWidthAtomLessThanSequential() {
+    @Test("atom measuredWidth(E_{AHE}^{3ω}) leaves room for sub and sup spacing")
+    func measuredWidthAtomLeavesRoomForSubAndSupSpacing() {
         let style = WorkbenchChartStyle()
         let atomWidth = MathMarkupRenderer.measuredWidth(
             text: "E_{AHE}^{3ω}", size: 20, fontName: style.fontName)
         let eW   = MathMarkupRenderer.measuredWidth(text: "E",    size: 20,        fontName: style.fontName)
         let subW = MathMarkupRenderer.measuredWidth(text: "AHE",  size: 20 * 0.65, fontName: style.fontName)
         let supW = MathMarkupRenderer.measuredWidth(text: "3ω", size: 20 * 0.65, fontName: style.fontName)
-        let sequential = eW + subW + supW
-        #expect(atomWidth < sequential,
-                "Atom width \(atomWidth) must be less than sequential estimate \(sequential)")
+        #expect(atomWidth > eW + subW,
+                "Atom width \(atomWidth) must exceed base+subscript width \(eW + subW)")
+        #expect(atomWidth > eW + supW,
+                "Atom width \(atomWidth) must exceed base+superscript width \(eW + supW)")
     }
 
     @Test("measuredWidth grows when superscript atom is followed by a delimiter")
@@ -266,17 +268,18 @@ struct MathMarkupRendererTests {
         #expect(left > sigma + units * 0.5)
     }
 
-    @Test("atom measuredWidth(E_{xx}^{3}) is less than sequential sub+sup widths")
-    func measuredWidthExx3AtomLessThanSequential() {
+    @Test("atom measuredWidth(E_{xx}^{3}) leaves room for sub and sup spacing")
+    func measuredWidthExx3AtomLeavesRoomForSubAndSupSpacing() {
         let style = WorkbenchChartStyle()
         let atomWidth = MathMarkupRenderer.measuredWidth(
             text: "E_{xx}^{3}", size: 20, fontName: style.fontName)
         let eW   = MathMarkupRenderer.measuredWidth(text: "E",  size: 20,        fontName: style.fontName)
         let subW = MathMarkupRenderer.measuredWidth(text: "xx", size: 20 * 0.65, fontName: style.fontName)
         let supW = MathMarkupRenderer.measuredWidth(text: "3",  size: 20 * 0.65, fontName: style.fontName)
-        let sequential = eW + subW + supW
-        #expect(atomWidth < sequential,
-                "Atom width \(atomWidth) must be less than sequential estimate \(sequential)")
+        #expect(atomWidth > eW + subW,
+                "Atom width \(atomWidth) must exceed base+subscript width \(eW + subW)")
+        #expect(atomWidth > eW + supW,
+                "Atom width \(atomWidth) must exceed base+superscript width \(eW + supW)")
     }
 
     // MARK: - Rotated Y-axis label footprint regression

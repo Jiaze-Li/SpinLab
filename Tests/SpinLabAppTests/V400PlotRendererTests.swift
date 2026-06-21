@@ -5,6 +5,13 @@ import XCTest
 
 final class V400WorkbenchPlotRendererTests: XCTestCase {
 
+    private func v400PlotRendererRepoRoot() -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+    }
+
     func testFormatTick_compactScientificCases() {
         let renderer = WorkbenchChartRenderer()
 
