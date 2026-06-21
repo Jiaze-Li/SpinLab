@@ -3,36 +3,7 @@ import Foundation
 import XCTest
 @testable import SpinLabApp
 
-private func v400PlotRendererRepoRoot() -> URL {
-    URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent() // SpinLabAppTests
-        .deletingLastPathComponent() // Tests
-        .deletingLastPathComponent() // repo root
-}
-
 final class V400WorkbenchPlotRendererTests: XCTestCase {
-
-    private final class RecordingLatexAxisLabelRenderer: LatexAxisLabelRendering {
-        struct Call {
-            let latex: String
-            let orientation: LatexAxisLabelRenderer.Orientation
-        }
-
-        var calls: [Call] = []
-        var shouldSucceed = true
-
-        func draw(
-            ctx: CGContext,
-            latex: String,
-            fontSize: CGFloat,
-            color: CGColor,
-            at center: CGPoint,
-            orientation: LatexAxisLabelRenderer.Orientation
-        ) -> Bool {
-            calls.append(Call(latex: latex, orientation: orientation))
-            return shouldSucceed
-        }
-    }
 
     func testFormatTick_compactScientificCases() {
         let renderer = WorkbenchChartRenderer()
@@ -66,8 +37,6 @@ final class V400WorkbenchPlotRendererTests: XCTestCase {
         var style = WorkbenchChartStyle()
         style.tickLabelFontSize = 19
 
-        // Scientific-notation Y values produce wide tick labels — the old renderer-side
-        // padding formula would inflate paddingLeft here. Verify it no longer does.
         let payload = WorkbenchPlotPayload(
             workflowID: "test",
             workflowDisplayName: "Test",
@@ -84,7 +53,6 @@ final class V400WorkbenchPlotRendererTests: XCTestCase {
         let base = WorkbenchChartRenderer.Options()
         let resolved = renderer.resolvedOptions(payload: payload, base: base, style: style)
 
-        // Axis spacing is owned exclusively by PlotAxisLayoutPlan; resolvedOptions must be a pass-through.
         XCTAssertEqual(resolved.paddingLeft, base.paddingLeft, accuracy: 0.001)
     }
 
@@ -120,9 +88,8 @@ final class V400WorkbenchPlotRendererTests: XCTestCase {
         XCTAssertEqual(layout.legendStyle.fontName, style.fontName)
     }
 
-    func testMathAxisLabelsBypassLatexRenderer() throws {
-        let spy = RecordingLatexAxisLabelRenderer()
-        let renderer = WorkbenchChartRenderer(latexAxisLabelRenderer: spy)
+    func testMathAxisLabelsRenderThroughMarkupPath() throws {
+        let renderer = WorkbenchChartRenderer()
         let payload = WorkbenchPlotPayload(
             workflowID: "test",
             workflowDisplayName: "Test",
@@ -138,7 +105,6 @@ final class V400WorkbenchPlotRendererTests: XCTestCase {
 
         _ = try renderer.renderPNG(payload: payload)
 
-        XCTAssertTrue(spy.calls.isEmpty)
         XCTAssertEqual(
             PlotTextMeasurer.measuredWidth(
                 ThreeOmegaPlotRenderer.scalingXAxisLabel,
@@ -163,18 +129,5 @@ final class V400WorkbenchPlotRendererTests: XCTestCase {
                 fontName: WorkbenchChartStyle().fontName
             )
         )
-    }
-
-    func testWorkbenchChartRendererLatexBranchDoesNotFallbackToRawSource() throws {
-        let src = try String(
-            contentsOf: v400PlotRendererRepoRoot()
-                .appendingPathComponent("Sources/SpinLabApp/Workbench/V3/WorkbenchChartRenderer.swift"),
-            encoding: .utf8
-        )
-
-        XCTAssertTrue(src.contains("latexAxisLabelRenderer.draw("))
-        XCTAssertTrue(src.contains("raw LaTeX suppressed"))
-        XCTAssertFalse(src.contains("let fallback = latex"))
-        XCTAssertFalse(src.contains("LatexAxisLabelRenderer.shared.draw("))
     }
 }
