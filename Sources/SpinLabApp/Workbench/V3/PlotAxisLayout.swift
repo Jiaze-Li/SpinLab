@@ -162,8 +162,16 @@ struct PlotAxisSpacingCalculator {
             bold: axisTitleBold,
             boldFontName: axisTitleBoldFontName
         )
+        // The Y-axis title is drawn rotated 90°. Its horizontal footprint is
+        // the font's line height, not the full (unrotated) text width.
+        let axisTitleRotatedHorizontalFootprint = PlotTextMeasurer.measuredLineHeight(
+            fontSize: axisTitleFontSize,
+            fontName: axisTitleFontName,
+            bold: axisTitleBold,
+            boldFontName: axisTitleBoldFontName
+        )
         let axisTitleLaneWidth = axisTitleTextWidth > 0
-            ? max(axisTitleTextWidth, minimumAxisTitleLane)
+            ? max(axisTitleRotatedHorizontalFootprint, minimumAxisTitleLane)
             : 0
         let desiredLeft = max(
             baseLeftPadding,

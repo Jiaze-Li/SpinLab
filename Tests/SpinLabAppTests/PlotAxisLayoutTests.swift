@@ -335,6 +335,169 @@ struct PlotAxisLayoutTests {
         #expect(plan.yAxisLane.requiredLeftPadding == plan.plotRect.minX)
     }
 
+    @Test("Rotated Y-axis title: long label does not increase requiredLeftPadding beyond font line height")
+    func rotatedYTitleLongLabelDoesNotInflatePadding() {
+        let style = WorkbenchChartStyle()
+        let shortLabel = PlotAxisSpacingCalculator.yAxisLane(
+            axisTitleText: "R(3ω) (Ω)",
+            tickLabels: ["-1.0", "0.0", "1.0"],
+            axisTitleFontSize: 25,
+            axisTitleFontName: style.fontName,
+            axisTitleBold: false,
+            axisTitleBoldFontName: style.boldFontName,
+            tickLabelFontSize: 24,
+            tickLabelFontName: style.fontName,
+            tickLabelBold: false,
+            tickLabelBoldFontName: style.boldFontName,
+            minimumAxisTitleLane: 24,
+            titleToTickGap: 4,
+            tickToPlotGap: 5,
+            baseLeftPadding: 80
+        )
+        let longLabel = PlotAxisSpacingCalculator.yAxisLane(
+            axisTitleText: "E(3ω)_AHE / (E³_x · σ_xx) × 10² (V⁻² · S⁻¹ · m⁻¹)",
+            tickLabels: ["-1.0", "0.0", "1.0"],
+            axisTitleFontSize: 25,
+            axisTitleFontName: style.fontName,
+            axisTitleBold: false,
+            axisTitleBoldFontName: style.boldFontName,
+            tickLabelFontSize: 24,
+            tickLabelFontName: style.fontName,
+            tickLabelBold: false,
+            tickLabelBoldFontName: style.boldFontName,
+            minimumAxisTitleLane: 24,
+            titleToTickGap: 4,
+            tickToPlotGap: 5,
+            baseLeftPadding: 80
+        )
+
+        // The long Y title is much wider as text, but requiredLeftPadding must not grow with it.
+        #expect(longLabel.axisTitleTextWidth > shortLabel.axisTitleTextWidth,
+                "Long label must have greater text width (precondition)")
+        #expect(abs(longLabel.requiredLeftPadding - shortLabel.requiredLeftPadding) < 4,
+                "requiredLeftPadding must not grow significantly with Y title text length")
+        // The lane width is derived from font line height, not text width.
+        #expect(longLabel.axisTitleLaneWidth < longLabel.axisTitleTextWidth,
+                "axisTitleLaneWidth (horizontal footprint) must be smaller than text width for a rotated title")
+    }
+
+    @Test("Rotated Y-axis title: wider tick labels still increase requiredLeftPadding")
+    func rotatedYTitleWiderTickLabelsIncreaseLeftPadding() {
+        let style = WorkbenchChartStyle()
+        let narrowTicks = PlotAxisSpacingCalculator.yAxisLane(
+            axisTitleText: "E(3ω)_AHE / (E³_x · σ_xx) × 10²",
+            tickLabels: ["0", "1", "2"],
+            axisTitleFontSize: 25,
+            axisTitleFontName: style.fontName,
+            axisTitleBold: false,
+            axisTitleBoldFontName: style.boldFontName,
+            tickLabelFontSize: 24,
+            tickLabelFontName: style.fontName,
+            tickLabelBold: false,
+            tickLabelBoldFontName: style.boldFontName,
+            minimumAxisTitleLane: 24,
+            titleToTickGap: 4,
+            tickToPlotGap: 5,
+            baseLeftPadding: 80
+        )
+        let wideTicks = PlotAxisSpacingCalculator.yAxisLane(
+            axisTitleText: "E(3ω)_AHE / (E³_x · σ_xx) × 10²",
+            tickLabels: ["-1.2345e-4", "0.00000", "1.2345e-4"],
+            axisTitleFontSize: 25,
+            axisTitleFontName: style.fontName,
+            axisTitleBold: false,
+            axisTitleBoldFontName: style.boldFontName,
+            tickLabelFontSize: 24,
+            tickLabelFontName: style.fontName,
+            tickLabelBold: false,
+            tickLabelBoldFontName: style.boldFontName,
+            minimumAxisTitleLane: 24,
+            titleToTickGap: 4,
+            tickToPlotGap: 5,
+            baseLeftPadding: 80
+        )
+
+        #expect(wideTicks.maxTickLabelWidth > narrowTicks.maxTickLabelWidth,
+                "Wide tick labels must be wider (precondition)")
+        #expect(wideTicks.requiredLeftPadding > narrowTicks.requiredLeftPadding,
+                "requiredLeftPadding must grow when tick labels widen")
+    }
+
+    @Test("Rotated Y-axis title: long scaling-law label does not collapse plotRect on 800px canvas")
+    func rotatedYTitleLongLabelDoesNotCollapseplotRect() {
+        let style = WorkbenchChartStyle()
+        let longYPayload = WorkbenchPlotPayload(
+            workflowID: "scaling",
+            workflowDisplayName: "Scaling",
+            title: "Scaling Law",
+            axisMapping: WorkbenchAxisMapping(
+                xField: "E_x (V/m)",
+                yField: "E(3ω)_AHE / (E³_x · σ_xx) × 10² (V⁻² · S⁻¹ · m⁻¹)"
+            ),
+            series: [
+                WorkbenchPlotSeries(
+                    label: "Series A",
+                    x: [1.0, 2.0, 3.0],
+                    y: [0.1, 0.2, 0.15],
+                    pointLabels: ["p0", "p1", "p2"]
+                )
+            ]
+        )
+        var opts = WorkbenchChartRenderer.Options()
+        opts.width = 800
+        opts.height = 600
+        let resolved = WorkbenchChartRenderer().resolvedOptions(payload: longYPayload, base: opts, style: style)
+        let plan = PlotAxisLayoutPlan.compute(options: resolved, payload: longYPayload, style: style)
+
+        // plotRect.minX must remain reasonable — not collapse to nearly all of canvas width.
+        #expect(plan.plotRect.minX <= 220,
+                "plotRect.minX must stay ≤ 220 px on an 800px canvas with long Y label (got \(plan.plotRect.minX))")
+        // plotRect must occupy more than half the canvas width.
+        #expect(plan.plotRect.width > 400,
+                "plotRect.width must exceed 400 px on an 800px canvas (got \(plan.plotRect.width))")
+        // Y label hit rect must not overlap y tick hit rect.
+        let yLabelRight = plan.yLabelHitRect.maxX
+        let yTickLeft = plan.yTickHitRect.minX
+        #expect(yLabelRight <= yTickLeft + 2,
+                "Y label hit rect must not overlap Y tick hit rect (yLabelRight=\(yLabelRight), yTickLeft=\(yTickLeft))")
+        // Y tick hit rect must not overlap plotRect.
+        #expect(plan.yTickHitRect.maxX <= plan.plotRect.minX + 2,
+                "Y tick hit rect must not overlap plotRect")
+    }
+
+    @Test("Rotated Y-axis title: short label no overlap between y label, ticks, and plotRect")
+    func rotatedYTitleShortLabelNoOverlap() {
+        let style = WorkbenchChartStyle()
+        let shortYPayload = WorkbenchPlotPayload(
+            workflowID: "xy",
+            workflowDisplayName: "XY",
+            title: "Short Y Label",
+            axisMapping: WorkbenchAxisMapping(xField: "H (Oe)", yField: "R(3ω) (Ω)"),
+            series: [
+                WorkbenchPlotSeries(
+                    label: "S",
+                    x: [1.0, 2.0, 3.0],
+                    y: [0.1, 0.2, 0.15],
+                    pointLabels: ["p0", "p1", "p2"]
+                )
+            ]
+        )
+        var opts = WorkbenchChartRenderer.Options()
+        opts.width = 800
+        opts.height = 600
+        let resolved = WorkbenchChartRenderer().resolvedOptions(payload: shortYPayload, base: opts, style: style)
+        let plan = PlotAxisLayoutPlan.compute(options: resolved, payload: shortYPayload, style: style)
+
+        #expect(plan.plotRect.width > 0)
+        #expect(plan.plotRect.height > 0)
+        let yLabelRight = plan.yLabelHitRect.maxX
+        let yTickLeft = plan.yTickHitRect.minX
+        #expect(yLabelRight <= yTickLeft + 2,
+                "Y label hit rect must not overlap Y tick hit rect")
+        #expect(plan.yTickHitRect.maxX <= plan.plotRect.minX + 2,
+                "Y tick hit rect must not overlap plotRect")
+    }
+
     @Test("Shared axis-spacing logic stays out of RSM-owned sources")
     func axisSpacingLogicStaysOutOfRSM() throws {
         let rsmDirectory = plotAxisLayoutRepoRoot()
