@@ -15,43 +15,42 @@ struct RSMWorkspaceView: View, WorkflowWorkspaceProvider {
             workbench: appState.workbench,
             searchExtra: { EmptyView() },
             plotControls: {
-                VStack(alignment: .leading, spacing: 8) {
-                    RSMViewSelector(
+                HeatmapPlotControlsPanel(
+                    hostControls: RSMViewSelector(
                         activeView: $bindableStore.activeView,
                         parsedDataset: bindableStore.parsedDataset,
                         onChange: {
                             store.rerenderForStyleChange()
                             appState.flushInteractionSnapshotNow()
                         }
-                    )
-
-                    HeatmapPlotControlsPanel(
-                        globalPlotDefaults: $bindableWorkbench.globalPlotDefaults,
-                        colorScaleMode: bindableStore.heatmapDisplayState.colorScaleMode,
-                        zDomainState: bindableStore.heatmapDisplayState.zDomainState,
-                        titleOverride: bindableStore.heatmapDisplayState.titleOverride,
-                        xLabelOverride: bindableStore.heatmapDisplayState.xLabelOverride,
-                        yLabelOverride: bindableStore.heatmapDisplayState.yLabelOverride,
-                        zLabelOverride: bindableStore.heatmapDisplayState.zLabelOverride,
-                        renderedTitle: bindableStore.parsedDataset?.title ?? "",
-                        renderedXLabel: bindableStore.activeView.xLabel,
-                        renderedYLabel: bindableStore.activeView.yLabel,
-                        renderedZLabel: bindableStore.parsedDataset
-                            .map { RSMWorkspaceStore.publicationZLabel(for: $0.detectorColumnName) }
-                            ?? "",
-                        sourceResetToken: "\(bindableStore.cachedInputFiles.first ?? "")|\(bindableStore.activeView.rawValue)",
-                        onColorScaleModeChange: { store.updateHeatmapColorScaleMode($0) },
-                        onZDomainStateChange: { store.updateHeatmapZDomainState($0) },
-                        onTitleOverride: { store.updateHeatmapTitle($0) },
-                        onXLabelOverride: { store.updateHeatmapXAxisLabel($0) },
-                        onYLabelOverride: { store.updateHeatmapYAxisLabel($0) },
-                        onZLabelOverride: { store.updateHeatmapZLabel($0) },
-                        onStyleChange: {
-                            store.rerenderForStyleChange()
-                            appState.flushInteractionSnapshotNow()
-                        }
-                    )
-                }
+                    ),
+                    globalPlotDefaults: $bindableWorkbench.globalPlotDefaults,
+                    colorScaleMode: bindableStore.heatmapDisplayState.colorScaleMode,
+                    zDomainState: bindableStore.heatmapDisplayState.zDomainState,
+                    showZLabel: bindableStore.heatmapDisplayState.showZLabel,
+                    titleOverride: bindableStore.heatmapDisplayState.titleOverride,
+                    xLabelOverride: bindableStore.heatmapDisplayState.xLabelOverride,
+                    yLabelOverride: bindableStore.heatmapDisplayState.yLabelOverride,
+                    zLabelOverride: bindableStore.heatmapDisplayState.zLabelOverride,
+                    renderedTitle: bindableStore.parsedDataset?.title ?? "",
+                    renderedXLabel: bindableStore.activeView.xLabel,
+                    renderedYLabel: bindableStore.activeView.yLabel,
+                    renderedZLabel: bindableStore.parsedDataset
+                        .map { RSMWorkspaceStore.publicationZLabel(for: $0.detectorColumnName) }
+                        ?? "",
+                    sourceResetToken: "\(bindableStore.cachedInputFiles.first ?? "")|\(bindableStore.activeView.rawValue)",
+                    onColorScaleModeChange: { store.updateHeatmapColorScaleMode($0) },
+                    onZDomainStateChange: { store.updateHeatmapZDomainState($0) },
+                    onShowZLabelChange: { store.updateHeatmapShowZLabel($0) },
+                    onTitleOverride: { store.updateHeatmapTitle($0) },
+                    onXLabelOverride: { store.updateHeatmapXAxisLabel($0) },
+                    onYLabelOverride: { store.updateHeatmapYAxisLabel($0) },
+                    onZLabelOverride: { store.updateHeatmapZLabel($0) },
+                    onStyleChange: {
+                        store.rerenderForStyleChange()
+                        appState.flushInteractionSnapshotNow()
+                    }
+                )
             },
             leftExtra: { EmptyView() },
             rightExtra: { EmptyView() }

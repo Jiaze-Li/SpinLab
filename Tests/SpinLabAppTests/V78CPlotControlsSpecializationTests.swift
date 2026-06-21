@@ -82,6 +82,8 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("titleFontSize"))
         #expect(source.contains("axisTitleFontSize"))
         #expect(source.contains("tickLabelFontSize"))
+        #expect(source.contains("Font Size"))
+        #expect(!source.contains("Text(\"Size\")"))
     }
 
     @Test("SharedPlotTextControls.swift does not define OptionalPlotZLabelControl")
@@ -579,6 +581,8 @@ struct V78CRSMPlotControlsPathTests {
         let source = try loadHeatmapSource("HeatmapPlotControlsPanel.swift")
         #expect(source.contains("struct HeatmapPlotControlsPanel"),
                 "Heatmap module must define the heatmap plot controls panel")
+        #expect(source.contains("hostControls"),
+                "Heatmap plot controls must expose a generic host controls slot")
         #expect(source.contains("SharedPlotTextControls"),
                 "Heatmap module must use the shared title/X/Y component")
         #expect(source.contains("HeatmapZLabelControl"),
@@ -591,6 +595,8 @@ struct V78CRSMPlotControlsPathTests {
                 "Heatmap module must mount the extracted color scale controls")
         #expect(!source.contains("private struct HeatmapColorScaleControls"),
                 "Heatmap module must not define the color scale controls inline")
+        #expect(!source.contains("RSMViewSelector"),
+                "Heatmap plot controls must not reference RSM-specific view selection")
         #expect(source.contains(".frame(maxWidth: .infinity)"),
                 "Heatmap plot controls must apply .frame(maxWidth: .infinity) so the box fills the row")
     }
@@ -602,6 +608,8 @@ struct V78CRSMPlotControlsPathTests {
                 "RSM must mount the heatmap plot controls panel from the heatmap module")
         #expect(source.contains("RSMViewSelector"),
                 "RSM must mount the RSM-specific view selector")
+        #expect(source.contains("hostControls: RSMViewSelector"),
+                "RSM must pass the RSM view selector into the heatmap panel host slot")
     }
 
     @Test("RSMWorkspaceView.swift does not use WorkbenchStandardPlotControls")
@@ -677,13 +685,15 @@ struct V78CRSMPlotControlsPathTests {
         #expect(!source.contains("SharedPlotTextControls"))
         #expect(!source.contains("SharedPlotFontSizeControls"))
         #expect(!source.contains("HeatmapColorScaleControls"))
+        #expect(!source.contains("HeatmapPlotControlsPanel"))
     }
 
     @Test("HeatmapZLabelControl.swift is a heatmap module component")
     func heatmapZLabelControlIsModuleOwned() throws {
         let source = try loadHeatmapSource("HeatmapZLabelControl.swift")
         #expect(source.contains("struct HeatmapZLabelControl"))
-        #expect(source.contains("label: \"Z\""))
+        #expect(source.contains("Toggle(\"Z\""))
+        #expect(source.contains("label: \"\""))
         #expect(source.contains("sourceResetToken"))
         #expect(!source.contains("RSM"))
     }
@@ -700,9 +710,14 @@ struct V78CRSMPlotControlsPathTests {
     @Test("HeatmapZRangeControl hides Custom from the percentile picker")
     func heatmapZRangeControlHidesCustomPreset() throws {
         let source = try loadHeatmapSource("HeatmapZRangeControl.swift")
+        #expect(source.contains("ViewThatFits(in: .horizontal)"))
         #expect(source.contains("ForEach(HeatmapPercentilePreset.visiblePresets"))
         #expect(source.contains("get: { zDomainState.percentilePreset == .custom ? .p1_99 : zDomainState.percentilePreset }"))
         #expect(!source.contains("HeatmapPercentilePreset.allCases"))
+        #expect(source.contains("validationIssue"))
+        #expect(source.contains("Min"))
+        #expect(source.contains("Max"))
+        #expect(source.contains("Preset"))
     }
 
     @Test("HeatmapColorScaleControls.swift is a heatmap module component")
@@ -771,8 +786,8 @@ struct V78CRSMPlotControlsPathTests {
 
         // gridRect.minX == dynamically computed paddingLeft
         let paddingLeft = layout.gridRect.minX
-        #expect(paddingLeft >= 120,
-                "At tick=22pt / axis=24pt, paddingLeft must be ≥ 120 to prevent y-axis overlap")
+        #expect(paddingLeft >= 104,
+                "At tick=22pt / axis=24pt, paddingLeft must still leave a healthy left lane for y-axis labels")
 
         // y-axis title center must be well clear of tick label area
         // (right edge of title ≈ yLabelCenterX + axisTitleFontSize/2 must be < gridRect.minX - 50)

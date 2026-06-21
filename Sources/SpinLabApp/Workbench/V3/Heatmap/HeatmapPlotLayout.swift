@@ -1,4 +1,6 @@
 import CoreGraphics
+import CoreText
+import Foundation
 
 /// Geometry type for the heatmap render path (Plot System-owned).
 /// Parallel to WorkbenchPlotLayout; must not inherit or extend it.
@@ -12,11 +14,9 @@ struct HeatmapPlotLayout: Sendable {
         var paddingTop: CGFloat = 60
         var paddingBottom: CGFloat = 80
         var paddingLeft: CGFloat = 80
+        var paddingRight: CGFloat = 80
         var colorbarGap: CGFloat = 30
         var colorbarWidth: CGFloat = 20
-        var colorbarTickArea: CGFloat = 60
-
-        var paddingRight: CGFloat { colorbarGap + colorbarWidth + colorbarTickArea }
     }
 
     let rendererSize: CGSize
@@ -29,6 +29,8 @@ struct HeatmapPlotLayout: Sendable {
     let yLabelCenter: CGPoint
     /// Center for the Z-axis (colorbar) label, rotated 90°.
     let colorbarLabelCenter: CGPoint
+    /// Whether the Z/colorbar label should be rendered.
+    let showZLabel: Bool
     /// Colorbar tick marks: (cgY position, formatted label string).
     /// Tick Y positions match the active color scale mode (linear or log10),
     /// so marks align with the actual color gradient in the colorbar.
@@ -42,51 +44,15 @@ struct HeatmapPlotLayout: Sendable {
         payload: HeatmapPlotPayload,
         options: Options = .init(),
         colorScaleMode: PlotScaleTransform = .linear,
-        chartStyle: WorkbenchChartStyle? = nil
+        chartStyle: WorkbenchChartStyle? = nil,
+        showZLabel: Bool = true
     ) -> HeatmapPlotLayout {
         var opts = options
-        if let style = chartStyle {
-            // Ensure left padding is wide enough to fit rotated y-axis title + tick labels
-            // without overlap at any supported font size.
-            let estimatedTickWidth = style.tickLabelFontSize * 4.5
-            let axisTitleRoom = style.axisTitleFontSize * 1.5
-            opts.paddingLeft = max(options.paddingLeft, estimatedTickWidth + axisTitleRoom + 14)
-        }
+        let style = chartStyle ?? WorkbenchChartStyle()
 
         let w = CGFloat(opts.width)
         let h = CGFloat(opts.height)
 
-        let gridRect = CGRect(
-            x: opts.paddingLeft,
-            y: opts.paddingBottom,
-            width:  w - opts.paddingLeft - opts.paddingRight,
-            height: h - opts.paddingTop  - opts.paddingBottom
-        )
-
-        let colorbarRect = CGRect(
-            x: gridRect.maxX + opts.colorbarGap,
-            y: gridRect.minY,
-            width:  opts.colorbarWidth,
-            height: gridRect.height
-        )
-
-        let titleCenter = CGPoint(x: gridRect.midX, y: h - opts.paddingTop * 0.45)
-        let xLabelCenter = CGPoint(x: gridRect.midX, y: opts.paddingBottom * 0.35)
-        // Y-axis title (rotated 90°): position based on axis font size when known,
-        // otherwise use a fixed fraction of paddingLeft.
-        let yLabelCenterX: CGFloat
-        if let style = chartStyle {
-            yLabelCenterX = style.axisTitleFontSize * 0.75 + 2
-        } else {
-            yLabelCenterX = opts.paddingLeft * 0.28
-        }
-        let yLabelCenter = CGPoint(x: yLabelCenterX, y: gridRect.midY)
-        let colorbarLabelCenter = CGPoint(
-            x: colorbarRect.maxX + opts.colorbarTickArea * 0.80,
-            y: gridRect.midY
-        )
-
-        // Z range
         let zMin: Double
         let zMax: Double
         if let lo = payload.zRangeClampMin, let hi = payload.zRangeClampMax, lo < hi {
@@ -97,39 +63,103 @@ struct HeatmapPlotLayout: Sendable {
             zMax = allZ.max() ?? 1
         }
 
-        let tickScale = HeatmapColorScale(zMin: zMin, zMax: zMax, mode: colorScaleMode, colormapKey: "viridis")
-        let colorbarTicks: [(y: CGFloat, label: String)]
-        switch colorScaleMode {
-        case .linear:
-            let tickValues = niceTicks(min: zMin, max: zMax, targetCount: 5)
-            let span = zMax - zMin
-            colorbarTicks = tickValues.map { z in
-                let t = tickScale.normalizedValue(for: z)
-                let y = colorbarRect.minY + CGFloat(t) * colorbarRect.height
-                return (y, formatLinearTickValue(z, range: span))
-            }
+        let colorbarTickEntries = Self.makeColorbarTickEntries(
+            zMin: zMin,
+            zMax: zMax,
+            mode: colorScaleMode
+        )
+        let yTickEntries = Self.sampledYAxisTickEntries(for: payload.grid)
+        let yTickLabels = yTickEntries.map(\.label)
+        let maxYTickLabelWidth = yTickLabels.map {
+            Self.measuredTextWidth(
+                $0,
+                fontSize: style.tickLabelFontSize,
+                fontName: style.fontName,
+                boldFontName: style.boldFontName
+            )
+        }.max() ?? 0
+        let maxColorbarTickLabelWidth = colorbarTickEntries.map {
+            Self.measuredTextWidth(
+                $0.label,
+                fontSize: style.tickLabelFontSize,
+                fontName: style.fontName,
+                boldFontName: style.boldFontName
+            )
+        }.max() ?? 0
 
-        case .log10:
-            if let domain = PlotScaleTransform.log10Domain(lowerBound: zMin, upperBound: zMax) {
-                let logMin = Darwin.log10(domain.min)
-                let logMax = Darwin.log10(domain.max)
-                let expTicks = niceTicks(min: logMin, max: logMax, targetCount: 5)
-                colorbarTicks = expTicks.map { exponent in
-                    let z = pow(10.0, exponent)
-                    let t = tickScale.normalizedValue(for: z)
-                    let y = colorbarRect.minY + CGFloat(t) * colorbarRect.height
-                    return (y, formatLogTickValue(z))
-                }
-            } else {
-                let tickValues = niceTicks(min: zMin, max: zMax, targetCount: 5)
-                let span = zMax - zMin
-                colorbarTicks = tickValues.map { z in
-                    let t = tickScale.normalizedValue(for: z)
-                    let y = colorbarRect.minY + CGFloat(t) * colorbarRect.height
-                    return (y, formatLinearTickValue(z, range: span))
-                }
+        let yAxisTitleTextWidth = payload.yLabel.isEmpty ? 0 : Self.measuredTextWidth(
+            payload.yLabel,
+            fontSize: style.axisTitleFontSize,
+            fontName: style.fontName,
+            boldFontName: style.boldFontName
+        )
+        let zAxisLabelText = showZLabel && !payload.zLabel.isEmpty
+            ? Self.renderedZLabel(payload.zLabel, mode: colorScaleMode)
+            : ""
+        let zAxisTitleTextWidth = zAxisLabelText.isEmpty ? 0 : Self.measuredTextWidth(
+            zAxisLabelText,
+            fontSize: style.axisTitleFontSize,
+            fontName: style.fontName,
+            boldFontName: style.boldFontName
+        )
+
+        let titleLaneMin: CGFloat = max(style.axisTitleFontSize * 1.25, 24)
+        let yAxisTitleLaneWidth = yAxisTitleTextWidth > 0 ? max(yAxisTitleTextWidth, titleLaneMin) : 0
+        let zAxisTitleLaneWidth = zAxisTitleTextWidth > 0 ? max(zAxisTitleTextWidth, titleLaneMin) : 0
+        let titleToTickGap: CGFloat = 10
+        let tickToPlotGap: CGFloat = 8
+        let colorbarTickLabelGap: CGFloat = 8
+        let colorbarTickToTitleGap: CGFloat = 10
+        let minGridWidth: CGFloat = 180
+        let maxSideInset = max(96, (w - minGridWidth) / 2)
+
+        let desiredLeft = yAxisTitleLaneWidth + titleToTickGap + maxYTickLabelWidth + tickToPlotGap
+        let desiredRight = opts.colorbarGap + opts.colorbarWidth + colorbarTickLabelGap + maxColorbarTickLabelWidth + colorbarTickToTitleGap + zAxisTitleLaneWidth
+
+        opts.paddingLeft = clamp(desiredLeft, lower: options.paddingLeft, upper: maxSideInset)
+        opts.paddingRight = clamp(desiredRight, lower: options.paddingRight, upper: maxSideInset)
+
+        if w - opts.paddingLeft - opts.paddingRight < minGridWidth {
+            let shortage = minGridWidth - (w - opts.paddingLeft - opts.paddingRight)
+            let rightRoom = max(0, opts.paddingRight - options.paddingRight)
+            let reduceRight = min(shortage, rightRoom)
+            opts.paddingRight -= reduceRight
+            let remainingShortage = shortage - reduceRight
+            if remainingShortage > 0 {
+                let leftRoom = max(0, opts.paddingLeft - options.paddingLeft)
+                let reduceLeft = min(remainingShortage, leftRoom)
+                opts.paddingLeft -= reduceLeft
             }
         }
+
+        let gridRect = CGRect(
+            x: opts.paddingLeft,
+            y: opts.paddingBottom,
+            width:  max(0, w - opts.paddingLeft - opts.paddingRight),
+            height: max(0, h - opts.paddingTop - opts.paddingBottom)
+        )
+
+        let colorbarRect = CGRect(
+            x: gridRect.maxX + opts.colorbarGap,
+            y: gridRect.minY,
+            width:  opts.colorbarWidth,
+            height: gridRect.height
+        )
+        let colorbarTicks = colorbarTickEntries.map { entry in
+            let y = colorbarRect.minY + entry.normalizedY * colorbarRect.height
+            return (y: y, label: entry.label)
+        }
+
+        let titleCenter = CGPoint(x: gridRect.midX, y: h - opts.paddingTop * 0.45)
+        let xLabelCenter = CGPoint(x: gridRect.midX, y: opts.paddingBottom * 0.35)
+        let yLabelCenter = CGPoint(
+            x: yAxisTitleLaneWidth > 0 ? yAxisTitleLaneWidth * 0.5 : max(0, opts.paddingLeft * 0.28),
+            y: gridRect.midY
+        )
+        let colorbarLabelCenter = CGPoint(
+            x: colorbarRect.maxX + colorbarTickLabelGap + maxColorbarTickLabelWidth + colorbarTickToTitleGap + zAxisTitleLaneWidth * 0.5,
+            y: gridRect.midY
+        )
 
         return HeatmapPlotLayout(
             rendererSize:        CGSize(width: w, height: h),
@@ -139,6 +169,7 @@ struct HeatmapPlotLayout: Sendable {
             xLabelCenter:        xLabelCenter,
             yLabelCenter:        yLabelCenter,
             colorbarLabelCenter: colorbarLabelCenter,
+            showZLabel:          showZLabel,
             colorbarTicks:       colorbarTicks,
             zMin:                zMin,
             zMax:                zMax
@@ -146,6 +177,73 @@ struct HeatmapPlotLayout: Sendable {
     }
 
     // MARK: - Tick utilities
+
+    static func sampledYAxisTickEntries(for grid: HeatmapGrid) -> [(row: Int, label: String)] {
+        let nY = grid.nY
+        guard nY > 0 else { return [] }
+        let step = max(1, nY / 8)
+        return stride(from: 0, to: nY, by: step).map { row in
+            (row: row, label: formatAxisValue(grid.yValues[row]))
+        }
+    }
+
+    static func measuredTextWidth(
+        _ text: String,
+        fontSize: CGFloat,
+        fontName: String,
+        boldFontName: String
+    ) -> CGFloat {
+        _ = boldFontName
+        let font = CTFontCreateWithName(fontName as CFString, fontSize, nil)
+        let attrs: [CFString: Any] = [
+            kCTFontAttributeName: font,
+        ]
+        let attrStr = CFAttributedStringCreate(
+            kCFAllocatorDefault, text as CFString, attrs as CFDictionary
+        )!
+        let line = CTLineCreateWithAttributedString(attrStr)
+        return CTLineGetBoundsWithOptions(line, []).width
+    }
+
+    static func renderedZLabel(_ label: String, mode: PlotScaleTransform) -> String {
+        mode == .log10 ? "log\u{2081}\u{2080} \(label)" : label
+    }
+
+    static func makeColorbarTickEntries(
+        zMin: Double,
+        zMax: Double,
+        mode: PlotScaleTransform
+    ) -> [(normalizedY: CGFloat, label: String)] {
+        let tickScale = HeatmapColorScale(zMin: zMin, zMax: zMax, mode: mode, colormapKey: "viridis")
+        switch mode {
+        case .linear:
+            let tickValues = niceTicks(min: zMin, max: zMax, targetCount: 5)
+            let span = zMax - zMin
+            return tickValues.map { z in
+                let t = tickScale.normalizedValue(for: z)
+                return (CGFloat(t), formatLinearTickValue(z, range: span))
+            }
+
+        case .log10:
+            if let domain = PlotScaleTransform.log10Domain(lowerBound: zMin, upperBound: zMax) {
+                let logMin = Darwin.log10(domain.min)
+                let logMax = Darwin.log10(domain.max)
+                let expTicks = niceTicks(min: logMin, max: logMax, targetCount: 5)
+                return expTicks.map { exponent in
+                    let z = pow(10.0, exponent)
+                    let t = tickScale.normalizedValue(for: z)
+                    return (CGFloat(t), formatLogTickValue(z))
+                }
+            } else {
+                let tickValues = niceTicks(min: zMin, max: zMax, targetCount: 5)
+                let span = zMax - zMin
+                return tickValues.map { z in
+                    let t = tickScale.normalizedValue(for: z)
+                    return (CGFloat(t), formatLinearTickValue(z, range: span))
+                }
+            }
+        }
+    }
 
     /// Returns 3–7 "nice" tick values spanning [min, max].
     static func niceTicks(min: Double, max: Double, targetCount: Int = 5) -> [Double] {
@@ -192,5 +290,19 @@ struct HeatmapPlotLayout: Sendable {
             return "10^\(expInt)"
         }
         return String(format: "%.2gx10^%d", mantissa, expInt)
+    }
+
+    static func formatAxisValue(_ value: Double) -> String {
+        if abs(value) >= 1e4 || (abs(value) > 0 && abs(value) < 0.01) {
+            return String(format: "%.2g", value)
+        } else if value.truncatingRemainder(dividingBy: 1) == 0 {
+            return String(format: "%.0f", value)
+        } else {
+            return String(format: "%.3g", value)
+        }
+    }
+
+    private static func clamp(_ value: CGFloat, lower: CGFloat, upper: CGFloat) -> CGFloat {
+        min(max(value, lower), max(lower, upper))
     }
 }

@@ -10,7 +10,7 @@ struct SharedPlotFontSizeControls: View {
     var body: some View {
         let style = WorkbenchChartStyle.from(styleParams: globalPlotDefaults)
         HStack(spacing: 10) {
-            Text("Size")
+            Text("Font Size")
                 .font(WorkbenchUIStyle.controlLabelFont)
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
                 .fixedSize()

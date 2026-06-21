@@ -247,6 +247,117 @@ private func makePayload(
     }
 }
 
+@Test func heatmapLayoutDynamicYAxisSpacingRespondsToTickLabelWidth() {
+    let shortPayload = HeatmapPlotPayload(
+        workflowID: "heatmap",
+        title: "Short Y labels",
+        xLabel: "X",
+        yLabel: "Y",
+        zLabel: "Z",
+        grid: HeatmapGrid(
+            xValues: [0.0, 1.0],
+            yValues: [2.8, 3.1],
+            zMatrix: [[0.0, 0.5], [0.5, 1.0]]
+        )
+    )
+    let longPayload = HeatmapPlotPayload(
+        workflowID: "heatmap",
+        title: "Long Y labels",
+        xLabel: "X",
+        yLabel: "Y",
+        zLabel: "Z",
+        grid: HeatmapGrid(
+            xValues: [0.0, 1.0],
+            yValues: [12345.0, 67890.0],
+            zMatrix: [[0.0, 0.5], [0.5, 1.0]]
+        )
+    )
+
+    let shortLayout = HeatmapPlotLayout.compute(payload: shortPayload)
+    let longLayout = HeatmapPlotLayout.compute(payload: longPayload)
+    let shortTickWidth = HeatmapPlotLayout.sampledYAxisTickEntries(for: shortPayload.grid)
+        .map { HeatmapPlotLayout.measuredTextWidth($0.label, fontSize: WorkbenchChartStyle().tickLabelFontSize, fontName: WorkbenchChartStyle().fontName, boldFontName: WorkbenchChartStyle().boldFontName) }
+        .max() ?? 0
+    let longTickWidth = HeatmapPlotLayout.sampledYAxisTickEntries(for: longPayload.grid)
+        .map { HeatmapPlotLayout.measuredTextWidth($0.label, fontSize: WorkbenchChartStyle().tickLabelFontSize, fontName: WorkbenchChartStyle().fontName, boldFontName: WorkbenchChartStyle().boldFontName) }
+        .max() ?? 0
+
+    #expect(shortTickWidth < longTickWidth)
+    #expect(shortLayout.gridRect.minX < longLayout.gridRect.minX)
+    #expect(shortLayout.yLabelCenter.x < shortLayout.gridRect.minX)
+    #expect(longLayout.yLabelCenter.x < longLayout.gridRect.minX)
+}
+
+@Test func heatmapLayoutColorbarLanesSeparateTitleFromTickLabels() {
+    let shortPayload = HeatmapPlotPayload(
+        workflowID: "heatmap",
+        title: "Short Z labels",
+        xLabel: "X",
+        yLabel: "Y",
+        zLabel: "Z",
+        grid: HeatmapGrid(
+            xValues: [0.0, 1.0],
+            yValues: [0.0, 1.0],
+            zMatrix: [[0.0, 0.5], [0.5, 1.0]]
+        )
+    )
+    let longPayload = HeatmapPlotPayload(
+        workflowID: "heatmap",
+        title: "Long Z labels",
+        xLabel: "X",
+        yLabel: "Y",
+        zLabel: "Intensity (counts)",
+        grid: HeatmapGrid(
+            xValues: [0.0, 1.0],
+            yValues: [0.0, 1.0],
+            zMatrix: [[0.0, 50000.0], [50000.0, 100000.0]]
+        )
+    )
+
+    let style = WorkbenchChartStyle()
+    let shortLayout = HeatmapPlotLayout.compute(payload: shortPayload, chartStyle: style)
+    let longLayout = HeatmapPlotLayout.compute(payload: longPayload, chartStyle: style)
+    let shortTickWidth = shortLayout.colorbarTicks.map {
+        HeatmapPlotLayout.measuredTextWidth($0.label, fontSize: style.tickLabelFontSize, fontName: style.fontName, boldFontName: style.boldFontName)
+    }.max() ?? 0
+    let longTickWidth = longLayout.colorbarTicks.map {
+        HeatmapPlotLayout.measuredTextWidth($0.label, fontSize: style.tickLabelFontSize, fontName: style.fontName, boldFontName: style.boldFontName)
+    }.max() ?? 0
+
+    #expect(shortTickWidth <= longTickWidth)
+    #expect(shortLayout.colorbarRect.maxX < shortLayout.colorbarLabelCenter.x)
+    #expect(longLayout.colorbarRect.maxX < longLayout.colorbarLabelCenter.x)
+    #expect(shortLayout.gridRect.maxX < shortLayout.colorbarRect.minX)
+    #expect(longLayout.gridRect.maxX < longLayout.colorbarRect.minX)
+    #expect(shortLayout.showZLabel)
+    #expect(longLayout.showZLabel)
+}
+
+@Test func heatmapRenderPipelineShowZLabelToggleLeavesColorbarTicksVisible() throws {
+    let payload = HeatmapPlotPayload(
+        workflowID: "heatmap",
+        title: "Toggle Z label",
+        xLabel: "X",
+        yLabel: "Y",
+        zLabel: "Intensity (counts)",
+        grid: HeatmapGrid(
+            xValues: [0.0, 1.0],
+            yValues: [0.0, 1.0],
+            zMatrix: [[0.0, 50000.0], [50000.0, 100000.0]]
+        )
+    )
+
+    let visible = try HeatmapRenderPipeline.render(.init(payload: payload, showZLabel: true))
+    let hidden = try HeatmapRenderPipeline.render(.init(payload: payload, showZLabel: false))
+
+    #expect(visible.layout.showZLabel)
+    #expect(!hidden.layout.showZLabel)
+    #expect(visible.layout.colorbarTicks.count == hidden.layout.colorbarTicks.count)
+    #expect(!visible.imageData.isEmpty)
+    #expect(!hidden.imageData.isEmpty)
+    #expect(visible.imageData != hidden.imageData)
+}
+
 // MARK: - niceTicks helper
 
 @Test func heatmapNiceTicksCountInRange() {
@@ -465,6 +576,7 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
         xLabelOverride: "My X",
         yLabelOverride: "My Y",
         zLabelOverride: "My Z",
+        showZLabel: false,
         colorScaleMode: .log10,
         colormapKey: "inferno",
         zDomainState: HeatmapZDomainState(
@@ -479,6 +591,7 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     #expect(decoded.xLabelOverride == "My X")
     #expect(decoded.yLabelOverride == "My Y")
     #expect(decoded.zLabelOverride == "My Z")
+    #expect(!decoded.showZLabel)
     #expect(decoded.colorScaleMode == .log10)
     #expect(decoded.colormapKey == "inferno")
     #expect(decoded.zDomainState.mode == .manual)
@@ -501,6 +614,7 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     #expect(decoded.xLabelOverride == "Saved X")
     #expect(decoded.yLabelOverride == "Saved Y")
     #expect(decoded.zLabelOverride == "Saved Z")
+    #expect(decoded.showZLabel)
     #expect(decoded.colorScaleMode == .linear)
     #expect(decoded.colormapKey == "viridis")
     #expect(decoded.zDomainState.mode == .auto)
@@ -518,6 +632,10 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     let state = HeatmapTabRenderState(zLabelOverride: "κ (W/m·K)")
     let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: JSONEncoder().encode(state))
     #expect(decoded.zLabelOverride == "κ (W/m·K)")
+}
+
+@Test func heatmapTabRenderStateDefaultsShowZLabelToTrue() {
+    #expect(HeatmapTabRenderState().showZLabel)
 }
 
 @Test func heatmapTabRenderStateColorScaleModeRoundTrip() throws {
@@ -575,6 +693,7 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     #expect(keys.contains("xLabelOverride"))
     #expect(keys.contains("yLabelOverride"))
     #expect(keys.contains("zLabelOverride"))
+    #expect(keys.contains("showZLabel"))
     #expect(keys.contains("colorScaleMode"))
     #expect(keys.contains("colormapKey"))
     #expect(keys.contains("zDomainState"))
@@ -744,8 +863,9 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     let linearLayout = HeatmapPlotLayout.compute(payload: payload, colorScaleMode: .linear)
     let logLayout    = HeatmapPlotLayout.compute(payload: payload, colorScaleMode: .log10)
 
-    // Both share the same colorbarRect geometry
-    #expect(linearLayout.colorbarRect == logLayout.colorbarRect)
+    // Both preserve the same colorbar height; the x-position may shift because
+    // the right-side layout now reserves measured tick-label and title lanes.
+    #expect(linearLayout.colorbarRect.height == logLayout.colorbarRect.height)
 
     // Log-scale tick Y values must be monotonically non-decreasing (ascending Z → ascending Y)
     let logYs = logLayout.colorbarTicks.map(\.y)

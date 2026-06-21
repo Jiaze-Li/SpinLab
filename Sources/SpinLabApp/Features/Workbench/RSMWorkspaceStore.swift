@@ -123,6 +123,12 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
         rerenderForStyleChange()
     }
 
+    func updateHeatmapShowZLabel(_ isShown: Bool) {
+        guard heatmapDisplayState.showZLabel != isShown else { return }
+        heatmapDisplayState.showZLabel = isShown
+        rerenderForStyleChange()
+    }
+
     func updateHeatmapZDomainState(_ state: HeatmapZDomainState) {
         guard heatmapDisplayState.zDomainState != state else { return }
         heatmapDisplayState.zDomainState = state
@@ -513,7 +519,8 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
             payload: payload,
             colorScaleMode: displayState.colorScaleMode,
             zDomainState: displayState.zDomainState,
-            chartStyle: WorkbenchChartStyle.from(styleParams: globalPlotDefaults)
+            chartStyle: WorkbenchChartStyle.from(styleParams: globalPlotDefaults),
+            showZLabel: displayState.showZLabel
         ))
     }
 }

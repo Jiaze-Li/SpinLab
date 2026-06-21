@@ -13,6 +13,8 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
     var yLabelOverride: String = ""
     /// Colorbar label override (Z-axis title).
     var zLabelOverride: String = ""
+    /// Whether the colorbar title is shown in the rendered heatmap.
+    var showZLabel: Bool = true
     var colorScaleMode: HeatmapColorScaleMode = .linear
     var colormapKey: String = "viridis"
     var zDomainState: HeatmapZDomainState = .init()
@@ -23,6 +25,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         xLabelOverride: String = "",
         yLabelOverride: String = "",
         zLabelOverride: String = "",
+        showZLabel: Bool = true,
         colorScaleMode: HeatmapColorScaleMode = .linear,
         colormapKey: String = "viridis",
         zDomainState: HeatmapZDomainState = .init()
@@ -32,6 +35,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         self.xLabelOverride = xLabelOverride
         self.yLabelOverride = yLabelOverride
         self.zLabelOverride = zLabelOverride
+        self.showZLabel = showZLabel
         self.colorScaleMode = colorScaleMode
         self.colormapKey = colormapKey
         self.zDomainState = zDomainState
@@ -43,6 +47,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         case xLabelOverride
         case yLabelOverride
         case zLabelOverride
+        case showZLabel
         case colorScaleMode
         case colormapKey
         case zDomainState
@@ -57,6 +62,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         xLabelOverride = try c.decodeIfPresent(String.self, forKey: .xLabelOverride) ?? ""
         yLabelOverride = try c.decodeIfPresent(String.self, forKey: .yLabelOverride) ?? ""
         zLabelOverride = try c.decodeIfPresent(String.self, forKey: .zLabelOverride) ?? ""
+        showZLabel = try c.decodeIfPresent(Bool.self, forKey: .showZLabel) ?? true
         colorScaleMode = try c.decodeIfPresent(HeatmapColorScaleMode.self, forKey: .colorScaleMode) ?? .linear
         colormapKey = try c.decodeIfPresent(String.self, forKey: .colormapKey) ?? "viridis"
 
@@ -85,6 +91,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         try c.encode(xLabelOverride, forKey: .xLabelOverride)
         try c.encode(yLabelOverride, forKey: .yLabelOverride)
         try c.encode(zLabelOverride, forKey: .zLabelOverride)
+        try c.encode(showZLabel, forKey: .showZLabel)
         try c.encode(colorScaleMode, forKey: .colorScaleMode)
         try c.encode(colormapKey, forKey: .colormapKey)
         try c.encode(zDomainState, forKey: .zDomainState)

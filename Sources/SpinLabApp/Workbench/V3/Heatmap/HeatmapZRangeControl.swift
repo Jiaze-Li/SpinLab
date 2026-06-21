@@ -10,38 +10,9 @@ struct HeatmapZRangeControl: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text("Z Range")
-                    .font(WorkbenchUIStyle.controlLabelFont)
-                    .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                    .fixedSize()
-
-                Picker("", selection: Binding<HeatmapZDomainMode>(
-                    get: { zDomainState.mode },
-                    set: { newMode in
-                        var next = zDomainState
-                        next.mode = newMode
-                        onZDomainStateChange(next)
-                    }
-                )) {
-                    Text("Auto").tag(HeatmapZDomainMode.auto)
-                    Text("Manual").tag(HeatmapZDomainMode.manual)
-                    Text("Percentile").tag(HeatmapZDomainMode.percentile)
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 280)
-            }
-
-            switch zDomainState.mode {
-            case .auto:
-                EmptyView()
-
-            case .manual:
-                manualControls
-
-            case .percentile:
-                percentileControls
+            ViewThatFits(in: .horizontal) {
+                oneLineRow
+                wrappedRow
             }
 
             if let validationIssue {
@@ -58,6 +29,65 @@ struct HeatmapZRangeControl: View {
         }
         .onChange(of: zDomainState.percentilePreset) { _, _ in
             normalizeCustomPercentilePresetIfNeeded()
+        }
+    }
+
+    private var oneLineRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            modeLabel
+            modePicker
+            secondaryControls
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var wrappedRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                modeLabel
+                modePicker
+            }
+            secondaryControls
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var modeLabel: some View {
+        Text("Z Range")
+            .font(WorkbenchUIStyle.controlLabelFont)
+            .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+            .fixedSize()
+    }
+
+    private var modePicker: some View {
+        Picker("", selection: Binding<HeatmapZDomainMode>(
+            get: { zDomainState.mode },
+            set: { newMode in
+                var next = zDomainState
+                next.mode = newMode
+                onZDomainStateChange(next)
+            }
+        )) {
+            Text("Auto").tag(HeatmapZDomainMode.auto)
+            Text("Manual").tag(HeatmapZDomainMode.manual)
+            Text("Percentile").tag(HeatmapZDomainMode.percentile)
+        }
+        .labelsHidden()
+        .pickerStyle(.segmented)
+        .frame(maxWidth: 280)
+    }
+
+    @ViewBuilder
+    private var secondaryControls: some View {
+        switch zDomainState.mode {
+        case .auto:
+            EmptyView()
+
+        case .manual:
+            manualControls
+
+        case .percentile:
+            percentileControls
         }
     }
 

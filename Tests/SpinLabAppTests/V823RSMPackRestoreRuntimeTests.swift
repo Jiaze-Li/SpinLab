@@ -103,7 +103,8 @@ private func restoreFromPackConfig(
     let output = try HeatmapRenderPipeline.render(.init(
         payload: payload,
         colorScaleMode: displayState.colorScaleMode,
-        zDomainState: displayState.zDomainState
+        zDomainState: displayState.zDomainState,
+        showZLabel: displayState.showZLabel
     ))
 
     return RSMRuntimeRestoreResult(dataset: dataset, payload: payload, output: output)
@@ -140,6 +141,7 @@ struct V823RSMPackRestoreRuntimeTests {
         let store = RSMWorkspaceStore()
         store.activeView = .kl
         store.heatmapDisplayState = HeatmapTabRenderState(
+            showZLabel: false,
             colorScaleMode: .log10,
             colormapKey: "plasma"
         )
@@ -149,6 +151,7 @@ struct V823RSMPackRestoreRuntimeTests {
         #expect(config.packState.activeView == .kl)
         #expect(config.displayState.colorScaleMode == .log10)
         #expect(config.displayState.colormapKey == "plasma")
+        #expect(!config.displayState.showZLabel)
     }
 
     // MARK: Pack then restore: HL heatmap
@@ -237,6 +240,23 @@ struct V823RSMPackRestoreRuntimeTests {
         #expect(result.payload.xLabel == "H Axis")
         #expect(result.payload.yLabel == "L Axis")
         #expect(result.payload.zLabel == "Counts")
+        #expect(!result.output.imageData.isEmpty)
+    }
+
+    @Test("Pack then restore showZLabel false")
+    func packThenRestoreShowZLabelFalse() throws {
+        let displayState = HeatmapTabRenderState(showZLabel: false)
+        let config = makePackConfig(
+            sourceIdentity: "/tmp/rsm-runtime-hide-z.dat",
+            detectorColumnName: "Detector",
+            activeView: .hl,
+            displayState: displayState
+        )
+        let roundTripped = try JSONDecoder().decode(RSMPackConfig.self, from: JSONEncoder().encode(config))
+        let result = try restoreFromPackConfig(roundTripped, sourceResolver: { _ in rsmRuntimeHL3x3 })
+
+        #expect(!result.output.layout.showZLabel)
+        #expect(result.output.layout.colorbarTicks.count > 0)
         #expect(!result.output.imageData.isEmpty)
     }
 

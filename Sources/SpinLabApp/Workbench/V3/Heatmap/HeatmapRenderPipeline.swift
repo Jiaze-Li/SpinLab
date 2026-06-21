@@ -33,6 +33,8 @@ enum HeatmapRenderPipeline {
         var yLabelOverride: String = ""
         /// Override colorbar label. Empty = use payload zLabel.
         var zLabelOverride: String = ""
+        /// Whether the rendered Z/colorbar label should be visible.
+        var showZLabel: Bool = true
     }
 
     struct Output: Sendable {
@@ -66,11 +68,18 @@ enum HeatmapRenderPipeline {
         if !input.yLabelOverride.isEmpty { payload.yLabel = input.yLabelOverride }
         if !input.zLabelOverride.isEmpty { payload.zLabel = input.zLabelOverride }
 
-        let layout    = HeatmapPlotLayout.compute(payload: payload, options: input.options, colorScaleMode: input.colorScaleMode)
+        let layout    = HeatmapPlotLayout.compute(
+            payload: payload,
+            options: input.options,
+            colorScaleMode: input.colorScaleMode,
+            chartStyle: input.chartStyle,
+            showZLabel: input.showZLabel
+        )
         let imageData = try HeatmapRenderer().renderPNG(
             payload:        payload,
             colorScaleMode: input.colorScaleMode,
             options:        input.options,
+            showZLabel:     input.showZLabel,
             chartStyle:     input.chartStyle
         )
 

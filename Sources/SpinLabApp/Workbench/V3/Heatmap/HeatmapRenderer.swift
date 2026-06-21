@@ -31,11 +31,18 @@ struct HeatmapRenderer {
         payload: HeatmapPlotPayload,
         colorScaleMode: PlotScaleTransform = .linear,
         options: HeatmapPlotLayout.Options = .init(),
+        showZLabel: Bool = true,
         chartStyle: WorkbenchChartStyle = .init()
     ) throws -> Data {
         guard payload.grid.isValid else { throw RendererError.invalidGrid }
 
-        let layout = HeatmapPlotLayout.compute(payload: payload, options: options, colorScaleMode: colorScaleMode, chartStyle: chartStyle)
+        let layout = HeatmapPlotLayout.compute(
+            payload: payload,
+            options: options,
+            colorScaleMode: colorScaleMode,
+            chartStyle: chartStyle,
+            showZLabel: showZLabel
+        )
         let colorScale = HeatmapColorScale(
             zMin:       layout.zMin,
             zMax:       layout.zMax,
@@ -118,7 +125,7 @@ struct HeatmapRenderer {
         drawColorbar(ctx: ctx, layout: layout, colorScale: colorScale, chartStyle: chartStyle)
 
         // Colorbar (Z-axis) label
-        if !payload.zLabel.isEmpty {
+        if layout.showZLabel && !payload.zLabel.isEmpty {
             let zLabel = Self.renderedZLabel(payload.zLabel, mode: colorScale.mode)
             drawRotated90(ctx, text: zLabel,
                           at: layout.colorbarLabelCenter, size: chartStyle.axisTitleFontSize, color: black,
@@ -185,7 +192,7 @@ struct HeatmapRenderer {
             ctx.move(to:    CGPoint(x: cx, y: rect.minY))
             ctx.addLine(to: CGPoint(x: cx, y: rect.minY - tickLen))
             ctx.strokePath()
-            let label = formatAxisValue(grid.xValues[col])
+            let label = HeatmapPlotLayout.formatAxisValue(grid.xValues[col])
             drawCentered(ctx, text: label,
                          at: CGPoint(x: cx, y: rect.minY - tickLen - labelGap - 8),
                          size: chartStyle.tickLabelFontSize, bold: false, color: labelColor,
@@ -212,14 +219,12 @@ struct HeatmapRenderer {
         ctx.setStrokeColor(tickColor)
         ctx.setLineWidth(0.8)
 
-        let step = max(1, nY / 8)
-        for row in stride(from: 0, to: nY, by: step) {
-            let cy = layout.gridRect.minY + (CGFloat(row) + 0.5) * (rect.height / CGFloat(nY))
+        for entry in HeatmapPlotLayout.sampledYAxisTickEntries(for: grid) {
+            let cy = layout.gridRect.minY + (CGFloat(entry.row) + 0.5) * (rect.height / CGFloat(nY))
             ctx.move(to:    CGPoint(x: rect.minX, y: cy))
             ctx.addLine(to: CGPoint(x: rect.minX - tickLen, y: cy))
             ctx.strokePath()
-            let label = formatAxisValue(grid.yValues[row])
-            drawRightAligned(ctx, text: label,
+            drawRightAligned(ctx, text: entry.label,
                              rightEdge: CGPoint(x: rect.minX - tickLen - labelGap, y: cy),
                              size: chartStyle.tickLabelFontSize, bold: false, color: labelColor,
                              fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
@@ -353,15 +358,4 @@ struct HeatmapRenderer {
         mode == .log10 ? "log\u{2081}\u{2080} \(label)" : label
     }
 
-    // MARK: - Axis value formatter
-
-    private func formatAxisValue(_ v: Double) -> String {
-        if abs(v) >= 1e4 || (abs(v) > 0 && abs(v) < 0.01) {
-            return String(format: "%.2g", v)
-        } else if v.truncatingRemainder(dividingBy: 1) == 0 {
-            return String(format: "%.0f", v)
-        } else {
-            return String(format: "%.3g", v)
-        }
-    }
 }

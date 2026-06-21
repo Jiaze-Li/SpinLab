@@ -191,7 +191,7 @@ These controls must not be shown when the active tab is a heatmap render path. T
 - Z-axis label override (colorbar label)
 - Color scale range override (auto vs. manual min/max) — if included in V1 controls scope
 
-The heatmap control surface itself lives in `HeatmapPlotControlsPanel` under the heatmap module. RSM mounts it but does not define the UI inline.
+The heatmap control surface itself lives in `HeatmapPlotControlsPanel` under the heatmap module. RSM mounts it through the panel's generic host-controls slot but does not define the heatmap UI inline.
 
 ### Plot Preservation — Heatmap Tab State Boundary
 
@@ -213,6 +213,7 @@ Implemented fields (Gate H2):
 - `xLabelOverride`
 - `yLabelOverride`
 - `zLabelOverride` (colorbar label)
+- `showZLabel` (visibility toggle for the colorbar title)
 - `colorScaleMode` (`HeatmapColorScaleMode`, a compatibility alias for `PlotScaleTransform`: linear or log)
 - `colormapKey` (default `"viridis"`)
 - `zRangeOverrideMin`, `zRangeOverrideMax`
