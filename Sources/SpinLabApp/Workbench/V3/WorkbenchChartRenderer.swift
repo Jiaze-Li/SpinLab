@@ -452,41 +452,8 @@ struct WorkbenchChartRenderer {
         ctx.restoreGState()
     }
 
-    /// Renders text where `_X` draws X as a subscript and `^X` draws X as a superscript.
-    /// Falls back to plain rendering when neither marker is present.
     private func makeMarkupLine(text: String, size: CGFloat, color: CGColor, style: WorkbenchChartStyle) -> CTLine {
-        guard text.contains("_") || text.contains("^") else {
-            return makeLine(text: text, size: size, bold: false, color: color, style: style)
-        }
-        let font    = style.ctFont(size: size, bold: false)
-        let subFont = style.ctFont(size: size * 0.65, bold: false)
-        let supFont = style.ctFont(size: size * 0.65, bold: false)
-        let baseAttrs: [NSAttributedString.Key: Any] = [
-            NSAttributedString.Key(rawValue: kCTFontAttributeName as String): font,
-            NSAttributedString.Key(rawValue: kCTForegroundColorAttributeName as String): color,
-        ]
-        let subAttrs: [NSAttributedString.Key: Any] = [
-            NSAttributedString.Key(rawValue: kCTFontAttributeName as String): subFont,
-            NSAttributedString.Key(rawValue: kCTForegroundColorAttributeName as String): color,
-            .baselineOffset: NSNumber(value: -size * 0.20),
-        ]
-        let supAttrs: [NSAttributedString.Key: Any] = [
-            NSAttributedString.Key(rawValue: kCTFontAttributeName as String): supFont,
-            NSAttributedString.Key(rawValue: kCTForegroundColorAttributeName as String): color,
-            .baselineOffset: NSNumber(value: size * 0.30),
-        ]
-        let result = NSMutableAttributedString()
-        var scalars = text.unicodeScalars.makeIterator()
-        while let scalar = scalars.next() {
-            if scalar == "_", let next = scalars.next() {
-                result.append(NSAttributedString(string: String(next), attributes: subAttrs))
-            } else if scalar == "^", let next = scalars.next() {
-                result.append(NSAttributedString(string: String(next), attributes: supAttrs))
-            } else {
-                result.append(NSAttributedString(string: String(scalar), attributes: baseAttrs))
-            }
-        }
-        return CTLineCreateWithAttributedString(result)
+        MathMarkupRenderer.makeLine(text: text, size: size, color: color, style: style)
     }
 
     private func drawCenteredMarkup(_ ctx: CGContext, text: String, at center: CGPoint,

@@ -16,6 +16,9 @@ struct PlotTextMeasurer {
         boldFontName: String? = nil
     ) -> CGFloat {
         guard !text.isEmpty else { return 0 }
+        if MathMarkupRenderer.containsMarkup(text) {
+            return MathMarkupRenderer.measuredWidth(text: text, size: fontSize, fontName: fontName)
+        }
         let resolvedFontName = bold ? (boldFontName ?? fontName) : fontName
         let font = CTFontCreateWithName(resolvedFontName as CFString, fontSize, nil)
         let attrs: [CFString: Any] = [

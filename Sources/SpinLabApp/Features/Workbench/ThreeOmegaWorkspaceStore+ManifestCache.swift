@@ -138,7 +138,7 @@ extension ThreeOmegaWorkspaceStore {
                 .joined(separator: ",")
             return makePayload(
                 title: resolveTitle("Scaling Law") + " (\(methodTag))",
-                xField: "σ²_xx (S²/m²)", yField: "E(3ω)_AHE / (E³_xx · σ_xx)",
+                xField: "σ_{xx}^{2}", yField: "E_{AHE}^{(3ω)} / (E_{xx}^{3} · σ_{xx})",
                 files: inputFiles,
                 extraParams: ["v3method": methodTag, "fitRanges": rangeSig]
             )
