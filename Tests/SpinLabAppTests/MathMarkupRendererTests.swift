@@ -5,7 +5,7 @@ import Testing
 @Suite("MathMarkupRenderer")
 struct MathMarkupRendererTests {
 
-    // MARK: - Parse
+    // MARK: - parse (linear segments, backward-compatible)
 
     @Test("E_{AHE}^{(3ω)} parses into base E, subscript AHE, superscript (3ω)")
     func parseEAHE3omega() {
@@ -71,6 +71,72 @@ struct MathMarkupRendererTests {
         #expect(segments == [.base("R_")])
     }
 
+    // MARK: - parseAtoms (atom-aware grouping)
+
+    @Test("parseAtoms groups E_{AHE}^{(3ω)} into one atom")
+    func parseAtomsEAHE3omega() {
+        let nodes = MathMarkupRenderer.parseAtoms("E_{AHE}^{(3ω)}")
+        #expect(nodes == [.atom(base: "E", sub: "AHE", sup: "(3ω)")])
+    }
+
+    @Test("parseAtoms groups E_{xx}^{3} into one atom")
+    func parseAtomsExx3() {
+        let nodes = MathMarkupRenderer.parseAtoms("E_{xx}^{3}")
+        #expect(nodes == [.atom(base: "E", sub: "xx", sup: "3")])
+    }
+
+    @Test("parseAtoms groups σ_{xx}^{2} into one atom")
+    func parseAtomsSigmaXX2() {
+        let nodes = MathMarkupRenderer.parseAtoms("σ_{xx}^{2}")
+        #expect(nodes == [.atom(base: "σ", sub: "xx", sup: "2")])
+    }
+
+    @Test("parseAtoms handles 10^{2} as atom with sup only")
+    func parseAtoms10Sup2() {
+        let nodes = MathMarkupRenderer.parseAtoms("10^{2}")
+        #expect(nodes == [.atom(base: "10", sub: nil, sup: "2")])
+    }
+
+    @Test("parseAtoms handles V^{-2} as atom with sup only")
+    func parseAtomsVMinus2() {
+        let nodes = MathMarkupRenderer.parseAtoms("V^{-2}")
+        #expect(nodes == [.atom(base: "V", sub: nil, sup: "-2")])
+    }
+
+    @Test("parseAtoms produces text node for plain label")
+    func parseAtomsPlainLabel() {
+        let nodes = MathMarkupRenderer.parseAtoms("H (T)")
+        #expect(nodes == [.text("H (T)")])
+    }
+
+    @Test("parseAtoms backward-compatible single-char _X")
+    func parseAtomsSingleCharSubscript() {
+        let nodes = MathMarkupRenderer.parseAtoms("R_x")
+        #expect(nodes == [.atom(base: "R", sub: "x", sup: nil)])
+    }
+
+    @Test("parseAtoms backward-compatible single-char ^X")
+    func parseAtomsSingleCharSuperscript() {
+        let nodes = MathMarkupRenderer.parseAtoms("R^2")
+        #expect(nodes == [.atom(base: "R", sub: nil, sup: "2")])
+    }
+
+    @Test("parseAtoms groups full scaling-law label into correct atoms")
+    func parseAtomsFullScalingLawLabel() {
+        // Final scaling-law Y-axis label template
+        let label = "E_{AHE}^{(3ω)} / (E_{xx}^{3} · σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})"
+        let nodes = MathMarkupRenderer.parseAtoms(label)
+        #expect(nodes == [
+            .atom(base: "E",        sub: "AHE", sup: "(3ω)"),
+            .atom(base: " / (E",    sub: "xx",  sup: "3"),
+            .atom(base: " · σ",     sub: "xx",  sup: nil),
+            .atom(base: ") × 10",   sub: nil,   sup: "2"),
+            .atom(base: " (Ω·μm",   sub: nil,   sup: "3"),
+            .atom(base: "·V",       sub: nil,   sup: "-2"),
+            .text(")"),
+        ])
+    }
+
     // MARK: - containsMarkup
 
     @Test("containsMarkup returns true for strings with _ or ^")
@@ -109,15 +175,12 @@ struct MathMarkupRendererTests {
         let markupLabel = "E_{AHE}^{(3ω)} / (E_{xx}^{3} · σ_{xx})"
         let markupWidth = MathMarkupRenderer.measuredWidth(
             text: markupLabel, size: 20, fontName: style.fontName)
-        // The markup width should be positive.
         #expect(markupWidth > 0)
-        // The markup width must be less than the raw string width (markup chars inflating count).
         let rawWidth = MathMarkupRenderer.measuredWidth(
             text: markupLabel.replacingOccurrences(of: "_{", with: "_")
                               .replacingOccurrences(of: "^{", with: "^")
                               .replacingOccurrences(of: "}", with: ""),
             size: 20, fontName: style.fontName)
-        // Markup-aware width must not exceed the raw string width.
         #expect(markupWidth <= rawWidth + 1)
     }
 
@@ -129,6 +192,32 @@ struct MathMarkupRendererTests {
         let long = MathMarkupRenderer.measuredWidth(
             text: "E_{AHE}^{(3ω)} / (E_{xx}^{3} · σ_{xx})", size: 20, fontName: style.fontName)
         #expect(long > short)
+    }
+
+    @Test("atom measuredWidth(E_{AHE}^{(3ω)}) is less than sequential sub+sup widths")
+    func measuredWidthAtomLessThanSequential() {
+        let style = WorkbenchChartStyle()
+        let atomWidth = MathMarkupRenderer.measuredWidth(
+            text: "E_{AHE}^{(3ω)}", size: 20, fontName: style.fontName)
+        let eW   = MathMarkupRenderer.measuredWidth(text: "E",    size: 20,        fontName: style.fontName)
+        let subW = MathMarkupRenderer.measuredWidth(text: "AHE",  size: 20 * 0.65, fontName: style.fontName)
+        let supW = MathMarkupRenderer.measuredWidth(text: "(3ω)", size: 20 * 0.65, fontName: style.fontName)
+        let sequential = eW + subW + supW
+        #expect(atomWidth < sequential,
+                "Atom width \(atomWidth) must be less than sequential estimate \(sequential)")
+    }
+
+    @Test("atom measuredWidth(E_{xx}^{3}) is less than sequential sub+sup widths")
+    func measuredWidthExx3AtomLessThanSequential() {
+        let style = WorkbenchChartStyle()
+        let atomWidth = MathMarkupRenderer.measuredWidth(
+            text: "E_{xx}^{3}", size: 20, fontName: style.fontName)
+        let eW   = MathMarkupRenderer.measuredWidth(text: "E",  size: 20,        fontName: style.fontName)
+        let subW = MathMarkupRenderer.measuredWidth(text: "xx", size: 20 * 0.65, fontName: style.fontName)
+        let supW = MathMarkupRenderer.measuredWidth(text: "3",  size: 20 * 0.65, fontName: style.fontName)
+        let sequential = eW + subW + supW
+        #expect(atomWidth < sequential,
+                "Atom width \(atomWidth) must be less than sequential estimate \(sequential)")
     }
 
     // MARK: - Rotated Y-axis label footprint regression
@@ -153,7 +242,7 @@ struct MathMarkupRendererTests {
             baseLeftPadding: 80
         )
         let longLane = PlotAxisSpacingCalculator.yAxisLane(
-            axisTitleText: "E_{AHE}^{(3ω)} / (E_{xx}^{3} · σ_{xx})",
+            axisTitleText: "E_{AHE}^{(3ω)} / (E_{xx}^{3} · σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})",
             tickLabels: ["-1.0", "0.0", "1.0"],
             axisTitleFontSize: 25,
             axisTitleFontName: style.fontName,
@@ -185,7 +274,7 @@ struct MathMarkupRendererTests {
             title: "Scaling Law",
             axisMapping: WorkbenchAxisMapping(
                 xField: "σ_{xx}^{2}",
-                yField: "E_{AHE}^{(3ω)} / (E_{xx}^{3} · σ_{xx})"
+                yField: "E_{AHE}^{(3ω)} / (E_{xx}^{3} · σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})"
             ),
             series: [
                 WorkbenchPlotSeries(
