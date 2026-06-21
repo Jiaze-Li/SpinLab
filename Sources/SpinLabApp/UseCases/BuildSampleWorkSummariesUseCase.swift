@@ -71,7 +71,7 @@ struct BuildSampleWorkSummariesUseCase {
         workflowColumns: [WorkflowColumn],
         chartLinkedBasenames: Set<String>
     ) -> [WorkflowWorkSummary] {
-        let hitsByWorkflowID = Dictionary(grouping: hits) { normalizedIdentifier($0.workflowCanonicalID) }
+        let hitsByWorkflowID = Dictionary(grouping: hits) { effectiveWorkflowID(for: $0) }
 
         return workflowColumns.map { column in
             let workflowHits = hitsByWorkflowID[column.id] ?? []
@@ -97,17 +97,11 @@ struct BuildSampleWorkSummariesUseCase {
         knownWorkflowIDs: Set<String>
     ) -> [String] {
         let unknownIDs = Set(hits.compactMap { hit -> String? in
-            let canonical = normalizedIdentifier(hit.workflowCanonicalID)
-            if !canonical.isEmpty, !knownWorkflowIDs.contains(canonical) {
-                return canonical
+            let effective = effectiveWorkflowID(for: hit)
+            guard !effective.isEmpty, !knownWorkflowIDs.contains(effective) else {
+                return nil
             }
-
-            let fallback = normalizedIdentifier(hit.workflowID)
-            if !fallback.isEmpty, !knownWorkflowIDs.contains(fallback) {
-                return fallback
-            }
-
-            return nil
+            return effective
         })
         return unknownIDs.sorted { lhs, rhs in
             lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
@@ -154,6 +148,14 @@ struct BuildSampleWorkSummariesUseCase {
 
     private func normalizedIdentifier(_ value: String) -> String {
         value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func effectiveWorkflowID(for hit: WorkflowMeasurementSearchHit) -> String {
+        let canonical = normalizedIdentifier(hit.workflowCanonicalID)
+        if !canonical.isEmpty {
+            return canonical
+        }
+        return normalizedIdentifier(hit.workflowID)
     }
 
     private func compareSummaries(_ lhs: SampleWorkSummary, _ rhs: SampleWorkSummary) -> Bool {

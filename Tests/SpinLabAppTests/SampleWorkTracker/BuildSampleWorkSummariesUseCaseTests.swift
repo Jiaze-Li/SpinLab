@@ -232,6 +232,72 @@ final class BuildSampleWorkSummariesUseCaseTests: XCTestCase {
         XCTAssertEqual(summary.unknownWorkflowIDs, ["aaa", "zzz"])
     }
 
+    func test_knownCanonicalWithAliasWorkflowID_doesNotPopulateUnknownWorkflowIDs() async throws {
+        let hits = [
+            makeHit(
+                sourceFilePath: "/tmp/run1.dat",
+                workflowID: "three-omega-legacy",
+                workflowCanonicalID: "3w",
+                workflowDisplayName: "3ω"
+            )
+        ]
+        let summaries = try await execute(
+            hits: hits,
+            workflowColumns: [makeWorkflowColumn(id: "3w", displayName: "3ω")]
+        )
+
+        guard let summary = summaries.first else {
+            XCTFail("Expected a sample summary")
+            return
+        }
+        XCTAssertEqual(summary.workflowRows.map { $0.workflowID }, ["3w"])
+        XCTAssertEqual(summary.unknownWorkflowIDs, [])
+    }
+
+    func test_emptyCanonicalKnownWorkflowID_countsUnderWorkflowRow() async throws {
+        let hits = [
+            makeHit(
+                sourceFilePath: "/tmp/run1.dat",
+                workflowID: "3w",
+                workflowCanonicalID: "",
+                workflowDisplayName: "3ω"
+            )
+        ]
+        let summaries = try await execute(
+            hits: hits,
+            workflowColumns: [makeWorkflowColumn(id: "3w", displayName: "3ω")]
+        )
+
+        guard let row = summaries.first?.workflowRows.first else {
+            XCTFail("Expected one workflow row")
+            return
+        }
+        XCTAssertEqual(row.fileCount, 1)
+        XCTAssertEqual(row.status, SampleWorkStatus.todo)
+        XCTAssertEqual(summaries.first?.unknownWorkflowIDs ?? [], [])
+    }
+
+    func test_emptyCanonicalUnknownWorkflowID_populatesUnknownWorkflowIDs() async throws {
+        let hits = [
+            makeHit(
+                sourceFilePath: "/tmp/run1.dat",
+                workflowID: "legacy-unknown",
+                workflowCanonicalID: "",
+                workflowDisplayName: "Legacy"
+            )
+        ]
+        let summaries = try await execute(
+            hits: hits,
+            workflowColumns: [makeWorkflowColumn(id: "3w", displayName: "3ω")]
+        )
+
+        guard let summary = summaries.first else {
+            XCTFail("Expected a sample summary")
+            return
+        }
+        XCTAssertEqual(summary.unknownWorkflowIDs, ["legacy-unknown"])
+    }
+
     func test_emptySampleKey_usesStableUnknownBucket() async throws {
         let hits = [
             makeHit(sampleKey: " ", batchID: "", sourceFilePath: "/tmp/unknown.dat", workflowCanonicalID: "3w"),
