@@ -1,9 +1,11 @@
 import SwiftUI
 
-/// Heatmap Z/colorbar label override control.
+/// Heatmap Z/colorbar visibility and label override control.
+///
+/// The checkbox controls the entire colorbar block (gradient, tick labels, Z title).
 struct HeatmapZLabelControl: View {
-    let showZLabel: Bool
-    let onShowZLabelChange: (Bool) -> Void
+    let showColorbar: Bool
+    let onShowColorbarChange: (Bool) -> Void
     let renderedDefault: String
     let currentValue: String
     let sourceResetToken: String
@@ -12,8 +14,8 @@ struct HeatmapZLabelControl: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Toggle("Z", isOn: Binding(
-                get: { showZLabel },
-                set: { onShowZLabelChange($0) }
+                get: { showColorbar },
+                set: { onShowColorbarChange($0) }
             ))
             .toggleStyle(.checkbox)
             .fixedSize()

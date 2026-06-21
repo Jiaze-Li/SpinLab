@@ -104,7 +104,7 @@ private func restoreFromPackConfig(
         payload: payload,
         colorScaleMode: displayState.colorScaleMode,
         zDomainState: displayState.zDomainState,
-        showZLabel: displayState.showZLabel
+        showColorbar: displayState.showColorbar
     ))
 
     return RSMRuntimeRestoreResult(dataset: dataset, payload: payload, output: output)
@@ -141,7 +141,7 @@ struct V823RSMPackRestoreRuntimeTests {
         let store = RSMWorkspaceStore()
         store.activeView = .kl
         store.heatmapDisplayState = HeatmapTabRenderState(
-            showZLabel: false,
+            showColorbar: false,
             colorScaleMode: .log10,
             colormapKey: "plasma"
         )
@@ -151,7 +151,7 @@ struct V823RSMPackRestoreRuntimeTests {
         #expect(config.packState.activeView == .kl)
         #expect(config.displayState.colorScaleMode == .log10)
         #expect(config.displayState.colormapKey == "plasma")
-        #expect(!config.displayState.showZLabel)
+        #expect(!config.displayState.showColorbar)
     }
 
     // MARK: Pack then restore: HL heatmap
@@ -243,9 +243,9 @@ struct V823RSMPackRestoreRuntimeTests {
         #expect(!result.output.imageData.isEmpty)
     }
 
-    @Test("Pack then restore showZLabel false")
-    func packThenRestoreShowZLabelFalse() throws {
-        let displayState = HeatmapTabRenderState(showZLabel: false)
+    @Test("Pack then restore showColorbar false")
+    func packThenRestoreShowColorbarFalse() throws {
+        let displayState = HeatmapTabRenderState(showColorbar: false)
         let config = makePackConfig(
             sourceIdentity: "/tmp/rsm-runtime-hide-z.dat",
             detectorColumnName: "Detector",
@@ -255,8 +255,9 @@ struct V823RSMPackRestoreRuntimeTests {
         let roundTripped = try JSONDecoder().decode(RSMPackConfig.self, from: JSONEncoder().encode(config))
         let result = try restoreFromPackConfig(roundTripped, sourceResolver: { _ in rsmRuntimeHL3x3 })
 
-        #expect(!result.output.layout.showZLabel)
-        #expect(result.output.layout.colorbarTicks.count > 0)
+        #expect(!result.output.layout.showColorbar)
+        // showColorbar=false hides the entire colorbar block
+        #expect(result.output.layout.colorbarTicks.isEmpty)
         #expect(!result.output.imageData.isEmpty)
     }
 

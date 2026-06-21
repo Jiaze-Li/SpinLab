@@ -31,7 +31,7 @@ struct HeatmapRenderer {
         payload: HeatmapPlotPayload,
         colorScaleMode: PlotScaleTransform = .linear,
         options: HeatmapPlotLayout.Options = .init(),
-        showZLabel: Bool = true,
+        showColorbar: Bool = true,
         chartStyle: WorkbenchChartStyle = .init()
     ) throws -> Data {
         guard payload.grid.isValid else { throw RendererError.invalidGrid }
@@ -41,7 +41,7 @@ struct HeatmapRenderer {
             options: options,
             colorScaleMode: colorScaleMode,
             chartStyle: chartStyle,
-            showZLabel: showZLabel
+            showColorbar: showColorbar
         )
         let colorScale = HeatmapColorScale(
             zMin:       layout.zMin,
@@ -121,15 +121,16 @@ struct HeatmapRenderer {
                       at: layout.yLabelCenter, size: chartStyle.axisTitleFontSize, color: black,
                       fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
 
-        // Colorbar
-        drawColorbar(ctx: ctx, layout: layout, colorScale: colorScale, chartStyle: chartStyle)
+        // Colorbar block — rendered only when showColorbar is true
+        if layout.showColorbar {
+            drawColorbar(ctx: ctx, layout: layout, colorScale: colorScale, chartStyle: chartStyle)
 
-        // Colorbar (Z-axis) label
-        if layout.showZLabel && !payload.zLabel.isEmpty {
-            let zLabel = Self.renderedZLabel(payload.zLabel, mode: colorScale.mode)
-            drawRotated90(ctx, text: zLabel,
-                          at: layout.colorbarLabelCenter, size: chartStyle.axisTitleFontSize, color: black,
-                          fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
+            if !payload.zLabel.isEmpty {
+                let zLabel = Self.renderedZLabel(payload.zLabel, mode: colorScale.mode)
+                drawRotated90(ctx, text: zLabel,
+                              at: layout.colorbarLabelCenter, size: chartStyle.axisTitleFontSize, color: black,
+                              fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
+            }
         }
     }
 
@@ -185,15 +186,12 @@ struct HeatmapRenderer {
         ctx.setStrokeColor(tickColor)
         ctx.setLineWidth(0.8)
 
-        // Subsample so at most 8 ticks are drawn
-        let step = max(1, nX / 8)
-        for col in stride(from: 0, to: nX, by: step) {
-            let cx = rect.minX + (CGFloat(col) + 0.5) * (rect.width / CGFloat(nX))
+        for entry in layout.xTickEntries {
+            let cx = rect.minX + (CGFloat(entry.col) + 0.5) * (rect.width / CGFloat(nX))
             ctx.move(to:    CGPoint(x: cx, y: rect.minY))
             ctx.addLine(to: CGPoint(x: cx, y: rect.minY - tickLen))
             ctx.strokePath()
-            let label = HeatmapPlotLayout.formatAxisValue(grid.xValues[col])
-            drawCentered(ctx, text: label,
+            drawCentered(ctx, text: entry.label,
                          at: CGPoint(x: cx, y: rect.minY - tickLen - labelGap - 8),
                          size: chartStyle.tickLabelFontSize, bold: false, color: labelColor,
                          fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
@@ -219,7 +217,7 @@ struct HeatmapRenderer {
         ctx.setStrokeColor(tickColor)
         ctx.setLineWidth(0.8)
 
-        for entry in HeatmapPlotLayout.sampledYAxisTickEntries(for: grid) {
+        for entry in layout.yTickEntries {
             let cy = layout.gridRect.minY + (CGFloat(entry.row) + 0.5) * (rect.height / CGFloat(nY))
             ctx.move(to:    CGPoint(x: rect.minX, y: cy))
             ctx.addLine(to: CGPoint(x: rect.minX - tickLen, y: cy))
@@ -243,7 +241,6 @@ struct HeatmapRenderer {
         guard cbRect.height > 0, cbRect.width > 0 else { return }
 
         // Vertical gradient as 256 thin horizontal strips.
-        // Strip i=0 is at cbRect.minY (zMin color); i=255 is at cbRect.maxY (zMax color).
         let nStrips = 256
         let stripH  = cbRect.height / CGFloat(nStrips)
         for i in 0..<nStrips {

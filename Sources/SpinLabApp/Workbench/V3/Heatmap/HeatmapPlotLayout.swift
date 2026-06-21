@@ -17,6 +17,10 @@ struct HeatmapPlotLayout: Sendable {
         var paddingRight: CGFloat = 80
         var colorbarGap: CGFloat = 30
         var colorbarWidth: CGFloat = 20
+        /// Target X-axis tick count (clamped to 2…20).
+        var xTickCount: Int = 5
+        /// Target Y-axis tick count (clamped to 2…20).
+        var yTickCount: Int = 5
     }
 
     let rendererSize: CGSize
@@ -27,14 +31,16 @@ struct HeatmapPlotLayout: Sendable {
     let titleCenter: CGPoint
     let xLabelCenter: CGPoint
     let yLabelCenter: CGPoint
-    /// Center for the Z-axis (colorbar) label, rotated 90°.
+    /// Center for the Z-axis (colorbar) label, rotated 90°. Positioned LEFT of the colorbar.
     let colorbarLabelCenter: CGPoint
-    /// Whether the Z/colorbar label should be rendered.
-    let showZLabel: Bool
+    /// Whether the colorbar block (gradient, tick labels, Z title) should be rendered.
+    let showColorbar: Bool
     /// Colorbar tick marks: (cgY position, formatted label string).
-    /// Tick Y positions match the active color scale mode (linear or log10),
-    /// so marks align with the actual color gradient in the colorbar.
     let colorbarTicks: [(y: CGFloat, label: String)]
+    /// Precomputed X-axis tick entries for the renderer.
+    let xTickEntries: [(col: Int, label: String)]
+    /// Precomputed Y-axis tick entries for the renderer.
+    let yTickEntries: [(row: Int, label: String)]
     let zMin: Double
     let zMax: Double
 
@@ -45,7 +51,7 @@ struct HeatmapPlotLayout: Sendable {
         options: Options = .init(),
         colorScaleMode: PlotScaleTransform = .linear,
         chartStyle: WorkbenchChartStyle? = nil,
-        showZLabel: Bool = true
+        showColorbar: Bool = true
     ) -> HeatmapPlotLayout {
         var opts = options
         let style = chartStyle ?? WorkbenchChartStyle()
@@ -63,24 +69,29 @@ struct HeatmapPlotLayout: Sendable {
             zMax = allZ.max() ?? 1
         }
 
-        let colorbarTickEntries = Self.makeColorbarTickEntries(
+        // X/Y tick entries driven by tick count options
+        let xTickEntries = Self.sampledXAxisTickEntries(for: payload.grid, targetCount: opts.xTickCount)
+        let yTickEntries = Self.sampledYAxisTickEntries(for: payload.grid, targetCount: opts.yTickCount)
+
+        // Always compute colorbar ticks for stable gridRect sizing (even when colorbar is hidden).
+        let colorbarTickEntriesForMeasure = Self.makeColorbarTickEntries(
             zMin: zMin,
             zMax: zMax,
             mode: colorScaleMode
         )
-        let yTickEntries = Self.sampledYAxisTickEntries(for: payload.grid)
-        let yTickLabels = yTickEntries.map(\.label)
-        let maxYTickLabelWidth = yTickLabels.map {
+        let maxColorbarTickLabelWidth = colorbarTickEntriesForMeasure.map {
             Self.measuredTextWidth(
-                $0,
+                $0.label,
                 fontSize: style.tickLabelFontSize,
                 fontName: style.fontName,
                 boldFontName: style.boldFontName
             )
         }.max() ?? 0
-        let maxColorbarTickLabelWidth = colorbarTickEntries.map {
+
+        let yTickLabels = yTickEntries.map(\.label)
+        let maxYTickLabelWidth = yTickLabels.map {
             Self.measuredTextWidth(
-                $0.label,
+                $0,
                 fontSize: style.tickLabelFontSize,
                 fontName: style.fontName,
                 boldFontName: style.boldFontName
@@ -93,7 +104,9 @@ struct HeatmapPlotLayout: Sendable {
             fontName: style.fontName,
             boldFontName: style.boldFontName
         )
-        let zAxisLabelText = showZLabel && !payload.zLabel.isEmpty
+
+        // Z title only when colorbar is visible and label is non-empty.
+        let zAxisLabelText = showColorbar && !payload.zLabel.isEmpty
             ? Self.renderedZLabel(payload.zLabel, mode: colorScaleMode)
             : ""
         let zAxisTitleTextWidth = zAxisLabelText.isEmpty ? 0 : Self.measuredTextWidth(
@@ -109,13 +122,12 @@ struct HeatmapPlotLayout: Sendable {
         let titleToTickGap: CGFloat = 10
         let tickToPlotGap: CGFloat = 8
         let colorbarTickLabelGap: CGFloat = 8
-        let colorbarTickToTitleGap: CGFloat = 10
         let minGridWidth: CGFloat = 180
         let maxSideInset = max(96, (w - minGridWidth) / 2)
 
         let desiredLeft = yAxisTitleLaneWidth + titleToTickGap + maxYTickLabelWidth + tickToPlotGap
-        // Base right padding covers colorbar + tick labels only.
-        // Z title lane expands the canvas width rather than shrinking the grid.
+        // paddingRight is computed from colorbar metrics (Z title is LEFT of colorbar, not in paddingRight).
+        // Always use the measured tick label width so gridRect stays stable across showColorbar toggles.
         let desiredRight = opts.colorbarGap + opts.colorbarWidth + colorbarTickLabelGap + maxColorbarTickLabelWidth
 
         opts.paddingLeft = clamp(desiredLeft, lower: options.paddingLeft, upper: maxSideInset)
@@ -141,15 +153,42 @@ struct HeatmapPlotLayout: Sendable {
             height: max(0, h - opts.paddingTop - opts.paddingBottom)
         )
 
-        let colorbarRect = CGRect(
-            x: gridRect.maxX + opts.colorbarGap,
-            y: gridRect.minY,
-            width:  opts.colorbarWidth,
-            height: gridRect.height
-        )
-        let colorbarTicks = colorbarTickEntries.map { entry in
-            let y = colorbarRect.minY + entry.normalizedY * colorbarRect.height
-            return (y: y, label: entry.label)
+        // Colorbar placement — Z title sits LEFT of colorbar:
+        // [gridRect] [zTitleGapBefore] [zTitle] [zTitleGapAfter] [colorbar] [tickGap] [tickLabels]
+        // When no Z title: [gridRect] [colorbarGap] [colorbar] [tickGap] [tickLabels]
+        let zTitleGapBefore: CGFloat = 12
+        let zTitleGapAfter: CGFloat = 8
+
+        let colorbarRect: CGRect
+        let colorbarLabelCenter: CGPoint
+        let colorbarTicks: [(y: CGFloat, label: String)]
+
+        if showColorbar {
+            let colorbarMinX: CGFloat
+            let labelCenterX: CGFloat
+            if zAxisTitleLaneWidth > 0 {
+                colorbarMinX = gridRect.maxX + zTitleGapBefore + zAxisTitleLaneWidth + zTitleGapAfter
+                labelCenterX = gridRect.maxX + zTitleGapBefore + zAxisTitleLaneWidth * 0.5
+            } else {
+                colorbarMinX = gridRect.maxX + opts.colorbarGap
+                labelCenterX = 0  // no Z title to render
+            }
+
+            colorbarRect = CGRect(
+                x: colorbarMinX,
+                y: gridRect.minY,
+                width:  opts.colorbarWidth,
+                height: gridRect.height
+            )
+            colorbarLabelCenter = CGPoint(x: labelCenterX, y: gridRect.midY)
+            colorbarTicks = colorbarTickEntriesForMeasure.map { entry in
+                let y = colorbarRect.minY + entry.normalizedY * colorbarRect.height
+                return (y: y, label: entry.label)
+            }
+        } else {
+            colorbarRect = CGRect.zero
+            colorbarLabelCenter = CGPoint.zero
+            colorbarTicks = []
         }
 
         let titleCenter = CGPoint(x: gridRect.midX, y: h - opts.paddingTop * 0.45)
@@ -158,23 +197,28 @@ struct HeatmapPlotLayout: Sendable {
             x: yAxisTitleLaneWidth > 0 ? yAxisTitleLaneWidth * 0.5 : max(0, opts.paddingLeft * 0.28),
             y: gridRect.midY
         )
-        let colorbarLabelCenter = CGPoint(
-            x: colorbarRect.maxX + colorbarTickLabelGap + maxColorbarTickLabelWidth + colorbarTickToTitleGap + zAxisTitleLaneWidth * 0.5,
-            y: gridRect.midY
-        )
 
-        let zTitleExpansion = zAxisTitleLaneWidth > 0 ? colorbarTickToTitleGap + zAxisTitleLaneWidth : 0
+        // Renderer canvas — expand to fit colorbar and Z title lane when visible.
+        let rendererWidth: CGFloat
+        if showColorbar {
+            let rightEdge = colorbarRect.maxX + colorbarTickLabelGap + maxColorbarTickLabelWidth
+            rendererWidth = max(w, rightEdge + 16)
+        } else {
+            rendererWidth = w
+        }
 
         return HeatmapPlotLayout(
-            rendererSize:        CGSize(width: w + zTitleExpansion, height: h),
+            rendererSize:        CGSize(width: rendererWidth, height: h),
             gridRect:            gridRect,
             colorbarRect:        colorbarRect,
             titleCenter:         titleCenter,
             xLabelCenter:        xLabelCenter,
             yLabelCenter:        yLabelCenter,
             colorbarLabelCenter: colorbarLabelCenter,
-            showZLabel:          showZLabel,
+            showColorbar:        showColorbar,
             colorbarTicks:       colorbarTicks,
+            xTickEntries:        xTickEntries,
+            yTickEntries:        yTickEntries,
             zMin:                zMin,
             zMax:                zMax
         )
@@ -182,10 +226,19 @@ struct HeatmapPlotLayout: Sendable {
 
     // MARK: - Tick utilities
 
-    static func sampledYAxisTickEntries(for grid: HeatmapGrid) -> [(row: Int, label: String)] {
+    static func sampledXAxisTickEntries(for grid: HeatmapGrid, targetCount: Int = 8) -> [(col: Int, label: String)] {
+        let nX = grid.nX
+        guard nX > 0 else { return [] }
+        let step = max(1, nX / max(1, targetCount))
+        return stride(from: 0, to: nX, by: step).map { col in
+            (col: col, label: formatAxisValue(grid.xValues[col]))
+        }
+    }
+
+    static func sampledYAxisTickEntries(for grid: HeatmapGrid, targetCount: Int = 8) -> [(row: Int, label: String)] {
         let nY = grid.nY
         guard nY > 0 else { return [] }
-        let step = max(1, nY / 8)
+        let step = max(1, nY / max(1, targetCount))
         return stride(from: 0, to: nY, by: step).map { row in
             (row: row, label: formatAxisValue(grid.yValues[row]))
         }

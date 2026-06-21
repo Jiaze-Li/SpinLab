@@ -8,7 +8,9 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
     @Binding var globalPlotDefaults: [String: String]
     let colorScaleMode: PlotScaleTransform
     let zDomainState: HeatmapZDomainState
-    let showZLabel: Bool
+    let showColorbar: Bool
+    let xTickCount: Int
+    let yTickCount: Int
     let titleOverride: String
     let xLabelOverride: String
     let yLabelOverride: String
@@ -20,7 +22,9 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
     let sourceResetToken: String
     let onColorScaleModeChange: (PlotScaleTransform) -> Void
     let onZDomainStateChange: (HeatmapZDomainState) -> Void
-    let onShowZLabelChange: (Bool) -> Void
+    let onShowColorbarChange: (Bool) -> Void
+    let onXTickCountChange: (Int) -> Void
+    let onYTickCountChange: (Int) -> Void
     let onTitleOverride: (String) -> Void
     let onXLabelOverride: (String) -> Void
     let onYLabelOverride: (String) -> Void
@@ -32,7 +36,9 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
         globalPlotDefaults: Binding<[String: String]>,
         colorScaleMode: PlotScaleTransform,
         zDomainState: HeatmapZDomainState,
-        showZLabel: Bool,
+        showColorbar: Bool,
+        xTickCount: Int,
+        yTickCount: Int,
         titleOverride: String,
         xLabelOverride: String,
         yLabelOverride: String,
@@ -44,7 +50,9 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
         sourceResetToken: String,
         onColorScaleModeChange: @escaping (PlotScaleTransform) -> Void,
         onZDomainStateChange: @escaping (HeatmapZDomainState) -> Void,
-        onShowZLabelChange: @escaping (Bool) -> Void,
+        onShowColorbarChange: @escaping (Bool) -> Void,
+        onXTickCountChange: @escaping (Int) -> Void,
+        onYTickCountChange: @escaping (Int) -> Void,
         onTitleOverride: @escaping (String) -> Void,
         onXLabelOverride: @escaping (String) -> Void,
         onYLabelOverride: @escaping (String) -> Void,
@@ -55,7 +63,9 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
         self._globalPlotDefaults = globalPlotDefaults
         self.colorScaleMode = colorScaleMode
         self.zDomainState = zDomainState
-        self.showZLabel = showZLabel
+        self.showColorbar = showColorbar
+        self.xTickCount = xTickCount
+        self.yTickCount = yTickCount
         self.titleOverride = titleOverride
         self.xLabelOverride = xLabelOverride
         self.yLabelOverride = yLabelOverride
@@ -67,7 +77,9 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
         self.sourceResetToken = sourceResetToken
         self.onColorScaleModeChange = onColorScaleModeChange
         self.onZDomainStateChange = onZDomainStateChange
-        self.onShowZLabelChange = onShowZLabelChange
+        self.onShowColorbarChange = onShowColorbarChange
+        self.onXTickCountChange = onXTickCountChange
+        self.onYTickCountChange = onYTickCountChange
         self.onTitleOverride = onTitleOverride
         self.onXLabelOverride = onXLabelOverride
         self.onYLabelOverride = onYLabelOverride
@@ -84,6 +96,12 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
                         colorScaleMode: colorScaleMode,
                         onColorScaleModeChange: onColorScaleModeChange
                     )
+                    SharedPlotTickCountControls(
+                        xTickCount: xTickCount,
+                        yTickCount: yTickCount,
+                        onXTickCountChange: { onXTickCountChange($0); onStyleChange() },
+                        onYTickCountChange: { onYTickCountChange($0); onStyleChange() }
+                    )
                 }
                 SharedPlotTextControls(
                     titleOverride: titleOverride,
@@ -99,8 +117,8 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
                 )
                 HStack(alignment: .top, spacing: 12) {
                     HeatmapZLabelControl(
-                        showZLabel: showZLabel,
-                        onShowZLabelChange: onShowZLabelChange,
+                        showColorbar: showColorbar,
+                        onShowColorbarChange: onShowColorbarChange,
                         renderedDefault: renderedZLabel,
                         currentValue: zLabelOverride,
                         sourceResetToken: sourceResetToken,

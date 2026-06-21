@@ -123,9 +123,23 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
         rerenderForStyleChange()
     }
 
-    func updateHeatmapShowZLabel(_ isShown: Bool) {
-        guard heatmapDisplayState.showZLabel != isShown else { return }
-        heatmapDisplayState.showZLabel = isShown
+    func updateHeatmapShowColorbar(_ isShown: Bool) {
+        guard heatmapDisplayState.showColorbar != isShown else { return }
+        heatmapDisplayState.showColorbar = isShown
+        rerenderForStyleChange()
+    }
+
+    func updateHeatmapXTickCount(_ count: Int) {
+        let clamped = max(2, min(20, count))
+        guard heatmapDisplayState.xTickCount != clamped else { return }
+        heatmapDisplayState.xTickCount = clamped
+        rerenderForStyleChange()
+    }
+
+    func updateHeatmapYTickCount(_ count: Int) {
+        let clamped = max(2, min(20, count))
+        guard heatmapDisplayState.yTickCount != clamped else { return }
+        heatmapDisplayState.yTickCount = clamped
         rerenderForStyleChange()
     }
 
@@ -520,7 +534,9 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
             colorScaleMode: displayState.colorScaleMode,
             zDomainState: displayState.zDomainState,
             chartStyle: WorkbenchChartStyle.from(styleParams: globalPlotDefaults),
-            showZLabel: displayState.showZLabel
+            showColorbar: displayState.showColorbar,
+            xTickCount: displayState.xTickCount,
+            yTickCount: displayState.yTickCount
         ))
     }
 }

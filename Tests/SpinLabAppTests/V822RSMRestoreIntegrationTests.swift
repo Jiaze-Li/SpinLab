@@ -105,7 +105,7 @@ private func restoreHeatmap(
             payload: payload,
             colorScaleMode: envelope.displayState.colorScaleMode,
             zDomainState: envelope.displayState.zDomainState,
-            showZLabel: envelope.displayState.showZLabel
+            showColorbar: envelope.displayState.showColorbar
         )
     )
 

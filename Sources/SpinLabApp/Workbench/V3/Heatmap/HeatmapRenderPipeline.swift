@@ -33,8 +33,12 @@ enum HeatmapRenderPipeline {
         var yLabelOverride: String = ""
         /// Override colorbar label. Empty = use payload zLabel.
         var zLabelOverride: String = ""
-        /// Whether the rendered Z/colorbar label should be visible.
-        var showZLabel: Bool = true
+        /// Whether the colorbar block (gradient, tick labels, Z title) should be rendered.
+        var showColorbar: Bool = true
+        /// Target X-axis tick count. Clamped to 2…20 in Options.
+        var xTickCount: Int = 5
+        /// Target Y-axis tick count. Clamped to 2…20 in Options.
+        var yTickCount: Int = 5
     }
 
     struct Output: Sendable {
@@ -55,8 +59,7 @@ enum HeatmapRenderPipeline {
             payload.zRangeClampMax = nil
         }
 
-        // Validate Z-range clamp before rendering. Partial clamps (only one bound set)
-        // are silently ignored — the layout falls back to the data min/max in that case.
+        // Validate Z-range clamp before rendering.
         if let lo = payload.zRangeClampMin, let hi = payload.zRangeClampMax {
             guard lo < hi else {
                 throw HeatmapRenderError.invalidZRangeClamp(min: lo, max: hi)
@@ -68,18 +71,22 @@ enum HeatmapRenderPipeline {
         if !input.yLabelOverride.isEmpty { payload.yLabel = input.yLabelOverride }
         if !input.zLabelOverride.isEmpty { payload.zLabel = input.zLabelOverride }
 
-        let layout    = HeatmapPlotLayout.compute(
+        var options = input.options
+        options.xTickCount = max(2, min(20, input.xTickCount))
+        options.yTickCount = max(2, min(20, input.yTickCount))
+
+        let layout = HeatmapPlotLayout.compute(
             payload: payload,
-            options: input.options,
+            options: options,
             colorScaleMode: input.colorScaleMode,
             chartStyle: input.chartStyle,
-            showZLabel: input.showZLabel
+            showColorbar: input.showColorbar
         )
         let imageData = try HeatmapRenderer().renderPNG(
             payload:        payload,
             colorScaleMode: input.colorScaleMode,
-            options:        input.options,
-            showZLabel:     input.showZLabel,
+            options:        options,
+            showColorbar:   input.showColorbar,
             chartStyle:     input.chartStyle
         )
 

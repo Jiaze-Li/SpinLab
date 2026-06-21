@@ -325,12 +325,13 @@ private func makePayload(
     }.max() ?? 0
 
     #expect(shortTickWidth <= longTickWidth)
-    #expect(shortLayout.colorbarRect.maxX < shortLayout.colorbarLabelCenter.x)
-    #expect(longLayout.colorbarRect.maxX < longLayout.colorbarLabelCenter.x)
+    // Z title is now LEFT of colorbar: colorbarLabelCenter.x < colorbarRect.minX
+    #expect(shortLayout.colorbarLabelCenter.x < shortLayout.colorbarRect.minX)
+    #expect(longLayout.colorbarLabelCenter.x < longLayout.colorbarRect.minX)
     #expect(shortLayout.gridRect.maxX < shortLayout.colorbarRect.minX)
     #expect(longLayout.gridRect.maxX < longLayout.colorbarRect.minX)
-    #expect(shortLayout.showZLabel)
-    #expect(longLayout.showZLabel)
+    #expect(shortLayout.showColorbar)
+    #expect(longLayout.showColorbar)
 }
 
 @Test func heatmapRenderPipelineShowZLabelToggleLeavesColorbarTicksVisible() throws {
@@ -347,12 +348,14 @@ private func makePayload(
         )
     )
 
-    let visible = try HeatmapRenderPipeline.render(.init(payload: payload, showZLabel: true))
-    let hidden = try HeatmapRenderPipeline.render(.init(payload: payload, showZLabel: false))
+    let visible = try HeatmapRenderPipeline.render(.init(payload: payload, showColorbar: true))
+    let hidden = try HeatmapRenderPipeline.render(.init(payload: payload, showColorbar: false))
 
-    #expect(visible.layout.showZLabel)
-    #expect(!hidden.layout.showZLabel)
-    #expect(visible.layout.colorbarTicks.count == hidden.layout.colorbarTicks.count)
+    #expect(visible.layout.showColorbar)
+    #expect(!hidden.layout.showColorbar)
+    // showColorbar=false hides the entire colorbar block including ticks
+    #expect(visible.layout.colorbarTicks.count >= 2)
+    #expect(hidden.layout.colorbarTicks.isEmpty)
     #expect(!visible.imageData.isEmpty)
     #expect(!hidden.imageData.isEmpty)
     #expect(visible.imageData != hidden.imageData)
@@ -576,7 +579,7 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
         xLabelOverride: "My X",
         yLabelOverride: "My Y",
         zLabelOverride: "My Z",
-        showZLabel: false,
+        showColorbar: false,
         colorScaleMode: .log10,
         colormapKey: "inferno",
         zDomainState: HeatmapZDomainState(
@@ -591,7 +594,7 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     #expect(decoded.xLabelOverride == "My X")
     #expect(decoded.yLabelOverride == "My Y")
     #expect(decoded.zLabelOverride == "My Z")
-    #expect(!decoded.showZLabel)
+    #expect(!decoded.showColorbar)
     #expect(decoded.colorScaleMode == .log10)
     #expect(decoded.colormapKey == "inferno")
     #expect(decoded.zDomainState.mode == .manual)
@@ -614,7 +617,7 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     #expect(decoded.xLabelOverride == "Saved X")
     #expect(decoded.yLabelOverride == "Saved Y")
     #expect(decoded.zLabelOverride == "Saved Z")
-    #expect(decoded.showZLabel)
+    #expect(decoded.showColorbar)
     #expect(decoded.colorScaleMode == .linear)
     #expect(decoded.colormapKey == "viridis")
     #expect(decoded.zDomainState.mode == .auto)
@@ -634,8 +637,8 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     #expect(decoded.zLabelOverride == "κ (W/m·K)")
 }
 
-@Test func heatmapTabRenderStateDefaultsShowZLabelToTrue() {
-    #expect(HeatmapTabRenderState().showZLabel)
+@Test func heatmapTabRenderStateDefaultsShowColorbarToTrue() {
+    #expect(HeatmapTabRenderState().showColorbar)
 }
 
 @Test func heatmapTabRenderStateColorScaleModeRoundTrip() throws {
@@ -693,7 +696,10 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     #expect(keys.contains("xLabelOverride"))
     #expect(keys.contains("yLabelOverride"))
     #expect(keys.contains("zLabelOverride"))
-    #expect(keys.contains("showZLabel"))
+    #expect(keys.contains("showColorbar"))
+    #expect(!keys.contains("showZLabel"))
+    #expect(keys.contains("xTickCount"))
+    #expect(keys.contains("yTickCount"))
     #expect(keys.contains("colorScaleMode"))
     #expect(keys.contains("colormapKey"))
     #expect(keys.contains("zDomainState"))
@@ -894,66 +900,64 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
 
 // MARK: - Gate HeatmapLayoutPolish-Followup-2: plot width, Z label, log ticks
 
-@Test func showZLabelDoesNotShrinkGridWidth() {
+@Test func showColorbarDoesNotShrinkGridWidth() {
     let payload = HeatmapPlotPayload(
         workflowID: "rsm",
         title: "Width stability",
         xLabel: "H (r.l.u.)", yLabel: "L (r.l.u.)", zLabel: "Intensity (counts)",
         grid: make2x2Grid()
     )
-    let withLabel    = HeatmapPlotLayout.compute(payload: payload, showZLabel: true)
-    let withoutLabel = HeatmapPlotLayout.compute(payload: payload, showZLabel: false)
-    // Grid width must not shrink when Z label is enabled.
-    #expect(abs(withLabel.gridRect.width - withoutLabel.gridRect.width) < 1,
-            "showZLabel must not reduce gridRect.width")
+    let withColorbar    = HeatmapPlotLayout.compute(payload: payload, showColorbar: true)
+    let withoutColorbar = HeatmapPlotLayout.compute(payload: payload, showColorbar: false)
+    // Grid width must not shrink when colorbar is shown.
+    #expect(abs(withColorbar.gridRect.width - withoutColorbar.gridRect.width) < 1,
+            "showColorbar must not reduce gridRect.width")
 }
 
-@Test func showZLabelExpandsRendererWidth() {
+@Test func showColorbarExpandsRendererWidth() {
     let payload = HeatmapPlotPayload(
         workflowID: "rsm",
         title: "Width expansion",
         xLabel: "H", yLabel: "L", zLabel: "Intensity (counts)",
         grid: make2x2Grid()
     )
-    let withLabel    = HeatmapPlotLayout.compute(payload: payload, showZLabel: true)
-    let withoutLabel = HeatmapPlotLayout.compute(payload: payload, showZLabel: false)
-    #expect(withLabel.rendererSize.width > withoutLabel.rendererSize.width,
-            "showZLabel = true must widen the renderer canvas to accommodate the Z title lane")
+    let withColorbar    = HeatmapPlotLayout.compute(payload: payload, showColorbar: true)
+    let withoutColorbar = HeatmapPlotLayout.compute(payload: payload, showColorbar: false)
+    #expect(withColorbar.rendererSize.width > withoutColorbar.rendererSize.width,
+            "showColorbar = true must widen the renderer canvas to accommodate colorbar and Z title lane")
 }
 
-@Test func showZLabelNoOverlapWithColorbarTickLabels() {
+@Test func showColorbarZTitleIsLeftOfColorbar() {
     let payload = HeatmapPlotPayload(
         workflowID: "rsm",
-        title: "No overlap",
+        title: "Z title left of colorbar",
         xLabel: "H", yLabel: "L", zLabel: "Intensity (counts)",
         grid: make4x3Grid()
     )
-    let layout = HeatmapPlotLayout.compute(payload: payload, showZLabel: true)
-    let style = WorkbenchChartStyle()
-    let maxTickWidth = layout.colorbarTicks.map {
-        HeatmapPlotLayout.measuredTextWidth($0.label, fontSize: style.tickLabelFontSize,
-                                            fontName: style.fontName, boldFontName: style.boldFontName)
-    }.max() ?? 0
-    let tickLabelRightEdge = layout.colorbarRect.maxX + 4 + maxTickWidth
-    // Z title center must be to the right of the tick label right edge
-    #expect(layout.colorbarLabelCenter.x > tickLabelRightEdge,
-            "Z title center must be right of colorbar tick labels to avoid overlap")
-    // Z title must fit within renderer canvas
-    #expect(layout.colorbarLabelCenter.x < layout.rendererSize.width,
-            "Z title center must be within the rendered canvas width")
+    let layout = HeatmapPlotLayout.compute(payload: payload, showColorbar: true)
+    // Z title center must be LEFT of colorbar (new layout)
+    #expect(layout.colorbarLabelCenter.x < layout.colorbarRect.minX,
+            "Z title center must be left of the colorbar, not right")
+    // Colorbar tick labels are right of colorbar
+    #expect(layout.colorbarRect.maxX < layout.rendererSize.width,
+            "Colorbar tick labels must fit within the rendered canvas")
+    // Z title center must be right of grid
+    #expect(layout.colorbarLabelCenter.x > layout.gridRect.maxX,
+            "Z title center must be right of the plot grid")
 }
 
-@Test func showZLabelFalseDoesNotRenderZTitleButKeepsColorbar() {
+@Test func showColorbarFalseHidesEntireColorbarBlock() {
     let payload = HeatmapPlotPayload(
         workflowID: "rsm",
-        title: "No Z title",
+        title: "No colorbar",
         xLabel: "H", yLabel: "L", zLabel: "Intensity (counts)",
         grid: make2x2Grid()
     )
-    let layout = HeatmapPlotLayout.compute(payload: payload, showZLabel: false)
-    #expect(!layout.showZLabel)
-    #expect(layout.colorbarTicks.count >= 2, "Colorbar ticks must be present even when Z title is hidden")
-    #expect(layout.colorbarRect.height > 0, "Colorbar must be present even when Z title is hidden")
+    let layout = HeatmapPlotLayout.compute(payload: payload, showColorbar: false)
+    #expect(!layout.showColorbar)
+    // showColorbar=false hides the entire colorbar block
+    #expect(layout.colorbarTicks.isEmpty, "Colorbar ticks must be absent when colorbar is hidden")
+    #expect(layout.colorbarRect == CGRect.zero, "Colorbar rect must be zero when colorbar is hidden")
 }
 
 @Test func logScaleModeZLabelIsExactUserText() {
@@ -1061,4 +1065,82 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     #expect(!jsonString.contains("legendPoint"))
     #expect(!jsonString.contains("seriesOrder"))
     #expect(!jsonString.contains("hiddenPointLabels"))
+}
+
+// MARK: - A: Tick count controls
+
+@Test func heatmapTabRenderStateTickCountDefaults() {
+    let state = HeatmapTabRenderState()
+    #expect(state.xTickCount == 5)
+    #expect(state.yTickCount == 5)
+}
+
+@Test func heatmapTabRenderStateTickCountRoundTrip() throws {
+    let state = HeatmapTabRenderState(xTickCount: 8, yTickCount: 3)
+    let data = try JSONEncoder().encode(state)
+    let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: data)
+    #expect(decoded.xTickCount == 8)
+    #expect(decoded.yTickCount == 3)
+}
+
+@Test func heatmapTabRenderStateTickCountClampedOnDecode() throws {
+    // Values outside 2...20 must be clamped
+    let json = """
+    {"schemaVersion":2,"xTickCount":1,"yTickCount":25}
+    """.data(using: .utf8)!
+    let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: json)
+    #expect(decoded.xTickCount == 2, "xTickCount below 2 must clamp to 2")
+    #expect(decoded.yTickCount == 20, "yTickCount above 20 must clamp to 20")
+}
+
+@Test func heatmapLayoutXTickEntriesCountMatchesRequest() {
+    let grid = HeatmapGrid(
+        xValues: Array(stride(from: 0.0, through: 20.0, by: 1.0)),
+        yValues: [0.0, 1.0],
+        zMatrix: [[Double]](repeating: Array(repeating: 1.0, count: 21), count: 2)
+    )
+    let payload = HeatmapPlotPayload(workflowID: "rsm", title: "", xLabel: "X", yLabel: "Y", zLabel: "Z", grid: grid)
+    let layout4 = HeatmapPlotLayout.compute(payload: payload, options: .init(xTickCount: 4))
+    let layout10 = HeatmapPlotLayout.compute(payload: payload, options: .init(xTickCount: 10))
+    // Sampler uses integer stride so entry count approximates the target (within 2x)
+    #expect(layout4.xTickEntries.count >= 1)
+    #expect(layout10.xTickEntries.count >= 1)
+    #expect(layout10.xTickEntries.count > layout4.xTickEntries.count,
+            "More ticks requested must produce more tick entries")
+}
+
+@Test func heatmapLayoutYTickEntriesCountMatchesRequest() {
+    let grid = HeatmapGrid(
+        xValues: [0.0, 1.0],
+        yValues: Array(stride(from: 0.0, through: 20.0, by: 1.0)),
+        zMatrix: [[Double]](repeating: [0.0, 1.0], count: 21)
+    )
+    let payload = HeatmapPlotPayload(workflowID: "rsm", title: "", xLabel: "X", yLabel: "Y", zLabel: "Z", grid: grid)
+    let layout3 = HeatmapPlotLayout.compute(payload: payload, options: .init(yTickCount: 3))
+    let layout8 = HeatmapPlotLayout.compute(payload: payload, options: .init(yTickCount: 8))
+    #expect(layout3.yTickEntries.count >= 1)
+    #expect(layout8.yTickEntries.count >= 1)
+    #expect(layout8.yTickEntries.count > layout3.yTickEntries.count,
+            "More ticks requested must produce more tick entries")
+}
+
+@Test func heatmapRenderPipelinePassesTickCountsToLayout() throws {
+    let payload = HeatmapPlotPayload(
+        workflowID: "rsm", title: "T", xLabel: "H", yLabel: "L", zLabel: "I",
+        grid: make4x3Grid()
+    )
+    // Default produces more ticks; small xTickCount/yTickCount should reduce the count
+    let defaultOutput = try HeatmapRenderPipeline.render(.init(payload: payload))
+    let smallOutput = try HeatmapRenderPipeline.render(.init(payload: payload, xTickCount: 2, yTickCount: 2))
+    // Smaller tick count request must produce fewer or equal X tick entries
+    #expect(smallOutput.layout.xTickEntries.count <= defaultOutput.layout.xTickEntries.count,
+            "xTickCount=2 must not exceed default tick count")
+}
+
+@Test func heatmapLayoutMinTickCountClampedAtTwo() {
+    let payload = HeatmapPlotPayload(workflowID: "rsm", title: "", xLabel: "X", yLabel: "Y", zLabel: "Z",
+                                     grid: make4x3Grid())
+    let layout = HeatmapPlotLayout.compute(payload: payload, options: .init(xTickCount: 0, yTickCount: 1))
+    #expect(layout.xTickEntries.count >= 1, "Clamped minimum tick count must still produce at least one entry")
+    #expect(layout.yTickEntries.count >= 1)
 }
