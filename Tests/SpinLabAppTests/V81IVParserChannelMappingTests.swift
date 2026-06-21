@@ -140,7 +140,6 @@ struct V81IVParserChannelMappingTests {
         #expect(meta["temperature"] == "293K")
         #expect(meta["device"] == "0deg")
         #expect(meta["field"] == "0T")
-        #expect(meta["harmonic"] == "1w")
         #expect(meta["thickness"] == "30")
     }
 
@@ -167,7 +166,7 @@ struct V81IVParserChannelMappingTests {
         #expect(payload.series.allSatisfy { !$0.metadata.isEmpty })
         #expect(payload.series.allSatisfy { $0.metadata["temperature"] == "293K" })
         #expect(payload.series.allSatisfy { $0.metadata["device"] == "0deg" })
-        #expect(payload.series.allSatisfy { $0.metadata["harmonic"] == "1w" })
+        #expect(payload.series.allSatisfy { $0.metadata["field"] != nil })
     }
 
     @Test("IVPlotRenderer converts peak current to mA by default")
@@ -277,8 +276,8 @@ struct V81IVParserChannelMappingTests {
         #expect(Set(rendered.manifestPayload.series.map(\.label)) == Set(["0T", "2.5T"]))
     }
 
-    @Test("IV harmonic changes resolve to harmonic legend labels")
-    func ivHarmonicLegendLabelsResolveToHarmonic() throws {
+    @Test("IV harmonic metadata absent keeps legend indeterminate")
+    func ivHarmonicLegendLabelsStayIndeterminateWithoutMetadata() throws {
         let rendered = try renderIVSeries(
             leftName: "iv_0deg_0T_1w_a.lvm",
             rightName: "iv_0deg_0T_3w_b.lvm",
@@ -286,8 +285,8 @@ struct V81IVParserChannelMappingTests {
             rightTemperature: "293K"
         )
 
-        #expect(rendered.manifestPayload.legendDimension == "Harmonic")
-        #expect(Set(rendered.manifestPayload.series.map(\.label)) == Set(["1w", "3w"]))
+        #expect(rendered.manifestPayload.legendDimension == "⚠ No distinguishing dimension")
+        #expect(Set(rendered.manifestPayload.series.map(\.label)) == Set(["293 K"]))
     }
 
     @Test("IV temperature overrides field and harmonic in legend resolution")
