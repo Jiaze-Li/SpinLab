@@ -10,7 +10,7 @@ struct ThreeOmegaPlotRenderer {
 
     // MARK: - Scaling-law axis labels
 
-    static let scalingXAxisLabel = #"math:σ_{xx}^{2} (10^{7} S^{2} cm^{-2})"#
+    static let scalingXAxisLabel = #"math:σ_{xx}^{2} × 10^{7} (S^{2} cm^{-2})"#
     static let scalingYAxisLabel = #"math:E_{AHE}^{3ω} / (E_{xx}^{3}·σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})"#
 
     var showGrid: Bool = true
@@ -286,7 +286,20 @@ struct ThreeOmegaPlotRenderer {
     /// Conversions: X_SI (S/m)² × 1e-11 → 10⁷ S²/cm²
     ///              Y_SI (Ω·m³/V²) × 1e20 → Ω·μm³·V⁻² × 10²
     mutating func renderScaling(result: ThreeOmegaScalingResult, device: String = "", method: String = "") -> (Data?, WorkbenchPlotLayout?, [String]) {
-        guard !result.points.isEmpty else { return (nil, nil, []) }
+        guard var payload = makeScalingPayload(result: result, device: device, method: method) else {
+            return (nil, nil, [])
+        }
+        var w: [String] = []
+        let (data, layout) = _consume(_render(payload: &payload), into: &w)
+        return (data, layout, w)
+    }
+
+    func makeScalingPayload(
+        result: ThreeOmegaScalingResult,
+        device: String = "",
+        method: String = ""
+    ) -> WorkbenchPlotPayload? {
+        guard !result.points.isEmpty else { return nil }
 
         let xs = result.points.map { $0.sigma2xx * 1e-11 }   // (S/m)² → 10⁷ S²/cm²
         let ys = result.points.map { $0.scalingY  * 1e20  }  // Ω·m³/V² → Ω·μm³·V⁻² × 10²
@@ -337,7 +350,7 @@ struct ThreeOmegaPlotRenderer {
         } else {
             r2Str = ""
         }
-        var payload = WorkbenchPlotPayload(
+        return WorkbenchPlotPayload(
             workflowID: "3w",
             workflowDisplayName: "3w",
             title: _defaultTitle("Scaling Law", device: device, method: method, deviceMode: _deviceMode(for: device)) + r2Str,
@@ -349,9 +362,6 @@ struct ThreeOmegaPlotRenderer {
             ),
             series: series
         )
-        var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &payload), into: &w)
-        return (data, layout, w)
     }
 
     // MARK: - Private

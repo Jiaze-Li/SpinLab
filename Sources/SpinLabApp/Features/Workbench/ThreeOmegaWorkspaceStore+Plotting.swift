@@ -214,14 +214,29 @@ extension ThreeOmegaWorkspaceStore: WorkbenchCartesianXYPlottingStore {
 
 
     func renderPNGAtScale(_ scale: CGFloat) -> Data? {
-        if scale == 2.0, let cached = activeImageData { return cached }
-        guard let payload = activeChartManifestPayload else { return nil }
+        copyCurrentPlotPNG(scale: scale)
+    }
+
+    func copyCurrentPlotPNG(scale: CGFloat) -> Data? {
+        guard let input = copyCurrentPlotPNGInput(scale: scale) else { return nil }
+        return try? WorkbenchRenderPipeline.render(input).imageData
+    }
+
+    private func copyCurrentPlotPNGInput(scale: CGFloat) -> WorkbenchRenderPipeline.Input? {
         let tab = tabs.activeTab
+        guard let payload = copyCurrentPlotPayload(for: tab) else { return nil }
         let tabState = tabs.state(for: tab)
         var patch: [String: String] = [:]
         if tabs.showPlotGrid { patch["showGrid"] = "true" }
         if !tabs.legendAnchor.isEmpty { patch["legendAnchor"] = tabs.legendAnchor }
-        var input = WorkbenchRenderPipeline.Input(payload: payload, globalPlotDefaults: globalPlotDefaults)
+
+        var baseOptions = WorkbenchChartRenderer.Options()
+        if let activeLayout {
+            baseOptions.width = Int(activeLayout.rendererSize.width.rounded())
+            baseOptions.height = Int(activeLayout.rendererSize.height.rounded())
+        }
+
+        var input = WorkbenchRenderPipeline.Input(payload: payload, baseOptions: baseOptions, globalPlotDefaults: globalPlotDefaults)
         input.pixelScaleOverride = scale
         input.legendPoint = tabState.legendPoint?.cgPoint
         input.seriesRenderMode = tabs.seriesRenderMode
@@ -232,7 +247,20 @@ extension ThreeOmegaWorkspaceStore: WorkbenchCartesianXYPlottingStore {
         input.yLabelOverride = tabState.yLabelOverride
         input.hiddenPointLabelsBySeries = toIndexedOverrides(tabs.hiddenPointLabelsBySampleID(for: tab), series: payload.series).mapValues { Set($0) }
         input.styleParamsPatch = patch
-        return try? WorkbenchRenderPipeline.render(input).imageData
+        return input
+    }
+
+    private func copyCurrentPlotPayload(for tab: ThreeOmegaWorkbenchTab) -> WorkbenchPlotPayload? {
+        if tab == .scaling {
+            guard let scalingResult else { return nil }
+            let method = v3Method == .highField ? "(HFE)" : "(WA)"
+            return ThreeOmegaPlotRenderer().makeScalingPayload(
+                result: scalingResult,
+                device: ingestionResult?.device ?? "",
+                method: method
+            )
+        }
+        return activeChartManifestPayload
     }
 }
 

@@ -5,7 +5,7 @@ import Testing
 @Suite("ThreeOmega scaling-law math labels")
 struct ThreeOmegaScalingMathLabelTests {
 
-    private let expectedScalingXLabel = "σ_{xx}^{2} (10^{7} S^{2} cm^{-2})"
+    private let expectedScalingXLabel = "σ_{xx}^{2} × 10^{7} (S^{2} cm^{-2})"
     private let expectedScalingYLabel = "E_{AHE}^{3ω} / (E_{xx}^{3}·σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})"
 
     @Test("Scaling-law X label uses math prefix")
