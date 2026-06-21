@@ -49,6 +49,12 @@ struct WorkbenchChartRenderer {
         CGColor(red: 0.549, green: 0.337, blue: 0.294, alpha: 1), // C5 brown
     ]
 
+    private let latexAxisLabelRenderer: any LatexAxisLabelRendering
+
+    init(latexAxisLabelRenderer: any LatexAxisLabelRendering = LatexAxisLabelRenderer.shared) {
+        self.latexAxisLabelRenderer = latexAxisLabelRenderer
+    }
+
     // MARK: - Public
 
     func renderPNG(payload: WorkbenchPlotPayload, options: Options = .init(), style: WorkbenchChartStyle = .init(), layout: WorkbenchPlotLayout? = nil) throws -> Data {
@@ -264,9 +270,9 @@ struct WorkbenchChartRenderer {
         // Axis field name labels (markup: _X renders X as subscript)
         let axisColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
         drawCenteredMarkup(ctx, text: payload.axisMapping.xField,
-                           at: layout.xLabelCenter, size: style.axisTitleFontSize, color: axisColor, style: style)
+                           at: layout.xLabelCenter, size: style.axisTitleFontSize, color: axisColor, style: style, axisRole: "x")
         drawRotated90Markup(ctx, text: payload.axisMapping.yField,
-                            at: layout.yLabelCenter, size: style.axisTitleFontSize, color: axisColor, style: style)
+                            at: layout.yLabelCenter, size: style.axisTitleFontSize, color: axisColor, style: style, axisRole: "y")
 
         // Legend — box rect from layout (single source of truth, no local duplication)
         if let boxRect = layout.legendBoxRect {
@@ -457,23 +463,21 @@ struct WorkbenchChartRenderer {
     }
 
     private func drawCenteredMarkup(_ ctx: CGContext, text: String, at center: CGPoint,
-                                    size: CGFloat, color: CGColor, style: WorkbenchChartStyle) {
+                                    size: CGFloat, color: CGColor, style: WorkbenchChartStyle,
+                                    axisRole: String? = nil) {
         if LatexAxisLabelRenderer.isLatexLabel(text) {
             let latex = LatexAxisLabelRenderer.extractLatex(text)
-            let rendered = LatexAxisLabelRenderer.shared.draw(
+            if let axisRole {
+                print("[LatexAxisLabel] drawing \(axisRole) label latex=true")
+            } else {
+                print("[LatexAxisLabel] drawing label latex=true")
+            }
+            let rendered = latexAxisLabelRenderer.draw(
                 ctx: ctx, latex: latex, fontSize: size, color: color,
                 at: center, orientation: .horizontal
             )
             if rendered { return }
-            // LaTeX not available — fall back with stripped prefix as plain/markup text
-            let fallback = latex
-            let line = makeMarkupLine(text: fallback, size: size, color: color, style: style)
-            let bounds = CTLineGetBoundsWithOptions(line, [])
-            ctx.textPosition = CGPoint(
-                x: center.x - bounds.width / 2 - bounds.minX,
-                y: center.y - bounds.height / 2 - bounds.minY
-            )
-            CTLineDraw(line, ctx)
+            print("[LatexAxisLabel] render failed for axis label; raw LaTeX suppressed")
             return
         }
         let line = makeMarkupLine(text: text, size: size, color: color, style: style)
@@ -486,27 +490,21 @@ struct WorkbenchChartRenderer {
     }
 
     private func drawRotated90Markup(_ ctx: CGContext, text: String, at center: CGPoint,
-                                     size: CGFloat, color: CGColor, style: WorkbenchChartStyle) {
+                                     size: CGFloat, color: CGColor, style: WorkbenchChartStyle,
+                                     axisRole: String? = nil) {
         if LatexAxisLabelRenderer.isLatexLabel(text) {
             let latex = LatexAxisLabelRenderer.extractLatex(text)
-            let rendered = LatexAxisLabelRenderer.shared.draw(
+            if let axisRole {
+                print("[LatexAxisLabel] drawing \(axisRole) label latex=true")
+            } else {
+                print("[LatexAxisLabel] drawing label latex=true")
+            }
+            let rendered = latexAxisLabelRenderer.draw(
                 ctx: ctx, latex: latex, fontSize: size, color: color,
                 at: center, orientation: .rotated90
             )
             if rendered { return }
-            // LaTeX not available — fall back with stripped prefix as plain/markup text
-            let fallback = latex
-            let line = makeMarkupLine(text: fallback, size: size, color: color, style: style)
-            let bounds = CTLineGetBoundsWithOptions(line, [])
-            ctx.saveGState()
-            ctx.translateBy(x: center.x, y: center.y)
-            ctx.rotate(by: .pi / 2)
-            ctx.textPosition = CGPoint(
-                x: -bounds.width / 2 - bounds.minX,
-                y: -bounds.height / 2 - bounds.minY
-            )
-            CTLineDraw(line, ctx)
-            ctx.restoreGState()
+            print("[LatexAxisLabel] render failed for axis label; raw LaTeX suppressed")
             return
         }
         let line = makeMarkupLine(text: text, size: size, color: color, style: style)

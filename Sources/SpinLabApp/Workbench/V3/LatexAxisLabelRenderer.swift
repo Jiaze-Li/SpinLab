@@ -8,6 +8,17 @@ import CoreGraphics
 ///
 /// Compilation, caching, and rasterisation are delegated to LatexRenderService.
 /// This type has no knowledge of the LaTeX backend or cache internals.
+protocol LatexAxisLabelRendering {
+    func draw(
+        ctx: CGContext,
+        latex: String,
+        fontSize: CGFloat,
+        color: CGColor,
+        at center: CGPoint,
+        orientation: LatexAxisLabelRenderer.Orientation
+    ) -> Bool
+}
+
 final class LatexAxisLabelRenderer {
 
     static let shared = LatexAxisLabelRenderer()
@@ -54,7 +65,7 @@ final class LatexAxisLabelRenderer {
     // MARK: - Draw API (axis-aware)
 
     /// Draws the LaTeX formula into ctx centered at the given point.
-    /// Returns false when LaTeX is unavailable so the caller can fall back to MathMarkupRenderer.
+    /// Returns false when LaTeX is unavailable so the caller can suppress fallback drawing.
     @discardableResult
     func draw(
         ctx: CGContext,
@@ -65,7 +76,7 @@ final class LatexAxisLabelRenderer {
         orientation: Orientation
     ) -> Bool {
         guard let asset = service.render(latex: latex, color: color) else {
-            print("[LatexAxisLabelRenderer] LaTeX not available — falling back to MathMarkupRenderer")
+            print("[LatexAxisLabel] render failed reason=backend_unavailable")
             return false
         }
         let scale = fontSize / 12.0
@@ -73,6 +84,10 @@ final class LatexAxisLabelRenderer {
             width:  asset.naturalSize.width  * scale,
             height: asset.naturalSize.height * scale
         )
+        guard drawSize.width > 0, drawSize.height > 0 else {
+            print("[LatexAxisLabel] render failed reason=non_positive_size")
+            return false
+        }
         ctx.saveGState()
         switch orientation {
         case .horizontal:
@@ -88,6 +103,9 @@ final class LatexAxisLabelRenderer {
             ctx.draw(asset.image, in: CGRect(origin: origin, size: drawSize))
         }
         ctx.restoreGState()
+        print("[LatexAxisLabel] render success size=\(String(format: "%.1fx%.1f", drawSize.width, drawSize.height))")
         return true
     }
 }
+
+extension LatexAxisLabelRenderer: LatexAxisLabelRendering {}

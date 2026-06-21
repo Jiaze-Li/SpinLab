@@ -241,6 +241,34 @@ struct LatexAxisLabelRendererTests {
         // No assertion on nil — compilation failure is acceptable (test environment constraint).
     }
 
+    @Test("Integration: scaling-law axis labels draw through the real backend when available")
+    func integrationDrawScalingLawLabels() {
+        guard LatexRenderService.shared.isAvailable else { return }
+        let renderer = LatexAxisLabelRenderer()
+        let ctx = makeTestContext()
+        let color = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+
+        let xRendered = renderer.draw(
+            ctx: ctx,
+            latex: LatexAxisLabelRenderer.extractLatex(ThreeOmegaPlotRenderer.scalingXAxisLabel),
+            fontSize: 20,
+            color: color,
+            at: CGPoint(x: 100, y: 100),
+            orientation: .horizontal
+        )
+        let yRendered = renderer.draw(
+            ctx: ctx,
+            latex: LatexAxisLabelRenderer.extractLatex(ThreeOmegaPlotRenderer.scalingYAxisLabel),
+            fontSize: 20,
+            color: color,
+            at: CGPoint(x: 100, y: 100),
+            orientation: .rotated90
+        )
+
+        #expect(xRendered)
+        #expect(yRendered)
+    }
+
     // MARK: - Helpers
 
     private func makeTestContext() -> CGContext {

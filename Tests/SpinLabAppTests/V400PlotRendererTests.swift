@@ -1,8 +1,38 @@
 import CoreGraphics
+import Foundation
 import XCTest
 @testable import SpinLabApp
 
+private func v400PlotRendererRepoRoot() -> URL {
+    URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent() // SpinLabAppTests
+        .deletingLastPathComponent() // Tests
+        .deletingLastPathComponent() // repo root
+}
+
 final class V400WorkbenchPlotRendererTests: XCTestCase {
+
+    private final class RecordingLatexAxisLabelRenderer: LatexAxisLabelRendering {
+        struct Call {
+            let latex: String
+            let orientation: LatexAxisLabelRenderer.Orientation
+        }
+
+        var calls: [Call] = []
+        var shouldSucceed = true
+
+        func draw(
+            ctx: CGContext,
+            latex: String,
+            fontSize: CGFloat,
+            color: CGColor,
+            at center: CGPoint,
+            orientation: LatexAxisLabelRenderer.Orientation
+        ) -> Bool {
+            calls.append(Call(latex: latex, orientation: orientation))
+            return shouldSucceed
+        }
+    }
 
     func testFormatTick_compactScientificCases() {
         let renderer = WorkbenchChartRenderer()
@@ -88,5 +118,49 @@ final class V400WorkbenchPlotRendererTests: XCTestCase {
         )
 
         XCTAssertEqual(layout.legendStyle.fontName, style.fontName)
+    }
+
+    func testLatexAxisLabelsReachRendererWithoutRawFallback() throws {
+        let spy = RecordingLatexAxisLabelRenderer()
+        let renderer = WorkbenchChartRenderer(latexAxisLabelRenderer: spy)
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test",
+            workflowDisplayName: "Test",
+            title: "Latex Labels",
+            axisMapping: WorkbenchAxisMapping(
+                xField: ThreeOmegaPlotRenderer.scalingXAxisLabel,
+                yField: ThreeOmegaPlotRenderer.scalingYAxisLabel
+            ),
+            series: [
+                WorkbenchPlotSeries(label: "series", x: [0.0, 1.0], y: [1.0, 2.0])
+            ]
+        )
+
+        _ = try renderer.renderPNG(payload: payload)
+
+        XCTAssertEqual(spy.calls.count, 2)
+        XCTAssertEqual(
+            spy.calls[0].latex,
+            LatexAxisLabelRenderer.extractLatex(ThreeOmegaPlotRenderer.scalingXAxisLabel)
+        )
+        XCTAssertEqual(spy.calls[0].orientation, .horizontal)
+        XCTAssertEqual(
+            spy.calls[1].latex,
+            LatexAxisLabelRenderer.extractLatex(ThreeOmegaPlotRenderer.scalingYAxisLabel)
+        )
+        XCTAssertEqual(spy.calls[1].orientation, .rotated90)
+    }
+
+    func testWorkbenchChartRendererLatexBranchDoesNotFallbackToRawSource() throws {
+        let src = try String(
+            contentsOf: v400PlotRendererRepoRoot()
+                .appendingPathComponent("Sources/SpinLabApp/Workbench/V3/WorkbenchChartRenderer.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(src.contains("latexAxisLabelRenderer.draw("))
+        XCTAssertTrue(src.contains("raw LaTeX suppressed"))
+        XCTAssertFalse(src.contains("let fallback = latex"))
+        XCTAssertFalse(src.contains("LatexAxisLabelRenderer.shared.draw("))
     }
 }

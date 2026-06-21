@@ -5,7 +5,21 @@ import Testing
 @Suite("ThreeOmega scaling-law LaTeX labels")
 struct ThreeOmegaScalingLatexLabelTests {
 
+    private let expectedScalingXFormula = #"\sigma_{xx}^{2};(10^{7},\mathrm{S}^{2}/\mathrm{cm}^{2})"#
     private let expectedScalingYFormula = #"\frac{E_{\mathrm{AHE}}^{(3\omega)}}{E_{xx}^{3}\cdot\sigma_{xx}}\times10^{2};(\Omega\cdot\mu\mathrm{m}^{3}\cdot\mathrm{V}^{-2})"#
+
+    @Test("Scaling-law X label preserves raw LaTeX commands exactly")
+    func scalingLawXLabelPreservesCommands() {
+        let fullLabel = ThreeOmegaPlotRenderer.scalingXAxisLabel
+        #expect(LatexAxisLabelRenderer.isLatexLabel(fullLabel))
+
+        let latex = LatexAxisLabelRenderer.extractLatex(fullLabel)
+        #expect(latex == expectedScalingXFormula)
+        #expect(latex.contains("\\sigma"))
+        #expect(latex.contains("\\mathrm"))
+        #expect(!latex.contains("\\;"))
+        #expect(!latex.contains("σ"))
+    }
 
     @Test("Scaling-law Y label preserves raw LaTeX commands exactly")
     func scalingLawYLabelPreservesCommands() {
