@@ -20,7 +20,7 @@ enum HeatmapRenderPipeline {
 
     struct Input: Sendable {
         var payload: HeatmapPlotPayload
-        var colorScaleMode: HeatmapColorScaleMode = .linear
+        var colorScaleMode: PlotScaleTransform = .linear
         var options: HeatmapPlotLayout.Options = .init()
         /// Shared text styling defaults used by heatmap labels and tick marks.
         var chartStyle: WorkbenchChartStyle = .init()

@@ -41,7 +41,7 @@ struct HeatmapPlotLayout: Sendable {
     static func compute(
         payload: HeatmapPlotPayload,
         options: Options = .init(),
-        colorScaleMode: HeatmapColorScaleMode = .linear,
+        colorScaleMode: PlotScaleTransform = .linear,
         chartStyle: WorkbenchChartStyle? = nil
     ) -> HeatmapPlotLayout {
         var opts = options
@@ -110,7 +110,7 @@ struct HeatmapPlotLayout: Sendable {
             }
 
         case .log10:
-            if let domain = HeatmapColorScale.log10Domain(zMin: zMin, zMax: zMax) {
+            if let domain = PlotScaleTransform.log10Domain(lowerBound: zMin, upperBound: zMax) {
                 let logMin = Darwin.log10(domain.min)
                 let logMax = Darwin.log10(domain.max)
                 let expTicks = niceTicks(min: logMin, max: logMax, targetCount: 5)

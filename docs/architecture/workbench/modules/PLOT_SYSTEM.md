@@ -96,6 +96,7 @@ Heatmap is a **Plot System-owned render path**, not an RSM workflow module. RSM 
 
 - `HeatmapPlotPayload` is a **Plot System contract**, not an RSM contract.
 - The heatmap renderer, color scale, colorbar, heatmap layout, and heatmap render pipeline are owned and implemented by Plot System.
+- Shared plot scale transforms are owned by Plot System in `PlotScaleTransform` and reused by heatmap first.
 - RSM Assembly is responsible only for scientific semantics: it interprets its analysis result and turns it into a `HeatmapPlotPayload`. It must not own or implement the renderer, colormap, colorbar geometry, or heatmap controls.
 - Any future workflow that produces 2D grid data reuses the same heatmap render path by filling a `HeatmapPlotPayload`. The render path is not named or shaped around RSM physics.
 
@@ -190,6 +191,8 @@ These controls must not be shown when the active tab is a heatmap render path. T
 - Z-axis label override (colorbar label)
 - Color scale range override (auto vs. manual min/max) — if included in V1 controls scope
 
+The heatmap control surface itself lives in `HeatmapPlotControlsPanel` under the heatmap module. RSM mounts it but does not define the UI inline.
+
 ### Plot Preservation — Heatmap Tab State Boundary
 
 `TabRenderState` is XY-specific. Its fields assume XY series semantics:
@@ -210,7 +213,7 @@ Implemented fields (Gate H2):
 - `xLabelOverride`
 - `yLabelOverride`
 - `zLabelOverride` (colorbar label)
-- `colorScaleMode` (`HeatmapColorScaleMode`: linear or log)
+- `colorScaleMode` (`HeatmapColorScaleMode`, a compatibility alias for `PlotScaleTransform`: linear or log)
 - `colormapKey` (default `"viridis"`)
 - `zRangeOverrideMin`, `zRangeOverrideMax`
 
@@ -252,6 +255,7 @@ All new types are owned by Plot System. None of them live in RSM workflow files.
 | `HeatmapRenderer` | Pure CoreGraphics renderer. Rasterises 2D color grid + colorbar with tick labels + axis labels + title to PNG. No SwiftUI or AppKit. Parallel to `WorkbenchChartRenderer`; must not extend it. |
 | `HeatmapPlotLayout` | Geometry type: gridRect, colorbarRect, title position, X/Y axis label positions, colorbar tick label positions. Must not extend or inherit `WorkbenchPlotLayout`. |
 | `HeatmapColorScale` | Color scale computation. V1 minimum: one perceptually-uniform colormap (viridis). Maps a normalised Z value in [0, 1] to a `CGColor`. Lookup is keyed by colormap hint string; unknown hint falls back to viridis. |
+| `PlotScaleTransform` | Shared normalization transform for plot-scale math. Owns linear and log10 normalization plus the safe log-domain helper used by heatmap today. `HeatmapColorScaleMode` is a compatibility alias. |
 | `HeatmapTabRenderState` | Per-tab heatmap display override state (implemented Gate H2). Fields: `titleOverride`, `xLabelOverride`, `yLabelOverride`, `zLabelOverride`, `colorScaleMode`, `colormapKey`, `zRangeOverrideMin/Max`. Standalone struct — parallel to `TabRenderState`, not an extension of it. Owned and persisted by `RSMWorkspaceStore.heatmapDisplayState` in V1. |
 
 ### 2. Existing Types That Must Remain XY-Only in V1

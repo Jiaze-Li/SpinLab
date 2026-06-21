@@ -29,7 +29,7 @@ struct HeatmapRenderer {
 
     func renderPNG(
         payload: HeatmapPlotPayload,
-        colorScaleMode: HeatmapColorScaleMode = .linear,
+        colorScaleMode: PlotScaleTransform = .linear,
         options: HeatmapPlotLayout.Options = .init(),
         chartStyle: WorkbenchChartStyle = .init()
     ) throws -> Data {
@@ -349,7 +349,7 @@ struct HeatmapRenderer {
     /// Returns the colorbar label for the given raw label and color scale mode.
     /// Log mode prepends "log₁₀ " (Unicode subscripts). Linear mode returns label unchanged.
     /// Factored out so unit tests can verify label behavior without rendering a PNG.
-    static func renderedZLabel(_ label: String, mode: HeatmapColorScaleMode) -> String {
+    static func renderedZLabel(_ label: String, mode: PlotScaleTransform) -> String {
         mode == .log10 ? "log\u{2081}\u{2080} \(label)" : label
     }
 

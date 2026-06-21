@@ -46,6 +46,15 @@ private func loadWorkbenchSource(_ filename: String) throws -> String {
     return try String(contentsOf: url, encoding: .utf8)
 }
 
+private func loadHeatmapSource(_ filename: String) throws -> String {
+    let base = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()   // SpinLabAppTests
+        .deletingLastPathComponent()   // Tests
+        .deletingLastPathComponent()   // repo root
+    let url = base.appendingPathComponent("Sources/SpinLabApp/Workbench/V3/Heatmap/\(filename)")
+    return try String(contentsOf: url, encoding: .utf8)
+}
+
 // MARK: - Suite 0: Shared plot text controls are reusable
 
 @Suite("V7.8C shared plot text controls")
@@ -563,11 +572,30 @@ struct V78CIVPlotControlsPathTests {
 @Suite("V7.8C RSM heatmap plot controls path")
 struct V78CRSMPlotControlsPathTests {
 
-    @Test("RSMWorkspaceView.swift defines RSMHeatmapPlotControlsPanel")
+    @Test("HeatmapPlotControlsPanel.swift defines the heatmap controls surface")
+    func heatmapModuleDefinesControlsPanel() throws {
+        let source = try loadHeatmapSource("HeatmapPlotControlsPanel.swift")
+        #expect(source.contains("struct HeatmapPlotControlsPanel"),
+                "Heatmap module must define the heatmap plot controls panel")
+        #expect(source.contains("Text(\"Color Scale\")"),
+                "Heatmap module must expose a Color Scale picker")
+        #expect(source.contains("SharedPlotTextControls"),
+                "Heatmap module must use the shared title/X/Y component")
+        #expect(source.contains("OptionalPlotZLabelControl"),
+                "Heatmap module must mount the optional Z/colorbar label control")
+        #expect(source.contains("SharedPlotFontSizeControls"),
+                "Heatmap module must use the shared title/axis/tick font controls")
+        #expect(source.contains(".frame(maxWidth: .infinity)"),
+                "Heatmap plot controls must apply .frame(maxWidth: .infinity) so the box fills the row")
+    }
+
+    @Test("RSMWorkspaceView.swift mounts HeatmapPlotControlsPanel")
     func rsmDefinesHeatmapPanel() throws {
         let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
-        #expect(source.contains("RSMHeatmapPlotControlsPanel"),
-                "RSM must define a dedicated heatmap plot controls panel")
+        #expect(source.contains("HeatmapPlotControlsPanel"),
+                "RSM must mount the heatmap plot controls panel from the heatmap module")
+        #expect(!source.contains("struct RSMHeatmapPlotControlsPanel"),
+                "RSM must not define the heatmap controls implementation inline")
     }
 
     @Test("RSMWorkspaceView.swift does not use WorkbenchStandardPlotControls")
@@ -580,22 +608,18 @@ struct V78CRSMPlotControlsPathTests {
     @Test("RSMWorkspaceView.swift composes shared and optional plot controls")
     func rsmExposesHeatmapControls() throws {
         let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
-        #expect(source.contains("Text(\"Color Scale\")"),
-                "RSM heatmap controls must expose a Color Scale picker")
-        #expect(source.contains("SharedPlotTextControls"),
-                "RSM heatmap controls must use the shared title/X/Y component")
-        #expect(source.contains("OptionalPlotZLabelControl"),
-                "RSM heatmap controls must mount the optional Z/colorbar label control")
-        #expect(source.contains("SharedPlotFontSizeControls"),
-                "RSM heatmap controls must use the shared title/axis/tick font controls")
+        #expect(source.contains("HeatmapPlotControlsPanel"),
+                "RSM must mount the heatmap plot controls panel from the heatmap module")
+        #expect(!source.contains("struct RSMHeatmapPlotControlsPanel"),
+                "RSM must not define the heatmap controls implementation inline")
     }
 
     // INV-RSM-PL-1: GroupBox fills available width
     @Test("RSMWorkspaceView.swift Plot Controls GroupBox fills available width")
     func rsmGroupBoxFillsWidth() throws {
-        let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
+        let source = try loadHeatmapSource("HeatmapPlotControlsPanel.swift")
         #expect(source.contains(".frame(maxWidth: .infinity)"),
-                "RSMHeatmapPlotControlsPanel must apply .frame(maxWidth: .infinity) so the box fills the row")
+                "Heatmap plot controls must apply .frame(maxWidth: .infinity) so the box fills the row")
     }
 
     // INV-RSM-PL-2: Shared text layout owns 3:1:1 proportions
