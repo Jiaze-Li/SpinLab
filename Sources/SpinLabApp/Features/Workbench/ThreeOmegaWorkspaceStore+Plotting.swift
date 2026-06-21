@@ -26,34 +26,44 @@ extension ThreeOmegaWorkspaceStore {
         to sweeps: [ThreeOmegaFieldSweepResult]
     ) -> [ThreeOmegaFieldSweepResult] {
         guard let order, !order.isEmpty else { return sweeps }
-        let keyedSweeps = sweeps.enumerated().map { index, sweep in
-            (
-                key: WorkbenchSeriesOrderKeyResolver.resolve(
-                    for: WorkbenchPlotSeries(
-                        label: "",
-                        x: [],
-                        y: [],
-                        sourceRef: sweep.sourceFilePath,
-                        sampleID: sweep.sampleID
-                    ),
-                    originalIndex: index
-                ),
-                sweep: sweep
+        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: sweeps.enumerated().map { _, sweep in
+            WorkbenchPlotSeries(
+                label: "",
+                x: [],
+                y: [],
+                sourceRef: sweep.sourceFilePath,
+                sampleID: sweep.sampleID
             )
+        })
+        let keyedSweeps = zip(identities, sweeps).map { identity, sweep in
+            (identity: identity, sweep: sweep)
         }
-        let byKey = Dictionary(uniqueKeysWithValues: keyedSweeps.map { ($0.key, $0.sweep) })
-        let bySampleID = Dictionary(grouping: keyedSweeps, by: { $0.sweep.sampleID ?? "" })
+        let byKey = Dictionary(uniqueKeysWithValues: keyedSweeps.map { ($0.identity.identityKey, $0.sweep) })
+        let bySampleID = Dictionary(grouping: keyedSweeps, by: { $0.identity.sampleID ?? "" })
+        let bySourceRef = Dictionary(grouping: keyedSweeps, by: { $0.identity.sourceRef ?? "" })
         var result: [ThreeOmegaFieldSweepResult] = []
         var consumedKeys = Set<String>()
 
-        func append(_ keyedSweep: (key: String, sweep: ThreeOmegaFieldSweepResult)) {
-            guard consumedKeys.insert(keyedSweep.key).inserted else { return }
+        func append(_ keyedSweep: (identity: WorkbenchSeriesIdentity, sweep: ThreeOmegaFieldSweepResult)) {
+            guard consumedKeys.insert(keyedSweep.identity.identityKey).inserted else { return }
             result.append(keyedSweep.sweep)
         }
 
         for token in order {
             if let sweep = byKey[token] {
-                append((key: token, sweep: sweep))
+                append((identity: WorkbenchSeriesIdentity(
+                    identityKey: token,
+                    sampleID: nil,
+                    sourceRef: nil,
+                    metadataSignature: nil,
+                    originalIndex: 0
+                ), sweep: sweep))
+                continue
+            }
+            if let matches = bySourceRef[token], !matches.isEmpty {
+                for keyedSweep in matches {
+                    append(keyedSweep)
+                }
                 continue
             }
             if let matches = bySampleID[token], !matches.isEmpty {
@@ -62,7 +72,7 @@ extension ThreeOmegaWorkspaceStore {
                 }
             }
         }
-        for keyedSweep in keyedSweeps where !consumedKeys.contains(keyedSweep.key) {
+        for keyedSweep in keyedSweeps where !consumedKeys.contains(keyedSweep.identity.identityKey) {
             append(keyedSweep)
         }
         return result
@@ -106,38 +116,29 @@ extension ThreeOmegaWorkspaceStore {
     /// sourceRef keys are preferred; legacy sampleID tokens expand to the matching curves.
     nonisolated static func alignSeriesOrder(old: [String]?, fieldSweeps: [ThreeOmegaFieldSweepResult]) -> [String]? {
         guard let old, !old.isEmpty else { return nil }
-        let defaultKeys = fieldSweeps.enumerated().map { index, sweep in
-            WorkbenchSeriesOrderKeyResolver.resolve(
-                for: WorkbenchPlotSeries(
-                    label: "",
-                    x: [],
-                    y: [],
-                    sourceRef: sweep.sourceFilePath,
-                    sampleID: sweep.sampleID
-                ),
-                originalIndex: index
+        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: fieldSweeps.enumerated().map { _, sweep in
+            WorkbenchPlotSeries(
+                label: "",
+                x: [],
+                y: [],
+                sourceRef: sweep.sourceFilePath,
+                sampleID: sweep.sampleID
             )
-        }
+        })
+        let defaultKeys = identities.map(\.identityKey)
         guard !defaultKeys.isEmpty else { return nil }
 
-        let keyedSweeps = fieldSweeps.enumerated().map { index, sweep in
+        let keyedSweeps = zip(identities, fieldSweeps).map { identity, sweep in
             (
-                key: WorkbenchSeriesOrderKeyResolver.resolve(
-                    for: WorkbenchPlotSeries(
-                        label: "",
-                        x: [],
-                        y: [],
-                        sourceRef: sweep.sourceFilePath,
-                        sampleID: sweep.sampleID
-                    ),
-                    originalIndex: index
-                ),
-                sampleID: sweep.sampleID ?? "",
-                index: index
+                key: identity.identityKey,
+                sampleID: identity.sampleID ?? "",
+                sourceRef: identity.sourceRef ?? "",
+                index: identity.originalIndex
             )
         }
         let byKey = Dictionary(uniqueKeysWithValues: keyedSweeps.map { ($0.key, $0.index) })
         let bySampleID = Dictionary(grouping: keyedSweeps, by: { $0.sampleID })
+        let bySourceRef = Dictionary(grouping: keyedSweeps, by: { $0.sourceRef })
 
         var consumed = Set<Int>()
         var result: [String] = []
@@ -150,6 +151,12 @@ extension ThreeOmegaWorkspaceStore {
         for token in old {
             if let index = byKey[token] {
                 append(index: index)
+                continue
+            }
+            if let matches = bySourceRef[token], !matches.isEmpty {
+                for match in matches.sorted(by: { $0.index < $1.index }) {
+                    append(index: match.index)
+                }
                 continue
             }
             if let matches = bySampleID[token], !matches.isEmpty {

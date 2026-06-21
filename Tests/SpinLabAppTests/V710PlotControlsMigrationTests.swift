@@ -90,6 +90,49 @@ private func makeSeriesPayload(
     )
 }
 
+private func makeDuplicateSamplePayload(
+    sourceRefs: [String?],
+    angles: [String],
+    currents: [String],
+    labels: [String]? = nil,
+    seriesReorderable: Bool = true
+) -> WorkbenchPlotPayload {
+    let series = zip(zip(sourceRefs, angles), currents).enumerated().map { index, triple in
+        let sourceRef = triple.0.0
+        let angle = triple.0.1
+        let current = triple.1
+        let label = labels?[index] ?? angle
+        return WorkbenchPlotSeries(
+            label: label,
+            x: [0, 1, 2],
+            y: [Double(index), Double(index + 1), Double(index + 2)],
+            sourceRef: sourceRef,
+            sampleID: "PN80 STO001",
+            renderMode: .line,
+            renderModeLocked: false,
+            pointLabels: [],
+            lineWidth: 1.5,
+            metadata: [
+                "angle": angle,
+                "current": current
+            ]
+        )
+    }
+    return WorkbenchPlotPayload(
+        schemaVersion: 1,
+        workflowID: "3w",
+        workflowDisplayName: "3w",
+        title: "Duplicate sampleID",
+        axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R (Ω)"),
+        series: series,
+        semanticParams: ["deviceMode": "angleSweep", "device": "", "tabKey": "fieldSweep1omega"],
+        styleParams: [:],
+        legendDimension: nil,
+        reverseSeriesForLegend: true,
+        seriesReorderable: seriesReorderable
+    )
+}
+
 // MARK: - Suite 1: Stale override reset on identity change
 
 @Suite("V7.10 Stale override auto-reset")
@@ -317,6 +360,119 @@ struct V710StaleOverrideResetTests {
         #expect(output.manifestPayload.series.map(\.label) == ["Top renamed", "Bottom"])
         #expect(manager.state(for: .main).seriesLabelOverrides == ["/tmp/top.csv": "Top renamed"])
         #expect(manager.state(for: .main).seriesLabelOverrides["/tmp/bottom.csv"] == nil)
+    }
+
+    @MainActor
+    @Test("Duplicate sampleID series with missing sourceRef still get unique identity keys")
+    func duplicateSampleIDsWithoutSourceRefsStayUnique() throws {
+        let payload = makeDuplicateSamplePayload(
+            sourceRefs: [nil, nil, nil, nil, nil, nil],
+            angles: ["0deg", "30deg", "60deg", "90deg", "120deg", "150deg"],
+            currents: ["1mA", "1mA", "1mA", "1mA", "1mA", "1mA"]
+        )
+
+        let rows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        let keys = rows.map(\.identityKey)
+        #expect(rows.count == 6)
+        #expect(Set(keys).count == keys.count)
+        #expect(rows.allSatisfy { $0.sampleID == "PN80 STO001" })
+    }
+
+    @MainActor
+    @Test("Renaming one duplicate sampleID chip changes only that series")
+    func duplicateSampleIDRenameTouchesOnlyOneSeries() throws {
+        let manager = TabRenderManager<TestTab>(defaultTab: .main)
+        let payload = makeDuplicateSamplePayload(
+            sourceRefs: [nil, nil, nil, nil, nil, nil],
+            angles: ["0deg", "30deg", "60deg", "90deg", "120deg", "150deg"],
+            currents: ["1mA", "2mA", "3mA", "4mA", "5mA", "6mA"]
+        )
+        let rows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        let target = rows.first(where: { $0.label == "60deg" })!
+        let baseline = try makeMinimalPipelineOutput(payload: payload)
+        manager.applyPipelineOutput(baseline, for: .main)
+
+        manager.updateSeriesLabel(identityKey: target.identityKey, newLabel: "Renamed 60deg")
+        let input = manager.buildPipelineInput(payload: payload, for: .main)
+        let output = try WorkbenchRenderPipeline.render(input)
+
+        #expect(input.seriesLabelOverrides.count == 1)
+        #expect(input.seriesLabelOverrides.values.first == "Renamed 60deg")
+        #expect(output.manifestPayload.series.count == baseline.manifestPayload.series.count)
+        #expect(output.manifestPayload.series.enumerated().allSatisfy { index, series in
+            index == target.originalIndex ? series.label == "Renamed 60deg" : series.label == baseline.manifestPayload.series[index].label
+        })
+    }
+
+    @MainActor
+    @Test("toIndexedOverrides maps a renamed duplicate-sampleID key to one index")
+    func renamedDuplicateSampleIDMapsToOneIndex() throws {
+        let payload = makeDuplicateSamplePayload(
+            sourceRefs: [nil, nil, nil, nil, nil, nil],
+            angles: ["0deg", "30deg", "60deg", "90deg", "120deg", "150deg"],
+            currents: ["1mA", "2mA", "3mA", "4mA", "5mA", "6mA"]
+        )
+        let rows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        let target = rows.first(where: { $0.label == "60deg" })!
+        let overrides = toIndexedOverrides([target.identityKey: "Renamed 60deg"], series: payload.series)
+
+        #expect(overrides.count == 1)
+        #expect(overrides[target.originalIndex] == "Renamed 60deg")
+    }
+
+    @MainActor
+    @Test("normalizeSeriesLabelOverrides keeps only valid unique keys")
+    func normalizedOverridesKeepOnlyValidKeys() throws {
+        let payload = makeDuplicateSamplePayload(
+            sourceRefs: [nil, nil, nil, nil, nil, nil],
+            angles: ["0deg", "30deg", "60deg", "90deg", "120deg", "150deg"],
+            currents: ["1mA", "2mA", "3mA", "4mA", "5mA", "6mA"]
+        )
+        let rows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        let target = rows.first(where: { $0.label == "60deg" })!
+        let normalized = normalizedSeriesLabelOverrides([
+            target.identityKey: "Renamed 60deg",
+            "bogus": "Drop me"
+        ], series: payload.series)
+
+        #expect(normalized == [target.identityKey: "Renamed 60deg"])
+    }
+
+    @MainActor
+    @Test("User rename does not change identityKey across rerenders")
+    func userRenameDoesNotChangeIdentityKey() throws {
+        let manager = TabRenderManager<TestTab>(defaultTab: .main)
+        let payload = makeDuplicateSamplePayload(
+            sourceRefs: [nil, nil, nil, nil, nil, nil],
+            angles: ["0deg", "30deg", "60deg", "90deg", "120deg", "150deg"],
+            currents: ["1mA", "2mA", "3mA", "4mA", "5mA", "6mA"]
+        )
+        let rowsBefore = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        let target = rowsBefore.first(where: { $0.label == "60deg" })!
+        manager.tabStates[.main] = TabRenderState(seriesLabelOverrides: [target.identityKey: "Renamed 60deg"])
+
+        let rowsAfter = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        #expect(rowsBefore.map(\.identityKey) == rowsAfter.map(\.identityKey))
+    }
+
+    @MainActor
+    @Test("Re-render with the same payload preserves a duplicate-sampleID rename mapping")
+    func rerenderPreservesDuplicateSampleIDRenameMapping() throws {
+        let manager = TabRenderManager<TestTab>(defaultTab: .main)
+        let payload = makeDuplicateSamplePayload(
+            sourceRefs: [nil, nil, nil, nil, nil, nil],
+            angles: ["0deg", "30deg", "60deg", "90deg", "120deg", "150deg"],
+            currents: ["1mA", "2mA", "3mA", "4mA", "5mA", "6mA"]
+        )
+        let rows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        let target = rows.first(where: { $0.label == "60deg" })!
+        manager.tabStates[.main] = TabRenderState(seriesLabelOverrides: [target.identityKey: "Renamed 60deg"])
+
+        let first = manager.buildPipelineInput(payload: payload, for: .main)
+        let second = manager.buildPipelineInput(payload: payload, for: .main)
+        #expect(first.seriesLabelOverrides == second.seriesLabelOverrides)
+        #expect(first.seriesLabelOverrides.count == 1)
+        #expect(first.seriesLabelOverrides.values.first == "Renamed 60deg")
     }
 
     @MainActor

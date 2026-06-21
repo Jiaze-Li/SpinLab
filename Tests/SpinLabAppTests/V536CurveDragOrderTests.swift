@@ -337,8 +337,8 @@ struct V536CurveDragOrderTests {
         #expect(Set(rows.map(\.identityKey)).count == 3)
     }
 
-    @Test("Series Order panel commits sourceRef keys")
-    func seriesOrderPanelCommitsSourceRefKeys() {
+    @Test("Series Order panel commits unique identity keys")
+    func seriesOrderPanelCommitsUniqueIdentityKeys() {
         // payload in bottom-to-top order (matches manifest format after PR127 fix)
         let payload = WorkbenchPlotPayload(
             workflowID: "test",
@@ -357,7 +357,7 @@ struct V536CurveDragOrderTests {
         let rows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
         let committedOrder = rows.map(\.identityKey)
         #expect(committedOrder == ["/tmp/bottom.csv", "/tmp/middle.csv", "/tmp/top.csv"])
-        #expect(rows.allSatisfy { ($0.sourceRef?.isEmpty == false) })
+        #expect(Set(committedOrder).count == committedOrder.count)
     }
 
     @Test("Series Order panel honors sourceRef order for duplicate sampleIDs")

@@ -219,10 +219,13 @@ extension ThreeOmegaWorkspaceStore {
                 titleTokens: _titleTokens,
                 v3Method: v3Method
             )
-            if let rawPayload, rawPayload.seriesReorderable, rawPayload.series.contains(where: { ($0.sourceRef?.isEmpty ?? true) }) {
-                let message = "Reorderable \(tab.stableKey) manifest payload missing sourceRef."
-                assertionFailure(message)
-                appendWarning(source: "Manifest", message: message)
+            if let rawPayload, rawPayload.seriesReorderable {
+                let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: rawPayload.series)
+                if Set(identities.map(\.identityKey)).count != identities.count {
+                    let message = "Reorderable \(tab.stableKey) manifest payload has duplicate series identity keys."
+                    assertionFailure(message)
+                    appendWarning(source: "Manifest", message: message)
+                }
             }
             // Apply per-tab text overrides (same patch contract as _rerenderActiveTab).
             let payload: WorkbenchPlotPayload? = {

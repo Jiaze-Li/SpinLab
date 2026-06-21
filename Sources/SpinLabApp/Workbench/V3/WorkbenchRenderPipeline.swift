@@ -92,11 +92,12 @@ enum WorkbenchRenderPipeline {
         }
 
         // 4a. Series order consistency check (v5.3.6):
-        //     Reorderable payloads must carry sourceRef values so order keys stay
-        //     attached to file identity instead of sample identity or render geometry.
+        //     Reorderable payloads must carry unique series identities so order keys stay
+        //     attached to stable series identity instead of render geometry.
         if payload.seriesReorderable {
-            assert(payload.series.allSatisfy { ($0.sourceRef?.isEmpty == false) },
-                   "seriesReorderable payloads require sourceRef values")
+            let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: payload.series)
+            assert(Set(identities.map(\.identityKey)).count == identities.count,
+                   "seriesReorderable payloads require unique series identity keys")
         }
         //     If the payload opts in to drag reordering and a seriesOrder was provided,
         //     verify the renderer already produced series in the expected order.
@@ -202,11 +203,12 @@ enum WorkbenchRenderPipeline {
     /// Returns a warning string if `series` order keys (filtered to those in `expected`)
     /// does not match `expected` order (filtered to those in `series`). Returns nil when consistent.
     static func detectSeriesOrderMismatch(_ series: [WorkbenchPlotSeries], expected: [String]) -> String? {
-        let actual = series.enumerated().map { index, series in
+        let actual = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: series).map { identity in
             (
-                key: WorkbenchSeriesOrderKeyResolver.resolve(for: series, originalIndex: index),
-                sampleID: series.sampleID ?? "",
-                index: index
+                key: identity.identityKey,
+                sampleID: identity.sampleID ?? "",
+                sourceRef: identity.sourceRef ?? "",
+                index: identity.originalIndex
             )
         }
         let actualKeys = actual.map(\.key)
@@ -220,10 +222,11 @@ enum WorkbenchRenderPipeline {
 
     private static func resolveSeriesOrder(
         _ order: [String],
-        actual: [(key: String, sampleID: String, index: Int)]
+        actual: [(key: String, sampleID: String, sourceRef: String, index: Int)]
     ) -> [String] {
         let byKey = Dictionary(uniqueKeysWithValues: actual.map { ($0.key, $0.index) })
         let bySampleID = Dictionary(grouping: actual, by: { $0.sampleID })
+        let bySourceRef = Dictionary(grouping: actual, by: { $0.sourceRef })
         var consumed = Set<Int>()
         var result: [String] = []
 
@@ -235,6 +238,12 @@ enum WorkbenchRenderPipeline {
         for token in order {
             if let index = byKey[token] {
                 append(index: index)
+                continue
+            }
+            if let matches = bySourceRef[token], !matches.isEmpty {
+                for match in matches {
+                    append(index: match.index)
+                }
                 continue
             }
             if let matches = bySampleID[token], !matches.isEmpty {

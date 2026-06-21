@@ -88,6 +88,30 @@ final class V532WorkbenchRenderPipelineTests: XCTestCase {
         XCTAssertEqual(output.manifestPayload.series[1].label, "S2", "Unoverridden series should keep original label")
     }
 
+    func testRender_appliesSeriesLabelOverridesToOneDuplicateSampleIDSeries() throws {
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test",
+            workflowDisplayName: "Test",
+            title: "Test",
+            axisMapping: WorkbenchAxisMapping(xField: "X", yField: "Y"),
+            series: [
+                WorkbenchPlotSeries(label: "0deg", x: [0, 1], y: [0, 1], sampleID: "PN80 STO001", metadata: ["angle": "0deg", "current": "1mA"]),
+                WorkbenchPlotSeries(label: "30deg", x: [0, 1], y: [1, 2], sampleID: "PN80 STO001", metadata: ["angle": "30deg", "current": "1mA"]),
+                WorkbenchPlotSeries(label: "60deg", x: [0, 1], y: [2, 3], sampleID: "PN80 STO001", metadata: ["angle": "60deg", "current": "1mA"])
+            ],
+            seriesReorderable: true
+        )
+        let rows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        let target = rows.first(where: { $0.label == "60deg" })!
+        var input = WorkbenchRenderPipeline.Input(payload: payload)
+        input.seriesLabelOverrides = toIndexedOverrides([target.identityKey: "Renamed 60deg"], series: payload.series)
+
+        let output = try WorkbenchRenderPipeline.render(input)
+        XCTAssertEqual(output.manifestPayload.series[target.originalIndex].label, "Renamed 60deg")
+        XCTAssertEqual(output.manifestPayload.series[0].label, "0deg")
+        XCTAssertEqual(output.manifestPayload.series[1].label, "30deg")
+    }
+
     func testRender_layoutUsesOriginalLabelsForLegendRows() throws {
         var input = WorkbenchRenderPipeline.Input(payload: makePayload())
         input.seriesLabelOverrides = [0: "Override"]

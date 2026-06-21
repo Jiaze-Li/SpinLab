@@ -384,7 +384,9 @@ func toIndexedOverrides<V>(_ stringKeyed: [String: V], series: [WorkbenchPlotSer
     for (key, value) in stringKeyed {
         if let idx = identities.firstIndex(where: { $0.identityKey == key }) {
             result[idx] = value
-        } else if let idx = identities.firstIndex(where: { $0.sampleID == key || $0.sourceRef == key }) {
+        } else if let idx = identities.firstIndex(where: { $0.sourceRef == key }) {
+            result[idx] = value
+        } else if let idx = identities.firstIndex(where: { $0.sampleID == key }) {
             result[idx] = value
         } else if let idx = Int(key), idx >= 0, (identities.isEmpty || identities.indices.contains(idx)) {
             result[idx] = value
@@ -404,7 +406,9 @@ func normalizedSeriesLabelOverrides(
     for (key, value) in stringKeyed {
         if identities.contains(where: { $0.identityKey == key }) {
             result[key] = value
-        } else if let match = identities.first(where: { $0.sampleID == key || $0.sourceRef == key }) {
+        } else if let match = identities.first(where: { $0.sourceRef == key }) {
+            result[match.identityKey] = value
+        } else if let match = identities.first(where: { $0.sampleID == key }) {
             result[match.identityKey] = value
         } else if let idx = Int(key), identities.indices.contains(idx) {
             result[identities[idx].identityKey] = value
@@ -434,11 +438,11 @@ private struct IndexedSeriesIdentity {
 }
 
 private func indexedSeriesIdentities(_ series: [WorkbenchPlotSeries]) -> [IndexedSeriesIdentity] {
-    series.enumerated().map { index, series in
+    WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: series).map {
         IndexedSeriesIdentity(
-            identityKey: WorkbenchSeriesOrderKeyResolver.resolve(for: series, originalIndex: index),
-            sampleID: series.sampleID,
-            sourceRef: series.sourceRef
+            identityKey: $0.identityKey,
+            sampleID: $0.sampleID,
+            sourceRef: $0.sourceRef
         )
     }
 }

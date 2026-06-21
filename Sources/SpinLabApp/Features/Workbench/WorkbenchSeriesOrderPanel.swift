@@ -77,16 +77,18 @@ struct WorkbenchSeriesOrderPanel: View {
 
     private var payloadSignature: String {
         guard let payload else { return "nil" }
-        return payload.series.enumerated().map { index, series in
-            "\(WorkbenchSeriesOrderKeyResolver.resolve(for: series, originalIndex: index)):\(series.label)"
+        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: payload.series)
+        return zip(identities, payload.series).map { identity, series in
+            "\(identity.identityKey):\(series.label)"
         }.joined(separator: "|")
     }
 
     /// Payload fingerprint that ignores presentation order but still refreshes on label/identity changes.
     private var payloadIdentitySignature: String {
         guard let payload else { return "nil" }
-        return payload.series.enumerated().map { index, series in
-            "\(WorkbenchSeriesOrderKeyResolver.resolve(for: series, originalIndex: index)):\(series.label)"
+        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: payload.series)
+        return zip(identities, payload.series).map { identity, series in
+            "\(identity.identityKey):\(series.label)"
         }
         .sorted()
         .joined(separator: "|")
@@ -201,8 +203,8 @@ struct WorkbenchSeriesOrderPanel: View {
     private func syncRows() {
         rows = Self.makeRows(payload: payload, currentSeriesOrder: currentSeriesOrder)
         if payload?.seriesReorderable == true {
-            assert(rows.allSatisfy { ($0.sourceRef?.isEmpty == false) },
-                   "reorderable series rows must carry sourceRef keys")
+            assert(Set(rows.map(\.identityKey)).count == rows.count,
+                   "reorderable series rows must have unique identity keys")
         }
         lastCommittedSignature = rows.map(\.identityKey).joined(separator: "|")
     }
@@ -239,10 +241,6 @@ struct WorkbenchSeriesOrderPanel: View {
     }
 
     private func commitCurrentRows() {
-        if payload?.seriesReorderable == true {
-            assert(rows.allSatisfy { ($0.sourceRef?.isEmpty == false) },
-                   "series reorder commits must use sourceRef keys")
-        }
         let order = rows.map(\.identityKey)
         let signature = order.joined(separator: "|")
         guard signature != lastCommittedSignature else { return }
@@ -282,13 +280,16 @@ struct WorkbenchSeriesOrderPanel: View {
 
     static func makeRows(payload: WorkbenchPlotPayload?, currentSeriesOrder: [String]?) -> [SeriesOrderRow] {
         guard let payload else { return [] }
-        let rows = payload.series.enumerated().map { index, series in
-            SeriesOrderRow(
-                identityKey: WorkbenchSeriesOrderKeyResolver.resolve(for: series, originalIndex: index),
+        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: payload.series)
+        let rows = zip(identities, payload.series).map { pair in
+            let identity = pair.0
+            let series = pair.1
+            return SeriesOrderRow(
+                identityKey: identity.identityKey,
                 sampleID: series.sampleID,
                 sourceRef: series.sourceRef,
                 label: series.label,
-                originalIndex: index
+                originalIndex: identity.originalIndex
             )
         }
         let lookup = Dictionary(uniqueKeysWithValues: rows.map { ($0.identityKey, $0) })

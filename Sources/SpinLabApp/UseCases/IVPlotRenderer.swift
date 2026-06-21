@@ -170,15 +170,14 @@ struct IVPlotRenderer {
         currentSeriesOrder: [String]?
     ) -> [WorkbenchPlotSeries] {
         let orderedKeys = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(currentSeriesOrder, series: series)
-        guard orderedKeys != series.enumerated().map({ index, series in
-            WorkbenchSeriesOrderKeyResolver.resolve(for: series, originalIndex: index)
-        }) else {
+        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: series)
+        guard orderedKeys != identities.map(\.identityKey) else {
             return series
         }
 
-        let keyedSeries = series.enumerated().map { index, series in
+        let keyedSeries = zip(identities, series).map { identity, series in
             (
-                key: WorkbenchSeriesOrderKeyResolver.resolve(for: series, originalIndex: index),
+                key: identity.identityKey,
                 series: series
             )
         }
