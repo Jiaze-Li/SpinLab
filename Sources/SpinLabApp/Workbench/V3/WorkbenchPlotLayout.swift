@@ -221,19 +221,25 @@ struct WorkbenchPlotLayout: Sendable {
             width: plotRect.width,  height: 28
         )
 
-        // Y axis label (rotated 90°) — collision-based placement
-        // Place title to the left of tick labels, not proportional to paddingLeft.
-        let titleThickness: CGFloat = style.axisTitleFontSize * 1.2   // rotated font lineHeight
-        let labelGap: CGFloat = 5          // gap between tick labels and axis
-        let titleTickGap: CGFloat = 4      // gap between title and tick labels
-        let tickLeft = options.paddingLeft - labelGap - options.maxYTickLabelWidth
-        let yTitleX = max(titleThickness / 2 + 4,                           // clamp: at least half-title from left edge
-                          min(tickLeft - titleTickGap - titleThickness / 2,  // collision boundary
-                              options.paddingLeft * 0.38))                   // never worse than old proportional
-        let yLabelCenter  = CGPoint(x: yTitleX, y: plotRect.midY)
+        // Y axis label (rotated 90°) — shared lane spacing primitive.
+        let yAxisLane = PlotAxisSpacingCalculator.yAxisLane(
+            maxTickLabelWidth: options.maxYTickLabelWidth,
+            axisTitleText: payload.axisMapping.yField,
+            axisTitleFontSize: style.axisTitleFontSize,
+            axisTitleFontName: style.fontName,
+            axisTitleBold: false,
+            axisTitleBoldFontName: style.boldFontName,
+            minimumAxisTitleLane: max(style.axisTitleFontSize * 1.25, 24),
+            titleToTickGap: 4,
+            tickToPlotGap: 5,
+            baseLeftPadding: options.paddingLeft,
+            maxSideInset: nil,
+            titleCenterBias: 0.38
+        )
+        let yLabelCenter  = CGPoint(x: yAxisLane.titleCenterX, y: plotRect.midY)
         let hitWidth: CGFloat = 36  // fixed band around title center
         let yLabelHitRect = CGRect(
-            x: max(0, yTitleX - hitWidth / 2), y: plotRect.minY,
+            x: max(0, yAxisLane.titleCenterX - hitWidth / 2), y: plotRect.minY,
             width:  hitWidth,
             height: plotRect.height
         )
@@ -246,9 +252,9 @@ struct WorkbenchPlotLayout: Sendable {
             height: plotRect.minY - (xLabelCenter.y + 14)
         )
         let yTickHitRect = CGRect(
-            x: yTitleX + hitWidth / 2,  // right of y-axis title
+            x: yAxisLane.titleCenterX + hitWidth / 2,  // right of y-axis title
             y: plotRect.minY,
-            width: plotRect.minX - (yTitleX + hitWidth / 2),
+            width: max(0, plotRect.minX - (yAxisLane.titleCenterX + hitWidth / 2)),
             height: plotRect.height
         )
 
@@ -440,11 +446,7 @@ struct WorkbenchPlotLayout: Sendable {
 
     /// Measures label text width in renderer coordinates using the same font as drawLegend.
     private static func measureLabelWidth(_ text: String, fontSize: CGFloat = 18, fontName: String = "TimesNewRomanPSMT") -> CGFloat {
-        let font = CTFontCreateWithName(fontName as CFString, fontSize, nil)
-        let attrs: [CFString: Any] = [kCTFontAttributeName: font]
-        let attrStr = CFAttributedStringCreate(kCFAllocatorDefault, text as CFString, attrs as CFDictionary)!
-        let line = CTLineCreateWithAttributedString(attrStr)
-        let w = CTLineGetBoundsWithOptions(line, []).width
+        let w = PlotTextMeasurer.measuredWidth(text, fontSize: fontSize, fontName: fontName)
         return w > 0 ? w : LegendStyle.default(fontSize: fontSize, fontName: fontName).estimatedLabelWidth
     }
 

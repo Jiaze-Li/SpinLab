@@ -1,5 +1,4 @@
 import CoreGraphics
-import CoreText
 import Foundation
 
 /// Geometry type for the heatmap render path (Plot System-owned).
@@ -89,27 +88,29 @@ struct HeatmapPlotLayout: Sendable {
         }.max() ?? 0
 
         let yTickLabels = yTickEntries.map(\.label)
-        let maxYTickLabelWidth = yTickLabels.map {
-            Self.measuredTextWidth(
-                $0,
-                fontSize: style.tickLabelFontSize,
-                fontName: style.fontName,
-                boldFontName: style.boldFontName
-            )
-        }.max() ?? 0
-
-        let yAxisTitleTextWidth = payload.yLabel.isEmpty ? 0 : Self.measuredTextWidth(
-            payload.yLabel,
-            fontSize: style.axisTitleFontSize,
-            fontName: style.fontName,
-            boldFontName: style.boldFontName
+        let yAxisLane = PlotAxisSpacingCalculator.yAxisLane(
+            axisTitleText: payload.yLabel,
+            tickLabels: yTickLabels,
+            axisTitleFontSize: style.axisTitleFontSize,
+            axisTitleFontName: style.fontName,
+            axisTitleBold: false,
+            axisTitleBoldFontName: style.boldFontName,
+            tickLabelFontSize: style.tickLabelFontSize,
+            tickLabelFontName: style.fontName,
+            tickLabelBold: false,
+            tickLabelBoldFontName: style.boldFontName,
+            minimumAxisTitleLane: max(style.axisTitleFontSize * 1.25, 24),
+            titleToTickGap: 10,
+            tickToPlotGap: 8,
+            baseLeftPadding: opts.paddingLeft,
+            maxSideInset: max(96, (w - 180) / 2)
         )
 
         // Z title only when colorbar is visible and label is non-empty.
         let zAxisLabelText = showColorbar && !payload.zLabel.isEmpty
             ? Self.renderedZLabel(payload.zLabel, mode: colorScaleMode)
             : ""
-        let zAxisTitleTextWidth = zAxisLabelText.isEmpty ? 0 : Self.measuredTextWidth(
+        let zAxisTitleTextWidth = zAxisLabelText.isEmpty ? 0 : PlotTextMeasurer.measuredWidth(
             zAxisLabelText,
             fontSize: style.axisTitleFontSize,
             fontName: style.fontName,
@@ -117,15 +118,12 @@ struct HeatmapPlotLayout: Sendable {
         )
 
         let titleLaneMin: CGFloat = max(style.axisTitleFontSize * 1.25, 24)
-        let yAxisTitleLaneWidth = yAxisTitleTextWidth > 0 ? max(yAxisTitleTextWidth, titleLaneMin) : 0
         let zAxisTitleLaneWidth = zAxisTitleTextWidth > 0 ? max(zAxisTitleTextWidth, titleLaneMin) : 0
-        let titleToTickGap: CGFloat = 10
-        let tickToPlotGap: CGFloat = 8
         let colorbarTickLabelGap: CGFloat = 8
         let minGridWidth: CGFloat = 180
         let maxSideInset = max(96, (w - minGridWidth) / 2)
 
-        let desiredLeft = yAxisTitleLaneWidth + titleToTickGap + maxYTickLabelWidth + tickToPlotGap
+        let desiredLeft = yAxisLane.requiredLeftPadding
         // paddingRight is computed from colorbar metrics (Z title is LEFT of colorbar, not in paddingRight).
         // Always use the measured tick label width so gridRect stays stable across showColorbar toggles.
         let desiredRight = opts.colorbarGap + opts.colorbarWidth + colorbarTickLabelGap + maxColorbarTickLabelWidth
@@ -194,7 +192,7 @@ struct HeatmapPlotLayout: Sendable {
         let titleCenter = CGPoint(x: gridRect.midX, y: h - opts.paddingTop * 0.45)
         let xLabelCenter = CGPoint(x: gridRect.midX, y: opts.paddingBottom * 0.35)
         let yLabelCenter = CGPoint(
-            x: yAxisTitleLaneWidth > 0 ? yAxisTitleLaneWidth * 0.5 : max(0, opts.paddingLeft * 0.28),
+            x: yAxisLane.titleCenterX,
             y: gridRect.midY
         )
 
@@ -250,16 +248,12 @@ struct HeatmapPlotLayout: Sendable {
         fontName: String,
         boldFontName: String
     ) -> CGFloat {
-        _ = boldFontName
-        let font = CTFontCreateWithName(fontName as CFString, fontSize, nil)
-        let attrs: [CFString: Any] = [
-            kCTFontAttributeName: font,
-        ]
-        let attrStr = CFAttributedStringCreate(
-            kCFAllocatorDefault, text as CFString, attrs as CFDictionary
-        )!
-        let line = CTLineCreateWithAttributedString(attrStr)
-        return CTLineGetBoundsWithOptions(line, []).width
+        PlotTextMeasurer.measuredWidth(
+            text,
+            fontSize: fontSize,
+            fontName: fontName,
+            boldFontName: boldFontName
+        )
     }
 
     static func renderedZLabel(_ label: String, mode: PlotScaleTransform) -> String {

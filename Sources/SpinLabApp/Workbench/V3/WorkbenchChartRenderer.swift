@@ -98,12 +98,14 @@ struct WorkbenchChartRenderer {
         let preYMin = yRawMin - yRawSpan * 0.05
         let preYMax = yRawMax + yRawSpan * 0.05
         let (preYTicks, preYStep) = niceTicks(min: preYMin, max: preYMax, targetCount: style.tickTargetY)
-        let black = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
-        let maxYLabelW = preYTicks.map { tick -> CGFloat in
-            let label = formatTick(tick, step: preYStep)
-            let line = makeLine(text: label, size: style.tickLabelFontSize, bold: false, color: black, style: style)
-            return CTLineGetBoundsWithOptions(line, []).width
-        }.max() ?? 0
+        let tickLabels = preYTicks.map { formatTick($0, step: preYStep) }
+        let maxYLabelW = PlotTextMeasurer.maxTickLabelWidth(
+            tickLabels,
+            fontSize: style.tickLabelFontSize,
+            fontName: style.fontName,
+            bold: false,
+            boldFontName: style.boldFontName
+        )
 
         opts.maxYTickLabelWidth = maxYLabelW
         // labelGap(5) + maxLabel + gap(10) + rotated title height(~24) + margin(5)
@@ -376,8 +378,13 @@ struct WorkbenchChartRenderer {
     }
 
     func measureTextWidth(_ text: String, size: CGFloat, bold: Bool = false, style: WorkbenchChartStyle = .init()) -> CGFloat {
-        let line = makeLine(text: text, size: size, bold: bold, color: CGColor(red: 0, green: 0, blue: 0, alpha: 1), style: style)
-        return CTLineGetBoundsWithOptions(line, []).width
+        PlotTextMeasurer.measuredWidth(
+            text,
+            fontSize: size,
+            fontName: style.fontName,
+            bold: bold,
+            boldFontName: style.boldFontName
+        )
     }
 
     func formatTick(_ value: Double, step: Double) -> String {
