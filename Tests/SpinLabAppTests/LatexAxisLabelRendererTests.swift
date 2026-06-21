@@ -70,6 +70,30 @@ struct LatexAxisLabelRendererTests {
         #expect(result == true)
     }
 
+    @Test("draw forwards black color and default 2x pixelScale to the render service")
+    func drawUsesDefaultRenderInputs() {
+        let capture = LatexCompileCapture()
+        let service = LatexRenderService(
+            backend: RecordingLatexBackend(
+                fixedNaturalSize: CGSize(width: 60, height: 20),
+                capture: capture
+            )
+        )
+        let renderer = LatexAxisLabelRenderer(service: service)
+        let ctx = makeTestContext()
+        let result = renderer.draw(
+            ctx: ctx,
+            latex: "x^2",
+            fontSize: 20,
+            color: CGColor(red: 0, green: 0, blue: 0, alpha: 1),
+            at: CGPoint(x: 100, y: 100),
+            orientation: .horizontal
+        )
+        #expect(result == true)
+        #expect(capture.colorHex == "000000")
+        #expect(capture.pixelScale == 2.0)
+    }
+
     // MARK: - labelSize delegates to service
 
     @Test("labelSize returns service naturalSize scaled by fontSize/12")

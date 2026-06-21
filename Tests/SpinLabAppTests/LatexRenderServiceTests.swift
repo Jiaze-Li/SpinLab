@@ -7,7 +7,7 @@ import Testing
 /// Backend that always reports unavailable and returns nil.
 struct UnavailableLatexBackend: LatexRenderBackend {
     var isAvailable: Bool { false }
-    func compile(latex: String) -> (image: CGImage, naturalSize: CGSize)? { nil }
+    func compile(latex: String, colorHex: String, pixelScale: CGFloat) -> (image: CGImage, naturalSize: CGSize)? { nil }
 }
 
 /// Backend that always reports available and returns a fixed-size blank image.
@@ -15,7 +15,7 @@ struct FixedSizeLatexBackend: LatexRenderBackend {
     let fixedNaturalSize: CGSize
     var isAvailable: Bool { true }
 
-    func compile(latex: String) -> (image: CGImage, naturalSize: CGSize)? {
+    func compile(latex: String, colorHex: String, pixelScale: CGFloat) -> (image: CGImage, naturalSize: CGSize)? {
         let w = max(1, Int(fixedNaturalSize.width.rounded()))
         let h = max(1, Int(fixedNaturalSize.height.rounded()))
         guard let ctx = CGContext(
@@ -25,6 +25,31 @@ struct FixedSizeLatexBackend: LatexRenderBackend {
             bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue).rawValue
         ), let image = ctx.makeImage() else { return nil }
         return (image, fixedNaturalSize)
+    }
+}
+
+final class LatexCompileCapture {
+    var latex: String?
+    var colorHex: String?
+    var pixelScale: CGFloat?
+    var count = 0
+}
+
+struct RecordingLatexBackend: LatexRenderBackend {
+    let fixedNaturalSize: CGSize
+    let capture: LatexCompileCapture
+    var isAvailable: Bool { true }
+
+    func compile(latex: String, colorHex: String, pixelScale: CGFloat) -> (image: CGImage, naturalSize: CGSize)? {
+        capture.count += 1
+        capture.latex = latex
+        capture.colorHex = colorHex
+        capture.pixelScale = pixelScale
+        return FixedSizeLatexBackend(fixedNaturalSize: fixedNaturalSize).compile(
+            latex: latex,
+            colorHex: colorHex,
+            pixelScale: pixelScale
+        )
     }
 }
 
@@ -123,17 +148,15 @@ struct LatexRenderServiceTests {
 
     @Test("Same latex string hits cache on second call")
     func sameLatexyHitsCache() {
-        var compileCount = 0
-
         // Wrap a backend that counts compile calls
         struct CountingBackend: LatexRenderBackend {
             let inner: FixedSizeLatexBackend
             // Swift structs can't have inout closures cleanly; use a class counter
             let counter: Counter
             var isAvailable: Bool { true }
-            func compile(latex: String) -> (image: CGImage, naturalSize: CGSize)? {
+            func compile(latex: String, colorHex: String, pixelScale: CGFloat) -> (image: CGImage, naturalSize: CGSize)? {
                 counter.count += 1
-                return inner.compile(latex: latex)
+                return inner.compile(latex: latex, colorHex: colorHex, pixelScale: pixelScale)
             }
         }
         final class Counter { var count = 0 }
@@ -149,15 +172,77 @@ struct LatexRenderServiceTests {
         #expect(counter.count == 1, "Second render of same latex must hit cache, not recompile")
     }
 
+    @Test("render passes colorHex and pixelScale to backend")
+    func renderPassesInputsToBackend() {
+        let capture = LatexCompileCapture()
+        let service = LatexRenderService(
+            backend: RecordingLatexBackend(
+                fixedNaturalSize: CGSize(width: 40, height: 12),
+                capture: capture
+            )
+        )
+        let color = CGColor(red: 0.25, green: 0.5, blue: 0.75, alpha: 1)
+        _ = service.render(latex: "x^2", color: color, pixelScale: 3.25)
+
+        #expect(capture.count == 1)
+        #expect(capture.latex == "x^2")
+        #expect(capture.colorHex == "4080bf")
+        #expect(capture.pixelScale == 3.25)
+    }
+
+    @Test("render caches independently by color and pixelScale")
+    func renderCachesByInputs() {
+        let capture = LatexCompileCapture()
+        let service = LatexRenderService(
+            backend: RecordingLatexBackend(
+                fixedNaturalSize: CGSize(width: 40, height: 12),
+                capture: capture
+            )
+        )
+        let black = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+        let red = CGColor(red: 1, green: 0, blue: 0, alpha: 1)
+
+        _ = service.render(latex: "x^2", color: black, pixelScale: 2.0)
+        _ = service.render(latex: "x^2", color: black, pixelScale: 2.0)
+        #expect(capture.count == 1)
+
+        _ = service.render(latex: "x^2", color: red, pixelScale: 2.0)
+        _ = service.render(latex: "x^2", color: red, pixelScale: 3.0)
+        #expect(capture.count == 3)
+    }
+
+    @Test("render clamps pixelScale before caching and compiling")
+    func renderClampsPixelScale() {
+        let capture = LatexCompileCapture()
+        let service = LatexRenderService(
+            backend: RecordingLatexBackend(
+                fixedNaturalSize: CGSize(width: 40, height: 12),
+                capture: capture
+            )
+        )
+
+        _ = service.render(latex: "x^2", pixelScale: 0)
+        #expect(capture.pixelScale == 0.1)
+
+        _ = service.render(latex: "y^2", pixelScale: 99)
+        #expect(capture.pixelScale == 4.0)
+        #expect(LatexRenderService.clampedPixelScale(-5) == 0.1)
+        #expect(LatexRenderService.clampedPixelScale(2.5) == 2.5)
+    }
+
     @Test("Different latex strings each call compile")
     func differentLatexEachCompile() {
         final class Counter { var count = 0 }
         struct CountingBackend: LatexRenderBackend {
             let counter: Counter
             var isAvailable: Bool { true }
-            func compile(latex: String) -> (image: CGImage, naturalSize: CGSize)? {
+            func compile(latex: String, colorHex: String, pixelScale: CGFloat) -> (image: CGImage, naturalSize: CGSize)? {
                 counter.count += 1
-                return FixedSizeLatexBackend(fixedNaturalSize: CGSize(width: 50, height: 15)).compile(latex: latex)
+                return FixedSizeLatexBackend(fixedNaturalSize: CGSize(width: 50, height: 15)).compile(
+                    latex: latex,
+                    colorHex: colorHex,
+                    pixelScale: pixelScale
+                )
             }
         }
         let counter = Counter()
@@ -181,6 +266,12 @@ struct LatexRenderServiceTests {
         #expect(LatexRenderService.hexString(red) == "ff0000ff")
     }
 
+    @Test("normalizedRGBHexString strips alpha for LaTeX rendering")
+    func normalizedRGBHexStringStripsAlpha() {
+        let color = CGColor(red: 0.1, green: 0.2, blue: 0.3, alpha: 0.4)
+        #expect(LatexRenderService.normalizedRGBHexString(color) == "1a334d")
+    }
+
     // MARK: - LocalLatexBackend detection
 
     @Test("LocalLatexBackend.detect() returns a result without crashing")
@@ -197,8 +288,17 @@ struct LatexRenderServiceTests {
     func forcedUnavailableStatus() {
         let b = LocalLatexBackend(status: .unavailable)
         #expect(!b.isAvailable)
-        let result = b.compile(latex: "x")
+        let result = b.compile(latex: "x", colorHex: "000000", pixelScale: 2.0)
         #expect(result == nil)
+    }
+
+    @Test("makeTexDocument includes xcolor and color definition")
+    func makeTexDocumentIncludesColorSupport() {
+        let backend = LocalLatexBackend(status: .unavailable)
+        let tex = backend.makeTexDocument(latex: "\\frac{a}{b}", colorHex: "ff3366")
+        #expect(tex.contains("\\usepackage{xcolor}"))
+        #expect(tex.contains("\\definecolor{spinlabaxis}{HTML}{ff3366}"))
+        #expect(tex.contains("\\color{spinlabaxis}"))
     }
 
     // MARK: - LatexAxisLabelRenderer does not own compilation (structural)

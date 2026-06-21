@@ -9,7 +9,7 @@ import CoreGraphics
 protocol LatexRenderBackend {
     var isAvailable: Bool { get }
     /// Compile a LaTeX formula body and return the rasterised image plus its natural size in PDF points.
-    func compile(latex: String) -> (image: CGImage, naturalSize: CGSize)?
+    func compile(latex: String, colorHex: String, pixelScale: CGFloat) -> (image: CGImage, naturalSize: CGSize)?
 }
 
 // MARK: - General rendering service
@@ -78,9 +78,15 @@ final class LatexRenderService {
         color: CGColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1),
         pixelScale: CGFloat = 2.0
     ) -> RenderedAsset? {
-        let key = CacheKey(latex: latex, colorHex: hexString(color), pixelScale: pixelScale)
+        let colorHex = Self.normalizedRGBHexString(color)
+        let clampedPixelScale = Self.clampedPixelScale(pixelScale)
+        let key = CacheKey(latex: latex, colorHex: colorHex, pixelScale: clampedPixelScale)
         if let cached = cache[key] { return cached }
-        guard let (image, naturalSize) = backend.compile(latex: latex) else {
+        guard let (image, naturalSize) = backend.compile(
+            latex: latex,
+            colorHex: colorHex,
+            pixelScale: clampedPixelScale
+        ) else {
             print("[LatexRenderService] Backend unavailable — cannot compile formula")
             return nil
         }
@@ -101,6 +107,33 @@ final class LatexRenderService {
     }
 
     private func hexString(_ color: CGColor) -> String { Self.hexString(color) }
+
+    static func normalizedRGBHexString(_ color: CGColor) -> String {
+        let c = color.components ?? [0, 0, 0, 1]
+        let r: Int
+        let g: Int
+        let b: Int
+        switch c.count {
+        case 0:
+            r = 0; g = 0; b = 0
+        case 1:
+            let v = Int((c[0] * 255).rounded())
+            r = v; g = v; b = v
+        case 2:
+            let v = Int((c[0] * 255).rounded())
+            r = v; g = v; b = v
+        default:
+            r = Int((c[0] * 255).rounded())
+            g = Int((c[1] * 255).rounded())
+            b = Int((c[2] * 255).rounded())
+        }
+        return String(format: "%02x%02x%02x", r, g, b)
+    }
+
+    static func clampedPixelScale(_ pixelScale: CGFloat) -> CGFloat {
+        guard pixelScale.isFinite else { return 2.0 }
+        return min(max(pixelScale, 0.1), 4.0)
+    }
 }
 
 // MARK: - Real backend (local LaTeX subprocess)
@@ -151,7 +184,7 @@ final class LocalLatexBackend: LatexRenderBackend {
 
     // MARK: - LatexRenderBackend
 
-    func compile(latex: String) -> (image: CGImage, naturalSize: CGSize)? {
+    func compile(latex: String, colorHex: String, pixelScale: CGFloat) -> (image: CGImage, naturalSize: CGSize)? {
         guard isAvailable else { return nil }
         let tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("LatexRender_\(UUID().uuidString)")
@@ -161,21 +194,25 @@ final class LocalLatexBackend: LatexRenderBackend {
         defer { try? FileManager.default.removeItem(at: tmpDir) }
         let texFile = tmpDir.appendingPathComponent("formula.tex")
         let pdfFile = tmpDir.appendingPathComponent("formula.pdf")
-        guard (try? makeTexDocument(latex: latex).write(to: texFile, atomically: true, encoding: .utf8)) != nil else {
+        guard (try? makeTexDocument(latex: latex, colorHex: colorHex).write(to: texFile, atomically: true, encoding: .utf8)) != nil else {
             return nil
         }
         guard runLatex(texFile: texFile, outputDir: tmpDir, pdfFile: pdfFile) else { return nil }
-        return rasterizePDF(at: pdfFile)
+        return rasterizePDF(at: pdfFile, pixelScale: pixelScale)
     }
 
     // MARK: - Private
 
-    private func makeTexDocument(latex: String) -> String {
-        """
+    func makeTexDocument(latex: String, colorHex: String) -> String {
+        let rgbHex = String(colorHex.prefix(6)).lowercased()
+        return """
         \\documentclass[12pt,preview,border=2pt]{standalone}
         \\usepackage{amsmath}
         \\usepackage{amssymb}
+        \\usepackage{xcolor}
+        \\definecolor{spinlabaxis}{HTML}{\(rgbHex)}
         \\begin{document}
+        \\color{spinlabaxis}
         $\\displaystyle \(latex)$
         \\end{document}
         """
@@ -206,15 +243,14 @@ final class LocalLatexBackend: LatexRenderBackend {
                FileManager.default.fileExists(atPath: pdfFile.path)
     }
 
-    private func rasterizePDF(at url: URL) -> (image: CGImage, naturalSize: CGSize)? {
+    private func rasterizePDF(at url: URL, pixelScale: CGFloat) -> (image: CGImage, naturalSize: CGSize)? {
         guard let data = try? Data(contentsOf: url) as CFData,
               let provider = CGDataProvider(data: data),
               let pdfDoc = CGPDFDocument(provider),
               let page = pdfDoc.page(at: 1) else { return nil }
         let box = page.getBoxRect(.mediaBox)
         guard box.width > 0, box.height > 0 else { return nil }
-        // Rasterise at 2× for retina quality; image is stored in the LatexRenderService cache.
-        let rasterScale: CGFloat = 2.0
+        let rasterScale = LatexRenderService.clampedPixelScale(pixelScale)
         let pixelW = Int((box.width  * rasterScale).rounded())
         let pixelH = Int((box.height * rasterScale).rounded())
         guard let ctx = CGContext(
