@@ -543,7 +543,7 @@ private func makePayload(
             percentilePreset: .p5_95
         )
     ))
-    #expect(output.layout.colorbarTicks.contains { $0.label.contains("10^") || $0.label.contains("x10^") })
+    #expect(output.layout.colorbarTicks.contains { $0.label.contains("1e") })
     #expect(output.layout.colorbarTicks.count >= 2)
 }
 
@@ -889,6 +889,146 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
         // On linear scale z=50 out of [0,100] maps to t = 0.5 → tick at middle
         // So the log tick must be at a higher CG Y than the linear tick
         #expect(logY > linearY)
+    }
+}
+
+// MARK: - Gate HeatmapLayoutPolish-Followup-2: plot width, Z label, log ticks
+
+@Test func showZLabelDoesNotShrinkGridWidth() {
+    let payload = HeatmapPlotPayload(
+        workflowID: "rsm",
+        title: "Width stability",
+        xLabel: "H (r.l.u.)", yLabel: "L (r.l.u.)", zLabel: "Intensity (counts)",
+        grid: make2x2Grid()
+    )
+    let withLabel    = HeatmapPlotLayout.compute(payload: payload, showZLabel: true)
+    let withoutLabel = HeatmapPlotLayout.compute(payload: payload, showZLabel: false)
+    // Grid width must not shrink when Z label is enabled.
+    #expect(abs(withLabel.gridRect.width - withoutLabel.gridRect.width) < 1,
+            "showZLabel must not reduce gridRect.width")
+}
+
+@Test func showZLabelExpandsRendererWidth() {
+    let payload = HeatmapPlotPayload(
+        workflowID: "rsm",
+        title: "Width expansion",
+        xLabel: "H", yLabel: "L", zLabel: "Intensity (counts)",
+        grid: make2x2Grid()
+    )
+    let withLabel    = HeatmapPlotLayout.compute(payload: payload, showZLabel: true)
+    let withoutLabel = HeatmapPlotLayout.compute(payload: payload, showZLabel: false)
+    #expect(withLabel.rendererSize.width > withoutLabel.rendererSize.width,
+            "showZLabel = true must widen the renderer canvas to accommodate the Z title lane")
+}
+
+@Test func showZLabelNoOverlapWithColorbarTickLabels() {
+    let payload = HeatmapPlotPayload(
+        workflowID: "rsm",
+        title: "No overlap",
+        xLabel: "H", yLabel: "L", zLabel: "Intensity (counts)",
+        grid: make4x3Grid()
+    )
+    let layout = HeatmapPlotLayout.compute(payload: payload, showZLabel: true)
+    let style = WorkbenchChartStyle()
+    let maxTickWidth = layout.colorbarTicks.map {
+        HeatmapPlotLayout.measuredTextWidth($0.label, fontSize: style.tickLabelFontSize,
+                                            fontName: style.fontName, boldFontName: style.boldFontName)
+    }.max() ?? 0
+    let tickLabelRightEdge = layout.colorbarRect.maxX + 4 + maxTickWidth
+    // Z title center must be to the right of the tick label right edge
+    #expect(layout.colorbarLabelCenter.x > tickLabelRightEdge,
+            "Z title center must be right of colorbar tick labels to avoid overlap")
+    // Z title must fit within renderer canvas
+    #expect(layout.colorbarLabelCenter.x < layout.rendererSize.width,
+            "Z title center must be within the rendered canvas width")
+}
+
+@Test func showZLabelFalseDoesNotRenderZTitleButKeepsColorbar() {
+    let payload = HeatmapPlotPayload(
+        workflowID: "rsm",
+        title: "No Z title",
+        xLabel: "H", yLabel: "L", zLabel: "Intensity (counts)",
+        grid: make2x2Grid()
+    )
+    let layout = HeatmapPlotLayout.compute(payload: payload, showZLabel: false)
+    #expect(!layout.showZLabel)
+    #expect(layout.colorbarTicks.count >= 2, "Colorbar ticks must be present even when Z title is hidden")
+    #expect(layout.colorbarRect.height > 0, "Colorbar must be present even when Z title is hidden")
+}
+
+@Test func logScaleModeZLabelIsExactUserText() {
+    let rendered = HeatmapPlotLayout.renderedZLabel("Intensity (counts)", mode: .log10)
+    #expect(rendered == "Intensity (counts)",
+            "Log10 mode must not auto-prefix the Z label")
+    let renderedR = HeatmapRenderer.renderedZLabel("Intensity (counts)", mode: .log10)
+    #expect(renderedR == "Intensity (counts)",
+            "HeatmapRenderer must not auto-prefix Z label in log mode")
+}
+
+@Test func noAutoLog10PrefixInLogMode() {
+    let label = "My Custom Label"
+    let linear = HeatmapRenderer.renderedZLabel(label, mode: .linear)
+    let log10  = HeatmapRenderer.renderedZLabel(label, mode: .log10)
+    #expect(linear == label)
+    #expect(log10  == label, "Log10 mode must not prepend any prefix to the user label")
+    #expect(!log10.contains("log"), "No 'log' prefix must be added in log mode")
+}
+
+@Test func userProvidedLog10PrefixPreserved() {
+    let label = "log10 Intensity (counts)"
+    let rendered = HeatmapRenderer.renderedZLabel(label, mode: .log10)
+    #expect(rendered == label, "User-provided label text must render exactly as entered")
+}
+
+@Test func logColorbarTickLabelsUse1eNotation() {
+    let payload = HeatmapPlotPayload(
+        workflowID: "rsm",
+        title: "Log ticks 1e",
+        xLabel: "", yLabel: "", zLabel: "",
+        grid: HeatmapGrid(
+            xValues: [0.0, 1.0, 2.0],
+            yValues: [0.0, 1.0],
+            zMatrix: [[1.0, 10.0, 100.0], [10.0, 100.0, 1000.0]]
+        )
+    )
+    let layout = HeatmapPlotLayout.compute(payload: payload, colorScaleMode: .log10)
+    let powerOfTenTicks = layout.colorbarTicks.filter { $0.label.hasPrefix("1e") }
+    #expect(!powerOfTenTicks.isEmpty, "Log colorbar ticks must use 1e-style notation (e.g. 1e3)")
+}
+
+@Test func logColorbarTickLabelsDoNotContainCaret() {
+    let payload = HeatmapPlotPayload(
+        workflowID: "rsm",
+        title: "No caret",
+        xLabel: "", yLabel: "", zLabel: "",
+        grid: HeatmapGrid(
+            xValues: [0.0, 1.0, 2.0],
+            yValues: [0.0, 1.0],
+            zMatrix: [[1.0, 10.0, 100.0], [10.0, 100.0, 1000.0]]
+        )
+    )
+    let layout = HeatmapPlotLayout.compute(payload: payload, colorScaleMode: .log10)
+    for (_, label) in layout.colorbarTicks {
+        #expect(!label.contains("^"), "Log tick label '\(label)' must not use ^ exponent notation")
+    }
+}
+
+@Test func linearColorbarTickLabelsAreReadable() {
+    let payload = HeatmapPlotPayload(
+        workflowID: "rsm",
+        title: "Linear ticks",
+        xLabel: "", yLabel: "", zLabel: "",
+        grid: HeatmapGrid(
+            xValues: [0.0, 1.0],
+            yValues: [0.0, 1.0],
+            zMatrix: [[0.0, 50.0], [50.0, 100.0]]
+        )
+    )
+    let layout = HeatmapPlotLayout.compute(payload: payload, colorScaleMode: .linear)
+    #expect(layout.colorbarTicks.count >= 2)
+    for (_, label) in layout.colorbarTicks {
+        #expect(!label.isEmpty, "Linear tick label must not be empty")
+        #expect(!label.contains("1e"), "Linear tick labels must not use 1e notation")
     }
 }
 

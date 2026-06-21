@@ -53,8 +53,8 @@ struct HeatmapRenderer {
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
         let scale = max(options.pixelScale, 1)
-        let pixelW = Int((CGFloat(options.width) * scale).rounded())
-        let pixelH = Int((CGFloat(options.height) * scale).rounded())
+        let pixelW = Int((layout.rendererSize.width * scale).rounded())
+        let pixelH = Int((layout.rendererSize.height * scale).rounded())
 
         guard let ctx = CGContext(
             data: nil, width: pixelW, height: pixelH,
@@ -351,11 +351,10 @@ struct HeatmapRenderer {
 
     // MARK: - Z-axis label mode formatting
 
-    /// Returns the colorbar label for the given raw label and color scale mode.
-    /// Log mode prepends "log₁₀ " (Unicode subscripts). Linear mode returns label unchanged.
-    /// Factored out so unit tests can verify label behavior without rendering a PNG.
+    /// Returns the colorbar label exactly as provided. Color Scale mode controls tick
+    /// positioning only, not the title text.
     static func renderedZLabel(_ label: String, mode: PlotScaleTransform) -> String {
-        mode == .log10 ? "log\u{2081}\u{2080} \(label)" : label
+        label
     }
 
 }

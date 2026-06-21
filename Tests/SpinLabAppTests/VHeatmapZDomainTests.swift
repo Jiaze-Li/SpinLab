@@ -170,7 +170,7 @@ struct HeatmapZDomainTests {
             colorScaleMode: .log10,
             zDomainState: HeatmapZDomainState(mode: .percentile, percentilePreset: .p5_95)
         ))
-        #expect(output.layout.colorbarTicks.contains { $0.label.contains("10^") || $0.label.contains("x10^") })
+        #expect(output.layout.colorbarTicks.contains { $0.label.contains("1e") })
         #expect(output.layout.zMin > 0)
         #expect(output.layout.zMax > output.layout.zMin)
     }

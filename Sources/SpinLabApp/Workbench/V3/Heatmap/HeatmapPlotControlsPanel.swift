@@ -78,11 +78,13 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
     var body: some View {
         GroupBox("Plot Controls") {
             VStack(alignment: .leading, spacing: 8) {
-                hostControls
-                HeatmapColorScaleControls(
-                    colorScaleMode: colorScaleMode,
-                    onColorScaleModeChange: onColorScaleModeChange
-                )
+                HStack(spacing: 12) {
+                    hostControls
+                    HeatmapColorScaleControls(
+                        colorScaleMode: colorScaleMode,
+                        onColorScaleModeChange: onColorScaleModeChange
+                    )
+                }
                 SharedPlotTextControls(
                     titleOverride: titleOverride,
                     xLabelOverride: xLabelOverride,

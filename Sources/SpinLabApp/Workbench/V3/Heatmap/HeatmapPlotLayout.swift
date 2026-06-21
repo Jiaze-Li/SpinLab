@@ -114,7 +114,9 @@ struct HeatmapPlotLayout: Sendable {
         let maxSideInset = max(96, (w - minGridWidth) / 2)
 
         let desiredLeft = yAxisTitleLaneWidth + titleToTickGap + maxYTickLabelWidth + tickToPlotGap
-        let desiredRight = opts.colorbarGap + opts.colorbarWidth + colorbarTickLabelGap + maxColorbarTickLabelWidth + colorbarTickToTitleGap + zAxisTitleLaneWidth
+        // Base right padding covers colorbar + tick labels only.
+        // Z title lane expands the canvas width rather than shrinking the grid.
+        let desiredRight = opts.colorbarGap + opts.colorbarWidth + colorbarTickLabelGap + maxColorbarTickLabelWidth
 
         opts.paddingLeft = clamp(desiredLeft, lower: options.paddingLeft, upper: maxSideInset)
         opts.paddingRight = clamp(desiredRight, lower: options.paddingRight, upper: maxSideInset)
@@ -161,8 +163,10 @@ struct HeatmapPlotLayout: Sendable {
             y: gridRect.midY
         )
 
+        let zTitleExpansion = zAxisTitleLaneWidth > 0 ? colorbarTickToTitleGap + zAxisTitleLaneWidth : 0
+
         return HeatmapPlotLayout(
-            rendererSize:        CGSize(width: w, height: h),
+            rendererSize:        CGSize(width: w + zTitleExpansion, height: h),
             gridRect:            gridRect,
             colorbarRect:        colorbarRect,
             titleCenter:         titleCenter,
@@ -206,7 +210,7 @@ struct HeatmapPlotLayout: Sendable {
     }
 
     static func renderedZLabel(_ label: String, mode: PlotScaleTransform) -> String {
-        mode == .log10 ? "log\u{2081}\u{2080} \(label)" : label
+        label
     }
 
     static func makeColorbarTickEntries(
@@ -287,9 +291,9 @@ struct HeatmapPlotLayout: Sendable {
         let mantissa = value / pow(10.0, exponent)
         let expInt = Int(exponent)
         if abs(mantissa - 1.0) < 1e-6 {
-            return "10^\(expInt)"
+            return "1e\(expInt)"
         }
-        return String(format: "%.2gx10^%d", mantissa, expInt)
+        return String(format: "%.2ge%d", mantissa, expInt)
     }
 
     static func formatAxisValue(_ value: Double) -> String {

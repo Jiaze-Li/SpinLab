@@ -750,18 +750,36 @@ struct V78CRSMPlotControlsPathTests {
                 "Custom column name must be preserved as-is")
     }
 
-    // INV-RSM-PL-5b: Log mode prepends log₁₀ prefix to z-label
-    @Test("HeatmapRenderer.renderedZLabel prepends log₁₀ in log10 mode")
-    func rsmLogModeZLabelPrefix() {
+    // INV-RSM-PL-5b: renderedZLabel returns label exactly as provided (no auto-prefix)
+    @Test("HeatmapRenderer.renderedZLabel returns label unchanged in all modes")
+    func rsmLogModeZLabelNoPrefix() {
         #expect(HeatmapRenderer.renderedZLabel("Intensity (counts)", mode: .linear) == "Intensity (counts)",
                 "Linear mode must return label unchanged")
-        let logLabel = HeatmapRenderer.renderedZLabel("Intensity (counts)", mode: .log10)
-        #expect(logLabel == "log\u{2081}\u{2080} Intensity (counts)",
-                "Log10 mode must prepend log₁₀ (Unicode subscripts) to the label")
-        // Custom user override in log mode also gets the prefix (display transform)
-        let customLog = HeatmapRenderer.renderedZLabel("My Custom", mode: .log10)
-        #expect(customLog.hasPrefix("log"),
-                "Log10 mode always prepends log prefix even for custom labels")
+        #expect(HeatmapRenderer.renderedZLabel("Intensity (counts)", mode: .log10) == "Intensity (counts)",
+                "Log10 mode must not auto-prefix the Z/colorbar label")
+        #expect(HeatmapRenderer.renderedZLabel("My Custom", mode: .log10) == "My Custom",
+                "Log10 mode must not add any prefix to custom labels")
+        let userLog = HeatmapRenderer.renderedZLabel("log10 Intensity (counts)", mode: .log10)
+        #expect(userLog == "log10 Intensity (counts)",
+                "User-supplied prefix must be preserved exactly as entered")
+    }
+
+    // INV-RSM-PL-5c: hostControls and Color Scale share the same top row
+    @Test("HeatmapPlotControlsPanel places hostControls and HeatmapColorScaleControls in same HStack")
+    func heatmapControlsPanelSameRowLayout() throws {
+        let source = try loadHeatmapSource("HeatmapPlotControlsPanel.swift")
+        // Verify the two views are siblings inside an HStack
+        let hstackRange = source.range(of: "HStack(spacing:")
+        #expect(hstackRange != nil,
+                "HeatmapPlotControlsPanel must use HStack to place hostControls and color scale on one row")
+        // Both must appear after the HStack opening (i.e., inside it)
+        if let hstackStart = hstackRange?.lowerBound {
+            let afterHStack = String(source[hstackStart...])
+            #expect(afterHStack.contains("hostControls"),
+                    "hostControls must be inside the same-row HStack")
+            #expect(afterHStack.contains("HeatmapColorScaleControls("),
+                    "HeatmapColorScaleControls must be inside the same-row HStack")
+        }
     }
 
     // INV-RSM-PL-7: Large font sizes produce sufficient left padding to avoid y-axis overlap
