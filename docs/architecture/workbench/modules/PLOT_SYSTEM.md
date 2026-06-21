@@ -472,7 +472,9 @@ Boundary: no module other than Plot Preservation may write `TabRenderState` over
 - `Sources/SpinLabApp/Features/Workbench/PlotCanvasMouseTracker.swift` — tracks mouse position and computes hit-test results on the plot canvas
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift` — sidebar controls panel for plot display settings (Cartesian XY-specific controls)
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift` — standard plot control bindings shared across Cartesian XY multi-tab stacking workflows
-- `Sources/SpinLabApp/Features/Workbench/SharedPlotTextControls.swift` — shared title/X/Y override row plus optional Z/colorbar label control used by heatmap and Cartesian workflows
+- `Sources/SpinLabApp/Features/Workbench/SharedPlotTextControls.swift` — shared title/X/Y override row used by heatmap and Cartesian workflows
+- `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapColorScaleControls.swift` — heatmap color-scale UI control
+- `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapZLabelControl.swift` — heatmap optional Z/colorbar label control
 - `Sources/SpinLabApp/Features/Workbench/SharedPlotFontSizeControls.swift` — shared title/axis/tick font-size pickers used by plot control surfaces
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift` — reorders stacked series from plot controls by per-series identity keys
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift` — interaction-only canvas protocol (`WorkbenchPlottingStore`); also defines `WorkbenchCartesianXYPlottingStore` (Cartesian XY state) and `WorkbenchGlobalPlotDefaultsProviding` (shared font/style defaults)

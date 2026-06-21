@@ -54,28 +54,6 @@ struct SharedPlotTextControls: View {
     }
 }
 
-// MARK: - OptionalPlotZLabelControl
-
-/// Optional heatmap or colorbar Z-label override control.
-struct OptionalPlotZLabelControl: View {
-    let renderedDefault: String
-    let currentValue: String
-    let sourceResetToken: String
-    let onCommit: (String) -> Void
-
-    var body: some View {
-        LabelOverrideField(
-            label: "Z",
-            renderedDefault: renderedDefault,
-            currentValue: currentValue,
-            sourceResetToken: sourceResetToken,
-            onCommit: onCommit,
-            fieldMaxWidth: .infinity
-        )
-        .frame(maxWidth: .infinity)
-    }
-}
-
 // MARK: - PlotControlWeightedRowLayout
 
 private struct PlotControlWeightKey: LayoutValueKey {

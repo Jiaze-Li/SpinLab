@@ -16,27 +16,14 @@ struct RSMWorkspaceView: View, WorkflowWorkspaceProvider {
             searchExtra: { EmptyView() },
             plotControls: {
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        Text("View")
-                            .font(WorkbenchUIStyle.controlLabelFont)
-                            .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                        Picker("", selection: $bindableStore.activeView) {
-                            ForEach(RSMView.allCases, id: \.self) { view in
-                                Text(view.rawValue.uppercased()).tag(view)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(maxWidth: 160)
-                        .onChange(of: store.activeView) { _, _ in
+                    RSMViewSelector(
+                        activeView: $bindableStore.activeView,
+                        parsedDataset: bindableStore.parsedDataset,
+                        onChange: {
                             store.rerenderForStyleChange()
                             appState.flushInteractionSnapshotNow()
                         }
-                        if let dataset = store.parsedDataset, !dataset.isViewCompatible(store.activeView) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.orange)
-                                .help("This view is not valid for the loaded data. Recommended: \(dataset.recommendedView.rawValue.uppercased())")
-                        }
-                    }
+                    )
 
                     HeatmapPlotControlsPanel(
                         globalPlotDefaults: $bindableWorkbench.globalPlotDefaults,

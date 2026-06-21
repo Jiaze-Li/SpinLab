@@ -84,11 +84,13 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("tickLabelFontSize"))
     }
 
-    @Test("SharedPlotTextControls.swift defines OptionalPlotZLabelControl")
-    func optionalZLabelControlExists() throws {
+    @Test("SharedPlotTextControls.swift does not define OptionalPlotZLabelControl")
+    func optionalZLabelControlRemovedFromSharedControls() throws {
         let source = try loadWorkbenchSource("SharedPlotTextControls.swift")
-        #expect(source.contains("OptionalPlotZLabelControl"))
-        #expect(source.contains("label: \"Z\""))
+        #expect(!source.contains("OptionalPlotZLabelControl"))
+        #expect(source.contains("label: \"Title\""))
+        #expect(source.contains("label: \"X\""))
+        #expect(source.contains("label: \"Y\""))
     }
 }
 
@@ -278,9 +280,9 @@ struct V78CXYPlotControlsPathTests {
     @Test("WorkbenchStandardPlotControls.swift does not show heatmap-only Z/colorbar controls")
     func standardControlsDoesNotShowZControls() throws {
         let source = try loadWorkbenchSource("WorkbenchStandardPlotControls.swift")
-        #expect(!source.contains("OptionalPlotZLabelControl"),
+        #expect(!source.contains("HeatmapZLabelControl"),
                 "Ordinary Cartesian XY controls must not mount the optional Z/colorbar label control")
-        #expect(!source.contains("Color Scale"),
+        #expect(!source.contains("HeatmapColorScaleControls"),
                 "Ordinary Cartesian XY controls must not expose heatmap color scale controls")
     }
 
@@ -577,14 +579,16 @@ struct V78CRSMPlotControlsPathTests {
         let source = try loadHeatmapSource("HeatmapPlotControlsPanel.swift")
         #expect(source.contains("struct HeatmapPlotControlsPanel"),
                 "Heatmap module must define the heatmap plot controls panel")
-        #expect(source.contains("Text(\"Color Scale\")"),
-                "Heatmap module must expose a Color Scale picker")
         #expect(source.contains("SharedPlotTextControls"),
                 "Heatmap module must use the shared title/X/Y component")
-        #expect(source.contains("OptionalPlotZLabelControl"),
+        #expect(source.contains("HeatmapZLabelControl"),
                 "Heatmap module must mount the optional Z/colorbar label control")
         #expect(source.contains("SharedPlotFontSizeControls"),
                 "Heatmap module must use the shared title/axis/tick font controls")
+        #expect(source.contains("HeatmapColorScaleControls"),
+                "Heatmap module must mount the extracted color scale controls")
+        #expect(!source.contains("private struct HeatmapColorScaleControls"),
+                "Heatmap module must not define the color scale controls inline")
         #expect(source.contains(".frame(maxWidth: .infinity)"),
                 "Heatmap plot controls must apply .frame(maxWidth: .infinity) so the box fills the row")
     }
@@ -594,8 +598,8 @@ struct V78CRSMPlotControlsPathTests {
         let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
         #expect(source.contains("HeatmapPlotControlsPanel"),
                 "RSM must mount the heatmap plot controls panel from the heatmap module")
-        #expect(!source.contains("struct RSMHeatmapPlotControlsPanel"),
-                "RSM must not define the heatmap controls implementation inline")
+        #expect(source.contains("RSMViewSelector"),
+                "RSM must mount the RSM-specific view selector")
     }
 
     @Test("RSMWorkspaceView.swift does not use WorkbenchStandardPlotControls")
@@ -610,8 +614,10 @@ struct V78CRSMPlotControlsPathTests {
         let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
         #expect(source.contains("HeatmapPlotControlsPanel"),
                 "RSM must mount the heatmap plot controls panel from the heatmap module")
-        #expect(!source.contains("struct RSMHeatmapPlotControlsPanel"),
-                "RSM must not define the heatmap controls implementation inline")
+        #expect(!source.contains("ForEach(RSMView.allCases"),
+                "RSM must not inline the HL/KL/HK picker")
+        #expect(!source.contains("Picker(\"\", selection: $bindableStore.activeView)"),
+                "RSM must not inline the active-view picker")
     }
 
     // INV-RSM-PL-1: GroupBox fills available width
@@ -644,12 +650,43 @@ struct V78CRSMPlotControlsPathTests {
     // INV-RSM-PL-3: Color Scale label uses primary foreground (not secondary)
     @Test("RSMWorkspaceView.swift Color Scale label uses primary text color")
     func rsmColorScaleLabelIsPrimary() throws {
-        let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
-        // Must not use .secondary for the Color Scale label
-        #expect(!source.contains("\"Color Scale\")\n                .font(.system(size: 12))\n                .foregroundStyle(.secondary)"),
-                "Color Scale label must not use .secondary foreground — control labels must be primary")
+        let source = try loadWorkbenchSource("RSMViewSelector.swift")
         #expect(source.contains("WorkbenchUIStyle.primaryTextColor"),
-                "RSM controls must use primary text styling for active control labels")
+                "RSM selector must use primary text styling for the active label")
+        #expect(source.contains("Text(\"View\")"),
+                "RSM selector must keep the view label inside the workflow-specific component")
+    }
+
+    @Test("RSMViewSelector.swift remains RSM-specific")
+    func rsmViewSelectorRemainsSpecific() throws {
+        let source = try loadWorkbenchSource("RSMViewSelector.swift")
+        #expect(source.contains("RSMView.allCases"))
+        #expect(source.contains("isViewCompatible"))
+        #expect(source.contains("Recommended:"))
+        #expect(source.contains("WorkbenchUIStyle.primaryTextColor"))
+        #expect(source.contains("exclamationmark.triangle"))
+        #expect(!source.contains("SharedPlotTextControls"))
+        #expect(!source.contains("SharedPlotFontSizeControls"))
+        #expect(!source.contains("HeatmapColorScaleControls"))
+    }
+
+    @Test("HeatmapZLabelControl.swift is a heatmap module component")
+    func heatmapZLabelControlIsModuleOwned() throws {
+        let source = try loadHeatmapSource("HeatmapZLabelControl.swift")
+        #expect(source.contains("struct HeatmapZLabelControl"))
+        #expect(source.contains("label: \"Z\""))
+        #expect(source.contains("sourceResetToken"))
+        #expect(!source.contains("RSM"))
+    }
+
+    @Test("HeatmapColorScaleControls.swift is a heatmap module component")
+    func heatmapColorScaleControlsIsModuleOwned() throws {
+        let source = try loadHeatmapSource("HeatmapColorScaleControls.swift")
+        #expect(source.contains("struct HeatmapColorScaleControls"))
+        #expect(source.contains("Color Scale"))
+        #expect(source.contains("PlotScaleTransform.linear"))
+        #expect(source.contains("PlotScaleTransform.log10"))
+        #expect(!source.contains("RSM"))
     }
 
     // INV-RSM-PL-4: Default Z label for "Detector" column normalizes to publication standard
@@ -760,9 +797,9 @@ H     K     L     Detector
     }
 
     // INV-RSM-PL-9: View picker shows warning icon for incompatible view
-    @Test("RSMWorkspaceView.swift shows warning icon when view is incompatible with data")
+    @Test("RSMViewSelector.swift shows warning icon when view is incompatible with data")
     func rsmShowsViewCompatibilityWarning() throws {
-        let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
+        let source = try loadWorkbenchSource("RSMViewSelector.swift")
         #expect(source.contains("isViewCompatible"),
                 "View picker must check isViewCompatible to show compatibility warning")
         #expect(source.contains("exclamationmark.triangle") || source.contains("exclamationmark"),

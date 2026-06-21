@@ -170,6 +170,7 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
     - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift`
     - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift`
     - `Sources/SpinLabApp/Features/Workbench/SharedPlotTextControls.swift`
+    - `Sources/SpinLabApp/Features/Workbench/RSMViewSelector.swift`
     - `Sources/SpinLabApp/Features/Workbench/SharedPlotFontSizeControls.swift`
     - `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift`
     - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift` — defines `WorkbenchPlottingStore` (interaction-only), `WorkbenchCartesianXYPlottingStore` (Cartesian XY state), `WorkbenchGlobalPlotDefaultsProviding` (shared font defaults)
@@ -181,6 +182,8 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
   - Heatmap render path:
     - `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapRenderPipeline.swift`
     - `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapRenderer.swift`
+    - `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapColorScaleControls.swift`
+    - `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapZLabelControl.swift`
     - `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapTabRenderState.swift` — per-tab heatmap display override state; parallel to `TabRenderState`
 - Current consumers: all workflow views/stores, renderers, save-to-library, pack/restore, plot tests.
 - State it owns: tab render states, tab outputs, active tab, grid flag, legend anchor, chart style overrides, series label/title/axis overrides, point-label visibility, series order where opted in.

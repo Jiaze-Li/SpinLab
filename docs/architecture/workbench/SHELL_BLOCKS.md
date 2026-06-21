@@ -124,7 +124,8 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift` — renders the series-reorder chip layout
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchSharedComponents.swift` — documents the split shared workbench component inventory
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift` — composes tab, stack, title, and reorder controls for stacked plots
-- `Sources/SpinLabApp/Features/Workbench/SharedPlotTextControls.swift` — shared title/X/Y override row plus optional Z/colorbar label control for plot controls
+- `Sources/SpinLabApp/Features/Workbench/SharedPlotTextControls.swift` — shared title/X/Y override row for plot controls
+- `Sources/SpinLabApp/Features/Workbench/RSMViewSelector.swift` — RSM workflow-specific HL/KL/HK view selector
 - `Sources/SpinLabApp/Features/Workbench/SharedPlotFontSizeControls.swift` — shared title/axis/tick font-size pickers used by Workbench plot controls
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchStatusArea.swift` — renders shared search, plot, and load status messages
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchTitleTemplateField.swift` — renders the shared title-template input and token hint

@@ -336,8 +336,11 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `Features/Workbench/WorkbenchPlotControlsPanel.swift` | consumer: Workbench plot controls wrapper | UI shell | 37 |  |  | 0 | none |
 | `Features/Workbench/WorkbenchPlottingStore.swift` | consumer: plot-capability protocol | Capability protocol | 36 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | behavioral |
 | `Features/Workbench/WorkbenchSharedComponents.swift` | consumer: shared Workbench UI components | UI helper | 10 |  |  | 0 | none |
-| `Features/Workbench/SharedPlotTextControls.swift` | consumer: shared title/X/Y override row with optional Z control | UI helper | 135 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | none |
+| `Features/Workbench/SharedPlotTextControls.swift` | consumer: shared title/X/Y override row | UI helper | 135 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | none |
+| `Features/Workbench/RSMViewSelector.swift` | consumer: RSM workflow-specific plot-control selector | UI helper | 28 |  |  | 0 | none |
 | `Features/Workbench/SharedPlotFontSizeControls.swift` | consumer: shared plot font-size pickers | UI helper | 46 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | none |
+| `Workbench/V3/Heatmap/HeatmapColorScaleControls.swift` | consumer: heatmap color-scale UI control | UI helper | 27 |  |  | 0 | none |
+| `Workbench/V3/Heatmap/HeatmapZLabelControl.swift` | consumer: heatmap optional Z/colorbar label control | UI helper | 21 |  |  | 0 | none |
 | `Features/Workbench/WorkbenchStandardPlotControls.swift` | consumer: shared plot controls | UI shell | 107 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | behavioral |
 | `Features/Workbench/WorkbenchStatusArea.swift` | consumer: Workbench warnings/status UI | UI | 29 |  |  | 1 | none |
 | `Features/Workbench/WorkbenchTitleTemplateField.swift` | consumer: Workbench title template editor | UI | 38 |  |  | 0 | none |
