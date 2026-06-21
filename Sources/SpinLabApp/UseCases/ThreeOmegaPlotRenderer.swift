@@ -10,8 +10,8 @@ struct ThreeOmegaPlotRenderer {
 
     // MARK: - Scaling-law axis labels
 
-    static let scalingXAxisLabel = #"latex:\sigma_{xx}^{2};(10^{7},\mathrm{S}^{2}/\mathrm{cm}^{2})"#
-    static let scalingYAxisLabel = #"latex:\frac{E_{\mathrm{AHE}}^{(3\omega)}}{E_{xx}^{3}\cdot\sigma_{xx}}\times10^{2};(\Omega\cdot\mu\mathrm{m}^{3}\cdot\mathrm{V}^{-2})"#
+    static let scalingXAxisLabel = #"math:σ_{xx}^{2} (10^{7} S^{2} cm^{-2})"#
+    static let scalingYAxisLabel = #"math:E_{AHE}^{3ω} / (E_{xx}^{3}·σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})"#
 
     var showGrid: Bool = true
     var legendAnchor: String = ""           // "" = top-right (default)

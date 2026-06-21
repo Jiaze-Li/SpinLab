@@ -33,8 +33,18 @@ enum MathMarkupNode: Equatable {
 /// When both sub and sup are present on a base, they share the same x attachment column.
 struct MathMarkupRenderer {
 
+    static let mathPrefix = "math:"
+
     static func containsMarkup(_ text: String) -> Bool {
         text.contains("_") || text.contains("^")
+    }
+
+    static func isMathLabel(_ text: String) -> Bool {
+        text.hasPrefix(mathPrefix)
+    }
+
+    static func extractMathMarkup(_ text: String) -> String {
+        String(text.dropFirst(mathPrefix.count))
     }
 
     /// Parses a markup string into a sequence of typed segments (linear model, backward-compatible).

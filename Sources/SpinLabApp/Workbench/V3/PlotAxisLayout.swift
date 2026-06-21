@@ -16,6 +16,13 @@ struct PlotTextMeasurer {
         boldFontName: String? = nil
     ) -> CGFloat {
         guard !text.isEmpty else { return 0 }
+        if MathMarkupRenderer.isMathLabel(text) {
+            return MathMarkupRenderer.measuredWidth(
+                text: MathMarkupRenderer.extractMathMarkup(text),
+                size: fontSize,
+                fontName: fontName
+            )
+        }
         if LatexAxisLabelRenderer.isLatexLabel(text) {
             let latex = LatexAxisLabelRenderer.extractLatex(text)
             if let size = LatexAxisLabelRenderer.shared.labelSize(latex: latex, fontSize: fontSize) {

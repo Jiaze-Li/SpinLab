@@ -120,13 +120,13 @@ final class V400WorkbenchPlotRendererTests: XCTestCase {
         XCTAssertEqual(layout.legendStyle.fontName, style.fontName)
     }
 
-    func testLatexAxisLabelsReachRendererWithoutRawFallback() throws {
+    func testMathAxisLabelsBypassLatexRenderer() throws {
         let spy = RecordingLatexAxisLabelRenderer()
         let renderer = WorkbenchChartRenderer(latexAxisLabelRenderer: spy)
         let payload = WorkbenchPlotPayload(
             workflowID: "test",
             workflowDisplayName: "Test",
-            title: "Latex Labels",
+            title: "Math Labels",
             axisMapping: WorkbenchAxisMapping(
                 xField: ThreeOmegaPlotRenderer.scalingXAxisLabel,
                 yField: ThreeOmegaPlotRenderer.scalingYAxisLabel
@@ -138,17 +138,31 @@ final class V400WorkbenchPlotRendererTests: XCTestCase {
 
         _ = try renderer.renderPNG(payload: payload)
 
-        XCTAssertEqual(spy.calls.count, 2)
+        XCTAssertTrue(spy.calls.isEmpty)
         XCTAssertEqual(
-            spy.calls[0].latex,
-            LatexAxisLabelRenderer.extractLatex(ThreeOmegaPlotRenderer.scalingXAxisLabel)
+            PlotTextMeasurer.measuredWidth(
+                ThreeOmegaPlotRenderer.scalingXAxisLabel,
+                fontSize: WorkbenchChartStyle().axisTitleFontSize,
+                fontName: WorkbenchChartStyle().fontName
+            ),
+            PlotTextMeasurer.measuredWidth(
+                MathMarkupRenderer.extractMathMarkup(ThreeOmegaPlotRenderer.scalingXAxisLabel),
+                fontSize: WorkbenchChartStyle().axisTitleFontSize,
+                fontName: WorkbenchChartStyle().fontName
+            )
         )
-        XCTAssertEqual(spy.calls[0].orientation, .horizontal)
         XCTAssertEqual(
-            spy.calls[1].latex,
-            LatexAxisLabelRenderer.extractLatex(ThreeOmegaPlotRenderer.scalingYAxisLabel)
+            PlotTextMeasurer.measuredWidth(
+                ThreeOmegaPlotRenderer.scalingYAxisLabel,
+                fontSize: WorkbenchChartStyle().axisTitleFontSize,
+                fontName: WorkbenchChartStyle().fontName
+            ),
+            PlotTextMeasurer.measuredWidth(
+                MathMarkupRenderer.extractMathMarkup(ThreeOmegaPlotRenderer.scalingYAxisLabel),
+                fontSize: WorkbenchChartStyle().axisTitleFontSize,
+                fontName: WorkbenchChartStyle().fontName
+            )
         )
-        XCTAssertEqual(spy.calls[1].orientation, .rotated90)
     }
 
     func testWorkbenchChartRendererLatexBranchDoesNotFallbackToRawSource() throws {

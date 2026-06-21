@@ -480,7 +480,10 @@ struct WorkbenchChartRenderer {
             print("[LatexAxisLabel] render failed for axis label; raw LaTeX suppressed")
             return
         }
-        let line = makeMarkupLine(text: text, size: size, color: color, style: style)
+        let markupText = MathMarkupRenderer.isMathLabel(text)
+            ? MathMarkupRenderer.extractMathMarkup(text)
+            : text
+        let line = makeMarkupLine(text: markupText, size: size, color: color, style: style)
         let bounds = CTLineGetBoundsWithOptions(line, [])
         ctx.textPosition = CGPoint(
             x: center.x - bounds.width / 2 - bounds.minX,
@@ -507,7 +510,10 @@ struct WorkbenchChartRenderer {
             print("[LatexAxisLabel] render failed for axis label; raw LaTeX suppressed")
             return
         }
-        let line = makeMarkupLine(text: text, size: size, color: color, style: style)
+        let markupText = MathMarkupRenderer.isMathLabel(text)
+            ? MathMarkupRenderer.extractMathMarkup(text)
+            : text
+        let line = makeMarkupLine(text: markupText, size: size, color: color, style: style)
         let bounds = CTLineGetBoundsWithOptions(line, [])
         ctx.saveGState()
         ctx.translateBy(x: center.x, y: center.y)
