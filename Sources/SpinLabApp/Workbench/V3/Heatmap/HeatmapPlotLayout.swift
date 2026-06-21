@@ -156,8 +156,8 @@ struct HeatmapPlotLayout: Sendable {
         // Colorbar placement — Z title sits LEFT of colorbar:
         // [gridRect] [zTitleGapBefore] [zTitle] [zTitleGapAfter] [colorbar] [tickGap] [tickLabels]
         // When no Z title: [gridRect] [colorbarGap] [colorbar] [tickGap] [tickLabels]
-        let zTitleGapBefore: CGFloat = 12
-        let zTitleGapAfter: CGFloat = 8
+        let zTitleGapBefore: CGFloat = 6
+        let zTitleGapAfter: CGFloat = 6
 
         let colorbarRect: CGRect
         let colorbarLabelCenter: CGPoint

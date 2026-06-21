@@ -96,6 +96,7 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
                         colorScaleMode: colorScaleMode,
                         onColorScaleModeChange: onColorScaleModeChange
                     )
+                    Spacer(minLength: 16)
                     SharedPlotTickCountControls(
                         xTickCount: xTickCount,
                         yTickCount: yTickCount,

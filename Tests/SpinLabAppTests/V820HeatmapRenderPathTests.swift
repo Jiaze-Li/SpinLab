@@ -946,6 +946,31 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
             "Z title center must be right of the plot grid")
 }
 
+@Test func zTitleToColorbarGapIsTightened() {
+    // After spacing polish, the gap from the right edge of the Z title text to the
+    // left edge of the colorbar gradient must be ≤ 10pt and > 0 (no overlap).
+    let style = WorkbenchChartStyle()
+    let zLabel = "Intensity (counts)"
+    let payload = HeatmapPlotPayload(
+        workflowID: "rsm",
+        title: "Gap test",
+        xLabel: "H (r.l.u.)", yLabel: "L (r.l.u.)", zLabel: zLabel,
+        grid: make4x3Grid()
+    )
+    let layout = HeatmapPlotLayout.compute(payload: payload, chartStyle: style, showColorbar: true)
+    // For a long label the lane width ≈ text width; right edge ≈ center + textWidth/2.
+    let zLabelTextWidth = HeatmapPlotLayout.measuredTextWidth(
+        zLabel,
+        fontSize: style.axisTitleFontSize,
+        fontName: style.fontName,
+        boldFontName: style.boldFontName
+    )
+    let approxRightEdge = layout.colorbarLabelCenter.x + zLabelTextWidth / 2
+    let approxGap = layout.colorbarRect.minX - approxRightEdge
+    #expect(approxGap > 0, "Z title must not overlap the colorbar")
+    #expect(approxGap <= 10, "Gap from Z title right edge to colorbar must be ≤ 10pt after spacing polish")
+}
+
 @Test func showColorbarFalseHidesEntireColorbarBlock() {
     let payload = HeatmapPlotPayload(
         workflowID: "rsm",

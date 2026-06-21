@@ -7,7 +7,7 @@ struct HeatmapColorScaleControls: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text("Color Scale")
+            Text("Colorbar")
                 .font(WorkbenchUIStyle.controlLabelFont)
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
             Picker("", selection: Binding<PlotScaleTransform>(

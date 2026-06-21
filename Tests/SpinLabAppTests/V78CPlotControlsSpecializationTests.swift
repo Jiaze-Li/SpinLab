@@ -724,7 +724,10 @@ struct V78CRSMPlotControlsPathTests {
     func heatmapColorScaleControlsIsModuleOwned() throws {
         let source = try loadHeatmapSource("HeatmapColorScaleControls.swift")
         #expect(source.contains("struct HeatmapColorScaleControls"))
-        #expect(source.contains("Color Scale"))
+        #expect(source.contains("Colorbar"),
+                "Visible label must be 'Colorbar' after spacing polish")
+        #expect(!source.contains("\"Color Scale\""),
+                "'Color Scale' must no longer appear as the visible first-row label")
         #expect(source.contains("PlotScaleTransform.linear"))
         #expect(source.contains("PlotScaleTransform.log10"))
         #expect(!source.contains("RSM"))
@@ -764,21 +767,25 @@ struct V78CRSMPlotControlsPathTests {
                 "User-supplied prefix must be preserved exactly as entered")
     }
 
-    // INV-RSM-PL-5c: hostControls and Color Scale share the same top row
-    @Test("HeatmapPlotControlsPanel places hostControls and HeatmapColorScaleControls in same HStack")
+    // INV-RSM-PL-5c: hostControls, Color Scale, and Tick Controls share the same top row
+    @Test("HeatmapPlotControlsPanel places hostControls, HeatmapColorScaleControls, and tick controls in same HStack")
     func heatmapControlsPanelSameRowLayout() throws {
         let source = try loadHeatmapSource("HeatmapPlotControlsPanel.swift")
-        // Verify the two views are siblings inside an HStack
+        // Verify the views are siblings inside an HStack
         let hstackRange = source.range(of: "HStack(spacing:")
         #expect(hstackRange != nil,
-                "HeatmapPlotControlsPanel must use HStack to place hostControls and color scale on one row")
-        // Both must appear after the HStack opening (i.e., inside it)
+                "HeatmapPlotControlsPanel must use HStack to place controls on one row")
+        // All must appear after the HStack opening (i.e., inside it)
         if let hstackStart = hstackRange?.lowerBound {
             let afterHStack = String(source[hstackStart...])
             #expect(afterHStack.contains("hostControls"),
                     "hostControls must be inside the same-row HStack")
             #expect(afterHStack.contains("HeatmapColorScaleControls("),
                     "HeatmapColorScaleControls must be inside the same-row HStack")
+            #expect(afterHStack.contains("Spacer(minLength:"),
+                    "First row must use Spacer(minLength:) so tick controls can sit to the right")
+            #expect(afterHStack.contains("SharedPlotTickCountControls"),
+                    "Tick controls must be in the same-row HStack")
         }
     }
 
