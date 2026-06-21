@@ -28,6 +28,7 @@ struct RSMWorkspaceView: View, WorkflowWorkspaceProvider {
                     HeatmapPlotControlsPanel(
                         globalPlotDefaults: $bindableWorkbench.globalPlotDefaults,
                         colorScaleMode: bindableStore.heatmapDisplayState.colorScaleMode,
+                        zDomainState: bindableStore.heatmapDisplayState.zDomainState,
                         titleOverride: bindableStore.heatmapDisplayState.titleOverride,
                         xLabelOverride: bindableStore.heatmapDisplayState.xLabelOverride,
                         yLabelOverride: bindableStore.heatmapDisplayState.yLabelOverride,
@@ -40,6 +41,7 @@ struct RSMWorkspaceView: View, WorkflowWorkspaceProvider {
                             ?? "",
                         sourceResetToken: "\(bindableStore.cachedInputFiles.first ?? "")|\(bindableStore.activeView.rawValue)",
                         onColorScaleModeChange: { store.updateHeatmapColorScaleMode($0) },
+                        onZDomainStateChange: { store.updateHeatmapZDomainState($0) },
                         onTitleOverride: { store.updateHeatmapTitle($0) },
                         onXLabelOverride: { store.updateHeatmapXAxisLabel($0) },
                         onYLabelOverride: { store.updateHeatmapYAxisLabel($0) },

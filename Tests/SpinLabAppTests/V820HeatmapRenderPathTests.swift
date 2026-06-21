@@ -355,18 +355,59 @@ private func makePayload(
     #expect(output.imageData.count > 0)
 }
 
-@Test func heatmapRenderPipelineZRangeClamp() throws {
-    let payload = HeatmapPlotPayload(
-        workflowID: "rsm",
-        title: "Clamped",
-        xLabel: "", yLabel: "", zLabel: "",
-        grid: make4x3Grid(),
-        zRangeClamp: 0.2...0.8
+@Test func heatmapRenderPipelineManualZDomain() throws {
+    let payload = makePayload(grid: make4x3Grid())
+    let input = HeatmapRenderPipeline.Input(
+        payload: payload,
+        zDomainState: HeatmapZDomainState(
+            mode: .manual,
+            manualRange: HeatmapZRangeDraft(minText: "0.2", maxText: "0.8")
+        )
     )
-    let input  = HeatmapRenderPipeline.Input(payload: payload)
     let output = try HeatmapRenderPipeline.render(input)
     #expect(abs(output.layout.zMin - 0.2) < 1e-10)
     #expect(abs(output.layout.zMax - 0.8) < 1e-10)
+}
+
+@Test func heatmapRenderPipelinePercentileZDomain() throws {
+    let payload = HeatmapPlotPayload(
+        workflowID: "rsm",
+        title: "Percentile",
+        xLabel: "", yLabel: "", zLabel: "",
+        grid: HeatmapGrid(
+            xValues: [0.0, 1.0, 2.0, 3.0],
+            yValues: [0.0, 1.0],
+            zMatrix: [
+                [1.0, 2.0, 3.0, 100.0],
+                [4.0, 5.0, 6.0, 200.0]
+            ]
+        )
+    )
+    let input = HeatmapRenderPipeline.Input(
+        payload: payload,
+        zDomainState: HeatmapZDomainState(
+            mode: .percentile,
+            percentilePreset: .p1_99
+        )
+    )
+    let output = try HeatmapRenderPipeline.render(input)
+    #expect(output.layout.zMin > 1.0)
+    #expect(output.layout.zMax < 200.0)
+    #expect(output.layout.zMin < output.layout.zMax)
+}
+
+@Test func heatmapRenderPipelineInvalidManualDomainFallsBackToAuto() throws {
+    let payload = makePayload(grid: make4x3Grid())
+    let input = HeatmapRenderPipeline.Input(
+        payload: payload,
+        zDomainState: HeatmapZDomainState(
+            mode: .manual,
+            manualRange: HeatmapZRangeDraft(minText: "", maxText: "0.8")
+        )
+    )
+    let output = try HeatmapRenderPipeline.render(input)
+    #expect(abs(output.layout.zMin - 0.0) < 1e-10)
+    #expect(abs(output.layout.zMax - 1.25) < 1e-10)
 }
 
 @Test func heatmapRenderPipelineLogTicksAreClearlyLogarithmic() throws {
@@ -383,7 +424,14 @@ private func makePayload(
             ]
         )
     )
-    let output = try HeatmapRenderPipeline.render(.init(payload: payload, colorScaleMode: .log10))
+    let output = try HeatmapRenderPipeline.render(.init(
+        payload: payload,
+        colorScaleMode: .log10,
+        zDomainState: HeatmapZDomainState(
+            mode: .percentile,
+            percentilePreset: .p5_95
+        )
+    ))
     #expect(output.layout.colorbarTicks.contains { $0.label.contains("10^") || $0.label.contains("x10^") })
     #expect(output.layout.colorbarTicks.count >= 2)
 }
@@ -412,27 +460,30 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
 
 @Test func heatmapTabRenderStateRoundTrip() throws {
     let state = HeatmapTabRenderState(
-        schemaVersion: 3,
+        schemaVersion: 2,
         titleOverride:  "My Title",
         xLabelOverride: "My X",
         yLabelOverride: "My Y",
         zLabelOverride: "My Z",
         colorScaleMode: .log10,
         colormapKey: "inferno",
-        zRangeOverrideMin: 1.5,
-        zRangeOverrideMax: 9.5
+        zDomainState: HeatmapZDomainState(
+            mode: .manual,
+            manualRange: HeatmapZRangeDraft(minText: "1.5", maxText: "9.5")
+        )
     )
     let data    = try JSONEncoder().encode(state)
     let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: data)
-    #expect(decoded.schemaVersion == 3)
+    #expect(decoded.schemaVersion == 2)
     #expect(decoded.titleOverride  == "My Title")
     #expect(decoded.xLabelOverride == "My X")
     #expect(decoded.yLabelOverride == "My Y")
     #expect(decoded.zLabelOverride == "My Z")
     #expect(decoded.colorScaleMode == .log10)
     #expect(decoded.colormapKey == "inferno")
-    #expect(decoded.zRangeOverrideMin == 1.5)
-    #expect(decoded.zRangeOverrideMax == 9.5)
+    #expect(decoded.zDomainState.mode == .manual)
+    #expect(decoded.zDomainState.manualRange.minText == "1.5")
+    #expect(decoded.zDomainState.manualRange.maxText == "9.5")
 }
 
 @Test func heatmapTabRenderStateDefaultDecodeMigration() throws {
@@ -452,8 +503,15 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     #expect(decoded.zLabelOverride == "Saved Z")
     #expect(decoded.colorScaleMode == .linear)
     #expect(decoded.colormapKey == "viridis")
-    #expect(decoded.zRangeOverrideMin == 0)
-    #expect(decoded.zRangeOverrideMax == 0)
+    #expect(decoded.zDomainState.mode == .auto)
+    #expect(decoded.zDomainState.manualRange.minText.isEmpty)
+    #expect(decoded.zDomainState.manualRange.maxText.isEmpty)
+}
+
+@Test func heatmapTabRenderStateAutoRoundTrip() throws {
+    let state = HeatmapTabRenderState()
+    let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: JSONEncoder().encode(state))
+    #expect(decoded.zDomainState.mode == .auto)
 }
 
 @Test func heatmapTabRenderStateZLabelOverrideRoundTrip() throws {
@@ -474,11 +532,16 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     #expect(decoded.colormapKey == "magma")
 }
 
-@Test func heatmapTabRenderStateZRangeOverrideRoundTrip() throws {
-    let state = HeatmapTabRenderState(zRangeOverrideMin: 0.25, zRangeOverrideMax: 0.75)
+@Test func heatmapTabRenderStatePercentileRoundTrip() throws {
+    let state = HeatmapTabRenderState(
+        zDomainState: HeatmapZDomainState(
+            mode: .percentile,
+            percentilePreset: .p2_98
+        )
+    )
     let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: JSONEncoder().encode(state))
-    #expect(decoded.zRangeOverrideMin == 0.25)
-    #expect(decoded.zRangeOverrideMax == 0.75)
+    #expect(decoded.zDomainState.mode == .percentile)
+    #expect(decoded.zDomainState.percentilePreset == .p2_98)
 }
 
 @Test func heatmapTabRenderStateEncodedJSONOmitsRSMOwnedFields() throws {
@@ -514,8 +577,9 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     #expect(keys.contains("zLabelOverride"))
     #expect(keys.contains("colorScaleMode"))
     #expect(keys.contains("colormapKey"))
-    #expect(keys.contains("zRangeOverrideMin"))
-    #expect(keys.contains("zRangeOverrideMax"))
+    #expect(keys.contains("zDomainState"))
+    #expect(!keys.contains("zRangeOverrideMin"))
+    #expect(!keys.contains("zRangeOverrideMax"))
 }
 
 // MARK: - XY regression: existing XY render path is unmodified
@@ -627,24 +691,24 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
 
 // MARK: - Z-range clamp validation
 
-@Test func invalidZRangeClampThrows() {
-    // lo == hi (zero span): must throw
+@Test func invalidZRangeClampFallsBackToAuto() throws {
+    // lo == hi (zero span): legacy direct payload clamp is ignored and falls back to auto
     var payload = makePayload()
     payload.zRangeClampMin = 5.0
     payload.zRangeClampMax = 5.0
     let input = HeatmapRenderPipeline.Input(payload: payload)
-    #expect(throws: HeatmapRenderError.self) {
-        try HeatmapRenderPipeline.render(input)
-    }
+    let output = try HeatmapRenderPipeline.render(input)
+    #expect(output.layout.zMin == 0.0)
+    #expect(output.layout.zMax == 1.0)
 
-    // lo > hi (inverted range): must throw
+    // lo > hi (inverted range): also falls back to auto
     var payload2 = makePayload()
     payload2.zRangeClampMin = 10.0
     payload2.zRangeClampMax = 2.0
     let input2 = HeatmapRenderPipeline.Input(payload: payload2)
-    #expect(throws: HeatmapRenderError.self) {
-        try HeatmapRenderPipeline.render(input2)
-    }
+    let output2 = try HeatmapRenderPipeline.render(input2)
+    #expect(output2.layout.zMin == 0.0)
+    #expect(output2.layout.zMax == 1.0)
 }
 
 @Test func partialZRangeClampFallsBackToAuto() throws {

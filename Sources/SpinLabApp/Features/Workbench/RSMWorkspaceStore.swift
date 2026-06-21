@@ -123,6 +123,12 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
         rerenderForStyleChange()
     }
 
+    func updateHeatmapZDomainState(_ state: HeatmapZDomainState) {
+        guard heatmapDisplayState.zDomainState != state else { return }
+        heatmapDisplayState.zDomainState = state
+        rerenderForStyleChange()
+    }
+
     func clearPlot() {
         analysisTask?.cancel()
         analysisTask = nil
@@ -495,14 +501,6 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
         if !displayState.yLabelOverride.isEmpty { payload.yLabel = displayState.yLabelOverride }
         if !displayState.colormapKey.isEmpty { payload.colormapKey = displayState.colormapKey }
 
-        if displayState.zRangeOverrideMin != 0 || displayState.zRangeOverrideMax != 0 {
-            guard displayState.zRangeOverrideMin < displayState.zRangeOverrideMax else {
-                throw HeatmapRenderError.invalidZRangeClamp(min: displayState.zRangeOverrideMin, max: displayState.zRangeOverrideMax)
-            }
-            payload.zRangeClampMin = displayState.zRangeOverrideMin
-            payload.zRangeClampMax = displayState.zRangeOverrideMax
-        }
-
         return payload
     }
 
@@ -514,6 +512,7 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
         return try HeatmapRenderPipeline.render(.init(
             payload: payload,
             colorScaleMode: displayState.colorScaleMode,
+            zDomainState: displayState.zDomainState,
             chartStyle: WorkbenchChartStyle.from(styleParams: globalPlotDefaults)
         ))
     }

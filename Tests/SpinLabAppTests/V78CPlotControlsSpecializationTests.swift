@@ -585,6 +585,8 @@ struct V78CRSMPlotControlsPathTests {
                 "Heatmap module must mount the optional Z/colorbar label control")
         #expect(source.contains("SharedPlotFontSizeControls"),
                 "Heatmap module must use the shared title/axis/tick font controls")
+        #expect(source.contains("HeatmapZRangeControl"),
+                "Heatmap module must mount the Z range controls")
         #expect(source.contains("HeatmapColorScaleControls"),
                 "Heatmap module must mount the extracted color scale controls")
         #expect(!source.contains("private struct HeatmapColorScaleControls"),
@@ -607,6 +609,13 @@ struct V78CRSMPlotControlsPathTests {
         let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
         #expect(!source.contains("WorkbenchStandardPlotControls"),
                 "RSM must not use the XY-specific WorkbenchStandardPlotControls container")
+    }
+
+    @Test("XY workspaces do not show HeatmapZRangeControl")
+    func xyWorkspacesDoNotShowHeatmapZRangeControl() throws {
+        let source = try loadWorkbenchSource("WorkbenchPlotControlsPanel.swift")
+        #expect(!source.contains("HeatmapZRangeControl"),
+                "XY plot controls must not expose the heatmap Z range control")
     }
 
     @Test("RSMWorkspaceView.swift composes shared and optional plot controls")
@@ -677,6 +686,15 @@ struct V78CRSMPlotControlsPathTests {
         #expect(source.contains("label: \"Z\""))
         #expect(source.contains("sourceResetToken"))
         #expect(!source.contains("RSM"))
+    }
+
+    @Test("HeatmapZLabelControl and HeatmapZRangeControl remain separate components")
+    func heatmapZLabelAndRangeControlsRemainSeparate() throws {
+        let zLabelSource = try loadHeatmapSource("HeatmapZLabelControl.swift")
+        let zRangeSource = try loadHeatmapSource("HeatmapZRangeControl.swift")
+        #expect(!zLabelSource.contains("HeatmapZRangeControl"))
+        #expect(!zRangeSource.contains("HeatmapZLabelControl"))
+        #expect(zRangeSource.contains("HeatmapZDomainState"))
     }
 
     @Test("HeatmapColorScaleControls.swift is a heatmap module component")

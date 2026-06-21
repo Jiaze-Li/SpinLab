@@ -57,7 +57,6 @@ private struct RSMRestoreResult {
 
 private enum RSMRestoreHarnessError: Error, Equatable {
     case missingSourceFileIdentity
-    case invalidSavedZRange(min: Double, max: Double)
 }
 
 private func restoreHeatmap(
@@ -100,21 +99,12 @@ private func restoreHeatmap(
     if !envelope.displayState.colormapKey.isEmpty {
         payload.colormapKey = envelope.displayState.colormapKey
     }
-    if envelope.displayState.zRangeOverrideMin != 0 || envelope.displayState.zRangeOverrideMax != 0 {
-        guard envelope.displayState.zRangeOverrideMin < envelope.displayState.zRangeOverrideMax else {
-            throw RSMRestoreHarnessError.invalidSavedZRange(
-                min: envelope.displayState.zRangeOverrideMin,
-                max: envelope.displayState.zRangeOverrideMax
-            )
-        }
-        payload.zRangeClampMin = envelope.displayState.zRangeOverrideMin
-        payload.zRangeClampMax = envelope.displayState.zRangeOverrideMax
-    }
 
     let output = try HeatmapRenderPipeline.render(
         .init(
             payload: payload,
-            colorScaleMode: envelope.displayState.colorScaleMode
+            colorScaleMode: envelope.displayState.colorScaleMode,
+            zDomainState: envelope.displayState.zDomainState
         )
     )
 
@@ -308,11 +298,13 @@ struct V822RSMRestoreIntegrationTests {
         #expect(!result.output.imageData.isEmpty)
     }
 
-    @Test("Restore zRangeOverride")
-    func restoreZRangeOverride() throws {
+    @Test("Restore manual z domain")
+    func restoreManualZDomain() throws {
         let displayState = HeatmapTabRenderState(
-            zRangeOverrideMin: 110.0,
-            zRangeOverrideMax: 180.0
+            zDomainState: HeatmapZDomainState(
+                mode: .manual,
+                manualRange: HeatmapZRangeDraft(minText: "110.0", maxText: "180.0")
+            )
         )
         let envelope = makeEnvelope(
             sourceIdentity: "/tmp/rsm-restore-zrange.dat",
@@ -326,8 +318,6 @@ struct V822RSMRestoreIntegrationTests {
             sourceResolver: { _ in rsmRestoreHL3x3 }
         )
 
-        #expect(result.payload.zRangeClampMin == 110.0)
-        #expect(result.payload.zRangeClampMax == 180.0)
         #expect(result.output.layout.zMin == 110.0)
         #expect(result.output.layout.zMax == 180.0)
     }
@@ -366,11 +356,13 @@ struct V822RSMRestoreIntegrationTests {
         }
     }
 
-    @Test("Invalid saved zRange failure path")
-    func invalidSavedZRangeFailurePath() throws {
+    @Test("Invalid saved manual z domain falls back")
+    func invalidSavedManualZDomainFallsBack() throws {
         let displayState = HeatmapTabRenderState(
-            zRangeOverrideMin: 5.0,
-            zRangeOverrideMax: 3.0
+            zDomainState: HeatmapZDomainState(
+                mode: .manual,
+                manualRange: HeatmapZRangeDraft(minText: "5.0", maxText: "3.0")
+            )
         )
         let envelope = makeEnvelope(
             sourceIdentity: "/tmp/rsm-restore-invalid-zrange.dat",
@@ -379,12 +371,12 @@ struct V822RSMRestoreIntegrationTests {
             displayState: displayState
         )
 
-        #expect(throws: RSMRestoreHarnessError.invalidSavedZRange(min: 5.0, max: 3.0)) {
-            try restoreHeatmap(
-                from: envelope,
-                sourceResolver: { _ in rsmRestoreHL3x3 }
-            )
-        }
+        let result = try restoreHeatmap(
+            from: envelope,
+            sourceResolver: { _ in rsmRestoreHL3x3 }
+        )
+        #expect(result.output.layout.zMin == 90.0)
+        #expect(result.output.layout.zMax == 300.0)
     }
 
     @Test("Encoded restore does not require rendered PNG")

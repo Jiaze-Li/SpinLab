@@ -72,7 +72,6 @@ private struct RSMRuntimeRestoreResult {
 
 private enum RSMRuntimeTestError: Error, Equatable {
     case missingSourceIdentity
-    case invalidZRange(min: Double, max: Double)
 }
 
 private func restoreFromPackConfig(
@@ -101,20 +100,10 @@ private func restoreFromPackConfig(
     if !displayState.yLabelOverride.isEmpty { payload.yLabel = displayState.yLabelOverride }
     if !displayState.colormapKey.isEmpty { payload.colormapKey = displayState.colormapKey }
 
-    if displayState.zRangeOverrideMin != 0 || displayState.zRangeOverrideMax != 0 {
-        guard displayState.zRangeOverrideMin < displayState.zRangeOverrideMax else {
-            throw RSMRuntimeTestError.invalidZRange(
-                min: displayState.zRangeOverrideMin,
-                max: displayState.zRangeOverrideMax
-            )
-        }
-        payload.zRangeClampMin = displayState.zRangeOverrideMin
-        payload.zRangeClampMax = displayState.zRangeOverrideMax
-    }
-
     let output = try HeatmapRenderPipeline.render(.init(
         payload: payload,
-        colorScaleMode: displayState.colorScaleMode
+        colorScaleMode: displayState.colorScaleMode,
+        zDomainState: displayState.zDomainState
     ))
 
     return RSMRuntimeRestoreResult(dataset: dataset, payload: payload, output: output)
@@ -299,13 +288,15 @@ struct V823RSMPackRestoreRuntimeTests {
         #expect(!result.output.imageData.isEmpty)
     }
 
-    // MARK: Pack then restore: zRangeOverride
+    // MARK: Pack then restore: manual Z domain
 
-    @Test("Pack then restore zRangeOverride")
-    func packThenRestoreZRangeOverride() throws {
+    @Test("Pack then restore manual z domain")
+    func packThenRestoreManualZDomain() throws {
         let displayState = HeatmapTabRenderState(
-            zRangeOverrideMin: 110.0,
-            zRangeOverrideMax: 250.0
+            zDomainState: HeatmapZDomainState(
+                mode: .manual,
+                manualRange: HeatmapZRangeDraft(minText: "110.0", maxText: "250.0")
+            )
         )
         let config = makePackConfig(
             sourceIdentity: "/tmp/rsm-runtime-zrange.dat",
@@ -316,10 +307,33 @@ struct V823RSMPackRestoreRuntimeTests {
         let roundTripped = try JSONDecoder().decode(RSMPackConfig.self, from: JSONEncoder().encode(config))
         let result = try restoreFromPackConfig(roundTripped, sourceResolver: { _ in rsmRuntimeHL3x3 })
 
-        #expect(result.payload.zRangeClampMin == 110.0)
-        #expect(result.payload.zRangeClampMax == 250.0)
         #expect(result.output.layout.zMin == 110.0)
         #expect(result.output.layout.zMax == 250.0)
+    }
+
+    @Test("Pack then restore percentile z domain")
+    func packThenRestorePercentileZDomain() throws {
+        let displayState = HeatmapTabRenderState(
+            zDomainState: HeatmapZDomainState(
+                mode: .percentile,
+                percentilePreset: .p5_95
+            )
+        )
+        let config = makePackConfig(
+            sourceIdentity: "/tmp/rsm-runtime-percentile.dat",
+            detectorColumnName: "Detector",
+            activeView: .hl,
+            displayState: displayState
+        )
+        let roundTripped = try JSONDecoder().decode(RSMPackConfig.self, from: JSONEncoder().encode(config))
+
+        #expect(roundTripped.displayState.zDomainState.mode == .percentile)
+        #expect(roundTripped.displayState.zDomainState.percentilePreset == .p5_95)
+
+        let result = try restoreFromPackConfig(roundTripped, sourceResolver: { _ in rsmRuntimeHL3x3 })
+        #expect(!result.output.imageData.isEmpty)
+        #expect(result.output.layout.zMin > 90.0)
+        #expect(result.output.layout.zMax < 300.0)
     }
 
     // MARK: Restore failure: missing source file
@@ -357,13 +371,15 @@ struct V823RSMPackRestoreRuntimeTests {
         }
     }
 
-    // MARK: Restore failure: invalid z-range
+    // MARK: Restore fallback: invalid manual z-range
 
-    @Test("Restore failure: invalid z-range")
-    func restoreFailureInvalidZRange() throws {
+    @Test("Restore fallback invalid manual z range")
+    func restoreFallbackInvalidManualZRange() throws {
         let displayState = HeatmapTabRenderState(
-            zRangeOverrideMin: 5.0,
-            zRangeOverrideMax: 3.0
+            zDomainState: HeatmapZDomainState(
+                mode: .manual,
+                manualRange: HeatmapZRangeDraft(minText: "5.0", maxText: "3.0")
+            )
         )
         let config = makePackConfig(
             sourceIdentity: "/tmp/rsm-runtime-invalid-zrange.dat",
@@ -372,9 +388,9 @@ struct V823RSMPackRestoreRuntimeTests {
             displayState: displayState
         )
 
-        #expect(throws: RSMRuntimeTestError.invalidZRange(min: 5.0, max: 3.0)) {
-            try restoreFromPackConfig(config, sourceResolver: { _ in rsmRuntimeHL3x3 })
-        }
+        let result = try restoreFromPackConfig(config, sourceResolver: { _ in rsmRuntimeHL3x3 })
+        #expect(result.output.layout.zMin == 90.0)
+        #expect(result.output.layout.zMax == 300.0)
     }
 
     // MARK: Assert pack JSON does not contain PNG

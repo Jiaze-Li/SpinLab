@@ -21,6 +21,7 @@ enum HeatmapRenderPipeline {
     struct Input: Sendable {
         var payload: HeatmapPlotPayload
         var colorScaleMode: PlotScaleTransform = .linear
+        var zDomainState: HeatmapZDomainState = .init()
         var options: HeatmapPlotLayout.Options = .init()
         /// Shared text styling defaults used by heatmap labels and tick marks.
         var chartStyle: WorkbenchChartStyle = .init()
@@ -41,6 +42,16 @@ enum HeatmapRenderPipeline {
 
     static func render(_ input: Input) throws -> Output {
         var payload = input.payload
+        let rawZValues = payload.grid.zMatrix.flatMap { $0 }
+
+        switch input.zDomainState.resolve(rawValues: rawZValues) {
+        case .resolved(let lowerBound, let upperBound):
+            payload.zRangeClampMin = lowerBound
+            payload.zRangeClampMax = upperBound
+        case .fallbackToAuto:
+            payload.zRangeClampMin = nil
+            payload.zRangeClampMax = nil
+        }
 
         // Validate Z-range clamp before rendering. Partial clamps (only one bound set)
         // are silently ignored — the layout falls back to the data min/max in that case.

@@ -6,6 +6,7 @@ import SwiftUI
 struct HeatmapPlotControlsPanel: View {
     @Binding var globalPlotDefaults: [String: String]
     let colorScaleMode: PlotScaleTransform
+    let zDomainState: HeatmapZDomainState
     let titleOverride: String
     let xLabelOverride: String
     let yLabelOverride: String
@@ -16,6 +17,7 @@ struct HeatmapPlotControlsPanel: View {
     let renderedZLabel: String
     let sourceResetToken: String
     let onColorScaleModeChange: (PlotScaleTransform) -> Void
+    let onZDomainStateChange: (HeatmapZDomainState) -> Void
     let onTitleOverride: (String) -> Void
     let onXLabelOverride: (String) -> Void
     let onYLabelOverride: (String) -> Void
@@ -41,15 +43,21 @@ struct HeatmapPlotControlsPanel: View {
                     onXLabelOverride: onXLabelOverride,
                     onYLabelOverride: onYLabelOverride
                 )
-                HeatmapZLabelControl(
-                    renderedDefault: renderedZLabel,
-                    currentValue: zLabelOverride,
-                    sourceResetToken: sourceResetToken,
-                    onCommit: onZLabelOverride
-                )
-                SharedPlotFontSizeControls(
-                    globalPlotDefaults: $globalPlotDefaults,
-                    onStyleChange: onStyleChange
+                HStack(alignment: .top, spacing: 12) {
+                    HeatmapZLabelControl(
+                        renderedDefault: renderedZLabel,
+                        currentValue: zLabelOverride,
+                        sourceResetToken: sourceResetToken,
+                        onCommit: onZLabelOverride
+                    )
+                    SharedPlotFontSizeControls(
+                        globalPlotDefaults: $globalPlotDefaults,
+                        onStyleChange: onStyleChange
+                    )
+                }
+                HeatmapZRangeControl(
+                    zDomainState: zDomainState,
+                    onZDomainStateChange: onZDomainStateChange
                 )
             }
             .padding(.vertical, 4)
