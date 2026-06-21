@@ -26,6 +26,27 @@ struct MathMarkupRendererTests {
         #expect(segments == [.base("E"), .sub("AHE"), .sup("3ω")])
     }
 
+    @Test("E_{AHE}^{3ω} parses into one atom with sub and sup")
+    func parseAtomsEAHE3omegaAtom() {
+        let nodes = MathMarkupRenderer.parseAtoms("E_{AHE}^{3ω}")
+        #expect(nodes == [.atom(base: "E", sub: "AHE", sup: "3ω")])
+    }
+
+    @Test("renderer source contains no negative kern overlap logic")
+    func rendererSourceContainsNoNegativeKernOverlapLogic() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let sourceURL = root.appendingPathComponent("Sources/SpinLabApp/Workbench/V3/MathMarkupRenderer.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+        #expect(!source.contains("kern: -subW"))
+        #expect(!source.contains("kern: -supW"))
+        #expect(!source.contains("max(subW, supW)"))
+        #expect(!source.contains("-subW"))
+        #expect(!source.contains("-supW"))
+    }
+
     @Test("E_{xx}^{3} parses correctly")
     func parseExx3() {
         let segments = MathMarkupRenderer.parse("E_{xx}^{3}")
@@ -221,6 +242,28 @@ struct MathMarkupRendererTests {
         let sequential = eW + subW + supW
         #expect(atomWidth < sequential,
                 "Atom width \(atomWidth) must be less than sequential estimate \(sequential)")
+    }
+
+    @Test("measuredWidth grows when superscript atom is followed by a delimiter")
+    func measuredWidthAtomGrowsBeforeDelimiter() {
+        let style = WorkbenchChartStyle()
+        let atomWidth = MathMarkupRenderer.measuredWidth(
+            text: "E_{AHE}^{3ω}", size: 20, fontName: style.fontName)
+        let slashWidth = MathMarkupRenderer.measuredWidth(
+            text: "E_{AHE}^{3ω}/", size: 20, fontName: style.fontName)
+        #expect(slashWidth > atomWidth)
+    }
+
+    @Test("measuredWidth keeps a gap before grouped units")
+    func measuredWidthKeepsGapBeforeUnits() {
+        let style = WorkbenchChartStyle()
+        let left = MathMarkupRenderer.measuredWidth(
+            text: "σ_{x}^{2}(10^{7})", size: 20, fontName: style.fontName)
+        let sigma = MathMarkupRenderer.measuredWidth(
+            text: "σ_{x}^{2}", size: 20, fontName: style.fontName)
+        let units = MathMarkupRenderer.measuredWidth(
+            text: "(10^{7})", size: 20, fontName: style.fontName)
+        #expect(left > sigma + units * 0.5)
     }
 
     @Test("atom measuredWidth(E_{xx}^{3}) is less than sequential sub+sup widths")

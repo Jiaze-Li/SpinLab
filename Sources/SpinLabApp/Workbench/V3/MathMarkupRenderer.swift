@@ -13,7 +13,9 @@ enum MathMarkupSegment: Equatable {
 ///
 /// A `.text` node is a base with no sub/sup following it.
 /// An `.atom` node groups a base with its subscript and/or superscript;
-/// both sub and sup attach at the same horizontal column after the base.
+/// when both sub and sup are present, the subscript stays closest to the base
+/// and the superscript is placed outward/rightward to avoid crowding long
+/// subscripts such as `E_{AHE}^{3ω}`.
 enum MathMarkupNode: Equatable {
     case text(String)
     case atom(base: String, sub: String?, sup: String?)
@@ -30,7 +32,9 @@ enum MathMarkupNode: Equatable {
 /// Greek letters (σ, ω, …) and other Unicode characters pass through as base text.
 /// Subscripts render at 65 % font size, lowered baseline.
 /// Superscripts render at 65 % font size, raised baseline.
-/// When both sub and sup are present on a base, they share the same x attachment column.
+/// When both sub and sup are present on a base, the subscript stays closest to
+/// the base and the superscript is placed outward/rightward to reduce collisions
+/// for longer subscripts such as `E_{AHE}^{3ω}`.
 struct MathMarkupRenderer {
 
     static let mathPrefix = "math:"
@@ -146,8 +150,8 @@ struct MathMarkupRenderer {
 
     /// Returns the rendered width of a markup string in the given font at the given size.
     ///
-    /// Uses atom-aware layout: combined sub+sup atoms contribute max(subWidth, supWidth)
-    /// rather than subWidth + supWidth, matching the visual rendering.
+    /// Uses the same atom-aware attributed-string construction as rendering so the
+    /// measured width matches the drawn line.
     static func measuredWidth(text: String, size: CGFloat, fontName: String) -> CGFloat {
         guard !text.isEmpty else { return 0 }
         guard containsMarkup(text) else {
@@ -172,22 +176,10 @@ struct MathMarkupRenderer {
 
     // MARK: - Private helpers
 
-    /// Width of a plain string in a given CTFont (no markup).
-    private static func stringWidth(_ text: String, font: CTFont) -> CGFloat {
-        guard !text.isEmpty else { return 0 }
-        let attrs: [CFString: Any] = [kCTFontAttributeName: font]
-        guard let attrStr = CFAttributedStringCreate(
-            kCFAllocatorDefault, text as CFString, attrs as CFDictionary
-        ) else { return 0 }
-        return max(0, CTLineGetBoundsWithOptions(CTLineCreateWithAttributedString(attrStr), []).width)
-    }
-
     /// Builds a CTLine from atom-aware nodes.
     ///
-    /// For atoms with both sub and sup, the narrower element is appended first and the
-    /// wider element is given kern = -(narrowerWidth) so that both start at the same
-    /// x column after the base.  The resulting typographic width equals
-    /// baseWidth + max(subWidth, supWidth).
+    /// For atoms with both sub and sup, the subscript is placed immediately after
+    /// the base and the superscript is placed outward/rightward with a small gap.
     private static func attributedLineFromAtoms(
         nodes: [MathMarkupNode],
         font: CTFont,
@@ -202,14 +194,15 @@ struct MathMarkupRenderer {
             NSAttributedString.Key(rawValue: kCTFontAttributeName as String): font,
             NSAttributedString.Key(rawValue: kCTForegroundColorAttributeName as String): color,
         ]
+        let scriptPairGap = size * 0.06
+        let scriptTrailingGap = size * 0.08
 
-        func subAttrs(kern: CGFloat? = nil) -> [NSAttributedString.Key: Any] {
-            var d: [NSAttributedString.Key: Any] = [
+        func subAttrs() -> [NSAttributedString.Key: Any] {
+            let d: [NSAttributedString.Key: Any] = [
                 NSAttributedString.Key(rawValue: kCTFontAttributeName as String): subFont,
                 NSAttributedString.Key(rawValue: kCTForegroundColorAttributeName as String): color,
-                .baselineOffset: NSNumber(value: -size * 0.20),
+                .baselineOffset: NSNumber(value: -size * 0.24),
             ]
-            if let k = kern { d[.kern] = NSNumber(value: k) }
             return d
         }
 
@@ -217,10 +210,19 @@ struct MathMarkupRenderer {
             var d: [NSAttributedString.Key: Any] = [
                 NSAttributedString.Key(rawValue: kCTFontAttributeName as String): supFont,
                 NSAttributedString.Key(rawValue: kCTForegroundColorAttributeName as String): color,
-                .baselineOffset: NSNumber(value: size * 0.30),
+                .baselineOffset: NSNumber(value: size * 0.38),
             ]
             if let k = kern { d[.kern] = NSNumber(value: k) }
             return d
+        }
+
+        func appendScriptTrailingGap() {
+            // Thin space keeps script atoms from crowding the following operator
+            // or delimiter while still matching measured width.
+            result.append(NSAttributedString(
+                string: "\u{200A}",
+                attributes: baseAttrs.merging([.kern: NSNumber(value: scriptTrailingGap)]) { _, new in new }
+            ))
         }
 
         for node in nodes {
@@ -233,22 +235,15 @@ struct MathMarkupRenderer {
                     result.append(NSAttributedString(string: base, attributes: baseAttrs))
                 }
                 if let sub = sub, let sup = sup {
-                    let subW = stringWidth(sub, font: subFont)
-                    let supW = stringWidth(sup, font: supFont)
-                    // Narrower first (no kern), wider second with kern = -narrowerWidth.
-                    // This aligns both at the same x column and makes the typographic
-                    // advance equal to max(subW, supW).
-                    if supW >= subW {
-                        result.append(NSAttributedString(string: sub, attributes: subAttrs()))
-                        result.append(NSAttributedString(string: sup, attributes: supAttrs(kern: -subW)))
-                    } else {
-                        result.append(NSAttributedString(string: sup, attributes: supAttrs()))
-                        result.append(NSAttributedString(string: sub, attributes: subAttrs(kern: -supW)))
-                    }
+                    result.append(NSAttributedString(string: sub, attributes: subAttrs()))
+                    result.append(NSAttributedString(string: sup, attributes: supAttrs(kern: scriptPairGap)))
+                    appendScriptTrailingGap()
                 } else if let sub = sub {
                     result.append(NSAttributedString(string: sub, attributes: subAttrs()))
+                    appendScriptTrailingGap()
                 } else if let sup = sup {
                     result.append(NSAttributedString(string: sup, attributes: supAttrs()))
+                    appendScriptTrailingGap()
                 }
             }
         }
