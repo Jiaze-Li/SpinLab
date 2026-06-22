@@ -218,15 +218,21 @@ extension ThreeOmegaWorkspaceStore: WorkbenchCartesianXYPlottingStore {
     }
 
     func copyCurrentPlotPNG(scale: CGFloat) -> Data? {
-        // All export scales must produce the currently-displayed plot — semantics are invariant.
-        // 2x short-circuits to the cached image (no re-render needed, always WYSIWYG).
-        // 1x / 3x re-render from displayPayload so offsets and real data are preserved.
-        // Fallback to activeImageData on any failure to guarantee no blank output.
-        if scale == 2.0, let cached = tabs.activeImageData, !cached.isEmpty { return cached }
+        // Export scale is NOT macOS Retina backing scale.
+        // 1x/2x/3x are user-facing export pixel-density multipliers applied to the logical render size.
+        // displayPayload is the export/render source — it carries offset/stacked y-values shown on screen.
+        // manifestPayload is persistence/schema only and must never be used as export source.
+        // activeImageData is fallback only: when displayPayload is nil, input construction fails,
+        // or the render pipeline returns empty data. Guarantees no blank output.
         guard let input = copyCurrentPlotPNGInput(scale: scale) else {
             return tabs.activeImageData
         }
-        return (try? WorkbenchRenderPipeline.render(input).imageData) ?? tabs.activeImageData
+        guard let rendered = try? WorkbenchRenderPipeline.render(input).imageData,
+              !rendered.isEmpty
+        else {
+            return tabs.activeImageData
+        }
+        return rendered
     }
 
     private func copyCurrentPlotPNGInput(scale: CGFloat) -> WorkbenchRenderPipeline.Input? {

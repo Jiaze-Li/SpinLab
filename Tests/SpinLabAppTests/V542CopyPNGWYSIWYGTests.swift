@@ -14,24 +14,56 @@ import CoreGraphics
 
 final class V542CopyPNGWYSIWYGTests: XCTestCase {
 
-    // MARK: - 1. 2x Copy PNG returns activeImageData (no re-render)
+    // MARK: - 1. All three export scales render from displayPayload (no 2x fast path)
 
     @MainActor
-    func testTwoXCopyReturnsActiveImageDataDirectly() {
+    func testAllScalesRenderFromDisplayPayload() throws {
         let store = ThreeOmegaWorkspaceStore()
+        let displayPayload = makePayload(yValues: [10.0, 11.0])
+        let layout = makeLayout(for: displayPayload)
         let sentinel = Data([0xDE, 0xAD, 0xBE, 0xEF])
+
         store.tabs.setOutput(
-            TabRenderOutput(imageData: sentinel, layout: nil, manifestPayload: nil, displayPayload: nil),
+            TabRenderOutput(imageData: sentinel, layout: layout, manifestPayload: nil, displayPayload: displayPayload),
+            for: .fieldSweep1omega
+        )
+        store.tabs.activeTab = .fieldSweep1omega
+        store.ingestionResult = ThreeOmegaIngestionResult(device: "D1")
+
+        let png1x = try XCTUnwrap(store.copyCurrentPlotPNG(scale: 1.0))
+        let png2x = try XCTUnwrap(store.copyCurrentPlotPNG(scale: 2.0))
+        let png3x = try XCTUnwrap(store.copyCurrentPlotPNG(scale: 3.0))
+
+        // All three scales must go through the render pipeline, not return activeImageData.
+        XCTAssertNotEqual(png1x, sentinel, "1x must render from displayPayload, not return activeImageData")
+        XCTAssertNotEqual(png2x, sentinel, "2x must render from displayPayload, not short-circuit to activeImageData")
+        XCTAssertNotEqual(png3x, sentinel, "3x must render from displayPayload, not return activeImageData")
+
+        let w1 = pngPixelSize(png1x).width
+        XCTAssertEqual(pngPixelSize(png2x).width, w1 * 2, "2x pixel width must be 2× that of 1x")
+        XCTAssertEqual(pngPixelSize(png3x).width, w1 * 3, "3x pixel width must be 3× that of 1x")
+    }
+
+    // MARK: - 2. activeImageData is used only as fallback
+
+    @MainActor
+    func testActiveImageDataIsOnlyUsedAsFallback() {
+        let store = ThreeOmegaWorkspaceStore()
+        let fallback = Data([0xFA, 0x11, 0xBA, 0xCF])
+
+        // No displayPayload, no valid manifest → all scales must fallback to activeImageData.
+        store.tabs.setOutput(
+            TabRenderOutput(imageData: fallback, layout: nil, manifestPayload: nil, displayPayload: nil),
             for: .fieldSweep1omega
         )
         store.tabs.activeTab = .fieldSweep1omega
 
-        let result = store.copyCurrentPlotPNG(scale: 2.0)
-        XCTAssertEqual(result, sentinel,
-            "2x Copy PNG must return activeImageData directly without re-rendering")
+        XCTAssertEqual(store.copyCurrentPlotPNG(scale: 1.0), fallback, "1x must fallback to activeImageData when displayPayload is nil")
+        XCTAssertEqual(store.copyCurrentPlotPNG(scale: 2.0), fallback, "2x must fallback to activeImageData when displayPayload is nil")
+        XCTAssertEqual(store.copyCurrentPlotPNG(scale: 3.0), fallback, "3x must fallback to activeImageData when displayPayload is nil")
     }
 
-    // MARK: - 2. R(1ω) displayPayload carries offset-applied y-values
+    // MARK: - 4. R(1ω) displayPayload carries offset-applied y-values
 
     func testR1omegaDisplayPayloadCarriesOffsetAppliedYValues() throws {
         let sweeps = makeFieldSweeps(count: 3)
@@ -54,7 +86,7 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
             "R(1ω) displayPayload series must be non-overlapping stacked bands; offset-applied y-values required")
     }
 
-    // MARK: - 3. R(3ω) displayPayload carries offset-applied y-values
+    // MARK: - 5. R(3ω) displayPayload carries offset-applied y-values
 
     func testR3omegaDisplayPayloadCarriesOffsetAppliedYValues() throws {
         let sweeps = makeFieldSweeps(count: 3)
@@ -74,7 +106,7 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
             "R(3ω) displayPayload series must be non-overlapping stacked bands; offset-applied y-values required")
     }
 
-    // MARK: - 4. R(1ω) displayPayload series means strictly ordered after sorting by min-y
+    // MARK: - 6. R(1ω) displayPayload series means strictly ordered after sorting by min-y
 
     func testR1omegaDisplayPayloadDiffersFromRawManifest() throws {
         let sweeps = makeFieldSweeps(count: 3)
@@ -93,7 +125,7 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
         }
     }
 
-    // MARK: - 5. RAHE(1ω) displayPayload carries real data (not empty stub)
+    // MARK: - 7. RAHE(1ω) displayPayload carries real data (not empty stub)
 
     func testRAHE1omegaDisplayPayloadIsNotEmptyStub() throws {
         let sweeps = makeFieldSweepsWithRAHE(count: 3)
@@ -109,7 +141,7 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
             "RAHE(1ω) displayPayload must carry real temperature/RAHE values, not x:[] y:[] stub")
     }
 
-    // MARK: - 6. RAHE(3ω) displayPayload carries real data
+    // MARK: - 8. RAHE(3ω) displayPayload carries real data
 
     func testRAHE3omegaDisplayPayloadIsNotEmptyStub() throws {
         let sweeps = makeFieldSweepsWithRAHE(count: 3)
@@ -124,7 +156,7 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
             "RAHE(3ω) displayPayload must carry real temperature/RAHE values, not x:[] y:[] stub")
     }
 
-    // MARK: - 7. RAHE with empty manifestPayload but valid imageData: Copy PNG must not be blank
+    // MARK: - 9. RAHE with empty manifestPayload but valid imageData: Copy PNG must not be blank
 
     @MainActor
     func testRAHECopyPNGFallsBackToImageDataWhenManifestIsEmptyStub() throws {
@@ -144,18 +176,17 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
         )
         store.tabs.activeTab = .rahe1omegaVsT
 
-        // 2x: must return cached image, not blank from re-rendering the empty stub
+        // displayPayload nil + empty manifest stub → all scales must fallback to activeImageData.
         let result2x = store.copyCurrentPlotPNG(scale: 2.0)
         XCTAssertEqual(result2x, fakePNG,
-            "2x Copy PNG with empty manifestPayload must return activeImageData, not blank")
+            "2x Copy PNG must fallback to activeImageData when displayPayload is nil and manifest is empty stub")
 
-        // 1x: displayPayload nil → fallback to activeImageData
         let result1x = store.copyCurrentPlotPNG(scale: 1.0)
         XCTAssertEqual(result1x, fakePNG,
-            "1x Copy PNG must fallback to activeImageData when displayPayload is nil, not produce blank")
+            "1x Copy PNG must fallback to activeImageData when displayPayload is nil and manifest is empty stub")
     }
 
-    // MARK: - 8. displayPayload is used for 1x/3x, not manifestPayload
+    // MARK: - 10. displayPayload is used for all scales, not manifestPayload
 
     @MainActor
     func testOneXAndThreeXUseDisplayPayloadNotManifestPayload() throws {
@@ -185,7 +216,7 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
             "3x export must be 3× the pixel width of 1x; series semantics must be identical")
     }
 
-    // MARK: - 9. All three export scales differ only in pixel density
+    // MARK: - 11. All three export scales differ only in pixel density
 
     @MainActor
     func testAllScalesHaveSameSeriesSemantics() throws {
@@ -214,7 +245,7 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
         XCTAssertEqual(w3, w1 * 3, "3x must be 3× the pixel width of 1x")
     }
 
-    // MARK: - 10. RAHE no-data returns nil displayPayload (not blank PNG)
+    // MARK: - 12. RAHE no-data returns nil displayPayload (not blank PNG)
 
     func testRAHERendererReturnsNilWhenNoData() {
         var renderer = ThreeOmegaPlotRenderer()
