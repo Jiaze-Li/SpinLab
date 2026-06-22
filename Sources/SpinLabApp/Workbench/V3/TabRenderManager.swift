@@ -48,6 +48,13 @@ struct AxisRangeOverride: Codable, Hashable, Sendable {
     var isEmpty: Bool { xMin == nil && xMax == nil && yMin == nil && yMax == nil }
 }
 
+// MARK: - AxisRangeBound
+
+/// Identifies one of the four axis range bounds for per-bound update callbacks.
+enum AxisRangeBound: Sendable {
+    case xMin, xMax, yMin, yMax
+}
+
 // MARK: - TabRenderState
 
     /// Per-tab display override state.
@@ -427,6 +434,39 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         } else {
             tabStates[activeTab, default: TabRenderState()].axisRangeOverride = nil
         }
+    }
+
+    /// Merges a single bound update into the latest per-tab state.
+    ///
+    /// Always reads from the current tabStates[activeTab] — never a stale snapshot.
+    /// Validates that effective lo < hi (using the rendered layout for auto bounds)
+    /// before writing. Invalid updates are silently discarded.
+    func updateAxisBound(_ bound: AxisRangeBound, value: Double?) {
+        var state = tabStates[activeTab] ?? TabRenderState()
+        var range = state.axisRangeOverride ?? AxisRangeOverride()
+        switch bound {
+        case .xMin: range.xMin = value
+        case .xMax: range.xMax = value
+        case .yMin: range.yMin = value
+        case .yMax: range.yMax = value
+        }
+        if value != nil {
+            let layout = activeOutput.layout
+            let valid: Bool
+            switch bound {
+            case .xMin, .xMax:
+                let lo = range.xMin ?? layout?.axisXMin
+                let hi = range.xMax ?? layout?.axisXMax
+                valid = lo == nil || hi == nil || lo! < hi!
+            case .yMin, .yMax:
+                let lo = range.yMin ?? layout?.axisYMin
+                let hi = range.yMax ?? layout?.axisYMax
+                valid = lo == nil || hi == nil || lo! < hi!
+            }
+            guard valid else { return }
+        }
+        state.axisRangeOverride = range.isEmpty ? nil : range
+        tabStates[activeTab] = state
     }
 
     /// Clears outputs and per-tab overrides, preserving legend positions.

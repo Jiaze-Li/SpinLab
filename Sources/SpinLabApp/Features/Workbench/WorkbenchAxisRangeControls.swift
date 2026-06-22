@@ -10,11 +10,13 @@ import SwiftUI
 struct WorkbenchAxisRangeControls: View {
     /// Layout from the most recent render — provides the displayed auto range.
     var activeLayout: WorkbenchPlotLayout?
-    /// Current per-tab axis range override (nil = all bounds are auto).
+    /// Current per-tab axis range override (nil = all bounds are auto). Used for display only.
     var axisRangeOverride: AxisRangeOverride?
     /// Token that changes when the analyzed source changes; forces field state to reset.
     var sourceResetToken: String
-    var onUpdate: (AxisRangeOverride?) -> Void
+    /// Called with the bound that changed and its new value (nil = clear to auto).
+    /// Validation and state merging are handled by the receiver (TabRenderManager.updateAxisBound).
+    var onBoundUpdate: (AxisRangeBound, Double?) -> Void
 
     var body: some View {
         HStack(spacing: 6) {
@@ -26,16 +28,7 @@ struct WorkbenchAxisRangeControls: View {
                 placeholder: formatAuto(activeLayout?.axisXMin),
                 currentValue: axisRangeOverride?.xMin,
                 sourceResetToken: sourceResetToken,
-                onCommit: { newVal in
-                    var o = axisRangeOverride ?? AxisRangeOverride()
-                    o.xMin = newVal
-                    if newVal == nil {
-                        onUpdate(o.isEmpty ? nil : o)
-                    } else {
-                        onUpdate(validatedRange(o, usingAutoMin: activeLayout?.axisXMin,
-                                               usingAutoMax: activeLayout?.axisXMax, axis: .x))
-                    }
-                }
+                onCommit: { onBoundUpdate(.xMin, $0) }
             )
             Text("–")
                 .font(WorkbenchUIStyle.controlLabelFont)
@@ -44,16 +37,7 @@ struct WorkbenchAxisRangeControls: View {
                 placeholder: formatAuto(activeLayout?.axisXMax),
                 currentValue: axisRangeOverride?.xMax,
                 sourceResetToken: sourceResetToken,
-                onCommit: { newVal in
-                    var o = axisRangeOverride ?? AxisRangeOverride()
-                    o.xMax = newVal
-                    if newVal == nil {
-                        onUpdate(o.isEmpty ? nil : o)
-                    } else {
-                        onUpdate(validatedRange(o, usingAutoMin: activeLayout?.axisXMin,
-                                               usingAutoMax: activeLayout?.axisXMax, axis: .x))
-                    }
-                }
+                onCommit: { onBoundUpdate(.xMax, $0) }
             )
 
             Spacer(minLength: 8).frame(maxWidth: 12)
@@ -66,16 +50,7 @@ struct WorkbenchAxisRangeControls: View {
                 placeholder: formatAuto(activeLayout?.axisYMin),
                 currentValue: axisRangeOverride?.yMin,
                 sourceResetToken: sourceResetToken,
-                onCommit: { newVal in
-                    var o = axisRangeOverride ?? AxisRangeOverride()
-                    o.yMin = newVal
-                    if newVal == nil {
-                        onUpdate(o.isEmpty ? nil : o)
-                    } else {
-                        onUpdate(validatedRange(o, usingAutoMin: activeLayout?.axisYMin,
-                                               usingAutoMax: activeLayout?.axisYMax, axis: .y))
-                    }
-                }
+                onCommit: { onBoundUpdate(.yMin, $0) }
             )
             Text("–")
                 .font(WorkbenchUIStyle.controlLabelFont)
@@ -84,36 +59,9 @@ struct WorkbenchAxisRangeControls: View {
                 placeholder: formatAuto(activeLayout?.axisYMax),
                 currentValue: axisRangeOverride?.yMax,
                 sourceResetToken: sourceResetToken,
-                onCommit: { newVal in
-                    var o = axisRangeOverride ?? AxisRangeOverride()
-                    o.yMax = newVal
-                    if newVal == nil {
-                        onUpdate(o.isEmpty ? nil : o)
-                    } else {
-                        onUpdate(validatedRange(o, usingAutoMin: activeLayout?.axisYMin,
-                                               usingAutoMax: activeLayout?.axisYMax, axis: .y))
-                    }
-                }
+                onCommit: { onBoundUpdate(.yMax, $0) }
             )
         }
-    }
-
-    private enum Axis { case x, y }
-
-    private func validatedRange(
-        _ o: AxisRangeOverride,
-        usingAutoMin autoMin: Double?,
-        usingAutoMax autoMax: Double?,
-        axis: Axis
-    ) -> AxisRangeOverride? {
-        let lo: Double?
-        let hi: Double?
-        switch axis {
-        case .x: lo = o.xMin ?? autoMin; hi = o.xMax ?? autoMax
-        case .y: lo = o.yMin ?? autoMin; hi = o.yMax ?? autoMax
-        }
-        if let lo, let hi, lo >= hi { return axisRangeOverride }
-        return o.isEmpty ? nil : o
     }
 
     private func formatAuto(_ v: Double?) -> String {

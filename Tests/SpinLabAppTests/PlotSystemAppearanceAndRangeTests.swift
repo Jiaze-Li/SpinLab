@@ -406,24 +406,24 @@ struct TabRenderManagerPackPersistenceTests {
 @Suite("WorkbenchPlotControlsPanel axis range update isolation")
 struct AxisRangeUpdatePathIsolationTests {
 
-    /// Regression guard: WorkbenchPlotControlsPanel's onUpdate closure must call only
-    /// onAxisRangeChange. Calling onStyleChange too triggers a second rerender that
+    /// Regression guard: WorkbenchPlotControlsPanel's onBoundUpdate closure must call only
+    /// onAxisBoundUpdate. Calling onStyleChange too triggers a second rerender that
     /// resyncs AxisBoundField from the auto placeholder, reverting committed values.
-    @Test("onUpdate calls onAxisRangeChange once and onStyleChange zero times")
+    @Test("onBoundUpdate calls onAxisBoundUpdate once and onStyleChange zero times")
     func axisRangeUpdateDoesNotCallStyleChange() {
         var styleCallCount = 0
         var axisRangeCallCount = 0
 
         let onStyleChange = { styleCallCount += 1 }
-        let onAxisRangeChange: (AxisRangeOverride?) -> Void = { _ in axisRangeCallCount += 1 }
+        let onAxisBoundUpdate: (AxisRangeBound, Double?) -> Void = { _, _ in axisRangeCallCount += 1 }
 
-        // Mirror exactly what WorkbenchPlotControlsPanel's onUpdate closure does after the fix.
-        let onUpdate: (AxisRangeOverride?) -> Void = { override in
-            onAxisRangeChange(override)
+        // Mirror exactly what WorkbenchPlotControlsPanel's onBoundUpdate closure does.
+        let onBoundUpdate: (AxisRangeBound, Double?) -> Void = { bound, value in
+            onAxisBoundUpdate(bound, value)
             // onStyleChange must NOT be called here.
         }
 
-        onUpdate(AxisRangeOverride(xMin: nil, xMax: 180, yMin: nil, yMax: nil))
+        onBoundUpdate(.xMax, 180.0)
 
         #expect(axisRangeCallCount == 1)
         #expect(styleCallCount == 0, "onStyleChange must not fire for axis range edits")
@@ -432,107 +432,80 @@ struct AxisRangeUpdatePathIsolationTests {
     }
 }
 
-// MARK: - Axis range validation (min commit symmetry with max commit)
+// MARK: - updateAxisBound: bound-level merge and validation
 
-@Suite("WorkbenchAxisRangeControls validation symmetry")
-struct AxisRangeValidationTests {
+@Suite("TabRenderManager.updateAxisBound")
+struct AxisBoundUpdateTests {
 
-    // Simulates what the xMin/yMin/xMax/yMax onCommit closures do in WorkbenchAxisRangeControls.
-    // autoMin/autoMax represent layout.axisXMin etc. when no manual bound is set.
-    private func commitMin(
-        newVal: Double?,
-        existingOverride: AxisRangeOverride?,
-        autoMin: Double?,
-        autoMax: Double?
-    ) -> AxisRangeOverride? {
-        var o = existingOverride ?? AxisRangeOverride()
-        o.xMin = newVal
-        if newVal == nil { return o.isEmpty ? nil : o }
-        // validate: effective lo must be < effective hi
-        let lo = o.xMin ?? autoMin
-        let hi = o.xMax ?? autoMax
-        if let lo, let hi, lo >= hi { return existingOverride }
-        return o.isEmpty ? nil : o
+    @Test("xMax then xMin: both preserved")
+    @MainActor
+    func xMaxThenXMinBothPreserved() {
+        let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
+        manager.updateAxisBound(.xMax, value: 180.0)
+        manager.updateAxisBound(.xMin, value: 0.0)
+        #expect(manager.tabStates[.ahe]?.axisRangeOverride?.xMax == 180.0)
+        #expect(manager.tabStates[.ahe]?.axisRangeOverride?.xMin == 0.0)
     }
 
-    private func commitMax(
-        newVal: Double?,
-        existingOverride: AxisRangeOverride?,
-        autoMin: Double?,
-        autoMax: Double?
-    ) -> AxisRangeOverride? {
-        var o = existingOverride ?? AxisRangeOverride()
-        o.xMax = newVal
-        if newVal == nil { return o.isEmpty ? nil : o }
-        let lo = o.xMin ?? autoMin
-        let hi = o.xMax ?? autoMax
-        if let lo, let hi, lo >= hi { return existingOverride }
-        return o.isEmpty ? nil : o
+    @Test("clearing yMax preserves xMin, xMax, yMin")
+    @MainActor
+    func clearYMaxPreservesOthers() {
+        let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
+        manager.updateAxisBound(.xMin, value: 1.0)
+        manager.updateAxisBound(.xMax, value: 10.0)
+        manager.updateAxisBound(.yMin, value: -5.0)
+        manager.updateAxisBound(.yMax, value: 50.0)
+        manager.updateAxisBound(.yMax, value: nil)
+        let r = manager.tabStates[.ahe]?.axisRangeOverride
+        #expect(r?.xMin == 1.0)
+        #expect(r?.xMax == 10.0)
+        #expect(r?.yMin == -5.0)
+        #expect(r?.yMax == nil)
     }
 
-    @Test("editing xMin above auto xMax is rejected")
-    func xMinAboveAutoMaxRejected() {
-        // auto range is [0, 10]; user tries to set xMin = 15 (> autoMax 10)
-        let result = commitMin(newVal: 15, existingOverride: nil, autoMin: 0, autoMax: 10)
-        #expect(result == nil) // rejected → previous override (nil) preserved
+    @Test("invalid xMin >= xMax rejected, previous state preserved")
+    @MainActor
+    func invalidXMinRejectedPreservesState() {
+        let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
+        manager.updateAxisBound(.xMax, value: 8.0)
+        // attempt xMin = 9 which would be >= xMax 8
+        manager.updateAxisBound(.xMin, value: 9.0)
+        let r = manager.tabStates[.ahe]?.axisRangeOverride
+        #expect(r?.xMax == 8.0)
+        #expect(r?.xMin == nil)  // rejected — stays nil
     }
 
-    @Test("editing xMin above manual xMax is rejected")
-    func xMinAboveManualMaxRejected() {
-        let existing = AxisRangeOverride(xMin: 1, xMax: 8)
-        let result = commitMin(newVal: 9, existingOverride: existing, autoMin: 0, autoMax: 10)
-        #expect(result?.xMin == 1) // rejected → previous xMin preserved
-        #expect(result?.xMax == 8)
+    @Test("invalid yMax <= yMin rejected, previous state preserved")
+    @MainActor
+    func invalidYMaxRejectedPreservesState() {
+        let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
+        manager.updateAxisBound(.yMin, value: 5.0)
+        // attempt yMax = 3 which is < yMin 5
+        manager.updateAxisBound(.yMax, value: 3.0)
+        let r = manager.tabStates[.ahe]?.axisRangeOverride
+        #expect(r?.yMin == 5.0)
+        #expect(r?.yMax == nil)  // rejected — stays nil
     }
 
-    @Test("editing yMin above existing yMax is rejected")
-    func yMinAboveYMaxRejected() {
-        // Mirrors xMin logic for Y axis
-        var o = AxisRangeOverride(yMin: nil, yMax: 5)
-        let prev = o
-        o.yMin = 6 // would make lo=6 >= hi=5
-        let lo = o.yMin
-        let hi = o.yMax
-        let rejected = (lo != nil && hi != nil && lo! >= hi!)
-        let result: AxisRangeOverride? = rejected ? prev : (o.isEmpty ? nil : o)
-        #expect(result?.yMax == 5)
-        #expect(result?.yMin == nil) // edit was rejected; yMin stays nil
+    @Test("regression: xMax 187.5→180, then second update preserves 180")
+    @MainActor
+    func xMaxStaysAfterSecondBoundUpdate() {
+        let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
+        // Simulate: auto xMax was 187.5, user types 180
+        manager.updateAxisBound(.xMax, value: 180.0)
+        // Simulate: user then focuses xMin and commits nil (no change)
+        manager.updateAxisBound(.xMin, value: nil)
+        let r = manager.tabStates[.ahe]?.axisRangeOverride
+        #expect(r?.xMax == 180.0)  // must not revert to auto
+        #expect(r?.xMin == nil)    // auto — not set
     }
 
-    @Test("editing xMax below auto xMin is rejected")
-    func xMaxBelowAutoMinRejected() {
-        // auto range is [5, 20]; user tries to set xMax = 3 (< autoMin 5)
-        let result = commitMax(newVal: 3, existingOverride: nil, autoMin: 5, autoMax: 20)
-        #expect(result == nil) // rejected → previous override (nil) preserved
-    }
-
-    @Test("editing yMax below existing yMin is rejected")
-    func yMaxBelowYMinRejected() {
-        let existing = AxisRangeOverride(yMin: 2, yMax: 10)
-        // user tries to set yMax = 1 (< yMin 2)
-        var o = existing
-        o.yMax = 1
-        let lo = o.yMin
-        let hi = o.yMax
-        let rejected = (lo != nil && hi != nil && lo! >= hi!)
-        let result: AxisRangeOverride? = rejected ? existing : (o.isEmpty ? nil : o)
-        #expect(result?.yMin == 2)   // unchanged
-        #expect(result?.yMax == 10)  // rejected → yMax stays 10
-    }
-
-    @Test("clearing xMin returns that bound to auto without touching xMax")
-    func clearXMinKeepsXMax() {
-        let existing = AxisRangeOverride(xMin: 2, xMax: 8)
-        let result = commitMin(newVal: nil, existingOverride: existing, autoMin: 0, autoMax: 10)
-        #expect(result?.xMin == nil)  // cleared
-        #expect(result?.xMax == 8)   // untouched
-    }
-
-    @Test("clearing xMax returns that bound to auto without touching xMin")
-    func clearXMaxKeepsXMin() {
-        let existing = AxisRangeOverride(xMin: 3, xMax: 9)
-        let result = commitMax(newVal: nil, existingOverride: existing, autoMin: 0, autoMax: 10)
-        #expect(result?.xMax == nil)  // cleared
-        #expect(result?.xMin == 3)   // untouched
+    @Test("all bounds cleared when last bound is nilled")
+    @MainActor
+    func allBoundsClearedLeavesNilOverride() {
+        let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
+        manager.updateAxisBound(.xMax, value: 10.0)
+        manager.updateAxisBound(.xMax, value: nil)
+        #expect(manager.tabStates[.ahe]?.axisRangeOverride == nil)
     }
 }

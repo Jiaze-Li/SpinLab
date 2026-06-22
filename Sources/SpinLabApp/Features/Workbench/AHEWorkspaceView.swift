@@ -45,8 +45,8 @@ private struct AHEPlotControlsPanel: View {
             onStyleChange: { ahe.rerenderForStyleChange() },
             activeLayout: ahe.tabs.activeLayout,
             axisRangeOverride: ahe.tabs.activeState.axisRangeOverride,
-            onAxisRangeChange: { override in
-                ahe.tabs.updateAxisRangeOverride(override)
+            onAxisBoundUpdate: { bound, value in
+                ahe.tabs.updateAxisBound(bound, value: value)
                 ahe.rerenderForStyleChange()
             },
             sourceResetToken: ahe.tabs.activeSourceIdentityKey

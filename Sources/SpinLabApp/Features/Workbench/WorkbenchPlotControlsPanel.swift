@@ -17,8 +17,8 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
     var activeLayout: WorkbenchPlotLayout? = nil
     /// Current per-tab axis range override.
     var axisRangeOverride: AxisRangeOverride? = nil
-    /// Called when the user edits an axis range bound.
-    var onAxisRangeChange: ((AxisRangeOverride?) -> Void)? = nil
+    /// Called when the user edits a single axis range bound.
+    var onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil
     /// Source identity token — resets axis range fields when the analyzed data changes.
     var sourceResetToken: String = ""
     @ViewBuilder var supplementalContent: () -> Supplemental
@@ -55,13 +55,13 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
                         globalPlotDefaults: $globalPlotDefaults,
                         onStyleChange: onStyleChange
                     )
-                    if onAxisRangeChange != nil {
+                    if onAxisBoundUpdate != nil {
                         WorkbenchAxisRangeControls(
                             activeLayout: activeLayout,
                             axisRangeOverride: axisRangeOverride,
                             sourceResetToken: sourceResetToken,
-                            onUpdate: { override in
-                                onAxisRangeChange?(override)
+                            onBoundUpdate: { bound, value in
+                                onAxisBoundUpdate?(bound, value)
                             }
                         )
                     }
@@ -155,7 +155,7 @@ extension WorkbenchPlotControlsPanel where Supplemental == EmptyView {
         onStyleChange: (() -> Void)? = nil,
         activeLayout: WorkbenchPlotLayout? = nil,
         axisRangeOverride: AxisRangeOverride? = nil,
-        onAxisRangeChange: ((AxisRangeOverride?) -> Void)? = nil,
+        onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil,
         sourceResetToken: String = "",
         @ViewBuilder content: @escaping () -> Content
     ) {
@@ -165,7 +165,7 @@ extension WorkbenchPlotControlsPanel where Supplemental == EmptyView {
         self.onStyleChange = onStyleChange
         self.activeLayout = activeLayout
         self.axisRangeOverride = axisRangeOverride
-        self.onAxisRangeChange = onAxisRangeChange
+        self.onAxisBoundUpdate = onAxisBoundUpdate
         self.sourceResetToken = sourceResetToken
         self.supplementalContent = { EmptyView() }
         self.content = content

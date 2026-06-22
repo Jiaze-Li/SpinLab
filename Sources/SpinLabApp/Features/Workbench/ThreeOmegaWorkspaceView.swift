@@ -78,8 +78,8 @@ private struct ThreeOmegaPlotControlsPanel: View {
             onRenameSeriesLabel: { key, label in store.updateSeriesLabel(identityKey: key, newLabel: label) },
             activeLayout: store.tabs.activeLayout,
             axisRangeOverride: store.tabs.activeState.axisRangeOverride,
-            onAxisRangeChange: { override in
-                store.tabs.updateAxisRangeOverride(override)
+            onAxisBoundUpdate: { bound, value in
+                store.tabs.updateAxisBound(bound, value: value)
                 store.rerenderForStyleChange()
                 appState.flushInteractionSnapshotNow()
             }

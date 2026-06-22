@@ -55,8 +55,8 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     var activeLayout: WorkbenchPlotLayout? = nil
     /// Current per-tab axis range override.
     var axisRangeOverride: AxisRangeOverride? = nil
-    /// Called when the user edits an axis range bound. Triggers a re-render.
-    var onAxisRangeChange: ((AxisRangeOverride?) -> Void)? = nil
+    /// Called when the user edits a single axis range bound. Triggers a re-render.
+    var onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil
     @ViewBuilder var extraContent: () -> Extra
 
     var body: some View {
@@ -67,7 +67,7 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
             onStyleChange: onChange,
             activeLayout: activeLayout,
             axisRangeOverride: axisRangeOverride,
-            onAxisRangeChange: onAxisRangeChange,
+            onAxisBoundUpdate: onAxisBoundUpdate,
             sourceResetToken: sourceResetToken,
             supplementalContent: {
                 if canReorderSeries {
@@ -188,7 +188,7 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         onRenameSeriesLabel: ((String, String) -> Void)? = nil,
         activeLayout: WorkbenchPlotLayout? = nil,
         axisRangeOverride: AxisRangeOverride? = nil,
-        onAxisRangeChange: ((AxisRangeOverride?) -> Void)? = nil
+        onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil
     ) {
         self._activeTab = activeTab
         self.tabLabel = tabLabel
@@ -220,7 +220,7 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         self.onRenameSeriesLabel = onRenameSeriesLabel
         self.activeLayout = activeLayout
         self.axisRangeOverride = axisRangeOverride
-        self.onAxisRangeChange = onAxisRangeChange
+        self.onAxisBoundUpdate = onAxisBoundUpdate
         self.extraContent = { EmptyView() }
     }
 }
