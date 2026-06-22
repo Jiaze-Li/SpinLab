@@ -479,6 +479,7 @@ Boundary: no module other than Plot Preservation may write `TabRenderState` over
 - `Sources/SpinLabApp/Features/Workbench/SharedPlotFontSizeControls.swift` — shared title/axis/tick font-size pickers used by plot control surfaces
 - `Sources/SpinLabApp/Features/Workbench/SharedPlotTickCountControls.swift` — shared X/Y axis tick-count steppers used by heatmap and RSM plot control panels
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesAppearanceControls.swift` — shell-level line-width and scatter-radius dropdowns backed by globalPlotDefaults; shared across all Cartesian XY workflows
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchAxisRangeControls.swift` — shell-level per-tab X/Y axis range override fields; shows resolved auto range from layout, persists override in TabRenderState
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift` — reorders stacked series from plot controls by per-series identity keys
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift` — interaction-only canvas protocol (`WorkbenchPlottingStore`); also defines `WorkbenchCartesianXYPlottingStore` (Cartesian XY state) and `WorkbenchGlobalPlotDefaultsProviding` (shared font/style defaults)
 - `Sources/SpinLabApp/Workbench/V3/WorkbenchSeriesOrderKeyResolver.swift` — shared series identity key resolver for order persistence and compatibility

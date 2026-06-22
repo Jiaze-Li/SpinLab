@@ -17,6 +17,18 @@ struct CGPointCodable: Codable, Hashable, Sendable {
     var cgPoint: CGPoint { CGPoint(x: x, y: y) }
 }
 
+// MARK: - AxisRangeOverride
+
+/// Per-tab axis range override. nil bounds fall back to auto-fit from data extents.
+struct AxisRangeOverride: Codable, Hashable, Sendable {
+    var xMin: Double?
+    var xMax: Double?
+    var yMin: Double?
+    var yMax: Double?
+
+    var isEmpty: Bool { xMin == nil && xMax == nil && yMin == nil && yMax == nil }
+}
+
 // MARK: - TabRenderState
 
     /// Per-tab display override state.
@@ -35,6 +47,8 @@ struct TabRenderState: Codable, Hashable, Sendable {
     // TODO(boundary): remove legacy Int-string key migration once all persisted packs are migrated to sampleID keys.
     /// User-defined bottom-to-top series order keys. nil = use workflow default. (v5.3.6)
     var seriesOrder: [String]? = nil
+    /// Per-tab axis range override. nil = auto-fit from data extents.
+    var axisRangeOverride: AxisRangeOverride? = nil
 
     init(
         legendPoint: CGPointCodable? = nil,
@@ -43,7 +57,8 @@ struct TabRenderState: Codable, Hashable, Sendable {
         yLabelOverride: String = "",
         seriesLabelOverrides: [String: String] = [:],
         hiddenPointLabelIndicesBySeries: [String: [Int]] = [:],
-        seriesOrder: [String]? = nil
+        seriesOrder: [String]? = nil,
+        axisRangeOverride: AxisRangeOverride? = nil
     ) {
         self.legendPoint = legendPoint
         self.titleOverride = titleOverride
@@ -52,6 +67,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         self.seriesLabelOverrides = seriesLabelOverrides
         self.hiddenPointLabelIndicesBySeries = hiddenPointLabelIndicesBySeries
         self.seriesOrder = seriesOrder
+        self.axisRangeOverride = axisRangeOverride
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -62,6 +78,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         case seriesLabelOverrides
         case hiddenPointLabelIndicesBySeries
         case seriesOrder
+        case axisRangeOverride
     }
 
     init(from decoder: Decoder) throws {
@@ -73,6 +90,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         seriesLabelOverrides = try c.decodeIfPresent([String: String].self, forKey: .seriesLabelOverrides) ?? [:]
         hiddenPointLabelIndicesBySeries = try c.decodeIfPresent([String: [Int]].self, forKey: .hiddenPointLabelIndicesBySeries) ?? [:]
         seriesOrder = try c.decodeIfPresent([String].self, forKey: .seriesOrder)
+        axisRangeOverride = try c.decodeIfPresent(AxisRangeOverride.self, forKey: .axisRangeOverride)
     }
 }
 
@@ -344,7 +362,8 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             yLabelOverride: s.yLabelOverride,
             hiddenPointLabelsBySeries: toIndexedOverrides(hiddenPointLabelsBySampleID(for: targetTab), series: payload.series).mapValues { Set($0) },
             styleParamsPatch: patch,
-            seriesOrder: s.seriesOrder
+            seriesOrder: s.seriesOrder,
+            axisRangeOverride: s.axisRangeOverride
         )
     }
 
@@ -379,6 +398,14 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
 
     func resetSeriesOrder() {
         tabStates[activeTab]?.seriesOrder = nil
+    }
+
+    func updateAxisRangeOverride(_ override: AxisRangeOverride?) {
+        if let override, !override.isEmpty {
+            tabStates[activeTab, default: TabRenderState()].axisRangeOverride = override
+        } else {
+            tabStates[activeTab, default: TabRenderState()].axisRangeOverride = nil
+        }
     }
 
     /// Clears outputs and per-tab overrides, preserving legend positions.
@@ -532,6 +559,7 @@ private extension TabRenderManager {
         state.titleOverride = ""
         state.xLabelOverride = ""
         state.yLabelOverride = ""
+        state.axisRangeOverride = nil
     }
 
     func pruneSeriesLabelOverrides(using payload: WorkbenchPlotPayload?, for tab: Tab) {

@@ -66,6 +66,13 @@ private struct IVPlotControlsPanel: View {
             onRenameSeriesLabel: { key, label in
                 store.updateSeriesLabel(identityKey: key, newLabel: label)
                 appState.flushInteractionSnapshotNow()
+            },
+            activeLayout: store.tabs.activeLayout,
+            axisRangeOverride: store.tabs.activeState.axisRangeOverride,
+            onAxisRangeChange: { override in
+                store.tabs.updateAxisRangeOverride(override)
+                store.rerenderForStyleChange()
+                appState.flushInteractionSnapshotNow()
             }
         ) {
             HStack(spacing: WorkbenchUIStyle.controlRowSpacing) {

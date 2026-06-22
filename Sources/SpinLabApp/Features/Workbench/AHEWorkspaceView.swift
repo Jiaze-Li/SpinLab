@@ -42,7 +42,14 @@ private struct AHEPlotControlsPanel: View {
             seriesRenderMode: $bindableAhe.seriesRenderMode,
             globalPlotDefaults: $workbench.globalPlotDefaults,
             chartStyleOverrides: $bindableAhe.chartStyleOverrides,
-            onStyleChange: { ahe.rerenderForStyleChange() }
+            onStyleChange: { ahe.rerenderForStyleChange() },
+            activeLayout: ahe.tabs.activeLayout,
+            axisRangeOverride: ahe.tabs.activeState.axisRangeOverride,
+            onAxisRangeChange: { override in
+                ahe.tabs.updateAxisRangeOverride(override)
+                ahe.rerenderForStyleChange()
+            },
+            sourceResetToken: ahe.tabs.activeSourceIdentityKey
         ) {
             HStack(alignment: .top, spacing: 12) {
                 WorkbenchTitleTemplateField(

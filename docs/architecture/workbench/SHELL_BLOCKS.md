@@ -129,6 +129,7 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/SharedPlotFontSizeControls.swift` — shared title/axis/tick font-size pickers used by Workbench plot controls
 - `Sources/SpinLabApp/Features/Workbench/SharedPlotTickCountControls.swift` — shared X/Y axis tick-count steppers reused by heatmap and RSM plot control panels
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesAppearanceControls.swift` — shell-level line-width and scatter-radius dropdowns backed by globalPlotDefaults; shared across all Cartesian XY workflows
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchAxisRangeControls.swift` — shell-level per-tab X/Y axis range override fields; shows auto range from layout and persists override in TabRenderState
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchStatusArea.swift` — renders shared search, plot, and load status messages
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchTitleTemplateField.swift` — renders the shared title-template input and token hint
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchTracePanel.swift` — renders the shared run-trace disclosure

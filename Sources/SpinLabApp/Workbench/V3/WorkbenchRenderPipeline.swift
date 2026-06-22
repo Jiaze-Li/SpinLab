@@ -46,6 +46,8 @@ enum WorkbenchRenderPipeline {
         /// Expected bottom-to-top series order keys. Used for mismatch detection only —
         /// the pipeline never reorders; reordering must happen in the workflow renderer before this call.
         var seriesOrder: [String]? = nil
+        /// Per-tab axis range override. nil bounds fall back to auto-fit from data extents.
+        var axisRangeOverride: AxisRangeOverride? = nil
     }
 
     struct Output: Sendable {
@@ -141,6 +143,13 @@ enum WorkbenchRenderPipeline {
         let renderer = WorkbenchChartRenderer()
         var effectiveBase = input.baseOptions
         if let scale = input.pixelScaleOverride { effectiveBase.pixelScale = scale }
+        // Apply per-tab axis range override to renderer options
+        if let override = input.axisRangeOverride {
+            if let v = override.xMin { effectiveBase.fixedXMin = v }
+            if let v = override.xMax { effectiveBase.fixedXMax = v }
+            if let v = override.yMin { effectiveBase.fixedYMin = v }
+            if let v = override.yMax { effectiveBase.fixedYMax = v }
+        }
         let opts = renderer.resolvedOptions(payload: payload, base: effectiveBase, style: chartStyle)
 
         // 8. Compute layout BEFORE series label overrides (legendRow.originalLabel must be stable).

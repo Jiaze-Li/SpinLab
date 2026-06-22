@@ -51,6 +51,12 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     var activeSeriesLabelOverrides: [String: String] = [:]
     /// Called with (labelKey, newLabel) when the user renames a series chip.
     var onRenameSeriesLabel: ((String, String) -> Void)? = nil
+    /// Layout from the most recent render — provides auto axis ranges for the range controls.
+    var activeLayout: WorkbenchPlotLayout? = nil
+    /// Current per-tab axis range override.
+    var axisRangeOverride: AxisRangeOverride? = nil
+    /// Called when the user edits an axis range bound. Triggers a re-render.
+    var onAxisRangeChange: ((AxisRangeOverride?) -> Void)? = nil
     @ViewBuilder var extraContent: () -> Extra
 
     var body: some View {
@@ -59,6 +65,10 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
             globalPlotDefaults: $globalPlotDefaults,
             chartStyleOverrides: $chartStyleOverrides,
             onStyleChange: onChange,
+            activeLayout: activeLayout,
+            axisRangeOverride: axisRangeOverride,
+            onAxisRangeChange: onAxisRangeChange,
+            sourceResetToken: sourceResetToken,
             supplementalContent: {
                 if canReorderSeries {
                     WorkbenchSeriesOrderPanel(
@@ -175,7 +185,10 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         onXLabelOverride: ((String) -> Void)? = nil,
         onYLabelOverride: ((String) -> Void)? = nil,
         activeSeriesLabelOverrides: [String: String] = [:],
-        onRenameSeriesLabel: ((String, String) -> Void)? = nil
+        onRenameSeriesLabel: ((String, String) -> Void)? = nil,
+        activeLayout: WorkbenchPlotLayout? = nil,
+        axisRangeOverride: AxisRangeOverride? = nil,
+        onAxisRangeChange: ((AxisRangeOverride?) -> Void)? = nil
     ) {
         self._activeTab = activeTab
         self.tabLabel = tabLabel
@@ -205,6 +218,9 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         self.onYLabelOverride = onYLabelOverride
         self.activeSeriesLabelOverrides = activeSeriesLabelOverrides
         self.onRenameSeriesLabel = onRenameSeriesLabel
+        self.activeLayout = activeLayout
+        self.axisRangeOverride = axisRangeOverride
+        self.onAxisRangeChange = onAxisRangeChange
         self.extraContent = { EmptyView() }
     }
 }

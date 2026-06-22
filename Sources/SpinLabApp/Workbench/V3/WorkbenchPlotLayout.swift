@@ -240,13 +240,14 @@ struct WorkbenchPlotLayout: Sendable {
         } else {
             let xRawH = options.fixedXMin ?? allXForHit.min()!
             let xRawMaxH = options.fixedXMax ?? allXForHit.max()!
-            let yRawH = allYForHit.min()!, yRawMaxH = allYForHit.max()!
+            let yRawH = options.fixedYMin ?? allYForHit.min()!
+            let yRawMaxH = options.fixedYMax ?? allYForHit.max()!
             let xRawSpanH = xRawMaxH == xRawH ? 1.0 : xRawMaxH - xRawH
             let yRawSpanH = yRawMaxH == yRawH ? 1.0 : yRawMaxH - yRawH
             axisXMin = options.fixedXMin != nil ? xRawH    : xRawH    - xRawSpanH * 0.05
             axisXMax = options.fixedXMax != nil ? xRawMaxH : xRawMaxH + xRawSpanH * 0.05
-            axisYMin = yRawH    - yRawSpanH * 0.05
-            axisYMax = yRawMaxH + yRawSpanH * 0.05
+            axisYMin = options.fixedYMin != nil ? yRawH    : yRawH    - yRawSpanH * 0.05
+            axisYMax = options.fixedYMax != nil ? yRawMaxH : yRawMaxH + yRawSpanH * 0.05
         }
         let axisXSpan = axisXMax - axisXMin
         let axisYSpan = axisYMax - axisYMin

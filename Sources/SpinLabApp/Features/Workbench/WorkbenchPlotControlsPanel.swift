@@ -13,6 +13,14 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
     @Binding var globalPlotDefaults: [String: String]
     @Binding var chartStyleOverrides: [String: String]
     var onStyleChange: (() -> Void)? = nil
+    /// Layout from the most recent render, used to display auto axis ranges.
+    var activeLayout: WorkbenchPlotLayout? = nil
+    /// Current per-tab axis range override.
+    var axisRangeOverride: AxisRangeOverride? = nil
+    /// Called when the user edits an axis range bound.
+    var onAxisRangeChange: ((AxisRangeOverride?) -> Void)? = nil
+    /// Source identity token — resets axis range fields when the analyzed data changes.
+    var sourceResetToken: String = ""
     @ViewBuilder var supplementalContent: () -> Supplemental
     @ViewBuilder let content: () -> Content
 
@@ -48,6 +56,18 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
                 )
                 // Shell-level controls: font sizes
                 fontSizeRow
+                // Shell-level: axis range overrides (visible when callback is wired)
+                if onAxisRangeChange != nil {
+                    WorkbenchAxisRangeControls(
+                        activeLayout: activeLayout,
+                        axisRangeOverride: axisRangeOverride,
+                        sourceResetToken: sourceResetToken,
+                        onUpdate: { override in
+                            onAxisRangeChange?(override)
+                            onStyleChange?()
+                        }
+                    )
+                }
                 supplementalContent()
             }
             .padding(.vertical, 4)
@@ -133,12 +153,20 @@ extension WorkbenchPlotControlsPanel where Supplemental == EmptyView {
         globalPlotDefaults: Binding<[String: String]>,
         chartStyleOverrides: Binding<[String: String]>,
         onStyleChange: (() -> Void)? = nil,
+        activeLayout: WorkbenchPlotLayout? = nil,
+        axisRangeOverride: AxisRangeOverride? = nil,
+        onAxisRangeChange: ((AxisRangeOverride?) -> Void)? = nil,
+        sourceResetToken: String = "",
         @ViewBuilder content: @escaping () -> Content
     ) {
         self._seriesRenderMode = seriesRenderMode
         self._globalPlotDefaults = globalPlotDefaults
         self._chartStyleOverrides = chartStyleOverrides
         self.onStyleChange = onStyleChange
+        self.activeLayout = activeLayout
+        self.axisRangeOverride = axisRangeOverride
+        self.onAxisRangeChange = onAxisRangeChange
+        self.sourceResetToken = sourceResetToken
         self.supplementalContent = { EmptyView() }
         self.content = content
     }

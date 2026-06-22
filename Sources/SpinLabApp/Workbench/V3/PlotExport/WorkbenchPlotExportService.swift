@@ -55,6 +55,12 @@ enum WorkbenchPlotExportService {
             baseOptions.width = Int(layout.rendererSize.width.rounded())
             baseOptions.height = Int(layout.rendererSize.height.rounded())
         }
+        if let override = snapshot.tabState.axisRangeOverride {
+            if let v = override.xMin { baseOptions.fixedXMin = v }
+            if let v = override.xMax { baseOptions.fixedXMax = v }
+            if let v = override.yMin { baseOptions.fixedYMin = v }
+            if let v = override.yMax { baseOptions.fixedYMax = v }
+        }
 
         var patch: [String: String] = [:]
         if snapshot.showGrid { patch["showGrid"] = "true" }

@@ -142,3 +142,236 @@ struct PipelineLineWidthTests {
         #expect(output.manifestPayload.series[0].lineWidth == 1.0)
     }
 }
+
+// MARK: - AxisRangeOverride encode/decode
+
+@Suite("AxisRangeOverride persistence")
+struct AxisRangeOverrideTests {
+
+    @Test("encodes and decodes round-trip")
+    func encodeDecodeRoundTrip() throws {
+        let original = AxisRangeOverride(xMin: -5.0, xMax: 10.0, yMin: nil, yMax: 3.14)
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(AxisRangeOverride.self, from: data)
+        #expect(decoded.xMin == -5.0)
+        #expect(decoded.xMax == 10.0)
+        #expect(decoded.yMin == nil)
+        #expect(decoded.yMax == 3.14)
+    }
+
+    @Test("isEmpty returns true when all bounds nil")
+    func isEmptyWhenAllNil() {
+        let o = AxisRangeOverride()
+        #expect(o.isEmpty)
+    }
+
+    @Test("isEmpty returns false when any bound is set")
+    func notEmptyWhenBoundSet() {
+        let o = AxisRangeOverride(xMin: 0)
+        #expect(!o.isEmpty)
+    }
+}
+
+// MARK: - TabRenderState encodes/decodes axisRangeOverride
+
+@Suite("TabRenderState axisRangeOverride persistence")
+struct TabRenderStateAxisRangeTests {
+
+    @Test("TabRenderState encodes and decodes axisRangeOverride")
+    func encodeDecodeTabState() throws {
+        var state = TabRenderState()
+        state.axisRangeOverride = AxisRangeOverride(xMin: 1, xMax: 9, yMin: -2, yMax: 5)
+        let data = try JSONEncoder().encode(state)
+        let decoded = try JSONDecoder().decode(TabRenderState.self, from: data)
+        #expect(decoded.axisRangeOverride?.xMin == 1)
+        #expect(decoded.axisRangeOverride?.xMax == 9)
+        #expect(decoded.axisRangeOverride?.yMin == -2)
+        #expect(decoded.axisRangeOverride?.yMax == 5)
+    }
+
+    @Test("TabRenderState decodes without axisRangeOverride (backward compat)")
+    func decodesWithoutAxisRange() throws {
+        let json = """
+        {"titleOverride":"", "xLabelOverride":"", "yLabelOverride":""}
+        """
+        let data = json.data(using: .utf8)!
+        let state = try JSONDecoder().decode(TabRenderState.self, from: data)
+        #expect(state.axisRangeOverride == nil)
+    }
+
+    @Test("axisRangeOverride cleared by clearSourceScopedOverrides")
+    @MainActor
+    func axisRangeOverrideClearedOnSourceReset() {
+        let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
+        manager.tabStates[.ahe] = TabRenderState(
+            axisRangeOverride: AxisRangeOverride(xMin: 0, xMax: 10)
+        )
+        // Simulate a source identity change via clearStates
+        manager.clearStates()
+        #expect(manager.tabStates[.ahe]?.axisRangeOverride == nil)
+    }
+}
+
+// MARK: - Renderer respects fixed Y range
+
+@Suite("WorkbenchChartRenderer fixed Y range")
+struct RendererFixedYRangeTests {
+
+    @Test("renderer renders without error with fixed Y range")
+    func rendersWithFixedY() throws {
+        var opts = WorkbenchChartRenderer.Options()
+        opts.fixedYMin = 0
+        opts.fixedYMax = 50
+        let renderer = WorkbenchChartRenderer()
+        let data = try renderer.renderPNG(payload: makeTestPayload(), options: opts)
+        #expect(!data.isEmpty)
+    }
+
+    @Test("layout uses fixedYMin/fixedYMax from options")
+    func layoutUsesFixedY() {
+        var opts = WorkbenchChartRenderer.Options()
+        opts.fixedYMin = 0
+        opts.fixedYMax = 100
+        let layout = WorkbenchPlotLayout.compute(options: opts, payload: makeTestPayload(), legendPoint: nil)
+        #expect(layout.axisYMin == 0)
+        #expect(layout.axisYMax == 100)
+    }
+
+    @Test("pipeline applies axisRangeOverride to renderer")
+    func pipelineAppliesAxisRange() throws {
+        let s = WorkbenchPlotSeries(label: "A", x: [0, 1], y: [5, 15])
+        var input = WorkbenchRenderPipeline.Input(payload: makeTestPayload(series: [s]))
+        input.axisRangeOverride = AxisRangeOverride(xMin: nil, xMax: nil, yMin: -10, yMax: 50)
+        let output = try WorkbenchRenderPipeline.render(input)
+        #expect(output.layout.axisYMin == -10)
+        #expect(output.layout.axisYMax == 50)
+    }
+}
+
+// MARK: - Pack snapshot/restore preserves axisRangeOverride
+
+@Suite("TabRenderManager pack persistence with axisRangeOverride")
+struct TabRenderManagerPackPersistenceTests {
+
+    @Test("snapshot/restore round-trips axisRangeOverride")
+    @MainActor
+    func snapshotRestoreRoundTrip() {
+        let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
+        var state = TabRenderState()
+        state.axisRangeOverride = AxisRangeOverride(xMin: 2, xMax: 8, yMin: -1, yMax: 4)
+        manager.tabStates[.ahe] = state
+
+        let snapshot = manager.snapshotStates(keyFor: { $0.rawValue })
+        #expect(snapshot["ahe"]?.axisRangeOverride?.xMin == 2)
+
+        let manager2 = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
+        manager2.restoreStates(snapshot, tabFor: { AHEWorkbenchTab(rawValue: $0) })
+        #expect(manager2.tabStates[.ahe]?.axisRangeOverride?.xMin == 2)
+        #expect(manager2.tabStates[.ahe]?.axisRangeOverride?.yMax == 4)
+    }
+}
+
+// MARK: - Axis range validation (min commit symmetry with max commit)
+
+@Suite("WorkbenchAxisRangeControls validation symmetry")
+struct AxisRangeValidationTests {
+
+    // Simulates what the xMin/yMin/xMax/yMax onCommit closures do in WorkbenchAxisRangeControls.
+    // autoMin/autoMax represent layout.axisXMin etc. when no manual bound is set.
+    private func commitMin(
+        newVal: Double?,
+        existingOverride: AxisRangeOverride?,
+        autoMin: Double?,
+        autoMax: Double?
+    ) -> AxisRangeOverride? {
+        var o = existingOverride ?? AxisRangeOverride()
+        o.xMin = newVal
+        if newVal == nil { return o.isEmpty ? nil : o }
+        // validate: effective lo must be < effective hi
+        let lo = o.xMin ?? autoMin
+        let hi = o.xMax ?? autoMax
+        if let lo, let hi, lo >= hi { return existingOverride }
+        return o.isEmpty ? nil : o
+    }
+
+    private func commitMax(
+        newVal: Double?,
+        existingOverride: AxisRangeOverride?,
+        autoMin: Double?,
+        autoMax: Double?
+    ) -> AxisRangeOverride? {
+        var o = existingOverride ?? AxisRangeOverride()
+        o.xMax = newVal
+        if newVal == nil { return o.isEmpty ? nil : o }
+        let lo = o.xMin ?? autoMin
+        let hi = o.xMax ?? autoMax
+        if let lo, let hi, lo >= hi { return existingOverride }
+        return o.isEmpty ? nil : o
+    }
+
+    @Test("editing xMin above auto xMax is rejected")
+    func xMinAboveAutoMaxRejected() {
+        // auto range is [0, 10]; user tries to set xMin = 15 (> autoMax 10)
+        let result = commitMin(newVal: 15, existingOverride: nil, autoMin: 0, autoMax: 10)
+        #expect(result == nil) // rejected → previous override (nil) preserved
+    }
+
+    @Test("editing xMin above manual xMax is rejected")
+    func xMinAboveManualMaxRejected() {
+        let existing = AxisRangeOverride(xMin: 1, xMax: 8)
+        let result = commitMin(newVal: 9, existingOverride: existing, autoMin: 0, autoMax: 10)
+        #expect(result?.xMin == 1) // rejected → previous xMin preserved
+        #expect(result?.xMax == 8)
+    }
+
+    @Test("editing yMin above existing yMax is rejected")
+    func yMinAboveYMaxRejected() {
+        // Mirrors xMin logic for Y axis
+        var o = AxisRangeOverride(yMin: nil, yMax: 5)
+        let prev = o
+        o.yMin = 6 // would make lo=6 >= hi=5
+        let lo = o.yMin
+        let hi = o.yMax
+        let rejected = (lo != nil && hi != nil && lo! >= hi!)
+        let result: AxisRangeOverride? = rejected ? prev : (o.isEmpty ? nil : o)
+        #expect(result?.yMax == 5)
+        #expect(result?.yMin == nil) // edit was rejected; yMin stays nil
+    }
+
+    @Test("editing xMax below auto xMin is rejected")
+    func xMaxBelowAutoMinRejected() {
+        // auto range is [5, 20]; user tries to set xMax = 3 (< autoMin 5)
+        let result = commitMax(newVal: 3, existingOverride: nil, autoMin: 5, autoMax: 20)
+        #expect(result == nil) // rejected → previous override (nil) preserved
+    }
+
+    @Test("editing yMax below existing yMin is rejected")
+    func yMaxBelowYMinRejected() {
+        let existing = AxisRangeOverride(yMin: 2, yMax: 10)
+        // user tries to set yMax = 1 (< yMin 2)
+        var o = existing
+        o.yMax = 1
+        let lo = o.yMin
+        let hi = o.yMax
+        let rejected = (lo != nil && hi != nil && lo! >= hi!)
+        let result: AxisRangeOverride? = rejected ? existing : (o.isEmpty ? nil : o)
+        #expect(result?.yMin == 2)   // unchanged
+        #expect(result?.yMax == 10)  // rejected → yMax stays 10
+    }
+
+    @Test("clearing xMin returns that bound to auto without touching xMax")
+    func clearXMinKeepsXMax() {
+        let existing = AxisRangeOverride(xMin: 2, xMax: 8)
+        let result = commitMin(newVal: nil, existingOverride: existing, autoMin: 0, autoMax: 10)
+        #expect(result?.xMin == nil)  // cleared
+        #expect(result?.xMax == 8)   // untouched
+    }
+
+    @Test("clearing xMax returns that bound to auto without touching xMin")
+    func clearXMaxKeepsXMin() {
+        let existing = AxisRangeOverride(xMin: 3, xMax: 9)
+        let result = commitMax(newVal: nil, existingOverride: existing, autoMin: 0, autoMax: 10)
+        #expect(result?.xMax == nil)  // cleared
+        #expect(result?.xMin == 3)   // untouched
+    }
+}
