@@ -79,8 +79,12 @@ private struct ThreeOmegaPlotControlsPanel: View {
             activeLayout: store.tabs.activeLayout,
             axisRangeOverride: store.tabs.activeState.axisRangeOverride,
             onAxisBoundUpdate: { bound, value in
+                AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate BEFORE updateAxisBound bound=\(bound) value=\(value.map { String(format: "%g", $0) } ?? "nil") | axisRangeOverride=\(String(describing: store.tabs.activeState.axisRangeOverride))")
                 store.tabs.updateAxisBound(bound, value: value)
+                AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate AFTER updateAxisBound | axisRangeOverride=\(String(describing: store.tabs.activeState.axisRangeOverride))")
+                AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate BEFORE rerenderForStyleChange")
                 store.rerenderForStyleChange()
+                AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate AFTER rerenderForStyleChange")
                 appState.flushInteractionSnapshotNow()
             }
         ) {

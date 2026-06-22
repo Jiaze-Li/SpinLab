@@ -292,9 +292,11 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     // MARK: - Render output management
 
     func setOutput(_ output: TabRenderOutput, for tab: Tab, policy: DisplayOverridePolicy = .preserveDisplayOverrides) {
+        AxisRangeDebug.log("TabRenderManager.setOutput tab=\(tab) policy=\(policy) | axisRangeOverride before=\(tabStates[tab]?.axisRangeOverride.map { "\($0)" } ?? "nil")")
         updateTitleSourceIdentity(from: output.manifestPayload, for: tab, policy: policy)
         tabOutputs[tab] = output
         pruneSeriesLabelOverrides(using: output.manifestPayload, for: tab)
+        AxisRangeDebug.log("TabRenderManager.setOutput done tab=\(tab) | axisRangeOverride after=\(tabStates[tab]?.axisRangeOverride.map { "\($0)" } ?? "nil")")
     }
 
     /// Convenience: apply a WorkbenchRenderPipeline.Output to a tab.
@@ -442,6 +444,8 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     /// Validates that effective lo < hi (using the rendered layout for auto bounds)
     /// before writing. Invalid updates are silently discarded.
     func updateAxisBound(_ bound: AxisRangeBound, value: Double?) {
+        let layout = activeOutput.layout
+        AxisRangeDebug.log("TabRenderManager.updateAxisBound BEFORE | activeTab=\(activeTab) old axisRangeOverride=\(String(describing: tabStates[activeTab]?.axisRangeOverride)) layout xMin=\((layout?.axisXMin).map { String(format: "%g", $0) } ?? "nil") xMax=\((layout?.axisXMax).map { String(format: "%g", $0) } ?? "nil") yMin=\((layout?.axisYMin).map { String(format: "%g", $0) } ?? "nil") yMax=\((layout?.axisYMax).map { String(format: "%g", $0) } ?? "nil") | bound=\(bound) value=\(value.map { String(format: "%g", $0) } ?? "nil")")
         var state = tabStates[activeTab] ?? TabRenderState()
         var range = state.axisRangeOverride ?? AxisRangeOverride()
         switch bound {
@@ -451,7 +455,6 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         case .yMax: range.yMax = value
         }
         if value != nil {
-            let layout = activeOutput.layout
             let valid: Bool
             switch bound {
             case .xMin, .xMax:
@@ -463,10 +466,15 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
                 let hi = range.yMax ?? layout?.axisYMax
                 valid = lo == nil || hi == nil || lo! < hi!
             }
-            guard valid else { return }
+            AxisRangeDebug.log("TabRenderManager.updateAxisBound validation | bound=\(bound) valid=\(valid) effective lo=\(bound == .xMin || bound == .xMax ? (range.xMin ?? layout?.axisXMin).map { String(format: "%g", $0) } ?? "nil" : (range.yMin ?? layout?.axisYMin).map { String(format: "%g", $0) } ?? "nil") hi=\(bound == .xMin || bound == .xMax ? (range.xMax ?? layout?.axisXMax).map { String(format: "%g", $0) } ?? "nil" : (range.yMax ?? layout?.axisYMax).map { String(format: "%g", $0) } ?? "nil")")
+            guard valid else {
+                AxisRangeDebug.log("TabRenderManager.updateAxisBound REJECTED (invalid range)")
+                return
+            }
         }
         state.axisRangeOverride = range.isEmpty ? nil : range
         tabStates[activeTab] = state
+        AxisRangeDebug.log("TabRenderManager.updateAxisBound AFTER | new axisRangeOverride=\(String(describing: tabStates[activeTab]?.axisRangeOverride))")
     }
 
     /// Clears outputs and per-tab overrides, preserving legend positions.
@@ -611,8 +619,10 @@ private extension TabRenderManager {
         guard let payload else { return }
         let newKey = WorkbenchChartIdentity.makeSourceIdentityKey(from: payload)
         let sourceChanged = tabTitleSourceIdentityKeys[tab].map { $0 != newKey } ?? false
+        AxisRangeDebug.log("TabRenderManager.updateTitleSourceIdentity tab=\(tab) policy=\(policy) sourceChanged=\(sourceChanged) | axisRangeOverride before=\(tabStates[tab]?.axisRangeOverride.map { "\($0)" } ?? "nil")")
         tabTitleSourceIdentityKeys[tab] = newKey
         applyOverrideClearing(to: &tabStates[tab, default: TabRenderState()], policy: policy, sourceChanged: sourceChanged)
+        AxisRangeDebug.log("TabRenderManager.updateTitleSourceIdentity done tab=\(tab) | axisRangeOverride after=\(tabStates[tab]?.axisRangeOverride.map { "\($0)" } ?? "nil")")
     }
 
     func applyOverrideClearing(to state: inout TabRenderState, policy: DisplayOverridePolicy, sourceChanged: Bool) {

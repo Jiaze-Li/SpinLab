@@ -50,8 +50,12 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                     activeLayout: store.tabs.activeLayout,
                     axisRangeOverride: store.tabs.activeState.axisRangeOverride,
                     onAxisBoundUpdate: { bound, value in
+                        AxisRangeDebug.log("XYRotationWorkspaceView onAxisBoundUpdate BEFORE updateAxisBound bound=\(bound) value=\(value.map { String(format: "%g", $0) } ?? "nil") | axisRangeOverride=\(String(describing: store.tabs.activeState.axisRangeOverride))")
                         store.tabs.updateAxisBound(bound, value: value)
+                        AxisRangeDebug.log("XYRotationWorkspaceView onAxisBoundUpdate AFTER updateAxisBound | axisRangeOverride=\(String(describing: store.tabs.activeState.axisRangeOverride))")
+                        AxisRangeDebug.log("XYRotationWorkspaceView onAxisBoundUpdate BEFORE rerenderForStyleChange")
                         store.rerenderForStyleChange()
+                        AxisRangeDebug.log("XYRotationWorkspaceView onAxisBoundUpdate AFTER rerenderForStyleChange")
                         appState.flushInteractionSnapshotNow()
                     }
                 ) {

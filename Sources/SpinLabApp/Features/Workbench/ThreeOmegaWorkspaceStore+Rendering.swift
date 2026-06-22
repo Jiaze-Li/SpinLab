@@ -169,6 +169,7 @@ extension ThreeOmegaWorkspaceStore {
         let yLabelOverride = tabState.yLabelOverride
         let capturedLabelOverrides = tabState.seriesLabelOverrides
         let capturedAxisRangeOverride = tabState.axisRangeOverride
+        AxisRangeDebug.log("ThreeOmegaWorkspaceStore._rerenderActiveTab | activeTab=\(tab) capturedAxisRangeOverride=\(String(describing: capturedAxisRangeOverride))")
         let capturedSeriesOrder = (tab == .fieldSweep1omega || tab == .fieldSweep3omega) ? fieldSweepSeriesOrder : tabState.seriesOrder
         let capturedFieldSweeps = ingestion.fieldSweeps
         let capturedScaling = scalingResult
@@ -271,6 +272,7 @@ extension ThreeOmegaWorkspaceStore {
                     return payload
                 }()
                 self.tabs.setOutput(TabRenderOutput(imageData: plotData, layout: plotLayout, manifestPayload: updatedManifest, displayPayload: plotDisplayPayload), for: tab)
+                AxisRangeDebug.log("ThreeOmegaWorkspaceStore._rerenderActiveTab MainActor AFTER setOutput | tab=\(tab) axisRangeOverride=\(String(describing: self.tabs.state(for: tab).axisRangeOverride))")
             }
         }
     }
