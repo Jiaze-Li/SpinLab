@@ -241,12 +241,12 @@ struct HeatmapRenderer {
         guard cbRect.height > 0, cbRect.width > 0 else { return }
 
         // Vertical gradient as 256 thin horizontal strips.
+        // Use normalized t directly so the gradient matches log-scale tick positions.
         let nStrips = 256
         let stripH  = cbRect.height / CGFloat(nStrips)
         for i in 0..<nStrips {
             let t = Double(i) / Double(nStrips - 1)
-            let z = colorScale.zMin + t * (colorScale.zMax - colorScale.zMin)
-            ctx.setFillColor(colorScale.color(for: z))
+            ctx.setFillColor(colorScale.color(forNormalized: t))
             let y = cbRect.minY + CGFloat(i) * stripH
             ctx.fill(CGRect(x: cbRect.minX, y: y, width: cbRect.width, height: stripH + 0.5))
         }

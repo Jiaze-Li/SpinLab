@@ -437,6 +437,78 @@ struct V824RSMSaveToLibraryTests {
         #expect(store.saveMessage == "Saved to Library.")
     }
 
+    // MARK: - 12b. Save succeeds after restore via vault (library root from vault)
+
+    @Test("RSM save succeeds after restore when library root comes from vault")
+    @MainActor
+    func rsmSaveSucceedsAfterRestoreViaVault() async throws {
+        let dataDir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dataDir) }
+        let libDir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: libDir) }
+
+        let rsmFile = try writeTempRSMFile(rsmSaveHL3x3, in: dataDir)
+
+        let vault = AnalysisVault()
+        vault.configurePersistence(libraryRootPath: libDir.path)
+
+        let store = RSMWorkspaceStore()
+        store.vault = vault
+        // lastLibraryRootPath intentionally NOT set — must come from vault via restoreFromPack
+        #expect(store.lastLibraryRootPath.isEmpty)
+
+        let hit = makeHit(filePath: rsmFile.path)
+        let packConfig = RSMPackConfig(
+            packState: RSMPackState(
+                sourceFileIdentity: rsmFile.path,
+                detectorColumnName: "Detector",
+                activeView: .hl
+            ),
+            displayState: HeatmapTabRenderState(),
+            cachedSearchResults: [hit]
+        )
+        let fakePack = AnalysisPack(
+            label: "Vault Test Pack",
+            workflowID: "rsm",
+            createdAt: .distantPast,
+            filePaths: [rsmFile.path],
+            sampleKeys: [hit.sampleKey],
+            config: (try? JSONEncoder().encode(packConfig)) ?? Data(),
+            result: Data()
+        )
+
+        store.restoreFromPack(
+            config: packConfig,
+            result: RSMPackResult(),
+            pack: fakePack,
+            restoreSearchState: { _, _ in },
+            seedSelection: { _, _ in }
+        )
+
+        // Library root must be restored from vault
+        #expect(store.lastLibraryRootPath == libDir.path)
+
+        await waitUntilRSM(timeoutMS: 30000) {
+            await MainActor.run { !store.isAnalyzing && store.renderedImageData != nil }
+        }
+
+        guard store.renderedImageData != nil else {
+            Issue.record("RSM restore produced no image — cannot test save")
+            return
+        }
+
+        store.persistToLibrary()
+        await waitUntilRSM(timeoutMS: 10000) {
+            await MainActor.run { store.persistenceOutcome != nil }
+        }
+
+        guard case .success = store.persistenceOutcome else {
+            Issue.record("Expected .success; got \(String(describing: store.persistenceOutcome))")
+            return
+        }
+        #expect(store.saveMessage == "Saved to Library.")
+    }
+
     // MARK: - 13. Pack/restore state unchanged (RSMPackState has no PNG)
 
     @Test("RSMPackState does not contain rendered PNG or HeatmapPlotLayout fields")

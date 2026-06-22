@@ -853,6 +853,36 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     #expect(abs(output2.layout.zMax - 1.25) < 1e-10)
 }
 
+// MARK: - Log colorbar gradient uses geometric interpolation
+
+@Test func logColorbarStripUsesGeometricInterpolation() {
+    // For log domain [1, 1000], the midpoint strip (t=0.5) must correspond to the
+    // geometric midpoint (≈31.6), not the arithmetic midpoint (500.5).
+    // We verify this by comparing normalized values: geometric mid normalizes to ≈0.5,
+    // arithmetic mid normalizes to ≈0.95 (much higher).
+    let scale = HeatmapColorScale(zMin: 1, zMax: 1000, transform: .log10, colormapKey: "viridis")
+    let geometricMidZ = sqrt(1.0 * 1000.0)  // ≈ 31.6
+    let arithmeticMidZ = (1.0 + 1000.0) / 2  // = 500.5
+
+    // color(forNormalized: 0.5) is what the strip renders at t=0.5
+    let stripColor = scale.color(forNormalized: 0.5)
+
+    // color(for: geometricMidZ) should normalize to ≈0.5 → close match to strip
+    let geoColor = scale.color(for: geometricMidZ)
+
+    // color(for: arithmeticMidZ) normalizes to ≈0.95 → very different from strip
+    let arithColor = scale.color(for: arithmeticMidZ)
+
+    // Compare red channel: viridis t=0.5 (dark teal) vs t≈0.95 (yellow-green)
+    let stripR  = stripColor.components?[0]  ?? 0
+    let geoR    = geoColor.components?[0]    ?? 0
+    let arithR  = arithColor.components?[0]  ?? 0
+
+    // Strip and geometric midpoint are close; strip and arithmetic midpoint differ
+    #expect(abs(stripR - geoR) < abs(stripR - arithR),
+            "Log colorbar strip at t=0.5 must match geometric midpoint, not arithmetic")
+}
+
 // MARK: - Log10 colorbar tick alignment
 
 @Test func colorbarTicksAlignWithLogScale() {

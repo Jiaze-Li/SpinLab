@@ -49,6 +49,16 @@ H     K     L     Detector
  0.0  0.0   2.0   300.0
 """
 
+// Duplicate cell: 2×2 HL grid with pts.count == nX*nY == 4,
+// but (H=0, L=1) appears twice and (H=0, L=2) is missing.
+private let rsmTextDuplicateCell = """
+H     K     L     Detector
+0.0   0.0   1.0   10.0
+1.0   0.0   1.0   20.0
+0.0   0.0   1.0   40.0
+1.0   0.0   2.0   50.0
+"""
+
 // MARK: - Parser tests
 
 @Suite("RSMDataParser")
@@ -252,6 +262,38 @@ struct RSMHeatmapPayloadBuilderTests {
         #expect(throws: RSMHeatmapPayloadBuilderError.emptyDataset) {
             try RSMHeatmapPayloadBuilder.build(from: empty)
         }
+    }
+
+    // Duplicate (x,y) with matching point count must throw irregularGrid
+    @Test func duplicateCellWithMatchingCountThrowsIrregularGrid() throws {
+        let dataset = try makeDataset(from: rsmTextDuplicateCell)
+        // pts.count == 4 == nX*nY == 4, but (H=0, L=1) is a duplicate
+        #expect(throws: RSMHeatmapPayloadBuilderError.self) {
+            try RSMHeatmapPayloadBuilder.build(from: dataset)
+        }
+    }
+
+    @Test func duplicateCellErrorIsIrregularGrid() throws {
+        let dataset = try makeDataset(from: rsmTextDuplicateCell)
+        do {
+            _ = try RSMHeatmapPayloadBuilder.build(from: dataset)
+            Issue.record("Expected error not thrown for duplicate cell")
+        } catch let err as RSMHeatmapPayloadBuilderError {
+            if case .irregularGrid = err {
+                // correct
+            } else {
+                Issue.record("Expected .irregularGrid, got \(err)")
+            }
+        }
+    }
+
+    // Valid complete 2×2 grid still builds without error
+    @Test func validCompleteGridBuilds() throws {
+        let dataset = try makeDataset(from: rsmText2x2KL)
+        let payload = try RSMHeatmapPayloadBuilder.build(from: dataset, options: .init(view: .kl))
+        #expect(payload.grid.nX == 2)
+        #expect(payload.grid.nY == 2)
+        #expect(payload.grid.isValid)
     }
 
     // Output passes into HeatmapRenderPipeline (smoke path from Gate D)

@@ -47,6 +47,12 @@ struct HeatmapColorScale: Sendable {
         transform.normalizedValue(for: z, lowerBound: zMin, upperBound: zMax)
     }
 
+    /// Maps a pre-normalized value t ∈ [0, 1] directly to a CGColor, bypassing domain normalization.
+    /// Used by colorbar strip rendering so the gradient matches log-scale tick positions exactly.
+    func color(forNormalized t: Double) -> CGColor {
+        viridisColor(t: t)
+    }
+
     var mode: PlotScaleTransform {
         transform
     }

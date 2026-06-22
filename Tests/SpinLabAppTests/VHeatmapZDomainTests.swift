@@ -191,6 +191,44 @@ struct HeatmapZDomainTests {
         #expect(data.layout.zMax.isFinite)
     }
 
+    @Test("Auto with all-identical non-zero values resolves to valid non-zero span")
+    func autoFlatNonZeroValuesExpandsSpan() throws {
+        let resolution = HeatmapZDomainState(mode: .auto).resolve(rawValues: [5, 5, 5])
+        guard case .resolved(let lo, let hi) = resolution else {
+            Issue.record("Expected .resolved, got \(resolution)")
+            return
+        }
+        #expect(lo < hi)
+        #expect(lo.isFinite)
+        #expect(hi.isFinite)
+        // Render pipeline must not throw
+        let payload = makePayload(values: [[5.0, 5.0], [5.0, 5.0]])
+        let output = try HeatmapRenderPipeline.render(.init(
+            payload: payload,
+            zDomainState: HeatmapZDomainState(mode: .auto)
+        ))
+        #expect(!output.imageData.isEmpty)
+    }
+
+    @Test("Auto with all-zero values resolves to valid non-zero span")
+    func autoFlatZeroValuesExpandsSpan() throws {
+        let resolution = HeatmapZDomainState(mode: .auto).resolve(rawValues: [0, 0])
+        guard case .resolved(let lo, let hi) = resolution else {
+            Issue.record("Expected .resolved, got \(resolution)")
+            return
+        }
+        #expect(lo < hi)
+        #expect(lo.isFinite)
+        #expect(hi.isFinite)
+        // Render pipeline must not throw
+        let payload = makePayload(values: [[0.0, 0.0], [0.0, 0.0]])
+        let output = try HeatmapRenderPipeline.render(.init(
+            payload: payload,
+            zDomainState: HeatmapZDomainState(mode: .auto)
+        ))
+        #expect(!output.imageData.isEmpty)
+    }
+
     @Test("Resolution never produces NaN or Inf")
     func resolutionNeverProducesNaNOrInf() {
         let states: [HeatmapZDomainState] = [

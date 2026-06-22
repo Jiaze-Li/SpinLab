@@ -63,11 +63,23 @@ enum RSMHeatmapPayloadBuilder {
             repeating: Array(repeating: Double.nan, count: nX),
             count: nY
         )
+        var filledCells = Set<Int>()
         for pt in pts {
             if let xi = nearestIndex(in: xValues, for: view.xValue(of: pt), tolerance: tol),
                let yi = nearestIndex(in: yValues, for: view.yValue(of: pt), tolerance: tol) {
+                let cellIndex = yi * nX + xi
+                guard filledCells.insert(cellIndex).inserted else {
+                    throw RSMHeatmapPayloadBuilderError.irregularGrid(
+                        view: view, nX: nX, nY: nY, pointCount: pts.count
+                    )
+                }
                 zMatrix[yi][xi] = pt.detector
             }
+        }
+        guard filledCells.count == nX * nY else {
+            throw RSMHeatmapPayloadBuilderError.irregularGrid(
+                view: view, nX: nX, nY: nY, pointCount: pts.count
+            )
         }
 
         let resolvedTitle  = options.title.isEmpty ? dataset.title : options.title

@@ -455,6 +455,90 @@ struct V823RSMPackRestoreRuntimeTests {
         #expect(!allKeys.contains("colorbarRect"))
     }
 
+    // MARK: Library root restored from vault during pack restore
+
+    @Test("restoreFromPack sets lastLibraryRootPath from vault when previously empty")
+    @MainActor
+    func restoreFromPackSetsLibraryRootFromVault() async {
+        let libPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("v823-vault-\(UUID().uuidString)").path
+
+        let vault = AnalysisVault()
+        vault.configurePersistence(libraryRootPath: libPath)
+
+        let store = RSMWorkspaceStore()
+        store.vault = vault
+        // lastLibraryRootPath starts empty
+        #expect(store.lastLibraryRootPath.isEmpty)
+
+        let config = makePackConfig(
+            sourceIdentity: "/tmp/rsm-vault-restore.dat",
+            detectorColumnName: "Detector",
+            activeView: .hl
+        )
+        let fakePack = AnalysisPack(
+            label: "Vault Pack",
+            workflowID: "rsm",
+            createdAt: .distantPast,
+            filePaths: ["/tmp/rsm-vault-restore.dat"],
+            sampleKeys: ["test-key"],
+            config: (try? JSONEncoder().encode(config)) ?? Data(),
+            result: Data()
+        )
+
+        store.restoreFromPack(
+            config: config,
+            result: RSMPackResult(),
+            pack: fakePack,
+            restoreSearchState: { _, _ in },
+            seedSelection: { _, _ in }
+        )
+
+        #expect(store.lastLibraryRootPath == libPath)
+    }
+
+    @Test("restoreFromPack does not overwrite non-empty lastLibraryRootPath")
+    @MainActor
+    func restoreFromPackPreservesExistingLibraryRoot() async {
+        let vaultPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("v823-vault-a-\(UUID().uuidString)").path
+        let existingPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("v823-vault-b-\(UUID().uuidString)").path
+
+        let vault = AnalysisVault()
+        vault.configurePersistence(libraryRootPath: vaultPath)
+
+        let store = RSMWorkspaceStore()
+        store.vault = vault
+        store.lastLibraryRootPath = existingPath  // already set
+
+        let config = makePackConfig(
+            sourceIdentity: "/tmp/rsm-vault-preserve.dat",
+            detectorColumnName: "Detector",
+            activeView: .hl
+        )
+        let fakePack = AnalysisPack(
+            label: "Vault Pack",
+            workflowID: "rsm",
+            createdAt: .distantPast,
+            filePaths: [],
+            sampleKeys: [],
+            config: Data(),
+            result: Data()
+        )
+
+        store.restoreFromPack(
+            config: config,
+            result: RSMPackResult(),
+            pack: fakePack,
+            restoreSearchState: { _, _ in },
+            seedSelection: { _, _ in }
+        )
+
+        // Must not overwrite the existing non-empty value with vault path
+        #expect(store.lastLibraryRootPath == existingPath)
+    }
+
     // MARK: Assert activeLayout remains nil after restore
 
     @Test("activeLayout remains nil after restore")

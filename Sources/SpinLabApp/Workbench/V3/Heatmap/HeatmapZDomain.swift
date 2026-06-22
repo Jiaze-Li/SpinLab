@@ -186,7 +186,14 @@ struct HeatmapZDomainState: Codable, Hashable, Sendable {
     func resolve(rawValues: [Double]) -> HeatmapZDomainResolution {
         switch mode {
         case .auto:
-            return .resolved(lowerBound: Self.autoLowerBound(rawValues), upperBound: Self.autoUpperBound(rawValues))
+            let lower = Self.autoLowerBound(rawValues)
+            let upper = Self.autoUpperBound(rawValues)
+            if lower == upper {
+                let v = lower
+                let delta = abs(v) > 0 ? abs(v) * 0.005 : 1.0
+                return .resolved(lowerBound: v - delta, upperBound: v + delta)
+            }
+            return .resolved(lowerBound: lower, upperBound: upper)
         case .manual:
             guard let manualResolution = Self.resolvedManualDomain(from: manualRange) else {
                 let issue = Self.validationIssue(for: manualRange) ?? .manualMinInvalid

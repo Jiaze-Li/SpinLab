@@ -429,6 +429,10 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
         cachedInputFiles = pack.filePaths
         cachedSampleKeys = pack.sampleKeys
 
+        if lastLibraryRootPath.isEmpty, let vaultRoot = vault?.libraryRootPath, !vaultRoot.isEmpty {
+            lastLibraryRootPath = vaultRoot
+        }
+
         seedSelection([], config.cachedSearchResults)
         restoreSearchState(config.cachedSearchResults, config.searchQueryText)
 
