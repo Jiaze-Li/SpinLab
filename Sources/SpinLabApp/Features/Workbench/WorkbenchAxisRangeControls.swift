@@ -56,7 +56,7 @@ struct WorkbenchAxisRangeControls: View {
                 }
             )
 
-            Spacer(minLength: 8)
+            Spacer(minLength: 8).frame(maxWidth: 12)
 
             Text("Y")
                 .font(WorkbenchUIStyle.controlLabelFont)

@@ -49,25 +49,26 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
                     tickDensityStepper(label: "X", key: "tickTargetX", fallback: 6)
                     tickDensityStepper(label: "Y", key: "tickTargetY", fallback: 5)
                 }
-                // Shell-level: line/scatter appearance
-                WorkbenchSeriesAppearanceControls(
-                    globalPlotDefaults: $globalPlotDefaults,
-                    onStyleChange: onStyleChange
-                )
+                // Shell-level: line/scatter appearance + axis range overrides on one row
+                HStack(spacing: 12) {
+                    WorkbenchSeriesAppearanceControls(
+                        globalPlotDefaults: $globalPlotDefaults,
+                        onStyleChange: onStyleChange
+                    )
+                    if onAxisRangeChange != nil {
+                        WorkbenchAxisRangeControls(
+                            activeLayout: activeLayout,
+                            axisRangeOverride: axisRangeOverride,
+                            sourceResetToken: sourceResetToken,
+                            onUpdate: { override in
+                                onAxisRangeChange?(override)
+                                onStyleChange?()
+                            }
+                        )
+                    }
+                }
                 // Shell-level controls: font sizes
                 fontSizeRow
-                // Shell-level: axis range overrides (visible when callback is wired)
-                if onAxisRangeChange != nil {
-                    WorkbenchAxisRangeControls(
-                        activeLayout: activeLayout,
-                        axisRangeOverride: axisRangeOverride,
-                        sourceResetToken: sourceResetToken,
-                        onUpdate: { override in
-                            onAxisRangeChange?(override)
-                            onStyleChange?()
-                        }
-                    )
-                }
                 supplementalContent()
             }
             .padding(.vertical, 4)
