@@ -17,6 +17,25 @@ struct CGPointCodable: Codable, Hashable, Sendable {
     var cgPoint: CGPoint { CGPoint(x: x, y: y) }
 }
 
+// MARK: - DisplayOverridePolicy
+
+/// Controls which per-tab display overrides setOutput/applyPipelineOutput may clear.
+///
+/// Default is `preserveDisplayOverrides`: only text overrides (title, axis labels) are
+/// cleared when the source identity changes; axisRangeOverride is never touched.
+/// Use `clearDisplayOverridesIfSourceChanged` only in true new-analysis or
+/// source-replacement paths where resetting the viewport is intentional.
+enum DisplayOverridePolicy: Sendable {
+    /// Never clear axisRangeOverride. Clear text overrides only when source identity changes.
+    /// Use for all display-only rerenders (style, grid, labels, line/scatter, export).
+    case preserveDisplayOverrides
+    /// Clear both text overrides and axisRangeOverride when source identity changes.
+    /// Use only in true new-analysis or source-replacement paths.
+    case clearDisplayOverridesIfSourceChanged
+    /// Always clear both text overrides and axisRangeOverride, regardless of source identity.
+    case forceClearDisplayOverrides
+}
+
 // MARK: - AxisRangeOverride
 
 /// Per-tab axis range override. nil bounds fall back to auto-fit from data extents.
@@ -265,30 +284,32 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
 
     // MARK: - Render output management
 
-    func setOutput(_ output: TabRenderOutput, for tab: Tab) {
-        updateTitleSourceIdentity(from: output.manifestPayload, for: tab)
+    func setOutput(_ output: TabRenderOutput, for tab: Tab, policy: DisplayOverridePolicy = .preserveDisplayOverrides) {
+        updateTitleSourceIdentity(from: output.manifestPayload, for: tab, policy: policy)
         tabOutputs[tab] = output
         pruneSeriesLabelOverrides(using: output.manifestPayload, for: tab)
     }
 
     /// Convenience: apply a WorkbenchRenderPipeline.Output to a tab.
     ///
-    /// Text-scoped overrides are cleared only when the analyzed source identity changes.
-    /// Legend position and series order are preserved.
+    /// By default uses `.preserveDisplayOverrides`: text overrides are cleared only when
+    /// the analyzed source identity changes; axisRangeOverride is always preserved.
+    /// Pass `policy: .clearDisplayOverridesIfSourceChanged` only in true source-replacement paths.
     ///
     /// Pass `displayPayload` to store the pre-pipeline domain payload so that
     /// `WorkbenchPlotExportService` can re-render at any export scale.
     func applyPipelineOutput(
         _ pipelineOutput: WorkbenchRenderPipeline.Output,
         displayPayload: WorkbenchPlotPayload? = nil,
-        for tab: Tab
+        for tab: Tab,
+        policy: DisplayOverridePolicy = .preserveDisplayOverrides
     ) {
         setOutput(TabRenderOutput(
             imageData: pipelineOutput.imageData,
             layout: pipelineOutput.layout,
             manifestPayload: pipelineOutput.manifestPayload,
             displayPayload: displayPayload
-        ), for: tab)
+        ), for: tab, policy: policy)
     }
 
     // MARK: - Export snapshot
@@ -536,30 +557,48 @@ func migrateStateIfNeeded(_ state: inout TabRenderState, series: [WorkbenchPlotS
 }
 
 private extension TabRenderManager {
-    func preparedState(for tab: Tab, sourceIdentityKey: String) -> TabRenderState {
+    func preparedState(for tab: Tab, sourceIdentityKey: String, policy: DisplayOverridePolicy = .preserveDisplayOverrides) -> TabRenderState {
         var state = tabStates[tab] ?? TabRenderState()
         if let previousKey = tabTitleSourceIdentityKeys[tab], previousKey != sourceIdentityKey {
-            clearSourceScopedOverrides(&state)
+            applyOverrideClearing(to: &state, policy: policy, sourceChanged: true)
             tabStates[tab] = state
         }
         tabTitleSourceIdentityKeys[tab] = sourceIdentityKey
         return state
     }
 
-    func updateTitleSourceIdentity(from payload: WorkbenchPlotPayload?, for tab: Tab) {
+    func updateTitleSourceIdentity(from payload: WorkbenchPlotPayload?, for tab: Tab, policy: DisplayOverridePolicy = .preserveDisplayOverrides) {
         guard let payload else { return }
         let newKey = WorkbenchChartIdentity.makeSourceIdentityKey(from: payload)
-        if let oldKey = tabTitleSourceIdentityKeys[tab], oldKey != newKey {
-            clearSourceScopedOverrides(&tabStates[tab, default: TabRenderState()])
-        }
+        let sourceChanged = tabTitleSourceIdentityKeys[tab].map { $0 != newKey } ?? false
         tabTitleSourceIdentityKeys[tab] = newKey
+        applyOverrideClearing(to: &tabStates[tab, default: TabRenderState()], policy: policy, sourceChanged: sourceChanged)
     }
 
-    func clearSourceScopedOverrides(_ state: inout TabRenderState) {
+    func applyOverrideClearing(to state: inout TabRenderState, policy: DisplayOverridePolicy, sourceChanged: Bool) {
+        switch policy {
+        case .preserveDisplayOverrides:
+            if sourceChanged { clearTextOverrides(&state) }
+        case .clearDisplayOverridesIfSourceChanged:
+            if sourceChanged { clearSourceScopedOverrides(&state) }
+        case .forceClearDisplayOverrides:
+            clearSourceScopedOverrides(&state)
+        }
+    }
+
+    func clearTextOverrides(_ state: inout TabRenderState) {
         state.titleOverride = ""
         state.xLabelOverride = ""
         state.yLabelOverride = ""
+    }
+
+    func clearViewportOverrides(_ state: inout TabRenderState) {
         state.axisRangeOverride = nil
+    }
+
+    func clearSourceScopedOverrides(_ state: inout TabRenderState) {
+        clearTextOverrides(&state)
+        clearViewportOverrides(&state)
     }
 
     func pruneSeriesLabelOverrides(using payload: WorkbenchPlotPayload?, for tab: Tab) {

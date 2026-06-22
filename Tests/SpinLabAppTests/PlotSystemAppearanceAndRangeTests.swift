@@ -199,16 +199,146 @@ struct TabRenderStateAxisRangeTests {
         #expect(state.axisRangeOverride == nil)
     }
 
-    @Test("axisRangeOverride cleared by clearSourceScopedOverrides")
+    @Test("axisRangeOverride cleared by clearStates (explicit reset)")
     @MainActor
     func axisRangeOverrideClearedOnSourceReset() {
         let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
         manager.tabStates[.ahe] = TabRenderState(
             axisRangeOverride: AxisRangeOverride(xMin: 0, xMax: 10)
         )
-        // Simulate a source identity change via clearStates
+        // Explicit reset via clearStates clears axisRangeOverride.
         manager.clearStates()
         #expect(manager.tabStates[.ahe]?.axisRangeOverride == nil)
+    }
+}
+
+// MARK: - DisplayOverridePolicy: setOutput whitelist behaviour
+
+private func makeSourcePayload(sourceRef: String, semanticParam: String = "A") -> WorkbenchPlotPayload {
+    let s = WorkbenchPlotSeries(label: "S", x: [0, 1], y: [0, 1], sourceRef: sourceRef)
+    return WorkbenchPlotPayload(
+        workflowID: "test",
+        workflowDisplayName: "Test",
+        title: "T",
+        axisMapping: WorkbenchAxisMapping(xField: "X", yField: "Y"),
+        series: [s],
+        semanticParams: ["method": semanticParam]
+    )
+}
+
+@Suite("DisplayOverridePolicy: setOutput preserves axisRangeOverride")
+struct DisplayOverridePolicyTests {
+
+    @Test("default policy preserves axisRangeOverride when source identity changes")
+    @MainActor
+    func defaultPolicyPreservesAxisRange() {
+        let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
+        let p1 = makeSourcePayload(sourceRef: "/data/file.dat", semanticParam: "A")
+        manager.setOutput(TabRenderOutput(manifestPayload: p1), for: .ahe)
+        manager.updateAxisRangeOverride(AxisRangeOverride(xMin: 0, xMax: 10))
+
+        let p2 = makeSourcePayload(sourceRef: "/data/file.dat", semanticParam: "B")
+        manager.setOutput(TabRenderOutput(manifestPayload: p2), for: .ahe)
+
+        #expect(manager.tabStates[.ahe]?.axisRangeOverride?.xMax == 10)
+    }
+
+    @Test("default policy clears text overrides when source identity changes")
+    @MainActor
+    func defaultPolicyClearsTextOverrides() {
+        let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
+        let p1 = makeSourcePayload(sourceRef: "/data/file.dat", semanticParam: "A")
+        manager.setOutput(TabRenderOutput(manifestPayload: p1), for: .ahe)
+        manager.updateTitleOverride("My Title")
+        manager.updateXLabelOverride("Custom X")
+
+        let p2 = makeSourcePayload(sourceRef: "/data/file.dat", semanticParam: "B")
+        manager.setOutput(TabRenderOutput(manifestPayload: p2), for: .ahe)
+
+        #expect(manager.tabStates[.ahe]?.titleOverride == "")
+        #expect(manager.tabStates[.ahe]?.xLabelOverride == "")
+    }
+
+    @Test("clearDisplayOverridesIfSourceChanged clears axisRangeOverride on source change")
+    @MainActor
+    func clearIfSourceChangedClearsAxisRange() {
+        let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
+        let p1 = makeSourcePayload(sourceRef: "/data/file.dat", semanticParam: "A")
+        manager.setOutput(TabRenderOutput(manifestPayload: p1), for: .ahe)
+        manager.updateAxisRangeOverride(AxisRangeOverride(xMin: 0, xMax: 10))
+
+        let p2 = makeSourcePayload(sourceRef: "/data/file.dat", semanticParam: "B")
+        manager.setOutput(TabRenderOutput(manifestPayload: p2), for: .ahe, policy: .clearDisplayOverridesIfSourceChanged)
+
+        #expect(manager.tabStates[.ahe]?.axisRangeOverride == nil)
+    }
+
+    @Test("clearDisplayOverridesIfSourceChanged preserves axisRangeOverride when source is same")
+    @MainActor
+    func clearIfSourceChangedPreservesAxisRangeWhenSameSource() {
+        let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
+        let p1 = makeSourcePayload(sourceRef: "/data/file.dat", semanticParam: "A")
+        manager.setOutput(TabRenderOutput(manifestPayload: p1), for: .ahe)
+        manager.updateAxisRangeOverride(AxisRangeOverride(xMin: 0, xMax: 10))
+
+        let p2 = makeSourcePayload(sourceRef: "/data/file.dat", semanticParam: "A")
+        manager.setOutput(TabRenderOutput(manifestPayload: p2), for: .ahe, policy: .clearDisplayOverridesIfSourceChanged)
+
+        #expect(manager.tabStates[.ahe]?.axisRangeOverride?.xMax == 10)
+    }
+
+    @Test("forceClearDisplayOverrides clears axisRangeOverride even when source is same")
+    @MainActor
+    func forceClearAlwaysClearsAxisRange() {
+        let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
+        let p1 = makeSourcePayload(sourceRef: "/data/file.dat", semanticParam: "A")
+        manager.setOutput(TabRenderOutput(manifestPayload: p1), for: .ahe)
+        manager.updateAxisRangeOverride(AxisRangeOverride(xMin: 0, xMax: 10))
+
+        let p2 = makeSourcePayload(sourceRef: "/data/file.dat", semanticParam: "A")
+        manager.setOutput(TabRenderOutput(manifestPayload: p2), for: .ahe, policy: .forceClearDisplayOverrides)
+
+        #expect(manager.tabStates[.ahe]?.axisRangeOverride == nil)
+    }
+
+    @Test("nil manifest payload never clears axisRangeOverride")
+    @MainActor
+    func nilManifestNeverClears() {
+        let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
+        manager.updateAxisRangeOverride(AxisRangeOverride(xMin: 1, xMax: 9))
+
+        manager.setOutput(TabRenderOutput(manifestPayload: nil), for: .ahe, policy: .forceClearDisplayOverrides)
+
+        #expect(manager.tabStates[.ahe]?.axisRangeOverride?.xMax == 9)
+    }
+
+    @Test("xMax persists after a second setOutput with same source (style rerender)")
+    @MainActor
+    func xMaxPersistsAfterStyleRerender() {
+        let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
+        let payload = makeSourcePayload(sourceRef: "/data/file.dat")
+        manager.setOutput(TabRenderOutput(manifestPayload: payload), for: .ahe)
+        manager.updateAxisRangeOverride(AxisRangeOverride(xMin: nil, xMax: 5))
+
+        manager.setOutput(TabRenderOutput(manifestPayload: payload), for: .ahe)
+
+        #expect(manager.tabStates[.ahe]?.axisRangeOverride?.xMax == 5)
+    }
+
+    @Test("editing xMax then setOutput for yMax path preserves xMax")
+    @MainActor
+    func xMaxPreservedWhenYMaxEdited() {
+        let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
+        let payload = makeSourcePayload(sourceRef: "/data/file.dat")
+        manager.setOutput(TabRenderOutput(manifestPayload: payload), for: .ahe)
+
+        manager.updateAxisRangeOverride(AxisRangeOverride(xMin: nil, xMax: 5, yMin: nil, yMax: nil))
+        manager.updateAxisRangeOverride(AxisRangeOverride(xMin: nil, xMax: 5, yMin: nil, yMax: 20))
+
+        manager.setOutput(TabRenderOutput(manifestPayload: payload), for: .ahe)
+
+        #expect(manager.tabStates[.ahe]?.axisRangeOverride?.xMax == 5)
+        #expect(manager.tabStates[.ahe]?.axisRangeOverride?.yMax == 20)
     }
 }
 
