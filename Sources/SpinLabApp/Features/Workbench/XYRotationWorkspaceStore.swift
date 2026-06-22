@@ -133,6 +133,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
         }
         r.seriesLabelOverrides = toIndexedOverrides(tabState.seriesLabelOverrides, series: labelMapSeries)
         r.phiOffsetOverrides = phiOffsetOverrides
+        r.axisRangeOverride = tabState.axisRangeOverride
         return r
     }
 

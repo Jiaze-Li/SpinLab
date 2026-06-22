@@ -30,6 +30,7 @@ struct ThreeOmegaPlotRenderer {
     var chartStyleOverrides: [String: String] = [:]
     var globalPlotDefaults: [String: String] = [:]
     var hiddenPointLabelsBySeries: [Int: Set<Int>] = [:]
+    var axisRangeOverride: AxisRangeOverride? = nil
 
     private let defaultOptions = WorkbenchChartRenderer.Options()
 
@@ -450,7 +451,8 @@ struct ThreeOmegaPlotRenderer {
             xLabelOverride: xLabelOverride,
             yLabelOverride: yLabelOverride,
             hiddenPointLabelsBySeries: hiddenPointLabelsBySeries,
-            styleParamsPatch: patch
+            styleParamsPatch: patch,
+            axisRangeOverride: axisRangeOverride
         )
         do {
             let output = try WorkbenchRenderPipeline.render(input)

@@ -65,6 +65,7 @@ extension ThreeOmegaWorkspaceStore {
             renderer1.xLabelOverride        = capturedState1.xLabelOverride
             renderer1.yLabelOverride        = capturedState1.yLabelOverride
             renderer1.seriesLabelOverrides  = toIndexedOverrides(capturedState1.seriesLabelOverrides, series: labelMapSeries)
+            renderer1.axisRangeOverride     = capturedState1.axisRangeOverride
             let result1 = renderer1.renderR1omega(sweeps: ingestion.fieldSweeps, device: ingestion.device, seriesOrder: capturedFieldSweepSeriesOrder)
 
             var renderer3 = ThreeOmegaPlotRenderer()
@@ -82,6 +83,7 @@ extension ThreeOmegaWorkspaceStore {
             renderer3.xLabelOverride        = capturedState3.xLabelOverride
             renderer3.yLabelOverride        = capturedState3.yLabelOverride
             renderer3.seriesLabelOverrides  = toIndexedOverrides(capturedState3.seriesLabelOverrides, series: labelMapSeries)
+            renderer3.axisRangeOverride     = capturedState3.axisRangeOverride
             let result3 = renderer3.renderR3omega(sweeps: ingestion.fieldSweeps, device: ingestion.device, seriesOrder: capturedFieldSweepSeriesOrder)
 
             await MainActor.run { [weak self] in
@@ -166,6 +168,7 @@ extension ThreeOmegaWorkspaceStore {
         let xLabelOverride = tabState.xLabelOverride
         let yLabelOverride = tabState.yLabelOverride
         let capturedLabelOverrides = tabState.seriesLabelOverrides
+        let capturedAxisRangeOverride = tabState.axisRangeOverride
         let capturedSeriesOrder = (tab == .fieldSweep1omega || tab == .fieldSweep3omega) ? fieldSweepSeriesOrder : tabState.seriesOrder
         let capturedFieldSweeps = ingestion.fieldSweeps
         let capturedScaling = scalingResult
@@ -212,6 +215,7 @@ extension ThreeOmegaWorkspaceStore {
             r.seriesLabelOverrides  = toIndexedOverrides(capturedLabelOverrides, series: labelMapSeries)
             r.titleTemplate         = capturedTemplate
             r.titleTokens           = capturedTokens
+            r.axisRangeOverride     = capturedAxisRangeOverride
 
             // (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload? displayPayload, [String] warnings)
             let rendered: (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
@@ -306,6 +310,8 @@ extension ThreeOmegaWorkspaceStore {
         let capturedYLabel3 = state3.yLabelOverride
         let capturedSeriesOverrides1 = state1.seriesLabelOverrides
         let capturedSeriesOverrides3 = state3.seriesLabelOverrides
+        let capturedAxisRange1 = state1.axisRangeOverride
+        let capturedAxisRange3 = state3.axisRangeOverride
         let capturedRAHEFieldSweeps = ingestion.fieldSweeps
         let capturedGlobalPlotDefaults = globalPlotDefaults
 
@@ -327,6 +333,7 @@ extension ThreeOmegaWorkspaceStore {
             r1.seriesLabelOverrides = toIndexedOverrides(capturedSeriesOverrides1, series: fakeSeries)
             r1.titleTemplate = capturedTemplate
             r1.titleTokens = capturedTokens
+            r1.axisRangeOverride = capturedAxisRange1
             let rahe1 = r1.renderRAHE1omegaVsTMulti(groups: groups, method: capturedRAHE1Method)
 
             var r3 = ThreeOmegaPlotRenderer()
@@ -342,6 +349,7 @@ extension ThreeOmegaWorkspaceStore {
             r3.seriesLabelOverrides = toIndexedOverrides(capturedSeriesOverrides3, series: fakeSeries)
             r3.titleTemplate = capturedTemplate
             r3.titleTokens = capturedTokens
+            r3.axisRangeOverride = capturedAxisRange3
             let rahe3 = r3.renderRAHE3omegaVsTMulti(groups: groups, method: capturedRAHE3Method)
 
             await MainActor.run { [weak self] in
@@ -437,6 +445,7 @@ extension ThreeOmegaWorkspaceStore {
             let legendPoint: CGPoint?
             let hiddenPointLabelsBySeries: [String: [Int]]
             let seriesOrder: [String]?
+            let axisRangeOverride: AxisRangeOverride?
         }
         let tabSnaps: [ThreeOmegaWorkbenchTab: PerTabSnap] = Dictionary(
             uniqueKeysWithValues: ThreeOmegaWorkbenchTab.allCases.map { tab in
@@ -448,7 +457,8 @@ extension ThreeOmegaWorkspaceStore {
                     seriesLabelOverrides: s.seriesLabelOverrides,
                     legendPoint: s.legendPoint?.cgPoint,
                     hiddenPointLabelsBySeries: tabs.hiddenPointLabelsBySampleID(for: tab),
-                    seriesOrder: (tab == .fieldSweep1omega || tab == .fieldSweep3omega) ? capturedFieldSweepSeriesOrder : s.seriesOrder
+                    seriesOrder: (tab == .fieldSweep1omega || tab == .fieldSweep3omega) ? capturedFieldSweepSeriesOrder : s.seriesOrder,
+                    axisRangeOverride: s.axisRangeOverride
                 ))
             }
         )
@@ -505,6 +515,7 @@ extension ThreeOmegaWorkspaceStore {
                     labelMapSeries = fakeSeries
                 }
                 r.seriesLabelOverrides       = toIndexedOverrides(s.seriesLabelOverrides, series: labelMapSeries)
+                r.axisRangeOverride          = s.axisRangeOverride
                 return r
             }
 

@@ -24,6 +24,7 @@ struct XYRotationPlotRenderer {
     var seriesRenderMode: SeriesRenderMode = .line
     var globalPlotDefaults: [String: String] = [:]
     var chartStyleOverrides: [String: String] = [:]
+    var axisRangeOverride: AxisRangeOverride? = nil
 
     private let defaultOptions = WorkbenchChartRenderer.Options()
 
@@ -195,7 +196,8 @@ struct XYRotationPlotRenderer {
             titleOverride: titleOverride,
             xLabelOverride: xLabelOverride,
             yLabelOverride: yLabelOverride,
-            styleParamsPatch: patch
+            styleParamsPatch: patch,
+            axisRangeOverride: axisRangeOverride
         )
         do {
             let output = try WorkbenchRenderPipeline.render(input)
