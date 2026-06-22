@@ -146,6 +146,8 @@ struct RulesPanelView: View {
             WorkflowSection()
         case .measuringCondition:
             MeasuringConditionSection()
+        case .libraryRegistry:
+            LibraryRegistrySection()
         }
     }
 
