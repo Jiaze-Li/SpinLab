@@ -86,7 +86,8 @@ struct TabRenderOutput: Sendable {
     /// NOT for use as a Copy PNG source — y-values are unmodified raw measurements.
     var manifestPayload: WorkbenchPlotPayload?
     /// Display-faithful payload: offset/stacked y-values already applied, real data for every tab.
-    /// Used as the source for Copy PNG at all export scales (1x / 3x re-render; 2x = imageData fast path).
+    /// Used as the source for Copy PNG at all export scales.
+    /// 1x / 2x / 3x differ only by WorkbenchRenderPipeline.Input.pixelScaleOverride.
     var displayPayload: WorkbenchPlotPayload?
 }
 

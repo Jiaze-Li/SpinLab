@@ -78,34 +78,62 @@ final class V535CopyPNGScaleMenuTests: XCTestCase {
         XCTAssertNotEqual(w3, w2)
     }
 
+    // MARK: - 3ω scaling: renderScaling stores displayPayload
+
+    func testRenderScalingReturnsDisplayPayload() {
+        var renderer = ThreeOmegaPlotRenderer()
+        let (_, _, displayPayload, _) = renderer.renderScaling(result: makeScalingResult(), device: "Device", method: "(HFE)")
+        XCTAssertNotNil(displayPayload, "renderScaling must return a non-nil displayPayload when points are non-empty")
+        XCTAssertFalse(displayPayload?.series.isEmpty ?? true, "scaling displayPayload must contain series data")
+    }
+
+    // MARK: - 3ω scaling: copyCurrentPlotPNG uses WorkbenchPlotExportService path
+
     @MainActor
-    func testCopyCurrentPlotPNGUsesScalingPayloadForAllScales() throws {
+    func testScalingCopyPNGUsesStoredDisplayPayload() throws {
         let store = ThreeOmegaWorkspaceStore()
         store.tabs.activeTab = .scaling
-        store.v3Method = .highField
-        store.ingestionResult = ThreeOmegaIngestionResult(device: "Device")
-        store.scalingResult = makeScalingResult()
 
         var renderer = ThreeOmegaPlotRenderer()
-        let (_, layout, _) = renderer.renderScaling(result: makeScalingResult(), device: "Device", method: "(HFE)")
+        let (_, layout, displayPayload, _) = renderer.renderScaling(result: makeScalingResult(), device: "Device", method: "(HFE)")
         XCTAssertNotNil(layout)
+        XCTAssertNotNil(displayPayload)
 
+        let sentinel = Data([0xDE, 0xAD, 0xBE, 0xEF])
         store.tabs.setOutput(
-            TabRenderOutput(
-                imageData: Data(),
-                layout: layout,
-                manifestPayload: makeEmptyScalingManifestPayload()
-            ),
+            TabRenderOutput(imageData: sentinel, layout: layout, manifestPayload: nil, displayPayload: displayPayload),
             for: .scaling
         )
 
-        let logicalSize = layout?.rendererSize ?? CGSize(width: 800, height: 600)
         for scale in [1.0, 2.0, 3.0] as [CGFloat] {
             let data = try XCTUnwrap(store.copyCurrentPlotPNG(scale: scale))
+            XCTAssertNotEqual(data, sentinel, "\(scale)x must render from displayPayload, not sentinel imageData")
             XCTAssertFalse(data.isEmpty)
-            XCTAssertEqual(pngPixelSize(data).width, Int((logicalSize.width * scale).rounded()))
-            XCTAssertEqual(pngPixelSize(data).height, Int((logicalSize.height * scale).rounded()))
         }
+    }
+
+    // MARK: - 3ω scaling: 1x / 2x / 3x have correct pixel-size ratios
+
+    @MainActor
+    func testScalingCopyPNGPixelRatios() throws {
+        let store = ThreeOmegaWorkspaceStore()
+        store.tabs.activeTab = .scaling
+
+        var renderer = ThreeOmegaPlotRenderer()
+        let (imageData, layout, displayPayload, _) = renderer.renderScaling(result: makeScalingResult(), device: "Device", method: "(HFE)")
+        store.tabs.setOutput(
+            TabRenderOutput(imageData: imageData, layout: layout, manifestPayload: nil, displayPayload: displayPayload),
+            for: .scaling
+        )
+
+        let png1x = try XCTUnwrap(store.copyCurrentPlotPNG(scale: 1.0))
+        let png2x = try XCTUnwrap(store.copyCurrentPlotPNG(scale: 2.0))
+        let png3x = try XCTUnwrap(store.copyCurrentPlotPNG(scale: 3.0))
+
+        let w1 = pngPixelWidth(png1x)
+        XCTAssertGreaterThan(w1, 0)
+        XCTAssertEqual(pngPixelWidth(png2x), w1 * 2, "2x scaling export width must be 2× that of 1x")
+        XCTAssertEqual(pngPixelWidth(png3x), w1 * 3, "3x scaling export width must be 3× that of 1x")
     }
 
     // MARK: - Helpers
@@ -137,19 +165,6 @@ final class V535CopyPNGScaleMenuTests: XCTestCase {
             participatingXValues: [1.25e12]
         )
         return ThreeOmegaScalingResult(points: [point], segments: [segment])
-    }
-
-    private func makeEmptyScalingManifestPayload() -> WorkbenchPlotPayload {
-        WorkbenchPlotPayload(
-            workflowID: "3w",
-            workflowDisplayName: "3w",
-            title: "Scaling Law",
-            axisMapping: WorkbenchAxisMapping(
-                xField: ThreeOmegaPlotRenderer.scalingXAxisLabel,
-                yField: ThreeOmegaPlotRenderer.scalingYAxisLabel
-            ),
-            series: []
-        )
     }
 
     private func pngPixelSize(_ data: Data) -> (width: Int, height: Int) {

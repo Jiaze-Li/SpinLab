@@ -218,20 +218,7 @@ extension ThreeOmegaWorkspaceStore: WorkbenchCartesianXYPlottingStore {
     }
 
     func copyCurrentPlotPNG(scale: CGFloat) -> Data? {
-        let tab = tabs.activeTab
-        // Scaling tab has no stored displayPayload; build the payload on-the-fly.
-        if tab == .scaling {
-            guard let scalingResult else { return tabs.activeImageData }
-            let method = v3Method == .highField ? "(HFE)" : "(WA)"
-            var snapshot = tabs.exportSnapshot(for: tab, globalPlotDefaults: globalPlotDefaults)
-            snapshot.displayPayload = ThreeOmegaPlotRenderer().makeScalingPayload(
-                result: scalingResult,
-                device: ingestionResult?.device ?? "",
-                method: method
-            )
-            return WorkbenchPlotExportService.exportPNG(snapshot: snapshot, scale: scale)
-        }
-        let snapshot = tabs.exportSnapshot(for: tab, globalPlotDefaults: globalPlotDefaults)
+        let snapshot = tabs.exportSnapshot(for: tabs.activeTab, globalPlotDefaults: globalPlotDefaults)
         return WorkbenchPlotExportService.exportPNG(snapshot: snapshot, scale: scale)
     }
 }

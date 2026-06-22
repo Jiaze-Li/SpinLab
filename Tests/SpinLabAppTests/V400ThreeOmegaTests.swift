@@ -518,7 +518,7 @@ struct V400PlotRendererTests {
     func renderScalingNoPoints() {
         var renderer = ThreeOmegaPlotRenderer()
         let result = ThreeOmegaScalingResult(points: [], segments: [], warnings: [])
-        let (data, _, _) = renderer.renderScaling(result: result)
+        let (data, _, _, _) = renderer.renderScaling(result: result)
         #expect(data == nil)
     }
 

@@ -289,13 +289,13 @@ struct ThreeOmegaPlotRenderer {
     /// Display units: X in 10⁷ S²/cm², Y in Ω·μm³·V⁻²
     /// Conversions: X_SI (S/m)² × 1e-11 → 10⁷ S²/cm²
     ///              Y_SI (Ω·m³/V²) × 1e20 → Ω·μm³·V⁻² × 10²
-    mutating func renderScaling(result: ThreeOmegaScalingResult, device: String = "", method: String = "") -> (Data?, WorkbenchPlotLayout?, [String]) {
+    mutating func renderScaling(result: ThreeOmegaScalingResult, device: String = "", method: String = "") -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
         guard var payload = makeScalingPayload(result: result, device: device, method: method) else {
-            return (nil, nil, [])
+            return (nil, nil, nil, [])
         }
         var w: [String] = []
         let (data, layout) = _consume(_render(payload: &payload), into: &w)
-        return (data, layout, w)
+        return (data, layout, data != nil ? payload : nil, w)
     }
 
     func makeScalingPayload(

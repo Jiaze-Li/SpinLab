@@ -128,7 +128,7 @@ extension ThreeOmegaWorkspaceStore {
         tabs.setOutput(TabRenderOutput(imageData: plots.hcVsT, layout: plots.layoutHcVsT, manifestPayload: nil, displayPayload: plots.displayHcVsT), for: .hcVsT)
         tabs.setOutput(TabRenderOutput(imageData: plots.rtCurve, layout: plots.layoutRTCurve, manifestPayload: nil, displayPayload: plots.displayRTCurve), for: .rtCurve)
         if plots.scaling != nil {
-            tabs.setOutput(TabRenderOutput(imageData: plots.scaling, layout: nil, manifestPayload: nil, displayPayload: nil), for: .scaling)
+            tabs.setOutput(TabRenderOutput(imageData: plots.scaling, layout: plots.layoutScaling, manifestPayload: nil, displayPayload: plots.displayScaling), for: .scaling)
         }
     }
 
@@ -222,7 +222,7 @@ extension ThreeOmegaWorkspaceStore {
                 if let sr = capturedScaling, capturedGeometry.isComplete {
                     let method = capturedV3Method == .highField ? "(HFE)" : "(WA)"
                     let s = r.renderScaling(result: sr, device: capturedDevice, method: method)
-                    rendered = (s.0, s.1, nil, s.2)  // scaling displayPayload unused; copy path uses makeScalingPayload
+                    rendered = (s.0, s.1, s.2, s.3)
                 } else {
                     rendered = (nil, nil, nil, [])
                 }
@@ -508,7 +508,7 @@ extension ThreeOmegaWorkspaceStore {
             if let sr = capturedScaling, capturedGeometry.isComplete {
                 let method = capturedV3Method == .highField ? "(HFE)" : "(WA)"
                 var scR = makeRenderer(for: .scaling)
-                (plots.scaling, _, _) = scR.renderScaling(result: sr, device: capturedDevice, method: method)
+                (plots.scaling, plots.layoutScaling, plots.displayScaling, _) = scR.renderScaling(result: sr, device: capturedDevice, method: method)
             }
 
             let titleTokens = tokens

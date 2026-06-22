@@ -15,6 +15,7 @@ struct ThreeOmegaRenderedPlots: Sendable {
     var layoutRAHE3omegaVsT:   WorkbenchPlotLayout?
     var layoutHcVsT:           WorkbenchPlotLayout?
     var layoutRTCurve:         WorkbenchPlotLayout?
+    var layoutScaling:         WorkbenchPlotLayout?
     var pipelineWarnings:      [String] = []
     // Display-faithful payloads for Copy PNG export (offset/stacked y-values applied, real data)
     var displayR1omega:        WorkbenchPlotPayload?
@@ -23,4 +24,5 @@ struct ThreeOmegaRenderedPlots: Sendable {
     var displayRAHE3omegaVsT:  WorkbenchPlotPayload?
     var displayHcVsT:          WorkbenchPlotPayload?
     var displayRTCurve:        WorkbenchPlotPayload?
+    var displayScaling:        WorkbenchPlotPayload?
 }

@@ -32,7 +32,7 @@ extension ThreeOmegaWorkspaceStore {
         scalingTask?.cancel()
         scalingTask = Task { [weak self] in
             guard let self else { return }
-            let (scalingRes, scalingData, scalingLayout) = await Task.detached(priority: .userInitiated) {
+            let (scalingRes, scalingData, scalingLayout, scalingDisplayPayload) = await Task.detached(priority: .userInitiated) {
                 let scalingUseCase = ThreeOmegaScalingUseCase()
                 let res = scalingUseCase.executeWithIRms(
                     fieldSweeps: capturedResult.fieldSweeps,
@@ -55,13 +55,13 @@ extension ThreeOmegaWorkspaceStore {
                 renderer.titleTemplate  = capturedTemplate
                 renderer.titleTokens   = capturedTokens
                 let method = capturedV3Method == .highField ? "(HFE)" : "(WA)"
-                let (data, layout, _) = renderer.renderScaling(result: res, device: capturedDevice, method: method)
-                return (res, data, layout)
+                let (data, layout, displayPayload, _) = renderer.renderScaling(result: res, device: capturedDevice, method: method)
+                return (res, data, layout, displayPayload)
             }.value
 
             guard !Task.isCancelled else { return }
             self.scalingResult = scalingRes
-            self.tabs.setOutput(TabRenderOutput(imageData: scalingData, layout: scalingLayout, manifestPayload: nil), for: .scaling)
+            self.tabs.setOutput(TabRenderOutput(imageData: scalingData, layout: scalingLayout, manifestPayload: nil, displayPayload: scalingDisplayPayload), for: .scaling)
             // Refresh manifest payloads (v3Method may have changed) using frozen inputFiles
             self._refreshManifestPayloads()
 
