@@ -12,6 +12,12 @@ extension ThreeOmegaWorkspaceStore {
         case .rahe3omegaVsT:
             guard method != rahe3omegaMethod else { return }
             rahe3omegaMethod = method
+        case .rahe1omegaVsDevice:
+            guard method != rahe1omegaVsDeviceMethod else { return }
+            rahe1omegaVsDeviceMethod = method
+        case .rahe3omegaVsDevice:
+            guard method != rahe3omegaVsDeviceMethod else { return }
+            rahe3omegaVsDeviceMethod = method
         default: return
         }
         _rerenderActiveTab()
@@ -125,6 +131,8 @@ extension ThreeOmegaWorkspaceStore {
         tabs.setOutput(TabRenderOutput(imageData: plots.r3omega, layout: plots.layoutR3omega, manifestPayload: nil, displayPayload: plots.displayR3omega), for: .fieldSweep3omega)
         tabs.setOutput(TabRenderOutput(imageData: plots.rahe1omegaVsT, layout: plots.layoutRAHE1omegaVsT, manifestPayload: nil, displayPayload: plots.displayRAHE1omegaVsT), for: .rahe1omegaVsT)
         tabs.setOutput(TabRenderOutput(imageData: plots.rahe3omegaVsT, layout: plots.layoutRAHE3omegaVsT, manifestPayload: nil, displayPayload: plots.displayRAHE3omegaVsT), for: .rahe3omegaVsT)
+        tabs.setOutput(TabRenderOutput(imageData: plots.rahe1omegaVsDevice, layout: plots.layoutRAHE1omegaVsDevice, manifestPayload: nil, displayPayload: plots.displayRAHE1omegaVsDevice), for: .rahe1omegaVsDevice)
+        tabs.setOutput(TabRenderOutput(imageData: plots.rahe3omegaVsDevice, layout: plots.layoutRAHE3omegaVsDevice, manifestPayload: nil, displayPayload: plots.displayRAHE3omegaVsDevice), for: .rahe3omegaVsDevice)
         tabs.setOutput(TabRenderOutput(imageData: plots.hcVsT, layout: plots.layoutHcVsT, manifestPayload: nil, displayPayload: plots.displayHcVsT), for: .hcVsT)
         tabs.setOutput(TabRenderOutput(imageData: plots.rtCurve, layout: plots.layoutRTCurve, manifestPayload: nil, displayPayload: plots.displayRTCurve), for: .rtCurve)
         if plots.scaling != nil {
@@ -168,6 +176,8 @@ extension ThreeOmegaWorkspaceStore {
         let capturedV3Method = v3Method
         let capturedRAHE1Method = rahe1omegaMethod
         let capturedRAHE3Method = rahe3omegaMethod
+        let capturedRAHE1DevMethod = rahe1omegaVsDeviceMethod
+        let capturedRAHE3DevMethod = rahe3omegaVsDeviceMethod
         let capturedGlobalPlotDefaults = globalPlotDefaults
 
         _renderRevision &+= 1
@@ -214,6 +224,10 @@ extension ThreeOmegaWorkspaceStore {
                 rendered = r.renderRAHE1omegaVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE1Method)
             case .rahe3omegaVsT:
                 rendered = r.renderRAHE3omegaVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE3Method)
+            case .rahe1omegaVsDevice:
+                rendered = r.renderRAHE1omegaVsDevice(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE1DevMethod)
+            case .rahe3omegaVsDevice:
+                rendered = r.renderRAHE3omegaVsDevice(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE3DevMethod)
             case .hcVsT:
                 rendered = r.renderHcVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice)
             case .rtCurve:
@@ -358,6 +372,8 @@ extension ThreeOmegaWorkspaceStore {
         let capturedTokens     = _titleTokens
         let capturedRAHE1Method = rahe1omegaMethod
         let capturedRAHE3Method = rahe3omegaMethod
+        let capturedRAHE1DevMethod = rahe1omegaVsDeviceMethod
+        let capturedRAHE3DevMethod = rahe3omegaVsDeviceMethod
         let capturedGlobalPlotDefaults = globalPlotDefaults
         Task.detached(priority: .userInitiated) { [weak self, ingestion] in
             var renderer = ThreeOmegaPlotRenderer()
@@ -370,7 +386,7 @@ extension ThreeOmegaWorkspaceStore {
             renderer.minGapFraction        = capturedMinGap
             renderer.titleTemplate         = capturedTemplate
             renderer.titleTokens           = capturedTokens
-            let plots = renderer.renderAllTabs(result: ingestion, rahe1Method: capturedRAHE1Method, rahe3Method: capturedRAHE3Method)
+            let plots = renderer.renderAllTabs(result: ingestion, rahe1Method: capturedRAHE1Method, rahe3Method: capturedRAHE3Method, rahe1DevMethod: capturedRAHE1DevMethod, rahe3DevMethod: capturedRAHE3DevMethod)
 
             await MainActor.run { [weak self] in
                 guard let self else { return }
@@ -402,9 +418,11 @@ extension ThreeOmegaWorkspaceStore {
         let capturedMultiplier    = stackOffsetMultiplier
         let capturedMinGap        = minGapFraction
         let capturedTemplate      = titleTemplate
-        let capturedRAHE1Method   = rahe1omegaMethod
-        let capturedRAHE3Method   = rahe3omegaMethod
-        let capturedScaling       = scalingResult
+        let capturedRAHE1Method      = rahe1omegaMethod
+        let capturedRAHE3Method      = rahe3omegaMethod
+        let capturedRAHE1DevMethod   = rahe1omegaVsDeviceMethod
+        let capturedRAHE3DevMethod   = rahe3omegaVsDeviceMethod
+        let capturedScaling          = scalingResult
         let capturedGeometry      = geometry
         let capturedV3Method      = v3Method
         let capturedDevice        = ingestion.device
@@ -499,6 +517,10 @@ extension ThreeOmegaWorkspaceStore {
             (plots.rahe1omegaVsT, plots.layoutRAHE1omegaVsT, plots.displayRAHE1omegaVsT, _) = rahe1.renderRAHE1omegaVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE1Method)
             var rahe3 = makeRenderer(for: .rahe3omegaVsT)
             (plots.rahe3omegaVsT, plots.layoutRAHE3omegaVsT, plots.displayRAHE3omegaVsT, _) = rahe3.renderRAHE3omegaVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE3Method)
+            var rahe1d = makeRenderer(for: .rahe1omegaVsDevice)
+            (plots.rahe1omegaVsDevice, plots.layoutRAHE1omegaVsDevice, plots.displayRAHE1omegaVsDevice, _) = rahe1d.renderRAHE1omegaVsDevice(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE1DevMethod)
+            var rahe3d = makeRenderer(for: .rahe3omegaVsDevice)
+            (plots.rahe3omegaVsDevice, plots.layoutRAHE3omegaVsDevice, plots.displayRAHE3omegaVsDevice, _) = rahe3d.renderRAHE3omegaVsDevice(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE3DevMethod)
             var hc = makeRenderer(for: .hcVsT)
             (plots.hcVsT, plots.layoutHcVsT, plots.displayHcVsT, _) = hc.renderHcVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice)
             if let rt = ingestion.rtResult {

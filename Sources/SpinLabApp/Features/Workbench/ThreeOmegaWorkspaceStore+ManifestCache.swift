@@ -126,6 +126,20 @@ extension ThreeOmegaWorkspaceStore {
                 xField: "T (K)", yField: "RAHE(3ω) (Ω)", files: inputFiles,
                 extraParams: ["v3method": tag]
             )
+        case .rahe1omegaVsDevice:
+            let tag = rahe1omegaVsDeviceMethod == .highField ? "HFE" : "WA"
+            return makePayload(
+                title: resolveTitle("RAHE(1ω)") + " (\(tag))",
+                xField: "Device angle (deg)", yField: "RAHE(1ω) (Ω)", files: inputFiles,
+                extraParams: ["v3method": tag]
+            )
+        case .rahe3omegaVsDevice:
+            let tag = rahe3omegaVsDeviceMethod == .highField ? "HFE" : "WA"
+            return makePayload(
+                title: resolveTitle("RAHE(3ω)") + " (\(tag))",
+                xField: "Device angle (deg)", yField: "RAHE(3ω) (Ω)", files: inputFiles,
+                extraParams: ["v3method": tag]
+            )
         case .hcVsT:
             return makePayload(title: resolveTitle("Hc"), xField: "T (K)", yField: "Hc (Oe)", files: inputFiles)
         case .rtCurve:

@@ -101,12 +101,16 @@ final class ThreeOmegaWorkspaceStore {
 
     var rahe1omegaMethod: ThreeOmegaV3Method = .highField
     var rahe3omegaMethod: ThreeOmegaV3Method = .highField
+    var rahe1omegaVsDeviceMethod: ThreeOmegaV3Method = .highField
+    var rahe3omegaVsDeviceMethod: ThreeOmegaV3Method = .highField
 
     /// The RAHE method for the currently active RAHE tab (nil if not on RAHE tab).
     var activeRAHEMethod: ThreeOmegaV3Method? {
         switch tabs.activeTab {
-        case .rahe1omegaVsT: return rahe1omegaMethod
-        case .rahe3omegaVsT: return rahe3omegaMethod
+        case .rahe1omegaVsT:      return rahe1omegaMethod
+        case .rahe3omegaVsT:      return rahe3omegaMethod
+        case .rahe1omegaVsDevice: return rahe1omegaVsDeviceMethod
+        case .rahe3omegaVsDevice: return rahe3omegaVsDeviceMethod
         default: return nil
         }
     }

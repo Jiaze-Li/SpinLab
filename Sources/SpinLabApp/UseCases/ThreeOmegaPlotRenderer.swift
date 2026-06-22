@@ -38,14 +38,16 @@ struct ThreeOmegaPlotRenderer {
         case failure(String)
     }
 
-    // MARK: - Render all 5 analysis tabs (excludes scaling — geometry required)
+    // MARK: - Render all analysis tabs (excludes scaling — geometry required)
 
     mutating func renderAllTabs(
         result: ThreeOmegaIngestionResult,
         seriesOrder1omega: [String]? = nil,
         seriesOrder3omega: [String]? = nil,
         rahe1Method: ThreeOmegaV3Method = .highField,
-        rahe3Method: ThreeOmegaV3Method = .highField
+        rahe3Method: ThreeOmegaV3Method = .highField,
+        rahe1DevMethod: ThreeOmegaV3Method = .highField,
+        rahe3DevMethod: ThreeOmegaV3Method = .highField
     ) -> ThreeOmegaRenderedPlots {
         var allWarnings: [String] = []
         var plots = ThreeOmegaRenderedPlots()
@@ -57,6 +59,10 @@ struct ThreeOmegaPlotRenderer {
         plots.rahe1omegaVsT = rahe1.0; plots.layoutRAHE1omegaVsT = rahe1.1; plots.displayRAHE1omegaVsT = rahe1.2; allWarnings.append(contentsOf: rahe1.3)
         let rahe3 = renderRAHE3omegaVsT(sweeps: result.fieldSweeps, device: result.device, method: rahe3Method)
         plots.rahe3omegaVsT = rahe3.0; plots.layoutRAHE3omegaVsT = rahe3.1; plots.displayRAHE3omegaVsT = rahe3.2; allWarnings.append(contentsOf: rahe3.3)
+        let rahe1d = renderRAHE1omegaVsDevice(sweeps: result.fieldSweeps, device: result.device, method: rahe1DevMethod)
+        plots.rahe1omegaVsDevice = rahe1d.0; plots.layoutRAHE1omegaVsDevice = rahe1d.1; plots.displayRAHE1omegaVsDevice = rahe1d.2; allWarnings.append(contentsOf: rahe1d.3)
+        let rahe3d = renderRAHE3omegaVsDevice(sweeps: result.fieldSweeps, device: result.device, method: rahe3DevMethod)
+        plots.rahe3omegaVsDevice = rahe3d.0; plots.layoutRAHE3omegaVsDevice = rahe3d.1; plots.displayRAHE3omegaVsDevice = rahe3d.2; allWarnings.append(contentsOf: rahe3d.3)
         let hc = renderHcVsT(sweeps: result.fieldSweeps, device: result.device)
         plots.hcVsT = hc.0; plots.layoutHcVsT = hc.1; plots.displayHcVsT = hc.2; allWarnings.append(contentsOf: hc.3)
         if let rt = result.rtResult {
@@ -188,6 +194,58 @@ struct ThreeOmegaPlotRenderer {
         var w: [String] = []
         let (data, layout) = _consume(_render(payload: &payload), into: &w)
         // After _render: payload carries real x/y data (not empty stub) — use as displayPayload
+        return (data, layout, data != nil ? payload : nil, w)
+    }
+
+    /// Tab 3c: RAHE(1ω) vs Device angle
+    mutating func renderRAHE1omegaVsDevice(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
+        return _renderRAHEVsDevice(sweeps: sweeps, harmonic: 1, device: device, method: method)
+    }
+
+    /// Tab 3d: RAHE(3ω) vs Device angle
+    mutating func renderRAHE3omegaVsDevice(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
+        return _renderRAHEVsDevice(sweeps: sweeps, harmonic: 3, device: device, method: method)
+    }
+
+    private mutating func _renderRAHEVsDevice(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        harmonic: Int,
+        device: String,
+        method: ThreeOmegaV3Method
+    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
+        struct ParsedPoint {
+            let angle: Double
+            let rahe: Double
+            let temperatureK: Double
+        }
+        let parsed: [ParsedPoint] = sweeps.compactMap { sweep in
+            guard let angle = ThreeOmegaDeviceAngleParser.parseDegrees(sweep.device),
+                  let rahe = sweep.rahe(harmonic: harmonic, method: method) else { return nil }
+            return ParsedPoint(angle: angle, rahe: rahe, temperatureK: sweep.temperatureK)
+        }
+        guard !parsed.isEmpty else { return (nil, nil, nil, []) }
+
+        let distinctTemps = Set(parsed.map { $0.temperatureK })
+        if distinctTemps.count > 1 {
+            let tempList = distinctTemps.sorted().map { "\(Int($0.rounded())) K" }.joined(separator: ", ")
+            return (nil, nil, nil, ["RAHE vs Device: multiple temperatures (\(tempList)). Select sweeps at a single temperature."])
+        }
+
+        let sorted = parsed.sorted { $0.angle < $1.angle }
+        let hLabel = harmonic == 1 ? "1ω" : "3ω"
+        let methodTag = method == .highField ? "HFE" : "WA"
+        let tabKey = harmonic == 1 ? "rahe1omegaVsDevice" : "rahe3omegaVsDevice"
+
+        var payload = WorkbenchPlotPayload(
+            workflowID: "3w",
+            workflowDisplayName: "3w",
+            title: _defaultTitle("RAHE(\(hLabel)) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
+            axisMapping: WorkbenchAxisMapping(xField: "Device angle (deg)", yField: "RAHE(\(hLabel)) (Ω)"),
+            series: [WorkbenchPlotSeries(label: "RAHE(\(hLabel))", x: sorted.map(\.angle), y: sorted.map(\.rahe))],
+            semanticParams: ["device": device, "tabKey": tabKey, "v3method": methodTag]
+        )
+        var w: [String] = []
+        let (data, layout) = _consume(_render(payload: &payload), into: &w)
         return (data, layout, data != nil ? payload : nil, w)
     }
 

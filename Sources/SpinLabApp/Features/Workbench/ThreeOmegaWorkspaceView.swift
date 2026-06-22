@@ -78,7 +78,8 @@ private struct ThreeOmegaPlotControlsPanel: View {
             onRenameSeriesLabel: { key, label in store.updateSeriesLabel(identityKey: key, newLabel: label) }
         ) {
             // Row 3: RAHE method picker + Add Analysis (visible on RAHE tabs only)
-            if store.tabs.activeTab == .rahe1omegaVsT || store.tabs.activeTab == .rahe3omegaVsT {
+            if store.tabs.activeTab == .rahe1omegaVsT || store.tabs.activeTab == .rahe3omegaVsT
+                || store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice {
                 HStack {
                     Picker("AHE Method", selection: Binding<ThreeOmegaV3Method>(
                         get: { store.activeRAHEMethod ?? .highField },
