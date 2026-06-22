@@ -50,18 +50,18 @@ struct ThreeOmegaPlotRenderer {
         var allWarnings: [String] = []
         var plots = ThreeOmegaRenderedPlots()
         let r1 = renderR1omega(sweeps: result.fieldSweeps, device: result.device, seriesOrder: seriesOrder1omega)
-        plots.r1omega = r1.0; plots.layoutR1omega = r1.1; allWarnings.append(contentsOf: r1.2)
+        plots.r1omega = r1.0; plots.layoutR1omega = r1.1; plots.displayR1omega = r1.2; allWarnings.append(contentsOf: r1.3)
         let r3 = renderR3omega(sweeps: result.fieldSweeps, device: result.device, seriesOrder: seriesOrder3omega)
-        plots.r3omega = r3.0; plots.layoutR3omega = r3.1; allWarnings.append(contentsOf: r3.2)
+        plots.r3omega = r3.0; plots.layoutR3omega = r3.1; plots.displayR3omega = r3.2; allWarnings.append(contentsOf: r3.3)
         let rahe1 = renderRAHE1omegaVsT(sweeps: result.fieldSweeps, device: result.device, method: rahe1Method)
-        plots.rahe1omegaVsT = rahe1.0; plots.layoutRAHE1omegaVsT = rahe1.1; allWarnings.append(contentsOf: rahe1.2)
+        plots.rahe1omegaVsT = rahe1.0; plots.layoutRAHE1omegaVsT = rahe1.1; plots.displayRAHE1omegaVsT = rahe1.2; allWarnings.append(contentsOf: rahe1.3)
         let rahe3 = renderRAHE3omegaVsT(sweeps: result.fieldSweeps, device: result.device, method: rahe3Method)
-        plots.rahe3omegaVsT = rahe3.0; plots.layoutRAHE3omegaVsT = rahe3.1; allWarnings.append(contentsOf: rahe3.2)
+        plots.rahe3omegaVsT = rahe3.0; plots.layoutRAHE3omegaVsT = rahe3.1; plots.displayRAHE3omegaVsT = rahe3.2; allWarnings.append(contentsOf: rahe3.3)
         let hc = renderHcVsT(sweeps: result.fieldSweeps, device: result.device)
-        plots.hcVsT = hc.0; plots.layoutHcVsT = hc.1; allWarnings.append(contentsOf: hc.2)
+        plots.hcVsT = hc.0; plots.layoutHcVsT = hc.1; plots.displayHcVsT = hc.2; allWarnings.append(contentsOf: hc.3)
         if let rt = result.rtResult {
             let rtRendered = renderRT(rt: rt)
-            plots.rtCurve = rtRendered.0; plots.layoutRTCurve = rtRendered.1; allWarnings.append(contentsOf: rtRendered.2)
+            plots.rtCurve = rtRendered.0; plots.layoutRTCurve = rtRendered.1; plots.displayRTCurve = rtRendered.2; allWarnings.append(contentsOf: rtRendered.3)
         }
         plots.pipelineWarnings = Array(Set(allWarnings))
         return plots
@@ -74,8 +74,8 @@ struct ThreeOmegaPlotRenderer {
         sweeps: [ThreeOmegaFieldSweepResult],
         device: String,
         seriesOrder: [String]? = nil
-    ) -> (Data?, WorkbenchPlotLayout?, [String]) {
-        guard !sweeps.isEmpty else { return (nil, nil, []) }
+    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
+        guard !sweeps.isEmpty else { return (nil, nil, nil, []) }
         let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(seriesOrder, to: sweeps)
 
         let offsets = ThreeOmegaStackOffsetUseCase().execute(
@@ -106,7 +106,8 @@ struct ThreeOmegaPlotRenderer {
         )
         var w: [String] = []
         let (data, layout) = _consume(_render(payload: &payload, options: _stackedOptions(sweepCount: sweeps.count)), into: &w)
-        return (data, layout, w)
+        // After _render: payload = manifestPayload form with offset-applied y-values — use as displayPayload
+        return (data, layout, data != nil ? payload : nil, w)
     }
 
     /// Tab 2: R(3ω) vs H, stacked by temperature
@@ -114,8 +115,8 @@ struct ThreeOmegaPlotRenderer {
         sweeps: [ThreeOmegaFieldSweepResult],
         device: String,
         seriesOrder: [String]? = nil
-    ) -> (Data?, WorkbenchPlotLayout?, [String]) {
-        guard !sweeps.isEmpty else { return (nil, nil, []) }
+    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
+        guard !sweeps.isEmpty else { return (nil, nil, nil, []) }
         let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(seriesOrder, to: sweeps)
 
         let offsets = ThreeOmegaStackOffsetUseCase().execute(
@@ -146,14 +147,15 @@ struct ThreeOmegaPlotRenderer {
         )
         var w: [String] = []
         let (data, layout) = _consume(_render(payload: &payload, options: _stackedOptions(sweepCount: sweeps.count)), into: &w)
-        return (data, layout, w)
+        // After _render: payload = manifestPayload form with offset-applied y-values — use as displayPayload
+        return (data, layout, data != nil ? payload : nil, w)
     }
 
     /// Tab 3a: RAHE(1ω) vs T
-    mutating func renderRAHE1omegaVsT(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> (Data?, WorkbenchPlotLayout?, [String]) {
+    mutating func renderRAHE1omegaVsT(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
         let temps = sweeps.compactMap { $0.rahe(harmonic: 1, method: method) != nil ? $0.temperatureK : nil }
         let vals  = sweeps.compactMap { $0.rahe(harmonic: 1, method: method) }
-        guard !temps.isEmpty else { return (nil, nil, []) }
+        guard !temps.isEmpty else { return (nil, nil, nil, []) }
 
         let methodTag = method == .highField ? "HFE" : "WA"
         var payload = WorkbenchPlotPayload(
@@ -165,14 +167,15 @@ struct ThreeOmegaPlotRenderer {
         )
         var w: [String] = []
         let (data, layout) = _consume(_render(payload: &payload), into: &w)
-        return (data, layout, w)
+        // After _render: payload carries real x/y data (not empty stub) — use as displayPayload
+        return (data, layout, data != nil ? payload : nil, w)
     }
 
     /// Tab 3b: RAHE(3ω) vs T
-    mutating func renderRAHE3omegaVsT(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> (Data?, WorkbenchPlotLayout?, [String]) {
+    mutating func renderRAHE3omegaVsT(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
         let temps = sweeps.compactMap { $0.rahe(harmonic: 3, method: method) != nil ? $0.temperatureK : nil }
         let vals  = sweeps.compactMap { $0.rahe(harmonic: 3, method: method) }
-        guard !temps.isEmpty else { return (nil, nil, []) }
+        guard !temps.isEmpty else { return (nil, nil, nil, []) }
 
         let methodTag = method == .highField ? "HFE" : "WA"
         var payload = WorkbenchPlotPayload(
@@ -184,7 +187,8 @@ struct ThreeOmegaPlotRenderer {
         )
         var w: [String] = []
         let (data, layout) = _consume(_render(payload: &payload), into: &w)
-        return (data, layout, w)
+        // After _render: payload carries real x/y data (not empty stub) — use as displayPayload
+        return (data, layout, data != nil ? payload : nil, w)
     }
 
     /// Tab 3a multi-group: RAHE(1ω) vs T with overlays from multiple analysis packs
@@ -241,12 +245,12 @@ struct ThreeOmegaPlotRenderer {
     }
 
     /// Tab 4: Hc¹ω and Hc³ω vs T
-    mutating func renderHcVsT(sweeps: [ThreeOmegaFieldSweepResult], device: String) -> (Data?, WorkbenchPlotLayout?, [String]) {
+    mutating func renderHcVsT(sweeps: [ThreeOmegaFieldSweepResult], device: String) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
         let temps1 = sweeps.compactMap { $0.hc1omega != nil ? $0.temperatureK : nil }
         let hc1    = sweeps.compactMap { $0.hc1omega }
         let temps3 = sweeps.compactMap { $0.hc3omega != nil ? $0.temperatureK : nil }
         let hc3    = sweeps.compactMap { $0.hc3omega }
-        guard !temps1.isEmpty || !temps3.isEmpty else { return (nil, nil, []) }
+        guard !temps1.isEmpty || !temps3.isEmpty else { return (nil, nil, nil, []) }
 
         var series: [WorkbenchPlotSeries] = []
         if !temps1.isEmpty { series.append(WorkbenchPlotSeries(label: "Hc¹ω", x: temps1, y: hc1)) }
@@ -262,12 +266,12 @@ struct ThreeOmegaPlotRenderer {
         )
         var w: [String] = []
         let (data, layout) = _consume(_render(payload: &payload), into: &w)
-        return (data, layout, w)
+        return (data, layout, data != nil ? payload : nil, w)
     }
 
     /// Tab 5: Rxx vs T (from RT file)
-    mutating func renderRT(rt: ThreeOmegaRTResult) -> (Data?, WorkbenchPlotLayout?, [String]) {
-        guard !rt.temperatureK.isEmpty else { return (nil, nil, []) }
+    mutating func renderRT(rt: ThreeOmegaRTResult) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
+        guard !rt.temperatureK.isEmpty else { return (nil, nil, nil, []) }
         var payload = WorkbenchPlotPayload(
             workflowID: "3w",
             workflowDisplayName: "3w",
@@ -278,7 +282,7 @@ struct ThreeOmegaPlotRenderer {
         )
         var w: [String] = []
         let (data, layout) = _consume(_render(payload: &payload), into: &w)
-        return (data, layout, w)
+        return (data, layout, data != nil ? payload : nil, w)
     }
 
     /// Tab 6: Fig 5b — E^(3ω)_AHE / (E_xx³ × σ_xx) vs σ²_xx

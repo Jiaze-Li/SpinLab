@@ -125,7 +125,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         sweep10.sampleID = nil
 
         var renderer = ThreeOmegaPlotRenderer()
-        let (_, _, warnings) = renderer.renderR1omega(sweeps: [sweep5, sweep10], device: "0deg")
+        let (_, _, _, warnings) = renderer.renderR1omega(sweeps: [sweep5, sweep10], device: "0deg")
         // Must not crash (assert would abort); just verify no pipeline failure warning.
         #expect(!warnings.contains(where: { $0.contains("pipeline failure") }))
     }
@@ -142,7 +142,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
 
         var renderer = ThreeOmegaPlotRenderer()
         renderer.titleTokens = ["sample": "TEST"]
-        let (_, layout, _) = renderer.renderR1omega(sweeps: [sweep5, sweep10], device: "0deg")
+        let (_, layout, _, _) = renderer.renderR1omega(sweeps: [sweep5, sweep10], device: "0deg")
         // Layout is non-nil only when render succeeds without crashing.
         #expect(layout != nil)
     }
@@ -154,7 +154,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         sweep5.sampleID = nil
 
         var renderer = ThreeOmegaPlotRenderer()
-        let (_, _, warnings) = renderer.renderR3omega(sweeps: [sweep5], device: "0deg")
+        let (_, _, _, warnings) = renderer.renderR3omega(sweeps: [sweep5], device: "0deg")
         #expect(!warnings.contains(where: { $0.contains("pipeline failure") }))
     }
 

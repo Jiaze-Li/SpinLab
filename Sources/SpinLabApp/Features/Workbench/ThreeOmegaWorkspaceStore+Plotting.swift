@@ -218,8 +218,15 @@ extension ThreeOmegaWorkspaceStore: WorkbenchCartesianXYPlottingStore {
     }
 
     func copyCurrentPlotPNG(scale: CGFloat) -> Data? {
-        guard let input = copyCurrentPlotPNGInput(scale: scale) else { return nil }
-        return try? WorkbenchRenderPipeline.render(input).imageData
+        // All export scales must produce the currently-displayed plot — semantics are invariant.
+        // 2x short-circuits to the cached image (no re-render needed, always WYSIWYG).
+        // 1x / 3x re-render from displayPayload so offsets and real data are preserved.
+        // Fallback to activeImageData on any failure to guarantee no blank output.
+        if scale == 2.0, let cached = tabs.activeImageData, !cached.isEmpty { return cached }
+        guard let input = copyCurrentPlotPNGInput(scale: scale) else {
+            return tabs.activeImageData
+        }
+        return (try? WorkbenchRenderPipeline.render(input).imageData) ?? tabs.activeImageData
     }
 
     private func copyCurrentPlotPNGInput(scale: CGFloat) -> WorkbenchRenderPipeline.Input? {
@@ -260,7 +267,15 @@ extension ThreeOmegaWorkspaceStore: WorkbenchCartesianXYPlottingStore {
                 method: method
             )
         }
-        return activeChartManifestPayload
+        // displayPayload holds the offset/stacked y-values actually shown on screen.
+        // manifestPayload is a persistence/schema artifact with raw data — must NOT be used as export source.
+        if let display = tabs.output(for: tab).displayPayload { return display }
+        // Reject empty-series stubs (RAHE schema records with x:[] y:[]): rendering them produces
+        // a blank chart. Returning nil here lets the caller fall back to activeImageData instead.
+        guard let manifest = activeChartManifestPayload,
+              manifest.series.contains(where: { !$0.x.isEmpty || !$0.y.isEmpty })
+        else { return nil }
+        return manifest
     }
 }
 

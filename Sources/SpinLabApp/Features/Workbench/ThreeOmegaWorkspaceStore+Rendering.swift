@@ -91,7 +91,7 @@ extension ThreeOmegaWorkspaceStore {
                     }
                     return p
                 }()
-                self.tabs.setOutput(TabRenderOutput(imageData: result1.0, layout: result1.1, manifestPayload: m1), for: .fieldSweep1omega)
+                self.tabs.setOutput(TabRenderOutput(imageData: result1.0, layout: result1.1, manifestPayload: m1, displayPayload: result1.2), for: .fieldSweep1omega)
                 let s3 = self.tabs.state(for: .fieldSweep3omega)
                 let m3: WorkbenchPlotPayload? = {
                     guard var p = self.tabs.output(for: .fieldSweep3omega).manifestPayload else { return nil }
@@ -103,7 +103,7 @@ extension ThreeOmegaWorkspaceStore {
                     }
                     return p
                 }()
-                self.tabs.setOutput(TabRenderOutput(imageData: result3.0, layout: result3.1, manifestPayload: m3), for: .fieldSweep3omega)
+                self.tabs.setOutput(TabRenderOutput(imageData: result3.0, layout: result3.1, manifestPayload: m3, displayPayload: result3.2), for: .fieldSweep3omega)
             }
         }
     }
@@ -121,14 +121,14 @@ extension ThreeOmegaWorkspaceStore {
     // MARK: - Private helpers
 
     func _applyPlots(_ plots: ThreeOmegaRenderedPlots) {
-        tabs.setOutput(TabRenderOutput(imageData: plots.r1omega, layout: plots.layoutR1omega, manifestPayload: nil), for: .fieldSweep1omega)
-        tabs.setOutput(TabRenderOutput(imageData: plots.r3omega, layout: plots.layoutR3omega, manifestPayload: nil), for: .fieldSweep3omega)
-        tabs.setOutput(TabRenderOutput(imageData: plots.rahe1omegaVsT, layout: plots.layoutRAHE1omegaVsT, manifestPayload: nil), for: .rahe1omegaVsT)
-        tabs.setOutput(TabRenderOutput(imageData: plots.rahe3omegaVsT, layout: plots.layoutRAHE3omegaVsT, manifestPayload: nil), for: .rahe3omegaVsT)
-        tabs.setOutput(TabRenderOutput(imageData: plots.hcVsT, layout: plots.layoutHcVsT, manifestPayload: nil), for: .hcVsT)
-        tabs.setOutput(TabRenderOutput(imageData: plots.rtCurve, layout: plots.layoutRTCurve, manifestPayload: nil), for: .rtCurve)
+        tabs.setOutput(TabRenderOutput(imageData: plots.r1omega, layout: plots.layoutR1omega, manifestPayload: nil, displayPayload: plots.displayR1omega), for: .fieldSweep1omega)
+        tabs.setOutput(TabRenderOutput(imageData: plots.r3omega, layout: plots.layoutR3omega, manifestPayload: nil, displayPayload: plots.displayR3omega), for: .fieldSweep3omega)
+        tabs.setOutput(TabRenderOutput(imageData: plots.rahe1omegaVsT, layout: plots.layoutRAHE1omegaVsT, manifestPayload: nil, displayPayload: plots.displayRAHE1omegaVsT), for: .rahe1omegaVsT)
+        tabs.setOutput(TabRenderOutput(imageData: plots.rahe3omegaVsT, layout: plots.layoutRAHE3omegaVsT, manifestPayload: nil, displayPayload: plots.displayRAHE3omegaVsT), for: .rahe3omegaVsT)
+        tabs.setOutput(TabRenderOutput(imageData: plots.hcVsT, layout: plots.layoutHcVsT, manifestPayload: nil, displayPayload: plots.displayHcVsT), for: .hcVsT)
+        tabs.setOutput(TabRenderOutput(imageData: plots.rtCurve, layout: plots.layoutRTCurve, manifestPayload: nil, displayPayload: plots.displayRTCurve), for: .rtCurve)
         if plots.scaling != nil {
-            tabs.setOutput(TabRenderOutput(imageData: plots.scaling, layout: nil, manifestPayload: nil), for: .scaling)
+            tabs.setOutput(TabRenderOutput(imageData: plots.scaling, layout: nil, manifestPayload: nil, displayPayload: nil), for: .scaling)
         }
     }
 
@@ -203,7 +203,8 @@ extension ThreeOmegaWorkspaceStore {
             r.titleTemplate         = capturedTemplate
             r.titleTokens           = capturedTokens
 
-            let rendered: (Data?, WorkbenchPlotLayout?, [String])
+            // (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload? displayPayload, [String] warnings)
+            let rendered: (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
             switch tab {
             case .fieldSweep1omega:
                 rendered = r.renderR1omega(sweeps: ingestion.fieldSweeps, device: capturedDevice, seriesOrder: capturedSeriesOrder)
@@ -216,18 +217,20 @@ extension ThreeOmegaWorkspaceStore {
             case .hcVsT:
                 rendered = r.renderHcVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice)
             case .rtCurve:
-                rendered = ingestion.rtResult.map { r.renderRT(rt: $0) } ?? (nil, nil, [])
+                rendered = ingestion.rtResult.map { r.renderRT(rt: $0) } ?? (nil, nil, nil, [])
             case .scaling:
                 if let sr = capturedScaling, capturedGeometry.isComplete {
                     let method = capturedV3Method == .highField ? "(HFE)" : "(WA)"
-                    rendered = r.renderScaling(result: sr, device: capturedDevice, method: method)
+                    let s = r.renderScaling(result: sr, device: capturedDevice, method: method)
+                    rendered = (s.0, s.1, nil, s.2)  // scaling displayPayload unused; copy path uses makeScalingPayload
                 } else {
-                    rendered = (nil, nil, [])
+                    rendered = (nil, nil, nil, [])
                 }
             }
 
-            let plotData   = rendered.0
-            let plotLayout = rendered.1
+            let plotData      = rendered.0
+            let plotLayout    = rendered.1
+            let plotDisplayPayload = rendered.2
             await MainActor.run { [weak self] in
                 guard let self, self._renderRevision == revision else { return }
                 let existingManifest = self.tabs.output(for: tab).manifestPayload
@@ -249,7 +252,7 @@ extension ThreeOmegaWorkspaceStore {
                     }
                     return payload
                 }()
-                self.tabs.setOutput(TabRenderOutput(imageData: plotData, layout: plotLayout, manifestPayload: updatedManifest), for: tab)
+                self.tabs.setOutput(TabRenderOutput(imageData: plotData, layout: plotLayout, manifestPayload: updatedManifest, displayPayload: plotDisplayPayload), for: tab)
             }
         }
     }
@@ -330,9 +333,9 @@ extension ThreeOmegaWorkspaceStore {
             await MainActor.run { [weak self] in
                 guard let self, self._renderRevision == revision else { return }
                 let mR1 = self.tabs.output(for: .rahe1omegaVsT).manifestPayload
-                self.tabs.setOutput(TabRenderOutput(imageData: rahe1.0, layout: rahe1.1, manifestPayload: mR1), for: .rahe1omegaVsT)
+                self.tabs.setOutput(TabRenderOutput(imageData: rahe1.0, layout: rahe1.1, manifestPayload: mR1, displayPayload: rahe1.2), for: .rahe1omegaVsT)
                 let mR3 = self.tabs.output(for: .rahe3omegaVsT).manifestPayload
-                self.tabs.setOutput(TabRenderOutput(imageData: rahe3.0, layout: rahe3.1, manifestPayload: mR3), for: .rahe3omegaVsT)
+                self.tabs.setOutput(TabRenderOutput(imageData: rahe3.0, layout: rahe3.1, manifestPayload: mR3, displayPayload: rahe3.2), for: .rahe3omegaVsT)
 
                 // Rebuild manifest payloads with individual sourceRef per file (not ;-joined)
                 self._rebuildOverlayManifestPayloads(groups: groups)
@@ -489,18 +492,18 @@ extension ThreeOmegaWorkspaceStore {
 
             var plots = ThreeOmegaRenderedPlots()
             var r1 = makeRenderer(for: .fieldSweep1omega)
-            (plots.r1omega, plots.layoutR1omega, _) = r1.renderR1omega(sweeps: ingestion.fieldSweeps, device: capturedDevice, seriesOrder: capturedFieldSweepSeriesOrder)
+            (plots.r1omega, plots.layoutR1omega, plots.displayR1omega, _) = r1.renderR1omega(sweeps: ingestion.fieldSweeps, device: capturedDevice, seriesOrder: capturedFieldSweepSeriesOrder)
             var r3 = makeRenderer(for: .fieldSweep3omega)
-            (plots.r3omega, plots.layoutR3omega, _) = r3.renderR3omega(sweeps: ingestion.fieldSweeps, device: capturedDevice, seriesOrder: capturedFieldSweepSeriesOrder)
+            (plots.r3omega, plots.layoutR3omega, plots.displayR3omega, _) = r3.renderR3omega(sweeps: ingestion.fieldSweeps, device: capturedDevice, seriesOrder: capturedFieldSweepSeriesOrder)
             var rahe1 = makeRenderer(for: .rahe1omegaVsT)
-            (plots.rahe1omegaVsT, plots.layoutRAHE1omegaVsT, _) = rahe1.renderRAHE1omegaVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE1Method)
+            (plots.rahe1omegaVsT, plots.layoutRAHE1omegaVsT, plots.displayRAHE1omegaVsT, _) = rahe1.renderRAHE1omegaVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE1Method)
             var rahe3 = makeRenderer(for: .rahe3omegaVsT)
-            (plots.rahe3omegaVsT, plots.layoutRAHE3omegaVsT, _) = rahe3.renderRAHE3omegaVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE3Method)
+            (plots.rahe3omegaVsT, plots.layoutRAHE3omegaVsT, plots.displayRAHE3omegaVsT, _) = rahe3.renderRAHE3omegaVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice, method: capturedRAHE3Method)
             var hc = makeRenderer(for: .hcVsT)
-            (plots.hcVsT, plots.layoutHcVsT, _) = hc.renderHcVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice)
+            (plots.hcVsT, plots.layoutHcVsT, plots.displayHcVsT, _) = hc.renderHcVsT(sweeps: ingestion.fieldSweeps, device: capturedDevice)
             if let rt = ingestion.rtResult {
                 var rtR = makeRenderer(for: .rtCurve)
-                (plots.rtCurve, plots.layoutRTCurve, _) = rtR.renderRT(rt: rt)
+                (plots.rtCurve, plots.layoutRTCurve, plots.displayRTCurve, _) = rtR.renderRT(rt: rt)
             }
             if let sr = capturedScaling, capturedGeometry.isComplete {
                 let method = capturedV3Method == .highField ? "(HFE)" : "(WA)"
