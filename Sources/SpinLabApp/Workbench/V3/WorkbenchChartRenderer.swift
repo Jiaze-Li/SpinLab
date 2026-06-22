@@ -207,7 +207,7 @@ struct WorkbenchChartRenderer {
                 ctx.strokePath()
             }
             if drawDots {
-                let r: CGFloat = 3.5
+                let r = CGFloat(style.pointRadius ?? 3.5)
                 ctx.setFillColor(color)
                 for k in 0..<series.x.count {
                     let center = pt(series.x[k], series.y[k])
@@ -226,7 +226,7 @@ struct WorkbenchChartRenderer {
 
         // Draw point labels outside clip — smart positioning to avoid edge cutoff
         let labelFont = style.pointLabelFontSize
-        let r: CGFloat = 3.5
+        let r = CGFloat(style.pointRadius ?? 3.5)
         let gap: CGFloat = 4
         let approxLabelW: CGFloat = 50
         let approxLabelH: CGFloat = 20

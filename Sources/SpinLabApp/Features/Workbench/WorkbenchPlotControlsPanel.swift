@@ -41,6 +41,11 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
                     tickDensityStepper(label: "X", key: "tickTargetX", fallback: 6)
                     tickDensityStepper(label: "Y", key: "tickTargetY", fallback: 5)
                 }
+                // Shell-level: line/scatter appearance
+                WorkbenchSeriesAppearanceControls(
+                    globalPlotDefaults: $globalPlotDefaults,
+                    onStyleChange: onStyleChange
+                )
                 // Shell-level controls: font sizes
                 fontSizeRow
                 supplementalContent()

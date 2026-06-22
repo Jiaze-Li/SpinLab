@@ -20,6 +20,10 @@ struct WorkbenchChartStyle: Codable, Hashable, Sendable {
     var xTickStep: Double? = nil
     /// Fixed y-axis tick step (nil = auto from niceTicks).
     var yTickStep: Double? = nil
+    /// Global line width override (nil = use per-series default ~2.0).
+    var lineWidth: Double? = nil
+    /// Global scatter point radius override (nil = use renderer default 3.5).
+    var pointRadius: Double? = nil
 
     // MARK: - Parse from styleParams
 
@@ -38,6 +42,8 @@ struct WorkbenchChartStyle: Codable, Hashable, Sendable {
         if let v = styleParams["tickTargetY"], let n = Int(v) { s.tickTargetY = PlotTickConfiguration.clamp(n) }
         if let v = styleParams["xTickStep"], let n = Double(v), n > 0 { s.xTickStep = n }
         if let v = styleParams["yTickStep"], let n = Double(v), n > 0 { s.yTickStep = n }
+        if let v = styleParams["lineWidth"], let n = Double(v), n > 0 { s.lineWidth = n }
+        if let v = styleParams["pointRadius"], let n = Double(v), n > 0 { s.pointRadius = n }
         return s
     }
 
@@ -62,6 +68,8 @@ struct WorkbenchChartStyle: Codable, Hashable, Sendable {
         "pointLabelFontSize",
         "plotFontName",
         "plotBoldFontName",
+        "lineWidth",
+        "pointRadius",
     ]
 
     static func isGlobalPlotDefaultKey(_ key: String) -> Bool {

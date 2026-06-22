@@ -129,6 +129,14 @@ enum WorkbenchRenderPipeline {
         // 6. Parse unified chart style
         let chartStyle = WorkbenchChartStyle.from(styleParams: payload.styleParams)
 
+        // 6a. Apply global lineWidth override to unlocked series (locked series keep their own width)
+        if let lw = chartStyle.lineWidth {
+            payload.series = payload.series.map {
+                guard !$0.renderModeLocked else { return $0 }
+                var s = $0; s.lineWidth = lw; return s
+            }
+        }
+
         // 7. Resolve renderer options (dynamic padding based on y-tick label widths)
         let renderer = WorkbenchChartRenderer()
         var effectiveBase = input.baseOptions
