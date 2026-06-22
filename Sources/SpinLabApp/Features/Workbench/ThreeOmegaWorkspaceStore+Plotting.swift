@@ -218,70 +218,21 @@ extension ThreeOmegaWorkspaceStore: WorkbenchCartesianXYPlottingStore {
     }
 
     func copyCurrentPlotPNG(scale: CGFloat) -> Data? {
-        // Export scale is NOT macOS Retina backing scale.
-        // 1x/2x/3x are user-facing export pixel-density multipliers applied to the logical render size.
-        // displayPayload is the export/render source — it carries offset/stacked y-values shown on screen.
-        // manifestPayload is persistence/schema only and must never be used as export source.
-        // activeImageData is fallback only: when displayPayload is nil, input construction fails,
-        // or the render pipeline returns empty data. Guarantees no blank output.
-        guard let input = copyCurrentPlotPNGInput(scale: scale) else {
-            return tabs.activeImageData
-        }
-        guard let rendered = try? WorkbenchRenderPipeline.render(input).imageData,
-              !rendered.isEmpty
-        else {
-            return tabs.activeImageData
-        }
-        return rendered
-    }
-
-    private func copyCurrentPlotPNGInput(scale: CGFloat) -> WorkbenchRenderPipeline.Input? {
         let tab = tabs.activeTab
-        guard let payload = copyCurrentPlotPayload(for: tab) else { return nil }
-        let tabState = tabs.state(for: tab)
-        var patch: [String: String] = [:]
-        if tabs.showPlotGrid { patch["showGrid"] = "true" }
-        if !tabs.legendAnchor.isEmpty { patch["legendAnchor"] = tabs.legendAnchor }
-
-        var baseOptions = WorkbenchChartRenderer.Options()
-        if let activeLayout {
-            baseOptions.width = Int(activeLayout.rendererSize.width.rounded())
-            baseOptions.height = Int(activeLayout.rendererSize.height.rounded())
-        }
-
-        var input = WorkbenchRenderPipeline.Input(payload: payload, baseOptions: baseOptions, globalPlotDefaults: globalPlotDefaults)
-        input.pixelScaleOverride = scale
-        input.legendPoint = tabState.legendPoint?.cgPoint
-        input.seriesRenderMode = tabs.seriesRenderMode
-        input.chartStyleOverrides = tabs.chartStyleOverrides
-        input.seriesLabelOverrides = toIndexedOverrides(tabState.seriesLabelOverrides, series: payload.series)
-        input.titleOverride = tabState.titleOverride
-        input.xLabelOverride = tabState.xLabelOverride
-        input.yLabelOverride = tabState.yLabelOverride
-        input.hiddenPointLabelsBySeries = toIndexedOverrides(tabs.hiddenPointLabelsBySampleID(for: tab), series: payload.series).mapValues { Set($0) }
-        input.styleParamsPatch = patch
-        return input
-    }
-
-    private func copyCurrentPlotPayload(for tab: ThreeOmegaWorkbenchTab) -> WorkbenchPlotPayload? {
+        // Scaling tab has no stored displayPayload; build the payload on-the-fly.
         if tab == .scaling {
-            guard let scalingResult else { return nil }
+            guard let scalingResult else { return tabs.activeImageData }
             let method = v3Method == .highField ? "(HFE)" : "(WA)"
-            return ThreeOmegaPlotRenderer().makeScalingPayload(
+            var snapshot = tabs.exportSnapshot(for: tab, globalPlotDefaults: globalPlotDefaults)
+            snapshot.displayPayload = ThreeOmegaPlotRenderer().makeScalingPayload(
                 result: scalingResult,
                 device: ingestionResult?.device ?? "",
                 method: method
             )
+            return WorkbenchPlotExportService.exportPNG(snapshot: snapshot, scale: scale)
         }
-        // displayPayload holds the offset/stacked y-values actually shown on screen.
-        // manifestPayload is a persistence/schema artifact with raw data — must NOT be used as export source.
-        if let display = tabs.output(for: tab).displayPayload { return display }
-        // Reject empty-series stubs (RAHE schema records with x:[] y:[]): rendering them produces
-        // a blank chart. Returning nil here lets the caller fall back to activeImageData instead.
-        guard let manifest = activeChartManifestPayload,
-              manifest.series.contains(where: { !$0.x.isEmpty || !$0.y.isEmpty })
-        else { return nil }
-        return manifest
+        let snapshot = tabs.exportSnapshot(for: tab, globalPlotDefaults: globalPlotDefaults)
+        return WorkbenchPlotExportService.exportPNG(snapshot: snapshot, scale: scale)
     }
 }
 

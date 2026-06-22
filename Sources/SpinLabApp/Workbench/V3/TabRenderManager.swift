@@ -256,12 +256,42 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     ///
     /// Text-scoped overrides are cleared only when the analyzed source identity changes.
     /// Legend position and series order are preserved.
-    func applyPipelineOutput(_ pipelineOutput: WorkbenchRenderPipeline.Output, for tab: Tab) {
+    ///
+    /// Pass `displayPayload` to store the pre-pipeline domain payload so that
+    /// `WorkbenchPlotExportService` can re-render at any export scale.
+    func applyPipelineOutput(
+        _ pipelineOutput: WorkbenchRenderPipeline.Output,
+        displayPayload: WorkbenchPlotPayload? = nil,
+        for tab: Tab
+    ) {
         setOutput(TabRenderOutput(
             imageData: pipelineOutput.imageData,
             layout: pipelineOutput.layout,
-            manifestPayload: pipelineOutput.manifestPayload
+            manifestPayload: pipelineOutput.manifestPayload,
+            displayPayload: displayPayload
         ), for: tab)
+    }
+
+    // MARK: - Export snapshot
+
+    /// Builds a workflow-agnostic export snapshot for the given tab.
+    ///
+    /// The caller provides `globalPlotDefaults`; everything else is read from this manager.
+    /// Pass the result to `WorkbenchPlotExportService.exportPNG(snapshot:scale:)`.
+    func exportSnapshot(for tab: Tab, globalPlotDefaults: [String: String]) -> WorkbenchPlotExportSnapshot {
+        let output = tabOutputs[tab] ?? TabRenderOutput()
+        let state = tabStates[tab] ?? TabRenderState()
+        return WorkbenchPlotExportSnapshot(
+            imageData: output.imageData,
+            displayPayload: output.displayPayload,
+            layout: output.layout,
+            tabState: state,
+            showGrid: showPlotGrid,
+            legendAnchor: legendAnchor,
+            seriesRenderMode: seriesRenderMode,
+            chartStyleOverrides: chartStyleOverrides,
+            globalPlotDefaults: globalPlotDefaults
+        )
     }
 
     /// Clears per-tab text overrides for a single tab while preserving legendPoint and seriesOrder.

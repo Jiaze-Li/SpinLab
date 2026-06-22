@@ -224,6 +224,7 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         }
         guard let payload else { return }
         let input = tabs.buildPipelineInput(payload: payload, globalPlotDefaults: globalPlotDefaults, for: tab)
+        let displayPayload = payload
 
         _renderRevision &+= 1
         let revision = _renderRevision
@@ -233,7 +234,7 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
             await MainActor.run { [weak self] in
                 guard let self, self._renderRevision == revision else { return }
                 guard let output else { return }
-                self.tabs.applyPipelineOutput(output, for: tab)
+                self.tabs.applyPipelineOutput(output, displayPayload: displayPayload, for: tab)
             }
         }
     }
@@ -257,12 +258,13 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
             }
             guard let payload else { continue }
             let input = tabs.buildPipelineInput(payload: payload, globalPlotDefaults: globalPlotDefaults, for: tab)
+            let displayPayload = payload
             Task.detached(priority: .userInitiated) { [weak self] in
                 let output = try? WorkbenchRenderPipeline.render(input)
                 await MainActor.run { [weak self] in
                     guard let self, self._renderRevision == revision else { return }
                     guard let output else { return }
-                    self.tabs.applyPipelineOutput(output, for: tab)
+                    self.tabs.applyPipelineOutput(output, displayPayload: displayPayload, for: tab)
                 }
             }
         }
@@ -360,6 +362,11 @@ extension IVWorkspaceStore: WorkbenchCartesianXYPlottingStore {
     func updateSeriesOrder(_ order: [String]) {
         tabs.updateSeriesOrder(order.isEmpty ? nil : order)
         rerenderForStyleChange()
+    }
+
+    func renderPNGAtScale(_ scale: CGFloat) -> Data? {
+        let snapshot = tabs.exportSnapshot(for: tabs.activeTab, globalPlotDefaults: globalPlotDefaults)
+        return WorkbenchPlotExportService.exportPNG(snapshot: snapshot, scale: scale)
     }
 }
 
