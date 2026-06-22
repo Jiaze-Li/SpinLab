@@ -25,19 +25,27 @@ struct WorkbenchAxisRangeControls: View {
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
                 .fixedSize()
             AxisBoundField(
+                debugName: "xMin",
                 placeholder: formatAuto(activeLayout?.axisXMin),
                 currentValue: axisRangeOverride?.xMin,
                 sourceResetToken: sourceResetToken,
-                onCommit: { onBoundUpdate(.xMin, $0) }
+                onCommit: { v in
+                    AxisRangeDebug.log("WorkbenchAxisRangeControls onBoundUpdate bound=xMin value=\(fmtD(v)) | axisRangeOverride=\(String(describing: axisRangeOverride)) | layout \(layoutDebugStr(activeLayout))")
+                    onBoundUpdate(.xMin, v)
+                }
             )
             Text("–")
                 .font(WorkbenchUIStyle.controlLabelFont)
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
             AxisBoundField(
+                debugName: "xMax",
                 placeholder: formatAuto(activeLayout?.axisXMax),
                 currentValue: axisRangeOverride?.xMax,
                 sourceResetToken: sourceResetToken,
-                onCommit: { onBoundUpdate(.xMax, $0) }
+                onCommit: { v in
+                    AxisRangeDebug.log("WorkbenchAxisRangeControls onBoundUpdate bound=xMax value=\(fmtD(v)) | axisRangeOverride=\(String(describing: axisRangeOverride)) | layout \(layoutDebugStr(activeLayout))")
+                    onBoundUpdate(.xMax, v)
+                }
             )
 
             Spacer(minLength: 8).frame(maxWidth: 12)
@@ -47,19 +55,27 @@ struct WorkbenchAxisRangeControls: View {
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
                 .fixedSize()
             AxisBoundField(
+                debugName: "yMin",
                 placeholder: formatAuto(activeLayout?.axisYMin),
                 currentValue: axisRangeOverride?.yMin,
                 sourceResetToken: sourceResetToken,
-                onCommit: { onBoundUpdate(.yMin, $0) }
+                onCommit: { v in
+                    AxisRangeDebug.log("WorkbenchAxisRangeControls onBoundUpdate bound=yMin value=\(fmtD(v)) | axisRangeOverride=\(String(describing: axisRangeOverride)) | layout \(layoutDebugStr(activeLayout))")
+                    onBoundUpdate(.yMin, v)
+                }
             )
             Text("–")
                 .font(WorkbenchUIStyle.controlLabelFont)
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
             AxisBoundField(
+                debugName: "yMax",
                 placeholder: formatAuto(activeLayout?.axisYMax),
                 currentValue: axisRangeOverride?.yMax,
                 sourceResetToken: sourceResetToken,
-                onCommit: { onBoundUpdate(.yMax, $0) }
+                onCommit: { v in
+                    AxisRangeDebug.log("WorkbenchAxisRangeControls onBoundUpdate bound=yMax value=\(fmtD(v)) | axisRangeOverride=\(String(describing: axisRangeOverride)) | layout \(layoutDebugStr(activeLayout))")
+                    onBoundUpdate(.yMax, v)
+                }
             )
         }
     }
@@ -74,6 +90,12 @@ struct WorkbenchAxisRangeControls: View {
         }
         return String(format: "%.3e", v)
     }
+
+    private func fmtD(_ v: Double?) -> String { v.map { String(format: "%g", $0) } ?? "nil" }
+    private func layoutDebugStr(_ layout: WorkbenchPlotLayout?) -> String {
+        guard let layout else { return "xMin=nil xMax=nil yMin=nil yMax=nil" }
+        return "xMin=\(String(format: "%g", layout.axisXMin)) xMax=\(String(format: "%g", layout.axisXMax)) yMin=\(String(format: "%g", layout.axisYMin)) yMax=\(String(format: "%g", layout.axisYMax))"
+    }
 }
 
 // MARK: - AxisBoundField
@@ -83,6 +105,7 @@ struct WorkbenchAxisRangeControls: View {
 /// Shows the auto range value (dimmed) when no override is set.
 /// Clearing the field removes the override for that bound.
 private struct AxisBoundField: View {
+    let debugName: String
     let placeholder: String
     let currentValue: Double?
     let sourceResetToken: String
@@ -98,6 +121,10 @@ private struct AxisBoundField: View {
         return placeholder
     }
 
+    private func debugState(_ context: String) {
+        AxisRangeDebug.log("AxisBoundField[\(debugName)] \(context) | editText='\(editText)' trimmed='\(editText.trimmingCharacters(in: .whitespacesAndNewlines))' parsed=\(Double(editText.trimmingCharacters(in: .whitespacesAndNewlines)).map { "\($0)" } ?? "nil") placeholder='\(placeholder)' currentValue=\(currentValue.map { "\($0)" } ?? "nil") hasOverride=\(hasOverride) isDirty=\(isDirty) focused=\(focused) sourceResetToken='\(sourceResetToken)' displayText='\(displayText)'")
+    }
+
     var body: some View {
         HStack(spacing: 2) {
             TextField("", text: dirtyBinding)
@@ -108,6 +135,7 @@ private struct AxisBoundField: View {
                 .focused($focused)
                 .onSubmit { commitIfDirty() }
                 .onChange(of: focused) { _, isFocused in
+                    debugState(isFocused ? "focusGained" : "focusLost")
                     if !isFocused { commitIfDirty() }
                 }
             if hasOverride {
@@ -124,10 +152,12 @@ private struct AxisBoundField: View {
         }
         .task(id: displayText) {
             guard !focused else { return }
+            AxisRangeDebug.log("AxisBoundField[\(debugName)] displayTextSync (not focused) | old editText='\(editText)' new displayText='\(displayText)' placeholder='\(placeholder)' currentValue=\(currentValue.map { "\($0)" } ?? "nil") hasOverride=\(hasOverride) isDirty=\(isDirty) sourceResetToken='\(sourceResetToken)'")
             editText = displayText
             isDirty = false
         }
         .task(id: sourceResetToken) {
+            AxisRangeDebug.log("AxisBoundField[\(debugName)] sourceResetToken changed | new token='\(sourceResetToken)' displayText='\(displayText)' placeholder='\(placeholder)' currentValue=\(currentValue.map { "\($0)" } ?? "nil") isDirty=\(isDirty) focused=\(focused)")
             editText = displayText
             isDirty = false
             focused = false
@@ -137,20 +167,30 @@ private struct AxisBoundField: View {
     private var dirtyBinding: Binding<String> {
         Binding(
             get: { editText },
-            set: { editText = $0; isDirty = true }
+            set: { newVal in
+                let old = editText
+                editText = newVal
+                isDirty = true
+                AxisRangeDebug.log("AxisBoundField[\(debugName)] textChange '\(old)'->'\(newVal)' | placeholder='\(placeholder)' currentValue=\(currentValue.map { "\($0)" } ?? "nil") hasOverride=\(hasOverride) isDirty=true focused=\(focused) sourceResetToken='\(sourceResetToken)'")
+            }
         )
     }
 
     private func commitIfDirty() {
+        AxisRangeDebug.log("AxisBoundField[\(debugName)] commitIfDirty called | isDirty=\(isDirty) editText='\(editText)' placeholder='\(placeholder)' currentValue=\(currentValue.map { "\($0)" } ?? "nil") hasOverride=\(hasOverride) focused=\(focused) sourceResetToken='\(sourceResetToken)'")
         guard isDirty else { return }
         isDirty = false
         let trimmed = editText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty || trimmed == placeholder {
+        let decision = axisCommitDecision(trimmed: trimmed, currentValue: currentValue)
+        AxisRangeDebug.log("AxisBoundField[\(debugName)] committing | trimmed='\(trimmed)' decision=\(decision) placeholder='\(placeholder)'")
+        switch decision {
+        case .noOp:
+            break
+        case .clear:
             onCommit(nil)
-        } else if let v = Double(trimmed) {
+        case .setValue(let v):
             onCommit(v)
         }
-        // invalid input: leave current state unchanged
     }
 
     private func formatBound(_ v: Double) -> String {
@@ -159,4 +199,37 @@ private struct AxisBoundField: View {
         if abs >= 0.001 && abs < 100_000 { return String(format: "%g", v) }
         return String(format: "%.3e", v)
     }
+}
+
+// MARK: - Axis commit logic (internal for testing)
+
+enum AxisBoundCommitDecision: Equatable, CustomStringConvertible {
+    case noOp
+    case clear
+    case setValue(Double)
+
+    var description: String {
+        switch self {
+        case .noOp: return "noOp"
+        case .clear: return "clear"
+        case .setValue(let v): return "setValue(\(v))"
+        }
+    }
+}
+
+/// Pure decision function for AxisBoundField.commitIfDirty.
+///
+/// - trimmed: editText after whitespace trimming (caller has already confirmed isDirty)
+/// - currentValue: the active override for this bound, nil = auto
+///
+/// Clears only on explicit empty-field gesture. Treats a typed value that matches the
+/// placeholder (auto range shown dimmed) as a real value — the user re-confirmed the
+/// override by typing it. Skips onCommit when the value is already set to the same number.
+func axisCommitDecision(trimmed: String, currentValue: Double?) -> AxisBoundCommitDecision {
+    if trimmed.isEmpty {
+        return currentValue != nil ? .clear : .noOp
+    }
+    guard let parsed = Double(trimmed) else { return .noOp }
+    if let cv = currentValue, parsed == cv { return .noOp }
+    return .setValue(parsed)
 }
