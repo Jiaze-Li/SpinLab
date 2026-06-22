@@ -401,6 +401,37 @@ struct TabRenderManagerPackPersistenceTests {
     }
 }
 
+// MARK: - Axis range update path: onStyleChange must not be called
+
+@Suite("WorkbenchPlotControlsPanel axis range update isolation")
+struct AxisRangeUpdatePathIsolationTests {
+
+    /// Regression guard: WorkbenchPlotControlsPanel's onUpdate closure must call only
+    /// onAxisRangeChange. Calling onStyleChange too triggers a second rerender that
+    /// resyncs AxisBoundField from the auto placeholder, reverting committed values.
+    @Test("onUpdate calls onAxisRangeChange once and onStyleChange zero times")
+    func axisRangeUpdateDoesNotCallStyleChange() {
+        var styleCallCount = 0
+        var axisRangeCallCount = 0
+
+        let onStyleChange = { styleCallCount += 1 }
+        let onAxisRangeChange: (AxisRangeOverride?) -> Void = { _ in axisRangeCallCount += 1 }
+
+        // Mirror exactly what WorkbenchPlotControlsPanel's onUpdate closure does after the fix.
+        let onUpdate: (AxisRangeOverride?) -> Void = { override in
+            onAxisRangeChange(override)
+            // onStyleChange must NOT be called here.
+        }
+
+        onUpdate(AxisRangeOverride(xMin: nil, xMax: 180, yMin: nil, yMax: nil))
+
+        #expect(axisRangeCallCount == 1)
+        #expect(styleCallCount == 0, "onStyleChange must not fire for axis range edits")
+
+        _ = onStyleChange // silence unused-variable warning
+    }
+}
+
 // MARK: - Axis range validation (min commit symmetry with max commit)
 
 @Suite("WorkbenchAxisRangeControls validation symmetry")

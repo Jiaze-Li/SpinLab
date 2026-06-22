@@ -62,7 +62,6 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
                             sourceResetToken: sourceResetToken,
                             onUpdate: { override in
                                 onAxisRangeChange?(override)
-                                onStyleChange?()
                             }
                         )
                     }
