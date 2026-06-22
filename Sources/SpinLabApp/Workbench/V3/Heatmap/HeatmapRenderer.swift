@@ -98,7 +98,7 @@ struct HeatmapRenderer {
         if !payload.title.isEmpty {
             drawCentered(ctx, text: payload.title, at: layout.titleCenter,
                          size: chartStyle.titleFontSize, bold: chartStyle.titleBold, color: black,
-                         fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
+                         chartStyle: chartStyle)
         }
 
         // Heatmap grid cells
@@ -116,10 +116,10 @@ struct HeatmapRenderer {
         // Axis name labels
         drawCentered(ctx, text: payload.xLabel,
                      at: layout.xLabelCenter, size: chartStyle.axisTitleFontSize, bold: false, color: black,
-                     fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
+                     chartStyle: chartStyle)
         drawRotated90(ctx, text: payload.yLabel,
                       at: layout.yLabelCenter, size: chartStyle.axisTitleFontSize, color: black,
-                      fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
+                      chartStyle: chartStyle)
 
         // Colorbar block — rendered only when showColorbar is true
         if layout.showColorbar {
@@ -129,7 +129,7 @@ struct HeatmapRenderer {
                 let zLabel = Self.renderedZLabel(payload.zLabel, mode: colorScale.mode)
                 drawRotated90(ctx, text: zLabel,
                               at: layout.colorbarLabelCenter, size: chartStyle.axisTitleFontSize, color: black,
-                              fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
+                              chartStyle: chartStyle)
             }
         }
     }
@@ -194,7 +194,7 @@ struct HeatmapRenderer {
             drawCentered(ctx, text: entry.label,
                          at: CGPoint(x: cx, y: rect.minY - tickLen - labelGap - 8),
                          size: chartStyle.tickLabelFontSize, bold: false, color: labelColor,
-                         fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
+                         chartStyle: chartStyle)
         }
     }
 
@@ -296,8 +296,25 @@ struct HeatmapRenderer {
 
     private func drawCentered(_ ctx: CGContext, text: String, at center: CGPoint,
                                size: CGFloat, bold: Bool, color: CGColor,
-                               fontName: String, boldFontName: String) {
-        let line   = makeLine(text: text, size: size, bold: bold, color: color, fontName: fontName, boldFontName: boldFontName)
+                               chartStyle: WorkbenchChartStyle) {
+        let line: CTLine
+        if MathMarkupRenderer.isMathLabel(text) {
+            line = MathMarkupRenderer.makeLine(
+                text: MathMarkupRenderer.extractMathMarkup(text),
+                size: size,
+                color: color,
+                style: chartStyle
+            )
+        } else {
+            line = makeLine(
+                text: text,
+                size: size,
+                bold: bold,
+                color: color,
+                fontName: chartStyle.fontName,
+                boldFontName: chartStyle.boldFontName
+            )
+        }
         let bounds = CTLineGetBoundsWithOptions(line, [])
         ctx.textPosition = CGPoint(
             x: center.x - bounds.width / 2 - bounds.minX,
@@ -332,8 +349,25 @@ struct HeatmapRenderer {
 
     private func drawRotated90(_ ctx: CGContext, text: String, at center: CGPoint,
                                 size: CGFloat, color: CGColor,
-                                fontName: String, boldFontName: String) {
-        let line   = makeLine(text: text, size: size, bold: false, color: color, fontName: fontName, boldFontName: boldFontName)
+                                chartStyle: WorkbenchChartStyle) {
+        let line: CTLine
+        if MathMarkupRenderer.isMathLabel(text) {
+            line = MathMarkupRenderer.makeLine(
+                text: MathMarkupRenderer.extractMathMarkup(text),
+                size: size,
+                color: color,
+                style: chartStyle
+            )
+        } else {
+            line = makeLine(
+                text: text,
+                size: size,
+                bold: false,
+                color: color,
+                fontName: chartStyle.fontName,
+                boldFontName: chartStyle.boldFontName
+            )
+        }
         let bounds = CTLineGetBoundsWithOptions(line, [])
         ctx.saveGState()
         ctx.translateBy(x: center.x, y: center.y)

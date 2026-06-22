@@ -6,12 +6,14 @@ struct HeatmapColorScale: Sendable {
     var zMin: Double
     var zMax: Double
     var transform: PlotScaleTransform
-    /// Colormap lookup key. Unknown keys fall back to viridis.
+    /// V1 persists this key as a reserved hook for future colormap variants.
+    /// V1 currently supports only viridis; unknown or non-viridis keys intentionally fall back to viridis.
     var colormapKey: String
 
     // MARK: - Public
 
     /// Maps z to a CGColor using the configured scale and colormap.
+    /// V1 always renders viridis, regardless of colormapKey.
     func color(for z: Double) -> CGColor {
         let t = normalizedValue(for: z)
         return viridisColor(t: t)
@@ -48,7 +50,7 @@ struct HeatmapColorScale: Sendable {
     }
 
     /// Maps a pre-normalized value t ∈ [0, 1] directly to a CGColor, bypassing domain normalization.
-    /// Used by colorbar strip rendering so the gradient matches log-scale tick positions exactly.
+    /// V1 always renders viridis here as well so colorbar strips match the supported colormap.
     func color(forNormalized t: Double) -> CGColor {
         viridisColor(t: t)
     }

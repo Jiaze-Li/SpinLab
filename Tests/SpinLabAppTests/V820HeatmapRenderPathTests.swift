@@ -161,6 +161,17 @@ private func makePayload(
     #expect(rMax > rMin)   // yellow (high r) > dark purple (low r)
 }
 
+@Test("V1 unknown colormap key falls back to viridis")
+func testV1UnknownColormapKeyFallsBackToViridis() {
+    let infernoScale = HeatmapColorScale(zMin: 0, zMax: 10, mode: .linear, colormapKey: "inferno")
+    let viridisScale = HeatmapColorScale(zMin: 0, zMax: 10, mode: .linear, colormapKey: "viridis")
+
+    let infernoColor = infernoScale.color(for: 5)
+    let viridisColor = viridisScale.color(for: 5)
+
+    #expect(infernoColor.components == viridisColor.components)
+}
+
 // MARK: - HeatmapColorScale — log10 mapping
 
 @Test func colorScaleLogMapping() {
@@ -561,6 +572,32 @@ private func makePayload(
     let styledPNG = try HeatmapRenderer().renderPNG(payload: payload, chartStyle: style)
 
     #expect(defaultPNG != styledPNG)
+}
+
+@Test("HeatmapRenderer routes math labels through MathMarkupRenderer")
+func heatmapRendererRoutesMathLabelsThroughMathMarkupRenderer() throws {
+    let root = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    let sourceURL = root.appendingPathComponent("Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapRenderer.swift")
+    let source = try String(contentsOf: sourceURL, encoding: .utf8)
+
+    #expect(source.contains("MathMarkupRenderer.isMathLabel"))
+    #expect(source.contains("MathMarkupRenderer.extractMathMarkup"))
+    #expect(source.contains("MathMarkupRenderer.makeLine"))
+
+    let forbidden = [
+        "LatexAxisLabelRenderer",
+        "LatexAxisLabelRendering",
+        "LegacyAxisLabelRenderer",
+        "LegacyAxisLabelRendering",
+        "DeprecatedMathAxisShim",
+        "latex:",
+    ]
+    for symbol in forbidden {
+        #expect(!source.contains(symbol))
+    }
 }
 
 // MARK: - HeatmapTabRenderState Codable
