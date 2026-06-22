@@ -100,7 +100,8 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
                     .frame(width: 28, alignment: .trailing)
 
                 Text("Gap")
-                    .font(.system(size: 12))
+                    .font(WorkbenchUIStyle.controlLabelFont)
+                    .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
                 TextField("0.15", value: $minGapFraction, format: .number)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 48)
@@ -123,7 +124,18 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
 
             // Row 3: Label overrides — visible when any override callback is wired up
             if onTitleOverride != nil || onXLabelOverride != nil || onYLabelOverride != nil {
-                labelOverrideRow
+                SharedPlotTextControls(
+                    titleOverride: activeTitleOverride,
+                    xLabelOverride: activeXLabelOverride,
+                    yLabelOverride: activeYLabelOverride,
+                    renderedTitle: renderedTitle,
+                    renderedXLabel: renderedXLabel,
+                    renderedYLabel: renderedYLabel,
+                    sourceResetToken: sourceResetToken,
+                    onTitleOverride: { onTitleOverride?($0); onChange?() },
+                    onXLabelOverride: { onXLabelOverride?($0); onChange?() },
+                    onYLabelOverride: { onYLabelOverride?($0); onChange?() }
+                )
             }
 
             // Workflow-specific extra rows
@@ -132,20 +144,6 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
         .onChange(of: activeTab) { _, _ in onChange?() }
     }
 
-    @ViewBuilder
-    private var labelOverrideRow: some View {
-        HStack(spacing: 16) {
-            if let cb = onTitleOverride {
-                LabelOverrideField(label: "Title", renderedDefault: renderedTitle, currentValue: activeTitleOverride, sourceResetToken: sourceResetToken, onCommit: { cb($0); onChange?() }, fieldMaxWidth: 200)
-            }
-            if let cb = onXLabelOverride {
-                LabelOverrideField(label: "X", renderedDefault: renderedXLabel, currentValue: activeXLabelOverride, sourceResetToken: sourceResetToken, onCommit: { cb($0); onChange?() }, fieldMaxWidth: 80)
-            }
-            if let cb = onYLabelOverride {
-                LabelOverrideField(label: "Y", renderedDefault: renderedYLabel, currentValue: activeYLabelOverride, sourceResetToken: sourceResetToken, onCommit: { cb($0); onChange?() }, fieldMaxWidth: 80)
-            }
-        }
-    }
 }
 
 extension WorkbenchStandardPlotControls where Extra == EmptyView {
@@ -250,10 +248,13 @@ struct LabelOverrideField: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Text(label).font(.system(size: 12)).fixedSize()
+            Text(label)
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                .fixedSize()
             TextField("", text: committedTextBinding)
                 .textFieldStyle(.roundedBorder)
-                .font(.system(size: 12))
+                .font(WorkbenchUIStyle.controlValueFont)
                 .foregroundStyle(Color.primary)
                 .frame(minWidth: 40, maxWidth: fieldMaxWidth)
                 .focused($focused)

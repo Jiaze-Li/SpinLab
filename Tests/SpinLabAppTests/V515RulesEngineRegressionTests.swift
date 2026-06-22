@@ -2,8 +2,30 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
-@Suite("V5.1.5 Rules Engine Regression")
+@Suite("V5.1.5 Rules Engine Regression", .serialized)
 struct V515RulesEngineRegressionTests {
+
+    private func writeWorkflowJSON(
+        to url: URL,
+        entries: [(id: String, displayName: String, conditionFieldIDs: [String])]
+    ) throws {
+        let workflows = entries.map { entry -> [String: Any] in
+            [
+                "id": entry.id,
+                "displayName": entry.displayName,
+                "matchRules": [
+                    [
+                        "type": "equals",
+                        "value": entry.id
+                    ]
+                ],
+                "conditionFieldIDs": entry.conditionFieldIDs
+            ]
+        }
+        let json: [String: Any] = ["version": 1, "workflows": workflows, "measurementTagRules": []]
+        let data = try JSONSerialization.data(withJSONObject: json, options: .prettyPrinted)
+        try data.write(to: url)
+    }
 
     // MARK: - Routing (measurement name)
 
@@ -34,8 +56,15 @@ struct V515RulesEngineRegressionTests {
 
     @Test("IV_1w filename routes to IV with harmonic metadata")
     func routingIV1w() throws {
-        withBundledRules { provider in
-            let parser = FilenameRuleParser(ruleSet: provider.ruleSet())
+        try withTempRulesBook(prefix: "SL-route-iv-1w") { paths, _ in
+            try writeWorkflowJSON(
+                to: paths.workflowURL,
+                entries: [
+                    (id: "IV", displayName: "IV", conditionFieldIDs: []),
+                    (id: "3w", displayName: "3w", conditionFieldIDs: [])
+                ]
+            )
+            let parser = FilenameRuleParser(ruleSet: RuleLoader.shared.reloadCached().ruleSet)
             let hints = parser.parse(from: URL(fileURLWithPath: "/data/20260616214105_PN80_001_150deg_IV_1w_0T_sample.lvm"))
             #expect(hints.measurementName == "IV")
             #expect(hints.workflowID == "IV")
@@ -45,12 +74,36 @@ struct V515RulesEngineRegressionTests {
 
     @Test("IV_3w filename routes to IV with harmonic metadata")
     func routingIV3w() throws {
-        withBundledRules { provider in
-            let parser = FilenameRuleParser(ruleSet: provider.ruleSet())
+        try withTempRulesBook(prefix: "SL-route-iv-3w") { paths, _ in
+            try writeWorkflowJSON(
+                to: paths.workflowURL,
+                entries: [
+                    (id: "IV", displayName: "IV", conditionFieldIDs: []),
+                    (id: "3w", displayName: "3w", conditionFieldIDs: [])
+                ]
+            )
+            let parser = FilenameRuleParser(ruleSet: RuleLoader.shared.reloadCached().ruleSet)
             let hints = parser.parse(from: URL(fileURLWithPath: "/data/20260616214105_PN80_001_150deg_IV_3w_0T_sample.lvm"))
             #expect(hints.measurementName == "IV")
             #expect(hints.workflowID == "IV")
             #expect(hints.conditionValues["harmonic"] == "3w")
+            #expect(hints.warnings.contains("Ignored lower match: 3w"))
+        }
+    }
+
+    @Test("3w-only order still routes standalone 3w files to 3w")
+    func routingStandalone3wWithOnly3wWorkflow() throws {
+        try withTempRulesBook(prefix: "SL-route-3w") { paths, _ in
+            try writeWorkflowJSON(
+                to: paths.workflowURL,
+                entries: [
+                    (id: "3w", displayName: "3w", conditionFieldIDs: [])
+                ]
+            )
+            let parser = FilenameRuleParser(ruleSet: RuleLoader.shared.reloadCached().ruleSet)
+            let hints = parser.parse(from: URL(fileURLWithPath: "/data/PN20_3w.dat"))
+            #expect(hints.measurementName == "3w")
+            #expect(hints.workflowID == "3w")
         }
     }
 

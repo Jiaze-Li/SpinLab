@@ -132,8 +132,8 @@ struct V563WorkflowStateBoundaryTests {
         #expect(!labels.contains(where: { $0.localizedCaseInsensitiveContains("reorder") }))
     }
 
-    @Test("Reorderable payloads require sourceRef identity")
-    func reorderablePayloadRequiresSourceRefIdentity() {
+    @Test("Reorderable payloads require unique series identity keys")
+    func reorderablePayloadRequiresUniqueSeriesIdentityKeys() {
         let payload = WorkbenchPlotPayload(
             workflowID: "test",
             workflowDisplayName: "test",
@@ -146,8 +146,9 @@ struct V563WorkflowStateBoundaryTests {
             seriesReorderable: true
         )
 
-        #expect(payload.series.allSatisfy { ($0.sourceRef?.isEmpty == false) })
-        #expect(payload.series.map(\.sourceRef) == ["/tmp/a.csv", "/tmp/b.csv"])
+        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: payload.series)
+        #expect(Set(identities.map(\.identityKey)).count == identities.count)
+        #expect(identities.map(\.identityKey) == ["/tmp/a.csv", "/tmp/b.csv"])
     }
 
     // MARK: - rerenderFieldSweepTabs override isolation (Phase 4 fix)

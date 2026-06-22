@@ -56,6 +56,12 @@ struct FilenameRuleSet: Decodable {
         var transform: String?
     }
 
+    struct MeasurementNameMatch {
+        var value: String
+        var ruleIndex: Int
+        var ignoredLowerMatches: [String]
+    }
+
     struct CompiledConditionDefinition {
         var standardization: ConditionStandardization?
         var rules: [CompiledMapRule]
@@ -206,8 +212,34 @@ struct FilenameRuleSet: Decodable {
     }
 
     func measurementNameWithSource(from tokens: [String]) -> (value: String, ruleRef: String)? {
-        guard let result = firstMatchWithIndex(from: compiled.measurementNameRules, tokens: tokens) else { return nil }
+        guard let result = measurementNameMatch(from: tokens) else { return nil }
         return (result.value, RuleRef.measurementNameRule(index: result.ruleIndex))
+    }
+
+    func measurementNameMatch(from tokens: [String]) -> MeasurementNameMatch? {
+        guard let winner = firstMatchWithIndex(from: compiled.measurementNameRules, tokens: tokens) else {
+            return nil
+        }
+
+        var ignored: [String] = []
+        var seenIgnored: Set<String> = []
+
+        for (idx, rule) in compiled.measurementNameRules.enumerated() where idx > winner.ruleIndex {
+            guard tokens.contains(where: { tokenMatches(token: $0, rule: rule) }) else {
+                continue
+            }
+            guard rule.value != winner.value,
+                  seenIgnored.insert(rule.value).inserted else {
+                continue
+            }
+            ignored.append(rule.value)
+        }
+
+        return MeasurementNameMatch(
+            value: winner.value,
+            ruleIndex: winner.ruleIndex,
+            ignoredLowerMatches: ignored
+        )
     }
 
     func measurementTags(from tokens: [String]) -> [String] {

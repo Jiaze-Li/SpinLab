@@ -56,32 +56,18 @@ private struct AHEPlotControlsPanel: View {
                     .toggleStyle(.checkbox)
                     .padding(.top, 2)
             }
-            HStack(spacing: 10) {
-                LabelOverrideField(
-                    label: "Title",
-                    renderedDefault: ahe.tabs.activeLayout?.chartTitle ?? "",
-                    currentValue: ahe.tabs.activeState.titleOverride,
-                    sourceResetToken: ahe.tabs.activeSourceIdentityKey,
-                    onCommit: { ahe.updatePlotTitle($0) },
-                    fieldMaxWidth: 200
-                )
-                LabelOverrideField(
-                    label: "X",
-                    renderedDefault: ahe.tabs.activeLayout?.xAxisLabel ?? "",
-                    currentValue: ahe.tabs.activeState.xLabelOverride,
-                    sourceResetToken: ahe.tabs.activeSourceIdentityKey,
-                    onCommit: { ahe.updateXAxisLabel($0) },
-                    fieldMaxWidth: 80
-                )
-                LabelOverrideField(
-                    label: "Y",
-                    renderedDefault: ahe.tabs.activeLayout?.yAxisLabel ?? "",
-                    currentValue: ahe.tabs.activeState.yLabelOverride,
-                    sourceResetToken: ahe.tabs.activeSourceIdentityKey,
-                    onCommit: { ahe.updateYAxisLabel($0) },
-                    fieldMaxWidth: 80
-                )
-            }
+            SharedPlotTextControls(
+                titleOverride: ahe.tabs.activeState.titleOverride,
+                xLabelOverride: ahe.tabs.activeState.xLabelOverride,
+                yLabelOverride: ahe.tabs.activeState.yLabelOverride,
+                renderedTitle: ahe.tabs.activeLayout?.chartTitle ?? "",
+                renderedXLabel: ahe.tabs.activeLayout?.xAxisLabel ?? "",
+                renderedYLabel: ahe.tabs.activeLayout?.yAxisLabel ?? "",
+                sourceResetToken: ahe.tabs.activeSourceIdentityKey,
+                onTitleOverride: { ahe.updatePlotTitle($0) },
+                onXLabelOverride: { ahe.updateXAxisLabel($0) },
+                onYLabelOverride: { ahe.updateYAxisLabel($0) }
+            )
             WorkbenchSeriesOrderPanel(
                 payload: ahe.tabs.activeManifestPayload,
                 currentSeriesOrder: ahe.tabs.activeState.seriesOrder,
@@ -90,7 +76,7 @@ private struct AHEPlotControlsPanel: View {
                 allowsReordering: false,
                 seriesLabelOverrides: ahe.tabs.activeSeriesLabelOverrides,
                 onRenameLabel: { key, label in
-                    ahe.updateSeriesLabel(sampleID: key, newLabel: label)
+                    ahe.updateSeriesLabel(identityKey: key, newLabel: label)
                 }
             )
         }

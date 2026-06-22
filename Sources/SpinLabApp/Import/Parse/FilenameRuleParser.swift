@@ -46,7 +46,7 @@ struct FilenameRuleParser {
         let parentTokens = tokenize(parentName)
         let grandparentTokens = tokenize(grandparentName)
         let conditionFileTokens = conditionTokens(from: fileTokens)
-        let explicitWorkflowOverride = explicitWorkflowMeasurement(from: fileScopeTokens)
+        let measurementMatch = ruleSet.measurementNameMatch(from: fileScopeTokens)
 
         // Scoped context: pre-channel file tokens + folder tokens.
         // Used for sample ID, measurement name, substrate tags — avoids pulling
@@ -80,7 +80,7 @@ struct FilenameRuleParser {
         let allSampleIDs = uniquePreservingOrder(fileSampleIDs + folderSampleIDs)
 
         let measurement = preferredValue(
-            fileValue: explicitWorkflowOverride?.value ?? ruleSet.measurementName(from: fileScopeTokens),
+            fileValue: measurementMatch?.value,
             folderValue: ruleSet.measurementName(from: folderContextTokens),
             fallbackValue: ruleSet.measurementName(from: scopedContextTokens)
         )
@@ -104,17 +104,19 @@ struct FilenameRuleParser {
             folderSampleIDs: folderSampleIDs,
             channelHints: channelHints
         )
+        var routingWarnings: [String] = []
+        if let measurementMatch {
+            routingWarnings = measurementMatch.ignoredLowerMatches.map { "Ignored lower match: \($0)" }
+        }
         let fileSampleKey = fileSampleResolution.key
         let warnings = uniquePreservingOrder(
             ruleSet.loadWarnings
-                + conditionEvaluation.warnings
-                + fileSampleResolution.warnings
-                + conflictWarnings(fileSampleIDs: fileSampleIDs, folderSampleIDs: folderSampleIDs)
+            + conditionEvaluation.warnings
+            + fileSampleResolution.warnings
+            + routingWarnings
+            + conflictWarnings(fileSampleIDs: fileSampleIDs, folderSampleIDs: folderSampleIDs)
         )
-        var conditionValues = conditionEvaluation.values
-        if let harmonic = harmonicMetadata(from: fileTokens, workflowID: measurement) {
-            conditionValues["harmonic"] = harmonic.value
-        }
+        let conditionValues = conditionEvaluation.values
         var hintSources: [String: String] = [:]
 
         let fileSampleIDsWithSources = ruleSet.sampleIDsWithSources(from: fileScopeTokens)
@@ -188,16 +190,9 @@ struct FilenameRuleParser {
                 ?? "singleChannelPromotion"
         }
 
-        if let explicitWorkflowOverride {
-            hintSources["workflowID"] = explicitWorkflowOverride.ruleRef
-            hintSources["measurementName"] = explicitWorkflowOverride.ruleRef
-        } else if let measurementWithSource = ruleSet.measurementNameWithSource(from: fileScopeTokens) {
+        if let measurementWithSource = ruleSet.measurementNameWithSource(from: fileScopeTokens) {
             hintSources["workflowID"] = measurementWithSource.ruleRef
             hintSources["measurementName"] = measurementWithSource.ruleRef
-        }
-
-        if let harmonic = harmonicMetadata(from: fileTokens, workflowID: measurement) {
-            hintSources["condition.harmonic"] = harmonic.ruleRef
         }
 
         return SpinLabDomain.ParsedFilenameHints(
@@ -434,26 +429,6 @@ struct FilenameRuleParser {
         }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private func explicitWorkflowMeasurement(from tokens: [String]) -> (value: String, ruleRef: String)? {
-        guard tokens.contains(where: { $0.caseInsensitiveCompare("IV") == .orderedSame }) else {
-            return nil
-        }
-        return ("IV", "filename:workflowToken@IV")
-    }
-
-    private func harmonicMetadata(from tokens: [String], workflowID: String?) -> (value: String, ruleRef: String)? {
-        guard workflowID?.caseInsensitiveCompare("IV") == .orderedSame else {
-            return nil
-        }
-        guard let harmonic = tokens.first(where: {
-            $0.caseInsensitiveCompare("1w") == .orderedSame || $0.caseInsensitiveCompare("3w") == .orderedSame
-        }) else {
-            return nil
-        }
-        let normalized = harmonic.lowercased()
-        return (normalized, "filename:harmonicToken@\(normalized)")
     }
 
     private func sampleName(fileSampleKey: String?, substrateTags: [String]) -> String? {

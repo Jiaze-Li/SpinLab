@@ -18,6 +18,8 @@ enum WorkflowWorkspaceRegistry {
             XYRotationWorkspaceView()
         case "iv":
             IVWorkspaceView()
+        case "rsm":
+            RSMWorkspaceView()
         default:
             UnsupportedWorkspaceView(workflowID: workflowID)
         }

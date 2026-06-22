@@ -55,9 +55,16 @@ struct WorkflowSection: View {
         saveErrors: [RulesPanelFieldError]
     ) -> some View {
         GroupBox("Workflows") {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(d.workflows.indices, id: \.self) { idx in
-                    workflowRow(d: d, idx: idx, saveErrors: saveErrors)
+            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                Text("Workflow order defines routing priority. First matching workflow wins.")
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(d.workflows) { entry in
+                        workflowRow(d: d, entry: entry, saveErrors: saveErrors)
+                    }
                 }
 
                 Button("+ Add Workflow") {
@@ -80,7 +87,7 @@ struct WorkflowSection: View {
             Text("New Workflow")
                 .font(AppFontScale.sectionHeader)
             Text("Enter a unique ID. This cannot be changed after creation.")
-                .font(.caption)
+                .font(.callout)
                 .foregroundStyle(.secondary)
 
             TextField("workflow id", text: $newWorkflowIDInput)
@@ -90,7 +97,7 @@ struct WorkflowSection: View {
 
             if let err = addWorkflowError {
                 Text(err)
-                    .font(.caption)
+                    .font(.callout)
                     .foregroundStyle(.red)
             }
 
@@ -138,51 +145,56 @@ struct WorkflowSection: View {
     @ViewBuilder
     private func workflowRow(
         d: WorkflowFileDraft,
-        idx: Int,
+        entry: WorkflowFileDraft.WorkflowEntry,
         saveErrors: [RulesPanelFieldError]
     ) -> some View {
-        let entry = d.workflows[idx]
-        let isExpanded = expandedWorkflowID == entry.id
-        let rowHasError = saveErrors.hasRow(group: "workflows", key: entry.id)
-        let count = entry.matchRules.count
+        if let idx = workflowIndex(for: entry.id, in: d) {
+            let isExpanded = expandedWorkflowID == entry.id
+            let rowHasError = saveErrors.hasRow(group: "workflows", key: entry.id)
+            let count = entry.matchRules.count
 
-        RuleExpandableRow(
-            title: entry.id,
-            subtitle: "\(count) rule\(count == 1 ? "" : "s")",
-            isExpanded: isExpanded,
-            rowHasError: rowHasError,
-            deleteAccessibilityLabel: "Delete workflow",
-            onToggle: {
-                expandedWorkflowID = isExpanded ? nil : entry.id
-            },
-            onDelete: { requestDeleteWorkflow(id: entry.id) }
-        ) {
-            workflowDetail(d: d, idx: idx)
+            RuleExpandableRow(
+                title: entry.id,
+                subtitle: "\(count) rule\(count == 1 ? "" : "s")",
+                isExpanded: isExpanded,
+                rowHasError: rowHasError,
+                deleteAccessibilityLabel: "Delete workflow",
+                onMoveUp: idx > 0 ? { moveWorkflow(id: entry.id, offset: -1) } : nil,
+                onMoveDown: idx < d.workflows.count - 1 ? { moveWorkflow(id: entry.id, offset: 1) } : nil,
+                onToggle: {
+                    expandedWorkflowID = isExpanded ? nil : entry.id
+                },
+                onDelete: { requestDeleteWorkflow(id: entry.id) }
+            ) {
+                workflowDetail(d: d, workflowID: entry.id)
+            }
         }
     }
 
     @ViewBuilder
-    private func workflowDetail(d: WorkflowFileDraft, idx: Int) -> some View {
-        let entry = d.workflows[idx]
+    private func workflowDetail(d: WorkflowFileDraft, workflowID: String) -> some View {
+        if let idx = workflowIndex(for: workflowID, in: d) {
+            let entry = d.workflows[idx]
 
-        VStack(alignment: .leading, spacing: AppSpacing.md) {
-            LabeledContent("Display Name") {
-                TextField(
-                    "display name",
-                    text: Binding(
-                        get: { entry.displayName },
-                        set: { newValue in
-                            var updated = d
-                            updated.workflows[idx].displayName = newValue
-                            apply(updated)
-                        }
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                LabeledContent("Display Name") {
+                    TextField(
+                        "display name",
+                        text: Binding(
+                            get: { entry.displayName },
+                            set: { newValue in
+                                var updated = d
+                                updated.workflows[idx].displayName = newValue
+                                apply(updated)
+                            }
+                        )
                     )
-                )
-                .textFieldStyle(.roundedBorder)
-            }
+                    .textFieldStyle(.roundedBorder)
+                }
 
-            workflowMatchRulesEditor(d: d, idx: idx)
-            conditionFieldIDsEditor(d: d, idx: idx)
+                workflowMatchRulesEditor(d: d, idx: idx)
+                conditionFieldIDsEditor(d: d, idx: idx)
+            }
         }
     }
 
@@ -228,7 +240,7 @@ struct WorkflowSection: View {
 
             if store.availableConditionFieldIDs.isEmpty {
                 Text("No available condition field IDs")
-                    .font(.caption)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
                 LazyVGrid(
@@ -301,6 +313,21 @@ struct WorkflowSection: View {
             expandedWorkflowID = nil
         }
         pendingDeleteWorkflowID = nil
+    }
+
+    private func moveWorkflow(id: String, offset: Int) {
+        guard var updated = draft,
+              let currentIndex = updated.workflows.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        let nextIndex = currentIndex + offset
+        guard updated.workflows.indices.contains(nextIndex) else { return }
+        updated.workflows.swapAt(currentIndex, nextIndex)
+        apply(updated)
+    }
+
+    private func workflowIndex(for id: String, in draft: WorkflowFileDraft) -> Int? {
+        draft.workflows.firstIndex(where: { $0.id == id })
     }
 
     private func deleteConfirmTitle() -> String {

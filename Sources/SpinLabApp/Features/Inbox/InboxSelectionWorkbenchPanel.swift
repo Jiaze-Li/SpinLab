@@ -16,14 +16,23 @@ struct InboxSelectionWorkbenchPanel: View {
         newProjectName: ""
     )
     @State private var routingDraft = PendingRoutingDraft(fileSampleKey: "", channelSampleKeyOverrides: [:])
-    @State private var localRoutingRefreshTick: Int = 0
     @State private var isPresentingTagsMissingConfirm = false
     private var routingSnapshot: SpinLabDomain.PendingRoutingSnapshot {
-        _ = localRoutingRefreshTick
-        return appState.pendingRoutingSnapshot(for: pending)
+        appState.pendingRoutingPreviewSnapshot(
+            for: pending,
+            routingDraft: routingDraft,
+            sampleName: draft.sampleName
+        )
+    }
+    private var routingPresentation: PendingRoutePresentation {
+        appState.pendingRoutePresentation(
+            for: pending,
+            routingDraft: routingDraft,
+            sampleName: draft.sampleName
+        )
     }
     private var routePlan: SpinLabDomain.RoutePlan { routingSnapshot.routePlan }
-    private var warnings: [PendingDisplayWarning] { appState.pendingDisplayWarningItems(for: pending) }
+    private var warnings: [PendingDisplayWarning] { routingPresentation.warningItems }
     private var visibleWarnings: [String] {
         warnings
             .map(displayText(for:))
@@ -228,7 +237,7 @@ struct InboxSelectionWorkbenchPanel: View {
                     if !missingTagLabelsForDraft.isEmpty {
                         isPresentingTagsMissingConfirm = true
                     } else {
-                        applySelected()
+                        scheduleImmediateApplySelected()
                     }
                 }
                     .buttonStyle(.borderedProminent)
@@ -261,7 +270,7 @@ struct InboxSelectionWorkbenchPanel: View {
             titleVisibility: .visible
         ) {
             Button("Confirm") {
-                applySelected()
+                scheduleImmediateApplySelected()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -319,6 +328,18 @@ struct InboxSelectionWorkbenchPanel: View {
         }
     }
 
+    private func scheduleImmediateApplySelected() {
+        commitActiveEditor()
+        Task { @MainActor in
+            // Give AppKit/IME a short window to flush editor text into SwiftUI binding.
+            await Task.yield()
+            await Task.yield()
+            try? await Task.sleep(nanoseconds: 60_000_000)
+            performSaveDraft()
+            applySelected()
+        }
+    }
+
     private func performSaveDraft() {
         draft.sampleName = normalizedSampleDisplay(draft.sampleName)
         var nextRoutingDraft = routingDraft
@@ -335,7 +356,6 @@ struct InboxSelectionWorkbenchPanel: View {
         appState.saveRoutingDraft(nextRoutingDraft, for: pending.id)
         appState.refreshPendingDrawerMatches(for: [pending.id])
         routingDraft = appState.routingDraft(for: pending)
-        localRoutingRefreshTick &+= 1
         persistDraftState()
     }
 

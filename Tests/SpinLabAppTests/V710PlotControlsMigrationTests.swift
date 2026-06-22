@@ -73,6 +73,66 @@ private func makeMinimalPipelineOutput(payload: WorkbenchPlotPayload) throws -> 
     return try WorkbenchRenderPipeline.render(input)
 }
 
+private func makeSeriesPayload(
+    title: String = "Test",
+    series: [WorkbenchPlotSeries],
+    semanticParams: [String: String] = [:]
+) -> WorkbenchPlotPayload {
+    WorkbenchPlotPayload(
+        schemaVersion: 1,
+        workflowID: "test",
+        workflowDisplayName: "Test",
+        title: title,
+        axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R (Ω)"),
+        series: series,
+        semanticParams: semanticParams,
+        styleParams: [:]
+    )
+}
+
+private func makeDuplicateSamplePayload(
+    sourceRefs: [String?],
+    angles: [String],
+    currents: [String],
+    labels: [String]? = nil,
+    seriesReorderable: Bool = true
+) -> WorkbenchPlotPayload {
+    let series = zip(zip(sourceRefs, angles), currents).enumerated().map { index, triple in
+        let sourceRef = triple.0.0
+        let angle = triple.0.1
+        let current = triple.1
+        let label = labels?[index] ?? angle
+        return WorkbenchPlotSeries(
+            label: label,
+            x: [0, 1, 2],
+            y: [Double(index), Double(index + 1), Double(index + 2)],
+            sourceRef: sourceRef,
+            sampleID: "PN80 STO001",
+            renderMode: .line,
+            renderModeLocked: false,
+            pointLabels: [],
+            lineWidth: 1.5,
+            metadata: [
+                "angle": angle,
+                "current": current
+            ]
+        )
+    }
+    return WorkbenchPlotPayload(
+        schemaVersion: 1,
+        workflowID: "3w",
+        workflowDisplayName: "3w",
+        title: "Duplicate sampleID",
+        axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R (Ω)"),
+        series: series,
+        semanticParams: ["deviceMode": "angleSweep", "device": "", "tabKey": "fieldSweep1omega"],
+        styleParams: [:],
+        legendDimension: nil,
+        reverseSeriesForLegend: true,
+        seriesReorderable: seriesReorderable
+    )
+}
+
 // MARK: - Suite 1: Stale override reset on identity change
 
 @Suite("V7.10 Stale override auto-reset")
@@ -81,7 +141,7 @@ struct V710StaleOverrideResetTests {
     private enum TestTab: String, Hashable, Sendable { case main }
 
     @MainActor
-    @Test("Source identity change clears stale text overrides before render input is built")
+    @Test("Source identity change clears stale title and axis overrides while retaining live series labels")
     func staleTextOverridesClearBeforeRenderInputBuild() throws {
         let manager = TabRenderManager<TestTab>(defaultTab: .main)
 
@@ -108,7 +168,7 @@ struct V710StaleOverrideResetTests {
             titleOverride: "My Title",
             xLabelOverride: "My X",
             yLabelOverride: "My Y",
-            seriesLabelOverrides: ["sample-a": "Renamed A"],
+            seriesLabelOverrides: ["/tmp/sample-a.dat": "Renamed A"],
             seriesOrder: ["key-b", "key-a"]
         )
 
@@ -119,7 +179,7 @@ struct V710StaleOverrideResetTests {
         #expect(inputB.titleOverride == "")
         #expect(inputB.xLabelOverride == "")
         #expect(inputB.yLabelOverride == "")
-        #expect(inputB.seriesLabelOverrides.isEmpty)
+        #expect(inputB.seriesLabelOverrides == [0: "Renamed A"])
         #expect(inputB.legendPoint?.x == 0.25)
         #expect(inputB.legendPoint?.y == 0.75)
         #expect(inputB.seriesOrder == ["key-b", "key-a"])
@@ -127,10 +187,9 @@ struct V710StaleOverrideResetTests {
         let outputB = try WorkbenchRenderPipeline.render(inputB)
 
         #expect(outputB.manifestPayload.title == payloadB.title)
-        #expect(manager.state(for: .main).titleOverride == "")
         #expect(manager.state(for: .main).xLabelOverride == "")
         #expect(manager.state(for: .main).yLabelOverride == "")
-        #expect(manager.state(for: .main).seriesLabelOverrides.isEmpty)
+        #expect(manager.state(for: .main).seriesLabelOverrides == ["/tmp/sample-a.dat": "Renamed A"])
         #expect(manager.state(for: .main).legendPoint?.cgPoint == CGPoint(x: 0.25, y: 0.75))
         #expect(manager.state(for: .main).seriesOrder == ["key-b", "key-a"])
     }
@@ -199,6 +258,224 @@ struct V710StaleOverrideResetTests {
     }
 
     @MainActor
+    @Test("Pruned legend overrides stay with retained identities and do not revive for re-added series")
+    func retainedSeriesKeepLabelsWhileRemovedSeriesArePruned() throws {
+        let manager = TabRenderManager<TestTab>(defaultTab: .main)
+
+        let seriesA = WorkbenchPlotSeries(label: "A", x: [0], y: [0], sourceRef: "/tmp/a.csv", sampleID: "sample-a")
+        let seriesB = WorkbenchPlotSeries(label: "B", x: [0], y: [0], sourceRef: "/tmp/b.csv", sampleID: "sample-b")
+        let seriesC = WorkbenchPlotSeries(label: "C", x: [0], y: [0], sourceRef: "/tmp/c.csv", sampleID: "sample-c")
+        let seriesD = WorkbenchPlotSeries(label: "D", x: [0], y: [0], sourceRef: "/tmp/d.csv", sampleID: "sample-d")
+
+        let payloadABC = makeSeriesPayload(series: [seriesA, seriesB, seriesC], semanticParams: ["temperature": "80K"])
+        manager.applyPipelineOutput(try makeMinimalPipelineOutput(payload: payloadABC), for: .main)
+        manager.updateSeriesLabel(identityKey: "/tmp/a.csv", newLabel: "1")
+        manager.updateSeriesLabel(identityKey: "/tmp/b.csv", newLabel: "2")
+        manager.updateSeriesLabel(identityKey: "/tmp/c.csv", newLabel: "3")
+
+        let payloadABCD = makeSeriesPayload(series: [seriesA, seriesB, seriesC, seriesD], semanticParams: ["temperature": "100K"])
+        let outputABCD = try WorkbenchRenderPipeline.render(manager.buildPipelineInput(payload: payloadABCD, for: .main))
+        manager.applyPipelineOutput(outputABCD, for: .main)
+        #expect(manager.state(for: .main).seriesLabelOverrides == [
+            "/tmp/a.csv": "1",
+            "/tmp/b.csv": "2",
+            "/tmp/c.csv": "3"
+        ])
+        #expect(outputABCD.manifestPayload.series.map(\.label) == ["1", "2", "3", "D"])
+
+        let payloadABD = makeSeriesPayload(series: [seriesA, seriesB, seriesD], semanticParams: ["temperature": "120K"])
+        let outputABD = try WorkbenchRenderPipeline.render(manager.buildPipelineInput(payload: payloadABD, for: .main))
+        manager.applyPipelineOutput(outputABD, for: .main)
+        #expect(manager.state(for: .main).seriesLabelOverrides == [
+            "/tmp/a.csv": "1",
+            "/tmp/b.csv": "2"
+        ])
+        #expect(outputABD.manifestPayload.series.map(\.label) == ["1", "2", "D"])
+
+        let payloadReaddedC = makeSeriesPayload(series: [seriesA, seriesB, seriesD, seriesC], semanticParams: ["temperature": "140K"])
+        let outputReaddedC = try WorkbenchRenderPipeline.render(manager.buildPipelineInput(payload: payloadReaddedC, for: .main))
+        manager.applyPipelineOutput(outputReaddedC, for: .main)
+        #expect(manager.state(for: .main).seriesLabelOverrides == [
+            "/tmp/a.csv": "1",
+            "/tmp/b.csv": "2"
+        ])
+        #expect(outputReaddedC.manifestPayload.series.map(\.label) == ["1", "2", "D", "C"])
+    }
+
+    @MainActor
+    @Test("Legend label overrides stay attached across reorder and front insertion")
+    func labelOverridesStayAttachedAcrossReorderAndFrontInsertion() throws {
+        let manager = TabRenderManager<TestTab>(defaultTab: .main)
+
+        let seriesA = WorkbenchPlotSeries(label: "A", x: [0], y: [0], sourceRef: "/tmp/a.csv", sampleID: "sample-a")
+        let seriesB = WorkbenchPlotSeries(label: "B", x: [0], y: [0], sourceRef: "/tmp/b.csv", sampleID: "sample-b")
+        let seriesD = WorkbenchPlotSeries(label: "D", x: [0], y: [0], sourceRef: "/tmp/d.csv", sampleID: "sample-d")
+
+        let basePayload = makeSeriesPayload(series: [seriesA, seriesB], semanticParams: ["temperature": "80K"])
+        manager.applyPipelineOutput(try makeMinimalPipelineOutput(payload: basePayload), for: .main)
+        manager.updateSeriesLabel(identityKey: "/tmp/a.csv", newLabel: "1")
+        manager.updateSeriesLabel(identityKey: "/tmp/b.csv", newLabel: "2")
+
+        let reorderedPayload = makeSeriesPayload(series: [seriesB, seriesA], semanticParams: ["temperature": "100K"])
+        let reorderedOutput = try WorkbenchRenderPipeline.render(manager.buildPipelineInput(payload: reorderedPayload, for: .main))
+        manager.applyPipelineOutput(reorderedOutput, for: .main)
+        #expect(reorderedOutput.manifestPayload.series.map(\.label) == ["2", "1"])
+        #expect(manager.state(for: .main).seriesLabelOverrides == [
+            "/tmp/a.csv": "1",
+            "/tmp/b.csv": "2"
+        ])
+
+        let frontInsertedPayload = makeSeriesPayload(series: [seriesD, seriesA, seriesB], semanticParams: ["temperature": "120K"])
+        let frontInsertedOutput = try WorkbenchRenderPipeline.render(manager.buildPipelineInput(payload: frontInsertedPayload, for: .main))
+        manager.applyPipelineOutput(frontInsertedOutput, for: .main)
+        #expect(frontInsertedOutput.manifestPayload.series.map(\.label) == ["D", "1", "2"])
+        #expect(manager.state(for: .main).seriesLabelOverrides == [
+            "/tmp/a.csv": "1",
+            "/tmp/b.csv": "2"
+        ])
+    }
+
+    @MainActor
+    @Test("Duplicate sampleIDs keep rename overrides isolated by stable sourceRef identity")
+    func duplicateSampleIDsKeepRenameOverridesIsolated() throws {
+        let manager = TabRenderManager<TestTab>(defaultTab: .main)
+        let payload = makeSeriesPayload(series: [
+            WorkbenchPlotSeries(label: "Top", x: [0], y: [0], sourceRef: "/tmp/top.csv", sampleID: "sample-1"),
+            WorkbenchPlotSeries(label: "Bottom", x: [0], y: [0], sourceRef: "/tmp/bottom.csv", sampleID: "sample-1")
+        ], semanticParams: ["temperature": "80K"])
+
+        let rows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        #expect(rows.map(\.identityKey) == ["/tmp/top.csv", "/tmp/bottom.csv"])
+        #expect(rows.allSatisfy { $0.sampleID == "sample-1" })
+
+        manager.tabStates[.main] = TabRenderState(
+            seriesLabelOverrides: ["/tmp/top.csv": "Top renamed"]
+        )
+
+        let input = manager.buildPipelineInput(payload: payload, for: .main)
+        #expect(input.seriesLabelOverrides == [0: "Top renamed"])
+        #expect(input.payload.series.map(\.label) == ["Top", "Bottom"], "payload input itself must remain untouched")
+
+        let output = try WorkbenchRenderPipeline.render(input)
+        #expect(output.manifestPayload.series.map(\.label) == ["Top renamed", "Bottom"])
+        #expect(manager.state(for: .main).seriesLabelOverrides == ["/tmp/top.csv": "Top renamed"])
+        #expect(manager.state(for: .main).seriesLabelOverrides["/tmp/bottom.csv"] == nil)
+    }
+
+    @MainActor
+    @Test("Duplicate sampleID series with missing sourceRef still get unique identity keys")
+    func duplicateSampleIDsWithoutSourceRefsStayUnique() throws {
+        let payload = makeDuplicateSamplePayload(
+            sourceRefs: [nil, nil, nil, nil, nil, nil],
+            angles: ["0deg", "30deg", "60deg", "90deg", "120deg", "150deg"],
+            currents: ["1mA", "1mA", "1mA", "1mA", "1mA", "1mA"]
+        )
+
+        let rows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        let keys = rows.map(\.identityKey)
+        #expect(rows.count == 6)
+        #expect(Set(keys).count == keys.count)
+        #expect(rows.allSatisfy { $0.sampleID == "PN80 STO001" })
+    }
+
+    @MainActor
+    @Test("Renaming one duplicate sampleID chip changes only that series")
+    func duplicateSampleIDRenameTouchesOnlyOneSeries() throws {
+        let manager = TabRenderManager<TestTab>(defaultTab: .main)
+        let payload = makeDuplicateSamplePayload(
+            sourceRefs: [nil, nil, nil, nil, nil, nil],
+            angles: ["0deg", "30deg", "60deg", "90deg", "120deg", "150deg"],
+            currents: ["1mA", "2mA", "3mA", "4mA", "5mA", "6mA"]
+        )
+        let rows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        let target = rows.first(where: { $0.label == "60deg" })!
+        let baseline = try makeMinimalPipelineOutput(payload: payload)
+        manager.applyPipelineOutput(baseline, for: .main)
+
+        manager.updateSeriesLabel(identityKey: target.identityKey, newLabel: "Renamed 60deg")
+        let input = manager.buildPipelineInput(payload: payload, for: .main)
+        let output = try WorkbenchRenderPipeline.render(input)
+
+        #expect(input.seriesLabelOverrides.count == 1)
+        #expect(input.seriesLabelOverrides.values.first == "Renamed 60deg")
+        #expect(output.manifestPayload.series.count == baseline.manifestPayload.series.count)
+        #expect(output.manifestPayload.series.enumerated().allSatisfy { index, series in
+            index == target.originalIndex ? series.label == "Renamed 60deg" : series.label == baseline.manifestPayload.series[index].label
+        })
+    }
+
+    @MainActor
+    @Test("toIndexedOverrides maps a renamed duplicate-sampleID key to one index")
+    func renamedDuplicateSampleIDMapsToOneIndex() throws {
+        let payload = makeDuplicateSamplePayload(
+            sourceRefs: [nil, nil, nil, nil, nil, nil],
+            angles: ["0deg", "30deg", "60deg", "90deg", "120deg", "150deg"],
+            currents: ["1mA", "2mA", "3mA", "4mA", "5mA", "6mA"]
+        )
+        let rows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        let target = rows.first(where: { $0.label == "60deg" })!
+        let overrides = toIndexedOverrides([target.identityKey: "Renamed 60deg"], series: payload.series)
+
+        #expect(overrides.count == 1)
+        #expect(overrides[target.originalIndex] == "Renamed 60deg")
+    }
+
+    @MainActor
+    @Test("normalizeSeriesLabelOverrides keeps only valid unique keys")
+    func normalizedOverridesKeepOnlyValidKeys() throws {
+        let payload = makeDuplicateSamplePayload(
+            sourceRefs: [nil, nil, nil, nil, nil, nil],
+            angles: ["0deg", "30deg", "60deg", "90deg", "120deg", "150deg"],
+            currents: ["1mA", "2mA", "3mA", "4mA", "5mA", "6mA"]
+        )
+        let rows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        let target = rows.first(where: { $0.label == "60deg" })!
+        let normalized = normalizedSeriesLabelOverrides([
+            target.identityKey: "Renamed 60deg",
+            "bogus": "Drop me"
+        ], series: payload.series)
+
+        #expect(normalized == [target.identityKey: "Renamed 60deg"])
+    }
+
+    @MainActor
+    @Test("User rename does not change identityKey across rerenders")
+    func userRenameDoesNotChangeIdentityKey() throws {
+        let manager = TabRenderManager<TestTab>(defaultTab: .main)
+        let payload = makeDuplicateSamplePayload(
+            sourceRefs: [nil, nil, nil, nil, nil, nil],
+            angles: ["0deg", "30deg", "60deg", "90deg", "120deg", "150deg"],
+            currents: ["1mA", "2mA", "3mA", "4mA", "5mA", "6mA"]
+        )
+        let rowsBefore = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        let target = rowsBefore.first(where: { $0.label == "60deg" })!
+        manager.tabStates[.main] = TabRenderState(seriesLabelOverrides: [target.identityKey: "Renamed 60deg"])
+
+        let rowsAfter = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        #expect(rowsBefore.map(\.identityKey) == rowsAfter.map(\.identityKey))
+    }
+
+    @MainActor
+    @Test("Re-render with the same payload preserves a duplicate-sampleID rename mapping")
+    func rerenderPreservesDuplicateSampleIDRenameMapping() throws {
+        let manager = TabRenderManager<TestTab>(defaultTab: .main)
+        let payload = makeDuplicateSamplePayload(
+            sourceRefs: [nil, nil, nil, nil, nil, nil],
+            angles: ["0deg", "30deg", "60deg", "90deg", "120deg", "150deg"],
+            currents: ["1mA", "2mA", "3mA", "4mA", "5mA", "6mA"]
+        )
+        let rows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
+        let target = rows.first(where: { $0.label == "60deg" })!
+        manager.tabStates[.main] = TabRenderState(seriesLabelOverrides: [target.identityKey: "Renamed 60deg"])
+
+        let first = manager.buildPipelineInput(payload: payload, for: .main)
+        let second = manager.buildPipelineInput(payload: payload, for: .main)
+        #expect(first.seriesLabelOverrides == second.seriesLabelOverrides)
+        #expect(first.seriesLabelOverrides.count == 1)
+        #expect(first.seriesLabelOverrides.values.first == "Renamed 60deg")
+    }
+
+    @MainActor
     @Test("Style-only rerender preserves text overrides (same identity)")
     func styleOnlyRerenderPreservesOverrides() throws {
         let manager = TabRenderManager<TestTab>(defaultTab: .main)
@@ -211,14 +488,14 @@ struct V710StaleOverrideResetTests {
 
         // Set overrides
         manager.updateTitleOverride("Keep This")
-        manager.updateSeriesLabel(sampleID: "sample-a", newLabel: "Preserved Label")
+        manager.updateSeriesLabel(identityKey: "/tmp/sample-a.dat", newLabel: "Preserved Label")
 
         // Re-render with same payload (style change scenario)
         let output2 = try makeMinimalPipelineOutput(payload: payload)
         manager.applyPipelineOutput(output2, for: .main)
 
         #expect(manager.state(for: .main).titleOverride == "Keep This")
-        #expect(manager.state(for: .main).seriesLabelOverrides["sample-a"] == "Preserved Label")
+        #expect(manager.state(for: .main).seriesLabelOverrides["/tmp/sample-a.dat"] == "Preserved Label")
     }
 
     @MainActor
@@ -256,7 +533,7 @@ struct V710LegendRenameOrderCoexistenceTests {
         let store = ThreeOmegaWorkspaceStore()
         store.tabs.tabStates[.fieldSweep1omega] = TabRenderState(seriesOrder: ["ref-b", "ref-a"])
 
-        store.updateSeriesLabel(sampleID: "sample-a", newLabel: "Renamed")
+        store.updateSeriesLabel(identityKey: "sample-a", newLabel: "Renamed")
 
         #expect(store.tabs.state(for: .fieldSweep1omega).seriesOrder == ["ref-b", "ref-a"])
         #expect(store.tabs.state(for: .fieldSweep1omega).seriesLabelOverrides["sample-a"] == "Renamed")

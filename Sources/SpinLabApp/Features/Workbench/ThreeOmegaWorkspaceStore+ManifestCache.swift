@@ -138,7 +138,8 @@ extension ThreeOmegaWorkspaceStore {
                 .joined(separator: ",")
             return makePayload(
                 title: resolveTitle("Scaling Law") + " (\(methodTag))",
-                xField: "σ²_xx (S²/m²)", yField: "E(3ω)_AHE / (E³_xx · σ_xx)",
+                xField: ThreeOmegaPlotRenderer.scalingXAxisLabel,
+                yField: ThreeOmegaPlotRenderer.scalingYAxisLabel,
                 files: inputFiles,
                 extraParams: ["v3method": methodTag, "fitRanges": rangeSig]
             )
@@ -219,10 +220,13 @@ extension ThreeOmegaWorkspaceStore {
                 titleTokens: _titleTokens,
                 v3Method: v3Method
             )
-            if let rawPayload, rawPayload.seriesReorderable, rawPayload.series.contains(where: { ($0.sourceRef?.isEmpty ?? true) }) {
-                let message = "Reorderable \(tab.stableKey) manifest payload missing sourceRef."
-                assertionFailure(message)
-                appendWarning(source: "Manifest", message: message)
+            if let rawPayload, rawPayload.seriesReorderable {
+                let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: rawPayload.series)
+                if Set(identities.map(\.identityKey)).count != identities.count {
+                    let message = "Reorderable \(tab.stableKey) manifest payload has duplicate series identity keys."
+                    assertionFailure(message)
+                    appendWarning(source: "Manifest", message: message)
+                }
             }
             // Apply per-tab text overrides (same patch contract as _rerenderActiveTab).
             let payload: WorkbenchPlotPayload? = {
@@ -232,19 +236,13 @@ extension ThreeOmegaWorkspaceStore {
                 if !s.xLabelOverride.isEmpty { p.axisMapping.xField = s.xLabelOverride }
                 if !s.yLabelOverride.isEmpty { p.axisMapping.yField = s.yLabelOverride }
                 if !s.seriesLabelOverrides.isEmpty {
-                    p.series = p.series.map { series in
-                        guard let sid = series.sampleID,
-                              let renamed = s.seriesLabelOverrides[sid] else { return series }
-                        var copy = series
-                        copy.label = renamed
-                        return copy
-                    }
+                    p.series = applySeriesLabelOverrides(s.seriesLabelOverrides, to: p.series)
                 }
                 return p
             }()
             var existing = tabs.tabOutputs[tab] ?? TabRenderOutput()
             existing.manifestPayload = payload
-            tabs.tabOutputs[tab] = existing
+            tabs.setOutput(existing, for: tab)
         }
     }
 
@@ -312,16 +310,10 @@ extension ThreeOmegaWorkspaceStore {
                 existing.manifestPayload?.axisMapping.yField = tabState.yLabelOverride
             }
             if !tabState.seriesLabelOverrides.isEmpty, var p = existing.manifestPayload {
-                p.series = p.series.map { series in
-                    guard let sid = series.sampleID,
-                          let renamed = tabState.seriesLabelOverrides[sid] else { return series }
-                    var copy = series
-                    copy.label = renamed
-                    return copy
-                }
+                p.series = applySeriesLabelOverrides(tabState.seriesLabelOverrides, to: p.series)
                 existing.manifestPayload = p
             }
-            tabs.tabOutputs[tab] = existing
+            tabs.setOutput(existing, for: tab)
             }
         }
     }

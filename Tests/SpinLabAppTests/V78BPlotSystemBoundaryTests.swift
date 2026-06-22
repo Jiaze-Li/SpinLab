@@ -84,7 +84,7 @@ struct V78BPlotSystemBoundaryTests {
         store.cachedSearchResults = hits
         // ingestionResult stays nil — verify it is not side-effected to a non-nil value
 
-        store.updateSeriesLabel(sampleID: "sample-a", newLabel: "Renamed")
+        store.updateSeriesLabel(identityKey: "sample-a", newLabel: "Renamed")
 
         #expect(store.cachedSearchResults == hits)
         #expect(store.ingestionResult == nil)
@@ -97,7 +97,7 @@ struct V78BPlotSystemBoundaryTests {
         let hits = [makeSearchHit(id: "xy1")]
         store.cachedSearchResults = hits
 
-        store.updateSeriesLabel(sampleID: "sample-xy", newLabel: "Renamed XY")
+        store.updateSeriesLabel(identityKey: "sample-xy", newLabel: "Renamed XY")
 
         #expect(store.cachedSearchResults == hits)
         #expect(store.ingestionResult == nil)
@@ -112,7 +112,7 @@ struct V78BPlotSystemBoundaryTests {
         store.ingestionResult = make3OmegaIngestion()
         let beforeIngestion = store.ingestionResult
 
-        store.updateSeriesLabel(sampleID: "sample-a", newLabel: "Renamed 3ω")
+        store.updateSeriesLabel(identityKey: "sample-a", newLabel: "Renamed 3ω")
 
         #expect(store.cachedSearchResults == hits)
         #expect(store.ingestionResult == beforeIngestion)

@@ -21,6 +21,12 @@ struct WorkflowWorkspaceActionBar<Store: WorkbenchWorkspaceProviding>: View {
             .buttonStyle(.borderedProminent)
             .disabled(workbench.isSearchRunning(for: workflowID) || appState.library.librarySettings.rootPath == nil)
 
+            Button("Clear Selected") {
+                workbench.deselectAll(for: workflowID)
+            }
+            .buttonStyle(.bordered)
+            .disabled(workbench.selectedCount(for: workflowID) == 0)
+
             Button(workbench.isAllSelected(for: workflowID) ? "Deselect All" : "Select All") {
                 if workbench.isAllSelected(for: workflowID) {
                     workbench.deselectCurrentResults(for: workflowID)

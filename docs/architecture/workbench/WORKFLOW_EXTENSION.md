@@ -2,6 +2,120 @@
 
 This document is the canonical contract for adding or changing Workbench workflows and workflow controls.
 
+## Workflow Onboarding Pipeline
+
+A repeatable pipeline for introducing a new workflow from a raw experimental data file to a fully integrated Workbench workflow. Each stage must be completed and accepted before the next begins.
+
+**Pilot case:** RSM (Resonant Spin Manipulation). Stage examples use RSM where concrete illustrations are needed; substitute the relevant workflow name for future additions.
+
+---
+
+### Stage 0 — Intake
+
+**Goal:** Establish that the experimental data is well-defined enough to build on.
+
+- Collect at least one representative raw data file from the experimenter.
+- Identify the measurement instrument, file format, and any known format variations.
+- Confirm: what physical quantity is measured, under what conditions, with what parameters swept.
+- Output: a one-paragraph experiment summary naming the measurement axes and independent variable(s).
+
+**Gate:** Accepted when the experiment summary is confirmed by the product owner.
+
+---
+
+### Stage 1 — Data Probe
+
+**Goal:** Characterize the raw data file structure without committing to any representation.
+
+Parse the file to identify:
+- Header / metadata fields
+- Column names and units as written in the file
+- Any multi-segment or multi-block structure
+- Encoding / delimiter / line-ending quirks
+- Known edge cases (empty sweeps, repeated headers, truncated files)
+
+Output: a structured field map (table of column → unit → observed range → notes).
+
+**Gate:** Accepted when the field map is reviewed and all ambiguous fields are resolved.
+
+---
+
+### Stage 2 — Canonical Dataset Contract
+
+**Goal:** Define the stable domain representation that all downstream layers build on.
+
+Translate the field map into a named, typed domain schema:
+- Name each domain quantity in plain English (not raw file-column names)
+- Assign SI or display units
+- Decide which fields are mandatory vs. optional
+- Define the sweep identity (what uniquely identifies one sweep in a multi-sweep file)
+
+Output: a Dataset Contract document (e.g. `docs/architecture/workbench/datasets/<Name>DatasetContract.md`).
+
+**Gate:** Dataset Contract accepted by the product owner. No ingestion code may be written before this gate clears.
+
+---
+
+### Stage 3 — Plot Feasibility Gate
+
+**Goal:** Confirm the workflow can be built on the existing Plot System without requiring common Plot System changes.
+
+Enumerate what the workflow needs to display and classify each item:
+- **Covered** — existing Plot System already supports it.
+- **Workflow-owned** — new rendering logic that belongs to the workflow renderer only (data transform, unit conversion, label wording).
+- **Common change required** — a capability that does not exist yet and would need to be added to the shared Plot System.
+
+**[HARD] Architecture gate rule:** If any item is classified as **Common change required**, implementation of this workflow MUST STOP immediately. Open a separate architecture gate before proceeding. The architecture gate must be resolved and the Plot System extended first; only then may this workflow resume from Stage 4.
+
+**Gate:** Accepted when no **Common change required** items remain unresolved.
+
+---
+
+### Stage 4 — Workflow Assembly
+
+**Goal:** Produce the complete Workflow Assembly contract (see [Step 0](#step-0--define-the-workflow-assembly-contract) and [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md)).
+
+Work through every field of the Workflow Assembly contract:
+- Workflow Identity
+- Physics Function
+- Optional Panels / optional contributions
+- Plot Defaults
+- Save Metadata Provider
+- Pack Metadata Provider
+- Required Tests
+
+**[HARD] Implementation gate:** Workflow implementation (Stage 5) must not begin until the Workflow Assembly is explicitly accepted by the product owner. Acceptance must be recorded (e.g. a comment in the PR or task log) before any code from Steps 1–8 is written.
+
+**Gate:** Workflow Assembly accepted by the product owner.
+
+---
+
+### Stage 5 — Implementation
+
+**Goal:** Build the workflow following the established checklist.
+
+Execute [Step 0](#step-0--define-the-workflow-assembly-contract) and [Steps 1–8](#steps-18--implementation-checklist) from **Adding a New Workflow** below. All Main Board Invariants apply in full.
+
+No deviation from the accepted Workflow Assembly is permitted without returning to Stage 4 for re-acceptance.
+
+If a deviation would require a common Plot System change, stop and open an architecture gate (same rule as Stage 3).
+
+---
+
+### Stage 6 — Validation
+
+**Goal:** Confirm the workflow behaves correctly against the canonical dataset.
+
+- Run the Required Tests defined in the Workflow Assembly.
+- Load the representative data file from Stage 0 and verify the plot output matches expected physics.
+- Confirm pack/restore round-trips correctly (save a chart, reload, verify identical render).
+- Run `./scripts/check_required_actions.sh` and address any required actions.
+- Confirm no regression in existing workflows.
+
+**Gate:** All Required Tests pass; product owner confirms plot output matches expectations on the representative dataset.
+
+---
+
 ## Adding a New Workflow
 
 ### Step 0 — Define the Workflow Assembly contract

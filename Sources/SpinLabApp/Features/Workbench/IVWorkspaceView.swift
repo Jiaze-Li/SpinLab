@@ -64,7 +64,7 @@ private struct IVPlotControlsPanel: View {
             onYLabelOverride: { store.updateYAxisLabel($0) },
             activeSeriesLabelOverrides: store.seriesLabelOverrides,
             onRenameSeriesLabel: { key, label in
-                store.updateSeriesLabel(sampleID: key, newLabel: label)
+                store.updateSeriesLabel(identityKey: key, newLabel: label)
                 appState.flushInteractionSnapshotNow()
             }
         ) {

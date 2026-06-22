@@ -87,10 +87,7 @@ extension ThreeOmegaWorkspaceStore {
                     if !s1.xLabelOverride.isEmpty { p.axisMapping.xField = s1.xLabelOverride }
                     if !s1.yLabelOverride.isEmpty { p.axisMapping.yField = s1.yLabelOverride }
                     if !s1.seriesLabelOverrides.isEmpty {
-                        p.series = p.series.map { series in
-                            guard let sid = series.sampleID, let renamed = s1.seriesLabelOverrides[sid] else { return series }
-                            var copy = series; copy.label = renamed; return copy
-                        }
+                        p.series = applySeriesLabelOverrides(s1.seriesLabelOverrides, to: p.series)
                     }
                     return p
                 }()
@@ -102,10 +99,7 @@ extension ThreeOmegaWorkspaceStore {
                     if !s3.xLabelOverride.isEmpty { p.axisMapping.xField = s3.xLabelOverride }
                     if !s3.yLabelOverride.isEmpty { p.axisMapping.yField = s3.yLabelOverride }
                     if !s3.seriesLabelOverrides.isEmpty {
-                        p.series = p.series.map { series in
-                            guard let sid = series.sampleID, let renamed = s3.seriesLabelOverrides[sid] else { return series }
-                            var copy = series; copy.label = renamed; return copy
-                        }
+                        p.series = applySeriesLabelOverrides(s3.seriesLabelOverrides, to: p.series)
                     }
                     return p
                 }()

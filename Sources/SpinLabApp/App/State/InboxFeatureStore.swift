@@ -305,6 +305,20 @@ final class InboxFeatureStore {
         )
     }
 
+    func previewPendingRoutePresentation(
+        for pending: SpinLabDomain.PendingImport,
+        routingDraft: PendingRoutingDraft,
+        sampleName: String,
+        substrateWarning: String?
+    ) -> PendingRoutePresentation {
+        inboxRoutingState.previewPendingRoutePresentation(
+            for: pending,
+            routingDraft: routingDraft,
+            sampleName: sampleName,
+            substrateWarning: substrateWarning
+        )
+    }
+
     func pendingRoutePresentationByID(
         substrateWarning: (SpinLabDomain.PendingImport) -> String?
     ) -> [UUID: PendingRoutePresentation] {
@@ -317,6 +331,18 @@ final class InboxFeatureStore {
 
     func pendingRoutePlan(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.RoutePlan {
         inboxRoutingState.pendingRoutePlan(for: pending)
+    }
+
+    func previewPendingRoutingSnapshot(
+        for pending: SpinLabDomain.PendingImport,
+        routingDraft: PendingRoutingDraft,
+        sampleName: String
+    ) -> SpinLabDomain.PendingRoutingSnapshot {
+        inboxRoutingState.previewPendingRoutingSnapshot(
+            for: pending,
+            routingDraft: routingDraft,
+            sampleName: sampleName
+        )
     }
 
     func pendingRouteStatus(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.RouteStatus {

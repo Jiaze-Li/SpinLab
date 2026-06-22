@@ -19,6 +19,7 @@ enum WorkbenchWorkflowID: String, CaseIterable, Hashable {
     case threeOmega = "3w"
     case xyRotation = "xy"
     case iv = "IV"
+    case rsm = "rsm"
 
     /// Default search prefix pre-filled into the search box.
     var searchPrefix: String {
@@ -27,6 +28,7 @@ enum WorkbenchWorkflowID: String, CaseIterable, Hashable {
         case .threeOmega: return "3w "
         case .xyRotation: return "xy "
         case .iv:         return "IV "
+        case .rsm:        return "rsm "
         }
     }
 }
@@ -159,6 +161,8 @@ final class WorkbenchFeatureStore {
     let xyRotationWorkspace = XYRotationWorkspaceStore()
     /// IV workspace state. Current-voltage measurement workflow.
     let ivWorkspace = IVWorkspaceStore()
+    /// RSM workspace state. Reciprocal Space Map single-file heatmap workflow.
+    let rsmWorkspace = RSMWorkspaceStore()
     /// Legacy search status bridge retained for compatibility with existing callers/tests.
     var searchMessages: [WorkbenchWorkflowID: String] = [:]
     /// Shared plot appearance defaults across workflows.
@@ -240,11 +244,13 @@ final class WorkbenchFeatureStore {
         self.xyRotationWorkspace.vault = analysisVault
         self.aheWorkspace.vault = analysisVault
         self.ivWorkspace.vault = analysisVault
+        self.rsmWorkspace.vault = analysisVault
 
         self.aheWorkspace.selectionReading = self.selectionRuntime
         self.xyRotationWorkspace.selectionReading = self.selectionRuntime
         self.threeOmegaWorkspace.selectionReading = self.selectionRuntime
         self.ivWorkspace.selectionReading = self.selectionRuntime
+        self.rsmWorkspace.selectionReading = self.selectionRuntime
 
         // Route 3ω RT session state through the secondary input runtime.
         // Forces lazy init of secondaryInputRuntime while self is fully constructed.
@@ -547,6 +553,7 @@ final class WorkbenchFeatureStore {
         case .threeOmega: return threeOmegaWorkspace.cachedSearchResults
         case .xyRotation: return xyRotationWorkspace.cachedSearchResults
         case .iv:         return ivWorkspace.cachedSearchResults
+        case .rsm:        return rsmWorkspace.cachedSearchResults
         }
     }
 
@@ -569,6 +576,7 @@ final class WorkbenchFeatureStore {
         xyRotationWorkspace.globalPlotDefaults = globalPlotDefaults
         threeOmegaWorkspace.globalPlotDefaults = globalPlotDefaults
         ivWorkspace.globalPlotDefaults = globalPlotDefaults
+        rsmWorkspace.globalPlotDefaults = globalPlotDefaults
     }
 
     func selectWorkflow(_ id: String?) {

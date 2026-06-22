@@ -92,7 +92,9 @@ struct WorkbenchPlotCanvas: View {
                         }
                         .frame(width: containerSize.width, height: containerSize.height, alignment: .topLeading)
                 } else {
-                    Color.clear
+                    // layout: nil — display image without hit-testing (heatmap V1 path)
+                    Image(nsImage: nsImage)
+                        .resizable()
                         .frame(width: containerSize.width, height: containerSize.height)
                 }
             }

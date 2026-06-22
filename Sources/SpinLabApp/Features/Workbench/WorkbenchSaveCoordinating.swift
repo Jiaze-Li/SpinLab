@@ -26,6 +26,29 @@ protocol WorkbenchSaveCoordinating: AnyObject {
 extension WorkbenchSaveCoordinating {
     func didCompleteSave(outcome: PersistenceOutcome) {}
 
+    func executeRSMSave(input: SaveRSMChartInput, onComplete: (() -> Void)?) {
+        Task { [weak self] in
+            guard let self else { return }
+            let outcome = await Task.detached(priority: .userInitiated) {
+                SaveRSMChartToLibraryUseCase().execute(input: input)
+            }.value
+            self.applyPersistenceOutcome(outcome)
+            self.currentRunTrace = outcome.trace
+            self.didCompleteSave(outcome: outcome)
+            switch outcome {
+            case .success:
+                self.saveMessage = "Saved to Library."
+                self.refreshRelatedCharts()
+            case .partial(_, let err):
+                self.saveMessage = "Chart saved; metric error: \(err)"
+                self.refreshRelatedCharts()
+            case .failure(let err):
+                self.saveMessage = "Save failed: \(err)"
+            }
+            onComplete?()
+        }
+    }
+
     func executeSave(input: SaveActiveChartInput, onComplete: (() -> Void)?) {
         Task { [weak self] in
             guard let self else { return }

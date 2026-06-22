@@ -46,7 +46,7 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                     onXLabelOverride: { store.updateXAxisLabel($0) },
                     onYLabelOverride: { store.updateYAxisLabel($0) },
                     activeSeriesLabelOverrides: store.seriesLabelOverrides,
-                    onRenameSeriesLabel: { key, label in store.updateSeriesLabel(sampleID: key, newLabel: label) }
+                    onRenameSeriesLabel: { key, label in store.updateSeriesLabel(identityKey: key, newLabel: label) }
                 ) {
                     HStack(spacing: 12) {
                         Toggle("Center", isOn: $bindableStore.centerBaseline)

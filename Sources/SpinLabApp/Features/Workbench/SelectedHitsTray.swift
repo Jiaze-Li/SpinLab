@@ -9,21 +9,10 @@ struct SelectedHitsTray: View {
         let count = workbench.selectedCount(for: workflowID)
 
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .center) {
-                Text("Selected (\(count))")
-                    .font(.callout.weight(.semibold))
-                Spacer()
-                Button("Clear") {
-                    workbench.deselectAll(for: workflowID)
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 12, weight: .semibold))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(Color.secondary.opacity(0.12), in: Capsule())
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+            Text("Selected (\(count))")
+                .font(.callout.weight(.semibold))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
 
             Divider()
 

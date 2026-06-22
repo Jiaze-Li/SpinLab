@@ -118,9 +118,6 @@ struct IngestIVSelectionsUseCase {
         if let field = _parseField(from: hit) {
             meta["field"] = field
         }
-        if let harmonic = _parseHarmonic(from: hit) {
-            meta["harmonic"] = harmonic
-        }
         return meta
     }
 
@@ -147,16 +144,6 @@ struct IngestIVSelectionsUseCase {
             from: hit.measurementFilePath,
             pattern: #"([0-9]+(?:\.[0-9]+)?)\s*T"#
         ) { "\($0)T" }
-    }
-
-    private func _parseHarmonic(from hit: WorkflowMeasurementSearchHit) -> String? {
-        if let harmonic = hit.conditions["harmonic"], let normalized = _normalizeHarmonicToken(harmonic) {
-            return normalized
-        }
-        return _extractToken(
-            from: hit.measurementFilePath,
-            pattern: #"([13])\s*(?:w|ω|omega)"#
-        ) { "\($0)w" }
     }
 
     private func _extractToken(
@@ -200,22 +187,6 @@ struct IngestIVSelectionsUseCase {
         }
         if Double(trimmed) != nil {
             return "\(trimmed)T"
-        }
-        return trimmed
-    }
-
-    private func _normalizeHarmonicToken(_ raw: String) -> String? {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        let lower = trimmed.lowercased()
-        if lower.hasSuffix("w") || lower.hasSuffix("ω") || lower.hasSuffix("omega") {
-            if let numberPart = trimmed.split(whereSeparator: { $0.isWhitespace }).first,
-               numberPart == "1" || numberPart == "3" {
-                return "\(numberPart)w"
-            }
-        }
-        if trimmed == "1" || trimmed == "3" {
-            return "\(trimmed)w"
         }
         return trimmed
     }

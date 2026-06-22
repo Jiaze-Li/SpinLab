@@ -316,9 +316,9 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
     }
 }
 
-// MARK: - WorkbenchPlottingStore
+// MARK: - WorkbenchCartesianXYPlottingStore
 
-extension IVWorkspaceStore: WorkbenchPlottingStore {
+extension IVWorkspaceStore: WorkbenchCartesianXYPlottingStore {
     var showPlotGrid: Bool {
         get { tabs.showPlotGrid }
         set { tabs.showPlotGrid = newValue }
@@ -352,8 +352,8 @@ extension IVWorkspaceStore: WorkbenchPlottingStore {
         rerenderForStyleChange()
     }
 
-    func updateSeriesLabel(sampleID: String, newLabel: String) {
-        tabs.updateSeriesLabel(sampleID: sampleID, newLabel: newLabel)
+    func updateSeriesLabel(identityKey: String, newLabel: String) {
+        tabs.updateSeriesLabel(identityKey: identityKey, newLabel: newLabel)
         rerenderForStyleChange()
     }
 

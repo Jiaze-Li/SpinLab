@@ -34,11 +34,16 @@ struct WorkbenchChartStyle: Codable, Hashable, Sendable {
         if let v = styleParams["tickLabelFontSize"], let n = Double(v) { s.tickLabelFontSize = CGFloat(n) }
         if let v = styleParams["legendFontSize"], let n = Double(v) { s.legendFontSize = CGFloat(n) }
         if let v = styleParams["pointLabelFontSize"], let n = Double(v) { s.pointLabelFontSize = CGFloat(n) }
-        if let v = styleParams["tickTargetX"], let n = Int(v) { s.tickTargetX = n }
-        if let v = styleParams["tickTargetY"], let n = Int(v) { s.tickTargetY = n }
+        if let v = styleParams["tickTargetX"], let n = Int(v) { s.tickTargetX = PlotTickConfiguration.clamp(n) }
+        if let v = styleParams["tickTargetY"], let n = Int(v) { s.tickTargetY = PlotTickConfiguration.clamp(n) }
         if let v = styleParams["xTickStep"], let n = Double(v), n > 0 { s.xTickStep = n }
         if let v = styleParams["yTickStep"], let n = Double(v), n > 0 { s.yTickStep = n }
         return s
+    }
+
+    /// Derives a PlotTickConfiguration from the current XY tick target fields.
+    var tickConfiguration: PlotTickConfiguration {
+        PlotTickConfiguration(xTargetCount: tickTargetX, yTargetCount: tickTargetY)
     }
 
     func ctFont(size: CGFloat, bold: Bool = false) -> CTFont {

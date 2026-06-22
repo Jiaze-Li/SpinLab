@@ -124,6 +124,10 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift` — renders the series-reorder chip layout
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchSharedComponents.swift` — documents the split shared workbench component inventory
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift` — composes tab, stack, title, and reorder controls for stacked plots
+- `Sources/SpinLabApp/Features/Workbench/SharedPlotTextControls.swift` — shared title/X/Y override row for plot controls
+- `Sources/SpinLabApp/Features/Workbench/RSMViewSelector.swift` — RSM workflow-specific HL/KL/HK view selector
+- `Sources/SpinLabApp/Features/Workbench/SharedPlotFontSizeControls.swift` — shared title/axis/tick font-size pickers used by Workbench plot controls
+- `Sources/SpinLabApp/Features/Workbench/SharedPlotTickCountControls.swift` — shared X/Y axis tick-count steppers reused by heatmap and RSM plot control panels
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchStatusArea.swift` — renders shared search, plot, and load status messages
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchTitleTemplateField.swift` — renders the shared title-template input and token hint
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchTracePanel.swift` — renders the shared run-trace disclosure
@@ -135,3 +139,5 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift` — dispatches workflow IDs to workspace views
 - `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift` — owns XY Rotation search, analysis, and render state
 - `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift` — mounts the XY Rotation workflow shell and offset panel
+- `Sources/SpinLabApp/Features/Workbench/RSMWorkspaceStore.swift` — owns RSM search, file parsing, heatmap payload build, and render state; passes nil layout to canvas
+- `Sources/SpinLabApp/Features/Workbench/RSMWorkspaceView.swift` — mounts the RSM workflow shell with HL/KL/HK view selector

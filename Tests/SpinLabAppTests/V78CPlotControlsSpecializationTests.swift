@@ -1,5 +1,7 @@
+import CoreGraphics
 import Foundation
 import Testing
+@testable import SpinLabApp
 
 /// Gate 7.8C — Plot Controls specialization baseline (source-inspection).
 ///
@@ -42,6 +44,56 @@ private func loadWorkbenchSource(_ filename: String) throws -> String {
         .deletingLastPathComponent()   // repo root
     let url = base.appendingPathComponent("Sources/SpinLabApp/Features/Workbench/\(filename)")
     return try String(contentsOf: url, encoding: .utf8)
+}
+
+private func loadHeatmapSource(_ filename: String) throws -> String {
+    let base = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()   // SpinLabAppTests
+        .deletingLastPathComponent()   // Tests
+        .deletingLastPathComponent()   // repo root
+    let url = base.appendingPathComponent("Sources/SpinLabApp/Workbench/V3/Heatmap/\(filename)")
+    return try String(contentsOf: url, encoding: .utf8)
+}
+
+// MARK: - Suite 0: Shared plot text controls are reusable
+
+@Suite("V7.8C shared plot text controls")
+struct V78CSharedPlotTextControlsTests {
+
+    @Test("SharedPlotTextControls.swift defines Title/X/Y fields")
+    func sharedTextControlsDefinesFields() throws {
+        let source = try loadWorkbenchSource("SharedPlotTextControls.swift")
+        #expect(source.contains("label: \"Title\""))
+        #expect(source.contains("label: \"X\""))
+        #expect(source.contains("label: \"Y\""))
+    }
+
+    @Test("SharedPlotTextControls.swift uses proportional 3:1:1 weights")
+    func sharedTextControlsUsesProportions() throws {
+        let source = try loadWorkbenchSource("SharedPlotTextControls.swift")
+        #expect(source.contains("plotControlWeight(3)"))
+        #expect(source.contains("plotControlWeight(1)"))
+        #expect(source.contains(".frame(maxWidth: .infinity)"))
+    }
+
+    @Test("SharedPlotFontSizeControls.swift owns title/axis/tick font sizes")
+    func sharedFontSizeControlsOwnsSharedSizes() throws {
+        let source = try loadWorkbenchSource("SharedPlotFontSizeControls.swift")
+        #expect(source.contains("titleFontSize"))
+        #expect(source.contains("axisTitleFontSize"))
+        #expect(source.contains("tickLabelFontSize"))
+        #expect(source.contains("Font Size"))
+        #expect(!source.contains("Text(\"Size\")"))
+    }
+
+    @Test("SharedPlotTextControls.swift does not define OptionalPlotZLabelControl")
+    func optionalZLabelControlRemovedFromSharedControls() throws {
+        let source = try loadWorkbenchSource("SharedPlotTextControls.swift")
+        #expect(!source.contains("OptionalPlotZLabelControl"))
+        #expect(source.contains("label: \"Title\""))
+        #expect(source.contains("label: \"X\""))
+        #expect(source.contains("label: \"Y\""))
+    }
 }
 
 // MARK: - Suite 1: AHE uses custom plot controls path
@@ -97,6 +149,13 @@ struct V78CAHEPlotControlsPathTests {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
         #expect(source.contains("globalPlotDefaults: $workbench.globalPlotDefaults"),
                 "AHE custom plot controls path must bind the shared globalPlotDefaults")
+    }
+
+    @Test("AHEWorkspaceView.swift uses SharedPlotTextControls")
+    func aheUsesSharedTextControls() throws {
+        let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
+        #expect(source.contains("SharedPlotTextControls"),
+                "AHE must reuse the shared title/X/Y row rather than owning a separate layout")
     }
 
     // INV-AHE-6: AHE custom path exposes a legend rename UI path
@@ -211,6 +270,22 @@ struct V78CXYPlotControlsPathTests {
         let source = try loadWorkbenchSource("XYRotationWorkspaceView.swift")
         #expect(source.contains("minGapFraction: $bindableStore.minGapFraction"),
                 "XY must pass minGapFraction binding to WorkbenchStandardPlotControls (min-gap field)")
+    }
+
+    @Test("WorkbenchStandardPlotControls.swift uses SharedPlotTextControls")
+    func standardControlsUsesSharedTextControls() throws {
+        let source = try loadWorkbenchSource("WorkbenchStandardPlotControls.swift")
+        #expect(source.contains("SharedPlotTextControls"),
+                "The standard workflow controls must reuse the shared title/X/Y component")
+    }
+
+    @Test("WorkbenchStandardPlotControls.swift does not show heatmap-only Z/colorbar controls")
+    func standardControlsDoesNotShowZControls() throws {
+        let source = try loadWorkbenchSource("WorkbenchStandardPlotControls.swift")
+        #expect(!source.contains("HeatmapZLabelControl"),
+                "Ordinary Cartesian XY controls must not mount the optional Z/colorbar label control")
+        #expect(!source.contains("HeatmapColorScaleControls"),
+                "Ordinary Cartesian XY controls must not expose heatmap color scale controls")
     }
 
     // INV-XY-9..11: XY workflow-specific controls are present in the view file
@@ -493,5 +568,322 @@ struct V78CIVPlotControlsPathTests {
                 "IV store must expose X label override mutation through TabRenderManager")
         #expect(source.contains("updateYLabelOverride"),
                 "IV store must expose Y label override mutation through TabRenderManager")
+    }
+}
+
+// MARK: - Suite 5: RSM uses a dedicated heatmap plot controls surface
+
+@Suite("V7.8C RSM heatmap plot controls path")
+struct V78CRSMPlotControlsPathTests {
+
+    @Test("HeatmapPlotControlsPanel.swift defines the heatmap controls surface")
+    func heatmapModuleDefinesControlsPanel() throws {
+        let source = try loadHeatmapSource("HeatmapPlotControlsPanel.swift")
+        #expect(source.contains("struct HeatmapPlotControlsPanel"),
+                "Heatmap module must define the heatmap plot controls panel")
+        #expect(source.contains("hostControls"),
+                "Heatmap plot controls must expose a generic host controls slot")
+        #expect(source.contains("SharedPlotTextControls"),
+                "Heatmap module must use the shared title/X/Y component")
+        #expect(source.contains("HeatmapZLabelControl"),
+                "Heatmap module must mount the optional Z/colorbar label control")
+        #expect(source.contains("SharedPlotFontSizeControls"),
+                "Heatmap module must use the shared title/axis/tick font controls")
+        #expect(source.contains("HeatmapZRangeControl"),
+                "Heatmap module must mount the Z range controls")
+        #expect(source.contains("HeatmapColorScaleControls"),
+                "Heatmap module must mount the extracted color scale controls")
+        #expect(!source.contains("private struct HeatmapColorScaleControls"),
+                "Heatmap module must not define the color scale controls inline")
+        #expect(!source.contains("RSMViewSelector"),
+                "Heatmap plot controls must not reference RSM-specific view selection")
+        #expect(source.contains(".frame(maxWidth: .infinity)"),
+                "Heatmap plot controls must apply .frame(maxWidth: .infinity) so the box fills the row")
+    }
+
+    @Test("RSMWorkspaceView.swift mounts HeatmapPlotControlsPanel")
+    func rsmDefinesHeatmapPanel() throws {
+        let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
+        #expect(source.contains("HeatmapPlotControlsPanel"),
+                "RSM must mount the heatmap plot controls panel from the heatmap module")
+        #expect(source.contains("RSMViewSelector"),
+                "RSM must mount the RSM-specific view selector")
+        #expect(source.contains("hostControls: RSMViewSelector"),
+                "RSM must pass the RSM view selector into the heatmap panel host slot")
+    }
+
+    @Test("RSMWorkspaceView.swift does not use WorkbenchStandardPlotControls")
+    func rsmDoesNotUseStandardPlotControls() throws {
+        let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
+        #expect(!source.contains("WorkbenchStandardPlotControls"),
+                "RSM must not use the XY-specific WorkbenchStandardPlotControls container")
+    }
+
+    @Test("XY workspaces do not show HeatmapZRangeControl")
+    func xyWorkspacesDoNotShowHeatmapZRangeControl() throws {
+        let source = try loadWorkbenchSource("WorkbenchPlotControlsPanel.swift")
+        #expect(!source.contains("HeatmapZRangeControl"),
+                "XY plot controls must not expose the heatmap Z range control")
+    }
+
+    @Test("RSMWorkspaceView.swift composes shared and optional plot controls")
+    func rsmExposesHeatmapControls() throws {
+        let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
+        #expect(source.contains("HeatmapPlotControlsPanel"),
+                "RSM must mount the heatmap plot controls panel from the heatmap module")
+        #expect(!source.contains("ForEach(RSMView.allCases"),
+                "RSM must not inline the HL/KL/HK picker")
+        #expect(!source.contains("Picker(\"\", selection: $bindableStore.activeView)"),
+                "RSM must not inline the active-view picker")
+    }
+
+    // INV-RSM-PL-1: GroupBox fills available width
+    @Test("RSMWorkspaceView.swift Plot Controls GroupBox fills available width")
+    func rsmGroupBoxFillsWidth() throws {
+        let source = try loadHeatmapSource("HeatmapPlotControlsPanel.swift")
+        #expect(source.contains(".frame(maxWidth: .infinity)"),
+                "Heatmap plot controls must apply .frame(maxWidth: .infinity) so the box fills the row")
+    }
+
+    // INV-RSM-PL-2: Shared text layout owns 3:1:1 proportions
+    @Test("SharedPlotTextControls.swift uses weighted 3:1:1 Title/X/Y proportions")
+    func rsmProportionalTitleLayout() throws {
+        let source = try loadWorkbenchSource("SharedPlotTextControls.swift")
+        #expect(source.contains("plotControlWeight(3)"),
+                "Title must receive the larger weight in the shared text row")
+        #expect(source.contains("plotControlWeight(1)"),
+                "X/Y must each receive the same unit weight in the shared text row")
+    }
+
+    @Test("RSMWorkspaceView.swift no longer hardcodes Title/X/Y field widths")
+    func rsmDoesNotHardcodeTextFieldWidths() throws {
+        let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
+        #expect(!source.contains("fieldMaxWidth: 200"),
+                "RSM heatmap controls must not hardcode a wider Title field")
+        #expect(!source.contains("fieldMaxWidth: 80"),
+                "RSM heatmap controls must not hardcode narrower X/Y fields")
+    }
+
+    // INV-RSM-PL-3: Color Scale label uses primary foreground (not secondary)
+    @Test("RSMWorkspaceView.swift Color Scale label uses primary text color")
+    func rsmColorScaleLabelIsPrimary() throws {
+        let source = try loadWorkbenchSource("RSMViewSelector.swift")
+        #expect(source.contains("WorkbenchUIStyle.primaryTextColor"),
+                "RSM selector must use primary text styling for the active label")
+        #expect(source.contains("Text(\"View\")"),
+                "RSM selector must keep the view label inside the workflow-specific component")
+    }
+
+    @Test("RSMViewSelector.swift remains RSM-specific")
+    func rsmViewSelectorRemainsSpecific() throws {
+        let source = try loadWorkbenchSource("RSMViewSelector.swift")
+        #expect(source.contains("RSMView.allCases"))
+        #expect(source.contains("isViewCompatible"))
+        #expect(source.contains("Recommended:"))
+        #expect(source.contains("WorkbenchUIStyle.primaryTextColor"))
+        #expect(source.contains("exclamationmark.triangle"))
+        #expect(!source.contains("SharedPlotTextControls"))
+        #expect(!source.contains("SharedPlotFontSizeControls"))
+        #expect(!source.contains("HeatmapColorScaleControls"))
+        #expect(!source.contains("HeatmapPlotControlsPanel"))
+    }
+
+    @Test("HeatmapZLabelControl.swift is a heatmap module component")
+    func heatmapZLabelControlIsModuleOwned() throws {
+        let source = try loadHeatmapSource("HeatmapZLabelControl.swift")
+        #expect(source.contains("struct HeatmapZLabelControl"))
+        #expect(source.contains("Toggle(\"Z\""))
+        #expect(source.contains("label: \"\""))
+        #expect(source.contains("sourceResetToken"))
+        #expect(!source.contains("RSM"))
+    }
+
+    @Test("HeatmapZLabelControl and HeatmapZRangeControl remain separate components")
+    func heatmapZLabelAndRangeControlsRemainSeparate() throws {
+        let zLabelSource = try loadHeatmapSource("HeatmapZLabelControl.swift")
+        let zRangeSource = try loadHeatmapSource("HeatmapZRangeControl.swift")
+        #expect(!zLabelSource.contains("HeatmapZRangeControl"))
+        #expect(!zRangeSource.contains("HeatmapZLabelControl"))
+        #expect(zRangeSource.contains("HeatmapZDomainState"))
+    }
+
+    @Test("HeatmapZRangeControl hides Custom from the percentile picker")
+    func heatmapZRangeControlHidesCustomPreset() throws {
+        let source = try loadHeatmapSource("HeatmapZRangeControl.swift")
+        #expect(source.contains("ViewThatFits(in: .horizontal)"))
+        #expect(source.contains("ForEach(HeatmapPercentilePreset.visiblePresets"))
+        #expect(source.contains("get: { zDomainState.percentilePreset == .custom ? .p1_99 : zDomainState.percentilePreset }"))
+        #expect(!source.contains("HeatmapPercentilePreset.allCases"))
+        #expect(source.contains("validationIssue"))
+        #expect(source.contains("Min"))
+        #expect(source.contains("Max"))
+        #expect(source.contains("Preset"))
+    }
+
+    @Test("HeatmapColorScaleControls.swift is a heatmap module component")
+    func heatmapColorScaleControlsIsModuleOwned() throws {
+        let source = try loadHeatmapSource("HeatmapColorScaleControls.swift")
+        #expect(source.contains("struct HeatmapColorScaleControls"))
+        #expect(source.contains("Colorbar"),
+                "Visible label must be 'Colorbar' after spacing polish")
+        #expect(!source.contains("\"Color Scale\""),
+                "'Color Scale' must no longer appear as the visible first-row label")
+        #expect(source.contains("PlotScaleTransform.linear"))
+        #expect(source.contains("PlotScaleTransform.log10"))
+        #expect(!source.contains("RSM"))
+    }
+
+    // INV-RSM-PL-4: Default Z label for "Detector" column normalizes to publication standard
+    @Test("publicationZLabel maps Detector to Intensity (counts)")
+    func rsmPublicationZLabelNormalizesDetector() {
+        #expect(RSMWorkspaceStore.publicationZLabel(for: "Detector") == "Intensity (counts)",
+                "Generic 'Detector' column must normalize to 'Intensity (counts)' for publication use")
+        #expect(RSMWorkspaceStore.publicationZLabel(for: "detector") == "Intensity (counts)",
+                "Case-insensitive match: 'detector' must also normalize")
+        #expect(RSMWorkspaceStore.publicationZLabel(for: "") == "Intensity (counts)",
+                "Empty column name must also produce publication default")
+    }
+
+    // INV-RSM-PL-5: Custom column names are preserved
+    @Test("publicationZLabel preserves custom non-standard column names")
+    func rsmPublicationZLabelPreservesCustomNames() {
+        #expect(RSMWorkspaceStore.publicationZLabel(for: "Intensity") == "Intensity",
+                "Non-generic column name 'Intensity' must pass through unchanged")
+        #expect(RSMWorkspaceStore.publicationZLabel(for: "κ (W/m·K)") == "κ (W/m·K)",
+                "Custom column name must be preserved as-is")
+    }
+
+    // INV-RSM-PL-5b: renderedZLabel returns label exactly as provided (no auto-prefix)
+    @Test("HeatmapRenderer.renderedZLabel returns label unchanged in all modes")
+    func rsmLogModeZLabelNoPrefix() {
+        #expect(HeatmapRenderer.renderedZLabel("Intensity (counts)", mode: .linear) == "Intensity (counts)",
+                "Linear mode must return label unchanged")
+        #expect(HeatmapRenderer.renderedZLabel("Intensity (counts)", mode: .log10) == "Intensity (counts)",
+                "Log10 mode must not auto-prefix the Z/colorbar label")
+        #expect(HeatmapRenderer.renderedZLabel("My Custom", mode: .log10) == "My Custom",
+                "Log10 mode must not add any prefix to custom labels")
+        let userLog = HeatmapRenderer.renderedZLabel("log10 Intensity (counts)", mode: .log10)
+        #expect(userLog == "log10 Intensity (counts)",
+                "User-supplied prefix must be preserved exactly as entered")
+    }
+
+    // INV-RSM-PL-5c: hostControls, Color Scale, and Tick Controls share the same top row
+    @Test("HeatmapPlotControlsPanel places hostControls, HeatmapColorScaleControls, and tick controls in same HStack")
+    func heatmapControlsPanelSameRowLayout() throws {
+        let source = try loadHeatmapSource("HeatmapPlotControlsPanel.swift")
+        // Verify the views are siblings inside an HStack
+        let hstackRange = source.range(of: "HStack(spacing:")
+        #expect(hstackRange != nil,
+                "HeatmapPlotControlsPanel must use HStack to place controls on one row")
+        // All must appear after the HStack opening (i.e., inside it)
+        if let hstackStart = hstackRange?.lowerBound {
+            let afterHStack = String(source[hstackStart...])
+            #expect(afterHStack.contains("hostControls"),
+                    "hostControls must be inside the same-row HStack")
+            #expect(afterHStack.contains("HeatmapColorScaleControls("),
+                    "HeatmapColorScaleControls must be inside the same-row HStack")
+            #expect(afterHStack.contains("Spacer(minLength:"),
+                    "First row must use Spacer(minLength:) so tick controls can sit to the right")
+            #expect(afterHStack.contains("SharedPlotTickCountControls"),
+                    "Tick controls must be in the same-row HStack")
+        }
+    }
+
+    // INV-RSM-PL-7: Large font sizes produce sufficient left padding to avoid y-axis overlap
+    @Test("HeatmapPlotLayout large fonts produce non-overlapping y-axis geometry")
+    func rsmLargeFontsYAxisNoOverlap() {
+        var style = WorkbenchChartStyle()
+        style.titleFontSize = 28
+        style.axisTitleFontSize = 24
+        style.tickLabelFontSize = 22
+
+        let grid = HeatmapGrid(
+            xValues: [0.0, 1.0],
+            yValues: [0.0, 1.0],
+            zMatrix: [[0.0, 1.0], [1.0, 2.0]]
+        )
+        let payload = HeatmapPlotPayload(
+            workflowID: "rsm", title: "Large font test",
+            xLabel: "H (r.l.u.)", yLabel: "L (r.l.u.)", zLabel: "Intensity (counts)",
+            grid: grid
+        )
+        let layout = HeatmapPlotLayout.compute(payload: payload, chartStyle: style)
+
+        // gridRect.minX == dynamically computed paddingLeft
+        let paddingLeft = layout.gridRect.minX
+        #expect(paddingLeft >= 104,
+                "At tick=22pt / axis=24pt, paddingLeft must still leave a healthy left lane for y-axis labels")
+
+        // y-axis title center must be well clear of tick label area
+        // (right edge of title ≈ yLabelCenterX + axisTitleFontSize/2 must be < gridRect.minX - 50)
+        let titleRightEdge = layout.yLabelCenter.x + style.axisTitleFontSize / 2
+        #expect(titleRightEdge < paddingLeft - 50,
+                "Y-axis title right edge must be at least 50pt left of gridRect.minX to avoid tick overlap")
+    }
+
+    // INV-RSM-PL-8: Fixed-H data recommends KL view
+    @Test("CanonicalRSMDataset recommends KL view for fixed-H data")
+    func rsmFixedHRecommendsKL() throws {
+        let rsmTextFixedH = """
+H     K     L     Detector
+0.0   0.0   1.0   10.0
+0.0   0.5   1.0   20.0
+0.0   0.0   2.0   30.0
+0.0   0.5   2.0   40.0
+"""
+        let dataset = try RSMDataParser.parse(text: rsmTextFixedH, title: "KL scan")
+        #expect(dataset.recommendedView == .kl,
+                "When H is fixed, recommended view must be KL")
+        #expect(dataset.isViewCompatible(.kl),
+                "KL view must be compatible when H is fixed")
+        #expect(!dataset.isViewCompatible(.hl),
+                "HL view must be incompatible when H is fixed — H doesn't vary")
+        #expect(!dataset.isViewCompatible(.hk),
+                "HK view must be incompatible when H is fixed")
+    }
+
+    // INV-RSM-PL-8b: Fixed-K data recommends HL view
+    @Test("CanonicalRSMDataset recommends HL view for fixed-K data")
+    func rsmFixedKRecommendsHL() throws {
+        let rsmTextFixedK = """
+H     K     L     Detector
+-1.0  0.0   1.0   100.0
+ 0.0  0.0   1.0   200.0
+ 1.0  0.0   1.0   150.0
+-1.0  0.0   1.5   110.0
+ 0.0  0.0   1.5   250.0
+ 1.0  0.0   1.5   180.0
+"""
+        let dataset = try RSMDataParser.parse(text: rsmTextFixedK, title: "HL scan")
+        #expect(dataset.recommendedView == .hl,
+                "When K is fixed, recommended view must be HL")
+        #expect(dataset.isViewCompatible(.hl))
+        #expect(!dataset.isViewCompatible(.kl))
+        #expect(!dataset.isViewCompatible(.hk))
+    }
+
+    // INV-RSM-PL-9: View picker shows warning icon for incompatible view
+    @Test("RSMViewSelector.swift shows warning icon when view is incompatible with data")
+    func rsmShowsViewCompatibilityWarning() throws {
+        let source = try loadWorkbenchSource("RSMViewSelector.swift")
+        #expect(source.contains("isViewCompatible"),
+                "View picker must check isViewCompatible to show compatibility warning")
+        #expect(source.contains("exclamationmark.triangle") || source.contains("exclamationmark"),
+                "View picker must show a warning symbol when the selected view is incompatible")
+    }
+
+    @Test("RSMWorkspaceView.swift does not expose XY-only controls")
+    func rsmDoesNotExposeXYOnlyControls() throws {
+        let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
+        #expect(!source.contains("seriesRenderMode"),
+                "RSM must not expose line/scatter render mode")
+        #expect(!source.contains("seriesOrder"),
+                "RSM must not expose series order controls")
+        #expect(!source.contains("legendLabel"),
+                "RSM must not expose legend label override controls")
+        #expect(!source.contains("pointLabel"),
+                "RSM must not expose point label controls")
+        #expect(!source.contains("stackOffset"),
+                "RSM must not expose stack offset controls")
     }
 }

@@ -14,8 +14,6 @@ struct WorkbenchChartRenderer {
         var paddingBottom: CGFloat = 88   // space for x tick labels + field label
         var paddingLeft: CGFloat = 96     // space for y tick labels + field label
         var paddingRight: CGFloat = 30
-        /// Widest y-tick label in points — filled by resolvedOptions, used by layout for y-title placement.
-        var maxYTickLabelWidth: CGFloat = 0
         /// When set, locks the x-axis range instead of auto-fitting to data extents.
         var fixedXMin: Double? = nil
         var fixedXMax: Double? = nil
@@ -85,31 +83,10 @@ struct WorkbenchChartRenderer {
 
     // MARK: - Shared options resolution (pure function)
 
-    /// Measures y-tick label widths and adjusts paddingLeft + maxYTickLabelWidth.
-    /// Pure function: depends only on payload + base + style, no side effects.
-    /// Returns base unchanged when data is empty.
+    /// Returns base options unchanged.
+    /// Axis spacing (paddingLeft, requiredLeftPadding) is owned exclusively by PlotAxisLayoutPlan.compute.
     func resolvedOptions(payload: WorkbenchPlotPayload, base: Options, style: WorkbenchChartStyle = .init()) -> Options {
-        var opts = base
-        let allY = payload.series.flatMap(\.y)
-        guard !allY.isEmpty else { return opts }
-
-        let yRawMin = allY.min()!, yRawMax = allY.max()!
-        let yRawSpan = yRawMax == yRawMin ? 1.0 : yRawMax - yRawMin
-        let preYMin = yRawMin - yRawSpan * 0.05
-        let preYMax = yRawMax + yRawSpan * 0.05
-        let (preYTicks, preYStep) = niceTicks(min: preYMin, max: preYMax, targetCount: style.tickTargetY)
-        let black = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
-        let maxYLabelW = preYTicks.map { tick -> CGFloat in
-            let label = formatTick(tick, step: preYStep)
-            let line = makeLine(text: label, size: style.tickLabelFontSize, bold: false, color: black, style: style)
-            return CTLineGetBoundsWithOptions(line, []).width
-        }.max() ?? 0
-
-        opts.maxYTickLabelWidth = maxYLabelW
-        // labelGap(5) + maxLabel + gap(10) + rotated title height(~24) + margin(5)
-        let needed = maxYLabelW + 44
-        opts.paddingLeft = max(base.paddingLeft, needed)
-        return opts
+        return base
     }
 
     // MARK: - Canvas layout
@@ -182,14 +159,10 @@ struct WorkbenchChartRenderer {
             )
         }
 
-        let (xTicks, xStep, _) = resolvedXTicks(min: xMin, max: xMax, plotRect: layout.plotRect, style: style)
-        let (yTicks, yStep) = style.yTickStep.map { fixedTicks(min: yMin, max: yMax, step: $0) }
-            ?? niceTicks(min: yMin, max: yMax, targetCount: style.tickTargetY)
-
         // Grid lines aligned with ticks (opt-in via styleParams["showGrid"] = "true")
         if payload.styleParams["showGrid"] == "true" {
             drawGrid(ctx, plotRect: layout.plotRect,
-                     xTicks: xTicks, yTicks: yTicks,
+                     xTicks: layout.xTicks, yTicks: layout.yTicks,
                      xMin: xMin, xSpan: xSpan, yMin: yMin, ySpan: ySpan)
         }
 
@@ -285,9 +258,8 @@ struct WorkbenchChartRenderer {
 
         // Tick marks + numeric labels on both axes
         drawAxisTicks(ctx, plotRect: layout.plotRect, options: opts, style: style,
-                      xTicks: xTicks, xStep: xStep,
-                      yTicks: yTicks, yStep: yStep,
-                      xMin: xMin, xSpan: xSpan, yMin: yMin, ySpan: ySpan)
+                      xTicks: layout.xTicks,
+                      yTicks: layout.yTicks)
 
         // Axis field name labels (markup: _X renders X as subscript)
         let axisColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
@@ -302,44 +274,18 @@ struct WorkbenchChartRenderer {
         }
     }
 
-    // MARK: - Tick computation
-
-    /// Returns evenly spaced ticks at a fixed step within [min, max].
-    private func fixedTicks(min: Double, max: Double, step: Double) -> (ticks: [Double], step: Double) {
-        guard max > min, step > 0 else { return ([min, max], max - min) }
-        let firstTick = ceil(min / step) * step
-        var ticks: [Double] = []
-        var tick = firstTick
-        let eps = step * 1e-9
-        while tick <= max + eps {
-            ticks.append(tick)
-            tick += step
-        }
-        return (ticks, step)
+    func measureTextWidth(_ text: String, size: CGFloat, bold: Bool = false, style: WorkbenchChartStyle = .init()) -> CGFloat {
+        PlotTextMeasurer.measuredWidth(
+            text,
+            fontSize: size,
+            fontName: style.fontName,
+            bold: bold,
+            boldFontName: style.boldFontName
+        )
     }
 
-    /// Returns (ticks, step) where ticks are "nice" values within [min, max].
-    private func niceTicks(min: Double, max: Double, targetCount: Int = 5) -> (ticks: [Double], step: Double) {
-        guard max > min, targetCount > 0 else { return ([min, max], max - min) }
-        let range = max - min
-        let roughStep = range / Double(targetCount)
-        let magnitude = pow(10.0, floor(log10(abs(roughStep))))
-        let normalized = roughStep / magnitude
-        let niceNorm: Double
-        if normalized < 1.5      { niceNorm = 1 }
-        else if normalized < 3.5 { niceNorm = 2 }
-        else if normalized < 7.5 { niceNorm = 5 }
-        else                     { niceNorm = 10 }
-        let step = niceNorm * magnitude
-        let firstTick = ceil(min / step) * step
-        var ticks: [Double] = []
-        var tick = firstTick
-        let eps = step * 1e-9
-        while tick <= max + eps {
-            ticks.append(tick)
-            tick += step
-        }
-        return (ticks, step)
+    func formatTick(_ value: Double, step: Double) -> String {
+        PlotAxisSpacingCalculator.formatTick(value, step: step)
     }
 
     func resolvedXTicks(
@@ -348,125 +294,17 @@ struct WorkbenchChartRenderer {
         plotRect: CGRect,
         style: WorkbenchChartStyle = .init()
     ) -> (ticks: [Double], step: Double, targetCount: Int) {
-        if let step = style.xTickStep {
-            let fixed = fixedTicks(min: min, max: max, step: step)
-            return (fixed.ticks, fixed.step, Swift.max(style.tickTargetX, 3))
-        }
-
-        let targetStart = Swift.max(style.tickTargetX, 3)
-        guard max > min else { return ([min, max], max - min, targetStart) }
-
-        for target in stride(from: targetStart, through: 3, by: -1) {
-            let result = niceTicks(min: min, max: max, targetCount: target)
-            if xTickLabelsFit(
-                ticks: result.ticks,
-                step: result.step,
-                min: min,
-                max: max,
-                plotWidth: plotRect.width,
-                fontSize: style.tickLabelFontSize,
-                style: style
-            ) || target == 3 {
-                return (result.ticks, result.step, target)
-            }
-        }
-
-        let fallback = niceTicks(min: min, max: max, targetCount: targetStart)
-        return (fallback.ticks, fallback.step, targetStart)
-    }
-
-    func measureTextWidth(_ text: String, size: CGFloat, bold: Bool = false, style: WorkbenchChartStyle = .init()) -> CGFloat {
-        let line = makeLine(text: text, size: size, bold: bold, color: CGColor(red: 0, green: 0, blue: 0, alpha: 1), style: style)
-        return CTLineGetBoundsWithOptions(line, []).width
-    }
-
-    func formatTick(_ value: Double, step: Double) -> String {
-        if abs(value) < step * 1e-9 { return "0" }
-        // k-notation for large steps
-        if step >= 500 && abs(value.truncatingRemainder(dividingBy: 1000)) < 0.5 {
-            let k = value / 1000
-            return k == k.rounded(.toNearestOrEven)
-                ? "\(Int(k.rounded()))k"
-                : String(format: "%.1fk", k)
-        }
-        if step >= 100  { return String(format: "%.0f", value) }
-        if step >= 10   { return String(format: "%.0f", value) }
-        if step >= 1    { return String(format: "%.0f", value) }
-        if step >= 0.1  { return String(format: "%.1f", value) }
-        if step >= 0.01 { return String(format: "%.2f", value) }
-        if step >= 0.001 { return String(format: "%.3f", value) }
-        return compactScientificString(value)
-    }
-
-    private func xTickLabelsFit(
-        ticks: [Double],
-        step: Double,
-        min: Double,
-        max: Double,
-        plotWidth: CGFloat,
-        fontSize: CGFloat,
-        style: WorkbenchChartStyle
-    ) -> Bool {
-        guard max > min, plotWidth > 0, ticks.count > 1 else { return true }
-        let span = max - min
-        var previousRightEdge: CGFloat?
-
-        for tick in ticks {
-            let label = formatTick(tick, step: step)
-            let width = measureTextWidth(label, size: fontSize, style: style)
-            let centerX = CGFloat((tick - min) / span) * plotWidth
-            let leftEdge = centerX - width / 2
-            if let previousRightEdge, previousRightEdge > leftEdge {
-                return false
-            }
-            previousRightEdge = centerX + width / 2
-        }
-        return true
-    }
-
-    private func compactScientificString(_ value: Double) -> String {
-        let raw = String(format: "%.2e", locale: Locale(identifier: "en_US_POSIX"), value)
-        let normalized = raw.replacingOccurrences(of: "E", with: "e")
-        guard let exponentIndex = normalized.firstIndex(of: "e") else { return normalized }
-
-        var mantissa = String(normalized[..<exponentIndex])
-        var exponent = String(normalized[normalized.index(after: exponentIndex)...])
-
-        while mantissa.last == "0" {
-            mantissa.removeLast()
-        }
-        if mantissa.last == "." {
-            mantissa.removeLast()
-        }
-
-        if exponent.hasPrefix("+") {
-            exponent.removeFirst()
-        } else if exponent.hasPrefix("-") {
-            let sign = exponent.removeFirst()
-            while exponent.count > 1 && exponent.first == "0" {
-                exponent.removeFirst()
-            }
-            exponent = String(sign) + exponent
-            return mantissa + "e" + exponent
-        }
-
-        while exponent.count > 1 && exponent.first == "0" {
-            exponent.removeFirst()
-        }
-        return mantissa + "e" + exponent
+        PlotAxisSpacingCalculator.resolvedXTicks(min: min, max: max, plotRect: plotRect, style: style)
     }
 
     // MARK: - Axis tick marks + numeric labels
 
     private func drawAxisTicks(
         _ ctx: CGContext, plotRect: CGRect, options: Options, style: WorkbenchChartStyle,
-        xTicks: [Double], xStep: Double,
-        yTicks: [Double], yStep: Double,
-        xMin: Double, xSpan: Double,
-        yMin: Double, ySpan: Double
+        xTicks: [PlotAxisTick],
+        yTicks: [PlotAxisTick]
     ) {
         let tickLen: CGFloat = 5
-        let labelGap: CGFloat = 5
         let tickColor = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
         let labelColor = CGColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1)
         let labelSize = style.tickLabelFontSize
@@ -476,27 +314,23 @@ struct WorkbenchChartRenderer {
 
         // X-axis ticks (bottom, inward)
         for tick in xTicks {
-            let cx = plotRect.minX + CGFloat((tick - xMin) / xSpan) * plotRect.width
+            let cx = tick.tickPoint.x
             ctx.move(to: CGPoint(x: cx, y: plotRect.minY))
             ctx.addLine(to: CGPoint(x: cx, y: plotRect.minY + tickLen))
             ctx.strokePath()
-            let label = formatTick(tick, step: xStep)
-            let labelY = plotRect.minY - labelGap - 6
-            drawCentered(ctx, text: label,
-                         at: CGPoint(x: cx, y: labelY),
+            drawCentered(ctx, text: tick.label,
+                         at: tick.labelPoint,
                          size: labelSize, bold: false, color: labelColor, style: style)
         }
 
         // Y-axis ticks (left, inward)
         for tick in yTicks {
-            let cy = plotRect.minY + CGFloat((tick - yMin) / ySpan) * plotRect.height
+            let cy = tick.tickPoint.y
             ctx.move(to: CGPoint(x: plotRect.minX, y: cy))
             ctx.addLine(to: CGPoint(x: plotRect.minX + tickLen, y: cy))
             ctx.strokePath()
-            let label = formatTick(tick, step: yStep)
-            let labelX = plotRect.minX - labelGap
-            drawRightAligned(ctx, text: label,
-                             rightEdge: CGPoint(x: labelX, y: cy),
+            drawRightAligned(ctx, text: tick.label,
+                             rightEdge: tick.labelPoint,
                              size: labelSize, bold: false, color: labelColor, style: style)
         }
     }
@@ -505,19 +339,19 @@ struct WorkbenchChartRenderer {
 
     private func drawGrid(
         _ ctx: CGContext, plotRect: CGRect,
-        xTicks: [Double], yTicks: [Double],
+        xTicks: [PlotAxisTick], yTicks: [PlotAxisTick],
         xMin: Double, xSpan: Double, yMin: Double, ySpan: Double
     ) {
         ctx.setStrokeColor(CGColor(red: 0.85, green: 0.85, blue: 0.85, alpha: 1))
         ctx.setLineWidth(0.5)
         ctx.setLineDash(phase: 0, lengths: [3, 3])
         for tick in yTicks {
-            let y = plotRect.minY + CGFloat((tick - yMin) / ySpan) * plotRect.height
+            let y = tick.tickPoint.y
             ctx.move(to: CGPoint(x: plotRect.minX, y: y))
             ctx.addLine(to: CGPoint(x: plotRect.maxX, y: y))
         }
         for tick in xTicks {
-            let x = plotRect.minX + CGFloat((tick - xMin) / xSpan) * plotRect.width
+            let x = tick.tickPoint.x
             ctx.move(to: CGPoint(x: x, y: plotRect.minY))
             ctx.addLine(to: CGPoint(x: x, y: plotRect.maxY))
         }
@@ -618,46 +452,28 @@ struct WorkbenchChartRenderer {
         ctx.restoreGState()
     }
 
-    /// Renders text where `_X` draws X as a subscript and `^X` draws X as a superscript.
-    /// Falls back to plain rendering when neither marker is present.
     private func makeMarkupLine(text: String, size: CGFloat, color: CGColor, style: WorkbenchChartStyle) -> CTLine {
-        guard text.contains("_") || text.contains("^") else {
-            return makeLine(text: text, size: size, bold: false, color: color, style: style)
-        }
-        let font    = style.ctFont(size: size, bold: false)
-        let subFont = style.ctFont(size: size * 0.65, bold: false)
-        let supFont = style.ctFont(size: size * 0.65, bold: false)
-        let baseAttrs: [NSAttributedString.Key: Any] = [
-            NSAttributedString.Key(rawValue: kCTFontAttributeName as String): font,
-            NSAttributedString.Key(rawValue: kCTForegroundColorAttributeName as String): color,
-        ]
-        let subAttrs: [NSAttributedString.Key: Any] = [
-            NSAttributedString.Key(rawValue: kCTFontAttributeName as String): subFont,
-            NSAttributedString.Key(rawValue: kCTForegroundColorAttributeName as String): color,
-            .baselineOffset: NSNumber(value: -size * 0.20),
-        ]
-        let supAttrs: [NSAttributedString.Key: Any] = [
-            NSAttributedString.Key(rawValue: kCTFontAttributeName as String): supFont,
-            NSAttributedString.Key(rawValue: kCTForegroundColorAttributeName as String): color,
-            .baselineOffset: NSNumber(value: size * 0.30),
-        ]
-        let result = NSMutableAttributedString()
-        var scalars = text.unicodeScalars.makeIterator()
-        while let scalar = scalars.next() {
-            if scalar == "_", let next = scalars.next() {
-                result.append(NSAttributedString(string: String(next), attributes: subAttrs))
-            } else if scalar == "^", let next = scalars.next() {
-                result.append(NSAttributedString(string: String(next), attributes: supAttrs))
-            } else {
-                result.append(NSAttributedString(string: String(scalar), attributes: baseAttrs))
-            }
-        }
-        return CTLineCreateWithAttributedString(result)
+        MathMarkupRenderer.makeLine(text: text, size: size, color: color, style: style)
     }
 
     private func drawCenteredMarkup(_ ctx: CGContext, text: String, at center: CGPoint,
                                     size: CGFloat, color: CGColor, style: WorkbenchChartStyle) {
-        let line = makeMarkupLine(text: text, size: size, color: color, style: style)
+        if MathMarkupRenderer.isMathLabel(text) {
+            let line = makeMarkupLine(
+                text: MathMarkupRenderer.extractMathMarkup(text),
+                size: size,
+                color: color,
+                style: style
+            )
+            let bounds = CTLineGetBoundsWithOptions(line, [])
+            ctx.textPosition = CGPoint(
+                x: center.x - bounds.width / 2 - bounds.minX,
+                y: center.y - bounds.height / 2 - bounds.minY
+            )
+            CTLineDraw(line, ctx)
+            return
+        }
+        let line = makeLine(text: text, size: size, bold: false, color: color, style: style)
         let bounds = CTLineGetBoundsWithOptions(line, [])
         ctx.textPosition = CGPoint(
             x: center.x - bounds.width / 2 - bounds.minX,
@@ -668,7 +484,26 @@ struct WorkbenchChartRenderer {
 
     private func drawRotated90Markup(_ ctx: CGContext, text: String, at center: CGPoint,
                                      size: CGFloat, color: CGColor, style: WorkbenchChartStyle) {
-        let line = makeMarkupLine(text: text, size: size, color: color, style: style)
+        if MathMarkupRenderer.isMathLabel(text) {
+            let line = makeMarkupLine(
+                text: MathMarkupRenderer.extractMathMarkup(text),
+                size: size,
+                color: color,
+                style: style
+            )
+            let bounds = CTLineGetBoundsWithOptions(line, [])
+            ctx.saveGState()
+            ctx.translateBy(x: center.x, y: center.y)
+            ctx.rotate(by: .pi / 2)
+            ctx.textPosition = CGPoint(
+                x: -bounds.width / 2 - bounds.minX,
+                y: -bounds.height / 2 - bounds.minY
+            )
+            CTLineDraw(line, ctx)
+            ctx.restoreGState()
+            return
+        }
+        let line = makeLine(text: text, size: size, bold: false, color: color, style: style)
         let bounds = CTLineGetBoundsWithOptions(line, [])
         ctx.saveGState()
         ctx.translateBy(x: center.x, y: center.y)

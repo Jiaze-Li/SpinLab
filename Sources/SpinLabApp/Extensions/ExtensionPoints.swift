@@ -306,6 +306,61 @@ struct XYRotationViewExtension: ViewExtension {
     let displayName: String = "XY Rotation Workspace"
 }
 
+// MARK: - RSM
+
+struct RSMWorkflowExtension: WorkflowExtension {
+    let workflow: SpinLabDomain.WorkflowKind = .rsm
+    let supportedMeasurementTypes: [SpinLabDomain.MeasurementType] = [.rsm]
+
+    func createArchivedRecord(context: ArchivedRecordBuildContext) -> SpinLabDomain.ArchivedRecord {
+        buildArchivedRecord(context: context, measurementType: .rsm, rawSeriesName: "Raw RSM")
+    }
+}
+
+struct RSMMetadataExtension: MetadataExtension {
+    let workflow: SpinLabDomain.WorkflowKind = .rsm
+    private let ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared
+
+    func parseFilename(from fileURL: URL) -> SpinLabDomain.ParsedFilenameHints {
+        let parser = FilenameRuleParser(ruleSet: ruleProvider.ruleSet())
+        var hints = parser.parse(from: fileURL)
+        if hints.workflowID == nil || hints.workflowID?.isEmpty == true {
+            hints.workflowID = "rsm"
+        }
+        return hints
+    }
+
+    func defaultConfirmationDraft(
+        pending: SpinLabDomain.PendingImport,
+        suggestedProjectName: String?,
+        registryLookup: SampleRegistryLookupResult?,
+        fallbackSampleID: String?
+    ) -> PendingImportConfirmationDraft {
+        PendingImportConfirmationDraft(
+            batchName: pending.parsedHints.batchName ?? fallbackSampleID ?? "",
+            sampleName: pending.parsedHints.sampleName ?? fallbackSampleID ?? "",
+            measurementName: pending.parsedHints.measurementName ?? pending.fileName,
+            workflowID: "rsm",
+            conditionValues: seedConditionValues(from: pending.parsedHints),
+            selectedExistingProjectName: suggestedProjectName ?? PendingImportConfirmationDraft.noProjectOption,
+            newProjectName: ""
+        )
+    }
+}
+
+struct RSMAnalysisModuleExtension: AnalysisModuleExtension {
+    let workflow: SpinLabDomain.WorkflowKind = .rsm
+
+    func defaultResultSummary(for measurement: SpinLabDomain.Measurement) -> String {
+        "RSM result for \(measurement.name)"
+    }
+}
+
+struct RSMViewExtension: ViewExtension {
+    let workflow: SpinLabDomain.WorkflowKind = .rsm
+    let displayName: String = "RSM Workspace"
+}
+
 // MARK: - Dummy
 
 struct DummyWorkflowExtension: WorkflowExtension {

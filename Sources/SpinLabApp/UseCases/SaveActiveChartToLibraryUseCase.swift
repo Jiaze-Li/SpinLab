@@ -57,10 +57,9 @@ struct SaveActiveChartToLibraryUseCase {
             return .failure("No sample keys provided")
         }
 
-        // sourceRef must be filled for stable identity key
-        let missingSourceRef = input.payload.series.contains { $0.sourceRef == nil || $0.sourceRef!.isEmpty }
-        if missingSourceRef {
-            return .failure("payload.series contains entries with missing sourceRef — identity key would be unstable")
+        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: input.payload.series)
+        if Set(identities.map(\.identityKey)).count != identities.count {
+            return .failure("payload.series contains duplicate series identity keys")
         }
 
         // metrics sampleKeys must be subset of input.sampleKeys

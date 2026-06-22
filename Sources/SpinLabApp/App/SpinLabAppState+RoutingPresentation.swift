@@ -72,6 +72,20 @@ extension SpinLabAppState {
         )
     }
 
+    func pendingRoutePresentation(
+        for pending: SpinLabDomain.PendingImport,
+        routingDraft: PendingRoutingDraft,
+        sampleName: String
+    ) -> PendingRoutePresentation {
+        let substrate = substrateWarning(for: pending, registryLookup: registryLookup(for: pending))
+        return inboxFeatureStore.previewPendingRoutePresentation(
+            for: pending,
+            routingDraft: routingDraft,
+            sampleName: sampleName,
+            substrateWarning: substrate
+        )
+    }
+
     func pendingRoutePresentationByID() -> [UUID: PendingRoutePresentation] {
         inboxFeatureStore.pendingRoutePresentationByID(
             substrateWarning: { [weak self] pending in
@@ -124,6 +138,18 @@ extension SpinLabAppState {
 
     func pendingRoutePlan(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.RoutePlan {
         inboxFeatureStore.pendingRoutePlan(for: pending)
+    }
+
+    func pendingRoutingPreviewSnapshot(
+        for pending: SpinLabDomain.PendingImport,
+        routingDraft: PendingRoutingDraft,
+        sampleName: String
+    ) -> SpinLabDomain.PendingRoutingSnapshot {
+        inboxFeatureStore.previewPendingRoutingSnapshot(
+            for: pending,
+            routingDraft: routingDraft,
+            sampleName: sampleName
+        )
     }
 
     func pendingRouteStatus(for pending: SpinLabDomain.PendingImport) -> SpinLabDomain.RouteStatus {
