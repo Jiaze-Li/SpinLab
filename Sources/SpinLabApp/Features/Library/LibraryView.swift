@@ -426,7 +426,7 @@ struct PreviewDerivedData {
 struct LibraryView_Previews: PreviewProvider {
     static var previews: some View {
         let registry = WorkflowRegistry.shared
-        let bundle = registry.bundle(for: .dummy) ?? registry.defaultBundle()
+        let bundle = registry.defaultBundle()
         let appState = SpinLabAppState(
             workflowBundle: bundle,
             persistence: LocalJSONPersistence(),

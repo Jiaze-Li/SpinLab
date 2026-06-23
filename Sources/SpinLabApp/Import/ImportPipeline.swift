@@ -31,7 +31,7 @@ struct SpinLabImportPipeline {
 
             let hints = metadataExtension.parseFilename(from: file.originalFileURL)
             return SpinLabDomain.PendingImport(
-                workflow: workflowExtension.workflow,
+                workflow: workflowExtension.workflow.legacyKind,
                 fileName: file.fileName,
                 sourceFilePath: file.sourceFileURL.path,
                 originalFilePath: file.originalFileURL.path,

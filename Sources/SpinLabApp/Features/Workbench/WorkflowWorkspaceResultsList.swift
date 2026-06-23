@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct WorkflowWorkspaceResultsList<Store: WorkbenchWorkspaceProviding>: View {
-    let workflowID: WorkbenchWorkflowID
+    let workflowID: WorkflowKey
     let store: Store
     let workbench: WorkbenchFeatureStore
 

@@ -17,8 +17,8 @@ struct WorkflowBundle {
 final class WorkflowRegistry {
     static let shared = WorkflowRegistry()
 
-    private var bundlesByKind: [SpinLabDomain.WorkflowKind: WorkflowBundle] = [:]
-    private var fallbackKind: SpinLabDomain.WorkflowKind = .amrPhe
+    private var bundlesByKind: [WorkflowKey: WorkflowBundle] = [:]
+    private var fallbackKind: WorkflowKey = .ahe
     private let lock = NSLock()
 
     private init() {
@@ -31,13 +31,13 @@ final class WorkflowRegistry {
         }
     }
 
-    func setDefaultWorkflow(_ workflow: SpinLabDomain.WorkflowKind) {
+    func setDefaultWorkflow(_ workflow: WorkflowKey) {
         withLock {
             fallbackKind = workflow
         }
     }
 
-    func bundle(for workflow: SpinLabDomain.WorkflowKind) -> WorkflowBundle? {
+    func bundle(for workflow: WorkflowKey) -> WorkflowBundle? {
         withLock {
             bundlesByKind[workflow]
         }
@@ -93,14 +93,6 @@ final class WorkflowRegistry {
                 metadataExtension: RSMMetadataExtension(),
                 analysisModule: RSMAnalysisModuleExtension(),
                 viewExtension: RSMViewExtension()
-            )
-        )
-        register(
-            WorkflowBundle(
-                workflowExtension: DummyWorkflowExtension(),
-                metadataExtension: DummyMetadataExtension(),
-                analysisModule: DummyAnalysisModuleExtension(),
-                viewExtension: DummyViewExtension()
             )
         )
     }

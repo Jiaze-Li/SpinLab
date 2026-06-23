@@ -6,11 +6,11 @@ final class WorkbenchMainSearchRuntime {
     private unowned let store: WorkbenchFeatureStore
     private let dataActor: any SpinLabDataActing
     private var workflowSearchTask: Task<Void, Never>?
-    /// Per-workflow search state, keyed by WorkbenchWorkflowID.
-    private var searchQueryTexts: [WorkbenchWorkflowID: String]
-    private(set) var searchResults: [WorkbenchWorkflowID: [WorkflowMeasurementSearchHit]] = [:]
-    private var searchMessages: [WorkbenchWorkflowID: String] = [:]
-    private(set) var searchRunning: [WorkbenchWorkflowID: Bool] = [:]
+    /// Per-workflow search state, keyed by WorkflowKey.
+    private var searchQueryTexts: [WorkflowKey: String]
+    private(set) var searchResults: [WorkflowKey: [WorkflowMeasurementSearchHit]] = [:]
+    private var searchMessages: [WorkflowKey: String] = [:]
+    private(set) var searchRunning: [WorkflowKey: Bool] = [:]
 
     init(store: WorkbenchFeatureStore, dataActor: any SpinLabDataActing) {
         self.store = store
@@ -20,9 +20,9 @@ final class WorkbenchMainSearchRuntime {
 
     private static let searchQueryDefaultsPrefix = "workbench.searchQuery."
 
-    private static func restoreSearchQueryTexts() -> [WorkbenchWorkflowID: String] {
-        var result: [WorkbenchWorkflowID: String] = [:]
-        for wf in WorkbenchWorkflowID.allCases {
+    private static func restoreSearchQueryTexts() -> [WorkflowKey: String] {
+        var result: [WorkflowKey: String] = [:]
+        for wf in WorkflowKey.allCases {
             if let saved = UserDefaults.standard.string(forKey: searchQueryDefaultsPrefix + wf.rawValue) {
                 result[wf] = saved
             }
@@ -30,32 +30,32 @@ final class WorkbenchMainSearchRuntime {
         return result
     }
 
-    private static func persistSearchQueryText(_ text: String, for wf: WorkbenchWorkflowID) {
+    private static func persistSearchQueryText(_ text: String, for wf: WorkflowKey) {
         UserDefaults.standard.set(text, forKey: searchQueryDefaultsPrefix + wf.rawValue)
     }
 
-    func searchQueryText(for wf: WorkbenchWorkflowID) -> String {
+    func searchQueryText(for wf: WorkflowKey) -> String {
         searchQueryTexts[wf] ?? wf.searchPrefix
     }
 
-    func setSearchQueryText(_ text: String, for wf: WorkbenchWorkflowID) {
+    func setSearchQueryText(_ text: String, for wf: WorkflowKey) {
         searchQueryTexts[wf] = text
         Self.persistSearchQueryText(text, for: wf)
     }
 
-    func searchResultsList(for wf: WorkbenchWorkflowID) -> [WorkflowMeasurementSearchHit] {
+    func searchResultsList(for wf: WorkflowKey) -> [WorkflowMeasurementSearchHit] {
         searchResults[wf] ?? []
     }
 
-    func searchMessage(for wf: WorkbenchWorkflowID) -> String? {
+    func searchMessage(for wf: WorkflowKey) -> String? {
         searchMessages[wf] ?? store.searchMessages[wf]
     }
 
-    func isSearchRunning(for wf: WorkbenchWorkflowID) -> Bool {
+    func isSearchRunning(for wf: WorkflowKey) -> Bool {
         searchRunning[wf] ?? false
     }
 
-    func searchSnapshot(for wf: WorkbenchWorkflowID) -> WorkbenchSearchSnapshot {
+    func searchSnapshot(for wf: WorkflowKey) -> WorkbenchSearchSnapshot {
         WorkbenchSearchSnapshot(
             workflowID: wf,
             queryText: searchQueryText(for: wf),
@@ -70,7 +70,7 @@ final class WorkbenchMainSearchRuntime {
     /// (pack-restored IDs that have no cached hit object yet). Current results remain authoritative
     /// for sourceHitCount and the select-all denominator.
     func selectedHitsSnapshot(
-        for wf: WorkbenchWorkflowID,
+        for wf: WorkflowKey,
         selectedIDs: Set<String>,
         hitCache: [String: WorkflowMeasurementSearchHit]
     ) -> WorkbenchSelectedHitsSnapshot {
@@ -101,7 +101,7 @@ final class WorkbenchMainSearchRuntime {
         )
     }
 
-    func restoreSearchState(results: [WorkflowMeasurementSearchHit], queryText: String, for wf: WorkbenchWorkflowID) {
+    func restoreSearchState(results: [WorkflowMeasurementSearchHit], queryText: String, for wf: WorkflowKey) {
         searchResults[wf] = results
         setSearchQueryText(queryText, for: wf)
         setSearchMessage("Restored from analysis pack (\(results.count) hit(s)).", for: wf)
@@ -110,7 +110,7 @@ final class WorkbenchMainSearchRuntime {
     }
 
     func runWorkflowMeasurementSearch(
-        workflowID wf: WorkbenchWorkflowID,
+        workflowID wf: WorkflowKey,
         libraryRootPath: String?,
         librarySettings: LibrarySettings? = nil
     ) {
@@ -179,7 +179,7 @@ final class WorkbenchMainSearchRuntime {
         }
     }
 
-    func clearWorkflowMeasurementSearch(workflowID wf: WorkbenchWorkflowID) {
+    func clearWorkflowMeasurementSearch(workflowID wf: WorkflowKey) {
         workflowSearchTask?.cancel()
         workflowSearchTask = nil
         searchResults[wf] = []
@@ -192,7 +192,7 @@ final class WorkbenchMainSearchRuntime {
 
     private func applySearchSuccess(
         _ result: [WorkflowMeasurementSearchHit],
-        workflowID wf: WorkbenchWorkflowID,
+        workflowID wf: WorkflowKey,
         query: String,
         libraryRootPath: String,
         dataActor: any SpinLabDataActing
@@ -225,11 +225,11 @@ final class WorkbenchMainSearchRuntime {
         }
     }
 
-    private func applySearchCancellation(workflowID wf: WorkbenchWorkflowID) {
+    private func applySearchCancellation(workflowID wf: WorkflowKey) {
         searchRunning[wf] = false
     }
 
-    private func applySearchFailure(_ message: String, workflowID wf: WorkbenchWorkflowID) {
+    private func applySearchFailure(_ message: String, workflowID wf: WorkflowKey) {
         searchResults[wf] = []
         clearSearchMirrors(for: wf)
         clearSelectedSearchResults(for: wf)
@@ -237,7 +237,7 @@ final class WorkbenchMainSearchRuntime {
         searchRunning[wf] = false
     }
 
-    private func clearInvalidSearchState(message: String, workflowID wf: WorkbenchWorkflowID) {
+    private func clearInvalidSearchState(message: String, workflowID wf: WorkflowKey) {
         workflowSearchTask?.cancel()
         workflowSearchTask = nil
         searchResults[wf] = []
@@ -247,14 +247,14 @@ final class WorkbenchMainSearchRuntime {
         searchRunning[wf] = false
     }
 
-    private func setSearchMessage(_ message: String?, for wf: WorkbenchWorkflowID) {
+    private func setSearchMessage(_ message: String?, for wf: WorkflowKey) {
         searchMessages[wf] = message
         store.searchMessages[wf] = message
     }
 
     private func projectSearchResults(
         _ result: [WorkflowMeasurementSearchHit],
-        for wf: WorkbenchWorkflowID
+        for wf: WorkflowKey
     ) {
         switch wf {
         case .ahe:
@@ -267,10 +267,12 @@ final class WorkbenchMainSearchRuntime {
             store.ivWorkspace.cachedSearchResults = result
         case .rsm:
             store.rsmWorkspace.cachedSearchResults = result
+        case .mr, .rt:
+            break
         }
     }
 
-    private func clearSearchMirrors(for wf: WorkbenchWorkflowID) {
+    private func clearSearchMirrors(for wf: WorkflowKey) {
         switch wf {
         case .ahe:
             store.aheWorkspace.cachedSearchResults = []
@@ -287,16 +289,18 @@ final class WorkbenchMainSearchRuntime {
         case .rsm:
             store.rsmWorkspace.cachedSearchResults = []
             store.rsmWorkspace.cachedSampleNumericDisplay = [:]
+        case .mr, .rt:
+            break
         }
     }
 
-    private func clearSelectedSearchResults(for wf: WorkbenchWorkflowID) {
+    private func clearSelectedSearchResults(for wf: WorkflowKey) {
         store.deselectAll(for: wf)
     }
 
     private func projectSearchMirrors(
         _ result: [WorkflowMeasurementSearchHit],
-        for wf: WorkbenchWorkflowID,
+        for wf: WorkflowKey,
         libraryRootPath: String?,
         dataActor: (any SpinLabDataActing)?
     ) async {
@@ -335,6 +339,8 @@ final class WorkbenchMainSearchRuntime {
                 libraryRootPath: libraryRootPath,
                 dataActor: dataActor
             )
+        case .mr, .rt:
+            break
         }
     }
 

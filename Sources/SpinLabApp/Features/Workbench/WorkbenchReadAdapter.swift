@@ -100,7 +100,7 @@ extension WorkbenchReadinessProjection {
     @MainActor
     init<Store: WorkbenchWorkspaceProviding>(
         workbench: WorkbenchFeatureStore,
-        workflowID: WorkbenchWorkflowID,
+        workflowID: WorkflowKey,
         store: Store
     ) {
         self.init(
@@ -116,7 +116,7 @@ extension WorkbenchReadinessProjection {
 extension WorkbenchFeatureStore {
     @MainActor
     func readinessProjection<Store: WorkbenchWorkspaceProviding>(
-        for workflowID: WorkbenchWorkflowID,
+        for workflowID: WorkflowKey,
         store: Store
     ) -> WorkbenchReadinessProjection {
         WorkbenchReadinessProjection(workbench: self, workflowID: workflowID, store: store)

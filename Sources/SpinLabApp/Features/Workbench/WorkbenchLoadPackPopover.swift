@@ -171,7 +171,7 @@ struct WorkbenchLoadPackPopover<Store: WorkbenchWorkspaceProviding>: View {
     }
 
     private func load(_ id: AnalysisPack.ID) {
-        let wfID: WorkbenchWorkflowID? = WorkbenchWorkflowID(rawValue: workflowID)
+        let wfID: WorkflowKey? = WorkflowKey(rawValue: workflowID)
         store.loadPack(
             id: id,
             restoreSearchState: { results, queryText in

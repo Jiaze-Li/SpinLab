@@ -221,7 +221,7 @@ struct SearchWorkflowMeasurementsUseCase {
         let normalizedWorkflowID = normalizeToken(workflowID)
         let normalizedDisplayName = normalizeToken(workflowDisplayName)
 
-        guard let knownWorkflowID = WorkflowID.from(alias: canonicalID) else {
+        guard let knownWorkflowID = WorkflowKey.from(sidecarValue: canonicalID) else {
             return [normalizedWorkflowID, normalizedDisplayName, canonicalID]
         }
 
@@ -232,13 +232,13 @@ struct SearchWorkflowMeasurementsUseCase {
         let normalizedID = normalizeToken(workflowID)
         let normalizedDisplayName = normalizeToken(displayName)
 
-        if let knownWorkflowID = WorkflowID.from(alias: normalizedID) {
+        if let knownWorkflowID = WorkflowKey.from(sidecarValue: normalizedID) {
             return knownWorkflowID.rawValue
         }
-        if let knownWorkflowID = WorkflowID.from(alias: normalizedDisplayName) {
+        if let knownWorkflowID = WorkflowKey.from(sidecarValue: normalizedDisplayName) {
             return knownWorkflowID.rawValue
         }
-        if let knownWorkflowID = WorkflowID.allCases.first(where: { $0.matchesDisplayNameContains(normalizedDisplayName) }) {
+        if let knownWorkflowID = WorkflowKey.allCases.first(where: { $0.matchesDisplayNameContains(normalizedDisplayName) }) {
             return knownWorkflowID.rawValue
         }
 

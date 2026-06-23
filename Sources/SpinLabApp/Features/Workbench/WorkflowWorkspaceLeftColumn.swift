@@ -7,7 +7,7 @@ struct WorkflowWorkspaceLeftColumn<
     LeftExtra: View
 >: View {
 
-    let workflowID: WorkbenchWorkflowID
+    let workflowID: WorkflowKey
     let store: Store
     let workbench: WorkbenchFeatureStore
 

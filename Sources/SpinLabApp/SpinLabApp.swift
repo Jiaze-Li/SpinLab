@@ -42,15 +42,7 @@ struct SpinLabApp: App {
         .defaultSize(width: 900, height: 600)
     }
 
-    private static func workflowSelection(from rawValue: String?) -> SpinLabDomain.WorkflowKind {
-        guard let rawValue else {
-            return .amrPhe
-        }
-        switch rawValue.lowercased() {
-        case "dummy":
-            return .dummy
-        default:
-            return .amrPhe
-        }
+    private static func workflowSelection(from rawValue: String?) -> WorkflowKey {
+        WorkflowKey(rawValue: rawValue ?? "") ?? .ahe
     }
 }

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct WorkflowWorkspaceLoadPackPlacement<Store: WorkbenchWorkspaceProviding>: View {
-    let workflowID: WorkbenchWorkflowID
+    let workflowID: WorkflowKey
     let store: Store
 
     var body: some View {
