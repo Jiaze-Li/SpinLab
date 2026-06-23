@@ -44,7 +44,22 @@ done < <(
   } | awk '!seen[$0]++'
 )
 
-if [[ "$saw_any_change" == false || "$docs_or_readme_only" == true ]]; then
+# Stale installed app check: HEAD commit newer than /Applications/SpinLab.app binary.
+# Catches the case where the working tree is clean but the app was built before HEAD.
+app_binary="/Applications/SpinLab.app/Contents/MacOS/SpinLab"
+if [[ -f "$app_binary" ]]; then
+  head_commit_epoch=$(git log -1 --format="%ct" HEAD)
+  app_mtime=$(stat -f "%m" "$app_binary")
+  if (( head_commit_epoch > app_mtime )); then
+    echo "Warning: installed app is older than HEAD commit"
+    echo "  HEAD: $(git log -1 --format='%h %ai')"
+    echo "  App:  $(stat -f '%Sm' -t '%Y-%m-%d %H:%M:%S' "$app_binary")"
+    requires_build=true
+  fi
+fi
+
+if [[ "$requires_build" == false ]] && \
+   [[ "$saw_any_change" == false || "$docs_or_readme_only" == true ]]; then
   echo "No rebuild or publish required"
 fi
 
