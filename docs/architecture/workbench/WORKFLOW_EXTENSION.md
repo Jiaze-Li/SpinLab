@@ -122,7 +122,7 @@ If a deviation would require a common Plot System change, stop and open an archi
 
 Before writing any code, define the Workflow Assembly. See [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) for the stable contract fields and ownership boundaries. Key decisions:
 
-- Workflow Identity: stable workflow ID registered in `WorkbenchWorkflowID`
+- Workflow Identity: stable workflow id — canonical value lives in `workflow.json` (Rule Book); typed code projection is a `WorkflowKey` case
 - Physics Function: scientific model, measurement inputs, expected outputs
 - Optional Panels / optional contributions: which additional workflow-specific content the workflow needs beyond the default set
 - Plot Defaults: how this workflow's result should be displayed by default
@@ -134,7 +134,7 @@ Default modules attach automatically. Do not redeclare them in the Workflow Asse
 
 ### Steps 1–8 — Implementation checklist
 
-1. Register workflow ID in `WorkbenchWorkflowID` enum (`Workflow/WorkflowID.swift`).
+1. Add `workflow.json` entry in the Rule Book; add matching `WorkflowKey` case in `WorkflowKey.swift`. The Rule Book `id` is canonical; `WorkflowKey` is its typed code projection. Register the workspace implementation in `WorkflowWorkspaceRegistry`; unregistered keys show `NotImplementedWorkflowView`.
 2. Create `<Name>IngestionContracts.swift` — domain result struct (`Codable`, `Hashable`, `Sendable`).
 3. Create `Ingest<Name>SelectionsUseCase.swift` — stateless ingestion from search hits to result.
 4. Create `<Name>PackContracts.swift` — `PackConfig` (UI state snapshot) + `PackResult` (must include `ingestionResult`). This is the Pack Metadata Provider implementation.

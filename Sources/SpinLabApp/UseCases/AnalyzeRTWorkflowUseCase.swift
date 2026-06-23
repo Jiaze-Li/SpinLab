@@ -1,13 +1,24 @@
 import Foundation
 
+// MARK: - RTMeasurementFormat
+
+enum RTMeasurementFormat: String, Codable, Hashable, Sendable {
+    case lvm
+    case ppmsDat = "ppms-dat"
+}
+
 // MARK: - RTAnalysisResult
 
 /// Full RT curve extracted from a single RT measurement file.
-/// Represents the RT workflow's analysis output (Rxx vs temperature).
 struct RTAnalysisResult: Codable, Hashable, Sendable {
     let workflowID: String
     let sourceFilePath: String
     let sidecarPath: String?
+    let sampleKey: String
+    let sampleID: String?
+    let format: RTMeasurementFormat
+    let channelID: String?
+    let bridgeIndex: Int?
     let device: String
     let conditions: [String: String]
     let temperatureK: [Double]
@@ -17,6 +28,11 @@ struct RTAnalysisResult: Codable, Hashable, Sendable {
     init(
         sourceFilePath: String,
         sidecarPath: String? = nil,
+        sampleKey: String = "",
+        sampleID: String? = nil,
+        format: RTMeasurementFormat = .lvm,
+        channelID: String? = nil,
+        bridgeIndex: Int? = nil,
         device: String,
         conditions: [String: String] = [:],
         temperatureK: [Double],
@@ -26,6 +42,11 @@ struct RTAnalysisResult: Codable, Hashable, Sendable {
         self.workflowID = WorkflowKey.rt.rawValue
         self.sourceFilePath = sourceFilePath
         self.sidecarPath = sidecarPath
+        self.sampleKey = sampleKey
+        self.sampleID = sampleID
+        self.format = format
+        self.channelID = channelID
+        self.bridgeIndex = bridgeIndex
         self.device = device
         self.conditions = conditions
         self.temperatureK = temperatureK
@@ -38,20 +59,100 @@ struct RTAnalysisResult: Codable, Hashable, Sendable {
 
 /// Headless use case: parse a single RT measurement hit into an RTAnalysisResult.
 ///
-/// Reads Col[0] (temperature K) and Col[9] (Rxx Ω) from the LVM file, sorts
-/// ascending by temperature, and returns the curve with any parse warnings.
+/// Dispatches by file extension:
+///   .dat  → RTPPMSDatParser (PPMS MultiVu)
+///   .lvm  → ThreeOmegaLVMParser (3ω / LVM RT sweep)
 struct AnalyzeRTWorkflowUseCase {
 
-    var parser = ThreeOmegaLVMParser()
+    var lvmParser = ThreeOmegaLVMParser()
+    var datParser = RTPPMSDatParser()
 
     func execute(hit: WorkflowMeasurementSearchHit) -> RTAnalysisResult {
         let url = URL(fileURLWithPath: hit.measurementFilePath)
+        if url.pathExtension.lowercased() == "dat" {
+            return _executePPMSDat(hit: hit, url: url)
+        } else {
+            return _executeLVM(hit: hit, url: url)
+        }
+    }
+
+    // MARK: - PPMS .dat path
+
+    private func _executePPMSDat(hit: WorkflowMeasurementSearchHit, url: URL) -> RTAnalysisResult {
+        let device = hit.conditions["device"] ?? hit.conditions["Device"] ?? ""
+        let name = url.lastPathComponent
+
+        guard let channelID = hit.channels.first, !channelID.isEmpty else {
+            return RTAnalysisResult(
+                sourceFilePath: hit.measurementFilePath,
+                sidecarPath: hit.sidecarPath,
+                sampleKey: hit.sampleKey,
+                format: .ppmsDat,
+                device: device,
+                conditions: hit.conditions,
+                temperatureK: [],
+                rxx: [],
+                warnings: ["PPMS .dat entry '\(name)' has no channel metadata (ch1/ch2/ch3); bridge index cannot be determined"]
+            )
+        }
+
+        guard let bridgeIdx = RTPPMSDatParser.bridgeIndex(forChannel: channelID) else {
+            return RTAnalysisResult(
+                sourceFilePath: hit.measurementFilePath,
+                sidecarPath: hit.sidecarPath,
+                sampleKey: hit.sampleKey,
+                format: .ppmsDat,
+                channelID: channelID,
+                device: device,
+                conditions: hit.conditions,
+                temperatureK: [],
+                rxx: [],
+                warnings: ["Unrecognized channel '\(channelID)' in '\(name)'; expected ch1, ch2, or ch3"]
+            )
+        }
+
+        do {
+            let result = try datParser.parse(fileURL: url, bridgeIndex: bridgeIdx)
+            let pairs = zip(result.temperatureK, result.rxx).sorted { $0.0 < $1.0 }
+            return RTAnalysisResult(
+                sourceFilePath: hit.measurementFilePath,
+                sidecarPath: hit.sidecarPath,
+                sampleKey: hit.sampleKey,
+                format: .ppmsDat,
+                channelID: channelID,
+                bridgeIndex: bridgeIdx,
+                device: device,
+                conditions: hit.conditions,
+                temperatureK: pairs.map { $0.0 },
+                rxx: pairs.map { $0.1 },
+                warnings: result.warnings
+            )
+        } catch {
+            return RTAnalysisResult(
+                sourceFilePath: hit.measurementFilePath,
+                sidecarPath: hit.sidecarPath,
+                sampleKey: hit.sampleKey,
+                format: .ppmsDat,
+                channelID: channelID,
+                bridgeIndex: bridgeIdx,
+                device: device,
+                conditions: hit.conditions,
+                temperatureK: [],
+                rxx: [],
+                warnings: ["Failed to parse PPMS .dat '\(name)': \(error.localizedDescription)"]
+            )
+        }
+    }
+
+    // MARK: - LVM path (3ω RT sweep)
+
+    private func _executeLVM(hit: WorkflowMeasurementSearchHit, url: URL) -> RTAnalysisResult {
         let device = hit.conditions["device"] ?? hit.conditions["Device"] ?? ""
         var warnings: [String] = []
 
         do {
             let tempOverride = _parseConditionTemperatureK(hit.conditions["temperature"])
-            let file = try parser.parse(
+            let file = try lvmParser.parse(
                 fileURL: url,
                 temperatureOverride: tempOverride,
                 kindOverride: .rtSweep
@@ -61,6 +162,8 @@ struct AnalyzeRTWorkflowUseCase {
                 return RTAnalysisResult(
                     sourceFilePath: hit.measurementFilePath,
                     sidecarPath: hit.sidecarPath,
+                    sampleKey: hit.sampleKey,
+                    format: .lvm,
                     device: device,
                     conditions: hit.conditions,
                     temperatureK: [],
@@ -72,6 +175,8 @@ struct AnalyzeRTWorkflowUseCase {
             return RTAnalysisResult(
                 sourceFilePath: hit.measurementFilePath,
                 sidecarPath: hit.sidecarPath,
+                sampleKey: hit.sampleKey,
+                format: .lvm,
                 device: device,
                 conditions: hit.conditions,
                 temperatureK: pairs.map { $0.0 },
@@ -83,6 +188,8 @@ struct AnalyzeRTWorkflowUseCase {
             return RTAnalysisResult(
                 sourceFilePath: hit.measurementFilePath,
                 sidecarPath: hit.sidecarPath,
+                sampleKey: hit.sampleKey,
+                format: .lvm,
                 device: device,
                 conditions: hit.conditions,
                 temperatureK: [],

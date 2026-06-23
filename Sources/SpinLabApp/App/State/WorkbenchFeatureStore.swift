@@ -142,6 +142,8 @@ final class WorkbenchFeatureStore {
     let ivWorkspace = IVWorkspaceStore()
     /// RSM workspace state. Reciprocal Space Map single-file heatmap workflow.
     let rsmWorkspace = RSMWorkspaceStore()
+    /// RT workspace state. Resistance vs Temperature multi-file workflow.
+    let rtWorkspace = RTWorkspaceStore()
     /// Legacy search status bridge retained for compatibility with existing callers/tests.
     var searchMessages: [WorkflowKey: String] = [:]
     /// Shared plot appearance defaults across workflows.
@@ -224,12 +226,14 @@ final class WorkbenchFeatureStore {
         self.aheWorkspace.vault = analysisVault
         self.ivWorkspace.vault = analysisVault
         self.rsmWorkspace.vault = analysisVault
+        self.rtWorkspace.vault = analysisVault
 
         self.aheWorkspace.selectionReading = self.selectionRuntime
         self.xyRotationWorkspace.selectionReading = self.selectionRuntime
         self.threeOmegaWorkspace.selectionReading = self.selectionRuntime
         self.ivWorkspace.selectionReading = self.selectionRuntime
         self.rsmWorkspace.selectionReading = self.selectionRuntime
+        self.rtWorkspace.selectionReading = self.selectionRuntime
 
         // Route 3ω RT session state through the secondary input runtime.
         // Forces lazy init of secondaryInputRuntime while self is fully constructed.
@@ -533,7 +537,8 @@ final class WorkbenchFeatureStore {
         case .xyRotation: return xyRotationWorkspace.cachedSearchResults
         case .iv:         return ivWorkspace.cachedSearchResults
         case .rsm:        return rsmWorkspace.cachedSearchResults
-        case .mr, .rt:    return []
+        case .rt:         return rtWorkspace.cachedSearchResults
+        case .mr:         return []
         }
     }
 
@@ -557,6 +562,7 @@ final class WorkbenchFeatureStore {
         threeOmegaWorkspace.globalPlotDefaults = globalPlotDefaults
         ivWorkspace.globalPlotDefaults = globalPlotDefaults
         rsmWorkspace.globalPlotDefaults = globalPlotDefaults
+        rtWorkspace.globalPlotDefaults = globalPlotDefaults
     }
 
     func selectWorkflow(_ id: String?) {

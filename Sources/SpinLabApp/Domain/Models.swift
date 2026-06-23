@@ -204,6 +204,9 @@ extension SpinLabDomain {
         var testInfoTags: [String] = []
     }
 
+    /// Legacy persisted type for Codable compatibility only.
+    /// Not a workflow catalog, route key, search key, or workspace key.
+    /// Use WorkflowKey for all runtime workflow identity; bridge via WorkflowKey.legacyKind at import boundaries only.
     enum WorkflowKind: String, Codable, CaseIterable, Hashable, Identifiable {
         case amrPhe = "AMR/PHE"
         case threeOmegaAHE = "3w"
@@ -214,6 +217,8 @@ extension SpinLabDomain {
         var id: String { rawValue }
     }
 
+    /// Legacy persisted type used at the import pipeline boundary (MeasurementExtensionPoint.supportedMeasurementTypes).
+    /// Not a workflow catalog, route key, or workspace key. Prefer WorkflowKey for all runtime workflow identity.
     enum MeasurementType: String, Codable, CaseIterable, Hashable, Identifiable {
         case amrPhe = "AMR/PHE"
         case threeOmegaAHE = "3w"

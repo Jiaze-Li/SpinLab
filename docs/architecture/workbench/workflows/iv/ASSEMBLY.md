@@ -10,7 +10,7 @@
 |---|---|
 | Workflow ID | `IV` |
 | Display name | `IV` |
-| `WorkbenchWorkflowID` case | `.iv` |
+| `WorkflowKey` case | `.iv` |
 | Search prefix | `IV ` |
 | Condition fields | `device`, `temperature`, `field` |
 
@@ -153,7 +153,7 @@ Save-to-Library is chart-only for IV: the shared active-chart export path persis
 | Pack contracts | `Sources/SpinLabApp/Workbench/V3/IVPackContracts.swift` |
 | Workspace store | `Sources/SpinLabApp/Features/Workbench/IVWorkspaceStore.swift` |
 | Workspace view | `Sources/SpinLabApp/Features/Workbench/IVWorkspaceView.swift` |
-| Workflow ID registration | `WorkbenchWorkflowID.iv` in `WorkbenchFeatureStore.swift` |
+| Workflow ID registration | `WorkflowKey.iv` case in `WorkflowKey.swift`; dispatched via `WorkflowWorkspaceRegistry` |
 | View dispatch | `WorkflowWorkspaceRegistry.swift` case `"iv"` |
 | Search / mirror wiring | `WorkbenchMainSearchRuntime.swift` three switch cases |
 - Shared plot controls / order / legend path | `WorkbenchStandardPlotControls.swift`, `WorkbenchSeriesOrderPanel.swift`, `WorkbenchRenderPipeline.swift`, `LegendDimensionResolver.swift`, `WorkbenchSeriesOrderKeyResolver.swift` |

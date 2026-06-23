@@ -100,6 +100,9 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/IVWorkspaceView.swift` — mounts the IV workflow shell and workflow-specific control content
 - `Sources/SpinLabApp/Features/Workbench/PlotCanvasMouseTracker.swift` — bridges mouse events into plot-canvas drag and tap tracking
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaRenderedPlots.swift` — carries rendered 3ω plot images, layouts, and pipeline warnings
+- `Sources/SpinLabApp/Features/Workbench/RTWorkbenchTab.swift` — defines RT tab identities and stable persistence keys
+- `Sources/SpinLabApp/Features/Workbench/RTWorkspaceStore.swift` — owns RT analysis, pack, render, and save state for the RT workflow assembly
+- `Sources/SpinLabApp/Features/Workbench/RTWorkspaceView.swift` — mounts the RT workflow shell and workflow-specific plot controls
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkbenchTab.swift` — defines 3ω tab identities and stable persistence keys
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Analysis.swift` — runs 3ω selection ingestion, rendering, and trace capture
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+FitRanges.swift` — manages 3ω fit range rows

@@ -26,7 +26,7 @@ enum WorkflowWorkspaceRegistry {
             case .rsm:
                 RSMWorkspaceView()
             case .rt:
-                NotImplementedWorkflowView(workflowKey: .rt)
+                RTWorkspaceView()
             case .mr:
                 NotImplementedWorkflowView(workflowKey: .mr)
             }
