@@ -75,6 +75,8 @@ struct TabRenderState: Codable, Hashable, Sendable {
     var seriesOrder: [String]? = nil
     /// Per-tab axis range override. nil = auto-fit from data extents.
     var axisRangeOverride: AxisRangeOverride? = nil
+    /// Whether point tags are visible for this tab. Default false.
+    var showPointTags: Bool = false
 
     init(
         legendPoint: CGPointCodable? = nil,
@@ -84,7 +86,8 @@ struct TabRenderState: Codable, Hashable, Sendable {
         seriesLabelOverrides: [String: String] = [:],
         hiddenPointLabelIndicesBySeries: [String: [Int]] = [:],
         seriesOrder: [String]? = nil,
-        axisRangeOverride: AxisRangeOverride? = nil
+        axisRangeOverride: AxisRangeOverride? = nil,
+        showPointTags: Bool = false
     ) {
         self.legendPoint = legendPoint
         self.titleOverride = titleOverride
@@ -94,6 +97,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         self.hiddenPointLabelIndicesBySeries = hiddenPointLabelIndicesBySeries
         self.seriesOrder = seriesOrder
         self.axisRangeOverride = axisRangeOverride
+        self.showPointTags = showPointTags
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -105,6 +109,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         case hiddenPointLabelIndicesBySeries
         case seriesOrder
         case axisRangeOverride
+        case showPointTags
     }
 
     init(from decoder: Decoder) throws {
@@ -117,6 +122,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         hiddenPointLabelIndicesBySeries = try c.decodeIfPresent([String: [Int]].self, forKey: .hiddenPointLabelIndicesBySeries) ?? [:]
         seriesOrder = try c.decodeIfPresent([String].self, forKey: .seriesOrder)
         axisRangeOverride = try c.decodeIfPresent(AxisRangeOverride.self, forKey: .axisRangeOverride)
+        showPointTags = try c.decodeIfPresent(Bool.self, forKey: .showPointTags) ?? false
     }
 }
 
@@ -271,6 +277,10 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         }
     }
 
+    func setShowPointTags(_ show: Bool) {
+        tabStates[activeTab, default: TabRenderState()].showPointTags = show
+    }
+
     // Toggle a point label's visibility for the active tab.
     func togglePointLabelVisibility(sampleID: String, pointIndex: Int) {
         var hidden = tabStates[activeTab, default: TabRenderState()].hiddenPointLabelIndicesBySeries
@@ -393,7 +403,8 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             hiddenPointLabelsBySeries: toIndexedOverrides(hiddenPointLabelsBySampleID(for: targetTab), series: payload.series).mapValues { Set($0) },
             styleParamsPatch: patch,
             seriesOrder: s.seriesOrder,
-            axisRangeOverride: s.axisRangeOverride
+            axisRangeOverride: s.axisRangeOverride,
+            showPointTags: s.showPointTags
         )
     }
 

@@ -236,13 +236,21 @@ struct ThreeOmegaPlotRenderer {
         let hLabel = harmonic == 1 ? "1ω" : "3ω"
         let methodTag = method == .highField ? "HFE" : "WA"
         let tabKey = harmonic == 1 ? "rahe1omegaVsDevice" : "rahe3omegaVsDevice"
+        let angleLabels = sorted.map { "\(Int($0.angle.rounded()))°" }
 
         var payload = WorkbenchPlotPayload(
             workflowID: "3w",
             workflowDisplayName: "3w",
             title: _defaultTitle("RAHE(\(hLabel)) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
             axisMapping: WorkbenchAxisMapping(xField: "Device angle (deg)", yField: "RAHE(\(hLabel)) (Ω)"),
-            series: [WorkbenchPlotSeries(label: "RAHE(\(hLabel))", x: sorted.map(\.angle), y: sorted.map(\.rahe))],
+            series: [WorkbenchPlotSeries(
+                label: "RAHE(\(hLabel))",
+                x: sorted.map(\.angle),
+                y: sorted.map(\.rahe),
+                renderMode: .scatter,
+                renderModeLocked: true,
+                pointLabels: angleLabels
+            )],
             semanticParams: ["device": device, "tabKey": tabKey, "v3method": methodTag]
         )
         var w: [String] = []

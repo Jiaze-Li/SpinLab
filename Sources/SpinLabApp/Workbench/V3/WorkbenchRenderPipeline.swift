@@ -48,6 +48,10 @@ enum WorkbenchRenderPipeline {
         var seriesOrder: [String]? = nil
         /// Per-tab axis range override. nil bounds fall back to auto-fit from data extents.
         var axisRangeOverride: AxisRangeOverride? = nil
+        /// When false, all per-series pointLabels are stripped before rendering and hit-target
+        /// generation. Allows the global "Point Tags" toggle to suppress tags without mutating
+        /// the payload or the per-point hidden index state.
+        var showPointTags: Bool = true
     }
 
     struct Output: Sendable {
@@ -93,7 +97,12 @@ enum WorkbenchRenderPipeline {
             var s = $0; s.renderMode = input.seriesRenderMode; return s
         }
 
-        // 4a. Series order consistency check (v5.3.6):
+        // 4a. Strip point tags when the feature toggle is off
+        if !input.showPointTags {
+            payload.series = payload.series.map { var s = $0; s.pointLabels = []; return s }
+        }
+
+        // 4c. Series order consistency check (v5.3.6):
         //     Reorderable payloads must carry unique series identities so order keys stay
         //     attached to stable series identity instead of render geometry.
         if payload.seriesReorderable {
@@ -110,14 +119,14 @@ enum WorkbenchRenderPipeline {
             }
         }
 
-        // 4b. Reverse series for legend-visual consistency (v5.3.4):
+        // 4d. Reverse series for legend-visual consistency (v5.3.4):
         //     Stacked curves are built bottom-to-top (index 0 = lowest offset).
         //     Reversing makes index 0 = highest offset = legend top = visual top.
         if payload.reverseSeriesForLegend, payload.series.count > 1 {
             payload.series.reverse()
         }
 
-        // 4c. Auto-resolve legend dimension from series metadata (v5.3.4):
+        // 4e. Auto-resolve legend dimension from series metadata (v5.3.4):
         //     When legendDimension is not pre-set and series carry metadata,
         //     run LegendDimensionResolver to infer the distinguishing dimension
         //     and update series labels accordingly.

@@ -86,7 +86,13 @@ private struct ThreeOmegaPlotControlsPanel: View {
                 store.rerenderForStyleChange()
                 AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate AFTER rerenderForStyleChange")
                 appState.flushInteractionSnapshotNow()
-            }
+            },
+            showPointTagsForActiveTab: store.tabs.activeState.showPointTags,
+            onPointTagsToggle: (store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice) ? { show in
+                store.tabs.setShowPointTags(show)
+                store.rerenderForStyleChange()
+                appState.flushInteractionSnapshotNow()
+            } : nil
         ) {
             // Row 3: RAHE method picker + Add Analysis (visible on RAHE tabs only)
             if store.tabs.activeTab == .rahe1omegaVsT || store.tabs.activeTab == .rahe3omegaVsT

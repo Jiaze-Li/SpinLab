@@ -86,6 +86,7 @@ enum WorkbenchPlotExportService {
             tabState.hiddenPointLabelIndicesBySeries,
             series: displayPayload.series
         ).mapValues { Set($0) }
+        input.showPointTags = tabState.showPointTags
         input.styleParamsPatch = patch
 
         guard let rendered = try? WorkbenchRenderPipeline.render(input).imageData,

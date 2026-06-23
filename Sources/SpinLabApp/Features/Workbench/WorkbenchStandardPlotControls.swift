@@ -57,6 +57,10 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     var axisRangeOverride: AxisRangeOverride? = nil
     /// Called when the user edits a single axis range bound. Triggers a re-render.
     var onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil
+    /// Current per-tab point tag visibility. Only read when onPointTagsToggle is non-nil.
+    var showPointTagsForActiveTab: Bool = false
+    /// Called when the user toggles "Point Tags". Non-nil enables the toggle.
+    var onPointTagsToggle: ((Bool) -> Void)? = nil
     @ViewBuilder var extraContent: () -> Extra
 
     var body: some View {
@@ -119,7 +123,7 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
                     .onSubmit { onChange?() }
             }
 
-            // Row 2: Title template + Grid
+            // Row 2: Title template + Grid + Point Tags (when supported by active tab)
             HStack(alignment: .top, spacing: 12) {
                 WorkbenchTitleTemplateField(
                     titleTemplate: $titleTemplate,
@@ -130,6 +134,14 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
                     .toggleStyle(.checkbox)
                     .onChange(of: showGrid) { _, _ in onChange?() }
                     .padding(.top, 2)
+                if let toggle = onPointTagsToggle {
+                    Toggle("Point Tags", isOn: Binding(
+                        get: { showPointTagsForActiveTab },
+                        set: { toggle($0) }
+                    ))
+                    .toggleStyle(.checkbox)
+                    .padding(.top, 2)
+                }
             }
 
             // Row 3: Label overrides — visible when any override callback is wired up
@@ -188,7 +200,9 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         onRenameSeriesLabel: ((String, String) -> Void)? = nil,
         activeLayout: WorkbenchPlotLayout? = nil,
         axisRangeOverride: AxisRangeOverride? = nil,
-        onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil
+        onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil,
+        showPointTagsForActiveTab: Bool = false,
+        onPointTagsToggle: ((Bool) -> Void)? = nil
     ) {
         self._activeTab = activeTab
         self.tabLabel = tabLabel
@@ -221,6 +235,8 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         self.activeLayout = activeLayout
         self.axisRangeOverride = axisRangeOverride
         self.onAxisBoundUpdate = onAxisBoundUpdate
+        self.showPointTagsForActiveTab = showPointTagsForActiveTab
+        self.onPointTagsToggle = onPointTagsToggle
         self.extraContent = { EmptyView() }
     }
 }
