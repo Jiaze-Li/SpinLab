@@ -75,10 +75,28 @@ private struct ThreeOmegaPlotControlsPanel: View {
             onXLabelOverride: { store.updateXAxisLabel($0) },
             onYLabelOverride: { store.updateYAxisLabel($0) },
             activeSeriesLabelOverrides: store.seriesLabelOverrides,
-            onRenameSeriesLabel: { key, label in store.updateSeriesLabel(identityKey: key, newLabel: label) }
+            onRenameSeriesLabel: { key, label in store.updateSeriesLabel(identityKey: key, newLabel: label) },
+            activeLayout: store.tabs.activeLayout,
+            axisRangeOverride: store.tabs.activeState.axisRangeOverride,
+            onAxisBoundUpdate: { bound, value in
+                AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate BEFORE updateAxisBound bound=\(bound) value=\(value.map { String(format: "%g", $0) } ?? "nil") | axisRangeOverride=\(String(describing: store.tabs.activeState.axisRangeOverride))")
+                store.tabs.updateAxisBound(bound, value: value)
+                AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate AFTER updateAxisBound | axisRangeOverride=\(String(describing: store.tabs.activeState.axisRangeOverride))")
+                AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate BEFORE rerenderForStyleChange")
+                store.rerenderForStyleChange()
+                AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate AFTER rerenderForStyleChange")
+                appState.flushInteractionSnapshotNow()
+            },
+            showPointTagsForActiveTab: store.tabs.activeState.showPointTags,
+            onPointTagsToggle: (store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice) ? { show in
+                store.tabs.setShowPointTags(show)
+                store.rerenderForStyleChange()
+                appState.flushInteractionSnapshotNow()
+            } : nil
         ) {
             // Row 3: RAHE method picker + Add Analysis (visible on RAHE tabs only)
-            if store.tabs.activeTab == .rahe1omegaVsT || store.tabs.activeTab == .rahe3omegaVsT {
+            if store.tabs.activeTab == .rahe1omegaVsT || store.tabs.activeTab == .rahe3omegaVsT
+                || store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice {
                 HStack {
                     Picker("AHE Method", selection: Binding<ThreeOmegaV3Method>(
                         get: { store.activeRAHEMethod ?? .highField },

@@ -189,7 +189,7 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
                     try WorkbenchRenderPipeline.render(input)
                 }.value
                 guard !Task.isCancelled else { return }
-                self.tabs.applyPipelineOutput(output, for: .ahe)
+                self.tabs.applyPipelineOutput(output, displayPayload: payload, for: .ahe)
             } catch is CancellationError {
                 // cancelled — no-op
             } catch {
@@ -368,6 +368,11 @@ extension AHEWorkspaceStore: WorkbenchCartesianXYPlottingStore {
     var chartStyleOverrides: [String: String] {
         get { tabs.chartStyleOverrides }
         set { tabs.chartStyleOverrides = newValue }
+    }
+
+    func renderPNGAtScale(_ scale: CGFloat) -> Data? {
+        let snapshot = tabs.exportSnapshot(for: tabs.activeTab, globalPlotDefaults: globalPlotDefaults)
+        return WorkbenchPlotExportService.exportPNG(snapshot: snapshot, scale: scale)
     }
 }
 
@@ -589,7 +594,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
         plotTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let (ingestion, pipelineOutput, extractedMetrics) = try await Task.detached(priority: .userInitiated) {
+                let (ingestion, payload, pipelineOutput, extractedMetrics) = try await Task.detached(priority: .userInitiated) {
                     let ingestion = try IngestAHESelectionsUseCase().execute(
                         selections: selections,
                         numericDisplayBySample: capturedNumericDisplay
@@ -608,11 +613,11 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                     )
                     let input = capturedPipelineInput(payload)
                     let output = try WorkbenchRenderPipeline.render(input)
-                    return (ingestion, output, extractedMetrics)
+                    return (ingestion, payload, output, extractedMetrics)
                 }.value
                 guard !Task.isCancelled else { return }
                 self.ingestionResult = ingestion
-                self.tabs.applyPipelineOutput(pipelineOutput, for: .ahe)
+                self.tabs.applyPipelineOutput(pipelineOutput, displayPayload: payload, for: .ahe, policy: .clearDisplayOverridesIfSourceChanged)
                 for w in pipelineOutput.warnings {
                     self.appendWarning(source: "Legend", message: w)
                 }

@@ -133,6 +133,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
         }
         r.seriesLabelOverrides = toIndexedOverrides(tabState.seriesLabelOverrides, series: labelMapSeries)
         r.phiOffsetOverrides = phiOffsetOverrides
+        r.axisRangeOverride = tabState.axisRangeOverride
         return r
     }
 
@@ -176,7 +177,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
 
             await MainActor.run { [weak self] in
                 guard let self, self._renderRevision == revision else { return }
-                self.tabs.setOutput(TabRenderOutput(imageData: data, layout: layout, manifestPayload: payload), for: tab)
+                self.tabs.setOutput(TabRenderOutput(imageData: data, layout: layout, manifestPayload: payload, displayPayload: payload), for: tab)
             }
         }
     }
@@ -325,7 +326,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
 
                 await MainActor.run { [weak self] in
                     guard let self, self._renderRevision == revision else { return }
-                    self.tabs.setOutput(TabRenderOutput(imageData: data, layout: layout, manifestPayload: payload), for: tab)
+                    self.tabs.setOutput(TabRenderOutput(imageData: data, layout: layout, manifestPayload: payload, displayPayload: payload), for: tab)
                 }
             }
         }
@@ -371,6 +372,11 @@ extension XYRotationWorkspaceStore: WorkbenchCartesianXYPlottingStore {
     func updateSeriesLabel(identityKey: String, newLabel: String) {
         tabs.updateSeriesLabel(identityKey: identityKey, newLabel: newLabel)
         _rerenderActiveTab()
+    }
+
+    func renderPNGAtScale(_ scale: CGFloat) -> Data? {
+        let snapshot = tabs.exportSnapshot(for: tabs.activeTab, globalPlotDefaults: globalPlotDefaults)
+        return WorkbenchPlotExportService.exportPNG(snapshot: snapshot, scale: scale)
     }
 }
 
@@ -592,8 +598,8 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
             guard let self, !Task.isCancelled else { return }
 
             self.ingestionResult = result
-            self.tabs.setOutput(TabRenderOutput(imageData: rxxData, layout: rxxLayout, manifestPayload: rxxPayload), for: .rxxVsPhi)
-            self.tabs.setOutput(TabRenderOutput(imageData: rxyData, layout: rxyLayout, manifestPayload: rxyPayload), for: .rxyVsPhi)
+            self.tabs.setOutput(TabRenderOutput(imageData: rxxData, layout: rxxLayout, manifestPayload: rxxPayload, displayPayload: rxxPayload), for: .rxxVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
+            self.tabs.setOutput(TabRenderOutput(imageData: rxyData, layout: rxyLayout, manifestPayload: rxyPayload, displayPayload: rxyPayload), for: .rxyVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
 
             let sweepCount = result.sweeps.count
             self.analysisMessage = "Analyzed \(sweepCount) angle-sweep file(s)."

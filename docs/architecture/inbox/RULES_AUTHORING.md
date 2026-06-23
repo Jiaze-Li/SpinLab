@@ -1,12 +1,14 @@
 # Inbox Rules Authoring Layer
 
-Rules Panel is the user-facing configuration surface for Inbox routing. It owns five JSON config files that collectively govern how filenames are parsed, samples identified, channels mapped to workflows, and measurement conditions extracted.
+Rules Panel is the user-facing configuration surface for Inbox routing. It owns five required JSON config files that collectively govern how filenames are parsed, samples identified, channels mapped to workflows, and measurement conditions extracted. A sixth optional file governs Library registry parsing.
 
 ---
 
-## 5-Section Structure
+## 5+1 Section Structure
 
-Sections: Import Filters / Filename Tokenization / Sample Identification / Workflow / Measuring Condition.
+Required sections: Import Filters / Filename Tokenization / Sample Identification / Workflow / Measuring Condition.
+
+Optional section: **Registry Import** — backed by `library_import_rules.json`. Absent when the file is not present; editing produces the file. Does not affect `.ready` / `.incompleteBook` panel state.
 
 Each section maps 1:1 to a JSON config file under `RulesConfigPaths`. `RulesPanelSection.allCases` order is the canonical Save All iteration order — never use Set iteration.
 
@@ -92,7 +94,7 @@ Each section maps 1:1 to a JSON config file under `RulesConfigPaths`. `RulesPane
 
 - `.notConfigured`: panel shows "Select Rules Book Folder" button; editing is blocked.
 - `.incompleteBook([String])`: configured but missing required files; panel lists them; editing blocked.
-- `.ready`: all 5 required files present; full editor shown.
+- `.ready`: all 5 required files present; full editor shown. Registry Import section shows "not configured" state independently when `library_import_rules.json` is absent.
 
 ---
 
@@ -102,7 +104,8 @@ Each section maps 1:1 to a JSON config file under `RulesConfigPaths`. `RulesPane
 
 - `RulesBootstrapper.migrateRulesBookIfNeeded(paths:internalPaths:)` runs on first launch with a configured Rules Book.
 - Migration state (`.migration_state.json`, `.migration_failed.json`) stored in `AppInternalPaths` (Application Support), not in the book directory itself.
-- Seed step (`seedMissingRuntimeFilesFromBundleIfNeeded`) deleted; the user is expected to seed from the existing `Sources/SpinLabApp/config/` manually or via the first-run flow.
+- Seed step (`seedMissingRuntimeFilesFromBundleIfNeeded`) deleted for the 5 required files; the user is expected to seed from the existing `Sources/SpinLabApp/config/` manually or via the first-run flow.
+- `RulesBootstrapper.seedLibraryImportRulesIfNeeded(paths:)` seeds `library_import_rules.json` from the bundle on each startup: copies if absent, merges missing fields if partial, skips if corrupt (no fallback).
 
 ### Workflow Registry Retirement
 
@@ -129,6 +132,10 @@ Each section maps 1:1 to a JSON config file under `RulesConfigPaths`. `RulesPane
 
 36 tests across 5 suites: `V515RulesPanelStoreTests`, `V515RulesPanelSaveValidationTests`, `V515RulesPanelCrossSectionTests`, `V515RulesSaveImmediateEffectTests`, `V515RulesEngineRegressionTests`. Also: `V515RulesBootstrapperMigrationTests`.
 
+## Registry Import Tests (v5.4.1)
+
+29 tests across 3 suites: `V541LibraryRegistryBootstrapperTests` (seed/repair), `V541LibraryRegistryFallbackRemovalTests` (no-fallback invariant), `V541LibraryRegistryRulesPanelTests` (load/edit/save round-trip). No-fallback invariant: when `library_import_rules.json` is absent, all registry alias lookups return empty — no hardcoded fallback values anywhere in the runtime path.
+
 ---
 
 ## Code Map
@@ -143,6 +150,9 @@ Each section maps 1:1 to a JSON config file under `RulesConfigPaths`. `RulesPane
 - `Sources/SpinLabApp/Features/RulesPanel/Sections/SampleIdentificationSection.swift` — Sample Identification section UI; v4 substrate schema editor
 - `Sources/SpinLabApp/Features/RulesPanel/Sections/ImportFiltersSection.swift` — Import Filters section UI
 - `Sources/SpinLabApp/Features/RulesPanel/Sections/FilenameTokenizationSection.swift` — Filename Tokenization section UI
+- `Sources/SpinLabApp/Features/RulesPanel/Sections/LibraryRegistrySection.swift` — Registry Import section UI; alias list editors + numeric/metadata key map editors
+- `Sources/SpinLabApp/Import/Rules/LegacyRegistryImportRulesDefaults.swift` — seed/repair helper for `library_import_rules.json`; never used in runtime lookup
+- `Sources/SpinLabApp/Import/Rules/RulesBootstrapper+LibraryRegistrySeed.swift` — seeds/merges `library_import_rules.json` on startup
 - `Sources/SpinLabApp/Import/Rules/RulesBootstrapper.swift` — type declaration shell for the migration and seed namespace
 - `Sources/SpinLabApp/Import/Rules/RulesBootstrapper+MigrationOrchestration.swift` — coordinates full schema migration: reads runtime JSONs, applies all migration steps, atomic-writes results
 - `Sources/SpinLabApp/Storage/AppInternalPaths.swift` — resolves Application Support paths for internal state files (migration state, rules book pointer, rule set version)

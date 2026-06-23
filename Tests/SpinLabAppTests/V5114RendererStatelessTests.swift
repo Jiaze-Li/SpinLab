@@ -13,7 +13,7 @@ struct V5114RendererStatelessTests {
         let sweeps: [ThreeOmegaFieldSweepResult] = []
         let first  = r.renderR1omega(sweeps: sweeps, device: "D")
         let second = r.renderR1omega(sweeps: sweeps, device: "D")
-        #expect(first.2.count == second.2.count,
+        #expect(first.3.count == second.3.count,
                 "consecutive renders must not share warning state; counts must match independently")
     }
 

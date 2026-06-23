@@ -6,6 +6,7 @@ enum RulesPanelSection: String, CaseIterable, Identifiable {
     case sampleIdentification
     case workflow
     case measuringCondition
+    case libraryRegistry
 
     var id: String { rawValue }
 
@@ -16,6 +17,7 @@ enum RulesPanelSection: String, CaseIterable, Identifiable {
         case .sampleIdentification: return "Sample"
         case .workflow:             return "Workflow"
         case .measuringCondition:   return "Condition"
+        case .libraryRegistry:      return "Registry Import"
         }
     }
 }

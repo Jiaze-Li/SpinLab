@@ -46,6 +46,12 @@ enum WorkbenchRenderPipeline {
         /// Expected bottom-to-top series order keys. Used for mismatch detection only —
         /// the pipeline never reorders; reordering must happen in the workflow renderer before this call.
         var seriesOrder: [String]? = nil
+        /// Per-tab axis range override. nil bounds fall back to auto-fit from data extents.
+        var axisRangeOverride: AxisRangeOverride? = nil
+        /// When false, all per-series pointLabels are stripped before rendering and hit-target
+        /// generation. Allows the global "Point Tags" toggle to suppress tags without mutating
+        /// the payload or the per-point hidden index state.
+        var showPointTags: Bool = true
     }
 
     struct Output: Sendable {
@@ -91,7 +97,12 @@ enum WorkbenchRenderPipeline {
             var s = $0; s.renderMode = input.seriesRenderMode; return s
         }
 
-        // 4a. Series order consistency check (v5.3.6):
+        // 4a. Strip point tags when the feature toggle is off
+        if !input.showPointTags {
+            payload.series = payload.series.map { var s = $0; s.pointLabels = []; return s }
+        }
+
+        // 4c. Series order consistency check (v5.3.6):
         //     Reorderable payloads must carry unique series identities so order keys stay
         //     attached to stable series identity instead of render geometry.
         if payload.seriesReorderable {
@@ -108,14 +119,14 @@ enum WorkbenchRenderPipeline {
             }
         }
 
-        // 4b. Reverse series for legend-visual consistency (v5.3.4):
+        // 4d. Reverse series for legend-visual consistency (v5.3.4):
         //     Stacked curves are built bottom-to-top (index 0 = lowest offset).
         //     Reversing makes index 0 = highest offset = legend top = visual top.
         if payload.reverseSeriesForLegend, payload.series.count > 1 {
             payload.series.reverse()
         }
 
-        // 4c. Auto-resolve legend dimension from series metadata (v5.3.4):
+        // 4e. Auto-resolve legend dimension from series metadata (v5.3.4):
         //     When legendDimension is not pre-set and series carry metadata,
         //     run LegendDimensionResolver to infer the distinguishing dimension
         //     and update series labels accordingly.
@@ -129,10 +140,25 @@ enum WorkbenchRenderPipeline {
         // 6. Parse unified chart style
         let chartStyle = WorkbenchChartStyle.from(styleParams: payload.styleParams)
 
+        // 6a. Apply global lineWidth override to unlocked series (locked series keep their own width)
+        if let lw = chartStyle.lineWidth {
+            payload.series = payload.series.map {
+                guard !$0.renderModeLocked else { return $0 }
+                var s = $0; s.lineWidth = lw; return s
+            }
+        }
+
         // 7. Resolve renderer options (dynamic padding based on y-tick label widths)
         let renderer = WorkbenchChartRenderer()
         var effectiveBase = input.baseOptions
         if let scale = input.pixelScaleOverride { effectiveBase.pixelScale = scale }
+        // Apply per-tab axis range override to renderer options
+        if let override = input.axisRangeOverride {
+            if let v = override.xMin { effectiveBase.fixedXMin = v }
+            if let v = override.xMax { effectiveBase.fixedXMax = v }
+            if let v = override.yMin { effectiveBase.fixedYMin = v }
+            if let v = override.yMax { effectiveBase.fixedYMax = v }
+        }
         let opts = renderer.resolvedOptions(payload: payload, base: effectiveBase, style: chartStyle)
 
         // 8. Compute layout BEFORE series label overrides (legendRow.originalLabel must be stable).

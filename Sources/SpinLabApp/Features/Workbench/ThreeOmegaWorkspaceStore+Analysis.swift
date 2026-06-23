@@ -73,6 +73,8 @@ extension ThreeOmegaWorkspaceStore {
         let capturedTokens     = _titleTokens
         let capturedRAHE1MethodForPlots = rahe1omegaMethod
         let capturedRAHE3MethodForPlots = rahe3omegaMethod
+        let capturedRAHE1DevMethodForPlots = rahe1omegaVsDeviceMethod
+        let capturedRAHE3DevMethodForPlots = rahe3omegaVsDeviceMethod
         let capturedGlobalPlotDefaults = globalPlotDefaults
 
         let capturedRTHit = selectedRTHit
@@ -95,13 +97,13 @@ extension ThreeOmegaWorkspaceStore {
                 renderer.minGapFraction        = capturedMinGap
                 renderer.titleTemplate          = capturedTemplate
                 renderer.titleTokens            = capturedTokens
-                let plots = renderer.renderAllTabs(result: result, seriesOrder1omega: alignedSeriesOrder, seriesOrder3omega: alignedSeriesOrder, rahe1Method: capturedRAHE1MethodForPlots, rahe3Method: capturedRAHE3MethodForPlots)
+                let plots = renderer.renderAllTabs(result: result, seriesOrder1omega: alignedSeriesOrder, seriesOrder3omega: alignedSeriesOrder, rahe1Method: capturedRAHE1MethodForPlots, rahe3Method: capturedRAHE3MethodForPlots, rahe1DevMethod: capturedRAHE1DevMethodForPlots, rahe3DevMethod: capturedRAHE3DevMethodForPlots)
                 return (result, plots, alignedSeriesOrder)
             }.value
 
             guard !Task.isCancelled else { return }
             self.ingestionResult = result
-            self._applyPlots(plots)
+            self._applyPlots(plots, policy: .clearDisplayOverridesIfSourceChanged)
             self.setFieldSweepSeriesOrder(alignedSeriesOrder)
 
             // Pipeline warnings (legend resolver)

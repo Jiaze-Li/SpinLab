@@ -13,6 +13,14 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
     @Binding var globalPlotDefaults: [String: String]
     @Binding var chartStyleOverrides: [String: String]
     var onStyleChange: (() -> Void)? = nil
+    /// Layout from the most recent render, used to display auto axis ranges.
+    var activeLayout: WorkbenchPlotLayout? = nil
+    /// Current per-tab axis range override.
+    var axisRangeOverride: AxisRangeOverride? = nil
+    /// Called when the user edits a single axis range bound.
+    var onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil
+    /// Source identity token — resets axis range fields when the analyzed data changes.
+    var sourceResetToken: String = ""
     @ViewBuilder var supplementalContent: () -> Supplemental
     @ViewBuilder let content: () -> Content
 
@@ -40,6 +48,23 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
                         .fixedSize()
                     tickDensityStepper(label: "X", key: "tickTargetX", fallback: 6)
                     tickDensityStepper(label: "Y", key: "tickTargetY", fallback: 5)
+                }
+                // Shell-level: line/scatter appearance + axis range overrides on one row
+                HStack(spacing: 12) {
+                    WorkbenchSeriesAppearanceControls(
+                        globalPlotDefaults: $globalPlotDefaults,
+                        onStyleChange: onStyleChange
+                    )
+                    if onAxisBoundUpdate != nil {
+                        WorkbenchAxisRangeControls(
+                            activeLayout: activeLayout,
+                            axisRangeOverride: axisRangeOverride,
+                            sourceResetToken: sourceResetToken,
+                            onBoundUpdate: { bound, value in
+                                onAxisBoundUpdate?(bound, value)
+                            }
+                        )
+                    }
                 }
                 // Shell-level controls: font sizes
                 fontSizeRow
@@ -128,12 +153,20 @@ extension WorkbenchPlotControlsPanel where Supplemental == EmptyView {
         globalPlotDefaults: Binding<[String: String]>,
         chartStyleOverrides: Binding<[String: String]>,
         onStyleChange: (() -> Void)? = nil,
+        activeLayout: WorkbenchPlotLayout? = nil,
+        axisRangeOverride: AxisRangeOverride? = nil,
+        onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil,
+        sourceResetToken: String = "",
         @ViewBuilder content: @escaping () -> Content
     ) {
         self._seriesRenderMode = seriesRenderMode
         self._globalPlotDefaults = globalPlotDefaults
         self._chartStyleOverrides = chartStyleOverrides
         self.onStyleChange = onStyleChange
+        self.activeLayout = activeLayout
+        self.axisRangeOverride = axisRangeOverride
+        self.onAxisBoundUpdate = onAxisBoundUpdate
+        self.sourceResetToken = sourceResetToken
         self.supplementalContent = { EmptyView() }
         self.content = content
     }

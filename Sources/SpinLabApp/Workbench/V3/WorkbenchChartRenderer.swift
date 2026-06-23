@@ -17,6 +17,9 @@ struct WorkbenchChartRenderer {
         /// When set, locks the x-axis range instead of auto-fitting to data extents.
         var fixedXMin: Double? = nil
         var fixedXMax: Double? = nil
+        /// When set, locks the y-axis range instead of auto-fitting to data extents.
+        var fixedYMin: Double? = nil
+        var fixedYMax: Double? = nil
         /// Per-series hidden point-label indices, used when collecting pending labels.
         var hiddenPointLabelsBySeries: [Int: Set<Int>] = [:]
         /// Pixel-density multiplier. Logical drawing stays in width×height; output PNG is width·scale × height·scale.
@@ -142,13 +145,14 @@ struct WorkbenchChartRenderer {
         // Data extents with 5% x-padding and 8% y-padding so points/labels don't touch the axes
         let xRaw = options.fixedXMin ?? allX.min()!
         let xRawMax = options.fixedXMax ?? allX.max()!
-        let yRaw = allY.min()!, yRawMax = allY.max()!
+        let yRaw = options.fixedYMin ?? allY.min()!
+        let yRawMax = options.fixedYMax ?? allY.max()!
         let xRawSpan = xRawMax == xRaw ? 1.0 : xRawMax - xRaw
         let yRawSpan = yRawMax == yRaw ? 1.0 : yRawMax - yRaw
         let xMin = options.fixedXMin != nil ? xRaw : xRaw - xRawSpan * 0.05
         let xMax = options.fixedXMax != nil ? xRawMax : xRawMax + xRawSpan * 0.05
-        let yMin = yRaw    - yRawSpan * 0.05
-        let yMax = yRawMax + yRawSpan * 0.05
+        let yMin = options.fixedYMin != nil ? yRaw : yRaw - yRawSpan * 0.05
+        let yMax = options.fixedYMax != nil ? yRawMax : yRawMax + yRawSpan * 0.05
         let xSpan = xMax - xMin
         let ySpan = yMax - yMin
 
@@ -207,7 +211,7 @@ struct WorkbenchChartRenderer {
                 ctx.strokePath()
             }
             if drawDots {
-                let r: CGFloat = 3.5
+                let r = CGFloat(style.pointRadius ?? 3.5)
                 ctx.setFillColor(color)
                 for k in 0..<series.x.count {
                     let center = pt(series.x[k], series.y[k])
@@ -226,7 +230,7 @@ struct WorkbenchChartRenderer {
 
         // Draw point labels outside clip — smart positioning to avoid edge cutoff
         let labelFont = style.pointLabelFontSize
-        let r: CGFloat = 3.5
+        let r = CGFloat(style.pointRadius ?? 3.5)
         let gap: CGFloat = 4
         let approxLabelW: CGFloat = 50
         let approxLabelH: CGFloat = 20

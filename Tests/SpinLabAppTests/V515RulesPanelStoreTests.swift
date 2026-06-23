@@ -38,7 +38,14 @@ struct V515RulesPanelStoreTests {
         try seedSampleIdentification(at: paths.sampleIdentificationURL)
         try seedWorkflow(at: paths.workflowURL)
         try seedMeasuringCondition(at: paths.measuringConditionURL)
+        try seedLibraryRegistry(at: paths.libraryImportRulesURL)
         return paths
+    }
+
+    private func seedLibraryRegistry(at url: URL) throws {
+        try """
+        {"version":1,"registry":{"sampleHeaderAliases":["s"],"batchHeaderAliases":["b"],"substrateHeaderAliases":["sub"],"excludedSheetNames":[],"sampleCellSeparators":"/","numericKeyAliases":{},"metadataLookupAliases":{}}}
+        """.data(using: .utf8)!.write(to: url)
     }
 
     private func seedImportFilters(at url: URL) throws {
@@ -185,13 +192,14 @@ struct V515RulesPanelStoreTests {
         })
         store.present()
 
-        // Dirty all 5 sections
+        // Dirty all 6 sections
         if let d = store.importFiltersDraft { store.updateImportFilters(d) }
         if let d = store.filenameTokenizationDraft { store.updateFilenameTokenization(d) }
         if let d = store.sampleIdentificationDraft { store.updateSampleIdentification(d) }
         if let d = store.measuringConditionDraft { store.updateMeasuringCondition(d) }
         // Workflow depends on measuringCondition, must be after
         if let d = store.workflowDraft { store.updateWorkflow(d) }
+        if let d = store.libraryRegistryDraft { store.updateLibraryRegistry(d) }
 
         // Simulate Save All in allCases order
         for section in RulesPanelSection.allCases where store.dirtySections.contains(section) {
