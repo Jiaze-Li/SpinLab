@@ -103,7 +103,7 @@ extension ThreeOmegaWorkspaceStore {
 
             guard !Task.isCancelled else { return }
             self.ingestionResult = result
-            self._applyPlots(plots)
+            self._applyPlots(plots, policy: .clearDisplayOverridesIfSourceChanged)
             self.setFieldSweepSeriesOrder(alignedSeriesOrder)
 
             // Pipeline warnings (legend resolver)

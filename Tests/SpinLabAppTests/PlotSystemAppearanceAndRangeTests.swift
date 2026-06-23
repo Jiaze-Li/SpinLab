@@ -342,6 +342,56 @@ struct DisplayOverridePolicyTests {
     }
 }
 
+// MARK: - Regression: source-replacement policy wiring
+
+@Suite("Source-replacement policy regression")
+struct SourceReplacementPolicyRegressionTests {
+
+    @Test("display-only rerender preserves manual axis range (preserveDisplayOverrides)")
+    @MainActor
+    func displayRerenderPreservesAxisRange() {
+        let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
+        let payload = makeSourcePayload(sourceRef: "/data/a.dat", semanticParam: "A")
+        manager.setOutput(TabRenderOutput(manifestPayload: payload), for: .ahe)
+        manager.updateAxisRangeOverride(AxisRangeOverride(xMin: 0, xMax: 90))
+
+        // Style-only rerender uses default policy (preserve)
+        manager.setOutput(TabRenderOutput(manifestPayload: payload), for: .ahe, policy: .preserveDisplayOverrides)
+
+        #expect(manager.tabStates[.ahe]?.axisRangeOverride?.xMax == 90,
+            "Style-only rerender must not clear manual axis range")
+    }
+
+    @Test("source replacement clears manual axis range (clearDisplayOverridesIfSourceChanged)")
+    @MainActor
+    func sourceReplacementClearsAxisRange() {
+        let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
+        let p1 = makeSourcePayload(sourceRef: "/data/a.dat", semanticParam: "A")
+        manager.setOutput(TabRenderOutput(manifestPayload: p1), for: .ahe)
+        manager.updateAxisRangeOverride(AxisRangeOverride(xMin: 0, xMax: 90))
+
+        let p2 = makeSourcePayload(sourceRef: "/data/b.dat", semanticParam: "B")
+        manager.setOutput(TabRenderOutput(manifestPayload: p2), for: .ahe, policy: .clearDisplayOverridesIfSourceChanged)
+
+        #expect(manager.tabStates[.ahe]?.axisRangeOverride == nil,
+            "New source analysis must clear manual axis range")
+    }
+
+    @Test("point tag toggle does not clear axis range")
+    @MainActor
+    func pointTagTogglePreservesAxisRange() {
+        let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
+        let override = AxisRangeOverride(xMin: 0, xMax: 90, yMin: -2, yMax: 2)
+        manager.tabStates[.ahe] = TabRenderState(axisRangeOverride: override)
+
+        manager.setShowPointTags(true)
+        manager.setShowPointTags(false)
+
+        #expect(manager.tabStates[.ahe]?.axisRangeOverride?.xMax == 90,
+            "Point tag toggle must not touch axisRangeOverride")
+    }
+}
+
 // MARK: - Renderer respects fixed Y range
 
 @Suite("WorkbenchChartRenderer fixed Y range")

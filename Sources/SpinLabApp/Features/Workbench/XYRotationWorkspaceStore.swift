@@ -598,8 +598,8 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
             guard let self, !Task.isCancelled else { return }
 
             self.ingestionResult = result
-            self.tabs.setOutput(TabRenderOutput(imageData: rxxData, layout: rxxLayout, manifestPayload: rxxPayload, displayPayload: rxxPayload), for: .rxxVsPhi)
-            self.tabs.setOutput(TabRenderOutput(imageData: rxyData, layout: rxyLayout, manifestPayload: rxyPayload, displayPayload: rxyPayload), for: .rxyVsPhi)
+            self.tabs.setOutput(TabRenderOutput(imageData: rxxData, layout: rxxLayout, manifestPayload: rxxPayload, displayPayload: rxxPayload), for: .rxxVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
+            self.tabs.setOutput(TabRenderOutput(imageData: rxyData, layout: rxyLayout, manifestPayload: rxyPayload, displayPayload: rxyPayload), for: .rxyVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
 
             let sweepCount = result.sweeps.count
             self.analysisMessage = "Analyzed \(sweepCount) angle-sweep file(s)."

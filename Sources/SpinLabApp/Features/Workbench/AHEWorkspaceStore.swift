@@ -617,7 +617,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                 }.value
                 guard !Task.isCancelled else { return }
                 self.ingestionResult = ingestion
-                self.tabs.applyPipelineOutput(pipelineOutput, displayPayload: payload, for: .ahe)
+                self.tabs.applyPipelineOutput(pipelineOutput, displayPayload: payload, for: .ahe, policy: .clearDisplayOverridesIfSourceChanged)
                 for w in pipelineOutput.warnings {
                     self.appendWarning(source: "Legend", message: w)
                 }

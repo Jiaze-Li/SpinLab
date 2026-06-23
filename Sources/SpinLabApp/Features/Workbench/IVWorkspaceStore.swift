@@ -239,7 +239,7 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         }
     }
 
-    private func _rerenderAllTabs() {
+    private func _rerenderAllTabs(policy: DisplayOverridePolicy = .preserveDisplayOverrides) {
         guard let ingestion = ingestionResult else { return }
         let sweeps = ingestion.sweeps
         let device = ingestion.device
@@ -264,7 +264,7 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
                 await MainActor.run { [weak self] in
                     guard let self, self._renderRevision == revision else { return }
                     guard let output else { return }
-                    self.tabs.applyPipelineOutput(output, displayPayload: displayPayload, for: tab)
+                    self.tabs.applyPipelineOutput(output, displayPayload: displayPayload, for: tab, policy: policy)
                 }
             }
         }
@@ -572,7 +572,7 @@ extension IVWorkspaceStore: WorkbenchWorkspaceProviding {
                 : "Analysis complete. \(result.sweeps.count) sweep(s) loaded."
 
             self.commitRunTrace()
-            self._rerenderAllTabs()
+            self._rerenderAllTabs(policy: .clearDisplayOverridesIfSourceChanged)
             self.refreshRelatedCharts()
         }
     }
