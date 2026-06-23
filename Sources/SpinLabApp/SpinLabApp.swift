@@ -10,7 +10,12 @@ struct SpinLabApp: App {
         let workflow = Self.workflowSelection(from: ProcessInfo.processInfo.environment["SPINLAB_WORKFLOW"])
         let bundle = registry.bundle(for: workflow) ?? registry.defaultBundle()
         let environment = AppEnvironment.live()
-        _appState = State(initialValue: SpinLabAppState(workflowBundle: bundle, environment: environment))
+        let rulesBookSettings = RulesBookSettings()
+        _appState = State(initialValue: SpinLabAppState(
+            workflowBundle: bundle,
+            environment: environment,
+            rulesBookSettings: rulesBookSettings
+        ))
     }
 
     var body: some Scene {
