@@ -18,11 +18,33 @@ extension ThreeOmegaWorkspaceStore {
         selectedRTHit = hit
         rtSearchResults = []
         showRTPopover = false
+        launchRTAnalysis(for: hit)
+    }
+
+    private func launchRTAnalysis(for hit: WorkflowMeasurementSearchHit) {
+        isAnalyzingRT = true
+        rtAnalysisMessage = nil
+        cachedRTResult = nil
+        let useCase = AnalyzeRTWorkflowUseCase()
+        Task { [weak self] in
+            guard let self else { return }
+            let result = await Task.detached(priority: .userInitiated) {
+                useCase.execute(hit: hit)
+            }.value
+            await MainActor.run {
+                self.cachedRTResult = result
+                self.isAnalyzingRT = false
+                self.rtAnalysisMessage = result.warnings.isEmpty ? nil : result.warnings.joined(separator: " | ")
+            }
+        }
     }
 
 
     func clearRTSelection() {
         selectedRTHit = nil
+        cachedRTResult = nil
+        isAnalyzingRT = false
+        rtAnalysisMessage = nil
     }
 
 
@@ -54,8 +76,8 @@ extension ThreeOmegaWorkspaceStore {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: sidecarPath)),
               let sidecar = try? decoder.decode(SpinLabFileSidecar.self, from: data) else { return nil }
 
-        let wfID = sidecar.resolvedWorkflow.lowercased()
-        guard wfID == "3w" || wfID == "rt" else { return nil }
+        let wfID = sidecar.resolvedWorkflow
+        guard WorkflowKey.from(sidecarValue: wfID) == .threeOmega || WorkflowKey.from(sidecarValue: wfID) == .rt else { return nil }
 
         return WorkflowMeasurementSearchHit(
             sidecarPath: sidecarPath,

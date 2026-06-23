@@ -17,10 +17,12 @@ struct IngestThreeOmegaSelectionsUseCase {
 
     /// Returns ingestion result for one device's worth of selected hits.
     ///
+    /// - Parameter rtAnalysisResult: Pre-analyzed RT curve from AnalyzeRTWorkflowUseCase.
+    ///   When provided it is used directly; auto-detection from mixed hits still runs as fallback.
     /// - Parameter parseFile: Injectable for testing. Defaults to real LVM parser.
     func execute(
         hits: [WorkflowMeasurementSearchHit],
-        rtHit: WorkflowMeasurementSearchHit? = nil,
+        rtAnalysisResult: RTAnalysisResult? = nil,
         numericDisplayBySample: [String: [String: String]] = [:],
         parseFile: ((URL) throws -> ThreeOmegaLVMFile)? = nil
     ) -> ThreeOmegaIngestionResult {
@@ -97,29 +99,16 @@ struct IngestThreeOmegaSelectionsUseCase {
             }
         }
 
-        // RT file: prefer dedicated rtHit (user-selected), fall back to auto-detected from hits.
+        // RT result: prefer pre-analyzed result from AnalyzeRTWorkflowUseCase (user-selected RT hit),
+        // fall back to auto-detected RT files mixed into the 3w selection.
         let rtResult: ThreeOmegaRTResult? = {
-            if let rtHit {
-                let url = URL(fileURLWithPath: rtHit.measurementFilePath)
-                do {
-                    let tempOverride = parseFile == nil
-                        ? _parseConditionTemperatureK(rtHit.conditions["temperature"])
-                        : nil
-                    let file = try (parseFile.map { try $0(url) } ?? parser.parse(fileURL: url, temperatureOverride: tempOverride, kindOverride: .rtSweep))
-                    guard !file.col0.isEmpty else {
-                        warnings.append("Dedicated RT file has no data rows: \(url.lastPathComponent)")
-                        return nil
-                    }
-                    let pairs = zip(file.col0, file.col9).sorted { $0.0 < $1.0 }
-                    return ThreeOmegaRTResult(
-                        device: device,
-                        temperatureK: pairs.map { $0.0 },
-                        rxx: pairs.map { $0.1 }
-                    )
-                } catch {
-                    warnings.append("Failed to parse dedicated RT file [\(url.lastPathComponent)]: \(error.localizedDescription)")
-                    return nil
-                }
+            if let rtAnalysisResult, !rtAnalysisResult.temperatureK.isEmpty {
+                warnings.append(contentsOf: rtAnalysisResult.warnings)
+                return ThreeOmegaRTResult(
+                    device: rtAnalysisResult.device.isEmpty ? device : rtAnalysisResult.device,
+                    temperatureK: rtAnalysisResult.temperatureK,
+                    rxx: rtAnalysisResult.rxx
+                )
             }
 
             guard let best = rtFiles.max(by: { $0.col0.count < $1.col0.count }),
@@ -164,9 +153,9 @@ struct IngestThreeOmegaSelectionsUseCase {
 
     private func _parseKind(_ canonicalID: String) -> ThreeOmegaFileKind? {
         switch canonicalID {
-        case "rt":  return .rtSweep
-        case "3w":  return .fieldSweep
-        default:    return nil
+        case "rt", "RT":  return .rtSweep
+        case "3w":        return .fieldSweep
+        default:          return nil
         }
     }
 

@@ -77,7 +77,7 @@ extension ThreeOmegaWorkspaceStore {
         let capturedRAHE3DevMethodForPlots = rahe3omegaVsDeviceMethod
         let capturedGlobalPlotDefaults = globalPlotDefaults
 
-        let capturedRTHit = selectedRTHit
+        let capturedRTResult = cachedRTResult
         let capturedNumericDisplay: [String: [String: String]] = cachedSampleNumericDisplay
         let capturedFieldSweepSeriesOrder = fieldSweepSeriesOrder
 
@@ -85,7 +85,7 @@ extension ThreeOmegaWorkspaceStore {
             guard let self else { return }
             let (result, plots, alignedSeriesOrder) = await Task.detached(priority: .userInitiated) { [selectedHits] in
                 let ingestUseCase = IngestThreeOmegaSelectionsUseCase()
-                let result = ingestUseCase.execute(hits: selectedHits, rtHit: capturedRTHit, numericDisplayBySample: capturedNumericDisplay)
+                let result = ingestUseCase.execute(hits: selectedHits, rtAnalysisResult: capturedRTResult, numericDisplayBySample: capturedNumericDisplay)
                 let alignedSeriesOrder = ThreeOmegaWorkspaceStore.alignSeriesOrder(old: capturedFieldSweepSeriesOrder, fieldSweeps: result.fieldSweeps)
                 var renderer = ThreeOmegaPlotRenderer()
                 renderer.showGrid              = capturedGrid

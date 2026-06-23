@@ -50,7 +50,7 @@ struct V537AnalysisLifecycleBoundaryTests {
     @MainActor
     private func seedCanonicalSearch(
         _ wfs: WorkbenchFeatureStore,
-        workflow: WorkbenchWorkflowID,
+        workflow: WorkflowKey,
         query: String,
         results: [WorkflowMeasurementSearchHit],
         message: String,
@@ -64,7 +64,7 @@ struct V537AnalysisLifecycleBoundaryTests {
     @MainActor
     private func canonicalSearchState(
         _ wfs: WorkbenchFeatureStore,
-        workflow: WorkbenchWorkflowID
+        workflow: WorkflowKey
     ) -> CanonicalSearchState {
         CanonicalSearchState(
             query: wfs.searchQueryText(for: workflow),
@@ -75,7 +75,7 @@ struct V537AnalysisLifecycleBoundaryTests {
     }
 
     private func makeSelectedHitsSnapshot(
-        workflow: WorkbenchWorkflowID,
+        workflow: WorkflowKey,
         queryText: String,
         selectedHits: [WorkflowMeasurementSearchHit]
     ) -> WorkbenchSelectedHitsSnapshot {

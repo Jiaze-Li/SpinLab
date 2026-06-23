@@ -31,7 +31,7 @@ struct V332WorkflowWorkspaceDispatchTests {
     }
 
     @MainActor
-    private func waitForSearchToFinish(_ wfs: WorkbenchFeatureStore, workflowID: WorkbenchWorkflowID) async throws {
+    private func waitForSearchToFinish(_ wfs: WorkbenchFeatureStore, workflowID: WorkflowKey) async throws {
         var attempts = 0
         while wfs.isSearchRunning(for: workflowID) && attempts < 40 {
             try await Task.sleep(nanoseconds: 50_000_000)
@@ -104,7 +104,7 @@ struct V332WorkflowWorkspaceDispatchTests {
         #expect(wfs.searchResultsList(for: .ahe).isEmpty)
         #expect(wfs.aheWorkspace.cachedSearchResults.isEmpty)
         #expect(wfs.aheWorkspace.cachedSampleNumericDisplay.isEmpty)
-        #expect(wfs.searchQueryText(for: .ahe) == WorkbenchWorkflowID.ahe.searchPrefix)
+        #expect(wfs.searchQueryText(for: .ahe) == WorkflowKey.ahe.searchPrefix)
         #expect(wfs.searchMessage(for: .ahe) == nil)
         #expect(wfs.isSearchRunning(for: .ahe) == false)
         #expect(wfs.aheWorkspace.cachedSearchResults.isEmpty)

@@ -87,6 +87,12 @@ final class ThreeOmegaWorkspaceStore {
     /// Set during restore; consumed on first 3w search to rebuild selectedRTHit.
     var pendingRTSidecarPath: String?
 
+    // MARK: - RT analysis state (set by selectRTHit, cleared by clearRTSelection)
+
+    var cachedRTResult: RTAnalysisResult?
+    var isAnalyzingRT: Bool = false
+    var rtAnalysisMessage: String?
+
     init(env: WorkbenchEnvironment = .live) {
         self.env = env
         self._rtQuery = UserDefaults.standard.string(forKey: Self.rtQueryDefaultsKey) ?? ""

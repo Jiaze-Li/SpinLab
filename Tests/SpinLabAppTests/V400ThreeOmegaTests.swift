@@ -410,9 +410,9 @@ struct V400DomainTests {
 
     @Test("WorkflowRegistry contains 3ω AHE bundle")
     func registryContainsBundle() {
-        let bundle = WorkflowRegistry.shared.bundle(for: .threeOmegaAHE)
+        let bundle = WorkflowRegistry.shared.bundle(for: .threeOmega)
         #expect(bundle != nil)
-        #expect(bundle?.workflowExtension.workflow == .threeOmegaAHE)
+        #expect(bundle?.workflowExtension.workflow == .threeOmega)
         #expect(bundle?.workflowExtension.supportedMeasurementTypes.contains(.threeOmegaAHE) == true)
     }
 }
