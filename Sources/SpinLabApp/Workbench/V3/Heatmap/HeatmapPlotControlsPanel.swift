@@ -20,6 +20,9 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
     let renderedYLabel: String
     let renderedZLabel: String
     let sourceResetToken: String
+    /// Optional Heatmap-module control for clamping the Z/intensity domain.
+    /// Workflows opt in when their Assembly wants user-facing intensity clipping.
+    let showsZRangeControl: Bool
     let onColorScaleModeChange: (PlotScaleTransform) -> Void
     let onZDomainStateChange: (HeatmapZDomainState) -> Void
     let onShowColorbarChange: (Bool) -> Void
@@ -48,6 +51,7 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
         renderedYLabel: String,
         renderedZLabel: String,
         sourceResetToken: String,
+        showsZRangeControl: Bool = true,
         onColorScaleModeChange: @escaping (PlotScaleTransform) -> Void,
         onZDomainStateChange: @escaping (HeatmapZDomainState) -> Void,
         onShowColorbarChange: @escaping (Bool) -> Void,
@@ -75,6 +79,7 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
         self.renderedYLabel = renderedYLabel
         self.renderedZLabel = renderedZLabel
         self.sourceResetToken = sourceResetToken
+        self.showsZRangeControl = showsZRangeControl
         self.onColorScaleModeChange = onColorScaleModeChange
         self.onZDomainStateChange = onZDomainStateChange
         self.onShowColorbarChange = onShowColorbarChange
@@ -130,10 +135,12 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
                         onStyleChange: onStyleChange
                     )
                 }
-                HeatmapZRangeControl(
-                    zDomainState: zDomainState,
-                    onZDomainStateChange: onZDomainStateChange
-                )
+                if showsZRangeControl {
+                    HeatmapZRangeControl(
+                        zDomainState: zDomainState,
+                        onZDomainStateChange: onZDomainStateChange
+                    )
+                }
             }
             .padding(.vertical, 4)
         }
