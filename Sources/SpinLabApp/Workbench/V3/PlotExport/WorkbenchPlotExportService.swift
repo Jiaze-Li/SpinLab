@@ -83,10 +83,10 @@ enum WorkbenchPlotExportService {
         input.xLabelOverride = tabState.xLabelOverride
         input.yLabelOverride = tabState.yLabelOverride
         input.hiddenPointLabelsBySeries = toIndexedOverrides(
-            tabState.hiddenPointLabelIndicesBySeries,
+            tabState.pointTags.hiddenPointLabelIndicesBySeries,
             series: displayPayload.series
         ).mapValues { Set($0) }
-        input.showPointTags = tabState.showPointTags
+        input.showPointTags = tabState.pointTags.showPointTags
         input.styleParamsPatch = patch
 
         guard let rendered = try? WorkbenchRenderPipeline.render(input).imageData,

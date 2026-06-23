@@ -277,28 +277,6 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         }
     }
 
-    func setShowPointTags(_ show: Bool) {
-        tabStates[activeTab, default: TabRenderState()].showPointTags = show
-    }
-
-    // Toggle a point label's visibility for the active tab.
-    func togglePointLabelVisibility(sampleID: String, pointIndex: Int) {
-        var hidden = tabStates[activeTab, default: TabRenderState()].hiddenPointLabelIndicesBySeries
-        var indices = Set(hidden[sampleID] ?? [])
-        if indices.contains(pointIndex) {
-            indices.remove(pointIndex)
-        } else {
-            indices.insert(pointIndex)
-        }
-        hidden[sampleID] = indices.isEmpty ? nil : indices.sorted()
-        tabStates[activeTab, default: TabRenderState()].hiddenPointLabelIndicesBySeries = hidden
-    }
-
-    // Returns the hidden-point-label indices for a given tab, keyed by sampleID or Int-string.
-    func hiddenPointLabelsBySampleID(for tab: Tab) -> [String: [Int]] {
-        (tabStates[tab] ?? TabRenderState()).hiddenPointLabelIndicesBySeries
-    }
-
     // MARK: - Render output management
 
     func setOutput(_ output: TabRenderOutput, for tab: Tab, policy: DisplayOverridePolicy = .preserveDisplayOverrides) {
@@ -400,11 +378,11 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             titleOverride: s.titleOverride,
             xLabelOverride: s.xLabelOverride,
             yLabelOverride: s.yLabelOverride,
-            hiddenPointLabelsBySeries: toIndexedOverrides(hiddenPointLabelsBySampleID(for: targetTab), series: payload.series).mapValues { Set($0) },
+            hiddenPointLabelsBySeries: toIndexedOverrides(s.pointTags.hiddenPointLabelIndicesBySeries, series: payload.series).mapValues { Set($0) },
             styleParamsPatch: patch,
             seriesOrder: s.seriesOrder,
             axisRangeOverride: s.axisRangeOverride,
-            showPointTags: s.showPointTags
+            showPointTags: s.pointTags.showPointTags
         )
     }
 
