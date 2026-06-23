@@ -40,6 +40,7 @@ Up-to-date reference documents that are not full architecture contracts.
 |---|---|---|
 | `WORKBENCH_ROADMAP.md` | Phase tracking | Current Workbench shell migration status and gate outcomes |
 | `MAIN_BOARD_LAYOUT.md` | Placement notes | Current shell injection points and placement names |
+| `PHYSICAL_MODULE_LAYOUT.md` | Physical layout plan | Target Swift file layout for Main Board / Modules / Workflows and the move-only migration gates |
 
 ### Workflow Records
 
@@ -87,10 +88,11 @@ Covers current contracts and references only. For historical audit records, see 
 5. [WORKFLOW_EXTENSION.md](WORKFLOW_EXTENSION.md) - canonical workflow extension contract: implementation checklist, code placement, and rules
 6. [WORKBENCH_ROADMAP.md](WORKBENCH_ROADMAP.md) - gate status and completion notes
 7. [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md) - implementation-level placement notes only
-8. [modules/MEASUREMENT_SEARCH.md](modules/MEASUREMENT_SEARCH.md) - search semantics and condition projection
-9. [modules/PLOT_SYSTEM.md](modules/PLOT_SYSTEM.md) - plot capabilities and shared plot shell details
-10. [modules/PACK_RESTORE.md](modules/PACK_RESTORE.md) - pack / restore lifecycle and write boundaries
-11. [STATE_OWNERSHIP.md](STATE_OWNERSHIP.md) - state ownership contract for plot defaults, tabs, packs, sidecars, and measurement sets
+8. [PHYSICAL_MODULE_LAYOUT.md](PHYSICAL_MODULE_LAYOUT.md) - target physical layout and move-only migration gates
+9. [modules/MEASUREMENT_SEARCH.md](modules/MEASUREMENT_SEARCH.md) - search semantics and condition projection
+10. [modules/PLOT_SYSTEM.md](modules/PLOT_SYSTEM.md) - plot capabilities and shared plot shell details
+11. [modules/PACK_RESTORE.md](modules/PACK_RESTORE.md) - pack / restore lifecycle and write boundaries
+12. [STATE_OWNERSHIP.md](STATE_OWNERSHIP.md) - state ownership contract for plot defaults, tabs, packs, sidecars, and measurement sets
 
 ## Dispatch Rules
 
@@ -98,6 +100,7 @@ Covers current contracts and references only. For historical audit records, see 
 - If reviewing the Gate 6 readiness closeout history, see `history/gate6/READINESS_CONSUMPTION_AUDIT.md` (historical audit record).
 - If changing workflow assembly or registration, read [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md). Specific workflow assembly records live at `workflows/*/ASSEMBLY.md`.
 - If changing module ownership, read [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md).
+- If changing physical Swift file layout, start with [PHYSICAL_MODULE_LAYOUT.md](PHYSICAL_MODULE_LAYOUT.md) and keep the commit move-only unless a separate architecture gate authorizes behavior changes.
 - If adding a workflow, start with [ADDING_WORKFLOW.md](ADDING_WORKFLOW.md), then [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) and [WORKFLOW_EXTENSION.md](WORKFLOW_EXTENSION.md).
 - If checking gate status, read [WORKBENCH_ROADMAP.md](WORKBENCH_ROADMAP.md).
 - If changing implementation injection points or placement details, read [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md). For historical Gate 4/5 layout audit, see `history/gate4/LAYOUT_AUDIT.md`.
@@ -114,6 +117,7 @@ Full rules (routing note format, task routing table, compliance checklist, docum
 |---|---|---|
 | Workbench readiness or shell gating | `MAIN_BOARD_READINESS.md` | `Features/Workbench/WorkbenchView.swift`; `Features/Workbench/WorkbenchResultHeaderShell.swift` |
 | Layout placement details | `MAIN_BOARD_LAYOUT.md` | `Features/Workbench/WorkflowWorkspaceShell.swift`; `Features/Workbench/WorkflowWorkspaceProvider.swift` |
+| Physical file layout / move-only refactor | `PHYSICAL_MODULE_LAYOUT.md` | `MODULE_BOUNDARIES.md`; relevant module doc; current source path before moving |
 | Workflow assembly / registration | `WORKFLOW_ASSEMBLY.md` | `Workflow/WorkflowID.swift`; `Workflow/WorkflowDefinition.swift`; `Workflow/WorkflowRegistry.swift`; `workflows/*/ASSEMBLY.md` |
 | Module ownership or forbidden mutations | `MODULE_BOUNDARIES.md` | `Features/Workbench/WorkflowWorkspaceShell.swift`; relevant workflow store |
 | Search measurements | `UseCases/SearchWorkflowMeasurementsUseCase.swift` | `Domain/WorkflowSearchModels.swift`; `Workflow/WorkflowID.swift`; `Library/SpinLabFileSidecar.swift` |
