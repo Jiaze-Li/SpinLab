@@ -191,6 +191,26 @@ Workflow renderers own:
 - workflow-specific pack persistence
 - data-to-`WorkbenchPlotPayload` conversion
 
+### Cartesian XY Payload Checklist
+
+Every Cartesian XY workflow renderer that emits `WorkbenchPlotPayload` must populate semantic series identity, not only x/y data.
+
+Each `WorkbenchPlotSeries` should provide, when available:
+
+- `sourceRef`: stable input file path or source reference.
+- `sampleID`: stable sample identifier.
+- `metadata`: workflow/domain metadata needed by shared plot features.
+
+Shared plot modules consume this payload metadata. They do not infer workflow metadata from filenames, sidecars, search hits, or workflow-local state. In particular, `LegendDimensionResolver` reads `WorkbenchPlotSeries.metadata`; if metadata is missing, automatic legend dimension resolution cannot run correctly.
+
+If the workflow supports multi-series reordering:
+
+- set `seriesReorderable: true` on `WorkbenchPlotPayload`;
+- store order in `TabRenderState` through `TabRenderManager`;
+- apply `seriesOrder` inside the workflow renderer before calling `WorkbenchRenderPipeline`.
+
+Do not patch `LegendDimensionResolver` or common Plot System code to recover missing workflow metadata. Missing metadata is a workflow payload bug.
+
 Examples:
 
 - Times New Roman default font belongs to the common Plot System.
