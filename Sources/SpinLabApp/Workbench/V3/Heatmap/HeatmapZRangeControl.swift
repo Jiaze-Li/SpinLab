@@ -1,5 +1,10 @@
 import SwiftUI
 
+/// Optional Heatmap-module control for display-only Z/intensity domain clipping.
+///
+/// The control mutates `HeatmapZDomainState` only. Scientific RSM parsing and
+/// payload construction stay in the workflow Assembly; the Heatmap module owns
+/// the final color-domain override applied during rendering.
 struct HeatmapZRangeControl: View {
     let zDomainState: HeatmapZDomainState
     let onZDomainStateChange: (HeatmapZDomainState) -> Void
@@ -53,7 +58,7 @@ struct HeatmapZRangeControl: View {
     }
 
     private var modeLabel: some View {
-        Text("Z Range")
+        Text("Intensity Range")
             .font(WorkbenchUIStyle.controlLabelFont)
             .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
             .fixedSize()
