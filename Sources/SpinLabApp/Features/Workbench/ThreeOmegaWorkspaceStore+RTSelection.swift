@@ -21,7 +21,7 @@ extension ThreeOmegaWorkspaceStore {
         launchRTAnalysis(for: hit)
     }
 
-    private func launchRTAnalysis(for hit: WorkflowMeasurementSearchHit) {
+    func launchRTAnalysis(for hit: WorkflowMeasurementSearchHit) {
         isAnalyzingRT = true
         rtAnalysisMessage = nil
         cachedRTResult = nil
