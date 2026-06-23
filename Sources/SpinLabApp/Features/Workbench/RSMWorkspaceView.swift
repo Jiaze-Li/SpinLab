@@ -41,6 +41,7 @@ struct RSMWorkspaceView: View, WorkflowWorkspaceProvider {
                         .map { RSMWorkspaceStore.publicationZLabel(for: $0.detectorColumnName) }
                         ?? "",
                     sourceResetToken: "\(bindableStore.cachedInputFiles.first ?? "")|\(bindableStore.activeView.rawValue)",
+                    showsZRangeControl: true,
                     onColorScaleModeChange: { store.updateHeatmapColorScaleMode($0) },
                     onZDomainStateChange: { store.updateHeatmapZDomainState($0) },
                     onShowColorbarChange: { store.updateHeatmapShowColorbar($0) },
