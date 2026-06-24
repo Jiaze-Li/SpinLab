@@ -669,7 +669,7 @@ struct V710CanvasStructuralGuards {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let url = base.appendingPathComponent(
-            "Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift"
+            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift"
         )
         return try String(contentsOf: url, encoding: .utf8)
     }
@@ -949,18 +949,21 @@ struct V710LabelOverrideFieldSyncTests {
 struct V710UIDensityGuards {
 
     private func sourceURL(for filename: String) -> URL {
-        let relativePath: String
-        if filename == "WorkbenchSeriesOrderPanel.swift" {
-            relativePath = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/\(filename)"
-        } else {
-            relativePath = "Sources/SpinLabApp/Features/Workbench/\(filename)"
+        let targetPath: String
+        switch filename {
+        case "WorkbenchPlotControlsPanel.swift":
+            targetPath = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift"
+        case "WorkbenchSeriesOrderPanel.swift":
+            targetPath = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderPanel.swift"
+        case "WorkbenchStandardPlotControls.swift":
+            targetPath = "Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift"
+        default:
+            targetPath = "Sources/SpinLabApp/Features/Workbench/\(filename)"
         }
-
-        return URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent(relativePath)
+        return URL(fileURLWithPath: #filePath.replacingOccurrences(
+            of: "Tests/SpinLabAppTests/V710PlotControlsMigrationTests.swift",
+            with: targetPath
+        ))
     }
 
     // MARK: caption2 absent
