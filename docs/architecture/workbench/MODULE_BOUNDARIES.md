@@ -172,7 +172,7 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
     - `Sources/SpinLabApp/Features/Workbench/SharedPlotTextControls.swift`
     - `Sources/SpinLabApp/Features/Workbench/RSMViewSelector.swift`
     - `Sources/SpinLabApp/Features/Workbench/SharedPlotFontSizeControls.swift`
-    - `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift`
+    - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderPanel.swift`
     - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift` — defines `WorkbenchPlottingStore` (interaction-only), `WorkbenchCartesianXYPlottingStore` (Cartesian XY state), `WorkbenchGlobalPlotDefaultsProviding` (shared font defaults)
     - `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift`
     - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Pipeline/WorkbenchRenderPipeline.swift`
@@ -309,7 +309,7 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
   - `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift`
   - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Pipeline/WorkbenchRenderPipeline.swift`
   - `Sources/SpinLabApp/UseCases/WorkbenchTitleResolver.swift`
-  - `Sources/SpinLabApp/Workbench/V3/WorkbenchSeriesOrderKeyResolver.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderKeyResolver.swift`
   - `Sources/SpinLabApp/UseCases/LegendDimensionResolver.swift`
   - workflow-local `titleTemplate`, grid, legend anchor, and chart style bindings in all workflow stores
 - Current consumers: all workflow views/stores, render pipeline, pack configs, plot canvas editors.

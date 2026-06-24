@@ -846,7 +846,7 @@ struct V710LabelDisplayAndOrderTests {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let url = base.appendingPathComponent(
-            "Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift"
+            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderPanel.swift"
         )
         let src = try String(contentsOf: url, encoding: .utf8)
         #expect(src.contains(".draggable("), "chip must use .draggable for drag reorder")
@@ -862,7 +862,7 @@ struct V710LabelDisplayAndOrderTests {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let url = base.appendingPathComponent(
-            "Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift"
+            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderPanel.swift"
         )
         let src = try String(contentsOf: url, encoding: .utf8)
         #expect(src.contains("\"square.and.pencil\""),
@@ -878,7 +878,7 @@ struct V710LabelDisplayAndOrderTests {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let url = base.appendingPathComponent(
-            "Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift"
+            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderPanel.swift"
         )
         let src = try String(contentsOf: url, encoding: .utf8)
         #expect(src.contains("dragTargetKey"),

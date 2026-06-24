@@ -480,9 +480,9 @@ Boundary: no module other than Plot Preservation may write `TabRenderState` over
 - `Sources/SpinLabApp/Features/Workbench/SharedPlotTickCountControls.swift` — shared X/Y axis tick-count steppers used by heatmap and RSM plot control panels
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesAppearanceControls.swift` — shell-level line-width and scatter-radius dropdowns backed by globalPlotDefaults; shared across all Cartesian XY workflows
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchAxisRangeControls.swift` — shell-level per-tab X/Y axis range override fields; shows resolved auto range from layout, persists override in TabRenderState
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift` — reorders stacked series from plot controls by per-series identity keys
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderPanel.swift` — reorders stacked series from plot controls by per-series identity keys
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift` — interaction-only canvas protocol (`WorkbenchPlottingStore`); also defines `WorkbenchCartesianXYPlottingStore` (Cartesian XY state) and `WorkbenchGlobalPlotDefaultsProviding` (shared font/style defaults)
-- `Sources/SpinLabApp/Workbench/V3/WorkbenchSeriesOrderKeyResolver.swift` — shared series identity key resolver for order persistence and compatibility
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderKeyResolver.swift` — shared series identity key resolver for order persistence and compatibility
 - `Sources/SpinLabApp/Workbench/V3/WorkbenchChartRenderer.swift` — CoreGraphics renderer for Cartesian XY line/scatter charts
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Legend/LegendDimensionResolver.swift` — auto-resolves legend dimension from series metadata
 - `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift` — owns per-tab Cartesian XY render state (`TabRenderState`), tab outputs, active tab, shared display settings

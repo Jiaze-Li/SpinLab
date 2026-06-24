@@ -121,7 +121,6 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift` — defines the shared plot-canvas interaction contract
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchReadAdapter.swift` — projects workspace state into a read-only shell-facing snapshot
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchResultHeaderShell.swift` — renders the shared result header and save actions
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift` — renders the series-reorder chip layout
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchSharedComponents.swift` — documents the split shared workbench component inventory
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift` — composes tab, stack, title, and reorder controls for stacked plots
 - `Sources/SpinLabApp/Features/Workbench/SharedPlotTextControls.swift` — shared title/X/Y override row for plot controls
