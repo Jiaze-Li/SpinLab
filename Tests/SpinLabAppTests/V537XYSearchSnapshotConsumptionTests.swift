@@ -95,10 +95,9 @@ struct V537XYSearchSnapshotConsumptionTests {
     func nilSelectedSnapshotFallsBackToCache() {
         let store = XYRotationWorkspaceStore()
 
-        let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
         let hitB = makeHit(sidecarPath: "sidecar-B", sampleKey: "PN32|b|STO|111")
 
-        // Cache contains hitB only — the selected hit (hitA) is absent.
+        // Cache contains hitB only — the selected hit is absent.
         store.cachedSearchResults = [hitB]
 
         // nil snapshot → must fall back to cachedSearchResults → hitA not found → guard fires.
