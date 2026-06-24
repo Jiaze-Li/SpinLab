@@ -125,7 +125,7 @@ Full rules (routing note format, task routing table, compliance checklist, docum
 | Workflow assembly / registration | `WORKFLOW_ASSEMBLY.md` | `Workflow/WorkflowID.swift`; `Workflow/WorkflowDefinition.swift`; `Workflow/WorkflowRegistry.swift`; `workflows/*/ASSEMBLY.md` |
 | Module ownership or forbidden mutations | `MODULE_BOUNDARIES.md` | `MODULE_CAPABILITY_MAP.md`; `Features/Workbench/WorkflowWorkspaceShell.swift`; relevant workflow store |
 | Search measurements | `modules/MEASUREMENT_SEARCH.md` | `UseCases/SearchWorkflowMeasurementsUseCase.swift`; `Domain/WorkflowSearchModels.swift`; `Workflow/WorkflowID.swift`; `Library/SpinLabFileSidecar.swift` |
-| Save chart / metrics to Library | `MODULE_CAPABILITY_MAP.md` | `UseCases/SaveActiveChartToLibraryUseCase.swift`; `UseCases/PersistChartArtifactUseCase.swift`; `UseCases/PersistMeasurementDataUseCase.swift`; `Workbench/V3/WorkbenchResultContracts.swift` |
+| Save chart / metrics to Library | `MODULE_CAPABILITY_MAP.md` | `UseCases/SaveActiveChartToLibraryUseCase.swift`; `UseCases/PersistChartArtifactUseCase.swift`; `UseCases/PersistMeasurementDataUseCase.swift`; `Workbench/Modules/PlotSystem/Contracts/WorkbenchResultContracts.swift` |
 | Pack save / restore | `modules/PACK_RESTORE.md` | `App/State/AnalysisVault.swift`; `Domain/AnalysisPack.swift`; `Workbench/V3/AnalysisPackProviding.swift`; `UseCases/RestoreAnalysisPackUseCase.swift` |
 
 ## Boundary Rules

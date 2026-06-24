@@ -253,5 +253,5 @@ These are observations, not tasks. They will inform the Gate 7.5 extraction hand
 - 3ω metric projection: `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Plotting.swift`
 - 3ω save: `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Persistence.swift`
 - XY save: `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift`
-- Common contract: `Sources/SpinLabApp/Workbench/V3/WorkbenchResultContracts.swift`
+- Common contract: `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Contracts/WorkbenchResultContracts.swift`
 - Provider protocol: `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift`
