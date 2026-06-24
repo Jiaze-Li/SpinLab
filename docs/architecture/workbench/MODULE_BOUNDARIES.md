@@ -169,9 +169,9 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
     - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/PlotCanvasMouseTracker.swift`
     - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift`
     - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift`
-    - `Sources/SpinLabApp/Features/Workbench/SharedPlotTextControls.swift`
+    - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTextControls.swift`
     - `Sources/SpinLabApp/Features/Workbench/RSMViewSelector.swift`
-    - `Sources/SpinLabApp/Features/Workbench/SharedPlotFontSizeControls.swift`
+    - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotFontSizeControls.swift`
     - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderPanel.swift`
     - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift` — defines `WorkbenchPlottingStore` (interaction-only), `WorkbenchCartesianXYPlottingStore` (Cartesian XY state), `WorkbenchGlobalPlotDefaultsProviding` (shared font defaults)
     - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Preservation/TabRenderManager.swift`
@@ -304,8 +304,8 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
   - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift`
   - `Sources/SpinLabApp/Features/Workbench/WorkbenchTitleTemplateField.swift`
   - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift`
-  - `Sources/SpinLabApp/Features/Workbench/SharedPlotTextControls.swift`
-  - `Sources/SpinLabApp/Features/Workbench/SharedPlotFontSizeControls.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTextControls.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotFontSizeControls.swift`
   - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Preservation/TabRenderManager.swift`
   - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Pipeline/WorkbenchRenderPipeline.swift`
   - `Sources/SpinLabApp/UseCases/WorkbenchTitleResolver.swift`

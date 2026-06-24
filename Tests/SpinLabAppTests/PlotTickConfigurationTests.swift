@@ -85,7 +85,7 @@ struct SharedPlotTickCountControlsTests {
     func controlUsesPlotTickConfigurationValidRange() throws {
         let src = try String(contentsOfFile: #filePath.replacingOccurrences(
             of: "Tests/SpinLabAppTests/PlotTickConfigurationTests.swift",
-            with: "Sources/SpinLabApp/Features/Workbench/SharedPlotTickCountControls.swift"
+            with: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTickCountControls.swift"
         ), encoding: .utf8)
         #expect(src.contains("PlotTickConfiguration.validRange"),
                 "SharedPlotTickCountControls must reference PlotTickConfiguration.validRange, not a hardcoded range")
@@ -112,7 +112,7 @@ struct SharedPlotTickCountControlsTests {
     func controlHasNoHeatmapSpecificNaming() throws {
         let src = try String(contentsOfFile: #filePath.replacingOccurrences(
             of: "Tests/SpinLabAppTests/PlotTickConfigurationTests.swift",
-            with: "Sources/SpinLabApp/Features/Workbench/SharedPlotTickCountControls.swift"
+            with: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTickCountControls.swift"
         ), encoding: .utf8)
         #expect(!src.contains("Heatmap"),
                 "SharedPlotTickCountControls must not contain Heatmap-specific naming")
