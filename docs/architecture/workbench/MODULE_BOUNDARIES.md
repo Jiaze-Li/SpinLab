@@ -165,8 +165,8 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Classification: Module-owned — common module group.
 - Current implementation files:
   - Cartesian XY render path:
-    - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift` — workflow-independent PNG display shell; reused by heatmap with `layout: nil`
-    - `Sources/SpinLabApp/Features/Workbench/PlotCanvasMouseTracker.swift`
+    - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift` — workflow-independent PNG display shell; reused by heatmap with `layout: nil`
+    - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/PlotCanvasMouseTracker.swift`
     - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift`
     - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift`
     - `Sources/SpinLabApp/Features/Workbench/SharedPlotTextControls.swift`

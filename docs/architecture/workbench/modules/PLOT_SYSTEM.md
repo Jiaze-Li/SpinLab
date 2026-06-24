@@ -469,8 +469,8 @@ Boundary: no module other than Plot Preservation may write `TabRenderState` over
 
 ### Cartesian XY Render Path
 
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift` — workflow-independent PNG display shell; interaction, hit-test, legend overlay, Copy PNG; reused by heatmap with `layout: nil`
-- `Sources/SpinLabApp/Features/Workbench/PlotCanvasMouseTracker.swift` — tracks mouse position and computes hit-test results on the plot canvas
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift` — workflow-independent PNG display shell; interaction, hit-test, legend overlay, Copy PNG; reused by heatmap with `layout: nil`
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/PlotCanvasMouseTracker.swift` — tracks mouse position and computes hit-test results on the plot canvas
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift` — sidebar controls panel for plot display settings (Cartesian XY-specific controls)
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift` — standard plot control bindings shared across Cartesian XY multi-tab stacking workflows
 - `Sources/SpinLabApp/Features/Workbench/SharedPlotTextControls.swift` — shared title/X/Y override row used by heatmap and Cartesian workflows

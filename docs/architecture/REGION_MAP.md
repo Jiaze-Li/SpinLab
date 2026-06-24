@@ -327,12 +327,12 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `Features/Workbench/AHEWorkspaceStore.swift` | consumer: AHE workspace state/orchestration | Store | 763 |  | ⭐G H: parallel workspace store protocols | 0 | direct |
 | `Features/Workbench/AHEWorkspaceView.swift` | consumer: AHE workspace UI provider | UI | 276 |  |  | 0 | behavioral |
 | `Features/Workbench/NewRuleEntrySheet.swift` | consumer: Workbench rule-entry sheet | UI | 137 | ⭐ consumer: Workbench+Rules rule entry |  | 0 | none |
-| `Features/Workbench/PlotCanvasMouseTracker.swift` | consumer: WorkbenchPlotCanvas mouse bridge | UI bridge | 88 |  |  | 0 | behavioral |
+| `Workbench/Modules/PlotSystem/Canvas/PlotCanvasMouseTracker.swift` | consumer: WorkbenchPlotCanvas mouse bridge | UI bridge | 88 |  |  | 0 | behavioral |
 | `Features/Workbench/ThreeOmegaWorkspaceStore.swift` | consumer: 3ω workspace state/orchestration | Store | 1517 |  | ⭐G H/V: largest workflow store + parallel protocols | 0 | direct |
 | `Features/Workbench/ThreeOmegaWorkspaceView.swift` | consumer: 3ω workspace UI provider | UI | 447 |  |  | 0 | behavioral |
 | `Features/Workbench/TokenMapEditor.swift` | consumer: Workbench condition/rule token map UI | UI | 62 | ⭐ consumer: Workbench+Rules condition editing |  | 0 | none |
 | `Features/Workbench/UnitTagEditor.swift` | consumer: Workbench condition unit tag UI | UI | 70 | ⭐ consumer: Workbench+Rules condition editing |  | 0 | none |
-| `Features/Workbench/WorkbenchPlotCanvas.swift` | consumer: shared plot canvas | UI shell | 728 | ⭐ legitimate_cross_cutting within Workbench workflows | ⭐G H/V: plot shell + internal responsibilities | 1 | behavioral |
+| `Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift` | consumer: shared plot canvas | UI shell | 728 | ⭐ legitimate_cross_cutting within Workbench workflows | ⭐G H/V: plot shell + internal responsibilities | 1 | behavioral |
 | `Features/Workbench/WorkbenchPlotControlsPanel.swift` | consumer: Workbench plot controls wrapper | UI shell | 37 |  |  | 0 | none |
 | `Features/Workbench/WorkbenchPlottingStore.swift` | consumer: plot-capability protocol | Capability protocol | 36 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | behavioral |
 | `Features/Workbench/WorkbenchSharedComponents.swift` | consumer: shared Workbench UI components | UI helper | 10 |  |  | 0 | none |
@@ -515,7 +515,7 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `Import/Rules/FilenameRuleSet.swift` | 956 | Rules | rule schema + compile/evaluate，已入附录 G |
 | `App/State/WorkbenchFeatureStore.swift` | 877 | Workbench | Store 主体，已入附录 G |
 | `Features/Workbench/AHEWorkspaceStore.swift` | 763 | Workbench | workflow store + shared protocols，已入附录 G |
-| `Features/Workbench/WorkbenchPlotCanvas.swift` | 728 | Workbench | 共享 plot shell，已入附录 G |
+| `Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift` | 728 | Workbench | 共享 plot shell，已入附录 G |
 | `Library/LibraryXLSXSyncService.swift` | 663 | Library | XLSX sync service，已入附录 G |
 | `Features/Workbench/XYRotationWorkspaceStore.swift` | 623 | Workbench | workflow store + shared protocols，已入附录 G |
 | `Import/Rules/RuleLoader.swift` | 608 | Rules | runtime/bundle loader + cache + assembly，已入附录 G |
@@ -611,7 +611,7 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 |---|---|---|---|
 | `Features/Workbench/WorkbenchTracePanel.swift` | 14 | TODO(用户设计) | 调整 label 列宽、字号、是否折叠显示 |
 | `Features/Workbench/WorkbenchStatusArea.swift` | 15 | TODO(用户设计) | 考虑是否合并为单条消息、是否加图标前缀 |
-| `Features/Workbench/WorkbenchPlotCanvas.swift` | 55 | TODO(用户设计) | 调整最小高度、背景样式、空状态文字 |
+| `Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift` | 55 | TODO(用户设计) | 调整最小高度、背景样式、空状态文字 |
 | `Import/Rules/RulesBootstrapper.swift` | 1059 | false-positive | `dateFormat` 字符串含 `XXX`，不是 TODO / FIXME / XXX 注释 |
 
 ## 附录 D — 测试覆盖盲区清单

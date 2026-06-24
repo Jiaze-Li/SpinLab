@@ -61,7 +61,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("WorkbenchPlotCanvas does not store canonical plot preservation state")
     func canvasDoesNotStorePreservationState() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift")
         // Canvas must not hold TabRenderState or TabRenderManager as stored properties
         // (var/let stored property patterns — "@State" or "var x: TabRenderState" etc.)
         #expect(!src.contains("TabRenderState("), "Canvas must not construct TabRenderState instances")
@@ -74,7 +74,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("WorkbenchPlotCanvas exposes interaction callbacks, not stored overrides")
     func canvasExposesCallbacks() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift")
         // Canvas must expose the canonical interaction callbacks
         #expect(src.contains("onLegendDrag"), "Canvas must expose onLegendDrag callback")
         #expect(src.contains("onTogglePointLabelVisibility"), "Canvas must expose onTogglePointLabelVisibility callback")
@@ -202,7 +202,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("WorkbenchPlotCanvas does not redeclare canonical TabRenderState fields as stored properties")
     func canvasDoesNotRedeclarePreservationFields() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift")
         // These are canonical TabRenderState fields — canvas must not declare them
         let forbidden = ["titleOverride", "legendPoint", "seriesOrder", "xLabelOverride", "yLabelOverride"]
         for field in forbidden {
@@ -265,7 +265,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("WorkbenchPlotCanvas Copy PNG block does not call title/legend/style mutation callbacks")
     func copyPNGBlockDoesNotCallMutationCallbacks() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift")
         // Locate the Copy PNG context menu block (starting at .contextMenu or Menu("Copy PNG"))
         // and verify that no mutation callbacks are called inside it.
         // Starting from onCopyPNG stored-property declaration would scan too much of the file;

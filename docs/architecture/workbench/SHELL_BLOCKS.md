@@ -98,7 +98,6 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/OverlaySnapshot.swift` — stores decoupled overlay pack data for RAHE rendering
 - `Sources/SpinLabApp/Features/Workbench/IVWorkspaceStore.swift` — owns IV analysis, pack, and render state for the IV workflow assembly
 - `Sources/SpinLabApp/Features/Workbench/IVWorkspaceView.swift` — mounts the IV workflow shell and workflow-specific control content
-- `Sources/SpinLabApp/Features/Workbench/PlotCanvasMouseTracker.swift` — bridges mouse events into plot-canvas drag and tap tracking
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaRenderedPlots.swift` — carries rendered 3ω plot images, layouts, and pipeline warnings
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkbenchTab.swift` — defines 3ω tab identities and stable persistence keys
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Analysis.swift` — runs 3ω selection ingestion, rendering, and trace capture
@@ -116,7 +115,6 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift` — mounts the 3ω workflow shell and workflow-specific panels
 - `Sources/SpinLabApp/Features/Workbench/UnitTagEditor.swift` — edits reusable unit tags inline
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchEnvironment.swift` — carries the workbench file-system and library access dependencies
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift` — renders plot images and handles canvas editing and legend drag
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift` — wraps shared plot controls chrome and shell-level draw mode
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift` — defines the shared plot-canvas interaction contract
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchReadAdapter.swift` — projects workspace state into a read-only shell-facing snapshot

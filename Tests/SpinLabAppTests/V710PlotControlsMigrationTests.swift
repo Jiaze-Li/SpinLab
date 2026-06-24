@@ -658,7 +658,7 @@ struct V710CanvasStructuralGuards {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let url = base.appendingPathComponent(
-            "Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift"
+            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift"
         )
         return try String(contentsOf: url, encoding: .utf8)
     }
