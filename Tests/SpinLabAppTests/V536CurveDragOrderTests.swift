@@ -24,11 +24,10 @@ struct V536CurveDragOrderTests {
 
     @Test("WorkbenchPlotSeries round-trips sampleID correctly")
     func seriesRoundTripsSampleID() throws {
-        var original = WorkbenchPlotSeries(label: "A", x: [1.0], y: [0.5], sampleID: "sampleKey-42")
+        let original = WorkbenchPlotSeries(label: "A", x: [1.0], y: [0.5], sampleID: "sampleKey-42")
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(WorkbenchPlotSeries.self, from: data)
         #expect(decoded.sampleID == "sampleKey-42")
-        _ = original
     }
 
     @Test("WorkbenchPlotPayload decodes without seriesReorderable — defaults false")
@@ -575,7 +574,7 @@ struct V536CurveDragOrderTests {
             seriesReorderable: true
         )
 
-        var renderInput = WorkbenchRenderPipeline.Input(payload: payload)
+        let renderInput = WorkbenchRenderPipeline.Input(payload: payload)
         let rendered = try WorkbenchRenderPipeline.render(renderInput)
 
         var manifestPayload = payload

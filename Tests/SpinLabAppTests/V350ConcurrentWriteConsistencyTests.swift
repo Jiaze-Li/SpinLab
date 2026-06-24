@@ -203,7 +203,7 @@ struct V350ConcurrentWriteConsistencyTests {
                     let writer = AtomicFileWriter()
                     let useCase = PersistChartArtifactUseCase(writer: writer, pathResolver: resolver)
                     let payload = self.makePayload(sampleKey: sampleKey, index: i)
-                    try? useCase.execute(sampleKey: sampleKey, payload: payload, imageData: pngData)
+                    _ = try? useCase.execute(sampleKey: sampleKey, payload: payload, imageData: pngData)
                 }
             }
         }
@@ -230,7 +230,7 @@ struct V350ConcurrentWriteConsistencyTests {
                     let writer = AtomicFileWriter()
                     let useCase = PersistChartArtifactUseCase(writer: writer, pathResolver: resolver)
                     let payload = self.makePayload(sampleKey: sampleKey, index: i)
-                    try? useCase.execute(sampleKey: sampleKey, payload: payload, imageData: pngData)
+                    _ = try? useCase.execute(sampleKey: sampleKey, payload: payload, imageData: pngData)
                 }
             }
         }
@@ -321,7 +321,7 @@ struct V350ConcurrentWriteConsistencyTests {
 
         for i in 0..<writeCount {
             let payload = makePayload(sampleKey: sampleKey, index: i)
-            try useCase.execute(sampleKey: sampleKey, payload: payload, imageData: pngData)
+            _ = try useCase.execute(sampleKey: sampleKey, payload: payload, imageData: pngData)
         }
 
         let index = try decodeResultsIndex(
