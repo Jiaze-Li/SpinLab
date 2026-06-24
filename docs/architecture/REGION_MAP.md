@@ -394,7 +394,7 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `Workbench/V3/WorkbenchChartStyle.swift` | consumer: chart style params | Domain/Config | 38 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
 | `Workbench/V3/WorkbenchPlotLayout.swift` | consumer: chart layout/hit testing | Renderer helper | 429 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
 | `Workbench/Modules/PlotSystem/Pipeline/WorkbenchRenderPipeline.swift` | consumer: shared chart render pipeline | Renderer pipeline | 191 | ⭐ legitimate_cross_cutting within Workbench workflows | ⭐G H: established shared render shell | 0 | direct |
-| `Workbench/V3/WorkbenchResultContracts.swift` | consumer: Workbench result/chart/metric contracts | Domain/Contract | 459 | ⭐ consumer: Workbench+Library artifact indexes |  | 0 | direct |
+| `Workbench/Modules/PlotSystem/Contracts/WorkbenchResultContracts.swift` | consumer: Workbench result/chart/metric contracts | Domain/Contract | 459 | ⭐ consumer: Workbench+Library artifact indexes |  | 0 | direct |
 | `Workbench/V3/XYRotationIngestionContracts.swift` | consumer: XY Rotation ingestion/result contracts | Domain/Contract | 53 |  |  | 0 | direct |
 | `Workbench/V3/XYRotationPackContracts.swift` | consumer: XY analysis pack Codable contracts | Domain/Contract | 66 |  |  | 0 | behavioral |
 

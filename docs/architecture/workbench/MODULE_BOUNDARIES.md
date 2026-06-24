@@ -246,7 +246,7 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
     - `Sources/SpinLabApp/Features/Workbench/WorkbenchSaveCoordinating.swift` — shared async save orchestration protocol + extension; owns `executeSave`, outcome/trace/message writes, and `refreshRelatedCharts()` call pattern
     - save methods in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore+Persistence.swift`
     - save-metadata builders in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore+Plotting.swift`
-    - metric/provider contracts in `Sources/SpinLabApp/Workbench/V3/WorkbenchResultContracts.swift`
+    - metric/provider contracts in `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Contracts/WorkbenchResultContracts.swift`
   - RSM heatmap save path (Gate H5):
     - `Sources/SpinLabApp/UseCases/SaveRSMChartToLibraryUseCase.swift` — RSM-specific save use case; parallel to `SaveActiveChartToLibraryUseCase`; receives RSMSaveProjection directly
     - `Sources/SpinLabApp/Workbench/V3/Heatmap/RSM/RSMSaveProjection.swift` — RSM Assembly-owned save metadata: title, active view, axis labels, source file identity, semantic params
@@ -334,7 +334,7 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Target owner: split ownership. Metric definitions, extraction semantics, unit conversions, and overrides are Assembly-owned. Generic save metadata envelope and artifact writer are Module-owned and common. The boundary debt is the projection from workflow metrics into generic save records.
 - Exit condition: AHE Hc / R_AHE extraction, 3ω alpha/beta/R² mapping, XY metric choices, unit conversions, and override rules are exposed through workflow Assembly save projections; the common Save module receives already-semantic metadata and never invents or transforms metric meaning.
 - Current implementation files:
-  - `Sources/SpinLabApp/Workbench/V3/WorkbenchResultContracts.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Contracts/WorkbenchResultContracts.swift`
   - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift`
   - `Sources/SpinLabApp/UseCases/ExtractAHEMetricsUseCase.swift`
   - `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift`
