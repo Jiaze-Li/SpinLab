@@ -70,6 +70,25 @@ These must not be absorbed into common Plot Controls.
 
 If they need to appear inside the same visual panel, they must enter through an explicit slot.
 
+## Module Cleanliness Criteria
+
+A control module is not clean merely because its property names look correct.
+
+A control module is clean only when all of the following are true:
+
+1. Its name matches its real responsibility.
+2. Its inputs are inside its declared scope.
+3. It does not know workflow-specific physics unless it is a workflow-owned module.
+4. It does not own state that belongs to another module.
+5. It emits user intent through callbacks instead of directly mutating unrelated systems.
+6. It can be reused in its claimed scope without hidden assumptions.
+
+For example, a shared text-control module may display title, X-label, and Y-label fields. It may receive current values and emit committed text changes. It must not decide what the semantic X or Y axis means, must not know whether the workflow is AHE or 3omega, and must not own tab render state.
+
+For Cartesian XY controls, the same rule applies. A Cartesian XY module may provide line/scatter mode, tick density, axis range, stack controls, series order, or point-tag controls. It must not decide the physics meaning of a tab, a curve, a fitting method, or a workflow-specific parameter.
+
+This means physical relocation is not enough. A file should not move into a cleaner folder unless its actual behavior matches the module boundary, or unless the debt is explicitly documented before the move.
+
 ## Physical Move Rule
 
 Do not move all controls together just because they contain the word Plot or Controls.
