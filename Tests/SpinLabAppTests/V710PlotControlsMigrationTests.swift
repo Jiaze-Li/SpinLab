@@ -949,11 +949,18 @@ struct V710LabelOverrideFieldSyncTests {
 struct V710UIDensityGuards {
 
     private func sourceURL(for filename: String) -> URL {
-        URL(fileURLWithPath: #filePath)
+        let relativePath: String
+        if filename == "WorkbenchSeriesOrderPanel.swift" {
+            relativePath = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/\(filename)"
+        } else {
+            relativePath = "Sources/SpinLabApp/Features/Workbench/\(filename)"
+        }
+
+        return URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appendingPathComponent("Sources/SpinLabApp/Features/Workbench/\(filename)")
+            .appendingPathComponent(relativePath)
     }
 
     // MARK: caption2 absent
