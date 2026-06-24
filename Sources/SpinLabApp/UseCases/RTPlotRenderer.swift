@@ -30,7 +30,8 @@ struct RTPlotRenderer {
                 x: result.temperatureK,
                 y: result.rxx,
                 sourceRef: result.sourceFilePath,
-                sampleID: result.sampleID ?? result.sampleKey
+                sampleID: result.sampleID ?? result.sampleKey,
+                metadata: result.sampleMetadata ?? [:]
             )
         }
 
