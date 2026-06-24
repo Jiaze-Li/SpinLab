@@ -217,7 +217,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("WorkbenchRenderPipeline does not reference workflow store state")
     func renderPipelineIsOneWay() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/V3/WorkbenchRenderPipeline.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Pipeline/WorkbenchRenderPipeline.swift")
         #expect(!src.contains("cachedSearchResults"), "Render pipeline must not reference cachedSearchResults")
         #expect(!src.contains("selectedSearchResultIDs"), "Render pipeline must not reference selectedSearchResultIDs")
         #expect(!src.contains("ingestionResult"), "Render pipeline must not reference ingestionResult")
