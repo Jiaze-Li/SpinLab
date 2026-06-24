@@ -386,7 +386,7 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `Workbench/V3/AnalysisPackProviding.swift` | consumer: workflow stores pack save/load | Capability protocol | 194 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
 | `Workbench/V3/ConditionAliasConfig.swift` | consumer: Workbench condition alias config | Config model | 92 | ⭐ consumer: Workbench+Library sidecar conditions |  | 0 | behavioral |
 | `Workbench/V3/SeriesOrderAlignHelper.swift` | consumer: curve reorder alignment | UseCase helper | 22 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
-| `Workbench/V3/TabRenderManager.swift` | consumer: workflow tab render state | Store helper | 381 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
+| `Workbench/Modules/PlotSystem/Preservation/TabRenderManager.swift` | consumer: workflow tab render state | Store helper | 381 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
 | `Workbench/V3/ThreeOmegaIngestionContracts.swift` | consumer: 3ω ingestion/result contracts | Domain/Contract | 258 |  |  | 0 | direct |
 | `Workbench/V3/ThreeOmegaPackContracts.swift` | consumer: 3ω analysis pack Codable contracts | Domain/Contract | 93 |  |  | 0 | behavioral |
 | `Workbench/V3/WorkbenchArtifactIdentity.swift` | consumer: chart/metric identity | UseCase helper | 96 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |

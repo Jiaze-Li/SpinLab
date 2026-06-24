@@ -152,7 +152,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("TabRenderState contains the per-tab override fields")
     func tabRenderStateOwnsPerTabFields() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Preservation/TabRenderManager.swift")
         // Must have all documented per-tab fields
         #expect(src.contains("var legendPoint"), "TabRenderState must own legendPoint")
         #expect(src.contains("var titleOverride"), "TabRenderState must own titleOverride")
@@ -165,7 +165,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("TabRenderManager contains the shared display and preservation state fields")
     func tabRenderManagerOwnsSharedState() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Preservation/TabRenderManager.swift")
         #expect(src.contains("var activeTab"), "TabRenderManager must own activeTab")
         #expect(src.contains("var showPlotGrid"), "TabRenderManager must own showPlotGrid")
         #expect(src.contains("var seriesRenderMode"), "TabRenderManager must own seriesRenderMode")
