@@ -488,7 +488,7 @@ Boundary: no module other than Plot Preservation may write `TabRenderState` over
 - `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift` — owns per-tab Cartesian XY render state (`TabRenderState`), tab outputs, active tab, shared display settings
 - `Sources/SpinLabApp/Workbench/V3/WorkbenchChartStyle.swift` — chart style parameters (colors, line widths, markers) for Cartesian XY renderer
 - `Sources/SpinLabApp/Workbench/V3/WorkbenchPlotLayout.swift` — geometry for Cartesian XY axes, legend rows, tick hit-rects, point hit-rects
-- `Sources/SpinLabApp/Workbench/V3/WorkbenchRenderPipeline.swift` — Cartesian XY render pipeline: legend auto-resolution, style merge, series order, PNG output
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Pipeline/WorkbenchRenderPipeline.swift` — Cartesian XY render pipeline: legend auto-resolution, style merge, series order, PNG output
 
 ### Shared Plot Types
 
