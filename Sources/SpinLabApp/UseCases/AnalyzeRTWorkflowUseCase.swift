@@ -21,6 +21,9 @@ struct RTAnalysisResult: Codable, Hashable, Sendable {
     let bridgeIndex: Int?
     let device: String
     let conditions: [String: String]
+    /// Resolver-compatible metadata for Workbench legend auto-inference.
+    /// Optional for backward-compatible decoding of older RT packs.
+    let sampleMetadata: [String: String]?
     let temperatureK: [Double]
     let rxx: [Double]
     let warnings: [String]
@@ -35,6 +38,7 @@ struct RTAnalysisResult: Codable, Hashable, Sendable {
         bridgeIndex: Int? = nil,
         device: String,
         conditions: [String: String] = [:],
+        sampleMetadata: [String: String]? = nil,
         temperatureK: [Double],
         rxx: [Double],
         warnings: [String] = []
@@ -49,6 +53,7 @@ struct RTAnalysisResult: Codable, Hashable, Sendable {
         self.bridgeIndex = bridgeIndex
         self.device = device
         self.conditions = conditions
+        self.sampleMetadata = sampleMetadata
         self.temperatureK = temperatureK
         self.rxx = rxx
         self.warnings = warnings
@@ -67,20 +72,21 @@ struct AnalyzeRTWorkflowUseCase {
     var lvmParser = ThreeOmegaLVMParser()
     var datParser = RTPPMSDatParser()
 
-    func execute(hit: WorkflowMeasurementSearchHit) -> RTAnalysisResult {
+    func execute(hit: WorkflowMeasurementSearchHit, numericDisplay: [String: String] = [:]) -> RTAnalysisResult {
         let url = URL(fileURLWithPath: hit.measurementFilePath)
         if url.pathExtension.lowercased() == "dat" {
-            return _executePPMSDat(hit: hit, url: url)
+            return _executePPMSDat(hit: hit, url: url, numericDisplay: numericDisplay)
         } else {
-            return _executeLVM(hit: hit, url: url)
+            return _executeLVM(hit: hit, url: url, numericDisplay: numericDisplay)
         }
     }
 
     // MARK: - PPMS .dat path
 
-    private func _executePPMSDat(hit: WorkflowMeasurementSearchHit, url: URL) -> RTAnalysisResult {
+    private func _executePPMSDat(hit: WorkflowMeasurementSearchHit, url: URL, numericDisplay: [String: String]) -> RTAnalysisResult {
         let device = hit.conditions["device"] ?? hit.conditions["Device"] ?? ""
         let name = url.lastPathComponent
+        let metadata = WorkbenchSeriesMetadataBuilder.build(from: hit, numericDisplay: numericDisplay)
 
         guard let channelID = hit.channels.first, !channelID.isEmpty else {
             return RTAnalysisResult(
@@ -90,6 +96,7 @@ struct AnalyzeRTWorkflowUseCase {
                 format: .ppmsDat,
                 device: device,
                 conditions: hit.conditions,
+                sampleMetadata: metadata,
                 temperatureK: [],
                 rxx: [],
                 warnings: ["PPMS .dat entry '\(name)' has no channel metadata (ch1/ch2/ch3); bridge index cannot be determined"]
@@ -105,6 +112,7 @@ struct AnalyzeRTWorkflowUseCase {
                 channelID: channelID,
                 device: device,
                 conditions: hit.conditions,
+                sampleMetadata: metadata,
                 temperatureK: [],
                 rxx: [],
                 warnings: ["Unrecognized channel '\(channelID)' in '\(name)'; expected ch1, ch2, or ch3"]
@@ -123,6 +131,7 @@ struct AnalyzeRTWorkflowUseCase {
                 bridgeIndex: bridgeIdx,
                 device: device,
                 conditions: hit.conditions,
+                sampleMetadata: metadata,
                 temperatureK: pairs.map { $0.0 },
                 rxx: pairs.map { $0.1 },
                 warnings: result.warnings
@@ -137,6 +146,7 @@ struct AnalyzeRTWorkflowUseCase {
                 bridgeIndex: bridgeIdx,
                 device: device,
                 conditions: hit.conditions,
+                sampleMetadata: metadata,
                 temperatureK: [],
                 rxx: [],
                 warnings: ["Failed to parse PPMS .dat '\(name)': \(error.localizedDescription)"]
@@ -146,8 +156,9 @@ struct AnalyzeRTWorkflowUseCase {
 
     // MARK: - LVM path (3ω RT sweep)
 
-    private func _executeLVM(hit: WorkflowMeasurementSearchHit, url: URL) -> RTAnalysisResult {
+    private func _executeLVM(hit: WorkflowMeasurementSearchHit, url: URL, numericDisplay: [String: String]) -> RTAnalysisResult {
         let device = hit.conditions["device"] ?? hit.conditions["Device"] ?? ""
+        let metadata = WorkbenchSeriesMetadataBuilder.build(from: hit, numericDisplay: numericDisplay)
         var warnings: [String] = []
 
         do {
@@ -166,6 +177,7 @@ struct AnalyzeRTWorkflowUseCase {
                     format: .lvm,
                     device: device,
                     conditions: hit.conditions,
+                    sampleMetadata: metadata,
                     temperatureK: [],
                     rxx: [],
                     warnings: warnings
@@ -179,6 +191,7 @@ struct AnalyzeRTWorkflowUseCase {
                 format: .lvm,
                 device: device,
                 conditions: hit.conditions,
+                sampleMetadata: metadata,
                 temperatureK: pairs.map { $0.0 },
                 rxx: pairs.map { $0.1 },
                 warnings: warnings
@@ -192,6 +205,7 @@ struct AnalyzeRTWorkflowUseCase {
                 format: .lvm,
                 device: device,
                 conditions: hit.conditions,
+                sampleMetadata: metadata,
                 temperatureK: [],
                 rxx: [],
                 warnings: warnings
