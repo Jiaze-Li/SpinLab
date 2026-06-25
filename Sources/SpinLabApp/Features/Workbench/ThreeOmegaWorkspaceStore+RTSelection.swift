@@ -26,10 +26,11 @@ extension ThreeOmegaWorkspaceStore {
         rtAnalysisMessage = nil
         cachedRTResult = nil
         let useCase = AnalyzeRTWorkflowUseCase()
+        let capturedWorkflowID = workflowID
         Task { [weak self] in
             guard let self else { return }
             let result = await Task.detached(priority: .userInitiated) {
-                useCase.execute(hit: hit)
+                useCase.execute(hit: hit, workflowID: capturedWorkflowID)
             }.value
             await MainActor.run {
                 self.cachedRTResult = result

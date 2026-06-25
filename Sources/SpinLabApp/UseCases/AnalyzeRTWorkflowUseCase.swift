@@ -29,6 +29,7 @@ struct RTAnalysisResult: Codable, Hashable, Sendable {
     let warnings: [String]
 
     init(
+        workflowID: String,
         sourceFilePath: String,
         sidecarPath: String? = nil,
         sampleKey: String = "",
@@ -43,7 +44,7 @@ struct RTAnalysisResult: Codable, Hashable, Sendable {
         rxx: [Double],
         warnings: [String] = []
     ) {
-        self.workflowID = WorkflowKey.rt.rawValue
+        self.workflowID = workflowID
         self.sourceFilePath = sourceFilePath
         self.sidecarPath = sidecarPath
         self.sampleKey = sampleKey
@@ -72,24 +73,25 @@ struct AnalyzeRTWorkflowUseCase {
     var lvmParser = ThreeOmegaLVMParser()
     var datParser = RTPPMSDatParser()
 
-    func execute(hit: WorkflowMeasurementSearchHit, numericDisplay: [String: String] = [:]) -> RTAnalysisResult {
+    func execute(hit: WorkflowMeasurementSearchHit, workflowID: String, numericDisplay: [String: String] = [:]) -> RTAnalysisResult {
         let url = URL(fileURLWithPath: hit.measurementFilePath)
         if url.pathExtension.lowercased() == "dat" {
-            return _executePPMSDat(hit: hit, url: url, numericDisplay: numericDisplay)
+            return _executePPMSDat(hit: hit, url: url, workflowID: workflowID, numericDisplay: numericDisplay)
         } else {
-            return _executeLVM(hit: hit, url: url, numericDisplay: numericDisplay)
+            return _executeLVM(hit: hit, url: url, workflowID: workflowID, numericDisplay: numericDisplay)
         }
     }
 
     // MARK: - PPMS .dat path
 
-    private func _executePPMSDat(hit: WorkflowMeasurementSearchHit, url: URL, numericDisplay: [String: String]) -> RTAnalysisResult {
+    private func _executePPMSDat(hit: WorkflowMeasurementSearchHit, url: URL, workflowID: String, numericDisplay: [String: String]) -> RTAnalysisResult {
         let device = hit.conditions["device"] ?? hit.conditions["Device"] ?? ""
         let name = url.lastPathComponent
         let metadata = WorkbenchSeriesMetadataBuilder.build(from: hit, numericDisplay: numericDisplay)
 
         guard let channelID = hit.channels.first, !channelID.isEmpty else {
             return RTAnalysisResult(
+                workflowID: workflowID,
                 sourceFilePath: hit.measurementFilePath,
                 sidecarPath: hit.sidecarPath,
                 sampleKey: hit.sampleKey,
@@ -105,6 +107,7 @@ struct AnalyzeRTWorkflowUseCase {
 
         guard let bridgeIdx = RTPPMSDatParser.bridgeIndex(forChannel: channelID) else {
             return RTAnalysisResult(
+                workflowID: workflowID,
                 sourceFilePath: hit.measurementFilePath,
                 sidecarPath: hit.sidecarPath,
                 sampleKey: hit.sampleKey,
@@ -123,6 +126,7 @@ struct AnalyzeRTWorkflowUseCase {
             let result = try datParser.parse(fileURL: url, bridgeIndex: bridgeIdx)
             let pairs = zip(result.temperatureK, result.rxx).sorted { $0.0 < $1.0 }
             return RTAnalysisResult(
+                workflowID: workflowID,
                 sourceFilePath: hit.measurementFilePath,
                 sidecarPath: hit.sidecarPath,
                 sampleKey: hit.sampleKey,
@@ -138,6 +142,7 @@ struct AnalyzeRTWorkflowUseCase {
             )
         } catch {
             return RTAnalysisResult(
+                workflowID: workflowID,
                 sourceFilePath: hit.measurementFilePath,
                 sidecarPath: hit.sidecarPath,
                 sampleKey: hit.sampleKey,
@@ -156,7 +161,7 @@ struct AnalyzeRTWorkflowUseCase {
 
     // MARK: - LVM path (3ω RT sweep)
 
-    private func _executeLVM(hit: WorkflowMeasurementSearchHit, url: URL, numericDisplay: [String: String]) -> RTAnalysisResult {
+    private func _executeLVM(hit: WorkflowMeasurementSearchHit, url: URL, workflowID: String, numericDisplay: [String: String]) -> RTAnalysisResult {
         let device = hit.conditions["device"] ?? hit.conditions["Device"] ?? ""
         let metadata = WorkbenchSeriesMetadataBuilder.build(from: hit, numericDisplay: numericDisplay)
         var warnings: [String] = []
@@ -171,6 +176,7 @@ struct AnalyzeRTWorkflowUseCase {
             guard !file.col0.isEmpty else {
                 warnings.append("RT file has no data rows: \(url.lastPathComponent)")
                 return RTAnalysisResult(
+                    workflowID: workflowID,
                     sourceFilePath: hit.measurementFilePath,
                     sidecarPath: hit.sidecarPath,
                     sampleKey: hit.sampleKey,
@@ -185,6 +191,7 @@ struct AnalyzeRTWorkflowUseCase {
             }
             let pairs = zip(file.col0, file.col9).sorted { $0.0 < $1.0 }
             return RTAnalysisResult(
+                workflowID: workflowID,
                 sourceFilePath: hit.measurementFilePath,
                 sidecarPath: hit.sidecarPath,
                 sampleKey: hit.sampleKey,
@@ -199,6 +206,7 @@ struct AnalyzeRTWorkflowUseCase {
         } catch {
             warnings.append("Failed to parse RT file [\(url.lastPathComponent)]: \(error.localizedDescription)")
             return RTAnalysisResult(
+                workflowID: workflowID,
                 sourceFilePath: hit.measurementFilePath,
                 sidecarPath: hit.sidecarPath,
                 sampleKey: hit.sampleKey,

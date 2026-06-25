@@ -79,9 +79,11 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Environment
 
+    let workflowID: String
     @ObservationIgnored private let env: WorkbenchEnvironment
 
-    init(env: WorkbenchEnvironment = .live) {
+    init(workflowID: String, env: WorkbenchEnvironment = .live) {
+        self.workflowID = workflowID
         self.env = env
     }
 
@@ -102,6 +104,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
     private func _snapshotRenderer(forTab tab: XYRotationWorkbenchTab) -> XYRotationPlotRenderer {
         let tabState = tabs.state(for: tab)
         var r = XYRotationPlotRenderer()
+        r.workflowID = workflowID
         r.showGrid = tabs.showPlotGrid
         r.legendPoint = tabState.legendPoint?.cgPoint
         r.stackOffsetMultiplier = stackOffsetMultiplier
@@ -402,7 +405,7 @@ extension XYRotationWorkspaceStore: AnalysisPackProviding {
     typealias PackConfig = XYRotationPackConfig
     typealias PackResult = XYRotationPackResult
 
-    var packWorkflowID: String { WorkflowKey.xyRotation.rawValue }
+    var packWorkflowID: String { workflowID }
     var packInputFiles: [String] { cachedInputFiles }
     var packSampleKeys: [String] { cachedSampleKeys }
     var hasAnalysisResult: Bool { ingestionResult != nil }
@@ -501,7 +504,7 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
         guard !cachedInputFiles.isEmpty else { return nil }
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,
-            workflowID: WorkflowKey.xyRotation.rawValue,
+            workflowID: workflowID,
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: "R (Ω)"),
             semanticParams: ["sweeps": "\(ingestionResult?.sweeps.count ?? 0)"],

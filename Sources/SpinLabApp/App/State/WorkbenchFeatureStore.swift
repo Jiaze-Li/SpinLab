@@ -131,19 +131,19 @@ final class WorkbenchFeatureStore {
     var workbenchResultDraft: String = ""
 
     /// AHE-specific workspace state. All plot, selection, and artifact state lives here.
-    let aheWorkspace = AHEWorkspaceStore()
+    let aheWorkspace = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
     /// 3w workspace state. Independent workflow — parsing, fitting, scaling, 6 plots.
-    let threeOmegaWorkspace = ThreeOmegaWorkspaceStore()
+    let threeOmegaWorkspace = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
     /// In-memory vault for saved analysis packs (shared across workflows).
     let analysisVault = AnalysisVault()
     /// XY Rotation workspace state. Angle-dependent resistance R(φ), dual parser (LVM + DAT).
-    let xyRotationWorkspace = XYRotationWorkspaceStore()
+    let xyRotationWorkspace = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
     /// IV workspace state. Current-voltage measurement workflow.
-    let ivWorkspace = IVWorkspaceStore()
+    let ivWorkspace = IVWorkspaceStore(workflowID: WorkflowKey.iv.rawValue)
     /// RSM workspace state. Reciprocal Space Map single-file heatmap workflow.
-    let rsmWorkspace = RSMWorkspaceStore()
+    let rsmWorkspace = RSMWorkspaceStore(workflowID: WorkflowKey.rsm.rawValue)
     /// RT workspace state. Resistance vs Temperature multi-file workflow.
-    let rtWorkspace = RTWorkspaceStore()
+    let rtWorkspace = RTWorkspaceStore(workflowID: WorkflowKey.rt.rawValue)
     /// Legacy search status bridge retained for compatibility with existing callers/tests.
     var searchMessages: [WorkflowKey: String] = [:]
     /// Shared plot appearance defaults across workflows.

@@ -23,6 +23,7 @@ extension ThreeOmegaWorkspaceStore {
         let capturedScalingState = tabs.state(for: .scaling)
         let capturedLegend   = capturedScalingState.legendPoint?.cgPoint
         let capturedRanges   = fitRanges
+        let capturedWorkflowID = workflowID
         let capturedTemplate = titleTemplate
         let capturedTokens   = _titleTokens
         let capturedDevice   = result.device
@@ -43,6 +44,7 @@ extension ThreeOmegaWorkspaceStore {
                     v3Method: capturedV3Method
                 )
                 var renderer = ThreeOmegaPlotRenderer()
+                renderer.workflowID   = capturedWorkflowID
                 renderer.showGrid     = capturedGrid
                 renderer.seriesRenderMode = capturedRenderMode
                 renderer.chartStyleOverrides = capturedStyleOverrides

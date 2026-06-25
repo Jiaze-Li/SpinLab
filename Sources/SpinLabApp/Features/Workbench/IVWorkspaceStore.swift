@@ -79,9 +79,11 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Environment
 
+    let workflowID: String
     @ObservationIgnored private let env: WorkbenchEnvironment
 
-    init(env: WorkbenchEnvironment = .live) {
+    init(workflowID: String, env: WorkbenchEnvironment = .live) {
+        self.workflowID = workflowID
         self.env = env
     }
 
@@ -196,6 +198,7 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
 
     private func _snapshotRenderer(forTab tab: IVWorkbenchTab) -> IVPlotRenderer {
         var r = IVPlotRenderer()
+        r.workflowID = workflowID
         r.titleTemplate = titleTemplate
         r.seriesOrder = tabs.state(for: tab).seriesOrder
         r.ch1Component = ch1Component
@@ -389,7 +392,7 @@ extension IVWorkspaceStore: AnalysisPackProviding {
     typealias PackConfig = IVPackConfig
     typealias PackResult = IVPackResult
 
-    var packWorkflowID: String { WorkflowKey.iv.rawValue }
+    var packWorkflowID: String { workflowID }
     var packInputFiles: [String] { cachedInputFiles }
     var packSampleKeys: [String] { cachedSampleKeys }
     var hasAnalysisResult: Bool { ingestionResult != nil }
@@ -483,7 +486,7 @@ extension IVWorkspaceStore: WorkbenchWorkspaceProviding {
         guard !cachedInputFiles.isEmpty else { return nil }
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,
-            workflowID: WorkflowKey.iv.rawValue,
+            workflowID: workflowID,
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(xField: xCurrentBasis.axisLabel, yField: "V (V)"),
             semanticParams: ["sweeps": "\(ingestionResult?.sweeps.count ?? 0)"],

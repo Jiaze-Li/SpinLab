@@ -10,6 +10,7 @@ import Foundation
 
 struct RTPlotRenderer {
 
+    var workflowID: String = ""
     var titleTemplate: String = "#tab #device #sample"
     var titleTokens: [String: String] = [:]
 
@@ -39,7 +40,7 @@ struct RTPlotRenderer {
         if !device.isEmpty { semanticParams["device"] = device }
 
         return WorkbenchPlotPayload(
-            workflowID: WorkflowKey.rt.rawValue,
+            workflowID: workflowID,
             workflowDisplayName: "RT",
             title: title,
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "Rxx (Ω)"),

@@ -140,9 +140,11 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Environment
 
+    let workflowID: String
     @ObservationIgnored private let env: WorkbenchEnvironment
 
-    init(env: WorkbenchEnvironment = .live) {
+    init(workflowID: String, env: WorkbenchEnvironment = .live) {
+        self.workflowID = workflowID
         self.env = env
     }
 
@@ -443,7 +445,7 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
     typealias PackConfig = AHEPackConfig
     typealias PackResult = AHEPackResult
 
-    var packWorkflowID: String { WorkflowKey.ahe.rawValue }
+    var packWorkflowID: String { workflowID }
     var packInputFiles: [String] { cachedInputFiles }
     var packSampleKeys: [String] { lastRenderedSampleKeys }
     var hasAnalysisResult: Bool { tabs.activeImageData != nil }
@@ -648,7 +650,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
         guard !cachedInputFiles.isEmpty else { return nil }
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,
-            workflowID: WorkflowKey.ahe.rawValue,
+            workflowID: workflowID,
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(
                 xField: AHEAxisDetector.semanticXField,

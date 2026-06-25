@@ -10,6 +10,7 @@ import Observation
 @Observable
 final class ThreeOmegaWorkspaceStore {
 
+    let workflowID: String
     @ObservationIgnored let env: WorkbenchEnvironment
 
     // MARK: - Search / Selection bridge
@@ -93,7 +94,8 @@ final class ThreeOmegaWorkspaceStore {
     var isAnalyzingRT: Bool = false
     var rtAnalysisMessage: String?
 
-    init(env: WorkbenchEnvironment = .live) {
+    init(workflowID: String, env: WorkbenchEnvironment = .live) {
+        self.workflowID = workflowID
         self.env = env
         self._rtQuery = UserDefaults.standard.string(forKey: Self.rtQueryDefaultsKey) ?? ""
     }
@@ -253,7 +255,7 @@ final class ThreeOmegaWorkspaceStore {
     /// never in WorkbenchAnalysisOverlayRuntime.
     @ObservationIgnored var overlaySnapshots: [AnalysisPack.ID: OverlaySnapshot] = [:]
 
-    var packWorkflowID: String { WorkflowKey.threeOmega.rawValue }
+    var packWorkflowID: String { workflowID }
     var packInputFiles: [String] { cachedInputFiles }
     var packSampleKeys: [String] { cachedSampleKeys }
     var packRTFilePath: String? { cachedRTFilePath }

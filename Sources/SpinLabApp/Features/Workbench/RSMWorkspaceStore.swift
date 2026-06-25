@@ -54,6 +54,14 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
     /// Shared font defaults mirrored from the workbench. Not part of pack state.
     var globalPlotDefaults: [String: String] = [:]
 
+    // MARK: - Identity
+
+    let workflowID: String
+
+    init(workflowID: String) {
+        self.workflowID = workflowID
+    }
+
     // MARK: - Pack / persistence stubs
 
     @ObservationIgnored var vault: AnalysisVault?
@@ -190,7 +198,7 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
             ? Self.publicationZLabel(for: parsedDataset?.detectorColumnName ?? "")
             : displayState.zLabelOverride
         let projection = RSMSaveProjection(
-            workflowID: WorkflowKey.rsm.rawValue,
+            workflowID: workflowID,
             title: title,
             activeView: view,
             detectorColumnName: parsedDataset?.detectorColumnName ?? "",
@@ -217,6 +225,7 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
         let view = activeView
         let displayState = heatmapDisplayState
         let styleDefaults = globalPlotDefaults
+        let capturedWorkflowID = workflowID
         _renderRevision &+= 1
         let revision = _renderRevision
 
@@ -225,6 +234,7 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
             do {
                 let payload = try Self.buildHeatmapPayload(
                     from: dataset,
+                    workflowID: capturedWorkflowID,
                     view: view,
                     displayState: displayState,
                     title: dataset.title
@@ -288,6 +298,7 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
         let view = activeView
         let displayState = heatmapDisplayState
         let styleDefaults = globalPlotDefaults
+        let capturedWorkflowID = workflowID
 
         analysisTask?.cancel()
         isAnalyzing = true
@@ -308,6 +319,7 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
                     let effectiveView = dataset.isViewCompatible(view) ? view : dataset.recommendedView
                     let payload = try Self.buildHeatmapPayload(
                         from: dataset,
+                        workflowID: capturedWorkflowID,
                         view: effectiveView,
                         displayState: displayState,
                         title: title
@@ -362,7 +374,7 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
         guard !cachedInputFiles.isEmpty else { return nil }
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,
-            workflowID: WorkflowKey.rsm.rawValue,
+            workflowID: workflowID,
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(xField: activeView.xLabel, yField: activeView.yLabel),
             semanticParams: ["view": activeView.rawValue],
@@ -396,7 +408,7 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
     typealias PackConfig = RSMPackConfig
     typealias PackResult = RSMPackResult
 
-    var packWorkflowID: String { WorkflowKey.rsm.rawValue }
+    var packWorkflowID: String { workflowID }
     var packInputFiles: [String] { cachedInputFiles }
     var packSampleKeys: [String] { cachedSampleKeys }
     var hasAnalysisResult: Bool { renderedImageData != nil }
@@ -444,6 +456,7 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
         let displayState = config.displayState
         let styleDefaults = globalPlotDefaults
         let title = config.cachedSearchResults.first?.sampleBatchAndSubstrate ?? pack.label
+        let capturedWorkflowID = workflowID
 
         analysisTask?.cancel()
         isAnalyzing = true
@@ -460,6 +473,7 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
                     let dataset = try RSMDataParser.parse(text: text, title: title, sourceRef: sourceIdentity)
                     let payload = try Self.buildHeatmapPayload(
                         from: dataset,
+                        workflowID: capturedWorkflowID,
                         view: packState.activeView,
                         displayState: displayState,
                         title: title
@@ -505,6 +519,7 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
 
     nonisolated private static func buildHeatmapPayload(
         from dataset: CanonicalRSMDataset,
+        workflowID: String,
         view: RSMView,
         displayState: HeatmapTabRenderState,
         title: String
@@ -515,6 +530,7 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
         var payload = try RSMHeatmapPayloadBuilder.build(
             from: dataset,
             options: .init(
+                workflowID: workflowID,
                 view: view,
                 title: displayState.titleOverride.isEmpty ? title : displayState.titleOverride,
                 zLabel: baseZLabel

@@ -83,9 +83,11 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Environment
 
+    let workflowID: String
     @ObservationIgnored private let env: WorkbenchEnvironment
 
-    init(env: WorkbenchEnvironment = .live) {
+    init(workflowID: String, env: WorkbenchEnvironment = .live) {
+        self.workflowID = workflowID
         self.env = env
     }
 
@@ -189,6 +191,7 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
 
     private func _rendererSnapshot() -> RTPlotRenderer {
         var r = RTPlotRenderer()
+        r.workflowID = workflowID
         r.titleTemplate = titleTemplate
         r.titleTokens = _titleTokens
         return r
@@ -330,7 +333,7 @@ extension RTWorkspaceStore: AnalysisPackProviding {
     typealias PackConfig = RTPackConfig
     typealias PackResult = RTPackResult
 
-    var packWorkflowID: String { WorkflowKey.rt.rawValue }
+    var packWorkflowID: String { workflowID }
     var packInputFiles: [String] { cachedInputFiles }
     var packSampleKeys: [String] { cachedSampleKeys }
     var hasAnalysisResult: Bool { !rtResults.isEmpty }
@@ -427,7 +430,7 @@ extension RTWorkspaceStore: WorkbenchWorkspaceProviding {
         guard !cachedInputFiles.isEmpty else { return nil }
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,
-            workflowID: WorkflowKey.rt.rawValue,
+            workflowID: workflowID,
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "Rxx (Ω)"),
             semanticParams: ["curves": "\(rtResults.filter { !$0.temperatureK.isEmpty }.count)"],
@@ -486,15 +489,17 @@ extension RTWorkspaceStore: WorkbenchWorkspaceProviding {
         let capturedTemplate = titleTemplate
         let capturedGlobalDefaults = globalPlotDefaults
         let capturedNumericDisplay = cachedSampleNumericDisplay
+        let capturedWorkflowID = workflowID
 
         analysisTask = Task { [weak self] in
             guard let self else { return }
 
-            let results: [RTAnalysisResult] = await Task.detached(priority: .userInitiated) { [selectedHits, capturedNumericDisplay] in
+            let results: [RTAnalysisResult] = await Task.detached(priority: .userInitiated) { [selectedHits, capturedNumericDisplay, capturedWorkflowID] in
                 let useCase = AnalyzeRTWorkflowUseCase()
                 return selectedHits.map { hit in
                     useCase.execute(
                         hit: hit,
+                        workflowID: capturedWorkflowID,
                         numericDisplay: capturedNumericDisplay[hit.sampleKey] ?? [:]
                     )
                 }
@@ -534,6 +539,7 @@ extension RTWorkspaceStore: WorkbenchWorkspaceProviding {
 
             // Build and render
             var renderer = RTPlotRenderer()
+            renderer.workflowID = capturedWorkflowID
             renderer.titleTemplate = capturedTemplate
             renderer.titleTokens = capturedTitleTokens
 

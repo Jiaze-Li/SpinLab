@@ -7,6 +7,7 @@ import Foundation
 
 struct XYRotationPlotRenderer {
 
+    var workflowID: String = ""
     var showGrid: Bool = true
     var legendPoint: CGPoint? = nil
     var stackOffsetMultiplier: Double = 0.0
@@ -86,7 +87,7 @@ struct XYRotationPlotRenderer {
 
         let yLabel = "Rxx (Ω)"
         var payload = WorkbenchPlotPayload(
-            workflowID: WorkflowKey.xyRotation.rawValue,
+            workflowID: workflowID,
             workflowDisplayName: "XY Rotation",
             title: _defaultTitle("Rxx vs φ", device: device),
             axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: yLabel),
@@ -157,7 +158,7 @@ struct XYRotationPlotRenderer {
 
         let yLabel = "Rxy (Ω)"
         var payload = WorkbenchPlotPayload(
-            workflowID: WorkflowKey.xyRotation.rawValue,
+            workflowID: workflowID,
             workflowDisplayName: "XY Rotation",
             title: _defaultTitle("Rxy vs φ", device: device),
             axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: yLabel),

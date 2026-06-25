@@ -77,6 +77,7 @@ extension ThreeOmegaWorkspaceStore {
         let capturedRAHE3DevMethodForPlots = rahe3omegaVsDeviceMethod
         let capturedGlobalPlotDefaults = globalPlotDefaults
 
+        let capturedWorkflowID = workflowID
         let capturedRTResult = cachedRTResult
         let capturedNumericDisplay: [String: [String: String]] = cachedSampleNumericDisplay
         let capturedFieldSweepSeriesOrder = fieldSweepSeriesOrder
@@ -88,6 +89,7 @@ extension ThreeOmegaWorkspaceStore {
                 let result = ingestUseCase.execute(hits: selectedHits, rtAnalysisResult: capturedRTResult, numericDisplayBySample: capturedNumericDisplay)
                 let alignedSeriesOrder = ThreeOmegaWorkspaceStore.alignSeriesOrder(old: capturedFieldSweepSeriesOrder, fieldSweeps: result.fieldSweeps)
                 var renderer = ThreeOmegaPlotRenderer()
+                renderer.workflowID            = capturedWorkflowID
                 renderer.showGrid              = capturedGrid
                 renderer.seriesRenderMode      = capturedRenderMode
                 renderer.chartStyleOverrides   = capturedStyleOverrides
