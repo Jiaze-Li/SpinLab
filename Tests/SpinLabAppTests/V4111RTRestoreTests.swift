@@ -34,7 +34,7 @@ struct V4111RTRestoreTests {
         FileManager.default.createFile(atPath: measurementPath, contents: Data("data".utf8))
         writeSidecar(at: sidecarPath, workflow: "3w")
 
-        let hit = ThreeOmegaWorkspaceStore.rebuildRTHit(fromSidecarPath: sidecarPath)
+        let hit = ThreeOmegaWorkspaceStore.rebuildRTHit(fromSidecarPath: sidecarPath, workflowID: "3w", relatedRTWorkflowID: nil)
         #expect(hit != nil)
         #expect(hit?.measurementFilePath == measurementPath)
         #expect(hit?.workflowCanonicalID == "3w")
@@ -45,7 +45,7 @@ struct V4111RTRestoreTests {
 
     @Test("restore fails silently when sidecar is missing")
     func restoreFailsMissingSidecar() {
-        let hit = ThreeOmegaWorkspaceStore.rebuildRTHit(fromSidecarPath: "/nonexistent/path.spinlab.json")
+        let hit = ThreeOmegaWorkspaceStore.rebuildRTHit(fromSidecarPath: "/nonexistent/path.spinlab.json", workflowID: "3w", relatedRTWorkflowID: nil)
         #expect(hit == nil)
     }
 
@@ -60,7 +60,7 @@ struct V4111RTRestoreTests {
         FileManager.default.createFile(atPath: measurementPath, contents: Data("data".utf8))
         writeSidecar(at: sidecarPath, workflow: "ahe")
 
-        let hit = ThreeOmegaWorkspaceStore.rebuildRTHit(fromSidecarPath: sidecarPath)
+        let hit = ThreeOmegaWorkspaceStore.rebuildRTHit(fromSidecarPath: sidecarPath, workflowID: "3w", relatedRTWorkflowID: nil)
         #expect(hit == nil)
 
         try? FileManager.default.removeItem(at: tmp)
@@ -76,7 +76,7 @@ struct V4111RTRestoreTests {
         // Only create sidecar, not measurement file
         writeSidecar(at: sidecarPath, workflow: "3w")
 
-        let hit = ThreeOmegaWorkspaceStore.rebuildRTHit(fromSidecarPath: sidecarPath)
+        let hit = ThreeOmegaWorkspaceStore.rebuildRTHit(fromSidecarPath: sidecarPath, workflowID: "3w", relatedRTWorkflowID: nil)
         #expect(hit == nil)
 
         try? FileManager.default.removeItem(at: tmp)

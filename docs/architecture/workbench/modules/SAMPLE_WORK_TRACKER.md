@@ -297,24 +297,33 @@ condition resolution. Do not run full `swift test` until all targeted tests pass
 
 ```
 Sources/SpinLabApp/Domain/SampleWorkTracker/
-  SampleWorkSummary.swift              — SampleWorkSummary, WorkflowWorkSummary structs (created Step 2)
-  SampleWorkStatus.swift               — SampleWorkStatus enum + derivation logic (created Step 2)
+  SampleWorkSummary.swift              — SampleWorkSummary, WorkflowWorkSummary structs (Step 2)
+  SampleWorkStatus.swift               — SampleWorkStatus enum + derivation logic (Step 2)
 
-Tests/SpinLabAppTests/SampleWorkTracker/
-  SampleWorkStatusTests.swift          — full derivation truth table + malformed-input guards (created Step 2)
-
-UseCases/
+Sources/SpinLabApp/UseCases/
   BuildSampleWorkSummariesUseCase.swift  — groups hits, loads plot indices, derives status (Step 3)
   LoadSampleWorkSummaryUseCase.swift     — per-sample refresh (post-chart-save path) (deferred)
 
-App/State/
-  WorkbenchSampleWorkTrackerRuntime.swift  — @MainActor @Observable runtime, lazy var in
-                                            WorkbenchFeatureStore (deferred)
+Sources/SpinLabApp/App/State/
+  WorkbenchSampleWorkTrackerRuntime.swift  — @MainActor @Observable runtime; owns summaries,
+                                            isRefreshing, lastRefreshAt, lastErrorMessage;
+                                            delegates derivation to BuildSampleWorkSummariesUseCase;
+                                            wired into WorkbenchFeatureStore as lazy private var (Step 4)
 
 Features/Workbench/
   WorkbenchMeasurementsPanel.swift         — replaces current Measurements placeholder (deferred)
   WorkbenchMeasurementsSampleRow.swift     — one sample row (title + workflow cells) (deferred)
   WorkbenchMeasurementsWorkflowCell.swift  — one status badge + count cell (deferred)
+
+Tests/SpinLabAppTests/SampleWorkTracker/
+  SampleWorkStatusTests.swift              — full derivation truth table + malformed-input guards (Step 2)
+  BuildSampleWorkSummariesUseCaseTests.swift — use case unit tests (Step 3)
+  SampleWorkSummaryIdentityTests.swift     — identity/Hashable/Identifiable checks (Step 2–3)
+  WorkbenchSampleWorkTrackerRuntimeTests.swift — runtime: success, failure-preserve, guard,
+                                                 column propagation, basename loader (Step 4)
+
+Tests/SpinLabAppTests/Support/
+  String+WorkflowKeyShims.swift          — test-only String static members for WorkflowKey rawValues
 
 docs/architecture/workbench/modules/
   SAMPLE_WORK_TRACKER.md               — this file
@@ -323,4 +332,6 @@ docs/architecture/workbench/modules/
 ---
 
 Step 2 complete — domain models created and all 12 SampleWorkStatusTests pass.  
-Recommended next task: Step 3 — BuildSampleWorkSummariesUseCase.
+Step 3 complete — BuildSampleWorkSummariesUseCase implemented and tested.  
+Step 4 complete — WorkbenchSampleWorkTrackerRuntime implemented; 5 targeted tests pass.  
+Recommended next task: Step 5 — WorkbenchMeasurementsPanel UI.
