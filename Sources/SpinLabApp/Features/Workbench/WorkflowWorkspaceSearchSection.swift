@@ -3,7 +3,7 @@ import SwiftUI
 struct WorkflowWorkspaceSearchSection<Store: WorkbenchWorkspaceProviding, SearchExtra: View>: View {
     @Environment(SpinLabAppState.self) private var appState
 
-    let workflowID: WorkflowKey
+    let workflowID: String
     let store: Store
     let workbench: WorkbenchFeatureStore
 
@@ -19,7 +19,7 @@ struct WorkflowWorkspaceSearchSection<Store: WorkbenchWorkspaceProviding, Search
         return VStack(alignment: .leading, spacing: AppSpacing.md) {
             HStack(alignment: .top, spacing: AppSpacing.md) {
                 TextField(
-                    workflowID.searchPrefix + "PN20, \(workflowID.searchPrefix)80K …",
+                    "e.g. PN20, 80K …",
                     text: queryBinding
                 )
                 .textFieldStyle(.roundedBorder)

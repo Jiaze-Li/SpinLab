@@ -253,7 +253,7 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
             chartStyleOverrides: splitOverrides.local,
             tabStates: tabs.snapshotStates(keyFor: { $0.stableKey }),
             cachedSearchResults: cachedSearchResults,
-            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: .rt) ?? []),
+            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: workflowID) ?? []),
             searchQueryText: ""   // filled by caller at WorkbenchFeatureStore level
         )
     }
@@ -408,7 +408,7 @@ extension RTWorkspaceStore: WorkbenchWorkspaceProviding {
         let sourceHits = searchSnapshot?.results ?? cachedSearchResults
         let selectedHits: [WorkflowMeasurementSearchHit]
         if let reading = selectionReading {
-            let ids = reading.selectedIDs(for: .rt)
+            let ids = reading.selectedIDs(for: workflowID)
             selectedHits = _sortedSelectedHits(sourceHits.filter { ids.contains($0.id) })
         } else {
             selectedHits = _sortedSelectedHits(sourceHits)
@@ -420,7 +420,7 @@ extension RTWorkspaceStore: WorkbenchWorkspaceProviding {
         if let snapshot = selectedHitsSnapshot {
             _runAnalysis(selectedHits: _sortedSelectedHits(snapshot.selectedHits))
         } else {
-            let ids = selectionReading?.selectedIDs(for: .rt) ?? []
+            let ids = selectionReading?.selectedIDs(for: workflowID) ?? []
             let selectedHits = _sortedSelectedHits(cachedSearchResults.filter { ids.contains($0.id) })
             _runAnalysis(selectedHits: selectedHits)
         }

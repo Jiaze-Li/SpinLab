@@ -322,7 +322,7 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
     private func buildAHESelections(from sourceHits: [WorkflowMeasurementSearchHit]) -> [AHEPlotSelectionItem] {
         let hits: [WorkflowMeasurementSearchHit]
         if let reading = selectionReading {
-            let ids = reading.selectedIDs(for: .ahe)
+            let ids = reading.selectedIDs(for: workflowID)
             hits = ids.isEmpty ? [] : sourceHits.filter { ids.contains($0.id) }
         } else {
             hits = sourceHits
@@ -461,7 +461,7 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
             showPlotGrid: tabs.showPlotGrid,
             tabStates: tabs.snapshotStates(keyFor: { $0.rawValue }),
             cachedSearchResults: cachedSearchResults,
-            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: .ahe) ?? []),
+            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: workflowID) ?? []),
             searchQueryText: ""
         )
     }

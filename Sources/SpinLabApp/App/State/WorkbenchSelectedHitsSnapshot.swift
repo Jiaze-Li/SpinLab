@@ -6,7 +6,7 @@ struct WorkbenchSelectedHitsSnapshot: Sendable {
         case canonicalSnapshot
     }
 
-    let workflowID: WorkflowKey
+    let workflowID: String
     let queryText: String
     let selectedIDs: Set<String>
     let selectedHits: [WorkflowMeasurementSearchHit]

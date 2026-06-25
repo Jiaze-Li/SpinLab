@@ -6,58 +6,54 @@ final class WorkbenchMainSearchRuntime {
     private unowned let store: WorkbenchFeatureStore
     private let dataActor: any SpinLabDataActing
     private var workflowSearchTask: Task<Void, Never>?
-    /// Per-workflow search state, keyed by WorkflowKey.
-    private var searchQueryTexts: [WorkflowKey: String]
-    private(set) var searchResults: [WorkflowKey: [WorkflowMeasurementSearchHit]] = [:]
-    private var searchMessages: [WorkflowKey: String] = [:]
-    private(set) var searchRunning: [WorkflowKey: Bool] = [:]
+    /// Per-workflow search state, keyed by workflow ID string.
+    private var searchQueryTexts: [String: String] = [:]
+    private(set) var searchResults: [String: [WorkflowMeasurementSearchHit]] = [:]
+    private var searchMessages: [String: String] = [:]
+    private(set) var searchRunning: [String: Bool] = [:]
 
     init(store: WorkbenchFeatureStore, dataActor: any SpinLabDataActing) {
         self.store = store
         self.dataActor = dataActor
-        self.searchQueryTexts = Self.restoreSearchQueryTexts()
     }
 
     private static let searchQueryDefaultsPrefix = "workbench.searchQuery."
 
-    private static func restoreSearchQueryTexts() -> [WorkflowKey: String] {
-        var result: [WorkflowKey: String] = [:]
-        // WorkflowKey.allCases used here only to restore per-workflow UI search query state from UserDefaults.
-        // This is workspace UI state keying, not workflow identity or persistence.
-        for wf in WorkflowKey.allCases {
-            if let saved = UserDefaults.standard.string(forKey: searchQueryDefaultsPrefix + wf.rawValue) {
-                result[wf] = saved
-            }
+    private static func loadSearchQueryText(for wf: String) -> String? {
+        UserDefaults.standard.string(forKey: searchQueryDefaultsPrefix + wf)
+    }
+
+    private static func persistSearchQueryText(_ text: String, for wf: String) {
+        UserDefaults.standard.set(text, forKey: searchQueryDefaultsPrefix + wf)
+    }
+
+    func searchQueryText(for wf: String) -> String {
+        if let cached = searchQueryTexts[wf] { return cached }
+        if let saved = Self.loadSearchQueryText(for: wf) {
+            searchQueryTexts[wf] = saved
+            return saved
         }
-        return result
+        return ""
     }
 
-    private static func persistSearchQueryText(_ text: String, for wf: WorkflowKey) {
-        UserDefaults.standard.set(text, forKey: searchQueryDefaultsPrefix + wf.rawValue)
-    }
-
-    func searchQueryText(for wf: WorkflowKey) -> String {
-        searchQueryTexts[wf] ?? wf.searchPrefix
-    }
-
-    func setSearchQueryText(_ text: String, for wf: WorkflowKey) {
+    func setSearchQueryText(_ text: String, for wf: String) {
         searchQueryTexts[wf] = text
         Self.persistSearchQueryText(text, for: wf)
     }
 
-    func searchResultsList(for wf: WorkflowKey) -> [WorkflowMeasurementSearchHit] {
+    func searchResultsList(for wf: String) -> [WorkflowMeasurementSearchHit] {
         searchResults[wf] ?? []
     }
 
-    func searchMessage(for wf: WorkflowKey) -> String? {
+    func searchMessage(for wf: String) -> String? {
         searchMessages[wf] ?? store.searchMessages[wf]
     }
 
-    func isSearchRunning(for wf: WorkflowKey) -> Bool {
+    func isSearchRunning(for wf: String) -> Bool {
         searchRunning[wf] ?? false
     }
 
-    func searchSnapshot(for wf: WorkflowKey) -> WorkbenchSearchSnapshot {
+    func searchSnapshot(for wf: String) -> WorkbenchSearchSnapshot {
         WorkbenchSearchSnapshot(
             workflowID: wf,
             queryText: searchQueryText(for: wf),
@@ -72,7 +68,7 @@ final class WorkbenchMainSearchRuntime {
     /// (pack-restored IDs that have no cached hit object yet). Current results remain authoritative
     /// for sourceHitCount and the select-all denominator.
     func selectedHitsSnapshot(
-        for wf: WorkflowKey,
+        for wf: String,
         selectedIDs: Set<String>,
         hitCache: [String: WorkflowMeasurementSearchHit]
     ) -> WorkbenchSelectedHitsSnapshot {
@@ -103,7 +99,7 @@ final class WorkbenchMainSearchRuntime {
         )
     }
 
-    func restoreSearchState(results: [WorkflowMeasurementSearchHit], queryText: String, for wf: WorkflowKey) {
+    func restoreSearchState(results: [WorkflowMeasurementSearchHit], queryText: String, for wf: String) {
         searchResults[wf] = results
         setSearchQueryText(queryText, for: wf)
         setSearchMessage("Restored from analysis pack (\(results.count) hit(s)).", for: wf)
@@ -112,7 +108,7 @@ final class WorkbenchMainSearchRuntime {
     }
 
     func runWorkflowMeasurementSearch(
-        workflowID wf: WorkflowKey,
+        workflowID wf: String,
         libraryRootPath: String?,
         librarySettings: LibrarySettings? = nil
     ) {
@@ -181,7 +177,7 @@ final class WorkbenchMainSearchRuntime {
         }
     }
 
-    func clearWorkflowMeasurementSearch(workflowID wf: WorkflowKey) {
+    func clearWorkflowMeasurementSearch(workflowID wf: String) {
         workflowSearchTask?.cancel()
         workflowSearchTask = nil
         searchResults[wf] = []
@@ -189,12 +185,12 @@ final class WorkbenchMainSearchRuntime {
         clearSelectedSearchResults(for: wf)
         setSearchMessage(nil, for: wf)
         searchRunning[wf] = false
-        setSearchQueryText(wf.searchPrefix, for: wf)
+        setSearchQueryText("", for: wf)
     }
 
     private func applySearchSuccess(
         _ result: [WorkflowMeasurementSearchHit],
-        workflowID wf: WorkflowKey,
+        workflowID wf: String,
         query: String,
         libraryRootPath: String,
         dataActor: any SpinLabDataActing
@@ -215,7 +211,8 @@ final class WorkbenchMainSearchRuntime {
         )
         searchRunning[wf] = false
 
-        if wf == .threeOmega, let rtPath = store.threeOmegaWorkspace.pendingRTSidecarPath {
+        if wf == store.threeOmegaWorkspace.workflowID,
+           let rtPath = store.threeOmegaWorkspace.pendingRTSidecarPath {
             let capturedWorkflowID = store.threeOmegaWorkspace.workflowID
             let capturedRelatedRTWorkflowID = store.threeOmegaWorkspace.relatedRTWorkflowID
             let hit = await Task.detached {
@@ -233,11 +230,11 @@ final class WorkbenchMainSearchRuntime {
         }
     }
 
-    private func applySearchCancellation(workflowID wf: WorkflowKey) {
+    private func applySearchCancellation(workflowID wf: String) {
         searchRunning[wf] = false
     }
 
-    private func applySearchFailure(_ message: String, workflowID wf: WorkflowKey) {
+    private func applySearchFailure(_ message: String, workflowID wf: String) {
         searchResults[wf] = []
         clearSearchMirrors(for: wf)
         clearSelectedSearchResults(for: wf)
@@ -245,7 +242,7 @@ final class WorkbenchMainSearchRuntime {
         searchRunning[wf] = false
     }
 
-    private func clearInvalidSearchState(message: String, workflowID wf: WorkflowKey) {
+    private func clearInvalidSearchState(message: String, workflowID wf: String) {
         workflowSearchTask?.cancel()
         workflowSearchTask = nil
         searchResults[wf] = []
@@ -255,100 +252,91 @@ final class WorkbenchMainSearchRuntime {
         searchRunning[wf] = false
     }
 
-    private func setSearchMessage(_ message: String?, for wf: WorkflowKey) {
+    private func setSearchMessage(_ message: String?, for wf: String) {
         searchMessages[wf] = message
         store.searchMessages[wf] = message
     }
 
     private func projectSearchResults(
         _ result: [WorkflowMeasurementSearchHit],
-        for wf: WorkflowKey
+        for wf: String
     ) {
-        switch wf {
-        case .ahe:
+        if wf == store.aheWorkspace.workflowID {
             store.aheWorkspace.cachedSearchResults = result
-        case .threeOmega:
+        } else if wf == store.threeOmegaWorkspace.workflowID {
             store.threeOmegaWorkspace.cachedSearchResults = result
-        case .xyRotation:
+        } else if wf == store.xyRotationWorkspace.workflowID {
             store.xyRotationWorkspace.cachedSearchResults = result
-        case .iv:
+        } else if wf == store.ivWorkspace.workflowID {
             store.ivWorkspace.cachedSearchResults = result
-        case .rsm:
+        } else if wf == store.rsmWorkspace.workflowID {
             store.rsmWorkspace.cachedSearchResults = result
-        case .mr, .rt:
-            break
         }
     }
 
-    private func clearSearchMirrors(for wf: WorkflowKey) {
-        switch wf {
-        case .ahe:
+    private func clearSearchMirrors(for wf: String) {
+        if wf == store.aheWorkspace.workflowID {
             store.aheWorkspace.cachedSearchResults = []
             store.aheWorkspace.cachedSampleNumericDisplay = [:]
-        case .threeOmega:
+        } else if wf == store.threeOmegaWorkspace.workflowID {
             store.threeOmegaWorkspace.cachedSearchResults = []
             store.threeOmegaWorkspace.cachedSampleNumericDisplay = [:]
-        case .xyRotation:
+        } else if wf == store.xyRotationWorkspace.workflowID {
             store.xyRotationWorkspace.cachedSearchResults = []
             store.xyRotationWorkspace.cachedSampleNumericDisplay = [:]
-        case .iv:
+        } else if wf == store.ivWorkspace.workflowID {
             store.ivWorkspace.cachedSearchResults = []
             store.ivWorkspace.cachedSampleNumericDisplay = [:]
-        case .rsm:
+        } else if wf == store.rsmWorkspace.workflowID {
             store.rsmWorkspace.cachedSearchResults = []
             store.rsmWorkspace.cachedSampleNumericDisplay = [:]
-        case .mr, .rt:
-            break
         }
     }
 
-    private func clearSelectedSearchResults(for wf: WorkflowKey) {
+    private func clearSelectedSearchResults(for wf: String) {
         store.deselectAll(for: wf)
     }
 
     private func projectSearchMirrors(
         _ result: [WorkflowMeasurementSearchHit],
-        for wf: WorkflowKey,
+        for wf: String,
         libraryRootPath: String?,
         dataActor: (any SpinLabDataActing)?
     ) async {
         projectSearchResults(result, for: wf)
-        switch wf {
-        case .ahe:
+        if wf == store.aheWorkspace.workflowID {
             store.aheWorkspace.cachedSampleNumericDisplay = await buildNumericDisplayCache(
                 from: result,
                 libraryRootPath: libraryRootPath,
                 dataActor: dataActor
             )
-        case .threeOmega:
+        } else if wf == store.threeOmegaWorkspace.workflowID {
             store.threeOmegaWorkspace.cachedSampleNumericDisplay = await buildNumericDisplayCache(
                 from: result,
                 libraryRootPath: libraryRootPath,
                 dataActor: dataActor
             )
-        case .xyRotation:
+        } else if wf == store.xyRotationWorkspace.workflowID {
             store.xyRotationWorkspace.lastLibraryRootPath = libraryRootPath ?? ""
             store.xyRotationWorkspace.cachedSampleNumericDisplay = await buildNumericDisplayCache(
                 from: result,
                 libraryRootPath: libraryRootPath,
                 dataActor: dataActor
             )
-        case .iv:
+        } else if wf == store.ivWorkspace.workflowID {
             store.ivWorkspace.lastLibraryRootPath = libraryRootPath ?? ""
             store.ivWorkspace.cachedSampleNumericDisplay = await buildNumericDisplayCache(
                 from: result,
                 libraryRootPath: libraryRootPath,
                 dataActor: dataActor
             )
-        case .rsm:
+        } else if wf == store.rsmWorkspace.workflowID {
             store.rsmWorkspace.lastLibraryRootPath = libraryRootPath ?? ""
             store.rsmWorkspace.cachedSampleNumericDisplay = await buildNumericDisplayCache(
                 from: result,
                 libraryRootPath: libraryRootPath,
                 dataActor: dataActor
             )
-        case .mr, .rt:
-            break
         }
     }
 

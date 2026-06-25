@@ -16,7 +16,7 @@ extension ThreeOmegaWorkspaceStore {
         let sourceHits = searchSnapshot?.results ?? cachedSearchResults
         let selectedHits: [WorkflowMeasurementSearchHit]
         if let reading = selectionReading {
-            let ids = reading.selectedIDs(for: .threeOmega)
+            let ids = reading.selectedIDs(for: workflowID)
             selectedHits = _sortedSelectedHits(sourceHits.filter { ids.contains($0.id) })
         } else {
             selectedHits = _sortedSelectedHits(sourceHits)
@@ -28,7 +28,7 @@ extension ThreeOmegaWorkspaceStore {
         if let selectedHitsSnapshot {
             _runAnalysis(selectedHits: _sortedSelectedHits(selectedHitsSnapshot.selectedHits))
         } else {
-            let ids = selectionReading?.selectedIDs(for: .threeOmega) ?? []
+            let ids = selectionReading?.selectedIDs(for: workflowID) ?? []
             let selectedHits = _sortedSelectedHits(
                 cachedSearchResults.filter { ids.contains($0.id) }
             )

@@ -171,17 +171,14 @@ struct WorkbenchLoadPackPopover<Store: WorkbenchWorkspaceProviding>: View {
     }
 
     private func load(_ id: AnalysisPack.ID) {
-        // WorkflowKey used here only to key into workspace UI search state (not persisted as workflow identity).
-        let wfID: WorkflowKey? = WorkflowKey(rawValue: workflowID)
+        let wf = workflowID
         store.loadPack(
             id: id,
             restoreSearchState: { results, queryText in
-                guard let wfID else { return }
-                appState.workbench.restoreSearchState(results: results, queryText: queryText, for: wfID)
+                appState.workbench.restoreSearchState(results: results, queryText: queryText, for: wf)
             },
             seedSelection: { ids, hits in
-                guard let wfID else { return }
-                appState.workbench.seedSelection(ids, hits: hits, for: wfID)
+                appState.workbench.seedSelection(ids, hits: hits, for: wf)
             }
         )
         if let plotDefaultsStore = store as? any WorkbenchGlobalPlotDefaultsProviding {

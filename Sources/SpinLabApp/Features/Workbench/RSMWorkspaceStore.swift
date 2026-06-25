@@ -271,7 +271,7 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
         let sourceHits = searchSnapshot?.results ?? cachedSearchResults
         let selectedHits: [WorkflowMeasurementSearchHit]
         if let reading = selectionReading {
-            let ids = reading.selectedIDs(for: .rsm)
+            let ids = reading.selectedIDs(for: workflowID)
             selectedHits = sourceHits
                 .filter { ids.contains($0.id) }
                 .sorted { $0.measurementFilePath < $1.measurementFilePath }

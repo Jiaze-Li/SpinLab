@@ -145,7 +145,7 @@ final class WorkbenchFeatureStore {
     /// RT workspace state. Resistance vs Temperature multi-file workflow.
     let rtWorkspace: RTWorkspaceStore
     /// Legacy search status bridge retained for compatibility with existing callers/tests.
-    var searchMessages: [WorkflowKey: String] = [:]
+    var searchMessages: [String: String] = [:]
     /// Shared plot appearance defaults across workflows.
     var globalPlotDefaults: [String: String] = [:] {
         didSet { syncGlobalPlotDefaultsToWorkspaces() }
@@ -474,93 +474,91 @@ final class WorkbenchFeatureStore {
     }
 
     /// Restores search state for any workflow (used by shell's Load Pack popover).
-    func restoreSearchState(results: [WorkflowMeasurementSearchHit], queryText: String, for wf: WorkflowKey) {
+    func restoreSearchState(results: [WorkflowMeasurementSearchHit], queryText: String, for wf: String) {
         mainSearchRuntime.restoreSearchState(results: results, queryText: queryText, for: wf)
     }
 
-    func searchQueryText(for wf: WorkflowKey) -> String {
+    func searchQueryText(for wf: String) -> String {
         mainSearchRuntime.searchQueryText(for: wf)
     }
 
-    func setSearchQueryText(_ text: String, for wf: WorkflowKey) {
+    func setSearchQueryText(_ text: String, for wf: String) {
         mainSearchRuntime.setSearchQueryText(text, for: wf)
     }
 
-    func searchResultsList(for wf: WorkflowKey) -> [WorkflowMeasurementSearchHit] {
+    func searchResultsList(for wf: String) -> [WorkflowMeasurementSearchHit] {
         mainSearchRuntime.searchResultsList(for: wf)
     }
 
-    func searchMessage(for wf: WorkflowKey) -> String? {
+    func searchMessage(for wf: String) -> String? {
         mainSearchRuntime.searchMessage(for: wf)
     }
 
-    func isSearchRunning(for wf: WorkflowKey) -> Bool {
+    func isSearchRunning(for wf: String) -> Bool {
         mainSearchRuntime.isSearchRunning(for: wf)
     }
 
-    func searchSnapshot(for wf: WorkflowKey) -> WorkbenchSearchSnapshot {
+    func searchSnapshot(for wf: String) -> WorkbenchSearchSnapshot {
         mainSearchRuntime.searchSnapshot(for: wf)
     }
 
     // MARK: - Selection facade
 
-    func selectedSearchResultIDs(for wf: WorkflowKey) -> Set<String> {
+    func selectedSearchResultIDs(for wf: String) -> Set<String> {
         selectionRuntime.selectedIDs(for: wf)
     }
 
-    func selectedCount(for wf: WorkflowKey) -> Int {
+    func selectedCount(for wf: String) -> Int {
         selectionRuntime.selectedCount(for: wf)
     }
 
-    func isAllSelected(for wf: WorkflowKey) -> Bool {
+    func isAllSelected(for wf: String) -> Bool {
         selectionRuntime.isAllSelected(for: wf, denominator: denominatorHits(for: wf))
     }
 
-    func toggleSearchHitSelection(_ id: String, for wf: WorkflowKey) {
+    func toggleSearchHitSelection(_ id: String, for wf: String) {
         let hit = denominatorHits(for: wf).first { $0.id == id }
         selectionRuntime.toggle(id, for: wf, hit: hit)
     }
 
-    func selectAll(for wf: WorkflowKey) {
+    func selectAll(for wf: String) {
         selectionRuntime.selectAll(for: wf, denominator: denominatorHits(for: wf))
     }
 
     /// Removes only the current search result IDs from selection; keeps hits from other searches.
-    func deselectCurrentResults(for wf: WorkflowKey) {
+    func deselectCurrentResults(for wf: String) {
         selectionRuntime.deselectCurrentResults(for: wf, denominator: denominatorHits(for: wf))
     }
 
     /// Clears the entire selection basket for the workflow (tray Clear button).
-    func deselectAll(for wf: WorkflowKey) {
+    func deselectAll(for wf: String) {
         selectionRuntime.deselectAll(for: wf)
     }
 
-    func selectedHitDisplayInfos(for wf: WorkflowKey) -> [SelectedHitDisplayInfo] {
+    func selectedHitDisplayInfos(for wf: String) -> [SelectedHitDisplayInfo] {
         selectionRuntime.selectedHitDisplayInfos(for: wf)
     }
 
-    func seedSelection(_ ids: Set<String>, hits: [WorkflowMeasurementSearchHit] = [], for wf: WorkflowKey) {
+    func seedSelection(_ ids: Set<String>, hits: [WorkflowMeasurementSearchHit] = [], for wf: String) {
         selectionRuntime.seed(ids: ids, for: wf, availableHits: hits)
     }
 
-    func selectedHitsSnapshot(for wf: WorkflowKey) -> WorkbenchSelectedHitsSnapshot {
+    func selectedHitsSnapshot(for wf: String) -> WorkbenchSelectedHitsSnapshot {
         let ids = selectionRuntime.selectedIDs(for: wf)
         let hitCache = selectionRuntime.selectedHitCache(for: wf)
         return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, hitCache: hitCache)
     }
 
-    private func denominatorHits(for wf: WorkflowKey) -> [WorkflowMeasurementSearchHit] {
+    private func denominatorHits(for wf: String) -> [WorkflowMeasurementSearchHit] {
         let canonical = mainSearchRuntime.searchResultsList(for: wf)
         if !canonical.isEmpty { return canonical }
-        switch wf {
-        case .ahe:        return aheWorkspace.cachedSearchResults
-        case .threeOmega: return threeOmegaWorkspace.cachedSearchResults
-        case .xyRotation: return xyRotationWorkspace.cachedSearchResults
-        case .iv:         return ivWorkspace.cachedSearchResults
-        case .rsm:        return rsmWorkspace.cachedSearchResults
-        case .rt:         return rtWorkspace.cachedSearchResults
-        case .mr:         return []
-        }
+        if wf == aheWorkspace.workflowID        { return aheWorkspace.cachedSearchResults }
+        if wf == threeOmegaWorkspace.workflowID { return threeOmegaWorkspace.cachedSearchResults }
+        if wf == xyRotationWorkspace.workflowID { return xyRotationWorkspace.cachedSearchResults }
+        if wf == ivWorkspace.workflowID         { return ivWorkspace.cachedSearchResults }
+        if wf == rsmWorkspace.workflowID        { return rsmWorkspace.cachedSearchResults }
+        if wf == rtWorkspace.workflowID         { return rtWorkspace.cachedSearchResults }
+        return []
     }
 
     func selectedArchivedRecord() -> SpinLabDomain.ArchivedRecord? {
@@ -681,7 +679,7 @@ final class WorkbenchFeatureStore {
     }
 
     func runWorkflowMeasurementSearch(
-        workflowID wf: WorkflowKey,
+        workflowID wf: String,
         libraryRootPath: String?,
         librarySettings: LibrarySettings? = nil
     ) {
@@ -700,7 +698,7 @@ final class WorkbenchFeatureStore {
         )
     }
 
-    func clearWorkflowMeasurementSearch(workflowID wf: WorkflowKey) {
+    func clearWorkflowMeasurementSearch(workflowID wf: String) {
         mainSearchRuntime.clearWorkflowMeasurementSearch(workflowID: wf)
     }
 

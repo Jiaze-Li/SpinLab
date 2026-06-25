@@ -10,7 +10,7 @@ struct RSMWorkspaceView: View, WorkflowWorkspaceProvider {
         @Bindable var bindableWorkbench = appState.workbench
 
         WorkflowWorkspaceShell(
-            workflowID: .rsm,
+            workflowID: store.workflowID,
             store: store,
             workbench: appState.workbench,
             searchExtra: { EmptyView() },

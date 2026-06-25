@@ -3,7 +3,7 @@ import Foundation
 /// Read surface for WorkbenchFeatureStore search shell state.
 /// Aggregates all per-workflow search fields into a single immutable value.
 struct WorkbenchSearchSnapshot: Sendable {
-    let workflowID: WorkflowKey
+    let workflowID: String
     let queryText: String
     let results: [WorkflowMeasurementSearchHit]
     let isRunning: Bool

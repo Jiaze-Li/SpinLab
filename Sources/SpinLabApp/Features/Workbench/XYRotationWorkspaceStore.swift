@@ -286,7 +286,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
             showPlotGrid: tabs.showPlotGrid,
             tabStates: tabs.snapshotStates(keyFor: { $0.rawValue }),
             cachedSearchResults: cachedSearchResults,
-            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: .xyRotation) ?? []),
+            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: workflowID) ?? []),
             searchQueryText: ""   // filled by caller at WorkbenchFeatureStore level
         )
     }
@@ -483,7 +483,7 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
         let sourceHits = searchSnapshot?.results ?? cachedSearchResults
         let selectedHits: [WorkflowMeasurementSearchHit]
         if let reading = selectionReading {
-            selectedHits = _selectedHits(from: sourceHits, selectedIDs: reading.selectedIDs(for: .xyRotation))
+            selectedHits = _selectedHits(from: sourceHits, selectedIDs: reading.selectedIDs(for: workflowID))
         } else {
             selectedHits = _sortedSelectedHits(sourceHits)
         }
@@ -494,7 +494,7 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
         if let selectedHitsSnapshot {
             _runAnalysis(selectedHits: _sortedSelectedHits(selectedHitsSnapshot.selectedHits))
         } else {
-            let ids = selectionReading?.selectedIDs(for: .xyRotation) ?? []
+            let ids = selectionReading?.selectedIDs(for: workflowID) ?? []
             let selectedHits = _selectedHits(from: cachedSearchResults, selectedIDs: ids)
             _runAnalysis(selectedHits: selectedHits)
         }

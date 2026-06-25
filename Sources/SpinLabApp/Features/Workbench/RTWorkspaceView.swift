@@ -6,7 +6,7 @@ struct RTWorkspaceView: View, WorkflowWorkspaceProvider {
 
     var body: some View {
         WorkflowWorkspaceShell(
-            workflowID: .rt,
+            workflowID: appState.workbench.rtWorkspace.workflowID,
             store: appState.workbench.rtWorkspace,
             workbench: appState.workbench,
             searchExtra: { EmptyView() },

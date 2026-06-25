@@ -6,7 +6,7 @@ struct IVWorkspaceView: View, WorkflowWorkspaceProvider {
 
     var body: some View {
         WorkflowWorkspaceShell(
-            workflowID: .iv,
+            workflowID: appState.workbench.ivWorkspace.workflowID,
             store: appState.workbench.ivWorkspace,
             workbench: appState.workbench,
             searchExtra: { EmptyView() },
