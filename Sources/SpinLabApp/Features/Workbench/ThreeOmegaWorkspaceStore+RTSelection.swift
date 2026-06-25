@@ -63,7 +63,12 @@ extension ThreeOmegaWorkspaceStore {
 
 
     /// Parses a sidecar file and rebuilds a lightweight hit. Runs off MainActor.
-    nonisolated static func rebuildRTHit(fromSidecarPath sidecarPath: String, fileManager: FileManager = .default) -> WorkflowMeasurementSearchHit? {
+    nonisolated static func rebuildRTHit(
+        fromSidecarPath sidecarPath: String,
+        workflowID: String,
+        relatedRTWorkflowID: String?,
+        fileManager: FileManager = .default
+    ) -> WorkflowMeasurementSearchHit? {
         let fm = fileManager
         guard fm.fileExists(atPath: sidecarPath) else { return nil }
 
@@ -78,7 +83,7 @@ extension ThreeOmegaWorkspaceStore {
               let sidecar = try? decoder.decode(SpinLabFileSidecar.self, from: data) else { return nil }
 
         let wfID = sidecar.resolvedWorkflow
-        guard wfID == WorkflowKey.threeOmega.rawValue || wfID == WorkflowKey.rt.rawValue else { return nil }
+        guard wfID == workflowID || wfID == relatedRTWorkflowID else { return nil }
 
         return WorkflowMeasurementSearchHit(
             sidecarPath: sidecarPath,

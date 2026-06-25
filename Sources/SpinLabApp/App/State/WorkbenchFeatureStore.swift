@@ -213,12 +213,25 @@ final class WorkbenchFeatureStore {
         }
 
         let wfIDs = WorkspaceWorkflowIDResolver(definitions: initialWorkflowDefinitions)
-        self.aheWorkspace        = AHEWorkspaceStore(workflowID: wfIDs.aheID)
-        self.threeOmegaWorkspace = ThreeOmegaWorkspaceStore(workflowID: wfIDs.threeOmegaID)
-        self.xyRotationWorkspace = XYRotationWorkspaceStore(workflowID: wfIDs.xyRotationID)
-        self.ivWorkspace         = IVWorkspaceStore(workflowID: wfIDs.ivID)
-        self.rsmWorkspace        = RSMWorkspaceStore(workflowID: wfIDs.rsmID)
-        self.rtWorkspace         = RTWorkspaceStore(workflowID: wfIDs.rtID)
+        guard
+            let resolvedAheID        = wfIDs.aheID,
+            let resolvedThreeOmegaID = wfIDs.threeOmegaID,
+            let resolvedXYRotationID = wfIDs.xyRotationID,
+            let resolvedIVID         = wfIDs.ivID,
+            let resolvedRSMID        = wfIDs.rsmID,
+            let resolvedRTID         = wfIDs.rtID
+        else {
+            preconditionFailure("One or more workflow definitions are missing from the active rule book")
+        }
+        self.aheWorkspace        = AHEWorkspaceStore(workflowID: resolvedAheID)
+        self.threeOmegaWorkspace = ThreeOmegaWorkspaceStore(
+            workflowID: resolvedThreeOmegaID,
+            relatedRTWorkflowID: resolvedRTID
+        )
+        self.xyRotationWorkspace = XYRotationWorkspaceStore(workflowID: resolvedXYRotationID)
+        self.ivWorkspace         = IVWorkspaceStore(workflowID: resolvedIVID)
+        self.rsmWorkspace        = RSMWorkspaceStore(workflowID: resolvedRSMID)
+        self.rtWorkspace         = RTWorkspaceStore(workflowID: resolvedRTID)
 
         self.libraryRepository = libraryRepository
         self.dataActor = dataActor

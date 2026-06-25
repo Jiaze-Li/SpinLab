@@ -7,16 +7,16 @@ import Foundation
 /// projection of Rule Book IDs; the value returned is always the definition's
 /// own `id` field, not the enum raw value directly.
 struct WorkspaceWorkflowIDResolver {
-    let aheID: String
-    let threeOmegaID: String
-    let xyRotationID: String
-    let ivID: String
-    let rsmID: String
-    let rtID: String
+    let aheID: String?
+    let threeOmegaID: String?
+    let xyRotationID: String?
+    let ivID: String?
+    let rsmID: String?
+    let rtID: String?
 
     init(definitions: [WorkflowDefinition]) {
-        func resolve(_ key: WorkflowKey) -> String {
-            definitions.first(where: { $0.id == key.rawValue })?.id ?? key.rawValue
+        func resolve(_ key: WorkflowKey) -> String? {
+            definitions.first(where: { $0.id == key.rawValue })?.id
         }
         self.aheID        = resolve(.ahe)
         self.threeOmegaID = resolve(.threeOmega)

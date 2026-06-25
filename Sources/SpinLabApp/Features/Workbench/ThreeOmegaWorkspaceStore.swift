@@ -11,6 +11,7 @@ import Observation
 final class ThreeOmegaWorkspaceStore {
 
     let workflowID: String
+    let relatedRTWorkflowID: String?
     @ObservationIgnored let env: WorkbenchEnvironment
 
     // MARK: - Search / Selection bridge
@@ -94,8 +95,9 @@ final class ThreeOmegaWorkspaceStore {
     var isAnalyzingRT: Bool = false
     var rtAnalysisMessage: String?
 
-    init(workflowID: String, env: WorkbenchEnvironment = .live) {
+    init(workflowID: String, relatedRTWorkflowID: String? = nil, env: WorkbenchEnvironment = .live) {
         self.workflowID = workflowID
+        self.relatedRTWorkflowID = relatedRTWorkflowID
         self.env = env
         self._rtQuery = UserDefaults.standard.string(forKey: Self.rtQueryDefaultsKey) ?? ""
     }

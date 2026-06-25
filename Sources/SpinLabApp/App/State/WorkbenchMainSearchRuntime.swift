@@ -216,8 +216,14 @@ final class WorkbenchMainSearchRuntime {
         searchRunning[wf] = false
 
         if wf == .threeOmega, let rtPath = store.threeOmegaWorkspace.pendingRTSidecarPath {
+            let capturedWorkflowID = store.threeOmegaWorkspace.workflowID
+            let capturedRelatedRTWorkflowID = store.threeOmegaWorkspace.relatedRTWorkflowID
             let hit = await Task.detached {
-                ThreeOmegaWorkspaceStore.rebuildRTHit(fromSidecarPath: rtPath)
+                ThreeOmegaWorkspaceStore.rebuildRTHit(
+                    fromSidecarPath: rtPath,
+                    workflowID: capturedWorkflowID,
+                    relatedRTWorkflowID: capturedRelatedRTWorkflowID
+                )
             }.value
             if let hit {
                 store.threeOmegaWorkspace.applyRestoredRTHit(hit)
