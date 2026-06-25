@@ -43,13 +43,13 @@ struct ArchivedRecordBuildContext {
 }
 
 protocol WorkflowExtension {
-    var workflow: SpinLabDomain.WorkflowKind { get }
+    var workflow: WorkflowKey { get }
     var supportedMeasurementTypes: [SpinLabDomain.MeasurementType] { get }
     func createArchivedRecord(context: ArchivedRecordBuildContext) -> SpinLabDomain.ArchivedRecord
 }
 
 protocol MetadataExtension {
-    var workflow: SpinLabDomain.WorkflowKind { get }
+    var workflow: WorkflowKey { get }
     func parseFilename(from fileURL: URL) -> SpinLabDomain.ParsedFilenameHints
     func defaultConfirmationDraft(
         pending: SpinLabDomain.PendingImport,
@@ -60,17 +60,17 @@ protocol MetadataExtension {
 }
 
 protocol AnalysisModuleExtension {
-    var workflow: SpinLabDomain.WorkflowKind { get }
+    var workflow: WorkflowKey { get }
     func defaultResultSummary(for measurement: SpinLabDomain.Measurement) -> String
 }
 
 protocol ViewExtension {
-    var workflow: SpinLabDomain.WorkflowKind { get }
+    var workflow: WorkflowKey { get }
     var displayName: String { get }
 }
 
 struct AMRPHEWorkflowExtension: WorkflowExtension {
-    let workflow: SpinLabDomain.WorkflowKind = .amrPhe
+    let workflow: WorkflowKey = .ahe
     let supportedMeasurementTypes: [SpinLabDomain.MeasurementType] = [.amrPhe]
 
     func createArchivedRecord(context: ArchivedRecordBuildContext) -> SpinLabDomain.ArchivedRecord {
@@ -79,7 +79,7 @@ struct AMRPHEWorkflowExtension: WorkflowExtension {
 }
 
 struct AMRPHEMetadataExtension: MetadataExtension {
-    let workflow: SpinLabDomain.WorkflowKind = .amrPhe
+    let workflow: WorkflowKey = .ahe
     private let ruleProvider: any SpinLabRuleProviding
 
     init(ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared) {
@@ -169,7 +169,7 @@ struct AMRPHEMetadataExtension: MetadataExtension {
 }
 
 struct AMRPHEAnalysisModuleExtension: AnalysisModuleExtension {
-    let workflow: SpinLabDomain.WorkflowKind = .amrPhe
+    let workflow: WorkflowKey = .ahe
 
     func defaultResultSummary(for measurement: SpinLabDomain.Measurement) -> String {
         "AMR/PHE result placeholder for \(measurement.name)"
@@ -177,14 +177,14 @@ struct AMRPHEAnalysisModuleExtension: AnalysisModuleExtension {
 }
 
 struct AMRPHEViewExtension: ViewExtension {
-    let workflow: SpinLabDomain.WorkflowKind = .amrPhe
+    let workflow: WorkflowKey = .ahe
     let displayName: String = "Default AMR/PHE Plot View"
 }
 
 // MARK: - 3ω AHE Extension Bundle
 
 struct ThreeOmegaAHEWorkflowExtension: WorkflowExtension {
-    let workflow: SpinLabDomain.WorkflowKind = .threeOmegaAHE
+    let workflow: WorkflowKey = .threeOmega
     let supportedMeasurementTypes: [SpinLabDomain.MeasurementType] = [.threeOmegaAHE]
 
     func createArchivedRecord(context: ArchivedRecordBuildContext) -> SpinLabDomain.ArchivedRecord {
@@ -193,7 +193,7 @@ struct ThreeOmegaAHEWorkflowExtension: WorkflowExtension {
 }
 
 struct ThreeOmegaAHEMetadataExtension: MetadataExtension {
-    let workflow: SpinLabDomain.WorkflowKind = .threeOmegaAHE
+    let workflow: WorkflowKey = .threeOmega
     private let ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared
 
     func parseFilename(from fileURL: URL) -> SpinLabDomain.ParsedFilenameHints {
@@ -202,7 +202,7 @@ struct ThreeOmegaAHEMetadataExtension: MetadataExtension {
         let parser = FilenameRuleParser(ruleSet: ruleProvider.ruleSet())
         var hints = parser.parse(from: fileURL)
         if hints.workflowID == nil || hints.workflowID?.isEmpty == true {
-            hints.workflowID = "3w"
+            hints.workflowID = workflow.rawValue
         }
         return hints
     }
@@ -217,7 +217,7 @@ struct ThreeOmegaAHEMetadataExtension: MetadataExtension {
             batchName: pending.parsedHints.batchName ?? fallbackSampleID ?? "",
             sampleName: pending.parsedHints.sampleName ?? fallbackSampleID ?? "",
             measurementName: pending.parsedHints.measurementName ?? pending.fileName,
-            workflowID: "3w",
+            workflowID: workflow.rawValue,
             conditionValues: seedConditionValues(from: pending.parsedHints),
             selectedExistingProjectName: suggestedProjectName ?? PendingImportConfirmationDraft.noProjectOption,
             newProjectName: ""
@@ -226,7 +226,7 @@ struct ThreeOmegaAHEMetadataExtension: MetadataExtension {
 }
 
 struct ThreeOmegaAHEAnalysisModuleExtension: AnalysisModuleExtension {
-    let workflow: SpinLabDomain.WorkflowKind = .threeOmegaAHE
+    let workflow: WorkflowKey = .threeOmega
 
     func defaultResultSummary(for measurement: SpinLabDomain.Measurement) -> String {
         "3w result for \(measurement.name)"
@@ -234,14 +234,14 @@ struct ThreeOmegaAHEAnalysisModuleExtension: AnalysisModuleExtension {
 }
 
 struct ThreeOmegaAHEViewExtension: ViewExtension {
-    let workflow: SpinLabDomain.WorkflowKind = .threeOmegaAHE
+    let workflow: WorkflowKey = .threeOmega
     let displayName: String = "3w Workspace"
 }
 
 // MARK: - XY Rotation
 
 struct XYRotationWorkflowExtension: WorkflowExtension {
-    let workflow: SpinLabDomain.WorkflowKind = .xyRotation
+    let workflow: WorkflowKey = .xyRotation
     let supportedMeasurementTypes: [SpinLabDomain.MeasurementType] = [.xyRotation]
 
     func createArchivedRecord(context: ArchivedRecordBuildContext) -> SpinLabDomain.ArchivedRecord {
@@ -250,14 +250,14 @@ struct XYRotationWorkflowExtension: WorkflowExtension {
 }
 
 struct XYRotationMetadataExtension: MetadataExtension {
-    let workflow: SpinLabDomain.WorkflowKind = .xyRotation
+    let workflow: WorkflowKey = .xyRotation
     private let ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared
 
     func parseFilename(from fileURL: URL) -> SpinLabDomain.ParsedFilenameHints {
         let parser = FilenameRuleParser(ruleSet: ruleProvider.ruleSet())
         var hints = parser.parse(from: fileURL)
         if hints.workflowID == nil || hints.workflowID?.isEmpty == true {
-            hints.workflowID = "xy"
+            hints.workflowID = workflow.rawValue
         }
         return hints
     }
@@ -272,7 +272,7 @@ struct XYRotationMetadataExtension: MetadataExtension {
             batchName: pending.parsedHints.batchName ?? fallbackSampleID ?? "",
             sampleName: pending.parsedHints.sampleName ?? fallbackSampleID ?? "",
             measurementName: pending.parsedHints.measurementName ?? pending.fileName,
-            workflowID: "xy",
+            workflowID: workflow.rawValue,
             conditionValues: seedConditionValues(from: pending.parsedHints),
             selectedExistingProjectName: suggestedProjectName ?? PendingImportConfirmationDraft.noProjectOption,
             newProjectName: ""
@@ -281,7 +281,7 @@ struct XYRotationMetadataExtension: MetadataExtension {
 }
 
 struct XYRotationAnalysisModuleExtension: AnalysisModuleExtension {
-    let workflow: SpinLabDomain.WorkflowKind = .xyRotation
+    let workflow: WorkflowKey = .xyRotation
 
     func defaultResultSummary(for measurement: SpinLabDomain.Measurement) -> String {
         "XY Rotation result for \(measurement.name)"
@@ -289,14 +289,14 @@ struct XYRotationAnalysisModuleExtension: AnalysisModuleExtension {
 }
 
 struct XYRotationViewExtension: ViewExtension {
-    let workflow: SpinLabDomain.WorkflowKind = .xyRotation
+    let workflow: WorkflowKey = .xyRotation
     let displayName: String = "XY Rotation Workspace"
 }
 
 // MARK: - RSM
 
 struct RSMWorkflowExtension: WorkflowExtension {
-    let workflow: SpinLabDomain.WorkflowKind = .rsm
+    let workflow: WorkflowKey = .rsm
     let supportedMeasurementTypes: [SpinLabDomain.MeasurementType] = [.rsm]
 
     func createArchivedRecord(context: ArchivedRecordBuildContext) -> SpinLabDomain.ArchivedRecord {
@@ -305,14 +305,14 @@ struct RSMWorkflowExtension: WorkflowExtension {
 }
 
 struct RSMMetadataExtension: MetadataExtension {
-    let workflow: SpinLabDomain.WorkflowKind = .rsm
+    let workflow: WorkflowKey = .rsm
     private let ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared
 
     func parseFilename(from fileURL: URL) -> SpinLabDomain.ParsedFilenameHints {
         let parser = FilenameRuleParser(ruleSet: ruleProvider.ruleSet())
         var hints = parser.parse(from: fileURL)
         if hints.workflowID == nil || hints.workflowID?.isEmpty == true {
-            hints.workflowID = "rsm"
+            hints.workflowID = workflow.rawValue
         }
         return hints
     }
@@ -327,7 +327,7 @@ struct RSMMetadataExtension: MetadataExtension {
             batchName: pending.parsedHints.batchName ?? fallbackSampleID ?? "",
             sampleName: pending.parsedHints.sampleName ?? fallbackSampleID ?? "",
             measurementName: pending.parsedHints.measurementName ?? pending.fileName,
-            workflowID: "rsm",
+            workflowID: workflow.rawValue,
             conditionValues: seedConditionValues(from: pending.parsedHints),
             selectedExistingProjectName: suggestedProjectName ?? PendingImportConfirmationDraft.noProjectOption,
             newProjectName: ""
@@ -336,7 +336,7 @@ struct RSMMetadataExtension: MetadataExtension {
 }
 
 struct RSMAnalysisModuleExtension: AnalysisModuleExtension {
-    let workflow: SpinLabDomain.WorkflowKind = .rsm
+    let workflow: WorkflowKey = .rsm
 
     func defaultResultSummary(for measurement: SpinLabDomain.Measurement) -> String {
         "RSM result for \(measurement.name)"
@@ -344,61 +344,8 @@ struct RSMAnalysisModuleExtension: AnalysisModuleExtension {
 }
 
 struct RSMViewExtension: ViewExtension {
-    let workflow: SpinLabDomain.WorkflowKind = .rsm
+    let workflow: WorkflowKey = .rsm
     let displayName: String = "RSM Workspace"
-}
-
-// MARK: - Dummy
-
-struct DummyWorkflowExtension: WorkflowExtension {
-    let workflow: SpinLabDomain.WorkflowKind = .dummy
-    let supportedMeasurementTypes: [SpinLabDomain.MeasurementType] = [.dummy]
-
-    func createArchivedRecord(context: ArchivedRecordBuildContext) -> SpinLabDomain.ArchivedRecord {
-        buildArchivedRecord(context: context, measurementType: .dummy, rawSeriesName: "Raw Dummy")
-    }
-}
-
-struct DummyMetadataExtension: MetadataExtension {
-    let workflow: SpinLabDomain.WorkflowKind = .dummy
-
-    func parseFilename(from fileURL: URL) -> SpinLabDomain.ParsedFilenameHints {
-        SpinLabDomain.ParsedFilenameHints(
-            measurementName: "Dummy: \(fileURL.deletingPathExtension().lastPathComponent)",
-            workflowID: "Dummy",
-            warnings: ["Dummy workflow parser active."]
-        )
-    }
-
-    func defaultConfirmationDraft(
-        pending: SpinLabDomain.PendingImport,
-        suggestedProjectName: String?,
-        registryLookup: SampleRegistryLookupResult?,
-        fallbackSampleID: String?
-    ) -> PendingImportConfirmationDraft {
-        PendingImportConfirmationDraft(
-            batchName: pending.parsedHints.batchName ?? fallbackSampleID ?? "DUMMY-BATCH",
-            sampleName: pending.parsedHints.sampleName ?? fallbackSampleID ?? "DUMMY-SAMPLE",
-            measurementName: pending.parsedHints.measurementName ?? "Dummy: \(pending.fileName)",
-            workflowID: "Dummy",
-            conditionValues: seedConditionValues(from: pending.parsedHints),
-            selectedExistingProjectName: suggestedProjectName ?? PendingImportConfirmationDraft.noProjectOption,
-            newProjectName: ""
-        )
-    }
-}
-
-struct DummyAnalysisModuleExtension: AnalysisModuleExtension {
-    let workflow: SpinLabDomain.WorkflowKind = .dummy
-
-    func defaultResultSummary(for measurement: SpinLabDomain.Measurement) -> String {
-        "Dummy workflow result for \(measurement.name)"
-    }
-}
-
-struct DummyViewExtension: ViewExtension {
-    let workflow: SpinLabDomain.WorkflowKind = .dummy
-    let displayName: String = "Dummy Workflow Preview View"
 }
 
 /// Seeds conditionValues from parsed filename hints using well-known field keys.

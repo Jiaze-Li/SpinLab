@@ -18,11 +18,34 @@ extension ThreeOmegaWorkspaceStore {
         selectedRTHit = hit
         rtSearchResults = []
         showRTPopover = false
+        launchRTAnalysis(for: hit)
+    }
+
+    func launchRTAnalysis(for hit: WorkflowMeasurementSearchHit) {
+        isAnalyzingRT = true
+        rtAnalysisMessage = nil
+        cachedRTResult = nil
+        let useCase = AnalyzeRTWorkflowUseCase()
+        let capturedWorkflowID = workflowID
+        Task { [weak self] in
+            guard let self else { return }
+            let result = await Task.detached(priority: .userInitiated) {
+                useCase.execute(hit: hit, workflowID: capturedWorkflowID)
+            }.value
+            await MainActor.run {
+                self.cachedRTResult = result
+                self.isAnalyzingRT = false
+                self.rtAnalysisMessage = result.warnings.isEmpty ? nil : result.warnings.joined(separator: " | ")
+            }
+        }
     }
 
 
     func clearRTSelection() {
         selectedRTHit = nil
+        cachedRTResult = nil
+        isAnalyzingRT = false
+        rtAnalysisMessage = nil
     }
 
 
@@ -40,7 +63,12 @@ extension ThreeOmegaWorkspaceStore {
 
 
     /// Parses a sidecar file and rebuilds a lightweight hit. Runs off MainActor.
-    nonisolated static func rebuildRTHit(fromSidecarPath sidecarPath: String, fileManager: FileManager = .default) -> WorkflowMeasurementSearchHit? {
+    nonisolated static func rebuildRTHit(
+        fromSidecarPath sidecarPath: String,
+        workflowID: String,
+        relatedRTWorkflowID: String?,
+        fileManager: FileManager = .default
+    ) -> WorkflowMeasurementSearchHit? {
         let fm = fileManager
         guard fm.fileExists(atPath: sidecarPath) else { return nil }
 
@@ -54,8 +82,8 @@ extension ThreeOmegaWorkspaceStore {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: sidecarPath)),
               let sidecar = try? decoder.decode(SpinLabFileSidecar.self, from: data) else { return nil }
 
-        let wfID = sidecar.resolvedWorkflow.lowercased()
-        guard wfID == "3w" || wfID == "rt" else { return nil }
+        let wfID = sidecar.resolvedWorkflow
+        guard wfID == workflowID || wfID == relatedRTWorkflowID else { return nil }
 
         return WorkflowMeasurementSearchHit(
             sidecarPath: sidecarPath,

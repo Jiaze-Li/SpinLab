@@ -404,9 +404,9 @@ struct V400DomainTests {
 
     @Test("WorkflowRegistry contains 3ω AHE bundle")
     func registryContainsBundle() {
-        let bundle = WorkflowRegistry.shared.bundle(for: .threeOmegaAHE)
+        let bundle = WorkflowRegistry.shared.bundle(for: .threeOmega)
         #expect(bundle != nil)
-        #expect(bundle?.workflowExtension.workflow == .threeOmegaAHE)
+        #expect(bundle?.workflowExtension.workflow == .threeOmega)
         #expect(bundle?.workflowExtension.supportedMeasurementTypes.contains(.threeOmegaAHE) == true)
     }
 }
@@ -471,7 +471,7 @@ struct V400WorkspaceStoreTests {
     @MainActor
     @Test("runAnalysis without selections sets message and does not analyze")
     func runAnalysisEmptySelection() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.runAnalysis()
         #expect(store.analysisMessage != nil)
         #expect(!store.isAnalyzing)
@@ -480,7 +480,7 @@ struct V400WorkspaceStoreTests {
     @MainActor
     @Test("runScaling without ingestionResult sets message")
     func runScalingNoIngestion() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.geometry = ThreeOmegaGeometry(lxx: 26, lxy: 21, dNm: 30)
         store.runScaling()
         #expect(store.analysisMessage != nil)

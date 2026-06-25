@@ -17,7 +17,7 @@ final class AHECopyPNGTests: XCTestCase {
 
     @MainActor
     func testAllScalesRenderFromDisplayPayload() throws {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         let payload = makePayload()
         let layout = makeLayout(for: payload)
         let sentinel = Data([0xAE, 0xAE, 0xAE, 0xAE])
@@ -46,7 +46,7 @@ final class AHECopyPNGTests: XCTestCase {
 
     @MainActor
     func testPixelDimensionsScaleCorrectly() throws {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         let payload = makePayload()
         let layout = makeLayout(for: payload)
 
@@ -70,7 +70,7 @@ final class AHECopyPNGTests: XCTestCase {
 
     @MainActor
     func testFallsBackToImageDataWhenDisplayPayloadIsNil() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         let sentinel = Data([0xFA, 0x11, 0xBA, 0xCF])
 
         store.tabs.setOutput(
@@ -88,7 +88,7 @@ final class AHECopyPNGTests: XCTestCase {
 
     @MainActor
     func testExportSnapshotReflectsTabState() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         let payload = makePayload()
         let layout = makeLayout(for: payload)
         let sentinel = Data([0x01, 0x02])

@@ -16,7 +16,7 @@ extension ThreeOmegaWorkspaceStore {
         let sourceHits = searchSnapshot?.results ?? cachedSearchResults
         let selectedHits: [WorkflowMeasurementSearchHit]
         if let reading = selectionReading {
-            let ids = reading.selectedIDs(for: .threeOmega)
+            let ids = reading.selectedIDs(for: workflowID)
             selectedHits = _sortedSelectedHits(sourceHits.filter { ids.contains($0.id) })
         } else {
             selectedHits = _sortedSelectedHits(sourceHits)
@@ -28,7 +28,7 @@ extension ThreeOmegaWorkspaceStore {
         if let selectedHitsSnapshot {
             _runAnalysis(selectedHits: _sortedSelectedHits(selectedHitsSnapshot.selectedHits))
         } else {
-            let ids = selectionReading?.selectedIDs(for: .threeOmega) ?? []
+            let ids = selectionReading?.selectedIDs(for: workflowID) ?? []
             let selectedHits = _sortedSelectedHits(
                 cachedSearchResults.filter { ids.contains($0.id) }
             )
@@ -77,7 +77,8 @@ extension ThreeOmegaWorkspaceStore {
         let capturedRAHE3DevMethodForPlots = rahe3omegaVsDeviceMethod
         let capturedGlobalPlotDefaults = globalPlotDefaults
 
-        let capturedRTHit = selectedRTHit
+        let capturedWorkflowID = workflowID
+        let capturedRTResult = cachedRTResult
         let capturedNumericDisplay: [String: [String: String]] = cachedSampleNumericDisplay
         let capturedFieldSweepSeriesOrder = fieldSweepSeriesOrder
 
@@ -85,9 +86,10 @@ extension ThreeOmegaWorkspaceStore {
             guard let self else { return }
             let (result, plots, alignedSeriesOrder) = await Task.detached(priority: .userInitiated) { [selectedHits] in
                 let ingestUseCase = IngestThreeOmegaSelectionsUseCase()
-                let result = ingestUseCase.execute(hits: selectedHits, rtHit: capturedRTHit, numericDisplayBySample: capturedNumericDisplay)
+                let result = ingestUseCase.execute(hits: selectedHits, rtAnalysisResult: capturedRTResult, numericDisplayBySample: capturedNumericDisplay)
                 let alignedSeriesOrder = ThreeOmegaWorkspaceStore.alignSeriesOrder(old: capturedFieldSweepSeriesOrder, fieldSweeps: result.fieldSweeps)
                 var renderer = ThreeOmegaPlotRenderer()
+                renderer.workflowID            = capturedWorkflowID
                 renderer.showGrid              = capturedGrid
                 renderer.seriesRenderMode      = capturedRenderMode
                 renderer.chartStyleOverrides   = capturedStyleOverrides

@@ -214,7 +214,7 @@ struct V825HeatmapTabRenderStatePersistenceTests {
     @Test("10. Changing colorScaleMode does not reset tick counts or zDomainState")
     @MainActor
     func changingColorScaleModeDoesNotResetOtherFields() {
-        let store = RSMWorkspaceStore()
+        let store = RSMWorkspaceStore(workflowID: WorkflowKey.rsm.rawValue)
         store.heatmapDisplayState = HeatmapTabRenderState(
             colorScaleMode: .linear,
             zDomainState: HeatmapZDomainState(mode: .manual, manualRange: HeatmapZRangeDraft(minText: "100", maxText: "200")),
@@ -240,7 +240,7 @@ struct V825HeatmapTabRenderStatePersistenceTests {
     @Test("11. Changing xTickCount/yTickCount does not reset colorScaleMode or zDomainState")
     @MainActor
     func changingTickCountsDoesNotResetOtherFields() {
-        let store = RSMWorkspaceStore()
+        let store = RSMWorkspaceStore(workflowID: WorkflowKey.rsm.rawValue)
         store.heatmapDisplayState = HeatmapTabRenderState(
             colorScaleMode: .log10,
             zDomainState: HeatmapZDomainState(mode: .percentile, percentilePreset: .p2_98),
@@ -267,7 +267,7 @@ struct V825HeatmapTabRenderStatePersistenceTests {
     @Test("12. RSM restore assigns heatmapDisplayState from pack and does not drop it")
     @MainActor
     func rsmRestoreDoesNotDropHeatmapDisplayState() {
-        let store = RSMWorkspaceStore()
+        let store = RSMWorkspaceStore(workflowID: WorkflowKey.rsm.rawValue)
         let displayState = HeatmapTabRenderState(
             showColorbar: false,
             colorScaleMode: .log10,

@@ -171,6 +171,59 @@ struct V515RulesBookStateTests {
         }
     }
 
+    @Test("partial workflow definitions do not crash startup and are tracked as missing")
+    func startupWithPartialWorkflowDefinitionsDoesNotCrash() throws {
+        try withTempRulesBook(prefix: "SL-startup-partial-rules") { paths, _ in
+            try writeWorkflowJSON(
+                to: paths.workflowURL,
+                entries: [
+                    (id: WorkflowKey.ahe.rawValue, displayName: "AHE", conditionFieldIDs: ["temperature"]),
+                    (id: WorkflowKey.threeOmega.rawValue, displayName: "3ω", conditionFieldIDs: ["field"]),
+                    (id: WorkflowKey.xyRotation.rawValue, displayName: "XY", conditionFieldIDs: ["angle"]),
+                    (id: WorkflowKey.iv.rawValue, displayName: "IV", conditionFieldIDs: ["voltage"]),
+                    (id: WorkflowKey.rt.rawValue, displayName: "RT", conditionFieldIDs: ["temperature"])
+                ]
+            )
+
+            try withTempRulesDirectory(prefix: "SL-startup-partial-support") { supportDir, _ in
+                let savedSettings = RulesBookSettings(
+                    internalPaths: AppInternalPaths(appSupportDirectoryURL: supportDir)
+                )
+                savedSettings.configure(url: paths.configDirectoryURL)
+
+                let loadedSettings = RulesBookSettings(
+                    internalPaths: AppInternalPaths(appSupportDirectoryURL: supportDir)
+                )
+                let state = SpinLabAppState(
+                    environment: AppEnvironment(
+                        persistence: NoOpPersistenceForV515(),
+                        inboxImportFilter: InboxImportFilterService(),
+                        libraryArchiveScan: LibraryArchiveScanService(
+                            rootURL: FileManager.default.temporaryDirectory
+                                .appendingPathComponent("spinlab-v515-partial-\(UUID().uuidString)", isDirectory: true)
+                        ),
+                        sampleRegistry: XLSXPrefixSampleRegistryIndex.fromEnvironment(previewRowCount: 10),
+                        registrySubstrateRules: RegistrySubstrateRuleBook(),
+                        routingCapabilities: .live,
+                        ruleRuntime: DefaultRuleRuntimeCapability(),
+                        dataActor: SpinLabDataActor()
+                    ),
+                    rulesBookSettings: loadedSettings
+                )
+
+                #expect(state.workbench.workflowDefinitions.map(\.id) == [
+                    WorkflowKey.ahe.rawValue,
+                    WorkflowKey.threeOmega.rawValue,
+                    WorkflowKey.xyRotation.rawValue,
+                    WorkflowKey.iv.rawValue,
+                    WorkflowKey.rt.rawValue
+                ])
+                #expect(state.workbench.missingWorkflowDefinitionIDs == [WorkflowKey.rsm.rawValue])
+                #expect(state.workbench.rtWorkspace.workflowID == WorkflowKey.rt.rawValue)
+            }
+        }
+    }
+
     @Test("switching Rules Book refreshes workflow definitions and app metadata")
     func switchingRulesBookRefreshesWorkflowDefinitions() throws {
         try withTempRulesBook(prefix: "SL-switch-start") { startPaths, _ in

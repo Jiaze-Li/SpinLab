@@ -115,6 +115,7 @@ The per-workflow records under `workflows/*/ASSEMBLY.md` map those surfaces to c
 - `Sources/SpinLabApp/App/State/WorkbenchFeatureStore.swift` - IV registration and shared Workbench state facade wiring
 - `Sources/SpinLabApp/App/State/WorkbenchMainSearchRuntime.swift` - main search orchestration and IV search mirror sync
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift` - dispatches `IVWorkspaceView` for `iv`
+- `Sources/SpinLabApp/Features/Workbench/NotImplementedWorkflowView.swift` — placeholder view rendered when a Rule Book workflow is recognized but has no workspace implementation yet
 - `Sources/SpinLabApp/UI/WorkbenchUIStyle.swift` - shared compact Workbench control styling tokens used by IV controls
 
 ## Secondary Input Search Slots

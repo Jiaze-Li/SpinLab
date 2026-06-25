@@ -99,7 +99,7 @@ struct V563WorkflowStateBoundaryTests {
     @MainActor
     @Test("Canvas-facing reads project canonical tab output")
     func canvasFacingReadsProjectCanonicalTabOutput() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         let adapterEmpty = WorkbenchReadAdapter(store: store)
         #expect(adapterEmpty.activeImageData == nil)
 
@@ -156,7 +156,7 @@ struct V563WorkflowStateBoundaryTests {
     @MainActor
     @Test("rerenderFieldSweepTabs does not clear per-tab title and label overrides from tabStates")
     func rerenderFieldSweepTabsPreservesTabStateOverrides() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.tabs.tabStates[.fieldSweep1omega] = TabRenderState(
             titleOverride: "Custom 1ω Title",
             xLabelOverride: "My X",
@@ -180,7 +180,7 @@ struct V563WorkflowStateBoundaryTests {
     @MainActor
     @Test("rerenderFieldSweepTabs tab state overrides are isolated per tab")
     func rerenderFieldSweepTabsOverridesAreTabIsolated() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.tabs.tabStates[.fieldSweep1omega] = TabRenderState(
             titleOverride: "Only 1ω",
             seriesLabelOverrides: ["sample-a": "A"]
@@ -200,7 +200,7 @@ struct V563WorkflowStateBoundaryTests {
     @MainActor
     @Test("runScaling does not clear scaling-tab text overrides from tabStates")
     func runScalingPreservesScalingTabTextOverrides() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.tabs.tabStates[.scaling] = TabRenderState(
             titleOverride: "My Scaling Title",
             xLabelOverride: "Custom X",
@@ -244,7 +244,7 @@ struct V563WorkflowStateBoundaryTests {
     @MainActor
     @Test("setFieldSweepSeriesOrder writes the same order to both field-sweep tabs")
     func setFieldSweepSeriesOrderWritesBothTabs() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let order = ["key-a|0", "key-b|1"]
         store.setFieldSweepSeriesOrder(order)
         #expect(store.tabs.state(for: .fieldSweep1omega).seriesOrder == order)
@@ -256,7 +256,7 @@ struct V563WorkflowStateBoundaryTests {
     @MainActor
     @Test("_refreshManifestPayloads applies tabState title and series-label overrides to rebuilt manifests")
     func refreshManifestPayloadsAppliesTabStateOverrides() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 100,
             device: "0deg",
@@ -316,7 +316,7 @@ struct V563WorkflowStateBoundaryTests {
     @MainActor
     @Test("rerenderFieldSweepTabs patches each tab's manifest with its own overrides, no cross-tab bleed")
     func rerenderFieldSweepTabsDoesNotBleed1omegaOverrideInto3omega() async throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 100,
             device: "0deg",
@@ -390,7 +390,7 @@ struct V563WorkflowStateBoundaryTests {
     @MainActor
     @Test("3ω active-tab style rerender keeps payload identity and reflects active overrides")
     func threeOmegaActiveTabRerenderPreservesPayloadContract() async throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.tabs.activeTab = .fieldSweep1omega
 
         let sweep = ThreeOmegaFieldSweepResult(
@@ -491,7 +491,7 @@ struct V563WorkflowStateBoundaryTests {
         AxisLabelCase(xOverride: "Custom X",  yOverride: "Custom Y"),
     ])
     func refreshManifestPayloadsReflectsAxisLabelOverrides(_ tc: AxisLabelCase) throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 100,
             device: "0deg",
@@ -560,7 +560,7 @@ struct V563WorkflowStateBoundaryTests {
         ThreeOmegaTabOverrideCase(tabKey: "scaling",         xCanonical: "σ²_xx (S²/m²)", yCanonical: "E(3ω)_AHE / (E³_xx · σ_xx)"),
     ])
     func refreshManifestAllNonRTTabsPreserveTextOverrides(_ tc: ThreeOmegaTabOverrideCase) throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 100, device: "0deg",
             sampleMetadata: ["device": "0deg"], sampleID: "sample-a",
@@ -606,7 +606,7 @@ struct V563WorkflowStateBoundaryTests {
     @MainActor
     @Test("runScaling path: _refreshManifestPayloads reflects scaling-tab text overrides in rebuilt manifest")
     func threeOmegaRunScalingPreservesManifestOverrides() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 100, device: "0deg",
             sampleMetadata: ["device": "0deg"], sampleID: "sample-a",
@@ -646,7 +646,7 @@ struct V563WorkflowStateBoundaryTests {
     @MainActor
     @Test("_rebuildOverlayManifestPayloads applies per-tab overrides independently for RAHE1ω and RAHE3ω")
     func threeOmegaRAHEOverlayPreservesManifestOverrides() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 100, device: "0deg",
             sampleMetadata: ["device": "0deg"], sampleID: "sample-a",

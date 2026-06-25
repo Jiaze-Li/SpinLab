@@ -4,7 +4,7 @@ import Foundation
 /// Declared class-constrained so stores can hold a weak reference.
 @MainActor
 protocol SelectionReading: AnyObject {
-    func selectedIDs(for wf: WorkbenchWorkflowID) -> Set<String>
+    func selectedIDs(for wf: String) -> Set<String>
 }
 
 struct SelectedHitDisplayInfo: Sendable {
@@ -26,31 +26,31 @@ struct SelectedHitDisplayInfo: Sendable {
 @MainActor
 @Observable
 final class WorkbenchSelectionRuntime {
-    private var selectedIDsByWorkflow: [WorkbenchWorkflowID: Set<String>] = [:]
-    private var displayCacheByWorkflow: [WorkbenchWorkflowID: [String: SelectedHitDisplayInfo]] = [:]
+    private var selectedIDsByWorkflow: [String: Set<String>] = [:]
+    private var displayCacheByWorkflow: [String: [String: SelectedHitDisplayInfo]] = [:]
     /// Full hit objects keyed by ID, so snapshot building survives search changes.
-    private var hitCacheByWorkflow: [WorkbenchWorkflowID: [String: WorkflowMeasurementSearchHit]] = [:]
+    private var hitCacheByWorkflow: [String: [String: WorkflowMeasurementSearchHit]] = [:]
 
-    func selectedIDs(for wf: WorkbenchWorkflowID) -> Set<String> {
+    func selectedIDs(for wf: String) -> Set<String> {
         selectedIDsByWorkflow[wf] ?? []
     }
 
-    func selectedCount(for wf: WorkbenchWorkflowID) -> Int {
+    func selectedCount(for wf: String) -> Int {
         (selectedIDsByWorkflow[wf] ?? []).count
     }
 
-    func selectedHitCache(for wf: WorkbenchWorkflowID) -> [String: WorkflowMeasurementSearchHit] {
+    func selectedHitCache(for wf: String) -> [String: WorkflowMeasurementSearchHit] {
         hitCacheByWorkflow[wf] ?? [:]
     }
 
     /// Returns true only when every denominator hit ID is in the selected set.
-    func isAllSelected(for wf: WorkbenchWorkflowID, denominator: [WorkflowMeasurementSearchHit]) -> Bool {
+    func isAllSelected(for wf: String, denominator: [WorkflowMeasurementSearchHit]) -> Bool {
         guard !denominator.isEmpty else { return false }
         let selected = selectedIDsByWorkflow[wf] ?? []
         return denominator.allSatisfy { selected.contains($0.id) }
     }
 
-    func toggle(_ id: String, for wf: WorkbenchWorkflowID, hit: WorkflowMeasurementSearchHit? = nil) {
+    func toggle(_ id: String, for wf: String, hit: WorkflowMeasurementSearchHit? = nil) {
         var ids = selectedIDsByWorkflow[wf] ?? []
         var displayCache = displayCacheByWorkflow[wf] ?? [:]
         var hitCache = hitCacheByWorkflow[wf] ?? [:]
@@ -71,7 +71,7 @@ final class WorkbenchSelectionRuntime {
     }
 
     /// Unions current search result IDs into the existing selection without dropping previously selected hits.
-    func selectAll(for wf: WorkbenchWorkflowID, denominator: [WorkflowMeasurementSearchHit]) {
+    func selectAll(for wf: String, denominator: [WorkflowMeasurementSearchHit]) {
         var ids = selectedIDsByWorkflow[wf] ?? []
         var displayCache = displayCacheByWorkflow[wf] ?? [:]
         var hitCache = hitCacheByWorkflow[wf] ?? [:]
@@ -86,7 +86,7 @@ final class WorkbenchSelectionRuntime {
     }
 
     /// Removes only the specified current-result IDs; previously selected hits from other searches are kept.
-    func deselectCurrentResults(for wf: WorkbenchWorkflowID, denominator: [WorkflowMeasurementSearchHit]) {
+    func deselectCurrentResults(for wf: String, denominator: [WorkflowMeasurementSearchHit]) {
         var ids = selectedIDsByWorkflow[wf] ?? []
         var displayCache = displayCacheByWorkflow[wf] ?? [:]
         var hitCache = hitCacheByWorkflow[wf] ?? [:]
@@ -101,14 +101,14 @@ final class WorkbenchSelectionRuntime {
     }
 
     /// Clears the entire selection basket for the workflow (used by tray Clear button).
-    func deselectAll(for wf: WorkbenchWorkflowID) {
+    func deselectAll(for wf: String) {
         selectedIDsByWorkflow[wf] = []
         displayCacheByWorkflow[wf] = [:]
         hitCacheByWorkflow[wf] = [:]
     }
 
     /// Returns cached display info for all selected hits, in stable ID-sorted order.
-    func selectedHitDisplayInfos(for wf: WorkbenchWorkflowID) -> [SelectedHitDisplayInfo] {
+    func selectedHitDisplayInfos(for wf: String) -> [SelectedHitDisplayInfo] {
         let ids = selectedIDsByWorkflow[wf] ?? []
         let cache = displayCacheByWorkflow[wf] ?? [:]
         return ids.sorted().compactMap { cache[$0] }
@@ -116,14 +116,14 @@ final class WorkbenchSelectionRuntime {
 
     /// Seed selection from pack restore; does not trigger any observable side-effects beyond state change.
     /// Hit cache is NOT seeded — full hit objects become available again when hits reappear in search results.
-    func seed(_ ids: Set<String>, for wf: WorkbenchWorkflowID) {
+    func seed(_ ids: Set<String>, for wf: String) {
         selectedIDsByWorkflow[wf] = ids
     }
 
     /// Seed selection from pack restore and hydrate display/hit caches from the provided available hits.
     /// IDs with no matching hit in availableHits are kept in the selection but remain cache-dark until
     /// they reappear in a search (graceful degradation — no crash).
-    func seed(ids: Set<String>, for wf: WorkbenchWorkflowID, availableHits: [WorkflowMeasurementSearchHit]) {
+    func seed(ids: Set<String>, for wf: String, availableHits: [WorkflowMeasurementSearchHit]) {
         selectedIDsByWorkflow[wf] = ids
         var displayCache: [String: SelectedHitDisplayInfo] = [:]
         var hitCache: [String: WorkflowMeasurementSearchHit] = [:]

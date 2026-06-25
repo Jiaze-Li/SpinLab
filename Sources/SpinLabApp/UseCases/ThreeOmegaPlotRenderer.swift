@@ -13,6 +13,7 @@ struct ThreeOmegaPlotRenderer {
     static let scalingXAxisLabel = #"math:σ_{xx}^{2} × 10^{7} (S^{2} cm^{-2})"#
     static let scalingYAxisLabel = #"math:E_{AHE}^{3ω} / (E_{xx}^{3}·σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})"#
 
+    var workflowID: String = ""
     var showGrid: Bool = true
     var legendAnchor: String = ""           // "" = top-right (default)
     var legendPoint: CGPoint? = nil         // normalized free-position; overrides anchor
@@ -103,7 +104,7 @@ struct ThreeOmegaPlotRenderer {
         }
         let yLabel = "R(1ω) (Ω)"
         var payload = WorkbenchPlotPayload(
-            workflowID: "3w",
+            workflowID: workflowID,
             workflowDisplayName: "3w",
             title: _defaultTitle("R(1ω)", device: device, deviceMode: _deviceMode(for: device)),
             // Formula: R(1ω)(H) = V¹ω_X(H) / I_rms, centered, then stacked by temperature
@@ -144,7 +145,7 @@ struct ThreeOmegaPlotRenderer {
         }
         let yLabel = "R(3ω) (Ω)"
         var payload = WorkbenchPlotPayload(
-            workflowID: "3w",
+            workflowID: workflowID,
             workflowDisplayName: "3w",
             title: _defaultTitle("R(3ω)", device: device, deviceMode: _deviceMode(for: device)),
             // Formula: R(3ω)(H) = V³ω_X(H) / I_rms, centered, then stacked by temperature
@@ -167,7 +168,7 @@ struct ThreeOmegaPlotRenderer {
 
         let methodTag = method == .highField ? "HFE" : "WA"
         var payload = WorkbenchPlotPayload(
-            workflowID: "3w",
+            workflowID: workflowID,
             workflowDisplayName: "3w",
             title: _defaultTitle("RAHE(1ω) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE(1ω) (Ω)"),
@@ -187,7 +188,7 @@ struct ThreeOmegaPlotRenderer {
 
         let methodTag = method == .highField ? "HFE" : "WA"
         var payload = WorkbenchPlotPayload(
-            workflowID: "3w",
+            workflowID: workflowID,
             workflowDisplayName: "3w",
             title: _defaultTitle("RAHE(3ω) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE(3ω) (Ω)"),
@@ -240,7 +241,7 @@ struct ThreeOmegaPlotRenderer {
         let angleLabels = sorted.map { "\(Int($0.angle.rounded()))°" }
 
         var payload = WorkbenchPlotPayload(
-            workflowID: "3w",
+            workflowID: workflowID,
             workflowDisplayName: "3w",
             title: _defaultTitle("RAHE(\(hLabel)) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
             axisMapping: WorkbenchAxisMapping(xField: "Device angle (deg)", yField: "RAHE(\(hLabel)) (Ω)"),
@@ -300,7 +301,7 @@ struct ThreeOmegaPlotRenderer {
 
         let device = groups.first?.sweeps.first?.device ?? ""
         var payload = WorkbenchPlotPayload(
-            workflowID: "3w",
+            workflowID: workflowID,
             workflowDisplayName: "3w",
             title: _defaultTitle("RAHE(\(hLabel)) (\(methodTag))", device: device),
             axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE(\(hLabel)) (Ω)"),
@@ -325,7 +326,7 @@ struct ThreeOmegaPlotRenderer {
         if !temps3.isEmpty { series.append(WorkbenchPlotSeries(label: "Hc³ω", x: temps3, y: hc3)) }
 
         var payload = WorkbenchPlotPayload(
-            workflowID: "3w",
+            workflowID: workflowID,
             workflowDisplayName: "3w",
             title: _defaultTitle("Hc", device: device, deviceMode: _deviceMode(for: device)),
             // Formula: Hc = (|Hc⁺| + |Hc⁻|) / 2  (midpoint crossing on each branch)
@@ -341,7 +342,7 @@ struct ThreeOmegaPlotRenderer {
     mutating func renderRT(rt: ThreeOmegaRTResult) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
         guard !rt.temperatureK.isEmpty else { return (nil, nil, nil, []) }
         var payload = WorkbenchPlotPayload(
-            workflowID: "3w",
+            workflowID: workflowID,
             workflowDisplayName: "3w",
             title: _defaultTitle("RT", device: rt.device, deviceMode: _deviceMode(for: rt.device)),
             // Formula: Rxx(T) = Col[9] = V¹ω_X / I_rms (pre-calculated in RT file)
@@ -423,7 +424,7 @@ struct ThreeOmegaPlotRenderer {
             r2Str = ""
         }
         return WorkbenchPlotPayload(
-            workflowID: "3w",
+            workflowID: workflowID,
             workflowDisplayName: "3w",
             title: _defaultTitle("Scaling Law", device: device, method: method, deviceMode: _deviceMode(for: device)) + r2Str,
             // Formula: Y = E^(3ω)_AHE / (E_xx³ × σ_xx) = α·σ²_xx + β

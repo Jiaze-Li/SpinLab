@@ -21,7 +21,7 @@ final class SpinLabAppState {
     var activeAlert: AppAlertState?
     private(set) var appStateRevision: Int = 0
     var applyProgressState: ApplyProgressState = .init()
-    let workflow: SpinLabDomain.WorkflowKind
+    let workflow: WorkflowKey
 
     // MARK: - Internal stored properties (cross-file extension access)
 

@@ -70,7 +70,7 @@ struct V564GlobalPlotDefaultsTests {
 
     @Test("IV restoreFromPack migrates old font overrides into shared global defaults")
     func ivRestoreMigratesLegacyFontOverrides() throws {
-        let store = IVWorkspaceStore()
+        let store = IVWorkspaceStore(workflowID: WorkflowKey.iv.rawValue)
         store.xCurrentBasis = .peak
 
         let config = IVPackConfig(

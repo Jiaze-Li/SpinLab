@@ -51,7 +51,7 @@ struct V537WorkbenchSelectionShellTests {
     @MainActor
     private func seedCanonicalState(
         _ wfs: WorkbenchFeatureStore,
-        workflow: WorkbenchWorkflowID,
+        workflow: WorkflowKey,
         query: String,
         results: [WorkflowMeasurementSearchHit]
     ) {
@@ -60,7 +60,7 @@ struct V537WorkbenchSelectionShellTests {
     }
 
     @MainActor
-    private func canonicalState(_ wfs: WorkbenchFeatureStore, workflow: WorkbenchWorkflowID) -> CanonicalSearchState {
+    private func canonicalState(_ wfs: WorkbenchFeatureStore, workflow: WorkflowKey) -> CanonicalSearchState {
         CanonicalSearchState(
             query: wfs.searchQueryText(for: workflow),
             results: wfs.searchResultsList(for: workflow),

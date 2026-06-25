@@ -252,7 +252,7 @@ struct V824RSMSaveToLibraryTests {
     @Test("activeChartManifestPayload remains nil for RSM — save does not require WorkbenchPlotPayload")
     @MainActor
     func rsmSaveDoesNotRequireWorkbenchPlotPayload() {
-        let store = RSMWorkspaceStore()
+        let store = RSMWorkspaceStore(workflowID: WorkflowKey.rsm.rawValue)
         // Without analysis, both PNG and manifest payload are nil
         #expect(store.activeChartPNG == nil)
         #expect(store.activeChartManifestPayload == nil)
@@ -306,7 +306,7 @@ struct V824RSMSaveToLibraryTests {
     @Test("RSM nil PNG guard sets only saveMessage; other state untouched")
     @MainActor
     func rsmNilPNGGuardIsContained() {
-        let store = RSMWorkspaceStore()
+        let store = RSMWorkspaceStore(workflowID: WorkflowKey.rsm.rawValue)
         // No PNG — guard fires
         store.persistToLibrary()
         #expect(store.saveMessage == "No chart to save. Run analysis first.")
@@ -319,7 +319,7 @@ struct V824RSMSaveToLibraryTests {
     @Test("clearPlot clears saveMessage for RSM")
     @MainActor
     func clearPlotClearsSaveMessageRSM() {
-        let store = RSMWorkspaceStore()
+        let store = RSMWorkspaceStore(workflowID: WorkflowKey.rsm.rawValue)
         store.persistToLibrary()
         #expect(store.saveMessage != nil)
         store.clearPlot()
@@ -338,7 +338,7 @@ struct V824RSMSaveToLibraryTests {
 
         let rsmFile = try writeTempRSMFile(rsmSaveHL3x3, in: dataDir)
 
-        let store = RSMWorkspaceStore()
+        let store = RSMWorkspaceStore(workflowID: WorkflowKey.rsm.rawValue)
         store.lastLibraryRootPath = libDir.path
 
         let hit = makeHit(filePath: rsmFile.path)
@@ -385,7 +385,7 @@ struct V824RSMSaveToLibraryTests {
 
         let rsmFile = try writeTempRSMFile(rsmSaveHL3x3, in: dataDir)
 
-        let store = RSMWorkspaceStore()
+        let store = RSMWorkspaceStore(workflowID: WorkflowKey.rsm.rawValue)
         store.lastLibraryRootPath = libDir.path
         let hit = makeHit(filePath: rsmFile.path)
 
@@ -452,7 +452,7 @@ struct V824RSMSaveToLibraryTests {
         let vault = AnalysisVault()
         vault.configurePersistence(libraryRootPath: libDir.path)
 
-        let store = RSMWorkspaceStore()
+        let store = RSMWorkspaceStore(workflowID: WorkflowKey.rsm.rawValue)
         store.vault = vault
         // lastLibraryRootPath intentionally NOT set — must come from vault via restoreFromPack
         #expect(store.lastLibraryRootPath.isEmpty)

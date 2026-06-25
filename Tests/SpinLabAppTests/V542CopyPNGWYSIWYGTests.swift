@@ -18,7 +18,7 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
 
     @MainActor
     func testAllScalesRenderFromDisplayPayload() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let displayPayload = makePayload(yValues: [10.0, 11.0])
         let layout = makeLayout(for: displayPayload)
         let sentinel = Data([0xDE, 0xAD, 0xBE, 0xEF])
@@ -48,7 +48,7 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
 
     @MainActor
     func testActiveImageDataIsOnlyUsedAsFallback() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let fallback = Data([0xFA, 0x11, 0xBA, 0xCF])
 
         // No displayPayload, no valid manifest → all scales must fallback to activeImageData.
@@ -160,7 +160,7 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
 
     @MainActor
     func testRAHECopyPNGFallsBackToImageDataWhenManifestIsEmptyStub() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
 
         let fakePNG = makeSolidPNG()
         let emptyStub = WorkbenchPlotPayload(
@@ -190,7 +190,7 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
 
     @MainActor
     func testOneXAndThreeXUseDisplayPayloadNotManifestPayload() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
 
         let displayPayload = makePayload(yValues: [10.5, 11.5])
         let manifestPayload = makePayload(yValues: [1.0, 1.0])   // raw, never offset
@@ -220,7 +220,7 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
 
     @MainActor
     func testAllScalesHaveSameSeriesSemantics() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let displayPayload = makePayload(yValues: [42.0, 43.0])
         let pngFor2x = try makePNG(payload: displayPayload, scale: 2.0)
         let layout = makeLayout(for: displayPayload)

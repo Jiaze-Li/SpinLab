@@ -27,6 +27,7 @@ enum RSMHeatmapPayloadBuilderError: Error, Sendable, LocalizedError, Equatable {
 enum RSMHeatmapPayloadBuilder {
 
     struct Options: Sendable {
+        var workflowID: String = ""
         var view: RSMView = .hl
         var title: String = ""
         /// Explicit z-axis label. Empty = use dataset.detectorColumnName.
@@ -86,7 +87,7 @@ enum RSMHeatmapPayloadBuilder {
         let resolvedZLabel = options.zLabel.isEmpty ? dataset.detectorColumnName : options.zLabel
 
         return HeatmapPlotPayload(
-            workflowID: "rsm",
+            workflowID: options.workflowID,
             title: resolvedTitle,
             xLabel: view.xLabel,
             yLabel: view.yLabel,

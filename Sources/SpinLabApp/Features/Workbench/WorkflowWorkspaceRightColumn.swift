@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct WorkflowWorkspaceRightColumn<Store: WorkbenchWorkspaceProviding, RightExtra: View>: View {
-    let workflowID: WorkbenchWorkflowID
+    let workflowID: String
     let store: Store
     let workbench: WorkbenchFeatureStore
 

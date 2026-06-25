@@ -62,7 +62,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
             tabStates: tabs.snapshotStates(keyFor: { $0.stableKey }),
             chartStyleOverrides: splitOverrides.local,
             cachedSearchResults: cachedSearchResults,
-            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: .threeOmega) ?? []),
+            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: workflowID) ?? []),
             selectedRTHit: selectedRTHit,
             rtQuery: rtQuery,
             searchQueryText: ""   // filled by caller at WorkbenchFeatureStore level
@@ -112,6 +112,9 @@ func autoPackLabel() -> String { _autoPackLabel() }
         rtQuery = config.rtQuery
         persistRTQuery()
         selectedRTHit = config.selectedRTHit
+        if let rtHit = config.selectedRTHit {
+            launchRTAnalysis(for: rtHit)
+        }
 
         // Restore display settings
         if let tab = ThreeOmegaWorkbenchTab.allCases.first(where: { $0.stableKey == config.activeTab }) {

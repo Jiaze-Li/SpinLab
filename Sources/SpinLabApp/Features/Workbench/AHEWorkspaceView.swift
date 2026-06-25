@@ -9,7 +9,7 @@ struct AHEWorkspaceView: View, WorkflowWorkspaceProvider {
         let ahe = appState.workbench.aheWorkspace
 
         WorkflowWorkspaceShell(
-            workflowID: .ahe,
+            workflowID: ahe.workflowID,
             store: ahe,
             workbench: appState.workbench,
             searchExtra: { EmptyView() },

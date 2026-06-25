@@ -31,7 +31,7 @@ struct V332WorkflowWorkspaceDispatchTests {
     }
 
     @MainActor
-    private func waitForSearchToFinish(_ wfs: WorkbenchFeatureStore, workflowID: WorkbenchWorkflowID) async throws {
+    private func waitForSearchToFinish(_ wfs: WorkbenchFeatureStore, workflowID: WorkflowKey) async throws {
         var attempts = 0
         while wfs.isSearchRunning(for: workflowID) && attempts < 40 {
             try await Task.sleep(nanoseconds: 50_000_000)
@@ -76,6 +76,42 @@ struct V332WorkflowWorkspaceDispatchTests {
     }
 
     @MainActor
+    @Test("runWorkflowMeasurementSearch syncs canonical results and mirrors into the RT workspace")
+    func runSearchSyncsCanonicalResultsAndMirrorForRT() async throws {
+        let runHits = [makeHit(id: "rt-run-1", workflowID: "RT", workflowCanonicalID: "RT", sampleKey: "PN40|b|STO|111")]
+        let actor = StubSearchDataActor(stubbedHits: runHits)
+        let persistence = LocalPersistenceStub(archivedRecords: [], projects: [])
+        let wfs = WorkbenchFeatureStore(
+            libraryRepository: LibraryRepository(persistence: persistence),
+            dataActor: actor
+        )
+
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("spinlab-v332-search-rt-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        wfs.setSearchQueryText("RT run", for: .rt)
+        wfs.runWorkflowMeasurementSearch(workflowID: .rt, libraryRootPath: tempRoot.path)
+
+        try await waitForSearchToFinish(wfs, workflowID: .rt)
+
+        #expect(wfs.searchResultsList(for: .rt) == runHits)
+        #expect(wfs.rtWorkspace.cachedSearchResults == runHits)
+        #expect(wfs.rtWorkspace.cachedSearchResults == wfs.searchResultsList(for: .rt))
+        #expect(wfs.rtWorkspace.cachedSampleNumericDisplay[runHits[0].sampleKey]?["温度"] == "80K")
+        #expect(wfs.rtWorkspace.lastLibraryRootPath == tempRoot.path)
+        #expect(wfs.searchMessage(for: .rt) == "Found 1 file(s).")
+
+        wfs.clearWorkflowMeasurementSearch(workflowID: .rt)
+        #expect(wfs.searchResultsList(for: .rt).isEmpty)
+        #expect(wfs.rtWorkspace.cachedSearchResults.isEmpty)
+        #expect(wfs.rtWorkspace.cachedSampleNumericDisplay.isEmpty)
+        #expect(wfs.searchMessage(for: .rt) == nil)
+        #expect(wfs.isSearchRunning(for: .rt) == false)
+    }
+
+    @MainActor
     @Test("clearWorkflowMeasurementSearch propagates cache-clear to aheWorkspace")
     func clearSearchPropagatestoAHESubStore() async throws {
         let runHits = [makeHit(id: "run-1", workflowID: "ahe", workflowCanonicalID: "ahe", sampleKey: "PN40|b|STO|111")]
@@ -104,7 +140,7 @@ struct V332WorkflowWorkspaceDispatchTests {
         #expect(wfs.searchResultsList(for: .ahe).isEmpty)
         #expect(wfs.aheWorkspace.cachedSearchResults.isEmpty)
         #expect(wfs.aheWorkspace.cachedSampleNumericDisplay.isEmpty)
-        #expect(wfs.searchQueryText(for: .ahe) == WorkbenchWorkflowID.ahe.searchPrefix)
+        #expect(wfs.searchQueryText(for: .ahe) == WorkflowKey.ahe.searchPrefix)
         #expect(wfs.searchMessage(for: .ahe) == nil)
         #expect(wfs.isSearchRunning(for: .ahe) == false)
         #expect(wfs.aheWorkspace.cachedSearchResults.isEmpty)

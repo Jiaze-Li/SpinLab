@@ -17,10 +17,12 @@ struct IngestThreeOmegaSelectionsUseCase {
 
     /// Returns ingestion result for one device's worth of selected hits.
     ///
+    /// - Parameter rtAnalysisResult: Pre-analyzed RT curve from AnalyzeRTWorkflowUseCase.
+    ///   When provided it is used directly; auto-detection from mixed hits still runs as fallback.
     /// - Parameter parseFile: Injectable for testing. Defaults to real LVM parser.
     func execute(
         hits: [WorkflowMeasurementSearchHit],
-        rtHit: WorkflowMeasurementSearchHit? = nil,
+        rtAnalysisResult: RTAnalysisResult? = nil,
         numericDisplayBySample: [String: [String: String]] = [:],
         parseFile: ((URL) throws -> ThreeOmegaLVMFile)? = nil
     ) -> ThreeOmegaIngestionResult {
@@ -69,7 +71,7 @@ struct IngestThreeOmegaSelectionsUseCase {
                     var result = fitter.process(file: file, deviceOverride: resolvedDevice)
                     result.sampleID = "\(hit.sampleKey)#\(result.temperatureK)"
                     result.sourceFilePath = hit.measurementFilePath
-                    result.sampleMetadata = Self._buildSampleMetadata(
+                    result.sampleMetadata = WorkbenchSeriesMetadataBuilder.build(
                         from: hit,
                         numericDisplay: numericDisplayBySample[hit.sampleKey] ?? [:]
                     )
@@ -97,29 +99,16 @@ struct IngestThreeOmegaSelectionsUseCase {
             }
         }
 
-        // RT file: prefer dedicated rtHit (user-selected), fall back to auto-detected from hits.
+        // RT result: prefer pre-analyzed result from AnalyzeRTWorkflowUseCase (user-selected RT hit),
+        // fall back to auto-detected RT files mixed into the 3w selection.
         let rtResult: ThreeOmegaRTResult? = {
-            if let rtHit {
-                let url = URL(fileURLWithPath: rtHit.measurementFilePath)
-                do {
-                    let tempOverride = parseFile == nil
-                        ? _parseConditionTemperatureK(rtHit.conditions["temperature"])
-                        : nil
-                    let file = try (parseFile.map { try $0(url) } ?? parser.parse(fileURL: url, temperatureOverride: tempOverride, kindOverride: .rtSweep))
-                    guard !file.col0.isEmpty else {
-                        warnings.append("Dedicated RT file has no data rows: \(url.lastPathComponent)")
-                        return nil
-                    }
-                    let pairs = zip(file.col0, file.col9).sorted { $0.0 < $1.0 }
-                    return ThreeOmegaRTResult(
-                        device: device,
-                        temperatureK: pairs.map { $0.0 },
-                        rxx: pairs.map { $0.1 }
-                    )
-                } catch {
-                    warnings.append("Failed to parse dedicated RT file [\(url.lastPathComponent)]: \(error.localizedDescription)")
-                    return nil
-                }
+            if let rtAnalysisResult, !rtAnalysisResult.temperatureK.isEmpty {
+                warnings.append(contentsOf: rtAnalysisResult.warnings)
+                return ThreeOmegaRTResult(
+                    device: rtAnalysisResult.device.isEmpty ? device : rtAnalysisResult.device,
+                    temperatureK: rtAnalysisResult.temperatureK,
+                    rxx: rtAnalysisResult.rxx
+                )
             }
 
             guard let best = rtFiles.max(by: { $0.col0.count < $1.col0.count }),
@@ -164,9 +153,9 @@ struct IngestThreeOmegaSelectionsUseCase {
 
     private func _parseKind(_ canonicalID: String) -> ThreeOmegaFileKind? {
         switch canonicalID {
-        case "rt":  return .rtSweep
-        case "3w":  return .fieldSweep
-        default:    return nil
+        case "rt", "RT":  return .rtSweep
+        case "3w":        return .fieldSweep
+        default:          return nil
         }
     }
 
@@ -179,65 +168,12 @@ struct IngestThreeOmegaSelectionsUseCase {
         return Double(digits.trimmingCharacters(in: .whitespaces))
     }
 
-    /// Builds resolver-compatible metadata from a search hit.
-    /// Substrate includes processing tokens (b, o, HF, etc.) + material + orientation
-    /// so that samples with the same material but different treatments are distinguished.
-    ///
-    /// - Parameter numericDisplay: Optional per-sample numeric display values from library index
-    ///   (keys like "厚度", "温度", "氧压", "能量"). Mapped to resolver keys.
+    /// Legacy compatibility wrapper. New workflows should call
+    /// `WorkbenchSeriesMetadataBuilder.build(from:numericDisplay:)` directly.
     static func _buildSampleMetadata(
         from hit: WorkflowMeasurementSearchHit,
         numericDisplay: [String: String] = [:]
     ) -> [String: String] {
-        var meta: [String: String] = [:]
-
-        // Condition-level: test temperature, device
-        if let t = hit.conditions["temperature"] { meta["temperature"] = t }
-        if let d = hit.conditions["device"], !d.isEmpty { meta["device"] = d }
-
-        // SampleKey-level: substrate (processing tokens + material + orientation)
-        if let descriptor = SampleSemanticDescriptor.fromSampleKey(hit.sampleKey) {
-            // Prefer rule-set-normalized display tokens; fall back to raw key component
-            // so unregistered tokens (e.g. "o", "b") still distinguish series in the legend.
-            let treatment: String
-            if !descriptor.processingTokens.isEmpty {
-                treatment = descriptor.processingTokens.sorted().joined(separator: "+")
-            } else {
-                let keyParts = hit.sampleKey.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
-                treatment = keyParts.count >= 2 ? keyParts[1] : ""
-            }
-            let material = descriptor.material ?? ""
-            let orientation = descriptor.orientation ?? ""
-            let parts = [treatment, material, orientation]
-                .filter { !$0.isEmpty }
-            let computed = parts.joined(separator: " ")
-            if !computed.isEmpty {
-                meta["substrate"] = computed
-            } else if !hit.sampleSubstrate.isEmpty {
-                meta["substrate"] = hit.sampleSubstrate
-            }
-        } else if !hit.sampleSubstrate.isEmpty {
-            meta["substrate"] = hit.sampleSubstrate
-        }
-
-        // NumericTags-level: energy, pressure, growth temperature, thickness
-        // Keys in numericDisplay are Chinese column headers from registry XLSX.
-        for (chineseKey, value) in numericDisplay {
-            let lower = chineseKey.lowercased()
-            if lower.contains("能量") || lower.contains("energy") {
-                meta["energy"] = value
-            } else if lower.contains("氧压") || lower.contains("pressure") {
-                meta["pressure"] = value
-            } else if lower.contains("厚度") || lower.contains("thickness") {
-                meta["thickness"] = value
-            } else if lower.contains("温度") || lower.contains("temperature") {
-                // Growth temperature from registry — distinct from test temperature
-                meta["growthTemperature"] = value
-            }
-        }
-
-        meta["sampleKey"] = hit.sampleKey
-        meta["batchID"] = hit.batchID
-        return meta
+        WorkbenchSeriesMetadataBuilder.build(from: hit, numericDisplay: numericDisplay)
     }
 }

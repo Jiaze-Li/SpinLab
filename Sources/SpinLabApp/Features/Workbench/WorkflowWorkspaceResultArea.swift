@@ -3,7 +3,7 @@ import SwiftUI
 struct WorkflowWorkspaceResultArea<Store: WorkbenchWorkspaceProviding>: View {
     @Environment(SpinLabAppState.self) private var appState
 
-    let workflowID: WorkbenchWorkflowID
+    let workflowID: String
     let store: Store
     let workbench: WorkbenchFeatureStore
 

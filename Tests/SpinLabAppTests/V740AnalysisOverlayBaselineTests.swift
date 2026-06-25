@@ -97,7 +97,7 @@ struct V740AnalysisOverlayBaselineTests {
     @MainActor
     @Test("pack round-trip does not preserve overlay IDs")
     func packRoundTripDoesNotPreserveOverlayIDs() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let rt = WorkbenchAnalysisOverlayRuntime()
         store.overlayRuntime = rt
         let overlayID = AnalysisPack.ID()
@@ -128,7 +128,7 @@ struct V740AnalysisOverlayBaselineTests {
     @MainActor
     @Test("restoreFromPack clears overlayPackIDs")
     func restoreFromPackClearsOverlayPackIDs() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let rt = WorkbenchAnalysisOverlayRuntime()
         store.overlayRuntime = rt
         let overlayID = AnalysisPack.ID()
@@ -151,7 +151,7 @@ struct V740AnalysisOverlayBaselineTests {
     @MainActor
     @Test("restoreFromPack clears overlaySnapshots")
     func restoreFromPackClearsOverlaySnapshots() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let rt = WorkbenchAnalysisOverlayRuntime()
         store.overlayRuntime = rt
         let overlayID = AnalysisPack.ID()
@@ -175,7 +175,7 @@ struct V740AnalysisOverlayBaselineTests {
     @MainActor
     @Test("clearPlot clears overlay IDs and snapshots")
     func clearPlotClearsOverlayState() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let rt = WorkbenchAnalysisOverlayRuntime()
         store.overlayRuntime = rt
         let idA = AnalysisPack.ID()
@@ -201,7 +201,7 @@ struct V740AnalysisOverlayBaselineTests {
     @MainActor
     @Test("overlay snapshot survives vault deletion — rerender uses snapshot not vault")
     func overlaySnapshotSurvivesVaultDeletion() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let vault = AnalysisVault()
         store.vault = vault
 
@@ -239,7 +239,7 @@ struct V740AnalysisOverlayBaselineTests {
     @MainActor
     @Test("scaling tab with active overlays does not crash (no overlay render path for scaling)")
     func scalingTabSkipsOverlayRenderPath() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
 
         // Set up a minimal ingestion result so the guard in _rerenderActiveTab passes.
         store.ingestionResult = ThreeOmegaIngestionResult(fieldSweeps: [], rtResult: nil, device: "")

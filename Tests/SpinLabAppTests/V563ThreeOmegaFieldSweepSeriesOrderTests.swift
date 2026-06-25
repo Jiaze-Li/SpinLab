@@ -43,7 +43,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
     @MainActor
     @Test("AHE 1ω and 3ω share one field-sweep series order across tab switches")
     func sharedSeriesOrderSurvivesTabSwitches() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let order = ["/tmp/bottom.csv", "/tmp/top.csv"]
 
         store.tabs.activeTab = .fieldSweep1omega
@@ -66,7 +66,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
     @MainActor
     @Test("Resetting series order clears both field-sweep tabs")
     func resetSeriesOrderClearsBothTabs() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.tabs.activeTab = .fieldSweep1omega
         store.updateSeriesOrder(["/tmp/bottom.csv", "/tmp/top.csv"])
 
@@ -161,7 +161,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
     @MainActor
     @Test("Manifest refresh uses the shared field-sweep order for both tabs")
     func manifestRefreshUsesSharedOrderForBothTabs() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.ingestionResult = makeIngestionResult()
         store.cachedInputFiles = ["/tmp/bottom.csv", "/tmp/top.csv"]
         store.tabs.activeTab = .fieldSweep1omega
@@ -183,7 +183,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
     @MainActor
     @Test("After updateSeriesOrder, activeManifestPayload series matches the committed order")
     func activeManifestPayloadMatchesCommittedOrder() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.ingestionResult = makeIngestionResult()
         store.cachedInputFiles = ["/tmp/bottom.csv", "/tmp/top.csv"]
         store.tabs.activeTab = .fieldSweep1omega
@@ -201,7 +201,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
     @MainActor
     @Test("Panel displayed rows after updateSeriesOrder show visual top-to-bottom order")
     func panelDisplayedRowsReflectSeriesOrder() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.ingestionResult = makeIngestionResult()
         store.cachedInputFiles = ["/tmp/bottom.csv", "/tmp/top.csv"]
         store.tabs.activeTab = .fieldSweep1omega

@@ -9,7 +9,7 @@ struct ThreeOmegaWorkspaceView: View, WorkflowWorkspaceProvider {
         @Bindable var bindableStore = appState.workbench.threeOmegaWorkspace
 
         WorkflowWorkspaceShell(
-            workflowID: .threeOmega,
+            workflowID: store.workflowID,
             store: store,
             workbench: appState.workbench,
             searchExtra: {

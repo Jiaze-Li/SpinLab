@@ -217,7 +217,7 @@ struct V537PackRestoreModuleBoundaryTests {
     @MainActor
     @Test("3ω restoreFromPack: currentRunTrace is nil immediately after restore")
     func threeOmegaRestoreTraceNilAfterRestore() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let hits = [makeHit(id: "3w-trace-a", workflowID: "3w", workflowCanonicalID: "threeOmega")]
         let (config, result, pack) = try makeThreeOmegaPack(hits: hits, selectedIDs: [hits[0].id])
         var callbackFired = false
@@ -236,7 +236,7 @@ struct V537PackRestoreModuleBoundaryTests {
     @MainActor
     @Test("XY restoreFromPack: currentRunTrace is nil immediately after restore")
     func xyRestoreTraceNilAfterRestore() throws {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         let hits = [makeHit(id: "xy-trace-a", workflowID: "xy", workflowCanonicalID: "xyRotation")]
         let (config, result, pack) = try makeXYPack(hits: hits, selectedIDs: [hits[0].id])
         var callbackFired = false
@@ -358,7 +358,7 @@ struct V537PackRestoreModuleBoundaryTests {
     @MainActor
     @Test("AHE legacy restore with nil ingestionResult activates runAnalysis(); search state pre-seeded")
     func aheRestoreNilIngestionActivatesRunAnalysis() throws {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         let hit = makeHit(id: "ahe-legacy", workflowID: "ahe", workflowCanonicalID: "ahe")
 
         // Legacy pack: nil ingestionResult, 1 hit in cache, no selected IDs.
@@ -410,7 +410,7 @@ struct V537PackRestoreModuleBoundaryTests {
     @MainActor
     @Test("AHE pack with deprecated axis override fields fails restore with clear message")
     func aheDeprecatedAxisOverridePackFailsWithClearMessage() throws {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         let vault = AnalysisVault()
         store.vault = vault
 
@@ -449,7 +449,7 @@ struct V537PackRestoreModuleBoundaryTests {
     @MainActor
     @Test("3ω restore does not set persistenceOutcome or saveMessage")
     func threeOmegaRestoreDoesNotSetSessionOnlyFields() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let hits = [makeHit(id: "3w-session", workflowID: "3w", workflowCanonicalID: "threeOmega")]
         let (config, result, pack) = try makeThreeOmegaPack(hits: hits, selectedIDs: [hits[0].id])
 
@@ -465,7 +465,7 @@ struct V537PackRestoreModuleBoundaryTests {
     @MainActor
     @Test("XY restore does not set persistenceOutcome or saveMessage")
     func xyRestoreDoesNotSetSessionOnlyFields() throws {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         let hits = [makeHit(id: "xy-session", workflowID: "xy", workflowCanonicalID: "xyRotation")]
         let (config, result, pack) = try makeXYPack(hits: hits, selectedIDs: [hits[0].id])
 
@@ -481,7 +481,7 @@ struct V537PackRestoreModuleBoundaryTests {
     @MainActor
     @Test("AHE restore (non-legacy) does not set persistenceOutcome or saveMessage")
     func aheRestoreNonLegacyDoesNotSetSessionOnlyFields() throws {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         let hits = [makeHit(id: "ahe-session", workflowID: "ahe", workflowCanonicalID: "ahe")]
         let ingestion = AHEIngestionResult(
             defaultAxisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
@@ -587,7 +587,7 @@ struct V537PackRestoreModuleBoundaryTests {
     @MainActor
     @Test("3ω restoreFromPack does not set activePackID — loadPack() caller is responsible")
     func threeOmegaRestoreFromPackDoesNotSetActivePackID() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let hits = [makeHit(id: "3w-packid", workflowID: "3w", workflowCanonicalID: "threeOmega")]
         let (config, result, pack) = try makeThreeOmegaPack(hits: hits, selectedIDs: [hits[0].id])
 
@@ -603,7 +603,7 @@ struct V537PackRestoreModuleBoundaryTests {
     @MainActor
     @Test("XY restoreFromPack does not set activePackID — loadPack() caller is responsible")
     func xyRestoreFromPackDoesNotSetActivePackID() throws {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         let hits = [makeHit(id: "xy-packid", workflowID: "xy", workflowCanonicalID: "xyRotation")]
         let (config, result, pack) = try makeXYPack(hits: hits, selectedIDs: [hits[0].id])
 

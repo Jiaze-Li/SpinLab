@@ -267,7 +267,7 @@ extension ThreeOmegaWorkspaceStore: WorkbenchWorkspaceProviding {
         let device = result.deviceMode == "angleSweep" ? "angle_sweep" : (result.device.isEmpty ? "unknown" : result.device)
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,
-            workflowID: "3w",
+            workflowID: workflowID,
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(xField: "H (Oe)", yField: "R (Ω)"),
             semanticParams: [

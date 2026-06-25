@@ -530,7 +530,7 @@ struct V710LegendRenameOrderCoexistenceTests {
     @MainActor
     @Test("Committing a series rename does not touch seriesOrder")
     func renameDoesNotTouchSeriesOrder() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.tabs.tabStates[.fieldSweep1omega] = TabRenderState(seriesOrder: ["ref-b", "ref-a"])
 
         store.updateSeriesLabel(identityKey: "sample-a", newLabel: "Renamed")
@@ -542,7 +542,7 @@ struct V710LegendRenameOrderCoexistenceTests {
     @MainActor
     @Test("Updating series order does not touch seriesLabelOverrides")
     func updateOrderDoesNotTouchSeriesLabels() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.tabs.activeTab = .fieldSweep1omega
         store.tabs.tabStates[.fieldSweep1omega] = TabRenderState(seriesLabelOverrides: ["sample-b": "Custom B"])
 

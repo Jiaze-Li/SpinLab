@@ -79,9 +79,11 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Environment
 
+    let workflowID: String
     @ObservationIgnored private let env: WorkbenchEnvironment
 
-    init(env: WorkbenchEnvironment = .live) {
+    init(workflowID: String, env: WorkbenchEnvironment = .live) {
+        self.workflowID = workflowID
         self.env = env
     }
 
@@ -196,6 +198,7 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
 
     private func _snapshotRenderer(forTab tab: IVWorkbenchTab) -> IVPlotRenderer {
         var r = IVPlotRenderer()
+        r.workflowID = workflowID
         r.titleTemplate = titleTemplate
         r.seriesOrder = tabs.state(for: tab).seriesOrder
         r.ch1Component = ch1Component
@@ -287,7 +290,7 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
             xCurrentBasis: xCurrentBasis,
             tabStates: tabs.snapshotStates(keyFor: { $0.rawValue }),
             cachedSearchResults: cachedSearchResults,
-            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: .iv) ?? []),
+            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: workflowID) ?? []),
             searchQueryText: ""   // filled by caller at WorkbenchFeatureStore level
         )
     }
@@ -389,7 +392,7 @@ extension IVWorkspaceStore: AnalysisPackProviding {
     typealias PackConfig = IVPackConfig
     typealias PackResult = IVPackResult
 
-    var packWorkflowID: String { "IV" }
+    var packWorkflowID: String { workflowID }
     var packInputFiles: [String] { cachedInputFiles }
     var packSampleKeys: [String] { cachedSampleKeys }
     var hasAnalysisResult: Bool { ingestionResult != nil }
@@ -461,7 +464,7 @@ extension IVWorkspaceStore: WorkbenchWorkspaceProviding {
         let sourceHits = searchSnapshot?.results ?? cachedSearchResults
         let selectedHits: [WorkflowMeasurementSearchHit]
         if let reading = selectionReading {
-            let ids = reading.selectedIDs(for: .iv)
+            let ids = reading.selectedIDs(for: workflowID)
             selectedHits = _sortedSelectedHits(sourceHits.filter { ids.contains($0.id) })
         } else {
             selectedHits = _sortedSelectedHits(sourceHits)
@@ -473,7 +476,7 @@ extension IVWorkspaceStore: WorkbenchWorkspaceProviding {
         if let snapshot = selectedHitsSnapshot {
             _runAnalysis(selectedHits: _sortedSelectedHits(snapshot.selectedHits))
         } else {
-            let ids = selectionReading?.selectedIDs(for: .iv) ?? []
+            let ids = selectionReading?.selectedIDs(for: workflowID) ?? []
             let selectedHits = _sortedSelectedHits(cachedSearchResults.filter { ids.contains($0.id) })
             _runAnalysis(selectedHits: selectedHits)
         }
@@ -483,7 +486,7 @@ extension IVWorkspaceStore: WorkbenchWorkspaceProviding {
         guard !cachedInputFiles.isEmpty else { return nil }
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,
-            workflowID: "IV",
+            workflowID: workflowID,
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(xField: xCurrentBasis.axisLabel, yField: "V (V)"),
             semanticParams: ["sweeps": "\(ingestionResult?.sweeps.count ?? 0)"],

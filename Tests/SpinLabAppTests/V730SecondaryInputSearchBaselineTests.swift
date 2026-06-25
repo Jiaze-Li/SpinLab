@@ -102,7 +102,7 @@ struct V730SecondaryInputSearchBaselineTests {
     @MainActor
     @Test("priority 1: selectedRTHit from pack config is applied directly by restoreFromPack")
     func priority1_selectedRTHitFromPackAppliedDirectly() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let rtHit = makeHit(id: "rt-hit-pack")
         let config = makePackConfig(selectedRTHit: rtHit, rtQuery: "PN31 RT")
         let pack = try makePack(config: config)
@@ -129,7 +129,7 @@ struct V730SecondaryInputSearchBaselineTests {
     @MainActor
     @Test("priority 2a: applyRestoredRTHit promotes pendingRTSidecarPath to selectedRTHit")
     func priority2a_applyRestoredRTHitPromotesPendingSidecar() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let rtHit = makeHit(id: "rt-pending-resolved")
 
         // Simulate interaction-restore state: no selected hit, pending sidecar set.
@@ -150,7 +150,7 @@ struct V730SecondaryInputSearchBaselineTests {
     @MainActor
     @Test("priority 2b: clearPendingRTRestore leaves slot unbound when sidecar does not resolve")
     func priority2b_clearPendingRTRestoreLeavesSlotUnbound() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
 
         store.selectedRTHit = nil
         store.pendingRTSidecarPath = "/nonexistent/path.spinlab.json"
@@ -173,7 +173,7 @@ struct V730SecondaryInputSearchBaselineTests {
     @MainActor
     @Test("priority 3: cachedRTFilePath is derived from selectedRTHit — nil when no hit restored")
     func priority3_cachedRTFilePathDerivedFromSelectedRTHit() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let config = makePackConfig(selectedRTHit: nil, rtFilePath: "/tmp/rt-measurement.lvm")
         let pack = try makePack(config: config)
 
@@ -200,7 +200,7 @@ struct V730SecondaryInputSearchBaselineTests {
     @MainActor
     @Test("priority 4: all RT bridge fields nil; slot remains unbound; no crash")
     func priority4_allNilNocrash() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let config = makePackConfig(selectedRTHit: nil, rtFilePath: nil)
         let pack = try makePack(config: config)
 

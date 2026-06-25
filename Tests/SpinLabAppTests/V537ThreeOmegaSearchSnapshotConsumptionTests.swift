@@ -62,7 +62,7 @@ struct V537ThreeOmegaSearchSnapshotConsumptionTests {
     @MainActor
     @Test("runAnalysis(selectedHitsSnapshot:) uses provided selected hits, not stale cachedSearchResults")
     func selectedSnapshotResultsUsedWhenProvided() async {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
 
         let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
         let hitB = makeHit(sidecarPath: "sidecar-B", sampleKey: "PN32|b|STO|111")
@@ -98,7 +98,7 @@ struct V537ThreeOmegaSearchSnapshotConsumptionTests {
     @MainActor
     @Test("stale cachedSearchResults are ignored when selectedHitsSnapshot is provided")
     func staleCacheIgnoredWhenSelectedSnapshotProvided() async {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
 
         let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
         let stale = makeHit(sidecarPath: "sidecar-stale", sampleKey: "PN32|b|STO|111")
@@ -127,7 +127,7 @@ struct V537ThreeOmegaSearchSnapshotConsumptionTests {
     @MainActor
     @Test("runAnalysis(selectedHitsSnapshot: nil) falls back to cachedSearchResults + selectedSearchResultIDs")
     func nilSelectedSnapshotFallsBackToCache() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
 
         let hitB = makeHit(sidecarPath: "sidecar-B", sampleKey: "PN32|b|STO|111")
 
@@ -148,7 +148,7 @@ struct V537ThreeOmegaSearchSnapshotConsumptionTests {
     @MainActor
     @Test("runAnalysis() still succeeds via cachedSearchResults fallback for pack/restore paths")
     func noArgRunAnalysisRemainsLegacyCompatible() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
 
         let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
 
@@ -168,7 +168,7 @@ struct V537ThreeOmegaSearchSnapshotConsumptionTests {
     @MainActor
     @Test("runAnalysis(searchSnapshot:) still succeeds via snapshot fallback path")
     func searchSnapshotCompatibilityRemainsIntact() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
 
         let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
         let snapshot = WorkbenchSearchSnapshot(
@@ -193,7 +193,7 @@ struct V537ThreeOmegaSearchSnapshotConsumptionTests {
     @MainActor
     @Test("RT secondary search state is not modified by runAnalysis(searchSnapshot:)")
     func rtSearchStateUnaffected() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
 
         let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
         let rtHit = makeHit(sidecarPath: "sidecar-RT", sampleKey: "PN31|b|STO|111")

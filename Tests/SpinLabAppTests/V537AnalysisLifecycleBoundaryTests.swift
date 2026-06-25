@@ -50,7 +50,7 @@ struct V537AnalysisLifecycleBoundaryTests {
     @MainActor
     private func seedCanonicalSearch(
         _ wfs: WorkbenchFeatureStore,
-        workflow: WorkbenchWorkflowID,
+        workflow: WorkflowKey,
         query: String,
         results: [WorkflowMeasurementSearchHit],
         message: String,
@@ -64,7 +64,7 @@ struct V537AnalysisLifecycleBoundaryTests {
     @MainActor
     private func canonicalSearchState(
         _ wfs: WorkbenchFeatureStore,
-        workflow: WorkbenchWorkflowID
+        workflow: WorkflowKey
     ) -> CanonicalSearchState {
         CanonicalSearchState(
             query: wfs.searchQueryText(for: workflow),
@@ -75,7 +75,7 @@ struct V537AnalysisLifecycleBoundaryTests {
     }
 
     private func makeSelectedHitsSnapshot(
-        workflow: WorkbenchWorkflowID,
+        workflow: WorkflowKey,
         queryText: String,
         selectedHits: [WorkflowMeasurementSearchHit]
     ) -> WorkbenchSelectedHitsSnapshot {
@@ -203,7 +203,7 @@ struct V537AnalysisLifecycleBoundaryTests {
     @Test("AHE runAnalysis(selectedHitsSnapshot:) preserves canonical search and produces output")
     func aheRunAnalysisPreservesSearchAndProducesOutput() async {
         let wfs = makeWorkbenchStore()
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         let hit = makeHit(
             id: "ahe-hit",
             workflowID: "ahe",
@@ -239,7 +239,7 @@ struct V537AnalysisLifecycleBoundaryTests {
     @Test("AHE clearResults and clearPlot stay inside their current boundaries")
     func aheClearBoundaries() async {
         let wfs = makeWorkbenchStore()
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         let hit = makeHit(
             id: "ahe-clear",
             workflowID: "ahe",
@@ -279,7 +279,7 @@ struct V537AnalysisLifecycleBoundaryTests {
     @Test("XY runAnalysis(selectedHitsSnapshot:) preserves canonical search and produces output")
     func xyRunAnalysisPreservesSearchAndProducesOutput() async {
         let wfs = makeWorkbenchStore()
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         let hit = makeHit(
             id: "xy-hit",
             workflowID: "xy",
@@ -317,7 +317,7 @@ struct V537AnalysisLifecycleBoundaryTests {
     @Test("XY clearResults and clearPlot stay inside their current boundaries")
     func xyClearBoundaries() async {
         let wfs = makeWorkbenchStore()
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         let hit = makeHit(
             id: "xy-clear",
             workflowID: "xy",
@@ -368,7 +368,7 @@ struct V537AnalysisLifecycleBoundaryTests {
     @Test("3ω runAnalysis(selectedHitsSnapshot:) preserves canonical search and produces output")
     func threeOmegaRunAnalysisPreservesSearchAndProducesOutput() async {
         let wfs = makeWorkbenchStore()
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let hit = makeHit(
             id: "3w-hit",
             workflowID: "3w",
@@ -406,7 +406,7 @@ struct V537AnalysisLifecycleBoundaryTests {
     @Test("3ω clearResults and clearPlot stay inside their current boundaries")
     func threeOmegaClearBoundaries() async {
         let wfs = makeWorkbenchStore()
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let hit = makeHit(
             id: "3w-clear",
             workflowID: "3w",
@@ -497,7 +497,7 @@ struct V537AnalysisLifecycleBoundaryTests {
     @MainActor
     @Test("3ω guard failure does not replace the current run trace")
     func threeOmegaGuardFailureDoesNotCommitTrace() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let sentinel = WorkbenchRunTraceProjection(
             runID: "sentinel",
             workflowID: "3w",
@@ -529,7 +529,7 @@ struct V537AnalysisLifecycleBoundaryTests {
     @MainActor
     @Test("Workbench warning log coalesces duplicates and clearPlot clears warnings")
     func warningsCoalesceAndClear() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
 
         store.appendWarning(source: "Analysis", message: "duplicate warning")
         store.appendWarning(source: "Analysis", message: "duplicate warning")

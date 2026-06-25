@@ -146,7 +146,7 @@ struct V822RSMRestoreIntegrationTests {
     @Test("Restore default HL view from RSMPackState")
     @MainActor
     func restoreDefaultHLViewFromPackState() throws {
-        let store = RSMWorkspaceStore()
+        let store = RSMWorkspaceStore(workflowID: WorkflowKey.rsm.rawValue)
         #expect(store.activeLayout == nil)
 
         let envelope = makeEnvelope(

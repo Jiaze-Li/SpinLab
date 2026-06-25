@@ -20,7 +20,7 @@ struct WorkflowWorkspaceShell<
     RightExtra: View
 >: View {
 
-    let workflowID: WorkbenchWorkflowID
+    let workflowID: String
     let store: Store
     let workbench: WorkbenchFeatureStore
 

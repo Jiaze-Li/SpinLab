@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SelectedHitsTray: View {
-    let workflowID: WorkbenchWorkflowID
+    let workflowID: String
     let workbench: WorkbenchFeatureStore
 
     var body: some View {

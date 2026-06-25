@@ -79,9 +79,11 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Environment
 
+    let workflowID: String
     @ObservationIgnored private let env: WorkbenchEnvironment
 
-    init(env: WorkbenchEnvironment = .live) {
+    init(workflowID: String, env: WorkbenchEnvironment = .live) {
+        self.workflowID = workflowID
         self.env = env
     }
 
@@ -102,6 +104,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
     private func _snapshotRenderer(forTab tab: XYRotationWorkbenchTab) -> XYRotationPlotRenderer {
         let tabState = tabs.state(for: tab)
         var r = XYRotationPlotRenderer()
+        r.workflowID = workflowID
         r.showGrid = tabs.showPlotGrid
         r.legendPoint = tabState.legendPoint?.cgPoint
         r.stackOffsetMultiplier = stackOffsetMultiplier
@@ -283,7 +286,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
             showPlotGrid: tabs.showPlotGrid,
             tabStates: tabs.snapshotStates(keyFor: { $0.rawValue }),
             cachedSearchResults: cachedSearchResults,
-            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: .xyRotation) ?? []),
+            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: workflowID) ?? []),
             searchQueryText: ""   // filled by caller at WorkbenchFeatureStore level
         )
     }
@@ -402,7 +405,7 @@ extension XYRotationWorkspaceStore: AnalysisPackProviding {
     typealias PackConfig = XYRotationPackConfig
     typealias PackResult = XYRotationPackResult
 
-    var packWorkflowID: String { "xy" }
+    var packWorkflowID: String { workflowID }
     var packInputFiles: [String] { cachedInputFiles }
     var packSampleKeys: [String] { cachedSampleKeys }
     var hasAnalysisResult: Bool { ingestionResult != nil }
@@ -480,7 +483,7 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
         let sourceHits = searchSnapshot?.results ?? cachedSearchResults
         let selectedHits: [WorkflowMeasurementSearchHit]
         if let reading = selectionReading {
-            selectedHits = _selectedHits(from: sourceHits, selectedIDs: reading.selectedIDs(for: .xyRotation))
+            selectedHits = _selectedHits(from: sourceHits, selectedIDs: reading.selectedIDs(for: workflowID))
         } else {
             selectedHits = _sortedSelectedHits(sourceHits)
         }
@@ -491,7 +494,7 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
         if let selectedHitsSnapshot {
             _runAnalysis(selectedHits: _sortedSelectedHits(selectedHitsSnapshot.selectedHits))
         } else {
-            let ids = selectionReading?.selectedIDs(for: .xyRotation) ?? []
+            let ids = selectionReading?.selectedIDs(for: workflowID) ?? []
             let selectedHits = _selectedHits(from: cachedSearchResults, selectedIDs: ids)
             _runAnalysis(selectedHits: selectedHits)
         }
@@ -501,7 +504,7 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
         guard !cachedInputFiles.isEmpty else { return nil }
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,
-            workflowID: "xy",
+            workflowID: workflowID,
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: "R (Ω)"),
             semanticParams: ["sweeps": "\(ingestionResult?.sweeps.count ?? 0)"],

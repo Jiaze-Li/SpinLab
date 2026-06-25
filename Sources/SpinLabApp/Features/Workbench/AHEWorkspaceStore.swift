@@ -140,9 +140,11 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Environment
 
+    let workflowID: String
     @ObservationIgnored private let env: WorkbenchEnvironment
 
-    init(env: WorkbenchEnvironment = .live) {
+    init(workflowID: String, env: WorkbenchEnvironment = .live) {
+        self.workflowID = workflowID
         self.env = env
     }
 
@@ -320,7 +322,7 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
     private func buildAHESelections(from sourceHits: [WorkflowMeasurementSearchHit]) -> [AHEPlotSelectionItem] {
         let hits: [WorkflowMeasurementSearchHit]
         if let reading = selectionReading {
-            let ids = reading.selectedIDs(for: .ahe)
+            let ids = reading.selectedIDs(for: workflowID)
             hits = ids.isEmpty ? [] : sourceHits.filter { ids.contains($0.id) }
         } else {
             hits = sourceHits
@@ -443,7 +445,7 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
     typealias PackConfig = AHEPackConfig
     typealias PackResult = AHEPackResult
 
-    var packWorkflowID: String { "ahe" }
+    var packWorkflowID: String { workflowID }
     var packInputFiles: [String] { cachedInputFiles }
     var packSampleKeys: [String] { lastRenderedSampleKeys }
     var hasAnalysisResult: Bool { tabs.activeImageData != nil }
@@ -459,7 +461,7 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
             showPlotGrid: tabs.showPlotGrid,
             tabStates: tabs.snapshotStates(keyFor: { $0.rawValue }),
             cachedSearchResults: cachedSearchResults,
-            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: .ahe) ?? []),
+            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: workflowID) ?? []),
             searchQueryText: ""
         )
     }
@@ -648,7 +650,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
         guard !cachedInputFiles.isEmpty else { return nil }
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,
-            workflowID: "ahe",
+            workflowID: workflowID,
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(
                 xField: AHEAxisDetector.semanticXField,

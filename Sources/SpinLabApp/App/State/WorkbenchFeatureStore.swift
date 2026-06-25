@@ -12,27 +12,6 @@ enum WorkbenchRoute: Equatable {
     case workflow(id: String)
 }
 
-/// Typed key for per-workflow search state (query text, results, messages).
-/// Add new cases as workflows are implemented.
-enum WorkbenchWorkflowID: String, CaseIterable, Hashable {
-    case ahe
-    case threeOmega = "3w"
-    case xyRotation = "xy"
-    case iv = "IV"
-    case rsm = "rsm"
-
-    /// Default search prefix pre-filled into the search box.
-    var searchPrefix: String {
-        switch self {
-        case .ahe:        return "ahe "
-        case .threeOmega: return "3w "
-        case .xyRotation: return "xy "
-        case .iv:         return "IV "
-        case .rsm:        return "rsm "
-        }
-    }
-}
-
 enum WorkbenchSection: String, CaseIterable, Identifiable {
     case workflows
     case measurements
@@ -152,19 +131,21 @@ final class WorkbenchFeatureStore {
     var workbenchResultDraft: String = ""
 
     /// AHE-specific workspace state. All plot, selection, and artifact state lives here.
-    let aheWorkspace = AHEWorkspaceStore()
+    let aheWorkspace: AHEWorkspaceStore
     /// 3w workspace state. Independent workflow — parsing, fitting, scaling, 6 plots.
-    let threeOmegaWorkspace = ThreeOmegaWorkspaceStore()
+    let threeOmegaWorkspace: ThreeOmegaWorkspaceStore
     /// In-memory vault for saved analysis packs (shared across workflows).
     let analysisVault = AnalysisVault()
     /// XY Rotation workspace state. Angle-dependent resistance R(φ), dual parser (LVM + DAT).
-    let xyRotationWorkspace = XYRotationWorkspaceStore()
+    let xyRotationWorkspace: XYRotationWorkspaceStore
     /// IV workspace state. Current-voltage measurement workflow.
-    let ivWorkspace = IVWorkspaceStore()
+    let ivWorkspace: IVWorkspaceStore
     /// RSM workspace state. Reciprocal Space Map single-file heatmap workflow.
-    let rsmWorkspace = RSMWorkspaceStore()
+    let rsmWorkspace: RSMWorkspaceStore
+    /// RT workspace state. Resistance vs Temperature multi-file workflow.
+    let rtWorkspace: RTWorkspaceStore
     /// Legacy search status bridge retained for compatibility with existing callers/tests.
-    var searchMessages: [WorkbenchWorkflowID: String] = [:]
+    var searchMessages: [String: String] = [:]
     /// Shared plot appearance defaults across workflows.
     var globalPlotDefaults: [String: String] = [:] {
         didSet { syncGlobalPlotDefaultsToWorkspaces() }
@@ -203,6 +184,10 @@ final class WorkbenchFeatureStore {
     var selectedSection: WorkbenchSection = .workflows
     var currentRoute: WorkbenchRoute
     var workflowDefinitions: [WorkflowDefinition]
+    /// Workflow IDs that are missing from the active Rule Book.
+    /// Stores still use stable Rule Book ids as identity sources; this set makes
+    /// the missing-definition state explicit instead of crashing at startup.
+    private(set) var missingWorkflowDefinitionIDs: Set<String> = []
     private(set) var conditionDefinitionOptions: [ConditionDefinitionOption]
 
     var selectedWorkflowID: String? {
@@ -231,6 +216,17 @@ final class WorkbenchFeatureStore {
             return ConditionDefinitionOption(id: id, label: resolvedLabel)
         }
 
+        let wfIDs = WorkspaceWorkflowIDResolver(definitions: initialWorkflowDefinitions)
+        self.aheWorkspace        = AHEWorkspaceStore(workflowID: wfIDs.aheID ?? WorkflowKey.ahe.rawValue)
+        self.threeOmegaWorkspace = ThreeOmegaWorkspaceStore(
+            workflowID: wfIDs.threeOmegaID ?? WorkflowKey.threeOmega.rawValue,
+            relatedRTWorkflowID: wfIDs.rtID ?? WorkflowKey.rt.rawValue
+        )
+        self.xyRotationWorkspace = XYRotationWorkspaceStore(workflowID: wfIDs.xyRotationID ?? WorkflowKey.xyRotation.rawValue)
+        self.ivWorkspace         = IVWorkspaceStore(workflowID: wfIDs.ivID ?? WorkflowKey.iv.rawValue)
+        self.rsmWorkspace        = RSMWorkspaceStore(workflowID: wfIDs.rsmID ?? WorkflowKey.rsm.rawValue)
+        self.rtWorkspace         = RTWorkspaceStore(workflowID: wfIDs.rtID ?? WorkflowKey.rt.rawValue)
+
         self.libraryRepository = libraryRepository
         self.dataActor = dataActor
         self.workflowDefinitionStore = workflowDefinitionStore
@@ -238,6 +234,7 @@ final class WorkbenchFeatureStore {
         self.projectCatalog = initialProjectCatalog
         self.selectedArchivedRecordID = initialArchivedRecords.first?.id
         self.workflowDefinitions = initialWorkflowDefinitions
+        self.missingWorkflowDefinitionIDs = Self.missingWorkflowDefinitionIDs(in: initialWorkflowDefinitions)
         self.conditionDefinitionOptions = initialConditionOptions
         self.currentRoute = .registry(selectedID: initialWorkflowDefinitions.first?.id)
         self.threeOmegaWorkspace.vault = analysisVault
@@ -245,12 +242,14 @@ final class WorkbenchFeatureStore {
         self.aheWorkspace.vault = analysisVault
         self.ivWorkspace.vault = analysisVault
         self.rsmWorkspace.vault = analysisVault
+        self.rtWorkspace.vault = analysisVault
 
         self.aheWorkspace.selectionReading = self.selectionRuntime
         self.xyRotationWorkspace.selectionReading = self.selectionRuntime
         self.threeOmegaWorkspace.selectionReading = self.selectionRuntime
         self.ivWorkspace.selectionReading = self.selectionRuntime
         self.rsmWorkspace.selectionReading = self.selectionRuntime
+        self.rtWorkspace.selectionReading = self.selectionRuntime
 
         // Route 3ω RT session state through the secondary input runtime.
         // Forces lazy init of secondaryInputRuntime while self is fully constructed.
@@ -470,91 +469,91 @@ final class WorkbenchFeatureStore {
     }
 
     /// Restores search state for any workflow (used by shell's Load Pack popover).
-    func restoreSearchState(results: [WorkflowMeasurementSearchHit], queryText: String, for wf: WorkbenchWorkflowID) {
+    func restoreSearchState(results: [WorkflowMeasurementSearchHit], queryText: String, for wf: String) {
         mainSearchRuntime.restoreSearchState(results: results, queryText: queryText, for: wf)
     }
 
-    func searchQueryText(for wf: WorkbenchWorkflowID) -> String {
+    func searchQueryText(for wf: String) -> String {
         mainSearchRuntime.searchQueryText(for: wf)
     }
 
-    func setSearchQueryText(_ text: String, for wf: WorkbenchWorkflowID) {
+    func setSearchQueryText(_ text: String, for wf: String) {
         mainSearchRuntime.setSearchQueryText(text, for: wf)
     }
 
-    func searchResultsList(for wf: WorkbenchWorkflowID) -> [WorkflowMeasurementSearchHit] {
+    func searchResultsList(for wf: String) -> [WorkflowMeasurementSearchHit] {
         mainSearchRuntime.searchResultsList(for: wf)
     }
 
-    func searchMessage(for wf: WorkbenchWorkflowID) -> String? {
+    func searchMessage(for wf: String) -> String? {
         mainSearchRuntime.searchMessage(for: wf)
     }
 
-    func isSearchRunning(for wf: WorkbenchWorkflowID) -> Bool {
+    func isSearchRunning(for wf: String) -> Bool {
         mainSearchRuntime.isSearchRunning(for: wf)
     }
 
-    func searchSnapshot(for wf: WorkbenchWorkflowID) -> WorkbenchSearchSnapshot {
+    func searchSnapshot(for wf: String) -> WorkbenchSearchSnapshot {
         mainSearchRuntime.searchSnapshot(for: wf)
     }
 
     // MARK: - Selection facade
 
-    func selectedSearchResultIDs(for wf: WorkbenchWorkflowID) -> Set<String> {
+    func selectedSearchResultIDs(for wf: String) -> Set<String> {
         selectionRuntime.selectedIDs(for: wf)
     }
 
-    func selectedCount(for wf: WorkbenchWorkflowID) -> Int {
+    func selectedCount(for wf: String) -> Int {
         selectionRuntime.selectedCount(for: wf)
     }
 
-    func isAllSelected(for wf: WorkbenchWorkflowID) -> Bool {
+    func isAllSelected(for wf: String) -> Bool {
         selectionRuntime.isAllSelected(for: wf, denominator: denominatorHits(for: wf))
     }
 
-    func toggleSearchHitSelection(_ id: String, for wf: WorkbenchWorkflowID) {
+    func toggleSearchHitSelection(_ id: String, for wf: String) {
         let hit = denominatorHits(for: wf).first { $0.id == id }
         selectionRuntime.toggle(id, for: wf, hit: hit)
     }
 
-    func selectAll(for wf: WorkbenchWorkflowID) {
+    func selectAll(for wf: String) {
         selectionRuntime.selectAll(for: wf, denominator: denominatorHits(for: wf))
     }
 
     /// Removes only the current search result IDs from selection; keeps hits from other searches.
-    func deselectCurrentResults(for wf: WorkbenchWorkflowID) {
+    func deselectCurrentResults(for wf: String) {
         selectionRuntime.deselectCurrentResults(for: wf, denominator: denominatorHits(for: wf))
     }
 
     /// Clears the entire selection basket for the workflow (tray Clear button).
-    func deselectAll(for wf: WorkbenchWorkflowID) {
+    func deselectAll(for wf: String) {
         selectionRuntime.deselectAll(for: wf)
     }
 
-    func selectedHitDisplayInfos(for wf: WorkbenchWorkflowID) -> [SelectedHitDisplayInfo] {
+    func selectedHitDisplayInfos(for wf: String) -> [SelectedHitDisplayInfo] {
         selectionRuntime.selectedHitDisplayInfos(for: wf)
     }
 
-    func seedSelection(_ ids: Set<String>, hits: [WorkflowMeasurementSearchHit] = [], for wf: WorkbenchWorkflowID) {
+    func seedSelection(_ ids: Set<String>, hits: [WorkflowMeasurementSearchHit] = [], for wf: String) {
         selectionRuntime.seed(ids: ids, for: wf, availableHits: hits)
     }
 
-    func selectedHitsSnapshot(for wf: WorkbenchWorkflowID) -> WorkbenchSelectedHitsSnapshot {
+    func selectedHitsSnapshot(for wf: String) -> WorkbenchSelectedHitsSnapshot {
         let ids = selectionRuntime.selectedIDs(for: wf)
         let hitCache = selectionRuntime.selectedHitCache(for: wf)
         return mainSearchRuntime.selectedHitsSnapshot(for: wf, selectedIDs: ids, hitCache: hitCache)
     }
 
-    private func denominatorHits(for wf: WorkbenchWorkflowID) -> [WorkflowMeasurementSearchHit] {
+    private func denominatorHits(for wf: String) -> [WorkflowMeasurementSearchHit] {
         let canonical = mainSearchRuntime.searchResultsList(for: wf)
         if !canonical.isEmpty { return canonical }
-        switch wf {
-        case .ahe:        return aheWorkspace.cachedSearchResults
-        case .threeOmega: return threeOmegaWorkspace.cachedSearchResults
-        case .xyRotation: return xyRotationWorkspace.cachedSearchResults
-        case .iv:         return ivWorkspace.cachedSearchResults
-        case .rsm:        return rsmWorkspace.cachedSearchResults
-        }
+        if wf == aheWorkspace.workflowID        { return aheWorkspace.cachedSearchResults }
+        if wf == threeOmegaWorkspace.workflowID { return threeOmegaWorkspace.cachedSearchResults }
+        if wf == xyRotationWorkspace.workflowID { return xyRotationWorkspace.cachedSearchResults }
+        if wf == ivWorkspace.workflowID         { return ivWorkspace.cachedSearchResults }
+        if wf == rsmWorkspace.workflowID        { return rsmWorkspace.cachedSearchResults }
+        if wf == rtWorkspace.workflowID         { return rtWorkspace.cachedSearchResults }
+        return []
     }
 
     func selectedArchivedRecord() -> SpinLabDomain.ArchivedRecord? {
@@ -577,6 +576,7 @@ final class WorkbenchFeatureStore {
         threeOmegaWorkspace.globalPlotDefaults = globalPlotDefaults
         ivWorkspace.globalPlotDefaults = globalPlotDefaults
         rsmWorkspace.globalPlotDefaults = globalPlotDefaults
+        rtWorkspace.globalPlotDefaults = globalPlotDefaults
     }
 
     func selectWorkflow(_ id: String?) {
@@ -674,7 +674,7 @@ final class WorkbenchFeatureStore {
     }
 
     func runWorkflowMeasurementSearch(
-        workflowID wf: WorkbenchWorkflowID,
+        workflowID wf: String,
         libraryRootPath: String?,
         librarySettings: LibrarySettings? = nil
     ) {
@@ -693,7 +693,7 @@ final class WorkbenchFeatureStore {
         )
     }
 
-    func clearWorkflowMeasurementSearch(workflowID wf: WorkbenchWorkflowID) {
+    func clearWorkflowMeasurementSearch(workflowID wf: String) {
         mainSearchRuntime.clearWorkflowMeasurementSearch(workflowID: wf)
     }
 
@@ -726,6 +726,7 @@ final class WorkbenchFeatureStore {
             return ConditionDefinitionOption(id: id, label: resolvedLabel)
         }
         workflowDefinitions = workflowDefinitionStore.load()
+        missingWorkflowDefinitionIDs = Self.missingWorkflowDefinitionIDs(in: workflowDefinitions)
         if let selectedID,
            workflowDefinitions.contains(where: { $0.id.caseInsensitiveCompare(selectedID) == .orderedSame }) {
             let resolvedID = workflowDefinitions.first(where: {
@@ -742,6 +743,19 @@ final class WorkbenchFeatureStore {
             currentRoute = .registry(selectedID: fallbackID)
         }
         onDefinitionsChanged?(workflowDefinitions)
+    }
+
+    private static func missingWorkflowDefinitionIDs(in definitions: [WorkflowDefinition]) -> Set<String> {
+        let definedIDs = Set(definitions.map(\.id))
+        let requiredIDs: [String] = [
+            WorkflowKey.ahe.rawValue,
+            WorkflowKey.threeOmega.rawValue,
+            WorkflowKey.xyRotation.rawValue,
+            WorkflowKey.iv.rawValue,
+            WorkflowKey.rsm.rawValue,
+            WorkflowKey.rt.rawValue
+        ]
+        return Set(requiredIDs.filter { !definedIDs.contains($0) })
     }
 
     @MainActor

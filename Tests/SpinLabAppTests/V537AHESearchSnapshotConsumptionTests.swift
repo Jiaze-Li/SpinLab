@@ -50,7 +50,7 @@ struct V537AHESearchSnapshotConsumptionTests {
     @MainActor
     @Test("runAnalysis(selectedHitsSnapshot:) uses provided selected hits, not stale cachedSearchResults")
     func snapshotResultsUsedWhenProvided() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
 
         let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
         let hitB = makeHit(sidecarPath: "sidecar-B", sampleKey: "PN32|b|STO|111")
@@ -74,7 +74,7 @@ struct V537AHESearchSnapshotConsumptionTests {
     @MainActor
     @Test("runAnalysis(selectedHitsSnapshot:) ignores stale cachedSearchResults")
     func selectedSnapshotIgnoresStaleCache() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
 
         let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
         let hitB = makeHit(sidecarPath: "sidecar-B", sampleKey: "PN32|b|STO|111")
@@ -97,7 +97,7 @@ struct V537AHESearchSnapshotConsumptionTests {
     @MainActor
     @Test("runAnalysis(selectedHitsSnapshot: nil) falls back to cachedSearchResults")
     func nilSelectedSnapshotFallsBackToCache() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
 
         let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
         let hitB = makeHit(sidecarPath: "sidecar-B", sampleKey: "PN32|b|STO|111")
@@ -123,7 +123,7 @@ struct V537AHESearchSnapshotConsumptionTests {
     @MainActor
     @Test("runAnalysis() still succeeds via cachedSearchResults fallback for pack/restore paths")
     func noArgRunAnalysisRemainsLegacyCompatible() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
 
         let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
         store.cachedSearchResults = [hitA]

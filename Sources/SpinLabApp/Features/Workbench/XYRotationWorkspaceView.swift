@@ -10,7 +10,7 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
         @Bindable var bindableWorkbench = appState.workbench
 
         WorkflowWorkspaceShell(
-            workflowID: .xyRotation,
+            workflowID: store.workflowID,
             store: store,
             workbench: appState.workbench,
             searchExtra: { EmptyView() },

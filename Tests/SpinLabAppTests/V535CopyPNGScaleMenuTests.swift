@@ -91,7 +91,7 @@ final class V535CopyPNGScaleMenuTests: XCTestCase {
 
     @MainActor
     func testScalingCopyPNGUsesStoredDisplayPayload() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.tabs.activeTab = .scaling
 
         var renderer = ThreeOmegaPlotRenderer()
@@ -116,7 +116,7 @@ final class V535CopyPNGScaleMenuTests: XCTestCase {
 
     @MainActor
     func testScalingCopyPNGPixelRatios() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.tabs.activeTab = .scaling
 
         var renderer = ThreeOmegaPlotRenderer()

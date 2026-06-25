@@ -1,42 +1,31 @@
 import SwiftUI
 
-/// Central dispatch table: `workflowID` → workspace view.
+/// Central dispatch table: Rule Book workflow id → workspace view.
+///
+/// Dispatch compares the route workflowID against each workspace store's workflowID.
+/// Route matching is purely by string identity.
 ///
 /// ## Adding a new workflow
-/// This is one of five registration surfaces that must all be updated.
+/// This is one of the registration surfaces that must all be updated.
 /// See `docs/architecture/workbench/ADDING_WORKFLOW.md` for the full checklist.
 enum WorkflowWorkspaceRegistry {
 
     @ViewBuilder
-    static func workspace(for workflowID: String) -> some View {
-        switch workflowID.lowercased() {
-        case "ahe":
+    static func workspace(for workflowID: String, featureStore: WorkbenchFeatureStore) -> some View {
+        if workflowID == featureStore.aheWorkspace.workflowID {
             AHEWorkspaceView()
-        case "3w":
+        } else if workflowID == featureStore.threeOmegaWorkspace.workflowID {
             ThreeOmegaWorkspaceView()
-        case "xy":
+        } else if workflowID == featureStore.xyRotationWorkspace.workflowID {
             XYRotationWorkspaceView()
-        case "iv":
+        } else if workflowID == featureStore.ivWorkspace.workflowID {
             IVWorkspaceView()
-        case "rsm":
+        } else if workflowID == featureStore.rsmWorkspace.workflowID {
             RSMWorkspaceView()
-        default:
-            UnsupportedWorkspaceView(workflowID: workflowID)
+        } else if workflowID == featureStore.rtWorkspace.workflowID {
+            RTWorkspaceView()
+        } else {
+            NotImplementedWorkflowView(workflowID: workflowID)
         }
-    }
-}
-
-// MARK: - Fallback
-
-private struct UnsupportedWorkspaceView: View {
-    let workflowID: String
-
-    var body: some View {
-        ContentUnavailableView(
-            "Unsupported Workflow",
-            systemImage: "questionmark.circle",
-            description: Text("No workspace registered for workflow ID \"\(workflowID)\".")
-        )
-        .frame(maxWidth: .infinity, minHeight: 220)
     }
 }

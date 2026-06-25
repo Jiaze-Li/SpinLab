@@ -10,6 +10,8 @@ import Observation
 @Observable
 final class ThreeOmegaWorkspaceStore {
 
+    let workflowID: String
+    let relatedRTWorkflowID: String?
     @ObservationIgnored let env: WorkbenchEnvironment
 
     // MARK: - Search / Selection bridge
@@ -87,7 +89,15 @@ final class ThreeOmegaWorkspaceStore {
     /// Set during restore; consumed on first 3w search to rebuild selectedRTHit.
     var pendingRTSidecarPath: String?
 
-    init(env: WorkbenchEnvironment = .live) {
+    // MARK: - RT analysis state (set by selectRTHit, cleared by clearRTSelection)
+
+    var cachedRTResult: RTAnalysisResult?
+    var isAnalyzingRT: Bool = false
+    var rtAnalysisMessage: String?
+
+    init(workflowID: String, relatedRTWorkflowID: String? = nil, env: WorkbenchEnvironment = .live) {
+        self.workflowID = workflowID
+        self.relatedRTWorkflowID = relatedRTWorkflowID
         self.env = env
         self._rtQuery = UserDefaults.standard.string(forKey: Self.rtQueryDefaultsKey) ?? ""
     }
@@ -247,7 +257,7 @@ final class ThreeOmegaWorkspaceStore {
     /// never in WorkbenchAnalysisOverlayRuntime.
     @ObservationIgnored var overlaySnapshots: [AnalysisPack.ID: OverlaySnapshot] = [:]
 
-    var packWorkflowID: String { "3w" }
+    var packWorkflowID: String { workflowID }
     var packInputFiles: [String] { cachedInputFiles }
     var packSampleKeys: [String] { cachedSampleKeys }
     var packRTFilePath: String? { cachedRTFilePath }

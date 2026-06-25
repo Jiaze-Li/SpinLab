@@ -362,7 +362,7 @@ struct V537WorkbenchSearchMirrorTests {
     }
 
     @MainActor
-    private func waitForSearchRunning(_ wfs: WorkbenchFeatureStore, wf: WorkbenchWorkflowID) async throws {
+    private func waitForSearchRunning(_ wfs: WorkbenchFeatureStore, wf: WorkflowKey) async throws {
         var attempts = 0
         while wfs.isSearchRunning(for: wf) && attempts < 40 {
             try await Task.sleep(nanoseconds: 50_000_000)

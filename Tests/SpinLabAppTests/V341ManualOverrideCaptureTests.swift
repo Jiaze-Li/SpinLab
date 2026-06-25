@@ -149,7 +149,7 @@ struct V341ManualOverrideCaptureTests {
     @Test("pendingMetricOverride is cleared by clearPlot")
     @MainActor
     func overrideClearedByClearPlot() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         store.pendingMetricOverride = WorkbenchMetricOverrideCandidate(
             proposedValue: 0.05, reason: "test", source: .manual
         )

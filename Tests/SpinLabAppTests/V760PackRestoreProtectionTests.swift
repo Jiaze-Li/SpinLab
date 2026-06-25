@@ -86,7 +86,7 @@ struct V760RTRoundTripTests {
     @MainActor
     @Test("cachedRTFilePath after restore equals selectedRTHit.measurementFilePath")
     func cachedRTFilePathMatchesSelectedRTHitMeasurementPath() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let rtHit = makeRTHit(measurementFilePath: "/tmp/actual-rt.lvm")
         // config.rtFilePath is intentionally set to a DIFFERENT path from the hit,
         // so that if restore were to read config.rtFilePath directly the test would fail.
@@ -114,7 +114,7 @@ struct V760RTRoundTripTests {
     @MainActor
     @Test("cachedRTFilePath consistent when selectedRTHit.measurementFilePath matches config.rtFilePath")
     func cachedRTFilePathConsistentWhenPathsMatch() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let measurementPath = "/tmp/consistent-rt.lvm"
         let rtHit = makeRTHit(measurementFilePath: measurementPath)
         let config = makePackConfig(selectedRTHit: rtHit, rtFilePath: measurementPath)
@@ -138,7 +138,7 @@ struct V760RTRoundTripTests {
     @MainActor
     @Test("cachedRTFilePath is nil when selectedRTHit is nil — config.rtFilePath is not a restore input")
     func cachedRTFilePathNilWhenNoSelectedRTHit() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         // Pack encodes a non-nil rtFilePath but no selectedRTHit.
         let config = makePackConfig(selectedRTHit: nil, rtFilePath: "/tmp/orphan-rt.lvm")
         let pack = try makePack(config: config)
@@ -429,7 +429,7 @@ struct V760RequiredFieldDecodeFailureTests {
     @MainActor
     @Test("loadPack with corrupt 3ω config sets analysisMessage, does not crash")
     func loadPackCorrupt3wConfigSetsAnalysisMessage() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let vault = AnalysisVault()
         store.vault = vault
 
@@ -751,7 +751,7 @@ struct V760OverlayRuntimeClearedOnRestoreTests {
     @MainActor
     @Test("restoreFromPack clears wired WorkbenchAnalysisOverlayRuntime overlayIDs")
     func restoreFromPackClearsWiredRuntimeOverlayIDs() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let runtime = WorkbenchAnalysisOverlayRuntime()
         store.overlayRuntime = runtime
 
@@ -778,7 +778,7 @@ struct V760OverlayRuntimeClearedOnRestoreTests {
     @MainActor
     @Test("restoreFromPack clears wired WorkbenchAnalysisOverlayRuntime displayLabels")
     func restoreFromPackClearsWiredRuntimeDisplayLabels() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let runtime = WorkbenchAnalysisOverlayRuntime()
         store.overlayRuntime = runtime
 

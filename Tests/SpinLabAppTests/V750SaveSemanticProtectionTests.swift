@@ -45,7 +45,7 @@ struct V750ThreeOmegaMetricProjectionTests {
     @MainActor
     @Test("scaling tab produces alpha, beta, r_squared metric names")
     func metricNamesOnScalingTab() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.scalingResult = ThreeOmegaScalingResult(
             points: [],
             segments: [makeSegment(tLo: 10, tHi: 50, alpha: 1e-31, beta: 1e-20, rSquared: 0.98)]
@@ -67,7 +67,7 @@ struct V750ThreeOmegaMetricProjectionTests {
     @MainActor
     @Test("alpha canonicalUnit is 'Ω·μm³·cm²·V⁻²·S⁻²'")
     func alphaCanonicalUnit() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.scalingResult = ThreeOmegaScalingResult(
             points: [],
             segments: [makeSegment(tLo: 10, tHi: 50, alpha: 1e-31, beta: 1e-20, rSquared: 0.98)]
@@ -83,7 +83,7 @@ struct V750ThreeOmegaMetricProjectionTests {
     @MainActor
     @Test("beta canonicalUnit is 'Ω·μm³·V⁻²'")
     func betaCanonicalUnit() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.scalingResult = ThreeOmegaScalingResult(
             points: [],
             segments: [makeSegment(tLo: 10, tHi: 50, alpha: 1e-31, beta: 1e-20, rSquared: 0.98)]
@@ -99,7 +99,7 @@ struct V750ThreeOmegaMetricProjectionTests {
     @MainActor
     @Test("r_squared canonicalUnit is empty string (dimensionless)")
     func r2CanonicalUnit() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.scalingResult = ThreeOmegaScalingResult(
             points: [],
             segments: [makeSegment(tLo: 10, tHi: 50, alpha: 1e-31, beta: 1e-20, rSquared: 0.987)]
@@ -118,7 +118,7 @@ struct V750ThreeOmegaMetricProjectionTests {
     @Test("alpha value is raw alpha × 1e31")
     func alphaUnitScaling() {
         let rawAlpha = 2.5e-31
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.scalingResult = ThreeOmegaScalingResult(
             points: [],
             segments: [makeSegment(tLo: 10, tHi: 50, alpha: rawAlpha, beta: 1e-20, rSquared: 0.99)]
@@ -137,7 +137,7 @@ struct V750ThreeOmegaMetricProjectionTests {
     @Test("beta value is raw beta × 1e20")
     func betaUnitScaling() {
         let rawBeta = 3.7e-20
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.scalingResult = ThreeOmegaScalingResult(
             points: [],
             segments: [makeSegment(tLo: 10, tHi: 50, alpha: 1e-31, beta: rawBeta, rSquared: 0.99)]
@@ -156,7 +156,7 @@ struct V750ThreeOmegaMetricProjectionTests {
     @Test("r_squared value is not scaled")
     func r2NoScaling() {
         let rawR2 = 0.876
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.scalingResult = ThreeOmegaScalingResult(
             points: [],
             segments: [makeSegment(tLo: 10, tHi: 50, alpha: 1e-31, beta: 1e-20, rSquared: rawR2)]
@@ -174,7 +174,7 @@ struct V750ThreeOmegaMetricProjectionTests {
     @MainActor
     @Test("condition 'range' encodes tLo–tHi as integer Kelvin strings")
     func conditionRangeFormat() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.scalingResult = ThreeOmegaScalingResult(
             points: [],
             segments: [makeSegment(tLo: 10.4, tHi: 49.6, alpha: 1e-31, beta: 1e-20, rSquared: 0.9)]
@@ -191,7 +191,7 @@ struct V750ThreeOmegaMetricProjectionTests {
     @MainActor
     @Test("condition 'v3method' is 'HFE' for highField method")
     func conditionV3MethodHFE() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.v3Method = .highField
         store.scalingResult = ThreeOmegaScalingResult(
             points: [],
@@ -208,7 +208,7 @@ struct V750ThreeOmegaMetricProjectionTests {
     @MainActor
     @Test("condition 'v3method' is 'WA' for window method")
     func conditionV3MethodWA() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.v3Method = .window
         store.scalingResult = ThreeOmegaScalingResult(
             points: [],
@@ -225,7 +225,7 @@ struct V750ThreeOmegaMetricProjectionTests {
     @MainActor
     @Test("angleSweep deviceMode adds 'deviceMode' condition, no 'device' condition")
     func conditionAngleSweepDeviceMode() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.scalingResult = ThreeOmegaScalingResult(
             points: [],
             segments: [makeSegment(tLo: 10, tHi: 50, alpha: 1e-31, beta: 1e-20, rSquared: 0.9)]
@@ -250,7 +250,7 @@ struct V750ThreeOmegaMetricProjectionTests {
     @MainActor
     @Test("single device mode adds 'device' condition, no 'deviceMode' condition")
     func conditionSingleDeviceMode() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.scalingResult = ThreeOmegaScalingResult(
             points: [],
             segments: [makeSegment(tLo: 10, tHi: 50, alpha: 1e-31, beta: 1e-20, rSquared: 0.9)]
@@ -271,7 +271,7 @@ struct V750ThreeOmegaMetricProjectionTests {
     @MainActor
     @Test("non-scaling tabs return empty entries even with a valid scaling result")
     func nonScalingTabProducesEmpty() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.scalingResult = ThreeOmegaScalingResult(
             points: [],
             segments: [makeSegment(tLo: 10, tHi: 50, alpha: 1e-31, beta: 1e-20, rSquared: 0.9)]
@@ -293,7 +293,7 @@ struct V750ThreeOmegaMetricProjectionTests {
     @MainActor
     @Test("nil scalingResult returns empty entries regardless of active tab")
     func nilScalingResultProducesEmpty() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.scalingResult = nil
         store.cachedSampleKeys = ["SK-A"]
         store.tabs.activeTab = .scaling
@@ -304,7 +304,7 @@ struct V750ThreeOmegaMetricProjectionTests {
     @MainActor
     @Test("empty segments returns empty entries")
     func emptySegmentsProducesEmpty() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.scalingResult = ThreeOmegaScalingResult(points: [], segments: [])
         store.ingestionResult = ThreeOmegaIngestionResult(device: "0deg")
         store.cachedSampleKeys = ["SK-A"]
@@ -318,7 +318,7 @@ struct V750ThreeOmegaMetricProjectionTests {
     @MainActor
     @Test("two segments produce six entries (alpha+beta+r_squared × 2)")
     func twoSegmentsProduceSixEntries() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.scalingResult = ThreeOmegaScalingResult(
             points: [],
             segments: [
@@ -344,7 +344,7 @@ struct V750ThreeOmegaMetricProjectionTests {
     @MainActor
     @Test("entries use the first cachedSampleKey as sampleKey")
     func sampleKeyFromCachedKeys() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.scalingResult = ThreeOmegaScalingResult(
             points: [],
             segments: [makeSegment(tLo: 10, tHi: 50, alpha: 1e-31, beta: 1e-20, rSquared: 0.9)]
@@ -363,7 +363,7 @@ struct V750ThreeOmegaMetricProjectionTests {
     @MainActor
     @Test("empty cachedSampleKeys returns empty entries")
     func emptyCachedSampleKeysProducesEmpty() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.scalingResult = ThreeOmegaScalingResult(
             points: [],
             segments: [makeSegment(tLo: 10, tHi: 50, alpha: 1e-31, beta: 1e-20, rSquared: 0.9)]
@@ -425,7 +425,7 @@ struct V750AHEOverrideGuardTests {
     @MainActor
     @Test("didCompleteSave(.partial) increments persistCount but does not clear pending overrides")
     func partialOutcomePreservesOverrides() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         store.pendingMetricOverride = WorkbenchMetricOverrideCandidate(
             proposedValue: 0.05, reason: "test", source: .manual
         )
@@ -446,7 +446,7 @@ struct V750AHEOverrideGuardTests {
     @MainActor
     @Test("didCompleteSave(.success) increments persistCount and clears pending overrides")
     func successOutcomeClearsOverrides() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         store.pendingMetricOverride = WorkbenchMetricOverrideCandidate(
             proposedValue: 0.05, reason: "test", source: .manual
         )
@@ -473,7 +473,7 @@ struct V750AHEOverrideGuardTests {
     @Test("buildActiveChartMetrics returns empty when no sample keys are loaded")
     func emptyStateProducesEmptyEntries() {
         // When the store has no analysis state, override candidates must not create phantom entries.
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         store.pendingMetricOverride = WorkbenchMetricOverrideCandidate(
             proposedValue: 0.05, reason: "test", source: .manual
         )

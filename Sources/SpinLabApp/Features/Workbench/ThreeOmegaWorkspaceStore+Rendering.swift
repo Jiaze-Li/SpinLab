@@ -42,6 +42,7 @@ extension ThreeOmegaWorkspaceStore {
         let capturedState1     = tabs.state(for: .fieldSweep1omega)
         let capturedState3     = tabs.state(for: .fieldSweep3omega)
         let capturedGlobalPlotDefaults = globalPlotDefaults
+        let capturedWorkflowID = workflowID
 
         Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
@@ -51,6 +52,7 @@ extension ThreeOmegaWorkspaceStore {
             let labelMapSeries = Array(fakeSeries.reversed())
 
             var renderer1 = ThreeOmegaPlotRenderer()
+            renderer1.workflowID            = capturedWorkflowID
             renderer1.showGrid              = capturedGrid
             renderer1.seriesRenderMode      = capturedRenderMode
             renderer1.chartStyleOverrides   = capturedStyleOverrides
@@ -70,6 +72,7 @@ extension ThreeOmegaWorkspaceStore {
             let result1 = renderer1.renderR1omega(sweeps: ingestion.fieldSweeps, device: ingestion.device, seriesOrder: capturedFieldSweepSeriesOrder)
 
             var renderer3 = ThreeOmegaPlotRenderer()
+            renderer3.workflowID            = capturedWorkflowID
             renderer3.showGrid              = capturedGrid
             renderer3.seriesRenderMode      = capturedRenderMode
             renderer3.chartStyleOverrides   = capturedStyleOverrides
@@ -186,6 +189,7 @@ extension ThreeOmegaWorkspaceStore {
         let capturedRAHE1DevMethod = rahe1omegaVsDeviceMethod
         let capturedRAHE3DevMethod = rahe3omegaVsDeviceMethod
         let capturedGlobalPlotDefaults = globalPlotDefaults
+        let capturedWorkflowID = workflowID
 
         _renderRevision &+= 1
         let revision = _renderRevision
@@ -195,6 +199,7 @@ extension ThreeOmegaWorkspaceStore {
             let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(capturedSeriesOrder, to: capturedFieldSweeps)
             let fakeSeries = ThreeOmegaWorkspaceStore._sweepsToFakeSeries(orderedSweeps)
             var r = ThreeOmegaPlotRenderer()
+            r.workflowID            = capturedWorkflowID
             r.showGrid              = capturedGrid
             r.seriesRenderMode      = capturedRenderMode
             r.chartStyleOverrides   = capturedStyleOverrides
@@ -322,6 +327,7 @@ extension ThreeOmegaWorkspaceStore {
         let capturedShowPointTags3 = state3.pointTags.showPointTags
         let capturedRAHEFieldSweeps = ingestion.fieldSweeps
         let capturedGlobalPlotDefaults = globalPlotDefaults
+        let capturedWorkflowID = workflowID
 
         _renderRevision &+= 1
         let revision = _renderRevision
@@ -329,6 +335,7 @@ extension ThreeOmegaWorkspaceStore {
         Task.detached(priority: .userInitiated) { [weak self, groups] in
             let fakeSeries = ThreeOmegaWorkspaceStore._sweepsToFakeSeries(capturedRAHEFieldSweeps)
             var r1 = ThreeOmegaPlotRenderer()
+            r1.workflowID = capturedWorkflowID
             r1.showGrid = capturedGrid
             r1.seriesRenderMode = capturedRenderMode
             r1.chartStyleOverrides = capturedStyleOverrides
@@ -346,6 +353,7 @@ extension ThreeOmegaWorkspaceStore {
             let rahe1 = r1.renderRAHE1omegaVsTMulti(groups: groups, method: capturedRAHE1Method)
 
             var r3 = ThreeOmegaPlotRenderer()
+            r3.workflowID = capturedWorkflowID
             r3.showGrid = capturedGrid
             r3.seriesRenderMode = capturedRenderMode
             r3.chartStyleOverrides = capturedStyleOverrides
@@ -393,8 +401,10 @@ extension ThreeOmegaWorkspaceStore {
         let capturedRAHE1DevMethod = rahe1omegaVsDeviceMethod
         let capturedRAHE3DevMethod = rahe3omegaVsDeviceMethod
         let capturedGlobalPlotDefaults = globalPlotDefaults
+        let capturedWorkflowID = workflowID
         Task.detached(priority: .userInitiated) { [weak self, ingestion] in
             var renderer = ThreeOmegaPlotRenderer()
+            renderer.workflowID            = capturedWorkflowID
             renderer.showGrid              = capturedGrid
             renderer.seriesRenderMode      = capturedRenderMode
             renderer.chartStyleOverrides   = capturedStyleOverrides
@@ -475,6 +485,7 @@ extension ThreeOmegaWorkspaceStore {
             }
         )
         let capturedRestoredFieldSweeps = ingestion.fieldSweeps
+        let capturedWorkflowID = workflowID
 
         let lookupHit              = cachedSearchResults.first
         let lookupLibraryRoot      = lastLibraryRootPath
@@ -503,6 +514,7 @@ extension ThreeOmegaWorkspaceStore {
                 let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(s.seriesOrder, to: capturedRestoredFieldSweeps)
                 let fakeSeries = ThreeOmegaWorkspaceStore._sweepsToFakeSeries(orderedSweeps)
                 var r = ThreeOmegaPlotRenderer()
+                r.workflowID                 = capturedWorkflowID
                 r.showGrid                   = capturedGrid
                 r.seriesRenderMode           = capturedRenderMode
                 r.chartStyleOverrides        = capturedStyleOverrides

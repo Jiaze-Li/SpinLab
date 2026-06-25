@@ -58,7 +58,7 @@ struct IngestXYRotationSelectionsUseCase {
                 }
                 sweep.defaultPhiOffset = shiftOverride
                 sweep.measurementFilePath = hit.measurementFilePath
-                sweep.sampleMetadata = IngestThreeOmegaSelectionsUseCase._buildSampleMetadata(
+                sweep.sampleMetadata = WorkbenchSeriesMetadataBuilder.build(
                     from: hit,
                     numericDisplay: numericDisplayBySample[hit.sampleKey] ?? [:]
                 )

@@ -9,6 +9,7 @@ import Foundation
 
 struct IVPlotRenderer {
 
+    var workflowID: String = ""
     var titleTemplate: String = "#tab #device #sample"
     var titleTokens: [String: String] = [:]
     var seriesOrder: [String]? = nil
@@ -48,7 +49,7 @@ struct IVPlotRenderer {
         series = _applyStackOffsets(series, yExtractor: { $0.y })
 
         return WorkbenchPlotPayload(
-            workflowID: "IV",
+            workflowID: workflowID,
             workflowDisplayName: "IV",
             title: _defaultTitle("1st / I", device: device),
             axisMapping: WorkbenchAxisMapping(xField: xCurrentBasis.axisLabel, yField: "V (V)"),
@@ -101,7 +102,7 @@ struct IVPlotRenderer {
         series = _applyStackOffsets(series, yExtractor: { $0.y })
 
         return WorkbenchPlotPayload(
-            workflowID: "IV",
+            workflowID: workflowID,
             workflowDisplayName: "IV",
             title: _defaultTitle("2nd / I", device: device),
             axisMapping: WorkbenchAxisMapping(xField: xCurrentBasis.axisLabel, yField: "V (V)"),

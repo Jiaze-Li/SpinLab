@@ -155,7 +155,7 @@ struct V730SecondaryInputSelectedHitProviderTests {
     @MainActor
     @Test("selectedRTHit falls back to backing var when no runtime is wired")
     func selectedRTHitFallsBackToBackingVar() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
 
         let hit = makeHit(id: "rt-standalone")
         store.selectedRTHit = hit
