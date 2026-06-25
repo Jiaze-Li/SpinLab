@@ -184,6 +184,10 @@ final class WorkbenchFeatureStore {
     var selectedSection: WorkbenchSection = .workflows
     var currentRoute: WorkbenchRoute
     var workflowDefinitions: [WorkflowDefinition]
+    /// Workflow IDs that are missing from the active Rule Book.
+    /// Stores still use stable Rule Book ids as identity sources; this set makes
+    /// the missing-definition state explicit instead of crashing at startup.
+    private(set) var missingWorkflowDefinitionIDs: Set<String> = []
     private(set) var conditionDefinitionOptions: [ConditionDefinitionOption]
 
     var selectedWorkflowID: String? {
@@ -213,25 +217,15 @@ final class WorkbenchFeatureStore {
         }
 
         let wfIDs = WorkspaceWorkflowIDResolver(definitions: initialWorkflowDefinitions)
-        guard
-            let resolvedAheID        = wfIDs.aheID,
-            let resolvedThreeOmegaID = wfIDs.threeOmegaID,
-            let resolvedXYRotationID = wfIDs.xyRotationID,
-            let resolvedIVID         = wfIDs.ivID,
-            let resolvedRSMID        = wfIDs.rsmID,
-            let resolvedRTID         = wfIDs.rtID
-        else {
-            preconditionFailure("One or more workflow definitions are missing from the active rule book")
-        }
-        self.aheWorkspace        = AHEWorkspaceStore(workflowID: resolvedAheID)
+        self.aheWorkspace        = AHEWorkspaceStore(workflowID: wfIDs.aheID ?? WorkflowKey.ahe.rawValue)
         self.threeOmegaWorkspace = ThreeOmegaWorkspaceStore(
-            workflowID: resolvedThreeOmegaID,
-            relatedRTWorkflowID: resolvedRTID
+            workflowID: wfIDs.threeOmegaID ?? WorkflowKey.threeOmega.rawValue,
+            relatedRTWorkflowID: wfIDs.rtID ?? WorkflowKey.rt.rawValue
         )
-        self.xyRotationWorkspace = XYRotationWorkspaceStore(workflowID: resolvedXYRotationID)
-        self.ivWorkspace         = IVWorkspaceStore(workflowID: resolvedIVID)
-        self.rsmWorkspace        = RSMWorkspaceStore(workflowID: resolvedRSMID)
-        self.rtWorkspace         = RTWorkspaceStore(workflowID: resolvedRTID)
+        self.xyRotationWorkspace = XYRotationWorkspaceStore(workflowID: wfIDs.xyRotationID ?? WorkflowKey.xyRotation.rawValue)
+        self.ivWorkspace         = IVWorkspaceStore(workflowID: wfIDs.ivID ?? WorkflowKey.iv.rawValue)
+        self.rsmWorkspace        = RSMWorkspaceStore(workflowID: wfIDs.rsmID ?? WorkflowKey.rsm.rawValue)
+        self.rtWorkspace         = RTWorkspaceStore(workflowID: wfIDs.rtID ?? WorkflowKey.rt.rawValue)
 
         self.libraryRepository = libraryRepository
         self.dataActor = dataActor
@@ -240,6 +234,7 @@ final class WorkbenchFeatureStore {
         self.projectCatalog = initialProjectCatalog
         self.selectedArchivedRecordID = initialArchivedRecords.first?.id
         self.workflowDefinitions = initialWorkflowDefinitions
+        self.missingWorkflowDefinitionIDs = Self.missingWorkflowDefinitionIDs(in: initialWorkflowDefinitions)
         self.conditionDefinitionOptions = initialConditionOptions
         self.currentRoute = .registry(selectedID: initialWorkflowDefinitions.first?.id)
         self.threeOmegaWorkspace.vault = analysisVault
@@ -731,6 +726,7 @@ final class WorkbenchFeatureStore {
             return ConditionDefinitionOption(id: id, label: resolvedLabel)
         }
         workflowDefinitions = workflowDefinitionStore.load()
+        missingWorkflowDefinitionIDs = Self.missingWorkflowDefinitionIDs(in: workflowDefinitions)
         if let selectedID,
            workflowDefinitions.contains(where: { $0.id.caseInsensitiveCompare(selectedID) == .orderedSame }) {
             let resolvedID = workflowDefinitions.first(where: {
@@ -747,6 +743,19 @@ final class WorkbenchFeatureStore {
             currentRoute = .registry(selectedID: fallbackID)
         }
         onDefinitionsChanged?(workflowDefinitions)
+    }
+
+    private static func missingWorkflowDefinitionIDs(in definitions: [WorkflowDefinition]) -> Set<String> {
+        let definedIDs = Set(definitions.map(\.id))
+        let requiredIDs: [String] = [
+            WorkflowKey.ahe.rawValue,
+            WorkflowKey.threeOmega.rawValue,
+            WorkflowKey.xyRotation.rawValue,
+            WorkflowKey.iv.rawValue,
+            WorkflowKey.rsm.rawValue,
+            WorkflowKey.rt.rawValue
+        ]
+        return Set(requiredIDs.filter { !definedIDs.contains($0) })
     }
 
     @MainActor

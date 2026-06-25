@@ -271,6 +271,8 @@ final class WorkbenchMainSearchRuntime {
             store.ivWorkspace.cachedSearchResults = result
         } else if wf == store.rsmWorkspace.workflowID {
             store.rsmWorkspace.cachedSearchResults = result
+        } else if wf == store.rtWorkspace.workflowID {
+            store.rtWorkspace.cachedSearchResults = result
         }
     }
 
@@ -290,6 +292,9 @@ final class WorkbenchMainSearchRuntime {
         } else if wf == store.rsmWorkspace.workflowID {
             store.rsmWorkspace.cachedSearchResults = []
             store.rsmWorkspace.cachedSampleNumericDisplay = [:]
+        } else if wf == store.rtWorkspace.workflowID {
+            store.rtWorkspace.cachedSearchResults = []
+            store.rtWorkspace.cachedSampleNumericDisplay = [:]
         }
     }
 
@@ -333,6 +338,13 @@ final class WorkbenchMainSearchRuntime {
         } else if wf == store.rsmWorkspace.workflowID {
             store.rsmWorkspace.lastLibraryRootPath = libraryRootPath ?? ""
             store.rsmWorkspace.cachedSampleNumericDisplay = await buildNumericDisplayCache(
+                from: result,
+                libraryRootPath: libraryRootPath,
+                dataActor: dataActor
+            )
+        } else if wf == store.rtWorkspace.workflowID {
+            store.rtWorkspace.lastLibraryRootPath = libraryRootPath ?? ""
+            store.rtWorkspace.cachedSampleNumericDisplay = await buildNumericDisplayCache(
                 from: result,
                 libraryRootPath: libraryRootPath,
                 dataActor: dataActor
