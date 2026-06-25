@@ -957,6 +957,8 @@ struct V710UIDensityGuards {
             targetPath = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderPanel.swift"
         case "WorkbenchStandardPlotControls.swift":
             targetPath = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift"
+        case "SharedPlotLabelOverrideField.swift":
+            targetPath = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotLabelOverrideField.swift"
         default:
             targetPath = "Sources/SpinLabApp/Features/Workbench/\(filename)"
         }
