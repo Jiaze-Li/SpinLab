@@ -42,7 +42,24 @@ private func loadWorkbenchSource(_ filename: String) throws -> String {
         .deletingLastPathComponent()   // SpinLabAppTests
         .deletingLastPathComponent()   // Tests
         .deletingLastPathComponent()   // repo root
-    let url = base.appendingPathComponent("Sources/SpinLabApp/Features/Workbench/\(filename)")
+
+    let path: String
+    switch filename {
+    case "RSMViewSelector.swift":
+        path = "Sources/SpinLabApp/Workbench/V3/Heatmap/RSM/RSMViewSelector.swift"
+    case "SharedPlotTextControls.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTextControls.swift"
+    case "SharedPlotFontSizeControls.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotFontSizeControls.swift"
+    case "WorkbenchPlotControlsPanel.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift"
+    case "WorkbenchStandardPlotControls.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift"
+    default:
+        path = "Sources/SpinLabApp/Features/Workbench/\(filename)"
+    }
+
+    let url = base.appendingPathComponent(path)
     return try String(contentsOf: url, encoding: .utf8)
 }
 
