@@ -485,13 +485,19 @@ extension RTWorkspaceStore: WorkbenchWorkspaceProviding {
         let capturedTitleTokens = _titleTokens
         let capturedTemplate = titleTemplate
         let capturedGlobalDefaults = globalPlotDefaults
+        let capturedNumericDisplay = cachedSampleNumericDisplay
 
         analysisTask = Task { [weak self] in
             guard let self else { return }
 
-            let results: [RTAnalysisResult] = await Task.detached(priority: .userInitiated) { [selectedHits] in
+            let results: [RTAnalysisResult] = await Task.detached(priority: .userInitiated) { [selectedHits, capturedNumericDisplay] in
                 let useCase = AnalyzeRTWorkflowUseCase()
-                return selectedHits.map { useCase.execute(hit: $0) }
+                return selectedHits.map { hit in
+                    useCase.execute(
+                        hit: hit,
+                        numericDisplay: capturedNumericDisplay[hit.sampleKey] ?? [:]
+                    )
+                }
             }.value
 
             guard !Task.isCancelled else { return }
