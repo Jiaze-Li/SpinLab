@@ -184,10 +184,11 @@ The tracker must never:
 
 ## UI Mount Point
 
-The tracker UI mounts in the Workbench root Measurements section, switched by
-`WorkbenchView`, replacing the existing Measurements placeholder. It is a Workbench
-root/common panel — **not** an injection into `WorkflowWorkspaceShell`. It does not
-invent a new navigation shell or app window.
+The tracker UI mounts directly in the Workbench root content area. Selecting the
+Workbench root in the sidebar opens this panel immediately — there is no intermediate
+segmented control or section switcher. It is a Workbench root/common panel — **not** an
+injection into `WorkflowWorkspaceShell`. It does not invent a new navigation shell or
+app window.
 
 If a later implementation explicitly relocates the panel into a workspace shell injection
 point, update this section at that time. Until then, `WorkflowWorkspaceShell` is not

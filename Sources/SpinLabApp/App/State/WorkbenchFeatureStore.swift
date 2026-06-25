@@ -12,22 +12,6 @@ enum WorkbenchRoute: Equatable {
     case workflow(id: String)
 }
 
-enum WorkbenchSection: String, CaseIterable, Identifiable {
-    case workflows
-    case measurements
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .workflows:
-            return "Workflows"
-        case .measurements:
-            return "Measurements"
-        }
-    }
-}
-
 struct ConditionDefinitionOption: Identifiable, Equatable {
     let id: String
     let label: String
@@ -215,7 +199,6 @@ final class WorkbenchFeatureStore {
     @ObservationIgnored
     var onDefinitionsChanged: (([WorkflowDefinition]) -> Void)?
 
-    var selectedSection: WorkbenchSection = .workflows
     var currentRoute: WorkbenchRoute
     var workflowDefinitions: [WorkflowDefinition]
     var trackerLibrarySettings: LibrarySettings = .default

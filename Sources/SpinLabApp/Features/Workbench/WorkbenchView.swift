@@ -9,21 +9,11 @@ struct WorkbenchView: View {
         switch workbench.currentRoute {
 
         case .registry:
-            // Registry 保留 header + picker
             VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("Workbench")
-                            .font(AppFontScale.sectionTitle)
-                        Spacer()
-                    }
-                    Picker("Section", selection: $workbench.selectedSection) {
-                        ForEach(WorkbenchSection.allCases) { section in
-                            Text(section.title).tag(section)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 340)
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Workbench")
+                        .font(AppFontScale.sectionTitle)
+                    Spacer()
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 72)
@@ -31,16 +21,9 @@ struct WorkbenchView: View {
 
                 Divider()
 
-                switch workbench.selectedSection {
-                case .workflows:
-                    ScrollView {
-                        WorkflowRegistryView().padding(16)
-                    }
-                case .measurements:
-                    ScrollView {
-                        WorkbenchMeasurementsPanel(runtime: appState.workbench.sampleWorkTracker)
-                            .padding(16)
-                    }
+                ScrollView {
+                    WorkbenchMeasurementsPanel(runtime: appState.workbench.sampleWorkTracker)
+                        .padding(16)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
