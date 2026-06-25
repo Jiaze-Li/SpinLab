@@ -341,7 +341,7 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `Workbench/Modules/PlotSystem/Controls/Common/SharedPlotFontSizeControls.swift` | consumer: shared plot font-size pickers | UI helper | 46 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | none |
 | `Workbench/V3/Heatmap/HeatmapColorScaleControls.swift` | consumer: heatmap color-scale UI control | UI helper | 27 |  |  | 0 | none |
 | `Workbench/V3/Heatmap/HeatmapZLabelControl.swift` | consumer: heatmap optional Z/colorbar label control | UI helper | 21 |  |  | 0 | none |
-| `Features/Workbench/WorkbenchStandardPlotControls.swift` | consumer: shared plot controls | UI shell | 107 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | behavioral |
+| `Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift` | consumer: shared plot controls | UI shell | 107 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | behavioral |
 | `Features/Workbench/WorkbenchStatusArea.swift` | consumer: Workbench warnings/status UI | UI | 29 |  |  | 1 | none |
 | `Features/Workbench/WorkbenchTitleTemplateField.swift` | consumer: Workbench title template editor | UI | 38 |  |  | 0 | none |
 | `Features/Workbench/WorkbenchTracePanel.swift` | consumer: Workbench trace UI | UI | 52 |  |  | 1 | none |

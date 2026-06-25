@@ -242,7 +242,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("WorkbenchStandardPlotControls does not contain workflow-specific field names")
     func standardPlotControlsIsWorkflowAgnostic() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift")
         // These are Assembly-owned fields that must not appear in common controls
         let workflowSpecific = [
             "centerBaseline",

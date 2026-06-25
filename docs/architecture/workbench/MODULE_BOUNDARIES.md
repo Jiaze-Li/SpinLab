@@ -168,7 +168,7 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
     - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift` — workflow-independent PNG display shell; reused by heatmap with `layout: nil`
     - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/PlotCanvasMouseTracker.swift`
     - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift`
-    - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift`
+    - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift`
     - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTextControls.swift`
     - `Sources/SpinLabApp/Features/Workbench/RSMViewSelector.swift`
     - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotFontSizeControls.swift`
@@ -301,7 +301,7 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 
 - Classification: Module-owned — common module group within Plot System.
 - Current implementation files:
-  - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift`
   - `Sources/SpinLabApp/Features/Workbench/WorkbenchTitleTemplateField.swift`
   - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift`
   - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTextControls.swift`

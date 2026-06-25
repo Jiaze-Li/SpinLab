@@ -472,7 +472,7 @@ Boundary: no module other than Plot Preservation may write `TabRenderState` over
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift` — workflow-independent PNG display shell; interaction, hit-test, legend overlay, Copy PNG; reused by heatmap with `layout: nil`
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/PlotCanvasMouseTracker.swift` — tracks mouse position and computes hit-test results on the plot canvas
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift` — sidebar controls panel for plot display settings (Cartesian XY-specific controls)
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift` — standard plot control bindings shared across Cartesian XY multi-tab stacking workflows
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift` — standard plot control bindings shared across Cartesian XY multi-tab stacking workflows
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTextControls.swift` — shared title/X/Y override row used by heatmap and Cartesian workflows
 - `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapColorScaleControls.swift` — heatmap color-scale UI control
 - `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapZLabelControl.swift` — heatmap optional Z/colorbar label control
