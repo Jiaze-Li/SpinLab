@@ -85,7 +85,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("WorkbenchPlottingStore does not contain currentRunTrace")
     func plottingStoreHasNoRunTrace() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Contracts/WorkbenchPlottingStore.swift")
         // Verify the protocol body does not declare currentRunTrace
         // Find the protocol block for WorkbenchPlottingStore and check it has no currentRunTrace
         let lines = src.components(separatedBy: "\n")
@@ -112,13 +112,14 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("WorkbenchRunTraceProviding is a distinct protocol separate from WorkbenchPlottingStore")
     func runTraceProvidingIsSeparate() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift")
-        #expect(src.contains("protocol WorkbenchRunTraceProviding"), "WorkbenchRunTraceProviding must be declared")
-        #expect(src.contains("protocol WorkbenchPlottingStore"), "WorkbenchPlottingStore must be declared")
-        // They must be separate protocol declarations (not one conforming to the other here)
-        let rtRange = src.range(of: "protocol WorkbenchRunTraceProviding")!
-        let psRange = src.range(of: "protocol WorkbenchPlottingStore")!
-        #expect(rtRange != psRange, "They must be distinct declarations")
+        let runTraceSrc = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchRunTraceProviding.swift")
+        let plottingSrc = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Contracts/WorkbenchPlottingStore.swift")
+
+        #expect(runTraceSrc.contains("protocol WorkbenchRunTraceProviding"), "WorkbenchRunTraceProviding must be declared")
+        #expect(!runTraceSrc.contains("protocol WorkbenchPlottingStore"), "Run trace file must not redeclare WorkbenchPlottingStore")
+
+        #expect(plottingSrc.contains("protocol WorkbenchPlottingStore"), "WorkbenchPlottingStore must be declared")
+        #expect(!plottingSrc.contains("protocol WorkbenchRunTraceProviding"), "Plot System contract file must not contain WorkbenchRunTraceProviding")
     }
 
     @Test("WorkbenchWorkspaceProviding composes WorkbenchPlottingStore and WorkbenchRunTraceProviding")
@@ -135,7 +136,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("WorkbenchCartesianXYPlottingStore owns the Cartesian XY-only shared state")
     func cartesianXYPlottingStoreOwnsSharedState() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Contracts/WorkbenchPlottingStore.swift")
         guard let declLine = src.components(separatedBy: "\n").first(where: { $0.contains("protocol WorkbenchCartesianXYPlottingStore") }) else {
             Issue.record("WorkbenchCartesianXYPlottingStore declaration not found")
             return
@@ -177,7 +178,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("WorkbenchPlottingStore remains interaction-only")
     func plottingStoreIsInteractionOnly() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Contracts/WorkbenchPlottingStore.swift")
         let lines = src.components(separatedBy: "\n")
         var inPlottingStore = false
         var braceDepth = 0

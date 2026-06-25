@@ -174,7 +174,7 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
     - `Sources/SpinLabApp/Features/Workbench/RSMViewSelector.swift`
     - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotFontSizeControls.swift`
     - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderPanel.swift`
-    - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift` — defines `WorkbenchPlottingStore` (interaction-only), `WorkbenchCartesianXYPlottingStore` (Cartesian XY state), `WorkbenchGlobalPlotDefaultsProviding` (shared font defaults)
+    - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Contracts/WorkbenchPlottingStore.swift` — defines `WorkbenchPlottingStore` (interaction-only), `WorkbenchCartesianXYPlottingStore` (Cartesian XY state), `WorkbenchGlobalPlotDefaultsProviding` (shared font defaults)
     - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Preservation/TabRenderManager.swift`
     - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Pipeline/WorkbenchRenderPipeline.swift`
     - `Sources/SpinLabApp/Workbench/V3/WorkbenchChartRenderer.swift`

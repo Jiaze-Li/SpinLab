@@ -139,7 +139,7 @@ This gate needs more scrutiny because WorkbenchStandardPlotControls accepts work
 
 ### P1.6e Protocol Boundary Decision
 
-Do not move WorkbenchPlottingStore.swift until its boundary is explicitly decided.
+WorkbenchPlottingStore.swift has been split: run-trace read access stays in the Workbench workspace layer, while plot interaction and Cartesian XY plot-state contracts live under Plot System Contracts.
 
 It is not just a controls view. It is a protocol boundary between workflow stores and plot interaction surfaces.
 

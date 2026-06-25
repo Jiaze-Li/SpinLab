@@ -115,7 +115,7 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift` — mounts the 3ω workflow shell and workflow-specific panels
 - `Sources/SpinLabApp/Features/Workbench/UnitTagEditor.swift` — edits reusable unit tags inline
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchEnvironment.swift` — carries the workbench file-system and library access dependencies
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift` — defines the shared plot-canvas interaction contract
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchRunTraceProviding.swift` — defines the workspace-level read surface for the most recent run trace
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchReadAdapter.swift` — projects workspace state into a read-only shell-facing snapshot
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchResultHeaderShell.swift` — renders the shared result header and save actions
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchSharedComponents.swift` — documents the split shared workbench component inventory
