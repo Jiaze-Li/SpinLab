@@ -469,26 +469,27 @@ Boundary: no module other than Plot Preservation may write `TabRenderState` over
 
 ### Cartesian XY Render Path
 
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift` — workflow-independent PNG display shell; interaction, hit-test, legend overlay, Copy PNG; reused by heatmap with `layout: nil`
-- `Sources/SpinLabApp/Features/Workbench/PlotCanvasMouseTracker.swift` — tracks mouse position and computes hit-test results on the plot canvas
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift` — sidebar controls panel for plot display settings (Cartesian XY-specific controls)
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift` — standard plot control bindings shared across Cartesian XY multi-tab stacking workflows
-- `Sources/SpinLabApp/Features/Workbench/SharedPlotTextControls.swift` — shared title/X/Y override row used by heatmap and Cartesian workflows
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift` — workflow-independent PNG display shell; interaction, hit-test, legend overlay, Copy PNG; reused by heatmap with `layout: nil`
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/PlotCanvasMouseTracker.swift` — tracks mouse position and computes hit-test results on the plot canvas
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift` — sidebar controls panel for plot display settings (Cartesian XY-specific controls)
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift` — standard plot control bindings shared across Cartesian XY multi-tab stacking workflows
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTextControls.swift` — shared title/X/Y override row used by heatmap and Cartesian workflows
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotLabelOverrideField.swift` — shared inline label override text field and stale-source sync helper
 - `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapColorScaleControls.swift` — heatmap color-scale UI control
 - `Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapZLabelControl.swift` — heatmap optional Z/colorbar label control
-- `Sources/SpinLabApp/Features/Workbench/SharedPlotFontSizeControls.swift` — shared title/axis/tick font-size pickers used by plot control surfaces
-- `Sources/SpinLabApp/Features/Workbench/SharedPlotTickCountControls.swift` — shared X/Y axis tick-count steppers used by heatmap and RSM plot control panels
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesAppearanceControls.swift` — shell-level line-width and scatter-radius dropdowns backed by globalPlotDefaults; shared across all Cartesian XY workflows
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchAxisRangeControls.swift` — shell-level per-tab X/Y axis range override fields; shows resolved auto range from layout, persists override in TabRenderState
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift` — reorders stacked series from plot controls by per-series identity keys
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift` — interaction-only canvas protocol (`WorkbenchPlottingStore`); also defines `WorkbenchCartesianXYPlottingStore` (Cartesian XY state) and `WorkbenchGlobalPlotDefaultsProviding` (shared font/style defaults)
-- `Sources/SpinLabApp/Workbench/V3/WorkbenchSeriesOrderKeyResolver.swift` — shared series identity key resolver for order persistence and compatibility
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotFontSizeControls.swift` — shared title/axis/tick font-size pickers used by plot control surfaces
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTickCountControls.swift` — shared X/Y axis tick-count steppers used by heatmap and RSM plot control panels
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchSeriesAppearanceControls.swift` — shell-level line-width and scatter-radius dropdowns backed by globalPlotDefaults; shared across all Cartesian XY workflows
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchAxisRangeControls.swift` — shell-level per-tab X/Y axis range override fields; shows resolved auto range from layout, persists override in TabRenderState
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderPanel.swift` — reorders stacked series from plot controls by per-series identity keys
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Contracts/WorkbenchPlottingStore.swift` — interaction-only canvas protocol (`WorkbenchPlottingStore`); also defines `WorkbenchCartesianXYPlottingStore` (Cartesian XY state) and `WorkbenchGlobalPlotDefaultsProviding` (shared font/style defaults)
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderKeyResolver.swift` — shared series identity key resolver for order persistence and compatibility
 - `Sources/SpinLabApp/Workbench/V3/WorkbenchChartRenderer.swift` — CoreGraphics renderer for Cartesian XY line/scatter charts
-- `Sources/SpinLabApp/UseCases/LegendDimensionResolver.swift` — auto-resolves legend dimension from series metadata
-- `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift` — owns per-tab Cartesian XY render state (`TabRenderState`), tab outputs, active tab, shared display settings
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Legend/LegendDimensionResolver.swift` — auto-resolves legend dimension from series metadata
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Preservation/TabRenderManager.swift` — owns per-tab Cartesian XY render state (`TabRenderState`), tab outputs, active tab, shared display settings
 - `Sources/SpinLabApp/Workbench/V3/WorkbenchChartStyle.swift` — chart style parameters (colors, line widths, markers) for Cartesian XY renderer
 - `Sources/SpinLabApp/Workbench/V3/WorkbenchPlotLayout.swift` — geometry for Cartesian XY axes, legend rows, tick hit-rects, point hit-rects
-- `Sources/SpinLabApp/Workbench/V3/WorkbenchRenderPipeline.swift` — Cartesian XY render pipeline: legend auto-resolution, style merge, series order, PNG output
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Pipeline/WorkbenchRenderPipeline.swift` — Cartesian XY render pipeline: legend auto-resolution, style merge, series order, PNG output
 
 ### Shared Plot Types
 

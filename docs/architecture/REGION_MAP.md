@@ -327,23 +327,24 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `Features/Workbench/AHEWorkspaceStore.swift` | consumer: AHE workspace state/orchestration | Store | 763 |  | ⭐G H: parallel workspace store protocols | 0 | direct |
 | `Features/Workbench/AHEWorkspaceView.swift` | consumer: AHE workspace UI provider | UI | 276 |  |  | 0 | behavioral |
 | `Features/Workbench/NewRuleEntrySheet.swift` | consumer: Workbench rule-entry sheet | UI | 137 | ⭐ consumer: Workbench+Rules rule entry |  | 0 | none |
-| `Features/Workbench/PlotCanvasMouseTracker.swift` | consumer: WorkbenchPlotCanvas mouse bridge | UI bridge | 88 |  |  | 0 | behavioral |
+| `Workbench/Modules/PlotSystem/Canvas/PlotCanvasMouseTracker.swift` | consumer: WorkbenchPlotCanvas mouse bridge | UI bridge | 88 |  |  | 0 | behavioral |
 | `Features/Workbench/ThreeOmegaWorkspaceStore.swift` | consumer: 3ω workspace state/orchestration | Store | 1517 |  | ⭐G H/V: largest workflow store + parallel protocols | 0 | direct |
 | `Features/Workbench/ThreeOmegaWorkspaceView.swift` | consumer: 3ω workspace UI provider | UI | 447 |  |  | 0 | behavioral |
 | `Features/Workbench/TokenMapEditor.swift` | consumer: Workbench condition/rule token map UI | UI | 62 | ⭐ consumer: Workbench+Rules condition editing |  | 0 | none |
 | `Features/Workbench/UnitTagEditor.swift` | consumer: Workbench condition unit tag UI | UI | 70 | ⭐ consumer: Workbench+Rules condition editing |  | 0 | none |
-| `Features/Workbench/WorkbenchPlotCanvas.swift` | consumer: shared plot canvas | UI shell | 728 | ⭐ legitimate_cross_cutting within Workbench workflows | ⭐G H/V: plot shell + internal responsibilities | 1 | behavioral |
-| `Features/Workbench/WorkbenchPlotControlsPanel.swift` | consumer: Workbench plot controls wrapper | UI shell | 37 |  |  | 0 | none |
-| `Features/Workbench/WorkbenchPlottingStore.swift` | consumer: plot-capability protocol | Capability protocol | 36 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | behavioral |
+| `Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift` | consumer: shared plot canvas | UI shell | 728 | ⭐ legitimate_cross_cutting within Workbench workflows | ⭐G H/V: plot shell + internal responsibilities | 1 | behavioral |
+| `Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift` | consumer: Workbench plot controls wrapper | UI shell | 37 |  |  | 0 | none |
+| `Workbench/Modules/PlotSystem/Contracts/WorkbenchPlottingStore.swift` | consumer: plot-capability protocol | Capability protocol | 36 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | behavioral |
 | `Features/Workbench/WorkbenchSharedComponents.swift` | consumer: shared Workbench UI components | UI helper | 10 |  |  | 0 | none |
-| `Features/Workbench/SharedPlotTextControls.swift` | consumer: shared title/X/Y override row | UI helper | 135 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | none |
-| `Features/Workbench/RSMViewSelector.swift` | consumer: RSM workflow-specific plot-control selector | UI helper | 28 |  |  | 0 | none |
-| `Features/Workbench/SharedPlotFontSizeControls.swift` | consumer: shared plot font-size pickers | UI helper | 46 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | none |
+| `Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTextControls.swift` | consumer: shared title/X/Y override row | UI helper | 135 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | none |
+| `Workbench/Modules/PlotSystem/Controls/Common/SharedPlotLabelOverrideField.swift` | consumer: shared inline label override field | UI helper | 60 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | none |
+| `Workbench/V3/Heatmap/RSM/RSMViewSelector.swift` | consumer: RSM workflow-specific plot-control selector | UI helper | 28 |  |  | 0 | none |
+| `Workbench/Modules/PlotSystem/Controls/Common/SharedPlotFontSizeControls.swift` | consumer: shared plot font-size pickers | UI helper | 46 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | none |
 | `Workbench/V3/Heatmap/HeatmapColorScaleControls.swift` | consumer: heatmap color-scale UI control | UI helper | 27 |  |  | 0 | none |
 | `Workbench/V3/Heatmap/HeatmapZLabelControl.swift` | consumer: heatmap optional Z/colorbar label control | UI helper | 21 |  |  | 0 | none |
-| `Features/Workbench/WorkbenchStandardPlotControls.swift` | consumer: shared plot controls | UI shell | 107 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | behavioral |
+| `Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift` | consumer: shared plot controls | UI shell | 107 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | behavioral |
 | `Features/Workbench/WorkbenchStatusArea.swift` | consumer: Workbench warnings/status UI | UI | 29 |  |  | 1 | none |
-| `Features/Workbench/WorkbenchTitleTemplateField.swift` | consumer: Workbench title template editor | UI | 38 |  |  | 0 | none |
+| `Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchTitleTemplateField.swift` | consumer: Workbench title template editor | UI | 38 |  |  | 0 | none |
 | `Features/Workbench/WorkbenchTracePanel.swift` | consumer: Workbench trace UI | UI | 52 |  |  | 1 | none |
 | `Features/Workbench/WorkbenchView.swift` | consumer: RootSplitView Workbench area | UI | 64 |  |  | 0 | behavioral |
 | `Features/Workbench/WorkflowHitRow.swift` | consumer: Workbench search hit row | UI | 80 |  |  | 0 | none |
@@ -386,15 +387,15 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `Workbench/V3/AnalysisPackProviding.swift` | consumer: workflow stores pack save/load | Capability protocol | 194 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
 | `Workbench/V3/ConditionAliasConfig.swift` | consumer: Workbench condition alias config | Config model | 92 | ⭐ consumer: Workbench+Library sidecar conditions |  | 0 | behavioral |
 | `Workbench/V3/SeriesOrderAlignHelper.swift` | consumer: curve reorder alignment | UseCase helper | 22 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
-| `Workbench/V3/TabRenderManager.swift` | consumer: workflow tab render state | Store helper | 381 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
+| `Workbench/Modules/PlotSystem/Preservation/TabRenderManager.swift` | consumer: workflow tab render state | Store helper | 381 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
 | `Workbench/V3/ThreeOmegaIngestionContracts.swift` | consumer: 3ω ingestion/result contracts | Domain/Contract | 258 |  |  | 0 | direct |
 | `Workbench/V3/ThreeOmegaPackContracts.swift` | consumer: 3ω analysis pack Codable contracts | Domain/Contract | 93 |  |  | 0 | behavioral |
 | `Workbench/V3/WorkbenchArtifactIdentity.swift` | consumer: chart/metric identity | UseCase helper | 96 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
 | `Workbench/V3/WorkbenchChartRenderer.swift` | consumer: render payload to PNG | Renderer | 604 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
 | `Workbench/V3/WorkbenchChartStyle.swift` | consumer: chart style params | Domain/Config | 38 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
 | `Workbench/V3/WorkbenchPlotLayout.swift` | consumer: chart layout/hit testing | Renderer helper | 429 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | direct |
-| `Workbench/V3/WorkbenchRenderPipeline.swift` | consumer: shared chart render pipeline | Renderer pipeline | 191 | ⭐ legitimate_cross_cutting within Workbench workflows | ⭐G H: established shared render shell | 0 | direct |
-| `Workbench/V3/WorkbenchResultContracts.swift` | consumer: Workbench result/chart/metric contracts | Domain/Contract | 459 | ⭐ consumer: Workbench+Library artifact indexes |  | 0 | direct |
+| `Workbench/Modules/PlotSystem/Pipeline/WorkbenchRenderPipeline.swift` | consumer: shared chart render pipeline | Renderer pipeline | 191 | ⭐ legitimate_cross_cutting within Workbench workflows | ⭐G H: established shared render shell | 0 | direct |
+| `Workbench/Modules/PlotSystem/Contracts/WorkbenchResultContracts.swift` | consumer: Workbench result/chart/metric contracts | Domain/Contract | 459 | ⭐ consumer: Workbench+Library artifact indexes |  | 0 | direct |
 | `Workbench/V3/XYRotationIngestionContracts.swift` | consumer: XY Rotation ingestion/result contracts | Domain/Contract | 53 |  |  | 0 | direct |
 | `Workbench/V3/XYRotationPackContracts.swift` | consumer: XY analysis pack Codable contracts | Domain/Contract | 66 |  |  | 0 | behavioral |
 
@@ -515,7 +516,7 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `Import/Rules/FilenameRuleSet.swift` | 956 | Rules | rule schema + compile/evaluate，已入附录 G |
 | `App/State/WorkbenchFeatureStore.swift` | 877 | Workbench | Store 主体，已入附录 G |
 | `Features/Workbench/AHEWorkspaceStore.swift` | 763 | Workbench | workflow store + shared protocols，已入附录 G |
-| `Features/Workbench/WorkbenchPlotCanvas.swift` | 728 | Workbench | 共享 plot shell，已入附录 G |
+| `Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift` | 728 | Workbench | 共享 plot shell，已入附录 G |
 | `Library/LibraryXLSXSyncService.swift` | 663 | Library | XLSX sync service，已入附录 G |
 | `Features/Workbench/XYRotationWorkspaceStore.swift` | 623 | Workbench | workflow store + shared protocols，已入附录 G |
 | `Import/Rules/RuleLoader.swift` | 608 | Rules | runtime/bundle loader + cache + assembly，已入附录 G |
@@ -611,7 +612,7 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 |---|---|---|---|
 | `Features/Workbench/WorkbenchTracePanel.swift` | 14 | TODO(用户设计) | 调整 label 列宽、字号、是否折叠显示 |
 | `Features/Workbench/WorkbenchStatusArea.swift` | 15 | TODO(用户设计) | 考虑是否合并为单条消息、是否加图标前缀 |
-| `Features/Workbench/WorkbenchPlotCanvas.swift` | 55 | TODO(用户设计) | 调整最小高度、背景样式、空状态文字 |
+| `Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift` | 55 | TODO(用户设计) | 调整最小高度、背景样式、空状态文字 |
 | `Import/Rules/RulesBootstrapper.swift` | 1059 | false-positive | `dateFormat` 字符串含 `XXX`，不是 TODO / FIXME / XXX 注释 |
 
 ## 附录 D — 测试覆盖盲区清单
@@ -634,7 +635,7 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `Features/Workbench/TokenMapEditor.swift` | Workbench | 62 | Low：rule editor UI 无 direct test |
 | `Features/Workbench/UnitTagEditor.swift` | Workbench | 70 | Low：unit editor UI 无 direct test |
 | `Features/Workbench/WorkbenchStatusArea.swift` | Workbench | 29 | Low：status UI 无 direct test |
-| `Features/Workbench/WorkbenchTitleTemplateField.swift` | Workbench | 38 | Low：title field UI 无 direct test |
+| `Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchTitleTemplateField.swift` | Workbench | 38 | Low：title field UI 无 direct test |
 | `Features/Workbench/WorkbenchTracePanel.swift` | Workbench | 52 | Low：trace UI 无 direct test |
 | `Features/Workbench/WorkflowHitRow.swift` | Workbench | 80 | Low：search-hit UI 无 direct test |
 | `Features/RulesPanel/Components/RegexField.swift` | Rules | 41 | Low：regex input UI 无 direct test |

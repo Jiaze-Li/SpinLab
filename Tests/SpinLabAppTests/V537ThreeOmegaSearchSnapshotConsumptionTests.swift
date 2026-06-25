@@ -129,10 +129,9 @@ struct V537ThreeOmegaSearchSnapshotConsumptionTests {
     func nilSelectedSnapshotFallsBackToCache() {
         let store = ThreeOmegaWorkspaceStore()
 
-        let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
         let hitB = makeHit(sidecarPath: "sidecar-B", sampleKey: "PN32|b|STO|111")
 
-        // Cache contains hitB only — the selected hit (hitA) is absent.
+        // Cache contains hitB only — the selected hit is absent.
         store.cachedSearchResults = [hitB]
 
         // nil snapshot -> fallback to cache -> hitA missing -> guard fires.

@@ -658,7 +658,7 @@ struct V710CanvasStructuralGuards {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let url = base.appendingPathComponent(
-            "Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift"
+            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift"
         )
         return try String(contentsOf: url, encoding: .utf8)
     }
@@ -669,7 +669,7 @@ struct V710CanvasStructuralGuards {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let url = base.appendingPathComponent(
-            "Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift"
+            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift"
         )
         return try String(contentsOf: url, encoding: .utf8)
     }
@@ -846,7 +846,7 @@ struct V710LabelDisplayAndOrderTests {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let url = base.appendingPathComponent(
-            "Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift"
+            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderPanel.swift"
         )
         let src = try String(contentsOf: url, encoding: .utf8)
         #expect(src.contains(".draggable("), "chip must use .draggable for drag reorder")
@@ -862,7 +862,7 @@ struct V710LabelDisplayAndOrderTests {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let url = base.appendingPathComponent(
-            "Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift"
+            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderPanel.swift"
         )
         let src = try String(contentsOf: url, encoding: .utf8)
         #expect(src.contains("\"square.and.pencil\""),
@@ -878,7 +878,7 @@ struct V710LabelDisplayAndOrderTests {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let url = base.appendingPathComponent(
-            "Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift"
+            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderPanel.swift"
         )
         let src = try String(contentsOf: url, encoding: .utf8)
         #expect(src.contains("dragTargetKey"),
@@ -949,11 +949,23 @@ struct V710LabelOverrideFieldSyncTests {
 struct V710UIDensityGuards {
 
     private func sourceURL(for filename: String) -> URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("Sources/SpinLabApp/Features/Workbench/\(filename)")
+        let targetPath: String
+        switch filename {
+        case "WorkbenchPlotControlsPanel.swift":
+            targetPath = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift"
+        case "WorkbenchSeriesOrderPanel.swift":
+            targetPath = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderPanel.swift"
+        case "WorkbenchStandardPlotControls.swift":
+            targetPath = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift"
+        case "SharedPlotLabelOverrideField.swift":
+            targetPath = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotLabelOverrideField.swift"
+        default:
+            targetPath = "Sources/SpinLabApp/Features/Workbench/\(filename)"
+        }
+        return URL(fileURLWithPath: #filePath.replacingOccurrences(
+            of: "Tests/SpinLabAppTests/V710PlotControlsMigrationTests.swift",
+            with: targetPath
+        ))
     }
 
     // MARK: caption2 absent

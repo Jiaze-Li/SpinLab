@@ -61,7 +61,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("WorkbenchPlotCanvas does not store canonical plot preservation state")
     func canvasDoesNotStorePreservationState() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift")
         // Canvas must not hold TabRenderState or TabRenderManager as stored properties
         // (var/let stored property patterns — "@State" or "var x: TabRenderState" etc.)
         #expect(!src.contains("TabRenderState("), "Canvas must not construct TabRenderState instances")
@@ -74,7 +74,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("WorkbenchPlotCanvas exposes interaction callbacks, not stored overrides")
     func canvasExposesCallbacks() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift")
         // Canvas must expose the canonical interaction callbacks
         #expect(src.contains("onLegendDrag"), "Canvas must expose onLegendDrag callback")
         #expect(src.contains("onTogglePointLabelVisibility"), "Canvas must expose onTogglePointLabelVisibility callback")
@@ -85,7 +85,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("WorkbenchPlottingStore does not contain currentRunTrace")
     func plottingStoreHasNoRunTrace() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Contracts/WorkbenchPlottingStore.swift")
         // Verify the protocol body does not declare currentRunTrace
         // Find the protocol block for WorkbenchPlottingStore and check it has no currentRunTrace
         let lines = src.components(separatedBy: "\n")
@@ -112,13 +112,14 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("WorkbenchRunTraceProviding is a distinct protocol separate from WorkbenchPlottingStore")
     func runTraceProvidingIsSeparate() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift")
-        #expect(src.contains("protocol WorkbenchRunTraceProviding"), "WorkbenchRunTraceProviding must be declared")
-        #expect(src.contains("protocol WorkbenchPlottingStore"), "WorkbenchPlottingStore must be declared")
-        // They must be separate protocol declarations (not one conforming to the other here)
-        let rtRange = src.range(of: "protocol WorkbenchRunTraceProviding")!
-        let psRange = src.range(of: "protocol WorkbenchPlottingStore")!
-        #expect(rtRange != psRange, "They must be distinct declarations")
+        let runTraceSrc = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchRunTraceProviding.swift")
+        let plottingSrc = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Contracts/WorkbenchPlottingStore.swift")
+
+        #expect(runTraceSrc.contains("protocol WorkbenchRunTraceProviding"), "WorkbenchRunTraceProviding must be declared")
+        #expect(!runTraceSrc.contains("protocol WorkbenchPlottingStore"), "Run trace file must not redeclare WorkbenchPlottingStore")
+
+        #expect(plottingSrc.contains("protocol WorkbenchPlottingStore"), "WorkbenchPlottingStore must be declared")
+        #expect(!plottingSrc.contains("protocol WorkbenchRunTraceProviding"), "Plot System contract file must not contain WorkbenchRunTraceProviding")
     }
 
     @Test("WorkbenchWorkspaceProviding composes WorkbenchPlottingStore and WorkbenchRunTraceProviding")
@@ -135,7 +136,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("WorkbenchCartesianXYPlottingStore owns the Cartesian XY-only shared state")
     func cartesianXYPlottingStoreOwnsSharedState() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Contracts/WorkbenchPlottingStore.swift")
         guard let declLine = src.components(separatedBy: "\n").first(where: { $0.contains("protocol WorkbenchCartesianXYPlottingStore") }) else {
             Issue.record("WorkbenchCartesianXYPlottingStore declaration not found")
             return
@@ -152,7 +153,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("TabRenderState contains the per-tab override fields")
     func tabRenderStateOwnsPerTabFields() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Preservation/TabRenderManager.swift")
         // Must have all documented per-tab fields
         #expect(src.contains("var legendPoint"), "TabRenderState must own legendPoint")
         #expect(src.contains("var titleOverride"), "TabRenderState must own titleOverride")
@@ -165,7 +166,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("TabRenderManager contains the shared display and preservation state fields")
     func tabRenderManagerOwnsSharedState() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Preservation/TabRenderManager.swift")
         #expect(src.contains("var activeTab"), "TabRenderManager must own activeTab")
         #expect(src.contains("var showPlotGrid"), "TabRenderManager must own showPlotGrid")
         #expect(src.contains("var seriesRenderMode"), "TabRenderManager must own seriesRenderMode")
@@ -177,7 +178,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("WorkbenchPlottingStore remains interaction-only")
     func plottingStoreIsInteractionOnly() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Contracts/WorkbenchPlottingStore.swift")
         let lines = src.components(separatedBy: "\n")
         var inPlottingStore = false
         var braceDepth = 0
@@ -202,7 +203,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("WorkbenchPlotCanvas does not redeclare canonical TabRenderState fields as stored properties")
     func canvasDoesNotRedeclarePreservationFields() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift")
         // These are canonical TabRenderState fields — canvas must not declare them
         let forbidden = ["titleOverride", "legendPoint", "seriesOrder", "xLabelOverride", "yLabelOverride"]
         for field in forbidden {
@@ -217,7 +218,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("WorkbenchRenderPipeline does not reference workflow store state")
     func renderPipelineIsOneWay() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/V3/WorkbenchRenderPipeline.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Pipeline/WorkbenchRenderPipeline.swift")
         #expect(!src.contains("cachedSearchResults"), "Render pipeline must not reference cachedSearchResults")
         #expect(!src.contains("selectedSearchResultIDs"), "Render pipeline must not reference selectedSearchResultIDs")
         #expect(!src.contains("ingestionResult"), "Render pipeline must not reference ingestionResult")
@@ -242,7 +243,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("WorkbenchStandardPlotControls does not contain workflow-specific field names")
     func standardPlotControlsIsWorkflowAgnostic() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift")
         // These are Assembly-owned fields that must not appear in common controls
         let workflowSpecific = [
             "centerBaseline",
@@ -265,7 +266,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     @Test("WorkbenchPlotCanvas Copy PNG block does not call title/legend/style mutation callbacks")
     func copyPNGBlockDoesNotCallMutationCallbacks() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift")
+        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift")
         // Locate the Copy PNG context menu block (starting at .contextMenu or Menu("Copy PNG"))
         // and verify that no mutation callbacks are called inside it.
         // Starting from onCopyPNG stored-property declaration would scan too much of the file;

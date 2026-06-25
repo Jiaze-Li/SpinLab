@@ -165,17 +165,18 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Classification: Module-owned — common module group.
 - Current implementation files:
   - Cartesian XY render path:
-    - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift` — workflow-independent PNG display shell; reused by heatmap with `layout: nil`
-    - `Sources/SpinLabApp/Features/Workbench/PlotCanvasMouseTracker.swift`
-    - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift`
-    - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift`
-    - `Sources/SpinLabApp/Features/Workbench/SharedPlotTextControls.swift`
-    - `Sources/SpinLabApp/Features/Workbench/RSMViewSelector.swift`
-    - `Sources/SpinLabApp/Features/Workbench/SharedPlotFontSizeControls.swift`
-    - `Sources/SpinLabApp/Features/Workbench/WorkbenchSeriesOrderPanel.swift`
-    - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlottingStore.swift` — defines `WorkbenchPlottingStore` (interaction-only), `WorkbenchCartesianXYPlottingStore` (Cartesian XY state), `WorkbenchGlobalPlotDefaultsProviding` (shared font defaults)
-    - `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift`
-    - `Sources/SpinLabApp/Workbench/V3/WorkbenchRenderPipeline.swift`
+    - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift` — workflow-independent PNG display shell; reused by heatmap with `layout: nil`
+    - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Canvas/PlotCanvasMouseTracker.swift`
+    - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift`
+    - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift`
+    - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTextControls.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotLabelOverrideField.swift`
+    - `Sources/SpinLabApp/Workbench/V3/Heatmap/RSM/RSMViewSelector.swift`
+    - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotFontSizeControls.swift`
+    - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderPanel.swift`
+    - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Contracts/WorkbenchPlottingStore.swift` — defines `WorkbenchPlottingStore` (interaction-only), `WorkbenchCartesianXYPlottingStore` (Cartesian XY state), `WorkbenchGlobalPlotDefaultsProviding` (shared font defaults)
+    - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Preservation/TabRenderManager.swift`
+    - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Pipeline/WorkbenchRenderPipeline.swift`
     - `Sources/SpinLabApp/Workbench/V3/WorkbenchChartRenderer.swift`
     - `Sources/SpinLabApp/Workbench/V3/WorkbenchChartStyle.swift`
     - `Sources/SpinLabApp/Workbench/V3/WorkbenchPlotLayout.swift`
@@ -246,7 +247,7 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
     - `Sources/SpinLabApp/Features/Workbench/WorkbenchSaveCoordinating.swift` — shared async save orchestration protocol + extension; owns `executeSave`, outcome/trace/message writes, and `refreshRelatedCharts()` call pattern
     - save methods in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore+Persistence.swift`
     - save-metadata builders in `AHEWorkspaceStore.swift`, `XYRotationWorkspaceStore.swift`, and `ThreeOmegaWorkspaceStore+Plotting.swift`
-    - metric/provider contracts in `Sources/SpinLabApp/Workbench/V3/WorkbenchResultContracts.swift`
+    - metric/provider contracts in `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Contracts/WorkbenchResultContracts.swift`
   - RSM heatmap save path (Gate H5):
     - `Sources/SpinLabApp/UseCases/SaveRSMChartToLibraryUseCase.swift` — RSM-specific save use case; parallel to `SaveActiveChartToLibraryUseCase`; receives RSMSaveProjection directly
     - `Sources/SpinLabApp/Workbench/V3/Heatmap/RSM/RSMSaveProjection.swift` — RSM Assembly-owned save metadata: title, active view, axis labels, source file identity, semantic params
@@ -301,15 +302,15 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 
 - Classification: Module-owned — common module group within Plot System.
 - Current implementation files:
-  - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardPlotControls.swift`
-  - `Sources/SpinLabApp/Features/Workbench/WorkbenchTitleTemplateField.swift`
-  - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotControlsPanel.swift`
-  - `Sources/SpinLabApp/Features/Workbench/SharedPlotTextControls.swift`
-  - `Sources/SpinLabApp/Features/Workbench/SharedPlotFontSizeControls.swift`
-  - `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift`
-  - `Sources/SpinLabApp/Workbench/V3/WorkbenchRenderPipeline.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchTitleTemplateField.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTextControls.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotFontSizeControls.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Preservation/TabRenderManager.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Pipeline/WorkbenchRenderPipeline.swift`
   - `Sources/SpinLabApp/UseCases/WorkbenchTitleResolver.swift`
-  - `Sources/SpinLabApp/Workbench/V3/WorkbenchSeriesOrderKeyResolver.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderKeyResolver.swift`
   - `Sources/SpinLabApp/UseCases/LegendDimensionResolver.swift`
   - workflow-local `titleTemplate`, grid, legend anchor, and chart style bindings in all workflow stores
 - Current consumers: all workflow views/stores, render pipeline, pack configs, plot canvas editors.
@@ -334,7 +335,7 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Target owner: split ownership. Metric definitions, extraction semantics, unit conversions, and overrides are Assembly-owned. Generic save metadata envelope and artifact writer are Module-owned and common. The boundary debt is the projection from workflow metrics into generic save records.
 - Exit condition: AHE Hc / R_AHE extraction, 3ω alpha/beta/R² mapping, XY metric choices, unit conversions, and override rules are exposed through workflow Assembly save projections; the common Save module receives already-semantic metadata and never invents or transforms metric meaning.
 - Current implementation files:
-  - `Sources/SpinLabApp/Workbench/V3/WorkbenchResultContracts.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Contracts/WorkbenchResultContracts.swift`
   - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift`
   - `Sources/SpinLabApp/UseCases/ExtractAHEMetricsUseCase.swift`
   - `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift`

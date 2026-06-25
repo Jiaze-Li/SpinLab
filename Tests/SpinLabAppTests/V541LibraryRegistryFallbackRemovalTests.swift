@@ -33,7 +33,7 @@ struct V541LibraryRegistryFallbackRemovalTests {
 
     @Test("SpinLabRuleProvider.registryRules() returns nil when registry is absent")
     func providerReturnsNilWithoutRegistry() throws {
-        try withUnconfiguredRules {
+        withUnconfiguredRules {
             let provider = SpinLabRuleProvider(loader: RuleLoader())
             #expect(provider.registryRules() == nil)
         }
@@ -75,7 +75,7 @@ struct V541LibraryRegistryFallbackRemovalTests {
 
     @Test("RegistryMetadataAliasBook returns empty when registry absent — no silent fallback")
     func metadataAliasBookReturnsEmptyWhenAbsent() throws {
-        try withUnconfiguredRules {
+        withUnconfiguredRules {
             withBundledRules { provider in
                 if let rules = provider.registryRules() {
                     #expect(!rules.metadataLookupAliases.isEmpty)

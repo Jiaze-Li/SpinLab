@@ -309,7 +309,7 @@ struct V538CleanMissingRefsTests {
         try fix.writeResultsIndex(sampleKey: "S9", references: [ref])
         try fix.writePlotIndex(sampleKey: "S9", entries: ["source.lvm": [ref.chartIdentityKey]])
 
-        ChartAssetAuditService.cleanMissingReferences(rootURL: fix.rootURL)
+        _ = ChartAssetAuditService.cleanMissingReferences(rootURL: fix.rootURL)
 
         let plotIndex = fix.loadPlotIndex(sampleKey: "S9")
         #expect(plotIndex?.entries.isEmpty ?? true)
@@ -355,7 +355,7 @@ struct V538CleanMissingRefsTests {
         #expect(reportBefore.missingActiveImages.count == 1)
         #expect(reportBefore.missingActiveManifests.count == 1)
 
-        ChartAssetAuditService.cleanMissingReferences(rootURL: fix.rootURL)
+        _ = ChartAssetAuditService.cleanMissingReferences(rootURL: fix.rootURL)
 
         let reportAfter = ChartAssetAuditService.audit(rootURL: fix.rootURL)
         #expect(reportAfter.missingActiveImages.isEmpty)
@@ -377,7 +377,7 @@ struct V538CleanMissingRefsTests {
         try fix.writePNG(relativePath: orphanPath)
         try fix.writeResultsIndex(sampleKey: "SC", references: [brokenRef])
 
-        ChartAssetAuditService.cleanMissingReferences(rootURL: fix.rootURL)
+        _ = ChartAssetAuditService.cleanMissingReferences(rootURL: fix.rootURL)
 
         // orphan PNG must still be on disk — clean only touches index files
         #expect(fix.fileExists(relativePath: orphanPath))
