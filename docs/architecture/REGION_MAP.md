@@ -331,7 +331,6 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `Features/Workbench/ThreeOmegaWorkspaceStore.swift` | consumer: 3ω workspace state/orchestration | Store | 1517 |  | ⭐G H/V: largest workflow store + parallel protocols | 0 | direct |
 | `Features/Workbench/ThreeOmegaWorkspaceView.swift` | consumer: 3ω workspace UI provider | UI | 447 |  |  | 0 | behavioral |
 | `Features/Workbench/TokenMapEditor.swift` | consumer: Workbench condition/rule token map UI | UI | 62 | ⭐ consumer: Workbench+Rules condition editing |  | 0 | none |
-| `Features/Workbench/UnitTagEditor.swift` | consumer: Workbench condition unit tag UI | UI | 70 | ⭐ consumer: Workbench+Rules condition editing |  | 0 | none |
 | `Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift` | consumer: shared plot canvas | UI shell | 728 | ⭐ legitimate_cross_cutting within Workbench workflows | ⭐G H/V: plot shell + internal responsibilities | 1 | behavioral |
 | `Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift` | consumer: Workbench plot controls wrapper | UI shell | 37 |  |  | 0 | none |
 | `Workbench/Modules/PlotSystem/Contracts/WorkbenchPlottingStore.swift` | consumer: plot-capability protocol | Capability protocol | 36 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | behavioral |
@@ -563,7 +562,6 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `Library/SpinLabFileSidecar.swift` | Sidecar contract feeds Inbox apply, Library archive, Workbench search | pending |
 | `Features/Workbench/NewRuleEntrySheet.swift` | Workbench UI creates rule-like entries | pending |
 | `Features/Workbench/TokenMapEditor.swift` | Workbench UI edits condition/rule token maps | pending |
-| `Features/Workbench/UnitTagEditor.swift` | Workbench UI edits condition/rule units | pending |
 | `Workflow/WorkflowDefinitionStore.swift` | Rules-owned workflow config consumed by Workbench | pending |
 | `Features/RulesPanel/RulesManagementStore.swift` | RulesPanel runtime config save immediately affects Inbox/Workbench/Registry behavior | pending |
 | `Features/RulesPanel/RulesSectionShell.swift` | Shared save/reload shell used by RulesPanel sections | pending |
@@ -631,7 +629,6 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `Features/Library/LibraryWorkspaceSections.swift` | Library | 587 | Medium：大 UI section 文件无 direct test |
 | `Features/Workbench/NewRuleEntrySheet.swift` | Workbench | 137 | Low：sheet UI 无 direct test |
 | `Features/Workbench/TokenMapEditor.swift` | Workbench | 62 | Low：rule editor UI 无 direct test |
-| `Features/Workbench/UnitTagEditor.swift` | Workbench | 70 | Low：unit editor UI 无 direct test |
 | `Features/Workbench/WorkbenchStatusArea.swift` | Workbench | 29 | Low：status UI 无 direct test |
 | `Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchTitleTemplateField.swift` | Workbench | 38 | Low：title field UI 无 direct test |
 | `Features/Workbench/WorkbenchTracePanel.swift` | Workbench | 52 | Low：trace UI 无 direct test |
