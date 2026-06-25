@@ -62,7 +62,7 @@ struct V537XYSearchSnapshotConsumptionTests {
     @MainActor
     @Test("runAnalysis(selectedHitsSnapshot:) uses provided selected hits, not stale cachedSearchResults")
     func selectedSnapshotResultsUsedWhenProvided() async {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
 
         let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
         let hitB = makeHit(sidecarPath: "sidecar-B", sampleKey: "PN32|b|STO|111")
@@ -93,7 +93,7 @@ struct V537XYSearchSnapshotConsumptionTests {
     @MainActor
     @Test("runAnalysis(selectedHitsSnapshot: nil) falls back to cachedSearchResults + selectedSearchResultIDs")
     func nilSelectedSnapshotFallsBackToCache() {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
 
         let hitB = makeHit(sidecarPath: "sidecar-B", sampleKey: "PN32|b|STO|111")
 
@@ -114,7 +114,7 @@ struct V537XYSearchSnapshotConsumptionTests {
     @MainActor
     @Test("runAnalysis() still succeeds via cachedSearchResults fallback for pack/restore paths")
     func noArgRunAnalysisRemainsLegacyCompatible() {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
 
         let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
 
@@ -135,7 +135,7 @@ struct V537XYSearchSnapshotConsumptionTests {
     @MainActor
     @Test("runAnalysis(searchSnapshot:) still succeeds via snapshot fallback path")
     func searchSnapshotCompatibilityRemainsIntact() {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
 
         let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
         let snapshot = WorkbenchSearchSnapshot(

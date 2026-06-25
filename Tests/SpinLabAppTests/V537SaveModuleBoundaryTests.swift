@@ -134,7 +134,7 @@ struct V537SaveModuleBoundaryTests {
     @Test("AHE persistToLibrary with nil PNG preserves canonical search and selection state")
     func ahePersistNilPNGPreservesSearchAndSelection() {
         let wfs = makeWorkbenchStore()
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         let hit = makeHit(
             id: "ahe-save-search",
             workflowID: "ahe",
@@ -159,7 +159,7 @@ struct V537SaveModuleBoundaryTests {
     @Test("XY persistToLibrary with nil PNG preserves canonical search and selection state")
     func xyPersistNilPNGPreservesSearchAndSelection() {
         let wfs = makeWorkbenchStore()
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         let hit = makeHit(
             id: "xy-save-search",
             workflowID: "xy",
@@ -183,7 +183,7 @@ struct V537SaveModuleBoundaryTests {
     @Test("3ω persistToLibrary with nil PNG preserves canonical search and selection state")
     func threeOmegaPersistNilPNGPreservesSearchAndSelection() {
         let wfs = makeWorkbenchStore()
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let hit = makeHit(
             id: "3w-save-search",
             workflowID: "3w",
@@ -208,7 +208,7 @@ struct V537SaveModuleBoundaryTests {
     @MainActor
     @Test("AHE nil PNG guard sets only saveMessage; plotMessage and other state unchanged")
     func ahePersistNilPNGIsContained() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         store.currentRunTrace = sentinelTrace(runID: "sentinel-ahe-png", workflowID: "ahe")
 
         store.persistToLibrary()
@@ -226,7 +226,7 @@ struct V537SaveModuleBoundaryTests {
     @MainActor
     @Test("XY nil PNG guard sets only saveMessage; analysisMessage and other state unchanged")
     func xyPersistNilPNGIsContained() {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         store.currentRunTrace = sentinelTrace(runID: "sentinel-xy-png", workflowID: "xy")
 
         store.persistToLibrary()
@@ -242,7 +242,7 @@ struct V537SaveModuleBoundaryTests {
     @MainActor
     @Test("3ω nil PNG guard sets only saveMessage; analysisMessage and other state unchanged")
     func threeOmegaPersistNilPNGIsContained() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.currentRunTrace = sentinelTrace(runID: "sentinel-3w-png", workflowID: "3w")
 
         store.persistToLibrary()
@@ -260,7 +260,7 @@ struct V537SaveModuleBoundaryTests {
     @MainActor
     @Test("AHE nil manifest guard sets only saveMessage; plotMessage and other state unchanged")
     func ahePersistNilManifestIsContained() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         // PNG present, manifest absent
         store.tabs.setOutput(
             TabRenderOutput(imageData: Data([0xFF, 0xD8]), layout: nil, manifestPayload: nil),
@@ -280,7 +280,7 @@ struct V537SaveModuleBoundaryTests {
     @MainActor
     @Test("XY nil manifest guard sets only saveMessage; analysisMessage and other state unchanged")
     func xyPersistNilManifestIsContained() {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         store.tabs.setOutput(
             TabRenderOutput(imageData: Data([0xFF, 0xD8]), layout: nil, manifestPayload: nil),
             for: .rxxVsPhi
@@ -299,7 +299,7 @@ struct V537SaveModuleBoundaryTests {
     @MainActor
     @Test("3ω nil manifest guard sets only saveMessage; analysisMessage and other state unchanged")
     func threeOmegaPersistNilManifestIsContained() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.tabs.setOutput(
             TabRenderOutput(imageData: Data([0xFF, 0xD8]), layout: nil, manifestPayload: nil),
             for: .fieldSweep1omega
@@ -320,7 +320,7 @@ struct V537SaveModuleBoundaryTests {
     @MainActor
     @Test("AHE: ingestionResult, chart output, and tab overrides survive a save failure")
     func aheAnalysisOutputPreservedAfterSaveFailure() async {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         let hit = makeHit(
             id: "ahe-save-output",
             workflowID: "ahe",
@@ -371,7 +371,7 @@ struct V537SaveModuleBoundaryTests {
     @MainActor
     @Test("XY: ingestionResult, chart output, and tab overrides survive a save failure")
     func xyAnalysisOutputPreservedAfterSaveFailure() async {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         let hit = makeHit(
             id: "xy-save-output",
             workflowID: "xy",
@@ -419,7 +419,7 @@ struct V537SaveModuleBoundaryTests {
     @MainActor
     @Test("3ω: ingestionResult, chart output, and tab overrides survive a save failure")
     func threeOmegaAnalysisOutputPreservedAfterSaveFailure() async {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let hit = makeHit(
             id: "3w-save-output",
             workflowID: "3w",
@@ -556,7 +556,7 @@ struct V537SaveModuleBoundaryTests {
     @MainActor
     @Test("XY save outcome goes to saveMessage; analysisMessage retains analysis summary")
     func xySaveMessageDoesNotClobberAnalysisMessage() async {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         let hit = makeHit(
             id: "xy-save-msg-sep",
             workflowID: "xy",
@@ -600,7 +600,7 @@ struct V537SaveModuleBoundaryTests {
     @MainActor
     @Test("3ω save outcome goes to saveMessage; analysisMessage retains analysis summary")
     func threeOmegaSaveMessageDoesNotClobberAnalysisMessage() async {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let hit = makeHit(
             id: "3w-save-msg-sep",
             workflowID: "3w",
@@ -643,7 +643,7 @@ struct V537SaveModuleBoundaryTests {
     @MainActor
     @Test("clearPlot clears saveMessage for AHE")
     func clearPlotClearsSaveMessageAHE() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         // Guard path sets saveMessage
         store.persistToLibrary()
         #expect(store.saveMessage != nil)
@@ -654,7 +654,7 @@ struct V537SaveModuleBoundaryTests {
     @MainActor
     @Test("clearPlot clears saveMessage for XY")
     func clearPlotClearsSaveMessageXY() {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         store.persistToLibrary()
         #expect(store.saveMessage != nil)
         store.clearPlot()
@@ -664,7 +664,7 @@ struct V537SaveModuleBoundaryTests {
     @MainActor
     @Test("clearPlot clears saveMessage for 3ω")
     func clearPlotClearsSaveMessageThreeOmega() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.persistToLibrary()
         #expect(store.saveMessage != nil)
         store.clearPlot()

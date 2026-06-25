@@ -79,7 +79,7 @@ struct V78BPlotSystemBoundaryTests {
     @MainActor
     @Test("AHE updateSeriesLabel does not mutate cachedSearchResults or ingestionResult")
     func aheUpdateSeriesLabelDoesNotMutateSearchOrIngestion() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         let hits = [makeSearchHit(id: "a1")]
         store.cachedSearchResults = hits
         // ingestionResult stays nil — verify it is not side-effected to a non-nil value
@@ -93,7 +93,7 @@ struct V78BPlotSystemBoundaryTests {
     @MainActor
     @Test("XY updateSeriesLabel does not mutate cachedSearchResults or ingestionResult")
     func xyUpdateSeriesLabelDoesNotMutateSearchOrIngestion() {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         let hits = [makeSearchHit(id: "xy1")]
         store.cachedSearchResults = hits
 
@@ -106,7 +106,7 @@ struct V78BPlotSystemBoundaryTests {
     @MainActor
     @Test("3ω updateSeriesLabel does not mutate cachedSearchResults or ingestionResult")
     func threeOmegaUpdateSeriesLabelDoesNotMutateSearchOrIngestion() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let hits = [makeSearchHit(id: "3w1")]
         store.cachedSearchResults = hits
         store.ingestionResult = make3OmegaIngestion()
@@ -123,7 +123,7 @@ struct V78BPlotSystemBoundaryTests {
     @MainActor
     @Test("3ω togglePointLabelVisibility does not mutate cachedSearchResults or ingestionResult")
     func threeOmegaTogglePointLabelDoesNotMutateSearchOrIngestion() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let hits = [makeSearchHit(id: "3w2")]
         store.cachedSearchResults = hits
         store.ingestionResult = make3OmegaIngestion()
@@ -142,7 +142,7 @@ struct V78BPlotSystemBoundaryTests {
     @MainActor
     @Test("3ω second togglePointLabelVisibility removes the index (toggle-off path)")
     func threeOmegaTogglePointLabelToggleOffPath() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let hits = [makeSearchHit(id: "3w3")]
         store.cachedSearchResults = hits
         store.tabs.activeTab = .scaling
@@ -161,7 +161,7 @@ struct V78BPlotSystemBoundaryTests {
     @MainActor
     @Test("XY updatePlotTitle does not mutate cachedSearchResults or ingestionResult")
     func xyUpdatePlotTitleDoesNotMutateSearchOrIngestion() {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         let hits = [makeSearchHit(id: "xy2")]
         store.cachedSearchResults = hits
 
@@ -175,7 +175,7 @@ struct V78BPlotSystemBoundaryTests {
     @MainActor
     @Test("XY updateLegendPoint does not mutate cachedSearchResults or ingestionResult")
     func xyUpdateLegendPointDoesNotMutateSearchOrIngestion() {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         let hits = [makeSearchHit(id: "xy3")]
         store.cachedSearchResults = hits
 
@@ -188,7 +188,7 @@ struct V78BPlotSystemBoundaryTests {
     @MainActor
     @Test("3ω updatePlotTitle does not mutate cachedSearchResults or ingestionResult")
     func threeOmegaUpdatePlotTitleDoesNotMutateSearchOrIngestion() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let hits = [makeSearchHit(id: "3w4")]
         store.cachedSearchResults = hits
         store.ingestionResult = make3OmegaIngestion()
@@ -203,7 +203,7 @@ struct V78BPlotSystemBoundaryTests {
     @MainActor
     @Test("3ω updateLegendPoint does not mutate cachedSearchResults or ingestionResult")
     func threeOmegaUpdateLegendPointDoesNotMutateSearchOrIngestion() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let hits = [makeSearchHit(id: "3w5")]
         store.cachedSearchResults = hits
         store.ingestionResult = make3OmegaIngestion()
@@ -220,7 +220,7 @@ struct V78BPlotSystemBoundaryTests {
     @MainActor
     @Test("AHE titleTemplate mutation does not mutate cachedSearchResults or ingestionResult")
     func aheTitleTemplateMutationDoesNotMutateSearchOrIngestion() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         let hits = [makeSearchHit(id: "tt-ahe")]
         store.cachedSearchResults = hits
 
@@ -234,7 +234,7 @@ struct V78BPlotSystemBoundaryTests {
     @MainActor
     @Test("XY titleTemplate mutation does not mutate cachedSearchResults or ingestionResult")
     func xyTitleTemplateMutationDoesNotMutateSearchOrIngestion() {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         let hits = [makeSearchHit(id: "tt-xy")]
         store.cachedSearchResults = hits
 
@@ -248,7 +248,7 @@ struct V78BPlotSystemBoundaryTests {
     @MainActor
     @Test("3ω titleTemplate mutation does not mutate cachedSearchResults or ingestionResult")
     func threeOmegaTitleTemplateMutationDoesNotMutateSearchOrIngestion() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let hits = [makeSearchHit(id: "tt-3w")]
         store.cachedSearchResults = hits
         store.ingestionResult = make3OmegaIngestion()

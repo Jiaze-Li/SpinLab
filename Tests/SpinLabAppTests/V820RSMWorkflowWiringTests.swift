@@ -102,7 +102,7 @@ struct V820RSMWorkflowWiringTests {
     @Test @MainActor func storeActivelayoutIsNil() {
         // RSMWorkspaceStore must always return nil for activeLayout —
         // WorkbenchPlotCanvas receives layout: nil for heatmaps (no XY hit-testing).
-        let store = RSMWorkspaceStore()
+        let store = RSMWorkspaceStore(workflowID: WorkflowKey.rsm.rawValue)
         #expect(store.activeLayout == nil)
     }
 

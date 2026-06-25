@@ -17,7 +17,7 @@ struct V537WorkflowShellPhase4Tests {
     @MainActor
     @Test("AHE rerenderForStyleChange does not clear per-tab text overrides from tabStates")
     func aheRerenderForStyleChangePreservesTabStateOverrides() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         store.tabs.tabStates[.ahe] = TabRenderState(
             titleOverride: "Custom AHE Title",
             xLabelOverride: "My X",
@@ -36,7 +36,7 @@ struct V537WorkflowShellPhase4Tests {
     @MainActor
     @Test("AHE updatePlotTitle / updateXAxisLabel / updateYAxisLabel write to active tab state")
     func aheOverrideMutationsWriteToActiveTabState() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         store.updatePlotTitle("My Title")
         store.updateXAxisLabel("X Label")
         store.updateYAxisLabel("Y Label")
@@ -49,7 +49,7 @@ struct V537WorkflowShellPhase4Tests {
     @MainActor
     @Test("AHE updateSeriesLabel writes to active tab state")
     func aheUpdateSeriesLabelWritesToActiveTabState() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         store.updateSeriesLabel(identityKey: "sample-a", newLabel: "Renamed A")
         let state = store.tabs.state(for: .ahe)
         #expect(state.seriesLabelOverrides["sample-a"] == "Renamed A")
@@ -58,7 +58,7 @@ struct V537WorkflowShellPhase4Tests {
     @MainActor
     @Test("AHE runAnalysis with empty selection preserves tab state overrides (guard path)")
     func aheRunAnalysisEmptySelectionPreservesTabStateOverrides() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         store.tabs.tabStates[.ahe] = TabRenderState(
             titleOverride: "My AHE Title",
             xLabelOverride: "My X",
@@ -77,7 +77,7 @@ struct V537WorkflowShellPhase4Tests {
     @MainActor
     @Test("XY rerenderForStyleChange does not clear per-tab text overrides from tabStates")
     func xyRerenderForStyleChangePreservesTabStateOverrides() {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         store.tabs.tabStates[.rxxVsPhi] = TabRenderState(
             titleOverride: "Custom Rxx Title",
             xLabelOverride: "φ (deg)",
@@ -101,7 +101,7 @@ struct V537WorkflowShellPhase4Tests {
     @MainActor
     @Test("XY tab state overrides are isolated per tab: rxxVsPhi override does not appear in rxyVsPhi")
     func xyTabStateOverridesAreTabIsolated() {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         store.tabs.tabStates[.rxxVsPhi] = TabRenderState(
             titleOverride: "Only Rxx",
             seriesLabelOverrides: ["sample-a": "A"]
@@ -119,7 +119,7 @@ struct V537WorkflowShellPhase4Tests {
     @MainActor
     @Test("XY runAnalysis with empty selection preserves tab state overrides (guard path)")
     func xyRunAnalysisEmptySelectionPreservesTabStateOverrides() {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         store.tabs.tabStates[.rxxVsPhi] = TabRenderState(
             titleOverride: "My Rxx Title",
             xLabelOverride: "φ",
@@ -141,7 +141,7 @@ struct V537WorkflowShellPhase4Tests {
     @MainActor
     @Test("XY rerenderForStyleChange preserves tab state and reflects title override in rendered output")
     func xyRerenderForStyleChangeReflectsTitleOverrideInOutput() async throws {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         let sweep = XYRotationAngleSweep(
             temperatureK: 80,
             stem: "sample",
@@ -185,7 +185,7 @@ struct V537WorkflowShellPhase4Tests {
     @MainActor
     @Test("XY rerenderForStyleChange: rxxVsPhi and rxyVsPhi tabStates stay independent through render")
     func xyRerenderForStyleChangeKeepsTabsIsolatedThroughRender() async throws {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         let sweep = XYRotationAngleSweep(
             temperatureK: 80,
             stem: "sample",
@@ -222,7 +222,7 @@ struct V537WorkflowShellPhase4Tests {
     @MainActor
     @Test("XY runAnalysis does not clear series order from tabStates (guard path)")
     func xyRunAnalysisGuardPathPreservesSeriesOrder() {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         let order = ["key-a|/tmp/a.lvm", "key-b|/tmp/b.lvm"]
         store.tabs.tabStates[.rxxVsPhi] = TabRenderState(seriesOrder: order)
         // empty selection → guard exits
@@ -235,7 +235,7 @@ struct V537WorkflowShellPhase4Tests {
     @MainActor
     @Test("XY activeImageData is a projection over tabOutputs for the active tab")
     func xyActiveImageDataProjectsFromTabOutputs() {
-        let store = XYRotationWorkspaceStore()
+        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
         #expect(store.activeImageData == nil)
         store.tabs.setOutput(
             TabRenderOutput(imageData: Data([0xAB]), layout: nil, manifestPayload: nil),
@@ -249,7 +249,7 @@ struct V537WorkflowShellPhase4Tests {
     @MainActor
     @Test("AHE activeImageData is a projection over tabOutputs for the active tab")
     func aheActiveImageDataProjectsFromTabOutputs() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         #expect(store.activeImageData == nil)
         store.tabs.setOutput(
             TabRenderOutput(imageData: Data([0xCD]), layout: nil, manifestPayload: nil),

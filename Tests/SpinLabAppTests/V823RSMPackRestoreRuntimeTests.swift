@@ -138,7 +138,7 @@ struct V823RSMPackRestoreRuntimeTests {
     @Test("Store buildPackConfig captures activeView and heatmapDisplayState")
     @MainActor
     func storeCapturesActiveViewAndDisplayState() {
-        let store = RSMWorkspaceStore()
+        let store = RSMWorkspaceStore(workflowID: WorkflowKey.rsm.rawValue)
         store.activeView = .kl
         store.heatmapDisplayState = HeatmapTabRenderState(
             showColorbar: false,
@@ -466,7 +466,7 @@ struct V823RSMPackRestoreRuntimeTests {
         let vault = AnalysisVault()
         vault.configurePersistence(libraryRootPath: libPath)
 
-        let store = RSMWorkspaceStore()
+        let store = RSMWorkspaceStore(workflowID: WorkflowKey.rsm.rawValue)
         store.vault = vault
         // lastLibraryRootPath starts empty
         #expect(store.lastLibraryRootPath.isEmpty)
@@ -508,7 +508,7 @@ struct V823RSMPackRestoreRuntimeTests {
         let vault = AnalysisVault()
         vault.configurePersistence(libraryRootPath: vaultPath)
 
-        let store = RSMWorkspaceStore()
+        let store = RSMWorkspaceStore(workflowID: WorkflowKey.rsm.rawValue)
         store.vault = vault
         store.lastLibraryRootPath = existingPath  // already set
 
@@ -544,7 +544,7 @@ struct V823RSMPackRestoreRuntimeTests {
     @Test("activeLayout remains nil after restore")
     @MainActor
     func activeLayoutRemainsNilAfterRestore() {
-        let store = RSMWorkspaceStore()
+        let store = RSMWorkspaceStore(workflowID: WorkflowKey.rsm.rawValue)
         store.activeView = .hl
         store.heatmapDisplayState = .init()
 

@@ -146,7 +146,7 @@ final class V4117AnalysisPackVaultTests: XCTestCase {
 
     func testOverlaySnapshotSurvivesVaultDeletion() {
         let vault = AnalysisVault()
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let rt = WorkbenchAnalysisOverlayRuntime()
         store.overlayRuntime = rt
         store.vault = vault

@@ -36,7 +36,7 @@ struct V5111ExtractAHEMetricsUseCaseTests {
     @MainActor
     @Test("updateHcCandidate normalizes raw input in the store")
     func updateHcCandidateNormalizesRawInput() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
 
         store.updateHcCandidate(rawValue: "   ", rawReason: "ignored")
         #expect(store.pendingMetricOverride == nil)
@@ -52,7 +52,7 @@ struct V5111ExtractAHEMetricsUseCaseTests {
     @MainActor
     @Test("updateRAHECandidate normalizes raw input in the store")
     func updateRAHECandidateNormalizesRawInput() {
-        let store = AHEWorkspaceStore()
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
 
         store.updateRAHECandidate(rawValue: " 2.5 ", rawReason: "   ")
         #expect(store.pendingRAHEOverride?.proposedValue == 2.5)

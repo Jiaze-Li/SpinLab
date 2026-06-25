@@ -9,14 +9,14 @@ struct ThreeOmegaRAHEMethodTabCoverageTests {
 
     @Test("activeRAHEMethod returns nil for non-RAHE tab")
     func nonRAHETab() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.tabs.activeTab = .fieldSweep1omega
         #expect(store.activeRAHEMethod == nil)
     }
 
     @Test("activeRAHEMethod returns rahe1omegaMethod for rahe1omegaVsT")
     func rahe1VsT() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.rahe1omegaMethod = .window
         store.tabs.activeTab = .rahe1omegaVsT
         #expect(store.activeRAHEMethod == .window)
@@ -24,7 +24,7 @@ struct ThreeOmegaRAHEMethodTabCoverageTests {
 
     @Test("activeRAHEMethod returns rahe3omegaMethod for rahe3omegaVsT")
     func rahe3VsT() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.rahe3omegaMethod = .window
         store.tabs.activeTab = .rahe3omegaVsT
         #expect(store.activeRAHEMethod == .window)
@@ -32,7 +32,7 @@ struct ThreeOmegaRAHEMethodTabCoverageTests {
 
     @Test("activeRAHEMethod returns rahe1omegaVsDeviceMethod for rahe1omegaVsDevice")
     func rahe1VsDevice() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.rahe1omegaVsDeviceMethod = .window
         store.tabs.activeTab = .rahe1omegaVsDevice
         #expect(store.activeRAHEMethod == .window)
@@ -40,7 +40,7 @@ struct ThreeOmegaRAHEMethodTabCoverageTests {
 
     @Test("activeRAHEMethod returns rahe3omegaVsDeviceMethod for rahe3omegaVsDevice")
     func rahe3VsDevice() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.rahe3omegaVsDeviceMethod = .window
         store.tabs.activeTab = .rahe3omegaVsDevice
         #expect(store.activeRAHEMethod == .window)
@@ -50,7 +50,7 @@ struct ThreeOmegaRAHEMethodTabCoverageTests {
 
     @Test("updateRAHEMethod on rahe1omegaVsDevice updates rahe1omegaVsDeviceMethod")
     func updateRAHE1Device() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.tabs.activeTab = .rahe1omegaVsDevice
         store.updateRAHEMethod(.window)
         #expect(store.rahe1omegaVsDeviceMethod == .window)
@@ -59,7 +59,7 @@ struct ThreeOmegaRAHEMethodTabCoverageTests {
 
     @Test("updateRAHEMethod on rahe3omegaVsDevice updates rahe3omegaVsDeviceMethod")
     func updateRAHE3Device() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.tabs.activeTab = .rahe3omegaVsDevice
         store.updateRAHEMethod(.window)
         #expect(store.rahe3omegaVsDeviceMethod == .window)
@@ -68,7 +68,7 @@ struct ThreeOmegaRAHEMethodTabCoverageTests {
 
     @Test("updateRAHEMethod is no-op when method unchanged")
     func updateRAHENoop() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.tabs.activeTab = .rahe1omegaVsDevice
         store.rahe1omegaVsDeviceMethod = .highField
         store.updateRAHEMethod(.highField)
@@ -77,7 +77,7 @@ struct ThreeOmegaRAHEMethodTabCoverageTests {
 
     @Test("updateRAHEMethod is no-op on non-RAHE tab")
     func updateRAHENonRaheTab() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.tabs.activeTab = .scaling
         store.updateRAHEMethod(.window)
         #expect(store.rahe1omegaMethod == .highField)

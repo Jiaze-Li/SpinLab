@@ -91,7 +91,7 @@ struct V740AnalysisOverlayRuntimeTests {
     @MainActor
     @Test("overlayPackIDs forwards to runtime overlayIDs when wired")
     func overlayPackIDsForwardsToRuntimeWhenWired() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let rt = WorkbenchAnalysisOverlayRuntime()
         store.overlayRuntime = rt
 
@@ -105,7 +105,7 @@ struct V740AnalysisOverlayRuntimeTests {
     @MainActor
     @Test("removeOverlay delegates to runtime when wired")
     func removeOverlayDelegatesToRuntimeWhenWired() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let rt = WorkbenchAnalysisOverlayRuntime()
         store.overlayRuntime = rt
 
@@ -126,7 +126,7 @@ struct V740AnalysisOverlayRuntimeTests {
     @MainActor
     @Test("clearPlot calls runtime.clear() when wired")
     func clearPlotCallsRuntimeClearWhenWired() {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let rt = WorkbenchAnalysisOverlayRuntime()
         store.overlayRuntime = rt
 
@@ -147,7 +147,7 @@ struct V740AnalysisOverlayRuntimeTests {
     @MainActor
     @Test("restoreFromPack calls runtime.clear() when wired")
     func restoreFromPackCallsRuntimeClearWhenWired() throws {
-        let store = ThreeOmegaWorkspaceStore()
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let rt = WorkbenchAnalysisOverlayRuntime()
         store.overlayRuntime = rt
 

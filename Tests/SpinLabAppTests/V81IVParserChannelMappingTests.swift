@@ -413,7 +413,7 @@ struct V81IVParserChannelMappingTests {
             result: result
         )
 
-        let store = IVWorkspaceStore()
+        let store = IVWorkspaceStore(workflowID: WorkflowKey.iv.rawValue)
         var restoredResults: [WorkflowMeasurementSearchHit] = []
         var restoredQuery = ""
         var seededIDs: Set<String> = []
@@ -522,7 +522,7 @@ struct V81IVParserChannelMappingTests {
             result: result
         )
 
-        let store = IVWorkspaceStore()
+        let store = IVWorkspaceStore(workflowID: WorkflowKey.iv.rawValue)
         store.restoreFromPack(
             config: config,
             result: result,
@@ -565,7 +565,7 @@ struct V81IVParserChannelMappingTests {
     @MainActor
     @Test("IV current basis update preserves manual X label but refreshes prior auto default")
     func currentBasisUpdateRespectsLabelOverrideState() {
-        let store = IVWorkspaceStore()
+        let store = IVWorkspaceStore(workflowID: WorkflowKey.iv.rawValue)
 
         store.tabs.tabStates[.voltage] = TabRenderState(xLabelOverride: IVCurrentBasis.peak.legacyAxisLabel)
         store.tabs.tabStates[.resistance] = TabRenderState(xLabelOverride: IVCurrentBasis.peak.legacyAxisLabel)
