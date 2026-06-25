@@ -161,3 +161,4 @@ This directory describes Workbench-internal behavior only. Cross-domain contract
 - `docs/architecture/workbench/WORKBENCH_ROADMAP.md` - phase progress for Workbench shell migration
 - `docs/architecture/workbench/history/gate4/LAYOUT_AUDIT.md` - historical: Gate 4 layout audit and Gate 5 preparation
 - [Plot Controls Split Plan](modules/PLOT_CONTROLS_SPLIT_PLAN.md) — defines common vs Cartesian XY vs workflow-owned plot controls before further physical moves.
+- [Gate 8.4 Closeout — PlotSystem Physical Layout Alignment](GATE8_4_CLOSEOUT.md)
