@@ -38,15 +38,8 @@ struct WorkbenchView: View {
                     }
                 case .measurements:
                     ScrollView {
-                        GroupBox("Measurements") {
-                            ContentUnavailableView(
-                                "Planned for V3.4",
-                                systemImage: "chart.xyaxis.line",
-                                description: Text("Measurement history will be available in V3.4 Library Writeback.")
-                            )
-                            .frame(maxWidth: .infinity, minHeight: 220)
-                        }
-                        .padding(16)
+                        WorkbenchMeasurementsPanel(runtime: appState.workbench.sampleWorkTracker)
+                            .padding(16)
                     }
                 }
             }

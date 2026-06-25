@@ -282,9 +282,11 @@ final class SpinLabAppState {
         )
 
         load()
-        if let rootPath = libraryFeatureStore.librarySettings.rootPath, !rootPath.isEmpty {
+        let initialLibrarySettings = libraryFeatureStore.librarySettings
+        if let rootPath = initialLibrarySettings.rootPath, !rootPath.isEmpty {
             workbenchFeatureStore.analysisVault.configurePersistence(libraryRootPath: rootPath)
         }
+        workbenchFeatureStore.trackerLibrarySettings = initialLibrarySettings
         setupRepositoryProjectionTasks()
         migrateManagedMeasurementPathsToOriginalIfPossible()
         libraryArchiveScan.clearManagedMeasurementCopies()

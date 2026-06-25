@@ -158,6 +158,40 @@ final class WorkbenchFeatureStore {
     private lazy var selectionRuntime = WorkbenchSelectionRuntime()
     @ObservationIgnored
     let overlayRuntime = WorkbenchAnalysisOverlayRuntime()
+    @ObservationIgnored
+    private lazy var sampleWorkTrackerRuntimeInstance: WorkbenchSampleWorkTrackerRuntime = {
+        let actor = self.dataActor
+        return WorkbenchSampleWorkTrackerRuntime(
+            hitsProvider: { [weak self] in
+                guard let self else { return [] }
+                let (settings, definitions) = await MainActor.run {
+                    (self.trackerLibrarySettings, self.workflowDefinitions)
+                }
+                return try await actor.searchWorkflowMeasurements(
+                    settings: settings,
+                    query: WorkflowSearchQuery(rawText: ""),
+                    workflowDefinitions: definitions
+                )
+            },
+            workflowColumnsProvider: { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.workflowDefinitions.map {
+                        BuildSampleWorkSummariesUseCase.WorkflowColumn(id: $0.id, displayName: $0.displayName)
+                    } ?? []
+                }
+            },
+            chartLinkedBasenamesForSample: { [weak self] sampleKey in
+                guard let self else { return [] }
+                let rootPath = await MainActor.run { self.trackerLibrarySettings.rootPath ?? "" }
+                guard !rootPath.isEmpty else { return [] }
+                let resolver = LibraryPathResolver(libraryRootURL: URL(fileURLWithPath: rootPath))
+                guard let index = LoadMeasurementPlotIndexUseCase(pathResolver: resolver).execute(sampleKey: sampleKey) else {
+                    return []
+                }
+                return Set(index.entries.keys)
+            }
+        )
+    }()
 
     @ObservationIgnored
     private var archivedRecordsProjectionTask: Task<Void, Never>?
@@ -184,6 +218,9 @@ final class WorkbenchFeatureStore {
     var selectedSection: WorkbenchSection = .workflows
     var currentRoute: WorkbenchRoute
     var workflowDefinitions: [WorkflowDefinition]
+    var trackerLibrarySettings: LibrarySettings = .default
+
+    var sampleWorkTracker: WorkbenchSampleWorkTrackerRuntime { sampleWorkTrackerRuntimeInstance }
     /// Workflow IDs that are missing from the active Rule Book.
     /// Stores still use stable Rule Book ids as identity sources; this set makes
     /// the missing-definition state explicit instead of crashing at startup.

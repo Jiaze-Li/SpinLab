@@ -311,9 +311,9 @@ Sources/SpinLabApp/App/State/
                                             wired into WorkbenchFeatureStore as lazy private var (Step 4)
 
 Features/Workbench/
-  WorkbenchMeasurementsPanel.swift         — replaces current Measurements placeholder (deferred)
-  WorkbenchMeasurementsSampleRow.swift     — one sample row (title + workflow cells) (deferred)
-  WorkbenchMeasurementsWorkflowCell.swift  — one status badge + count cell (deferred)
+  WorkbenchMeasurementsPanel.swift         — renders SampleWorkTracker summaries as a GroupBox panel with refresh, loading, error, and empty states
+  WorkbenchMeasurementsSampleRow.swift     — renders one SampleWorkSummary row: display title, per-workflow cells, and unknown-workflow warning
+  WorkbenchMeasurementsWorkflowCell.swift  — renders one WorkflowWorkSummary as a status badge (noData/todo/partial/done) with compact file count
 
 Tests/SpinLabAppTests/SampleWorkTracker/
   SampleWorkStatusTests.swift              — full derivation truth table + malformed-input guards (Step 2)
@@ -329,9 +329,21 @@ docs/architecture/workbench/modules/
   SAMPLE_WORK_TRACKER.md               — this file
 ```
 
+### File index
+
+- `Sources/SpinLabApp/Domain/SampleWorkTracker/SampleWorkSummary.swift` — defines SampleWorkSummary and WorkflowWorkSummary read-model structs
+- `Sources/SpinLabApp/Domain/SampleWorkTracker/SampleWorkStatus.swift` — defines SampleWorkStatus enum and derives status from file counts
+- `Sources/SpinLabApp/UseCases/BuildSampleWorkSummariesUseCase.swift` — groups search hits by sample, loads plot indices, and derives per-cell status
+- `Sources/SpinLabApp/App/State/WorkbenchSampleWorkTrackerRuntime.swift` — holds summaries, refresh state, and error; delegates derivation to BuildSampleWorkSummariesUseCase
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchMeasurementsPanel.swift` — renders SampleWorkTracker summaries as a GroupBox panel with refresh, loading, error, and empty states
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchMeasurementsSampleRow.swift` — renders one SampleWorkSummary row: display title, per-workflow cells, and unknown-workflow warning
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchMeasurementsWorkflowCell.swift` — renders one WorkflowWorkSummary as a status badge (noData/todo/partial/done) with compact file count
+
 ---
 
 Step 2 complete — domain models created and all 12 SampleWorkStatusTests pass.  
 Step 3 complete — BuildSampleWorkSummariesUseCase implemented and tested.  
 Step 4 complete — WorkbenchSampleWorkTrackerRuntime implemented; 5 targeted tests pass.  
-Recommended next task: Step 5 — WorkbenchMeasurementsPanel UI.
+Step 5 complete — WorkbenchMeasurementsPanel (+ SampleRow + WorkflowCell) mounted in Workbench
+  Measurements section. Runtime wired into WorkbenchFeatureStore as lazy private var with
+  MainActor-safe closures. 5 SampleWorkTracker targeted tests pass; desktop app v5.5.4 built.
