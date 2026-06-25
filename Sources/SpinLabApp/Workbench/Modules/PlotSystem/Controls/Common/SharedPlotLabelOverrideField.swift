@@ -84,12 +84,12 @@ struct LabelOverrideField: View {
     }
 
     private func commitIfDirty() {
-        guard isDirty else { return }
-        isDirty = false
-        let trimmed = editText.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Typing the rendered default back is treated as clearing the override
-        let toCommit = trimmed == renderedDefault ? "" : trimmed
-        onCommit(toCommit)
+        LabelOverrideFieldSync.commitIfDirty(
+            editText: editText,
+            isDirty: &isDirty,
+            renderedDefault: renderedDefault,
+            onCommit: onCommit
+        )
     }
 }
 
