@@ -119,7 +119,6 @@ Each section maps 1:1 to a JSON config file under `RulesConfigPaths`. `RulesPane
 
 - `WorkbenchFeatureStore` reads workflow definitions from `config/workflow.json` via `WorkflowDefinitionStore`.
 - All CRUD methods for workflows removed; workflow definitions are managed exclusively via the Rules Panel.
-- `WorkflowRegistryView` is a read-only list + summary with a jump-to-rules-panel button.
 
 ### Test Coverage
 

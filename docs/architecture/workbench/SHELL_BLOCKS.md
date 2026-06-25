@@ -129,7 +129,6 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchMeasurementsWorkflowCell.swift` — renders one WorkflowWorkSummary as a status badge (noData/todo/partial/done) with compact file count
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchView.swift` — Workbench root shows WorkbenchMeasurementsPanel directly; workflow child selections open the corresponding workspace
 - `Sources/SpinLabApp/Features/Workbench/WorkflowHitRow.swift` — renders the shared search-result row
-- `Sources/SpinLabApp/Features/Workbench/WorkflowRegistryView.swift` — renders the workflow registry list and summary pane
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift` — defines workspace-view and shell-facing workbench contracts
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchSaveCoordinating.swift` — shared async save orchestration protocol; owns the common Task body (outcome, trace, message, refreshRelatedCharts) and the per-workflow didCompleteSave hook
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift` — dispatches workflow IDs to workspace views
