@@ -67,7 +67,6 @@ struct V400LVMParserTests {
     @Test("Temperature is parsed from filename T_{value} K")
     func temperatureParsedFromFilename() {
         // The parser extracts temperature from the stem via regex T_5 K
-        let parser = ThreeOmegaLVMParser()
         // Access internal helper via reflection is not possible; verify indirectly
         // through a synthetic file which carries temperatureK
         let file = makeSyntheticLVMFile(temperatureK: 120.0)
@@ -280,14 +279,9 @@ struct V400IngestionUseCaseTests {
     @Test("Field sweeps are sorted by temperature ascending")
     func temperatureSortAscending() {
         // Inject a synthetic parser that returns files at known temperatures
-        var callOrder: [Double] = []
         let temps = [160.0, 5.0, 80.0]
 
         let uc = IngestThreeOmegaSelectionsUseCase()
-        let fakeHits = temps.enumerated().map { i, t -> WorkflowMeasurementSearchHit in
-            makeFakeHit(path: "/fake/\(i).lvm")
-        }
-
         // We can't easily inject without restructuring, so verify via contract:
         // Make 3 files and inject them via the parseFile closure
         let files = temps.map { t in makeSyntheticLVMFile(temperatureK: t) }

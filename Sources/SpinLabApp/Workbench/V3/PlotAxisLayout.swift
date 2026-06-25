@@ -504,9 +504,6 @@ struct PlotAxisLayoutPlan: Sendable {
         let h = CGFloat(options.height)
         let allX = payload.series.flatMap(\.x)
         let allY = payload.series.flatMap(\.y)
-
-        let xRawMin = options.fixedXMin ?? (allX.min() ?? 0)
-        let xRawMax = options.fixedXMax ?? (allX.max() ?? 1)
         let yRawMin = allY.min() ?? 0
         let yRawMax = allY.max() ?? 1
 

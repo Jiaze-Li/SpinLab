@@ -72,7 +72,7 @@ The AHE Input Adapter converts raw PPMS `.dat` files into the `AHEIngestionResul
 
 | Semantic item | Current behavior | Trace |
 |---|---|---|
-| Common plot behavior | Legend editing, label overrides, render mode, style params, copy PNG, related-chart display, and tab render-state preservation remain common plot shell behavior. | `docs/architecture/workbench/modules/PLOT_SYSTEM.md`; `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotCanvas.swift`; `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift` |
+| Common plot behavior | Legend editing, label overrides, render mode, style params, copy PNG, related-chart display, and tab render-state preservation remain common plot shell behavior. | `docs/architecture/workbench/modules/PLOT_SYSTEM.md` |
 | Workflow-specific axes | Fixed x is `H (T)`. Fixed y is semantic `R_H (Ω)` and resolves internally to the selected bridge resistance/resistivity data. | `Sources/SpinLabApp/UseCases/AHEAxisDetector.swift`; `Sources/SpinLabApp/UseCases/IngestAHESelectionsUseCase.swift` |
 | Tabs | AHE is a single-tab workflow. | `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift`; `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` |
 | Title default | `#tab #device #sample` (with `#tab` resolved to `AHE`) is the Assembly-owned default title template (Layer 1 of the three-layer title model; see `docs/architecture/workbench/modules/PLOT_SYSTEM.md`). The editable template state (`titleTemplate` on the workspace store) is workflow-store-owned boundary debt; the per-tab inline title override is `TabRenderState.titleOverride` (Plot Preservation-owned). | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` |

@@ -19,6 +19,6 @@ struct V330WorkbenchShellContractTests {
         // WorkflowWorkspaceRegistry.workspace(for:) is a @ViewBuilder — we verify the
         // registry type exists and the dispatch table compiles with the expected case.
         // Runtime dispatch is covered by V3.3.2 tests.
-        #expect(WorkflowWorkspaceRegistry.self is WorkflowWorkspaceRegistry.Type)
+        let _: WorkflowWorkspaceRegistry.Type = WorkflowWorkspaceRegistry.self
     }
 }
