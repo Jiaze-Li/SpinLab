@@ -3,12 +3,10 @@ import Observation
 
 /// Routing state for the Workbench area.
 ///
-/// - `registry(selectedID:)`: The top-level configuration panel is shown.
-///   `selectedID` tracks which workflow row is highlighted in the registry list
-///   for editing purposes only — it does not represent a sub-route navigation.
+/// - `measurements`: The Workbench root page showing the Sample Work Tracker panel.
 /// - `workflow(id:)`: The workspace for a specific workflow is shown.
 enum WorkbenchRoute: Equatable {
-    case registry(selectedID: String?)
+    case measurements
     case workflow(id: String)
 }
 
@@ -212,7 +210,7 @@ final class WorkbenchFeatureStore {
 
     var selectedWorkflowID: String? {
         switch currentRoute {
-        case .registry(let id): return id ?? workflowDefinitions.first?.id
+        case .measurements: return nil
         case .workflow(let id): return id
         }
     }
@@ -256,7 +254,7 @@ final class WorkbenchFeatureStore {
         self.workflowDefinitions = initialWorkflowDefinitions
         self.missingWorkflowDefinitionIDs = Self.missingWorkflowDefinitionIDs(in: initialWorkflowDefinitions)
         self.conditionDefinitionOptions = initialConditionOptions
-        self.currentRoute = .registry(selectedID: initialWorkflowDefinitions.first?.id)
+        self.currentRoute = .measurements
         self.threeOmegaWorkspace.vault = analysisVault
         self.xyRotationWorkspace.vault = analysisVault
         self.aheWorkspace.vault = analysisVault
@@ -601,7 +599,7 @@ final class WorkbenchFeatureStore {
 
     func selectWorkflow(_ id: String?) {
         guard let id else {
-            currentRoute = .registry(selectedID: workflowDefinitions.first?.id)
+            currentRoute = .measurements
             return
         }
         let resolvedID = workflowDefinitions.contains(where: { $0.id == id }) ? id : (workflowDefinitions.first?.id ?? id)
@@ -729,7 +727,7 @@ final class WorkbenchFeatureStore {
 
     private var currentSelectedWorkflowID: String? {
         switch currentRoute {
-        case .registry(let id): return id
+        case .measurements: return nil
         case .workflow(let id): return id
         }
     }
@@ -753,14 +751,13 @@ final class WorkbenchFeatureStore {
                 $0.id.caseInsensitiveCompare(selectedID) == .orderedSame
             })!.id
             switch currentRoute {
-            case .registry:
-                currentRoute = .registry(selectedID: resolvedID)
+            case .measurements:
+                currentRoute = .measurements
             case .workflow:
                 currentRoute = .workflow(id: resolvedID)
             }
         } else {
-            let fallbackID = workflowDefinitions.first?.id
-            currentRoute = .registry(selectedID: fallbackID)
+            currentRoute = .measurements
         }
         onDefinitionsChanged?(workflowDefinitions)
     }

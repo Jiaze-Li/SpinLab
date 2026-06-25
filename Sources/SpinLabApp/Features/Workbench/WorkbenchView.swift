@@ -8,7 +8,7 @@ struct WorkbenchView: View {
 
         switch workbench.currentRoute {
 
-        case .registry:
+        case .measurements:
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Workbench")
