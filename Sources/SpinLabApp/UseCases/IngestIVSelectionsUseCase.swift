@@ -104,7 +104,7 @@ struct IngestIVSelectionsUseCase {
 
     private func _buildSampleMetadata(from hit: WorkflowMeasurementSearchHit,
                                       numericDisplay: [String: String]) -> [String: String] {
-        var meta = IngestThreeOmegaSelectionsUseCase._buildSampleMetadata(
+        var meta = WorkbenchSeriesMetadataBuilder.build(
             from: hit,
             numericDisplay: numericDisplay
         )
