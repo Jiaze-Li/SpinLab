@@ -402,7 +402,7 @@ extension XYRotationWorkspaceStore: AnalysisPackProviding {
     typealias PackConfig = XYRotationPackConfig
     typealias PackResult = XYRotationPackResult
 
-    var packWorkflowID: String { "xy" }
+    var packWorkflowID: String { WorkflowKey.xyRotation.rawValue }
     var packInputFiles: [String] { cachedInputFiles }
     var packSampleKeys: [String] { cachedSampleKeys }
     var hasAnalysisResult: Bool { ingestionResult != nil }
@@ -501,7 +501,7 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
         guard !cachedInputFiles.isEmpty else { return nil }
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,
-            workflowID: "xy",
+            workflowID: WorkflowKey.xyRotation.rawValue,
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: "R (Ω)"),
             semanticParams: ["sweeps": "\(ingestionResult?.sweeps.count ?? 0)"],

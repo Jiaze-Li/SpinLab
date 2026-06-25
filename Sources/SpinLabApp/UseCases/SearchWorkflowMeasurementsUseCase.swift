@@ -220,29 +220,11 @@ struct SearchWorkflowMeasurementsUseCase {
     private func workflowAliases(canonicalID: String, workflowID: String, workflowDisplayName: String) -> [String] {
         let normalizedWorkflowID = normalizeToken(workflowID)
         let normalizedDisplayName = normalizeToken(workflowDisplayName)
-
-        guard let knownWorkflowID = WorkflowKey.from(sidecarValue: canonicalID) else {
-            return [normalizedWorkflowID, normalizedDisplayName, canonicalID]
-        }
-
-        return knownWorkflowID.searchAliases + [normalizedWorkflowID, normalizedDisplayName]
+        return [normalizedWorkflowID, normalizedDisplayName, canonicalID]
     }
 
     private func canonicalWorkflowID(from workflowID: String, displayName: String) -> String {
-        let normalizedID = normalizeToken(workflowID)
-        let normalizedDisplayName = normalizeToken(displayName)
-
-        if let knownWorkflowID = WorkflowKey.from(sidecarValue: normalizedID) {
-            return knownWorkflowID.rawValue
-        }
-        if let knownWorkflowID = WorkflowKey.from(sidecarValue: normalizedDisplayName) {
-            return knownWorkflowID.rawValue
-        }
-        if let knownWorkflowID = WorkflowKey.allCases.first(where: { $0.matchesDisplayNameContains(normalizedDisplayName) }) {
-            return knownWorkflowID.rawValue
-        }
-
-        return normalizedID.isEmpty ? normalizedDisplayName : normalizedID
+        return workflowID
     }
 
     private func parsePathInfo(sidecarURL: URL) -> (batchID: String, sampleKey: String, sampleSubstrate: String, workflowFolder: String) {

@@ -118,9 +118,9 @@ struct LibraryMeasurementsDoneSection: View {
 
     private var workflowMenuGroups: [WorkflowMenuGroup] {
         [
-            WorkflowMenuGroup(workflowID: "3w", title: "3ω"),
-            WorkflowMenuGroup(workflowID: "IV", title: "IV"),
-            WorkflowMenuGroup(workflowID: "XY", title: "XY Rotation")
+            WorkflowMenuGroup(workflowID: WorkflowKey.threeOmega.rawValue, title: "3ω"),
+            WorkflowMenuGroup(workflowID: WorkflowKey.iv.rawValue, title: "IV"),
+            WorkflowMenuGroup(workflowID: WorkflowKey.xyRotation.rawValue, title: "XY Rotation")
         ]
     }
 

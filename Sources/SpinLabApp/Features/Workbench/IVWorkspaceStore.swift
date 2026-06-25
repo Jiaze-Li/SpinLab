@@ -389,7 +389,7 @@ extension IVWorkspaceStore: AnalysisPackProviding {
     typealias PackConfig = IVPackConfig
     typealias PackResult = IVPackResult
 
-    var packWorkflowID: String { "IV" }
+    var packWorkflowID: String { WorkflowKey.iv.rawValue }
     var packInputFiles: [String] { cachedInputFiles }
     var packSampleKeys: [String] { cachedSampleKeys }
     var hasAnalysisResult: Bool { ingestionResult != nil }
@@ -483,7 +483,7 @@ extension IVWorkspaceStore: WorkbenchWorkspaceProviding {
         guard !cachedInputFiles.isEmpty else { return nil }
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,
-            workflowID: "IV",
+            workflowID: WorkflowKey.iv.rawValue,
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(xField: xCurrentBasis.axisLabel, yField: "V (V)"),
             semanticParams: ["sweeps": "\(ingestionResult?.sweeps.count ?? 0)"],

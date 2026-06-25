@@ -72,7 +72,7 @@ extension ThreeOmegaWorkspaceStore {
             }
             for (k, v) in extraParams { params[k] = v }
             return WorkbenchPlotPayload(
-                workflowID: "3w",
+                workflowID: WorkflowKey.threeOmega.rawValue,
                 workflowDisplayName: "3w",
                 title: title,
                 axisMapping: WorkbenchAxisMapping(xField: xField, yField: yField),
@@ -85,7 +85,7 @@ extension ThreeOmegaWorkspaceStore {
         case .fieldSweep1omega:
             let orderedSweeps = Self.manifestOrderedFieldSweeps(fieldSweeps, seriesOrder: seriesOrder)
             var payload = WorkbenchPlotPayload(
-                workflowID: "3w",
+                workflowID: WorkflowKey.threeOmega.rawValue,
                 workflowDisplayName: "3w",
                 title: resolveTitle("R(1ω)"),
                 axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R(1ω) (Ω)"),
@@ -100,7 +100,7 @@ extension ThreeOmegaWorkspaceStore {
         case .fieldSweep3omega:
             let orderedSweeps = Self.manifestOrderedFieldSweeps(fieldSweeps, seriesOrder: seriesOrder)
             var payload = WorkbenchPlotPayload(
-                workflowID: "3w",
+                workflowID: WorkflowKey.threeOmega.rawValue,
                 workflowDisplayName: "3w",
                 title: resolveTitle("R(3ω)"),
                 axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R(3ω) (Ω)"),
@@ -305,7 +305,7 @@ extension ThreeOmegaWorkspaceStore {
 
             var existing = tabs.tabOutputs[tab] ?? TabRenderOutput()
             existing.manifestPayload = WorkbenchPlotPayload(
-                workflowID: "3w",
+                workflowID: WorkflowKey.threeOmega.rawValue,
                 workflowDisplayName: "3w",
                 title: title,
                 axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE(\(hLabel)) (Ω)"),

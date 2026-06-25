@@ -86,7 +86,7 @@ enum RSMHeatmapPayloadBuilder {
         let resolvedZLabel = options.zLabel.isEmpty ? dataset.detectorColumnName : options.zLabel
 
         return HeatmapPlotPayload(
-            workflowID: "rsm",
+            workflowID: WorkflowKey.rsm.rawValue,
             title: resolvedTitle,
             xLabel: view.xLabel,
             yLabel: view.yLabel,

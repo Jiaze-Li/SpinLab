@@ -171,6 +171,7 @@ struct WorkbenchLoadPackPopover<Store: WorkbenchWorkspaceProviding>: View {
     }
 
     private func load(_ id: AnalysisPack.ID) {
+        // WorkflowKey used here only to key into workspace UI search state (not persisted as workflow identity).
         let wfID: WorkflowKey? = WorkflowKey(rawValue: workflowID)
         store.loadPack(
             id: id,

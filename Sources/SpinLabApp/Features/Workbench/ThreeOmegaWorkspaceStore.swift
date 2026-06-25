@@ -253,7 +253,7 @@ final class ThreeOmegaWorkspaceStore {
     /// never in WorkbenchAnalysisOverlayRuntime.
     @ObservationIgnored var overlaySnapshots: [AnalysisPack.ID: OverlaySnapshot] = [:]
 
-    var packWorkflowID: String { "3w" }
+    var packWorkflowID: String { WorkflowKey.threeOmega.rawValue }
     var packInputFiles: [String] { cachedInputFiles }
     var packSampleKeys: [String] { cachedSampleKeys }
     var packRTFilePath: String? { cachedRTFilePath }

@@ -443,7 +443,7 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
     typealias PackConfig = AHEPackConfig
     typealias PackResult = AHEPackResult
 
-    var packWorkflowID: String { "ahe" }
+    var packWorkflowID: String { WorkflowKey.ahe.rawValue }
     var packInputFiles: [String] { cachedInputFiles }
     var packSampleKeys: [String] { lastRenderedSampleKeys }
     var hasAnalysisResult: Bool { tabs.activeImageData != nil }
@@ -648,7 +648,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
         guard !cachedInputFiles.isEmpty else { return nil }
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,
-            workflowID: "ahe",
+            workflowID: WorkflowKey.ahe.rawValue,
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(
                 xField: AHEAxisDetector.semanticXField,

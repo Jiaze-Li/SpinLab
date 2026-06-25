@@ -190,7 +190,7 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
             ? Self.publicationZLabel(for: parsedDataset?.detectorColumnName ?? "")
             : displayState.zLabelOverride
         let projection = RSMSaveProjection(
-            workflowID: "rsm",
+            workflowID: WorkflowKey.rsm.rawValue,
             title: title,
             activeView: view,
             detectorColumnName: parsedDataset?.detectorColumnName ?? "",
@@ -362,7 +362,7 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
         guard !cachedInputFiles.isEmpty else { return nil }
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,
-            workflowID: "rsm",
+            workflowID: WorkflowKey.rsm.rawValue,
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(xField: activeView.xLabel, yField: activeView.yLabel),
             semanticParams: ["view": activeView.rawValue],
@@ -396,7 +396,7 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
     typealias PackConfig = RSMPackConfig
     typealias PackResult = RSMPackResult
 
-    var packWorkflowID: String { "rsm" }
+    var packWorkflowID: String { WorkflowKey.rsm.rawValue }
     var packInputFiles: [String] { cachedInputFiles }
     var packSampleKeys: [String] { cachedSampleKeys }
     var hasAnalysisResult: Bool { renderedImageData != nil }

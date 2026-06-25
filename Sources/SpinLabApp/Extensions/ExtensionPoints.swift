@@ -202,7 +202,7 @@ struct ThreeOmegaAHEMetadataExtension: MetadataExtension {
         let parser = FilenameRuleParser(ruleSet: ruleProvider.ruleSet())
         var hints = parser.parse(from: fileURL)
         if hints.workflowID == nil || hints.workflowID?.isEmpty == true {
-            hints.workflowID = "3w"
+            hints.workflowID = workflow.rawValue
         }
         return hints
     }
@@ -217,7 +217,7 @@ struct ThreeOmegaAHEMetadataExtension: MetadataExtension {
             batchName: pending.parsedHints.batchName ?? fallbackSampleID ?? "",
             sampleName: pending.parsedHints.sampleName ?? fallbackSampleID ?? "",
             measurementName: pending.parsedHints.measurementName ?? pending.fileName,
-            workflowID: "3w",
+            workflowID: workflow.rawValue,
             conditionValues: seedConditionValues(from: pending.parsedHints),
             selectedExistingProjectName: suggestedProjectName ?? PendingImportConfirmationDraft.noProjectOption,
             newProjectName: ""
@@ -257,7 +257,7 @@ struct XYRotationMetadataExtension: MetadataExtension {
         let parser = FilenameRuleParser(ruleSet: ruleProvider.ruleSet())
         var hints = parser.parse(from: fileURL)
         if hints.workflowID == nil || hints.workflowID?.isEmpty == true {
-            hints.workflowID = "xy"
+            hints.workflowID = workflow.rawValue
         }
         return hints
     }
@@ -272,7 +272,7 @@ struct XYRotationMetadataExtension: MetadataExtension {
             batchName: pending.parsedHints.batchName ?? fallbackSampleID ?? "",
             sampleName: pending.parsedHints.sampleName ?? fallbackSampleID ?? "",
             measurementName: pending.parsedHints.measurementName ?? pending.fileName,
-            workflowID: "xy",
+            workflowID: workflow.rawValue,
             conditionValues: seedConditionValues(from: pending.parsedHints),
             selectedExistingProjectName: suggestedProjectName ?? PendingImportConfirmationDraft.noProjectOption,
             newProjectName: ""
@@ -312,7 +312,7 @@ struct RSMMetadataExtension: MetadataExtension {
         let parser = FilenameRuleParser(ruleSet: ruleProvider.ruleSet())
         var hints = parser.parse(from: fileURL)
         if hints.workflowID == nil || hints.workflowID?.isEmpty == true {
-            hints.workflowID = "rsm"
+            hints.workflowID = workflow.rawValue
         }
         return hints
     }
@@ -327,7 +327,7 @@ struct RSMMetadataExtension: MetadataExtension {
             batchName: pending.parsedHints.batchName ?? fallbackSampleID ?? "",
             sampleName: pending.parsedHints.sampleName ?? fallbackSampleID ?? "",
             measurementName: pending.parsedHints.measurementName ?? pending.fileName,
-            workflowID: "rsm",
+            workflowID: workflow.rawValue,
             conditionValues: seedConditionValues(from: pending.parsedHints),
             selectedExistingProjectName: suggestedProjectName ?? PendingImportConfirmationDraft.noProjectOption,
             newProjectName: ""

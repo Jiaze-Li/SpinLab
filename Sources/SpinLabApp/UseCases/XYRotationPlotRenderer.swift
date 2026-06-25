@@ -86,7 +86,7 @@ struct XYRotationPlotRenderer {
 
         let yLabel = "Rxx (Ω)"
         var payload = WorkbenchPlotPayload(
-            workflowID: "xy",
+            workflowID: WorkflowKey.xyRotation.rawValue,
             workflowDisplayName: "XY Rotation",
             title: _defaultTitle("Rxx vs φ", device: device),
             axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: yLabel),
@@ -157,7 +157,7 @@ struct XYRotationPlotRenderer {
 
         let yLabel = "Rxy (Ω)"
         var payload = WorkbenchPlotPayload(
-            workflowID: "xy",
+            workflowID: WorkflowKey.xyRotation.rawValue,
             workflowDisplayName: "XY Rotation",
             title: _defaultTitle("Rxy vs φ", device: device),
             axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: yLabel),

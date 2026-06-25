@@ -6,9 +6,7 @@ struct SpinLabApp: App {
     @State private var appState: SpinLabAppState
 
     init() {
-        let registry = WorkflowRegistry.shared
-        let workflow = Self.workflowSelection(from: ProcessInfo.processInfo.environment["SPINLAB_WORKFLOW"])
-        let bundle = registry.bundle(for: workflow) ?? registry.defaultBundle()
+        let bundle = WorkflowRegistry.shared.defaultBundle()
         let environment = AppEnvironment.live()
         let rulesBookSettings = RulesBookSettings()
         _appState = State(initialValue: SpinLabAppState(
@@ -42,7 +40,4 @@ struct SpinLabApp: App {
         .defaultSize(width: 900, height: 600)
     }
 
-    private static func workflowSelection(from rawValue: String?) -> WorkflowKey {
-        WorkflowKey(rawValue: rawValue ?? "") ?? .ahe
-    }
 }

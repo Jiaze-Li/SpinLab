@@ -13,7 +13,8 @@ enum WorkflowWorkspaceRegistry {
 
     @ViewBuilder
     static func workspace(for workflowID: String) -> some View {
-        if let key = WorkflowKey.from(sidecarValue: workflowID) {
+        // WorkflowKey used here only for workspace UI dispatch (view routing), not for matching or persistence.
+        if let key = WorkflowKey(rawValue: workflowID) {
             switch key {
             case .ahe:
                 AHEWorkspaceView()

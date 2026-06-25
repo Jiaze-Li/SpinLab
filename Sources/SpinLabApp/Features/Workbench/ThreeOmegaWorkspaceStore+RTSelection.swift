@@ -77,7 +77,7 @@ extension ThreeOmegaWorkspaceStore {
               let sidecar = try? decoder.decode(SpinLabFileSidecar.self, from: data) else { return nil }
 
         let wfID = sidecar.resolvedWorkflow
-        guard WorkflowKey.from(sidecarValue: wfID) == .threeOmega || WorkflowKey.from(sidecarValue: wfID) == .rt else { return nil }
+        guard wfID == WorkflowKey.threeOmega.rawValue || wfID == WorkflowKey.rt.rawValue else { return nil }
 
         return WorkflowMeasurementSearchHit(
             sidecarPath: sidecarPath,

@@ -22,6 +22,8 @@ final class WorkbenchMainSearchRuntime {
 
     private static func restoreSearchQueryTexts() -> [WorkflowKey: String] {
         var result: [WorkflowKey: String] = [:]
+        // WorkflowKey.allCases used here only to restore per-workflow UI search query state from UserDefaults.
+        // This is workspace UI state keying, not workflow identity or persistence.
         for wf in WorkflowKey.allCases {
             if let saved = UserDefaults.standard.string(forKey: searchQueryDefaultsPrefix + wf.rawValue) {
                 result[wf] = saved

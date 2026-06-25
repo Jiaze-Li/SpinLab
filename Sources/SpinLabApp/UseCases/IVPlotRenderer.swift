@@ -48,7 +48,7 @@ struct IVPlotRenderer {
         series = _applyStackOffsets(series, yExtractor: { $0.y })
 
         return WorkbenchPlotPayload(
-            workflowID: "IV",
+            workflowID: WorkflowKey.iv.rawValue,
             workflowDisplayName: "IV",
             title: _defaultTitle("1st / I", device: device),
             axisMapping: WorkbenchAxisMapping(xField: xCurrentBasis.axisLabel, yField: "V (V)"),
@@ -101,7 +101,7 @@ struct IVPlotRenderer {
         series = _applyStackOffsets(series, yExtractor: { $0.y })
 
         return WorkbenchPlotPayload(
-            workflowID: "IV",
+            workflowID: WorkflowKey.iv.rawValue,
             workflowDisplayName: "IV",
             title: _defaultTitle("2nd / I", device: device),
             axisMapping: WorkbenchAxisMapping(xField: xCurrentBasis.axisLabel, yField: "V (V)"),
