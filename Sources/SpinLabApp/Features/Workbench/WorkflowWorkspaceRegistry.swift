@@ -2,9 +2,8 @@ import SwiftUI
 
 /// Central dispatch table: Rule Book workflow id → workspace view.
 ///
-/// Every WorkflowKey case must appear in the switch below.
-/// Implemented workflows dispatch to their workspace view.
-/// Unimplemented workflows (MR, RT standalone) dispatch to NotImplementedWorkflowView.
+/// Dispatch compares the route workflowID against each workspace store's workflowID.
+/// Route matching is purely by string identity.
 ///
 /// ## Adding a new workflow
 /// This is one of the registration surfaces that must all be updated.
@@ -12,25 +11,19 @@ import SwiftUI
 enum WorkflowWorkspaceRegistry {
 
     @ViewBuilder
-    static func workspace(for workflowID: String) -> some View {
-        // WorkflowKey used here only for workspace UI dispatch (view routing), not for matching or persistence.
-        if let key = WorkflowKey(rawValue: workflowID) {
-            switch key {
-            case .ahe:
-                AHEWorkspaceView()
-            case .threeOmega:
-                ThreeOmegaWorkspaceView()
-            case .xyRotation:
-                XYRotationWorkspaceView()
-            case .iv:
-                IVWorkspaceView()
-            case .rsm:
-                RSMWorkspaceView()
-            case .rt:
-                RTWorkspaceView()
-            case .mr:
-                NotImplementedWorkflowView(workflowKey: .mr)
-            }
+    static func workspace(for workflowID: String, featureStore: WorkbenchFeatureStore) -> some View {
+        if workflowID == featureStore.aheWorkspace.workflowID {
+            AHEWorkspaceView()
+        } else if workflowID == featureStore.threeOmegaWorkspace.workflowID {
+            ThreeOmegaWorkspaceView()
+        } else if workflowID == featureStore.xyRotationWorkspace.workflowID {
+            XYRotationWorkspaceView()
+        } else if workflowID == featureStore.ivWorkspace.workflowID {
+            IVWorkspaceView()
+        } else if workflowID == featureStore.rsmWorkspace.workflowID {
+            RSMWorkspaceView()
+        } else if workflowID == featureStore.rtWorkspace.workflowID {
+            RTWorkspaceView()
         } else {
             NotImplementedWorkflowView(workflowID: workflowID)
         }

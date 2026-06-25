@@ -54,7 +54,7 @@ struct WorkbenchView: View {
 
         case .workflow(let id):
             // standardDetailTopInset 已改为 20，与 Library 一致，直接用同样的 padding。
-            WorkflowWorkspaceRegistry.workspace(for: id)
+            WorkflowWorkspaceRegistry.workspace(for: id, featureStore: appState.workbenchFeatureStore)
                 .padding(.horizontal, 16)
                 .padding(.top, 6)
                 .padding(.bottom, 16)

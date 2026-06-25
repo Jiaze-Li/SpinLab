@@ -4,10 +4,6 @@ import SwiftUI
 struct NotImplementedWorkflowView: View {
     let label: String
 
-    init(workflowKey: WorkflowKey) {
-        self.label = workflowKey.rawValue
-    }
-
     init(workflowID: String) {
         self.label = workflowID
     }
