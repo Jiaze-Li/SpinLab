@@ -1,0 +1,291 @@
+import CoreGraphics
+import Foundation
+import Testing
+@testable import SpinLabApp
+
+// MARK: - Helpers
+
+private let pngSignature: [UInt8] = [137, 80, 78, 71, 13, 10, 26, 10]
+
+private func makePayload(
+    leftSeries: [DualAxisPlotSeries] = [],
+    rightSeries: [DualAxisPlotSeries] = []
+) -> DualAxisPlotPayload {
+    DualAxisPlotPayload(
+        workflowID: "test",
+        workflowDisplayName: "Test",
+        title: "Dual Axis Test",
+        xLabel: "X",
+        leftYLabel: "Left Y",
+        rightYLabel: "Right Y",
+        leftSeries: leftSeries,
+        rightSeries: rightSeries
+    )
+}
+
+private func makeLineSeries(label: String, xRange: ClosedRange<Double> = 0...10, yScale: Double = 1.0) -> DualAxisPlotSeries {
+    let x = stride(from: xRange.lowerBound, through: xRange.upperBound, by: 1.0).map { $0 }
+    let y = x.map { $0 * yScale }
+    return DualAxisPlotSeries(label: label, x: x, y: y)
+}
+
+// MARK: - DualAxisPlotPayload Codable round-trip
+
+@Test func dualAxisPayloadCodableRoundTrip() throws {
+    let left = DualAxisPlotSeries(
+        label: "Resistance",
+        x: [1.0, 2.0, 3.0],
+        y: [10.0, 11.0, 12.0],
+        renderMode: .line,
+        lineWidth: 2.5
+    )
+    let right = DualAxisPlotSeries(
+        label: "Temperature",
+        x: [1.0, 2.0, 3.0],
+        y: [300.0, 310.0, 305.0],
+        renderMode: .scatter
+    )
+    let original = DualAxisPlotPayload(
+        schemaVersion: 1,
+        workflowID: "wf-a",
+        workflowDisplayName: "Workflow A",
+        title: "R vs T",
+        xLabel: "Field (Oe)",
+        leftYLabel: "R (Ω)",
+        rightYLabel: "T (K)",
+        leftSeries: [left],
+        rightSeries: [right],
+        semanticParams: ["key": "val"],
+        styleParams: ["lineWidth": "2"]
+    )
+
+    let data = try JSONEncoder().encode(original)
+    let decoded = try JSONDecoder().decode(DualAxisPlotPayload.self, from: data)
+
+    #expect(decoded.schemaVersion       == original.schemaVersion)
+    #expect(decoded.workflowID          == original.workflowID)
+    #expect(decoded.workflowDisplayName == original.workflowDisplayName)
+    #expect(decoded.title               == original.title)
+    #expect(decoded.xLabel              == original.xLabel)
+    #expect(decoded.leftYLabel          == original.leftYLabel)
+    #expect(decoded.rightYLabel         == original.rightYLabel)
+    #expect(decoded.leftSeries.count    == 1)
+    #expect(decoded.rightSeries.count   == 1)
+    #expect(decoded.leftSeries[0].label      == "Resistance")
+    #expect(decoded.leftSeries[0].renderMode == .line)
+    #expect(decoded.rightSeries[0].label     == "Temperature")
+    #expect(decoded.rightSeries[0].renderMode == .scatter)
+    #expect(decoded.semanticParams == original.semanticParams)
+}
+
+// MARK: - DualAxisPlotLayout: independent left/right Y ranges
+
+@Test func dualAxisLayoutIndependentYRanges() {
+    let leftSeries = DualAxisPlotSeries(
+        label: "Left",
+        x: [0, 1, 2],
+        y: [0, 1, 2]          // range 0…2
+    )
+    let rightSeries = DualAxisPlotSeries(
+        label: "Right",
+        x: [0, 1, 2],
+        y: [100, 200, 300]    // range 100…300
+    )
+    let payload = makePayload(leftSeries: [leftSeries], rightSeries: [rightSeries])
+    let layout = DualAxisPlotLayout.compute(payload: payload)
+
+    // Left and right Y ranges must be independent
+    #expect(layout.axisLeftYMax  < 10,    "Left Y max must be near 2, not mixed with right axis")
+    #expect(layout.axisRightYMin > 50,    "Right Y min must be near 100, not mixed with left axis")
+    #expect(layout.axisLeftYMax  < layout.axisRightYMin,
+            "Left Y range must be entirely below right Y range for these inputs")
+}
+
+@Test func dualAxisLayoutOnlyLeftSeries() {
+    let series = makeLineSeries(label: "L", yScale: 2.0)
+    let payload = makePayload(leftSeries: [series], rightSeries: [])
+    let layout = DualAxisPlotLayout.compute(payload: payload)
+
+    // Right axis range falls back to (0, 1) when empty
+    #expect(layout.axisRightYMin == 0)
+    #expect(layout.axisRightYMax == 1)
+    // Left axis range is derived from data
+    #expect(layout.axisLeftYMin < layout.axisLeftYMax)
+}
+
+@Test func dualAxisLayoutOnlyRightSeries() {
+    let series = makeLineSeries(label: "R", xRange: 0...5, yScale: 10.0)
+    let payload = makePayload(leftSeries: [], rightSeries: [series])
+    let layout = DualAxisPlotLayout.compute(payload: payload)
+
+    #expect(layout.axisLeftYMin  == 0)
+    #expect(layout.axisLeftYMax  == 1)
+    #expect(layout.axisRightYMin < layout.axisRightYMax)
+}
+
+@Test func dualAxisLayoutPlotRectIsPositive() {
+    let payload = makePayload(
+        leftSeries: [makeLineSeries(label: "L")],
+        rightSeries: [makeLineSeries(label: "R", yScale: 5)]
+    )
+    let layout = DualAxisPlotLayout.compute(payload: payload)
+
+    #expect(layout.plotRect.width > 0)
+    #expect(layout.plotRect.height > 0)
+    #expect(layout.rendererSize.width > layout.plotRect.width)
+    #expect(layout.rendererSize.height > layout.plotRect.height)
+}
+
+@Test func dualAxisLayoutTicksGeneratedForBothAxes() {
+    let payload = makePayload(
+        leftSeries: [makeLineSeries(label: "L", yScale: 1)],
+        rightSeries: [makeLineSeries(label: "R", yScale: 100)]
+    )
+    let layout = DualAxisPlotLayout.compute(payload: payload)
+
+    #expect(layout.xTicks.count     >= 2)
+    #expect(layout.leftYTicks.count >= 2)
+    #expect(layout.rightYTicks.count >= 2)
+
+    // Left ticks must be in left Y range
+    for tick in layout.leftYTicks {
+        #expect(tick.value >= layout.axisLeftYMin - 1e-6)
+        #expect(tick.value <= layout.axisLeftYMax + 1e-6)
+    }
+    // Right ticks must be in right Y range
+    for tick in layout.rightYTicks {
+        #expect(tick.value >= layout.axisRightYMin - 1e-6)
+        #expect(tick.value <= layout.axisRightYMax + 1e-6)
+    }
+}
+
+// MARK: - DualAxisChartRenderer: PNG output
+
+@Test func dualAxisRendererProducesNonEmptyPNGOneLeftOneRight() throws {
+    let payload = makePayload(
+        leftSeries: [makeLineSeries(label: "Resistance", yScale: 1)],
+        rightSeries: [makeLineSeries(label: "Temperature", yScale: 50)]
+    )
+    let data = try DualAxisChartRenderer().renderPNG(payload: payload)
+
+    #expect(data.count > 0)
+    #expect([UInt8](data.prefix(8)) == pngSignature)
+}
+
+@Test func dualAxisRendererProducesNonEmptyPNGLeftOnly() throws {
+    let payload = makePayload(leftSeries: [makeLineSeries(label: "L")])
+    let data = try DualAxisChartRenderer().renderPNG(payload: payload)
+    #expect(data.count > 0)
+    #expect([UInt8](data.prefix(8)) == pngSignature)
+}
+
+@Test func dualAxisRendererProducesNonEmptyPNGRightOnly() throws {
+    let payload = makePayload(rightSeries: [makeLineSeries(label: "R", yScale: 100)])
+    let data = try DualAxisChartRenderer().renderPNG(payload: payload)
+    #expect(data.count > 0)
+    #expect([UInt8](data.prefix(8)) == pngSignature)
+}
+
+@Test func dualAxisRendererHandlesNaNInSeriesGracefully() throws {
+    let series = DualAxisPlotSeries(label: "NaN mix", x: [1, 2, 3, 4], y: [1, .nan, 3, 4])
+    let payload = makePayload(leftSeries: [series])
+    // Must not throw — NaN points are skipped during drawing
+    let data = try DualAxisChartRenderer().renderPNG(payload: payload)
+    #expect(data.count > 0)
+}
+
+// MARK: - DualAxisRenderPipeline: validation and warnings
+
+@Test func dualAxisPipelineProducesOutputWithValidSeries() throws {
+    let input = DualAxisRenderPipeline.Input(
+        payload: makePayload(
+            leftSeries: [makeLineSeries(label: "L")],
+            rightSeries: [makeLineSeries(label: "R", yScale: 20)]
+        )
+    )
+    let output = try DualAxisRenderPipeline.render(input)
+    #expect(output.imageData.count > 0)
+    #expect([UInt8](output.imageData.prefix(8)) == pngSignature)
+    #expect(output.layout.plotRect.width > 0)
+    #expect(output.warnings.isEmpty)
+}
+
+@Test func dualAxisPipelineWarnsAndSkipsXYCountMismatch() throws {
+    let badSeries = DualAxisPlotSeries(label: "bad", x: [1, 2, 3], y: [1, 2])  // count mismatch
+    let goodSeries = makeLineSeries(label: "good", yScale: 1)
+    let input = DualAxisRenderPipeline.Input(
+        payload: makePayload(
+            leftSeries: [badSeries],
+            rightSeries: [goodSeries]
+        )
+    )
+    let output = try DualAxisRenderPipeline.render(input)
+
+    // Pipeline must warn about the bad series
+    #expect(output.warnings.contains(where: { $0.contains("bad") && $0.contains("skipped") }))
+    // Render still produces valid PNG (from the good right series)
+    #expect(output.imageData.count > 0)
+}
+
+@Test func dualAxisPipelineWarnsOnAllNonFiniteValues() throws {
+    let infSeries = DualAxisPlotSeries(label: "inf", x: [.infinity, .infinity], y: [1, 2])
+    let input = DualAxisRenderPipeline.Input(
+        payload: makePayload(leftSeries: [infSeries])
+    )
+    let output = try DualAxisRenderPipeline.render(input)
+    #expect(output.warnings.contains(where: { $0.contains("inf") && $0.contains("skipped") }))
+}
+
+@Test func dualAxisPipelineAppliesLabelOverrides() throws {
+    var input = DualAxisRenderPipeline.Input(
+        payload: makePayload(
+            leftSeries: [makeLineSeries(label: "L")],
+            rightSeries: [makeLineSeries(label: "R", yScale: 5)]
+        )
+    )
+    input.titleOverride      = "Override Title"
+    input.xLabelOverride     = "Override X"
+    input.leftYLabelOverride = "Override Left Y"
+    let output = try DualAxisRenderPipeline.render(input)
+    #expect(output.imageData.count > 0)
+    #expect(output.warnings.isEmpty)
+}
+
+@Test func dualAxisPipelineEmptyPayloadWarns() throws {
+    let input = DualAxisRenderPipeline.Input(payload: makePayload())
+    let output = try DualAxisRenderPipeline.render(input)
+    #expect(output.warnings.contains(where: { $0.contains("no series") || $0.contains("empty") }))
+    // PNG is still produced (empty chart)
+    #expect(output.imageData.count > 0)
+}
+
+// MARK: - DualAxisPlotLayout: formatTick
+
+@Test func dualAxisLayoutFormatTickZeroReturns0() {
+    #expect(DualAxisPlotLayout.formatTick(0, step: 1) == "0")
+    #expect(DualAxisPlotLayout.formatTick(1e-16, step: 1) == "0")
+}
+
+@Test func dualAxisLayoutFormatTickLargeStep() {
+    let label = DualAxisPlotLayout.formatTick(50000, step: 10000)
+    #expect(!label.isEmpty)
+}
+
+// MARK: - DualAxisPlotLayout: dataRange
+
+@Test func dualAxisLayoutDataRangeFallsBackForEmpty() {
+    let (lo, hi) = DualAxisPlotLayout.dataRange(from: [])
+    #expect(lo == 0)
+    #expect(hi == 1)
+}
+
+@Test func dualAxisLayoutDataRangeFiltersNaN() {
+    let (lo, hi) = DualAxisPlotLayout.dataRange(from: [.nan, 2.0, .infinity, 5.0, -.infinity])
+    #expect(lo == 2.0)
+    #expect(hi == 5.0)
+}
+
+@Test func dualAxisLayoutDataRangeSingleValue() {
+    let (lo, hi) = DualAxisPlotLayout.dataRange(from: [3.0])
+    #expect(lo < hi)     // must expand to (lo-1, lo+1)
+}
