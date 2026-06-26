@@ -1,6 +1,6 @@
 # Gate 8.5A — Stale PlotSystem Path Audit
 
-> Status: audit-only branch. This gate documents stale PlotSystem path cleanup after Gate 8.4. It does not authorize Swift behavior changes or workflow grouping moves.
+> Status: cleanup started. This gate documents stale PlotSystem path cleanup after Gate 8.4. It does not authorize Swift behavior changes or workflow grouping moves.
 
 ## Purpose
 
@@ -14,7 +14,7 @@ Gate 8.5A audits stale references and physical leftovers that may still point ag
 
 ## Scope
 
-Audit and, in a later cleanup commit, update only:
+Audit and clean only:
 
 - active architecture maps;
 - source-inspection tests;
@@ -48,29 +48,30 @@ Historical documents may keep old paths when they describe past state. Active do
 | Legend | `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Legend/` |
 | SeriesOrder | `Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/` |
 
-## Findings to Verify
+## Findings
 
-### F1 — Possible physical orphan: `WorkbenchSeriesMetadataBuilder`
+### F1 — Resolved physical orphan: `WorkbenchSeriesMetadataBuilder`
 
-Observed candidate path:
+Confirmed stale path:
 
 ```text
 Sources/SpinLabApp/Workbench/PlotSystem/Legend/WorkbenchSeriesMetadataBuilder.swift
 ```
 
-Expected canonical path, if this file remains PlotSystem-owned:
+Resolved canonical path:
 
 ```text
 Sources/SpinLabApp/Workbench/Modules/PlotSystem/Legend/WorkbenchSeriesMetadataBuilder.swift
 ```
 
-Reason: the file builds resolver-compatible metadata for shared legend auto-resolution, so it appears to belong with PlotSystem Legend rather than a parallel `Workbench/PlotSystem` root.
+Reason: the file builds resolver-compatible metadata for shared legend auto-resolution, so it belongs with PlotSystem Legend rather than a parallel `Workbench/PlotSystem` root.
 
-Required follow-up:
+Cleanup performed:
 
-- confirm there is no duplicate at the canonical path;
-- move the file with no behavior changes if the orphan is confirmed;
-- update any active references.
+- confirmed the stale path existed;
+- confirmed the canonical path did not already exist;
+- copied the file content to the canonical path with no source edits;
+- deleted the stale path.
 
 ### F2 — Old active PlotSystem paths
 
@@ -175,6 +176,15 @@ swift test --filter V78EPlotSystemStructuralBoundaryTests
 swift test --filter V710PlotControlsMigrationTests
 scripts/check_required_actions.sh
 ```
+
+## Validation Status
+
+Connector-level path validation completed on the audit branch:
+
+- canonical `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Legend/WorkbenchSeriesMetadataBuilder.swift` exists;
+- stale `Sources/SpinLabApp/Workbench/PlotSystem/Legend/WorkbenchSeriesMetadataBuilder.swift` returns Not Found.
+
+Local build/test validation is still required because the GitHub connector cannot run Swift tests.
 
 ## Closeout Criteria
 
