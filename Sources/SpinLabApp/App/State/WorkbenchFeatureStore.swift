@@ -147,7 +147,7 @@ final class WorkbenchFeatureStore {
             hitsProvider: { [weak self] in
                 guard let self else { return [] }
                 let (settings, definitions) = await MainActor.run {
-                    (self.trackerLibrarySettings, self.workflowDefinitions)
+                    (self.liveLibrarySettingsProvider?() ?? self.trackerLibrarySettings, self.workflowDefinitions)
                 }
                 return try await actor.searchWorkflowMeasurements(
                     settings: settings,
@@ -164,13 +164,15 @@ final class WorkbenchFeatureStore {
             },
             chartLinkedBasenamesForSample: { [weak self] sampleKey in
                 guard let self else { return [] }
-                let rootPath = await MainActor.run { self.trackerLibrarySettings.rootPath ?? "" }
-                guard !rootPath.isEmpty else { return [] }
-                let resolver = LibraryPathResolver(libraryRootURL: URL(fileURLWithPath: rootPath))
-                guard let index = LoadMeasurementPlotIndexUseCase(pathResolver: resolver).execute(sampleKey: sampleKey) else {
-                    return []
+                let settings = await MainActor.run { self.liveLibrarySettingsProvider?() ?? self.trackerLibrarySettings }
+                guard let rootPath = settings.rootPath, !rootPath.isEmpty else { return [] }
+                return LibraryRootAccess().withAccess(settings: settings) { rootURL in
+                    let resolver = LibraryPathResolver(libraryRootURL: rootURL)
+                    guard let index = LoadMeasurementPlotIndexUseCase(pathResolver: resolver).execute(sampleKey: sampleKey) else {
+                        return []
+                    }
+                    return Set(index.entries.keys)
                 }
-                return Set(index.entries.keys)
             }
         )
     }()
@@ -200,6 +202,15 @@ final class WorkbenchFeatureStore {
     var currentRoute: WorkbenchRoute
     var workflowDefinitions: [WorkflowDefinition]
     var trackerLibrarySettings: LibrarySettings = .default
+    /// Closure that returns the current library settings at call time.
+    /// When set, tracker providers use this instead of the one-time `trackerLibrarySettings` snapshot,
+    /// so a Library Root change after launch is reflected by the next Refresh.
+    @ObservationIgnored
+    private var liveLibrarySettingsProvider: (() -> LibrarySettings)?
+
+    func setLiveLibrarySettingsProvider(_ provider: @escaping @MainActor () -> LibrarySettings) {
+        liveLibrarySettingsProvider = provider
+    }
 
     var sampleWorkTracker: WorkbenchSampleWorkTrackerRuntime { sampleWorkTrackerRuntimeInstance }
     /// Workflow IDs that are missing from the active Rule Book.

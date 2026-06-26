@@ -287,6 +287,9 @@ final class SpinLabAppState {
             workbenchFeatureStore.analysisVault.configurePersistence(libraryRootPath: rootPath)
         }
         workbenchFeatureStore.trackerLibrarySettings = initialLibrarySettings
+        workbenchFeatureStore.setLiveLibrarySettingsProvider { [weak self] in
+            self?.libraryFeatureStore.librarySettings ?? .default
+        }
         setupRepositoryProjectionTasks()
         migrateManagedMeasurementPathsToOriginalIfPossible()
         libraryArchiveScan.clearManagedMeasurementCopies()

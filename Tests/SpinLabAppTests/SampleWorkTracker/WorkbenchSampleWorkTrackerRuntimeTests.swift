@@ -153,6 +153,66 @@ final class WorkbenchSampleWorkTrackerRuntimeTests: XCTestCase {
                        "one row per workflow column")
     }
 
+    // MARK: - Dynamic settings (Bug-fix coverage: stale snapshot / security-scoped access)
+
+    /// hitsProvider must read settings from a live source, not a one-time captured snapshot.
+    /// This mirrors the contract that WorkbenchFeatureStore.setLiveLibrarySettingsProvider() establishes:
+    /// the closure reads current settings on every call so a Library Root change is picked up immediately.
+    func test_refresh_hitsProvider_readsDynamicSettingsNotInitialSnapshot() async throws {
+        var currentRootPath = "/root-initial"
+        var capturedRootPath: String?
+
+        let runtime = WorkbenchSampleWorkTrackerRuntime(
+            hitsProvider: {
+                capturedRootPath = currentRootPath
+                return []
+            },
+            workflowColumnsProvider: { [] },
+            chartLinkedBasenamesForSample: { _ in [] }
+        )
+
+        runtime.refresh()
+        await runtime.refreshTask?.value
+        XCTAssertEqual(capturedRootPath, "/root-initial")
+
+        currentRootPath = "/root-changed"
+
+        runtime.refresh()
+        await runtime.refreshTask?.value
+        XCTAssertEqual(capturedRootPath, "/root-changed",
+            "hitsProvider must use current settings on every refresh, not the initial snapshot")
+    }
+
+    /// chartLinkedBasenamesForSample must resolve paths against the current Library Root URL,
+    /// not a stale raw string captured at initialization.
+    /// This mirrors the contract that LibraryRootAccess.withAccess() provides: the security-scoped
+    /// bookmark is re-resolved and the access token is held for the duration of each file read.
+    func test_refresh_chartLinkedBasenames_usesCurrentRootURLNotStaleRoot() async throws {
+        let hit = makeHit(sampleKey: "PN70|B|STO|111")
+        var currentRootURL = URL(fileURLWithPath: "/root-a")
+        var capturedRoot: URL?
+
+        let runtime = WorkbenchSampleWorkTrackerRuntime(
+            hitsProvider: { [hit] },
+            workflowColumnsProvider: { [BuildSampleWorkSummariesUseCase.WorkflowColumn(id: "3w", displayName: "3ω")] },
+            chartLinkedBasenamesForSample: { _ in
+                capturedRoot = currentRootURL
+                return []
+            }
+        )
+
+        runtime.refresh()
+        await runtime.refreshTask?.value
+        XCTAssertEqual(capturedRoot, URL(fileURLWithPath: "/root-a"))
+
+        currentRootURL = URL(fileURLWithPath: "/root-b")
+
+        runtime.refresh()
+        await runtime.refreshTask?.value
+        XCTAssertEqual(capturedRoot, URL(fileURLWithPath: "/root-b"),
+            "chartLinkedBasenamesForSample must use the current Library Root URL on every refresh")
+    }
+
     // MARK: - Chart-linked basename loader usage
 
     func test_refresh_chartLinkedBasenameLoader_isCalledPerSampleKey() async throws {
