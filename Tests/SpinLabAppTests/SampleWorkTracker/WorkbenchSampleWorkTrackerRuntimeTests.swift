@@ -9,6 +9,34 @@ private actor CallCounter {
     }
 }
 
+private actor ValueBox<Value> {
+    private var value: Value
+
+    init(_ value: Value) {
+        self.value = value
+    }
+
+    func set(_ newValue: Value) {
+        value = newValue
+    }
+
+    func get() -> Value {
+        value
+    }
+}
+
+private actor SampleKeyRecorder {
+    private var values: Set<String> = []
+
+    func insert(_ value: String) {
+        values.insert(value)
+    }
+
+    func get() -> Set<String> {
+        values
+    }
+}
+
 @MainActor
 final class WorkbenchSampleWorkTrackerRuntimeTests: XCTestCase {
 
@@ -132,13 +160,13 @@ final class WorkbenchSampleWorkTrackerRuntimeTests: XCTestCase {
 
     func test_refresh_workflowColumns_arePassedToUseCase() async throws {
         let hit = makeHit(workflowCanonicalID: "ahe", workflowID: "ahe")
-        var capturedColumns: [BuildSampleWorkSummariesUseCase.WorkflowColumn] = []
+        let capturedColumns = ValueBox<[BuildSampleWorkSummariesUseCase.WorkflowColumn]>([])
         let expectedColumns = [makeColumn(id: "ahe", displayName: "AHE"), makeColumn(id: "3w", displayName: "3ω")]
 
         let runtime = WorkbenchSampleWorkTrackerRuntime(
             hitsProvider: { [hit] },
             workflowColumnsProvider: {
-                capturedColumns = expectedColumns
+                await capturedColumns.set(expectedColumns)
                 return expectedColumns
             },
             chartLinkedBasenamesForSample: { _ in [] }
@@ -147,7 +175,8 @@ final class WorkbenchSampleWorkTrackerRuntimeTests: XCTestCase {
         runtime.refresh()
         await runtime.refreshTask?.value
 
-        XCTAssertEqual(capturedColumns.map(\.id), ["ahe", "3w"],
+        let columns = await capturedColumns.get()
+        XCTAssertEqual(columns.map(\.id), ["ahe", "3w"],
                        "runtime must pass all workflow columns from provider to use case")
         XCTAssertEqual(runtime.summaries.first?.workflowRows.count, 2,
                        "one row per workflow column")
@@ -159,12 +188,13 @@ final class WorkbenchSampleWorkTrackerRuntimeTests: XCTestCase {
     /// This mirrors the contract that WorkbenchFeatureStore.setLiveLibrarySettingsProvider() establishes:
     /// the closure reads current settings on every call so a Library Root change is picked up immediately.
     func test_refresh_hitsProvider_readsDynamicSettingsNotInitialSnapshot() async throws {
-        var currentRootPath = "/root-initial"
-        var capturedRootPath: String?
+        let currentRootPath = ValueBox("/root-initial")
+        let capturedRootPath = ValueBox<String?>(nil)
 
         let runtime = WorkbenchSampleWorkTrackerRuntime(
             hitsProvider: {
-                capturedRootPath = currentRootPath
+                let rootPath = await currentRootPath.get()
+                await capturedRootPath.set(rootPath)
                 return []
             },
             workflowColumnsProvider: { [] },
@@ -173,13 +203,13 @@ final class WorkbenchSampleWorkTrackerRuntimeTests: XCTestCase {
 
         runtime.refresh()
         await runtime.refreshTask?.value
-        XCTAssertEqual(capturedRootPath, "/root-initial")
+        XCTAssertEqual(await capturedRootPath.get(), "/root-initial")
 
-        currentRootPath = "/root-changed"
+        await currentRootPath.set("/root-changed")
 
         runtime.refresh()
         await runtime.refreshTask?.value
-        XCTAssertEqual(capturedRootPath, "/root-changed",
+        XCTAssertEqual(await capturedRootPath.get(), "/root-changed",
             "hitsProvider must use current settings on every refresh, not the initial snapshot")
     }
 
@@ -189,27 +219,28 @@ final class WorkbenchSampleWorkTrackerRuntimeTests: XCTestCase {
     /// bookmark is re-resolved and the access token is held for the duration of each file read.
     func test_refresh_chartLinkedBasenames_usesCurrentRootURLNotStaleRoot() async throws {
         let hit = makeHit(sampleKey: "PN70|B|STO|111")
-        var currentRootURL = URL(fileURLWithPath: "/root-a")
-        var capturedRoot: URL?
+        let currentRootURL = ValueBox(URL(fileURLWithPath: "/root-a"))
+        let capturedRoot = ValueBox<URL?>(nil)
 
         let runtime = WorkbenchSampleWorkTrackerRuntime(
             hitsProvider: { [hit] },
             workflowColumnsProvider: { [BuildSampleWorkSummariesUseCase.WorkflowColumn(id: "3w", displayName: "3ω")] },
             chartLinkedBasenamesForSample: { _ in
-                capturedRoot = currentRootURL
+                let rootURL = await currentRootURL.get()
+                await capturedRoot.set(rootURL)
                 return []
             }
         )
 
         runtime.refresh()
         await runtime.refreshTask?.value
-        XCTAssertEqual(capturedRoot, URL(fileURLWithPath: "/root-a"))
+        XCTAssertEqual(await capturedRoot.get(), URL(fileURLWithPath: "/root-a"))
 
-        currentRootURL = URL(fileURLWithPath: "/root-b")
+        await currentRootURL.set(URL(fileURLWithPath: "/root-b"))
 
         runtime.refresh()
         await runtime.refreshTask?.value
-        XCTAssertEqual(capturedRoot, URL(fileURLWithPath: "/root-b"),
+        XCTAssertEqual(await capturedRoot.get(), URL(fileURLWithPath: "/root-b"),
             "chartLinkedBasenamesForSample must use the current Library Root URL on every refresh")
     }
 
@@ -218,13 +249,13 @@ final class WorkbenchSampleWorkTrackerRuntimeTests: XCTestCase {
     func test_refresh_chartLinkedBasenameLoader_isCalledPerSampleKey() async throws {
         let hit1 = makeHit(sampleKey: "S1|A|X|1", sourceFilePath: "/lib/s1.dat")
         let hit2 = makeHit(sampleKey: "S2|B|Y|2", sourceFilePath: "/lib/s2.dat")
-        var queriedSampleKeys: Set<String> = []
+        let queriedSampleKeys = SampleKeyRecorder()
 
         let runtime = WorkbenchSampleWorkTrackerRuntime(
             hitsProvider: { [hit1, hit2] },
             workflowColumnsProvider: { [BuildSampleWorkSummariesUseCase.WorkflowColumn(id: "3w", displayName: "3ω")] },
             chartLinkedBasenamesForSample: { sampleKey in
-                queriedSampleKeys.insert(sampleKey)
+                await queriedSampleKeys.insert(sampleKey)
                 if sampleKey == "S1|A|X|1" { return ["s1.dat"] }
                 return []
             }
@@ -233,7 +264,7 @@ final class WorkbenchSampleWorkTrackerRuntimeTests: XCTestCase {
         runtime.refresh()
         await runtime.refreshTask?.value
 
-        XCTAssertEqual(queriedSampleKeys, ["S1|A|X|1", "S2|B|Y|2"],
+        XCTAssertEqual(await queriedSampleKeys.get(), ["S1|A|X|1", "S2|B|Y|2"],
                        "chart-linked basename loader must be invoked for every distinct sampleKey")
 
         let s1 = runtime.summaries.first { $0.sampleKey == "S1|A|X|1" }
