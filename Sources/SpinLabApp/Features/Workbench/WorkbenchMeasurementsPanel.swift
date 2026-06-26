@@ -2,6 +2,11 @@ import SwiftUI
 
 struct WorkbenchMeasurementsPanel: View {
     let runtime: WorkbenchSampleWorkTrackerRuntime
+    @State private var sortOrder: MeasurementsSortOrder = .latestActivity
+
+    private var sortedSummaries: [SampleWorkSummary] {
+        sortOrder.sort(runtime.summaries)
+    }
 
     var body: some View {
         GroupBox {
@@ -38,6 +43,13 @@ struct WorkbenchMeasurementsPanel: View {
                     .foregroundStyle(WorkbenchUIStyle.secondaryTextColor)
             }
             Spacer()
+            Picker("Sort", selection: $sortOrder) {
+                ForEach(MeasurementsSortOrder.allCases, id: \.self) { order in
+                    Text(order.label).tag(order)
+                }
+            }
+            .pickerStyle(.menu)
+            .font(WorkbenchUIStyle.minimumReadableFont)
             Button("Refresh") {
                 runtime.refresh()
             }
@@ -77,9 +89,9 @@ struct WorkbenchMeasurementsPanel: View {
 
     private var summaryList: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(runtime.summaries.enumerated()), id: \.element.id) { index, summary in
+            ForEach(Array(sortedSummaries.enumerated()), id: \.element.id) { index, summary in
                 WorkbenchMeasurementsSampleRow(summary: summary)
-                if index < runtime.summaries.count - 1 {
+                if index < sortedSummaries.count - 1 {
                     Divider()
                 }
             }

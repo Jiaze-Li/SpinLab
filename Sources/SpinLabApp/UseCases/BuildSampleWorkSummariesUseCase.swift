@@ -50,6 +50,7 @@ struct BuildSampleWorkSummariesUseCase {
                 knownWorkflowIDs: workflowIDs
             )
             let displayTitle = buildDisplayTitle(sampleKey: sampleKey, hits: hits)
+            let lastActivityAt = hits.map(\.appliedAt).max()
 
             summaries.append(
                 SampleWorkSummary(
@@ -57,7 +58,8 @@ struct BuildSampleWorkSummariesUseCase {
                     displayTitle: displayTitle,
                     workflowRows: workflowRows,
                     unknownWorkflowIDs: unknownWorkflowIDs,
-                    lastRefreshedAt: input.refreshedAt
+                    lastRefreshedAt: input.refreshedAt,
+                    lastActivityAt: lastActivityAt
                 )
             )
         }

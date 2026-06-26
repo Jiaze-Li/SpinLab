@@ -24,6 +24,7 @@ final class BuildSampleWorkSummariesUseCaseTests: XCTestCase {
         workflowID: String = "3w",
         workflowCanonicalID: String = "3w",
         workflowDisplayName: String = "3ω",
+        appliedAt: Date? = nil,
         id: String = UUID().uuidString
     ) -> WorkflowMeasurementSearchHit {
         WorkflowMeasurementSearchHit(
@@ -38,7 +39,7 @@ final class BuildSampleWorkSummariesUseCaseTests: XCTestCase {
             sampleSubstrate: sampleSubstrate,
             conditions: [:],
             channels: [],
-            appliedAt: refreshedAt
+            appliedAt: appliedAt ?? refreshedAt
         )
     }
 
@@ -352,5 +353,50 @@ final class BuildSampleWorkSummariesUseCaseTests: XCTestCase {
         XCTAssertEqual(row.fileCount, 1)
         XCTAssertEqual(row.chartLinkedFileCount, 0)
         XCTAssertEqual(row.status, SampleWorkStatus.todo)
+    }
+
+    // MARK: - lastActivityAt derivation
+
+    func test_lastActivityAt_isMaxAppliedAtAcrossHits() async throws {
+        let t1 = Date(timeIntervalSince1970: 1_000_000)
+        let t2 = Date(timeIntervalSince1970: 2_000_000)
+        let hits = [
+            makeHit(sourceFilePath: "/tmp/a.dat", appliedAt: t1),
+            makeHit(sourceFilePath: "/tmp/b.dat", appliedAt: t2)
+        ]
+        let summaries = try await execute(
+            hits: hits,
+            workflowColumns: [makeWorkflowColumn(id: "3w", displayName: "3ω")]
+        )
+
+        XCTAssertEqual(summaries.first?.lastActivityAt, t2)
+    }
+
+    func test_lastActivityAt_singleHit_equalsAppliedAt() async throws {
+        let t = Date(timeIntervalSince1970: 1_500_000)
+        let hit = makeHit(appliedAt: t)
+        let summaries = try await execute(
+            hits: [hit],
+            workflowColumns: [makeWorkflowColumn(id: "3w", displayName: "3ω")]
+        )
+
+        XCTAssertEqual(summaries.first?.lastActivityAt, t)
+    }
+
+    func test_lastActivityAt_twoDifferentSamples_derivedIndependently() async throws {
+        let tA = Date(timeIntervalSince1970: 1_000_000)
+        let tB = Date(timeIntervalSince1970: 3_000_000)
+        let hits = [
+            makeHit(sampleKey: "PN70|B|STO|111", sourceFilePath: "/tmp/a.dat", appliedAt: tA),
+            makeHit(sampleKey: "PN70|B|LAO|001", sampleSubstrate: "LAO001", sourceFilePath: "/tmp/b.dat", appliedAt: tB)
+        ]
+        let summaries = try await execute(
+            hits: hits,
+            workflowColumns: [makeWorkflowColumn(id: "3w", displayName: "3ω")]
+        )
+
+        let byKey = Dictionary(uniqueKeysWithValues: summaries.map { ($0.sampleKey, $0.lastActivityAt) })
+        XCTAssertEqual(byKey["PN70|B|STO|111"], tA)
+        XCTAssertEqual(byKey["PN70|B|LAO|001"], tB)
     }
 }

@@ -6,6 +6,7 @@ struct SampleWorkSummary: Hashable, Sendable, Identifiable {
     let workflowRows: [WorkflowWorkSummary]
     let unknownWorkflowIDs: [String]
     let lastRefreshedAt: Date
+    let lastActivityAt: Date?
 
     var id: String {
         sampleKey.isEmpty ? "__unknown_sample__" : sampleKey
@@ -16,13 +17,15 @@ struct SampleWorkSummary: Hashable, Sendable, Identifiable {
         displayTitle: String,
         workflowRows: [WorkflowWorkSummary],
         unknownWorkflowIDs: [String],
-        lastRefreshedAt: Date
+        lastRefreshedAt: Date,
+        lastActivityAt: Date? = nil
     ) {
         self.sampleKey = sampleKey
         self.displayTitle = displayTitle
         self.workflowRows = workflowRows
         self.unknownWorkflowIDs = unknownWorkflowIDs
         self.lastRefreshedAt = lastRefreshedAt
+        self.lastActivityAt = lastActivityAt
     }
 }
 
