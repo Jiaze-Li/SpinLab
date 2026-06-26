@@ -33,7 +33,7 @@ struct WorkbenchMeasurementsPanel: View {
                     .frame(width: 14, height: 14)
             }
             if let ts = runtime.lastRefreshAt {
-                Text("Updated \(ts, style: .relative) ago")
+                Text("Updated at \(ts.formatted(date: .omitted, time: .shortened))")
                     .font(WorkbenchUIStyle.minimumReadableFont)
                     .foregroundStyle(WorkbenchUIStyle.secondaryTextColor)
             }
