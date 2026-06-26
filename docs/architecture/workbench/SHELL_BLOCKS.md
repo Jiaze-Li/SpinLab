@@ -120,8 +120,6 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchRunTraceProviding.swift` — defines the workspace-level read surface for the most recent run trace
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchReadAdapter.swift` — projects workspace state into a read-only shell-facing snapshot
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchResultHeaderShell.swift` — renders the shared result header and save actions
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchSharedComponents.swift` — documents the split shared workbench component inventory
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchStatusArea.swift` — renders shared search, plot, and load status messages
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchTracePanel.swift` — renders the shared run-trace disclosure
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchMeasurementsPanel.swift` — renders SampleWorkTracker summaries as a GroupBox panel with refresh, loading, error, and empty states
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchMeasurementsSampleRow.swift` — renders one SampleWorkSummary row: display title, per-workflow cells, and unknown-workflow warning

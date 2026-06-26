@@ -334,7 +334,6 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift` | consumer: shared plot canvas | UI shell | 728 | ⭐ legitimate_cross_cutting within Workbench workflows | ⭐G H/V: plot shell + internal responsibilities | 1 | behavioral |
 | `Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift` | consumer: Workbench plot controls wrapper | UI shell | 37 |  |  | 0 | none |
 | `Workbench/Modules/PlotSystem/Contracts/WorkbenchPlottingStore.swift` | consumer: plot-capability protocol | Capability protocol | 36 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | behavioral |
-| `Features/Workbench/WorkbenchSharedComponents.swift` | consumer: shared Workbench UI components | UI helper | 10 |  |  | 0 | none |
 | `Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTextControls.swift` | consumer: shared title/X/Y override row | UI helper | 135 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | none |
 | `Workbench/Modules/PlotSystem/Controls/Common/SharedPlotLabelOverrideField.swift` | consumer: shared inline label override field | UI helper | 60 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | none |
 | `Workbench/V3/Heatmap/RSM/RSMViewSelector.swift` | consumer: RSM workflow-specific plot-control selector | UI helper | 28 |  |  | 0 | none |
@@ -342,7 +341,6 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `Workbench/V3/Heatmap/HeatmapColorScaleControls.swift` | consumer: heatmap color-scale UI control | UI helper | 27 |  |  | 0 | none |
 | `Workbench/V3/Heatmap/HeatmapZLabelControl.swift` | consumer: heatmap optional Z/colorbar label control | UI helper | 21 |  |  | 0 | none |
 | `Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift` | consumer: shared plot controls | UI shell | 107 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | behavioral |
-| `Features/Workbench/WorkbenchStatusArea.swift` | consumer: Workbench warnings/status UI | UI | 29 |  |  | 1 | none |
 | `Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchTitleTemplateField.swift` | consumer: Workbench title template editor | UI | 38 |  |  | 0 | none |
 | `Features/Workbench/WorkbenchTracePanel.swift` | consumer: Workbench trace UI | UI | 52 |  |  | 1 | none |
 | `Features/Workbench/WorkbenchView.swift` | consumer: RootSplitView Workbench area | UI | 64 |  |  | 0 | behavioral |
@@ -607,7 +605,6 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | 文件 | 行号 | 类别 | 内容 |
 |---|---|---|---|
 | `Features/Workbench/WorkbenchTracePanel.swift` | 14 | TODO(用户设计) | 调整 label 列宽、字号、是否折叠显示 |
-| `Features/Workbench/WorkbenchStatusArea.swift` | 15 | TODO(用户设计) | 考虑是否合并为单条消息、是否加图标前缀 |
 | `Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift` | 55 | TODO(用户设计) | 调整最小高度、背景样式、空状态文字 |
 | `Import/Rules/RulesBootstrapper.swift` | 1059 | false-positive | `dateFormat` 字符串含 `XXX`，不是 TODO / FIXME / XXX 注释 |
 
@@ -629,7 +626,6 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `Features/Library/LibraryWorkspaceSections.swift` | Library | 587 | Medium：大 UI section 文件无 direct test |
 | `Features/Workbench/NewRuleEntrySheet.swift` | Workbench | 137 | Low：sheet UI 无 direct test |
 | `Features/Workbench/TokenMapEditor.swift` | Workbench | 62 | Low：rule editor UI 无 direct test |
-| `Features/Workbench/WorkbenchStatusArea.swift` | Workbench | 29 | Low：status UI 无 direct test |
 | `Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchTitleTemplateField.swift` | Workbench | 38 | Low：title field UI 无 direct test |
 | `Features/Workbench/WorkbenchTracePanel.swift` | Workbench | 52 | Low：trace UI 无 direct test |
 | `Features/Workbench/WorkflowHitRow.swift` | Workbench | 80 | Low：search-hit UI 无 direct test |

@@ -267,7 +267,6 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Target owner: split ownership. Display/projection is Module-owned — common Analysis Lifecycle / Warning Display module. Workflow-specific warning meaning remains Assembly-owned.
 - Exit condition: warnings and trace projections have a common read/display owner, while workflow Assemblies emit typed warnings/trace inputs without the display module interpreting physics.
 - Current implementation files:
-  - `Sources/SpinLabApp/Features/Workbench/WorkbenchStatusArea.swift`
   - `Sources/SpinLabApp/Features/Workbench/WorkbenchTracePanel.swift`
   - `Sources/SpinLabApp/UseCases/BuildRunTraceProjectionUseCase.swift`
   - `Sources/SpinLabApp/Features/Workbench/WorkbenchResultHeaderShell.swift`
