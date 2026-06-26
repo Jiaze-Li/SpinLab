@@ -226,7 +226,7 @@ struct V55AnalyzeRTUseCaseDispatchTests {
         defer { try? FileManager.default.removeItem(at: url) }
 
         let hit = makeDatHit(filePath: url.path, channels: [])
-        let result = AnalyzeRTWorkflowUseCase().execute(hit: hit)
+        let result = AnalyzeRTWorkflowUseCase().execute(hit: hit, workflowID: "RT")
 
         #expect(result.temperatureK.isEmpty)
         #expect(result.rxx.isEmpty)
@@ -246,7 +246,7 @@ struct V55AnalyzeRTUseCaseDispatchTests {
         defer { try? FileManager.default.removeItem(at: url) }
 
         let hit = makeDatHit(filePath: url.path, channels: ["ch1"])
-        let result = AnalyzeRTWorkflowUseCase().execute(hit: hit)
+        let result = AnalyzeRTWorkflowUseCase().execute(hit: hit, workflowID: "RT")
 
         #expect(result.format == .ppmsDat)
         #expect(result.channelID == "ch1")
@@ -263,7 +263,7 @@ struct V55AnalyzeRTUseCaseDispatchTests {
         defer { try? FileManager.default.removeItem(at: url) }
 
         let hit = makeDatHit(filePath: url.path, channels: ["ch2"])
-        let result = AnalyzeRTWorkflowUseCase().execute(hit: hit)
+        let result = AnalyzeRTWorkflowUseCase().execute(hit: hit, workflowID: "RT")
 
         #expect(result.bridgeIndex == 2)
         #expect(result.rxx == [195.1, 201.5, 210.2])
@@ -276,7 +276,7 @@ struct V55AnalyzeRTUseCaseDispatchTests {
         defer { try? FileManager.default.removeItem(at: url) }
 
         let hit = makeDatHit(filePath: url.path, channels: ["ch3"])
-        let result = AnalyzeRTWorkflowUseCase().execute(hit: hit)
+        let result = AnalyzeRTWorkflowUseCase().execute(hit: hit, workflowID: "RT")
 
         #expect(result.bridgeIndex == 3)
         #expect(result.rxx == [295.1, 301.5, 310.2])
@@ -310,7 +310,7 @@ struct V55AnalyzeRTUseCaseDispatchTests {
             appliedAt: .distantPast
         )
 
-        let result = AnalyzeRTWorkflowUseCase().execute(hit: hit)
+        let result = AnalyzeRTWorkflowUseCase().execute(hit: hit, workflowID: "RT")
         #expect(result.format == .lvm)
         // LVM RT fixture has data rows
         #expect(!result.temperatureK.isEmpty)

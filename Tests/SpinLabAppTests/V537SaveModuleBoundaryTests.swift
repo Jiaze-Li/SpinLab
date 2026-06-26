@@ -49,7 +49,7 @@ struct V537SaveModuleBoundaryTests {
     @MainActor
     private func canonicalSearchState(
         _ wfs: WorkbenchFeatureStore,
-        workflow: WorkflowKey
+        workflow: String
     ) -> CanonicalSearchState {
         CanonicalSearchState(
             query: wfs.searchQueryText(for: workflow),

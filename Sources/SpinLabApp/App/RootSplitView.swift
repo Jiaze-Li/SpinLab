@@ -120,7 +120,7 @@ struct RootSplitView: View {
         switch appState.selectedArea {
         case .workbench:
             switch appState.workbench.currentRoute {
-            case .registry(_):
+            case .measurements:
                 selected.insert(SidebarMenuNodeID.area(.workbench))
             case .workflow(let id):
                 selected.insert(SidebarMenuNodeID.workbenchWorkflow(id))

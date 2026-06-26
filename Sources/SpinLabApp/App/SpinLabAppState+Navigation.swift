@@ -24,11 +24,9 @@ extension SpinLabAppState {
             selectedArea = .inbox
         case .workbench:
             selectedArea = .workbench
-            workbenchFeatureStore.selectedSection = .workflows
-            workbenchFeatureStore.currentRoute = .registry(selectedID: nil)
+            workbenchFeatureStore.currentRoute = .measurements
         case let .workbenchWorkflow(id):
             selectedArea = .workbench
-            workbenchFeatureStore.selectedSection = .workflows
             workbenchFeatureStore.selectWorkflow(id)
         case .library:
             selectedArea = .library

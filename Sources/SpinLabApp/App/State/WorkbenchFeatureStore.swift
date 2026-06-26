@@ -3,29 +3,11 @@ import Observation
 
 /// Routing state for the Workbench area.
 ///
-/// - `registry(selectedID:)`: The top-level configuration panel is shown.
-///   `selectedID` tracks which workflow row is highlighted in the registry list
-///   for editing purposes only — it does not represent a sub-route navigation.
+/// - `measurements`: The Workbench root page showing the Sample Work Tracker panel.
 /// - `workflow(id:)`: The workspace for a specific workflow is shown.
 enum WorkbenchRoute: Equatable {
-    case registry(selectedID: String?)
-    case workflow(id: String)
-}
-
-enum WorkbenchSection: String, CaseIterable, Identifiable {
-    case workflows
     case measurements
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .workflows:
-            return "Workflows"
-        case .measurements:
-            return "Measurements"
-        }
-    }
+    case workflow(id: String)
 }
 
 struct ConditionDefinitionOption: Identifiable, Equatable {
@@ -158,6 +140,42 @@ final class WorkbenchFeatureStore {
     private lazy var selectionRuntime = WorkbenchSelectionRuntime()
     @ObservationIgnored
     let overlayRuntime = WorkbenchAnalysisOverlayRuntime()
+    @ObservationIgnored
+    private lazy var sampleWorkTrackerRuntimeInstance: WorkbenchSampleWorkTrackerRuntime = {
+        let actor = self.dataActor
+        return WorkbenchSampleWorkTrackerRuntime(
+            hitsProvider: { [weak self] in
+                guard let self else { return [] }
+                let (settings, definitions) = await MainActor.run {
+                    (self.liveLibrarySettingsProvider?() ?? self.trackerLibrarySettings, self.workflowDefinitions)
+                }
+                return try await actor.searchWorkflowMeasurements(
+                    settings: settings,
+                    query: WorkflowSearchQuery(rawText: ""),
+                    workflowDefinitions: definitions
+                )
+            },
+            workflowColumnsProvider: { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.workflowDefinitions.map {
+                        BuildSampleWorkSummariesUseCase.WorkflowColumn(id: $0.id, displayName: $0.displayName)
+                    } ?? []
+                }
+            },
+            chartLinkedBasenamesForSample: { [weak self] sampleKey in
+                guard let self else { return [] }
+                let settings = await MainActor.run { self.liveLibrarySettingsProvider?() ?? self.trackerLibrarySettings }
+                guard let rootPath = settings.rootPath, !rootPath.isEmpty else { return [] }
+                return LibraryRootAccess().withAccess(settings: settings) { rootURL in
+                    let resolver = LibraryPathResolver(libraryRootURL: rootURL)
+                    guard let index = LoadMeasurementPlotIndexUseCase(pathResolver: resolver).execute(sampleKey: sampleKey) else {
+                        return []
+                    }
+                    return Set(index.entries.keys)
+                }
+            }
+        )
+    }()
 
     @ObservationIgnored
     private var archivedRecordsProjectionTask: Task<Void, Never>?
@@ -181,9 +199,20 @@ final class WorkbenchFeatureStore {
     @ObservationIgnored
     var onDefinitionsChanged: (([WorkflowDefinition]) -> Void)?
 
-    var selectedSection: WorkbenchSection = .workflows
     var currentRoute: WorkbenchRoute
     var workflowDefinitions: [WorkflowDefinition]
+    var trackerLibrarySettings: LibrarySettings = .default
+    /// Closure that returns the current library settings at call time.
+    /// When set, tracker providers use this instead of the one-time `trackerLibrarySettings` snapshot,
+    /// so a Library Root change after launch is reflected by the next Refresh.
+    @ObservationIgnored
+    private var liveLibrarySettingsProvider: (() -> LibrarySettings)?
+
+    func setLiveLibrarySettingsProvider(_ provider: @escaping @MainActor () -> LibrarySettings) {
+        liveLibrarySettingsProvider = provider
+    }
+
+    var sampleWorkTracker: WorkbenchSampleWorkTrackerRuntime { sampleWorkTrackerRuntimeInstance }
     /// Workflow IDs that are missing from the active Rule Book.
     /// Stores still use stable Rule Book ids as identity sources; this set makes
     /// the missing-definition state explicit instead of crashing at startup.
@@ -192,7 +221,7 @@ final class WorkbenchFeatureStore {
 
     var selectedWorkflowID: String? {
         switch currentRoute {
-        case .registry(let id): return id ?? workflowDefinitions.first?.id
+        case .measurements: return nil
         case .workflow(let id): return id
         }
     }
@@ -236,7 +265,7 @@ final class WorkbenchFeatureStore {
         self.workflowDefinitions = initialWorkflowDefinitions
         self.missingWorkflowDefinitionIDs = Self.missingWorkflowDefinitionIDs(in: initialWorkflowDefinitions)
         self.conditionDefinitionOptions = initialConditionOptions
-        self.currentRoute = .registry(selectedID: initialWorkflowDefinitions.first?.id)
+        self.currentRoute = .measurements
         self.threeOmegaWorkspace.vault = analysisVault
         self.xyRotationWorkspace.vault = analysisVault
         self.aheWorkspace.vault = analysisVault
@@ -581,7 +610,7 @@ final class WorkbenchFeatureStore {
 
     func selectWorkflow(_ id: String?) {
         guard let id else {
-            currentRoute = .registry(selectedID: workflowDefinitions.first?.id)
+            currentRoute = .measurements
             return
         }
         let resolvedID = workflowDefinitions.contains(where: { $0.id == id }) ? id : (workflowDefinitions.first?.id ?? id)
@@ -709,7 +738,7 @@ final class WorkbenchFeatureStore {
 
     private var currentSelectedWorkflowID: String? {
         switch currentRoute {
-        case .registry(let id): return id
+        case .measurements: return nil
         case .workflow(let id): return id
         }
     }
@@ -733,14 +762,13 @@ final class WorkbenchFeatureStore {
                 $0.id.caseInsensitiveCompare(selectedID) == .orderedSame
             })!.id
             switch currentRoute {
-            case .registry:
-                currentRoute = .registry(selectedID: resolvedID)
+            case .measurements:
+                currentRoute = .measurements
             case .workflow:
                 currentRoute = .workflow(id: resolvedID)
             }
         } else {
-            let fallbackID = workflowDefinitions.first?.id
-            currentRoute = .registry(selectedID: fallbackID)
+            currentRoute = .measurements
         }
         onDefinitionsChanged?(workflowDefinitions)
     }

@@ -72,7 +72,7 @@ struct V515WorkbenchRegistryReadOnlyTests {
         switch store.currentRoute {
         case .workflow(let id):
             #expect(id == "XY")
-        case .registry:
+        default:
             Issue.record("Expected .workflow route after selectWorkflow")
         }
     }

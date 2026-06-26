@@ -3,6 +3,6 @@ import Foundation
 
 @MainActor
 final class SelectionReadingFake: SelectionReading {
-    var idsByWorkflow: [WorkflowKey: Set<String>] = [:]
-    func selectedIDs(for wf: WorkflowKey) -> Set<String> { idsByWorkflow[wf] ?? [] }
+    var idsByWorkflow: [String: Set<String>] = [:]
+    func selectedIDs(for wf: String) -> Set<String> { idsByWorkflow[wf] ?? [] }
 }

@@ -366,7 +366,7 @@ Summary:
 - Actual Gate 3 finding: the warning and trace display surface already exists, but the raw warning and trace fields still live in workflow stores and are mixed across analysis and save paths.
 - Target owner: split ownership. The common module owns warning and trace display / projection; Workflow Assemblies emit typed warning and trace events.
 - Required work: centralize warning-log and run-trace projection; keep session-only warning, analysis, plot, and save message data out of pack formats; separate save-side trace updates from analysis-side trace commits; keep duplicate-warning coalescing intact.
-- Prerequisite bridges/tests: `BuildRunTraceProjectionUseCase`, `WorkbenchStatusArea`, `WorkbenchTracePanel`, `V326RunManifestTraceTests`, `V537AnalysisLifecycleBoundaryTests`, `V537SaveModuleBoundaryTests`, `V5114PackRestoreNoTraceCommitTests`, and `V537PackRestoreModuleBoundaryTests`.
+- Prerequisite bridges/tests: `BuildRunTraceProjectionUseCase`, `WorkbenchTracePanel`, `V326RunManifestTraceTests`, `V537AnalysisLifecycleBoundaryTests`, `V537SaveModuleBoundaryTests`, `V5114PackRestoreNoTraceCommitTests`, and `V537PackRestoreModuleBoundaryTests`.
 - Extraction risks: trace being committed on restore, warnings duplicating across reruns, save-side trace being confused with analysis-side trace, and session-only fields being serialized by mistake.
 - Acceptance criteria: warning and trace projections come from one common read/display owner; workflow stores shrink to typed event sources; restore leaves trace nil; duplicate-warning coalescing still behaves as it does now.
 

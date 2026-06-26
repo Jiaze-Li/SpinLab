@@ -8,22 +8,12 @@ struct WorkbenchView: View {
 
         switch workbench.currentRoute {
 
-        case .registry:
-            // Registry 保留 header + picker
+        case .measurements:
             VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("Workbench")
-                            .font(AppFontScale.sectionTitle)
-                        Spacer()
-                    }
-                    Picker("Section", selection: $workbench.selectedSection) {
-                        ForEach(WorkbenchSection.allCases) { section in
-                            Text(section.title).tag(section)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 340)
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Workbench")
+                        .font(AppFontScale.sectionTitle)
+                    Spacer()
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 72)
@@ -31,23 +21,9 @@ struct WorkbenchView: View {
 
                 Divider()
 
-                switch workbench.selectedSection {
-                case .workflows:
-                    ScrollView {
-                        WorkflowRegistryView().padding(16)
-                    }
-                case .measurements:
-                    ScrollView {
-                        GroupBox("Measurements") {
-                            ContentUnavailableView(
-                                "Planned for V3.4",
-                                systemImage: "chart.xyaxis.line",
-                                description: Text("Measurement history will be available in V3.4 Library Writeback.")
-                            )
-                            .frame(maxWidth: .infinity, minHeight: 220)
-                        }
+                ScrollView {
+                    WorkbenchMeasurementsPanel(runtime: appState.workbench.sampleWorkTracker)
                         .padding(16)
-                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

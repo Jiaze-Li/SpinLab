@@ -116,17 +116,16 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Selection.swift` — owns 3ω selection clearing and search-hit toggling
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore.swift` — owns core 3ω workspace state, analysis lifecycle, and caches
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift` — mounts the 3ω workflow shell and workflow-specific panels
-- `Sources/SpinLabApp/Features/Workbench/UnitTagEditor.swift` — edits reusable unit tags inline
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchEnvironment.swift` — carries the workbench file-system and library access dependencies
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchRunTraceProviding.swift` — defines the workspace-level read surface for the most recent run trace
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchReadAdapter.swift` — projects workspace state into a read-only shell-facing snapshot
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchResultHeaderShell.swift` — renders the shared result header and save actions
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchSharedComponents.swift` — documents the split shared workbench component inventory
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchStatusArea.swift` — renders shared search, plot, and load status messages
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchTracePanel.swift` — renders the shared run-trace disclosure
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchView.swift` — switches between registry and workflow workbench screens
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchMeasurementsPanel.swift` — renders SampleWorkTracker summaries as a GroupBox panel with refresh, loading, error, and empty states
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchMeasurementsSampleRow.swift` — renders one SampleWorkSummary row: display title, per-workflow cells, and unknown-workflow warning
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchMeasurementsWorkflowCell.swift` — renders one WorkflowWorkSummary as a status badge (noData/todo/partial/done) with compact file count
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchView.swift` — Workbench root shows WorkbenchMeasurementsPanel directly; workflow child selections open the corresponding workspace
 - `Sources/SpinLabApp/Features/Workbench/WorkflowHitRow.swift` — renders the shared search-result row
-- `Sources/SpinLabApp/Features/Workbench/WorkflowRegistryView.swift` — renders the workflow registry list and summary pane
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift` — defines workspace-view and shell-facing workbench contracts
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchSaveCoordinating.swift` — shared async save orchestration protocol; owns the common Task body (outcome, trace, message, refreshRelatedCharts) and the per-workflow didCompleteSave hook
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift` — dispatches workflow IDs to workspace views

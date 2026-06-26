@@ -156,7 +156,6 @@ Architecture details: `docs/architecture/inbox/RULES_AUTHORING.md`
 - **Single external Rules Book**: Rules Panel reads/writes only a user-configured external directory (Rules Book). No automatic fallback to `Sources/SpinLabApp/config/`, no dual-write mirror, no reverse sync. `Sources/SpinLabApp/config/` is reference JSON only.
 - **Not-configured state**: if no Rules Book is selected, panel shows "Select Rules Book Folder" and blocks editing.
 - **Incomplete-book state**: if configured directory is missing required files, panel lists missing files and blocks editing.
-- `WorkflowRegistryView`: read-only; all workflow CRUD managed via Rules Panel only
 - Match op per-context: `starts-with` only in Batch ID Prefixes; `unit-suffix` only in Measuring Condition
 - Measuring Condition unified rule list (v5.1.8+): flat `matches: [MapRule]`, no `kind` partition, schema v7
 - `$MATCH` output: all ops return raw matched token verbatim — no normalization in any path (v5.1.9+)

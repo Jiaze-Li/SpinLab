@@ -31,7 +31,7 @@ struct V332WorkflowWorkspaceDispatchTests {
     }
 
     @MainActor
-    private func waitForSearchToFinish(_ wfs: WorkbenchFeatureStore, workflowID: WorkflowKey) async throws {
+    private func waitForSearchToFinish(_ wfs: WorkbenchFeatureStore, workflowID: String) async throws {
         var attempts = 0
         while wfs.isSearchRunning(for: workflowID) && attempts < 40 {
             try await Task.sleep(nanoseconds: 50_000_000)

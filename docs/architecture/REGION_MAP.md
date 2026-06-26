@@ -110,7 +110,7 @@
 | SP-001 | `suspect_coupling` | `MeasuringConditionFileDraft.ConditionDefinition.tokenMap` 同时承载 `unit_suffix` 和 `token_map` 两种 UI/规则语义 | `Features/RulesPanel/RulesManagementStore.swift`; `Features/RulesPanel/Sections/MeasuringConditionSection.swift`; `Features/RulesPanel/SectionPersistenceStrategy.swift`; `Tests/SpinLabAppTests/V515ConditionKindSwitchTests.swift`; `docs/handoff/_pending/5.1.8-condition-kind-decoupling-design-seed.md` | 已有 5.1.8 种子；这是字段级错误耦合，不应作为合法共享抽象保留 |
 | SP-002 | `coordination_surface` | Workbench condition projection 从 Rules rule set 派生，但缓存/展示在 `WorkbenchFeatureStore` | `App/State/WorkbenchFeatureStore.swift`; `Import/Rules/RuleLoader.swift`; `Import/Rules/ConditionFieldCatalog.swift`; `App/InboxFacade.swift` | Workbench 消费 Rules 配置是合理关系；需确认 projection 是否应迁到 Rules-facing facade 或明确为 Workbench coordination surface |
 | SP-003 | `coordination_surface` | RulesPanel 保存后立即影响 runtime rule cache、Inbox routing、Registry lookup、Workbench condition options | `Features/RulesPanel/RulesManagementStore.swift`; `Import/Rules/RulesPersistenceHook.swift`; `Import/Rules/RuleLoader.swift`; `Import/Rules/SpinLabRuleProvider.swift`; `App/SpinLabAppState.swift` | 保存路径是跨区状态刷新点；s4 结构债应要求明确 reload/notification 边界 |
-| SP-004 | `coordination_surface` | `workflow.json` 是 Rules-owned config，但 Workbench 通过 `WorkflowDefinitionStore` / registry UI 消费 workflow 定义 | `Workflow/WorkflowDefinitionStore.swift`; `Workflow/WorkflowDefinition.swift`; `Features/Workbench/WorkflowRegistryView.swift`; `Features/RulesPanel/Sections/WorkflowSection.swift`; `Import/Rules/WorkflowRegistryRetirementService.swift` | 配置所有权与展示消费分离合理；需要在 INDEX 标出首读 Rules config + Workbench consumer |
+| SP-004 | `coordination_surface` | `workflow.json` 是 Rules-owned config，但 Workbench 通过 `WorkflowDefinitionStore` / registry UI 消费 workflow 定义 | `Workflow/WorkflowDefinitionStore.swift`; `Workflow/WorkflowDefinition.swift`; `Features/RulesPanel/Sections/WorkflowSection.swift`; `Import/Rules/WorkflowRegistryRetirementService.swift` | 配置所有权与展示消费分离合理；需要在 INDEX 标出首读 Rules config + Workbench consumer |
 | SP-005 | `coordination_surface` | Registry lookup aliases and sheet filtering come from Rules config while registry index serves Inbox + Library | `Registry/RegistryLookupRuleBook.swift`; `Registry/RegistrySheetFilter.swift`; `Registry/SampleRegistry.swift`; `Import/RegistrySubstrateRuleBook.swift`; `App/RegistryCoordinator.swift` | Registry 不是独立产品区块；s4 INDEX 应作为跨区共享入口，避免误派给 Inbox 或 Library 单区 |
 | SP-006 | `legitimate_cross_cutting` | `SpinLabFileSidecar` 是 Library 持久化、Inbox apply、Workbench search 的稳定文件契约 | `Library/SpinLabFileSidecar.swift`; `App/InboxArchiveApplyService.swift`; `Library/LibraryWriteTransaction.swift`; `UseCases/SearchWorkflowMeasurementsUseCase.swift`; `Features/Library/MeasurementConditionDetailView.swift` | 合法共享 Domain/Persistence contract；s4 INDEX 应把它列为 Library file contract，不作为拆分债 |
 | SP-007 | `coordination_surface` | Workbench chart/metric 写入 Library `_spinlab` 目录并维护 `results_index.json` / `measurement_plot_index.json` | `UseCases/SaveActiveChartToLibraryUseCase.swift`; `UseCases/PersistChartArtifactUseCase.swift`; `UseCases/PersistMeasurementDataUseCase.swift`; `UseCases/LoadMeasurementPlotIndexUseCase.swift`; `App/LibraryDiskCleanupService.swift`; `Tests/SpinLabAppTests/V41217MeasurementPlotIndexTests.swift` | Workbench→Library 写入边界需要在 INDEX 明确：Workbench owns generation，Library owns storage namespace and cleanup invariants |
@@ -121,7 +121,7 @@
 | SP-012 | `coordination_surface` | Drawer matching normalizes Import sample input against Library sample IDs/tags | `Import/Match/DrawerMatchEngine.swift`; `Import/Parse/SampleKeyNormalizer.swift`; `Import/Parse/SampleTokenization.swift`; `Library/LibraryModels.swift`; `Tests/SpinLabAppTests/V221DrawerMatchEngineTests.swift` | 匹配职责在 Inbox pipeline 中合理，但 Import helper 依赖 Library sample shape；后续与 SP-009 一起判断 helper 是否迁到共享 parser/domain |
 | SP-013 | `migration_candidate` | `SampleSemanticDescriptor` lives under Import/Parse but is consumed by Workbench ingestion/search, Library parser, Domain search model and Inbox UI | `Import/Parse/SampleSemanticDescriptor.swift`; `UseCases/SearchWorkflowMeasurementsUseCase.swift`; `UseCases/IngestThreeOmegaSelectionsUseCase.swift`; `UseCases/IngestAHESelectionsUseCase.swift`; `Library/LibraryRegistryParser.swift`; `Domain/WorkflowSearchModels.swift`; `Features/Inbox/InboxSelectionWorkbenchPanel.swift` | Domain-like semantic model should likely move out of Import during a future structure cleanup; not urgent code change in 5.1.6 |
 | SP-014 | `migration_candidate` | `SampleTokenization` and `SampleKeyNormalizer` are parser helpers used outside import routing | `Import/Parse/SampleTokenization.swift`; `Import/Parse/SampleKeyNormalizer.swift`; `Import/Match/DrawerMatchEngine.swift`; `UseCases/SearchWorkflowMeasurementsUseCase.swift`; `App/State/InboxRoutingState.swift`; `Import/Route/FileRoutingRuleBook.swift` | Current placement understates cross-feature role; s4 debt list should propose shared parser/domain utility placement |
-| SP-015 | `legitimate_cross_cutting` | `WorkflowID` aliases normalize search and display across Workbench search and workflow registry | `Workflow/WorkflowID.swift`; `UseCases/SearchWorkflowMeasurementsUseCase.swift`; `Workflow/WorkflowDefinitionStore.swift`; `Features/Workbench/WorkflowRegistryView.swift` | Legitimate workflow identity contract; keep as cross-cutting Workflow domain config |
+| SP-015 | `legitimate_cross_cutting` | `WorkflowID` aliases normalize search and display across Workbench search and workflow registry | `Workflow/WorkflowID.swift`; `UseCases/SearchWorkflowMeasurementsUseCase.swift`; `Workflow/WorkflowDefinitionStore.swift` | Legitimate workflow identity contract; keep as cross-cutting Workflow domain config |
 
 ### s3 当前覆盖
 
@@ -331,11 +331,9 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `Features/Workbench/ThreeOmegaWorkspaceStore.swift` | consumer: 3ω workspace state/orchestration | Store | 1517 |  | ⭐G H/V: largest workflow store + parallel protocols | 0 | direct |
 | `Features/Workbench/ThreeOmegaWorkspaceView.swift` | consumer: 3ω workspace UI provider | UI | 447 |  |  | 0 | behavioral |
 | `Features/Workbench/TokenMapEditor.swift` | consumer: Workbench condition/rule token map UI | UI | 62 | ⭐ consumer: Workbench+Rules condition editing |  | 0 | none |
-| `Features/Workbench/UnitTagEditor.swift` | consumer: Workbench condition unit tag UI | UI | 70 | ⭐ consumer: Workbench+Rules condition editing |  | 0 | none |
 | `Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift` | consumer: shared plot canvas | UI shell | 728 | ⭐ legitimate_cross_cutting within Workbench workflows | ⭐G H/V: plot shell + internal responsibilities | 1 | behavioral |
 | `Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift` | consumer: Workbench plot controls wrapper | UI shell | 37 |  |  | 0 | none |
 | `Workbench/Modules/PlotSystem/Contracts/WorkbenchPlottingStore.swift` | consumer: plot-capability protocol | Capability protocol | 36 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | behavioral |
-| `Features/Workbench/WorkbenchSharedComponents.swift` | consumer: shared Workbench UI components | UI helper | 10 |  |  | 0 | none |
 | `Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTextControls.swift` | consumer: shared title/X/Y override row | UI helper | 135 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | none |
 | `Workbench/Modules/PlotSystem/Controls/Common/SharedPlotLabelOverrideField.swift` | consumer: shared inline label override field | UI helper | 60 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | none |
 | `Workbench/V3/Heatmap/RSM/RSMViewSelector.swift` | consumer: RSM workflow-specific plot-control selector | UI helper | 28 |  |  | 0 | none |
@@ -343,12 +341,10 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `Workbench/V3/Heatmap/HeatmapColorScaleControls.swift` | consumer: heatmap color-scale UI control | UI helper | 27 |  |  | 0 | none |
 | `Workbench/V3/Heatmap/HeatmapZLabelControl.swift` | consumer: heatmap optional Z/colorbar label control | UI helper | 21 |  |  | 0 | none |
 | `Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift` | consumer: shared plot controls | UI shell | 107 | ⭐ legitimate_cross_cutting within Workbench workflows |  | 0 | behavioral |
-| `Features/Workbench/WorkbenchStatusArea.swift` | consumer: Workbench warnings/status UI | UI | 29 |  |  | 1 | none |
 | `Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchTitleTemplateField.swift` | consumer: Workbench title template editor | UI | 38 |  |  | 0 | none |
 | `Features/Workbench/WorkbenchTracePanel.swift` | consumer: Workbench trace UI | UI | 52 |  |  | 1 | none |
 | `Features/Workbench/WorkbenchView.swift` | consumer: RootSplitView Workbench area | UI | 64 |  |  | 0 | behavioral |
 | `Features/Workbench/WorkflowHitRow.swift` | consumer: Workbench search hit row | UI | 80 |  |  | 0 | none |
-| `Features/Workbench/WorkflowRegistryView.swift` | consumer: Workbench read-only workflow list | UI | 125 | ⭐ consumer: Workbench+Rules workflow definitions |  | 0 | behavioral |
 | `Features/Workbench/WorkflowWorkspaceProvider.swift` | consumer: workflow workspace protocols + warning log | Capability protocol | 177 | ⭐ legitimate_cross_cutting within Workbench workflows | ⭐G H: default hooks candidate | 0 | behavioral |
 | `Features/Workbench/WorkflowWorkspaceRegistry.swift` | consumer: Workbench workflow view dispatch | UI registry | 39 |  |  | 0 | direct |
 | `Features/Workbench/WorkflowWorkspaceShell.swift` | consumer: shared workflow workspace shell | UI shell | 567 | ⭐ legitimate_cross_cutting within Workbench workflows | ⭐G H/V: cross-workflow shell | 0 | direct |
@@ -564,8 +560,6 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `Library/SpinLabFileSidecar.swift` | Sidecar contract feeds Inbox apply, Library archive, Workbench search | pending |
 | `Features/Workbench/NewRuleEntrySheet.swift` | Workbench UI creates rule-like entries | pending |
 | `Features/Workbench/TokenMapEditor.swift` | Workbench UI edits condition/rule token maps | pending |
-| `Features/Workbench/UnitTagEditor.swift` | Workbench UI edits condition/rule units | pending |
-| `Features/Workbench/WorkflowRegistryView.swift` | Workbench displays Rules-owned workflow definitions | pending |
 | `Workflow/WorkflowDefinitionStore.swift` | Rules-owned workflow config consumed by Workbench | pending |
 | `Features/RulesPanel/RulesManagementStore.swift` | RulesPanel runtime config save immediately affects Inbox/Workbench/Registry behavior | pending |
 | `Features/RulesPanel/RulesSectionShell.swift` | Shared save/reload shell used by RulesPanel sections | pending |
@@ -611,7 +605,6 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | 文件 | 行号 | 类别 | 内容 |
 |---|---|---|---|
 | `Features/Workbench/WorkbenchTracePanel.swift` | 14 | TODO(用户设计) | 调整 label 列宽、字号、是否折叠显示 |
-| `Features/Workbench/WorkbenchStatusArea.swift` | 15 | TODO(用户设计) | 考虑是否合并为单条消息、是否加图标前缀 |
 | `Workbench/Modules/PlotSystem/Canvas/WorkbenchPlotCanvas.swift` | 55 | TODO(用户设计) | 调整最小高度、背景样式、空状态文字 |
 | `Import/Rules/RulesBootstrapper.swift` | 1059 | false-positive | `dateFormat` 字符串含 `XXX`，不是 TODO / FIXME / XXX 注释 |
 
@@ -633,8 +626,6 @@ docs(s1.x): REGION_MAP <主题> 扫描完成
 | `Features/Library/LibraryWorkspaceSections.swift` | Library | 587 | Medium：大 UI section 文件无 direct test |
 | `Features/Workbench/NewRuleEntrySheet.swift` | Workbench | 137 | Low：sheet UI 无 direct test |
 | `Features/Workbench/TokenMapEditor.swift` | Workbench | 62 | Low：rule editor UI 无 direct test |
-| `Features/Workbench/UnitTagEditor.swift` | Workbench | 70 | Low：unit editor UI 无 direct test |
-| `Features/Workbench/WorkbenchStatusArea.swift` | Workbench | 29 | Low：status UI 无 direct test |
 | `Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchTitleTemplateField.swift` | Workbench | 38 | Low：title field UI 无 direct test |
 | `Features/Workbench/WorkbenchTracePanel.swift` | Workbench | 52 | Low：trace UI 无 direct test |
 | `Features/Workbench/WorkflowHitRow.swift` | Workbench | 80 | Low：search-hit UI 无 direct test |
