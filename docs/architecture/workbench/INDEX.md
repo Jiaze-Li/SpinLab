@@ -29,7 +29,7 @@ Active per-module contracts that supplement `MODULE_BOUNDARIES.md`.
 | File | Role | Scope |
 |---|---|---|
 | `modules/MEASUREMENT_SEARCH.md` | Search module details | Sidecar field consumption, condition projection, workflow ID aliases, search result semantics |
-| `modules/PLOT_SYSTEM.md` | Plot system details | Workflow-independent plot shell, style params, legend, copy PNG, point label, curve reorder contract |
+| `modules/PLOT_SYSTEM.md` | Plot system details | Workflow-independent plot shell, style params, legend, copy PNG, point label, curve reorder contract; Cartesian XY, Heatmap, and DualAxis render paths |
 | `modules/PACK_RESTORE.md` | Pack / restore details | AnalysisPack / AnalysisVault, workspace vs Library save, restore as cross-module op, per-workflow pack contracts |
 
 ### Current References

@@ -332,6 +332,54 @@ The following capabilities are **out of scope** for Heatmap V1. Implementing any
 
 ---
 
+## DualAxis Render Path
+
+### Overview
+
+DualAxis is a reusable **Plot System-owned render path** for charts that need two independent Y axes (left and right). It runs parallel to the Cartesian XY render path and the Heatmap render path. It is **not** a 3ω-specific feature; any future workflow that requires dual-Y-axis output reuses this path by filling a `DualAxisPlotPayload`.
+
+### Ownership Split
+
+| Owned by Plot System (DualAxis render path) | Owned by Workflow Assembly |
+|---|---|
+| `DualAxisPlotPayload` type definition | Scientific meaning of left/right Y series |
+| `DualAxisChartRenderer` — CoreGraphics dual-axis renderer | Unit conversion and axis-label semantics |
+| `DualAxisPlotLayout` — geometry for two Y axes, legend, title | Series construction from analysis result |
+| `DualAxisRenderPipeline` — display overrides → render orchestration | Workflow-specific axis defaults |
+
+PlotSystem must not derive physics meaning from payload values. Workflow Assemblies must not own rendering, layout geometry, or display-override state.
+
+### Parallel-Path Rule
+
+DualAxis is parallel to Cartesian XY and Heatmap:
+
+- `WorkbenchPlotPayload` and `WorkbenchPlotSeries` are **XY-specific** and must not be extended with secondary-axis fields.
+- `HeatmapPlotPayload` and `HeatmapPlotLayout` are **heatmap-specific** and must not be repurposed for dual-axis output.
+- `DualAxisPlotPayload` is the new Plot System input contract for dual-Y-axis charts.
+
+Workflow-specific semantics — RAHE vs. σxx, Temperature Dependence vs. 3ω — enter exclusively through explicit `DualAxisPlotPayload` instances constructed by the Workflow Assembly.
+
+### Target Physical Home
+
+```text
+Workbench/Modules/PlotSystem/DualAxis/
+  DualAxisPlotPayload.swift        (future)
+  DualAxisPlotLayout.swift         (future)
+  DualAxisChartRenderer.swift      (future)
+  DualAxisRenderPipeline.swift     (future)
+```
+
+### Non-Goals for First Implementation
+
+- No modification to `WorkbenchPlotPayload`, `WorkbenchChartRenderer`, `WorkbenchRenderPipeline`, or `WorkbenchPlotLayout`.
+- No change to existing Cartesian XY renderer behavior.
+- No change to Heatmap renderer behavior.
+- No workflow-specific physics inside the DualAxis module.
+- No save/pack schema change.
+- No Temperature Dependence tab implementation.
+
+---
+
 ## Interaction Split
 
 This section defines the authoritative split between the canvas surface and the controls surface.

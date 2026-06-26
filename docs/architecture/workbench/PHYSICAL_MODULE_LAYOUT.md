@@ -147,6 +147,12 @@ Sources/SpinLabApp/
           HeatmapTabRenderState.swift
           HeatmapColorScale.swift
 
+        DualAxis/
+          DualAxisPlotPayload.swift        (future)
+          DualAxisPlotLayout.swift         (future)
+          DualAxisChartRenderer.swift      (future)
+          DualAxisRenderPipeline.swift     (future)
+
       PackRestore/
         AnalysisPackProviding.swift
         AnalysisVault.swift
