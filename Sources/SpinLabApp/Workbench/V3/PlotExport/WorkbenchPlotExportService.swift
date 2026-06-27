@@ -10,10 +10,16 @@ import Foundation
 struct WorkbenchPlotExportSnapshot: Sendable {
     /// Fallback PNG when export pipeline fails or displayPayload is nil.
     var imageData: Data?
+    /// Render family for the active tab.
+    var renderKind: WorkbenchTabRenderKind = .xy
     /// Display-faithful payload: offset/stacked y-values applied. Primary export source.
     var displayPayload: WorkbenchPlotPayload?
     /// Canvas size in renderer pixel space. Used to match the logical export size.
     var layout: WorkbenchPlotLayout?
+    /// Dual-axis layout for tabs that do not use WorkbenchPlotLayout.
+    var dualAxisLayout: DualAxisPlotLayout?
+    /// Dual-axis payload for future export consumers.
+    var dualAxisPayload: DualAxisPlotPayload?
     /// Per-tab display overrides (title, axis labels, series labels, hidden point labels).
     var tabState: TabRenderState
     /// Whether to render grid lines.
@@ -46,6 +52,10 @@ enum WorkbenchPlotExportService {
         snapshot: WorkbenchPlotExportSnapshot,
         scale: CGFloat
     ) -> Data? {
+        if snapshot.renderKind == .dualAxis {
+            return snapshot.imageData
+        }
+
         guard let displayPayload = snapshot.displayPayload else {
             return snapshot.imageData
         }

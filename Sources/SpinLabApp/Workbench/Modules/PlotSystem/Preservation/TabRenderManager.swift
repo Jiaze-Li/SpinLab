@@ -40,6 +40,14 @@ enum DisplayOverridePolicy: Sendable {
     case forceClearDisplayOverrides
 }
 
+// MARK: - WorkbenchTabRenderKind
+
+/// Identifies which render family produced a tab output.
+enum WorkbenchTabRenderKind: Codable, Hashable, Sendable {
+    case xy
+    case dualAxis
+}
+
 // MARK: - AxisRangeOverride
 
 /// Per-tab axis range override. nil bounds fall back to auto-fit from data extents.
@@ -135,6 +143,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
 /// Per-tab cached render output (runtime only, not persisted).
 struct TabRenderOutput: Sendable {
     var imageData: Data?
+    var renderKind: WorkbenchTabRenderKind = .xy
     var layout: WorkbenchPlotLayout?
     /// Persistence/schema record: raw series y-values, file references, data-column axis mapping.
     /// NOT for use as a Copy PNG source — y-values are unmodified raw measurements.
@@ -143,6 +152,10 @@ struct TabRenderOutput: Sendable {
     /// Used as the source for Copy PNG at all export scales.
     /// 1x / 2x / 3x differ only by WorkbenchRenderPipeline.Input.pixelScaleOverride.
     var displayPayload: WorkbenchPlotPayload?
+    /// Dual-axis layout for tab families that do not use WorkbenchPlotLayout.
+    var dualAxisLayout: DualAxisPlotLayout?
+    /// Dual-axis payload for future consumers.
+    var dualAxisPayload: DualAxisPlotPayload?
 }
 
 // MARK: - AHEWorkbenchTab
@@ -307,6 +320,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     ) {
         setOutput(TabRenderOutput(
             imageData: pipelineOutput.imageData,
+            renderKind: .xy,
             layout: pipelineOutput.layout,
             manifestPayload: pipelineOutput.manifestPayload,
             displayPayload: displayPayload
@@ -324,8 +338,11 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         let state = tabStates[tab] ?? TabRenderState()
         return WorkbenchPlotExportSnapshot(
             imageData: output.imageData,
+            renderKind: output.renderKind,
             displayPayload: output.displayPayload,
             layout: output.layout,
+            dualAxisLayout: output.dualAxisLayout,
+            dualAxisPayload: output.dualAxisPayload,
             tabState: state,
             showGrid: showPlotGrid,
             legendAnchor: legendAnchor,

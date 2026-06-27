@@ -150,6 +150,49 @@ struct V563WorkflowStateBoundaryTests {
         #expect(manager.output(for: .first).imageData == nil)
     }
 
+    @MainActor
+    @Test("TabRenderManager stores DualAxis outputs without forcing XY payloads")
+    func tabRenderManagerStoresDualAxisOutput() {
+        enum TestTab: Hashable, Sendable { case first }
+
+        let manager = TabRenderManager<TestTab>(defaultTab: .first)
+        let payload = DualAxisPlotPayload(
+            workflowID: "dual",
+            workflowDisplayName: "Dual",
+            title: "Dual Axis",
+            xLabel: "T (K)",
+            leftYLabel: "Left",
+            rightYLabel: "Right",
+            leftSeries: [
+                DualAxisPlotSeries(label: "L", x: [1, 2], y: [3, 4])
+            ],
+            rightSeries: [
+                DualAxisPlotSeries(label: "R", x: [1, 2], y: [5, 6])
+            ]
+        )
+        let layout = DualAxisPlotLayout.compute(payload: payload)
+        let sentinel = Data([0xD1, 0xA1])
+
+        manager.setOutput(
+            TabRenderOutput(
+                imageData: sentinel,
+                renderKind: .dualAxis,
+                layout: nil,
+                manifestPayload: nil,
+                displayPayload: nil,
+                dualAxisLayout: layout,
+                dualAxisPayload: payload
+            ),
+            for: .first
+        )
+
+        #expect(manager.activeImageData == sentinel)
+        #expect(manager.output(for: .first).renderKind == .dualAxis)
+        #expect(manager.output(for: .first).dualAxisLayout != nil)
+        #expect(manager.output(for: .first).dualAxisPayload != nil)
+        #expect(manager.activeManifestPayload == nil)
+    }
+
     @Test("Reorderable payloads use stable sourceRef identity")
     func reorderablePayloadUsesStableSourceRefIdentity() throws {
         let payload = WorkbenchPlotPayload(
@@ -217,6 +260,38 @@ struct V563WorkflowStateBoundaryTests {
         store.tabs.clearOutputs()
         let afterClear = WorkbenchReadAdapter(store: store)
         #expect(afterClear.activeImageData == nil)
+    }
+
+    @MainActor
+    @Test("DualAxis export snapshots fall back to cached PNG until full export support exists")
+    func dualAxisExportSnapshotFallsBackToCachedPNG() {
+        enum TestTab: Hashable, Sendable { case first }
+
+        let manager = TabRenderManager<TestTab>(defaultTab: .first)
+        let payload = DualAxisPlotPayload(
+            workflowID: "dual",
+            workflowDisplayName: "Dual",
+            title: "Dual Axis",
+            xLabel: "T (K)",
+            leftYLabel: "Left",
+            rightYLabel: "Right"
+        )
+        manager.setOutput(
+            TabRenderOutput(
+                imageData: Data([0xAB, 0xCD]),
+                renderKind: .dualAxis,
+                dualAxisPayload: payload
+            ),
+            for: .first
+        )
+
+        let snapshot = manager.exportSnapshot(for: .first, globalPlotDefaults: [:])
+        #expect(snapshot.renderKind == .dualAxis)
+        #expect(snapshot.displayPayload == nil)
+        #expect(snapshot.dualAxisPayload != nil)
+
+        let exported = WorkbenchPlotExportService.exportPNG(snapshot: snapshot, scale: 3.0)
+        #expect(exported == Data([0xAB, 0xCD]))
     }
 
     @Test("WorkbenchPlotCanvas exposes no series reorder API surface")
