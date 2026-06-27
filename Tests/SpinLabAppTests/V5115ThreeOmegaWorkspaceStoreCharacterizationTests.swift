@@ -50,6 +50,10 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
         let runScaling = try extractFunction("runScaling", from: try workspaceSource)
 
         XCTAssertTrue(runScaling.contains("guard let result = ingestionResult, let rt = result.rtResult else"))
+        XCTAssertTrue(runScaling.contains("let capturedGlobalSettings = ThreeOmegaRendererGlobalSettings("))
+        XCTAssertTrue(runScaling.contains("let capturedScalingSnapshot = tabs.displayStateSnapshot(for: .scaling)"))
+        XCTAssertTrue(runScaling.contains("_renderRevision &+= 1"))
+        XCTAssertTrue(runScaling.contains("renderThreeOmegaTab("))
         XCTAssertTrue(runScaling.contains("let capturedV3Method = v3Method"))
         XCTAssertTrue(runScaling.contains("v3Method: capturedV3Method"))
     }

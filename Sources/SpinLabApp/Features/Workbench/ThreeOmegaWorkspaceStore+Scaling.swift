@@ -16,26 +16,31 @@ extension ThreeOmegaWorkspaceStore {
 
         let capturedResult   = result
         let capturedGeometry = geometry
-        let capturedGrid     = tabs.showPlotGrid
-        let capturedRenderMode = tabs.seriesRenderMode
-        let capturedStyleOverrides = tabs.chartStyleOverrides
-        let capturedAnchor   = tabs.legendAnchor
-        let capturedScalingState = tabs.state(for: .scaling)
-        let capturedLegend   = capturedScalingState.legendPoint?.cgPoint
+        let capturedGlobalSettings = ThreeOmegaRendererGlobalSettings(
+            workflowID: workflowID,
+            showGrid: tabs.showPlotGrid,
+            seriesRenderMode: tabs.seriesRenderMode,
+            chartStyleOverrides: tabs.chartStyleOverrides,
+            globalPlotDefaults: globalPlotDefaults,
+            legendAnchor: tabs.legendAnchor,
+            stackOffsetMultiplier: stackOffsetMultiplier,
+            minGapFraction: minGapFraction,
+            titleTemplate: titleTemplate,
+            titleTokens: _titleTokens
+        )
+        let capturedScalingSnapshot = tabs.displayStateSnapshot(for: .scaling)
         let capturedRanges   = fitRanges
-        let capturedWorkflowID = workflowID
-        let capturedTemplate = titleTemplate
-        let capturedTokens   = _titleTokens
-        let capturedDevice   = result.device
         let capturedV3Method = v3Method
-        let capturedGlobalPlotDefaults = globalPlotDefaults
+
+        _renderRevision &+= 1
+        let revision = _renderRevision
 
         scalingTask?.cancel()
         scalingTask = Task { [weak self] in
             guard let self else { return }
-            let (scalingRes, scalingData, scalingLayout, scalingDisplayPayload) = await Task.detached(priority: .userInitiated) {
+            let scalingRes = await Task.detached(priority: .userInitiated) {
                 let scalingUseCase = ThreeOmegaScalingUseCase()
-                let res = scalingUseCase.executeWithIRms(
+                return scalingUseCase.executeWithIRms(
                     fieldSweeps: capturedResult.fieldSweeps,
                     rtResult: rt,
                     geometry: capturedGeometry,
@@ -43,27 +48,21 @@ extension ThreeOmegaWorkspaceStore {
                     fitRanges: capturedRanges,
                     v3Method: capturedV3Method
                 )
-                var renderer = ThreeOmegaPlotRenderer()
-                renderer.workflowID   = capturedWorkflowID
-                renderer.showGrid     = capturedGrid
-                renderer.seriesRenderMode = capturedRenderMode
-                renderer.chartStyleOverrides = capturedStyleOverrides
-                renderer.globalPlotDefaults = capturedGlobalPlotDefaults
-                renderer.legendAnchor = capturedAnchor
-                renderer.legendPoint    = capturedLegend
-                renderer.titleOverride  = capturedScalingState.titleOverride
-                renderer.xLabelOverride = capturedScalingState.xLabelOverride
-                renderer.yLabelOverride = capturedScalingState.yLabelOverride
-                renderer.titleTemplate  = capturedTemplate
-                renderer.titleTokens   = capturedTokens
-                let method = capturedV3Method == .highField ? "(HFE)" : "(WA)"
-                let (data, layout, displayPayload, _) = renderer.renderScaling(result: res, device: capturedDevice, method: method)
-                return (res, data, layout, displayPayload)
             }.value
 
             guard !Task.isCancelled else { return }
+            _ = await self.renderThreeOmegaTab(
+                .scaling,
+                ingestion: capturedResult,
+                scalingResult: scalingRes,
+                fieldSweepSeriesOrder: nil,
+                globalSettings: capturedGlobalSettings,
+                tabSnapshot: capturedScalingSnapshot,
+                revision: revision,
+                policy: .preserveDisplayOverrides
+            )
+            guard !Task.isCancelled, self._renderRevision == revision else { return }
             self.scalingResult = scalingRes
-            self.tabs.setOutput(TabRenderOutput(imageData: scalingData, layout: scalingLayout, manifestPayload: nil, displayPayload: scalingDisplayPayload), for: .scaling)
             // Refresh manifest payloads (v3Method may have changed) using frozen inputFiles
             self._refreshManifestPayloads()
 
