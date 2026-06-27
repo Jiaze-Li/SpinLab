@@ -456,9 +456,13 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
     }
 
     func buildPackConfig() -> AHEPackConfig {
-        AHEPackConfig(
+        let splitOverrides = WorkbenchChartStyle.splitGlobalPlotDefaults(from: tabs.chartStyleOverrides)
+        return AHEPackConfig(
             titleTemplate: titleTemplate,
             showPlotGrid: tabs.showPlotGrid,
+            legendAnchor: tabs.legendAnchor,
+            seriesRenderMode: tabs.seriesRenderMode,
+            chartStyleOverrides: splitOverrides.local,
             tabStates: tabs.snapshotStates(keyFor: { $0.rawValue }),
             cachedSearchResults: cachedSearchResults,
             selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: workflowID) ?? []),
@@ -485,6 +489,11 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
         // Restore plot controls
         titleTemplate = config.titleTemplate
         tabs.showPlotGrid = config.showPlotGrid
+        tabs.legendAnchor = config.legendAnchor
+        tabs.seriesRenderMode = config.seriesRenderMode
+        let splitOverrides = WorkbenchChartStyle.splitGlobalPlotDefaults(from: config.chartStyleOverrides)
+        if !splitOverrides.global.isEmpty { globalPlotDefaults = splitOverrides.global }
+        tabs.chartStyleOverrides = splitOverrides.local
 
         // Restore per-tab states
         tabs.restoreStates(config.tabStates) { AHEWorkbenchTab(rawValue: $0) }
