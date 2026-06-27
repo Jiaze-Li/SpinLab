@@ -329,4 +329,155 @@ struct V85APackPersistenceGapTests {
         #expect(decoded.seriesRenderMode == .line)
         #expect(decoded.chartStyleOverrides == [:])
     }
+
+    // MARK: - RT contract round-trips
+
+    @Test("RT: legendAnchor survives JSON round-trip")
+    func rtLegendAnchorRoundtrip() throws {
+        let config = RTPackConfig(legendAnchor: "top-left")
+        let decoded = try jsonRoundtrip(config)
+        #expect(decoded.legendAnchor == "top-left")
+    }
+
+    // MARK: - RT restore applies values to store
+
+    @MainActor
+    @Test("RT restore: legendAnchor applied to store before rerender")
+    func rtRestoreAppliesLegendAnchor() throws {
+        let store = RTWorkspaceStore(workflowID: WorkflowKey.rt.rawValue)
+        let hit = makeHit(id: "rt-ctrl", workflowID: "rt", workflowCanonicalID: "rt")
+        let config = RTPackConfig(
+            legendAnchor: "bottom-right",
+            seriesRenderMode: .scatter,
+            chartStyleOverrides: ["labelFontSize": "13"],
+            cachedSearchResults: [hit],
+            selectedSearchResultIDs: [hit.id]
+        )
+        let result = RTPackResult()
+        let pack = try AnalysisPack(
+            label: "RT Ctrl",
+            workflowID: "rt",
+            filePaths: [hit.measurementFilePath],
+            sampleKeys: [hit.sampleKey],
+            config: config,
+            result: result
+        )
+
+        store.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { _, _ in },
+            seedSelection: { _, _ in })
+
+        #expect(store.tabs.legendAnchor == "bottom-right",
+                "legendAnchor must be restored from pack")
+        #expect(store.tabs.seriesRenderMode == .scatter,
+                "seriesRenderMode must be restored from pack")
+    }
+
+    // MARK: - RT backward compatibility
+
+    @Test("RT: old pack without legendAnchor decodes with safe default")
+    func rtOldPackBackwardCompatibility() throws {
+        let json = """
+        {
+          "titleTemplate": "#tab #device #sample",
+          "showPlotGrid": true,
+          "stackOffsetMultiplier": 0.0,
+          "minGapFraction": 0.15,
+          "tabStates": {},
+          "cachedSearchResults": [],
+          "selectedSearchResultIDs": [],
+          "searchQueryText": ""
+        }
+        """
+        let decoded = try JSONDecoder().decode(RTPackConfig.self, from: Data(json.utf8))
+        #expect(decoded.legendAnchor == "")
+        #expect(decoded.seriesRenderMode == .line)
+    }
+
+    // MARK: - ThreeOmega contract round-trips
+
+    @Test("ThreeOmega: seriesRenderMode survives JSON round-trip")
+    func threeOmegaSeriesRenderModeRoundtrip() throws {
+        let config = ThreeOmegaPackConfig(
+            device: "", geometry: ThreeOmegaGeometry(), fitRanges: [ThreeOmegaFitRange()],
+            v3Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe1Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe3Method: ThreeOmegaV3Method.highField.rawValue,
+            rtFilePath: nil, sampleBatchAndSubstrate: "",
+            activeTab: "fieldSweep1omega", titleTemplate: "",
+            stackOffsetMultiplier: 0.0, minGapFraction: 0.15,
+            showPlotGrid: true, plotLegendAnchor: "",
+            seriesRenderMode: .scatter
+        )
+        let decoded = try jsonRoundtrip(config)
+        #expect(decoded.seriesRenderMode == .scatter)
+    }
+
+    // MARK: - ThreeOmega restore applies values to store
+
+    @MainActor
+    @Test("ThreeOmega restore: seriesRenderMode applied to tabs before rerender")
+    func threeOmegaRestoreAppliesSeriesRenderMode() throws {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        let hit = makeHit(id: "3w-ctrl", workflowID: "3w", workflowCanonicalID: "threeOmega")
+        let config = ThreeOmegaPackConfig(
+            device: "", geometry: ThreeOmegaGeometry(), fitRanges: [ThreeOmegaFitRange()],
+            v3Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe1Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe3Method: ThreeOmegaV3Method.highField.rawValue,
+            rtFilePath: nil, sampleBatchAndSubstrate: "",
+            activeTab: "fieldSweep1omega", titleTemplate: "",
+            stackOffsetMultiplier: 0.0, minGapFraction: 0.15,
+            showPlotGrid: false, plotLegendAnchor: "top-left",
+            seriesRenderMode: .scatter,
+            cachedSearchResults: [hit],
+            selectedSearchResultIDs: [hit.id]
+        )
+        let result = ThreeOmegaPackResult(
+            ingestionResult: ThreeOmegaIngestionResult(fieldSweeps: [], rtResult: nil, device: ""),
+            scalingResult: nil
+        )
+        let pack = try AnalysisPack(
+            label: "3ω Ctrl",
+            workflowID: "3w",
+            filePaths: [hit.measurementFilePath],
+            sampleKeys: [hit.sampleKey],
+            config: config,
+            result: result
+        )
+
+        store.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { _, _ in },
+            seedSelection: { _, _ in })
+
+        #expect(store.tabs.seriesRenderMode == .scatter,
+                "seriesRenderMode must be restored from pack")
+        #expect(store.tabs.legendAnchor == "top-left",
+                "legendAnchor (plotLegendAnchor) must be restored from pack")
+    }
+
+    // MARK: - ThreeOmega backward compatibility
+
+    @Test("ThreeOmega: old pack without seriesRenderMode decodes with safe default")
+    func threeOmegaOldPackBackwardCompatibility() throws {
+        let json = """
+        {
+          "device": "",
+          "geometry": {"lxx": 0, "lxy": 0, "dNm": 0},
+          "fitRanges": [],
+          "v3Method": "highField",
+          "sampleBatchAndSubstrate": "",
+          "activeTab": "fieldSweep1omega",
+          "stackOffsetMultiplier": 0.0,
+          "showPlotGrid": true,
+          "tabStates": {},
+          "cachedSearchResults": [],
+          "selectedSearchResultIDs": [],
+          "searchQueryText": ""
+        }
+        """
+        let decoded = try JSONDecoder().decode(ThreeOmegaPackConfig.self, from: Data(json.utf8))
+        #expect(decoded.seriesRenderMode == .line)
+        #expect(decoded.plotLegendAnchor == "")
+    }
 }

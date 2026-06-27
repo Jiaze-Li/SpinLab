@@ -59,6 +59,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
             minGapFraction: minGapFraction,
             showPlotGrid: tabs.showPlotGrid,
             plotLegendAnchor: tabs.legendAnchor,
+            seriesRenderMode: tabs.seriesRenderMode,
             tabStates: tabs.snapshotStates(keyFor: { $0.stableKey }),
             chartStyleOverrides: splitOverrides.local,
             cachedSearchResults: cachedSearchResults,
@@ -125,6 +126,7 @@ func autoPackLabel() -> String { _autoPackLabel() }
         minGapFraction = config.minGapFraction
         tabs.showPlotGrid = config.showPlotGrid
         tabs.legendAnchor = config.plotLegendAnchor
+        tabs.seriesRenderMode = config.seriesRenderMode
 
         // Restore per-tab states
         tabs.restoreStates(config.tabStates) { key in

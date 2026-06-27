@@ -10,6 +10,7 @@ struct RTPackConfig: Codable, Hashable, Sendable {
     var showPlotGrid: Bool
     var stackOffsetMultiplier: Double
     var minGapFraction: Double
+    var legendAnchor: String
     var seriesRenderMode: SeriesRenderMode
 
     // --- Shared chart style overrides ---
@@ -28,6 +29,7 @@ struct RTPackConfig: Codable, Hashable, Sendable {
         showPlotGrid: Bool = true,
         stackOffsetMultiplier: Double = 0.0,
         minGapFraction: Double = 0.15,
+        legendAnchor: String = "",
         seriesRenderMode: SeriesRenderMode = .line,
         chartStyleOverrides: [String: String] = [:],
         tabStates: [String: TabRenderState] = [:],
@@ -39,6 +41,7 @@ struct RTPackConfig: Codable, Hashable, Sendable {
         self.showPlotGrid = showPlotGrid
         self.stackOffsetMultiplier = stackOffsetMultiplier
         self.minGapFraction = minGapFraction
+        self.legendAnchor = legendAnchor
         self.seriesRenderMode = seriesRenderMode
         self.chartStyleOverrides = chartStyleOverrides
         self.tabStates = tabStates
@@ -54,6 +57,7 @@ struct RTPackConfig: Codable, Hashable, Sendable {
         showPlotGrid            = try c.decodeIfPresent(Bool.self, forKey: .showPlotGrid) ?? true
         stackOffsetMultiplier   = try c.decodeIfPresent(Double.self, forKey: .stackOffsetMultiplier) ?? 0.0
         minGapFraction          = try c.decodeIfPresent(Double.self, forKey: .minGapFraction) ?? 0.15
+        legendAnchor            = try c.decodeIfPresent(String.self, forKey: .legendAnchor) ?? ""
         seriesRenderMode        = try c.decodeIfPresent(SeriesRenderMode.self, forKey: .seriesRenderMode) ?? .line
         chartStyleOverrides     = try c.decodeIfPresent([String: String].self, forKey: .chartStyleOverrides) ?? [:]
         tabStates               = try c.decodeIfPresent([String: TabRenderState].self, forKey: .tabStates) ?? [:]
