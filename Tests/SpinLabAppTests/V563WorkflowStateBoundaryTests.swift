@@ -73,6 +73,58 @@ struct V563WorkflowStateBoundaryTests {
     }
 
     @MainActor
+    private func makeScalingReadyStore() -> ThreeOmegaWorkspaceStore {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        store.ingestionResult = ThreeOmegaIngestionResult(
+            fieldSweeps: [
+                ThreeOmegaFieldSweepResult(
+                    temperatureK: 5.0,
+                    device: "0deg",
+                    sampleMetadata: nil,
+                    sampleID: "sample-a",
+                    sourceFilePath: "/tmp/a.lvm",
+                    hField: [-1, 0, 1],
+                    r1omega: [-1, 0, 1],
+                    r3omega: [0, 0, 0],
+                    iRms: 1e-3,
+                    rahe1omega: 1.0,
+                    rahe1omegaWA: 1.0,
+                    hc1omega: nil,
+                    hc3omega: nil,
+                    v3omegaWindow: 2e-5,
+                    v3omegaFit: 2e-5
+                ),
+                ThreeOmegaFieldSweepResult(
+                    temperatureK: 10.0,
+                    device: "0deg",
+                    sampleMetadata: nil,
+                    sampleID: "sample-a",
+                    sourceFilePath: "/tmp/b.lvm",
+                    hField: [-1, 0, 1],
+                    r1omega: [-1, 0, 1],
+                    r3omega: [0, 0, 0],
+                    iRms: 1e-3,
+                    rahe1omega: 1.2,
+                    rahe1omegaWA: 1.2,
+                    hc1omega: nil,
+                    hc3omega: nil,
+                    v3omegaWindow: 2.5e-5,
+                    v3omegaFit: 2.5e-5
+                )
+            ],
+            rtResult: ThreeOmegaRTResult(
+                device: "0deg",
+                temperatureK: [5.0, 10.0],
+                rxx: [100.0, 90.0]
+            ),
+            device: "0deg",
+            iRmsValues: [5.0: 1e-3, 10.0: 1e-3]
+        )
+        store.geometry = ThreeOmegaGeometry(lxx: 26, lxy: 21, dNm: 30)
+        return store
+    }
+
+    @MainActor
     @Test("TabRenderManager owns plot outputs; activeImageData is a projection")
     func tabRenderManagerActiveImageDataIsProjection() {
         enum TestTab: Hashable, Sendable { case first }
@@ -258,6 +310,69 @@ struct V563WorkflowStateBoundaryTests {
         #expect(state.titleOverride == "My Scaling Title")
         #expect(state.xLabelOverride == "Custom X")
         #expect(state.yLabelOverride == "Custom Y")
+    }
+
+    @MainActor
+    @Test("refreshTransportDerivedPlots keeps analysis success message when geometry is incomplete")
+    func refreshTransportDerivedPlotsMissingGeometryKeepsAnalysisMessage() {
+        let store = makeScalingReadyStore()
+        store.geometry = ThreeOmegaGeometry(lxx: 0, lxy: 21, dNm: 30)
+        store.analysisMessage = "Analyzed 2 field-sweep file(s), RT curve loaded."
+
+        store.refreshTransportDerivedPlots(reason: "geometry missing test")
+
+        #expect(store.analysisMessage == "Analyzed 2 field-sweep file(s), RT curve loaded.")
+        #expect(store.scalingResult == nil)
+        if case let .missing(requirements) = store.transportDerivedStatus {
+            #expect(requirements.contains(.lxx))
+        } else {
+            Issue.record("Expected missing transport status")
+        }
+    }
+
+    @MainActor
+    @Test("refreshTransportDerivedPlots renders scaling automatically when inputs are complete")
+    func refreshTransportDerivedPlotsRendersScalingAutomatically() async throws {
+        let store = makeScalingReadyStore()
+        store.analysisMessage = "Analyzed 2 field-sweep file(s), RT curve loaded."
+
+        store.refreshTransportDerivedPlots(reason: "ready test")
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        #expect(store.analysisMessage == "Analyzed 2 field-sweep file(s), RT curve loaded.")
+        #expect(store.scalingResult != nil)
+        if case .ready = store.transportDerivedStatus {
+        } else {
+            Issue.record("Expected ready transport status")
+        }
+    }
+
+    @MainActor
+    @Test("refreshTransportDerivedPlots preserves scaling-tab display overrides")
+    func refreshTransportDerivedPlotsPreservesScalingTabDisplayOverrides() async throws {
+        let store = makeScalingReadyStore()
+        store.tabs.tabStates[.scaling] = TabRenderState(
+            legendPoint: CGPointCodable(CGPoint(x: 0.2, y: 0.8)),
+            titleOverride: "Custom Scaling Title",
+            xLabelOverride: "Custom X",
+            yLabelOverride: "Custom Y",
+            seriesLabelOverrides: ["sample-a": "A"],
+            axisRangeOverride: AxisRangeOverride(xMin: 0, xMax: 10, yMin: -1, yMax: 1),
+            showPointTags: true
+        )
+
+        store.refreshTransportDerivedPlots(reason: "display preservation test")
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        let state = store.tabs.state(for: .scaling)
+        #expect(state.legendPoint?.cgPoint == CGPoint(x: 0.2, y: 0.8))
+        #expect(state.titleOverride == "Custom Scaling Title")
+        #expect(state.xLabelOverride == "Custom X")
+        #expect(state.yLabelOverride == "Custom Y")
+        #expect(state.seriesLabelOverrides == ["sample-a": "A"])
+        #expect(state.axisRangeOverride?.xMin == 0)
+        #expect(state.axisRangeOverride?.xMax == 10)
+        #expect(state.showPointTags)
     }
 
     // MARK: - clearStates lifecycle (Phase 4 boundary doc)

@@ -331,6 +331,20 @@ extension ThreeOmegaWorkspaceStore {
 
         // For RAHE tabs with overlays, delegate to overlay renderer
         let tab = tabs.activeTab
+        if tab == .scaling {
+            scalingTask?.cancel()
+            scalingTask = nil
+            isRefreshingTransportDerivedPlots = false
+            if case .refreshing = transportDerivedStatus {
+                if let scalingResult {
+                    transportDerivedStatus = scalingResult.points.count >= 2
+                        ? .ready
+                        : .unavailable("Scaling Law unavailable: fewer than 2 valid points.")
+                } else {
+                    transportDerivedStatus = .idle
+                }
+            }
+        }
         if !overlayPackIDs.isEmpty,
            (tab == .rahe1omegaVsT || tab == .rahe3omegaVsT) {
             _renderRAHEWithOverlays()
@@ -602,9 +616,9 @@ extension ThreeOmegaWorkspaceStore {
             }
         }
 
-        // Also re-run scaling if geometry is complete
-        if scalingResult != nil, geometry.isComplete {
-            runScaling()
+        // Also refresh transport-derived plots when the cached analysis state is available.
+        if ingestionResult != nil {
+            refreshTransportDerivedPlots(reason: "rerender all tabs")
         }
     }
 

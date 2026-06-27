@@ -27,8 +27,14 @@ struct ThreeOmegaWorkspaceView: View, WorkflowWorkspaceProvider {
                 }
             },
             rightExtra: {
-                if store.tabs.activeTab == .scaling, let sr = store.scalingResult {
-                    ThreeOmegaScalingResultPanel(result: sr)
+                if store.tabs.activeTab == .scaling {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ThreeOmegaTransportStatusPanel()
+                            .environment(appState)
+                        if let sr = store.scalingResult {
+                            ThreeOmegaScalingResultPanel(result: sr)
+                        }
+                    }
                 }
             }
         )
@@ -182,7 +188,7 @@ private struct ThreeOmegaGeometryPanel: View {
                     }
                 }
 
-                // ── V(3ω) method + Run Scaling (same row) ───────────
+                // ── V(3ω) method ─────────────────────────────────────
                 HStack {
                     Picker("V(3ω)", selection: $store.v3Method) {
                         ForEach(ThreeOmegaV3Method.allCases) { method in
@@ -191,12 +197,6 @@ private struct ThreeOmegaGeometryPanel: View {
                     }
                     .pickerStyle(.menu)
                     .frame(maxWidth: 220)
-                    Spacer()
-                    Button("Run Scaling") {
-                        store.runScaling()
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(!store.geometry.isComplete || store.ingestionResult == nil)
                 }
 
                 Divider()
@@ -237,14 +237,57 @@ private struct ThreeOmegaGeometryPanel: View {
             }
             .padding(.vertical, 4)
             .onChange(of: store.geometry) { _, _ in
+                store.refreshTransportDerivedPlots(reason: "geometry changed")
                 appState.flushInteractionSnapshotNow()
             }
             .onChange(of: store.v3Method) { _, _ in
+                store.refreshTransportDerivedPlots(reason: "v3Method changed")
                 appState.flushInteractionSnapshotNow()
             }
             .onChange(of: store.fitRanges) { _, _ in
+                store.refreshTransportDerivedPlots(reason: "fit ranges changed")
                 appState.flushInteractionSnapshotNow()
             }
+        }
+    }
+}
+
+private struct ThreeOmegaTransportStatusPanel: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        let store = appState.workbench.threeOmegaWorkspace
+
+        GroupBox("Scaling Status") {
+            VStack(alignment: .leading, spacing: 6) {
+                switch store.transportDerivedStatus {
+                case .idle:
+                    Text("Scaling Law waits for Analyze.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                case .refreshing:
+                    Text("Updating Scaling Law…")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                case .missing(let requirements):
+                    Text("Scaling Law unavailable.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Text("Missing: \(requirements.map(\.rawValue).joined(separator: ", "))")
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                case .ready:
+                    Text("Scaling Law is up to date.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                case .unavailable(let message):
+                    Text(message)
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 4)
         }
     }
 }

@@ -478,12 +478,13 @@ struct V400WorkspaceStoreTests {
     }
 
     @MainActor
-    @Test("runScaling without ingestionResult sets message")
+    @Test("runScaling without ingestionResult stays idle")
     func runScalingNoIngestion() {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.geometry = ThreeOmegaGeometry(lxx: 26, lxy: 21, dNm: 30)
         store.runScaling()
-        #expect(store.analysisMessage != nil)
+        #expect(store.analysisMessage == nil)
+        #expect(store.transportDerivedStatus == .idle)
     }
 }
 

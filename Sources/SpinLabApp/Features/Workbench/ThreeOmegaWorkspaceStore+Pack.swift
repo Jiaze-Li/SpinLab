@@ -97,6 +97,8 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
         analysisTask?.cancel(); analysisTask = nil
         scalingTask?.cancel(); scalingTask = nil
         isAnalyzing = false
+        isRefreshingTransportDerivedPlots = false
+        transportDerivedStatus = .idle
     }
 
 
@@ -145,6 +147,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
         // Restore results
         ingestionResult = result.ingestionResult
         scalingResult = result.scalingResult
+        transportDerivedStatus = result.scalingResult == nil ? .idle : .ready
 
         // Build title tokens from restored search results
         if let hit = config.cachedSearchResults.first {

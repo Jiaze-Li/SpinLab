@@ -2,6 +2,21 @@ import CryptoKit
 import Foundation
 import Observation
 
+enum ThreeOmegaTransportRequirement: String, CaseIterable, Hashable, Sendable {
+    case rt = "RT"
+    case lxx = "Lxx"
+    case lxy = "Lxy"
+    case d = "d"
+}
+
+enum ThreeOmegaTransportDerivedStatus: Hashable, Sendable {
+    case idle
+    case refreshing
+    case missing([ThreeOmegaTransportRequirement])
+    case ready
+    case unavailable(String)
+}
+
 /// Isolated state and actions for the 3ω AHE workflow workspace.
 ///
 /// Owned by `WorkbenchFeatureStore`. Views bind directly to this store.
@@ -133,9 +148,33 @@ final class ThreeOmegaWorkspaceStore {
 
     var ingestionResult: ThreeOmegaIngestionResult?
     var scalingResult: ThreeOmegaScalingResult?
+    var transportDerivedStatus: ThreeOmegaTransportDerivedStatus = .idle
+    var isRefreshingTransportDerivedPlots: Bool = false
     var currentRunTrace: WorkbenchRunTraceProjection?
     var isAnalyzing: Bool = false
     var analysisMessage: String?
+
+    var missingTransportRequirements: [ThreeOmegaTransportRequirement] {
+        if case let .missing(requirements) = transportDerivedStatus {
+            return requirements
+        }
+        return []
+    }
+
+    var transportDerivedStatusMessage: String? {
+        switch transportDerivedStatus {
+        case .idle:
+            return nil
+        case .refreshing:
+            return "Updating Scaling Law…"
+        case .missing(let requirements):
+            return "Scaling Law unavailable: missing \(requirements.map(\.rawValue).joined(separator: ", "))."
+        case .ready:
+            return nil
+        case .unavailable(let message):
+            return message
+        }
+    }
 
     /// Save-to-library status message. Written only by `persistToLibrary()`.
     /// Cleared on `clearPlot()` and at analysis start.

@@ -57,12 +57,16 @@ extension ThreeOmegaWorkspaceStore {
         }
 
         analysisTask?.cancel()
+        scalingTask?.cancel()
+        scalingTask = nil
         _analysisRevision &+= 1
         let capturedAnalysisRevision = _analysisRevision
         isAnalyzing = true
         analysisMessage = nil
         saveMessage = nil
         activePackID = nil
+        isRefreshingTransportDerivedPlots = false
+        transportDerivedStatus = .idle
         _clearPlots()
 
         // Capture global renderer settings and per-tab display state BEFORE going detached
@@ -147,6 +151,7 @@ extension ThreeOmegaWorkspaceStore {
 
                 self._snapshotAndCacheManifestPayloads(from: selectedHits)
                 self.commitRunTrace()
+                self.refreshTransportDerivedPlots(reason: "analysis completed")
                 self.isAnalyzing = false
                 self.refreshRelatedCharts()
             }

@@ -40,22 +40,30 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
         XCTAssertTrue(runAnalysis.contains("self.ingestionResult = result"))
         XCTAssertTrue(runAnalysis.contains("self._snapshotAndCacheManifestPayloads(from: selectedHits)"))
         XCTAssertTrue(runAnalysis.contains("self.commitRunTrace()"))
+        XCTAssertTrue(runAnalysis.contains("self.refreshTransportDerivedPlots(reason: \"analysis completed\")"))
         XCTAssertLessThan(
             try XCTUnwrap(runAnalysis.range(of: "self.ingestionResult = result")?.lowerBound),
             try XCTUnwrap(runAnalysis.range(of: "self.commitRunTrace()")?.lowerBound)
         )
     }
 
-    func testRunScalingRequiresIngestionResultAndUsesV3Method() throws {
+    func testTransportDerivedRefreshUsesIngestionResultAndCurrentV3Method() throws {
+        let refresh = try extractFunction("refreshTransportDerivedPlots", from: try workspaceSource)
+
+        XCTAssertTrue(refresh.contains("guard let result = ingestionResult else"))
+        XCTAssertTrue(refresh.contains("transportDerivedStatus = .missing"))
+        XCTAssertTrue(refresh.contains("let capturedGlobalSettings = ThreeOmegaRendererGlobalSettings("))
+        XCTAssertTrue(refresh.contains("let capturedScalingSnapshot = tabs.displayStateSnapshot(for: .scaling)"))
+        XCTAssertTrue(refresh.contains("let capturedV3Method = v3Method"))
+        XCTAssertTrue(refresh.contains("v3Method: capturedV3Method"))
+        XCTAssertTrue(refresh.contains("renderThreeOmegaTab("))
+        XCTAssertTrue(refresh.contains("policy: .preserveDisplayOverrides"))
+    }
+
+    func testRunScalingCompatibilityWrapperDelegatesToRefresh() throws {
         let runScaling = try extractFunction("runScaling", from: try workspaceSource)
 
-        XCTAssertTrue(runScaling.contains("guard let result = ingestionResult, let rt = result.rtResult else"))
-        XCTAssertTrue(runScaling.contains("let capturedGlobalSettings = ThreeOmegaRendererGlobalSettings("))
-        XCTAssertTrue(runScaling.contains("let capturedScalingSnapshot = tabs.displayStateSnapshot(for: .scaling)"))
-        XCTAssertTrue(runScaling.contains("_renderRevision &+= 1"))
-        XCTAssertTrue(runScaling.contains("renderThreeOmegaTab("))
-        XCTAssertTrue(runScaling.contains("let capturedV3Method = v3Method"))
-        XCTAssertTrue(runScaling.contains("v3Method: capturedV3Method"))
+        XCTAssertTrue(runScaling.contains("refreshTransportDerivedPlots(reason: \"manual\")"))
     }
 
     func testClearPlotAndClearResultsBoundaries() throws {
