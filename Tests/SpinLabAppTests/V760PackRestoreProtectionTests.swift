@@ -19,6 +19,27 @@ import Testing
 @Suite("V760 RT round-trip canonical path")
 struct V760RTRoundTripTests {
 
+    private final class FakeLibraryAccess: LibraryAccessCapability {
+        let index: LibraryIndex?
+
+        init(index: LibraryIndex?) {
+            self.index = index
+        }
+
+        func loadIndex(from rootURL: URL) -> LibraryIndex? {
+            index
+        }
+    }
+
+    @MainActor
+    private final class SelectionReadingStub: SelectionReading {
+        var selectedIDsByWorkflow: [String: Set<String>] = [:]
+
+        func selectedIDs(for wf: String) -> Set<String> {
+            selectedIDsByWorkflow[wf] ?? []
+        }
+    }
+
     private func makeRTHit(
         measurementFilePath: String = "/tmp/rt-measurement.lvm"
     ) -> WorkflowMeasurementSearchHit {
@@ -36,6 +57,52 @@ struct V760RTRoundTripTests {
             conditions: ["temperature": "5K"],
             channels: ["ch1"],
             appliedAt: .distantPast
+        )
+    }
+
+    private func makeThreeOmegaHit(
+        sampleKey: String = "PN80|120deg|STO|001",
+        measurementFilePath: String = "/tmp/3w-measurement.dat"
+    ) -> WorkflowMeasurementSearchHit {
+        WorkflowMeasurementSearchHit(
+            sidecarPath: measurementFilePath + ".spinlab.json",
+            measurementFilePath: measurementFilePath,
+            sourceFilePath: measurementFilePath,
+            workflowID: "3w",
+            workflowDisplayName: "3ω",
+            workflowCanonicalID: "3w",
+            batchID: "PN80",
+            sampleKey: sampleKey,
+            sampleSubstrate: "STO001",
+            conditions: ["temperature": "120deg", "oxygen": "60 mT", "energy": "57 mJ"],
+            channels: ["ch1"],
+            appliedAt: .distantPast
+        )
+    }
+
+    private func makeLibraryIndex(for sample: WorkflowMeasurementSearchHit) -> LibraryIndex {
+        LibraryIndex(
+            createdAt: .distantPast,
+            updatedAt: .distantPast,
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            metadataColumnOrder: [],
+            batches: [],
+            samples: [
+                LibrarySample(
+                    id: sample.sampleKey,
+                    displayName: sample.sampleBatchAndSubstrate,
+                    batchId: sample.batchID,
+                    substrateRaw: sample.sampleSubstrate,
+                    substrateDisplay: sample.sampleSubstrate,
+                    substrateTokens: [],
+                    substrateTags: [],
+                    metadata: [:],
+                    numericTags: ["氧压": 60, "能量": 57],
+                    numericDisplay: ["氧压": "60 mT", "能量": "57 mJ"],
+                    updatedAt: .distantPast
+                )
+            ]
         )
     }
 
@@ -85,7 +152,7 @@ struct V760RTRoundTripTests {
     /// This test documents that selectedRTHit is the canonical RT restore source.
     @MainActor
     @Test("cachedRTFilePath after restore equals selectedRTHit.measurementFilePath")
-    func cachedRTFilePathMatchesSelectedRTHitMeasurementPath() throws {
+    func cachedRTFilePathMatchesSelectedRTHitMeasurementPath() async throws {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let rtHit = makeRTHit(measurementFilePath: "/tmp/actual-rt.lvm")
         // config.rtFilePath is intentionally set to a DIFFERENT path from the hit,
@@ -103,7 +170,17 @@ struct V760RTRoundTripTests {
 
         #expect(store.selectedRTHit?.id == rtHit.id,
                 "selectedRTHit must be applied directly from pack config")
-        #expect(store.cachedRTFilePath == rtHit.measurementFilePath,
+
+        var observedPath: String?
+        for _ in 0..<200 {
+            if store.cachedRTFilePath == rtHit.measurementFilePath {
+                observedPath = store.cachedRTFilePath
+                break
+            }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+
+        #expect(observedPath == rtHit.measurementFilePath,
                 "cachedRTFilePath must derive from selectedRTHit.measurementFilePath — not from config.rtFilePath")
         #expect(store.cachedRTFilePath != "/tmp/stale-path.lvm",
                 "cachedRTFilePath must NOT be the stale config.rtFilePath value")
@@ -113,7 +190,7 @@ struct V760RTRoundTripTests {
     /// cachedRTFilePath is still derived from selectedRTHit — it just happens to be the same value.
     @MainActor
     @Test("cachedRTFilePath consistent when selectedRTHit.measurementFilePath matches config.rtFilePath")
-    func cachedRTFilePathConsistentWhenPathsMatch() throws {
+    func cachedRTFilePathConsistentWhenPathsMatch() async throws {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let measurementPath = "/tmp/consistent-rt.lvm"
         let rtHit = makeRTHit(measurementFilePath: measurementPath)
@@ -128,7 +205,16 @@ struct V760RTRoundTripTests {
             seedSelection: { _, _ in }
         )
 
-        #expect(store.cachedRTFilePath == measurementPath,
+        var observedPath: String?
+        for _ in 0..<200 {
+            if store.cachedRTFilePath == measurementPath {
+                observedPath = store.cachedRTFilePath
+                break
+            }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+
+        #expect(observedPath == measurementPath,
                 "cachedRTFilePath must equal the measurement path when both sources agree")
     }
 
@@ -155,6 +241,112 @@ struct V760RTRoundTripTests {
                 "selectedRTHit must remain nil when pack encodes none")
         #expect(store.cachedRTFilePath == nil,
                 "cachedRTFilePath must be nil when selectedRTHit is nil — config.rtFilePath is not promoted to cachedRTFilePath when selectedRTHit is absent")
+    }
+
+    @MainActor
+    @Test("restoreFromPack keeps numeric title tokens after restored rerender and label edits")
+    func restoreFromPackKeepsNumericTitleTokensAfterLabelEdits() async throws {
+        let hit = makeThreeOmegaHit()
+        let index = makeLibraryIndex(for: hit)
+        let fakeLibraryAccess = FakeLibraryAccess(index: index)
+        let env = WorkbenchEnvironment(fileManager: .default, libraryAccess: fakeLibraryAccess)
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue, env: env)
+        let selectionRuntime = SelectionReadingStub()
+        selectionRuntime.selectedIDsByWorkflow[store.workflowID] = [hit.id]
+        store.selectionReading = selectionRuntime
+        store.lastLibraryRootPath = "/tmp/fake-library-root"
+
+        let config = ThreeOmegaPackConfig(
+            device: "0deg",
+            geometry: ThreeOmegaGeometry(lxx: 1, lxy: 1, dNm: 1),
+            fitRanges: [ThreeOmegaFitRange()],
+            v3Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe1Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe3Method: ThreeOmegaV3Method.highField.rawValue,
+            rtFilePath: nil,
+            sampleBatchAndSubstrate: hit.sampleBatchAndSubstrate,
+            activeTab: ThreeOmegaWorkbenchTab.scaling.stableKey,
+            titleTemplate: "#tab #sample #氧压 #能量",
+            stackOffsetMultiplier: 1.2,
+            minGapFraction: 0.15,
+            showPlotGrid: false,
+            plotLegendAnchor: "",
+            tabStates: [:],
+            chartStyleOverrides: [:],
+            cachedSearchResults: [hit],
+            selectedSearchResultIDs: [hit.id],
+            selectedRTHit: nil,
+            rtQuery: "",
+            searchQueryText: "3w fixture"
+        )
+        let result = ThreeOmegaPackResult(
+            ingestionResult: ThreeOmegaIngestionResult(
+                fieldSweeps: [],
+                rtResult: nil,
+                device: "0deg",
+                deviceMode: "single",
+                devices: [],
+                iRmsValues: [:],
+                warnings: []
+            ),
+            scalingResult: ThreeOmegaScalingResult(
+                points: [
+                    ThreeOmegaScalingPoint(temperatureK: 100, sigma2xx: 1, scalingY: 2)
+                ],
+                segments: [
+                    ThreeOmegaScalingSegment(
+                        id: UUID(),
+                        tLo: 100,
+                        tHi: 100,
+                        alpha: 0,
+                        beta: 0,
+                        rSquared: 1,
+                        pointCount: 1,
+                        participatingXValues: [1]
+                    )
+                ]
+            )
+        )
+        let pack = try AnalysisPack(
+            label: "3ω Fixture",
+            workflowID: "3w",
+            filePaths: [hit.measurementFilePath],
+            sampleKeys: [hit.sampleKey],
+            config: config,
+            result: result
+        )
+
+        store.restoreFromPack(
+            config: config,
+            result: result,
+            pack: pack,
+            restoreSearchState: { _, _ in },
+            seedSelection: { ids, _ in
+                selectionRuntime.selectedIDsByWorkflow[store.workflowID] = ids
+            }
+        )
+
+        let expectedTokens = ["60 mT", "57 mJ"]
+        var observedTitle: String?
+        for _ in 0..<40 {
+            if let title = store.activeChartManifestPayload?.title,
+               expectedTokens.allSatisfy({ title.contains($0) }) {
+                observedTitle = title
+                break
+            }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+
+        let title = try #require(observedTitle, "restored scaling title must include numeric tokens after async rerender completes")
+        #expect(title.contains("Scaling Law"))
+        #expect(title.contains("60 mT"))
+        #expect(title.contains("57 mJ"))
+
+        store.updateXAxisLabel("X")
+
+        let editedTitle = try #require(store.activeChartManifestPayload?.title)
+        #expect(editedTitle.contains("60 mT"))
+        #expect(editedTitle.contains("57 mJ"))
     }
 }
 
@@ -242,16 +434,12 @@ struct V760CachedRTFilePathOverwriteGuardTests {
             extractFunction("restoreFromPack", from: source),
             "restoreFromPack must exist in ThreeOmegaWorkspaceStore+Pack.swift"
         )
-        guard let snapshotCall = body.range(of: "_snapshotAndCacheManifestPayloads()") else {
-            Issue.record("restoreFromPack must call _snapshotAndCacheManifestPayloads()")
-            return
-        }
-        let afterSnapshot = String(body[snapshotCall.upperBound...])
         #expect(
-            !afterSnapshot.contains("cachedRTFilePath ="),
-            "restoreFromPack must not assign cachedRTFilePath after _snapshotAndCacheManifestPayloads() — any post-snapshot assignment would create a competing restore path that bypasses the derivation"
+            !body.contains("\n        _snapshotAndCacheManifestPayloads()\n"),
+            "restoreFromPack must not call _snapshotAndCacheManifestPayloads() directly — restored token rebuild is owned by _rerenderAllTabsFromRestoredState()"
         )
     }
+
 }
 
 // MARK: - Group 3: Required Field Decode Failures

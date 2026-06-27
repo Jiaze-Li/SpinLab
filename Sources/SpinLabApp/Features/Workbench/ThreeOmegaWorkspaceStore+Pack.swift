@@ -186,7 +186,6 @@ func autoPackLabel() -> String { _autoPackLabel() }
         // _rerenderAllTabs() does not apply per-tab overrides (titleOverride, legendPoint, etc.),
         // so we use _rerenderAllTabsFromRestoredState() in the Pack load path instead.
         _rerenderAllTabsFromRestoredState()
-        _snapshotAndCacheManifestPayloads()
         refreshRelatedCharts()
     }
 }

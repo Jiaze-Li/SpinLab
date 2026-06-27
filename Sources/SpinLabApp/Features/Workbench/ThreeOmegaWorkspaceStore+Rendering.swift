@@ -656,6 +656,9 @@ extension ThreeOmegaWorkspaceStore {
                     for (k, v) in nd { tokens[k] = v }
                 }
             }
+            await MainActor.run { [weak self] in
+                self?._titleTokens = tokens
+            }
             let gs = baseGlobalSettings.with(titleTokens: tokens)
 
             let plots = await self.renderAllThreeOmegaTabs(
@@ -669,6 +672,7 @@ extension ThreeOmegaWorkspaceStore {
             await MainActor.run { [weak self] in
                 guard let self, self._renderRevision == revision else { return }
                 self._titleTokens = tokens
+                self._snapshotAndCacheManifestPayloads()
                 for warning in plots.pipelineWarnings {
                     self.appendWarning(source: "Render", message: warning)
                 }

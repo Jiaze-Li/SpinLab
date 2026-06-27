@@ -38,7 +38,7 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
         let runAnalysis = try extractFunction("_runAnalysis(selectedHits:", from: source)
 
         XCTAssertTrue(runAnalysis.contains("self.ingestionResult = result"))
-        XCTAssertTrue(runAnalysis.contains("self._applyPlots(plots"))
+        XCTAssertTrue(runAnalysis.contains("self._snapshotAndCacheManifestPayloads(from: selectedHits)"))
         XCTAssertTrue(runAnalysis.contains("self.commitRunTrace()"))
         XCTAssertLessThan(
             try XCTUnwrap(runAnalysis.range(of: "self.ingestionResult = result")?.lowerBound),
@@ -79,11 +79,18 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
     func testPackSaveRestoreBoundaryDoesNotCommitTraceOnRestore() throws {
         let source = try workspaceSource
         let restoreFromPack = try extractFunction("restoreFromPack", from: source)
+        let restoredRender = try extractFunction("_rerenderAllTabsFromRestoredState", from: source)
 
         XCTAssertTrue(source.contains("var activePackID: AnalysisPack.ID?"))
         XCTAssertFalse(restoreFromPack.contains("commitRunTrace()"))
         XCTAssertTrue(restoreFromPack.contains("_rerenderAllTabsFromRestoredState()"))
-        XCTAssertTrue(restoreFromPack.contains("_snapshotAndCacheManifestPayloads()"))
+        XCTAssertFalse(restoreFromPack.contains("        _snapshotAndCacheManifestPayloads()"))
+        XCTAssertTrue(restoredRender.contains("self._titleTokens = tokens"))
+        XCTAssertTrue(restoredRender.contains("self._snapshotAndCacheManifestPayloads()"))
+        XCTAssertLessThan(
+            try XCTUnwrap(restoredRender.range(of: "self._titleTokens = tokens")?.lowerBound),
+            try XCTUnwrap(restoredRender.range(of: "self._snapshotAndCacheManifestPayloads()")?.lowerBound)
+        )
     }
 
     func testAlignSeriesOrderPreservesKnownIDsAndAppendsNewIDs() throws {
