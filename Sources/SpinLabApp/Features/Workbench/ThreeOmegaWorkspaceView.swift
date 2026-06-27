@@ -159,54 +159,84 @@ private struct ThreeOmegaGeometryPanel: View {
     var body: some View {
         @Bindable var store = appState.workbench.threeOmegaWorkspace
 
-        GroupBox("Geometry (for Scaling Law)") {
+        let geometryFieldsRow = HStack(spacing: 16) {
+            HStack(spacing: 4) {
+                (Text("L").font(.body)
+                 + Text("xx").font(.system(size: 9)).baselineOffset(-3)
+                 + Text(" (μm)").font(.body))
+                TextField("26", value: $store.geometry.lxx, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 52)
+            }
+            HStack(spacing: 4) {
+                (Text("L").font(.body)
+                 + Text("xy").font(.system(size: 9)).baselineOffset(-3)
+                 + Text(" (μm)").font(.body))
+                TextField("21", value: $store.geometry.lxy, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 52)
+            }
+            HStack(spacing: 4) {
+                Text("d (nm)").font(.body)
+                TextField("30", value: $store.geometry.dNm, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 52)
+            }
+        }
+
+        let v3MethodRow = Picker("V(3ω)", selection: $store.v3Method) {
+            ForEach(ThreeOmegaV3Method.allCases) { method in
+                Text(method.geometryDisplayLabel).tag(method)
+            }
+        }
+        .pickerStyle(.menu)
+        .frame(width: 150, alignment: .leading)
+        .help(store.v3Method.rawValue)
+        .accessibilityLabel("V(3ω) method \(store.v3Method.rawValue)")
+
+        let geometryRow = HStack(alignment: .firstTextBaseline, spacing: 14) {
+            geometryFieldsRow
+            v3MethodRow
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+
+        GroupBox("Transport Geometry") {
             VStack(alignment: .leading, spacing: 8) {
-
-                // ── Geometry dimensions (single row) ─────────────────
-                HStack(spacing: 16) {
-                    HStack(spacing: 4) {
-                        (Text("L").font(.body)
-                         + Text("xx").font(.system(size: 9)).baselineOffset(-3)
-                         + Text(" (μm)").font(.body))
-                        TextField("26", value: $store.geometry.lxx, format: .number)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 52)
-                    }
-                    HStack(spacing: 4) {
-                        (Text("L").font(.body)
-                         + Text("xy").font(.system(size: 9)).baselineOffset(-3)
-                         + Text(" (μm)").font(.body))
-                        TextField("21", value: $store.geometry.lxy, format: .number)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 52)
-                    }
-                    HStack(spacing: 4) {
-                        Text("d (nm)").font(.body)
-                        TextField("30", value: $store.geometry.dNm, format: .number)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 52)
-                    }
-                }
-
-                // ── V(3ω) method ─────────────────────────────────────
-                HStack {
-                    Picker("V(3ω)", selection: $store.v3Method) {
-                        ForEach(ThreeOmegaV3Method.allCases) { method in
-                            Text(method.rawValue).tag(method)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .frame(maxWidth: 220)
-                }
+                geometryRow
 
                 Divider()
 
-                // ── Fit Ranges ────────────────────────────────────────
-                HStack {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text("Fit Ranges")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Spacer()
+                        .fixedSize()
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            ForEach($store.fitRanges) { $range in
+                                HStack(spacing: 4) {
+                                    FitRangeBoundField(placeholder: "T_lo (K)", value: $range.tLo)
+                                    Text("–")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    FitRangeBoundField(placeholder: "T_hi (K)", value: $range.tHi)
+                                    Button {
+                                        store.removeFitRange(id: range.id)
+                                    } label: {
+                                        Image(systemName: "minus.circle.fill")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Remove fit range")
+                                    .disabled(store.fitRanges.count <= 1)
+                                }
+                            }
+                        }
+                        .fixedSize(horizontal: true, vertical: false)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
                     Button {
                         store.addFitRange()
                     } label: {
@@ -214,25 +244,6 @@ private struct ThreeOmegaGeometryPanel: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Add fit range")
-                }
-
-                ForEach($store.fitRanges) { $range in
-                    HStack(spacing: 4) {
-                        FitRangeBoundField(placeholder: "T_lo (K)", value: $range.tLo)
-                        Text("–")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        FitRangeBoundField(placeholder: "T_hi (K)", value: $range.tHi)
-                        Button {
-                            store.removeFitRange(id: range.id)
-                        } label: {
-                            Image(systemName: "minus.circle.fill")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Remove fit range")
-                        .disabled(store.fitRanges.count <= 1)
-                    }
                 }
             }
             .padding(.vertical, 4)
@@ -248,6 +259,17 @@ private struct ThreeOmegaGeometryPanel: View {
                 store.refreshTransportDerivedPlots(reason: "fit ranges changed")
                 appState.flushInteractionSnapshotNow()
             }
+        }
+    }
+}
+
+private extension ThreeOmegaV3Method {
+    var geometryDisplayLabel: String {
+        switch self {
+        case .highField:
+            return "HFE"
+        case .window:
+            return "WA"
         }
     }
 }
