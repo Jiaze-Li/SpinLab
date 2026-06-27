@@ -386,6 +386,27 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         )
     }
 
+    // MARK: - Display state snapshot
+
+    /// Captures a sendable per-tab display state snapshot for use in detached render tasks.
+    ///
+    /// Covers all PlotSystem-owned overrides: title, axis labels, series label renames,
+    /// legend position, hidden point labels, series order, axis range, and point tag visibility.
+    func displayStateSnapshot(for tab: Tab) -> WorkbenchTabDisplayStateSnapshot {
+        let s = tabStates[tab] ?? TabRenderState()
+        return WorkbenchTabDisplayStateSnapshot(
+            titleOverride: s.titleOverride,
+            xLabelOverride: s.xLabelOverride,
+            yLabelOverride: s.yLabelOverride,
+            seriesLabelOverrides: s.seriesLabelOverrides,
+            legendPoint: s.legendPoint?.cgPoint,
+            hiddenPointLabelsBySeries: s.hiddenPointLabelIndicesBySeries,
+            seriesOrder: s.seriesOrder,
+            axisRangeOverride: s.axisRangeOverride,
+            showPointTags: s.showPointTags
+        )
+    }
+
     // MARK: - Clear
 
     func clearOutputs() {

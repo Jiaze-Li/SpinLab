@@ -38,7 +38,7 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
         let runAnalysis = try extractFunction("_runAnalysis(selectedHits:", from: source)
 
         XCTAssertTrue(runAnalysis.contains("self.ingestionResult = result"))
-        XCTAssertTrue(runAnalysis.contains("self._applyPlots(plots)"))
+        XCTAssertTrue(runAnalysis.contains("self._applyPlots(plots"))
         XCTAssertTrue(runAnalysis.contains("self.commitRunTrace()"))
         XCTAssertLessThan(
             try XCTUnwrap(runAnalysis.range(of: "self.ingestionResult = result")?.lowerBound),
