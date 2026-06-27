@@ -499,6 +499,60 @@ struct V710StaleOverrideResetTests {
     }
 
     @MainActor
+    @Test("buildPipelineInput maps display overrides against the reversed visual order")
+    func buildPipelineInputUsesReversedSeriesOrderForOverrides() {
+        let manager = TabRenderManager<TestTab>(defaultTab: .main)
+        let payload = WorkbenchPlotPayload(
+            workflowID: "3w",
+            workflowDisplayName: "3w",
+            title: "R(1ω)",
+            axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R (Ω)"),
+            series: [
+                WorkbenchPlotSeries(label: "Bottom", x: [0], y: [0], sourceRef: "/tmp/bottom.csv", sampleID: "bottom"),
+                WorkbenchPlotSeries(label: "Top", x: [0], y: [1], sourceRef: "/tmp/top.csv", sampleID: "top")
+            ],
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+        let tabState = WorkbenchTabDisplayStateSnapshot(
+            titleOverride: "Custom Title",
+            xLabelOverride: "Custom X",
+            yLabelOverride: "Custom Y",
+            seriesLabelOverrides: [
+                "/tmp/bottom.csv": "Bottom Renamed",
+                "/tmp/top.csv": "Top Renamed"
+            ],
+            legendPoint: nil,
+            hiddenPointLabelsBySeries: [
+                "/tmp/bottom.csv": [1],
+                "/tmp/top.csv": [0]
+            ],
+            seriesOrder: nil,
+            axisRangeOverride: AxisRangeOverride(xMin: 1, xMax: 2, yMin: nil, yMax: nil),
+            showPointTags: true
+        )
+
+        let input = manager.buildPipelineInput(
+            payload: payload,
+            tabState: tabState,
+            showPlotGrid: manager.showPlotGrid,
+            seriesRenderMode: manager.seriesRenderMode,
+            chartStyleOverrides: manager.chartStyleOverrides,
+            legendAnchor: manager.legendAnchor,
+            for: .main
+        )
+
+        #expect(input.titleOverride == "Custom Title")
+        #expect(input.xLabelOverride == "Custom X")
+        #expect(input.yLabelOverride == "Custom Y")
+        #expect(input.seriesLabelOverrides == [0: "Top Renamed", 1: "Bottom Renamed"])
+        #expect(input.hiddenPointLabelsBySeries == [0: Set([0]), 1: Set([1])])
+        #expect(input.axisRangeOverride?.xMin == 1)
+        #expect(input.axisRangeOverride?.xMax == 2)
+        #expect(input.showPointTags == true)
+    }
+
+    @MainActor
     @Test("clearStatesForTab clears text overrides but preserves legendPoint and seriesOrder")
     func clearStatesForTabScope() {
         let manager = TabRenderManager<TestTab>(defaultTab: .main)

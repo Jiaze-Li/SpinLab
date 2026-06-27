@@ -359,30 +359,67 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         let targetTab = tab ?? activeTab
         let sourceIdentityKey = WorkbenchChartIdentity.makeSourceIdentityKey(from: payload)
         let s = preparedState(for: targetTab, sourceIdentityKey: sourceIdentityKey)
+        return buildPipelineInput(
+            payload: payload,
+            baseOptions: baseOptions,
+            globalPlotDefaults: globalPlotDefaults,
+            extraStyleParams: extraStyleParams,
+            tabState: WorkbenchTabDisplayStateSnapshot(
+                titleOverride: s.titleOverride,
+                xLabelOverride: s.xLabelOverride,
+                yLabelOverride: s.yLabelOverride,
+                seriesLabelOverrides: s.seriesLabelOverrides,
+                legendPoint: s.legendPoint?.cgPoint,
+                hiddenPointLabelsBySeries: s.hiddenPointLabelIndicesBySeries,
+                seriesOrder: s.seriesOrder,
+                axisRangeOverride: s.axisRangeOverride,
+                showPointTags: s.showPointTags
+            ),
+            showPlotGrid: showPlotGrid,
+            seriesRenderMode: seriesRenderMode,
+            chartStyleOverrides: chartStyleOverrides,
+            legendAnchor: legendAnchor,
+            for: targetTab
+        )
+    }
+
+    /// Builds a WorkbenchRenderPipeline.Input from a captured display-state snapshot.
+    ///
+    /// Use this from detached render flows so the render input is derived from the
+    /// exact tab state captured at task start, without mutating live tabState.
+    func buildPipelineInput(
+        payload: WorkbenchPlotPayload,
+        baseOptions: WorkbenchChartRenderer.Options = .init(),
+        globalPlotDefaults: [String: String] = [:],
+        extraStyleParams: [String: String] = [:],
+        tabState: WorkbenchTabDisplayStateSnapshot,
+        showPlotGrid: Bool,
+        seriesRenderMode: SeriesRenderMode,
+        chartStyleOverrides: [String: String],
+        legendAnchor: String,
+        for tab: Tab? = nil
+    ) -> WorkbenchRenderPipeline.Input {
         var patch = extraStyleParams
         if showPlotGrid { patch["showGrid"] = "true" }
-        if !legendAnchor.isEmpty, s.legendPoint == nil {
+        if !legendAnchor.isEmpty, tabState.legendPoint == nil {
             patch["legendAnchor"] = legendAnchor
         }
         return WorkbenchRenderPipeline.Input(
             payload: payload,
             baseOptions: baseOptions,
-            legendPoint: s.legendPoint?.cgPoint,
+            legendPoint: tabState.legendPoint,
             globalPlotDefaults: globalPlotDefaults,
             seriesRenderMode: seriesRenderMode,
             chartStyleOverrides: chartStyleOverrides,
-            seriesLabelOverrides: toIndexedOverrides(
-                normalizedSeriesLabelOverrides(s.seriesLabelOverrides, series: payload.series),
-                series: payload.series
-            ),
-            titleOverride: s.titleOverride,
-            xLabelOverride: s.xLabelOverride,
-            yLabelOverride: s.yLabelOverride,
-            hiddenPointLabelsBySeries: toIndexedOverrides(s.pointTags.hiddenPointLabelIndicesBySeries, series: payload.series).mapValues { Set($0) },
+            seriesLabelOverrides: indexedDisplayLabelOverrides(tabState.seriesLabelOverrides, payload: payload),
+            titleOverride: tabState.titleOverride,
+            xLabelOverride: tabState.xLabelOverride,
+            yLabelOverride: tabState.yLabelOverride,
+            hiddenPointLabelsBySeries: indexedDisplayHiddenPointLabels(tabState.hiddenPointLabelsBySeries, payload: payload),
             styleParamsPatch: patch,
-            seriesOrder: s.seriesOrder,
-            axisRangeOverride: s.axisRangeOverride,
-            showPointTags: s.pointTags.showPointTags
+            seriesOrder: tabState.seriesOrder,
+            axisRangeOverride: tabState.axisRangeOverride,
+            showPointTags: tabState.showPointTags
         )
     }
 
@@ -557,6 +594,33 @@ func normalizedSeriesLabelOverrides(
         }
     }
     return result
+}
+
+func displaySeriesOrder(for payload: WorkbenchPlotPayload) -> [WorkbenchPlotSeries] {
+    payload.reverseSeriesForLegend ? Array(payload.series.reversed()) : payload.series
+}
+
+func displayIdentitySeries(for payload: WorkbenchPlotPayload) -> [WorkbenchPlotSeries] {
+    guard payload.reverseSeriesForLegend,
+          payload.series.count > 1,
+          payload.series.allSatisfy({ !($0.sourceRef ?? "").isEmpty }) else {
+        return payload.series
+    }
+    return Array(payload.series.reversed())
+}
+
+func indexedDisplayLabelOverrides(
+    _ stringKeyed: [String: String],
+    payload: WorkbenchPlotPayload
+) -> [Int: String] {
+    toIndexedOverrides(normalizedSeriesLabelOverrides(stringKeyed, series: payload.series), series: displayIdentitySeries(for: payload))
+}
+
+func indexedDisplayHiddenPointLabels(
+    _ stringKeyed: [String: [Int]],
+    payload: WorkbenchPlotPayload
+) -> [Int: Set<Int>] {
+    toIndexedOverrides(stringKeyed, series: displayIdentitySeries(for: payload)).mapValues { Set($0) }
 }
 
 func applySeriesLabelOverrides(
