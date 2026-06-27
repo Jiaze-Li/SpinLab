@@ -566,8 +566,8 @@ struct V78CIVPlotControlsPathTests {
         let source = try loadWorkbenchSource("IVWorkspaceStore.swift")
         #expect(source.contains("tabs.buildPipelineInput(payload: payload, globalPlotDefaults: globalPlotDefaults, for: tab)"),
                 "IV rerender must route payloads through TabRenderManager.buildPipelineInput")
-        #expect(source.contains("tabs.applyPipelineOutput(output, for: tab)"),
-                "IV rerender must apply the pipeline output back through TabRenderManager")
+        #expect(source.contains("tabs.applyPipelineOutput(output, displayPayload: displayPayload, for: tab)"),
+                "IV rerender must apply the pipeline output back through TabRenderManager (with displayPayload for export)")
     }
 
     @Test("IVWorkspaceStore.swift exposes standard plot binding state")
