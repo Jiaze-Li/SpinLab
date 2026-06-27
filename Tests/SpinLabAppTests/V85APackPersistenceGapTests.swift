@@ -257,4 +257,76 @@ struct V85APackPersistenceGapTests {
         #expect(decoded.seriesRenderMode == .line)
         #expect(decoded.chartStyleOverrides == [:])
     }
+
+    // MARK: - IV contract round-trips
+
+    @Test("IV: legendAnchor survives JSON round-trip")
+    func ivLegendAnchorRoundtrip() throws {
+        let config = IVPackConfig(
+            titleTemplate: "#tab",
+            showPlotGrid: true,
+            legendAnchor: "top-left"
+        )
+        let decoded = try jsonRoundtrip(config)
+        #expect(decoded.legendAnchor == "top-left")
+    }
+
+    // MARK: - IV restore applies values to store
+
+    @MainActor
+    @Test("IV restore: legendAnchor applied to store before rerender")
+    func ivRestoreAppliesLegendAnchor() throws {
+        let store = IVWorkspaceStore(workflowID: WorkflowKey.iv.rawValue)
+        let hit = makeHit(id: "iv-ctrl", workflowID: "iv", workflowCanonicalID: "iv")
+        let ingestion = IVIngestionResult()
+        let config = IVPackConfig(
+            titleTemplate: "#tab",
+            showPlotGrid: false,
+            legendAnchor: "bottom-right",
+            seriesRenderMode: .scatter,
+            chartStyleOverrides: ["labelFontSize": "14"],
+            cachedSearchResults: [hit],
+            selectedSearchResultIDs: [hit.id]
+        )
+        let result = IVPackResult(ingestionResult: ingestion)
+        let pack = try AnalysisPack(
+            label: "IV Ctrl",
+            workflowID: "iv",
+            filePaths: [hit.measurementFilePath],
+            sampleKeys: [hit.sampleKey],
+            config: config,
+            result: result
+        )
+
+        store.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { _, _ in },
+            seedSelection: { _, _ in })
+
+        #expect(store.tabs.legendAnchor == "bottom-right",
+                "legendAnchor must be restored from pack")
+        #expect(store.tabs.seriesRenderMode == .scatter,
+                "seriesRenderMode must be restored from pack")
+        #expect(store.tabs.chartStyleOverrides["labelFontSize"] == "14",
+                "chartStyleOverrides must be restored from pack")
+    }
+
+    // MARK: - IV backward compatibility
+
+    @Test("IV: old pack without legendAnchor decodes with safe default")
+    func ivOldPackBackwardCompatibility() throws {
+        let json = """
+        {
+          "titleTemplate": "#tab",
+          "showPlotGrid": true,
+          "tabStates": {},
+          "cachedSearchResults": [],
+          "selectedSearchResultIDs": [],
+          "searchQueryText": ""
+        }
+        """
+        let decoded = try JSONDecoder().decode(IVPackConfig.self, from: Data(json.utf8))
+        #expect(decoded.legendAnchor == "")
+        #expect(decoded.seriesRenderMode == .line)
+        #expect(decoded.chartStyleOverrides == [:])
+    }
 }

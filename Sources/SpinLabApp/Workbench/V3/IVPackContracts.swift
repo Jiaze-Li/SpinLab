@@ -12,6 +12,7 @@ struct IVPackConfig: Codable, Hashable, Sendable {
     var stackOffsetMultiplier: Double
     var minGapFraction: Double
     var showPlotGrid: Bool
+    var legendAnchor: String
     var seriesRenderMode: SeriesRenderMode
     var chartStyleOverrides: [String: String]
 
@@ -33,6 +34,7 @@ struct IVPackConfig: Codable, Hashable, Sendable {
          stackOffsetMultiplier: Double = 0.0,
          minGapFraction: Double = 0.15,
          showPlotGrid: Bool,
+         legendAnchor: String = "",
          seriesRenderMode: SeriesRenderMode = .line,
          chartStyleOverrides: [String: String] = [:],
          ch1Component: String = IVSignalComponent.x.rawValue,
@@ -47,6 +49,7 @@ struct IVPackConfig: Codable, Hashable, Sendable {
         self.stackOffsetMultiplier = stackOffsetMultiplier
         self.minGapFraction = minGapFraction
         self.showPlotGrid = showPlotGrid
+        self.legendAnchor = legendAnchor
         self.seriesRenderMode = seriesRenderMode
         self.chartStyleOverrides = chartStyleOverrides
         self.ch1Component = ch1Component
@@ -66,6 +69,7 @@ struct IVPackConfig: Codable, Hashable, Sendable {
         stackOffsetMultiplier   = try c.decodeIfPresent(Double.self, forKey: .stackOffsetMultiplier) ?? 0.0
         minGapFraction          = try c.decodeIfPresent(Double.self, forKey: .minGapFraction) ?? 0.15
         showPlotGrid            = try c.decodeIfPresent(Bool.self, forKey: .showPlotGrid) ?? true
+        legendAnchor            = try c.decodeIfPresent(String.self, forKey: .legendAnchor) ?? ""
         seriesRenderMode        = try c.decodeIfPresent(SeriesRenderMode.self, forKey: .seriesRenderMode) ?? .line
         chartStyleOverrides     = try c.decodeIfPresent([String: String].self, forKey: .chartStyleOverrides) ?? [:]
         ch1Component            = try c.decodeIfPresent(String.self, forKey: .ch1Component) ?? IVSignalComponent.x.rawValue
