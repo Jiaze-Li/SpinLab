@@ -141,7 +141,7 @@ struct V710StaleOverrideResetTests {
     private enum TestTab: String, Hashable, Sendable { case main }
 
     @MainActor
-    @Test("Source identity change clears stale title and axis overrides while retaining live series labels")
+    @Test("Source identity change preserves committed display overrides while retaining live series labels")
     func staleTextOverridesClearBeforeRenderInputBuild() throws {
         let manager = TabRenderManager<TestTab>(defaultTab: .main)
 
@@ -176,9 +176,9 @@ struct V710StaleOverrideResetTests {
         let payloadB = makeMinimalPayload(semanticParams: ["temperature": "200K"])
         let inputB = manager.buildPipelineInput(payload: payloadB, for: .main)
 
-        #expect(inputB.titleOverride == "")
-        #expect(inputB.xLabelOverride == "")
-        #expect(inputB.yLabelOverride == "")
+        #expect(inputB.titleOverride == "My Title")
+        #expect(inputB.xLabelOverride == "My X")
+        #expect(inputB.yLabelOverride == "My Y")
         #expect(inputB.seriesLabelOverrides == [0: "Renamed A"])
         #expect(inputB.legendPoint?.x == 0.25)
         #expect(inputB.legendPoint?.y == 0.75)
@@ -186,16 +186,17 @@ struct V710StaleOverrideResetTests {
 
         let outputB = try WorkbenchRenderPipeline.render(inputB)
 
-        #expect(outputB.manifestPayload.title == payloadB.title)
-        #expect(manager.state(for: .main).xLabelOverride == "")
-        #expect(manager.state(for: .main).yLabelOverride == "")
+        #expect(outputB.manifestPayload.title == "My Title")
+        #expect(manager.state(for: .main).titleOverride == "My Title")
+        #expect(manager.state(for: .main).xLabelOverride == "My X")
+        #expect(manager.state(for: .main).yLabelOverride == "My Y")
         #expect(manager.state(for: .main).seriesLabelOverrides == ["/tmp/sample-a.dat": "Renamed A"])
         #expect(manager.state(for: .main).legendPoint?.cgPoint == CGPoint(x: 0.25, y: 0.75))
         #expect(manager.state(for: .main).seriesOrder == ["key-b", "key-a"])
     }
 
     @MainActor
-    @Test("Legend drag rerender does not resurrect a cleared title override")
+    @Test("Legend drag rerender preserves a committed title override")
     func legendDragDoesNotResurrectClearedTitleOverride() throws {
         let manager = TabRenderManager<TestTab>(defaultTab: .main)
 
@@ -215,23 +216,23 @@ struct V710StaleOverrideResetTests {
         )
 
         let inputB = manager.buildPipelineInput(payload: payloadB, for: .main)
-        #expect(inputB.titleOverride.isEmpty, "source identity change must clear stale title override before render")
+        #expect(inputB.titleOverride == "test", "source identity change must preserve committed title override before render")
 
         let outputB = try WorkbenchRenderPipeline.render(inputB)
         manager.applyPipelineOutput(outputB, for: .main)
-        #expect(manager.state(for: .main).titleOverride.isEmpty)
+        #expect(manager.state(for: .main).titleOverride == "test")
 
         manager.updateLegendPoint(CGPoint(x: 0.25, y: 0.75))
         let rerenderInput = manager.buildPipelineInput(payload: payloadB, for: .main)
-        #expect(rerenderInput.titleOverride.isEmpty, "legend drag rerender must not resurrect a cleared override")
+        #expect(rerenderInput.titleOverride == "test", "legend drag rerender must preserve the committed override")
 
         let rerenderOutput = try WorkbenchRenderPipeline.render(rerenderInput)
-        #expect(rerenderOutput.manifestPayload.title == payloadB.title)
-        #expect(manager.state(for: .main).titleOverride.isEmpty)
+        #expect(rerenderOutput.manifestPayload.title == "test")
+        #expect(manager.state(for: .main).titleOverride == "test")
     }
 
     @MainActor
-    @Test("legendPoint and seriesOrder survive identity change")
+    @Test("legendPoint, seriesOrder, and title survive identity change")
     func legendPointAndOrderPreservedOnIdentityChange() throws {
         let manager = TabRenderManager<TestTab>(defaultTab: .main)
 
@@ -245,14 +246,14 @@ struct V710StaleOverrideResetTests {
         let payloadA = makeMinimalPayload(semanticParams: ["temperature": "80K"])
         let outputA = try makeMinimalPipelineOutput(payload: payloadA)
         manager.applyPipelineOutput(outputA, for: .main)
-        // First apply establishes the identity without clearing (no prior key)
-        // re-inject with a different identity to trigger the clear
+        // First apply establishes the identity without clearing (no prior key).
+        // Re-inject with a different identity to verify preservation on source update.
         let payloadB = makeMinimalPayload(semanticParams: ["temperature": "300K"])
         let outputB = try makeMinimalPipelineOutput(payload: payloadB)
         manager.applyPipelineOutput(outputB, for: .main)
 
         let state = manager.state(for: .main)
-        #expect(state.titleOverride == "", "title override must be cleared")
+        #expect(state.titleOverride == "Title to clear", "title override must survive identity change")
         #expect(state.legendPoint?.cgPoint == CGPoint(x: 0.3, y: 0.7), "legendPoint must survive")
         #expect(state.seriesOrder == ["key-b", "key-a"], "seriesOrder must survive")
     }

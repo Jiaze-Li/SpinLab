@@ -21,12 +21,16 @@ struct CGPointCodable: Codable, Hashable, Sendable {
 
 /// Controls which per-tab display overrides setOutput/applyPipelineOutput may clear.
 ///
-/// Default is `preserveDisplayOverrides`: only text overrides (title, axis labels) are
-/// cleared when the source identity changes; axisRangeOverride is never touched.
-/// Use `clearDisplayOverridesIfSourceChanged` only in true new-analysis or
-/// source-replacement paths where resetting the viewport is intentional.
+/// Default is `preserveDisplayOverrides`: title, axis labels, legend position,
+/// series labels, series order, axis range, and point tags are preserved across
+/// rerenders and re-analysis. Source identity updates may reset editor-local UI
+/// state, but must not clear committed PlotSystem display overrides.
+/// Use `clearDisplayOverridesIfSourceChanged` only in true source-replacement
+/// paths where resetting the viewport is intentional.
 enum DisplayOverridePolicy: Sendable {
-    /// Never clear axisRangeOverride. Clear text overrides only when source identity changes.
+    /// Preserve committed display overrides. Source identity changes must not clear
+    /// title, axis labels, legend position, series labels, series order, axis range,
+    /// or point tags.
     /// Use for all display-only rerenders (style, grid, labels, line/scatter, export).
     case preserveDisplayOverrides
     /// Clear both text overrides and axisRangeOverride when source identity changes.
@@ -289,8 +293,8 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
 
     /// Convenience: apply a WorkbenchRenderPipeline.Output to a tab.
     ///
-    /// By default uses `.preserveDisplayOverrides`: text overrides are cleared only when
-    /// the analyzed source identity changes; axisRangeOverride is always preserved.
+    /// By default uses `.preserveDisplayOverrides`: committed display overrides are
+    /// preserved across rerenders and source updates.
     /// Pass `policy: .clearDisplayOverridesIfSourceChanged` only in true source-replacement paths.
     ///
     /// Pass `displayPayload` to store the pre-pipeline domain payload so that
@@ -702,7 +706,7 @@ private extension TabRenderManager {
     func applyOverrideClearing(to state: inout TabRenderState, policy: DisplayOverridePolicy, sourceChanged: Bool) {
         switch policy {
         case .preserveDisplayOverrides:
-            if sourceChanged { clearTextOverrides(&state) }
+            break
         case .clearDisplayOverridesIfSourceChanged:
             if sourceChanged { clearSourceScopedOverrides(&state) }
         case .forceClearDisplayOverrides:

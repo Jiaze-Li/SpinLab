@@ -243,20 +243,22 @@ struct DisplayOverridePolicyTests {
         #expect(manager.tabStates[.ahe]?.axisRangeOverride?.xMax == 10)
     }
 
-    @Test("default policy clears text overrides when source identity changes")
+    @Test("default policy preserves text overrides when source identity changes")
     @MainActor
-    func defaultPolicyClearsTextOverrides() {
+    func defaultPolicyPreservesTextOverrides() {
         let manager = TabRenderManager<AHEWorkbenchTab>(defaultTab: .ahe)
         let p1 = makeSourcePayload(sourceRef: "/data/file.dat", semanticParam: "A")
         manager.setOutput(TabRenderOutput(manifestPayload: p1), for: .ahe)
         manager.updateTitleOverride("My Title")
         manager.updateXLabelOverride("Custom X")
+        manager.updateYLabelOverride("Custom Y")
 
         let p2 = makeSourcePayload(sourceRef: "/data/file.dat", semanticParam: "B")
         manager.setOutput(TabRenderOutput(manifestPayload: p2), for: .ahe)
 
-        #expect(manager.tabStates[.ahe]?.titleOverride == "")
-        #expect(manager.tabStates[.ahe]?.xLabelOverride == "")
+        #expect(manager.tabStates[.ahe]?.titleOverride == "My Title")
+        #expect(manager.tabStates[.ahe]?.xLabelOverride == "Custom X")
+        #expect(manager.tabStates[.ahe]?.yLabelOverride == "Custom Y")
     }
 
     @Test("clearDisplayOverridesIfSourceChanged clears axisRangeOverride on source change")
