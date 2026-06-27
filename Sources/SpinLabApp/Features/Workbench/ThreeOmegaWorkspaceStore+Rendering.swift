@@ -161,7 +161,7 @@ extension ThreeOmegaWorkspaceStore {
             let tabOutput = TabRenderOutput(
                 imageData: output.imageData,
                 layout: output.layout,
-                manifestPayload: output.manifestPayload,
+                manifestPayload: tabs.output(for: tab).manifestPayload,
                 displayPayload: output.manifestPayload
             )
             tabs.setOutput(tabOutput, for: tab, policy: policy)
@@ -274,29 +274,9 @@ extension ThreeOmegaWorkspaceStore {
 
             await MainActor.run { [weak self] in
                 guard let self else { return }
-                let s1 = self.tabs.state(for: .fieldSweep1omega)
-                let m1: WorkbenchPlotPayload? = {
-                    guard var p = self.tabs.output(for: .fieldSweep1omega).manifestPayload else { return nil }
-                    if !s1.titleOverride.isEmpty { p.title = s1.titleOverride }
-                    if !s1.xLabelOverride.isEmpty { p.axisMapping.xField = s1.xLabelOverride }
-                    if !s1.yLabelOverride.isEmpty { p.axisMapping.yField = s1.yLabelOverride }
-                    if !s1.seriesLabelOverrides.isEmpty {
-                        p.series = applySeriesLabelOverrides(s1.seriesLabelOverrides, to: p.series)
-                    }
-                    return p
-                }()
+                let m1 = self.tabs.output(for: .fieldSweep1omega).manifestPayload
                 self.tabs.setOutput(TabRenderOutput(imageData: result1.0, layout: result1.1, manifestPayload: m1, displayPayload: result1.2), for: .fieldSweep1omega)
-                let s3 = self.tabs.state(for: .fieldSweep3omega)
-                let m3: WorkbenchPlotPayload? = {
-                    guard var p = self.tabs.output(for: .fieldSweep3omega).manifestPayload else { return nil }
-                    if !s3.titleOverride.isEmpty { p.title = s3.titleOverride }
-                    if !s3.xLabelOverride.isEmpty { p.axisMapping.xField = s3.xLabelOverride }
-                    if !s3.yLabelOverride.isEmpty { p.axisMapping.yField = s3.yLabelOverride }
-                    if !s3.seriesLabelOverrides.isEmpty {
-                        p.series = applySeriesLabelOverrides(s3.seriesLabelOverrides, to: p.series)
-                    }
-                    return p
-                }()
+                let m3 = self.tabs.output(for: .fieldSweep3omega).manifestPayload
                 self.tabs.setOutput(TabRenderOutput(imageData: result3.0, layout: result3.1, manifestPayload: m3, displayPayload: result3.2), for: .fieldSweep3omega)
             }
         }
