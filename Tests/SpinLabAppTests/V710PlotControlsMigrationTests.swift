@@ -994,6 +994,76 @@ struct V710LabelOverrideFieldSyncTests {
         #expect(editText == "te", "same-source rerenders must not overwrite in-flight typing")
         #expect(isDirty, "typing should remain dirty while focused")
     }
+
+    // MARK: - Contract: text commit rule
+
+    @Test("Non-empty editText different from renderedDefault commits trimmed text")
+    func nonEmptyDifferentFromDefaultCommitsTrimmed() {
+        var isDirty = true
+        var commits: [String] = []
+        LabelOverrideFieldSync.commitIfDirty(
+            editText: "Custom",
+            isDirty: &isDirty,
+            renderedDefault: "Default"
+        ) { commits.append($0) }
+        #expect(commits == ["Custom"])
+        #expect(!isDirty)
+    }
+
+    @Test("Non-empty editText equal to renderedDefault commits that text, not empty")
+    func nonEmptyMatchingDefaultCommitsTextNotEmpty() {
+        var isDirty = true
+        var commits: [String] = []
+        LabelOverrideFieldSync.commitIfDirty(
+            editText: "Custom",
+            isDirty: &isDirty,
+            renderedDefault: "Custom"
+        ) { commits.append($0) }
+        #expect(commits == ["Custom"],
+                "text matching rendered value must commit as-is, not be cleared to empty")
+        #expect(!isDirty)
+    }
+
+    @Test("Repeated commit with same non-empty text is idempotent")
+    func repeatedNonEmptyCommitIsIdempotent() {
+        var commits: [String] = []
+        for _ in 0..<3 {
+            var isDirty = true
+            LabelOverrideFieldSync.commitIfDirty(
+                editText: "My Title",
+                isDirty: &isDirty,
+                renderedDefault: "Default"
+            ) { commits.append($0) }
+        }
+        #expect(commits == ["My Title", "My Title", "My Title"],
+                "each dirty commit of the same non-empty text must produce the same value")
+    }
+
+    @Test("Empty editText commits renderedDefault as fallback, not empty string")
+    func emptyEditTextCommitsFallback() {
+        var isDirty = true
+        var commits: [String] = []
+        LabelOverrideFieldSync.commitIfDirty(
+            editText: "",
+            isDirty: &isDirty,
+            renderedDefault: "Workflow Default"
+        ) { commits.append($0) }
+        #expect(commits == ["Workflow Default"],
+                "empty field must commit the workflow default, not an empty string")
+    }
+
+    @Test("Whitespace-only editText commits renderedDefault as fallback")
+    func whitespaceOnlyEditTextCommitsFallback() {
+        var isDirty = true
+        var commits: [String] = []
+        LabelOverrideFieldSync.commitIfDirty(
+            editText: "   \t  ",
+            isDirty: &isDirty,
+            renderedDefault: "Workflow Default"
+        ) { commits.append($0) }
+        #expect(commits == ["Workflow Default"],
+                "whitespace-only field must commit the workflow default, not whitespace")
+    }
 }
 
 // MARK: - Suite 7: UI density and typography guards
