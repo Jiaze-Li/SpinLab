@@ -448,6 +448,78 @@ struct ThreeOmegaPlotRenderer {
         return (data, layout, data != nil ? displayPayload : nil, w)
     }
 
+    /// Tab 7: Temperature Dependence — E_AHE^(3ω) / E_xx^3 and σxx vs T
+    /// Left axis uses the derived left-hand quantity from the scaling result:
+    /// E_AHE^(3ω) / E_xx^3 = scalingY × σxx.
+    mutating func renderTemperatureDependence(result: ThreeOmegaScalingResult) -> (Data?, DualAxisPlotLayout?, DualAxisPlotPayload?, [String]) {
+        guard var payload = makeTemperatureDependencePayload(result: result) else {
+            return (nil, nil, nil, [])
+        }
+        if !titleOverride.isEmpty {
+            payload.title = titleOverride
+        }
+        if !xLabelOverride.isEmpty {
+            payload.xLabel = xLabelOverride
+        }
+        if !yLabelOverride.isEmpty {
+            payload.leftYLabel = yLabelOverride
+        }
+        var w: [String] = []
+        let input = DualAxisRenderPipeline.Input(
+            payload: payload,
+            style: WorkbenchChartStyle.from(styleParams: globalPlotDefaults.merging(chartStyleOverrides) { _, new in new })
+        )
+        do {
+            let output = try DualAxisRenderPipeline.render(input)
+            w.append(contentsOf: output.warnings)
+            return (output.imageData, output.layout, payload, w)
+        } catch {
+            let reason = "dual-axis pipeline failure: \(error)"
+            fputs("[SpinLab] ThreeOmegaPlotRenderer: \(reason)\n", stderr)
+            return (nil, nil, nil, [reason])
+        }
+    }
+
+    func makeTemperatureDependencePayload(result: ThreeOmegaScalingResult) -> DualAxisPlotPayload? {
+        guard !result.points.isEmpty else { return nil }
+
+        let seriesPoints: [(temperatureK: Double, sigmaXX: Double, leftY: Double)] = result.points.map { point in
+            let sigmaXX = sqrt(max(0, point.sigma2xx))
+            return (
+                temperatureK: point.temperatureK,
+                sigmaXX: sigmaXX,
+                leftY: point.scalingY * sigmaXX
+            )
+        }
+
+        let x = seriesPoints.map(\.temperatureK)
+        let leftY = seriesPoints.map(\.leftY)
+        let rightY = seriesPoints.map(\.sigmaXX)
+
+        return DualAxisPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: "3w",
+            title: "Temperature Dependence",
+            xLabel: "T (K)",
+            leftYLabel: "E_AHE^(3ω) / E_xx^3",
+            rightYLabel: "σxx (S/m)",
+            leftSeries: [
+                DualAxisPlotSeries(
+                    label: "E_AHE^(3ω) / E_xx^3",
+                    x: x,
+                    y: leftY
+                )
+            ],
+            rightSeries: [
+                DualAxisPlotSeries(
+                    label: "σxx",
+                    x: x,
+                    y: rightY
+                )
+            ]
+        )
+    }
+
     func makeScalingPayload(
         result: ThreeOmegaScalingResult,
         device: String = "",

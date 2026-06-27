@@ -125,6 +125,23 @@ struct V563WorkflowStateBoundaryTests {
     }
 
     @MainActor
+    private func makeScalingReadyStoreWithoutGeometry() -> ThreeOmegaWorkspaceStore {
+        let store = makeScalingReadyStore()
+        store.geometry = ThreeOmegaGeometry()
+        return store
+    }
+
+    @MainActor
+    private func waitForTemperatureDependenceOutput(_ store: ThreeOmegaWorkspaceStore, attempts: Int = 40) async {
+        for _ in 0..<attempts {
+            if store.tabs.output(for: .temperatureDependence).dualAxisPayload != nil {
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(25))
+        }
+    }
+
+    @MainActor
     @Test("TabRenderManager owns plot outputs; activeImageData is a projection")
     func tabRenderManagerActiveImageDataIsProjection() {
         enum TestTab: Hashable, Sendable { case first }
@@ -191,6 +208,60 @@ struct V563WorkflowStateBoundaryTests {
         #expect(manager.output(for: .first).dualAxisLayout != nil)
         #expect(manager.output(for: .first).dualAxisPayload != nil)
         #expect(manager.activeManifestPayload == nil)
+    }
+
+    @Test("ThreeOmegaWorkbenchTab includes temperatureDependence")
+    func threeOmegaWorkbenchTabIncludesTemperatureDependence() {
+        #expect(ThreeOmegaWorkbenchTab.temperatureDependence.rawValue == "Temperature Dependence")
+        #expect(ThreeOmegaWorkbenchTab.temperatureDependence.stableKey == "temperatureDependence")
+        #expect(ThreeOmegaWorkbenchTab.allCases.contains(.temperatureDependence))
+    }
+
+    @MainActor
+    @Test("refreshTransportDerivedPlots renders Temperature Dependence as dual-axis output")
+    func refreshTransportDerivedPlotsRendersTemperatureDependence() async {
+        let store = makeScalingReadyStore()
+        store.refreshTransportDerivedPlots(reason: "test")
+        await waitForTemperatureDependenceOutput(store)
+
+        let scaling = store.tabs.output(for: .scaling)
+        let temp = store.tabs.output(for: .temperatureDependence)
+
+        #expect(store.scalingResult?.points.isEmpty == false)
+        #expect(scaling.imageData != nil)
+        #expect(scaling.layout != nil)
+        #expect(scaling.renderKind == .xy)
+        #expect(temp.renderKind == .dualAxis)
+        #expect(temp.imageData != nil)
+        #expect(temp.dualAxisLayout != nil)
+        #expect(temp.dualAxisPayload != nil)
+        #expect(temp.manifestPayload == nil)
+        #expect(temp.displayPayload == nil)
+
+        if let payload = temp.dualAxisPayload {
+            #expect(payload.title == "Temperature Dependence")
+            #expect(payload.xLabel == "T (K)")
+            #expect(payload.leftYLabel == "E_AHE^(3ω) / E_xx^3")
+            #expect(payload.rightYLabel == "σxx (S/m)")
+            #expect(payload.leftSeries.first?.label == "E_AHE^(3ω) / E_xx^3")
+            #expect(payload.rightSeries.first?.label == "σxx")
+            #expect(payload.leftSeries.first?.x.count == 2)
+            #expect(payload.rightSeries.first?.x.count == 2)
+        }
+    }
+
+    @MainActor
+    @Test("Missing geometry does not overwrite analysisMessage")
+    func missingGeometryDoesNotOverwriteAnalysisMessage() {
+        let store = makeScalingReadyStoreWithoutGeometry()
+        store.analysisMessage = "Analysis success"
+
+        store.refreshTransportDerivedPlots(reason: "missing geometry")
+
+        #expect(store.analysisMessage == "Analysis success")
+        #expect(store.transportDerivedStatusMessage?.contains("missing") == true)
+        #expect(store.tabs.output(for: .temperatureDependence).imageData == nil)
+        #expect(store.tabs.output(for: .temperatureDependence).dualAxisPayload == nil)
     }
 
     @Test("Reorderable payloads use stable sourceRef identity")

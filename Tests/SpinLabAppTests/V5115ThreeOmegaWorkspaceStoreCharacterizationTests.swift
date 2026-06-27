@@ -33,6 +33,19 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
         }
     }
 
+    private var workspaceViewSource: String {
+        get throws {
+            let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            let url = root
+                .appendingPathComponent("Sources")
+                .appendingPathComponent("SpinLabApp")
+                .appendingPathComponent("Features")
+                .appendingPathComponent("Workbench")
+                .appendingPathComponent("ThreeOmegaWorkspaceView.swift")
+            return try String(contentsOf: url, encoding: .utf8)
+        }
+    }
+
     func testRunAnalysisCommitsTraceOnlyAfterSuccessfulIngestion() throws {
         let source = try workspaceSource
         let runAnalysis = try extractFunction("_runAnalysis(selectedHits:", from: source)
@@ -54,10 +67,17 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
         XCTAssertTrue(refresh.contains("transportDerivedStatus = .missing"))
         XCTAssertTrue(refresh.contains("let capturedGlobalSettings = ThreeOmegaRendererGlobalSettings("))
         XCTAssertTrue(refresh.contains("let capturedScalingSnapshot = tabs.displayStateSnapshot(for: .scaling)"))
+        XCTAssertTrue(refresh.contains("let capturedTemperatureSnapshot = tabs.displayStateSnapshot(for: .temperatureDependence)"))
         XCTAssertTrue(refresh.contains("let capturedV3Method = v3Method"))
         XCTAssertTrue(refresh.contains("v3Method: capturedV3Method"))
         XCTAssertTrue(refresh.contains("renderThreeOmegaTab("))
+        XCTAssertTrue(refresh.contains(".temperatureDependence"))
         XCTAssertTrue(refresh.contains("policy: .preserveDisplayOverrides"))
+    }
+
+    func testTransportGeometryPanelAppearsForScalingAndTemperatureDependence() throws {
+        let source = try workspaceViewSource
+        XCTAssertTrue(source.contains("activeTab == .scaling || store.tabs.activeTab == .temperatureDependence"))
     }
 
     func testRunScalingCompatibilityWrapperDelegatesToRefresh() throws {

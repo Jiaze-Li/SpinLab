@@ -22,6 +22,7 @@ extension ThreeOmegaWorkspaceStore {
             transportDerivedStatus = .idle
             scalingResult = nil
             _clearScalingTabOutput()
+            _clearTemperatureDependenceTabOutput()
             return
         }
 
@@ -32,6 +33,7 @@ extension ThreeOmegaWorkspaceStore {
             transportDerivedStatus = .missing(missingRequirements)
             scalingResult = nil
             _clearScalingTabOutput()
+            _clearTemperatureDependenceTabOutput()
             return
         }
 
@@ -50,6 +52,7 @@ extension ThreeOmegaWorkspaceStore {
             titleTokens: _titleTokens
         )
         let capturedScalingSnapshot = tabs.displayStateSnapshot(for: .scaling)
+        let capturedTemperatureSnapshot = tabs.displayStateSnapshot(for: .temperatureDependence)
         let capturedRanges = fitRanges
         let capturedV3Method = v3Method
 
@@ -73,7 +76,7 @@ extension ThreeOmegaWorkspaceStore {
             }.value
 
             guard !Task.isCancelled else { return }
-            let renderResult = await self.renderThreeOmegaTab(
+            let scalingRenderResult = await self.renderThreeOmegaTab(
                 .scaling,
                 ingestion: capturedResult,
                 scalingResult: scalingRes,
@@ -83,13 +86,23 @@ extension ThreeOmegaWorkspaceStore {
                 revision: revision,
                 policy: .preserveDisplayOverrides
             )
+            let temperatureRenderResult = await self.renderThreeOmegaTab(
+                .temperatureDependence,
+                ingestion: capturedResult,
+                scalingResult: scalingRes,
+                fieldSweepSeriesOrder: nil,
+                globalSettings: capturedGlobalSettings,
+                tabSnapshot: capturedTemperatureSnapshot,
+                revision: revision,
+                policy: .preserveDisplayOverrides
+            )
             guard !Task.isCancelled, self._renderRevision == revision else { return }
 
             self.scalingResult = scalingRes
             self._refreshManifestPayloads()
 
             if scalingRes.points.count >= 2 {
-                if renderResult.imageData != nil {
+                if scalingRenderResult.imageData != nil {
                     self.transportDerivedStatus = .ready
                 } else {
                     self.transportDerivedStatus = .unavailable("Scaling Law render failed.")
@@ -100,7 +113,7 @@ extension ThreeOmegaWorkspaceStore {
 
             self.isRefreshingTransportDerivedPlots = false
 
-            for warning in renderResult.warnings + scalingRes.warnings {
+            for warning in scalingRenderResult.warnings + temperatureRenderResult.warnings + scalingRes.warnings {
                 self.appendWarning(source: "Scaling", message: warning)
                 print("[SpinLab][3ω Scaling] \(warning)")
             }
@@ -111,6 +124,21 @@ extension ThreeOmegaWorkspaceStore {
         tabs.setOutput(
             TabRenderOutput(imageData: nil, layout: nil, manifestPayload: nil, displayPayload: nil),
             for: .scaling
+        )
+    }
+
+    private func _clearTemperatureDependenceTabOutput() {
+        tabs.setOutput(
+            TabRenderOutput(
+                imageData: nil,
+                renderKind: .dualAxis,
+                layout: nil,
+                manifestPayload: nil,
+                displayPayload: nil,
+                dualAxisLayout: nil,
+                dualAxisPayload: nil
+            ),
+            for: .temperatureDependence
         )
     }
 

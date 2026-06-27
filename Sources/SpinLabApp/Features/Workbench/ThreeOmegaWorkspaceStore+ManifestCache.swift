@@ -157,6 +157,8 @@ extension ThreeOmegaWorkspaceStore {
                 files: inputFiles,
                 extraParams: ["v3method": methodTag, "fitRanges": rangeSig]
             )
+        case .temperatureDependence:
+            return nil
         }
     }
 
@@ -214,6 +216,9 @@ extension ThreeOmegaWorkspaceStore {
         let sharedFieldSweepSeriesOrder = fieldSweepSeriesOrder
 
         for tab in ThreeOmegaWorkbenchTab.allCases {
+            if tab == .temperatureDependence {
+                continue
+            }
             let seriesOrder: [String]?
             switch tab {
             case .fieldSweep1omega, .fieldSweep3omega:

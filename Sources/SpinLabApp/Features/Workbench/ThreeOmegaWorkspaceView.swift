@@ -21,7 +21,7 @@ struct ThreeOmegaWorkspaceView: View, WorkflowWorkspaceProvider {
                     .environment(appState)
             },
             leftExtra: {
-                if store.tabs.activeTab == .scaling {
+                if store.tabs.activeTab == .scaling || store.tabs.activeTab == .temperatureDependence {
                     ThreeOmegaGeometryPanel()
                         .environment(appState)
                 }

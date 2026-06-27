@@ -62,6 +62,47 @@ extension ThreeOmegaWorkspaceStore {
         analysisRevision: UInt64? = nil,
         policy: DisplayOverridePolicy = .preserveDisplayOverrides
     ) async -> ThreeOmegaTabRenderResult {
+        let baseOptions: WorkbenchChartRenderer.Options = {
+            switch tab {
+            case .fieldSweep1omega, .fieldSweep3omega:
+                var opts = WorkbenchChartRenderer.Options()
+                opts.height = max(opts.height, opts.height + (ingestion.fieldSweeps.count - 6) * 40)
+                return opts
+            default:
+                return .init()
+            }
+        }()
+
+        let manifestPayload = tabs.output(for: tab).manifestPayload
+        let isStale = (revision.map { $0 != _renderRevision } ?? false) || _isAnalysisStale(analysisRevision)
+
+        func emptyResult() -> ThreeOmegaTabRenderResult {
+            ThreeOmegaTabRenderResult(imageData: nil, layout: nil, displayPayload: nil, warnings: [])
+        }
+
+        if tab == .scaling {
+            guard scalingResult != nil, geometry.isComplete else {
+                if !isStale {
+                    tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+                }
+                return emptyResult()
+            }
+        }
+
+        if tab == .temperatureDependence, scalingResult == nil {
+            if !isStale {
+                tabs.setOutput(
+                    TabRenderOutput(
+                        renderKind: .dualAxis,
+                        manifestPayload: manifestPayload
+                    ),
+                    for: tab,
+                    policy: policy
+                )
+            }
+            return emptyResult()
+        }
+
         var renderer = ThreeOmegaPlotRenderer()
         renderer.workflowID = globalSettings.workflowID
         renderer.showGrid = globalSettings.showGrid
@@ -74,120 +115,332 @@ extension ThreeOmegaWorkspaceStore {
         renderer.titleTemplate = globalSettings.titleTemplate
         renderer.titleTokens = globalSettings.titleTokens
 
-        let baseOptions: WorkbenchChartRenderer.Options = {
-            switch tab {
-            case .fieldSweep1omega, .fieldSweep3omega:
-                var opts = WorkbenchChartRenderer.Options()
-                opts.height = max(opts.height, opts.height + (ingestion.fieldSweeps.count - 6) * 40)
-                return opts
-            default:
-                return .init()
-            }
-        }()
+        enum PreparedRender {
+            case xy(WorkbenchRenderPipeline.Input, WorkbenchPlotPayload)
+            case dualAxis(ThreeOmegaScalingResult)
+        }
 
-        let payload: WorkbenchPlotPayload?
+        let preparedRender: PreparedRender
         switch tab {
         case .fieldSweep1omega:
-            payload = renderer.makeR1omegaPayload(
+            guard let payload = renderer.makeR1omegaPayload(
                 sweeps: ingestion.fieldSweeps,
                 device: ingestion.device,
                 seriesOrder: fieldSweepSeriesOrder ?? tabSnapshot.seriesOrder
+            ) else {
+                if !isStale {
+                    tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+                }
+                return emptyResult()
+            }
+            let input = tabs.buildPipelineInput(
+                payload: payload,
+                baseOptions: baseOptions,
+                globalPlotDefaults: globalSettings.globalPlotDefaults,
+                tabState: tabSnapshot,
+                showPlotGrid: globalSettings.showGrid,
+                seriesRenderMode: globalSettings.seriesRenderMode,
+                chartStyleOverrides: globalSettings.chartStyleOverrides,
+                legendAnchor: globalSettings.legendAnchor,
+                for: tab
             )
+            preparedRender = .xy(input, payload)
         case .fieldSweep3omega:
-            payload = renderer.makeR3omegaPayload(
+            guard let payload = renderer.makeR3omegaPayload(
                 sweeps: ingestion.fieldSweeps,
                 device: ingestion.device,
                 seriesOrder: fieldSweepSeriesOrder ?? tabSnapshot.seriesOrder
+            ) else {
+                if !isStale {
+                    tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+                }
+                return emptyResult()
+            }
+            let input = tabs.buildPipelineInput(
+                payload: payload,
+                baseOptions: baseOptions,
+                globalPlotDefaults: globalSettings.globalPlotDefaults,
+                tabState: tabSnapshot,
+                showPlotGrid: globalSettings.showGrid,
+                seriesRenderMode: globalSettings.seriesRenderMode,
+                chartStyleOverrides: globalSettings.chartStyleOverrides,
+                legendAnchor: globalSettings.legendAnchor,
+                for: tab
             )
+            preparedRender = .xy(input, payload)
         case .rahe1omegaVsT:
-            payload = renderer.makeRAHE1omegaVsTPayload(
+            guard let payload = renderer.makeRAHE1omegaVsTPayload(
                 sweeps: ingestion.fieldSweeps,
                 device: ingestion.device,
                 method: rahe1omegaMethod
+            ) else {
+                if !isStale {
+                    tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+                }
+                return emptyResult()
+            }
+            let input = tabs.buildPipelineInput(
+                payload: payload,
+                baseOptions: baseOptions,
+                globalPlotDefaults: globalSettings.globalPlotDefaults,
+                tabState: tabSnapshot,
+                showPlotGrid: globalSettings.showGrid,
+                seriesRenderMode: globalSettings.seriesRenderMode,
+                chartStyleOverrides: globalSettings.chartStyleOverrides,
+                legendAnchor: globalSettings.legendAnchor,
+                for: tab
             )
+            preparedRender = .xy(input, payload)
         case .rahe3omegaVsT:
-            payload = renderer.makeRAHE3omegaVsTPayload(
+            guard let payload = renderer.makeRAHE3omegaVsTPayload(
                 sweeps: ingestion.fieldSweeps,
                 device: ingestion.device,
                 method: rahe3omegaMethod
+            ) else {
+                if !isStale {
+                    tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+                }
+                return emptyResult()
+            }
+            let input = tabs.buildPipelineInput(
+                payload: payload,
+                baseOptions: baseOptions,
+                globalPlotDefaults: globalSettings.globalPlotDefaults,
+                tabState: tabSnapshot,
+                showPlotGrid: globalSettings.showGrid,
+                seriesRenderMode: globalSettings.seriesRenderMode,
+                chartStyleOverrides: globalSettings.chartStyleOverrides,
+                legendAnchor: globalSettings.legendAnchor,
+                for: tab
             )
+            preparedRender = .xy(input, payload)
         case .rahe1omegaVsDevice:
-            payload = renderer.makeRAHE1omegaVsDevicePayload(
+            guard let payload = renderer.makeRAHE1omegaVsDevicePayload(
                 sweeps: ingestion.fieldSweeps,
                 device: ingestion.device,
                 method: rahe1omegaVsDeviceMethod
+            ) else {
+                if !isStale {
+                    tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+                }
+                return emptyResult()
+            }
+            let input = tabs.buildPipelineInput(
+                payload: payload,
+                baseOptions: baseOptions,
+                globalPlotDefaults: globalSettings.globalPlotDefaults,
+                tabState: tabSnapshot,
+                showPlotGrid: globalSettings.showGrid,
+                seriesRenderMode: globalSettings.seriesRenderMode,
+                chartStyleOverrides: globalSettings.chartStyleOverrides,
+                legendAnchor: globalSettings.legendAnchor,
+                for: tab
             )
+            preparedRender = .xy(input, payload)
         case .rahe3omegaVsDevice:
-            payload = renderer.makeRAHE3omegaVsDevicePayload(
+            guard let payload = renderer.makeRAHE3omegaVsDevicePayload(
                 sweeps: ingestion.fieldSweeps,
                 device: ingestion.device,
                 method: rahe3omegaVsDeviceMethod
-            )
-        case .hcVsT:
-            payload = renderer.makeHcPayload(sweeps: ingestion.fieldSweeps, device: ingestion.device)
-        case .rtCurve:
-            payload = ingestion.rtResult.flatMap { renderer.makeRTPayload(rt: $0) }
-        case .scaling:
-            guard let scalingResult, geometry.isComplete else {
-                let empty = ThreeOmegaTabRenderResult(imageData: nil, layout: nil, displayPayload: nil, warnings: [])
-                if !_isAnalysisStale(analysisRevision) {
+            ) else {
+                if !isStale {
                     tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
                 }
-                return empty
+                return emptyResult()
+            }
+            let input = tabs.buildPipelineInput(
+                payload: payload,
+                baseOptions: baseOptions,
+                globalPlotDefaults: globalSettings.globalPlotDefaults,
+                tabState: tabSnapshot,
+                showPlotGrid: globalSettings.showGrid,
+                seriesRenderMode: globalSettings.seriesRenderMode,
+                chartStyleOverrides: globalSettings.chartStyleOverrides,
+                legendAnchor: globalSettings.legendAnchor,
+                for: tab
+            )
+            preparedRender = .xy(input, payload)
+        case .hcVsT:
+            guard let payload = renderer.makeHcPayload(sweeps: ingestion.fieldSweeps, device: ingestion.device) else {
+                if !isStale {
+                    tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+                }
+                return emptyResult()
+            }
+            let input = tabs.buildPipelineInput(
+                payload: payload,
+                baseOptions: baseOptions,
+                globalPlotDefaults: globalSettings.globalPlotDefaults,
+                tabState: tabSnapshot,
+                showPlotGrid: globalSettings.showGrid,
+                seriesRenderMode: globalSettings.seriesRenderMode,
+                chartStyleOverrides: globalSettings.chartStyleOverrides,
+                legendAnchor: globalSettings.legendAnchor,
+                for: tab
+            )
+            preparedRender = .xy(input, payload)
+        case .rtCurve:
+            guard let payload = ingestion.rtResult.flatMap({ renderer.makeRTPayload(rt: $0) }) else {
+                if !isStale {
+                    tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+                }
+                return emptyResult()
+            }
+            let input = tabs.buildPipelineInput(
+                payload: payload,
+                baseOptions: baseOptions,
+                globalPlotDefaults: globalSettings.globalPlotDefaults,
+                tabState: tabSnapshot,
+                showPlotGrid: globalSettings.showGrid,
+                seriesRenderMode: globalSettings.seriesRenderMode,
+                chartStyleOverrides: globalSettings.chartStyleOverrides,
+                legendAnchor: globalSettings.legendAnchor,
+                for: tab
+            )
+            preparedRender = .xy(input, payload)
+        case .scaling:
+            guard let scalingResult, geometry.isComplete else {
+                if !isStale {
+                    tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+                }
+                return emptyResult()
             }
             let method = v3Method == .highField ? "(HFE)" : "(WA)"
-            payload = renderer.makeScalingPayload(result: scalingResult, device: ingestion.device, method: method)
-        }
-
-        guard let payload else {
-            let empty = ThreeOmegaTabRenderResult(imageData: nil, layout: nil, displayPayload: nil, warnings: [])
-            if !_isAnalysisStale(analysisRevision) {
-                tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+            guard let payload = renderer.makeScalingPayload(result: scalingResult, device: ingestion.device, method: method) else {
+                if !isStale {
+                    tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+                }
+                return emptyResult()
             }
-            return empty
+            let input = tabs.buildPipelineInput(
+                payload: payload,
+                baseOptions: baseOptions,
+                globalPlotDefaults: globalSettings.globalPlotDefaults,
+                tabState: tabSnapshot,
+                showPlotGrid: globalSettings.showGrid,
+                seriesRenderMode: globalSettings.seriesRenderMode,
+                chartStyleOverrides: globalSettings.chartStyleOverrides,
+                legendAnchor: globalSettings.legendAnchor,
+                for: tab
+            )
+            preparedRender = .xy(input, payload)
+        case .temperatureDependence:
+            guard let scalingResult else {
+                if !isStale {
+                    tabs.setOutput(
+                        TabRenderOutput(
+                            renderKind: .dualAxis,
+                            manifestPayload: manifestPayload
+                        ),
+                        for: tab,
+                        policy: policy
+                    )
+                }
+                return emptyResult()
+            }
+            preparedRender = .dualAxis(scalingResult)
         }
-        let displayPayload = payload
-
-        let input = tabs.buildPipelineInput(
-            payload: payload,
-            baseOptions: baseOptions,
-            globalPlotDefaults: globalSettings.globalPlotDefaults,
-            tabState: tabSnapshot,
-            showPlotGrid: globalSettings.showGrid,
-            seriesRenderMode: globalSettings.seriesRenderMode,
-            chartStyleOverrides: globalSettings.chartStyleOverrides,
-            legendAnchor: globalSettings.legendAnchor,
-            for: tab
-        )
 
         do {
-            let output = try await Task.detached(priority: .userInitiated) {
-                try WorkbenchRenderPipeline.render(input)
+            enum RenderedTab {
+                case xy(Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
+                case dualAxis(Data?, DualAxisPlotLayout?, DualAxisPlotPayload?, [String])
+            }
+
+            let rendered: RenderedTab = try await Task.detached(priority: .userInitiated) {
+                switch preparedRender {
+                case let .xy(input, payload):
+                    let output = try WorkbenchRenderPipeline.render(input)
+                    return .xy(output.imageData, output.layout, payload, output.warnings)
+                case let .dualAxis(scalingResult):
+                    var renderer = ThreeOmegaPlotRenderer()
+                    renderer.workflowID = globalSettings.workflowID
+                    renderer.showGrid = globalSettings.showGrid
+                    renderer.seriesRenderMode = globalSettings.seriesRenderMode
+                    renderer.chartStyleOverrides = globalSettings.chartStyleOverrides
+                    renderer.globalPlotDefaults = globalSettings.globalPlotDefaults
+                    renderer.legendAnchor = globalSettings.legendAnchor
+                    renderer.stackOffsetMultiplier = globalSettings.stackOffsetMultiplier
+                    renderer.minGapFraction = globalSettings.minGapFraction
+                    renderer.titleTemplate = globalSettings.titleTemplate
+                    renderer.titleTokens = globalSettings.titleTokens
+                    renderer.titleOverride = tabSnapshot.titleOverride
+                    renderer.xLabelOverride = tabSnapshot.xLabelOverride
+                    renderer.yLabelOverride = tabSnapshot.yLabelOverride
+                    let (imageData, layout, payload, warnings) = renderer.renderTemperatureDependence(result: scalingResult)
+                    return .dualAxis(imageData, layout, payload, warnings)
+                }
             }.value
-            if (revision.map { $0 != _renderRevision } ?? false) || _isAnalysisStale(analysisRevision) {
-                return ThreeOmegaTabRenderResult(
-                    imageData: output.imageData,
-                    layout: output.layout,
-                    displayPayload: displayPayload,
-                    warnings: output.warnings
+
+            let output: TabRenderOutput
+            let imageData: Data?
+            let layout: WorkbenchPlotLayout?
+            let displayPayload: WorkbenchPlotPayload?
+            let warnings: [String]
+
+            switch rendered {
+            case let .xy(data, layoutValue, payload, renderWarnings):
+                imageData = data
+                layout = layoutValue
+                displayPayload = payload
+                warnings = renderWarnings
+                output = TabRenderOutput(
+                    imageData: data,
+                    layout: layoutValue,
+                    manifestPayload: manifestPayload,
+                    displayPayload: payload
+                )
+            case let .dualAxis(data, layoutValue, payload, renderWarnings):
+                imageData = data
+                layout = nil
+                displayPayload = nil
+                warnings = renderWarnings
+                output = TabRenderOutput(
+                    imageData: data,
+                    renderKind: .dualAxis,
+                    layout: nil,
+                    manifestPayload: manifestPayload,
+                    displayPayload: nil,
+                    dualAxisLayout: layoutValue,
+                    dualAxisPayload: payload
                 )
             }
-            let tabOutput = TabRenderOutput(
-                imageData: output.imageData,
-                layout: output.layout,
-                manifestPayload: tabs.output(for: tab).manifestPayload,
-                displayPayload: displayPayload
-            )
-            tabs.setOutput(tabOutput, for: tab, policy: policy)
+
+            guard !isStale else {
+                return ThreeOmegaTabRenderResult(
+                    imageData: imageData,
+                    layout: layout,
+                    displayPayload: displayPayload,
+                    warnings: warnings
+                )
+            }
+
+            tabs.setOutput(output, for: tab, policy: policy)
             return ThreeOmegaTabRenderResult(
-                imageData: output.imageData,
-                layout: output.layout,
+                imageData: imageData,
+                layout: layout,
                 displayPayload: displayPayload,
-                warnings: output.warnings
+                warnings: warnings
             )
         } catch {
-            if !_isAnalysisStale(analysisRevision) {
-                tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+            if !isStale {
+                if tab == .temperatureDependence {
+                    tabs.setOutput(
+                        TabRenderOutput(
+                            imageData: nil,
+                            renderKind: .dualAxis,
+                            layout: nil,
+                            manifestPayload: manifestPayload,
+                            displayPayload: nil,
+                            dualAxisLayout: nil,
+                            dualAxisPayload: nil
+                        ),
+                        for: tab,
+                        policy: policy
+                    )
+                } else {
+                    tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+                }
             }
             return ThreeOmegaTabRenderResult(
                 imageData: nil,
@@ -397,7 +650,6 @@ extension ThreeOmegaWorkspaceStore {
 
             await MainActor.run { [weak self] in
                 guard let self, self._renderRevision == revision else { return }
-                AxisRangeDebug.log("ThreeOmegaWorkspaceStore._rerenderActiveTab MainActor AFTER setOutput | tab=\(tab) axisRangeOverride=\(String(describing: self.tabs.state(for: tab).axisRangeOverride))")
                 for warning in renderResult.warnings {
                     self.appendWarning(source: "Render", message: warning)
                 }
@@ -708,6 +960,10 @@ extension ThreeOmegaWorkspaceStore {
                 }
             }
         }
+
+        if ingestionResult != nil {
+            refreshTransportDerivedPlots(reason: "rerender all tabs from restored state")
+        }
     }
 
     func renderAllThreeOmegaTabs(
@@ -783,6 +1039,8 @@ extension ThreeOmegaWorkspaceStore {
                 plots.scaling = result.imageData
                 plots.layoutScaling = result.layout
                 plots.displayScaling = result.displayPayload
+            case .temperatureDependence:
+                break
             }
             plots.pipelineWarnings.append(contentsOf: result.warnings)
         }
