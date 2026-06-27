@@ -246,6 +246,7 @@ extension ThreeOmegaWorkspaceStore {
             renderer1.xLabelOverride        = capturedState1.xLabelOverride
             renderer1.yLabelOverride        = capturedState1.yLabelOverride
             renderer1.seriesLabelOverrides  = toIndexedOverrides(capturedState1.seriesLabelOverrides, series: labelMapSeries)
+            renderer1.hiddenPointLabelsBySeries = toIndexedOverrides(capturedState1.hiddenPointLabelIndicesBySeries, series: labelMapSeries).mapValues { Set($0) }
             renderer1.axisRangeOverride     = capturedState1.axisRangeOverride
             renderer1.showPointTags         = capturedState1.pointTags.showPointTags
             let result1 = renderer1.renderR1omega(sweeps: ingestion.fieldSweeps, device: ingestion.device, seriesOrder: capturedFieldSweepSeriesOrder)
@@ -266,6 +267,7 @@ extension ThreeOmegaWorkspaceStore {
             renderer3.xLabelOverride        = capturedState3.xLabelOverride
             renderer3.yLabelOverride        = capturedState3.yLabelOverride
             renderer3.seriesLabelOverrides  = toIndexedOverrides(capturedState3.seriesLabelOverrides, series: labelMapSeries)
+            renderer3.hiddenPointLabelsBySeries = toIndexedOverrides(capturedState3.hiddenPointLabelIndicesBySeries, series: labelMapSeries).mapValues { Set($0) }
             renderer3.axisRangeOverride     = capturedState3.axisRangeOverride
             renderer3.showPointTags         = capturedState3.pointTags.showPointTags
             let result3 = renderer3.renderR3omega(sweeps: ingestion.fieldSweeps, device: ingestion.device, seriesOrder: capturedFieldSweepSeriesOrder)
@@ -456,6 +458,15 @@ extension ThreeOmegaWorkspaceStore {
             r1.titleTemplate = capturedTemplate
             r1.titleTokens = capturedTokens
             r1.axisRangeOverride = capturedAxisRange1
+            r1.hiddenPointLabelsBySeries = toIndexedOverrides(state1.hiddenPointLabelIndicesBySeries, series: groups.map { group in
+                WorkbenchPlotSeries(
+                    label: group.label,
+                    x: [],
+                    y: [],
+                    sourceRef: group.sourceFiles.joined(separator: ";"),
+                    sampleID: nil
+                )
+            }).mapValues { Set($0) }
             r1.showPointTags = capturedShowPointTags1
             let rahe1 = r1.renderRAHE1omegaVsTMulti(groups: groups, method: capturedRAHE1Method)
 
@@ -474,6 +485,15 @@ extension ThreeOmegaWorkspaceStore {
             r3.titleTemplate = capturedTemplate
             r3.titleTokens = capturedTokens
             r3.axisRangeOverride = capturedAxisRange3
+            r3.hiddenPointLabelsBySeries = toIndexedOverrides(state3.hiddenPointLabelIndicesBySeries, series: groups.map { group in
+                WorkbenchPlotSeries(
+                    label: group.label,
+                    x: [],
+                    y: [],
+                    sourceRef: group.sourceFiles.joined(separator: ";"),
+                    sampleID: nil
+                )
+            }).mapValues { Set($0) }
             r3.showPointTags = capturedShowPointTags3
             let rahe3 = r3.renderRAHE3omegaVsTMulti(groups: groups, method: capturedRAHE3Method)
 

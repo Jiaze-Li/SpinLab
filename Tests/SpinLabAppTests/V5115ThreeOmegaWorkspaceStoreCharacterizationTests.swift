@@ -109,6 +109,48 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
         XCTAssertFalse(update.contains("v3Method = method"))
     }
 
+    func testRerenderFieldSweepTabsPropagatesHiddenPointLabelsToR1omega() throws {
+        let rerender = try extractFunction("rerenderFieldSweepTabs", from: try workspaceSource)
+
+        XCTAssertTrue(
+            rerender.contains("renderer1.hiddenPointLabelsBySeries = toIndexedOverrides(capturedState1.hiddenPointLabelIndicesBySeries, series: labelMapSeries).mapValues { Set($0) }")
+        )
+    }
+
+    func testRerenderFieldSweepTabsPropagatesHiddenPointLabelsToR3omega() throws {
+        let rerender = try extractFunction("rerenderFieldSweepTabs", from: try workspaceSource)
+
+        XCTAssertTrue(
+            rerender.contains("renderer3.hiddenPointLabelsBySeries = toIndexedOverrides(capturedState3.hiddenPointLabelIndicesBySeries, series: labelMapSeries).mapValues { Set($0) }")
+        )
+    }
+
+    func testRenderRAHEWithOverlaysPropagatesHiddenPointLabelsToRAHE1omega() throws {
+        let render = try extractFunction("_renderRAHEWithOverlays", from: try workspaceSource)
+
+        XCTAssertTrue(
+            render.contains("r1.hiddenPointLabelsBySeries = toIndexedOverrides(state1.hiddenPointLabelIndicesBySeries, series: groups.map")
+        )
+    }
+
+    func testRenderRAHEWithOverlaysPropagatesHiddenPointLabelsToRAHE3omega() throws {
+        let render = try extractFunction("_renderRAHEWithOverlays", from: try workspaceSource)
+
+        XCTAssertTrue(
+            render.contains("r3.hiddenPointLabelsBySeries = toIndexedOverrides(state3.hiddenPointLabelIndicesBySeries, series: groups.map")
+        )
+    }
+
+    func testSpecialRenderPathsStillAssignShowPointTags() throws {
+        let rerender = try extractFunction("rerenderFieldSweepTabs", from: try workspaceSource)
+        let overlay = try extractFunction("_renderRAHEWithOverlays", from: try workspaceSource)
+
+        XCTAssertTrue(rerender.contains("renderer1.showPointTags         = capturedState1.pointTags.showPointTags"))
+        XCTAssertTrue(rerender.contains("renderer3.showPointTags         = capturedState3.pointTags.showPointTags"))
+        XCTAssertTrue(overlay.contains("r1.showPointTags = capturedShowPointTags1"))
+        XCTAssertTrue(overlay.contains("r3.showPointTags = capturedShowPointTags3"))
+    }
+
     func testCommitRunTraceCallSitesStayLimited() throws {
         let source = try workspaceSource
         let callCount = source.components(separatedBy: "commitRunTrace()").count - 1
