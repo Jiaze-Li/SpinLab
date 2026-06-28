@@ -301,10 +301,10 @@ extension ThreeOmegaWorkspaceStore {
                 semanticParams: params
             )
             tabs.setOutput(existing, for: tab)
-            }
         }
     }
 
     private func _temperatureLabel(_ temperatureK: Double) -> String {
         "\(Int(temperatureK.rounded())) K"
     }
+}

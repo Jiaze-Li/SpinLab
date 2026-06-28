@@ -282,6 +282,10 @@ final class ThreeOmegaWorkspaceStore {
 
     @ObservationIgnored var analysisTask: Task<Void, Never>?
     @ObservationIgnored var _renderRevision: UInt64 = 0
+    /// Incremented each time _runAnalysis starts. Captured by the analysis Task and
+    /// checked before every tabs.setOutput inside renderThreeOmegaTab so that a
+    /// cancelled/superseded analysis cannot write output after a newer one begins.
+    @ObservationIgnored var _analysisRevision: UInt64 = 0
     @ObservationIgnored var scalingTask: Task<Void, Never>?
 
     deinit {

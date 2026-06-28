@@ -43,6 +43,14 @@ struct ThreeOmegaTabRenderResult {
 @MainActor
 extension ThreeOmegaWorkspaceStore {
 
+    /// Returns true when the ongoing render belongs to a superseded analysis run and
+    /// must not commit any state. Checks both the revision token and cooperative
+    /// cancellation so either mechanism independently stops stale writes.
+    private func _isAnalysisStale(_ analysisRevision: UInt64?) -> Bool {
+        guard let ar = analysisRevision else { return false }
+        return ar != _analysisRevision || Task.isCancelled
+    }
+
     func renderThreeOmegaTab(
         _ tab: ThreeOmegaWorkbenchTab,
         ingestion: ThreeOmegaIngestionResult,
@@ -51,6 +59,7 @@ extension ThreeOmegaWorkspaceStore {
         globalSettings: ThreeOmegaRendererGlobalSettings,
         tabSnapshot: WorkbenchTabDisplayStateSnapshot,
         revision: UInt64? = nil,
+        analysisRevision: UInt64? = nil,
         policy: DisplayOverridePolicy = .preserveDisplayOverrides
     ) async -> ThreeOmegaTabRenderResult {
         var renderer = ThreeOmegaPlotRenderer()
@@ -121,7 +130,9 @@ extension ThreeOmegaWorkspaceStore {
         case .scaling:
             guard let scalingResult, geometry.isComplete else {
                 let empty = ThreeOmegaTabRenderResult(imageData: nil, layout: nil, displayPayload: nil, warnings: [])
-                tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+                if !_isAnalysisStale(analysisRevision) {
+                    tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+                }
                 return empty
             }
             let method = v3Method == .highField ? "(HFE)" : "(WA)"
@@ -130,7 +141,9 @@ extension ThreeOmegaWorkspaceStore {
 
         guard let payload else {
             let empty = ThreeOmegaTabRenderResult(imageData: nil, layout: nil, displayPayload: nil, warnings: [])
-            tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+            if !_isAnalysisStale(analysisRevision) {
+                tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+            }
             return empty
         }
         let displayPayload = payload
@@ -151,7 +164,7 @@ extension ThreeOmegaWorkspaceStore {
             let output = try await Task.detached(priority: .userInitiated) {
                 try WorkbenchRenderPipeline.render(input)
             }.value
-            if let revision, revision != _renderRevision {
+            if (revision.map { $0 != _renderRevision } ?? false) || _isAnalysisStale(analysisRevision) {
                 return ThreeOmegaTabRenderResult(
                     imageData: output.imageData,
                     layout: output.layout,
@@ -173,7 +186,9 @@ extension ThreeOmegaWorkspaceStore {
                 warnings: output.warnings
             )
         } catch {
-            tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+            if !_isAnalysisStale(analysisRevision) {
+                tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+            }
             return ThreeOmegaTabRenderResult(
                 imageData: nil,
                 layout: nil,
@@ -686,7 +701,8 @@ extension ThreeOmegaWorkspaceStore {
         scalingResult: ThreeOmegaScalingResult?,
         globalSettings: ThreeOmegaRendererGlobalSettings,
         tabSnaps: [ThreeOmegaWorkbenchTab: WorkbenchTabDisplayStateSnapshot]? = nil,
-        fieldSweepSeriesOrder: [String]? = nil
+        fieldSweepSeriesOrder: [String]? = nil,
+        analysisRevision: UInt64? = nil
     ) async -> ThreeOmegaRenderedPlots {
         var plots = ThreeOmegaRenderedPlots()
         let snaps = tabSnaps ?? Dictionary(uniqueKeysWithValues: ThreeOmegaWorkbenchTab.allCases.map { tab in
@@ -713,6 +729,7 @@ extension ThreeOmegaWorkspaceStore {
                 fieldSweepSeriesOrder: fieldSweepSeriesOrder,
                 globalSettings: globalSettings,
                 tabSnapshot: snap,
+                analysisRevision: analysisRevision,
                 policy: .preserveDisplayOverrides
             )
             switch tab {

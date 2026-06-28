@@ -57,6 +57,8 @@ extension ThreeOmegaWorkspaceStore {
         }
 
         analysisTask?.cancel()
+        _analysisRevision &+= 1
+        let capturedAnalysisRevision = _analysisRevision
         isAnalyzing = true
         analysisMessage = nil
         saveMessage = nil
@@ -112,11 +114,21 @@ extension ThreeOmegaWorkspaceStore {
                     .rtCurve: capturedTabSnaps[.rtCurve]!,
                     .scaling: capturedTabSnaps[.scaling]!
                 ],
-                fieldSweepSeriesOrder: alignedSeriesOrder
+                fieldSweepSeriesOrder: alignedSeriesOrder,
+                analysisRevision: capturedAnalysisRevision
             )
+
+            // Guard against publishing stale results: if this task was cancelled while
+            // rendering (a newer analysis started), discard the output without writing
+            // to tabs, manifestCache, analysisMessage, or ingestionResult.
+            guard !Task.isCancelled else { return }
 
             await MainActor.run { [weak self] in
                 guard let self else { return }
+                // Final cancellation check on MainActor before committing any state.
+                // Prevents a race where cancel arrives between the async render completing
+                // and the MainActor block being scheduled.
+                guard !Task.isCancelled else { return }
                 self.ingestionResult = result
                 self.setFieldSweepSeriesOrder(alignedSeriesOrder)
 

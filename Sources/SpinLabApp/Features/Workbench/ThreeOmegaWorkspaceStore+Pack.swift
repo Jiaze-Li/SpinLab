@@ -86,11 +86,11 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
     }
 
 
-    func buildPackConfig() -> ThreeOmegaPackConfig { _buildPackConfig() }
+        func buildPackConfig() -> ThreeOmegaPackConfig { _buildPackConfig() }
 
-func buildPackResult() -> ThreeOmegaPackResult { _buildPackResult() }
+    func buildPackResult() -> ThreeOmegaPackResult { _buildPackResult() }
 
-func autoPackLabel() -> String { _autoPackLabel() }
+    func autoPackLabel() -> String { _autoPackLabel() }
 
 
     func cancelInflightWork() {

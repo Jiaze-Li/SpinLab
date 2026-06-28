@@ -186,7 +186,9 @@ struct V710StaleOverrideResetTests {
 
         let outputB = try WorkbenchRenderPipeline.render(inputB)
 
-        #expect(outputB.manifestPayload.title == "My Title")
+        // Stage 4C contract: manifestPayload.title stays display-clean (source title),
+        // even when titleOverride is applied for display. The override lives in state only.
+        #expect(outputB.manifestPayload.title == "Test")
         #expect(manager.state(for: .main).titleOverride == "My Title")
         #expect(manager.state(for: .main).xLabelOverride == "My X")
         #expect(manager.state(for: .main).yLabelOverride == "My Y")
@@ -227,7 +229,9 @@ struct V710StaleOverrideResetTests {
         #expect(rerenderInput.titleOverride == "test", "legend drag rerender must preserve the committed override")
 
         let rerenderOutput = try WorkbenchRenderPipeline.render(rerenderInput)
-        #expect(rerenderOutput.manifestPayload.title == "test")
+        // Stage 4C contract: manifestPayload.title stays display-clean (source title).
+        // titleOverride is preserved in state and applied to rendered image, but not baked into manifest.
+        #expect(rerenderOutput.manifestPayload.title == "Source B default")
         #expect(manager.state(for: .main).titleOverride == "test")
     }
 

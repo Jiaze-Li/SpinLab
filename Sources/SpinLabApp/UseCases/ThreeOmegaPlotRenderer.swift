@@ -259,6 +259,17 @@ struct ThreeOmegaPlotRenderer {
         method: ThreeOmegaV3Method
     ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
         guard let payload = _makeRAHEVsDevicePayload(sweeps: sweeps, harmonic: harmonic, device: device, method: method) else {
+            // Diagnose why: if parsed points exist but span multiple temperatures, emit a diagnostic.
+            let parsed = sweeps.compactMap { sweep -> Double? in
+                guard ThreeOmegaDeviceAngleParser.parseDegrees(sweep.device) != nil,
+                      sweep.rahe(harmonic: harmonic, method: method) != nil else { return nil }
+                return sweep.temperatureK
+            }
+            if Set(parsed).count > 1 {
+                let hLabel = harmonic == 1 ? "1ω" : "3ω"
+                let warning = "RAHE(\(hLabel)) vs Device: mixed temperatures detected — chart requires a single temperature. Select sweeps from one temperature only."
+                return (nil, nil, nil, [warning])
+            }
             return (nil, nil, nil, [])
         }
         let displayPayload = payload
