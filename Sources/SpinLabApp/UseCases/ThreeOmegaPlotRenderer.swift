@@ -13,7 +13,7 @@ struct ThreeOmegaPlotRenderer {
     static let scalingXAxisLabel = #"math:σ_{xx}^{2} × 10^{7} (S^{2} cm^{-2})"#
     static let scalingYAxisLabel = #"math:E_{AHE}^{3ω} / (E_{xx}^{3}·σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})"#
 
-    var workflowID: String = ""
+    var workflowID: String = WorkflowKey.threeOmega.rawValue
     var showGrid: Bool = true
     var legendAnchor: String = ""           // "" = top-right (default)
     var legendPoint: CGPoint? = nil         // normalized free-position; overrides anchor
