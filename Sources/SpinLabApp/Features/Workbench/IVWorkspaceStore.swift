@@ -283,6 +283,7 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
             stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
             showPlotGrid: tabs.showPlotGrid,
+            legendAnchor: tabs.legendAnchor,
             seriesRenderMode: tabs.seriesRenderMode,
             chartStyleOverrides: splitOverrides.local,
             ch1Component: ch1Component.rawValue,
@@ -417,6 +418,7 @@ extension IVWorkspaceStore: AnalysisPackProviding {
         stackOffsetMultiplier = config.stackOffsetMultiplier
         minGapFraction = config.minGapFraction
         tabs.showPlotGrid = config.showPlotGrid
+        tabs.legendAnchor = config.legendAnchor
         tabs.seriesRenderMode = config.seriesRenderMode
         let splitOverrides = WorkbenchChartStyle.splitGlobalPlotDefaults(from: config.chartStyleOverrides)
         if !splitOverrides.global.isEmpty {

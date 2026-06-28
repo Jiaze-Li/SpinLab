@@ -719,3 +719,97 @@ struct V750TabKeyReadPathTests {
         }
     }
 }
+
+// MARK: - Suite 4: Stage 2A-1 — 3ω manifestPayload purity
+
+/// Verifies that _refreshManifestPayloads never bakes TabRenderState display overrides into
+/// manifestPayload, and that the code change in renderThreeOmegaTab preserves clean manifests.
+
+@Suite("V2A1 3ω manifest payload purity")
+struct V2A1ThreeOmegaManifestPayloadPurityTests {
+
+    @MainActor
+    private func makeStoreWithIngestion() -> ThreeOmegaWorkspaceStore {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        store.ingestionResult = ThreeOmegaIngestionResult(device: "0deg", deviceMode: "single")
+        store.cachedInputFiles = ["/fake/file.lvm"]
+        store.cachedRTFilePath = nil
+        return store
+    }
+
+    // MARK: - _refreshManifestPayloads ignores title override
+
+    @MainActor
+    @Test("_refreshManifestPayloads title is scientific label, not titleOverride")
+    func refreshManifestPayloadsIgnoresTitleOverride() {
+        let store = makeStoreWithIngestion()
+        store.tabs.tabStates[.fieldSweep1omega, default: TabRenderState()].titleOverride = "Custom Title"
+        store._refreshManifestPayloads()
+        let manifest = store.tabs.output(for: .fieldSweep1omega).manifestPayload
+        #expect(manifest != nil,
+                "fieldSweep1omega manifest must be set after _refreshManifestPayloads")
+        #expect(manifest?.title != "Custom Title",
+                "manifestPayload.title must not reflect titleOverride — TabRenderState owns display labels")
+    }
+
+    // MARK: - _refreshManifestPayloads ignores axis label overrides
+
+    @MainActor
+    @Test("_refreshManifestPayloads axisMapping is scientific field name, not xLabelOverride")
+    func refreshManifestPayloadsIgnoresXLabelOverride() {
+        let store = makeStoreWithIngestion()
+        store.tabs.tabStates[.fieldSweep1omega, default: TabRenderState()].xLabelOverride = "My X Axis"
+        store.tabs.tabStates[.fieldSweep1omega, default: TabRenderState()].yLabelOverride = "My Y Axis"
+        store._refreshManifestPayloads()
+        let manifest = store.tabs.output(for: .fieldSweep1omega).manifestPayload
+        #expect(manifest?.axisMapping.xField != "My X Axis",
+                "manifestPayload.axisMapping.xField must not reflect xLabelOverride")
+        #expect(manifest?.axisMapping.yField != "My Y Axis",
+                "manifestPayload.axisMapping.yField must not reflect yLabelOverride")
+        #expect(manifest?.axisMapping.xField == "H (T)",
+                "manifestPayload.axisMapping.xField must be the scientific field name")
+        #expect(manifest?.axisMapping.yField == "R(1ω) (Ω)",
+                "manifestPayload.axisMapping.yField must be the scientific field name")
+    }
+
+    // MARK: - Clean manifest survives re-render via TabRenderOutput preservation
+
+    @MainActor
+    @Test("clean manifestPayload survives a setOutput call that preserves existing manifest")
+    func cleanManifestSurvivesSetOutputPreservation() {
+        let store = makeStoreWithIngestion()
+        store._refreshManifestPayloads()
+        let clean = store.tabs.output(for: .fieldSweep1omega).manifestPayload
+
+        // Simulate the fixed renderThreeOmegaTab behaviour: preserve existing manifest
+        let after = TabRenderOutput(
+            imageData: nil,
+            layout: nil,
+            manifestPayload: store.tabs.output(for: .fieldSweep1omega).manifestPayload,
+            displayPayload: nil
+        )
+        store.tabs.setOutput(after, for: .fieldSweep1omega)
+
+        #expect(store.tabs.output(for: .fieldSweep1omega).manifestPayload?.title == clean?.title,
+                "manifest title must survive a re-render that preserves existing manifestPayload")
+        #expect(store.tabs.output(for: .fieldSweep1omega).manifestPayload?.axisMapping.xField
+                == clean?.axisMapping.xField,
+                "manifest xField must survive a re-render that preserves existing manifestPayload")
+    }
+
+    // MARK: - Source inspection: renderThreeOmegaTab no longer assigns output.manifestPayload
+
+    @Test("renderThreeOmegaTab does not assign output.manifestPayload to TabRenderOutput.manifestPayload")
+    func renderThreeOmegaTabNoLongerPollutesManifest() throws {
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let url = root.appending(path: "Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Rendering.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+
+        // Stage 2A-1 fix: TabRenderOutput inside renderThreeOmegaTab must NOT use output.manifestPayload
+        // as the manifestPayload field — it must preserve tabs.output(for: tab).manifestPayload instead.
+        // Search for the exact forbidden pattern that would bake pipeline display overrides into manifest.
+        let forbiddenPattern = "manifestPayload: output.manifestPayload"
+        #expect(!source.contains(forbiddenPattern),
+                "renderThreeOmegaTab must not set manifestPayload: output.manifestPayload — use tabs.output(for: tab).manifestPayload to preserve clean manifest from _refreshManifestPayloads")
+    }
+}

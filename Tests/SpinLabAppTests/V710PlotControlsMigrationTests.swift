@@ -141,7 +141,7 @@ struct V710StaleOverrideResetTests {
     private enum TestTab: String, Hashable, Sendable { case main }
 
     @MainActor
-    @Test("Source identity change clears stale title and axis overrides while retaining live series labels")
+    @Test("Source identity change preserves committed display overrides while retaining live series labels")
     func staleTextOverridesClearBeforeRenderInputBuild() throws {
         let manager = TabRenderManager<TestTab>(defaultTab: .main)
 
@@ -176,9 +176,9 @@ struct V710StaleOverrideResetTests {
         let payloadB = makeMinimalPayload(semanticParams: ["temperature": "200K"])
         let inputB = manager.buildPipelineInput(payload: payloadB, for: .main)
 
-        #expect(inputB.titleOverride == "")
-        #expect(inputB.xLabelOverride == "")
-        #expect(inputB.yLabelOverride == "")
+        #expect(inputB.titleOverride == "My Title")
+        #expect(inputB.xLabelOverride == "My X")
+        #expect(inputB.yLabelOverride == "My Y")
         #expect(inputB.seriesLabelOverrides == [0: "Renamed A"])
         #expect(inputB.legendPoint?.x == 0.25)
         #expect(inputB.legendPoint?.y == 0.75)
@@ -186,16 +186,19 @@ struct V710StaleOverrideResetTests {
 
         let outputB = try WorkbenchRenderPipeline.render(inputB)
 
-        #expect(outputB.manifestPayload.title == payloadB.title)
-        #expect(manager.state(for: .main).xLabelOverride == "")
-        #expect(manager.state(for: .main).yLabelOverride == "")
+        // Stage 4C contract: manifestPayload.title stays display-clean (source title),
+        // even when titleOverride is applied for display. The override lives in state only.
+        #expect(outputB.manifestPayload.title == "Test")
+        #expect(manager.state(for: .main).titleOverride == "My Title")
+        #expect(manager.state(for: .main).xLabelOverride == "My X")
+        #expect(manager.state(for: .main).yLabelOverride == "My Y")
         #expect(manager.state(for: .main).seriesLabelOverrides == ["/tmp/sample-a.dat": "Renamed A"])
         #expect(manager.state(for: .main).legendPoint?.cgPoint == CGPoint(x: 0.25, y: 0.75))
         #expect(manager.state(for: .main).seriesOrder == ["key-b", "key-a"])
     }
 
     @MainActor
-    @Test("Legend drag rerender does not resurrect a cleared title override")
+    @Test("Legend drag rerender preserves a committed title override")
     func legendDragDoesNotResurrectClearedTitleOverride() throws {
         let manager = TabRenderManager<TestTab>(defaultTab: .main)
 
@@ -215,23 +218,25 @@ struct V710StaleOverrideResetTests {
         )
 
         let inputB = manager.buildPipelineInput(payload: payloadB, for: .main)
-        #expect(inputB.titleOverride.isEmpty, "source identity change must clear stale title override before render")
+        #expect(inputB.titleOverride == "test", "source identity change must preserve committed title override before render")
 
         let outputB = try WorkbenchRenderPipeline.render(inputB)
         manager.applyPipelineOutput(outputB, for: .main)
-        #expect(manager.state(for: .main).titleOverride.isEmpty)
+        #expect(manager.state(for: .main).titleOverride == "test")
 
         manager.updateLegendPoint(CGPoint(x: 0.25, y: 0.75))
         let rerenderInput = manager.buildPipelineInput(payload: payloadB, for: .main)
-        #expect(rerenderInput.titleOverride.isEmpty, "legend drag rerender must not resurrect a cleared override")
+        #expect(rerenderInput.titleOverride == "test", "legend drag rerender must preserve the committed override")
 
         let rerenderOutput = try WorkbenchRenderPipeline.render(rerenderInput)
-        #expect(rerenderOutput.manifestPayload.title == payloadB.title)
-        #expect(manager.state(for: .main).titleOverride.isEmpty)
+        // Stage 4C contract: manifestPayload.title stays display-clean (source title).
+        // titleOverride is preserved in state and applied to rendered image, but not baked into manifest.
+        #expect(rerenderOutput.manifestPayload.title == "Source B default")
+        #expect(manager.state(for: .main).titleOverride == "test")
     }
 
     @MainActor
-    @Test("legendPoint and seriesOrder survive identity change")
+    @Test("legendPoint, seriesOrder, and title survive identity change")
     func legendPointAndOrderPreservedOnIdentityChange() throws {
         let manager = TabRenderManager<TestTab>(defaultTab: .main)
 
@@ -245,14 +250,14 @@ struct V710StaleOverrideResetTests {
         let payloadA = makeMinimalPayload(semanticParams: ["temperature": "80K"])
         let outputA = try makeMinimalPipelineOutput(payload: payloadA)
         manager.applyPipelineOutput(outputA, for: .main)
-        // First apply establishes the identity without clearing (no prior key)
-        // re-inject with a different identity to trigger the clear
+        // First apply establishes the identity without clearing (no prior key).
+        // Re-inject with a different identity to verify preservation on source update.
         let payloadB = makeMinimalPayload(semanticParams: ["temperature": "300K"])
         let outputB = try makeMinimalPipelineOutput(payload: payloadB)
         manager.applyPipelineOutput(outputB, for: .main)
 
         let state = manager.state(for: .main)
-        #expect(state.titleOverride == "", "title override must be cleared")
+        #expect(state.titleOverride == "Title to clear", "title override must survive identity change")
         #expect(state.legendPoint?.cgPoint == CGPoint(x: 0.3, y: 0.7), "legendPoint must survive")
         #expect(state.seriesOrder == ["key-b", "key-a"], "seriesOrder must survive")
     }
@@ -496,6 +501,60 @@ struct V710StaleOverrideResetTests {
 
         #expect(manager.state(for: .main).titleOverride == "Keep This")
         #expect(manager.state(for: .main).seriesLabelOverrides["/tmp/sample-a.dat"] == "Preserved Label")
+    }
+
+    @MainActor
+    @Test("buildPipelineInput maps display overrides against the reversed visual order")
+    func buildPipelineInputUsesReversedSeriesOrderForOverrides() {
+        let manager = TabRenderManager<TestTab>(defaultTab: .main)
+        let payload = WorkbenchPlotPayload(
+            workflowID: "3w",
+            workflowDisplayName: "3w",
+            title: "R(1ω)",
+            axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R (Ω)"),
+            series: [
+                WorkbenchPlotSeries(label: "Bottom", x: [0], y: [0], sourceRef: "/tmp/bottom.csv", sampleID: "bottom"),
+                WorkbenchPlotSeries(label: "Top", x: [0], y: [1], sourceRef: "/tmp/top.csv", sampleID: "top")
+            ],
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+        let tabState = WorkbenchTabDisplayStateSnapshot(
+            titleOverride: "Custom Title",
+            xLabelOverride: "Custom X",
+            yLabelOverride: "Custom Y",
+            seriesLabelOverrides: [
+                "/tmp/bottom.csv": "Bottom Renamed",
+                "/tmp/top.csv": "Top Renamed"
+            ],
+            legendPoint: nil,
+            hiddenPointLabelsBySeries: [
+                "/tmp/bottom.csv": [1],
+                "/tmp/top.csv": [0]
+            ],
+            seriesOrder: nil,
+            axisRangeOverride: AxisRangeOverride(xMin: 1, xMax: 2, yMin: nil, yMax: nil),
+            showPointTags: true
+        )
+
+        let input = manager.buildPipelineInput(
+            payload: payload,
+            tabState: tabState,
+            showPlotGrid: manager.showPlotGrid,
+            seriesRenderMode: manager.seriesRenderMode,
+            chartStyleOverrides: manager.chartStyleOverrides,
+            legendAnchor: manager.legendAnchor,
+            for: .main
+        )
+
+        #expect(input.titleOverride == "Custom Title")
+        #expect(input.xLabelOverride == "Custom X")
+        #expect(input.yLabelOverride == "Custom Y")
+        #expect(input.seriesLabelOverrides == [0: "Top Renamed", 1: "Bottom Renamed"])
+        #expect(input.hiddenPointLabelsBySeries == [0: Set([0]), 1: Set([1])])
+        #expect(input.axisRangeOverride?.xMin == 1)
+        #expect(input.axisRangeOverride?.xMax == 2)
+        #expect(input.showPointTags == true)
     }
 
     @MainActor
@@ -938,6 +997,76 @@ struct V710LabelOverrideFieldSyncTests {
 
         #expect(editText == "te", "same-source rerenders must not overwrite in-flight typing")
         #expect(isDirty, "typing should remain dirty while focused")
+    }
+
+    // MARK: - Contract: text commit rule
+
+    @Test("Non-empty editText different from renderedDefault commits trimmed text")
+    func nonEmptyDifferentFromDefaultCommitsTrimmed() {
+        var isDirty = true
+        var commits: [String] = []
+        LabelOverrideFieldSync.commitIfDirty(
+            editText: "Custom",
+            isDirty: &isDirty,
+            renderedDefault: "Default"
+        ) { commits.append($0) }
+        #expect(commits == ["Custom"])
+        #expect(!isDirty)
+    }
+
+    @Test("Non-empty editText equal to renderedDefault commits that text, not empty")
+    func nonEmptyMatchingDefaultCommitsTextNotEmpty() {
+        var isDirty = true
+        var commits: [String] = []
+        LabelOverrideFieldSync.commitIfDirty(
+            editText: "Custom",
+            isDirty: &isDirty,
+            renderedDefault: "Custom"
+        ) { commits.append($0) }
+        #expect(commits == ["Custom"],
+                "text matching rendered value must commit as-is, not be cleared to empty")
+        #expect(!isDirty)
+    }
+
+    @Test("Repeated commit with same non-empty text is idempotent")
+    func repeatedNonEmptyCommitIsIdempotent() {
+        var commits: [String] = []
+        for _ in 0..<3 {
+            var isDirty = true
+            LabelOverrideFieldSync.commitIfDirty(
+                editText: "My Title",
+                isDirty: &isDirty,
+                renderedDefault: "Default"
+            ) { commits.append($0) }
+        }
+        #expect(commits == ["My Title", "My Title", "My Title"],
+                "each dirty commit of the same non-empty text must produce the same value")
+    }
+
+    @Test("Empty editText commits renderedDefault as fallback, not empty string")
+    func emptyEditTextCommitsFallback() {
+        var isDirty = true
+        var commits: [String] = []
+        LabelOverrideFieldSync.commitIfDirty(
+            editText: "",
+            isDirty: &isDirty,
+            renderedDefault: "Workflow Default"
+        ) { commits.append($0) }
+        #expect(commits == ["Workflow Default"],
+                "empty field must commit the workflow default, not an empty string")
+    }
+
+    @Test("Whitespace-only editText commits renderedDefault as fallback")
+    func whitespaceOnlyEditTextCommitsFallback() {
+        var isDirty = true
+        var commits: [String] = []
+        LabelOverrideFieldSync.commitIfDirty(
+            editText: "   \t  ",
+            isDirty: &isDirty,
+            renderedDefault: "Workflow Default"
+        ) { commits.append($0) }
+        #expect(commits == ["Workflow Default"],
+                "whitespace-only field must commit the workflow default, not whitespace")
     }
 }
 

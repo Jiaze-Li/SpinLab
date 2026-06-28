@@ -275,6 +275,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
     // MARK: - Pack helpers (private)
 
     private func _buildPackConfig() -> XYRotationPackConfig {
+        let splitOverrides = WorkbenchChartStyle.splitGlobalPlotDefaults(from: tabs.chartStyleOverrides)
         return XYRotationPackConfig(
             phiOffsetOverrides: phiOffsetOverrides,
             centerBaseline: centerBaseline,
@@ -284,6 +285,10 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
             stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
             showPlotGrid: tabs.showPlotGrid,
+            showAuxiliaryLine180: showAuxiliaryLine180,
+            legendAnchor: tabs.legendAnchor,
+            seriesRenderMode: tabs.seriesRenderMode,
+            chartStyleOverrides: splitOverrides.local,
             tabStates: tabs.snapshotStates(keyFor: { $0.rawValue }),
             cachedSearchResults: cachedSearchResults,
             selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: workflowID) ?? []),
@@ -427,6 +432,7 @@ extension XYRotationWorkspaceStore: AnalysisPackProviding {
         phiOffsetOverrides = config.phiOffsetOverrides
         centerBaseline = config.centerBaseline
         linearDetrend = config.linearDetrend
+        showAuxiliaryLine180 = config.showAuxiliaryLine180
 
         // Restore display settings
         if let tab = XYRotationWorkbenchTab(rawValue: config.activeTab) {
@@ -436,6 +442,11 @@ extension XYRotationWorkspaceStore: AnalysisPackProviding {
         stackOffsetMultiplier = config.stackOffsetMultiplier
         minGapFraction = config.minGapFraction
         tabs.showPlotGrid = config.showPlotGrid
+        tabs.legendAnchor = config.legendAnchor
+        tabs.seriesRenderMode = config.seriesRenderMode
+        let splitOverrides = WorkbenchChartStyle.splitGlobalPlotDefaults(from: config.chartStyleOverrides)
+        if !splitOverrides.global.isEmpty { globalPlotDefaults = splitOverrides.global }
+        tabs.chartStyleOverrides = splitOverrides.local
 
         // Restore per-tab states from pack
         tabs.restoreStates(config.tabStates) { XYRotationWorkbenchTab(rawValue: $0) }

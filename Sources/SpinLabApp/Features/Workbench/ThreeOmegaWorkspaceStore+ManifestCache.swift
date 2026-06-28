@@ -242,20 +242,8 @@ extension ThreeOmegaWorkspaceStore {
                     appendWarning(source: "Manifest", message: message)
                 }
             }
-            // Apply per-tab text overrides (same patch contract as _rerenderActiveTab).
-            let payload: WorkbenchPlotPayload? = {
-                guard var p = rawPayload else { return nil }
-                let s = tabs.state(for: tab)
-                if !s.titleOverride.isEmpty { p.title = s.titleOverride }
-                if !s.xLabelOverride.isEmpty { p.axisMapping.xField = s.xLabelOverride }
-                if !s.yLabelOverride.isEmpty { p.axisMapping.yField = s.yLabelOverride }
-                if !s.seriesLabelOverrides.isEmpty {
-                    p.series = applySeriesLabelOverrides(s.seriesLabelOverrides, to: p.series)
-                }
-                return p
-            }()
             var existing = tabs.tabOutputs[tab] ?? TabRenderOutput()
-            existing.manifestPayload = payload
+            existing.manifestPayload = rawPayload
             tabs.setOutput(existing, for: tab)
         }
     }
@@ -312,26 +300,11 @@ extension ThreeOmegaWorkspaceStore {
                 series: fallbackSeries,
                 semanticParams: params
             )
-            // Apply per-tab text overrides (same patch contract as _rerenderActiveTab).
-            let tabState = tabs.state(for: tab)
-            if !tabState.titleOverride.isEmpty {
-                existing.manifestPayload?.title = tabState.titleOverride
-            }
-            if !tabState.xLabelOverride.isEmpty {
-                existing.manifestPayload?.axisMapping.xField = tabState.xLabelOverride
-            }
-            if !tabState.yLabelOverride.isEmpty {
-                existing.manifestPayload?.axisMapping.yField = tabState.yLabelOverride
-            }
-            if !tabState.seriesLabelOverrides.isEmpty, var p = existing.manifestPayload {
-                p.series = applySeriesLabelOverrides(tabState.seriesLabelOverrides, to: p.series)
-                existing.manifestPayload = p
-            }
             tabs.setOutput(existing, for: tab)
-            }
         }
     }
 
     private func _temperatureLabel(_ temperatureK: Double) -> String {
         "\(Int(temperatureK.rounded())) K"
     }
+}

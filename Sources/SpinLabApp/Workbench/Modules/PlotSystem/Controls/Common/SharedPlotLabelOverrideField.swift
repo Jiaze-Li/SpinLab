@@ -125,7 +125,8 @@ enum LabelOverrideFieldSync {
         guard isDirty else { return }
         isDirty = false
         let trimmed = editText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let toCommit = trimmed == renderedDefault ? "" : trimmed
-        onCommit(toCommit)
+        let fallback = renderedDefault.trimmingCharacters(in: .whitespacesAndNewlines)
+        let committed = trimmed.isEmpty ? fallback : trimmed
+        onCommit(committed)
     }
 }

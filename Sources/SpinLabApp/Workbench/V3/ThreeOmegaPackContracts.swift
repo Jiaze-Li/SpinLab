@@ -22,6 +22,7 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
     var minGapFraction: Double
     var showPlotGrid: Bool
     var plotLegendAnchor: String
+    var seriesRenderMode: SeriesRenderMode
 
     // --- Per-tab display states (v5.3.3+, keyed by stableKey for Codable) ---
     var tabStates: [String: TabRenderState] = [:]
@@ -39,7 +40,8 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
          v3Method: String, rahe1Method: String, rahe3Method: String, rtFilePath: String?,
          sampleBatchAndSubstrate: String, activeTab: String, titleTemplate: String,
          stackOffsetMultiplier: Double, minGapFraction: Double, showPlotGrid: Bool,
-         plotLegendAnchor: String, tabStates: [String: TabRenderState] = [:],
+         plotLegendAnchor: String, seriesRenderMode: SeriesRenderMode = .line,
+         tabStates: [String: TabRenderState] = [:],
          chartStyleOverrides: [String: String] = [:],
          cachedSearchResults: [WorkflowMeasurementSearchHit] = [], selectedSearchResultIDs: [String] = [],
          selectedRTHit: WorkflowMeasurementSearchHit? = nil, rtQuery: String = "", searchQueryText: String = "") {
@@ -49,6 +51,7 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
         self.activeTab = activeTab; self.titleTemplate = titleTemplate
         self.stackOffsetMultiplier = stackOffsetMultiplier; self.minGapFraction = minGapFraction
         self.showPlotGrid = showPlotGrid; self.plotLegendAnchor = plotLegendAnchor
+        self.seriesRenderMode = seriesRenderMode
         self.tabStates = tabStates; self.chartStyleOverrides = chartStyleOverrides
         self.cachedSearchResults = cachedSearchResults
         self.selectedSearchResultIDs = selectedSearchResultIDs; self.selectedRTHit = selectedRTHit
@@ -72,6 +75,7 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
         minGapFraction          = try c.decodeIfPresent(Double.self, forKey: .minGapFraction) ?? 0.15
         showPlotGrid            = try c.decode(Bool.self, forKey: .showPlotGrid)
         plotLegendAnchor        = try c.decodeIfPresent(String.self, forKey: .plotLegendAnchor) ?? ""
+        seriesRenderMode        = try c.decodeIfPresent(SeriesRenderMode.self, forKey: .seriesRenderMode) ?? .line
         tabStates               = try c.decodeIfPresent([String: TabRenderState].self, forKey: .tabStates) ?? [:]
         chartStyleOverrides     = try c.decodeIfPresent([String: String].self, forKey: .chartStyleOverrides) ?? [:]
         cachedSearchResults     = try c.decodeIfPresent([WorkflowMeasurementSearchHit].self, forKey: .cachedSearchResults) ?? []

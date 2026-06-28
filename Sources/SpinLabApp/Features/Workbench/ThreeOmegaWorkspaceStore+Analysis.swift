@@ -57,74 +57,99 @@ extension ThreeOmegaWorkspaceStore {
         }
 
         analysisTask?.cancel()
+        _analysisRevision &+= 1
+        let capturedAnalysisRevision = _analysisRevision
         isAnalyzing = true
         analysisMessage = nil
         saveMessage = nil
         activePackID = nil
         _clearPlots()
 
-        let capturedGrid       = tabs.showPlotGrid
-        let capturedRenderMode = tabs.seriesRenderMode
-        let capturedStyleOverrides = tabs.chartStyleOverrides
-        let capturedAnchor     = tabs.legendAnchor
-        let capturedMultiplier = stackOffsetMultiplier
-        let capturedMinGap     = minGapFraction
-        let capturedTemplate   = titleTemplate
-        let capturedTokens     = _titleTokens
-        let capturedRAHE1MethodForPlots = rahe1omegaMethod
-        let capturedRAHE3MethodForPlots = rahe3omegaMethod
-        let capturedRAHE1DevMethodForPlots = rahe1omegaVsDeviceMethod
-        let capturedRAHE3DevMethodForPlots = rahe3omegaVsDeviceMethod
-        let capturedGlobalPlotDefaults = globalPlotDefaults
+        // Capture global renderer settings and per-tab display state BEFORE going detached
+        // so that re-analysis respects current title/axis/legend/series-label overrides.
+        let capturedGlobalSettings = ThreeOmegaRendererGlobalSettings(
+            workflowID: workflowID,
+            showGrid: tabs.showPlotGrid,
+            seriesRenderMode: tabs.seriesRenderMode,
+            chartStyleOverrides: tabs.chartStyleOverrides,
+            globalPlotDefaults: globalPlotDefaults,
+            legendAnchor: tabs.legendAnchor,
+            stackOffsetMultiplier: stackOffsetMultiplier,
+            minGapFraction: minGapFraction,
+            titleTemplate: titleTemplate,
+            titleTokens: _titleTokens
+        )
+        let capturedTabSnaps: [ThreeOmegaWorkbenchTab: WorkbenchTabDisplayStateSnapshot] =
+            Dictionary(uniqueKeysWithValues: ThreeOmegaWorkbenchTab.allCases.map { ($0, tabs.displayStateSnapshot(for: $0)) })
 
-        let capturedWorkflowID = workflowID
+        let capturedScaling = scalingResult
+        let capturedFieldSweepSeriesOrder = fieldSweepSeriesOrder
         let capturedRTResult = cachedRTResult
         let capturedNumericDisplay: [String: [String: String]] = cachedSampleNumericDisplay
-        let capturedFieldSweepSeriesOrder = fieldSweepSeriesOrder
 
         analysisTask = Task { [weak self] in
             guard let self else { return }
-            let (result, plots, alignedSeriesOrder) = await Task.detached(priority: .userInitiated) { [selectedHits] in
+            let result = await Task.detached(priority: .userInitiated) { [selectedHits] in
                 let ingestUseCase = IngestThreeOmegaSelectionsUseCase()
-                let result = ingestUseCase.execute(hits: selectedHits, rtAnalysisResult: capturedRTResult, numericDisplayBySample: capturedNumericDisplay)
-                let alignedSeriesOrder = ThreeOmegaWorkspaceStore.alignSeriesOrder(old: capturedFieldSweepSeriesOrder, fieldSweeps: result.fieldSweeps)
-                var renderer = ThreeOmegaPlotRenderer()
-                renderer.workflowID            = capturedWorkflowID
-                renderer.showGrid              = capturedGrid
-                renderer.seriesRenderMode      = capturedRenderMode
-                renderer.chartStyleOverrides   = capturedStyleOverrides
-                renderer.globalPlotDefaults    = capturedGlobalPlotDefaults
-                renderer.legendAnchor          = capturedAnchor
-                renderer.stackOffsetMultiplier = capturedMultiplier
-                renderer.minGapFraction        = capturedMinGap
-                renderer.titleTemplate          = capturedTemplate
-                renderer.titleTokens            = capturedTokens
-                let plots = renderer.renderAllTabs(result: result, seriesOrder1omega: alignedSeriesOrder, seriesOrder3omega: alignedSeriesOrder, rahe1Method: capturedRAHE1MethodForPlots, rahe3Method: capturedRAHE3MethodForPlots, rahe1DevMethod: capturedRAHE1DevMethodForPlots, rahe3DevMethod: capturedRAHE3DevMethodForPlots)
-                return (result, plots, alignedSeriesOrder)
+                return ingestUseCase.execute(hits: selectedHits, rtAnalysisResult: capturedRTResult, numericDisplayBySample: capturedNumericDisplay)
             }.value
 
             guard !Task.isCancelled else { return }
-            self.ingestionResult = result
-            self._applyPlots(plots, policy: .clearDisplayOverridesIfSourceChanged)
-            self.setFieldSweepSeriesOrder(alignedSeriesOrder)
+            let alignedSeriesOrder = ThreeOmegaWorkspaceStore.alignSeriesOrder(old: capturedFieldSweepSeriesOrder, fieldSweeps: result.fieldSweeps)
+            let snap1 = capturedTabSnaps[.fieldSweep1omega]!.with(seriesOrder: alignedSeriesOrder)
+            let snap3 = capturedTabSnaps[.fieldSweep3omega]!.with(seriesOrder: alignedSeriesOrder)
+            let renderSettings = capturedGlobalSettings
+            let plots = await self.renderAllThreeOmegaTabs(
+                ingestion: result,
+                scalingResult: capturedScaling,
+                globalSettings: renderSettings,
+                tabSnaps: [
+                    .fieldSweep1omega: snap1,
+                    .fieldSweep3omega: snap3,
+                    .rahe1omegaVsT: capturedTabSnaps[.rahe1omegaVsT]!,
+                    .rahe3omegaVsT: capturedTabSnaps[.rahe3omegaVsT]!,
+                    .rahe1omegaVsDevice: capturedTabSnaps[.rahe1omegaVsDevice]!,
+                    .rahe3omegaVsDevice: capturedTabSnaps[.rahe3omegaVsDevice]!,
+                    .hcVsT: capturedTabSnaps[.hcVsT]!,
+                    .rtCurve: capturedTabSnaps[.rtCurve]!,
+                    .scaling: capturedTabSnaps[.scaling]!
+                ],
+                fieldSweepSeriesOrder: alignedSeriesOrder,
+                analysisRevision: capturedAnalysisRevision
+            )
 
-            // Pipeline warnings (legend resolver)
-            for w in plots.pipelineWarnings {
-                self.appendWarning(source: "Legend", message: w)
+            // Guard against publishing stale results: if this task was cancelled while
+            // rendering (a newer analysis started), discard the output without writing
+            // to tabs, manifestCache, analysisMessage, or ingestionResult.
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                // Final cancellation check on MainActor before committing any state.
+                // Prevents a race where cancel arrives between the async render completing
+                // and the MainActor block being scheduled.
+                guard !Task.isCancelled else { return }
+                self.ingestionResult = result
+                self.setFieldSweepSeriesOrder(alignedSeriesOrder)
+
+                // Pipeline warnings (legend resolver)
+                for w in plots.pipelineWarnings {
+                    self.appendWarning(source: "Legend", message: w)
+                }
+
+                let sweepCount = result.fieldSweeps.count
+                let rtNote     = result.rtResult != nil ? ", RT curve loaded" : ""
+                self.analysisMessage = "Analyzed \(sweepCount) field-sweep file(s)\(rtNote)."
+
+                for w in result.warnings {
+                    self.appendWarning(source: "Ingestion", message: w)
+                }
+
+                self._snapshotAndCacheManifestPayloads(from: selectedHits)
+                self.commitRunTrace()
+                self.isAnalyzing = false
+                self.refreshRelatedCharts()
             }
-
-            let sweepCount = result.fieldSweeps.count
-            let rtNote     = result.rtResult != nil ? ", RT curve loaded" : ""
-            self.analysisMessage = "Analyzed \(sweepCount) field-sweep file(s)\(rtNote)."
-
-            for w in result.warnings {
-                self.appendWarning(source: "Ingestion", message: w)
-            }
-
-            self._snapshotAndCacheManifestPayloads(from: selectedHits)
-            self.commitRunTrace()
-            self.isAnalyzing = false
-            self.refreshRelatedCharts()
         }
     }
 

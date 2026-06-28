@@ -8,6 +8,10 @@ struct AHEPackConfig: Codable, Hashable, Sendable {
     // --- Display settings ---
     var titleTemplate: String
     var showPlotGrid: Bool
+    // --- PlotControl display status (v8.5A+) ---
+    var legendAnchor: String
+    var seriesRenderMode: SeriesRenderMode
+    var chartStyleOverrides: [String: String]
 
     // --- Per-tab display states (v5.3.3+) ---
     var tabStates: [String: TabRenderState]
@@ -17,10 +21,15 @@ struct AHEPackConfig: Codable, Hashable, Sendable {
     var selectedSearchResultIDs: [String]
     var searchQueryText: String
 
-    init(titleTemplate: String, showPlotGrid: Bool, tabStates: [String: TabRenderState] = [:],
+    init(titleTemplate: String, showPlotGrid: Bool,
+         legendAnchor: String = "", seriesRenderMode: SeriesRenderMode = .line,
+         chartStyleOverrides: [String: String] = [:],
+         tabStates: [String: TabRenderState] = [:],
          cachedSearchResults: [WorkflowMeasurementSearchHit] = [],
          selectedSearchResultIDs: [String] = [], searchQueryText: String = "") {
         self.titleTemplate = titleTemplate; self.showPlotGrid = showPlotGrid
+        self.legendAnchor = legendAnchor; self.seriesRenderMode = seriesRenderMode
+        self.chartStyleOverrides = chartStyleOverrides
         self.tabStates = tabStates; self.cachedSearchResults = cachedSearchResults
         self.selectedSearchResultIDs = selectedSearchResultIDs; self.searchQueryText = searchQueryText
     }
@@ -44,6 +53,9 @@ struct AHEPackConfig: Codable, Hashable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         titleTemplate          = try c.decodeIfPresent(String.self, forKey: .titleTemplate) ?? ""
         showPlotGrid           = try c.decodeIfPresent(Bool.self, forKey: .showPlotGrid) ?? true
+        legendAnchor           = try c.decodeIfPresent(String.self, forKey: .legendAnchor) ?? ""
+        seriesRenderMode       = try c.decodeIfPresent(SeriesRenderMode.self, forKey: .seriesRenderMode) ?? .line
+        chartStyleOverrides    = try c.decodeIfPresent([String: String].self, forKey: .chartStyleOverrides) ?? [:]
         tabStates              = try c.decodeIfPresent([String: TabRenderState].self, forKey: .tabStates) ?? [:]
         cachedSearchResults    = try c.decodeIfPresent([WorkflowMeasurementSearchHit].self, forKey: .cachedSearchResults) ?? []
         selectedSearchResultIDs = try c.decodeIfPresent([String].self, forKey: .selectedSearchResultIDs) ?? []

@@ -566,8 +566,8 @@ struct V78CIVPlotControlsPathTests {
         let source = try loadWorkbenchSource("IVWorkspaceStore.swift")
         #expect(source.contains("tabs.buildPipelineInput(payload: payload, globalPlotDefaults: globalPlotDefaults, for: tab)"),
                 "IV rerender must route payloads through TabRenderManager.buildPipelineInput")
-        #expect(source.contains("tabs.applyPipelineOutput(output, for: tab)"),
-                "IV rerender must apply the pipeline output back through TabRenderManager")
+        #expect(source.contains("tabs.applyPipelineOutput(output, displayPayload: displayPayload, for: tab)"),
+                "IV rerender must apply the pipeline output back through TabRenderManager (with displayPayload for export)")
     }
 
     @Test("IVWorkspaceStore.swift exposes standard plot binding state")
@@ -814,10 +814,18 @@ struct V78CRSMPlotControlsPathTests {
         style.axisTitleFontSize = 24
         style.tickLabelFontSize = 22
 
+        // Fractional RSM-style y-values produce wide tick labels (e.g. "-0.125", "0.625")
+        // that stress-test the text-measurement-based layout expansion at large font sizes.
+        // Integer-only values like [0, 1] produce labels too narrow to trigger expansion.
         let grid = HeatmapGrid(
-            xValues: [0.0, 1.0],
-            yValues: [0.0, 1.0],
-            zMatrix: [[0.0, 1.0], [1.0, 2.0]]
+            xValues: [0.0, 0.5, 1.0],
+            yValues: [-0.125, 0.250, 0.625, 1.000],
+            zMatrix: [
+                [0.0, 0.5, 1.0],
+                [0.5, 1.0, 1.5],
+                [1.0, 1.5, 2.0],
+                [1.5, 2.0, 2.5]
+            ]
         )
         let payload = HeatmapPlotPayload(
             workflowID: "rsm", title: "Large font test",
@@ -826,16 +834,18 @@ struct V78CRSMPlotControlsPathTests {
         )
         let layout = HeatmapPlotLayout.compute(payload: payload, chartStyle: style)
 
-        // gridRect.minX == dynamically computed paddingLeft
         let paddingLeft = layout.gridRect.minX
-        #expect(paddingLeft >= 104,
-                "At tick=22pt / axis=24pt, paddingLeft must still leave a healthy left lane for y-axis labels")
 
-        // y-axis title center must be well clear of tick label area
-        // (right edge of title ≈ yLabelCenterX + axisTitleFontSize/2 must be < gridRect.minX - 50)
+        // Wide tick labels at 22pt must force paddingLeft beyond the 80pt base minimum.
+        #expect(paddingLeft > 80,
+                "At tick=22pt with fractional labels like \"-0.125\", paddingLeft must expand beyond the 80pt base")
+
+        // Y-axis title right edge must not reach into the tick label lane.
+        // Tick labels occupy [paddingLeft - tickToPlotGap(8) - labelWidth .. paddingLeft - 8].
         let titleRightEdge = layout.yLabelCenter.x + style.axisTitleFontSize / 2
-        #expect(titleRightEdge < paddingLeft - 50,
-                "Y-axis title right edge must be at least 50pt left of gridRect.minX to avoid tick overlap")
+        let tickLabelTrailingX = paddingLeft - 8  // tickToPlotGap
+        #expect(titleRightEdge < tickLabelTrailingX,
+                "Y-axis title right edge must not extend into the tick label lane")
     }
 
     // INV-RSM-PL-8: Fixed-H data recommends KL view

@@ -16,6 +16,11 @@ struct XYRotationPackConfig: Codable, Hashable, Sendable {
     var stackOffsetMultiplier: Double
     var minGapFraction: Double
     var showPlotGrid: Bool
+    var showAuxiliaryLine180: Bool
+    // --- PlotControl display status (v8.5A+) ---
+    var legendAnchor: String
+    var seriesRenderMode: SeriesRenderMode
+    var chartStyleOverrides: [String: String]
 
     // --- Per-tab render states (v5.3.3+, keyed by tab.rawValue) ---
     var tabStates: [String: TabRenderState] = [:]
@@ -27,13 +32,19 @@ struct XYRotationPackConfig: Codable, Hashable, Sendable {
 
     init(phiOffsetOverrides: [String: Double], centerBaseline: Bool, linearDetrend: Bool = false,
          activeTab: String, titleTemplate: String, stackOffsetMultiplier: Double, minGapFraction: Double,
-         showPlotGrid: Bool, tabStates: [String: TabRenderState] = [:],
+         showPlotGrid: Bool, showAuxiliaryLine180: Bool = false,
+         legendAnchor: String = "", seriesRenderMode: SeriesRenderMode = .line,
+         chartStyleOverrides: [String: String] = [:],
+         tabStates: [String: TabRenderState] = [:],
          cachedSearchResults: [WorkflowMeasurementSearchHit] = [], selectedSearchResultIDs: [String] = [],
          searchQueryText: String = "") {
         self.phiOffsetOverrides = phiOffsetOverrides; self.centerBaseline = centerBaseline
         self.linearDetrend = linearDetrend; self.activeTab = activeTab
         self.titleTemplate = titleTemplate; self.stackOffsetMultiplier = stackOffsetMultiplier
         self.minGapFraction = minGapFraction; self.showPlotGrid = showPlotGrid
+        self.showAuxiliaryLine180 = showAuxiliaryLine180
+        self.legendAnchor = legendAnchor; self.seriesRenderMode = seriesRenderMode
+        self.chartStyleOverrides = chartStyleOverrides
         self.tabStates = tabStates; self.cachedSearchResults = cachedSearchResults
         self.selectedSearchResultIDs = selectedSearchResultIDs; self.searchQueryText = searchQueryText
     }
@@ -49,6 +60,10 @@ struct XYRotationPackConfig: Codable, Hashable, Sendable {
         stackOffsetMultiplier   = try c.decodeIfPresent(Double.self, forKey: .stackOffsetMultiplier) ?? 0.0
         minGapFraction          = try c.decodeIfPresent(Double.self, forKey: .minGapFraction) ?? 0.15
         showPlotGrid            = try c.decodeIfPresent(Bool.self, forKey: .showPlotGrid) ?? true
+        showAuxiliaryLine180    = try c.decodeIfPresent(Bool.self, forKey: .showAuxiliaryLine180) ?? false
+        legendAnchor            = try c.decodeIfPresent(String.self, forKey: .legendAnchor) ?? ""
+        seriesRenderMode        = try c.decodeIfPresent(SeriesRenderMode.self, forKey: .seriesRenderMode) ?? .line
+        chartStyleOverrides     = try c.decodeIfPresent([String: String].self, forKey: .chartStyleOverrides) ?? [:]
         tabStates               = try c.decodeIfPresent([String: TabRenderState].self, forKey: .tabStates) ?? [:]
         cachedSearchResults     = try c.decodeIfPresent([WorkflowMeasurementSearchHit].self, forKey: .cachedSearchResults) ?? []
         selectedSearchResultIDs = try c.decodeIfPresent([String].self, forKey: .selectedSearchResultIDs) ?? []

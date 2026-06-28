@@ -26,6 +26,52 @@ struct V563WorkflowStateBoundaryTests {
         )
     }
 
+    private func makeStackedThreeOmegaSweeps() -> [ThreeOmegaFieldSweepResult] {
+        [10, 30, 50, 70, 90, 110].map(makeStackedThreeOmegaSweep)
+    }
+
+    private func makeXYRotationSweeps() -> [XYRotationAngleSweep] {
+        [10, 30, 50, 70, 90, 110].map(makeXYRotationSweep)
+    }
+
+    private func makeStackedThreeOmegaSweep(_ temperatureK: Int) -> ThreeOmegaFieldSweepResult {
+        let temperature = Double(temperatureK)
+        let sourceFilePath = "/tmp/\(temperatureK).csv"
+        return ThreeOmegaFieldSweepResult(
+            temperatureK: temperature,
+            device: "0deg",
+            sampleMetadata: ["device": "0deg"],
+            sampleID: "sample-\(temperatureK)",
+            sourceFilePath: sourceFilePath,
+            hField: [-1000, 0, 1000],
+            r1omega: [temperature, temperature + 1, temperature + 2],
+            r3omega: [temperature / 10.0, temperature / 10.0 + 1, temperature / 10.0 + 2],
+            iRms: 1e-3,
+            rahe1omega: 1.0,
+            rahe1omegaWA: 1.0,
+            hc1omega: 0.0,
+            hc3omega: 0.0,
+            v3omegaWindow: 2e-5,
+            v3omegaFit: 2e-5
+        )
+    }
+
+    private func makeXYRotationSweep(_ temperatureK: Int) -> XYRotationAngleSweep {
+        let temperature = Double(temperatureK)
+        let sourceFilePath = "/tmp/\(temperatureK).csv"
+        return XYRotationAngleSweep(
+            temperatureK: temperature,
+            stem: "sample-\(temperatureK)",
+            sourceKind: .lvm,
+            angleDeg: [0, 60, 120],
+            resistanceXX: [temperature, temperature + 1, temperature + 2],
+            resistanceXY: nil,
+            defaultPhiOffset: 0,
+            measurementFilePath: sourceFilePath,
+            sampleMetadata: ["device": "0deg"]
+        )
+    }
+
     @MainActor
     @Test("TabRenderManager owns plot outputs; activeImageData is a projection")
     func tabRenderManagerActiveImageDataIsProjection() {
@@ -251,11 +297,12 @@ struct V563WorkflowStateBoundaryTests {
         #expect(store.tabs.state(for: .fieldSweep3omega).seriesOrder == order)
     }
 
-    // MARK: - _refreshManifestPayloads override preservation (Phase 4C-2 fix)
+    // MARK: - _refreshManifestPayloads override preservation (Stage 2A-1 correction)
+    // manifestPayload is the raw/scientific payload; display overrides live in TabRenderState only.
 
     @MainActor
-    @Test("_refreshManifestPayloads applies tabState title and series-label overrides to rebuilt manifests")
-    func refreshManifestPayloadsAppliesTabStateOverrides() throws {
+    @Test("_refreshManifestPayloads keeps scientific labels in manifestPayload despite tabState overrides")
+    func refreshManifestPayloadsKeepsScientificLabels() throws {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 100,
@@ -297,16 +344,18 @@ struct V563WorkflowStateBoundaryTests {
 
         store._refreshManifestPayloads()
 
+        // manifestPayload must retain scientific values — overrides belong to display layer only
         let hcPayload = store.tabs.output(for: .hcVsT).manifestPayload
-        #expect(hcPayload?.title == "My Hc Title")
-        #expect(hcPayload?.axisMapping.xField == "My X Axis")
-        #expect(hcPayload?.axisMapping.yField == "My Y Axis")
+        #expect(hcPayload?.title != "My Hc Title", "titleOverride must not be baked into manifestPayload")
+        #expect(hcPayload?.axisMapping.xField == "T (K)", "manifestPayload xField must remain scientific")
+        #expect(hcPayload?.axisMapping.yField == "Hc (Oe)", "manifestPayload yField must remain scientific")
 
         let r1Payload = store.tabs.output(for: .fieldSweep1omega).manifestPayload
-        #expect(r1Payload?.title == "My 1ω Title")
-        #expect(r1Payload?.series.first(where: { $0.sampleID == "sample-a" })?.label == "Renamed Series")
+        #expect(r1Payload?.title != "My 1ω Title", "titleOverride must not be baked into manifestPayload")
+        #expect(r1Payload?.series.first(where: { $0.sampleID == "sample-a" })?.label == "100 K",
+                "seriesLabelOverrides must not be baked into manifestPayload")
 
-        // Tabs without overrides are unaffected
+        // Cross-tab isolation: 3ω tab is unrelated to 1ω overrides
         let r3Payload = store.tabs.output(for: .fieldSweep3omega).manifestPayload
         #expect(r3Payload?.title != "My 1ω Title")
     }
@@ -377,14 +426,91 @@ struct V563WorkflowStateBoundaryTests {
 
         let out1 = store.tabs.output(for: .fieldSweep1omega)
         #expect(out1.imageData != nil)
-        #expect(out1.manifestPayload?.title == "Custom 1ω")
-        #expect(out1.manifestPayload?.series.first(where: { $0.sampleID == "sample-a" })?.label == "Renamed A")
+        // manifestPayload is scientific — overrides must not be baked in
+        #expect(out1.manifestPayload?.title != "Custom 1ω", "titleOverride must not pollute manifestPayload")
+        #expect(out1.manifestPayload?.series.first(where: { $0.sampleID == "sample-a" })?.label != "Renamed A",
+                "seriesLabelOverrides must not pollute manifestPayload")
 
         let out3 = store.tabs.output(for: .fieldSweep3omega)
         #expect(out3.imageData != nil)
-        // 3ω must not inherit the 1ω override
+        // 3ω must not inherit the 1ω override (cross-tab isolation still holds)
         #expect(out3.manifestPayload?.title == "Base 3ω")
         #expect(out3.manifestPayload?.series.first(where: { $0.sampleID == "sample-a" })?.label == "100 K")
+    }
+
+    @MainActor
+    @Test("3ω renderThreeOmegaTab stores export-safe displayPayload for stacked field sweeps")
+    func threeOmegaRenderStoresExportSafeDisplayPayload() async throws {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        let sweeps = makeStackedThreeOmegaSweeps()
+        let ingestion = ThreeOmegaIngestionResult(
+            fieldSweeps: sweeps,
+            rtResult: nil,
+            device: "0deg",
+            deviceMode: "single",
+            devices: ["0deg"],
+            iRmsValues: Dictionary(uniqueKeysWithValues: sweeps.map { ($0.temperatureK, 1e-3) }),
+            warnings: []
+        )
+        let renderer = ThreeOmegaPlotRenderer()
+        guard let seededManifest = renderer.makeR1omegaPayload(sweeps: sweeps, device: "0deg") else {
+            Issue.record("Expected 3ω renderer to produce a field-sweep payload")
+            return
+        }
+        var output = TabRenderOutput(manifestPayload: seededManifest)
+        output.manifestPayload?.title = "Manifest 1ω"
+        store.tabs.setOutput(output, for: .fieldSweep1omega)
+
+        let globalSettings = ThreeOmegaRendererGlobalSettings(
+            workflowID: store.workflowID,
+            showGrid: false,
+            seriesRenderMode: .line,
+            chartStyleOverrides: [:],
+            globalPlotDefaults: [:],
+            legendAnchor: "",
+            stackOffsetMultiplier: 1.2,
+            minGapFraction: 0.15,
+            titleTemplate: "#tab #device #sample",
+            titleTokens: [:]
+        )
+
+        let renderResult = await store.renderThreeOmegaTab(
+            .fieldSweep1omega,
+            ingestion: ingestion,
+            scalingResult: nil,
+            fieldSweepSeriesOrder: nil,
+            globalSettings: globalSettings,
+            tabSnapshot: store.tabs.displayStateSnapshot(for: .fieldSweep1omega)
+        )
+
+        let stored = store.tabs.output(for: .fieldSweep1omega)
+        let visible = try WorkbenchRenderPipeline.render(WorkbenchRenderPipeline.Input(payload: seededManifest))
+
+        #expect(renderResult.displayPayload?.series.map(\.label) == ["10 K", "30 K", "50 K", "70 K", "90 K", "110 K"])
+        #expect(stored.displayPayload?.series.map(\.label) == ["10 K", "30 K", "50 K", "70 K", "90 K", "110 K"])
+        #expect(stored.displayPayload?.series.map(\.label) != visible.manifestPayload.series.map(\.label),
+                "stored displayPayload must not already have reverseSeriesForLegend applied")
+        #expect(stored.manifestPayload?.title == "Manifest 1ω")
+        #expect(stored.displayPayload?.title != stored.manifestPayload?.title)
+    }
+
+    @Test("XYRotation render helpers return pre-pipeline displayPayload for export")
+    func xyRotationRenderReturnsPrePipelineDisplayPayload() throws {
+        var renderer = XYRotationPlotRenderer()
+        let sweeps = makeXYRotationSweeps()
+
+        let (imageData, layout, displayPayload, _) = renderer.renderRxxVsPhi(sweeps: sweeps, device: "0deg")
+        #expect(imageData != nil)
+        #expect(layout != nil)
+
+        guard let displayPayload else {
+            Issue.record("Expected XYRotation render helper to return a displayPayload")
+            return
+        }
+
+        let visible = try WorkbenchRenderPipeline.render(WorkbenchRenderPipeline.Input(payload: displayPayload))
+        #expect(displayPayload.series.map(\.label) == ["10 K", "30 K", "50 K", "70 K", "90 K", "110 K"])
+        #expect(visible.manifestPayload.series.map(\.label) == ["110 K", "90 K", "70 K", "50 K", "30 K", "10 K"])
     }
 
     @MainActor
@@ -466,10 +592,15 @@ struct V563WorkflowStateBoundaryTests {
         #expect(output.layout != nil)
         #expect(output.manifestPayload != nil)
         #expect(output.manifestPayload?.series.allSatisfy { ($0.sourceRef?.isEmpty == false) } == true)
-        #expect(output.manifestPayload?.title == "Custom 1ω Title")
-        #expect(output.manifestPayload?.axisMapping.xField == "My X Label")
-        #expect(output.manifestPayload?.axisMapping.yField == "My Y Label")
-        #expect(output.manifestPayload?.series.first?.label == "Renamed Series")
+        // manifestPayload is scientific — display overrides must not be baked in
+        #expect(output.manifestPayload?.title != "Custom 1ω Title",
+                "titleOverride must not pollute manifestPayload after style rerender")
+        #expect(output.manifestPayload?.axisMapping.xField != "My X Label",
+                "xLabelOverride must not pollute manifestPayload after style rerender")
+        #expect(output.manifestPayload?.axisMapping.yField != "My Y Label",
+                "yLabelOverride must not pollute manifestPayload after style rerender")
+        #expect(output.manifestPayload?.series.first?.label != "Renamed Series",
+                "seriesLabelOverrides must not pollute manifestPayload after style rerender")
     }
 
     // MARK: - Axis label override parity — table-driven (Phase 4C-2 extension)
@@ -485,12 +616,12 @@ struct V563WorkflowStateBoundaryTests {
     }
 
     @MainActor
-    @Test("_refreshManifestPayloads reflects axis label overrides for all combinations", arguments: [
+    @Test("_refreshManifestPayloads keeps canonical axis labels regardless of xLabelOverride/yLabelOverride", arguments: [
         AxisLabelCase(xOverride: "Custom X", yOverride: ""),
         AxisLabelCase(xOverride: "",          yOverride: "Custom Y"),
         AxisLabelCase(xOverride: "Custom X",  yOverride: "Custom Y"),
     ])
-    func refreshManifestPayloadsReflectsAxisLabelOverrides(_ tc: AxisLabelCase) throws {
+    func refreshManifestPayloadsKeepsCanonicalAxisLabels(_ tc: AxisLabelCase) throws {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 100,
@@ -528,17 +659,9 @@ struct V563WorkflowStateBoundaryTests {
         store._refreshManifestPayloads()
 
         let payload = store.tabs.output(for: .hcVsT).manifestPayload
-        // Override present → manifest reflects it; absent → canonical default is preserved.
-        if !tc.xOverride.isEmpty {
-            #expect(payload?.axisMapping.xField == tc.xOverride)
-        } else {
-            #expect(payload?.axisMapping.xField == "T (K)")
-        }
-        if !tc.yOverride.isEmpty {
-            #expect(payload?.axisMapping.yField == tc.yOverride)
-        } else {
-            #expect(payload?.axisMapping.yField == "Hc (Oe)")
-        }
+        // manifestPayload always retains canonical scientific labels regardless of overrides
+        #expect(payload?.axisMapping.xField == "T (K)", "xLabelOverride must not pollute manifestPayload")
+        #expect(payload?.axisMapping.yField == "Hc (Oe)", "yLabelOverride must not pollute manifestPayload")
     }
 
     // MARK: - All non-RT tabs × all text overrides — table-driven (Phase 4C-2 Message 4)
@@ -551,15 +674,15 @@ struct V563WorkflowStateBoundaryTests {
     }
 
     @MainActor
-    @Test("_refreshManifestPayloads preserves text overrides for all non-RT 3ω tabs", arguments: [
+    @Test("_refreshManifestPayloads keeps canonical axis labels for all non-RT 3ω tabs despite overrides", arguments: [
         ThreeOmegaTabOverrideCase(tabKey: "fieldSweep1omega", xCanonical: "H (T)",        yCanonical: "R(1ω) (Ω)"),
         ThreeOmegaTabOverrideCase(tabKey: "fieldSweep3omega", xCanonical: "H (T)",        yCanonical: "R(3ω) (Ω)"),
         ThreeOmegaTabOverrideCase(tabKey: "rahe1omegaVsT",   xCanonical: "T (K)",         yCanonical: "RAHE(1ω) (Ω)"),
         ThreeOmegaTabOverrideCase(tabKey: "rahe3omegaVsT",   xCanonical: "T (K)",         yCanonical: "RAHE(3ω) (Ω)"),
         ThreeOmegaTabOverrideCase(tabKey: "hcVsT",           xCanonical: "T (K)",         yCanonical: "Hc (Oe)"),
-        ThreeOmegaTabOverrideCase(tabKey: "scaling",         xCanonical: "σ²_xx (S²/m²)", yCanonical: "E(3ω)_AHE / (E³_xx · σ_xx)"),
+        ThreeOmegaTabOverrideCase(tabKey: "scaling",         xCanonical: "math:σ_{xx}^{2} × 10^{7} (S^{2} cm^{-2})", yCanonical: "math:E_{AHE}^{3ω} / (E_{xx}^{3}·σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})"),
     ])
-    func refreshManifestAllNonRTTabsPreserveTextOverrides(_ tc: ThreeOmegaTabOverrideCase) throws {
+    func refreshManifestAllNonRTTabsKeepCanonicalLabels(_ tc: ThreeOmegaTabOverrideCase) throws {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 100, device: "0deg",
@@ -588,12 +711,15 @@ struct V563WorkflowStateBoundaryTests {
 
         store._refreshManifestPayloads()
 
+        // manifestPayload must keep canonical scientific labels — overrides must not be baked in
         let payload = store.tabs.output(for: tab).manifestPayload
-        #expect(payload?.title == "Title-\(tc.tabKey)")
-        #expect(payload?.axisMapping.xField == "X-\(tc.tabKey)")
-        #expect(payload?.axisMapping.yField == "Y-\(tc.tabKey)")
+        #expect(payload?.title != "Title-\(tc.tabKey)", "titleOverride must not pollute manifestPayload")
+        #expect(payload?.axisMapping.xField == tc.xCanonical,
+                "manifestPayload xField must remain canonical '\(tc.xCanonical)'")
+        #expect(payload?.axisMapping.yField == tc.yCanonical,
+                "manifestPayload yField must remain canonical '\(tc.yCanonical)'")
 
-        // Sibling tabs must not inherit overrides from this tab
+        // Sibling tabs must not absorb overrides from this tab (cross-tab isolation)
         for sibling in ThreeOmegaWorkbenchTab.allCases where sibling != tab && sibling != .rtCurve {
             let sibPayload = store.tabs.output(for: sibling).manifestPayload
             #expect(sibPayload?.axisMapping.xField != "X-\(tc.tabKey)")
@@ -604,8 +730,8 @@ struct V563WorkflowStateBoundaryTests {
     // MARK: - runScaling manifest override preservation (Phase 4C-2 Message 4)
 
     @MainActor
-    @Test("runScaling path: _refreshManifestPayloads reflects scaling-tab text overrides in rebuilt manifest")
-    func threeOmegaRunScalingPreservesManifestOverrides() throws {
+    @Test("runScaling path: _refreshManifestPayloads keeps scientific labels in scaling-tab manifest")
+    func threeOmegaRunScalingKeepsScientificManifest() throws {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 100, device: "0deg",
@@ -630,12 +756,13 @@ struct V563WorkflowStateBoundaryTests {
         // Direct call mirrors what runScaling executes after its async compute phase
         store._refreshManifestPayloads()
 
+        // manifestPayload must retain scientific values — display overrides belong to TabRenderState only
         let payload = store.tabs.output(for: .scaling).manifestPayload
-        #expect(payload?.title == "My Scaling Title")
-        #expect(payload?.axisMapping.xField == "Custom σ²")
-        #expect(payload?.axisMapping.yField == "Custom AHE")
+        #expect(payload?.title != "My Scaling Title", "titleOverride must not pollute manifestPayload")
+        #expect(payload?.axisMapping.xField != "Custom σ²", "xLabelOverride must not pollute manifestPayload")
+        #expect(payload?.axisMapping.yField != "Custom AHE", "yLabelOverride must not pollute manifestPayload")
 
-        // Sibling tab must not absorb scaling overrides
+        // Sibling tab must not absorb scaling overrides (cross-tab isolation still holds)
         let hcPayload = store.tabs.output(for: .hcVsT).manifestPayload
         #expect(hcPayload?.axisMapping.xField == "T (K)")
         #expect(hcPayload?.axisMapping.yField == "Hc (Oe)")
@@ -644,8 +771,8 @@ struct V563WorkflowStateBoundaryTests {
     // MARK: - _rebuildOverlayManifestPayloads override preservation (Phase 4C-2 Message 4)
 
     @MainActor
-    @Test("_rebuildOverlayManifestPayloads applies per-tab overrides independently for RAHE1ω and RAHE3ω")
-    func threeOmegaRAHEOverlayPreservesManifestOverrides() throws {
+    @Test("_rebuildOverlayManifestPayloads keeps scientific labels in RAHE1ω and RAHE3ω manifests")
+    func threeOmegaRAHEOverlayKeepsScientificManifest() throws {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 100, device: "0deg",
@@ -676,19 +803,18 @@ struct V563WorkflowStateBoundaryTests {
         ]
         store._rebuildOverlayManifestPayloads(groups: groups)
 
+        // manifestPayload must keep scientific values — overrides must not be baked in
         let rahe1Payload = store.tabs.output(for: .rahe1omegaVsT).manifestPayload
-        #expect(rahe1Payload?.title == "My RAHE1 Title")
-        #expect(rahe1Payload?.axisMapping.xField == "RAHE1 X")
-        #expect(rahe1Payload?.axisMapping.yField == "RAHE1 Y")
+        #expect(rahe1Payload?.title != "My RAHE1 Title", "titleOverride must not pollute RAHE1 manifestPayload")
+        #expect(rahe1Payload?.axisMapping.xField == "T (K)", "RAHE1 manifestPayload xField must remain scientific")
+        #expect(rahe1Payload?.axisMapping.yField == "RAHE(1ω) (Ω)", "RAHE1 manifestPayload yField must remain scientific")
 
         let rahe3Payload = store.tabs.output(for: .rahe3omegaVsT).manifestPayload
-        #expect(rahe3Payload?.title == "My RAHE3 Title")
-        #expect(rahe3Payload?.axisMapping.xField == "RAHE3 X")
-        #expect(rahe3Payload?.axisMapping.yField == "RAHE3 Y")
+        #expect(rahe3Payload?.title != "My RAHE3 Title", "titleOverride must not pollute RAHE3 manifestPayload")
+        #expect(rahe3Payload?.axisMapping.xField == "T (K)", "RAHE3 manifestPayload xField must remain scientific")
+        #expect(rahe3Payload?.axisMapping.yField == "RAHE(3ω) (Ω)", "RAHE3 manifestPayload yField must remain scientific")
 
-        // Cross-tab isolation: each RAHE tab has its own distinct overrides
-        #expect(rahe1Payload?.title != rahe3Payload?.title)
-        #expect(rahe1Payload?.axisMapping.xField != rahe3Payload?.axisMapping.xField)
+        // Cross-tab isolation: each RAHE tab's scientific labels differ (they already do by yField)
         #expect(rahe1Payload?.axisMapping.yField != rahe3Payload?.axisMapping.yField)
     }
 

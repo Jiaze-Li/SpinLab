@@ -38,7 +38,7 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
         let runAnalysis = try extractFunction("_runAnalysis(selectedHits:", from: source)
 
         XCTAssertTrue(runAnalysis.contains("self.ingestionResult = result"))
-        XCTAssertTrue(runAnalysis.contains("self._applyPlots(plots)"))
+        XCTAssertTrue(runAnalysis.contains("self._snapshotAndCacheManifestPayloads(from: selectedHits)"))
         XCTAssertTrue(runAnalysis.contains("self.commitRunTrace()"))
         XCTAssertLessThan(
             try XCTUnwrap(runAnalysis.range(of: "self.ingestionResult = result")?.lowerBound),
@@ -50,6 +50,10 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
         let runScaling = try extractFunction("runScaling", from: try workspaceSource)
 
         XCTAssertTrue(runScaling.contains("guard let result = ingestionResult, let rt = result.rtResult else"))
+        XCTAssertTrue(runScaling.contains("let capturedGlobalSettings = ThreeOmegaRendererGlobalSettings("))
+        XCTAssertTrue(runScaling.contains("let capturedScalingSnapshot = tabs.displayStateSnapshot(for: .scaling)"))
+        XCTAssertTrue(runScaling.contains("_renderRevision &+= 1"))
+        XCTAssertTrue(runScaling.contains("renderThreeOmegaTab("))
         XCTAssertTrue(runScaling.contains("let capturedV3Method = v3Method"))
         XCTAssertTrue(runScaling.contains("v3Method: capturedV3Method"))
     }
@@ -75,11 +79,18 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
     func testPackSaveRestoreBoundaryDoesNotCommitTraceOnRestore() throws {
         let source = try workspaceSource
         let restoreFromPack = try extractFunction("restoreFromPack", from: source)
+        let restoredRender = try extractFunction("_rerenderAllTabsFromRestoredState", from: source)
 
         XCTAssertTrue(source.contains("var activePackID: AnalysisPack.ID?"))
         XCTAssertFalse(restoreFromPack.contains("commitRunTrace()"))
         XCTAssertTrue(restoreFromPack.contains("_rerenderAllTabsFromRestoredState()"))
-        XCTAssertTrue(restoreFromPack.contains("_snapshotAndCacheManifestPayloads()"))
+        XCTAssertFalse(restoreFromPack.contains("        _snapshotAndCacheManifestPayloads()"))
+        XCTAssertTrue(restoredRender.contains("self._titleTokens = tokens"))
+        XCTAssertTrue(restoredRender.contains("self._snapshotAndCacheManifestPayloads()"))
+        XCTAssertLessThan(
+            try XCTUnwrap(restoredRender.range(of: "self._titleTokens = tokens")?.lowerBound),
+            try XCTUnwrap(restoredRender.range(of: "self._snapshotAndCacheManifestPayloads()")?.lowerBound)
+        )
     }
 
     func testAlignSeriesOrderPreservesKnownIDsAndAppendsNewIDs() throws {
@@ -96,6 +107,48 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
         XCTAssertTrue(update.contains("rahe1omegaMethod = method"))
         XCTAssertTrue(update.contains("rahe3omegaMethod = method"))
         XCTAssertFalse(update.contains("v3Method = method"))
+    }
+
+    func testRerenderFieldSweepTabsPropagatesHiddenPointLabelsToR1omega() throws {
+        let rerender = try extractFunction("rerenderFieldSweepTabs", from: try workspaceSource)
+
+        XCTAssertTrue(
+            rerender.contains("renderer1.hiddenPointLabelsBySeries = toIndexedOverrides(capturedState1.hiddenPointLabelIndicesBySeries, series: labelMapSeries).mapValues { Set($0) }")
+        )
+    }
+
+    func testRerenderFieldSweepTabsPropagatesHiddenPointLabelsToR3omega() throws {
+        let rerender = try extractFunction("rerenderFieldSweepTabs", from: try workspaceSource)
+
+        XCTAssertTrue(
+            rerender.contains("renderer3.hiddenPointLabelsBySeries = toIndexedOverrides(capturedState3.hiddenPointLabelIndicesBySeries, series: labelMapSeries).mapValues { Set($0) }")
+        )
+    }
+
+    func testRenderRAHEWithOverlaysPropagatesHiddenPointLabelsToRAHE1omega() throws {
+        let render = try extractFunction("_renderRAHEWithOverlays", from: try workspaceSource)
+
+        XCTAssertTrue(
+            render.contains("r1.hiddenPointLabelsBySeries = toIndexedOverrides(state1.hiddenPointLabelIndicesBySeries, series: groups.map")
+        )
+    }
+
+    func testRenderRAHEWithOverlaysPropagatesHiddenPointLabelsToRAHE3omega() throws {
+        let render = try extractFunction("_renderRAHEWithOverlays", from: try workspaceSource)
+
+        XCTAssertTrue(
+            render.contains("r3.hiddenPointLabelsBySeries = toIndexedOverrides(state3.hiddenPointLabelIndicesBySeries, series: groups.map")
+        )
+    }
+
+    func testSpecialRenderPathsStillAssignShowPointTags() throws {
+        let rerender = try extractFunction("rerenderFieldSweepTabs", from: try workspaceSource)
+        let overlay = try extractFunction("_renderRAHEWithOverlays", from: try workspaceSource)
+
+        XCTAssertTrue(rerender.contains("renderer1.showPointTags         = capturedState1.pointTags.showPointTags"))
+        XCTAssertTrue(rerender.contains("renderer3.showPointTags         = capturedState3.pointTags.showPointTags"))
+        XCTAssertTrue(overlay.contains("r1.showPointTags = capturedShowPointTags1"))
+        XCTAssertTrue(overlay.contains("r3.showPointTags = capturedShowPointTags3"))
     }
 
     func testCommitRunTraceCallSitesStayLimited() throws {

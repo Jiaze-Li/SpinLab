@@ -59,6 +59,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
             minGapFraction: minGapFraction,
             showPlotGrid: tabs.showPlotGrid,
             plotLegendAnchor: tabs.legendAnchor,
+            seriesRenderMode: tabs.seriesRenderMode,
             tabStates: tabs.snapshotStates(keyFor: { $0.stableKey }),
             chartStyleOverrides: splitOverrides.local,
             cachedSearchResults: cachedSearchResults,
@@ -85,11 +86,11 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
     }
 
 
-    func buildPackConfig() -> ThreeOmegaPackConfig { _buildPackConfig() }
+        func buildPackConfig() -> ThreeOmegaPackConfig { _buildPackConfig() }
 
-func buildPackResult() -> ThreeOmegaPackResult { _buildPackResult() }
+    func buildPackResult() -> ThreeOmegaPackResult { _buildPackResult() }
 
-func autoPackLabel() -> String { _autoPackLabel() }
+    func autoPackLabel() -> String { _autoPackLabel() }
 
 
     func cancelInflightWork() {
@@ -125,6 +126,7 @@ func autoPackLabel() -> String { _autoPackLabel() }
         minGapFraction = config.minGapFraction
         tabs.showPlotGrid = config.showPlotGrid
         tabs.legendAnchor = config.plotLegendAnchor
+        tabs.seriesRenderMode = config.seriesRenderMode
 
         // Restore per-tab states
         tabs.restoreStates(config.tabStates) { key in
@@ -186,7 +188,6 @@ func autoPackLabel() -> String { _autoPackLabel() }
         // _rerenderAllTabs() does not apply per-tab overrides (titleOverride, legendPoint, etc.),
         // so we use _rerenderAllTabsFromRestoredState() in the Pack load path instead.
         _rerenderAllTabsFromRestoredState()
-        _snapshotAndCacheManifestPayloads()
         refreshRelatedCharts()
     }
 }

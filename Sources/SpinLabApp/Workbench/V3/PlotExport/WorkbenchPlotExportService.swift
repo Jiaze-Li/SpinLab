@@ -78,14 +78,14 @@ enum WorkbenchPlotExportService {
         input.legendPoint = tabState.legendPoint?.cgPoint
         input.seriesRenderMode = snapshot.seriesRenderMode
         input.chartStyleOverrides = snapshot.chartStyleOverrides
-        input.seriesLabelOverrides = toIndexedOverrides(tabState.seriesLabelOverrides, series: displayPayload.series)
+        input.seriesLabelOverrides = indexedDisplayLabelOverrides(tabState.seriesLabelOverrides, payload: displayPayload)
         input.titleOverride = tabState.titleOverride
         input.xLabelOverride = tabState.xLabelOverride
         input.yLabelOverride = tabState.yLabelOverride
-        input.hiddenPointLabelsBySeries = toIndexedOverrides(
+        input.hiddenPointLabelsBySeries = indexedDisplayHiddenPointLabels(
             tabState.pointTags.hiddenPointLabelIndicesBySeries,
-            series: displayPayload.series
-        ).mapValues { Set($0) }
+            payload: displayPayload
+        )
         input.showPointTags = tabState.pointTags.showPointTags
         input.styleParamsPatch = patch
 
