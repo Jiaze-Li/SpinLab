@@ -86,7 +86,7 @@ struct XYRotationPlotRenderer {
         }
 
         let yLabel = "Rxx (Ω)"
-        var payload = WorkbenchPlotPayload(
+        let payload = WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: "XY Rotation",
             title: _defaultTitle("Rxx vs φ", device: device),
@@ -97,12 +97,14 @@ struct XYRotationPlotRenderer {
             seriesReorderable: true
         )
 
+        let displayPayload = payload
+        var renderPayload = payload
         var w: [String] = []
         let (data, layout) = _consume(_render(
-            payload: &payload,
+            payload: &renderPayload,
             options: _stackedOptions(sweepCount: sweeps.count)
         ), into: &w)
-        return (data, layout, payload, w)
+        return (data, layout, data != nil ? displayPayload : nil, w)
     }
 
     /// Tab 2: Rxy vs φ with one series per temperature, optionally stacked.
@@ -157,7 +159,7 @@ struct XYRotationPlotRenderer {
         }
 
         let yLabel = "Rxy (Ω)"
-        var payload = WorkbenchPlotPayload(
+        let payload = WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: "XY Rotation",
             title: _defaultTitle("Rxy vs φ", device: device),
@@ -168,12 +170,14 @@ struct XYRotationPlotRenderer {
             seriesReorderable: true
         )
 
+        let displayPayload = payload
+        var renderPayload = payload
         var w: [String] = []
         let (data, layout) = _consume(_render(
-            payload: &payload,
+            payload: &renderPayload,
             options: _stackedOptions(sweepCount: rxySweeps.count)
         ), into: &w)
-        return (data, layout, payload, w)
+        return (data, layout, data != nil ? displayPayload : nil, w)
     }
 
     // MARK: - Private

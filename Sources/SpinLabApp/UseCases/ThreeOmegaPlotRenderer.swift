@@ -119,13 +119,14 @@ struct ThreeOmegaPlotRenderer {
         device: String,
         seriesOrder: [String]? = nil
     ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard var payload = makeR1omegaPayload(sweeps: sweeps, device: device, seriesOrder: seriesOrder) else {
+        guard let payload = makeR1omegaPayload(sweeps: sweeps, device: device, seriesOrder: seriesOrder) else {
             return (nil, nil, nil, [])
         }
+        let displayPayload = payload
+        var renderPayload = payload
         var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &payload, options: _stackedOptions(sweepCount: sweeps.count)), into: &w)
-        // After _render: payload = manifestPayload form with offset-applied y-values — use as displayPayload
-        return (data, layout, data != nil ? payload : nil, w)
+        let (data, layout) = _consume(_render(payload: &renderPayload, options: _stackedOptions(sweepCount: sweeps.count)), into: &w)
+        return (data, layout, data != nil ? displayPayload : nil, w)
     }
 
     /// Tab 2: R(3ω) vs H, stacked by temperature
@@ -169,13 +170,14 @@ struct ThreeOmegaPlotRenderer {
         device: String,
         seriesOrder: [String]? = nil
     ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard var payload = makeR3omegaPayload(sweeps: sweeps, device: device, seriesOrder: seriesOrder) else {
+        guard let payload = makeR3omegaPayload(sweeps: sweeps, device: device, seriesOrder: seriesOrder) else {
             return (nil, nil, nil, [])
         }
+        let displayPayload = payload
+        var renderPayload = payload
         var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &payload, options: _stackedOptions(sweepCount: sweeps.count)), into: &w)
-        // After _render: payload = manifestPayload form with offset-applied y-values — use as displayPayload
-        return (data, layout, data != nil ? payload : nil, w)
+        let (data, layout) = _consume(_render(payload: &renderPayload, options: _stackedOptions(sweepCount: sweeps.count)), into: &w)
+        return (data, layout, data != nil ? displayPayload : nil, w)
     }
 
     /// Tab 3a: RAHE(1ω) vs T
@@ -195,13 +197,14 @@ struct ThreeOmegaPlotRenderer {
     }
 
     mutating func renderRAHE1omegaVsT(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard var payload = makeRAHE1omegaVsTPayload(sweeps: sweeps, device: device, method: method) else {
+        guard let payload = makeRAHE1omegaVsTPayload(sweeps: sweeps, device: device, method: method) else {
             return (nil, nil, nil, [])
         }
+        let displayPayload = payload
+        var renderPayload = payload
         var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &payload), into: &w)
-        // After _render: payload carries real x/y data (not empty stub) — use as displayPayload
-        return (data, layout, data != nil ? payload : nil, w)
+        let (data, layout) = _consume(_render(payload: &renderPayload), into: &w)
+        return (data, layout, data != nil ? displayPayload : nil, w)
     }
 
     /// Tab 3b: RAHE(3ω) vs T
@@ -221,13 +224,14 @@ struct ThreeOmegaPlotRenderer {
     }
 
     mutating func renderRAHE3omegaVsT(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard var payload = makeRAHE3omegaVsTPayload(sweeps: sweeps, device: device, method: method) else {
+        guard let payload = makeRAHE3omegaVsTPayload(sweeps: sweeps, device: device, method: method) else {
             return (nil, nil, nil, [])
         }
+        let displayPayload = payload
+        var renderPayload = payload
         var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &payload), into: &w)
-        // After _render: payload carries real x/y data (not empty stub) — use as displayPayload
-        return (data, layout, data != nil ? payload : nil, w)
+        let (data, layout) = _consume(_render(payload: &renderPayload), into: &w)
+        return (data, layout, data != nil ? displayPayload : nil, w)
     }
 
     /// Tab 3c: RAHE(1ω) vs Device angle
@@ -257,10 +261,11 @@ struct ThreeOmegaPlotRenderer {
         guard let payload = _makeRAHEVsDevicePayload(sweeps: sweeps, harmonic: harmonic, device: device, method: method) else {
             return (nil, nil, nil, [])
         }
+        let displayPayload = payload
         var mutablePayload = payload
         var w: [String] = []
         let (data, layout) = _consume(_render(payload: &mutablePayload), into: &w)
-        return (data, layout, data != nil ? mutablePayload : nil, w)
+        return (data, layout, data != nil ? displayPayload : nil, w)
     }
 
     private func _makeRAHEVsDevicePayload(
@@ -347,7 +352,7 @@ struct ThreeOmegaPlotRenderer {
         guard !series.isEmpty else { return (nil, nil, nil, []) }
 
         let device = groups.first?.sweeps.first?.device ?? ""
-        var payload = WorkbenchPlotPayload(
+        let payload = WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: "3w",
             title: _defaultTitle("RAHE(\(hLabel)) (\(methodTag))", device: device),
@@ -355,9 +360,11 @@ struct ThreeOmegaPlotRenderer {
             series: series,
             semanticParams: ["device": device, "tabKey": harmonic == 1 ? "rahe1omegaVsT" : "rahe3omegaVsT", "v3method": methodTag]
         )
+        let displayPayload = payload
+        var renderPayload = payload
         var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &payload), into: &w)
-        return (data, layout, payload, w)
+        let (data, layout) = _consume(_render(payload: &renderPayload), into: &w)
+        return (data, layout, data != nil ? displayPayload : nil, w)
     }
 
     /// Tab 4: Hc¹ω and Hc³ω vs T
@@ -383,12 +390,14 @@ struct ThreeOmegaPlotRenderer {
     }
 
     mutating func renderHcVsT(sweeps: [ThreeOmegaFieldSweepResult], device: String) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard var payload = makeHcPayload(sweeps: sweeps, device: device) else {
+        guard let payload = makeHcPayload(sweeps: sweeps, device: device) else {
             return (nil, nil, nil, [])
         }
+        let displayPayload = payload
+        var renderPayload = payload
         var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &payload), into: &w)
-        return (data, layout, data != nil ? payload : nil, w)
+        let (data, layout) = _consume(_render(payload: &renderPayload), into: &w)
+        return (data, layout, data != nil ? displayPayload : nil, w)
     }
 
     /// Tab 5: Rxx vs T (from RT file)
@@ -405,10 +414,12 @@ struct ThreeOmegaPlotRenderer {
     }
 
     mutating func renderRT(rt: ThreeOmegaRTResult) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard var payload = makeRTPayload(rt: rt) else { return (nil, nil, nil, []) }
+        guard let payload = makeRTPayload(rt: rt) else { return (nil, nil, nil, []) }
+        let displayPayload = payload
+        var renderPayload = payload
         var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &payload), into: &w)
-        return (data, layout, data != nil ? payload : nil, w)
+        let (data, layout) = _consume(_render(payload: &renderPayload), into: &w)
+        return (data, layout, data != nil ? displayPayload : nil, w)
     }
 
     /// Tab 6: Fig 5b — E^(3ω)_AHE / (E_xx³ × σ_xx) vs σ²_xx
@@ -416,12 +427,14 @@ struct ThreeOmegaPlotRenderer {
     /// Conversions: X_SI (S/m)² × 1e-11 → 10⁷ S²/cm²
     ///              Y_SI (Ω·m³/V²) × 1e20 → Ω·μm³·V⁻² × 10²
     mutating func renderScaling(result: ThreeOmegaScalingResult, device: String = "", method: String = "") -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard var payload = makeScalingPayload(result: result, device: device, method: method) else {
+        guard let payload = makeScalingPayload(result: result, device: device, method: method) else {
             return (nil, nil, nil, [])
         }
+        let displayPayload = payload
+        var renderPayload = payload
         var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &payload), into: &w)
-        return (data, layout, data != nil ? payload : nil, w)
+        let (data, layout) = _consume(_render(payload: &renderPayload), into: &w)
+        return (data, layout, data != nil ? displayPayload : nil, w)
     }
 
     func makeScalingPayload(

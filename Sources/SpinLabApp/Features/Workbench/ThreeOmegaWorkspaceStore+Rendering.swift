@@ -133,6 +133,7 @@ extension ThreeOmegaWorkspaceStore {
             tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
             return empty
         }
+        let displayPayload = payload
 
         let input = tabs.buildPipelineInput(
             payload: payload,
@@ -154,7 +155,7 @@ extension ThreeOmegaWorkspaceStore {
                 return ThreeOmegaTabRenderResult(
                     imageData: output.imageData,
                     layout: output.layout,
-                    displayPayload: output.manifestPayload,
+                    displayPayload: displayPayload,
                     warnings: output.warnings
                 )
             }
@@ -162,13 +163,13 @@ extension ThreeOmegaWorkspaceStore {
                 imageData: output.imageData,
                 layout: output.layout,
                 manifestPayload: tabs.output(for: tab).manifestPayload,
-                displayPayload: output.manifestPayload
+                displayPayload: displayPayload
             )
             tabs.setOutput(tabOutput, for: tab, policy: policy)
             return ThreeOmegaTabRenderResult(
                 imageData: output.imageData,
                 layout: output.layout,
-                displayPayload: output.manifestPayload,
+                displayPayload: displayPayload,
                 warnings: output.warnings
             )
         } catch {

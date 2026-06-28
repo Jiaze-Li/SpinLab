@@ -26,6 +26,52 @@ struct V563WorkflowStateBoundaryTests {
         )
     }
 
+    private func makeStackedThreeOmegaSweeps() -> [ThreeOmegaFieldSweepResult] {
+        [10, 30, 50, 70, 90, 110].map(makeStackedThreeOmegaSweep)
+    }
+
+    private func makeXYRotationSweeps() -> [XYRotationAngleSweep] {
+        [10, 30, 50, 70, 90, 110].map(makeXYRotationSweep)
+    }
+
+    private func makeStackedThreeOmegaSweep(_ temperatureK: Int) -> ThreeOmegaFieldSweepResult {
+        let temperature = Double(temperatureK)
+        let sourceFilePath = "/tmp/\(temperatureK).csv"
+        return ThreeOmegaFieldSweepResult(
+            temperatureK: temperature,
+            device: "0deg",
+            sampleMetadata: ["device": "0deg"],
+            sampleID: "sample-\(temperatureK)",
+            sourceFilePath: sourceFilePath,
+            hField: [-1000, 0, 1000],
+            r1omega: [temperature, temperature + 1, temperature + 2],
+            r3omega: [temperature / 10.0, temperature / 10.0 + 1, temperature / 10.0 + 2],
+            iRms: 1e-3,
+            rahe1omega: 1.0,
+            rahe1omegaWA: 1.0,
+            hc1omega: 0.0,
+            hc3omega: 0.0,
+            v3omegaWindow: 2e-5,
+            v3omegaFit: 2e-5
+        )
+    }
+
+    private func makeXYRotationSweep(_ temperatureK: Int) -> XYRotationAngleSweep {
+        let temperature = Double(temperatureK)
+        let sourceFilePath = "/tmp/\(temperatureK).csv"
+        return XYRotationAngleSweep(
+            temperatureK: temperature,
+            stem: "sample-\(temperatureK)",
+            sourceKind: .lvm,
+            angleDeg: [0, 60, 120],
+            resistanceXX: [temperature, temperature + 1, temperature + 2],
+            resistanceXY: nil,
+            defaultPhiOffset: 0,
+            measurementFilePath: sourceFilePath,
+            sampleMetadata: ["device": "0deg"]
+        )
+    }
+
     @MainActor
     @Test("TabRenderManager owns plot outputs; activeImageData is a projection")
     func tabRenderManagerActiveImageDataIsProjection() {
@@ -390,6 +436,81 @@ struct V563WorkflowStateBoundaryTests {
         // 3ω must not inherit the 1ω override (cross-tab isolation still holds)
         #expect(out3.manifestPayload?.title == "Base 3ω")
         #expect(out3.manifestPayload?.series.first(where: { $0.sampleID == "sample-a" })?.label == "100 K")
+    }
+
+    @MainActor
+    @Test("3ω renderThreeOmegaTab stores export-safe displayPayload for stacked field sweeps")
+    func threeOmegaRenderStoresExportSafeDisplayPayload() async throws {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        let sweeps = makeStackedThreeOmegaSweeps()
+        let ingestion = ThreeOmegaIngestionResult(
+            fieldSweeps: sweeps,
+            rtResult: nil,
+            device: "0deg",
+            deviceMode: "single",
+            devices: ["0deg"],
+            iRmsValues: Dictionary(uniqueKeysWithValues: sweeps.map { ($0.temperatureK, 1e-3) }),
+            warnings: []
+        )
+        let renderer = ThreeOmegaPlotRenderer()
+        guard let seededManifest = renderer.makeR1omegaPayload(sweeps: sweeps, device: "0deg") else {
+            Issue.record("Expected 3ω renderer to produce a field-sweep payload")
+            return
+        }
+        var output = TabRenderOutput(manifestPayload: seededManifest)
+        output.manifestPayload?.title = "Manifest 1ω"
+        store.tabs.setOutput(output, for: .fieldSweep1omega)
+
+        let globalSettings = ThreeOmegaRendererGlobalSettings(
+            workflowID: store.workflowID,
+            showGrid: false,
+            seriesRenderMode: .line,
+            chartStyleOverrides: [:],
+            globalPlotDefaults: [:],
+            legendAnchor: "",
+            stackOffsetMultiplier: 1.2,
+            minGapFraction: 0.15,
+            titleTemplate: "#tab #device #sample",
+            titleTokens: [:]
+        )
+
+        let renderResult = await store.renderThreeOmegaTab(
+            .fieldSweep1omega,
+            ingestion: ingestion,
+            scalingResult: nil,
+            fieldSweepSeriesOrder: nil,
+            globalSettings: globalSettings,
+            tabSnapshot: store.tabs.displayStateSnapshot(for: .fieldSweep1omega)
+        )
+
+        let stored = store.tabs.output(for: .fieldSweep1omega)
+        let visible = try WorkbenchRenderPipeline.render(WorkbenchRenderPipeline.Input(payload: seededManifest))
+
+        #expect(renderResult.displayPayload?.series.map(\.label) == ["10 K", "30 K", "50 K", "70 K", "90 K", "110 K"])
+        #expect(stored.displayPayload?.series.map(\.label) == ["10 K", "30 K", "50 K", "70 K", "90 K", "110 K"])
+        #expect(stored.displayPayload?.series.map(\.label) != visible.manifestPayload.series.map(\.label),
+                "stored displayPayload must not already have reverseSeriesForLegend applied")
+        #expect(stored.manifestPayload?.title == "Manifest 1ω")
+        #expect(stored.displayPayload?.title != stored.manifestPayload?.title)
+    }
+
+    @Test("XYRotation render helpers return pre-pipeline displayPayload for export")
+    func xyRotationRenderReturnsPrePipelineDisplayPayload() throws {
+        var renderer = XYRotationPlotRenderer()
+        let sweeps = makeXYRotationSweeps()
+
+        let (imageData, layout, displayPayload, _) = renderer.renderRxxVsPhi(sweeps: sweeps, device: "0deg")
+        #expect(imageData != nil)
+        #expect(layout != nil)
+
+        guard let displayPayload else {
+            Issue.record("Expected XYRotation render helper to return a displayPayload")
+            return
+        }
+
+        let visible = try WorkbenchRenderPipeline.render(WorkbenchRenderPipeline.Input(payload: displayPayload))
+        #expect(displayPayload.series.map(\.label) == ["10 K", "30 K", "50 K", "70 K", "90 K", "110 K"])
+        #expect(visible.manifestPayload.series.map(\.label) == ["110 K", "90 K", "70 K", "50 K", "30 K", "10 K"])
     }
 
     @MainActor
