@@ -71,8 +71,9 @@ enum WorkbenchRenderPipeline {
         var payload = input.payload
         var pipelineWarnings: [String] = []
 
-        // 1. Preserve original data-column axis mapping for manifest
+        // 1. Preserve original data-column axis mapping and title for manifest
         let originalAxisMapping = payload.axisMapping
+        let originalTitle = payload.title
 
         // 2. Apply shared plot defaults and styleParams patches.
         for (k, v) in input.globalPlotDefaults {
@@ -182,8 +183,9 @@ enum WorkbenchRenderPipeline {
         optsWithHidden.hiddenPointLabelsBySeries = input.hiddenPointLabelsBySeries
         let imageData = try renderer.renderPNG(payload: payload, options: optsWithHidden, style: chartStyle, layout: layout)
 
-        // 11. Build manifest payload with original data-column axis mapping
+        // 11. Build manifest payload with original data-column axis mapping and title
         var manifestPayload = payload
+        manifestPayload.title = originalTitle
         manifestPayload.axisMapping = originalAxisMapping
 
         // 12. Attach pipeline warnings to semanticParams for store extraction (v5.3.4).
