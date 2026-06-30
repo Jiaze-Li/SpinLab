@@ -11,11 +11,6 @@ enum DualAxisRenderPipeline {
         var style: WorkbenchChartStyle = .init()
         /// Captured display state. The renderer must not read live control/store state.
         var displayState: DualAxisDisplayStateSnapshot = .default
-        /// Compatibility overrides while existing callers migrate to displayState.
-        var titleOverride: String = ""
-        var xLabelOverride: String = ""
-        var leftYLabelOverride: String = ""
-        var rightYLabelOverride: String = ""
     }
 
     struct Output: Sendable {
@@ -25,12 +20,7 @@ enum DualAxisRenderPipeline {
     }
 
     static func render(_ input: Input) throws -> Output {
-        var displayState = input.displayState
-        if !input.titleOverride.isEmpty       { displayState.titleOverride = input.titleOverride }
-        if !input.xLabelOverride.isEmpty      { displayState.xLabelOverride = input.xLabelOverride }
-        if !input.leftYLabelOverride.isEmpty  { displayState.leftYLabelOverride = input.leftYLabelOverride }
-        if !input.rightYLabelOverride.isEmpty { displayState.rightYLabelOverride = input.rightYLabelOverride }
-
+        let displayState = input.displayState
         let payload = displayState.applying(to: input.payload)
         var warnings: [String] = []
 
