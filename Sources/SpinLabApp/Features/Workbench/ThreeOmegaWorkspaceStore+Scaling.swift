@@ -100,6 +100,7 @@ extension ThreeOmegaWorkspaceStore {
 
             self.scalingResult = scalingRes
             self._refreshManifestPayloads()
+            self.rerenderTemperatureDependenceForDualAxisControlChange()
 
             if scalingRes.points.count >= 2 {
                 if scalingRenderResult.imageData != nil {
