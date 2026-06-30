@@ -19,7 +19,6 @@ extension ThreeOmegaWorkspaceStore {
         let capturedMinGap = minGapFraction
         let capturedTemplate = titleTemplate
         let capturedTokens = _titleTokens
-        let capturedManifestPayload = tabs.output(for: .temperatureDependence).manifestPayload
 
         _renderRevision &+= 1
         let revision = _renderRevision
@@ -49,7 +48,7 @@ extension ThreeOmegaWorkspaceStore {
                         imageData: imageData,
                         renderKind: .dualAxis,
                         layout: nil,
-                        manifestPayload: capturedManifestPayload,
+                        manifestPayload: nil,
                         displayPayload: nil,
                         dualAxisLayout: layout,
                         dualAxisPayload: payload
