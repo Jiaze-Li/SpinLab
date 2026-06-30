@@ -190,6 +190,12 @@ final class ThreeOmegaWorkspaceStore {
     var tabs = TabRenderManager<ThreeOmegaWorkbenchTab>(defaultTab: .fieldSweep1omega)
     var globalPlotDefaults: [String: String] = [:]
 
+    // MARK: - DualAxis display state
+
+    /// Display-only state for the Temperature Dependence dual-axis tab.
+    /// This is intentionally separate from Cartesian XY `TabRenderState`.
+    var temperatureDependenceDisplayState = DualAxisDisplayState()
+
     // MARK: - Plot controls (workflow-specific)
 
     var titleTemplate: String = "#tab #method #device #sample #氧压 #能量"
