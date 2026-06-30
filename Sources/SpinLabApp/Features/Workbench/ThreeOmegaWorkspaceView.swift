@@ -6,7 +6,6 @@ struct ThreeOmegaWorkspaceView: View, WorkflowWorkspaceProvider {
 
     var body: some View {
         let store = appState.workbench.threeOmegaWorkspace
-        @Bindable var bindableStore = appState.workbench.threeOmegaWorkspace
 
         WorkflowWorkspaceShell(
             workflowID: store.workflowID,
@@ -50,98 +49,110 @@ private struct ThreeOmegaPlotControlsPanel: View {
         @Bindable var store = appState.workbench.threeOmegaWorkspace
         @Bindable var workbench = appState.workbench
 
-        WorkbenchStandardPlotControls(
-            activeTab: $store.tabs.activeTab,
-            tabLabel: { $0.rawValue },
-            stackOffset: $store.stackOffsetMultiplier,
-            stackRange: 0...1.6,
-            minGapFraction: $store.minGapFraction,
-            showGrid: $store.tabs.showPlotGrid,
-            titleTemplate: $store.titleTemplate,
-            numericDisplayCache: store.cachedSampleNumericDisplay,
-            seriesRenderMode: $store.tabs.seriesRenderMode,
-            globalPlotDefaults: $workbench.globalPlotDefaults,
-            chartStyleOverrides: $store.tabs.chartStyleOverrides,
-            seriesOrderPayload: store.activeChartManifestPayload,
-            currentSeriesOrder: store.activeSeriesOrder,
-            canReorderSeries: store.canReorderSeries,
-            onSeriesOrderCommit: { order in store.updateSeriesOrder(order) },
-            onChange: {
-                store.rerenderForStyleChange()
-                appState.flushInteractionSnapshotNow()
-            },
-            activeTitleOverride: store.tabs.activeState.titleOverride,
-            activeXLabelOverride: store.tabs.activeState.xLabelOverride,
-            activeYLabelOverride: store.tabs.activeState.yLabelOverride,
-            renderedTitle: store.tabs.activeLayout?.chartTitle ?? "",
-            renderedXLabel: store.tabs.activeLayout?.xAxisLabel ?? "",
-            renderedYLabel: store.tabs.activeLayout?.yAxisLabel ?? "",
-            sourceResetToken: store.tabs.activeSourceIdentityKey,
-            onTitleOverride: { store.updatePlotTitle($0) },
-            onXLabelOverride: { store.updateXAxisLabel($0) },
-            onYLabelOverride: { store.updateYAxisLabel($0) },
-            activeSeriesLabelOverrides: store.seriesLabelOverrides,
-            onRenameSeriesLabel: { key, label in store.updateSeriesLabel(identityKey: key, newLabel: label) },
-            activeLayout: store.tabs.activeLayout,
-            axisRangeOverride: store.tabs.activeState.axisRangeOverride,
-            onAxisBoundUpdate: { bound, value in
-                AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate BEFORE updateAxisBound bound=\(bound) value=\(value.map { String(format: "%g", $0) } ?? "nil") | axisRangeOverride=\(String(describing: store.tabs.activeState.axisRangeOverride))")
-                store.tabs.updateAxisBound(bound, value: value)
-                AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate AFTER updateAxisBound | axisRangeOverride=\(String(describing: store.tabs.activeState.axisRangeOverride))")
-                AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate BEFORE rerenderForStyleChange")
-                store.rerenderForStyleChange()
-                AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate AFTER rerenderForStyleChange")
-                appState.flushInteractionSnapshotNow()
-            },
-            showPointTagsForActiveTab: store.tabs.activeState.showPointTags,
-            onPointTagsToggle: (store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice) ? { show in
-                store.tabs.setShowPointTags(show)
-                store.rerenderForStyleChange()
-                appState.flushInteractionSnapshotNow()
-            } : nil
-        ) {
-            // Row 3: RAHE method picker + Add Analysis (visible on RAHE tabs only)
-            if store.tabs.activeTab == .rahe1omegaVsT || store.tabs.activeTab == .rahe3omegaVsT
-                || store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice {
-                HStack {
-                    Picker("AHE Method", selection: Binding<ThreeOmegaV3Method>(
-                        get: { store.activeRAHEMethod ?? .highField },
-                        set: { store.updateRAHEMethod($0) }
-                    )) {
-                        ForEach(ThreeOmegaV3Method.allCases) { method in
-                            Text(method.rawValue).tag(method)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .frame(maxWidth: 220)
-                    Spacer()
-
-                    ThreeOmegaAddOverlayButton()
-                        .environment(appState)
+        if store.tabs.activeTab == .temperatureDependence {
+            DualAxisPlotControlsPanel(
+                displayState: $store.temperatureDependenceDisplayState,
+                activeLayout: store.tabs.output(for: .temperatureDependence).dualAxisLayout,
+                sourceResetToken: store.tabs.activeSourceIdentityKey,
+                onDisplayStateChange: {
+                    store.rerenderTemperatureDependenceForDualAxisControlChange()
+                    appState.flushInteractionSnapshotNow()
                 }
+            )
+        } else {
+            WorkbenchStandardPlotControls(
+                activeTab: $store.tabs.activeTab,
+                tabLabel: { $0.rawValue },
+                stackOffset: $store.stackOffsetMultiplier,
+                stackRange: 0...1.6,
+                minGapFraction: $store.minGapFraction,
+                showGrid: $store.tabs.showPlotGrid,
+                titleTemplate: $store.titleTemplate,
+                numericDisplayCache: store.cachedSampleNumericDisplay,
+                seriesRenderMode: $store.tabs.seriesRenderMode,
+                globalPlotDefaults: $workbench.globalPlotDefaults,
+                chartStyleOverrides: $store.tabs.chartStyleOverrides,
+                seriesOrderPayload: store.activeChartManifestPayload,
+                currentSeriesOrder: store.activeSeriesOrder,
+                canReorderSeries: store.canReorderSeries,
+                onSeriesOrderCommit: { order in store.updateSeriesOrder(order) },
+                onChange: {
+                    store.rerenderForStyleChange()
+                    appState.flushInteractionSnapshotNow()
+                },
+                activeTitleOverride: store.tabs.activeState.titleOverride,
+                activeXLabelOverride: store.tabs.activeState.xLabelOverride,
+                activeYLabelOverride: store.tabs.activeState.yLabelOverride,
+                renderedTitle: store.tabs.activeLayout?.chartTitle ?? "",
+                renderedXLabel: store.tabs.activeLayout?.xAxisLabel ?? "",
+                renderedYLabel: store.tabs.activeLayout?.yAxisLabel ?? "",
+                sourceResetToken: store.tabs.activeSourceIdentityKey,
+                onTitleOverride: { store.updatePlotTitle($0) },
+                onXLabelOverride: { store.updateXAxisLabel($0) },
+                onYLabelOverride: { store.updateYAxisLabel($0) },
+                activeSeriesLabelOverrides: store.seriesLabelOverrides,
+                onRenameSeriesLabel: { key, label in store.updateSeriesLabel(identityKey: key, newLabel: label) },
+                activeLayout: store.tabs.activeLayout,
+                axisRangeOverride: store.tabs.activeState.axisRangeOverride,
+                onAxisBoundUpdate: { bound, value in
+                    AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate BEFORE updateAxisBound bound=\(bound) value=\(value.map { String(format: "%g", $0) } ?? "nil") | axisRangeOverride=\(String(describing: store.tabs.activeState.axisRangeOverride))")
+                    store.tabs.updateAxisBound(bound, value: value)
+                    AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate AFTER updateAxisBound | axisRangeOverride=\(String(describing: store.tabs.activeState.axisRangeOverride))")
+                    AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate BEFORE rerenderForStyleChange")
+                    store.rerenderForStyleChange()
+                    AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate AFTER rerenderForStyleChange")
+                    appState.flushInteractionSnapshotNow()
+                },
+                showPointTagsForActiveTab: store.tabs.activeState.showPointTags,
+                onPointTagsToggle: (store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice) ? { show in
+                    store.tabs.setShowPointTags(show)
+                    store.rerenderForStyleChange()
+                    appState.flushInteractionSnapshotNow()
+                } : nil
+            ) {
+                // Row 3: RAHE method picker + Add Analysis (visible on RAHE tabs only)
+                if store.tabs.activeTab == .rahe1omegaVsT || store.tabs.activeTab == .rahe3omegaVsT
+                    || store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice {
+                    HStack {
+                        Picker("AHE Method", selection: Binding<ThreeOmegaV3Method>(
+                            get: { store.activeRAHEMethod ?? .highField },
+                            set: { store.updateRAHEMethod($0) }
+                        )) {
+                            ForEach(ThreeOmegaV3Method.allCases) { method in
+                                Text(method.rawValue).tag(method)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: 220)
+                        Spacer()
 
-                // Active overlays (capsule chips) — read from common overlay runtime.
-                let overlayRuntime = appState.workbench.overlayRuntime
-                if !overlayRuntime.overlayIDs.isEmpty {
-                    FlowLayout(spacing: 8) {
-                        ForEach(overlayRuntime.overlayIDs, id: \.self) { oid in
-                            if let label = overlayRuntime.displayLabels[oid] {
-                                HStack(spacing: 6) {
-                                    Text(label)
-                                        .font(.subheadline.weight(.medium))
-                                        .lineLimit(1)
-                                    Button {
-                                        store.removeOverlay(id: oid)
-                                    } label: {
-                                        Image(systemName: "xmark")
+                        ThreeOmegaAddOverlayButton()
+                            .environment(appState)
+                    }
+
+                    // Active overlays (capsule chips) — read from common overlay runtime.
+                    let overlayRuntime = appState.workbench.overlayRuntime
+                    if !overlayRuntime.overlayIDs.isEmpty {
+                        FlowLayout(spacing: 8) {
+                            ForEach(overlayRuntime.overlayIDs, id: \.self) { oid in
+                                if let label = overlayRuntime.displayLabels[oid] {
+                                    HStack(spacing: 6) {
+                                        Text(label)
+                                            .font(.subheadline.weight(.medium))
+                                            .lineLimit(1)
+                                        Button {
+                                            store.removeOverlay(id: oid)
+                                        } label: {
+                                            Image(systemName: "xmark")
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel("Remove overlay")
                                     }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel("Remove overlay")
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.secondary.opacity(0.12))
+                                    .clipShape(Capsule())
                                 }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(Color.secondary.opacity(0.12))
-                                .clipShape(Capsule())
                             }
                         }
                     }
@@ -218,340 +229,38 @@ private struct ThreeOmegaGeometryPanel: View {
                                 HStack(spacing: 4) {
                                     FitRangeBoundField(placeholder: "T_lo (K)", value: $range.tLo)
                                     Text("–")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
                                     FitRangeBoundField(placeholder: "T_hi (K)", value: $range.tHi)
-                                    Button {
-                                        store.removeFitRange(id: range.id)
-                                    } label: {
-                                        Image(systemName: "minus.circle.fill")
-                                            .foregroundStyle(.secondary)
+                                    if store.fitRanges.count > 1 {
+                                        Button {
+                                            store.fitRanges.removeAll { $0.id == range.id }
+                                        } label: {
+                                            Image(systemName: "minus.circle.fill")
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .buttonStyle(.borderless)
                                     }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel("Remove fit range")
-                                    .disabled(store.fitRanges.count <= 1)
                                 }
                             }
+                            Button {
+                                store.fitRanges.append(ThreeOmegaFitRange())
+                            } label: {
+                                Label("Add", systemImage: "plus.circle")
+                                    .labelStyle(.titleAndIcon)
+                            }
+                            .buttonStyle(.borderless)
                         }
-                        .fixedSize(horizontal: true, vertical: false)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Button {
-                        store.addFitRange()
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Add fit range")
                 }
             }
-            .padding(.vertical, 4)
             .onChange(of: store.geometry) { _, _ in
                 store.refreshTransportDerivedPlots(reason: "geometry changed")
-                appState.flushInteractionSnapshotNow()
             }
             .onChange(of: store.v3Method) { _, _ in
-                store.refreshTransportDerivedPlots(reason: "v3Method changed")
-                appState.flushInteractionSnapshotNow()
+                store.refreshTransportDerivedPlots(reason: "V3 method changed")
             }
             .onChange(of: store.fitRanges) { _, _ in
                 store.refreshTransportDerivedPlots(reason: "fit ranges changed")
-                appState.flushInteractionSnapshotNow()
             }
-        }
-    }
-}
-
-private extension ThreeOmegaV3Method {
-    var geometryDisplayLabel: String {
-        switch self {
-        case .highField:
-            return "HFE"
-        case .window:
-            return "WA"
-        }
-    }
-}
-
-private struct ThreeOmegaTransportStatusPanel: View {
-    @Environment(SpinLabAppState.self) private var appState
-
-    var body: some View {
-        let store = appState.workbench.threeOmegaWorkspace
-
-        GroupBox("Scaling Status") {
-            VStack(alignment: .leading, spacing: 6) {
-                switch store.transportDerivedStatus {
-                case .idle:
-                    Text("Scaling Law waits for Analyze.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                case .refreshing:
-                    Text("Updating Scaling Law…")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                case .missing(let requirements):
-                    Text("Scaling Law unavailable.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    Text("Missing: \(requirements.map(\.rawValue).joined(separator: ", "))")
-                        .font(.callout)
-                        .foregroundStyle(.orange)
-                case .ready:
-                    Text("Scaling Law is up to date.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                case .unavailable(let message):
-                    Text(message)
-                        .font(.callout)
-                        .foregroundStyle(.orange)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 4)
-        }
-    }
-}
-
-/// Text field for an optional Double temperature bound.
-private struct FitRangeBoundField: View {
-    let placeholder: String
-    @Binding var value: Double?
-
-    @State private var text: String = ""
-    @State private var didAppear = false
-
-    var body: some View {
-        TextField(placeholder, text: $text)
-            .textFieldStyle(.roundedBorder)
-            .frame(width: 68)
-            .onAppear {
-                guard !didAppear else { return }
-                didAppear = true
-                text = value.map { String(Int($0.rounded())) } ?? ""
-            }
-            .onChange(of: text) { _, newVal in
-                let trimmed = newVal.trimmingCharacters(in: .whitespaces)
-                if trimmed.isEmpty {
-                    value = nil
-                } else if let d = Double(trimmed) {
-                    value = d
-                }
-            }
-    }
-}
-
-// MARK: - Scaling result panel
-
-private struct ThreeOmegaScalingResultPanel: View {
-    let result: ThreeOmegaScalingResult
-
-    var body: some View {
-        GroupBox("Scaling Law Fit Results") {
-            VStack(alignment: .leading, spacing: 6) {
-                if result.isSingleFullRange(), let seg = result.segments.first {
-                    Text(String(format: "β (Q_xxz) = %.4e Ω·μm³·V⁻²", seg.beta * 1e20))
-                        .font(.system(.body, design: .monospaced))
-                    Text(String(format: "α (skew) = %.4e Ω·μm³·cm²·V⁻²·S⁻²", seg.alpha * 1e31))
-                        .font(.system(.body, design: .monospaced))
-                    Text(String(format: "R² = %.4f", seg.rSquared))
-                        .font(.system(.body, design: .monospaced))
-                    Text("\(result.points.count) data point(s)")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(Array(result.segments.enumerated()), id: \.element.id) { idx, seg in
-                        if idx > 0 { Divider() }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("\(Int(seg.tLo.rounded())) K – \(Int(seg.tHi.rounded())) K  (n=\(seg.pointCount))")
-                                .font(.callout.bold())
-                                .foregroundStyle(.secondary)
-                            Text(String(format: "β (Q_xxz) = %.4e Ω·μm³·V⁻²", seg.beta * 1e20))
-                                .font(.system(.callout, design: .monospaced))
-                            Text(String(format: "α (skew) = %.4e Ω·μm³·cm²·V⁻²·S⁻²", seg.alpha * 1e31))
-                                .font(.system(.callout, design: .monospaced))
-                            Text(String(format: "R² = %.4f", seg.rSquared))
-                                .font(.system(.callout, design: .monospaced))
-                        }
-                    }
-                }
-                ForEach(result.warnings, id: \.self) { w in
-                    Text("⚠ \(w)")
-                        .font(.callout)
-                        .foregroundStyle(.orange)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 4)
-        }
-    }
-}
-
-// MARK: - RT search field with popover
-
-private struct ThreeOmegaRTSearchField: View {
-    @Environment(SpinLabAppState.self) private var appState
-
-    var body: some View {
-        @Bindable var store = appState.workbench.threeOmegaWorkspace
-        let libraryRoot = appState.library.librarySettings.rootPath
-
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 4) {
-                TextField("RT file…", text: Binding(
-                    get: { store.rtQuery },
-                    set: { store.updateRTQuery($0) }
-                ))
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 140)
-                    .onSubmit {
-                        store.clearRTSelection()
-                        appState.workbench.runThreeOmegaRTSearch(
-                            libraryRootPath: libraryRoot,
-                            librarySettings: appState.library.librarySettings
-                        )
-                    }
-                    .popover(isPresented: $store.showRTPopover, arrowEdge: .bottom) {
-                        ThreeOmegaRTPopover()
-                            .environment(appState)
-                    }
-
-                Button {
-                    store.clearRTSelection()
-                    appState.workbench.runThreeOmegaRTSearch(
-                        libraryRootPath: libraryRoot,
-                        librarySettings: appState.library.librarySettings
-                    )
-                } label: {
-                    Image(systemName: "magnifyingglass")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .accessibilityLabel("Search RT files")
-                .disabled(store.rtQuery.trimmingCharacters(in: .whitespaces).isEmpty || store.isRTSearching || libraryRoot == nil)
-            }
-
-            if let hit = store.selectedRTHit {
-                let fullName = hit.measurementFilePath.components(separatedBy: "/").last ?? hit.id
-                Text("✓ \(fullName)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .help(fullName)
-            }
-        }
-        .frame(width: 170, alignment: .leading)
-    }
-}
-
-private struct ThreeOmegaRTPopover: View {
-    @Environment(SpinLabAppState.self) private var appState
-
-    var body: some View {
-        let store = appState.workbench.threeOmegaWorkspace
-
-        VStack(alignment: .leading, spacing: 6) {
-            if store.isRTSearching {
-                HStack {
-                    ProgressView().controlSize(.small)
-                    Text("Searching…").font(.caption)
-                }
-            } else if store.rtSearchResults.isEmpty {
-                Text(store.rtSearchMessage ?? "No results.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text(store.rtSearchMessage ?? "")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                ScrollView(.vertical) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(store.rtSearchResults) { hit in
-                            Button {
-                                store.selectRTHit(hit)
-                                appState.flushInteractionSnapshotNow()
-                            } label: {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(hit.measurementFilePath.components(separatedBy: "/").last ?? hit.id)
-                                        .font(.caption)
-                                        .lineLimit(1)
-                                    Text(hit.conditionSummary)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.vertical, 2)
-                            .padding(.horizontal, 4)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.accentColor.opacity(0.08))
-                            )
-                        }
-                    }
-                }
-                .frame(minHeight: 120, maxHeight: 360)
-            }
-        }
-        .padding(8)
-        .frame(width: 320)
-    }
-}
-
-// MARK: - Add overlay button (RAHE tabs)
-
-private struct ThreeOmegaAddOverlayButton: View {
-    @Environment(SpinLabAppState.self) private var appState
-    @State private var showPopover = false
-
-    var body: some View {
-        let vault = appState.workbench.analysisVault
-        let store = appState.workbench.threeOmegaWorkspace
-        let available = store.availableOverlayPacks(in: vault)
-
-        Button("Add Analysis") {
-            showPopover.toggle()
-        }
-        .buttonStyle(.bordered)
-        .disabled(available.isEmpty)
-        .popover(isPresented: $showPopover, arrowEdge: .bottom) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Overlay Analysis")
-                    .font(.caption.bold())
-                    .foregroundStyle(.secondary)
-
-                ScrollView(.vertical) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(available) { pack in
-                            Button {
-                                store.addOverlay(id: pack.id)
-                                showPopover = false
-                            } label: {
-                                Text(pack.label)
-                                    .font(.caption)
-                                    .lineLimit(1)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.vertical, 2)
-                            .padding(.horizontal, 4)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.accentColor.opacity(0.08))
-                            )
-                        }
-                    }
-                }
-                .frame(minHeight: 40, maxHeight: 200)
-            }
-            .padding(8)
-            .frame(width: 240)
         }
     }
 }
