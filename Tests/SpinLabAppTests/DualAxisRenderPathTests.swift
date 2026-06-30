@@ -432,3 +432,137 @@ private func makeLineSeries(label: String, xRange: ClosedRange<Double> = 0...10,
     let (lo, hi) = DualAxisPlotLayout.dataRange(from: [3.0])
     #expect(lo < hi)
 }
+
+// MARK: - TabRenderOutput: Temperature Dependence field contract
+
+@Test func temperatureDependenceOutputHasDualAxisKindAndNilXYPayloads() {
+    let payload = makePayload(
+        leftSeries: [makeLineSeries(label: "L")],
+        rightSeries: [makeLineSeries(label: "R", yScale: 10)]
+    )
+    let layout = DualAxisPlotLayout.compute(payload: payload)
+    let output = TabRenderOutput(
+        imageData: Data([0xAB]),
+        renderKind: .dualAxis,
+        layout: nil,
+        manifestPayload: nil,
+        displayPayload: nil,
+        dualAxisLayout: layout,
+        dualAxisPayload: payload
+    )
+
+    #expect(output.renderKind == .dualAxis)
+    #expect(output.manifestPayload == nil)
+    #expect(output.displayPayload == nil)
+    #expect(output.dualAxisPayload != nil)
+    #expect(output.dualAxisLayout != nil)
+}
+
+@Test func temperatureDependenceEmptyOutputHasDualAxisKindAndNilPayloads() {
+    let output = TabRenderOutput(
+        renderKind: .dualAxis,
+        manifestPayload: nil,
+        displayPayload: nil
+    )
+
+    #expect(output.renderKind == .dualAxis)
+    #expect(output.manifestPayload == nil)
+    #expect(output.displayPayload == nil)
+    #expect(output.dualAxisPayload == nil)
+}
+
+// MARK: - Temperature Dependence store-level render path
+
+@MainActor
+private func makeTDScalingReadyStore() -> ThreeOmegaWorkspaceStore {
+    let store = ThreeOmegaWorkspaceStore(workflowID: "3omega")
+    store.ingestionResult = ThreeOmegaIngestionResult(
+        fieldSweeps: [
+            ThreeOmegaFieldSweepResult(
+                temperatureK: 5.0, device: "0deg", sampleMetadata: nil, sampleID: "a",
+                sourceFilePath: "/tmp/a.lvm", hField: [-1, 0, 1], r1omega: [-1, 0, 1],
+                r3omega: [0, 0, 0], iRms: 1e-3, rahe1omega: 1.0, rahe1omegaWA: 1.0,
+                hc1omega: nil, hc3omega: nil, v3omegaWindow: 2e-5, v3omegaFit: 2e-5
+            ),
+            ThreeOmegaFieldSweepResult(
+                temperatureK: 10.0, device: "0deg", sampleMetadata: nil, sampleID: "a",
+                sourceFilePath: "/tmp/b.lvm", hField: [-1, 0, 1], r1omega: [-1, 0, 1],
+                r3omega: [0, 0, 0], iRms: 1e-3, rahe1omega: 1.2, rahe1omegaWA: 1.2,
+                hc1omega: nil, hc3omega: nil, v3omegaWindow: 2.5e-5, v3omegaFit: 2.5e-5
+            )
+        ],
+        rtResult: ThreeOmegaRTResult(device: "0deg", temperatureK: [5.0, 10.0], rxx: [100.0, 90.0]),
+        device: "0deg",
+        iRmsValues: [5.0: 1e-3, 10.0: 1e-3]
+    )
+    store.geometry = ThreeOmegaGeometry(lxx: 26, lxy: 21, dNm: 30)
+    return store
+}
+
+@MainActor
+private func waitForTDPayload(_ store: ThreeOmegaWorkspaceStore, attempts: Int = 40) async {
+    for _ in 0..<attempts {
+        if store.tabs.output(for: .temperatureDependence).dualAxisPayload != nil { return }
+        try? await Task.sleep(for: .milliseconds(25))
+    }
+}
+
+@MainActor
+@Test func temperatureDependenceOutputManifestPayloadIsNilWhenComplete() async {
+    let store = makeTDScalingReadyStore()
+    store.refreshTransportDerivedPlots(reason: "test")
+    await waitForTDPayload(store)
+
+    let out = store.tabs.output(for: .temperatureDependence)
+    #expect(out.renderKind == .dualAxis)
+    #expect(out.manifestPayload == nil)
+    #expect(out.displayPayload == nil)
+    #expect(out.dualAxisPayload != nil)
+}
+
+@MainActor
+@Test func temperatureDependenceRightYLabelOverrideUpdatesRenderOutput() async {
+    let store = makeTDScalingReadyStore()
+    store.temperatureDependenceDisplayState.rightYLabelOverride = "Custom σxx"
+    store.refreshTransportDerivedPlots(reason: "test")
+    await waitForTDPayload(store)
+
+    let payload = store.tabs.output(for: .temperatureDependence).dualAxisPayload
+    #expect(payload?.rightYLabel == "Custom σxx")
+    #expect(store.tabs.output(for: .temperatureDependence).manifestPayload == nil)
+    #expect(store.tabs.output(for: .temperatureDependence).displayPayload == nil)
+}
+
+@MainActor
+@Test func temperatureDependenceManualRangesUpdateDualAxisLayout() async {
+    let store = makeTDScalingReadyStore()
+    store.temperatureDependenceDisplayState.axisRangeOverride = DualAxisAxisRangeOverride(xMin: 5, xMax: 12)
+    store.refreshTransportDerivedPlots(reason: "test")
+    await waitForTDPayload(store)
+
+    let layout = store.tabs.output(for: .temperatureDependence).dualAxisLayout
+    #expect(layout?.axisXMin == 5)
+    #expect(layout?.axisXMax == 12)
+}
+
+@MainActor
+@Test func temperatureDependenceActiveRerenderDoesNotDropDualAxisDisplayState() async {
+    let store = makeTDScalingReadyStore()
+    store.tabs.activeTab = .temperatureDependence
+    store.refreshTransportDerivedPlots(reason: "setup")
+    await waitForTDPayload(store)
+
+    store.temperatureDependenceDisplayState.rightYLabelOverride = "Preserved Label"
+    store.tabs.setOutput(
+        TabRenderOutput(renderKind: .dualAxis, manifestPayload: nil, displayPayload: nil),
+        for: .temperatureDependence
+    )
+    store._rerenderActiveTab()
+    await waitForTDPayload(store)
+
+    let payload = store.tabs.output(for: .temperatureDependence).dualAxisPayload
+    #expect(payload?.rightYLabel == "Preserved Label")
+    #expect(store.temperatureDependenceDisplayState.rightYLabelOverride == "Preserved Label")
+    #expect(store.tabs.output(for: .temperatureDependence).manifestPayload == nil)
+    #expect(store.tabs.output(for: .temperatureDependence).displayPayload == nil)
+}

@@ -260,8 +260,12 @@ struct V563WorkflowStateBoundaryTests {
 
         #expect(store.analysisMessage == "Analysis success")
         #expect(store.transportDerivedStatusMessage?.contains("missing") == true)
-        #expect(store.tabs.output(for: .temperatureDependence).imageData == nil)
-        #expect(store.tabs.output(for: .temperatureDependence).dualAxisPayload == nil)
+        let output = store.tabs.output(for: .temperatureDependence)
+        #expect(output.renderKind == .dualAxis)
+        #expect(output.imageData == nil)
+        #expect(output.manifestPayload == nil)
+        #expect(output.displayPayload == nil)
+        #expect(output.dualAxisPayload == nil)
     }
 
     @Test("Reorderable payloads use stable sourceRef identity")
