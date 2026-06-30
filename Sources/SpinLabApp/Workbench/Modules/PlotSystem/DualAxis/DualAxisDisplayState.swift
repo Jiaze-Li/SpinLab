@@ -118,6 +118,38 @@ enum DualAxisAxisRangeBound: Sendable {
     case xMin, xMax, leftYMin, leftYMax, rightYMin, rightYMax
 }
 
+/// Pure reducer used by DualAxis controls. Invalid finite pairs are rejected without mutating state.
+func dualAxisRangeOverrideByUpdating(
+    _ current: DualAxisAxisRangeOverride?,
+    bound: DualAxisAxisRangeBound,
+    value: Double?
+) -> DualAxisAxisRangeOverride? {
+    if let value, !value.isFinite { return current }
+
+    var next = current ?? DualAxisAxisRangeOverride()
+    switch bound {
+    case .xMin:      next.xMin = value
+    case .xMax:      next.xMax = value
+    case .leftYMin:  next.leftYMin = value
+    case .leftYMax:  next.leftYMax = value
+    case .rightYMin: next.rightYMin = value
+    case .rightYMax: next.rightYMax = value
+    }
+
+    guard isValidRangePair(min: next.xMin, max: next.xMax),
+          isValidRangePair(min: next.leftYMin, max: next.leftYMax),
+          isValidRangePair(min: next.rightYMin, max: next.rightYMax) else {
+        return current
+    }
+
+    return next.isEmpty ? nil : next
+}
+
+private func isValidRangePair(min: Double?, max: Double?) -> Bool {
+    guard let min, let max else { return true }
+    return min.isFinite && max.isFinite && max > min
+}
+
 // MARK: - DualAxis display state
 
 /// Mutable display-state model edited by DualAxis controls.
