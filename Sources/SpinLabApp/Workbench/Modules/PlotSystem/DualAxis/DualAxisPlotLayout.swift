@@ -44,7 +44,8 @@ struct DualAxisPlotLayout: Sendable {
     static func compute(
         payload: DualAxisPlotPayload,
         options: Options = .init(),
-        style: WorkbenchChartStyle = .init()
+        style: WorkbenchChartStyle = .init(),
+        displayState: DualAxisDisplayStateSnapshot = .default
     ) -> DualAxisPlotLayout {
         let validLeft = payload.leftSeries.filter {
             $0.x.count == $0.y.count && $0.x.contains(where: \.isFinite)
@@ -57,7 +58,8 @@ struct DualAxisPlotLayout: Sendable {
             validLeftSeries: validLeft,
             validRightSeries: validRight,
             options: options,
-            style: style
+            style: style,
+            displayState: displayState
         )
     }
 
@@ -66,14 +68,32 @@ struct DualAxisPlotLayout: Sendable {
         validLeftSeries: [DualAxisPlotSeries],
         validRightSeries: [DualAxisPlotSeries],
         options: Options = .init(),
-        style: WorkbenchChartStyle = .init()
+        style: WorkbenchChartStyle = .init(),
+        displayState: DualAxisDisplayStateSnapshot = .default
     ) -> DualAxisPlotLayout {
         let w = CGFloat(options.width)
         let h = CGFloat(options.height)
 
-        let (xMin, xMax) = dataRange(from: (validLeftSeries + validRightSeries).flatMap(\.x))
-        let (leftYMin, leftYMax) = dataRange(from: validLeftSeries.flatMap(\.y))
-        let (rightYMin, rightYMax) = dataRange(from: validRightSeries.flatMap(\.y))
+        let autoX = dataRange(from: (validLeftSeries + validRightSeries).flatMap(\.x))
+        let autoLeftY = dataRange(from: validLeftSeries.flatMap(\.y))
+        let autoRightY = dataRange(from: validRightSeries.flatMap(\.y))
+        let rangeOverride = displayState.axisRangeOverride
+
+        let (xMin, xMax) = applyRangeOverride(
+            auto: autoX,
+            manualMin: rangeOverride?.xMin,
+            manualMax: rangeOverride?.xMax
+        )
+        let (leftYMin, leftYMax) = applyRangeOverride(
+            auto: autoLeftY,
+            manualMin: rangeOverride?.leftYMin,
+            manualMax: rangeOverride?.leftYMax
+        )
+        let (rightYMin, rightYMax) = applyRangeOverride(
+            auto: autoRightY,
+            manualMin: rangeOverride?.rightYMin,
+            manualMax: rangeOverride?.rightYMax
+        )
 
         let (xTickValues, xStep) = PlotAxisSpacingCalculator.niceTicks(
             min: xMin, max: xMax, targetCount: style.tickTargetX
@@ -193,6 +213,17 @@ struct DualAxisPlotLayout: Sendable {
         let lo = finite.min()!
         let hi = finite.max()!
         guard hi > lo else { return (lo - 1, lo + 1) }
+        return (lo, hi)
+    }
+
+    static func applyRangeOverride(
+        auto: (min: Double, max: Double),
+        manualMin: Double?,
+        manualMax: Double?
+    ) -> (min: Double, max: Double) {
+        let lo = manualMin?.isFinite == true ? manualMin! : auto.min
+        let hi = manualMax?.isFinite == true ? manualMax! : auto.max
+        guard hi > lo else { return auto }
         return (lo, hi)
     }
 
