@@ -834,10 +834,6 @@ extension ThreeOmegaWorkspaceStore {
         let capturedMinGap     = minGapFraction
         let capturedTemplate   = titleTemplate
         let capturedTokens     = _titleTokens
-        let capturedRAHE1Method = rahe1omegaMethod
-        let capturedRAHE3Method = rahe3omegaMethod
-        let capturedRAHE1DevMethod = rahe1omegaVsDeviceMethod
-        let capturedRAHE3DevMethod = rahe3omegaVsDeviceMethod
         let capturedScaling = scalingResult
         let capturedGlobalPlotDefaults = globalPlotDefaults
         let capturedWorkflowID = workflowID
@@ -884,14 +880,7 @@ extension ThreeOmegaWorkspaceStore {
     func _rerenderAllTabsFromRestoredState() {
         guard let ingestion = ingestionResult else { return }
 
-        let capturedRAHE1Method    = rahe1omegaMethod
-        let capturedRAHE3Method    = rahe3omegaMethod
-        let capturedRAHE1DevMethod = rahe1omegaVsDeviceMethod
-        let capturedRAHE3DevMethod = rahe3omegaVsDeviceMethod
         let capturedScaling        = scalingResult
-        let capturedGeometry       = geometry
-        let capturedV3Method       = v3Method
-        let capturedDevice         = ingestion.device
         let capturedFieldSweepSeriesOrder = fieldSweepSeriesOrder
 
         let baseGlobalSettings = ThreeOmegaRendererGlobalSettings(
@@ -914,8 +903,6 @@ extension ThreeOmegaWorkspaceStore {
                 }
                 return (tab, snap)
             })
-        let capturedRestoredFieldSweeps = ingestion.fieldSweeps
-
         let lookupHit             = cachedSearchResults.first
         let lookupLibraryRoot     = lastLibraryRootPath
         let fallbackTokens        = _titleTokens
