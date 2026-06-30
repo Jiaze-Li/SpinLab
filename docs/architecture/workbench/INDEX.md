@@ -29,8 +29,9 @@ Active per-module contracts that supplement `MODULE_BOUNDARIES.md`.
 | File | Role | Scope |
 |---|---|---|
 | `modules/MEASUREMENT_SEARCH.md` | Search module details | Sidecar field consumption, condition projection, workflow ID aliases, search result semantics |
-| `modules/PLOT_SYSTEM.md` | Plot system details | Workflow-independent plot shell, style params, legend, copy PNG, point label, curve reorder contract; Cartesian XY, Heatmap, and DualAxis render paths |
+| `modules/PLOT_SYSTEM.md` | Plot system entry contract | Workflow-independent plot shell, controls/preservation/export rules, and routing to render-path-specific contracts |
 | `modules/PLOT_CONTROLS_SPLIT_PLAN.md` | Plot controls ownership contract | Common vs Cartesian XY vs DualAxis vs Heatmap vs workflow-owned controls; read this before adding or moving plot controls |
+| `modules/HEATMAP_RENDER_PATH.md` | Heatmap render-path contract | Heatmap payload/layout/render/state boundaries; colorbar/colormap/Z-range ownership; RSM adapter boundary |
 | `modules/DUAL_AXIS_CONTROL_CONTRACT.md` | DualAxis controls contract | DualAxis payload + display-state snapshot rule, target files, generic template scope, 3ω adapter boundary |
 | `modules/PACK_RESTORE.md` | Pack / restore details | AnalysisPack / AnalysisVault, workspace vs Library save, restore as cross-module op, per-workflow pack contracts |
 
@@ -95,11 +96,12 @@ Covers current contracts and references only. For historical audit records, see 
 8. [MAIN_BOARD_LAYOUT.md](MAIN_BOARD_LAYOUT.md) - implementation-level placement notes only
 9. [PHYSICAL_MODULE_LAYOUT.md](PHYSICAL_MODULE_LAYOUT.md) - target physical layout and move-only migration gates
 10. [modules/MEASUREMENT_SEARCH.md](modules/MEASUREMENT_SEARCH.md) - search semantics and condition projection
-11. [modules/PLOT_SYSTEM.md](modules/PLOT_SYSTEM.md) - plot capabilities and shared plot shell details
+11. [modules/PLOT_SYSTEM.md](modules/PLOT_SYSTEM.md) - plot system entry contract and routing
 12. [modules/PLOT_CONTROLS_SPLIT_PLAN.md](modules/PLOT_CONTROLS_SPLIT_PLAN.md) - plot controls ownership split before adding/moving controls
-13. [modules/DUAL_AXIS_CONTROL_CONTRACT.md](modules/DUAL_AXIS_CONTROL_CONTRACT.md) - DualAxis controls, display-state snapshot, template, and 3ω adapter boundary
-14. [modules/PACK_RESTORE.md](modules/PACK_RESTORE.md) - pack / restore lifecycle and write boundaries
-15. [STATE_OWNERSHIP.md](STATE_OWNERSHIP.md) - state ownership contract for plot defaults, tabs, packs, sidecars, and measurement sets
+13. [modules/HEATMAP_RENDER_PATH.md](modules/HEATMAP_RENDER_PATH.md) - heatmap payload/layout/render/state boundary
+14. [modules/DUAL_AXIS_CONTROL_CONTRACT.md](modules/DUAL_AXIS_CONTROL_CONTRACT.md) - DualAxis controls, display-state snapshot, template, and 3ω adapter boundary
+15. [modules/PACK_RESTORE.md](modules/PACK_RESTORE.md) - pack / restore lifecycle and write boundaries
+16. [STATE_OWNERSHIP.md](STATE_OWNERSHIP.md) - state ownership contract for plot defaults, tabs, packs, sidecars, and measurement sets
 
 ## Dispatch Rules
 
@@ -108,6 +110,7 @@ Covers current contracts and references only. For historical audit records, see 
 - If changing workflow assembly or registration, read [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md). Specific workflow assembly records live at `workflows/*/ASSEMBLY.md`.
 - If changing module ownership, read [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md).
 - If adding or moving plot controls, read [modules/PLOT_CONTROLS_SPLIT_PLAN.md](modules/PLOT_CONTROLS_SPLIT_PLAN.md) before editing Swift.
+- If changing Heatmap payload, renderer, colorbar, colormap, display state, or RSM heatmap adapter behavior, read [modules/HEATMAP_RENDER_PATH.md](modules/HEATMAP_RENDER_PATH.md) before editing Swift.
 - If changing DualAxis controls, display state, export behavior, or the 3ω Temperature Dependence adapter, read [modules/DUAL_AXIS_CONTROL_CONTRACT.md](modules/DUAL_AXIS_CONTROL_CONTRACT.md) before editing Swift.
 - If looking for who owns a capability or task, start with [MODULE_CAPABILITY_MAP.md](MODULE_CAPABILITY_MAP.md), then read the owning module/workflow docs it references.
 - If changing physical Swift file layout, start with [PHYSICAL_MODULE_LAYOUT.md](PHYSICAL_MODULE_LAYOUT.md) and [MODULE_CAPABILITY_MAP.md](MODULE_CAPABILITY_MAP.md), and keep the commit move-only unless a separate architecture gate authorizes behavior changes.
@@ -147,7 +150,7 @@ Full rules (routing note format, task routing table, compliance checklist, docum
 
 ## Tests
 
-Start with `V310WorkbenchFoundationTests.swift`, `V320WorkflowSearchAcrossDrawersTests.swift`, `V330WorkbenchShellContractTests.swift`, `V532WorkbenchRenderPipelineTests.swift`, `V4111SaveActiveChartToLibraryUseCaseTests.swift`, `V413ThreeOmegaFitUseCaseTests.swift`, `V321AHEIngestionAxisDetectionTests.swift`.
+Start with `V310WorkbenchFoundationTests.swift`, `V320WorkflowSearchAcrossDrawersTests.swift`, `V330WorkbenchShellContractTests.swift`, `V532WorkbenchRenderPipelineTests`, `V4111SaveActiveChartToLibraryUseCaseTests`, `V413ThreeOmegaFitUseCaseTests`, `V321AHEIngestionAxisDetectionTests`.
 
 ## Why Workbench Uses Its Own Terms
 
