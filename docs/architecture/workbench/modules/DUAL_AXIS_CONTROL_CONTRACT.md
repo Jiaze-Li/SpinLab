@@ -4,7 +4,7 @@
 
 DualAxis is the Plot System render path for charts with one X axis and two independent Y axes.
 
-This document records the control/state contract for DualAxis before the template implementation. It supplements `PLOT_SYSTEM.md` and `PLOT_CONTROLS_SPLIT_PLAN.md`; it does not replace either document.
+This document records the control/state contract for DualAxis before the template implementation. It supplements `PLOT_SYSTEM.md`, `PLOT_CONTROLS_SPLIT_PLAN.md`, `PHYSICAL_MODULE_LAYOUT.md`, and the 3ω Assembly record; it does not replace those documents.
 
 ## Ownership
 
@@ -18,6 +18,22 @@ This document records the control/state contract for DualAxis before the templat
 Plot System must not infer physics meaning from workflow ID, tab name, axis label text, sample metadata, or series values.
 
 Workflow Assemblies must not own renderer geometry, generic dual-axis style controls, or persistent dual-axis display overrides.
+
+## Target Physical Home
+
+```text
+Sources/SpinLabApp/Workbench/Modules/PlotSystem/DualAxis/
+  DualAxisPlotPayload.swift
+  DualAxisPlotLayout.swift
+  DualAxisChartRenderer.swift
+  DualAxisRenderPipeline.swift
+  DualAxisDisplayState.swift
+  DualAxisDisplayStateSnapshot.swift
+  DualAxisPlotControlsPanel.swift
+  DualAxisExportSnapshot.swift        // optional if export needs a distinct value type
+```
+
+The first four files already represent the render path. The display-state, controls, and export snapshot files are the next template/control target. If the implementation reuses a generalized preservation type instead of `DualAxisDisplayState`, the ownership rule stays the same: DualAxis display overrides must not be stored in a Cartesian XY-only `TabRenderState` shape.
 
 ## Render Input Rule
 
@@ -87,3 +103,12 @@ right y = σxx
 ```
 
 That adapter owns physics labels, unit scaling, point sorting, and warning policy. It must not duplicate DualAxis display state.
+
+## 3ω Temperature Dependence Tests To Add With Implementation
+
+- Payload points are sorted by `T` before line rendering.
+- Left-axis values match the declared `E_AHE^(3ω) / E_xx^3` display contract.
+- Right-axis values match the declared `σxx` display contract.
+- Default labels and unit scale factors are asserted.
+- Empty or invalid scaling results produce no misleading DualAxis plot.
+- Copy PNG/export re-renders from payload + display snapshot at the requested scale.
