@@ -5,7 +5,6 @@ import ImageIO
 
 /// Pure CoreGraphics PNG renderer for the dual-axis render path (Plot System-owned).
 /// No SwiftUI or AppKit. Parallel to WorkbenchChartRenderer; must not extend it.
-/// Left-axis series are drawn with solid lines; right-axis series with dashed lines.
 struct DualAxisChartRenderer {
 
     enum RendererError: Error, LocalizedError {
@@ -29,7 +28,8 @@ struct DualAxisChartRenderer {
     func renderPNG(
         payload: DualAxisPlotPayload,
         options: DualAxisPlotLayout.Options = .init(),
-        style: WorkbenchChartStyle = .init()
+        style: WorkbenchChartStyle = .init(),
+        displayState: DualAxisDisplayStateSnapshot = .default
     ) throws -> Data {
         let validLeft = payload.leftSeries.filter {
             $0.x.count == $0.y.count && $0.x.contains(where: \.isFinite)
@@ -42,7 +42,8 @@ struct DualAxisChartRenderer {
             validLeftSeries: validLeft,
             validRightSeries: validRight,
             options: options,
-            style: style
+            style: style,
+            displayState: displayState
         )
         return try renderPNG(
             payload: payload,
@@ -50,7 +51,8 @@ struct DualAxisChartRenderer {
             validRightSeries: validRight,
             layout: layout,
             options: options,
-            style: style
+            style: style,
+            displayState: displayState
         )
     }
 
@@ -60,7 +62,8 @@ struct DualAxisChartRenderer {
         validRightSeries: [DualAxisPlotSeries],
         layout: DualAxisPlotLayout,
         options: DualAxisPlotLayout.Options = .init(),
-        style: WorkbenchChartStyle = .init()
+        style: WorkbenchChartStyle = .init(),
+        displayState: DualAxisDisplayStateSnapshot = .default
     ) throws -> Data {
         let scale = max(options.pixelScale, 1)
         let pixelW = Int((layout.rendererSize.width * scale).rounded())
@@ -81,7 +84,8 @@ struct DualAxisChartRenderer {
             validLeftSeries: validLeftSeries,
             validRightSeries: validRightSeries,
             layout: layout,
-            style: style
+            style: style,
+            displayState: displayState
         )
 
         guard let cgImage = ctx.makeImage() else { throw RendererError.imageCreationFailed }
@@ -103,75 +107,67 @@ struct DualAxisChartRenderer {
         validLeftSeries: [DualAxisPlotSeries],
         validRightSeries: [DualAxisPlotSeries],
         layout: DualAxisPlotLayout,
-        style: WorkbenchChartStyle
+        style: WorkbenchChartStyle,
+        displayState: DualAxisDisplayStateSnapshot
     ) {
         let w = layout.rendererSize.width
         let h = layout.rendererSize.height
         let black    = CGColor(red: 0,   green: 0,   blue: 0,   alpha: 1)
         let darkGray = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
         let dimGray  = CGColor(red: 0.3, green: 0.3, blue: 0.3, alpha: 1)
+        let leftAxisColor = axisColor(for: .leftAxisBlue, policy: displayState.axisColorPolicy, fallback: darkGray)
+        let rightAxisColor = axisColor(for: .rightAxisRed, policy: displayState.axisColorPolicy, fallback: darkGray)
+        let leftSeriesColor = color(for: displayState.leftSeriesStyle.colorRole ?? .leftAxisBlue)
+        let rightSeriesColor = color(for: displayState.rightSeriesStyle.colorRole ?? .rightAxisRed)
 
-        // White background
         ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
         ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
 
-        // Title
         if !payload.title.isEmpty {
             drawCentered(ctx, text: payload.title, at: layout.titleCenter,
                          size: style.titleFontSize, bold: style.titleBold, color: black, style: style)
         }
 
-        // Plot box border
         ctx.setStrokeColor(darkGray)
         ctx.setLineWidth(1.2)
         ctx.stroke(layout.plotRect)
 
-        // X ticks
         drawXTicks(ctx: ctx, layout: layout, style: style, color: darkGray, labelColor: dimGray)
+        drawLeftYTicks(ctx: ctx, layout: layout, style: style, color: leftAxisColor, labelColor: leftAxisColor)
+        drawRightYTicks(ctx: ctx, layout: layout, style: style, color: rightAxisColor, labelColor: rightAxisColor)
 
-        // Left Y ticks
-        drawLeftYTicks(ctx: ctx, layout: layout, style: style, color: darkGray, labelColor: dimGray)
-
-        // Right Y ticks
-        drawRightYTicks(ctx: ctx, layout: layout, style: style, color: darkGray, labelColor: dimGray)
-
-        // X label
         if !payload.xLabel.isEmpty {
             drawCentered(ctx, text: payload.xLabel, at: layout.xLabelCenter,
                          size: style.axisTitleFontSize, bold: false, color: black, style: style)
         }
 
-        // Left Y label (rotated counter-clockwise)
         if !payload.leftYLabel.isEmpty {
             drawRotated(ctx, text: payload.leftYLabel, at: layout.leftYLabelCenter,
-                        clockwise: false, size: style.axisTitleFontSize, color: black, style: style)
+                        clockwise: false, size: style.axisTitleFontSize, color: leftAxisColor, style: style)
         }
 
-        // Right Y label (rotated clockwise)
         if !payload.rightYLabel.isEmpty {
             drawRotated(ctx, text: payload.rightYLabel, at: layout.rightYLabelCenter,
-                        clockwise: true, size: style.axisTitleFontSize, color: black, style: style)
+                        clockwise: true, size: style.axisTitleFontSize, color: rightAxisColor, style: style)
         }
 
-        // Series (clipped to plotRect)
-        for (i, series) in validLeftSeries.enumerated() {
-            let color = Self.palette[i % Self.palette.count]
+        for series in validLeftSeries {
             drawSeries(ctx, series: series,
                        yMin: layout.axisLeftYMin, yMax: layout.axisLeftYMax,
-                       layout: layout, color: color, dashed: false)
+                       layout: layout, color: leftSeriesColor,
+                       familyStyle: displayState.leftSeriesStyle,
+                       globalStyle: style)
         }
-        for (i, series) in validRightSeries.enumerated() {
-            let color = Self.palette[(i + validLeftSeries.count) % Self.palette.count]
+        for series in validRightSeries {
             drawSeries(ctx, series: series,
                        yMin: layout.axisRightYMin, yMax: layout.axisRightYMax,
-                       layout: layout, color: color, dashed: true)
+                       layout: layout, color: rightSeriesColor,
+                       familyStyle: displayState.rightSeriesStyle,
+                       globalStyle: style)
         }
 
-        // Legend
-        let allLeft  = validLeftSeries.enumerated().map { (i, s) in (s, Self.palette[i % Self.palette.count], false) }
-        let allRight = validRightSeries.enumerated().map { (i, s) in
-            (s, Self.palette[(i + validLeftSeries.count) % Self.palette.count], true)
-        }
+        let allLeft  = validLeftSeries.map { ($0, leftSeriesColor, displayState.leftSeriesStyle) }
+        let allRight = validRightSeries.map { ($0, rightSeriesColor, displayState.rightSeriesStyle) }
         let legendEntries = allLeft + allRight
         if !legendEntries.isEmpty {
             drawLegend(ctx, entries: legendEntries, layout: layout, style: style)
@@ -180,13 +176,7 @@ struct DualAxisChartRenderer {
 
     // MARK: - Ticks
 
-    private func drawXTicks(
-        ctx: CGContext,
-        layout: DualAxisPlotLayout,
-        style: WorkbenchChartStyle,
-        color: CGColor,
-        labelColor: CGColor
-    ) {
+    private func drawXTicks(ctx: CGContext, layout: DualAxisPlotLayout, style: WorkbenchChartStyle, color: CGColor, labelColor: CGColor) {
         let tickLen: CGFloat = 6
         ctx.setStrokeColor(color)
         ctx.setLineWidth(0.8)
@@ -201,13 +191,7 @@ struct DualAxisChartRenderer {
         }
     }
 
-    private func drawLeftYTicks(
-        ctx: CGContext,
-        layout: DualAxisPlotLayout,
-        style: WorkbenchChartStyle,
-        color: CGColor,
-        labelColor: CGColor
-    ) {
+    private func drawLeftYTicks(ctx: CGContext, layout: DualAxisPlotLayout, style: WorkbenchChartStyle, color: CGColor, labelColor: CGColor) {
         let tickLen: CGFloat = 6
         ctx.setStrokeColor(color)
         ctx.setLineWidth(0.8)
@@ -222,13 +206,7 @@ struct DualAxisChartRenderer {
         }
     }
 
-    private func drawRightYTicks(
-        ctx: CGContext,
-        layout: DualAxisPlotLayout,
-        style: WorkbenchChartStyle,
-        color: CGColor,
-        labelColor: CGColor
-    ) {
+    private func drawRightYTicks(ctx: CGContext, layout: DualAxisPlotLayout, style: WorkbenchChartStyle, color: CGColor, labelColor: CGColor) {
         let tickLen: CGFloat = 6
         ctx.setStrokeColor(color)
         ctx.setLineWidth(0.8)
@@ -252,7 +230,8 @@ struct DualAxisChartRenderer {
         yMax: Double,
         layout: DualAxisPlotLayout,
         color: CGColor,
-        dashed: Bool
+        familyStyle: DualAxisSeriesVisualStyle,
+        globalStyle: WorkbenchChartStyle
     ) {
         let points: [CGPoint] = zip(series.x, series.y).compactMap { (x, y) in
             guard x.isFinite, y.isFinite else { return nil }
@@ -263,17 +242,16 @@ struct DualAxisChartRenderer {
         ctx.saveGState()
         ctx.clip(to: layout.plotRect.insetBy(dx: -1, dy: -1))
 
-        let lw = CGFloat(series.lineWidth)
+        let renderMode = familyStyle.renderMode ?? series.renderMode
+        let lw = CGFloat(familyStyle.lineWidth ?? globalStyle.lineWidth ?? series.lineWidth)
+        let radius = CGFloat(familyStyle.pointRadius ?? globalStyle.pointRadius ?? max(2.5, Double(lw) * 1.2))
 
-        if series.renderMode == .line || series.renderMode == .lineAndScatter {
+        if renderMode == .line || renderMode == .lineAndScatter {
             ctx.setStrokeColor(color)
             ctx.setLineWidth(lw)
-            if dashed {
-                let phase: CGFloat = 0
-                let lengths: [CGFloat] = [6, 3]
-                ctx.setLineDash(phase: phase, lengths: lengths)
-            } else {
-                ctx.setLineDash(phase: 0, lengths: [])
+            switch familyStyle.linePattern {
+            case .solid:  ctx.setLineDash(phase: 0, lengths: [])
+            case .dashed: ctx.setLineDash(phase: 0, lengths: [6, 3])
             }
             ctx.move(to: points[0])
             for p in points.dropFirst() { ctx.addLine(to: p) }
@@ -281,15 +259,26 @@ struct DualAxisChartRenderer {
             ctx.setLineDash(phase: 0, lengths: [])
         }
 
-        if series.renderMode == .scatter || series.renderMode == .lineAndScatter {
-            ctx.setFillColor(color)
-            let r: CGFloat = max(2.5, lw * 1.2)
+        if renderMode == .scatter || renderMode == .lineAndScatter {
             for p in points {
-                ctx.fillEllipse(in: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2))
+                drawMarker(ctx, center: p, radius: radius, color: color, style: familyStyle)
             }
         }
 
         ctx.restoreGState()
+    }
+
+    private func drawMarker(_ ctx: CGContext, center: CGPoint, radius: CGFloat, color: CGColor, style: DualAxisSeriesVisualStyle) {
+        ctx.setStrokeColor(color)
+        ctx.setFillColor(color)
+        ctx.setLineWidth(1.4)
+        let rect = CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)
+        switch (style.markerShape, style.markerFill) {
+        case (.circle, .filled): ctx.fillEllipse(in: rect)
+        case (.circle, .open):   ctx.strokeEllipse(in: rect)
+        case (.square, .filled): ctx.fill(rect)
+        case (.square, .open):   ctx.stroke(rect)
+        }
     }
 
     private func cgPoint(x: Double, y: Double, yMin: Double, yMax: Double, layout: DualAxisPlotLayout) -> CGPoint {
@@ -308,7 +297,7 @@ struct DualAxisChartRenderer {
 
     private func drawLegend(
         _ ctx: CGContext,
-        entries: [(series: DualAxisPlotSeries, color: CGColor, dashed: Bool)],
+        entries: [(series: DualAxisPlotSeries, color: CGColor, style: DualAxisSeriesVisualStyle)],
         layout: DualAxisPlotLayout,
         style: WorkbenchChartStyle
     ) {
@@ -346,19 +335,16 @@ struct DualAxisChartRenderer {
 
             ctx.setStrokeColor(entry.color)
             ctx.setLineWidth(2.0)
-            if entry.dashed {
-                ctx.setLineDash(phase: 0, lengths: [5, 2.5])
-            } else {
-                ctx.setLineDash(phase: 0, lengths: [])
+            switch entry.style.linePattern {
+            case .solid:  ctx.setLineDash(phase: 0, lengths: [])
+            case .dashed: ctx.setLineDash(phase: 0, lengths: [5, 2.5])
             }
             ctx.move(to: CGPoint(x: symStartX, y: midY))
             ctx.addLine(to: CGPoint(x: symStartX + symW, y: midY))
             ctx.strokePath()
             ctx.setLineDash(phase: 0, lengths: [])
 
-            ctx.setFillColor(entry.color)
-            let r: CGFloat = 3
-            ctx.fillEllipse(in: CGRect(x: symStartX + symW * 0.5 - r, y: midY - r, width: r * 2, height: r * 2))
+            drawMarker(ctx, center: CGPoint(x: symStartX + symW * 0.5, y: midY), radius: 3, color: entry.color, style: entry.style)
 
             let labelX = symStartX + symW + symGap
             drawLeftAligned(ctx, text: entry.series.label,
@@ -369,75 +355,68 @@ struct DualAxisChartRenderer {
 
     // MARK: - CoreText primitives
 
-    private func makeLine(
-        _ text: String, size: CGFloat, bold: Bool, color: CGColor, style: WorkbenchChartStyle
-    ) -> CTLine {
+    private func makeLine(_ text: String, size: CGFloat, bold: Bool, color: CGColor, style: WorkbenchChartStyle) -> CTLine {
         let fontName = bold ? style.boldFontName : style.fontName
         let font = CTFontCreateWithName(fontName as CFString, size, nil)
         let attrs: [CFString: Any] = [
-            kCTFontAttributeName:            font,
+            kCTFontAttributeName: font,
             kCTForegroundColorAttributeName: color,
         ]
         let attrStr = CFAttributedStringCreate(kCFAllocatorDefault, text as CFString, attrs as CFDictionary)!
         return CTLineCreateWithAttributedString(attrStr)
     }
 
-    private func drawCentered(_ ctx: CGContext, text: String, at center: CGPoint,
-                               size: CGFloat, bold: Bool, color: CGColor, style: WorkbenchChartStyle) {
-        let line   = makeLine(text, size: size, bold: bold, color: color, style: style)
+    private func drawCentered(_ ctx: CGContext, text: String, at center: CGPoint, size: CGFloat, bold: Bool, color: CGColor, style: WorkbenchChartStyle) {
+        let line = makeLine(text, size: size, bold: bold, color: color, style: style)
         let bounds = CTLineGetBoundsWithOptions(line, [])
-        ctx.textPosition = CGPoint(
-            x: center.x - bounds.width / 2 - bounds.minX,
-            y: center.y - bounds.height / 2 - bounds.minY
-        )
+        ctx.textPosition = CGPoint(x: center.x - bounds.width / 2 - bounds.minX, y: center.y - bounds.height / 2 - bounds.minY)
         CTLineDraw(line, ctx)
     }
 
-    private func drawLeftAligned(_ ctx: CGContext, text: String, leftEdge: CGPoint,
-                                  size: CGFloat, color: CGColor, style: WorkbenchChartStyle) {
-        let line   = makeLine(text, size: size, bold: false, color: color, style: style)
+    private func drawLeftAligned(_ ctx: CGContext, text: String, leftEdge: CGPoint, size: CGFloat, color: CGColor, style: WorkbenchChartStyle) {
+        let line = makeLine(text, size: size, bold: false, color: color, style: style)
         let bounds = CTLineGetBoundsWithOptions(line, [])
-        ctx.textPosition = CGPoint(
-            x: leftEdge.x - bounds.minX,
-            y: leftEdge.y - bounds.height / 2 - bounds.minY
-        )
+        ctx.textPosition = CGPoint(x: leftEdge.x - bounds.minX, y: leftEdge.y - bounds.height / 2 - bounds.minY)
         CTLineDraw(line, ctx)
     }
 
-    private func drawRightAligned(_ ctx: CGContext, text: String, rightEdge: CGPoint,
-                                   size: CGFloat, color: CGColor, style: WorkbenchChartStyle) {
-        let line   = makeLine(text, size: size, bold: false, color: color, style: style)
+    private func drawRightAligned(_ ctx: CGContext, text: String, rightEdge: CGPoint, size: CGFloat, color: CGColor, style: WorkbenchChartStyle) {
+        let line = makeLine(text, size: size, bold: false, color: color, style: style)
         let bounds = CTLineGetBoundsWithOptions(line, [])
-        ctx.textPosition = CGPoint(
-            x: rightEdge.x - bounds.width - bounds.minX,
-            y: rightEdge.y - bounds.height / 2 - bounds.minY
-        )
+        ctx.textPosition = CGPoint(x: rightEdge.x - bounds.width - bounds.minX, y: rightEdge.y - bounds.height / 2 - bounds.minY)
         CTLineDraw(line, ctx)
     }
 
-    private func drawRotated(_ ctx: CGContext, text: String, at center: CGPoint,
-                              clockwise: Bool, size: CGFloat, color: CGColor, style: WorkbenchChartStyle) {
-        let line   = makeLine(text, size: size, bold: false, color: color, style: style)
+    private func drawRotated(_ ctx: CGContext, text: String, at center: CGPoint, clockwise: Bool, size: CGFloat, color: CGColor, style: WorkbenchChartStyle) {
+        let line = makeLine(text, size: size, bold: false, color: color, style: style)
         let bounds = CTLineGetBoundsWithOptions(line, [])
         ctx.saveGState()
         ctx.translateBy(x: center.x, y: center.y)
         ctx.rotate(by: clockwise ? -.pi / 2 : .pi / 2)
-        ctx.textPosition = CGPoint(
-            x: -bounds.width / 2 - bounds.minX,
-            y: -bounds.height / 2 - bounds.minY
-        )
+        ctx.textPosition = CGPoint(x: -bounds.width / 2 - bounds.minX, y: -bounds.height / 2 - bounds.minY)
         CTLineDraw(line, ctx)
         ctx.restoreGState()
     }
 
-    // MARK: - Color palette
+    // MARK: - Colors
 
-    private static let palette: [CGColor] = [
-        CGColor(red: 0.18, green: 0.38, blue: 0.75, alpha: 1), // blue
-        CGColor(red: 0.76, green: 0.18, blue: 0.18, alpha: 1), // red
-        CGColor(red: 0.12, green: 0.58, blue: 0.22, alpha: 1), // green
-        CGColor(red: 0.80, green: 0.48, blue: 0.00, alpha: 1), // orange
-        CGColor(red: 0.48, green: 0.10, blue: 0.68, alpha: 1), // purple
-        CGColor(red: 0.10, green: 0.60, blue: 0.65, alpha: 1), // teal
-    ]
+    private func axisColor(for role: DualAxisColorRole, policy: DualAxisAxisColorPolicy, fallback: CGColor) -> CGColor {
+        switch policy {
+        case .templatePaired: return color(for: role)
+        case .monochrome:    return fallback
+        }
+    }
+
+    private func color(for role: DualAxisColorRole) -> CGColor {
+        switch role {
+        case .leftAxisBlue: return CGColor(red: 0.18, green: 0.38, blue: 0.75, alpha: 1)
+        case .rightAxisRed: return CGColor(red: 0.76, green: 0.18, blue: 0.18, alpha: 1)
+        case .black:        return CGColor(red: 0,    green: 0,    blue: 0,    alpha: 1)
+        case .gray:         return CGColor(red: 0.3,  green: 0.3,  blue: 0.3,  alpha: 1)
+        case .green:        return CGColor(red: 0.12, green: 0.58, blue: 0.22, alpha: 1)
+        case .orange:       return CGColor(red: 0.80, green: 0.48, blue: 0.00, alpha: 1)
+        case .purple:       return CGColor(red: 0.48, green: 0.10, blue: 0.68, alpha: 1)
+        case .teal:         return CGColor(red: 0.10, green: 0.60, blue: 0.65, alpha: 1)
+        }
+    }
 }
