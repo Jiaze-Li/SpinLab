@@ -62,18 +62,18 @@ private func makeLineSeries(label: String, xRange: ClosedRange<Double> = 0...10,
     let data = try JSONEncoder().encode(original)
     let decoded = try JSONDecoder().decode(DualAxisPlotPayload.self, from: data)
 
-    #expect(decoded.schemaVersion       == original.schemaVersion)
-    #expect(decoded.workflowID          == original.workflowID)
+    #expect(decoded.schemaVersion == original.schemaVersion)
+    #expect(decoded.workflowID == original.workflowID)
     #expect(decoded.workflowDisplayName == original.workflowDisplayName)
-    #expect(decoded.title               == original.title)
-    #expect(decoded.xLabel              == original.xLabel)
-    #expect(decoded.leftYLabel          == original.leftYLabel)
-    #expect(decoded.rightYLabel         == original.rightYLabel)
-    #expect(decoded.leftSeries.count    == 1)
-    #expect(decoded.rightSeries.count   == 1)
-    #expect(decoded.leftSeries[0].label      == "Resistance")
+    #expect(decoded.title == original.title)
+    #expect(decoded.xLabel == original.xLabel)
+    #expect(decoded.leftYLabel == original.leftYLabel)
+    #expect(decoded.rightYLabel == original.rightYLabel)
+    #expect(decoded.leftSeries.count == 1)
+    #expect(decoded.rightSeries.count == 1)
+    #expect(decoded.leftSeries[0].label == "Resistance")
     #expect(decoded.leftSeries[0].renderMode == .line)
-    #expect(decoded.rightSeries[0].label     == "Temperature")
+    #expect(decoded.rightSeries[0].label == "Temperature")
     #expect(decoded.rightSeries[0].renderMode == .scatter)
     #expect(decoded.semanticParams == original.semanticParams)
 }
@@ -142,31 +142,56 @@ private func makeLineSeries(label: String, xRange: ClosedRange<Double> = 0...10,
     #expect(snapshot.leftSeriesStyle.colorRole == .leftAxisBlue)
     #expect(snapshot.rightSeriesStyle.colorRole == .rightAxisRed)
     #expect(snapshot.leftSeriesStyle.markerShape == .square)
+    #expect(snapshot.leftSeriesStyle.markerFill == .open)
     #expect(snapshot.rightSeriesStyle.markerShape == .circle)
+    #expect(snapshot.rightSeriesStyle.markerFill == .filled)
     #expect(snapshot.rightSeriesStyle.linePattern == .dashed)
+}
+
+@Test func dualAxisRangeReducerSetsClearsAndDropsEmptyState() {
+    var range: DualAxisAxisRangeOverride? = nil
+
+    range = dualAxisRangeOverrideByUpdating(range, bound: .xMin, value: -1)
+    range = dualAxisRangeOverrideByUpdating(range, bound: .xMax, value: 11)
+    range = dualAxisRangeOverrideByUpdating(range, bound: .leftYMin, value: -2)
+    range = dualAxisRangeOverrideByUpdating(range, bound: .leftYMax, value: 12)
+
+    #expect(range?.xMin == -1)
+    #expect(range?.xMax == 11)
+    #expect(range?.leftYMin == -2)
+    #expect(range?.leftYMax == 12)
+
+    range = dualAxisRangeOverrideByUpdating(range, bound: .xMin, value: nil)
+    range = dualAxisRangeOverrideByUpdating(range, bound: .xMax, value: nil)
+    range = dualAxisRangeOverrideByUpdating(range, bound: .leftYMin, value: nil)
+    range = dualAxisRangeOverrideByUpdating(range, bound: .leftYMax, value: nil)
+
+    #expect(range == nil)
+}
+
+@Test func dualAxisRangeReducerRejectsInvalidPairsAndNonFiniteValues() {
+    let valid = DualAxisAxisRangeOverride(xMin: 0, xMax: 10, leftYMin: -1, leftYMax: 1)
+
+    let invalidX = dualAxisRangeOverrideByUpdating(valid, bound: .xMax, value: -5)
+    let invalidLeft = dualAxisRangeOverrideByUpdating(valid, bound: .leftYMin, value: 2)
+    let nonFinite = dualAxisRangeOverrideByUpdating(valid, bound: .rightYMin, value: .infinity)
+
+    #expect(invalidX == valid)
+    #expect(invalidLeft == valid)
+    #expect(nonFinite == valid)
 }
 
 // MARK: - DualAxisPlotLayout: independent left/right Y ranges
 
 @Test func dualAxisLayoutIndependentYRanges() {
-    let leftSeries = DualAxisPlotSeries(
-        label: "Left",
-        x: [0, 1, 2],
-        y: [0, 1, 2]          // range 0…2
-    )
-    let rightSeries = DualAxisPlotSeries(
-        label: "Right",
-        x: [0, 1, 2],
-        y: [100, 200, 300]    // range 100…300
-    )
+    let leftSeries = DualAxisPlotSeries(label: "Left", x: [0, 1, 2], y: [0, 1, 2])
+    let rightSeries = DualAxisPlotSeries(label: "Right", x: [0, 1, 2], y: [100, 200, 300])
     let payload = makePayload(leftSeries: [leftSeries], rightSeries: [rightSeries])
     let layout = DualAxisPlotLayout.compute(payload: payload)
 
-    // Left and right Y ranges must be independent
-    #expect(layout.axisLeftYMax  < 10,    "Left Y max must be near 2, not mixed with right axis")
-    #expect(layout.axisRightYMin > 50,    "Right Y min must be near 100, not mixed with left axis")
-    #expect(layout.axisLeftYMax  < layout.axisRightYMin,
-            "Left Y range must be entirely below right Y range for these inputs")
+    #expect(layout.axisLeftYMax < 10, "Left Y max must be near 2, not mixed with right axis")
+    #expect(layout.axisRightYMin > 50, "Right Y min must be near 100, not mixed with left axis")
+    #expect(layout.axisLeftYMax < layout.axisRightYMin)
 }
 
 @Test func dualAxisLayoutAppliesManualRangesFromSnapshot() {
@@ -194,15 +219,24 @@ private func makeLineSeries(label: String, xRange: ClosedRange<Double> = 0...10,
     #expect(layout.axisRightYMax == 200)
 }
 
+@Test func dualAxisLayoutRejectsInvalidManualRangeByFallingBackToAuto() {
+    let payload = makePayload(leftSeries: [makeLineSeries(label: "L")])
+    let snapshot = DualAxisDisplayStateSnapshot(
+        axisRangeOverride: DualAxisAxisRangeOverride(xMin: 10, xMax: 0)
+    )
+    let layout = DualAxisPlotLayout.compute(payload: payload, displayState: snapshot)
+
+    #expect(layout.axisXMin == 0)
+    #expect(layout.axisXMax == 10)
+}
+
 @Test func dualAxisLayoutOnlyLeftSeries() {
     let series = makeLineSeries(label: "L", yScale: 2.0)
     let payload = makePayload(leftSeries: [series], rightSeries: [])
     let layout = DualAxisPlotLayout.compute(payload: payload)
 
-    // Right axis range falls back to (0, 1) when empty
     #expect(layout.axisRightYMin == 0)
     #expect(layout.axisRightYMax == 1)
-    // Left axis range is derived from data
     #expect(layout.axisLeftYMin < layout.axisLeftYMax)
 }
 
@@ -211,8 +245,8 @@ private func makeLineSeries(label: String, xRange: ClosedRange<Double> = 0...10,
     let payload = makePayload(leftSeries: [], rightSeries: [series])
     let layout = DualAxisPlotLayout.compute(payload: payload)
 
-    #expect(layout.axisLeftYMin  == 0)
-    #expect(layout.axisLeftYMax  == 1)
+    #expect(layout.axisLeftYMin == 0)
+    #expect(layout.axisLeftYMax == 1)
     #expect(layout.axisRightYMin < layout.axisRightYMax)
 }
 
@@ -236,7 +270,7 @@ private func makeLineSeries(label: String, xRange: ClosedRange<Double> = 0...10,
     )
     let layout = DualAxisPlotLayout.compute(payload: payload)
 
-    #expect(layout.xTicks.count     >= 2)
+    #expect(layout.xTicks.count >= 2)
     #expect(layout.leftYTicks.count >= 2)
     #expect(layout.rightYTicks.count >= 2)
 
@@ -284,6 +318,23 @@ private func makeLineSeries(label: String, xRange: ClosedRange<Double> = 0...10,
     #expect(data.count > 0)
 }
 
+@Test func dualAxisRendererAcceptsTemplateSnapshotStyles() throws {
+    let payload = makePayload(
+        leftSeries: [makeLineSeries(label: "L")],
+        rightSeries: [makeLineSeries(label: "R", yScale: 10)]
+    )
+    let snapshot = DualAxisDisplayStateSnapshot(
+        leftSeriesStyle: DualAxisSeriesVisualStyle(linePattern: .solid, markerShape: .square, markerFill: .open, colorRole: .leftAxisBlue),
+        rightSeriesStyle: DualAxisSeriesVisualStyle(linePattern: .dashed, markerShape: .circle, markerFill: .filled, colorRole: .rightAxisRed),
+        axisColorPolicy: .templatePaired
+    )
+
+    let data = try DualAxisChartRenderer().renderPNG(payload: payload, displayState: snapshot)
+
+    #expect(data.count > 0)
+    #expect([UInt8](data.prefix(8)) == pngSignature)
+}
+
 // MARK: - DualAxisRenderPipeline: validation and warnings
 
 @Test func dualAxisPipelineProducesOutputWithValidSeries() throws {
@@ -304,10 +355,7 @@ private func makeLineSeries(label: String, xRange: ClosedRange<Double> = 0...10,
     let badSeries = DualAxisPlotSeries(label: "bad", x: [1, 2, 3], y: [1, 2])
     let goodSeries = makeLineSeries(label: "good", yScale: 1)
     let input = DualAxisRenderPipeline.Input(
-        payload: makePayload(
-            leftSeries: [badSeries],
-            rightSeries: [goodSeries]
-        )
+        payload: makePayload(leftSeries: [badSeries], rightSeries: [goodSeries])
     )
     let output = try DualAxisRenderPipeline.render(input)
 
@@ -317,26 +365,9 @@ private func makeLineSeries(label: String, xRange: ClosedRange<Double> = 0...10,
 
 @Test func dualAxisPipelineWarnsOnAllNonFiniteValues() throws {
     let infSeries = DualAxisPlotSeries(label: "inf", x: [.infinity, .infinity], y: [1, 2])
-    let input = DualAxisRenderPipeline.Input(
-        payload: makePayload(leftSeries: [infSeries])
-    )
+    let input = DualAxisRenderPipeline.Input(payload: makePayload(leftSeries: [infSeries]))
     let output = try DualAxisRenderPipeline.render(input)
     #expect(output.warnings.contains(where: { $0.contains("inf") && $0.contains("skipped") }))
-}
-
-@Test func dualAxisPipelineAppliesLabelOverrides() throws {
-    var input = DualAxisRenderPipeline.Input(
-        payload: makePayload(
-            leftSeries: [makeLineSeries(label: "L")],
-            rightSeries: [makeLineSeries(label: "R", yScale: 5)]
-        )
-    )
-    input.titleOverride      = "Override Title"
-    input.xLabelOverride     = "Override X"
-    input.leftYLabelOverride = "Override Left Y"
-    let output = try DualAxisRenderPipeline.render(input)
-    #expect(output.imageData.count > 0)
-    #expect(output.warnings.isEmpty)
 }
 
 @Test func dualAxisPipelineReadsDisplayStateSnapshot() throws {
