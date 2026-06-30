@@ -52,7 +52,6 @@ extension ThreeOmegaWorkspaceStore {
             titleTokens: _titleTokens
         )
         let capturedScalingSnapshot = tabs.displayStateSnapshot(for: .scaling)
-        let capturedTemperatureSnapshot = tabs.displayStateSnapshot(for: .temperatureDependence)
         let capturedRanges = fitRanges
         let capturedV3Method = v3Method
 
@@ -86,21 +85,10 @@ extension ThreeOmegaWorkspaceStore {
                 revision: revision,
                 policy: .preserveDisplayOverrides
             )
-            let temperatureRenderResult = await self.renderThreeOmegaTab(
-                .temperatureDependence,
-                ingestion: capturedResult,
-                scalingResult: scalingRes,
-                fieldSweepSeriesOrder: nil,
-                globalSettings: capturedGlobalSettings,
-                tabSnapshot: capturedTemperatureSnapshot,
-                revision: revision,
-                policy: .preserveDisplayOverrides
-            )
             guard !Task.isCancelled, self._renderRevision == revision else { return }
 
             self.scalingResult = scalingRes
             self._refreshManifestPayloads()
-            self.rerenderTemperatureDependenceForDualAxisControlChange()
 
             if scalingRes.points.count >= 2 {
                 if scalingRenderResult.imageData != nil {
@@ -114,10 +102,15 @@ extension ThreeOmegaWorkspaceStore {
 
             self.isRefreshingTransportDerivedPlots = false
 
-            for warning in scalingRenderResult.warnings + temperatureRenderResult.warnings + scalingRes.warnings {
+            for warning in scalingRenderResult.warnings + scalingRes.warnings {
                 self.appendWarning(source: "Scaling", message: warning)
                 print("[SpinLab][3ω Scaling] \(warning)")
             }
+
+            // Temperature Dependence is a separate DualAxis render path. Keep it out of the
+            // Cartesian XY scaling render and re-render it from the committed scaling result plus
+            // the DualAxis display-state snapshot.
+            self.rerenderTemperatureDependenceForDualAxisControlChange()
         }
     }
 
