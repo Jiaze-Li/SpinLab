@@ -9,6 +9,9 @@ enum DualAxisRenderPipeline {
         var payload: DualAxisPlotPayload
         var options: DualAxisPlotLayout.Options = .init()
         var style: WorkbenchChartStyle = .init()
+        /// Captured display state. The renderer must not read live control/store state.
+        var displayState: DualAxisDisplayStateSnapshot = .default
+        /// Compatibility overrides while existing callers migrate to displayState.
         var titleOverride: String = ""
         var xLabelOverride: String = ""
         var leftYLabelOverride: String = ""
@@ -22,13 +25,14 @@ enum DualAxisRenderPipeline {
     }
 
     static func render(_ input: Input) throws -> Output {
-        var payload = input.payload
-        var warnings: [String] = []
+        var displayState = input.displayState
+        if !input.titleOverride.isEmpty       { displayState.titleOverride = input.titleOverride }
+        if !input.xLabelOverride.isEmpty      { displayState.xLabelOverride = input.xLabelOverride }
+        if !input.leftYLabelOverride.isEmpty  { displayState.leftYLabelOverride = input.leftYLabelOverride }
+        if !input.rightYLabelOverride.isEmpty { displayState.rightYLabelOverride = input.rightYLabelOverride }
 
-        if !input.titleOverride.isEmpty       { payload.title       = input.titleOverride }
-        if !input.xLabelOverride.isEmpty      { payload.xLabel      = input.xLabelOverride }
-        if !input.leftYLabelOverride.isEmpty  { payload.leftYLabel  = input.leftYLabelOverride }
-        if !input.rightYLabelOverride.isEmpty { payload.rightYLabel = input.rightYLabelOverride }
+        let payload = displayState.applying(to: input.payload)
+        var warnings: [String] = []
 
         // Validate: require at least one non-empty series
         let allEmpty = (payload.leftSeries + payload.rightSeries).allSatisfy(\.x.isEmpty)
@@ -78,7 +82,8 @@ enum DualAxisRenderPipeline {
             validLeftSeries: validLeft,
             validRightSeries: validRight,
             options: input.options,
-            style: input.style
+            style: input.style,
+            displayState: displayState
         )
 
         let imageData = try DualAxisChartRenderer().renderPNG(
@@ -87,7 +92,8 @@ enum DualAxisRenderPipeline {
             validRightSeries: validRight,
             layout: layout,
             options: input.options,
-            style: input.style
+            style: input.style,
+            displayState: displayState
         )
 
         return Output(imageData: imageData, layout: layout, warnings: warnings)
