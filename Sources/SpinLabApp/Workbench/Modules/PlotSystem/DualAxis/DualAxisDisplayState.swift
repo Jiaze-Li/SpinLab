@@ -184,6 +184,19 @@ struct DualAxisDisplayState: Codable, Hashable, Sendable {
         self.axisColorPolicy = axisColorPolicy
     }
 
+    init(_ snapshot: DualAxisDisplayStateSnapshot) {
+        self.init(
+            titleOverride: snapshot.titleOverride,
+            xLabelOverride: snapshot.xLabelOverride,
+            leftYLabelOverride: snapshot.leftYLabelOverride,
+            rightYLabelOverride: snapshot.rightYLabelOverride,
+            axisRangeOverride: snapshot.axisRangeOverride,
+            leftSeriesStyle: snapshot.leftSeriesStyle,
+            rightSeriesStyle: snapshot.rightSeriesStyle,
+            axisColorPolicy: snapshot.axisColorPolicy
+        )
+    }
+
     func snapshot() -> DualAxisDisplayStateSnapshot {
         DualAxisDisplayStateSnapshot(
             titleOverride: titleOverride,

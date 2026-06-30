@@ -62,6 +62,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
             seriesRenderMode: tabs.seriesRenderMode,
             tabStates: tabs.snapshotStates(keyFor: { $0.stableKey }),
             chartStyleOverrides: splitOverrides.local,
+            temperatureDependenceDisplayState: temperatureDependenceDisplayState.snapshot(),
             cachedSearchResults: cachedSearchResults,
             selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: workflowID) ?? []),
             selectedRTHit: selectedRTHit,
@@ -129,6 +130,8 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
         tabs.showPlotGrid = config.showPlotGrid
         tabs.legendAnchor = config.plotLegendAnchor
         tabs.seriesRenderMode = config.seriesRenderMode
+        temperatureDependenceDisplayState = config.temperatureDependenceDisplayState
+            .map(DualAxisDisplayState.init) ?? DualAxisDisplayState()
 
         // Restore per-tab states
         tabs.restoreStates(config.tabStates) { key in

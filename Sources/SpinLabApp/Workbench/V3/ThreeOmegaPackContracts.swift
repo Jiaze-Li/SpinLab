@@ -28,6 +28,8 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
     var tabStates: [String: TabRenderState] = [:]
     // --- Shared chart style overrides (v5.3.5+, e.g. font sizes) ---
     var chartStyleOverrides: [String: String] = [:]
+    // --- Temperature Dependence DualAxis display state (v5.5.5+) ---
+    var temperatureDependenceDisplayState: DualAxisDisplayStateSnapshot?
 
     // --- Search state (v5.3.4+) ---
     var cachedSearchResults: [WorkflowMeasurementSearchHit]
@@ -43,6 +45,7 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
          plotLegendAnchor: String, seriesRenderMode: SeriesRenderMode = .line,
          tabStates: [String: TabRenderState] = [:],
          chartStyleOverrides: [String: String] = [:],
+         temperatureDependenceDisplayState: DualAxisDisplayStateSnapshot? = nil,
          cachedSearchResults: [WorkflowMeasurementSearchHit] = [], selectedSearchResultIDs: [String] = [],
          selectedRTHit: WorkflowMeasurementSearchHit? = nil, rtQuery: String = "", searchQueryText: String = "") {
         self.device = device; self.geometry = geometry; self.fitRanges = fitRanges
@@ -53,6 +56,7 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
         self.showPlotGrid = showPlotGrid; self.plotLegendAnchor = plotLegendAnchor
         self.seriesRenderMode = seriesRenderMode
         self.tabStates = tabStates; self.chartStyleOverrides = chartStyleOverrides
+        self.temperatureDependenceDisplayState = temperatureDependenceDisplayState
         self.cachedSearchResults = cachedSearchResults
         self.selectedSearchResultIDs = selectedSearchResultIDs; self.selectedRTHit = selectedRTHit
         self.rtQuery = rtQuery; self.searchQueryText = searchQueryText
@@ -78,6 +82,7 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
         seriesRenderMode        = try c.decodeIfPresent(SeriesRenderMode.self, forKey: .seriesRenderMode) ?? .line
         tabStates               = try c.decodeIfPresent([String: TabRenderState].self, forKey: .tabStates) ?? [:]
         chartStyleOverrides     = try c.decodeIfPresent([String: String].self, forKey: .chartStyleOverrides) ?? [:]
+        temperatureDependenceDisplayState = try c.decodeIfPresent(DualAxisDisplayStateSnapshot.self, forKey: .temperatureDependenceDisplayState)
         cachedSearchResults     = try c.decodeIfPresent([WorkflowMeasurementSearchHit].self, forKey: .cachedSearchResults) ?? []
         selectedSearchResultIDs = try c.decodeIfPresent([String].self, forKey: .selectedSearchResultIDs) ?? []
         selectedRTHit           = try c.decodeIfPresent(WorkflowMeasurementSearchHit.self, forKey: .selectedRTHit)
