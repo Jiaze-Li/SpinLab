@@ -30,6 +30,7 @@ Active per-module contracts that supplement `MODULE_BOUNDARIES.md`.
 |---|---|---|
 | `modules/MEASUREMENT_SEARCH.md` | Search module details | Sidecar field consumption, condition projection, workflow ID aliases, search result semantics |
 | `modules/PLOT_SYSTEM.md` | Plot system details | Workflow-independent plot shell, style params, legend, copy PNG, point label, curve reorder contract; Cartesian XY, Heatmap, and DualAxis render paths |
+| `modules/PLOT_CONTROLS_SPLIT_PLAN.md` | Plot controls ownership contract | Common vs Cartesian XY vs DualAxis vs Heatmap vs workflow-owned controls; read this before adding or moving plot controls |
 | `modules/PACK_RESTORE.md` | Pack / restore details | AnalysisPack / AnalysisVault, workspace vs Library save, restore as cross-module op, per-workflow pack contracts |
 
 ### Current References
@@ -62,6 +63,7 @@ Completed gate audits and closeout records. Do not update these; they are read-o
 
 | File | Role | Scope |
 |---|---|---|
+| `history/gate8/GATE8_4_CLOSEOUT.md` | Gate 8.4 closeout | PlotSystem physical layout alignment, controls split outcome, and deferred workflow physical migration |
 | `history/gate7/GATE7_WORKBENCH_ARCHITECTURE_CLOSEOUT.md` | Gate 7.9 closeout | Final module map, Gates 7.1–7.8 outcomes, accepted bridges, deferred cleanup, non-candidates, and closeout rule |
 | `history/gate7/GATE7_MAIN_SEARCH_HANDOFF.md` | Gate 7 preflight audit | Main Search extraction readiness, bridge inventory, and forbidden changes |
 | `history/gate7/GATE7_PACK_RESTORE_AUDIT.md` | Gate 7.6 pack/restore audit | Schema, restore ownership, RT path, overlay, save interaction, test gaps |
@@ -93,8 +95,9 @@ Covers current contracts and references only. For historical audit records, see 
 9. [PHYSICAL_MODULE_LAYOUT.md](PHYSICAL_MODULE_LAYOUT.md) - target physical layout and move-only migration gates
 10. [modules/MEASUREMENT_SEARCH.md](modules/MEASUREMENT_SEARCH.md) - search semantics and condition projection
 11. [modules/PLOT_SYSTEM.md](modules/PLOT_SYSTEM.md) - plot capabilities and shared plot shell details
-12. [modules/PACK_RESTORE.md](modules/PACK_RESTORE.md) - pack / restore lifecycle and write boundaries
-13. [STATE_OWNERSHIP.md](STATE_OWNERSHIP.md) - state ownership contract for plot defaults, tabs, packs, sidecars, and measurement sets
+12. [modules/PLOT_CONTROLS_SPLIT_PLAN.md](modules/PLOT_CONTROLS_SPLIT_PLAN.md) - plot controls ownership split before adding/moving controls
+13. [modules/PACK_RESTORE.md](modules/PACK_RESTORE.md) - pack / restore lifecycle and write boundaries
+14. [STATE_OWNERSHIP.md](STATE_OWNERSHIP.md) - state ownership contract for plot defaults, tabs, packs, sidecars, and measurement sets
 
 ## Dispatch Rules
 
@@ -102,6 +105,7 @@ Covers current contracts and references only. For historical audit records, see 
 - If reviewing the Gate 6 readiness closeout history, see `history/gate6/READINESS_CONSUMPTION_AUDIT.md` (historical audit record).
 - If changing workflow assembly or registration, read [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md). Specific workflow assembly records live at `workflows/*/ASSEMBLY.md`.
 - If changing module ownership, read [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md).
+- If adding or moving plot controls, read [modules/PLOT_CONTROLS_SPLIT_PLAN.md](modules/PLOT_CONTROLS_SPLIT_PLAN.md) before editing Swift.
 - If looking for who owns a capability or task, start with [MODULE_CAPABILITY_MAP.md](MODULE_CAPABILITY_MAP.md), then read the owning module/workflow docs it references.
 - If changing physical Swift file layout, start with [PHYSICAL_MODULE_LAYOUT.md](PHYSICAL_MODULE_LAYOUT.md) and [MODULE_CAPABILITY_MAP.md](MODULE_CAPABILITY_MAP.md), and keep the commit move-only unless a separate architecture gate authorizes behavior changes.
 - If adding a workflow, start with [ADDING_WORKFLOW.md](ADDING_WORKFLOW.md), then [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) and [WORKFLOW_EXTENSION.md](WORKFLOW_EXTENSION.md).
@@ -156,9 +160,3 @@ This directory describes Workbench-internal behavior only. Cross-domain contract
 - `docs/architecture/inbox/OUTPUT_CONTRACTS.md` - sidecar schema canonical source of truth
 - `docs/architecture/library/SIDECAR_AND_CONDITIONS.md` - sidecar display in Library view
 - `docs/architecture/library/ARTIFACTS_AND_PREVIEWS.md` - Library view of chart/metric artifacts and preview
-- `docs/architecture/workbench/SHELL_BLOCKS.md` - overview of the Workflow / Workflow Assembly / Main Board / Modules model
-- `docs/architecture/workbench/MAIN_BOARD_LAYOUT.md` - implementation-level injection points only
-- `docs/architecture/workbench/WORKBENCH_ROADMAP.md` - phase progress for Workbench shell migration
-- `docs/architecture/workbench/history/gate4/LAYOUT_AUDIT.md` - historical: Gate 4 layout audit and Gate 5 preparation
-- [Plot Controls Split Plan](modules/PLOT_CONTROLS_SPLIT_PLAN.md) — defines common vs Cartesian XY vs workflow-owned plot controls before further physical moves.
-- [Gate 8.4 Closeout — PlotSystem Physical Layout Alignment](GATE8_4_CLOSEOUT.md)
