@@ -10,19 +10,17 @@ Workbench's stable architecture model is:
 Workflow -> Workflow Assembly -> Main Board -> Modules
 ```
 
-The current documentation already defines this logical model, but the Swift file layout still reflects earlier implementation phases: files are spread across `Features/Workbench`, `App/State`, `UseCases`, `Domain`, and `Workbench/V3`. That layout makes capability discovery harder; for example, a developer searching for legend auto-resolution has to know that `LegendDimensionResolver` exists before they can find it.
-
-This document defines the target physical layout and the migration plan for making file paths communicate ownership:
+This document defines the target physical layout for making file paths communicate ownership:
 
 - **Main Board**: orchestration, shell mounting, workflow dispatch, and module wiring.
 - **Modules**: reusable Workbench capabilities and canonical module state.
 - **Workflows**: experiment-specific physics, ingestion, plotting semantics, pack/save semantics, and workflow-owned controls.
 
+For capability-first routing, use `MODULE_CAPABILITY_MAP.md`. For ownership authority, use `MODULE_BOUNDARIES.md`.
+
 ## Non-Goals
 
-This gate is a physical-layout normalization gate, not a behavior gate.
-
-Do not use physical layout work to:
+Physical layout work must not be used to:
 
 - change workflow behavior;
 - fix RT metadata, legend, or series-order bugs;
@@ -31,7 +29,7 @@ Do not use physical layout work to:
 - change pack schemas except when a later explicit migration gate authorizes it;
 - alter Library, Inbox, or sidecar ownership.
 
-Each implementation commit in this gate should be either documentation-only or move-only plus required import/path/doc updates.
+Each physical-layout commit should be either documentation-only or move-only plus required import/path/doc updates.
 
 ## Classification Rules
 
@@ -75,7 +73,7 @@ Workflow-owned files define:
 - workflow-specific pack/save metadata;
 - workflow-specific optional panels and controls.
 
-Workflow renderers are responsible for converting analysis results into module payloads. For Cartesian XY workflows this includes `WorkbenchPlotPayload` and `WorkbenchPlotSeries` semantic identity such as `sourceRef`, `sampleID`, and `metadata`.
+Workflow renderers convert analysis results into module payloads. For Cartesian XY workflows this includes `WorkbenchPlotPayload` and `WorkbenchPlotSeries` semantic identity such as `sourceRef`, `sampleID`, and `metadata`.
 
 ## Target Physical Layout
 
@@ -111,6 +109,7 @@ Sources/SpinLabApp/
       PlotSystem/
         Contracts/
           WorkbenchResultContracts.swift
+          WorkbenchPlottingStore.swift
 
         Pipeline/
           WorkbenchRenderPipeline.swift
@@ -131,13 +130,17 @@ Sources/SpinLabApp/
           PlotCanvasMouseTracker.swift
 
         Controls/
-          WorkbenchPlotControlsPanel.swift
-          WorkbenchStandardPlotControls.swift
-          WorkbenchAxisRangeControls.swift
-          WorkbenchSeriesAppearanceControls.swift
-          SharedPlotTextControls.swift
-          SharedPlotFontSizeControls.swift
-          SharedPlotTickCountControls.swift
+          Common/
+            SharedPlotTextControls.swift
+            SharedPlotFontSizeControls.swift
+            SharedPlotTickCountControls.swift
+            SharedPlotLabelOverrideField.swift
+          CartesianXY/
+            WorkbenchPlotControlsPanel.swift
+            WorkbenchStandardPlotControls.swift
+            WorkbenchAxisRangeControls.swift
+            WorkbenchSeriesAppearanceControls.swift
+            WorkbenchTitleTemplateField.swift
 
         Heatmap/
           HeatmapPlotPayload.swift
@@ -146,12 +149,15 @@ Sources/SpinLabApp/
           HeatmapPlotLayout.swift
           HeatmapTabRenderState.swift
           HeatmapColorScale.swift
+          HeatmapColorScaleControls.swift
+          HeatmapZLabelControl.swift
 
         DualAxis/
-          DualAxisPlotPayload.swift        (future)
-          DualAxisPlotLayout.swift         (future)
-          DualAxisChartRenderer.swift      (future)
-          DualAxisRenderPipeline.swift     (future)
+          DualAxisPlotPayload.swift
+          DualAxisPlotLayout.swift
+          DualAxisChartRenderer.swift
+          DualAxisRenderPipeline.swift
+          // Display-state and control targets are documented in modules/DUAL_AXIS_CONTROL_CONTRACT.md
 
       PackRestore/
         AnalysisPackProviding.swift
@@ -212,64 +218,36 @@ Sources/SpinLabApp/
 
 The layout above is a target map, not a statement that every listed file already exists or has the exact listed name today. The move gate must verify each file before moving it.
 
+## Current Status
+
+Completed:
+
+- Gate 8.4 aligned the PlotSystem physical module layout and controls split. Historical closeout: `history/gate8/GATE8_4_CLOSEOUT.md`.
+- `MODULE_CAPABILITY_MAP.md` now provides capability-first routing.
+- Plot Controls ownership split is documented in `modules/PLOT_CONTROLS_SPLIT_PLAN.md`.
+- DualAxis controls/display-state target is documented in `modules/DUAL_AXIS_CONTROL_CONTRACT.md`.
+
+Still future:
+
+- Search / Selection move-only pass.
+- Pack / Save / WarningTrace move-only pass.
+- Workflow grouping pass.
+- `WorkbenchFeatureStore` facade slimming audit after layout stabilizes.
+
 ## Current Audit Findings
 
-1. The logical model is already documented. `INDEX.md` states the stable model as Workflow -> Workflow Assembly -> Main Board -> Modules, but the current physical paths do not consistently expose that model.
-2. The current docs provide entry points by document type and module contract, but they do not yet provide a capability-first reverse lookup.
-3. Plot System is the strongest candidate for the first physical cleanup because its current capability set is mature and widely reused: render pipeline, legend auto-resolution, plot controls, plot preservation, canvas, heatmap, point labels, and series order.
-4. Some files currently named as generic `UseCases` are actually module internals or workflow internals. Example classifications:
+1. The logical model is already documented: Workflow -> Workflow Assembly -> Main Board -> Modules.
+2. PlotSystem is the most mature physically aligned module group; future changes should keep render-path-specific details in specialized docs rather than expanding `modules/PLOT_SYSTEM.md` indefinitely.
+3. Some files currently named as generic `UseCases` are actually module internals or workflow internals. Example classifications:
    - `LegendDimensionResolver` belongs to `Modules/PlotSystem/Legend`.
    - `SearchWorkflowMeasurementsUseCase` belongs to `Modules/Search`.
    - `IVPlotRenderer` belongs to `Workflows/IV`.
    - `SaveActiveChartToLibraryUseCase` belongs to `Modules/Save` as a Workbench-to-Library bridge.
-5. `WorkbenchFeatureStore` is intentionally mixed today. Treat it as a Main Board facade during physical layout normalization. Do not split it in this gate.
+4. `WorkbenchFeatureStore` is intentionally mixed today. Treat it as a Main Board facade during physical layout normalization. Do not split it without a later explicit gate.
 
-## Migration Plan
+## Remaining Move Gates
 
-### Gate P0 — Documentation and Audit Map
-
-Scope:
-
-- Add this physical layout contract.
-- Add a capability-first map (`MODULE_CAPABILITY_MAP.md`) in a follow-up commit.
-- Update `INDEX.md` so physical layout and capability map are discoverable.
-- Do not move Swift files.
-
-Acceptance:
-
-- Docs identify Main Board / Modules / Workflows as the target physical structure.
-- Docs include explicit non-goals and move-only rule.
-- No Swift, build, runtime, or pack schema changes.
-
-### Gate P1 — Plot System Move-Only Pass
-
-Scope:
-
-- Move Plot System files into `Workbench/Modules/PlotSystem/...`.
-- Start with high-discovery files:
-  - `LegendDimensionResolver.swift`
-  - `WorkbenchRenderPipeline.swift`
-  - `WorkbenchResultContracts.swift`
-  - `WorkbenchSeriesOrderKeyResolver.swift`
-  - `WorkbenchSeriesOrderPanel.swift`
-  - `TabRenderManager.swift`
-  - `WorkbenchPlotCanvas.swift`
-  - common plot control files.
-- Update code maps in `modules/PLOT_SYSTEM.md`, `MODULE_BOUNDARIES.md`, and `INDEX.md`.
-
-Rules:
-
-- Move-only plus necessary import/path/project membership updates.
-- No renderer behavior changes.
-- No RT metadata or legend bug fixes in the same commit.
-
-Validation:
-
-- Desktop build succeeds.
-- Plot System tests still pass.
-- Existing workflow render tests still pass.
-
-### Gate P2 — Search / Selection Move-Only Pass
+### Search / Selection Move-Only Pass
 
 Scope:
 
@@ -281,7 +259,7 @@ Rules:
 - Do not change search semantics, selected-hit snapshots, or select-all denominators.
 - Do not remove compatibility mirrors in this gate.
 
-### Gate P3 — Pack / Save / WarningTrace Move-Only Pass
+### Pack / Save / WarningTrace Move-Only Pass
 
 Scope:
 
@@ -293,7 +271,7 @@ Rules:
 - No pack schema migration.
 - No artifact path behavior changes.
 
-### Gate P4 — Workflow Grouping Pass
+### Workflow Grouping Pass
 
 Scope:
 
@@ -305,7 +283,7 @@ Rules:
 - No workflow behavior changes.
 - Update workflow assembly docs and code maps as files move.
 
-### Gate P5 — Facade Slimming Candidate Audit
+### Facade Slimming Candidate Audit
 
 Scope:
 
@@ -319,18 +297,8 @@ Rules:
 
 For every physical-layout commit:
 
-- Did the commit move files without changing behavior?
-- Are all updated imports, project membership entries, and references required by the move only?
-- Did docs Code Maps update to the new paths?
-- Did the commit avoid opportunistic bug fixes?
-- Did the final report state rebuild/test status?
-
-## Stop Conditions
-
-Stop the layout migration and open a separate architecture gate if a file move reveals:
-
-- circular dependencies that require behavior changes;
-- pack schema changes;
-- Library/Workbench ownership ambiguity;
-- a need to change module state ownership;
-- a need to change `WorkbenchFeatureStore` responsibilities beyond file placement.
+1. State the capability row from `MODULE_CAPABILITY_MAP.md`.
+2. State the owner and target physical home.
+3. Confirm behavior change is none.
+4. Update code maps and dispatch docs if the moved file is a first-read file.
+5. Run the relevant structural/source-inspection tests plus the smallest runtime/build check available.

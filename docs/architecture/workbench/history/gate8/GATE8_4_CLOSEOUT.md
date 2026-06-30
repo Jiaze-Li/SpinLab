@@ -121,14 +121,7 @@ Gate 8.4 closeout was validated with:
 - `swift build`
 - `swift test --filter V78EPlotSystemStructuralBoundaryTests`
 - `swift test --filter V710PlotControlsMigrationTests`
-- targeted RSM V78C source tests:
-  - `rsmDefinesHeatmapPanel`
-  - `rsmColorScaleLabelIsPrimary`
-  - `rsmViewSelectorRemainsSpecific`
+- `swift test --filter rsmDefinesHeatmapPanel`
+- `swift test --filter rsmColorScaleLabelIsPrimary`
+- `swift test --filter rsmViewSelectorRemainsSpecific`
 - architecture coverage pre-commit check
-
-## Closeout Judgment
-
-Gate 8.4 is complete for PlotSystem physical layout alignment.
-
-The PlotSystem module architecture and physical folders are now substantially aligned. Remaining workflow store/view physical migration is known, documented, and intentionally deferred.
